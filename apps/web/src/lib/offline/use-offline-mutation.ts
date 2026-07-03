@@ -1,6 +1,6 @@
 import { useMutation, UseMutationOptions, useQueryClient } from '@tanstack/react-query';
 import { syncQueue } from './sync-queue';
-import { useAuth } from '@/lib/auth/auth-context';
+import { useOptionalAuth } from '@/lib/auth/auth-context';
 import { toast } from 'sonner';
 
 interface OfflineMutationOptions<TData, TError, TVariables, TContext>
@@ -26,7 +26,7 @@ export function useOfflineMutation<TData = unknown, TError = Error, TVariables =
   }
 
   const queryClient = useQueryClient();
-  const auth = useAuth();
+  const auth = useOptionalAuth();
 
   return useMutation<TData, TError, TVariables, TContext>({
     mutationFn: async (variables: TVariables) => {

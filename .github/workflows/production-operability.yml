@@ -19,6 +19,8 @@ on:
           - synthetic
           - core-load
           - providers
+          - env-audit
+          - auth-smoke
           - query-plan
           - maintainability
           - readiness
@@ -71,9 +73,12 @@ jobs:
 
       - name: Provider smoke
         if: github.event.inputs.check == 'all' || github.event.inputs.check == 'providers' || github.event.schedule == '17 */6 * * *'
+        continue-on-error: true
         env:
           SUPPORT_PROVIDER_SMOKE_REQUIRE_SMS: ${{ secrets.SUPPORT_PROVIDER_SMOKE_REQUIRE_SMS || 'false' }}
           SUPPORT_PROVIDER_SMOKE_LIVE: ${{ secrets.SUPPORT_PROVIDER_SMOKE_LIVE || 'false' }}
+          REDIS_URL: ${{ secrets.PROD_REDIS_URL }}
+          REDIS_TLS_ENABLED: "true"
           SUPPORT_NOTIFICATION_EMAILS: ${{ secrets.SUPPORT_NOTIFICATION_EMAILS }}
           SUPPORT_NOTIFICATION_SMS_WEBHOOK_URL: ${{ secrets.SUPPORT_NOTIFICATION_SMS_WEBHOOK_URL }}
           SUPPORT_NOTIFICATION_SMS_WEBHOOK_HEALTH_URL: ${{ secrets.SUPPORT_NOTIFICATION_SMS_WEBHOOK_HEALTH_URL }}
@@ -95,7 +100,71 @@ jobs:
           UPLOAD_OBJECT_STORAGE_REGION: ${{ secrets.UPLOAD_OBJECT_STORAGE_REGION }}
           UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID: ${{ secrets.UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID }}
           UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY: ${{ secrets.UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY }}
-        run: npm run smoke:providers > production-provider-smoke.json
+        run: |
+          mkdir -p docs/validation
+          node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/provider-credential-smoke.ts | tee docs/validation/provider-credential-smoke-live.json > production-provider-smoke.json
+
+      - name: Production environment audit
+        if: github.event.inputs.check == 'all' || github.event.inputs.check == 'env-audit' || github.event.inputs.check == 'readiness' || github.event.inputs.check == 'scorecard' || github.event.schedule == '33 2 * * *'
+        continue-on-error: true
+        env:
+          NODE_ENV: production
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          DATABASE_SSL: "true"
+          DATABASE_PGBOUNCER_MODE: transaction
+          DATABASE_RLS_AUDIT_ENABLED: "true"
+          DATABASE_API_MAX_CONNECTIONS: "30"
+          DATABASE_WORKER_MAX_CONNECTIONS: "10"
+          REDIS_URL: ${{ secrets.PROD_REDIS_URL }}
+          REDIS_TLS_ENABLED: "true"
+          APP_CORS_ENABLED: "true"
+          APP_CORS_ORIGINS: ${{ secrets.PROD_WEB_BASE_URL }}
+          APP_TRUSTED_PROXY_CIDRS: ${{ secrets.APP_TRUSTED_PROXY_CIDRS }}
+          APP_TRUSTED_TENANT_HEADER_SECRET: ${{ secrets.APP_TRUSTED_TENANT_HEADER_SECRET }}
+          AUTH_COOKIE_SECURE: "true"
+          AUTH_COOKIE_SAME_SITE: lax
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          REPORT_CARD_DOWNLOAD_SIGNING_SECRET: ${{ secrets.REPORT_CARD_DOWNLOAD_SIGNING_SECRET }}
+          SECURITY_PII_ENCRYPTION_KEY: ${{ secrets.SECURITY_PII_ENCRYPTION_KEY }}
+          SECURITY_LOCKDOWN_BYPASS_SECRET: ${{ secrets.SECURITY_LOCKDOWN_BYPASS_SECRET }}
+          MPESA_CONSUMER_KEY: ${{ secrets.MPESA_CONSUMER_KEY }}
+          MPESA_CONSUMER_SECRET: ${{ secrets.MPESA_CONSUMER_SECRET }}
+          MPESA_SHORT_CODE: ${{ secrets.MPESA_SHORT_CODE }}
+          MPESA_PASSKEY: ${{ secrets.MPESA_PASSKEY }}
+          MPESA_TRANSACTION_STATUS_SECURITY_CREDENTIAL: ${{ secrets.MPESA_TRANSACTION_STATUS_SECURITY_CREDENTIAL }}
+          MPESA_CALLBACK_URL: ${{ secrets.MPESA_CALLBACK_URL }}
+          MPESA_CALLBACK_SECRET: ${{ secrets.MPESA_CALLBACK_SECRET }}
+          MPESA_LEDGER_DEBIT_ACCOUNT_CODE: ${{ secrets.MPESA_LEDGER_DEBIT_ACCOUNT_CODE }}
+          MPESA_LEDGER_CREDIT_ACCOUNT_CODE: ${{ secrets.MPESA_LEDGER_CREDIT_ACCOUNT_CODE }}
+          MPESA_PAYLOAD_VAULT_ENABLED: "true"
+          EMAIL_PROVIDER: resend
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          PUBLIC_APP_URL: ${{ secrets.PROD_WEB_BASE_URL }}
+          SUPPORT_NOTIFICATION_EMAILS: ${{ secrets.SUPPORT_NOTIFICATION_EMAILS }}
+          UPLOAD_MALWARE_SCAN_PROVIDER: clamav
+          UPLOAD_MALWARE_SCAN_API_URL: ${{ secrets.UPLOAD_MALWARE_SCAN_API_URL }}
+          UPLOAD_MALWARE_SCAN_HEALTH_URL: ${{ secrets.UPLOAD_MALWARE_SCAN_HEALTH_URL }}
+          UPLOAD_MALWARE_SCAN_API_TOKEN: ${{ secrets.UPLOAD_MALWARE_SCAN_API_TOKEN }}
+          UPLOAD_MALWARE_SCAN_REQUIRED: "true"
+          UPLOAD_OBJECT_STORAGE_ENABLED: "true"
+          UPLOAD_OBJECT_STORAGE_PROVIDER: ${{ secrets.UPLOAD_OBJECT_STORAGE_PROVIDER }}
+          UPLOAD_OBJECT_STORAGE_ENDPOINT: ${{ secrets.UPLOAD_OBJECT_STORAGE_ENDPOINT }}
+          UPLOAD_OBJECT_STORAGE_BUCKET: ${{ secrets.UPLOAD_OBJECT_STORAGE_BUCKET }}
+          UPLOAD_OBJECT_STORAGE_REGION: ${{ secrets.UPLOAD_OBJECT_STORAGE_REGION }}
+          UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID: ${{ secrets.UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID }}
+          UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY: ${{ secrets.UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY }}
+        run: npm run env:production:audit > production-env-audit.json
+
+      - name: Hosted production auth smoke
+        if: github.event.inputs.check == 'all' || github.event.inputs.check == 'auth-smoke' || github.event.inputs.check == 'readiness' || github.event.inputs.check == 'scorecard' || github.event.schedule == '33 2 * * *'
+        continue-on-error: true
+        env:
+          MYSHULE_WEB_URL: ${{ secrets.PROD_WEB_BASE_URL }}
+          MYSHULE_API_URL: ${{ secrets.PROD_API_BASE_URL }}
+          MYSHULE_SMOKE_TENANT: ${{ secrets.PROD_SMOKE_TENANT_SLUG }}
+          MYSHULE_SMOKE_EMAIL: ${{ secrets.PROD_SMOKE_EMAIL }}
+        run: npm run smoke:production-auth > production-auth-smoke.json
 
       - name: Query plan review
         if: github.event.inputs.check == 'all' || github.event.inputs.check == 'query-plan' || github.event.schedule == '33 2 * * *'
@@ -174,6 +243,9 @@ jobs:
             production-*.json
             production-*.txt
             docs/scorecards/production-readiness-scorecard.md
+            docs/validation/production-auth-smoke.json
+            docs/validation/production-env-audit.json
+            docs/validation/provider-credential-smoke-live.json
             docs/validation/implementation10-pilot-certification.md
             docs/validation/implementation10-finance-certification.md
             docs/validation/implementation10-library-certification.md

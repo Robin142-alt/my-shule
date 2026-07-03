@@ -137,8 +137,9 @@ export function SuperadminPageHeader({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
-            Platform owner desk
+            Platform owner workspace
           </p>
+          <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted">Tenant watchlist</p>
           <h2 className="mt-2 text-2xl font-bold text-foreground">{title}</h2>
           <p className="mt-2 text-sm leading-6 text-muted">{description}</p>
         </div>
@@ -765,6 +766,27 @@ function SuperadminOverview({ routeMode }: { routeMode: SuperadminRouteMode }) {
       />
       <MetricGrid items={liveKpis} />
       <TenantProductSummaryCard summary={productSummary} />
+      {schools.length > 0 ? (
+        <Card className="p-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
+                Live module allocation
+              </p>
+              <h2 className="mt-2 text-xl font-bold text-foreground">Schools loaded from platform API</h2>
+            </div>
+            <StatusPill label={`${schools.length} schools`} tone="ok" />
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {schools.map((school) => (
+              <div key={school.tenant_id} className="rounded-[var(--radius-md)] border border-border bg-surface-soft px-4 py-3">
+                <p className="font-semibold text-foreground">{school.school_name}</p>
+                <p className="mt-1 text-sm text-muted">{school.enabled_modules?.length ?? 0} enabled</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
       <div className="grid gap-4 lg:grid-cols-2">
         <ChartCard title="Tenant growth" subtitle="Monthly tenant count" points={tenantGrowthPoints} />
         <ChartCard title="Revenue" subtitle="Monthly revenue" points={revenuePoints} />

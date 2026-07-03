@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JobsOptions, Queue } from 'bullmq';
 
@@ -16,6 +16,8 @@ export class QueueService implements OnModuleDestroy {
   ) {}
 
   getQueue(queueName = DEFAULT_QUEUE_NAME): Queue {
+    this.assertQueueAvailable(queueName);
+
     const existingQueue = this.queues.get(queueName);
 
     if (existingQueue) {
@@ -44,7 +46,12 @@ export class QueueService implements OnModuleDestroy {
     options?: JobsOptions,
     queueName = DEFAULT_QUEUE_NAME,
   ) {
+    this.assertQueueAvailable(queueName);
     return this.getQueue(queueName).add(jobName, payload, options);
+  }
+
+  isDegraded(): boolean {
+    return this.redisService.isDegraded();
   }
 
   async addBulk<T>(
@@ -59,6 +66,7 @@ export class QueueService implements OnModuleDestroy {
       return [];
     }
 
+    this.assertQueueAvailable(queueName);
     return this.getQueue(queueName).addBulk(
       jobs.map((job) => ({
         name: job.job_name,
@@ -77,6 +85,7 @@ export class QueueService implements OnModuleDestroy {
     failed: number;
     completed: number;
   }> {
+    this.assertQueueAvailable(queueName);
     const counts = await this.getQueue(queueName).getJobCounts(
       'waiting',
       'active',
@@ -100,6 +109,7 @@ export class QueueService implements OnModuleDestroy {
     oldest_waiting_age_ms: number | null;
     oldest_delayed_age_ms: number | null;
   }> {
+    this.assertQueueAvailable(queueName);
     const queue = this.getQueue(queueName);
     const [waitingJobs, delayedJobs] = await Promise.all([
       queue.getJobs(['waiting'], 0, 0, true),
@@ -122,6 +132,16 @@ export class QueueService implements OnModuleDestroy {
       Array.from(this.queues.values()).map(async (queue) => {
         await queue.close();
       }),
+    );
+  }
+
+  private assertQueueAvailable(queueName: string): void {
+    if (!this.redisService.isDegraded()) {
+      return;
+    }
+
+    throw new ServiceUnavailableException(
+      `Queue "${queueName}" is unavailable because Redis is degraded.`,
     );
   }
 }

@@ -93,7 +93,7 @@ test.describe("experience separation", () => {
     await page.goto("http://127.0.0.1:3005/school/bursar");
     await expect(page.getByRole("heading", { name: /dashboard/i })).toBeVisible();
     await expect(page.getByText(/school workspace/i).first()).toBeVisible();
-    await expect(page.getByText(/tenant isolated/i)).toBeVisible();
+    await expect(page.getByText(/signed in securely/i)).toBeVisible();
   });
 
   test("public compatibility routes open the portal dashboard when a portal session exists", async ({
@@ -154,9 +154,8 @@ test.describe("experience separation", () => {
     await page.goto("http://barakaacademy.localhost:3005/dashboard");
     await expect(page.getByRole("heading", { name: /dashboard/i })).toBeVisible();
     await expect(page.getByText(/school workspace/i).first()).toBeVisible();
-    await expect(page.getByText(/active session/i)).toBeVisible();
+    await expect(page.getByText(/signed in securely/i)).toBeVisible();
     await expect(page.getByText(/^bursar$/i).first()).toBeVisible();
-    await expect(page.getByText(/tenant isolated/i)).toBeVisible();
   });
 
   test("portal host serves the family dashboard on /dashboard", async ({

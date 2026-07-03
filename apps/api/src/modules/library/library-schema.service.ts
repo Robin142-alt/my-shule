@@ -153,6 +153,19 @@ export class LibrarySchemaService implements OnModuleInit {
       ALTER TABLE library_borrowers
         ADD COLUMN IF NOT EXISTS scan_code text;
 
+      ${LIBRARY_TABLES.map((table) => `
+        ALTER TABLE ${table} DISABLE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS ${table}_rls_policy ON ${table};
+        ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS tenant_id text;
+        ALTER TABLE ${table} ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+        ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS school_id text;
+        UPDATE ${table}
+        SET tenant_id = COALESCE(NULLIF(tenant_id, ''), school_id::text, 'global')
+        WHERE tenant_id IS NULL OR btrim(tenant_id) = '';
+        ALTER TABLE ${table} ALTER COLUMN tenant_id SET DEFAULT 'global';
+        ALTER TABLE ${table} ALTER COLUMN tenant_id SET NOT NULL;
+      `).join('\n')}
+
       CREATE UNIQUE INDEX IF NOT EXISTS ux_library_copies_tenant_barcode
         ON library_copies (tenant_id, barcode)
         WHERE barcode IS NOT NULL;
@@ -208,8 +221,8 @@ export class LibrarySchemaService implements OnModuleInit {
         DROP POLICY IF EXISTS ${table}_rls_policy ON ${table};
         CREATE POLICY ${table}_rls_policy ON ${table}
         FOR ALL
-        USING (tenant_id = current_setting('app.tenant_id', true))
-        WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+        USING (tenant_id::text = current_setting('app.tenant_id', true))
+        WITH CHECK (tenant_id::text = current_setting('app.tenant_id', true));
       `).join('\n')}
     `);
 

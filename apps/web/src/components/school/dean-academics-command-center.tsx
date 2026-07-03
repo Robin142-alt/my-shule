@@ -195,6 +195,23 @@ function getViewLabel(view: DeanView) {
   return navItems.find((item) => item.id === view)?.label ?? "Dean desk";
 }
 
+function isDeanReportAction(action: string) {
+  return /report|batch|distribution|outlier/i.test(action);
+}
+
+async function generateDeanReportSnapshot(action: string, workspace: DeanView) {
+  return requestDashboardApi("/admin-command/dean-academics/reports/generate", {
+    method: "POST",
+    body: {
+      title: `${action} report`,
+      reportId: action.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "dean-academic-report",
+      format: "pdf",
+      workspace,
+      source_dashboard: "dean-academics-command-center",
+    },
+  });
+}
+
 export function resolveDeanWidgetState(input: {
   examsEnabled: boolean;
   rolePermitted: boolean;
@@ -455,12 +472,12 @@ function PendingReviews({ capability, onAction }: { capability: DeanWidgetCapabi
     const schoolId = getCurrentSchoolId();
     
     try {
-      await requestDashboardApi("/api/academic/dean/lock-batch", {
+      await requestDashboardApi("/admin-command/dean-academics/lock-batch", {
         method: "POST",
-        body: JSON.stringify({
+        body: {
           schoolId,
           markIds: pendingMarks.map((m: any) => m.id)
-        })
+        }
       });
 
       const lockedMarkIds = pendingMarks.map((m: any) => m.id);
@@ -662,6 +679,13 @@ function ResultsModeration({ capability, onAction }: { capability: DeanWidgetCap
 
   return (
     <WidgetFrame widget={widgets.find((item) => item.id === "pending")!} capability={capability}>
+      <div className="mb-4 rounded-2xl bg-[#071D49] p-5 text-white">
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-sky-100/70">Academic quality desk</p>
+        <h2 className="mt-2 text-3xl font-black">Academic Quality Control & Moderation Center</h2>
+        <p className="mt-2 text-sm font-semibold text-sky-50/80">
+          Results moderation checks report batches before they reach principal publishing approval.
+        </p>
+      </div>
       <div className="grid gap-3">
         {[
           ["CBC competency reports", "96 learner summaries ready for moderation", "Ready"],
@@ -678,6 +702,7 @@ function ResultsModeration({ capability, onAction }: { capability: DeanWidgetCap
       <div className="mt-4 flex flex-wrap gap-2">
         {hasPermission('exams:write') && (
           <>
+            <ActionButton onAction={onAction}>Results Moderation</ActionButton>
             <ActionButton onAction={onAction}>Open review</ActionButton>
             <ActionButton onAction={onAction}>Return for correction</ActionButton>
           </>
@@ -853,7 +878,7 @@ export function DeanAcademicsCommandCenter({
 
   function openView(view: DeanView) {
     setActiveViewState(view);
-    setNotice(`${getViewLabel(view)} workspace ready.`);
+    setNotice(`${getViewLabel(view)} workspace opened with Dean academic controls loaded.`);
     const newPath = buildSchoolSectionHref("dean-academics", view, routeMode ?? "hosted");
     window.history.replaceState(null, "", newPath);
   }
@@ -866,7 +891,7 @@ export function DeanAcademicsCommandCenter({
 
   function openDeanAction(label: string) {
     setSelectedAction(label);
-    setNotice(`${label} ready for Dean review.`);
+    setNotice(`${label} selected. Save the academic action to persist it and notify the review chain.`);
   }
 
   async function saveDeanAction() {
@@ -879,26 +904,30 @@ export function DeanAcademicsCommandCenter({
     const entityId = `dean-action-${selectedAction.toLowerCase().replaceAll(" ", "-")}`;
 
     try {
-      await requestDashboardApi("/api/academic/dean/action", {
+      await requestDashboardApi("/admin-command/dean-academics/action", {
         method: "POST",
-        body: JSON.stringify({
+        body: {
           action: selectedAction,
           schoolId,
           exam: "Term 2 CAT 1",
           classStream: "Class 7B",
           workspace: activeView,
-        })
+        }
       });
 
-      publishSchoolOperationalEvent({
-        schoolId,
-        type: "ACADEMIC_DEAN_ACTION_RECORDED",
-        module: "academics",
-        actorRole: "Dean of Academics",
-        title: `${selectedAction} recorded`,
-        body: `${selectedAction} was recorded for Term 2 CAT 1 academic review.`,
-        entityId,
-        severity: selectedAction.toLowerCase().includes("reject") ? "warning" : "success",
+      if (isDeanReportAction(selectedAction)) {
+        await generateDeanReportSnapshot(selectedAction, activeView);
+      }
+
+          publishSchoolOperationalEvent({
+            schoolId,
+            type: "ACADEMIC_DEAN_ACTION_RECORDED",
+            module: "academics",
+            actorRole: "Dean of Academics",
+            title: "Dean academic workflow saved",
+            body: `${selectedAction} was saved for Term 2 CAT 1 academic review.`,
+            entityId,
+            severity: selectedAction.toLowerCase().includes("reject") ? "warning" : "success",
         payload: {
           action: selectedAction,
           exam: "Term 2 CAT 1",

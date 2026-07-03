@@ -815,7 +815,7 @@ export function StudentsPage({
               value={studentForm.parentPhone}
               onChange={(event) => setStudentForm((current) => ({ ...current, parentPhone: event.target.value }))}
               className="input-base"
-              placeholder="0712 345 678"
+              placeholder="Parent phone number"
             />
           </label>
         </div>

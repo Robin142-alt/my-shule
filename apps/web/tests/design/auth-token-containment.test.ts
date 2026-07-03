@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { toPublicExperienceGatewaySession } from "@/lib/auth/server-session";
+import { resolveSchoolTenantSlug, toPublicExperienceGatewaySession } from "@/lib/auth/server-session";
 import type { ExperienceGatewaySession } from "@/lib/auth/server-session";
 
 describe("auth token containment", () => {
@@ -46,6 +46,39 @@ describe("auth token containment", () => {
       expect(source).toContain("toPublicExperienceGatewaySession");
       expect(source).not.toMatch(/session:\s*session\b/);
     }
+  });
+
+  test("school API tenant resolution rejects query or cookie tenant swaps", () => {
+    expect(
+      resolveSchoolTenantSlug({
+        sessionTenantSlug: "school-alpha",
+        tenantCookie: "school-alpha",
+        requestedTenantSlug: "school-beta",
+      }),
+    ).toEqual({
+      tenantSlug: "school-alpha",
+      tenantMismatch: true,
+    });
+
+    expect(
+      resolveSchoolTenantSlug({
+        sessionTenantSlug: "school-alpha",
+        tenantCookie: "school-beta",
+      }),
+    ).toEqual({
+      tenantSlug: "school-alpha",
+      tenantMismatch: true,
+    });
+
+    expect(
+      resolveSchoolTenantSlug({
+        sessionTenantSlug: "school-alpha",
+        tenantCookie: "school-alpha",
+      }),
+    ).toEqual({
+      tenantSlug: "school-alpha",
+      tenantMismatch: false,
+    });
   });
 
   test("legacy browser password routes enforce csrf and use modern recovery endpoints", () => {

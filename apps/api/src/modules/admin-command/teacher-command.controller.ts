@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { TeacherCommandService } from './teacher-command.service';
@@ -87,6 +87,12 @@ export class TeacherCommandController {
   @Get('messages')
   getMessages() {
     return this.service.getMessages();
+  }
+
+  @Post('messages')
+  @Permissions('teacher:write')
+  sendMessage(@Body() dto: any) {
+    return this.service.sendParentMessage(dto);
   }
 
   @Get('notifications')

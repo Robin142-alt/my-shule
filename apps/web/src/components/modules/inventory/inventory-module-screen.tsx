@@ -27,6 +27,10 @@ import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import { downloadCsvFile, downloadTextFile } from "@/lib/dashboard/export";
 import type { DashboardRole, DashboardSnapshot } from "@/lib/dashboard/types";
 import {
+  getCurrentSchoolId,
+  publishSchoolOperationalEvent,
+} from "@/lib/school/school-operational-store";
+import {
   buildInventoryCategoryBreakdown,
   buildInventoryModuleSections,
   buildInventoryReports,
@@ -420,6 +424,34 @@ export function InventoryModuleScreen({
     });
   }
 
+  function recordInventoryLocalAction(action: string, payload: Record<string, unknown>) {
+    publishSchoolOperationalEvent({
+      schoolId: getCurrentSchoolId(snapshot.tenant.id),
+      type: `inventory.local.${action.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "action"}`,
+      module: "inventory",
+      actorRole: role,
+      title: `Inventory ${action}`,
+      body: `Inventory ${action} was applied to the local school workspace because the live inventory API session is not active.`,
+      severity: "warning",
+      payload: {
+        tenantId: snapshot.tenant.id,
+        liveApiConfigured: liveSession.apiConfigured,
+        liveSessionActive: Boolean(liveSession.session),
+        ...payload,
+      },
+      notifications: [
+        {
+          audienceRoles: ["Principal", "Storekeeper", "System Monitor"],
+          title: `Inventory local action: ${action}`,
+          body: "A local inventory workspace action was recorded while live API persistence was unavailable.",
+          severity: "warning",
+          relatedModule: "inventory",
+          requiresAction: true,
+        },
+      ],
+    });
+  }
+
   const deferredItemSearch = useDeferredValue(itemSearch);
   const filteredItems = useMemo(() => {
     return dataset.items
@@ -666,7 +698,12 @@ export function InventoryModuleScreen({
 
         await refreshLiveInventoryData();
       } else {
-        await new Promise((resolve) => window.setTimeout(resolve, 300));
+        recordInventoryLocalAction("category saved", {
+          mode: categoryModalMode,
+          categoryId: editingCategoryId,
+          code: categoryForm.code.trim().toUpperCase(),
+          name: categoryForm.name.trim(),
+        });
 
         const previousCategory = dataset.categories.find((category) => category.id === editingCategoryId);
         const nextCategory: InventoryCategory = {
@@ -773,7 +810,12 @@ export function InventoryModuleScreen({
 
         await refreshLiveInventoryData();
       } else {
-        await new Promise((resolve) => window.setTimeout(resolve, 300));
+        recordInventoryLocalAction("supplier saved", {
+          mode: supplierModalMode,
+          supplierId: editingSupplierId,
+          name: supplierForm.name.trim(),
+          email: supplierForm.email.trim(),
+        });
 
         const previousSupplier = dataset.suppliers.find((supplier) => supplier.id === editingSupplierId);
         const nextSupplier: InventorySupplier = {
@@ -919,7 +961,12 @@ export function InventoryModuleScreen({
 
         await refreshLiveInventoryData();
       } else {
-        await new Promise((resolve) => window.setTimeout(resolve, 450));
+        recordInventoryLocalAction("item saved", {
+          mode: itemModalMode,
+          itemId: editingItemId,
+          sku: itemForm.sku.trim(),
+          name: itemForm.name.trim(),
+        });
 
         const nextItem: InventoryItem = {
           id: editingItemId ?? `itm-${Date.now()}`,
@@ -1034,7 +1081,12 @@ export function InventoryModuleScreen({
         });
         await refreshLiveInventoryData();
       } else {
-        await new Promise((resolve) => window.setTimeout(resolve, 400));
+        recordInventoryLocalAction("stock adjusted", {
+          itemId: item.id,
+          itemName: item.name,
+          movementType: adjustmentForm.movementType,
+          quantity,
+        });
         const nextQuantity =
           adjustmentForm.movementType === "stock_in"
             ? item.quantity + quantity
@@ -1127,7 +1179,11 @@ export function InventoryModuleScreen({
         });
         await refreshLiveInventoryData();
       } else {
-        await new Promise((resolve) => window.setTimeout(resolve, 450));
+        recordInventoryLocalAction("purchase order created", {
+          supplier: purchaseOrderForm.supplier.trim(),
+          requestedBy: purchaseOrderForm.requestedBy.trim(),
+          totalAmount: purchaseOrderDraftTotal,
+        });
         setLocalDataset((current) => ({
           ...current,
           purchaseOrders: [
@@ -1168,7 +1224,10 @@ export function InventoryModuleScreen({
         });
         await refreshLiveInventoryData();
       } else {
-        await new Promise((resolve) => window.setTimeout(resolve, 350));
+        recordInventoryLocalAction("purchase order status updated", {
+          purchaseOrderId,
+          nextStatus,
+        });
 
         setLocalDataset((current) => ({
           ...current,
@@ -1233,7 +1292,11 @@ export function InventoryModuleScreen({
         });
         await refreshLiveInventoryData();
       } else {
-        await new Promise((resolve) => window.setTimeout(resolve, 400));
+        recordInventoryLocalAction("stock request created", {
+          department: requestForm.department.trim(),
+          requestedBy: requestForm.requestedBy.trim(),
+          requestSummary,
+        });
         setLocalDataset((current) => ({
           ...current,
           requests: [
@@ -1272,7 +1335,10 @@ export function InventoryModuleScreen({
         });
         await refreshLiveInventoryData();
       } else {
-        await new Promise((resolve) => window.setTimeout(resolve, 350));
+        recordInventoryLocalAction("stock request status updated", {
+          requestId,
+          nextStatus,
+        });
         setLocalDataset((current) => ({
           ...current,
           requests: current.requests.map((request) =>
@@ -1322,7 +1388,12 @@ export function InventoryModuleScreen({
         });
         await refreshLiveInventoryData();
       } else {
-        await new Promise((resolve) => window.setTimeout(resolve, 350));
+        recordInventoryLocalAction("stock transfer created", {
+          fromLocation: transferForm.fromLocation.trim(),
+          toLocation: transferForm.toLocation.trim(),
+          requestedBy: transferForm.requestedBy.trim(),
+          transferSummary,
+        });
         setLocalDataset((current) => ({
           ...current,
           transfers: [
@@ -1362,7 +1433,7 @@ export function InventoryModuleScreen({
         });
         await refreshLiveInventoryData();
       } else {
-        await new Promise((resolve) => window.setTimeout(resolve, 300));
+        recordInventoryLocalAction("stock transfer completed", { transferId });
         setLocalDataset((current) => ({
           ...current,
           transfers: current.transfers.map((transfer) =>
@@ -1420,7 +1491,13 @@ export function InventoryModuleScreen({
         });
         await refreshLiveInventoryData();
       } else {
-        await new Promise((resolve) => window.setTimeout(resolve, 350));
+        recordInventoryLocalAction("incident logged", {
+          itemId: incidentItem.id,
+          itemName: incidentItem.name,
+          incidentType: incidentForm.type,
+          department: incidentForm.department.trim(),
+          quantity: Number(incidentForm.quantity),
+        });
         setLocalDataset((current) => ({
           ...current,
           incidents: [

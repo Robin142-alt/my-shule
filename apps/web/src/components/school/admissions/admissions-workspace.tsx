@@ -1,7 +1,10 @@
 "use client";
-import { UserPlus } from "lucide-react";
+import { useState } from "react";
+import { FileText, UserPlus } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { toast } from "sonner";
+import { admitStudent, generateAdmissionLetter } from "./api-client";
 
 type AdmissionsRecord = {
   id: string;
@@ -24,7 +27,8 @@ type AdmissionsData = {
 };
 
 export function AdmissionsWorkspace() {
-  const { data, isLoading } = useSchoolQuery<AdmissionsData>('/admin-command/admissions/admissions');
+  const { data, isLoading, refetch } = useSchoolQuery<AdmissionsData>('/admin-command/admissions/admissions');
+  const [actioningId, setActioningId] = useState<string | null>(null);
   const items = data?.admissionsList || [];
 
   const getStatusTone = (st: string): Tone => {
@@ -33,6 +37,32 @@ export function AdmissionsWorkspace() {
     if (st === "Overdue" || st === "Critical" || st === "Rejected" || st === "Escalated" || st === "Expired" || st === "Damaged" || st === "Flagged" || st === "Absent" || st === "Suspended") return "danger";
     if (st === "Issued" || st === "Submitted" || st === "On Leave" || st === "Graduated" || st === "Downloaded") return "info";
     return "neutral";
+  };
+
+  const handleAdmit = async (id: string) => {
+    setActioningId(id);
+    try {
+      await admitStudent(id);
+      toast.success("Applicant admitted successfully.");
+      refetch();
+    } catch {
+      toast.error("Failed to admit applicant.");
+    } finally {
+      setActioningId(null);
+    }
+  };
+
+  const handleGenerateLetter = async (id: string) => {
+    setActioningId(id);
+    try {
+      await generateAdmissionLetter(id);
+      toast.success("Admission letter generated.");
+      refetch();
+    } catch {
+      toast.error("Failed to generate admission letter.");
+    } finally {
+      setActioningId(null);
+    }
   };
 
   return (
@@ -65,13 +95,14 @@ export function AdmissionsWorkspace() {
               <th className="px-4 py-3 font-bold">Parent Name</th>
               <th className="px-4 py-3 font-bold">Phone</th>
               <th className="px-4 py-3 font-bold">Status</th>
+              <th className="px-4 py-3 font-bold text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
             ) : (
               items.map(row => (
                 <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
@@ -81,6 +112,18 @@ export function AdmissionsWorkspace() {
                   <td className="px-4 py-3 text-[#64748B]">{row.parent_name}</td>
                   <td className="px-4 py-3 text-[#64748B]">{row.phone}</td>
                   <td className="px-4 py-3"><StatusChip label={row.status} tone={getStatusTone(row.status)} /></td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      {row.status?.toLowerCase() === "approved" && (
+                        <button disabled={actioningId === row.id} onClick={() => handleAdmit(row.id)}
+                          className="text-emerald-600 hover:underline text-xs font-semibold inline-flex items-center gap-1 disabled:opacity-50"><UserPlus className="w-3 h-3" /> Admit</button>
+                      )}
+                      {["approved", "admitted", "registered"].includes(row.status?.toLowerCase()) && (
+                        <button disabled={actioningId === row.id} onClick={() => handleGenerateLetter(row.id)}
+                          className="text-blue-600 hover:underline text-xs font-semibold inline-flex items-center gap-1 disabled:opacity-50"><FileText className="w-3 h-3" /> Letter</button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))
             )}

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { EventPublisherService } from '../events/event-publisher.service';
 
@@ -34,14 +34,38 @@ export class ClassTeacherService {
     private readonly eventPublisherService: EventPublisherService,
   ) {}
 
+  private async assertStudentBelongsToStream(tenantId: string, streamId: string, studentId: string) {
+    if (!studentId) {
+      throw new BadRequestException('Select a learner before submitting this class-teacher action.');
+    }
+
+    const { rows } = await this.executeSql(
+      `SELECT id
+       FROM student_class_assignments
+       WHERE tenant_id = $1
+         AND class_section_id = $2
+         AND student_id = $3
+         AND status = 'active'
+       LIMIT 1`,
+      [tenantId, streamId, studentId],
+    );
+
+    if (rows.length === 0) {
+      throw new BadRequestException('The selected learner is not active in this class stream.');
+    }
+  }
+
   async getMyClasses(tenantId: string, userId: string) {
     const query = `
       SELECT 
         tsa.id,
+        cs.id as class_section_id,
         cs.name as class_name,
         s.name as subject_name,
         COALESCE(sc.student_count, 0) as learners_count,
-        'Pending' as attendance_status,
+        CASE WHEN today_attendance.class_section_id IS NULL THEN 'Pending' ELSE 'Completed' END as attendance_status,
+        COALESCE(attendance_stats.present_count, 0)::int as attendance_present_count,
+        COALESCE(attendance_stats.total_count, 0)::int as attendance_total_count,
         '--' as cat_average
       FROM teacher_subject_assignments tsa
       JOIN subjects s ON s.id = tsa.subject_id AND s.tenant_id = tsa.tenant_id
@@ -52,6 +76,23 @@ export class ClassTeacherService {
         WHERE status = 'active'
         GROUP BY class_section_id, tenant_id
       ) sc ON sc.class_section_id = tsa.class_section_id AND sc.tenant_id = tsa.tenant_id
+      LEFT JOIN (
+        SELECT
+          sa.class_section_id,
+          a.tenant_id,
+          COUNT(*) FILTER (WHERE LOWER(a.status) = 'present') as present_count,
+          COUNT(*) as total_count
+        FROM academics_attendance a
+        JOIN student_class_assignments sa ON sa.student_id = a.student_id AND sa.tenant_id = a.tenant_id
+        WHERE a.attendance_date >= CURRENT_DATE - interval '30 days'
+        GROUP BY sa.class_section_id, a.tenant_id
+      ) attendance_stats ON attendance_stats.class_section_id = tsa.class_section_id AND attendance_stats.tenant_id = tsa.tenant_id
+      LEFT JOIN (
+        SELECT DISTINCT sa.class_section_id, a.tenant_id
+        FROM academics_attendance a
+        JOIN student_class_assignments sa ON sa.student_id = a.student_id AND sa.tenant_id = a.tenant_id
+        WHERE a.attendance_date = CURRENT_DATE
+      ) today_attendance ON today_attendance.class_section_id = tsa.class_section_id AND today_attendance.tenant_id = tsa.tenant_id
       WHERE tsa.tenant_id = $1 
         AND tsa.teacher_user_id = $2
         AND tsa.status = 'active'
@@ -59,15 +100,21 @@ export class ClassTeacherService {
     const { rows: result } = await this.executeSql(query, [tenantId, userId]);
 
     const totalLearners = result.reduce((acc, row) => acc + parseInt(row.learners_count), 0);
+    const attendancePresentCount = result.reduce((acc, row) => acc + Number(row.attendance_present_count || 0), 0);
+    const attendanceTotalCount = result.reduce((acc, row) => acc + Number(row.attendance_total_count || 0), 0);
+    const averageAttendance = attendanceTotalCount > 0
+      ? `${Math.round((attendancePresentCount / attendanceTotalCount) * 100)}%`
+      : '0%';
 
     return {
       stats: {
         assignedClasses: result.length,
         totalLearnersTaught: totalLearners,
-        averageAttendance: "0%", // Placeholder until attendance is fully wired
+        averageAttendance,
       },
       classes: result.map(r => ({
         id: r.id,
+        classSectionId: r.class_section_id,
         className: r.class_name,
         subjectName: r.subject_name,
         learnersCount: parseInt(r.learners_count),
@@ -142,6 +189,16 @@ export class ClassTeacherService {
       [tenantId, userId]
     ).catch(() => ({ rows: [{ count: 0 }] }));
 
+    const storeRequestsRes = await this.executeSql(
+      `SELECT count(*)::int as count
+       FROM inventory_requests
+       WHERE tenant_id = $1
+         AND requested_by = $2
+         AND status IN ('pending', 'approved', 'backordered')`,
+      [tenantId, userId],
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+    const storeRequestsCount = storeRequestsRes.rows[0]?.count || 0;
+
     return {
       todaysLessons: { count: todaysLessonsCount, detail: `${todaysLessonsCount} scheduled for today` },
       pendingAttendance: { count: attendanceStats.pendingTasks, detail: `${attendanceStats.pendingTasks} classes not marked` },
@@ -150,7 +207,7 @@ export class ClassTeacherService {
       assignmentsDue: { count: assignmentsRes.rows[0]?.count || 0, detail: `${assignmentsRes.rows[0]?.count || 0} assignments due this week` },
       learnersNeedingAttention: { count: disciplineRes.rows[0]?.count || 0, detail: `${disciplineRes.rows[0]?.count || 0} flagged learners` },
       unreadMessages: { count: msgRes.rows[0]?.count || 0, detail: `${msgRes.rows[0]?.count || 0} unread messages` },
-      storeRequests: { count: 0, detail: "0 pending requests" } // Placeholder
+      storeRequests: { count: storeRequestsCount, detail: `${storeRequestsCount} pending store requests` }
     };
   }
 
@@ -623,7 +680,7 @@ export class ClassTeacherService {
 
     await this.executeSql(query, params);
 
-    const presentCount = records.filter(r => r.status === 'present').length;
+    const presentCount = records.filter(r => (r.attendance || r.status || 'present') === 'present').length;
     const absentCount = records.length - presentCount;
 
     await this.eventPublisherService.publishAttendanceRegisterMarked({
@@ -639,6 +696,7 @@ export class ClassTeacherService {
   }
 
   async reportDisciplineIncident(tenantId: string, userId: string, streamId: string, payload: any) {
+    await this.assertStudentBelongsToStream(tenantId, streamId, payload.studentId);
     this.logger.log(`Reported discipline incident for student ${payload.studentId}`);
     
     const query = `
@@ -665,7 +723,7 @@ export class ClassTeacherService {
       severity: payload.severity || 'low',
     });
 
-    return { success: true };
+    return { success: true, incidentId: rows[0].id };
   }
 
   async saveMarks(tenantId: string, userId: string, payload: any) {
@@ -748,18 +806,29 @@ export class ClassTeacherService {
   }
 
   async referWelfareCase(tenantId: string, userId: string, streamId: string, payload: any) {
+    await this.assertStudentBelongsToStream(tenantId, streamId, payload.studentId);
     this.logger.log(`Referred welfare case for student ${payload.studentId}`);
+
+    const description = payload.reason || payload.description || '';
+    const category = payload.category || 'Welfare';
+    const { rows } = await this.executeSql(
+      `INSERT INTO student_welfare_cases (tenant_id, student_id, category, description, status, reported_by)
+       VALUES ($1, $2, $3, $4, 'OPEN', $5)
+       RETURNING id`,
+      [tenantId, payload.studentId, category, description, userId],
+    );
+    const referralId = rows[0].id;
     
     await this.eventPublisherService.publishWelfareCaseReferred({
       tenant_id: tenantId,
-      referral_id: `ref_${Date.now()}`,
+      referral_id: referralId,
       student_id: payload.studentId,
       referred_by_user_id: userId,
       date: new Date().toISOString().split('T')[0],
-      reason: payload.reason,
+      reason: description,
     });
 
-    return { success: true };
+    return { success: true, referralId };
   }
 
   async getProgress(tenantId: string, userId: string, streamId: string) {
@@ -984,7 +1053,48 @@ export class ClassTeacherService {
   }
 
   async getFees(tenantId: string, userId: string, streamId: string) {
-    return [];
+    const query = `
+      SELECT
+        s.id,
+        s.first_name || ' ' || s.last_name as learner,
+        COALESCE(invoice_totals.balance_minor, 0)::bigint as balance_minor,
+        last_payments.last_payment_at
+      FROM student_class_assignments sca
+      JOIN students s ON s.id = sca.student_id AND s.tenant_id = sca.tenant_id
+      LEFT JOIN (
+        SELECT tenant_id, student_id, SUM(balance_minor)::bigint as balance_minor
+        FROM student_invoices
+        WHERE tenant_id = $1
+          AND status IN ('open', 'pending_payment', 'overdue')
+        GROUP BY tenant_id, student_id
+      ) invoice_totals ON invoice_totals.tenant_id = s.tenant_id AND invoice_totals.student_id = s.id
+      LEFT JOIN (
+        SELECT tenant_id, student_id, MAX(received_at) as last_payment_at
+        FROM manual_fee_payments
+        WHERE tenant_id = $1
+          AND status IN ('received', 'deposited', 'cleared')
+        GROUP BY tenant_id, student_id
+      ) last_payments ON last_payments.tenant_id = s.tenant_id AND last_payments.student_id = s.id
+      WHERE sca.tenant_id = $1
+        AND sca.class_section_id = $2
+        AND sca.status = 'active'
+        AND COALESCE(invoice_totals.balance_minor, 0) > 0
+      ORDER BY invoice_totals.balance_minor DESC, learner ASC
+    `;
+    const { rows } = await this.executeSql(query, [tenantId, streamId]);
+
+    return rows.map((row: any) => {
+      const balanceMinor = Number(row.balance_minor || 0);
+      const lastPaymentDate = row.last_payment_at ? new Date(row.last_payment_at) : null;
+
+      return {
+        id: row.id,
+        learner: row.learner,
+        balance: `KES ${(balanceMinor / 100).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        lastPayment: lastPaymentDate ? lastPaymentDate.toLocaleDateString() : 'No payment recorded',
+        status: 'Overdue',
+      };
+    });
   }
 
   async getHealth(tenantId: string, userId: string, streamId: string) {
@@ -1072,13 +1182,115 @@ export class ClassTeacherService {
   }
 
   async getReports(tenantId: string, userId: string, streamId: string) {
-    return [];
+    const query = `
+      SELECT
+        id::text,
+        snapshot_id,
+        title as report_name,
+        format as type,
+        created_at::text as generated_at,
+        'Ready' as status
+      FROM report_snapshots
+      WHERE tenant_id = $1
+        AND module = 'class-teacher-command'
+        AND (
+          $2::text IS NULL
+          OR filters->>'streamId' = $2
+          OR filters->>'class_section_id' = $2
+          OR NOT (filters ? 'streamId')
+        )
+      ORDER BY created_at DESC
+      LIMIT 50
+    `;
+    const { rows } = await this.executeSql(query, [tenantId, streamId || null]);
+    const reports = rows.map((row: any) => ({
+      id: row.id,
+      report_name: row.report_name,
+      type: row.type,
+      term: 'Current term',
+      generated_at: row.generated_at ? new Date(row.generated_at).toLocaleDateString() : 'N/A',
+      status: row.status,
+      download_url: `/api/admin-command/class-teacher/reports/${encodeURIComponent(String(row.snapshot_id || row.id))}/download`,
+    }));
+
+    return {
+      metrics: {
+        total_reports: reports.length,
+        generated_this_term: reports.length,
+        pending: 0,
+      },
+      available_types: ['Academic Analysis', 'Discipline Report', 'Class Register', 'Welfare Report'],
+      reports,
+    };
   }
 
   async getSettings(tenantId: string, userId: string, streamId: string) {
+    const { rows } = await this.executeSql(
+      `
+        SELECT payload
+        FROM workflow_events
+        WHERE tenant_id = $1
+          AND source_user_id = $2
+          AND entity_id = $3
+          AND event_type = 'class_teacher.settings_saved'
+        ORDER BY created_at DESC
+        LIMIT 1
+      `,
+      [tenantId, userId, streamId],
+    ).catch(() => ({ rows: [] as any[] }));
+
+    const payload = rows[0]?.payload || {};
     return {
-      notificationsEnabled: true,
-      darkMode: false
+      notificationsEnabled: payload.notificationsEnabled ?? true,
+      defaultView: payload.defaultView ?? 'Overview',
+      darkMode: payload.darkMode ?? false,
+      updatedAt: rows[0]?.created_at ?? null,
     };
+  }
+
+  async saveSettings(tenantId: string, userId: string, streamId: string, payload: any) {
+    const notificationsEnabled = Boolean(payload?.notificationsEnabled);
+    const defaultView = String(payload?.defaultView || 'Overview').trim();
+    if (!defaultView) {
+      throw new Error('Default view is required');
+    }
+
+    const settings = {
+      notificationsEnabled,
+      defaultView,
+      darkMode: Boolean(payload?.darkMode),
+    };
+
+    await this.executeSql(
+      `
+        INSERT INTO workflow_events (
+          tenant_id,
+          source_user_id,
+          entity_id,
+          event_type,
+          entity_type,
+          title,
+          message,
+          payload,
+          status,
+          priority,
+          target_roles
+        )
+        VALUES ($1, $2, $3, $4, 'class_teacher_settings', $5, $6, $7::jsonb, 'applied', 'normal', $8::jsonb)
+        RETURNING id, payload
+      `,
+      [
+        tenantId,
+        userId,
+        streamId,
+        'class_teacher.settings_saved',
+        'Class-teacher settings saved',
+        `Class-teacher workspace preferences saved for stream ${streamId}.`,
+        JSON.stringify(settings),
+        JSON.stringify(['class_teacher']),
+      ],
+    );
+
+    return { success: true, settings };
   }
 }

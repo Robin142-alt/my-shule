@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { AdminCommandController } from './admin-command.controller';
+import { AdminCommandOperationsService } from './admin-command-operations.service';
 import { AdminCommandSchemaService } from './admin-command-schema.service';
 import { AdminCommandService } from './admin-command.service';
 import { DeputyCommandController } from './deputy-command.controller';
@@ -79,6 +80,7 @@ import { AccountantCommandService } from './accountant-command.service';
   ],
   providers: [
     AdminCommandSchemaService,
+    AdminCommandOperationsService,
     AdminCommandService,
     AdminCommandRepository,
     DeputyCommandService,
@@ -109,6 +111,7 @@ import { AccountantCommandService } from './accountant-command.service';
   ],
   exports: [
     AdminCommandService,
+    AdminCommandOperationsService,
     AdminCommandRepository,
     DeputyCommandService,
     DeputyCommandRepository,

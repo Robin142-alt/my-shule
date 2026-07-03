@@ -1,9 +1,9 @@
 import { BookOpen } from "lucide-react";
 import { Panel } from "../shared";
-import { useClassTeacherSubjects } from "@/lib/data/class-teacher-hooks";
+import { useClassTeacherSubjects, useResolvedClassTeacherStreamId } from "@/lib/data/class-teacher-hooks";
 
 export function ClassSubjectsWorkspace() {
-  const streamId = "stream_123";
+  const { streamId } = useResolvedClassTeacherStreamId();
   const { data, isLoading, error } = useClassTeacherSubjects(streamId);
 
   if (isLoading) {

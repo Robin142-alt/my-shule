@@ -142,6 +142,24 @@ test('SupportController exposes public system status without support permissions
   assert.equal(Reflect.hasMetadata(PERMISSIONS_KEY, handler), false);
 });
 
+test('SupportController support discipline and counselling reads do not hide tenant query failures', async () => {
+  const controller = new SupportController(
+    {} as never,
+    {} as never,
+    {
+      $queryRawUnsafe: async () => {
+        throw new Error('support database unavailable');
+      },
+    } as never,
+    { requireStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    {} as never,
+    {} as never,
+  );
+
+  await assert.rejects(() => controller.getDiscipline(), /support database unavailable/);
+  await assert.rejects(() => controller.getCounselling(), /support database unavailable/);
+});
+
 test('SupportService scopes portal ticket lists to the signed-in requester', async () => {
   const requestContext = new RequestContextService();
   const captured: Record<string, unknown> = {};
@@ -205,6 +223,9 @@ test('SupportSchemaService adds full-text indexes for ticket and knowledge-base 
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_support_kb_articles_search_vector/);
   assert.match(schemaSql, /ON support_kb_articles\s+USING GIN/);
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_support_kb_articles_tags/);
+  assert.match(schemaSql, /ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS merged_into_ticket_id uuid;/);
+  assert.match(schemaSql, /ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS first_responded_at timestamptz;/);
+  assert.match(schemaSql, /ALTER TABLE support_tickets\s+ALTER COLUMN context TYPE jsonb/);
   assert.doesNotMatch(schemaSql, /array_to_string\(tags/);
   assert.doesNotMatch(schemaSql, /attendance/i);
 });

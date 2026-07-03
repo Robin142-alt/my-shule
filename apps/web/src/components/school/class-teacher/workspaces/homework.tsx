@@ -1,9 +1,9 @@
 import { BookOpenCheck } from "lucide-react";
 import { Panel } from "../shared";
-import { useClassTeacherHomework } from "@/lib/data/class-teacher-hooks";
+import { useClassTeacherHomework, useResolvedClassTeacherStreamId } from "@/lib/data/class-teacher-hooks";
 
 export function HomeworkWorkspace() {
-  const streamId = "stream_123";
+  const { streamId } = useResolvedClassTeacherStreamId();
   const { data, isLoading, error } = useClassTeacherHomework(streamId);
 
   if (isLoading) {

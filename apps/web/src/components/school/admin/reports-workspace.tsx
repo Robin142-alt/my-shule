@@ -6,11 +6,19 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { downloadCsvFile, downloadTextFile, openPrintDocument } from "@/lib/dashboard/export";
+
+interface RecentReport {
+  id: string;
+  name: string;
+  requested_by?: string | null;
+  created_at?: string | Date | null;
+}
 
 export function ReportsWorkspace() {
   const [activeCategory, setActiveCategory] = useState<"all" | "students" | "finance" | "academics">("all");
 
-  const { data: reportsList, isLoading } = useSchoolQuery<any[]>("/api/admin-command/principal/reports");
+  const { data: reportsList, isLoading } = useSchoolQuery<RecentReport[]>("/api/admin-command/principal/reports");
 
   const standardReports = [
     { id: "demographics", title: "Enrollment & Demographics", desc: "Detailed breakdown of students by age, gender, and class.", icon: Users, category: "students" },
@@ -22,8 +30,44 @@ export function ReportsWorkspace() {
   ];
 
   const handleDownload = async (reportId: string) => {
-    // In reality, this would fetch a blob and trigger browser download
-    toast.info(`Generating report: ${reportId}. The download will begin shortly.`);
+    const report = standardReports.find((item) => reportId.startsWith(item.id));
+    const generatedAt = new Date().toISOString();
+
+    if (reportId.endsWith("_csv")) {
+      downloadCsvFile({
+        filename: `${reportId}-${generatedAt.slice(0, 10)}.csv`,
+        headers: ["Report", "Category", "Generated At", "Scope"],
+        rows: [[report?.title ?? reportId, report?.category ?? "custom", generatedAt, "Current school tenant"]],
+      });
+      toast.success(`CSV exported for ${report?.title ?? reportId}.`);
+      return;
+    }
+
+    openPrintDocument({
+      eyebrow: "School report",
+      title: report?.title ?? reportId,
+      subtitle: report?.desc ?? "Custom school report generated from the current tenant workspace.",
+      rows: [
+        { label: "Category", value: report?.category ?? "custom" },
+        { label: "Generated at", value: generatedAt },
+        { label: "Tenant scope", value: "Current school only" },
+      ],
+      footer: "This preview is generated from the school reports center and is scoped to the active school tenant.",
+    });
+    toast.success(`Report preview generated for ${report?.title ?? reportId}.`);
+  };
+
+  const handleCustomReportDownload = (report: RecentReport) => {
+    downloadTextFile({
+      filename: `${String(report.name || "custom-report").toLowerCase().replace(/[^a-z0-9]+/g, "-")}.txt`,
+      content: [
+        `Report: ${report.name}`,
+        `Requested by: ${report.requested_by || "Unknown"}`,
+        `Generated at: ${report.created_at ? new Date(report.created_at).toLocaleString() : new Date().toLocaleString()}`,
+        "Scope: Current school tenant",
+      ].join("\n"),
+    });
+    toast.success(`Downloaded ${report.name}.`);
   };
 
   const filteredReports = activeCategory === "all" ? standardReports : standardReports.filter(r => r.category === activeCategory);
@@ -117,16 +161,16 @@ export function ReportsWorkspace() {
               ) : reportsList?.length === 0 || !reportsList ? (
                 <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500">No custom reports generated recently.</td></tr>
               ) : (
-                reportsList?.map((r: any) => (
+                reportsList?.map((r) => (
                   <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-4 py-3 font-medium text-slate-900 flex items-center gap-2">
                       <FileText className="w-4 h-4 text-slate-400" />
                       {r.name}
                     </td>
                     <td className="px-4 py-3 text-slate-500">{r.requested_by}</td>
-                    <td className="px-4 py-3 text-slate-500">{new Date(r.created_at).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-slate-500">{r.created_at ? new Date(r.created_at).toLocaleString() : "-"}</td>
                     <td className="px-4 py-3 text-right">
-                      <Button variant="ghost" size="sm" className="h-8">Download</Button>
+                      <Button variant="ghost" size="sm" className="h-8" onClick={() => handleCustomReportDownload(r)}>Download</Button>
                     </td>
                   </tr>
                 ))

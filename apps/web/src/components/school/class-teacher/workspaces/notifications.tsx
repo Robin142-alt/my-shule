@@ -1,9 +1,9 @@
 import { Bell } from "lucide-react";
 import { Panel } from "../shared";
-import { useClassTeacherNotifications } from "@/lib/data/class-teacher-hooks";
+import { useClassTeacherNotifications, useResolvedClassTeacherStreamId } from "@/lib/data/class-teacher-hooks";
 
 export function NotificationsWorkspace() {
-  const streamId = "stream_123";
+  const { streamId } = useResolvedClassTeacherStreamId();
   const { data, isLoading, error } = useClassTeacherNotifications(streamId);
 
   if (isLoading) {

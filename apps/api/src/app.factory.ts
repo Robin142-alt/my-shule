@@ -74,5 +74,7 @@ export const createApp = async (
 
   app.setGlobalPrefix(configService.get<string>('app.globalPrefix') ?? '');
 
+  logger.log('Application factory configured');
+
   return app;
 };

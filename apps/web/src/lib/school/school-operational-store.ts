@@ -167,7 +167,11 @@ function nowIso() {
 }
 
 function uniqueId(prefix: string) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+
+  return `${prefix}-${Date.now()}`;
 }
 
 function stableKey(value: string) {
@@ -200,7 +204,21 @@ export function getCurrentSchoolId(explicitSchoolId?: string | null) {
   }
 }
 
+export function requireCurrentSchoolId(explicitSchoolId?: string | null) {
+  const schoolId = getCurrentSchoolId(explicitSchoolId);
+
+  if (!schoolId.trim()) {
+    throw new Error("Tenant Isolation Violation: A valid schoolId is required");
+  }
+
+  return schoolId;
+}
+
 export function getSchoolScopedStorageKey(schoolId: string, moduleName: string) {
+  if (!schoolId.trim()) {
+    throw new Error("Tenant Isolation Violation: A valid schoolId is required");
+  }
+
   return `myshule:${schoolId}:${moduleName}`;
 }
 
@@ -235,7 +253,7 @@ export function readSchoolData<T extends object>(
   moduleName: string,
   schoolId = getCurrentSchoolId(),
 ): T[] {
-  if (typeof window === "undefined") {
+  if (typeof window === "undefined" || !schoolId.trim()) {
     return [];
   }
 
@@ -257,27 +275,29 @@ export function readSchoolData<T extends object>(
 export function writeSchoolData<T extends object>(
   moduleName: string,
   records: T[],
-  schoolId = getCurrentSchoolId(),
+  schoolId = requireCurrentSchoolId(),
 ) {
   if (typeof window === "undefined") {
     return records;
   }
 
-  const scopedRecords = records.map((record) => ({ ...record, schoolId }));
-  window.localStorage.setItem(getSchoolScopedStorageKey(schoolId, moduleName), JSON.stringify(scopedRecords));
-  emitSchoolDataUpdated(schoolId, moduleName);
+  const scopedSchoolId = requireCurrentSchoolId(schoolId);
+  const scopedRecords = records.map((record) => ({ ...record, schoolId: scopedSchoolId }));
+  window.localStorage.setItem(getSchoolScopedStorageKey(scopedSchoolId, moduleName), JSON.stringify(scopedRecords));
+  emitSchoolDataUpdated(scopedSchoolId, moduleName);
   return scopedRecords;
 }
 
 export function addSchoolRecord<T extends object>(
   moduleName: string,
   record: T,
-  schoolId = getCurrentSchoolId(),
+  schoolId = requireCurrentSchoolId(),
 ) {
-  const current = readSchoolData<T & { schoolId?: string }>(moduleName, schoolId);
-  const scopedRecord = { ...record, schoolId };
+  const scopedSchoolId = requireCurrentSchoolId(schoolId);
+  const current = readSchoolData<T & { schoolId?: string }>(moduleName, scopedSchoolId);
+  const scopedRecord = { ...record, schoolId: scopedSchoolId };
 
-  writeSchoolData(moduleName, [scopedRecord, ...current], schoolId);
+  writeSchoolData(moduleName, [scopedRecord, ...current], scopedSchoolId);
   return scopedRecord;
 }
 
@@ -285,12 +305,13 @@ export function updateSchoolRecord<T extends { id: string; schoolId?: string }>(
   moduleName: string,
   recordId: string,
   updates: Record<string, unknown>,
-  schoolId = getCurrentSchoolId(),
+  schoolId = requireCurrentSchoolId(),
 ) {
-  const current = readSchoolData<T>(moduleName, schoolId);
-  const next = current.map((record) => (record.id === recordId ? { ...record, ...updates, schoolId } : record));
+  const scopedSchoolId = requireCurrentSchoolId(schoolId);
+  const current = readSchoolData<T>(moduleName, scopedSchoolId);
+  const next = current.map((record) => (record.id === recordId ? { ...record, ...updates, schoolId: scopedSchoolId } : record));
 
-  writeSchoolData(moduleName, next, schoolId);
+  writeSchoolData(moduleName, next, scopedSchoolId);
   return next;
 }
 
@@ -357,7 +378,7 @@ export function upsertSchoolOperationalRequest(
     createdAt?: string;
   },
 ) {
-  const schoolId = getCurrentSchoolId(input.schoolId);
+  const schoolId = requireCurrentSchoolId(input.schoolId);
   const now = nowIso();
   const targetRoles = Array.from(new Set(input.targetRoles.filter(Boolean)));
   const id =
@@ -406,7 +427,7 @@ export function updateSchoolOperationalRequestStatus(
     payload?: Record<string, unknown>;
   },
 ) {
-  const schoolId = getCurrentSchoolId(input.schoolId);
+  const schoolId = requireCurrentSchoolId(input.schoolId);
   const current = readSchoolData<SchoolOperationalRequest>("operationalRequests", schoolId);
   const updatedRequests: SchoolOperationalRequest[] = [];
   const next = current.map((request) => {
@@ -484,20 +505,22 @@ export function listSchoolOperationalRequestsForRole(
 }
 
 function upsertEventSyncStatus(status: SchoolOperationalEventSyncStatus) {
-  const current = readSchoolData<SchoolOperationalEventSyncStatus>("eventSyncStatus", status.schoolId);
+  const schoolId = requireCurrentSchoolId(status.schoolId);
+  const current = readSchoolData<SchoolOperationalEventSyncStatus>("eventSyncStatus", schoolId);
   const next = current.some((record) => record.eventId === status.eventId)
     ? current.map((record) => (record.eventId === status.eventId ? status : record))
     : [status, ...current];
 
-  writeSchoolData("eventSyncStatus", next, status.schoolId);
+  writeSchoolData("eventSyncStatus", next, schoolId);
   return status;
 }
 
 function queueBackendEventSync(payload: BackendOperationalEventSyncPayload, error: unknown) {
-  const currentQueue = readSchoolData<SchoolOperationalEventSyncQueueRecord>("eventSyncQueue", payload.schoolId);
+  const schoolId = requireCurrentSchoolId(payload.schoolId);
+  const currentQueue = readSchoolData<SchoolOperationalEventSyncQueueRecord>("eventSyncQueue", schoolId);
   const queuedRecord: SchoolOperationalEventSyncQueueRecord = {
     id: currentQueue.find((record) => record.eventId === payload.event.id)?.id ?? uniqueId("event-sync-queue"),
-    schoolId: payload.schoolId,
+    schoolId,
     eventId: payload.event.id,
     endpoint: "/api/events/school-operations",
     status: "Queued",
@@ -509,10 +532,10 @@ function queueBackendEventSync(payload: BackendOperationalEventSyncPayload, erro
     ? currentQueue.map((record) => (record.eventId === payload.event.id ? queuedRecord : record))
     : [queuedRecord, ...currentQueue];
 
-  writeSchoolData("eventSyncQueue", nextQueue, payload.schoolId);
+  writeSchoolData("eventSyncQueue", nextQueue, schoolId);
   upsertEventSyncStatus({
     id: `event-sync-status-${payload.event.id}`,
-    schoolId: payload.schoolId,
+    schoolId,
     eventId: payload.event.id,
     endpoint: "/api/events/school-operations",
     status: "Queued",
@@ -554,27 +577,29 @@ async function postBackendOperationalEvent(payload: BackendOperationalEventSyncP
 }
 
 function removeQueuedBackendEventSync(schoolId: string, eventId: string) {
-  const currentQueue = readSchoolData<SchoolOperationalEventSyncQueueRecord>("eventSyncQueue", schoolId);
+  const scopedSchoolId = requireCurrentSchoolId(schoolId);
+  const currentQueue = readSchoolData<SchoolOperationalEventSyncQueueRecord>("eventSyncQueue", scopedSchoolId);
   writeSchoolData(
     "eventSyncQueue",
     currentQueue.filter((record) => record.eventId !== eventId),
-    schoolId,
+    scopedSchoolId,
   );
 }
 
 export async function retrySchoolOperationalEventSyncQueue(schoolId = getCurrentSchoolId()) {
-  if (typeof window === "undefined" || typeof globalThis.fetch === "undefined") {
+  if (typeof window === "undefined" || typeof globalThis.fetch === "undefined" || !schoolId.trim()) {
     return { attempted: 0, synced: 0, failed: 0 };
   }
 
-  const queue = readSchoolData<SchoolOperationalEventSyncQueueRecord>("eventSyncQueue", schoolId);
+  const scopedSchoolId = requireCurrentSchoolId(schoolId);
+  const queue = readSchoolData<SchoolOperationalEventSyncQueueRecord>("eventSyncQueue", scopedSchoolId);
   let synced = 0;
   let failed = 0;
 
   for (const record of queue) {
     try {
       await postBackendOperationalEvent(record.payload);
-      removeQueuedBackendEventSync(schoolId, record.eventId);
+      removeQueuedBackendEventSync(scopedSchoolId, record.eventId);
       synced += 1;
     } catch (error) {
       failed += 1;
@@ -589,10 +614,11 @@ export function startSchoolOperationalEventSyncRetryWorker(
   schoolId = getCurrentSchoolId(),
   options: { intervalMs?: number } = {},
 ) {
-  if (typeof window === "undefined") {
+  if (typeof window === "undefined" || !schoolId.trim()) {
     return () => undefined;
   }
 
+  const scopedSchoolId = requireCurrentSchoolId(schoolId);
   const intervalMs = Math.max(1000, options.intervalMs ?? 30000);
   let running = false;
 
@@ -602,7 +628,7 @@ export function startSchoolOperationalEventSyncRetryWorker(
     }
 
     running = true;
-    void retrySchoolOperationalEventSyncQueue(schoolId).finally(() => {
+    void retrySchoolOperationalEventSyncQueue(scopedSchoolId).finally(() => {
       running = false;
     });
   };
@@ -650,7 +676,7 @@ async function syncSchoolOperationalEventToBackendWithStatus(
 export function createNotification(
   input: Omit<SchoolNotification, "id" | "schoolId" | "read" | "createdAt"> & { schoolId?: string | null },
 ) {
-  const schoolId = getCurrentSchoolId(input.schoolId);
+  const schoolId = requireCurrentSchoolId(input.schoolId);
 
   return addSchoolRecord<SchoolNotification>(
     "notifications",
@@ -682,7 +708,7 @@ export function createNotification(
 export function createAuditLog(
   input: Omit<SchoolAuditLog, "id" | "schoolId" | "createdAt"> & { schoolId?: string | null },
 ) {
-  const schoolId = getCurrentSchoolId(input.schoolId);
+  const schoolId = requireCurrentSchoolId(input.schoolId);
 
   return addSchoolRecord<SchoolAuditLog>(
     "auditLogs",
@@ -702,7 +728,7 @@ export function createAuditLog(
 }
 
 export function simulateSms(input: Omit<SchoolSmsLog, "id" | "schoolId" | "status" | "createdAt"> & { schoolId?: string | null }) {
-  const schoolId = getCurrentSchoolId(input.schoolId);
+  const schoolId = requireCurrentSchoolId(input.schoolId);
 
   return addSchoolRecord<SchoolSmsLog>(
     "smsLogs",
@@ -720,7 +746,7 @@ export function simulateSms(input: Omit<SchoolSmsLog, "id" | "schoolId" | "statu
 }
 
 function materializeSchoolOperationalEvent(input: PublishSchoolOperationalEventInput) {
-  const schoolId = getCurrentSchoolId(input.schoolId);
+  const schoolId = requireCurrentSchoolId(input.schoolId);
   const severity = input.severity ?? "info";
   const createdSmsLogs: SchoolSmsLog[] = [];
   const createdNotifications: SchoolNotification[] = [];

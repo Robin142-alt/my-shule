@@ -1343,52 +1343,14 @@ function getApprovalActionContract(action: ApprovalWorkflowAction): ApprovalActi
   if (action.actionId === "approve-results") {
     return {
       actionId: action.actionId,
-      datasetLabel: "exam series",
-      description: "Select the locked exam series to publish before results become visible to families.",
-      confirmLabel: "Publish selected",
+      datasetLabel: "report cards",
+      description: "Select the report cards to approve before results become visible to families.",
+      confirmLabel: "Approve selected",
       successVerb: "completed",
-      sourcePath: "/api/exams/marks/school",
-      handlerPath: "/api/exams/series/{id}/publish",
-      loadRecords: async () => {
-        const payload = await requestSchoolApiProxy<unknown>("/exams/marks/school?status=locked", {
-          unwrapEnvelope: false,
-        });
-        const rows = unwrapApiData<unknown[]>(payload as unknown[] | { data?: unknown[] }) ?? [];
-        
-        const seriesMap = new Map<string, { count: number; name: string }>();
-        rows.forEach(r => {
-           const row = objectRecord(r);
-           const seriesId = recordText(row.exam_series_id, "unknown-series");
-           const seriesName = recordText(objectRecord(row.series).name, recordText(row.exam_series_name, `Series ${seriesId}`));
-           if (!seriesMap.has(seriesId)) {
-             seriesMap.set(seriesId, { count: 0, name: seriesName });
-           }
-           seriesMap.get(seriesId)!.count++;
-        });
-
-        if (seriesMap.size === 0) {
-           seriesMap.set("term-2-mock", { count: 120, name: "Term 2 Mid-Term Series" });
-        }
-
-        return Array.from(seriesMap.entries()).map(([id, info]) => ({
-           id,
-           title: info.name,
-           subtitle: `${info.count} locked marks ready for publishing`,
-           status: "locked",
-           payload: { exam_series_id: id },
-        }));
-      },
-      executeRecord: async (record) => {
-        try {
-          await requestSchoolApiProxy(`/exams/series/${encodeURIComponent(record.id)}/publish`, {
-            method: "POST",
-          });
-        } catch (error) {
-          // Fallback or ignore if the mock doesn't exist on backend
-          console.warn("Failed to publish exam series, continuing workflow", error);
-        }
-        return `Exam series ${record.title} published.`;
-      },
+      sourcePath: "/api/exams/report-cards",
+      handlerPath: "/api/exams/report-cards/publish",
+      loadRecords: loadExamReportRecords,
+      executeRecord: publishExamReportRecord,
     };
   }
 

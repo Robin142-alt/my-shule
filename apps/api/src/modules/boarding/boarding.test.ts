@@ -29,6 +29,61 @@ test('BoardingController is gated by boarding module and permissions', () => {
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, createHandler), ['boarding:write']);
 });
 
+test('BoardingController lists roll calls from tenant-scoped boarding attendance records', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const controller = new BoardingController(
+    {
+      boardingAttendance: {
+        findMany: async (query: any) => {
+          calls.push({ method: 'rollCalls', query });
+          return [{
+            id: 'roll-1',
+            status: 'present',
+            className: 'Class A',
+            dormName: 'Dorm A',
+            bedLabel: 'Bed 1',
+            parentSmsSent: true,
+            createdAt: new Date('2026-05-21T18:30:00.000Z'),
+            student: { firstName: 'Learner', lastName: 'One', className: 'Class A' },
+          }];
+        },
+      },
+    } as never,
+    {} as never,
+  );
+  (controller as any).requestContext = { requireStore: () => ({ tenant_id: 'tenant-a' }) };
+
+  const rollCalls = await controller.getRollCalls();
+
+  assert.deepEqual(calls[0]?.query, { where: { schoolId: 'tenant-a' }, include: { student: true } });
+  assert.deepEqual(rollCalls, [{
+    id: 'roll-1',
+    student: 'Learner One',
+    className: 'Class A',
+    dorm: 'Dorm A',
+    bed: 'Bed 1',
+    status: 'Present',
+    parentSmsSent: true,
+    lastMarked: '2026-05-21T18:30:00.000Z',
+  }]);
+});
+
+test('BoardingController does not hide boarding database failures as empty lists', async () => {
+  const controller = new BoardingController(
+    {
+      boardingAttendance: {
+        findMany: async () => {
+          throw new Error('boarding database unavailable');
+        },
+      },
+    } as never,
+    {} as never,
+  );
+  (controller as any).requestContext = { requireStore: () => ({ tenant_id: 'tenant-a' }) };
+
+  await assert.rejects(() => controller.getRollCalls(), /boarding database unavailable/);
+});
+
 test('BoardingService creates auditable boarding records', async () => {
   const calls: Array<Record<string, unknown>> = [];
   const service = new BoardingService(

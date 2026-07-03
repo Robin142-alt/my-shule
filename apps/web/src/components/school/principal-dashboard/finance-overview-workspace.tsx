@@ -21,7 +21,7 @@ type PrincipalWorkspaceData = {
 export function PrincipalFinanceOverviewWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalWorkspaceData>('/admin-command/principal/finance-overview');
   const { data: feeCategoriesData } = useSchoolQuery<any[]>('/finance/fee-categories');
-  const { hasPermission } = usePermissions();
+  const { hasPermission, isLoading: permissionsLoading } = usePermissions();
 
   const [isFeeCategoryModalOpen, setIsFeeCategoryModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -87,6 +87,19 @@ export function PrincipalFinanceOverviewWorkspace() {
       refetch();
     } catch (err: any) {
       toast.error(err.message || "Failed to archive fee category");
+    }
+  };
+
+  const handleWaiverDecision = async (id: string, approved: boolean) => {
+    try {
+      await requestDashboardApi(`/finance/waivers/${id}/approve`, {
+        method: "POST",
+        body: { approved },
+      });
+      toast.success(`Waiver ${approved ? "approved" : "rejected"}.`);
+      refetch();
+    } catch (err: any) {
+      toast.error(err.message || `Failed to ${approved ? "approve" : "reject"} waiver`);
     }
   };
 
@@ -162,11 +175,15 @@ export function PrincipalFinanceOverviewWorkspace() {
             <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5">
               <CheckCircle2 className="h-10 w-10 text-white/20 mb-3" />
               <p className="text-white/60 mb-4">No pending waivers</p>
-              {hasPermission('finance:write') && (
+              {permissionsLoading ? (
+                <Button size="sm" variant="outline" disabled>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Checking access
+                </Button>
+              ) : hasPermission('finance:write') ? (
                 <Button size="sm" variant="outline" onClick={() => setIsWaiverModalOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" /> Add Waiver
                 </Button>
-              )}
+              ) : null}
             </div>
           ) : (
             <div className="space-y-3 flex-1 overflow-y-auto pr-2">
@@ -183,8 +200,8 @@ export function PrincipalFinanceOverviewWorkspace() {
                     </div>
                   </div>
                   <div className="mt-3 flex gap-2">
-                    <button className="text-xs bg-green-500/20 text-green-400 px-3 py-1.5 rounded hover:bg-green-500/30 transition-colors">Approve</button>
-                    <button className="text-xs bg-red-500/20 text-red-400 px-3 py-1.5 rounded hover:bg-red-500/30 transition-colors">Reject</button>
+                    <button type="button" onClick={() => handleWaiverDecision(waiver.id, true)} className="text-xs bg-green-500/20 text-green-400 px-3 py-1.5 rounded hover:bg-green-500/30 transition-colors">Approve</button>
+                    <button type="button" onClick={() => handleWaiverDecision(waiver.id, false)} className="text-xs bg-red-500/20 text-red-400 px-3 py-1.5 rounded hover:bg-red-500/30 transition-colors">Reject</button>
                   </div>
                 </div>
               ))}

@@ -34,18 +34,37 @@ export class AuthorizationRepository {
     await this.databaseService.query<PermissionRow>(
       `
         WITH catalog AS (
-          SELECT resource, action, description
+          SELECT
+            resource,
+            action,
+            description,
+            lower(
+              $1::text || '.' ||
+              regexp_replace(resource, '[^a-zA-Z0-9]+', '_', 'g') || '.' ||
+              regexp_replace(action, '[^a-zA-Z0-9]+', '_', 'g') || '.tenant'
+            ) AS permission_key,
+            upper(
+              regexp_replace($1::text, '[^a-zA-Z0-9]+', '_', 'g') || '_' ||
+              regexp_replace(resource, '[^a-zA-Z0-9]+', '_', 'g') || '_' ||
+              regexp_replace(action, '[^a-zA-Z0-9]+', '_', 'g')
+            ) AS permission_code
           FROM jsonb_to_recordset($2::jsonb) AS permission(
             resource text,
             action text,
             description text
           )
         )
-        INSERT INTO permissions (tenant_id, resource, action, description)
-        SELECT $1, resource, action, description
+        INSERT INTO permissions (tenant_id, code, module, resource, action, scope, key, description, created_at, updated_at)
+        SELECT $1, permission_code, resource, resource, action, 'tenant', permission_key, description, NOW(), NOW()
         FROM catalog
         ON CONFLICT (tenant_id, resource, action)
-        DO UPDATE SET description = EXCLUDED.description, updated_at = NOW()
+        DO UPDATE SET
+          code = EXCLUDED.code,
+          module = EXCLUDED.module,
+          scope = EXCLUDED.scope,
+          key = EXCLUDED.key,
+          description = EXCLUDED.description,
+          updated_at = NOW()
         RETURNING id, tenant_id, resource, action, description, created_at, updated_at
       `,
       [tenantId, JSON.stringify(DEFAULT_PERMISSION_CATALOG)],
@@ -61,8 +80,8 @@ export class AuthorizationRepository {
             description text
           )
         )
-        INSERT INTO roles (tenant_id, code, name, description, is_system)
-        SELECT $1, code, name, description, TRUE
+        INSERT INTO roles (tenant_id, code, name, description, is_system, created_at, updated_at)
+        SELECT $1, code, name, description, TRUE, NOW(), NOW()
         FROM catalog
         ON CONFLICT (tenant_id, code)
         DO UPDATE SET
@@ -96,7 +115,8 @@ export class AuthorizationRepository {
           SELECT DISTINCT
             $1::text AS tenant_id,
             roles.id AS role_id,
-            permissions.id AS permission_id
+            permissions.id AS permission_id,
+            gen_random_uuid() AS role_permission_id
           FROM catalog
           INNER JOIN roles
             ON roles.tenant_id = $1
@@ -104,10 +124,10 @@ export class AuthorizationRepository {
           INNER JOIN permissions
             ON permissions.tenant_id = $1
            AND permissions.resource = catalog.resource
-           AND permissions.action = catalog.action
+             AND permissions.action = catalog.action
         )
-        INSERT INTO role_permissions (tenant_id, role_id, permission_id)
-        SELECT tenant_id, role_id, permission_id
+        INSERT INTO role_permissions (id, tenant_id, role_id, permission_id, created_at, updated_at)
+        SELECT role_permission_id, tenant_id, role_id, permission_id, NOW(), NOW()
         FROM resolved
         ON CONFLICT (tenant_id, role_id, permission_id)
         DO NOTHING

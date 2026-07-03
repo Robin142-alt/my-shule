@@ -4,9 +4,9 @@ import { Activity, Stethoscope, Pill, AlertTriangle, FileText, Download } from "
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { downloadCsvFile } from "@/lib/dashboard/export";
 
 export function ClinicHealthWorkspace() {
-  // Using 'me' or a hardcoded studentId for demonstration
   const { data: historyData, isLoading } = useSchoolQuery<{ visits?: any[]; allergies?: string[]; medications?: any[] }>('/api/clinic/parent/students/me/history');
 
   const visits = historyData?.visits || [];
@@ -20,7 +20,22 @@ export function ClinicHealthWorkspace() {
           <h2 className="text-2xl font-semibold text-slate-900 tracking-tight">Clinic & Health</h2>
           <p className="text-sm text-slate-500 mt-1">View medical history, recent sick bay visits, and active medications.</p>
         </div>
-        <Button variant="outline" className="gap-2">
+        <Button
+          variant="outline"
+          className="gap-2"
+          onClick={() => {
+            downloadCsvFile({
+              filename: "student-medical-form.csv",
+              headers: ["Section", "Value"],
+              rows: [
+                ["Known allergies", allergies.length ? allergies.join("; ") : "None recorded"],
+                ["Active medications", medications.length ? medications.map((med: any) => `${med.name} ${med.dosage ?? ""}`.trim()).join("; ") : "None recorded"],
+                ["Clinic visits this year", String(visits.length)],
+                ["Generated at", new Date().toISOString()],
+              ],
+            });
+          }}
+        >
           <Download className="w-4 h-4" /> Medical Form
         </Button>
       </div>

@@ -197,102 +197,97 @@ export class SupportController {
   @Permissions('support:view')
   async getDiscipline() {
     const tenantId = this.requestContext.requireStore().tenant_id;
-    if (!tenantId) return [];
+    if (!tenantId) throw new BadRequestException('Tenant context required');
 
-    try {
-      const incidents = await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT id, student_id, class_id, severity, status, title, description, parent_notification_status, metadata, occurred_at, reporting_staff_id
-         FROM discipline_incidents
-         WHERE school_id = $1::uuid`,
-        tenantId
+    const incidents = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT id, student_id, class_id, severity, status, title, description, parent_notification_status, metadata, occurred_at, reporting_staff_id
+       FROM discipline_incidents
+       WHERE school_id = $1::uuid`,
+      tenantId
+    );
+
+    const studentIds = [...new Set(incidents.map(i => i.student_id).filter(Boolean))];
+    const classIds = [...new Set(incidents.map(i => i.class_id).filter(Boolean))];
+    const staffIds = [...new Set(incidents.map(i => i.reporting_staff_id).filter(Boolean))];
+
+    let studentsMap: Record<string, { name: string; guardianPhone: string }> = {};
+    let classesMap: Record<string, string> = {};
+    let staffMap: Record<string, string> = {};
+
+    if (studentIds.length > 0) {
+      const students = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT id, "firstName", "lastName", "guardianPhone" FROM students WHERE id = ANY($1::uuid[])`,
+        [studentIds]
       );
-
-      const studentIds = [...new Set(incidents.map(i => i.student_id).filter(Boolean))];
-      const classIds = [...new Set(incidents.map(i => i.class_id).filter(Boolean))];
-      const staffIds = [...new Set(incidents.map(i => i.reporting_staff_id).filter(Boolean))];
-
-      let studentsMap: Record<string, { name: string; guardianPhone: string }> = {};
-      let classesMap: Record<string, string> = {};
-      let staffMap: Record<string, string> = {};
-
-      if (studentIds.length > 0) {
-        const students = await this.prisma.$queryRawUnsafe<any[]>(
-          `SELECT id, "firstName", "lastName", "guardianPhone" FROM students WHERE id = ANY($1::uuid[])`,
-          [studentIds]
-        );
-        for (const s of students) {
-          studentsMap[s.id] = {
-            name: `${s.firstName} ${s.lastName}`,
-            guardianPhone: s.guardianPhone || ''
-          };
-        }
-      }
-
-      if (classIds.length > 0) {
-        const classes = await this.prisma.$queryRawUnsafe<any[]>(
-          `SELECT id, name FROM classes WHERE id = ANY($1::uuid[])`,
-          [classIds]
-        );
-        for (const c of classes) {
-          classesMap[c.id] = c.name;
-        }
-      }
-
-      if (staffIds.length > 0) {
-        const staff = await this.prisma.$queryRawUnsafe<any[]>(
-          `SELECT id, "firstName", "lastName" FROM users WHERE id = ANY($1::uuid[])`,
-          [staffIds]
-        );
-        for (const s of staff) {
-          staffMap[s.id] = `${s.firstName} ${s.lastName}`;
-        }
-      }
-
-      return incidents.map(i => {
-        const studentInfo = studentsMap[i.student_id] || { name: 'Unknown Student', guardianPhone: '' };
-        let parentSmsSent = false;
-        if (i.parent_notification_status === 'SENT' || i.parent_notification_status === 'DELIVERED') {
-          parentSmsSent = true;
-        }
-        let metaObj: any = {};
-        try {
-          metaObj = typeof i.metadata === 'string' ? JSON.parse(i.metadata) : (i.metadata || {});
-        } catch {}
-        if (metaObj.parentSmsSent !== undefined) parentSmsSent = metaObj.parentSmsSent;
-        const counsellorReferred = metaObj.counsellorReferred || false;
-
-        let mappedStatus = i.status;
-        if (mappedStatus === 'new' || mappedStatus === 'NEW') mappedStatus = 'New';
-        else if (mappedStatus === 'under_review' || mappedStatus === 'UNDER_REVIEW') mappedStatus = 'Under Review';
-        else if (mappedStatus === 'escalated' || mappedStatus === 'ESCALATED') mappedStatus = 'Escalated';
-        else if (mappedStatus === 'counsellor_referral' || mappedStatus === 'COUNSELLOR_REFERRAL') mappedStatus = 'Counsellor Referral';
-        else if (mappedStatus === 'resolved' || mappedStatus === 'RESOLVED') mappedStatus = 'Resolved';
-
-        let mappedSeverity = i.severity;
-        if (mappedSeverity === 'minor' || mappedSeverity === 'MINOR') mappedSeverity = 'Minor';
-        else if (mappedSeverity === 'moderate' || mappedSeverity === 'MODERATE') mappedSeverity = 'Moderate';
-        else if (mappedSeverity === 'serious' || mappedSeverity === 'SERIOUS') mappedSeverity = 'Serious';
-        else if (mappedSeverity === 'critical' || mappedSeverity === 'CRITICAL') mappedSeverity = 'Critical';
-
-        return {
-          id: i.id,
-          student: studentInfo.name,
-          className: classesMap[i.class_id] || 'Unknown Class',
-          caseType: i.title || 'Other',
-          severity: mappedSeverity || 'Minor',
-          reportedBy: staffMap[i.reporting_staff_id] || 'Staff Member',
-          guardianPhone: studentInfo.guardianPhone,
-          notes: i.description || '',
-          status: mappedStatus || 'New',
-          parentSmsSent,
-          counsellorReferred,
-          time: i.occurred_at ? i.occurred_at.toISOString() : new Date().toISOString()
+      for (const s of students) {
+        studentsMap[s.id] = {
+          name: `${s.firstName} ${s.lastName}`,
+          guardianPhone: s.guardianPhone || ''
         };
-      });
-    } catch (e) {
-      console.error('get support discipline error:', e);
-      return [];
+      }
     }
+
+    if (classIds.length > 0) {
+      const classes = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT id, name FROM classes WHERE id = ANY($1::uuid[])`,
+        [classIds]
+      );
+      for (const c of classes) {
+        classesMap[c.id] = c.name;
+      }
+    }
+
+    if (staffIds.length > 0) {
+      const staff = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT id, "firstName", "lastName" FROM users WHERE id = ANY($1::uuid[])`,
+        [staffIds]
+      );
+      for (const s of staff) {
+        staffMap[s.id] = `${s.firstName} ${s.lastName}`;
+      }
+    }
+
+    return incidents.map(i => {
+      const studentInfo = studentsMap[i.student_id] || { name: 'Unassigned learner', guardianPhone: '' };
+      let parentSmsSent = false;
+      if (i.parent_notification_status === 'SENT' || i.parent_notification_status === 'DELIVERED') {
+        parentSmsSent = true;
+      }
+      let metaObj: any = {};
+      try {
+        metaObj = typeof i.metadata === 'string' ? JSON.parse(i.metadata) : (i.metadata || {});
+      } catch {}
+      if (metaObj.parentSmsSent !== undefined) parentSmsSent = metaObj.parentSmsSent;
+      const counsellorReferred = metaObj.counsellorReferred || false;
+
+      let mappedStatus = i.status;
+      if (mappedStatus === 'new' || mappedStatus === 'NEW') mappedStatus = 'New';
+      else if (mappedStatus === 'under_review' || mappedStatus === 'UNDER_REVIEW') mappedStatus = 'Under Review';
+      else if (mappedStatus === 'escalated' || mappedStatus === 'ESCALATED') mappedStatus = 'Escalated';
+      else if (mappedStatus === 'counsellor_referral' || mappedStatus === 'COUNSELLOR_REFERRAL') mappedStatus = 'Counsellor Referral';
+      else if (mappedStatus === 'resolved' || mappedStatus === 'RESOLVED') mappedStatus = 'Resolved';
+
+      let mappedSeverity = i.severity;
+      if (mappedSeverity === 'minor' || mappedSeverity === 'MINOR') mappedSeverity = 'Minor';
+      else if (mappedSeverity === 'moderate' || mappedSeverity === 'MODERATE') mappedSeverity = 'Moderate';
+      else if (mappedSeverity === 'serious' || mappedSeverity === 'SERIOUS') mappedSeverity = 'Serious';
+      else if (mappedSeverity === 'critical' || mappedSeverity === 'CRITICAL') mappedSeverity = 'Critical';
+
+      return {
+        id: i.id,
+        student: studentInfo.name,
+        className: classesMap[i.class_id] || 'Unassigned class',
+        caseType: i.title || 'Other',
+        severity: mappedSeverity || 'Minor',
+        reportedBy: staffMap[i.reporting_staff_id] || 'Staff Member',
+        guardianPhone: studentInfo.guardianPhone,
+        notes: i.description || '',
+        status: mappedStatus || 'New',
+        parentSmsSent,
+        counsellorReferred,
+        time: i.occurred_at ? i.occurred_at.toISOString() : new Date().toISOString()
+      };
+    });
   }
 
   @Post('discipline')
@@ -436,56 +431,51 @@ export class SupportController {
   @Permissions('support:view')
   async getCounselling() {
     const tenantId = this.requestContext.requireStore().tenant_id;
-    if (!tenantId) return [];
+    if (!tenantId) throw new BadRequestException('Tenant context required');
 
-    try {
-      const sessions = await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT id, student_id, counsellor_user_id, scheduled_for, location, agenda, status
-         FROM counselling_sessions
-         WHERE school_id = $1::uuid`,
-        tenantId
+    const sessions = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT id, student_id, counsellor_user_id, scheduled_for, location, agenda, status
+       FROM counselling_sessions
+       WHERE school_id = $1::uuid`,
+      tenantId
+    );
+
+    const studentIds = [...new Set(sessions.map(s => s.student_id).filter(Boolean))];
+    let studentsMap: Record<string, { name: string; className: string; guardianPhone: string }> = {};
+
+    if (studentIds.length > 0) {
+      const students = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT s.id, s."firstName", s."lastName", s."guardianPhone", c.name as class_name
+         FROM students s
+         LEFT JOIN classes c ON s.class_id = c.id
+         WHERE s.id = ANY($1::uuid[])`,
+        [studentIds]
       );
-
-      const studentIds = [...new Set(sessions.map(s => s.student_id).filter(Boolean))];
-      let studentsMap: Record<string, { name: string; className: string; guardianPhone: string }> = {};
-
-      if (studentIds.length > 0) {
-        const students = await this.prisma.$queryRawUnsafe<any[]>(
-          `SELECT s.id, s."firstName", s."lastName", s."guardianPhone", c.name as class_name
-           FROM students s
-           LEFT JOIN classes c ON s.class_id = c.id
-           WHERE s.id = ANY($1::uuid[])`,
-          [studentIds]
-        );
-        for (const s of students) {
-          studentsMap[s.id] = {
-            name: `${s.firstName} ${s.lastName}`,
-            className: s.class_name || 'Unknown Class',
-            guardianPhone: s.guardianPhone || ''
-          };
-        }
-      }
-
-      return sessions.map(s => {
-        const studentInfo = studentsMap[s.student_id] || { name: 'Unknown Student', className: 'Unknown Class', guardianPhone: '' };
-        return {
-          id: s.id,
-          student: studentInfo.name,
-          className: studentInfo.className,
-          referralSource: 'Teacher',
-          riskLevel: 'Medium',
-          sessionType: s.agenda || 'Welfare Check',
-          guardianPhone: studentInfo.guardianPhone,
-          notes: s.location || '',
-          followUpDate: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().split('T')[0],
-          status: s.status === 'scheduled' ? 'Open' : 'Closed',
-          guardianSmsSent: false
+      for (const s of students) {
+        studentsMap[s.id] = {
+          name: `${s.firstName} ${s.lastName}`,
+          className: s.class_name || 'Unassigned class',
+          guardianPhone: s.guardianPhone || ''
         };
-      });
-    } catch (e) {
-      console.error('get support counselling error:', e);
-      return [];
+      }
     }
+
+    return sessions.map(s => {
+      const studentInfo = studentsMap[s.student_id] || { name: 'Unassigned learner', className: 'Unassigned class', guardianPhone: '' };
+      return {
+        id: s.id,
+        student: studentInfo.name,
+        className: studentInfo.className,
+        referralSource: 'Teacher',
+        riskLevel: 'Medium',
+        sessionType: s.agenda || 'Welfare Check',
+        guardianPhone: studentInfo.guardianPhone,
+        notes: s.location || '',
+        followUpDate: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().split('T')[0],
+        status: s.status === 'scheduled' ? 'Open' : 'Closed',
+        guardianSmsSent: false
+      };
+    });
   }
 
   @Post('counselling')

@@ -295,6 +295,8 @@ export class DisciplineSchemaService implements OnModuleInit {
       ALTER TABLE behavior_points
         DROP CONSTRAINT IF EXISTS ck_behavior_points_source;
       ALTER TABLE behavior_points
+        ADD COLUMN IF NOT EXISTS awarded_at timestamptz NOT NULL DEFAULT now();
+      ALTER TABLE behavior_points
         ADD CONSTRAINT ck_behavior_points_source
         CHECK (source_type IN ('incident', 'commendation', 'correction', 'lab_attendance'));
 

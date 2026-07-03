@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
 
+import { QueueService } from '../../../queue/queue.service';
 import {
   PAYMENTS_PROCESS_JOB,
   PAYMENTS_VERIFY_MPESA_JOB,
@@ -22,14 +22,7 @@ import {
 export class PaymentsJobProducerService {
   private readonly logger = new Logger(PaymentsJobProducerService.name);
 
-  constructor(
-    @InjectQueue(PAYMENTS_QUEUE_NAME)
-    private readonly paymentsQueue: Queue<
-      PaymentsQueueJobData,
-      PaymentsQueueJobResult,
-      typeof PAYMENTS_PROCESS_JOB | typeof PAYMENTS_VERIFY_MPESA_JOB
-    >,
-  ) {}
+  constructor(private readonly queueService: QueueService) {}
 
   async enqueuePayment(data: EnqueuePaymentJobData): Promise<EnqueuePaymentJobResult> {
     const payload: ProcessPaymentJobData = {
@@ -37,14 +30,15 @@ export class PaymentsJobProducerService {
       enqueued_at: new Date().toISOString(),
     };
     const jobId = this.buildJobId(payload);
-    const existingJob = await this.paymentsQueue.getJob(jobId);
+    const paymentsQueue = this.getPaymentsQueue();
+    const existingJob = await paymentsQueue.getJob(jobId);
 
     if (existingJob) {
       return this.mapQueueResult(existingJob, payload, true);
     }
 
     try {
-      const job = await this.paymentsQueue.add(PAYMENTS_PROCESS_JOB, payload, {
+      const job = await paymentsQueue.add(PAYMENTS_PROCESS_JOB, payload, {
         jobId,
         attempts: 5,
         backoff: {
@@ -75,7 +69,7 @@ export class PaymentsJobProducerService {
       return this.mapQueueResult(job, payload, false);
     } catch (error) {
       if (this.isDuplicateJobError(error)) {
-        const duplicatedJob = await this.paymentsQueue.getJob(jobId);
+        const duplicatedJob = await paymentsQueue.getJob(jobId);
 
         if (duplicatedJob) {
           return this.mapQueueResult(duplicatedJob, payload, true);
@@ -98,14 +92,15 @@ export class PaymentsJobProducerService {
       enqueued_at: new Date().toISOString(),
     };
     const jobId = this.buildMpesaVerificationJobId(payload);
-    const existingJob = await this.paymentsQueue.getJob(jobId);
+    const paymentsQueue = this.getPaymentsQueue();
+    const existingJob = await paymentsQueue.getJob(jobId);
 
     if (existingJob) {
       return this.mapMpesaVerificationQueueResult(existingJob, payload, true);
     }
 
     try {
-      const job = await this.paymentsQueue.add(PAYMENTS_VERIFY_MPESA_JOB, payload, {
+      const job = await paymentsQueue.add(PAYMENTS_VERIFY_MPESA_JOB, payload, {
         jobId,
         attempts: 8,
         backoff: {
@@ -139,7 +134,7 @@ export class PaymentsJobProducerService {
       return this.mapMpesaVerificationQueueResult(job, payload, false);
     } catch (error) {
       if (this.isDuplicateJobError(error)) {
-        const duplicatedJob = await this.paymentsQueue.getJob(jobId);
+        const duplicatedJob = await paymentsQueue.getJob(jobId);
 
         if (duplicatedJob) {
           return this.mapMpesaVerificationQueueResult(duplicatedJob, payload, true);
@@ -201,5 +196,17 @@ export class PaymentsJobProducerService {
       error instanceof Error &&
       /job.*exists|duplicated/i.test(error.message)
     );
+  }
+
+  private getPaymentsQueue(): Queue<
+    PaymentsQueueJobData,
+    PaymentsQueueJobResult,
+    typeof PAYMENTS_PROCESS_JOB | typeof PAYMENTS_VERIFY_MPESA_JOB
+  > {
+    return this.queueService.getQueue(PAYMENTS_QUEUE_NAME) as Queue<
+      PaymentsQueueJobData,
+      PaymentsQueueJobResult,
+      typeof PAYMENTS_PROCESS_JOB | typeof PAYMENTS_VERIFY_MPESA_JOB
+    >;
   }
 }

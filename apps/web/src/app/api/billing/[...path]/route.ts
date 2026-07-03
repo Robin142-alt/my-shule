@@ -8,6 +8,7 @@ import {
   readAccessCookie,
   readExperienceSessionCookie,
   readTenantCookie,
+  resolveSchoolTenantSlug,
 } from "@/lib/auth/server-session";
 import { getDashboardApiBaseUrl } from "@/lib/dashboard/api-client";
 
@@ -47,8 +48,20 @@ async function proxyBillingRequest(request: NextRequest, context: RouteContext) 
   }
 
   const requestUrl = new URL(request.url);
-  const tenantSlug = requestUrl.searchParams.get("tenantSlug") ?? readTenantCookie(cookieStore) ?? session.tenantSlug;
-  const baseUrl = getDashboardApiBaseUrl(tenantSlug);
+  const { tenantSlug, tenantMismatch } = resolveSchoolTenantSlug({
+    requestedTenantSlug: requestUrl.searchParams.get("tenantSlug"),
+    tenantCookie: readTenantCookie(cookieStore),
+    sessionTenantSlug: session.tenantSlug,
+  });
+
+  if (tenantMismatch) {
+    return NextResponse.json(
+      { message: "Requested school workspace does not match the signed-in session." },
+      { status: 403 },
+    );
+  }
+
+  const baseUrl = getDashboardApiBaseUrl(tenantSlug ?? undefined);
 
   if (!tenantSlug || !baseUrl) {
     return NextResponse.json(

@@ -1,0 +1,16 @@
+{
+  "projectId": "prj_PQVEPXKMlzgngPtBv5gMbGAl093b",
+  "orgId": "team_vEpOYHogWVyjvSjZAFn47DYI",
+  "projectName": "my-shule-erp",
+  "settings": {
+    "createdAt": 1777339036177,
+    "framework": null,
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "24.x"
+  }
+}

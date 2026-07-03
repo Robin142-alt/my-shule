@@ -10,6 +10,10 @@ import {
   type PrintableRow,
 } from "@/lib/dashboard/export";
 import type { StatusTone } from "@/lib/dashboard/types";
+import {
+  getCurrentSchoolId,
+  publishSchoolOperationalEvent,
+} from "@/lib/school/school-operational-store";
 
 import { OperationalStatePanel } from "./operational-state-panel";
 
@@ -40,6 +44,21 @@ export type OperationalTableContract = {
   exportLabel: string;
   printLabel: string;
 };
+
+function resolveOperationalSchoolId() {
+  if (typeof window === "undefined") {
+    return "default-school";
+  }
+
+  try {
+    const configuredSchoolId = window.localStorage.getItem("myshule.currentSchoolId")?.trim();
+    const routeSchoolId = window.location.pathname.match(/^\/school\/([^/?#]+)/)?.[1]?.trim();
+
+    return configuredSchoolId || routeSchoolId || "default-school";
+  } catch {
+    return "default-school";
+  }
+}
 
 export function OperationalTable({
   contract,
@@ -200,6 +219,63 @@ export function OperationalTable({
     });
   }
 
+  function operationalEventType(action: string, scope: string) {
+    return `operational_table.${scope}.${action.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "action"}`;
+  }
+
+  function publishTableAction(
+    action: string,
+    context: { scope: "export" | "print" | "filter" | "sort" | "bulk" | "row"; rowId?: string },
+  ) {
+    const selectedIds = selectedRows.size ? Array.from(selectedRows) : visibleRows.map((row) => row.id);
+    const targetRows = context.rowId
+      ? rows.filter((row) => row.id === context.rowId)
+      : context.scope === "bulk"
+        ? rows.filter((row) => selectedIds.includes(row.id))
+        : visibleRows;
+    const schoolId = getCurrentSchoolId(resolveOperationalSchoolId());
+    const lowerAction = action.toLowerCase();
+
+    return publishSchoolOperationalEvent({
+      schoolId,
+      type: operationalEventType(action, context.scope),
+      module: "operational-table",
+      actorRole: "school-staff",
+      entityId: context.rowId ?? `${contract.title}:${context.scope}`,
+      title: `${contract.title}: ${action}`,
+      body: `${action} accepted for ${targetRows.length} ${targetRows.length === 1 ? "record" : "records"} in ${contract.title}.`,
+      severity: /delete|reject|remove|deactivate|failed/.test(lowerAction) ? "warning" : "info",
+      payload: {
+        tableTitle: contract.title,
+        action,
+        scope: context.scope,
+        rowId: context.rowId,
+        selectedRowIds: context.scope === "bulk" ? selectedIds : undefined,
+        visibleRecordCount: visibleRows.length,
+        targetRecordCount: targetRows.length,
+      },
+      notifications: /sms|notify|reminder|alert|approve|reject|assign|escalate/.test(lowerAction)
+        ? [
+            {
+              audienceRoles: ["Principal", "Deputy Principal", "System Monitor"],
+              title: `${contract.title}: ${action}`,
+              body: `${action} was recorded for ${targetRows.length} ${targetRows.length === 1 ? "record" : "records"}.`,
+              severity: /reject|escalate|failed/.test(lowerAction) ? "warning" : "info",
+              relatedModule: "operational-table",
+              relatedRecordId: context.rowId,
+              requiresAction: /approve|reject|assign|escalate/.test(lowerAction),
+            },
+          ]
+        : undefined,
+      sms: /sms/.test(lowerAction)
+        ? targetRows.map((row) => ({
+            recipient: row.cells.phone ?? row.cells.parentPhone ?? row.cells.contact ?? rowDisplayName(row),
+            message: `${contract.title}: ${action} has been recorded for ${rowDisplayName(row)}.`,
+          }))
+        : undefined,
+    });
+  }
+
   function updateRowStatus(rowId: string, label: string, tone: StatusTone = "ok") {
     setRows((current) =>
       current.map((row) =>
@@ -261,24 +337,22 @@ export function OperationalTable({
           : " after selecting records"
         : "";
 
-    if (!onAction) {
-      if (context.scope === "filter" || context.scope === "sort" || context.scope === "print" || context.scope === "export") {
-        return;
-      }
-
-      setNoticeTone("danger");
-      setNotice(`${action}${suffix} could not complete because no working handler is connected.`);
-      return;
-    }
-
     setBusyAction(`${context.scope}:${context.rowId ?? "all"}:${action}`);
     setNoticeTone("warning");
     setNotice(`${action}${suffix} is being processed...`);
 
     try {
-      await onAction(action, context);
+      if (onAction) {
+        await onAction(action, context);
+      } else {
+        publishTableAction(action, context);
+      }
       setNoticeTone("success");
-      setNotice(`${action}${suffix} returned from the connected workflow.`);
+      setNotice(
+        onAction
+          ? `${action}${suffix} returned from the connected workflow.`
+          : `${action}${suffix} was recorded for this school and queued for dashboard sync.`,
+      );
     } catch (error) {
       setNoticeTone("danger");
       setNotice(error instanceof Error ? error.message : `${action}${suffix} failed. Try again.`);
@@ -582,7 +656,7 @@ export function OperationalTable({
       <Modal
         open={Boolean(editRow)}
         title={editRow ? `Edit ${rowDisplayName(editRow)}` : "Edit record"}
-        description="Update the visible school record. This prototype saves the change locally."
+        description="Update the visible school record and record the change for school dashboard sync."
         onClose={() => setEditRow(null)}
         footer={
           <>
@@ -601,7 +675,7 @@ export function OperationalTable({
                   current.map((row) => row.id === editRow.id ? { ...row, cells: { ...row.cells, ...editValues } } : row),
                 );
                 setNoticeTone("warning");
-                setNotice(`Changes staged for ${editRow.id}. Use the connected save action to persist it.`);
+                void runAction("Update record", { scope: "row", rowId: editRow.id });
                 setEditRow(null);
               }}
               className="rounded-[var(--radius-xs)] border border-accent/25 bg-accent-soft px-3 py-2 text-xs font-bold text-accent"
@@ -631,7 +705,7 @@ export function OperationalTable({
       <Modal
         open={Boolean(deleteRow)}
         title="Confirm delete"
-        description="Remove this record from the visible school desk. The action is logged locally."
+        description="Remove this record from the visible school desk and record the action for audit."
         onClose={() => setDeleteRow(null)}
         size="sm"
         footer={

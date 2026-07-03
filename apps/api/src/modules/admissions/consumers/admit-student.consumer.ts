@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { DomainEvent, EventConsumerDescriptor } from '../../events/events.types';
 import { PrismaService } from '../../../database/prisma.service';
 
@@ -21,15 +21,25 @@ export class AdmitStudentConsumer implements EventConsumerDescriptor<'workflow.a
     this.logger.log(`Executing admit-student for tenant ${tenant_id}`);
 
     try {
+      const firstName = this.requireText(data?.firstName, 'firstName');
+      const lastName = this.requireText(data?.lastName, 'lastName');
+      const admissionNumber = this.requireText(data?.admissionNumber, 'admissionNumber');
+      const gender = this.requireText(data?.gender, 'gender');
+      const dateOfBirth = data?.dateOfBirth ? new Date(data.dateOfBirth) : null;
+
+      if (!dateOfBirth || Number.isNaN(dateOfBirth.getTime())) {
+        throw new BadRequestException('dateOfBirth is required for admit-student');
+      }
+
       const student = await this.prisma.student.create({
         data: {
           schoolId: tenant_id,
-          firstName: data?.firstName || 'Unknown',
-          lastName: data?.lastName || 'Unknown',
-          admissionNumber: data?.admissionNumber || `ADM-${Date.now()}`,
-          gender: data?.gender || 'UNKNOWN',
-          dateOfBirth: data?.dateOfBirth ? new Date(data.dateOfBirth) : new Date(),
-          nationality: data?.nationality || 'Kenya',
+          firstName,
+          lastName,
+          admissionNumber,
+          gender,
+          dateOfBirth,
+          nationality: data?.nationality || 'Kenyan',
           studentStatus: 'ACTIVE',
           admissionDate: new Date(),
           boardingStatus: data?.boardingStatus || 'DAY_SCHOLAR',
@@ -41,5 +51,15 @@ export class AdmitStudentConsumer implements EventConsumerDescriptor<'workflow.a
       this.logger.error(`Failed to admit student: ${error.message}`, error.stack);
       throw error; // Let the event dispatcher handle the retry/failure logic
     }
+  }
+
+  private requireText(value: unknown, fieldName: string): string {
+    const text = typeof value === 'string' ? value.trim() : '';
+
+    if (!text) {
+      throw new BadRequestException(`${fieldName} is required for admit-student`);
+    }
+
+    return text;
   }
 }

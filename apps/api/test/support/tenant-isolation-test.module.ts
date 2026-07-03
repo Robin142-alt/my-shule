@@ -23,6 +23,10 @@ import { FinanceSchemaService } from '../../src/modules/finance/finance-schema.s
 import { PaymentsSchemaService } from '../../src/modules/payments/payments-schema.service';
 import { TenantFinanceSchemaService } from '../../src/modules/tenant-finance/tenant-finance-schema.service';
 import { UsageMeterService } from '../../src/modules/billing/usage-meter.service';
+import { AgpExecutionService } from '../../src/common/platform-governance/agp-execution.service';
+import { SelfHealingAgentService } from '../../src/common/platform-governance/agents/self-healing-agent.service';
+import { AuditTrailService } from '../../src/modules/events/audit-trail.service';
+import { EventPublisherService } from '../../src/modules/events/event-publisher.service';
 import { StudentEventsService } from '../../src/modules/events/student-events.service';
 import { PiiEncryptionService } from '../../src/modules/security/pii-encryption.service';
 import { StudentsController } from '../../src/modules/students/students.controller';
@@ -58,6 +62,27 @@ import { TenantModule } from '../../src/tenant/tenant.module';
     StudentsService,
     StudentsRepository,
     PiiEncryptionService,
+    AgpExecutionService,
+    {
+      provide: EventPublisherService,
+      useValue: {
+        publish: async () => undefined,
+      },
+    },
+    {
+      provide: AuditTrailService,
+      useValue: {
+        createAuditLog: async () => undefined,
+      },
+    },
+    {
+      provide: SelfHealingAgentService,
+      useValue: {
+        recover: async (_intent: unknown, error: unknown) => {
+          throw error;
+        },
+      },
+    },
     {
       provide: BillingAccessService,
       useValue: {

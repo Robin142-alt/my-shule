@@ -432,7 +432,7 @@ describe("experience routing", () => {
     });
   });
 
-  test("leaves legacy dashboard routes alone on local public hosts", () => {
+  test("blocks legacy dashboard role routes on local public hosts", () => {
     expect(
       evaluateExperienceRouting({
         host: "127.0.0.1:3005",
@@ -440,7 +440,8 @@ describe("experience routing", () => {
         cookies: {},
       }),
     ).toEqual({
-      action: "next",
+      action: "redirect",
+      location: "/forbidden",
       headers: {
         "x-platform-experience": "public",
       },

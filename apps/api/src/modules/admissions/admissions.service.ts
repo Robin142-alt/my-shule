@@ -1228,26 +1228,363 @@ export class AdmissionsService {
   }
 
   async createEnquiry(tenantId: string, dto: CreateEnquiryDto, userId: string) {
-    throw new Error('Method not implemented.');
+    const enquiry = await this.admissionsRepository.createEnquiry({
+      tenant_id: tenantId,
+      enquiry_code: dto.enquiry_code.trim(),
+      student_first_name: dto.student_first_name.trim(),
+      student_last_name: dto.student_last_name.trim(),
+      parent_name: dto.parent_name.trim(),
+      parent_phone: dto.parent_phone.trim(),
+      parent_email: this.optionalTrim(dto.parent_email),
+      class_applying: this.optionalTrim(dto.class_applying),
+      enquiry_source: this.optionalTrim(dto.enquiry_source),
+      boarding_day_preference: this.optionalTrim(dto.boarding_day_preference),
+      current_school: this.optionalTrim(dto.current_school),
+      location: this.optionalTrim(dto.location),
+      notes: this.optionalTrim(dto.notes),
+      follow_up_date: this.optionalTrim(dto.follow_up_date),
+      created_by_user_id: this.asUuidOrNull(userId),
+    });
+
+    await this.publishAdmissionEvent('admissions.enquiry.created', tenantId, enquiry.id, {
+      enquiry_code: enquiry.enquiry_code,
+      applicant_name: `${enquiry.student_first_name} ${enquiry.student_last_name}`,
+      parent_phone: enquiry.parent_phone,
+    });
+
+    return enquiry;
   }
 
   async createInterview(tenantId: string, dto: CreateInterviewDto) {
-    throw new Error('Method not implemented.');
+    await this.requireApplicationInTenant(tenantId, dto.application_id);
+
+    const interview = await this.admissionsRepository.createInterview({
+      tenant_id: tenantId,
+      application_id: dto.application_id,
+      interview_date: dto.interview_date,
+      start_time: dto.start_time.trim(),
+      end_time: dto.end_time.trim(),
+      location: this.optionalTrim(dto.location),
+      interviewer_user_id: this.asUuidOrNull(dto.interviewer_user_id),
+      assessment_type: this.optionalTrim(dto.assessment_type),
+      reading_score: this.optionalScore(dto.reading_score, 'reading_score'),
+      writing_score: this.optionalScore(dto.writing_score, 'writing_score'),
+      mathematics_score: this.optionalScore(dto.mathematics_score, 'mathematics_score'),
+      general_conduct: this.optionalTrim(dto.general_conduct),
+      recommendation: this.optionalTrim(dto.recommendation),
+      interviewer_comment: this.optionalTrim(dto.interviewer_comment),
+    });
+
+    await this.publishAdmissionEvent('admissions.interview.scheduled', tenantId, interview.id, {
+      application_id: interview.application_id,
+      interview_date: interview.interview_date,
+      start_time: interview.start_time,
+    });
+
+    return interview;
   }
 
   async createOffer(tenantId: string, dto: CreateOfferDto) {
-    throw new Error('Method not implemented.');
+    await this.requireApplicationInTenant(tenantId, dto.application_id);
+
+    const offer = await this.admissionsRepository.createOffer({
+      tenant_id: tenantId,
+      application_id: dto.application_id,
+      required_deposit: this.optionalNonNegativeAmount(dto.required_deposit, 'required_deposit'),
+      offer_date: this.optionalTrim(dto.offer_date),
+      deadline_date: this.optionalTrim(dto.deadline_date),
+    });
+
+    await this.publishAdmissionEvent('admissions.offer.created', tenantId, offer.id, {
+      application_id: offer.application_id,
+      required_deposit: offer.required_deposit,
+      deadline_date: offer.deadline_date,
+    });
+
+    return offer;
   }
 
   async createAppointment(tenantId: string, dto: CreateAppointmentDto) {
-    throw new Error('Method not implemented.');
+    if (dto.application_id) {
+      await this.requireApplicationInTenant(tenantId, dto.application_id);
+    }
+
+    const appointment = await this.admissionsRepository.createAppointment({
+      tenant_id: tenantId,
+      application_id: dto.application_id ?? null,
+      visitor_name: dto.visitor_name.trim(),
+      purpose: dto.purpose.trim(),
+      appointment_date: dto.appointment_date,
+      start_time: dto.start_time.trim(),
+      assigned_user_id: this.asUuidOrNull(dto.assigned_user_id),
+    });
+
+    await this.publishAdmissionEvent('admissions.appointment.scheduled', tenantId, appointment.id, {
+      application_id: appointment.application_id,
+      visitor_name: appointment.visitor_name,
+      appointment_date: appointment.appointment_date,
+    });
+
+    return appointment;
   }
 
   async createTask(tenantId: string, dto: CreateTaskDto) {
-    throw new Error('Method not implemented.');
+    if (dto.application_id) {
+      await this.requireApplicationInTenant(tenantId, dto.application_id);
+    }
+
+    const task = await this.admissionsRepository.createTask({
+      tenant_id: tenantId,
+      application_id: dto.application_id ?? null,
+      task_title: dto.task_title.trim(),
+      task_description: this.optionalTrim(dto.task_description),
+      due_date: this.optionalTrim(dto.due_date),
+      priority: this.normalizeTaskPriority(dto.priority),
+      assigned_user_id: this.asUuidOrNull(dto.assigned_user_id),
+    });
+
+    await this.publishAdmissionEvent('admissions.task.created', tenantId, task.id, {
+      application_id: task.application_id,
+      task_title: task.task_title,
+      priority: task.priority,
+      due_date: task.due_date,
+    });
+
+    return task;
   }
 
   async createTemplate(tenantId: string, dto: CreateTemplateDto, userId: string) {
-    throw new Error('Method not implemented.');
+    const template = await this.admissionsRepository.createTemplate({
+      tenant_id: tenantId,
+      template_name: dto.template_name.trim(),
+      template_type: dto.template_type.trim(),
+      content: dto.content,
+      is_active: dto.is_active,
+      created_by_user_id: this.asUuidOrNull(userId),
+    });
+
+    await this.publishAdmissionEvent('admissions.template.created', tenantId, template.id, {
+      template_name: template.template_name,
+      template_type: template.template_type,
+      is_active: template.is_active,
+    });
+
+    return template;
+  }
+
+  async enrolApplicationWithGeneratedNumber(applicationId: string) {
+    const tenantId = this.requireTenantId();
+    const application = await this.admissionsRepository.findApplicationById(tenantId, applicationId);
+
+    if (!application) {
+      throw new NotFoundException(`Admission application "${applicationId}" was not found`);
+    }
+
+    const admissionNumber = await this.generateAdmissionNumber(tenantId);
+    return this.registerApprovedApplication(applicationId, {
+      admission_number: admissionNumber,
+      class_name: application.class_applying,
+      stream_name: 'Default',
+    });
+  }
+
+  previewApplicationImport(file: UploadedBinaryFile) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('An admissions import file is required');
+    }
+
+    const text = file.buffer.toString('utf8').replace(/^\uFEFF/, '');
+    const rows = this.parseDelimitedRows(text);
+
+    if (rows.length < 2) {
+      throw new BadRequestException('Admissions import must include a header row and at least one applicant row');
+    }
+
+    const headers = rows[0].map((header) => header.trim().toLowerCase().replace(/[\s-]+/g, '_'));
+    const requiredHeaders = [
+      'full_name',
+      'date_of_birth',
+      'gender',
+      'birth_certificate_number',
+      'nationality',
+      'class_applying',
+      'parent_name',
+      'parent_phone',
+      'relationship',
+    ];
+    const missingHeaders = requiredHeaders.filter((header) => !headers.includes(header));
+
+    if (missingHeaders.length > 0) {
+      throw new BadRequestException(`Admissions import is missing required columns: ${missingHeaders.join(', ')}`);
+    }
+
+    const previewRows = rows.slice(1, 101).map((row, index) => {
+      const record = Object.fromEntries(headers.map((header, headerIndex) => [header, row[headerIndex]?.trim() ?? '']));
+      const missing = requiredHeaders.filter((header) => !record[header]);
+
+      return {
+        row_number: index + 2,
+        full_name: record.full_name,
+        class_applying: record.class_applying,
+        parent_phone: record.parent_phone,
+        status: missing.length === 0 ? 'valid' : 'invalid',
+        errors: missing.map((header) => `${header} is required`),
+        record,
+      };
+    });
+
+    return {
+      success: previewRows.every((row) => row.status === 'valid'),
+      total_rows: rows.length - 1,
+      previewed_rows: previewRows.length,
+      valid_rows: previewRows.filter((row) => row.status === 'valid').length,
+      invalid_rows: previewRows.filter((row) => row.status === 'invalid').length,
+      rows: previewRows,
+    };
+  }
+
+  private async requireApplicationInTenant(tenantId: string, applicationId: string) {
+    const application = await this.admissionsRepository.findApplicationById(tenantId, applicationId);
+
+    if (!application) {
+      throw new NotFoundException(`Admission application "${applicationId}" was not found`);
+    }
+
+    return application;
+  }
+
+  private async generateAdmissionNumber(tenantId: string) {
+    const year = new Date().getUTCFullYear();
+    const nextSequence = (await this.admissionsRepository.countStudents(tenantId)) + 1;
+    return `ADM-${year}-${String(nextSequence).padStart(4, '0')}`;
+  }
+
+  private optionalTrim(value?: string | null) {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : null;
+  }
+
+  private asUuidOrNull(value?: string | null) {
+    const trimmed = value?.trim();
+    return trimmed && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(trimmed)
+      ? trimmed
+      : null;
+  }
+
+  private optionalScore(value: number | undefined, fieldName: string) {
+    if (value === undefined || value === null) {
+      return null;
+    }
+
+    if (!Number.isFinite(value) || value < 0 || value > 100) {
+      throw new BadRequestException(`${fieldName} must be between 0 and 100`);
+    }
+
+    return Math.round(value);
+  }
+
+  private optionalNonNegativeAmount(value: number | undefined, fieldName: string) {
+    if (value === undefined || value === null) {
+      return null;
+    }
+
+    if (!Number.isFinite(value) || value < 0) {
+      throw new BadRequestException(`${fieldName} must be zero or greater`);
+    }
+
+    return Math.round(value);
+  }
+
+  private normalizeTaskPriority(priority?: string) {
+    const normalized = priority?.trim().toLowerCase() || 'medium';
+    const allowed = new Set(['low', 'medium', 'high', 'urgent']);
+
+    if (!allowed.has(normalized)) {
+      throw new BadRequestException('Task priority must be low, medium, high, or urgent');
+    }
+
+    return normalized;
+  }
+
+  private parseDelimitedRows(text: string) {
+    const rows: string[][] = [];
+    let current = '';
+    let row: string[] = [];
+    let inQuotes = false;
+
+    for (let index = 0; index < text.length; index += 1) {
+      const char = text[index];
+      const next = text[index + 1];
+
+      if (char === '"' && inQuotes && next === '"') {
+        current += '"';
+        index += 1;
+        continue;
+      }
+
+      if (char === '"') {
+        inQuotes = !inQuotes;
+        continue;
+      }
+
+      if (char === ',' && !inQuotes) {
+        row.push(current);
+        current = '';
+        continue;
+      }
+
+      if ((char === '\n' || char === '\r') && !inQuotes) {
+        if (char === '\r' && next === '\n') {
+          index += 1;
+        }
+        row.push(current);
+        if (row.some((cell) => cell.trim() !== '')) {
+          rows.push(row);
+        }
+        row = [];
+        current = '';
+        continue;
+      }
+
+      current += char;
+    }
+
+    row.push(current);
+    if (row.some((cell) => cell.trim() !== '')) {
+      rows.push(row);
+    }
+
+    return rows;
+  }
+
+  private async publishAdmissionEvent(
+    eventName: string,
+    tenantId: string,
+    aggregateId: string,
+    payload: Record<string, unknown>,
+  ) {
+    const store = this.requestContext.getStore();
+
+    return this.schoolOperationalEventsService?.recordSchoolOperation({
+      schoolId: tenantId,
+      event: {
+        id: aggregateId,
+        type: eventName,
+        module: 'admissions',
+        actorRole: store?.role ?? 'system',
+        title: this.eventTitle(eventName),
+        body: this.eventTitle(eventName),
+        entityId: aggregateId,
+        payload,
+        createdAt: new Date().toISOString(),
+      },
+    });
+  }
+
+  private eventTitle(eventName: string) {
+    return eventName
+      .replace(/^admissions\./, '')
+      .replace(/[._-]+/g, ' ')
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
   }
 }

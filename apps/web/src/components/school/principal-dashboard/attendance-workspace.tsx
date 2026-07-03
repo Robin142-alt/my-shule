@@ -17,12 +17,12 @@ type PrincipalAttendanceData = {
   late: number;
   chronicAbsenteeism: number;
   attendanceTrend: Array<{ label: string; value: number }>;
-  recentAbsences: Array<any>;
+  recentAbsences: Array<{ id: string; student_name: string; admission_number: string | null; date: string; status: string; reason: string | null }>;
+  students: Array<{ id: string; name: string; admission_number: string | null; class: string }>;
 };
 
 export function PrincipalAttendanceWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalAttendanceData>('/admin-command/principal/attendance');
-  const studentsData: any = { students: [] };
   const { hasPermission } = usePermissions();
   
   const [isAbsenceModalOpen, setIsAbsenceModalOpen] = useState(false);
@@ -142,7 +142,22 @@ export function PrincipalAttendanceWorkspace() {
             </div>
           ) : (
             <div className="space-y-3 flex-1 overflow-y-auto pr-2">
-              {/* Absences will go here */}
+              {data.recentAbsences.map((absence) => (
+                <div key={absence.id} className="rounded-lg border border-white/10 bg-white/5 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className="font-medium text-white">{absence.student_name}</h4>
+                      <p className="text-sm text-white/60">
+                        {absence.admission_number || "No admission number"} - {absence.date}
+                      </p>
+                      {absence.reason && <p className="mt-1 text-xs text-white/50">{absence.reason}</p>}
+                    </div>
+                    <span className="rounded-full bg-red-500/15 px-2 py-1 text-xs font-semibold capitalize text-red-300">
+                      {absence.status.replace("_", " ")}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </Card>
@@ -159,9 +174,10 @@ export function PrincipalAttendanceWorkspace() {
             <label className="text-sm font-medium">Student</label>
             <select name="studentId" required className="w-full border rounded p-2 text-sm bg-white text-black">
               <option value="">Select a student...</option>
-              {/* @ts-ignore */}
-              {studentsData?.students?.map((s: any) => (
-                <option key={s.id} value={s.id}>{s.user.firstName} {s.user.lastName} ({s.admissionNumber})</option>
+              {data.students?.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} {s.admission_number ? `(${s.admission_number})` : ""} - {s.class}
+                </option>
               ))}
             </select>
           </div>

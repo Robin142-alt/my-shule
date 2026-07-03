@@ -26,6 +26,10 @@ import { downloadCsvFile, downloadTextFile } from "@/lib/dashboard/export";
 import type { DashboardRole, DashboardSnapshot } from "@/lib/dashboard/types";
 import { formatCurrency } from "@/lib/dashboard/format";
 import {
+  getCurrentSchoolId,
+  publishSchoolOperationalEvent,
+} from "@/lib/school/school-operational-store";
+import {
   buildAdmissionsModuleSections,
   buildAdmissionsReports,
   buildAdmissionsStatStrip,
@@ -267,6 +271,64 @@ function buildNextApplicationNumber(currentLength: number) {
   return `APP-${todayCompactDate()}-${String(currentLength + 1).padStart(3, "0")}`;
 }
 
+function buildStudentProfileFromDirectory(
+  student: StudentDirectoryEntry | undefined,
+  dataset: AdmissionsDataset,
+): AdmissionsStudentProfile | null {
+  if (!student) {
+    return null;
+  }
+
+  const parent = dataset.parents.find((entry) => entry.phone === student.parentPhone || entry.parentName === student.parentName);
+  const documents = dataset.documents
+    .filter((document) => document.studentId === student.id || document.admissionNumber === student.admissionNumber)
+    .map((document) => ({
+      id: document.id,
+      documentType: document.documentType,
+      fileName: document.fileName,
+      uploadedOn: document.uploadedOn,
+      verificationStatus: document.verificationStatus,
+    }));
+
+  return {
+    id: student.id,
+    fullName: student.fullName,
+    admissionNumber: student.admissionNumber,
+    className: student.className,
+    streamName: student.streamName,
+    dormitoryName: "Pending",
+    transportRoute: "Pending",
+    gender: "Not recorded",
+    dateOfBirth: "Not recorded",
+    nationality: "Kenyan",
+    parentName: student.parentName,
+    parentPhone: student.parentPhone,
+    parentEmail: parent?.email ?? "",
+    occupation: parent?.occupation ?? "Not recorded",
+    relationship: parent?.relationship ?? "Guardian",
+    previousSchool: "Not recorded",
+    kcpeResults: "Not recorded",
+    cbcLevel: "Not recorded",
+    nemisUpi: "Not provided",
+    registrationDate: student.registrationDate,
+    applicationStatus: student.status === "registered" ? "registered" : "pending",
+    feesBalance: 0,
+    lastPayment: "No payment posted yet",
+    billingPlan: "No billing plan configured yet",
+    portalAccessStatus: parent?.email ? "invited" : "not_invited",
+    portalAccessDetail: parent?.email
+      ? `Parent invitation prepared for ${parent.email}`
+      : "No parent portal invitation recorded.",
+    allergies: "Not recorded",
+    conditions: "Not recorded",
+    emergencyContact: student.parentPhone,
+    academics: [],
+    discipline: [],
+    fees: [],
+    documents,
+  };
+}
+
 function buildAdmissionNumber(className: string, currentLength: number) {
   const classCode = className
     .replace(/[^a-z0-9]+/gi, "")
@@ -352,7 +414,17 @@ export function AdmissionsModuleScreen({
     enabled: Boolean(liveSession.session),
     placeholderData: (previous) => previous,
   });
-  const dataset = liveAdmissionsQuery.data ?? createEmptyAdmissionsDataset();
+  const dataset = liveAdmissionsQuery.data
+    ? {
+        applications: [...localDataset.applications, ...liveAdmissionsQuery.data.applications],
+        students: [...localDataset.students, ...liveAdmissionsQuery.data.students],
+        parents: [...localDataset.parents, ...liveAdmissionsQuery.data.parents],
+        documents: [...localDataset.documents, ...liveAdmissionsQuery.data.documents],
+        allocations: [...localDataset.allocations, ...liveAdmissionsQuery.data.allocations],
+        transfers: [...localDataset.transfers, ...liveAdmissionsQuery.data.transfers],
+        studentProfiles: [...localDataset.studentProfiles, ...liveAdmissionsQuery.data.studentProfiles],
+      }
+    : localDataset;
   const isDatasetLoading = liveAdmissionsQuery.isLoading;
 
   const deferredApplicationSearch = useDeferredValue(applicationSearch);
@@ -436,6 +508,10 @@ export function AdmissionsModuleScreen({
   });
   const selectedStudentProfile = selectedStudentProfileQuery.data
       ?? dataset.studentProfiles.find((profile) => profile.id === selectedStudentKey)
+      ?? buildStudentProfileFromDirectory(
+        dataset.students.find((student) => student.id === selectedStudentKey),
+        dataset,
+      )
       ?? null;
   const isSelectedStudentProfileSyncing = Boolean(selectedStudentKey) && selectedStudentProfileQuery.isFetching;
   const reports = buildAdmissionsReports(dataset, { transportEnabled });
@@ -487,6 +563,34 @@ export function AdmissionsModuleScreen({
     });
   }
 
+  function recordAdmissionsLocalAction(action: string, payload: Record<string, unknown>) {
+    publishSchoolOperationalEvent({
+      schoolId: getCurrentSchoolId(snapshot.tenant.id),
+      type: `admissions.local.${action.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "action"}`,
+      module: "admissions",
+      actorRole: _role,
+      title: `Admissions ${action}`,
+      body: `Admissions ${action} was applied to the local school workspace because the live admissions API session is not active.`,
+      severity: "warning",
+      payload: {
+        tenantId: snapshot.tenant.id,
+        liveApiConfigured: liveSession.apiConfigured,
+        liveSessionActive: Boolean(liveSession.session),
+        ...payload,
+      },
+      notifications: [
+        {
+          audienceRoles: ["Principal", "Admissions Officer", "System Monitor"],
+          title: `Admissions local action: ${action}`,
+          body: "A local admissions workspace action was recorded while live API persistence was unavailable.",
+          severity: "warning",
+          relatedModule: "admissions",
+          requiresAction: true,
+        },
+      ],
+    });
+  }
+
   function updateSection(sectionId: AdmissionsSectionId, extra?: Record<string, string | null>) {
     const next = new URLSearchParams(searchParams.toString());
     next.set("view", sectionId);
@@ -525,7 +629,7 @@ export function AdmissionsModuleScreen({
         });
         await refreshLiveAdmissionsData();
       } else {
-        await new Promise((resolve) => window.setTimeout(resolve, 350));
+        recordAdmissionsLocalAction("application status changed", { applicationId, nextStatus });
         setLocalDataset((current) => ({
           ...current,
           applications: current.applications.map((application) =>
@@ -581,7 +685,11 @@ export function AdmissionsModuleScreen({
           openStudentProfile(response.student.id);
         }
       } else {
-        await new Promise((resolve) => window.setTimeout(resolve, 450));
+        recordAdmissionsLocalAction("application registered", {
+          applicationId: application.id,
+          admissionNumber,
+          applicantName: application.applicantName,
+        });
         const newStudentId = `stu-${Date.now()}`;
 
         const student: StudentDirectoryEntry = {
@@ -731,7 +839,7 @@ export function AdmissionsModuleScreen({
           await refreshLiveAdmissionsData();
         }
       } else {
-        await new Promise((resolve) => window.setTimeout(resolve, 300));
+        recordAdmissionsLocalAction("document status changed", { documentId, nextStatus });
         setLocalDataset((current) => ({
           ...current,
           documents: current.documents.map((document) =>
@@ -846,7 +954,11 @@ export function AdmissionsModuleScreen({
         });
         await refreshLiveAdmissionsData();
       } else {
-        await new Promise((resolve) => window.setTimeout(resolve, 350));
+        recordAdmissionsLocalAction("document uploaded", {
+          applicationId: application.id,
+          documentType,
+          fileName,
+        });
 
         const uploadedDocument: AdmissionsDocument = {
           id: `doc-${Date.now()}`,
@@ -944,7 +1056,11 @@ export function AdmissionsModuleScreen({
         });
         await refreshLiveAdmissionsData();
       } else {
-        await new Promise((resolve) => window.setTimeout(resolve, 350));
+        recordAdmissionsLocalAction("learner allocation saved", {
+          studentId: student.id,
+          className: allocationForm.className.trim(),
+          streamName: allocationForm.streamName.trim(),
+        });
         setLocalDataset((current) => ({
           ...current,
           students: current.students.map((entry) =>
@@ -1047,7 +1163,11 @@ export function AdmissionsModuleScreen({
         });
         await refreshLiveAdmissionsData();
       } else {
-        await new Promise((resolve) => window.setTimeout(resolve, 350));
+        recordAdmissionsLocalAction("transfer logged", {
+          learnerName: transferForm.learnerName.trim(),
+          admissionNumber: transferForm.admissionNumber.trim(),
+          direction: transferForm.direction,
+        });
         setLocalDataset((current) => ({
           ...current,
           transfers: [
@@ -1187,7 +1307,11 @@ export function AdmissionsModuleScreen({
         setRegistrationForm(createEmptyRegistrationForm());
         updateSection("student-directory", { student: manualAdmission.student_id });
       } else {
-        await new Promise((resolve) => window.setTimeout(resolve, 500));
+        recordAdmissionsLocalAction("manual registration completed", {
+          learnerName: registrationForm.fullName.trim(),
+          className: registrationForm.className.trim(),
+          parentEmail: registrationForm.parentEmail.trim(),
+        });
 
         const applicationNumber = buildNextApplicationNumber(dataset.applications.length);
         const studentId = `stu-${Date.now()}`;
@@ -1424,7 +1548,13 @@ export function AdmissionsModuleScreen({
             : `${lifecycleLabel} recorded for ${selectedStudentProfile.fullName}.`,
         );
       } else {
-        await new Promise((resolve) => window.setTimeout(resolve, 300));
+        recordAdmissionsLocalAction("academic lifecycle advanced", {
+          studentId: selectedStudentProfile.id,
+          studentName: selectedStudentProfile.fullName,
+          action,
+          targetClassName,
+          targetStreamName,
+        });
         const lifecycleLine: StudentAcademicLine = {
           id: `academic-lifecycle-${action}-${Date.now()}`,
           subject: "Latest lifecycle",

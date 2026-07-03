@@ -25,18 +25,22 @@ export function DeputyStaffRolesWorkspace() {
   const { data, isLoading, refetch } = useSchoolQuery<StaffData>('/admin-command/deputy/staff');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showManageModal, setShowManageModal] = useState(false);
-  const [roleData, setRoleData] = useState({ name: '', role: '', department: '' });
+  const [roleData, setRoleData] = useState({ staffId: '', name: '', role: '', department: '' });
 
   const staff = data?.staffList || [];
 
-  const handleAddRole = async (e: React.FormEvent) => {
+  const handleAddRole = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
       setIsSubmitting(true);
-      await assignRole(roleData);
+      await assignRole({
+        staffId: roleData.staffId || roleData.name,
+        role: roleData.role,
+        department: roleData.department,
+      });
       toast.success("Role assigned successfully.");
       setShowManageModal(false);
-      setRoleData({ name: '', role: '', department: '' });
+      setRoleData({ staffId: '', name: '', role: '', department: '' });
       refetch();
     } catch (e) {
       toast.error("Failed to assign role.");
@@ -88,7 +92,7 @@ export function DeputyStaffRolesWorkspace() {
                     <td className="px-4 py-3"><StatusChip label={st.status} tone={getTone(st.status)} /></td>
                     <td className="px-4 py-3 text-right">
                       <button onClick={() => {
-                        setRoleData({ name: st.name, role: st.role, department: st.department });
+                        setRoleData({ staffId: st.id, name: st.name, role: st.role, department: st.department });
                         setShowManageModal(true);
                       }} className="text-blue-600 hover:underline font-semibold text-xs">Manage</button>
                     </td>
@@ -107,7 +111,7 @@ export function DeputyStaffRolesWorkspace() {
             <form onSubmit={handleAddRole} className="space-y-4">
               <div>
                 <label className="mb-1 block text-sm font-semibold text-[#64748B]">Staff Name</label>
-                <input required type="text" value={roleData.name} onChange={e => setRoleData({ ...roleData, name: e.target.value })} className="w-full rounded-lg border border-[#D8E0EC] px-3 py-2 outline-none focus:border-[#071D49]" placeholder="e.g. Mrs. Omondi" />
+                <input required type="text" value={roleData.name} onChange={e => setRoleData({ ...roleData, staffId: '', name: e.target.value })} className="w-full rounded-lg border border-[#D8E0EC] px-3 py-2 outline-none focus:border-[#071D49]" placeholder="e.g. Mrs. Omondi" />
               </div>
               <div>
                 <label className="mb-1 block text-sm font-semibold text-[#64748B]">Role</label>

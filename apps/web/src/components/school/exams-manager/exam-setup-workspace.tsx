@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { createExam } from "./api-client";
+import { openPrintDocument } from "@/lib/dashboard/export";
 
 type ExamConfig = {
   id: string;
@@ -57,6 +58,26 @@ export function ExamSetupWorkspace() {
     } finally {
       setIsCreating(false);
     }
+  };
+
+  const handleConfigureExam = (exam: ExamConfig) => {
+    openPrintDocument({
+      eyebrow: "Exam setup",
+      title: "Exam Configuration",
+      subtitle: `${exam.name} | ${exam.term} ${exam.year}`,
+      rows: [
+        { label: "Exam", value: exam.name },
+        { label: "Term", value: exam.term },
+        { label: "Year", value: String(exam.year) },
+        { label: "Type", value: exam.type },
+        { label: "Max marks", value: String(exam.max_marks) },
+        { label: "Grading system", value: exam.grading_system },
+        { label: "Subjects", value: String(exam.subjects_count) },
+        { label: "Classes", value: String(exam.classes_count) },
+        { label: "Status", value: exam.status },
+      ],
+      footer: "Configure subjects, classes, grading, and publication workflow before opening marks entry.",
+    });
   };
 
   return (
@@ -123,7 +144,7 @@ export function ExamSetupWorkspace() {
                   <td className="px-4 py-3 text-[#64748B]">{exam.classes_count}</td>
                   <td className="px-4 py-3"><StatusChip label={exam.status} tone={getStatusTone(exam.status)} /></td>
                   <td className="px-4 py-3 text-right">
-                    <button className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline"><Settings className="w-3 h-3" /> Configure</button>
+                    <button type="button" onClick={() => handleConfigureExam(exam)} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline"><Settings className="w-3 h-3" /> Configure</button>
                   </td>
                 </tr>
               ))

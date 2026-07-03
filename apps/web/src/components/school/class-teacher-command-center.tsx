@@ -12,9 +12,11 @@ import {
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
-import { WorkflowToast } from "@/components/shared/workflow-toast";
-import { type TeacherView, StatusChip, cn } from "./class-teacher/shared";
-import { buildSchoolSectionHref } from "./school-pages";
+import { Modal } from "@/components/ui/modal";
+import { toast } from "sonner";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { type TeacherView, cn, sendClassTeacherCommunication } from "./class-teacher/shared";
+import { buildSchoolSectionHref, type SchoolRouteMode } from "./school-pages";
 import { OverviewWorkspace } from "./class-teacher/workspaces/home";
 import { ClassRegisterWorkspace } from "./class-teacher/workspaces/register";
 import { AttendanceWorkspace } from "./class-teacher/workspaces/attendance";
@@ -55,10 +57,80 @@ const navItems = [
   { id: "settings", label: "Settings", icon: Settings, group: "System" },
 ];
 
+type LearnerNoteDraft = {
+  note_type: string;
+  visibility: string;
+  description: string;
+  follow_up_date: string;
+};
+
+function LearnerNoteModal({ open, draft, submitting, onChange, onClose, onSubmit }: {
+  open: boolean;
+  draft: LearnerNoteDraft;
+  submitting: boolean;
+  onChange: (draft: LearnerNoteDraft) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  const update = (field: keyof LearnerNoteDraft, value: string) => onChange({ ...draft, [field]: value });
+  return (
+    <Modal open={open} title="Add class note" description="Save a school-scoped learner note with controlled staff visibility and an optional follow-up date." onClose={onClose} size="lg" footer={
+      <>
+        <button type="button" onClick={onClose} disabled={submitting} className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49] disabled:opacity-50">Cancel</button>
+        <button type="button" onClick={onSubmit} disabled={submitting} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">{submitting ? "Saving..." : "Save Class Note"}</button>
+      </>
+    }>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="text-sm font-bold text-[#071D49]">Note type
+          <select value={draft.note_type} onChange={(event) => update("note_type", event.target.value)} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm">
+            <option value="general">General</option><option value="academic">Academic</option><option value="attendance">Attendance</option><option value="welfare">Welfare</option><option value="parent_follow_up">Parent follow-up</option>
+          </select>
+        </label>
+        <label className="text-sm font-bold text-[#071D49]">Visibility
+          <select value={draft.visibility} onChange={(event) => update("visibility", event.target.value)} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm">
+            <option value="staff">Authorized staff</option><option value="class_teacher">Class teacher only</option><option value="leadership">School leadership</option>
+          </select>
+        </label>
+        <label className="text-sm font-bold text-[#071D49] sm:col-span-2">Note
+          <textarea value={draft.description} onChange={(event) => update("description", event.target.value)} className="mt-1 min-h-28 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" autoFocus />
+        </label>
+        <label className="text-sm font-bold text-[#071D49] sm:col-span-2">Follow-up date
+          <input type="date" value={draft.follow_up_date} onChange={(event) => update("follow_up_date", event.target.value)} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+        </label>
+      </div>
+    </Modal>
+  );
+}
+
 function LearnerProfileDrawer({ learnerId, onClose }: { learnerId: string | null; onClose: () => void; }) {
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
+  const [noteDraft, setNoteDraft] = useState<LearnerNoteDraft>({ note_type: "general", visibility: "staff", description: "", follow_up_date: "" });
+
+  const submitLearnerNote = async () => {
+    if (!learnerId || !noteDraft.description.trim()) {
+      toast.error("Enter the learner note before saving.");
+      return;
+    }
+    setSavingNote(true);
+    try {
+      await requestDashboardApi(`/api/admin-command/class-teacher/learner-profiles/${learnerId}/note`, {
+        method: "POST",
+        body: { ...noteDraft, description: noteDraft.description.trim(), follow_up_date: noteDraft.follow_up_date || null },
+      });
+      toast.success("Class note saved");
+      setNoteOpen(false);
+      setNoteDraft({ note_type: "general", visibility: "staff", description: "", follow_up_date: "" });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "The class note could not be saved.");
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
   if (!learnerId) return null;
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-[#071D49]/20 backdrop-blur-sm">
+    <><div className="fixed inset-0 z-50 flex justify-end bg-[#071D49]/20 backdrop-blur-sm">
       <div className="w-full max-w-lg bg-white h-full shadow-2xl flex flex-col border-l border-[#D8E0EC] overflow-y-auto">
         <header className="sticky top-0 bg-white/95 backdrop-blur z-10 border-b border-[#D8E0EC] p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -70,7 +142,7 @@ function LearnerProfileDrawer({ learnerId, onClose }: { learnerId: string | null
               <p className="text-xs font-semibold text-[#64748B]">{learnerId}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-[#F3F6FA] rounded-full transition text-[#64748B]">
+          <button type="button" onClick={onClose} className="p-2 hover:bg-[#F3F6FA] rounded-full transition text-[#64748B]">
             <X className="h-5 w-5" />
           </button>
         </header>
@@ -78,25 +150,25 @@ function LearnerProfileDrawer({ learnerId, onClose }: { learnerId: string | null
           <section className="space-y-3">
              <h3 className="text-xs font-black uppercase tracking-widest text-[#64748B]">Quick Actions</h3>
              <div className="flex flex-wrap gap-2">
-               <button className="rounded-full bg-[#071D49] px-3 py-1.5 text-xs font-black text-white">Message Parent</button>
-               <button className="rounded-full border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]">Add Class Note</button>
+               <button type="button" className="rounded-full bg-[#071D49] px-3 py-1.5 text-xs font-black text-white" onClick={() => sendClassTeacherCommunication({ audience: "individual_parent", learnerId, subject: `Parent follow-up for ${learnerId}`, message: `${learnerId} needs a class teacher follow-up. Please check attendance, welfare, fees, and academic notes in the parent portal.`, source: "class-teacher-learner-profile" })}>Message Parent</button>
+               <button type="button" className="rounded-full border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]" onClick={() => setNoteOpen(true)}>Add Class Note</button>
              </div>
           </section>
         </div>
       </div>
-    </div>
+    </div><LearnerNoteModal open={noteOpen} draft={noteDraft} submitting={savingNote} onChange={setNoteDraft} onClose={() => setNoteOpen(false)} onSubmit={submitLearnerNote} /></>
   );
 }
 
-export function ClassTeacherCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: string }) {
+export function ClassTeacherCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: SchoolRouteMode }) {
   const [activeViewState, setActiveViewState] = useState<TeacherView>(
     (activeSection && activeSection !== "dashboard" ? activeSection : "home") as TeacherView
   );
   const activeView = activeViewState;
 
-  const setActiveView = (view: any) => {
+  const setActiveView = (view: TeacherView) => {
     setActiveViewState(view);
-    const newPath = buildSchoolSectionHref("class-teacher", view, (routeMode as any) ?? "hosted");
+    const newPath = buildSchoolSectionHref("class-teacher", view, routeMode ?? "hosted");
     window.history.replaceState(null, "", newPath);
   };
   const [selectedLearner, setSelectedLearner] = useState<string | null>(null);
@@ -139,7 +211,7 @@ function Sidebar({ activeView, onViewChange }: { activeView: TeacherView; onView
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-6">
         <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-100/70">MyShule</p>
         <h2 className="mt-2 text-xl font-black">Class Teacher</h2>
-        <p className="mt-2 text-sm leading-6 text-white/65">Form 2 Blue</p>
+        <p className="mt-2 text-sm leading-6 text-white/65">Assigned class stream</p>
       </div>
       <nav className="space-y-1">
         {navItems.map((item, index) => {
@@ -149,6 +221,7 @@ function Sidebar({ activeView, onViewChange }: { activeView: TeacherView; onView
             <div key={item.group + '-' + item.label}>
               {showGroup ? <p className="px-3 pb-2 pt-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/40">{item.group}</p> : null}
               <button
+                type="button"
                 onClick={() => onViewChange(item.id as TeacherView)}
                 className={cn("flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-white/70 transition hover:bg-white/10 hover:text-white", activeView === item.id && "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]")}
               >

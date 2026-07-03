@@ -52,17 +52,17 @@ export class AdmissionsRepository {
       this.countByStatus(tenantId, ['pending']),
       this.countByStatus(tenantId, ['registered']),
       this.executeSql(tenantId, `
-          SELECT application_number, (first_name || ' ' || last_name) AS full_name, applying_for_class_id AS class_applying, application_status AS status, guardian_phone AS parent_phone, created_at
+          SELECT application_number, full_name, class_applying, status, parent_phone, created_at
           FROM admission_applications
-          WHERE school_id = $1
+          WHERE tenant_id = $1
           ORDER BY created_at DESC
           LIMIT 6
         `, [tenantId],
       ),
       this.executeSql(tenantId, `
-          SELECT application_number, (first_name || ' ' || last_name) AS full_name, application_status AS status
+          SELECT application_number, full_name, status
           FROM admission_applications
-          WHERE school_id = $1
+          WHERE tenant_id = $1
             AND status IN ('pending', 'interview')
           ORDER BY created_at DESC
           LIMIT 6
@@ -76,9 +76,9 @@ export class AdmissionsRepository {
             COUNT(document.id)::int AS uploaded_documents
           FROM admission_applications application
           LEFT JOIN admission_documents document
-            ON document.school_id = application.tenant_id
+            ON document.tenant_id = application.tenant_id
            AND document.application_id = application.id
-          WHERE application.school_id = $1
+          WHERE application.tenant_id = $1
           GROUP BY application.id
           HAVING COUNT(document.id) < 3
           ORDER BY application.created_at DESC
@@ -102,7 +102,7 @@ export class AdmissionsRepository {
     const result = await this.executeSql(tenantId, `
         SELECT COUNT(*)::text AS total
         FROM admission_applications
-        WHERE school_id = $1
+        WHERE tenant_id = $1
           AND status = ANY($2::text[])
       `, [tenantId, statuses],
     );
@@ -114,7 +114,7 @@ export class AdmissionsRepository {
     tenantId: string,
     options: { search?: string; status?: string; limit: number; offset?: number },
   ): Promise<AdmissionApplicationRecord[]> {
-    const conditions = ['school_id = $1'];
+    const conditions = ['tenant_id = $1'];
     const values: unknown[] = [tenantId];
     let parameterIndex = 2;
     const search = this.normalizeSearch(options.search);
@@ -142,9 +142,9 @@ export class AdmissionsRepository {
     const result = await this.executeSql(values[0] as string, `
         SELECT
           id,
-          school_id,
+          tenant_id AS school_id,
           application_number,
-          (first_name || ' ' || last_name) AS full_name,
+          full_name,
           date_of_birth::text,
           gender,
           birth_certificate_number,
@@ -152,16 +152,17 @@ export class AdmissionsRepository {
           previous_school,
           kcpe_results,
           cbc_level,
-          applying_for_class_id AS class_applying,
-          guardian_name AS parent_name,
-          guardian_phone AS parent_phone,
-          guardian_email AS parent_email,
-          guardian_occupation AS parent_occupation,
-          guardian_relationship AS relationship,
+          nemis_upi,
+          class_applying,
+          parent_name,
+          parent_phone,
+          parent_email,
+          parent_occupation,
+          relationship,
           allergies,
           conditions,
           emergency_contact,
-          application_status AS status,
+          status,
           interview_date::text,
           review_notes,
           approved_at::text,
@@ -182,10 +183,9 @@ export class AdmissionsRepository {
   async createApplication(input: Omit<AdmissionApplicationRecord, 'id' | 'created_at' | 'updated_at' | 'approved_at' | 'admitted_student_id'>) {
     const result = await this.executeSql(input.school_id, `
         INSERT INTO admission_applications (
-          school_id,
+          tenant_id,
           application_number,
-          first_name,
-          last_name,
+          full_name,
           date_of_birth,
           gender,
           birth_certificate_number,
@@ -194,28 +194,28 @@ export class AdmissionsRepository {
           kcpe_results,
           cbc_level,
           nemis_upi,
-          applying_for_class_id,
-          guardian_name,
-          guardian_phone,
-          guardian_email,
-          guardian_occupation,
-          guardian_relationship,
+          class_applying,
+          parent_name,
+          parent_phone,
+          parent_email,
+          parent_occupation,
+          relationship,
           allergies,
           conditions,
           emergency_contact,
-          application_status,
+          status,
           interview_date,
           review_notes
         )
         VALUES (
-          $1, $2, $3, $4, $5::date, $6, $7, $8, $9, $10, $11,
-          $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23::date, $24
+          $1, $2, $3, $4::date, $5, $6, $7, $8, $9, $10, $11,
+          $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22::date, $23
         )
         RETURNING
           id,
-          school_id,
+          tenant_id AS school_id,
           application_number,
-          (first_name || ' ' || last_name) AS full_name,
+          full_name,
           date_of_birth::text,
           gender,
           birth_certificate_number,
@@ -224,16 +224,16 @@ export class AdmissionsRepository {
           kcpe_results,
           cbc_level,
           nemis_upi,
-          applying_for_class_id AS class_applying,
-          guardian_name AS parent_name,
-          guardian_phone AS parent_phone,
-          guardian_email AS parent_email,
-          guardian_occupation AS parent_occupation,
-          guardian_relationship AS relationship,
+          class_applying,
+          parent_name,
+          parent_phone,
+          parent_email,
+          parent_occupation,
+          relationship,
           allergies,
           conditions,
           emergency_contact,
-          application_status AS status,
+          status,
           interview_date::text,
           review_notes,
           approved_at::text,
@@ -274,9 +274,9 @@ export class AdmissionsRepository {
     const result = await this.executeSql(tenantId, `
         SELECT
           id,
-          school_id,
+          tenant_id AS school_id,
           application_number,
-          (first_name || ' ' || last_name) AS full_name,
+          full_name,
           date_of_birth::text,
           gender,
           birth_certificate_number,
@@ -284,16 +284,17 @@ export class AdmissionsRepository {
           previous_school,
           kcpe_results,
           cbc_level,
-          applying_for_class_id AS class_applying,
-          guardian_name AS parent_name,
-          guardian_phone AS parent_phone,
-          guardian_email AS parent_email,
-          guardian_occupation AS parent_occupation,
-          guardian_relationship AS relationship,
+          nemis_upi,
+          class_applying,
+          parent_name,
+          parent_phone,
+          parent_email,
+          parent_occupation,
+          relationship,
           allergies,
           conditions,
           emergency_contact,
-          application_status AS status,
+          status,
           interview_date::text,
           review_notes,
           approved_at::text,
@@ -301,7 +302,7 @@ export class AdmissionsRepository {
           created_at,
           updated_at
         FROM admission_applications
-        WHERE school_id = $1
+        WHERE tenant_id = $1
           AND id = $2::uuid
         LIMIT 1
       `, [tenantId, applicationId],
@@ -317,9 +318,9 @@ export class AdmissionsRepository {
     const result = await this.executeSql(tenantId, `
         SELECT
           id,
-          school_id,
+          tenant_id AS school_id,
           application_number,
-          (first_name || ' ' || last_name) AS full_name,
+          full_name,
           date_of_birth::text,
           gender,
           birth_certificate_number,
@@ -327,16 +328,17 @@ export class AdmissionsRepository {
           previous_school,
           kcpe_results,
           cbc_level,
-          applying_for_class_id AS class_applying,
-          guardian_name AS parent_name,
-          guardian_phone AS parent_phone,
-          guardian_email AS parent_email,
-          guardian_occupation AS parent_occupation,
-          guardian_relationship AS relationship,
+          nemis_upi,
+          class_applying,
+          parent_name,
+          parent_phone,
+          parent_email,
+          parent_occupation,
+          relationship,
           allergies,
           conditions,
           emergency_contact,
-          application_status AS status,
+          status,
           interview_date::text,
           review_notes,
           approved_at::text,
@@ -344,7 +346,7 @@ export class AdmissionsRepository {
           created_at,
           updated_at
         FROM admission_applications
-        WHERE school_id = $1
+        WHERE tenant_id = $1
           AND id = $2::uuid
         LIMIT 1
         FOR UPDATE
@@ -364,7 +366,7 @@ export class AdmissionsRepository {
     let parameterIndex = 3;
 
     if (input.status !== undefined) {
-      assignments.push(`application_status = $${parameterIndex}`);
+      assignments.push(`status = $${parameterIndex}`);
       values.push(input.status);
       parameterIndex += 1;
       if (input.status === 'approved') {
@@ -399,13 +401,13 @@ export class AdmissionsRepository {
     const result = await this.executeSql(values[0] as string, `
         UPDATE admission_applications
         SET ${assignments.join(', ')}
-        WHERE school_id = $1
+        WHERE tenant_id = $1
           AND id = $2::uuid
         RETURNING
           id,
-          school_id,
+          tenant_id AS school_id,
           application_number,
-          (first_name || ' ' || last_name) AS full_name,
+          full_name,
           date_of_birth::text,
           gender,
           birth_certificate_number,
@@ -413,16 +415,17 @@ export class AdmissionsRepository {
           previous_school,
           kcpe_results,
           cbc_level,
-          applying_for_class_id AS class_applying,
-          guardian_name AS parent_name,
-          guardian_phone AS parent_phone,
-          guardian_email AS parent_email,
-          guardian_occupation AS parent_occupation,
-          guardian_relationship AS relationship,
+          nemis_upi,
+          class_applying,
+          parent_name,
+          parent_phone,
+          parent_email,
+          parent_occupation,
+          relationship,
           allergies,
           conditions,
           emergency_contact,
-          application_status AS status,
+          status,
           interview_date::text,
           review_notes,
           approved_at::text,
@@ -438,16 +441,273 @@ export class AdmissionsRepository {
   async markApplicationRegistered(tenantId: string, applicationId: string, studentId: string) {
     const result = await this.executeSql(tenantId, `
         UPDATE admission_applications
-        SET application_status = 'registered',
+        SET status = 'registered',
             admitted_student_id = $3::uuid,
             updated_at = NOW()
-        WHERE school_id = $1
+        WHERE tenant_id = $1
           AND id = $2::uuid
-        RETURNING id, application_status AS status
+        RETURNING id, status
       `, [tenantId, applicationId, studentId],
     );
 
     return result[0] ?? null;
+  }
+
+  async countStudents(tenantId: string): Promise<number> {
+    const result = await this.executeSql(tenantId, `
+        SELECT COUNT(*)::text AS total
+        FROM students
+        WHERE tenant_id = $1
+      `, [tenantId],
+    );
+
+    return Number(result[0]?.total ?? '0');
+  }
+
+  async createEnquiry(input: {
+    tenant_id: string;
+    enquiry_code: string;
+    student_first_name: string;
+    student_last_name: string;
+    parent_name: string;
+    parent_phone: string;
+    parent_email?: string | null;
+    class_applying?: string | null;
+    enquiry_source?: string | null;
+    boarding_day_preference?: string | null;
+    current_school?: string | null;
+    location?: string | null;
+    notes?: string | null;
+    follow_up_date?: string | null;
+    created_by_user_id?: string | null;
+  }) {
+    const result = await this.executeSql(input.tenant_id, `
+        INSERT INTO admission_enquiries (
+          tenant_id,
+          enquiry_code,
+          student_first_name,
+          student_last_name,
+          parent_name,
+          parent_phone,
+          parent_email,
+          class_applying,
+          enquiry_source,
+          boarding_day_preference,
+          current_school,
+          location,
+          notes,
+          follow_up_date,
+          created_by_user_id
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::date, $15::uuid)
+        RETURNING *
+      `, [
+        input.tenant_id,
+        input.enquiry_code,
+        input.student_first_name,
+        input.student_last_name,
+        input.parent_name,
+        input.parent_phone,
+        input.parent_email ?? null,
+        input.class_applying ?? null,
+        input.enquiry_source ?? null,
+        input.boarding_day_preference ?? null,
+        input.current_school ?? null,
+        input.location ?? null,
+        input.notes ?? null,
+        input.follow_up_date ?? null,
+        input.created_by_user_id ?? null,
+      ],
+    );
+
+    return result[0];
+  }
+
+  async createInterview(input: {
+    tenant_id: string;
+    application_id: string;
+    interview_date: string;
+    start_time: string;
+    end_time: string;
+    location?: string | null;
+    interviewer_user_id?: string | null;
+    assessment_type?: string | null;
+    reading_score?: number | null;
+    writing_score?: number | null;
+    mathematics_score?: number | null;
+    general_conduct?: string | null;
+    recommendation?: string | null;
+    interviewer_comment?: string | null;
+  }) {
+    const result = await this.executeSql(input.tenant_id, `
+        INSERT INTO admission_interviews (
+          tenant_id,
+          application_id,
+          interview_date,
+          start_time,
+          end_time,
+          location,
+          interviewer_user_id,
+          assessment_type,
+          reading_score,
+          writing_score,
+          mathematics_score,
+          general_conduct,
+          recommendation,
+          interviewer_comment
+        )
+        VALUES ($1, $2::uuid, $3::date, $4, $5, $6, $7::uuid, $8, $9::integer, $10::integer, $11::integer, $12, $13, $14)
+        RETURNING *
+      `, [
+        input.tenant_id,
+        input.application_id,
+        input.interview_date,
+        input.start_time,
+        input.end_time,
+        input.location ?? null,
+        input.interviewer_user_id ?? null,
+        input.assessment_type ?? null,
+        input.reading_score ?? null,
+        input.writing_score ?? null,
+        input.mathematics_score ?? null,
+        input.general_conduct ?? null,
+        input.recommendation ?? null,
+        input.interviewer_comment ?? null,
+      ],
+    );
+
+    return result[0];
+  }
+
+  async createOffer(input: {
+    tenant_id: string;
+    application_id: string;
+    required_deposit?: number | null;
+    offer_date?: string | null;
+    deadline_date?: string | null;
+  }) {
+    const result = await this.executeSql(input.tenant_id, `
+        INSERT INTO admission_offers (
+          tenant_id,
+          application_id,
+          required_deposit,
+          offer_date,
+          deadline_date
+        )
+        VALUES ($1, $2::uuid, $3::bigint, COALESCE($4::date, CURRENT_DATE), $5::date)
+        RETURNING *
+      `, [
+        input.tenant_id,
+        input.application_id,
+        input.required_deposit ?? null,
+        input.offer_date ?? null,
+        input.deadline_date ?? null,
+      ],
+    );
+
+    return result[0];
+  }
+
+  async createAppointment(input: {
+    tenant_id: string;
+    application_id?: string | null;
+    visitor_name: string;
+    purpose: string;
+    appointment_date: string;
+    start_time: string;
+    assigned_user_id?: string | null;
+  }) {
+    const result = await this.executeSql(input.tenant_id, `
+        INSERT INTO admission_appointments (
+          tenant_id,
+          application_id,
+          visitor_name,
+          purpose,
+          appointment_date,
+          start_time,
+          assigned_user_id
+        )
+        VALUES ($1, $2::uuid, $3, $4, $5::date, $6, $7::uuid)
+        RETURNING *
+      `, [
+        input.tenant_id,
+        input.application_id ?? null,
+        input.visitor_name,
+        input.purpose,
+        input.appointment_date,
+        input.start_time,
+        input.assigned_user_id ?? null,
+      ],
+    );
+
+    return result[0];
+  }
+
+  async createTask(input: {
+    tenant_id: string;
+    application_id?: string | null;
+    task_title: string;
+    task_description?: string | null;
+    due_date?: string | null;
+    priority?: string | null;
+    assigned_user_id?: string | null;
+  }) {
+    const result = await this.executeSql(input.tenant_id, `
+        INSERT INTO admission_tasks (
+          tenant_id,
+          application_id,
+          task_title,
+          task_description,
+          due_date,
+          priority,
+          assigned_user_id
+        )
+        VALUES ($1, $2::uuid, $3, $4, $5::date, COALESCE($6, 'medium'), $7::uuid)
+        RETURNING *
+      `, [
+        input.tenant_id,
+        input.application_id ?? null,
+        input.task_title,
+        input.task_description ?? null,
+        input.due_date ?? null,
+        input.priority ?? null,
+        input.assigned_user_id ?? null,
+      ],
+    );
+
+    return result[0];
+  }
+
+  async createTemplate(input: {
+    tenant_id: string;
+    template_name: string;
+    template_type: string;
+    content: string;
+    is_active?: boolean;
+    created_by_user_id?: string | null;
+  }) {
+    const result = await this.executeSql(input.tenant_id, `
+        INSERT INTO admission_templates (
+          tenant_id,
+          template_name,
+          template_type,
+          content,
+          is_active,
+          created_by_user_id
+        )
+        VALUES ($1, $2, $3, $4, COALESCE($5::boolean, TRUE), $6::uuid)
+        RETURNING *
+      `, [
+        input.tenant_id,
+        input.template_name,
+        input.template_type,
+        input.content,
+        input.is_active ?? null,
+        input.created_by_user_id ?? null,
+      ],
+    );
+
+    return result[0];
   }
 
   async saveDocumentRecord(input: {
@@ -464,7 +724,7 @@ export class AdmissionsRepository {
   }) {
     const result = await this.executeSql(input.school_id, `
         INSERT INTO admission_documents (
-          school_id,
+          tenant_id,
           application_id,
           student_id,
           document_type,
@@ -510,7 +770,7 @@ export class AdmissionsRepository {
         UPDATE admission_documents
         SET student_id = $3::uuid,
             updated_at = NOW()
-        WHERE school_id = $1
+        WHERE tenant_id = $1
           AND application_id = $2::uuid
           AND student_id IS NULL
         RETURNING id
@@ -524,7 +784,7 @@ export class AdmissionsRepository {
     tenantId: string,
     options: { search?: string; status?: string; limit?: number; offset?: number } = {},
   ) {
-    const conditions = ['document.school_id = $1'];
+    const conditions = ['document.tenant_id = $1'];
     const values: unknown[] = [tenantId];
     let parameterIndex = 2;
     const search = this.normalizeSearch(options.search);
@@ -564,10 +824,10 @@ export class AdmissionsRepository {
           CONCAT(student.first_name, ' ', student.last_name) AS student_name
         FROM admission_documents document
         LEFT JOIN admission_applications application
-          ON application.school_id = document.tenant_id
+          ON application.tenant_id = document.tenant_id
          AND application.id = document.application_id
         LEFT JOIN students student
-          ON student.school_id = document.tenant_id
+          ON student.tenant_id = document.tenant_id
          AND student.id = document.student_id
         WHERE ${conditions.join(' AND ')}
         ORDER BY document.created_at DESC
@@ -588,7 +848,7 @@ export class AdmissionsRepository {
         UPDATE admission_documents
         SET verification_status = $3,
             updated_at = NOW()
-        WHERE school_id = $1
+        WHERE tenant_id = $1
           AND id = $2::uuid
         RETURNING
           id,
@@ -618,7 +878,7 @@ export class AdmissionsRepository {
         UPDATE student_allocations
         SET is_current = FALSE,
             updated_at = NOW()
-        WHERE school_id = $1
+        WHERE tenant_id = $1
           AND student_id = $2::uuid
           AND is_current = TRUE
       `, [input.school_id, input.student_id],
@@ -626,7 +886,7 @@ export class AdmissionsRepository {
 
     const result = await this.executeSql(input.school_id, `
         INSERT INTO student_allocations (
-          school_id,
+          tenant_id,
           student_id,
           class_name,
           stream_name,
@@ -657,7 +917,7 @@ export class AdmissionsRepository {
     const result = await this.executeSql(tenantId, `
         SELECT id, class_name, stream_name, dormitory_name, transport_route, effective_from
         FROM student_allocations
-        WHERE school_id = $1
+        WHERE tenant_id = $1
           AND student_id = $2::uuid
           AND is_current = TRUE
         ORDER BY effective_from DESC
@@ -688,7 +948,7 @@ export class AdmissionsRepository {
             is_primary = TRUE,
             status = CASE WHEN user_id IS NULL THEN 'invited' ELSE 'active' END,
             updated_at = NOW()
-          WHERE school_id = $1
+          WHERE tenant_id = $1
             AND student_id = $2::uuid
             AND lower(email) = lower($5)
           RETURNING
@@ -699,24 +959,24 @@ export class AdmissionsRepository {
             display_name,
             lower(email) AS email,
             phone,
-            guardian_relationship AS relationship,
+            relationship,
             is_primary,
-            application_status AS status,
+            status,
             accepted_at,
             created_at,
             updated_at
         ),
         inserted AS (
           INSERT INTO student_guardians (
-            school_id,
+            tenant_id,
             student_id,
             invitation_id,
             display_name,
             email,
             phone,
-            guardian_relationship AS relationship,
+            relationship,
             is_primary,
-            application_status AS status
+            status
           )
           SELECT $1, $2::uuid, $3::uuid, $4, lower($5), $6, $7, TRUE, 'invited'
           WHERE NOT EXISTS (SELECT 1 FROM updated)
@@ -728,9 +988,9 @@ export class AdmissionsRepository {
             display_name,
             lower(email) AS email,
             phone,
-            guardian_relationship AS relationship,
+            relationship,
             is_primary,
-            application_status AS status,
+            status,
             accepted_at,
             created_at,
             updated_at
@@ -762,13 +1022,13 @@ export class AdmissionsRepository {
         WITH selected_section AS (
           SELECT
             id,
-            school_id,
+            tenant_id AS school_id,
             class_name,
             stream_name,
             academic_year,
             capacity
           FROM academic_class_sections
-          WHERE school_id = $1
+          WHERE tenant_id = $1
             AND lower(class_name) = lower($2)
             AND lower(stream_name) = lower($3)
             AND is_active = TRUE
@@ -785,7 +1045,7 @@ export class AdmissionsRepository {
           (
             SELECT COUNT(*)::int
             FROM student_academic_enrollments enrollment
-            WHERE enrollment.school_id = selected_section.tenant_id
+            WHERE enrollment.tenant_id = selected_section.tenant_id
               AND enrollment.class_section_id = selected_section.id
               AND enrollment.status = 'active'
           ) AS current_enrollments
@@ -807,14 +1067,14 @@ export class AdmissionsRepository {
   }) {
     const result = await this.executeSql(input.school_id, `
         INSERT INTO student_academic_enrollments (
-          school_id,
+          tenant_id,
           student_id,
           application_id,
           class_section_id,
           class_name,
           stream_name,
           academic_year,
-          application_status AS status
+          status
         )
         VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7, 'active')
         ON CONFLICT (tenant_id, student_id, academic_year)
@@ -833,7 +1093,7 @@ export class AdmissionsRepository {
           class_name,
           stream_name,
           academic_year,
-          application_status AS status,
+          status,
           enrolled_at,
           created_at,
           updated_at
@@ -861,12 +1121,12 @@ export class AdmissionsRepository {
           class_name,
           stream_name,
           academic_year,
-          application_status AS status,
+          status,
           enrolled_at,
           created_at,
           updated_at
         FROM student_academic_enrollments
-        WHERE school_id = $1
+        WHERE tenant_id = $1
           AND student_id = $2::uuid
           AND status = 'active'
         ORDER BY enrolled_at DESC, created_at DESC
@@ -885,9 +1145,9 @@ export class AdmissionsRepository {
   ) {
     const result = await this.executeSql(tenantId, `
         UPDATE student_academic_enrollments
-        SET application_status = $3,
+        SET status = $3,
             updated_at = NOW()
-        WHERE school_id = $1
+        WHERE tenant_id = $1
           AND id = $2::uuid
           AND status = 'active'
         RETURNING
@@ -898,7 +1158,7 @@ export class AdmissionsRepository {
           class_name,
           stream_name,
           academic_year,
-          application_status AS status,
+          status,
           enrolled_at,
           created_at,
           updated_at
@@ -927,7 +1187,7 @@ export class AdmissionsRepository {
   }) {
     const result = await this.executeSql(input.school_id, `
         INSERT INTO student_academic_lifecycle_events (
-          school_id,
+          tenant_id,
           student_id,
           source_enrollment_id,
           target_enrollment_id,
@@ -1008,13 +1268,13 @@ export class AdmissionsRepository {
     const result = await this.executeSql(input.school_id, `
         WITH subject_rows AS (
           INSERT INTO student_subject_enrollments (
-            school_id,
+            tenant_id,
             student_id,
             academic_enrollment_id,
             subject_offering_id,
             subject_code,
             subject_name,
-            application_status AS status
+            status
           )
           SELECT
             offering.tenant_id,
@@ -1025,7 +1285,7 @@ export class AdmissionsRepository {
             offering.subject_name,
             'active'
           FROM academic_subject_offerings offering
-          WHERE offering.school_id = $1
+          WHERE offering.tenant_id = $1
             AND offering.class_section_id = $4::uuid
             AND offering.is_active = TRUE
           ON CONFLICT (tenant_id, student_id, subject_offering_id)
@@ -1040,14 +1300,14 @@ export class AdmissionsRepository {
             subject_offering_id::text,
             subject_code,
             subject_name,
-            application_status AS status,
+            status,
             enrolled_at,
             created_at,
             updated_at
         ),
         timetable_rows AS (
           INSERT INTO student_timetable_enrollments (
-            school_id,
+            tenant_id,
             student_id,
             academic_enrollment_id,
             timetable_slot_id,
@@ -1056,7 +1316,7 @@ export class AdmissionsRepository {
             ends_at,
             subject_name,
             room_name,
-            application_status AS status
+            status
           )
           SELECT
             slot.tenant_id,
@@ -1071,9 +1331,9 @@ export class AdmissionsRepository {
             'active'
           FROM academic_timetable_slots slot
           LEFT JOIN academic_subject_offerings offering
-            ON offering.school_id = slot.tenant_id
+            ON offering.tenant_id = slot.tenant_id
            AND offering.id = slot.subject_offering_id
-          WHERE slot.school_id = $1
+          WHERE slot.tenant_id = $1
             AND slot.class_section_id = $4::uuid
             AND slot.is_active = TRUE
           ON CONFLICT (tenant_id, student_id, timetable_slot_id)
@@ -1094,7 +1354,7 @@ export class AdmissionsRepository {
             ends_at,
             subject_name,
             room_name,
-            application_status AS status,
+            status,
             created_at,
             updated_at
         )
@@ -1127,7 +1387,7 @@ export class AdmissionsRepository {
           amount_minor::text,
           due_days_after_registration
         FROM student_fee_structures
-        WHERE school_id = $1
+        WHERE tenant_id = $1
           AND lower(class_name) = lower($2)
           AND is_active = TRUE
         ORDER BY academic_year DESC, term_name DESC, created_at DESC
@@ -1152,11 +1412,11 @@ export class AdmissionsRepository {
     const result = await this.executeSql(input.school_id, `
         WITH assignment AS (
           INSERT INTO student_fee_assignments (
-            school_id,
+            tenant_id,
             student_id,
             application_id,
             fee_structure_id,
-            application_status AS status,
+            status,
             amount_minor,
             currency_code
           )
@@ -1176,7 +1436,7 @@ export class AdmissionsRepository {
             student_id::text,
             application_id::text,
             fee_structure_id::text,
-            application_status AS status,
+            status,
             amount_minor::text,
             currency_code,
             assigned_at,
@@ -1185,11 +1445,11 @@ export class AdmissionsRepository {
         ),
         invoice AS (
           INSERT INTO student_fee_invoices (
-            school_id,
+            tenant_id,
             assignment_id,
             student_id,
             invoice_number,
-            application_status AS status,
+            status,
             description,
             currency_code,
             amount_due_minor,
@@ -1222,7 +1482,7 @@ export class AdmissionsRepository {
             assignment_id::text,
             student_id::text,
             invoice_number,
-            application_status AS status,
+            status,
             description,
             currency_code,
             amount_due_minor::text,
@@ -1257,7 +1517,7 @@ export class AdmissionsRepository {
     tenantId: string,
     options: { search?: string; limit?: number; offset?: number } = {},
   ) {
-    const conditions = ['allocation.school_id = $1', 'allocation.is_current = TRUE'];
+    const conditions = ['allocation.tenant_id = $1', 'allocation.is_current = TRUE'];
     const values: unknown[] = [tenantId];
     let parameterIndex = 2;
     const search = this.normalizeSearch(options.search);
@@ -1290,7 +1550,7 @@ export class AdmissionsRepository {
           allocation.effective_from
         FROM student_allocations allocation
         JOIN students student
-          ON student.school_id = allocation.tenant_id
+          ON student.tenant_id = allocation.tenant_id
          AND student.id = allocation.student_id
         WHERE ${conditions.join(' AND ')}
         ORDER BY allocation.effective_from DESC
@@ -1306,7 +1566,7 @@ export class AdmissionsRepository {
     tenantId: string,
     options: { search?: string; limit: number; offset?: number },
   ) {
-    const conditions = ['student.school_id = $1'];
+    const conditions = ['student.tenant_id = $1'];
     const values: unknown[] = [tenantId];
     let parameterIndex = 2;
     const search = this.normalizeSearch(options.search);
@@ -1344,7 +1604,7 @@ export class AdmissionsRepository {
           allocation.transport_route
         FROM students student
         LEFT JOIN student_allocations allocation
-          ON allocation.school_id = student.tenant_id
+          ON allocation.tenant_id = student.tenant_id
          AND allocation.student_id = student.id
          AND allocation.is_current = TRUE
         WHERE ${conditions.join(' AND ')}
@@ -1382,7 +1642,7 @@ export class AdmissionsRepository {
             primary_guardian_phone,
             metadata
           FROM students
-          WHERE school_id = $1
+          WHERE tenant_id = $1
             AND id = $2::uuid
           LIMIT 1
         `, [tenantId, studentId],
@@ -1390,7 +1650,7 @@ export class AdmissionsRepository {
       this.executeSql(tenantId, `
           SELECT id, document_type, original_file_name, verification_status, created_at
           FROM admission_documents
-          WHERE school_id = $1
+          WHERE tenant_id = $1
             AND student_id = $2::uuid
           ORDER BY created_at DESC
         `, [tenantId, studentId],
@@ -1398,7 +1658,7 @@ export class AdmissionsRepository {
       this.executeSql(tenantId, `
           SELECT class_name, stream_name, dormitory_name, transport_route, effective_from
           FROM student_allocations
-          WHERE school_id = $1
+          WHERE tenant_id = $1
             AND student_id = $2::uuid
             AND is_current = TRUE
           ORDER BY effective_from DESC
@@ -1411,11 +1671,11 @@ export class AdmissionsRepository {
             class_name,
             stream_name,
             academic_year,
-            application_status AS status,
+            status,
             enrolled_at,
             updated_at
           FROM student_academic_enrollments
-          WHERE school_id = $1
+          WHERE tenant_id = $1
             AND student_id = $2::uuid
             AND status = 'active'
           ORDER BY enrolled_at DESC, created_at DESC
@@ -1427,10 +1687,10 @@ export class AdmissionsRepository {
             id,
             subject_code,
             subject_name,
-            application_status AS status,
+            status,
             enrolled_at
           FROM student_subject_enrollments
-          WHERE school_id = $1
+          WHERE tenant_id = $1
             AND student_id = $2::uuid
             AND status = 'active'
           ORDER BY subject_name ASC
@@ -1444,9 +1704,9 @@ export class AdmissionsRepository {
             ends_at,
             subject_name,
             room_name,
-            application_status AS status
+            status
           FROM student_timetable_enrollments
-          WHERE school_id = $1
+          WHERE tenant_id = $1
             AND student_id = $2::uuid
             AND status = 'active'
           ORDER BY
@@ -1476,7 +1736,7 @@ export class AdmissionsRepository {
             reason,
             created_at
           FROM student_academic_lifecycle_events
-          WHERE school_id = $1
+          WHERE tenant_id = $1
             AND student_id = $2::uuid
           ORDER BY created_at DESC
           LIMIT 10
@@ -1488,18 +1748,18 @@ export class AdmissionsRepository {
             display_name,
             email,
             phone,
-            guardian_relationship AS relationship,
-            application_status AS status,
+            relationship,
+            status,
             user_id::text,
             invitation_id::text,
             accepted_at,
             created_at,
             updated_at
           FROM student_guardians
-          WHERE school_id = $1
+          WHERE tenant_id = $1
             AND student_id = $2::uuid
           ORDER BY
-            CASE application_status AS status
+            CASE status
               WHEN 'active' THEN 1
               WHEN 'invited' THEN 2
               ELSE 3
@@ -1520,9 +1780,9 @@ export class AdmissionsRepository {
             structure.academic_year
           FROM student_fee_assignments assignment
           LEFT JOIN student_fee_structures structure
-            ON structure.school_id = assignment.tenant_id
+            ON structure.tenant_id = assignment.tenant_id
            AND structure.id = assignment.fee_structure_id
-          WHERE assignment.school_id = $1
+          WHERE assignment.tenant_id = $1
             AND assignment.student_id = $2::uuid
             AND assignment.status <> 'voided'
           ORDER BY assignment.assigned_at DESC, assignment.created_at DESC
@@ -1543,7 +1803,7 @@ export class AdmissionsRepository {
             invoice.due_date::text,
             invoice.created_at
           FROM student_fee_invoices invoice
-          WHERE invoice.school_id = $1
+          WHERE invoice.tenant_id = $1
             AND invoice.student_id = $2::uuid
             AND invoice.status <> 'voided'
           ORDER BY invoice.due_date DESC, invoice.created_at DESC
@@ -1597,22 +1857,22 @@ export class AdmissionsRepository {
 
     const result = await this.executeSql(values[0] as string, `
         SELECT
-          COALESCE(primary_guardian_name, parent_name) AS guardian_name AS parent_name,
-          COALESCE(primary_guardian_phone, parent_phone) AS guardian_phone AS parent_phone,
-          guardian_email AS parent_email,
-          guardian_occupation AS parent_occupation,
-          guardian_relationship AS relationship
+          COALESCE(primary_guardian_name, parent_name) AS parent_name,
+          COALESCE(primary_guardian_phone, parent_phone) AS parent_phone,
+          parent_email,
+          parent_occupation,
+          relationship
         FROM (
           SELECT
             student.primary_guardian_name,
             student.primary_guardian_phone,
-            NULL::text AS guardian_name AS parent_name,
-            NULL::text AS guardian_phone AS parent_phone,
-            NULL::text AS guardian_email AS parent_email,
-            NULL::text AS guardian_occupation AS parent_occupation,
-            NULL::text AS guardian_relationship AS relationship
+            NULL::text AS parent_name,
+            NULL::text AS parent_phone,
+            NULL::text AS parent_email,
+            NULL::text AS parent_occupation,
+            NULL::text AS relationship
           FROM students student
-          WHERE student.school_id = $1
+          WHERE student.tenant_id = $1
 
           UNION ALL
 
@@ -1625,7 +1885,7 @@ export class AdmissionsRepository {
             application.parent_occupation,
             application.relationship
           FROM admission_applications application
-          WHERE application.school_id = $1
+          WHERE application.tenant_id = $1
         ) parents
         WHERE COALESCE(primary_guardian_name, parent_name) IS NOT NULL
           ${searchCondition}
@@ -1651,18 +1911,18 @@ export class AdmissionsRepository {
   }) {
     const result = await this.executeSql(input.school_id, `
         INSERT INTO student_transfer_records (
-          school_id,
+          tenant_id,
           student_id,
           application_id,
           transfer_type,
           school_name,
           reason,
           requested_on,
-          application_status AS status,
+          status,
           notes
         )
         VALUES ($1, $2::uuid, $3::uuid, $4, $5, $6, $7::date, $8, $9)
-        RETURNING id, transfer_type, school_name, application_status AS status
+        RETURNING id, transfer_type, school_name, status
       `, [
         input.school_id,
         input.student_id ?? null,
@@ -1683,7 +1943,7 @@ export class AdmissionsRepository {
     tenantId: string,
     options: { search?: string; status?: string; limit?: number; offset?: number } = {},
   ) {
-    const conditions = ['school_id = $1'];
+    const conditions = ['tenant_id = $1'];
     const values: unknown[] = [tenantId];
     let parameterIndex = 2;
     const search = this.normalizeSearch(options.search);
@@ -1709,7 +1969,7 @@ export class AdmissionsRepository {
     values.push(this.normalizeOffset(options.offset));
 
     const result = await this.executeSql(values[0] as string, `
-        SELECT id, student_id, application_id, transfer_type, school_name, reason, requested_on, application_status AS status, notes
+        SELECT id, student_id, application_id, transfer_type, school_name, reason, requested_on, status, notes
         FROM student_transfer_records
         WHERE ${conditions.join(' AND ')}
         ORDER BY requested_on DESC, created_at DESC
@@ -1724,17 +1984,17 @@ export class AdmissionsRepository {
   async buildReports(tenantId: string) {
     const [statusBreakdown, allocationBreakdown, documentVerification] = await Promise.all([
       this.executeSql(tenantId, `
-          SELECT application_status AS status, COUNT(*)::int AS total
+          SELECT status, COUNT(*)::int AS total
           FROM admission_applications
-          WHERE school_id = $1
-          GROUP BY application_status AS status
+          WHERE tenant_id = $1
+          GROUP BY status
           ORDER BY total DESC, status ASC
         `, [tenantId],
       ),
       this.executeSql(tenantId, `
           SELECT class_name, COUNT(*)::int AS total
           FROM student_allocations
-          WHERE school_id = $1
+          WHERE tenant_id = $1
             AND is_current = TRUE
           GROUP BY class_name
           ORDER BY total DESC, class_name ASC
@@ -1743,7 +2003,7 @@ export class AdmissionsRepository {
       this.executeSql(tenantId, `
           SELECT verification_status, COUNT(*)::int AS total
           FROM admission_documents
-          WHERE school_id = $1
+          WHERE tenant_id = $1
           GROUP BY verification_status
           ORDER BY total DESC, verification_status ASC
         `, [tenantId],

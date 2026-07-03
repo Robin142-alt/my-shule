@@ -1,12 +1,14 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
+import { LmsService } from '../lms/lms.service';
 
 @Injectable()
 export class StudentPortalService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly requestContext: RequestContextService,
+    private readonly lmsService: LmsService,
   ) {}
 
   private requireStudentId(): string {
@@ -99,7 +101,33 @@ export class StudentPortalService {
   }
 
   async markAssignmentDone(assignmentId: string) {
-    // Stub implementation until assignments model is clear
-    return { success: true };
+    const normalizedAssignmentId = String(assignmentId ?? '').trim();
+
+    if (!normalizedAssignmentId) {
+      throw new BadRequestException('assignmentId is required');
+    }
+
+    const tenantId = this.requireTenantId();
+    const studentId = this.requireStudentId();
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId, schoolId: tenantId },
+      select: { id: true },
+    });
+
+    if (!student) {
+      throw new UnauthorizedException('Student not found in this school');
+    }
+
+    const submission = await this.lmsService.submitAssignment(normalizedAssignmentId, {
+      student_id: studentId,
+      status: 'submitted',
+      answer_text: 'Marked complete from the student portal.',
+    });
+
+    return {
+      success: true,
+      assignmentId: normalizedAssignmentId,
+      submission,
+    };
   }
 }

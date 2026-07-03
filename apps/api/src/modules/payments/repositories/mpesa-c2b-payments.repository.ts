@@ -366,7 +366,7 @@ export class MpesaC2bPaymentsRepository {
         SET
           status = 'matched',
           matched_invoice_id = $3::uuid,
-          matched_student_id = $4::uuid,
+          matched_student_id = $4,
           manual_fee_payment_id = $5::uuid,
           ledger_transaction_id = $6::uuid,
           matched_at = NOW(),
@@ -494,8 +494,8 @@ export class MpesaC2bPaymentsRepository {
             matched_invoice_id
           ),
           matched_student_id = COALESCE(
-            ($5::jsonb ->> 'matched_student_id')::uuid,
-            (metadata ->> 'matched_student_id')::uuid,
+            NULLIF($5::jsonb ->> 'matched_student_id', ''),
+            NULLIF(metadata ->> 'matched_student_id', ''),
             matched_student_id
           ),
           matched_at = CASE

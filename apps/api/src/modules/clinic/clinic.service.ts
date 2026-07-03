@@ -67,15 +67,23 @@ export class ClinicService {
     const tenantId = this.requestContext.requireStore().tenant_id;
     const db = (this.repository as any).databaseService;
     const res = await db.query(
-      `SELECT v.id, v.created_at, v.reason, v.status, v.outcome, v.student_id
+      `SELECT
+         v.id,
+         v.created_at,
+         v.reason,
+         v.status,
+         v.outcome,
+         v.student_id,
+         COALESCE(NULLIF(TRIM(CONCAT_WS(' ', s.first_name, s.last_name)), ''), 'Learner not linked') AS student_name
        FROM clinic_visits v
+       LEFT JOIN students s ON s.tenant_id = v.tenant_id AND s.id = v.student_id
        WHERE v.tenant_id = $1
        ORDER BY v.created_at DESC LIMIT 50`,
       [tenantId]
     );
     return res.rows.map((r: any) => ({
       ...r,
-      student_name: 'Unknown Student'
+      student_name: r.student_name || 'Learner not linked'
     }));
   }
 

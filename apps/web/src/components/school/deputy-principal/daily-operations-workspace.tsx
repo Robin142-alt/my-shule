@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Activity } from "lucide-react";
 import { toast } from "sonner";
-import { Panel, StatusChip, Tone } from "./shared";
+import { Panel, StatusChip, Tone, openDeputyRecord } from "./shared";
 import { Modal } from "@/components/ui/modal";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { createDailyOperationNote } from "./api-client";
@@ -53,7 +53,7 @@ export function DeputyDailyOperationsWorkspace() {
       setShowModal(false);
       setFormData({ area: "", issue: "" });
       refetch();
-    } catch (error) {
+    } catch {
       toast.error("Failed to create Operation Note.");
     } finally {
       setIsSubmitting(false);
@@ -67,7 +67,7 @@ export function DeputyDailyOperationsWorkspace() {
 
   return (
     <Panel title="Daily Operations" description="Manage the school day from morning to evening." icon={Activity} actions={
-      <button onClick={() => setShowModal(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900">Create Operation Note</button>
+      <button type="button" onClick={() => setShowModal(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900">Create Operation Note</button>
     }>
       <div className="grid gap-4 md:grid-cols-4 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
@@ -111,7 +111,7 @@ export function DeputyDailyOperationsWorkspace() {
                   <td className="px-4 py-3 text-[#64748B]">{note.issue}</td>
                   <td className="px-4 py-3"><StatusChip label={note.status} tone={getStatusTone(note.status)} /></td>
                   <td className="px-4 py-3 text-right">
-                    <button className="text-blue-600 hover:underline font-semibold text-xs">View Note</button>
+                    <button type="button" className="text-blue-600 hover:underline font-semibold text-xs" onClick={() => openDeputyRecord("Daily operation note", [["Time", note.time], ["Area", note.area], ["Issue", note.issue], ["Status", note.status]])}>View Note</button>
                   </td>
                 </tr>
               ))

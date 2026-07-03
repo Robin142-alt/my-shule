@@ -7,6 +7,7 @@ import {
   readAccessCookie,
   readExperienceSessionCookie,
   readTenantCookie,
+  resolveSchoolTenantSlug,
 } from "@/lib/auth/server-session";
 import {
   isDashboardApiConfigured,
@@ -31,8 +32,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const tenantId = readTenantCookie(cookieStore) ?? session.tenantSlug;
+  const { tenantSlug: tenantId, tenantMismatch } = resolveSchoolTenantSlug({
+    tenantCookie: readTenantCookie(cookieStore),
+    sessionTenantSlug: session.tenantSlug,
+  });
   const accessToken = readAccessCookie(cookieStore);
+
+  if (tenantMismatch) {
+    return NextResponse.json(
+      { synced: false, message: "Requested school workspace does not match the signed-in session." },
+      { status: 403 },
+    );
+  }
 
   if (!tenantId || !accessToken) {
     return NextResponse.json(

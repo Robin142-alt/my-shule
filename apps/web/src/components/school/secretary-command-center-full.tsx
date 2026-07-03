@@ -52,10 +52,15 @@ import {
 } from "@/lib/school/school-operational-store";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { downloadCsvFile } from "@/lib/dashboard/export";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { buildSchoolSectionHref } from "./school-pages";
+
+function frontOfficeExportTimestamp() {
+  return new Date().toISOString().replace(/[:.]/g, "-");
+}
 
 // ==========================================
 // TYPES AND CONSTANTS
@@ -126,6 +131,62 @@ function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
+function secretaryActionSlug(title: string) {
+  return title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ".")
+    .replace(/^\.+|\.+$/g, "") || "workflow.action";
+}
+
+async function persistSecretaryWorkflowAction(title: string, body: string, tone: "success" | "info" | "warning" | "danger") {
+  return requestDashboardApi("/api/admin-command/secretary/actions", {
+    method: "POST",
+    body: {
+      action: secretaryActionSlug(title),
+      title,
+      description: body,
+      priority: tone === "danger" || tone === "warning" ? "high" : "normal",
+      source: "secretary-command-center",
+    },
+  });
+}
+
+async function recordSecretaryAction(title: string, body: string, tone: "success" | "info" | "warning" | "danger" = "info") {
+  try {
+    await persistSecretaryWorkflowAction(title, body, tone);
+  } catch (error) {
+    toast.error("Front office action was not saved", {
+      description: error instanceof Error ? error.message : "The action could not be persisted for audit and dashboard follow-up.",
+    });
+    return false;
+  }
+
+  const notify = tone === "danger" ? toast.error : tone === "success" ? toast.success : toast.info;
+  notify(title, { description: body });
+  publishSchoolOperationalEvent({
+    type: "frontoffice.workflow_action",
+    module: "frontoffice",
+    actorRole: "secretary",
+    title,
+    body,
+  });
+  return true;
+}
+
+async function exportSecretaryCsv(filename: string, title: string, rows: string[][] = []) {
+  const persisted = await recordSecretaryAction("Front office export created", `${title} downloaded for the current school tenant.`, "success");
+  if (!persisted) {
+    return;
+  }
+
+  downloadCsvFile({
+    filename,
+    headers: ["Report", "School", "Generated At"],
+    rows: rows.length ? rows : [[title, getCurrentSchoolId() || "current tenant", new Date().toISOString()]],
+  });
+}
+
 // ==========================================
 // UTILITY COMPONENTS
 // ==========================================
@@ -173,10 +234,10 @@ function Panel({
   );
 }
 
-function RealDataTable({ 
-  columns, 
-  actions, 
-  data, 
+function RealDataTable({  
+  columns,  
+  actions,  
+  data,  
   loading, 
   error,
   emptyIcon: EmptyIcon = FileText,
@@ -187,9 +248,65 @@ function RealDataTable({
   data: any[], 
   loading: boolean, 
   error: string | null,
-  emptyIcon?: LucideIcon,
-  emptyMessage?: string
+  emptyIcon?: LucideIcon, 
+  emptyMessage?: string 
 }) {
+  const [selectedRowDetails, setSelectedRowDetails] = useState<{ action: string; row: any } | null>(null);
+  const [pendingRowAction, setPendingRowAction] = useState<string | null>(null);
+
+  const describeRow = (row: any) =>
+    String(row?.name || row?.visitor_name || row?.visitor || row?.parent_name || row?.parent || row?.student_name || row?.student || row?.item_name || row?.title || row?.id || "selected front-office record");
+
+  const handleSecretaryTableAction = async (action: string, row: any) => {
+    const rowLabel = describeRow(row);
+    if (/view|details|profile|notes|report/i.test(action)) {
+      setSelectedRowDetails({ action, row });
+      return;
+    }
+
+    if (/print|download|export/i.test(action)) {
+      const entries = Object.entries(row || {}).map(([key, value]) => [key, typeof value === "object" ? JSON.stringify(value) : String(value ?? "")]);
+      const persisted = await recordSecretaryAction("Front office row export prepared", `${action} output prepared for ${rowLabel}.`, "success");
+      if (persisted) {
+        downloadCsvFile({
+          filename: `front-office-${secretaryActionSlug(action)}-${frontOfficeExportTimestamp()}.csv`,
+          headers: ["Field", "Value"],
+          rows: entries.length ? entries : [["Record", rowLabel]],
+        });
+      }
+      return;
+    }
+
+    setPendingRowAction(`${action}:${rowLabel}`);
+    try {
+      await requestDashboardApi("/api/admin-command/secretary/actions", {
+        method: "POST",
+        body: {
+          action: secretaryActionSlug(action),
+          title: `${action} requested`,
+          description: `${action} requested for ${rowLabel}.`,
+          priority: /escalate|cancel|urgent|reject/i.test(action) ? "high" : "normal",
+          source: "secretary-table-action",
+          row,
+        },
+      });
+      toast.success(`${action} queued for front-office follow-up.`, { description: rowLabel });
+      publishSchoolOperationalEvent({
+        type: "frontoffice.row_action",
+        module: "frontoffice",
+        actorRole: "secretary",
+        title: `${action} requested`,
+        body: rowLabel,
+      });
+    } catch (err) {
+      toast.error(`${action} could not be saved`, {
+        description: err instanceof Error ? err.message : "The action was not persisted.",
+      });
+    } finally {
+      setPendingRowAction(null);
+    }
+  };
+
   if (columns.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#D8E0EC] bg-[#F8FAFC] py-16 text-center">
@@ -214,7 +331,7 @@ function RealDataTable({
       <div className="flex flex-col items-center justify-center rounded-xl border border-rose-200 bg-rose-50 py-16 text-center">
         <AlertTriangle className="h-8 w-8 text-rose-500" />
         <p className="mt-2 text-sm text-rose-700">{error}</p>
-        <button className="mt-4 px-4 py-2 bg-white border border-rose-200 rounded-lg text-sm text-rose-700 hover:bg-rose-100 transition">Retry</button>
+        <button type="button" onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-white border border-rose-200 rounded-lg text-sm text-rose-700 hover:bg-rose-100 transition">Retry</button>
       </div>
     );
   }
@@ -249,13 +366,19 @@ function RealDataTable({
                   return (
                     <td key={idx} className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        {actions.slice(0, 3).map((act, i) => (
-                          <button key={i} className="text-xs font-semibold text-[#1D4ED8] hover:underline whitespace-nowrap">
-                            {act}
-                          </button>
-                        ))}
-                      </div>
-                    </td>
+                            {actions.slice(0, 3).map((act, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => handleSecretaryTableAction(act, row)}
+                                disabled={pendingRowAction === `${act}:${describeRow(row)}`}
+                                className="text-xs font-semibold text-[#1D4ED8] hover:underline whitespace-nowrap disabled:cursor-wait disabled:text-[#94A3B8]"
+                              >
+                                {pendingRowAction === `${act}:${describeRow(row)}` ? "Working..." : act}
+                              </button>
+                            ))}
+                          </div>
+                        </td>
                   );
                 }
                 if (col === 'Status') {
@@ -275,10 +398,26 @@ function RealDataTable({
             </tr>
           ))}
         </tbody>
-      </table>
-    </div>
-  );
-}
+          </table>
+          {selectedRowDetails ? (
+            <Modal title={`${selectedRowDetails.action} Details`} open={true} onClose={() => setSelectedRowDetails(null)} size="md">
+              <div className="max-h-[70vh] overflow-y-auto p-6">
+                <dl className="grid gap-3">
+                  {Object.entries(selectedRowDetails.row || {}).map(([key, value]) => (
+                    <div key={key} className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                      <dt className="text-xs font-black uppercase tracking-wide text-[#64748B]">{key.replace(/_/g, " ")}</dt>
+                      <dd className="mt-1 break-words text-sm font-semibold text-[#071D49]">
+                        {typeof value === "object" ? JSON.stringify(value) : String(value ?? "-")}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            </Modal>
+          ) : null}
+        </div>
+      );
+    }
 
 // ==========================================
 // WORKSPACES
@@ -353,7 +492,7 @@ function QueueWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void
   const data = rawData || [];
 
   return (
-    <Panel title="Front Office Queue" description="Manages all people coming physically to the school office." icon={Users} actions={<button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Add Walk-in Ticket</button>}>
+    <Panel title="Front Office Queue" description="Manages all people coming physically to the school office." icon={Users} actions={<button type="button" onClick={() => onNavigate("visitor_register")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Add Walk-in Ticket</button>}>
       <RealDataTable 
         columns={["Ticket No.","Time In","Name","Phone","Type","Purpose","Linked Student","Assigned To","Waiting Time","Status","Actions"]} 
         actions={["View","Call Next","Start Service","Assign Office","Mark Served","Escalate","Print Slip","Cancel"]} 
@@ -366,21 +505,125 @@ function QueueWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void
   );
 }
 
-function ParentDeskWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
-  const { data: rawData, isLoading: loading, error } = useSchoolQuery<any[]>("/api/communication/summary");
-  const data = rawData || [];
+function ParentRequestModal({ onClose, onSuccess }: { onClose: () => void; onSuccess?: () => void }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleRegisterParentRequest = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
+    const formData = new FormData(event.currentTarget);
+    const parentName = String(formData.get("parent_name") || "").trim();
+    const requestType = String(formData.get("request_type") || "").trim();
+    const studentName = String(formData.get("student_name") || "").trim();
+    const notes = String(formData.get("notes") || "").trim();
+
+    try {
+      await requestDashboardApi("/api/admin-command/secretary/parent-messages", {
+        method: "POST",
+        body: {
+          subject: `${requestType} request from ${parentName}`,
+          message: notes || `${parentName} requested ${requestType} support for ${studentName}.`,
+          parent_name: parentName,
+          phone_number: formData.get("phone_number"),
+          student_name: studentName,
+          class_name: formData.get("class_name"),
+          request_type: requestType,
+          assigned_to: formData.get("assigned_to"),
+          follow_up_deadline: formData.get("follow_up_deadline"),
+          status: "pending",
+          source_dashboard: "secretary-parent-desk",
+        },
+      });
+      toast.success("Parent request recorded and routed for follow-up.");
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to register parent request.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
-    <Panel title="Parent & Guardian Desk" description="Handles parent-facing office requests." icon={UserCircle} actions={<button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Register Parent Request</button>}>
-      <RealDataTable 
-        columns={["Request No.","Parent Name","Phone","Student","Class","Request Type","Assigned To","Status","Date","Actions"]} 
-        actions={["View","Assign","Reply","Mark Resolved","Create Appointment","Print Summary","Escalate"]} 
-        data={data}
-        loading={loading}
-        error={error?.message || null}
-        emptyIcon={UserCircle}
-      />
-    </Panel>
+    <Modal title="Register Parent Request" open={true} onClose={onClose} size="md">
+      <form onSubmit={handleRegisterParentRequest} className="p-6 space-y-4">
+        {error ? <div className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div> : null}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block text-sm font-bold text-[#071D49]">
+            Parent / guardian
+            <input name="parent_name" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Full name" />
+          </label>
+          <label className="block text-sm font-bold text-[#071D49]">
+            Phone number
+            <input name="phone_number" type="tel" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="+254..." />
+          </label>
+          <label className="block text-sm font-bold text-[#071D49]">
+            Student
+            <input name="student_name" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Linked learner" />
+          </label>
+          <label className="block text-sm font-bold text-[#071D49]">
+            Class / stream
+            <input name="class_name" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Grade 6 Blue" />
+          </label>
+          <label className="block text-sm font-bold text-[#071D49]">
+            Request type
+            <select name="request_type" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+              <option value="">Select request...</option>
+              <option value="Appointment">Appointment</option>
+              <option value="Document">Document request</option>
+              <option value="Fees">Fees office follow-up</option>
+              <option value="Discipline">Discipline follow-up</option>
+              <option value="Health">Health office follow-up</option>
+              <option value="General">General enquiry</option>
+            </select>
+          </label>
+          <label className="block text-sm font-bold text-[#071D49]">
+            Assigned to
+            <input name="assigned_to" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Principal, bursar, class teacher..." />
+          </label>
+          <label className="block text-sm font-bold text-[#071D49] sm:col-span-2">
+            Follow-up deadline
+            <input name="follow_up_deadline" type="datetime-local" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />
+          </label>
+        </div>
+        <label className="block text-sm font-bold text-[#071D49]">
+          Request notes
+          <textarea name="notes" required rows={4} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Capture what the parent needs, the expected owner, and any agreed next step." />
+        </label>
+        <div className="mt-6 flex justify-end gap-3 border-t border-[#D8E0EC] pt-4">
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B] disabled:opacity-50">Cancel</button>
+          <button type="submit" disabled={isSubmitting} className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-50">
+            {isSubmitting ? "Registering..." : "Register Request"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function ParentDeskWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
+  const { data: rawData, isLoading: loading, error, refetch } = useSchoolQuery<any[]>("/api/communication/summary");
+  const data = rawData || [];
+  const [isParentRequestOpen, setIsParentRequestOpen] = useState(false);
+
+  return (
+    <>
+      <Panel title="Parent & Guardian Desk" description="Handles parent-facing office requests." icon={UserCircle} actions={<button type="button" onClick={() => setIsParentRequestOpen(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Register Parent Request</button>}>
+        <RealDataTable 
+          columns={["Request No.","Parent Name","Phone","Student","Class","Request Type","Assigned To","Status","Date","Actions"]} 
+          actions={["View","Assign","Reply","Mark Resolved","Create Appointment","Print Summary","Escalate"]} 
+          data={data}
+          loading={loading}
+          error={error?.message || null}
+          emptyIcon={UserCircle}
+        />
+      </Panel>
+      {isParentRequestOpen ? <ParentRequestModal onClose={() => setIsParentRequestOpen(false)} onSuccess={() => refetch()} /> : null}
+    </>
   );
 }
 
@@ -422,13 +665,13 @@ function LogVisitorModal({ onClose, onSuccess }: { onClose: () => void, onSucces
     setError(null);
     const formData = new FormData(e.currentTarget);
     try {
-      await requestDashboardApi("/api/admin-command/frontoffice/visitors", {
+      await requestDashboardApi("/api/admin-command/secretary/visitors/check-in", {
         method: "POST",
-        body: JSON.stringify({
+        body: {
           name: formData.get("name"),
           host: formData.get("host"),
           purpose: formData.get("purpose"),
-        })
+        }
       });
       toast.success("Visitor logged successfully");
       if (onSuccess) onSuccess();
@@ -497,21 +740,104 @@ function VisitorRegisterWorkspace({ onNavigate }: { onNavigate: (v: SecretaryVie
   );
 }
 
-function CallsLogWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
-  const { data: rawData, isLoading: loading, error } = useSchoolQuery<any[]>("/api/communication/summary");
-  const data = rawData || [];
+function LogCallModal({ onClose, onSuccess }: { onClose: () => void; onSuccess?: () => void }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
+    const formData = new FormData(event.currentTarget);
+
+    try {
+      await requestDashboardApi("/api/admin-command/secretary/calls-log", {
+        method: "POST",
+        body: {
+          caller: formData.get("caller"),
+          phone_number: formData.get("phone_number"),
+          direction: formData.get("direction"),
+          subject: formData.get("subject"),
+          notes: formData.get("notes"),
+          action_required: formData.get("action_required") === "on",
+          source_dashboard: "secretary-calls-log",
+        },
+      });
+      toast.success("Call logged and routed for front-office follow-up.");
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to log call.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
-    <Panel title="Calls Log" description="Record of incoming and outgoing calls." icon={Phone} actions={<button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Log New Call</button>}>
-      <RealDataTable 
-        columns={["Time","Direction","Caller/Recipient","Number","Subject","Duration","Action Required","Status","Actions"]} 
-        actions={["View Notes","Mark Followed Up","Create Task"]} 
-        data={data}
-        loading={loading}
-        error={error?.message || null}
-        emptyIcon={Phone}
-      />
-    </Panel>
+    <Modal title="Log New Call" open={true} onClose={onClose} size="md">
+      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {error ? <div className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div> : null}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block text-sm font-bold text-[#071D49]">
+            Caller / recipient
+            <input name="caller" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Parent, visitor, staff, supplier..." />
+          </label>
+          <label className="block text-sm font-bold text-[#071D49]">
+            Phone number
+            <input name="phone_number" type="tel" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="+254..." />
+          </label>
+          <label className="block text-sm font-bold text-[#071D49]">
+            Direction
+            <select name="direction" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+              <option value="incoming">Incoming</option>
+              <option value="outgoing">Outgoing</option>
+            </select>
+          </label>
+          <label className="block text-sm font-bold text-[#071D49]">
+            Subject
+            <input name="subject" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Fees, appointment, discipline, enquiry..." />
+          </label>
+        </div>
+        <label className="block text-sm font-bold text-[#071D49]">
+          Notes
+          <textarea name="notes" required rows={4} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Record call details and any next action." />
+        </label>
+        <label className="flex items-center gap-2 text-sm font-bold text-[#071D49]">
+          <input name="action_required" type="checkbox" className="h-4 w-4 rounded border-[#D8E0EC]" />
+          Requires follow-up
+        </label>
+        <div className="mt-6 flex justify-end gap-3 border-t border-[#D8E0EC] pt-4">
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B] disabled:opacity-50">Cancel</button>
+          <button disabled={isSubmitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-50">
+            {isSubmitting ? "Logging..." : "Log Call"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function CallsLogWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
+  const { data: rawData, isLoading: loading, error, refetch } = useSchoolQuery<any[]>("/api/communication/summary");
+  const data = rawData || [];
+  const [isCallModalOpen, setIsCallModalOpen] = useState(false);
+
+  return (
+    <>
+      <Panel title="Calls Log" description="Record of incoming and outgoing calls." icon={Phone} actions={<button type="button" onClick={() => setIsCallModalOpen(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Log New Call</button>}>
+        <RealDataTable 
+          columns={["Time","Direction","Caller/Recipient","Number","Subject","Duration","Action Required","Status","Actions"]} 
+          actions={["View Notes","Mark Followed Up","Create Task"]} 
+          data={data}
+          loading={loading}
+          error={error?.message || null}
+          emptyIcon={Phone}
+        />
+      </Panel>
+      {isCallModalOpen ? <LogCallModal onClose={() => setIsCallModalOpen(false)} onSuccess={() => refetch()} /> : null}
+    </>
   );
 }
 
@@ -525,14 +851,14 @@ function ScheduleAppointmentModal({ onClose, onSuccess }: { onClose: () => void,
     setError(null);
     const formData = new FormData(e.currentTarget);
     try {
-      await requestDashboardApi("/api/admin-command/frontoffice/appointments", {
+      await requestDashboardApi("/api/admin-command/secretary/appointments", {
         method: "POST",
-        body: JSON.stringify({
+        body: {
           visitorName: formData.get("visitorName"),
           date: formData.get("date"),
           time: formData.get("time"),
           host: formData.get("host"),
-        })
+        }
       });
       toast.success("Appointment scheduled successfully");
       if (onSuccess) onSuccess();
@@ -607,57 +933,300 @@ function AppointmentsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) 
   );
 }
 
-function LettersWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
-  const { data: rawData, isLoading: loading, error } = useSchoolQuery<any[]>("/api/communication/summary");
-  const data = rawData || [];
+function DraftDocumentModal({ onClose, onSuccess }: { onClose: () => void; onSuccess?: () => void }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
+    const formData = new FormData(event.currentTarget);
+
+    try {
+      await requestDashboardApi("/api/admin-command/secretary/letters-documents", {
+        method: "POST",
+        body: {
+          title: formData.get("title"),
+          type: formData.get("type"),
+          recipient: formData.get("recipient"),
+          body: formData.get("body"),
+          source_dashboard: "secretary-letters-workspace",
+        },
+      });
+      toast.success("Document generated and saved for review.");
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to draft document.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
-    <Panel title="Letters & Documents" description="Manage official school correspondence." icon={FileText} actions={<button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Draft New Document</button>}>
-      <RealDataTable 
-        columns={["Date","Type","Reference","Recipient/Sender","Subject","Status","Actions"]} 
-        actions={["View","Edit","Print","Archive"]} 
-        data={data}
-        loading={loading}
-        error={error?.message || null}
-        emptyIcon={FileText}
-      />
-    </Panel>
+    <Modal title="Draft New Document" open={true} onClose={onClose} size="md">
+      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {error ? <div className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div> : null}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block text-sm font-bold text-[#071D49]">
+            Title
+            <input name="title" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Admission letter, parent summons..." />
+          </label>
+          <label className="block text-sm font-bold text-[#071D49]">
+            Type
+            <select name="type" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+              <option value="letter">Official letter</option>
+              <option value="notice">Notice</option>
+              <option value="memo">Memo</option>
+              <option value="certificate">Certificate</option>
+            </select>
+          </label>
+        </div>
+        <label className="block text-sm font-bold text-[#071D49]">
+          Recipient
+          <input name="recipient" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Parent, student, staff, department..." />
+        </label>
+        <label className="block text-sm font-bold text-[#071D49]">
+          Document body
+          <textarea name="body" required rows={5} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Write the approved document content." />
+        </label>
+        <div className="mt-6 flex justify-end gap-3 border-t border-[#D8E0EC] pt-4">
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B] disabled:opacity-50">Cancel</button>
+          <button disabled={isSubmitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-50">
+            {isSubmitting ? "Saving..." : "Save Document"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function LettersWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
+  const { data: rawData, isLoading: loading, error, refetch } = useSchoolQuery<any[]>("/api/communication/summary");
+  const data = rawData || [];
+  const [isDocumentModalOpen, setIsDocumentModalOpen] = useState(false);
+
+  return (
+    <>
+      <Panel title="Letters & Documents" description="Manage official school correspondence." icon={FileText} actions={<button type="button" onClick={() => setIsDocumentModalOpen(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Draft New Document</button>}>
+        <RealDataTable 
+          columns={["Date","Type","Reference","Recipient/Sender","Subject","Status","Actions"]} 
+          actions={["View","Edit","Print","Archive"]} 
+          data={data}
+          loading={loading}
+          error={error?.message || null}
+          emptyIcon={FileText}
+        />
+      </Panel>
+      {isDocumentModalOpen ? <DraftDocumentModal onClose={() => setIsDocumentModalOpen(false)} onSuccess={() => refetch()} /> : null}
+    </>
+  );
+}
+
+function AdmissionsInquiryModal({ onClose, onSuccess }: { onClose: () => void; onSuccess?: () => void }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleRegisterAdmissionsInquiry = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
+    const formData = new FormData(event.currentTarget);
+    const parent = String(formData.get("parent") || "").trim();
+    const student = String(formData.get("student") || "").trim();
+    const className = String(formData.get("className") || "").trim();
+    const issue = String(formData.get("issue") || "").trim();
+
+    try {
+      await requestDashboardApi("/api/secretary/inquiries", {
+        method: "POST",
+        body: {
+          action: "add_inquiry",
+          inquiry: {
+            parent,
+            student,
+            className,
+            phone: formData.get("phone"),
+            issue,
+            department: "Admissions",
+            source_dashboard: "secretary-admissions-handoff",
+          },
+        },
+      });
+      toast.success("Admissions inquiry saved and routed to the admissions queue.");
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to register admissions inquiry.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal title="New Admissions Inquiry" open={true} onClose={onClose} size="md">
+      <form onSubmit={handleRegisterAdmissionsInquiry} className="p-6 space-y-4">
+        {error ? <div className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div> : null}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block text-sm font-bold text-[#071D49]">
+            Parent / guardian
+            <input name="parent" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Full name" />
+          </label>
+          <label className="block text-sm font-bold text-[#071D49]">
+            Phone number
+            <input name="phone" type="tel" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="+254..." />
+          </label>
+          <label className="block text-sm font-bold text-[#071D49]">
+            Prospect learner
+            <input name="student" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Learner name" />
+          </label>
+          <label className="block text-sm font-bold text-[#071D49]">
+            Class / grade requested
+            <input name="className" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Grade 7, Form 1..." />
+          </label>
+        </div>
+        <label className="block text-sm font-bold text-[#071D49]">
+          Inquiry notes
+          <textarea name="issue" required rows={4} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Capture the application question, documents needed, interview request, or follow-up instruction." />
+        </label>
+        <div className="mt-6 flex justify-end gap-3 border-t border-[#D8E0EC] pt-4">
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B] disabled:opacity-50">Cancel</button>
+          <button type="submit" disabled={isSubmitting} className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-50">
+            {isSubmitting ? "Saving..." : "Save Inquiry"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
 function AdmissionsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
-  const { data: rawData, isLoading: loading, error } = useSchoolQuery<any[]>("/api/admissions/applications");
+  const { data: rawData, isLoading: loading, error, refetch } = useSchoolQuery<any[]>("/api/admissions/applications");
   const data = rawData || [];
+  const [isInquiryModalOpen, setIsInquiryModalOpen] = useState(false);
 
   return (
-    <Panel title="Admissions Handoff" description="Manage prospect inquiries and application handoffs." icon={UserPlus} actions={<button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> New Inquiry</button>}>
-      <RealDataTable 
-        columns={["Date","Prospect Name","Grade Applied","Parent Phone","Channel","Status","Actions"]} 
-        actions={["Send Forms","Follow Up","Hand off to Admissions"]} 
-        data={data}
-        loading={loading}
-        error={error?.message || null}
-        emptyIcon={UserPlus}
-      />
-    </Panel>
+    <>
+      <Panel title="Admissions Handoff" description="Manage prospect inquiries and application handoffs." icon={UserPlus} actions={<button type="button" onClick={() => setIsInquiryModalOpen(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> New Inquiry</button>}>
+        <RealDataTable 
+          columns={["Date","Prospect Name","Grade Applied","Parent Phone","Channel","Status","Actions"]} 
+          actions={["Send Forms","Follow Up","Hand off to Admissions"]} 
+          data={data}
+          loading={loading}
+          error={error?.message || null}
+          emptyIcon={UserPlus}
+        />
+      </Panel>
+      {isInquiryModalOpen ? <AdmissionsInquiryModal onClose={() => setIsInquiryModalOpen(false)} onSuccess={() => refetch()} /> : null}
+    </>
+  );
+}
+
+function SecretaryMessageModal({ onClose, onSuccess }: { onClose: () => void; onSuccess?: () => void }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
+    const formData = new FormData(event.currentTarget);
+
+    try {
+      await requestDashboardApi("/api/admin-command/secretary/parent-messages", {
+        method: "POST",
+        body: {
+          subject: formData.get("subject"),
+          message: formData.get("message"),
+          recipient: formData.get("recipient"),
+          audience: formData.get("audience"),
+          channel: formData.get("channel"),
+          source_dashboard: "secretary-communication-desk",
+        },
+      });
+      toast.success("Front-office message recorded and routed.");
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to send front-office message.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal title="New Front-Office Message" open={true} onClose={onClose} size="md">
+      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {error ? <div className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div> : null}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block text-sm font-bold text-[#071D49]">
+            Recipient
+            <input name="recipient" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Parent, class, staff, or office" />
+          </label>
+          <label className="block text-sm font-bold text-[#071D49]">
+            Audience
+            <select name="audience" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+              <option value="parent">Parent / Guardian</option>
+              <option value="staff">Staff</option>
+              <option value="class">Class or stream</option>
+              <option value="office">Office desk</option>
+            </select>
+          </label>
+          <label className="block text-sm font-bold text-[#071D49]">
+            Channel
+            <select name="channel" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+              <option value="in_app">In-app</option>
+              <option value="sms">SMS queue</option>
+              <option value="email">Email queue</option>
+              <option value="phone_call">Phone call follow-up</option>
+            </select>
+          </label>
+          <label className="block text-sm font-bold text-[#071D49]">
+            Subject
+            <input name="subject" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Fee reminder, appointment update..." />
+          </label>
+        </div>
+        <label className="block text-sm font-bold text-[#071D49]">
+          Message
+          <textarea name="message" required rows={4} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Write the approved office message." />
+        </label>
+        <div className="mt-6 flex justify-end gap-3 border-t border-[#D8E0EC] pt-4">
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B] disabled:opacity-50">Cancel</button>
+          <button type="submit" disabled={isSubmitting} className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-50">
+            {isSubmitting ? "Sending..." : "Send Message"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
 function CommunicationWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
-  const { data: rawData, isLoading: loading, error } = useSchoolQuery<any[]>("/api/communication/messages");
+  const { data: rawData, isLoading: loading, error, refetch } = useSchoolQuery<any[]>("/api/communication/messages");
   const data = rawData || [];
+  const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
 
   return (
-    <Panel title="Communication Desk" description="Allows the Secretary to send approved office messages and announcements." icon={MessageSquare} actions={<button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> New Message</button>}>
-      <RealDataTable 
-        columns={["Date","Recipient","Channel","Message Type","Status","Sent By","Actions"]} 
-        actions={["View","Resend","Duplicate","Cancel","View Report"]} 
-        data={data}
-        loading={loading}
-        error={error?.message || null}
-        emptyIcon={MessageSquare}
-      />
-    </Panel>
+    <>
+      <Panel title="Communication Desk" description="Allows the Secretary to send approved office messages and announcements." icon={MessageSquare} actions={<button type="button" onClick={() => setIsMessageModalOpen(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> New Message</button>}>
+        <RealDataTable 
+          columns={["Date","Recipient","Channel","Message Type","Status","Sent By","Actions"]} 
+          actions={["View","Resend","Duplicate","Cancel","View Report"]} 
+          data={data}
+          loading={loading}
+          error={error?.message || null}
+          emptyIcon={MessageSquare}
+        />
+      </Panel>
+      {isMessageModalOpen ? <SecretaryMessageModal onClose={() => setIsMessageModalOpen(false)} onSuccess={() => refetch()} /> : null}
+    </>
   );
 }
 
@@ -671,13 +1240,13 @@ function RecordDispatchModal({ onClose, onSuccess }: { onClose: () => void, onSu
     setError(null);
     const formData = new FormData(e.currentTarget);
     try {
-      await requestDashboardApi("/api/admin-command/frontoffice/mail", {
+      await requestDashboardApi("/api/admin-command/secretary/letters-documents", {
         method: "POST",
-        body: JSON.stringify({
+        body: {
           sender: formData.get("sender"),
           recipient: formData.get("recipient"),
           type: formData.get("type"),
-        })
+        }
       });
       toast.success("Mail/Parcel recorded successfully");
       if (onSuccess) onSuccess();
@@ -769,21 +1338,107 @@ function StaffDirectoryWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView
   );
 }
 
-function LostFoundWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
-  const { data: rawData, isLoading: loading, error } = useSchoolQuery<any[]>("/api/operations/reports");
-  const data = rawData || [];
+function LostFoundReportModal({ onClose, onSuccess }: { onClose: () => void; onSuccess?: () => void }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleReportLostFoundItem = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
+    const formData = new FormData(event.currentTarget);
+
+    try {
+      await requestDashboardApi("/api/admin-command/secretary/lost-found", {
+        method: "POST",
+        body: {
+          item_name: formData.get("item_name"),
+          category: formData.get("category"),
+          found_location: formData.get("found_location"),
+          custody_location: formData.get("custody_location"),
+          student_linked: formData.get("student_linked"),
+          description: formData.get("description"),
+          source_dashboard: "secretary-lost-found",
+        },
+      });
+      toast.success("Lost/found item recorded and routed to Security and Principal.");
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to report lost/found item.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
-    <Panel title="Lost & Found" description="Tracks items reported lost or found." icon={HelpCircle} actions={<button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Report Item</button>}>
-      <RealDataTable 
-        columns={["Item No.","Item Name","Category","Found/Reported By","Student Linked","Location","Date","Status","Actions"]} 
-        actions={["View","Match","Contact Owner","Mark Claimed","Print Slip","Close"]} 
-        data={data}
-        loading={loading}
-        error={error?.message || null}
-        emptyIcon={HelpCircle}
-      />
-    </Panel>
+    <Modal title="Report Lost or Found Item" open={true} onClose={onClose} size="md">
+      <form onSubmit={handleReportLostFoundItem} className="p-6 space-y-4">
+        {error ? <div className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div> : null}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block text-sm font-bold text-[#071D49]">
+            Item name
+            <input name="item_name" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Sweater, ID card, textbook..." />
+          </label>
+          <label className="block text-sm font-bold text-[#071D49]">
+            Category
+            <select name="category" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+              <option value="uniform">Uniform</option>
+              <option value="document">Document / ID</option>
+              <option value="book">Book</option>
+              <option value="electronics">Electronics</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label className="block text-sm font-bold text-[#071D49]">
+            Found / reported location
+            <input name="found_location" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Reception, gate, library..." />
+          </label>
+          <label className="block text-sm font-bold text-[#071D49]">
+            Custody location
+            <input name="custody_location" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Front office drawer, security desk..." />
+          </label>
+          <label className="block text-sm font-bold text-[#071D49] sm:col-span-2">
+            Student linked, if known
+            <input name="student_linked" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Student name, admission number, class..." />
+          </label>
+        </div>
+        <label className="block text-sm font-bold text-[#071D49]">
+          Verification notes
+          <textarea name="description" required rows={4} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Describe the item, owner clues, who reported it, and claim verification needed." />
+        </label>
+        <div className="mt-6 flex justify-end gap-3 border-t border-[#D8E0EC] pt-4">
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B] disabled:opacity-50">Cancel</button>
+          <button type="submit" disabled={isSubmitting} className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-50">
+            {isSubmitting ? "Recording..." : "Record Item"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function LostFoundWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
+  const { data: rawData, isLoading: loading, error, refetch } = useSchoolQuery<any[]>("/api/admin-command/secretary/lost-found");
+  const data = rawData || [];
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+
+  return (
+    <>
+      <Panel title="Lost & Found" description="Tracks items reported lost or found." icon={HelpCircle} actions={<button type="button" onClick={() => setIsReportModalOpen(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Report Item</button>}>
+        <RealDataTable 
+          columns={["Item No.","Item Name","Category","Found/Reported By","Student Linked","Location","Date","Status","Actions"]} 
+          actions={["View","Match","Contact Owner","Mark Claimed","Print Slip","Close"]} 
+          data={data}
+          loading={loading}
+          error={error?.message || null}
+          emptyIcon={HelpCircle}
+        />
+      </Panel>
+      {isReportModalOpen ? <LostFoundReportModal onClose={() => setIsReportModalOpen(false)} onSuccess={() => refetch()} /> : null}
+    </>
   );
 }
 
@@ -792,7 +1447,7 @@ function ReportsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => vo
   const data = rawData || [];
 
   return (
-    <Panel title="Reports" description="Generates front-office reports." icon={BarChart} actions={<button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Generate Report</button>}>
+    <Panel title="Reports" description="Generates front-office reports." icon={BarChart} actions={<button type="button" onClick={() => exportSecretaryCsv("front-office-summary.csv", "Front office summary")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Generate Report</button>}>
       <RealDataTable 
         columns={["Report Name","Date Range","Format","Status","Actions"]} 
         actions={["View","Download PDF","Download Excel","Print","Send to Principal"]} 
@@ -806,19 +1461,123 @@ function ReportsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => vo
 }
 
 function SettingsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
-  const { data: rawData, isLoading: loading, error } = useSchoolQuery<any[]>("/api/school/settings");
-  const data = rawData || [];
+  const { data, isLoading: loading, error, refetch } = useSchoolQuery<any>("/api/admin-command/secretary/preferences");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [form, setForm] = useState({
+    auto_acknowledge_visitors: false,
+    parent_follow_up_hours: "24",
+    default_message_channel: "in_app",
+    notify_principal_on_urgent: true,
+  });
+
+  useEffect(() => {
+    if (!data) return;
+    setForm({
+      auto_acknowledge_visitors: Boolean(data.auto_acknowledge_visitors),
+      parent_follow_up_hours: String(data.parent_follow_up_hours ?? 24),
+      default_message_channel: String(data.default_message_channel || "in_app"),
+      notify_principal_on_urgent: Boolean(data.notify_principal_on_urgent ?? true),
+    });
+  }, [data]);
+
+  const updatePreference = (key: keyof typeof form, value: string | boolean) => {
+    setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const handleSaveSecretaryPreferences = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    try {
+      await requestDashboardApi("/api/admin-command/secretary/preferences", {
+        method: "POST",
+        body: {
+          auto_acknowledge_visitors: form.auto_acknowledge_visitors,
+          parent_follow_up_hours: Number(form.parent_follow_up_hours),
+          default_message_channel: form.default_message_channel,
+          notify_principal_on_urgent: form.notify_principal_on_urgent,
+        },
+      });
+      toast.success("Secretary preferences saved and audited.");
+      refetch();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to save Secretary preferences.";
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
-    <Panel title="Settings" description="Secretary-level preferences only." icon={Settings} actions={<button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Update Settings</button>}>
-      <RealDataTable 
-        columns={[]} 
-        actions={[]} 
-        data={data}
-        loading={loading}
-        error={error?.message || null}
-        emptyIcon={Settings}
-      />
+    <Panel title="Settings" description="Secretary-level preferences for front-office queues, follow-up windows, and notifications." icon={Settings}>
+      {error ? (
+        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-700">
+          {error.message}
+        </div>
+      ) : null}
+      <form onSubmit={handleSaveSecretaryPreferences} className="grid gap-4 lg:grid-cols-2">
+        <label className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <span className="text-sm font-black text-[#071D49]">Parent follow-up window</span>
+          <span className="mt-1 block text-xs font-semibold text-[#64748B]">Hours before unresolved parent requests are highlighted again.</span>
+          <input
+            type="number"
+            min={1}
+            max={168}
+            value={form.parent_follow_up_hours}
+            onChange={(event) => updatePreference("parent_follow_up_hours", event.currentTarget.value)}
+            disabled={loading || isSubmitting}
+            className="mt-3 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm font-bold outline-none focus:border-[#071D49] disabled:opacity-50"
+          />
+        </label>
+        <label className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <span className="text-sm font-black text-[#071D49]">Default message channel</span>
+          <span className="mt-1 block text-xs font-semibold text-[#64748B]">Used by front-office message templates unless the user changes it.</span>
+          <select
+            value={form.default_message_channel}
+            onChange={(event) => updatePreference("default_message_channel", event.currentTarget.value)}
+            disabled={loading || isSubmitting}
+            className="mt-3 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm font-bold outline-none focus:border-[#071D49] disabled:opacity-50"
+          >
+            <option value="in_app">In-app</option>
+            <option value="sms">SMS queue</option>
+            <option value="email">Email queue</option>
+            <option value="phone_call">Phone call follow-up</option>
+          </select>
+        </label>
+        <label className="flex items-start gap-3 rounded-xl border border-[#D8E0EC] bg-white p-4">
+          <input
+            type="checkbox"
+            checked={form.auto_acknowledge_visitors}
+            onChange={(event) => updatePreference("auto_acknowledge_visitors", event.currentTarget.checked)}
+            disabled={loading || isSubmitting}
+            className="mt-1 h-4 w-4 rounded border-[#D8E0EC] disabled:opacity-50"
+          />
+          <span>
+            <span className="block text-sm font-black text-[#071D49]">Auto-acknowledge visitor check-ins</span>
+            <span className="mt-1 block text-xs font-semibold text-[#64748B]">Marks routine visitors as acknowledged while still keeping them visible in the queue.</span>
+          </span>
+        </label>
+        <label className="flex items-start gap-3 rounded-xl border border-[#D8E0EC] bg-white p-4">
+          <input
+            type="checkbox"
+            checked={form.notify_principal_on_urgent}
+            onChange={(event) => updatePreference("notify_principal_on_urgent", event.currentTarget.checked)}
+            disabled={loading || isSubmitting}
+            className="mt-1 h-4 w-4 rounded border-[#D8E0EC] disabled:opacity-50"
+          />
+          <span>
+            <span className="block text-sm font-black text-[#071D49]">Notify Principal on urgent requests</span>
+            <span className="mt-1 block text-xs font-semibold text-[#64748B]">Urgent parent, visitor, or document escalations also reach the Principal queue.</span>
+          </span>
+        </label>
+        <div className="lg:col-span-2 flex flex-col gap-3 border-t border-[#D8E0EC] pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs font-semibold text-[#64748B]">
+            {data?.updated_at ? `Last saved ${new Date(data.updated_at).toLocaleString("en-KE")}` : "No saved preference changes yet."}
+          </p>
+          <button type="submit" disabled={loading || isSubmitting} className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-50">
+            {isSubmitting ? "Saving..." : "Save Preferences"}
+          </button>
+        </div>
+      </form>
     </Panel>
   );
 }

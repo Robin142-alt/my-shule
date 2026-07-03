@@ -69,6 +69,11 @@ export class RateLimitService {
     const nowSeconds = Math.floor(Date.now() / 1000);
     const windowSlot = Math.floor(nowSeconds / policy.window_seconds);
     const redisKey = `rate-limit:${policy.bucket}:${bucketId}:${windowSlot}`;
+
+    if (this.redisService.isDegraded()) {
+      return this.consumeFallback(policy, redisKey, routeKey, actorKey, nowSeconds);
+    }
+
     try {
       const redisClient = this.redisService.getClient();
       const totalHits = await redisClient.incr(redisKey);

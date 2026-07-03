@@ -1,8 +1,7 @@
-// @ts-nocheck
+"use client";
 
 import { buildBillingApiPath } from "@/lib/data/school-api-config";
 import Link from "next/link";
-"use client";
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -15,6 +14,13 @@ import { getSchoolWorkspace, type SchoolExperienceRole, buildSchoolStudentHref }
 
 import type { SchoolRouteMode } from "@/components/school/school-pages";
 import { getMissingFieldError } from "@/components/school/school-pages";
+
+type StudentSummaryData = {
+  total?: number;
+  active?: number;
+  newAdmissions?: number;
+  trendLabel?: string;
+};
 
 export function SchoolStudentsPage({
   role,
@@ -34,7 +40,7 @@ export function SchoolStudentsPage({
   const [parentContact, setParentContact] = useState("");
   const [studentError, setStudentError] = useState<string | null>(null);
   const [studentMessage, setStudentMessage] = useState<string | null>(null);
-  const [summaryData, setSummaryData] = useState<any>(null);
+  const [summaryData, setSummaryData] = useState<StudentSummaryData | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
 
   useEffect(() => {
@@ -47,7 +53,7 @@ export function SchoolStudentsPage({
         if (response.ok) {
           setSummaryData(await response.json());
         }
-      } catch (e) {
+      } catch {
       } finally {
         setSummaryLoading(false);
       }

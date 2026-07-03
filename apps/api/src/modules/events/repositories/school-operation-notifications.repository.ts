@@ -158,7 +158,7 @@ export class SchoolOperationNotificationsRepository {
           read_at = COALESCE(read_at, NOW()),
           updated_at = NOW()
         WHERE tenant_id = $1
-          AND id = $2::uuid
+          AND id::text = $2::text
           AND (
             $3::text IS NULL
             OR metadata->'target_roles' IS NULL

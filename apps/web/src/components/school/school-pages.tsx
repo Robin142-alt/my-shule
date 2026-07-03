@@ -21,7 +21,10 @@ import { LmsModuleScreen } from "@/components/modules/lms/lms-module-screen";
 import { ProcurementModuleScreen } from "@/components/modules/procurement/procurement-module-screen";
 import { TransportModuleScreen } from "@/components/modules/transport/transport-module-screen";
 import { VisitorManagementModuleScreen } from "@/components/modules/visitors/visitor-management-module-screen";
+import { MPesaReconciliationWorkspace } from "@/components/school/accountant/m-pesa-reconciliation-workspace";
 import { ErpShell } from "@/components/school/erp-shell";
+import { buttonClasses } from "@/components/ui/button";
+import { DeanAcademicsCommandCenter } from "@/components/school/dean-academics-command-center";
 import { DeanModuleScreen } from "@/components/modules/dean/dean-module-screen";
 import { DeputyPrincipalCommandCenter } from "@/components/school/deputy-principal-command-center";
 import { PrincipalCommandCenter } from "@/components/school/principal-command-center";
@@ -50,6 +53,7 @@ import { TransportManagerCommandCenter } from "@/components/school/transport-man
 import { UserManagementPanel } from "@/components/school/user-management-panel";
 import { SupportCenterWorkspace } from "@/components/support/support-center-workspace";
 import { LearnerPicker } from "@/components/common/learner-picker";
+import { unwrapBillingApiData } from "@/lib/billing/billing-utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
@@ -84,7 +88,7 @@ import {
 import { toSchoolPath, toSchoolStudentPath } from "@/lib/routing/experience-routes";
 import { startSchoolOperationalEventSyncRetryWorker } from "@/lib/school/school-operational-store";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { GraduationCap } from "lucide-react";
+import { GraduationCap, Loader2 } from "lucide-react";
 import type { LearnerLookupItem } from "@/lib/students/student-lookup";
 import { PermissionProvider } from "@/components/providers/permission-context";
 
@@ -268,6 +272,56 @@ export type BillableFeeStudentResponse = {
   guardian_phone: string | null;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeFeeStructures(value: unknown): FeeStructureResponse[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter(isRecord)
+    .filter((row) => typeof row.id === "string" && typeof row.name === "string")
+    .map((row) => ({
+      id: row.id as string,
+      name: row.name as string,
+      academic_year: typeof row.academic_year === "string" ? row.academic_year : "",
+      term: typeof row.term === "string" ? row.term : "",
+      grade_level: typeof row.grade_level === "string" ? row.grade_level : "",
+      class_name: typeof row.class_name === "string" ? row.class_name : null,
+      currency_code: typeof row.currency_code === "string" ? row.currency_code : "KES",
+      status: row.status === "draft" || row.status === "archived" ? row.status : "active",
+      due_days: typeof row.due_days === "number" ? row.due_days : 14,
+      line_items: Array.isArray(row.line_items) ? row.line_items.filter(isRecord).map((item) => ({
+        code: typeof item.code === "string" ? item.code : "",
+        label: typeof item.label === "string" ? item.label : "",
+        amount_minor: typeof item.amount_minor === "string" ? item.amount_minor : String(item.amount_minor ?? "0"),
+      })) : [],
+      total_amount_minor: typeof row.total_amount_minor === "string" ? row.total_amount_minor : String(row.total_amount_minor ?? "0"),
+      created_at: typeof row.created_at === "string" ? row.created_at : "",
+    }));
+}
+
+function normalizeBillableFeeStudents(value: unknown): BillableFeeStudentResponse[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter(isRecord)
+    .filter((row) => typeof row.student_id === "string" && typeof row.student_name === "string")
+    .map((row) => ({
+      student_id: row.student_id as string,
+      student_name: row.student_name as string,
+      admission_number: typeof row.admission_number === "string" ? row.admission_number : "",
+      grade_level: typeof row.grade_level === "string" ? row.grade_level : "",
+      class_name: typeof row.class_name === "string" ? row.class_name : null,
+      guardian_phone: typeof row.guardian_phone === "string" ? row.guardian_phone : null,
+    }));
+}
+
 type ClinicAnalyticsResponse = {
   total_medicines?: number | string;
   low_stock_medicines?: number | string;
@@ -424,7 +478,6 @@ const roleOperationalWorkspaceSectionIds = new Set([
   "settings",
   "students",
   "school-admin",
-  "finance",
   "mpesa",
   "academics",
   "syllabus",
@@ -464,15 +517,57 @@ const roleOperationalWorkspaceSectionIds = new Set([
   "ict-assets",
 ]);
 
-const financeRoleDedicatedSectionIds = new Set(["finance", "mpesa"]);
+const financeRoleDedicatedSectionIds = new Set([
+  "fee-structures",
+  "invoices",
+  "payments",
+  "receipts",
+  "mpesa",
+  "m-pesa-reconciliation",
+  "arrears",
+  "waivers-discounts",
+  "expenses",
+  "reports",
+]);
+const unifiedOperationalRoleIds = new Set<SchoolExperienceRole>([
+  "deputy-principal",
+  "secretary",
+  "bursar",
+  "accountant",
+  "teacher",
+  "dean-academics",
+  "exams-manager",
+  "hod",
+  "class-teacher",
+  "grade-master",
+  "admin",
+  "storekeeper",
+  "librarian",
+  "nurse",
+  "boarding-master",
+  "security-officer",
+  "transport-manager",
+  "laboratory-technician",
+  "guidance-counselling",
+  "discipline-master",
+  "admissions",
+]);
 
 function shouldRenderRoleOperationalWorkspace(role: SchoolExperienceRole, section: string) {
   if (role === "admin") {
     return section === "dashboard";
   }
 
-  if ((role === "accountant" || role === "bursar") && financeRoleDedicatedSectionIds.has(section)) {
+  if (role === "principal" && section === "finance") {
+    return true;
+  }
+
+  if ((role === "accountant" || role === "bursar") && section === "finance") {
     return false;
+  }
+
+  if ((role === "accountant" || role === "bursar") && financeRoleDedicatedSectionIds.has(section)) {
+    return true;
   }
 
   return roleOperationalWorkspaceSectionIds.has(section) && !supportWorkspaceSectionIds.has(section);
@@ -530,12 +625,16 @@ export function buildFeeStructureLineItems(drafts: FeeLineItemDraft[]) {
   }
 
   for (const draft of activeDrafts) {
-    const code = draft.code.trim().toLowerCase();
     const label = draft.label.trim();
     const amountMinor = toMinorUnits(draft.amount);
+    const code = draft.code.trim().toLowerCase() || label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 
-    if (!code || !label || !draft.amount.trim()) {
-      return { error: "Each fee line item needs a code, label, and amount.", lineItems };
+    if (!label || !draft.amount.trim()) {
+      return { error: "Each fee line item needs a label and amount.", lineItems };
+    }
+
+    if (!code) {
+      return { error: "Fee line item code could not be generated from the label.", lineItems };
     }
 
     if (!amountMinor) {
@@ -603,7 +702,11 @@ function getMonthStartInputValue() {
 }
 
 function createDraftId(prefix: string) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+
+  return `${prefix}-${Date.now()}`;
 }
 
 function createEmptyFeeLineItemDraft(): FeeLineItemDraft {
@@ -756,12 +859,62 @@ export function SubscriptionLifecyclePanel({
   subscription,
   role,
   routeMode,
+  tenantSlug,
 }: {
   subscription: SchoolSubscriptionView;
   role: SchoolExperienceRole;
   routeMode: SchoolRouteMode;
+  tenantSlug?: string | null;
 }) {
+  const router = useRouter();
   const [renewOpen, setRenewOpen] = useState(false);
+  const [renewalSubmitting, setRenewalSubmitting] = useState(false);
+  const [renewalError, setRenewalError] = useState<string | null>(null);
+  const [renewalMessage, setRenewalMessage] = useState<string | null>(null);
+
+  async function startMpesaRenewal() {
+    setRenewalSubmitting(true);
+    setRenewalError(null);
+    setRenewalMessage(null);
+
+    try {
+      const csrfToken = await getCsrfToken();
+      const response = await fetch(
+        buildBillingApiPath("/api/billing/subscriptions/current/renewal-payment-intents", tenantSlug),
+        {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "content-type": "application/json",
+            "x-myshule-csrf": csrfToken,
+          },
+          body: JSON.stringify({
+            idempotency_key: `subscription-renewal-${subscription.state.toLowerCase()}-${Date.now()}`,
+          }),
+        },
+      );
+
+      if (redirectOnExpiredSessionResponse(response, "school", (href) => router.replace(href))) {
+        return;
+      }
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(payload?.message || "MPESA renewal could not be started.");
+      }
+
+      setRenewalMessage(
+        `MPESA renewal started for ${payload?.invoice_number ?? "the renewal invoice"}. Payment intent ${
+          payload?.payment_intent_id ?? "is pending"
+        }.`,
+      );
+    } catch (caught) {
+      setRenewalError(caught instanceof Error ? caught.message : "MPESA renewal could not be started.");
+    } finally {
+      setRenewalSubmitting(false);
+    }
+  }
 
   return (
     <>
@@ -781,8 +934,8 @@ export function SubscriptionLifecyclePanel({
               <Button onClick={() => setRenewOpen(true)}>
                 {subscription.primaryActionLabel}
               </Button>
-              <Link href={buildSchoolSectionHref(role, "reports", routeMode)}>
-                <Button variant="secondary">Export school data</Button>
+              <Link href={buildSchoolSectionHref(role, "reports", routeMode)} className={buttonClasses({ variant: "secondary" })}>
+                Export school data
               </Link>
             </div>
           </div>
@@ -826,13 +979,24 @@ export function SubscriptionLifecyclePanel({
             <Button variant="secondary" onClick={() => setRenewOpen(false)}>
               Cancel
             </Button>
-            <Link href={buildSchoolSectionHref(role, "finance", routeMode)}>
-              <Button>Start MPESA renewal</Button>
-            </Link>
+            <Button onClick={startMpesaRenewal} disabled={renewalSubmitting}>
+              {renewalSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {renewalSubmitting ? "Starting renewal..." : "Start MPESA renewal"}
+            </Button>
           </>
         }
       >
         <div className="space-y-4">
+          {renewalError ? (
+            <div role="alert" className="rounded-xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
+              {renewalError}
+            </div>
+          ) : null}
+          {renewalMessage ? (
+            <div aria-live="polite" className="rounded-xl border border-success/20 bg-success/10 px-4 py-3 text-sm text-success">
+              {renewalMessage}
+            </div>
+          ) : null}
           <div className="rounded-xl border border-border bg-surface-muted px-4 py-4">
             <p className="text-sm font-semibold text-foreground">Renewal flow</p>
             <ol className="mt-3 space-y-2 text-sm leading-6 text-muted">
@@ -1068,6 +1232,7 @@ function SchoolFinancePage({
   }));
   const [feeStructures, setFeeStructures] = useState<FeeStructureResponse[]>([]);
   const [feeStructuresLoading, setFeeStructuresLoading] = useState(true);
+  const [feeStructureSaving, setFeeStructureSaving] = useState(false);
   const [feeStructureError, setFeeStructureError] = useState<string | null>(null);
   const [feeStructureDraft, setFeeStructureDraft] = useState({
     name: "",
@@ -1228,10 +1393,12 @@ function SchoolFinancePage({
       });
       const payload = (await response.json().catch(() => null)) as
         | FeeStructureResponse[]
+        | { data?: FeeStructureResponse[]; message?: string }
         | { message?: string }
         | null;
+      const feeStructuresPayload = normalizeFeeStructures(unwrapBillingApiData<unknown>(payload));
 
-      if (!response.ok || !Array.isArray(payload)) {
+      if (!response.ok) {
         throw new Error(
           payload && !Array.isArray(payload) && payload.message
             ? payload.message
@@ -1239,10 +1406,10 @@ function SchoolFinancePage({
         );
       }
 
-      setFeeStructures(payload);
+      setFeeStructures(feeStructuresPayload);
       setBulkDraft((current) => ({
         ...current,
-        fee_structure_id: current.fee_structure_id || payload[0]?.id || "",
+        fee_structure_id: current.fee_structure_id || feeStructuresPayload[0]?.id || "",
       }));
     } catch (caught) {
       setFeeStructures([]);
@@ -1494,6 +1661,10 @@ function SchoolFinancePage({
   const canGenerateBulkInvoices = bulkDraft.fee_structure_id.trim().length > 0 && hasBulkBillingStudents;
 
   async function saveFeeStructure() {
+    if (feeStructureSaving) {
+      return;
+    }
+
     const validationError = getMissingFieldError([
       { label: "Fee name", value: feeStructureDraft.name },
       { label: "Academic year", value: feeStructureDraft.academic_year },
@@ -1519,6 +1690,7 @@ function SchoolFinancePage({
     }
 
     try {
+      setFeeStructureSaving(true);
       const csrfToken = await getCsrfToken();
       const response = await fetch(buildBillingApiPath("/api/billing/fee-structures", tenantSlug), {
         method: "POST",
@@ -1542,16 +1714,18 @@ function SchoolFinancePage({
       });
       const payload = (await response.json().catch(() => null)) as
         | FeeStructureResponse
+        | { data?: FeeStructureResponse; message?: string }
         | { message?: string }
         | null;
+      const savedFeeStructure = unwrapBillingApiData<FeeStructureResponse>(payload);
 
-      if (!response.ok || !payload || !("id" in payload)) {
+      if (!response.ok || !savedFeeStructure || !("id" in savedFeeStructure)) {
         throw new Error(payload && "message" in payload && payload.message ? payload.message : "Fee structure could not be saved.");
       }
 
       setFeeStructureError(null);
-      setFinanceMessage(`${payload.name} saved for ${payload.grade_level}.`);
-      setBulkDraft((current) => ({ ...current, fee_structure_id: payload.id }));
+      setFinanceMessage(`${savedFeeStructure.name} saved for ${savedFeeStructure.grade_level}.`);
+      setBulkDraft((current) => ({ ...current, fee_structure_id: savedFeeStructure.id }));
       setFeeStructureDraft((current) => ({
         ...current,
         name: "",
@@ -1563,6 +1737,8 @@ function SchoolFinancePage({
       await loadFeeStructures();
     } catch (caught) {
       setFeeStructureError(caught instanceof Error ? caught.message : "Fee structure could not be saved.");
+    } finally {
+      setFeeStructureSaving(false);
     }
   }
 
@@ -1581,21 +1757,23 @@ function SchoolFinancePage({
       );
       const payload = (await response.json().catch(() => null)) as
         | FeeStructureResponse
+        | { data?: FeeStructureResponse; message?: string }
         | { message?: string }
         | null;
+      const archivedFeeStructure = unwrapBillingApiData<FeeStructureResponse>(payload);
 
-      if (!response.ok || !payload || !("id" in payload)) {
+      if (!response.ok || !archivedFeeStructure || !("id" in archivedFeeStructure)) {
         throw new Error(payload && "message" in payload && payload.message ? payload.message : "Fee structure could not be archived.");
       }
 
       setFeeStructureError(null);
-      setFinanceMessage(`${payload.name} archived.`);
+      setFinanceMessage(`${archivedFeeStructure.name} archived.`);
       setBillableStudents([]);
       setSelectedBulkStudentIds(new Set());
       setBulkStudents([]);
       setBulkDraft((current) => ({
         ...current,
-        fee_structure_id: current.fee_structure_id === payload.id ? "" : current.fee_structure_id,
+        fee_structure_id: current.fee_structure_id === archivedFeeStructure.id ? "" : current.fee_structure_id,
       }));
       await loadFeeStructures();
     } catch (caught) {
@@ -1621,7 +1799,7 @@ function SchoolFinancePage({
       const csrfToken = await getCsrfToken();
       const idempotencyKey =
         bulkDraft.idempotency_key.trim() ||
-        `bulk-fees-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        `bulk-fees-${crypto.randomUUID()}`;
       const response = await fetch(
         buildBillingApiPath(`/api/billing/fee-structures/${encodeURIComponent(selectedFeeStructureId)}/generate-invoices`, tenantSlug),
         {
@@ -1650,15 +1828,17 @@ function SchoolFinancePage({
       );
       const payload = (await response.json().catch(() => null)) as
         | BulkFeeInvoiceGenerationResponse
+        | { data?: BulkFeeInvoiceGenerationResponse; message?: string }
         | { message?: string }
         | null;
+      const generationResult = unwrapBillingApiData<BulkFeeInvoiceGenerationResponse>(payload);
 
-      if (!response.ok || !payload || !("generated_count" in payload)) {
+      if (!response.ok || !generationResult || !("generated_count" in generationResult)) {
         throw new Error(payload && "message" in payload && payload.message ? payload.message : "Bulk invoices could not be generated.");
       }
 
       setBulkError(null);
-      setFinanceMessage(`${payload.generated_count} invoices generated; ${payload.skipped_count} duplicate rows skipped.`);
+      setFinanceMessage(`${generationResult.generated_count} invoices generated; ${generationResult.skipped_count} duplicate rows skipped.`);
       setBulkDraft((current) => ({ ...current, idempotency_key: "", due_at: "" }));
       setSelectedBulkStudentIds(new Set());
       setBulkStudents([]);
@@ -1688,10 +1868,12 @@ function SchoolFinancePage({
       );
       const payload = (await response.json().catch(() => null)) as
         | BillableFeeStudentResponse[]
+        | { data?: BillableFeeStudentResponse[]; message?: string }
         | { message?: string }
         | null;
+      const billableStudentsPayload = normalizeBillableFeeStudents(unwrapBillingApiData<unknown>(payload));
 
-      if (!response.ok || !Array.isArray(payload)) {
+      if (!response.ok) {
         throw new Error(
           payload && !Array.isArray(payload) && payload.message
             ? payload.message
@@ -1699,16 +1881,16 @@ function SchoolFinancePage({
         );
       }
 
-      setBillableStudents(payload);
+      setBillableStudents(billableStudentsPayload);
       setSelectedBulkStudentIds(new Set());
       setBulkStudents([]);
 
-      if (payload.length === 0) {
+      if (billableStudentsPayload.length === 0) {
         setFinanceMessage("No active roster students matched this fee structure.");
         return;
       }
 
-      setFinanceMessage(`${payload.length} roster students loaded. Select learners to bill.`);
+      setFinanceMessage(`${billableStudentsPayload.length} roster students loaded. Select learners to bill.`);
     } catch (caught) {
       setBillableStudents([]);
       setBulkError(caught instanceof Error ? caught.message : "Billable roster could not be loaded.");
@@ -1800,7 +1982,7 @@ function SchoolFinancePage({
           "x-myshule-csrf": csrfToken,
         },
         body: JSON.stringify({
-          idempotency_key: `finance-quick-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          idempotency_key: `finance-quick-${crypto.randomUUID()}`,
           payment_method: paymentDraft.payment_method,
           amount_minor: amountMinor,
           student_id: paymentDraft.student_id.trim() || undefined,
@@ -1907,7 +2089,7 @@ function SchoolFinancePage({
       ) : (
         <MetricGrid items={buildFinanceSummaryItems(activity, activityLoading)} />
       )}
-      <SubscriptionLifecyclePanel subscription={subscription} role={role} routeMode={routeMode} />
+      <SubscriptionLifecyclePanel subscription={subscription} role={role} routeMode={routeMode} tenantSlug={tenantSlug} />
       <section className="space-y-5 rounded-xl border border-border bg-surface px-5 py-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -2065,7 +2247,9 @@ function SchoolFinancePage({
                 </div>
               ))}
             </div>
-            <Button onClick={() => void saveFeeStructure()}>Save fee structure</Button>
+            <Button onClick={() => void saveFeeStructure()} disabled={feeStructureSaving}>
+              {feeStructureSaving ? "Saving fee structure..." : "Save fee structure"}
+            </Button>
           </div>
           <div className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
@@ -2802,10 +2986,6 @@ function getApiResponseMessage(payload: unknown): string | null {
   }
 
   return payload.message;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function buildBillingApiPath(path: string, tenantSlug?: string | null) {
@@ -4082,12 +4262,18 @@ function SchoolPagesShell({
     || section !== "dashboard"
     || principalWorkspaceSyncing
     || visibleModuleCodes.has("principal_dashboard");
+  const financeRoleDedicatedSection =
+    (role === "accountant" || role === "bursar")
+    && financeRoleDedicatedSectionIds.has(section);
   const requiresAccessSync =
     !principalWorkspaceSyncing
     && accessLoading
+    && !financeRoleDedicatedSection
     && (Boolean(requiredModuleCode) || principalDashboardRequiresModule);
   const canOpenSection = studentId
     ? true
+    : financeRoleDedicatedSection
+      ? true
     : principalWorkspaceSyncing
       || (!requiresAccessSync && isSchoolSectionEnabled(section, visibleModuleCodes) && principalDashboardEnabled);
   async function markLiveNotificationRead(item: ExperienceNotificationItem) {
@@ -4163,6 +4349,53 @@ function SchoolPagesShell({
       return <StudentCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
+    if (section === "exams") {
+      if (role === "grade-master") {
+        // @ts-ignore
+        return <GradeMasterCommandCenter routeMode={routeMode} activeSection={section} />;
+      }
+
+      if (role === "hod") {
+        // @ts-ignore
+        return <HodCommandCenter routeMode={routeMode} activeSection={section} />;
+      }
+
+      if (role === "dean-academics") {
+        // @ts-ignore
+        return <DeanAcademicsCommandCenter routeMode={routeMode} activeSection="results-moderation" />;
+      }
+
+      if (role === "deputy-principal") {
+        // @ts-ignore
+        return <DeputyPrincipalCommandCenter routeMode={routeMode} activeSection={section} />;
+      }
+
+      if (role === "exams-manager") {
+        // @ts-ignore
+        return <ExamsManagerCommandCenter routeMode={routeMode} activeSection={section} />;
+      }
+    }
+
+    if ((role === "accountant" || role === "bursar") && financeRoleDedicatedSectionIds.has(section)) {
+      return (
+        <PermissionProvider schoolId={tenantSlug ?? undefined}>
+          <AccountantCommandCenter routeMode={routeMode} role={role} activeSection={section} tenantSlug={tenantSlug} />
+        </PermissionProvider>
+      );
+    }
+
+    if (unifiedOperationalRoleIds.has(role)) {
+      return (
+        <RoleOperationalCommandCenter
+          role={role}
+          initialSection={section}
+          initialWorkspace={schoolSectionLabels[section]}
+          tenantSlug={tenantSlug}
+          routeMode={routeMode}
+        />
+      );
+    }
+
     if (role === "secretary") {
       return <SecretaryCommandCenterFull routeMode={routeMode} activeSection={section} />;
     }
@@ -4173,10 +4406,6 @@ function SchoolPagesShell({
 
     if (role === "procurement-officer") {
       return <ProcurementOfficerCommandCenter routeMode={routeMode} activeSection={section} />;
-    }
-
-    if (role === "accountant" || role === "bursar") {
-      return <AccountantCommandCenter routeMode={routeMode} role={role} activeSection={section} tenantSlug={tenantSlug} />;
     }
 
     if (role === "discipline-master") {
@@ -4299,7 +4528,13 @@ function SchoolPagesShell({
       ) : (
         <>
       {studentId ? <StudentProfilePage role={role} tenantSlug={tenantSlug} studentId={studentId} /> : null}
+      {!studentId && !renderRoleOperationalWorkspace && section === "students" ? (
+        <SchoolStudentsPage role={role} tenantSlug={tenantSlug} routeMode={routeMode} />
+      ) : null}
       {!studentId && !renderRoleOperationalWorkspace && section === "finance" ? <SchoolFinancePage role={role} tenantSlug={tenantSlug} routeMode={routeMode} /> : null}
+      {!studentId && !renderRoleOperationalWorkspace && (section === "mpesa" || section === "m-pesa-reconciliation") ? (
+        <MPesaReconciliationWorkspace role={role} tenantSlug={tenantSlug} />
+      ) : null}
       {!studentId && !renderRoleOperationalWorkspace && section === "communication" ? <SchoolCommunicationPage role={role} tenantSlug={tenantSlug} /> : null}
       {!studentId && !renderRoleOperationalWorkspace && operationalBlueprint ? (
         <OperationalBlueprintWorkspace blueprint={operationalBlueprint} />

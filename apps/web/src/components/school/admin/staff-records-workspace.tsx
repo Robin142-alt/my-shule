@@ -257,7 +257,7 @@ export function StaffRecordsWorkspace() {
       });
       setGeneratePayslipStaffId("");
       refetchPayslips();
-      toast.success("Payslip generated successfully");
+      toast.success("Payslip record saved. Open the payroll register to preview or download the document.");
     } catch (e: any) {
       toast.error(e.message || "Failed to generate payslip");
     }

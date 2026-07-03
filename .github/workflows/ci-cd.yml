@@ -9,7 +9,7 @@ on:
   pull_request:
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
@@ -40,7 +40,6 @@ jobs:
 
       - name: Lint (frontend)
         run: npm run web:lint
-        continue-on-error: true
 
   # ──────────────────────────────────────────────────────────────
   # Build + Unit Tests
@@ -126,9 +125,9 @@ jobs:
           REDIS_URL: redis://localhost:6379
           NODE_ENV: test
         run: |
-          npm run test:tenant-isolation || true
-          npm run test:finance-integrity || true
-          npm run test:auth-security || true
+          npm run test:tenant-isolation
+          npm run test:finance-integrity
+          npm run test:auth-security
 
   # ──────────────────────────────────────────────────────────────
   # Docker Build + Push

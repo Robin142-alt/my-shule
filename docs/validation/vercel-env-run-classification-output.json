@@ -1,0 +1,62 @@
+{
+  "RESEND_API_KEY": {
+    "present": true,
+    "placeholder": true
+  },
+  "EMAIL_FROM": {
+    "present": true,
+    "placeholder": true
+  },
+  "EMAIL_PROVIDER_SMOKE_URL": {
+    "present": false,
+    "placeholder": true
+  },
+  "PUBLIC_APP_URL": {
+    "present": true,
+    "placeholder": false
+  },
+  "WEB_APP_URL": {
+    "present": false,
+    "placeholder": true
+  },
+  "SUPPORT_NOTIFICATION_EMAILS": {
+    "present": true,
+    "placeholder": true
+  },
+  "REDIS_URL": {
+    "present": true,
+    "placeholder": false
+  },
+  "REDIS_TLS_ENABLED": {
+    "present": true,
+    "placeholder": false
+  },
+  "UPLOAD_OBJECT_STORAGE_ENABLED": {
+    "present": true,
+    "placeholder": false
+  },
+  "UPLOAD_OBJECT_STORAGE_PROVIDER": {
+    "present": true,
+    "placeholder": false
+  },
+  "UPLOAD_OBJECT_STORAGE_ENDPOINT": {
+    "present": true,
+    "placeholder": true
+  },
+  "UPLOAD_OBJECT_STORAGE_BUCKET": {
+    "present": true,
+    "placeholder": false
+  },
+  "UPLOAD_OBJECT_STORAGE_REGION": {
+    "present": true,
+    "placeholder": false
+  },
+  "UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID": {
+    "present": true,
+    "placeholder": true
+  },
+  "UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY": {
+    "present": true,
+    "placeholder": true
+  }
+}

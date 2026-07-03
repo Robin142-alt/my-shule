@@ -172,9 +172,9 @@ export const practicalRoleProfiles: Record<SchoolExperienceRole, PracticalRolePr
     emptyState: "No class follow-up waiting right now.",
   },
   "grade-master": {
-    title: "Grade/Form Master Desk",
+    title: "Grade/Form Master Command Center",
     subtitle: "Grade-wide attendance, streams, class teachers, discipline, academics, and parent escalations.",
-    sidebarTitle: "Grade Desk",
+    sidebarTitle: "Grade/Form Master Command Center",
     sidebarSubtitle: "Streams and follow-up",
     todayContext: "Stream comparison, class teacher submissions, discipline trends, academic risks, and parent follow-ups.",
     sectionNoun: "grade desk",

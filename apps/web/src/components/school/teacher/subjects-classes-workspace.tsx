@@ -4,11 +4,20 @@ import { Users, BookOpen, Clock, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useRouter } from "next/navigation";
+import { buildSchoolSectionHref } from "@/components/school/school-pages";
 
 export function SubjectsClassesWorkspace() {
   const { data: assignments = [], isLoading } = useSchoolQuery<any[]>("/api/academics/teacher-assignments");
+  const router = useRouter();
 
   const displayData = assignments;
+
+  function openRoster(item: any) {
+    const classLabel = `${item.classLevel || ""} ${item.section || ""}`.trim();
+    const href = `${buildSchoolSectionHref("teacher", "students", "public")}?class=${encodeURIComponent(classLabel)}&subject=${encodeURIComponent(item.subject || "")}`;
+    router.push(href);
+  }
 
   return (
     <div className="space-y-6">
@@ -39,7 +48,7 @@ export function SubjectsClassesWorkspace() {
                 <span>{item.studentsCount} Students</span>
               </div>
               <div className="ml-auto">
-                <Button variant="ghost" size="sm" className="gap-1 h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
+                <Button variant="ghost" size="sm" className="gap-1 h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => openRoster(item)}>
                   Open Roster <ChevronRight className="w-4 h-4" />
                 </Button>
               </div>

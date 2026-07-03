@@ -6,7 +6,7 @@ import { AuthSchemaService } from '../../src/auth/auth-schema.service';
 import { CommonModule } from '../../src/common/common.module';
 import { RequestContextService } from '../../src/common/request-context/request-context.service';
 import { DatabaseModule } from '../../src/database/database.module';
-import { DatabaseService } from '../../src/database/database.service';
+import { PrismaService } from '../../src/database/prisma.service';
 import { AuditLogService } from '../../src/modules/observability/audit-log.service';
 import { BillingService } from '../../src/modules/billing/billing.service';
 import { EventPublisherService } from '../../src/modules/events/event-publisher.service';
@@ -105,16 +105,16 @@ import { SyncOperationLogService } from '../../src/modules/sync/sync-operation-l
     },
     {
       provide: MpesaService,
-      inject: [ConfigService, RequestContextService, DatabaseService],
+      inject: [ConfigService, RequestContextService, PrismaService],
       useFactory: (
         configService: ConfigService,
         requestContextService: RequestContextService,
-        databaseService: DatabaseService,
+        prismaService: PrismaService,
       ): MpesaService =>
         new MpesaService(
           configService,
           requestContextService,
-          databaseService,
+          prismaService,
           {
             getClient: () => ({
               get: async (): Promise<string | null> => null,

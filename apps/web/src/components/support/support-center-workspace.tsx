@@ -234,7 +234,7 @@ export function SupportCenterWorkspace({
       : null;
 
     return {
-      id: `local-ticket-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: `local-ticket-${crypto.randomUUID()}`,
       ticketNumber,
       tenantId: normalizedTenantSlug,
       tenantSlug: normalizedTenantSlug,

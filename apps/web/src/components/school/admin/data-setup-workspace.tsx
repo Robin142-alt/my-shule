@@ -6,14 +6,30 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 
+interface NamedSetting {
+  id: string;
+  name: string;
+  description?: string | null;
+}
+
+interface SchoolProfilePayload {
+  address: string;
+}
+
 export function DataSetupWorkspace() {
   const [activeTab, setActiveTab] = useState<"school" | "grading" | "attendance">("school");
+  const [profileAddress, setProfileAddress] = useState("123 Education Lane, Nairobi, Kenya");
+  const [profileNotice, setProfileNotice] = useState<string | null>(null);
 
-  const { data: gradingList, refetch: refetchGrading } = useSchoolQuery<any[]>("/api/academics/grading-systems", { enabled: activeTab === "grading" });
-  const { data: attendanceList, refetch: refetchAttendance } = useSchoolQuery<any[]>("/api/academics/attendance-settings", { enabled: activeTab === "attendance" });
+  const { data: gradingList, refetch: refetchGrading } = useSchoolQuery<NamedSetting[]>("/api/academics/grading-systems", { enabled: activeTab === "grading" });
+  const { data: attendanceList, refetch: refetchAttendance } = useSchoolQuery<NamedSetting[]>("/api/academics/attendance-settings", { enabled: activeTab === "attendance" });
 
-  const createGradingMutation = useSchoolMutation("/api/academics/grading-systems");
-  const createAttendanceMutation = useSchoolMutation("/api/academics/attendance-settings");
+  const createGradingMutation = useSchoolMutation<unknown, { name: string; description: string }>("/api/academics/grading-systems");
+  const createAttendanceMutation = useSchoolMutation<unknown, { name: string; description: string }>("/api/academics/attendance-settings");
+  const saveProfileMutation = useSchoolMutation<unknown, SchoolProfilePayload>("/api/school/profile", "PATCH", {
+    onSuccess: () => setProfileNotice("School profile saved for the current tenant."),
+    onError: (error) => setProfileNotice(error.message || "School profile could not be saved."),
+  });
 
   const [newGradingName, setNewGradingName] = useState("");
   const [newGradingDesc, setNewGradingDesc] = useState("");
@@ -33,6 +49,11 @@ export function DataSetupWorkspace() {
     await createAttendanceMutation.mutateAsync({ name: newAttName, description: newAttDesc });
     setNewAttName(""); setNewAttDesc("");
     refetchAttendance();
+  };
+
+  const handleSaveProfile = () => {
+    setProfileNotice(null);
+    saveProfileMutation.mutate({ address: profileAddress });
   };
 
   return (
@@ -102,12 +123,16 @@ export function DataSetupWorkspace() {
             <div className="space-y-1">
               <label className="text-sm font-medium text-slate-700">Address / Location</label>
               <textarea 
-                defaultValue="123 Education Lane, Nairobi, Kenya"
+                value={profileAddress}
+                onChange={(event) => setProfileAddress(event.target.value)}
                 className="flex w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
               />
             </div>
+            {profileNotice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{profileNotice}</div> : null}
             <div className="pt-4">
-              <Button>Save Profile</Button>
+              <Button onClick={handleSaveProfile} disabled={saveProfileMutation.isPending || !profileAddress.trim()}>
+                {saveProfileMutation.isPending ? "Saving..." : "Save Profile"}
+              </Button>
             </div>
           </div>
         </Card>
@@ -159,7 +184,7 @@ export function DataSetupWorkspace() {
                   {gradingList?.length === 0 ? (
                     <tr><td colSpan={3} className="px-4 py-8 text-center text-slate-500">No grading profiles defined.</td></tr>
                   ) : (
-                    gradingList?.map((item: any) => (
+                    gradingList?.map((item) => (
                       <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-4 py-3 font-medium text-slate-900">{item.name}</td>
                         <td className="px-4 py-3 text-slate-500">{item.description || '-'}</td>
@@ -222,7 +247,7 @@ export function DataSetupWorkspace() {
                   {attendanceList?.length === 0 ? (
                     <tr><td colSpan={3} className="px-4 py-8 text-center text-slate-500">No attendance rules defined.</td></tr>
                   ) : (
-                    attendanceList?.map((item: any) => (
+                    attendanceList?.map((item) => (
                       <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-4 py-3 font-medium text-slate-900">{item.name}</td>
                         <td className="px-4 py-3 text-slate-500">{item.description || '-'}</td>

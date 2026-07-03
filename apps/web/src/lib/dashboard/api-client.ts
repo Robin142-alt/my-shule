@@ -174,7 +174,13 @@ function normalizeApiPath(path: string) {
 }
 
 function normalizeConfiguredUrl(value: string | undefined) {
-  return value?.trim().replace(/^['"]|['"]$/g, "").replace(/\/$/, "") ?? null;
+  const normalized = value?.trim().replace(/^['"]|['"]$/g, "").replace(/\/+$/, "") ?? null;
+
+  return normalized?.replace(/\/api$/i, "") ?? null;
+}
+
+function isLocalApiDomain(domain: string | null) {
+  return Boolean(domain && /^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(domain));
 }
 
 function buildTenantOrigin(tenantId: string, domain: string) {
@@ -198,7 +204,7 @@ export function getDashboardApiBaseUrl(tenantId?: string) {
   const configuredBaseUrl = normalizeConfiguredUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
   const configuredBaseDomain = normalizeConfiguredUrl(process.env.NEXT_PUBLIC_API_BASE_DOMAIN)?.replace(/^\.+/, "") ?? null;
 
-  if (configuredBaseDomain && tenantId) {
+  if (configuredBaseDomain && tenantId && !isLocalApiDomain(configuredBaseDomain)) {
     return buildTenantOrigin(tenantId, configuredBaseDomain);
   }
 

@@ -18,6 +18,10 @@ import { BillingAccessService } from '../../src/modules/billing/billing-access.s
 import { SubscriptionsRepository } from '../../src/modules/billing/repositories/subscriptions.repository';
 import { EventsSchemaService } from '../../src/modules/events/events-schema.service';
 import { UsageMeterService } from '../../src/modules/billing/usage-meter.service';
+import { AgpExecutionService } from '../../src/common/platform-governance/agp-execution.service';
+import { SelfHealingAgentService } from '../../src/common/platform-governance/agents/self-healing-agent.service';
+import { AuditTrailService } from '../../src/modules/events/audit-trail.service';
+import { EventPublisherService } from '../../src/modules/events/event-publisher.service';
 import { StudentEventsService } from '../../src/modules/events/student-events.service';
 import { PiiEncryptionService } from '../../src/modules/security/pii-encryption.service';
 import { StudentsController } from '../../src/modules/students/students.controller';
@@ -47,6 +51,27 @@ import { SecurityProbeController } from './security-probe.controller';
     StudentsService,
     StudentsRepository,
     PiiEncryptionService,
+    AgpExecutionService,
+    {
+      provide: EventPublisherService,
+      useValue: {
+        publish: async () => undefined,
+      },
+    },
+    {
+      provide: AuditTrailService,
+      useValue: {
+        createAuditLog: async () => undefined,
+      },
+    },
+    {
+      provide: SelfHealingAgentService,
+      useValue: {
+        recover: async (_intent: unknown, error: unknown) => {
+          throw error;
+        },
+      },
+    },
     {
       provide: BillingAccessService,
       useValue: {

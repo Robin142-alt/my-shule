@@ -5,10 +5,22 @@ import { DatabaseService } from '../database/database.service';
 @Injectable()
 export class AuthSchemaService implements OnModuleInit {
   private readonly logger = new Logger(AuthSchemaService.name);
+  private bootstrapPromise: Promise<void> | null = null;
 
   constructor(private readonly databaseService: DatabaseService) {}
 
   async onModuleInit(): Promise<void> {
+    if (!this.bootstrapPromise) {
+      this.bootstrapPromise = this.bootstrapSchema().catch((error) => {
+        this.bootstrapPromise = null;
+        throw error;
+      });
+    }
+
+    await this.bootstrapPromise;
+  }
+
+  private async bootstrapSchema(): Promise<void> {
     await this.databaseService.runSchemaBootstrap(`
       CREATE EXTENSION IF NOT EXISTS pgcrypto;
       CREATE SCHEMA IF NOT EXISTS app;
@@ -20,6 +32,447 @@ export class AuthSchemaService implements OnModuleInit {
         RETURN NEW;
       END;
       $$ LANGUAGE plpgsql;
+
+      CREATE TABLE IF NOT EXISTS users (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL DEFAULT 'global',
+        email text NOT NULL,
+        password_hash text NOT NULL,
+        display_name text NOT NULL,
+        user_type text NOT NULL DEFAULT 'member' CHECK (user_type IN ('member', 'platform_owner')),
+        status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disabled', 'locked')),
+        email_verified_at timestamptz,
+        recovery_email text,
+        mfa_enabled boolean NOT NULL DEFAULT FALSE,
+        mfa_verified_at timestamptz,
+        password_changed_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+
+      DO $$
+      DECLARE
+        legacy_fk record;
+        has_invalid_ids boolean;
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'users'
+            AND column_name = 'id'
+            AND data_type = 'text'
+        ) THEN
+          CREATE TEMP TABLE IF NOT EXISTS legacy_user_fk_migrations (
+            table_name text NOT NULL,
+            column_name text NOT NULL,
+            constraint_name text NOT NULL
+          ) ON COMMIT DROP;
+          TRUNCATE legacy_user_fk_migrations;
+
+          INSERT INTO legacy_user_fk_migrations (table_name, column_name, constraint_name)
+          SELECT con.conrelid::regclass::text, att.attname, con.conname
+          FROM pg_constraint con
+          JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey)
+          JOIN pg_class ref ON ref.oid = con.confrelid
+          JOIN information_schema.columns cols
+            ON cols.table_schema = 'public'
+            AND cols.table_name = con.conrelid::regclass::text
+            AND cols.column_name = att.attname
+          WHERE con.contype = 'f'
+            AND ref.relname = 'users'
+            AND cols.data_type = 'text';
+
+          FOR legacy_fk IN SELECT * FROM legacy_user_fk_migrations LOOP
+            EXECUTE format(
+              'SELECT EXISTS (SELECT 1 FROM %s WHERE %I IS NOT NULL AND %I !~* %L)',
+              legacy_fk.table_name,
+              legacy_fk.column_name,
+              legacy_fk.column_name,
+              '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            )
+            INTO has_invalid_ids;
+
+            IF has_invalid_ids THEN
+              RAISE EXCEPTION 'Cannot migrate %.% from text to uuid because non-UUID user IDs exist',
+                legacy_fk.table_name,
+                legacy_fk.column_name;
+            END IF;
+
+            EXECUTE format(
+              'ALTER TABLE %s DROP CONSTRAINT %I',
+              legacy_fk.table_name,
+              legacy_fk.constraint_name
+            );
+            EXECUTE format(
+              'ALTER TABLE %s ALTER COLUMN %I TYPE uuid USING %I::uuid',
+              legacy_fk.table_name,
+              legacy_fk.column_name,
+              legacy_fk.column_name
+            );
+          END LOOP;
+
+          IF EXISTS (
+            SELECT 1
+            FROM users
+            WHERE id !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          ) THEN
+            RAISE EXCEPTION 'Cannot migrate users.id from text to uuid because non-UUID user IDs exist';
+          END IF;
+
+          ALTER TABLE users ALTER COLUMN id DROP DEFAULT;
+          ALTER TABLE users ALTER COLUMN id TYPE uuid USING id::uuid;
+          ALTER TABLE users ALTER COLUMN id SET DEFAULT gen_random_uuid();
+
+          FOR legacy_fk IN SELECT * FROM legacy_user_fk_migrations LOOP
+            EXECUTE format(
+              'ALTER TABLE %s ADD CONSTRAINT %I FOREIGN KEY (%I) REFERENCES users(id) ON DELETE RESTRICT',
+              legacy_fk.table_name,
+              legacy_fk.constraint_name,
+              legacy_fk.column_name
+            );
+          END LOOP;
+        END IF;
+      END;
+      $$;
+
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'users'
+            AND column_name = 'status'
+            AND data_type = 'USER-DEFINED'
+        ) THEN
+          ALTER TABLE users ALTER COLUMN status DROP DEFAULT;
+          ALTER TABLE users ALTER COLUMN status TYPE text USING
+            CASE lower(status::text)
+              WHEN 'active' THEN 'active'
+              WHEN 'disabled' THEN 'disabled'
+              WHEN 'locked' THEN 'locked'
+              WHEN 'invited' THEN 'disabled'
+              WHEN 'suspended' THEN 'disabled'
+              ELSE 'disabled'
+            END;
+        END IF;
+
+        UPDATE users
+        SET status = CASE lower(status)
+          WHEN 'active' THEN 'active'
+          WHEN 'disabled' THEN 'disabled'
+          WHEN 'locked' THEN 'locked'
+          WHEN 'invited' THEN 'disabled'
+          WHEN 'suspended' THEN 'disabled'
+          ELSE 'disabled'
+        END
+        WHERE status IS NULL
+          OR status <> lower(status)
+          OR lower(status) NOT IN ('active', 'disabled', 'locked');
+
+        ALTER TABLE users ALTER COLUMN status SET DEFAULT 'active';
+        ALTER TABLE users ALTER COLUMN status SET NOT NULL;
+        ALTER TABLE users DROP CONSTRAINT IF EXISTS users_status_check;
+        ALTER TABLE users DROP CONSTRAINT IF EXISTS ck_users_status;
+        ALTER TABLE users ADD CONSTRAINT ck_users_status CHECK (status IN ('active', 'disabled', 'locked'));
+      END;
+      $$;
+
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id text NOT NULL DEFAULT 'global';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name text;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS user_type text NOT NULL DEFAULT 'member';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS recovery_email text;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled boolean NOT NULL DEFAULT FALSE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_verified_at timestamptz;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at timestamptz;
+
+      DO $$
+      DECLARE
+        auth_timestamp_column record;
+      BEGIN
+        FOR auth_timestamp_column IN
+          SELECT table_name, column_name
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name IN ('users', 'roles', 'permissions', 'role_permissions', 'tenant_memberships')
+            AND column_name IN (
+              'created_at',
+              'updated_at',
+              'email_verified_at',
+              'mfa_verified_at',
+              'password_changed_at'
+            )
+            AND data_type = 'timestamp without time zone'
+        LOOP
+          EXECUTE format(
+            'ALTER TABLE %I ALTER COLUMN %I TYPE timestamptz USING %I AT TIME ZONE %L',
+            auth_timestamp_column.table_name,
+            auth_timestamp_column.column_name,
+            auth_timestamp_column.column_name,
+            'UTC'
+          );
+        END LOOP;
+      END;
+      $$;
+
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'users'
+            AND column_name = 'full_name'
+        ) THEN
+          UPDATE users
+          SET display_name = COALESCE(NULLIF(display_name, ''), NULLIF(full_name, ''), NULLIF(email, ''), 'User')
+          WHERE display_name IS NULL OR display_name = '';
+        ELSE
+          UPDATE users
+          SET display_name = COALESCE(NULLIF(display_name, ''), NULLIF(email, ''), 'User')
+          WHERE display_name IS NULL OR display_name = '';
+        END IF;
+
+        ALTER TABLE users ALTER COLUMN display_name SET NOT NULL;
+
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'ck_users_user_type'
+        ) THEN
+          ALTER TABLE users
+          ADD CONSTRAINT ck_users_user_type
+          CHECK (user_type IN ('member', 'platform_owner'));
+        END IF;
+      END;
+      $$;
+
+      CREATE TABLE IF NOT EXISTS roles (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        code text NOT NULL,
+        name text NOT NULL,
+        description text,
+        is_system boolean NOT NULL DEFAULT FALSE,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS permissions (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        code text,
+        module text,
+        resource text NOT NULL,
+        action text NOT NULL,
+        scope text NOT NULL DEFAULT 'tenant',
+        key text,
+        description text,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+
+      ALTER TABLE roles ADD COLUMN IF NOT EXISTS tenant_id text;
+      ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_system boolean NOT NULL DEFAULT FALSE;
+      ALTER TABLE permissions ADD COLUMN IF NOT EXISTS tenant_id text;
+      ALTER TABLE permissions ADD COLUMN IF NOT EXISTS code text;
+      ALTER TABLE permissions ADD COLUMN IF NOT EXISTS module text;
+      ALTER TABLE permissions ADD COLUMN IF NOT EXISTS scope text DEFAULT 'tenant';
+      ALTER TABLE permissions ADD COLUMN IF NOT EXISTS key text;
+
+      DO $$
+      BEGIN
+        IF to_regclass('public.role_permissions') IS NOT NULL THEN
+          ALTER TABLE role_permissions ADD COLUMN IF NOT EXISTS tenant_id text;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'roles'
+            AND column_name = 'school_id'
+        ) THEN
+          UPDATE roles SET tenant_id = COALESCE(tenant_id, school_id, 'global') WHERE tenant_id IS NULL OR tenant_id = '';
+        ELSE
+          UPDATE roles SET tenant_id = COALESCE(tenant_id, 'global') WHERE tenant_id IS NULL OR tenant_id = '';
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'roles'
+            AND column_name = 'is_system_role'
+        ) THEN
+          UPDATE roles SET is_system = COALESCE(is_system, is_system_role, FALSE);
+        END IF;
+
+        UPDATE permissions
+        SET tenant_id = COALESCE(tenant_id, 'global'),
+            module = COALESCE(NULLIF(btrim(module), ''), resource),
+            scope = COALESCE(NULLIF(btrim(scope), ''), 'tenant'),
+            key = COALESCE(
+              NULLIF(btrim(key), ''),
+              lower(
+                COALESCE(tenant_id, 'global') || '.' ||
+                regexp_replace(resource, '[^a-zA-Z0-9]+', '_', 'g') || '.' ||
+                regexp_replace(action, '[^a-zA-Z0-9]+', '_', 'g') || '.tenant'
+              )
+            ),
+            code = COALESCE(
+              NULLIF(btrim(code), ''),
+              upper(
+                regexp_replace(COALESCE(tenant_id, 'global'), '[^a-zA-Z0-9]+', '_', 'g') || '_' ||
+                regexp_replace(resource, '[^a-zA-Z0-9]+', '_', 'g') || '_' ||
+                regexp_replace(action, '[^a-zA-Z0-9]+', '_', 'g')
+              )
+            )
+        WHERE tenant_id IS NULL
+           OR tenant_id = ''
+           OR module IS NULL
+           OR btrim(module) = ''
+           OR scope IS NULL
+           OR btrim(scope) = ''
+           OR key IS NULL
+           OR btrim(key) = ''
+           OR code IS NULL
+           OR btrim(code) = '';
+
+        IF to_regclass('public.role_permissions') IS NOT NULL THEN
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'role_permissions'
+              AND column_name = 'school_id'
+          ) THEN
+            UPDATE role_permissions SET tenant_id = COALESCE(tenant_id, school_id, 'global') WHERE tenant_id IS NULL OR tenant_id = '';
+          ELSE
+            UPDATE role_permissions SET tenant_id = COALESCE(tenant_id, 'global') WHERE tenant_id IS NULL OR tenant_id = '';
+          END IF;
+
+          ALTER TABLE role_permissions ALTER COLUMN tenant_id SET NOT NULL;
+        END IF;
+
+        ALTER TABLE roles ALTER COLUMN tenant_id SET NOT NULL;
+        ALTER TABLE permissions ALTER COLUMN tenant_id SET NOT NULL;
+        ALTER TABLE permissions ALTER COLUMN code SET NOT NULL;
+        ALTER TABLE permissions ALTER COLUMN module SET NOT NULL;
+        ALTER TABLE permissions ALTER COLUMN scope SET NOT NULL;
+        ALTER TABLE permissions ALTER COLUMN key SET NOT NULL;
+      END;
+      $$;
+
+      DO $$
+      DECLARE
+        target_table text;
+        legacy_fk record;
+        has_invalid_ids boolean;
+      BEGIN
+        FOREACH target_table IN ARRAY ARRAY['roles', 'permissions'] LOOP
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = target_table
+              AND column_name = 'id'
+              AND data_type = 'text'
+          ) THEN
+            CREATE TEMP TABLE IF NOT EXISTS legacy_auth_fk_migrations (
+              table_name text NOT NULL,
+              column_name text NOT NULL,
+              constraint_name text NOT NULL,
+              referenced_table text NOT NULL
+            ) ON COMMIT DROP;
+            TRUNCATE legacy_auth_fk_migrations;
+
+            INSERT INTO legacy_auth_fk_migrations (table_name, column_name, constraint_name, referenced_table)
+            SELECT con.conrelid::regclass::text, att.attname, con.conname, target_table
+            FROM pg_constraint con
+            JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey)
+            JOIN pg_class ref ON ref.oid = con.confrelid
+            JOIN information_schema.columns cols
+              ON cols.table_schema = 'public'
+              AND cols.table_name = con.conrelid::regclass::text
+              AND cols.column_name = att.attname
+            WHERE con.contype = 'f'
+              AND ref.relname = target_table
+              AND cols.data_type = 'text';
+
+            FOR legacy_fk IN SELECT * FROM legacy_auth_fk_migrations LOOP
+              EXECUTE format(
+                'SELECT EXISTS (SELECT 1 FROM %s WHERE %I IS NOT NULL AND %I !~* %L)',
+                legacy_fk.table_name,
+                legacy_fk.column_name,
+                legacy_fk.column_name,
+                '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+              )
+              INTO has_invalid_ids;
+
+              IF has_invalid_ids THEN
+                RAISE EXCEPTION 'Cannot migrate %.% from text to uuid because non-UUID IDs exist',
+                  legacy_fk.table_name,
+                  legacy_fk.column_name;
+              END IF;
+
+              EXECUTE format('ALTER TABLE %s DROP CONSTRAINT %I', legacy_fk.table_name, legacy_fk.constraint_name);
+              EXECUTE format(
+                'ALTER TABLE %s ALTER COLUMN %I TYPE uuid USING %I::uuid',
+                legacy_fk.table_name,
+                legacy_fk.column_name,
+                legacy_fk.column_name
+              );
+            END LOOP;
+
+            EXECUTE format(
+              'SELECT EXISTS (SELECT 1 FROM %I WHERE id !~* %L)',
+              target_table,
+              '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            )
+            INTO has_invalid_ids;
+
+            IF has_invalid_ids THEN
+              RAISE EXCEPTION 'Cannot migrate %.id from text to uuid because non-UUID IDs exist', target_table;
+            END IF;
+
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN id DROP DEFAULT', target_table);
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN id TYPE uuid USING id::uuid', target_table);
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN id SET DEFAULT gen_random_uuid()', target_table);
+
+            FOR legacy_fk IN SELECT * FROM legacy_auth_fk_migrations LOOP
+              EXECUTE format(
+                'ALTER TABLE %s ADD CONSTRAINT %I FOREIGN KEY (%I) REFERENCES %I(id) ON DELETE RESTRICT',
+                legacy_fk.table_name,
+                legacy_fk.constraint_name,
+                legacy_fk.column_name,
+                legacy_fk.referenced_table
+              );
+            END LOOP;
+          END IF;
+        END LOOP;
+      END;
+      $$;
+
+      CREATE TABLE IF NOT EXISTS role_permissions (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        role_id uuid NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+        permission_id uuid NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS tenant_memberships (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        role_id uuid NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
+        status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'invited', 'suspended')),
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
 
       DROP FUNCTION IF EXISTS app.find_user_by_email_for_auth(text);
       CREATE OR REPLACE FUNCTION app.find_user_by_email_for_auth(input_email text)
@@ -1008,7 +1461,7 @@ export class AuthSchemaService implements OnModuleInit {
         password_hash text NOT NULL,
         display_name text NOT NULL,
         user_type text NOT NULL DEFAULT 'member' CHECK (user_type IN ('member', 'platform_owner')),
-        status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disabled')),
+        status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disabled', 'locked')),
         email_verified_at timestamptz,
         recovery_email text,
         mfa_enabled boolean NOT NULL DEFAULT FALSE,
@@ -1018,6 +1471,94 @@ export class AuthSchemaService implements OnModuleInit {
         updated_at timestamptz NOT NULL DEFAULT NOW()
       );
 
+      DO $$
+      DECLARE
+        legacy_fk record;
+        has_invalid_ids boolean;
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'users'
+            AND column_name = 'id'
+            AND data_type = 'text'
+        ) THEN
+          CREATE TEMP TABLE IF NOT EXISTS legacy_user_fk_migrations (
+            table_name text NOT NULL,
+            column_name text NOT NULL,
+            constraint_name text NOT NULL
+          ) ON COMMIT DROP;
+          TRUNCATE legacy_user_fk_migrations;
+
+          INSERT INTO legacy_user_fk_migrations (table_name, column_name, constraint_name)
+          SELECT con.conrelid::regclass::text, att.attname, con.conname
+          FROM pg_constraint con
+          JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey)
+          JOIN pg_class ref ON ref.oid = con.confrelid
+          JOIN information_schema.columns cols
+            ON cols.table_schema = 'public'
+            AND cols.table_name = con.conrelid::regclass::text
+            AND cols.column_name = att.attname
+          WHERE con.contype = 'f'
+            AND ref.relname = 'users'
+            AND cols.data_type = 'text';
+
+          FOR legacy_fk IN SELECT * FROM legacy_user_fk_migrations LOOP
+            EXECUTE format(
+              'SELECT EXISTS (SELECT 1 FROM %s WHERE %I IS NOT NULL AND %I !~* %L)',
+              legacy_fk.table_name,
+              legacy_fk.column_name,
+              legacy_fk.column_name,
+              '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            )
+            INTO has_invalid_ids;
+
+            IF has_invalid_ids THEN
+              RAISE EXCEPTION 'Cannot migrate %.% from text to uuid because non-UUID user IDs exist',
+                legacy_fk.table_name,
+                legacy_fk.column_name;
+            END IF;
+
+            EXECUTE format(
+              'ALTER TABLE %s DROP CONSTRAINT %I',
+              legacy_fk.table_name,
+              legacy_fk.constraint_name
+            );
+            EXECUTE format(
+              'ALTER TABLE %s ALTER COLUMN %I TYPE uuid USING %I::uuid',
+              legacy_fk.table_name,
+              legacy_fk.column_name,
+              legacy_fk.column_name
+            );
+          END LOOP;
+
+          IF EXISTS (
+            SELECT 1
+            FROM users
+            WHERE id !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          ) THEN
+            RAISE EXCEPTION 'Cannot migrate users.id from text to uuid because non-UUID user IDs exist';
+          END IF;
+
+          ALTER TABLE users ALTER COLUMN id DROP DEFAULT;
+          ALTER TABLE users ALTER COLUMN id TYPE uuid USING id::uuid;
+          ALTER TABLE users ALTER COLUMN id SET DEFAULT gen_random_uuid();
+
+          FOR legacy_fk IN SELECT * FROM legacy_user_fk_migrations LOOP
+            EXECUTE format(
+              'ALTER TABLE %s ADD CONSTRAINT %I FOREIGN KEY (%I) REFERENCES users(id) ON DELETE RESTRICT',
+              legacy_fk.table_name,
+              legacy_fk.constraint_name,
+              legacy_fk.column_name
+            );
+          END LOOP;
+        END IF;
+      END;
+      $$;
+
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id text NOT NULL DEFAULT 'global';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name text;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS user_type text NOT NULL DEFAULT 'member';
       ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at timestamptz;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS recovery_email text;
@@ -1027,6 +1568,24 @@ export class AuthSchemaService implements OnModuleInit {
 
       DO $$
       BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'users'
+            AND column_name = 'full_name'
+        ) THEN
+          UPDATE users
+          SET display_name = COALESCE(NULLIF(display_name, ''), NULLIF(full_name, ''), NULLIF(email, ''), 'User')
+          WHERE display_name IS NULL OR display_name = '';
+        ELSE
+          UPDATE users
+          SET display_name = COALESCE(NULLIF(display_name, ''), NULLIF(email, ''), 'User')
+          WHERE display_name IS NULL OR display_name = '';
+        END IF;
+
+        ALTER TABLE users ALTER COLUMN display_name SET NOT NULL;
+
         IF NOT EXISTS (
           SELECT 1
           FROM pg_constraint
@@ -1036,6 +1595,49 @@ export class AuthSchemaService implements OnModuleInit {
           ADD CONSTRAINT ck_users_user_type
           CHECK (user_type IN ('member', 'platform_owner'));
         END IF;
+      END;
+      $$;
+
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'users'
+            AND column_name = 'status'
+            AND data_type = 'USER-DEFINED'
+        ) THEN
+          ALTER TABLE users ALTER COLUMN status DROP DEFAULT;
+          ALTER TABLE users ALTER COLUMN status TYPE text USING
+            CASE lower(status::text)
+              WHEN 'active' THEN 'active'
+              WHEN 'disabled' THEN 'disabled'
+              WHEN 'locked' THEN 'locked'
+              WHEN 'invited' THEN 'disabled'
+              WHEN 'suspended' THEN 'disabled'
+              ELSE 'disabled'
+            END;
+        END IF;
+
+        UPDATE users
+        SET status = CASE lower(status)
+          WHEN 'active' THEN 'active'
+          WHEN 'disabled' THEN 'disabled'
+          WHEN 'locked' THEN 'locked'
+          WHEN 'invited' THEN 'disabled'
+          WHEN 'suspended' THEN 'disabled'
+          ELSE 'disabled'
+        END
+        WHERE status IS NULL
+          OR status <> lower(status)
+          OR lower(status) NOT IN ('active', 'disabled', 'locked');
+
+        ALTER TABLE users ALTER COLUMN status SET DEFAULT 'active';
+        ALTER TABLE users ALTER COLUMN status SET NOT NULL;
+        ALTER TABLE users DROP CONSTRAINT IF EXISTS users_status_check;
+        ALTER TABLE users DROP CONSTRAINT IF EXISTS ck_users_status;
+        ALTER TABLE users ADD CONSTRAINT ck_users_status CHECK (status IN ('active', 'disabled', 'locked'));
       END;
       $$;
 
@@ -1053,12 +1655,198 @@ export class AuthSchemaService implements OnModuleInit {
       CREATE TABLE IF NOT EXISTS permissions (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
+        code text,
+        module text,
         resource text NOT NULL,
         action text NOT NULL,
+        scope text NOT NULL DEFAULT 'tenant',
+        key text,
         description text,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW()
       );
+
+      ALTER TABLE roles ADD COLUMN IF NOT EXISTS tenant_id text;
+      ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_system boolean NOT NULL DEFAULT FALSE;
+      ALTER TABLE permissions ADD COLUMN IF NOT EXISTS tenant_id text;
+      ALTER TABLE permissions ADD COLUMN IF NOT EXISTS code text;
+      ALTER TABLE permissions ADD COLUMN IF NOT EXISTS module text;
+      ALTER TABLE permissions ADD COLUMN IF NOT EXISTS scope text DEFAULT 'tenant';
+      ALTER TABLE permissions ADD COLUMN IF NOT EXISTS key text;
+
+      DO $$
+      BEGIN
+        IF to_regclass('public.role_permissions') IS NOT NULL THEN
+          ALTER TABLE role_permissions ADD COLUMN IF NOT EXISTS tenant_id text;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'roles'
+            AND column_name = 'school_id'
+        ) THEN
+          UPDATE roles SET tenant_id = COALESCE(tenant_id, school_id, 'global') WHERE tenant_id IS NULL OR tenant_id = '';
+        ELSE
+          UPDATE roles SET tenant_id = COALESCE(tenant_id, 'global') WHERE tenant_id IS NULL OR tenant_id = '';
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'roles'
+            AND column_name = 'is_system_role'
+        ) THEN
+          UPDATE roles SET is_system = COALESCE(is_system, is_system_role, FALSE);
+        END IF;
+
+        UPDATE permissions
+        SET tenant_id = COALESCE(tenant_id, 'global'),
+            module = COALESCE(NULLIF(btrim(module), ''), resource),
+            scope = COALESCE(NULLIF(btrim(scope), ''), 'tenant'),
+            key = COALESCE(
+              NULLIF(btrim(key), ''),
+              lower(
+                COALESCE(tenant_id, 'global') || '.' ||
+                regexp_replace(resource, '[^a-zA-Z0-9]+', '_', 'g') || '.' ||
+                regexp_replace(action, '[^a-zA-Z0-9]+', '_', 'g') || '.tenant'
+              )
+            ),
+            code = COALESCE(
+              NULLIF(btrim(code), ''),
+              upper(
+                regexp_replace(COALESCE(tenant_id, 'global'), '[^a-zA-Z0-9]+', '_', 'g') || '_' ||
+                regexp_replace(resource, '[^a-zA-Z0-9]+', '_', 'g') || '_' ||
+                regexp_replace(action, '[^a-zA-Z0-9]+', '_', 'g')
+              )
+            )
+        WHERE tenant_id IS NULL
+           OR tenant_id = ''
+           OR module IS NULL
+           OR btrim(module) = ''
+           OR scope IS NULL
+           OR btrim(scope) = ''
+           OR key IS NULL
+           OR btrim(key) = ''
+           OR code IS NULL
+           OR btrim(code) = '';
+
+        IF to_regclass('public.role_permissions') IS NOT NULL THEN
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'role_permissions'
+              AND column_name = 'school_id'
+          ) THEN
+            UPDATE role_permissions SET tenant_id = COALESCE(tenant_id, school_id, 'global') WHERE tenant_id IS NULL OR tenant_id = '';
+          ELSE
+            UPDATE role_permissions SET tenant_id = COALESCE(tenant_id, 'global') WHERE tenant_id IS NULL OR tenant_id = '';
+          END IF;
+
+          ALTER TABLE role_permissions ALTER COLUMN tenant_id SET NOT NULL;
+        END IF;
+
+        ALTER TABLE roles ALTER COLUMN tenant_id SET NOT NULL;
+        ALTER TABLE permissions ALTER COLUMN tenant_id SET NOT NULL;
+        ALTER TABLE permissions ALTER COLUMN code SET NOT NULL;
+        ALTER TABLE permissions ALTER COLUMN module SET NOT NULL;
+        ALTER TABLE permissions ALTER COLUMN scope SET NOT NULL;
+        ALTER TABLE permissions ALTER COLUMN key SET NOT NULL;
+      END;
+      $$;
+
+      DO $$
+      DECLARE
+        target_table text;
+        legacy_fk record;
+        has_invalid_ids boolean;
+      BEGIN
+        FOREACH target_table IN ARRAY ARRAY['roles', 'permissions'] LOOP
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = target_table
+              AND column_name = 'id'
+              AND data_type = 'text'
+          ) THEN
+            CREATE TEMP TABLE IF NOT EXISTS legacy_auth_fk_migrations (
+              table_name text NOT NULL,
+              column_name text NOT NULL,
+              constraint_name text NOT NULL,
+              referenced_table text NOT NULL
+            ) ON COMMIT DROP;
+            TRUNCATE legacy_auth_fk_migrations;
+
+            INSERT INTO legacy_auth_fk_migrations (table_name, column_name, constraint_name, referenced_table)
+            SELECT con.conrelid::regclass::text, att.attname, con.conname, target_table
+            FROM pg_constraint con
+            JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey)
+            JOIN pg_class ref ON ref.oid = con.confrelid
+            JOIN information_schema.columns cols
+              ON cols.table_schema = 'public'
+              AND cols.table_name = con.conrelid::regclass::text
+              AND cols.column_name = att.attname
+            WHERE con.contype = 'f'
+              AND ref.relname = target_table
+              AND cols.data_type = 'text';
+
+            FOR legacy_fk IN SELECT * FROM legacy_auth_fk_migrations LOOP
+              EXECUTE format(
+                'SELECT EXISTS (SELECT 1 FROM %s WHERE %I IS NOT NULL AND %I !~* %L)',
+                legacy_fk.table_name,
+                legacy_fk.column_name,
+                legacy_fk.column_name,
+                '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+              )
+              INTO has_invalid_ids;
+
+              IF has_invalid_ids THEN
+                RAISE EXCEPTION 'Cannot migrate %.% from text to uuid because non-UUID IDs exist',
+                  legacy_fk.table_name,
+                  legacy_fk.column_name;
+              END IF;
+
+              EXECUTE format('ALTER TABLE %s DROP CONSTRAINT %I', legacy_fk.table_name, legacy_fk.constraint_name);
+              EXECUTE format(
+                'ALTER TABLE %s ALTER COLUMN %I TYPE uuid USING %I::uuid',
+                legacy_fk.table_name,
+                legacy_fk.column_name,
+                legacy_fk.column_name
+              );
+            END LOOP;
+
+            EXECUTE format(
+              'SELECT EXISTS (SELECT 1 FROM %I WHERE id !~* %L)',
+              target_table,
+              '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            )
+            INTO has_invalid_ids;
+
+            IF has_invalid_ids THEN
+              RAISE EXCEPTION 'Cannot migrate %.id from text to uuid because non-UUID IDs exist', target_table;
+            END IF;
+
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN id DROP DEFAULT', target_table);
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN id TYPE uuid USING id::uuid', target_table);
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN id SET DEFAULT gen_random_uuid()', target_table);
+
+            FOR legacy_fk IN SELECT * FROM legacy_auth_fk_migrations LOOP
+              EXECUTE format(
+                'ALTER TABLE %s ADD CONSTRAINT %I FOREIGN KEY (%I) REFERENCES %I(id) ON DELETE RESTRICT',
+                legacy_fk.table_name,
+                legacy_fk.constraint_name,
+                legacy_fk.column_name,
+                legacy_fk.referenced_table
+              );
+            END LOOP;
+          END IF;
+        END LOOP;
+      END;
+      $$;
 
       CREATE TABLE IF NOT EXISTS role_permissions (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1103,6 +1891,28 @@ export class AuthSchemaService implements OnModuleInit {
         updated_at timestamptz NOT NULL DEFAULT NOW()
       );
 
+      ALTER TABLE auth_action_tokens ADD COLUMN IF NOT EXISTS consumed_at timestamptz;
+      ALTER TABLE auth_action_tokens ALTER COLUMN metadata SET DEFAULT '{}'::jsonb;
+      ALTER TABLE auth_action_tokens ALTER COLUMN metadata SET NOT NULL;
+      ALTER TABLE auth_action_tokens ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE auth_action_tokens ALTER COLUMN updated_at SET DEFAULT NOW();
+
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'auth_action_tokens'
+            AND column_name = 'tenant_id'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE auth_action_tokens ALTER COLUMN tenant_id DROP NOT NULL;
+          ALTER TABLE auth_action_tokens ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+        END IF;
+      END;
+      $$;
+
       CREATE TABLE IF NOT EXISTS auth_email_outbox (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text,
@@ -1135,13 +1945,44 @@ export class AuthSchemaService implements OnModuleInit {
       );
 
       ALTER TABLE auth_email_outbox
+        ADD COLUMN IF NOT EXISTS attempts integer NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS next_attempt_at timestamptz NOT NULL DEFAULT NOW(),
+        ADD COLUMN IF NOT EXISTS sent_at timestamptz,
         ADD COLUMN IF NOT EXISTS last_error_code text,
         ADD COLUMN IF NOT EXISTS last_error_summary text,
         ADD COLUMN IF NOT EXISTS provider_status_code integer,
         ADD COLUMN IF NOT EXISTS last_attempt_at timestamptz;
 
+      ALTER TABLE auth_email_outbox ALTER COLUMN status SET DEFAULT 'pending';
+      ALTER TABLE auth_email_outbox ALTER COLUMN payload SET DEFAULT '{}'::jsonb;
+      ALTER TABLE auth_email_outbox ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE auth_email_outbox ALTER COLUMN updated_at SET DEFAULT NOW();
+      ALTER TABLE auth_email_outbox ALTER COLUMN user_id DROP NOT NULL;
+
       DO $$
       BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'auth_email_outbox'
+            AND column_name = 'tenant_id'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE auth_email_outbox ALTER COLUMN tenant_id DROP NOT NULL;
+          ALTER TABLE auth_email_outbox ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'ck_auth_email_outbox_attempts'
+        ) THEN
+          ALTER TABLE auth_email_outbox
+            ADD CONSTRAINT ck_auth_email_outbox_attempts
+            CHECK (attempts >= 0);
+        END IF;
+
         IF NOT EXISTS (
           SELECT 1
           FROM pg_constraint

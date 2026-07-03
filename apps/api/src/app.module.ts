@@ -72,6 +72,15 @@ import { ClassTeacherModule } from './modules/class-teacher/class-teacher.module
 import { SecretaryModule } from './modules/secretary/secretary.module';
 import { ApprovalsModule } from './modules/approvals/approvals.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+
+const NODE_ENV = process.env.NODE_ENV ?? 'development';
+const ENV_FILE_PATHS = [
+  `.env.${NODE_ENV}.local`,
+  '.env.local',
+  `.env.${NODE_ENV}`,
+  '.env',
+];
+
 @Module({
   imports: [
     AgpModule,
@@ -79,6 +88,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     ConfigModule.forRoot({
       isGlobal: true,
       expandVariables: true,
+      envFilePath: ENV_FILE_PATHS,
       load: [configuration],
       validate: validateEnv,
     }),

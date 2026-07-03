@@ -20,6 +20,12 @@ export default defineConfig({
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
+  webServer: {
+    command: "npm run build && npm run start -- --hostname 127.0.0.1 --port 3005",
+    url: productionPilotConfig.webBaseUrl,
+    reuseExistingServer: !process.env.CI,
+    timeout: 300_000,
+  },
   projects: [
     {
       name: "chromium",

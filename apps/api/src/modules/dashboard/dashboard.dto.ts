@@ -137,6 +137,8 @@ export interface ActionButtonDto {
   id: string;
   label: string;
   action: string;
+  executionType: 'ROUTE';
+  href: string;
   state: 'ACTIVE' | 'DEGRADED' | 'FAILED' | 'LOCKED';
 }
 

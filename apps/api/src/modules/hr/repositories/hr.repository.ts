@@ -260,6 +260,7 @@ export class HrRepository {
       `
         SELECT
           profile.id::text,
+          profile.user_id::text,
           profile.staff_number,
           profile.display_name,
           profile.display_name AS full_name,

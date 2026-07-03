@@ -22,24 +22,26 @@ Object.assign(global, {
   TextDecoder,
 });
 
-Object.defineProperty(window, "matchMedia", {
-  writable: true,
-  value: (query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: jest.fn(),
-    removeListener: jest.fn(),
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
-  }),
-});
+if (typeof window !== "undefined") {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    }),
+  });
 
-Object.defineProperty(window, "scrollTo", {
-  writable: true,
-  value: jest.fn(),
-});
+  Object.defineProperty(window, "scrollTo", {
+    writable: true,
+    value: jest.fn(),
+  });
+}
 
 class ResizeObserverMock {
   observe = jest.fn();
@@ -66,7 +68,10 @@ Object.assign(global, {
 jest.mock("next/navigation", () => ({
   useRouter: () => nextNavigationRouterMock,
   usePathname: () => "/dashboard/admin",
-  useSearchParams: () => new URLSearchParams(window.location.search),
+  useSearchParams: () =>
+    new URLSearchParams(
+      typeof window === "undefined" ? "" : window.location.search,
+    ),
   notFound: jest.fn(),
   redirect: jest.fn(),
 }));
@@ -102,6 +107,10 @@ jest.mock("next/link", () => {
 
 beforeEach(() => {
   resetRouterMocks();
+  if (typeof document === "undefined") {
+    return;
+  }
+
   document.body.style.overflow = "";
   document.cookie.split(";").forEach((cookie) => {
     const [rawName] = cookie.split("=");

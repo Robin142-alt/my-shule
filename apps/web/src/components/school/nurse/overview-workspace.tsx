@@ -1,9 +1,7 @@
 "use client";
-import { useState } from "react";
 import { HeartPulse, Users, BedDouble, Pill, AlertTriangle } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { toast } from "sonner";
 
 type RecentVisit = {
   id: string;
@@ -16,18 +14,23 @@ type RecentVisit = {
 
 type NurseOverviewData = {
   metrics: {
-    visits_today: number;
-    sick_bay_occupied: number;
-    low_stock_items: number;
-    pending_parent_alerts: number;
+    todayVisits?: number;
+    waitingQueue?: number;
+    lowStockMeds?: number;
+    pending_parent_alerts?: number;
   };
-  recent_visits: RecentVisit[];
+  recentVisits?: RecentVisit[];
 };
 
 export function OverviewWorkspace() {
   const { data, isLoading } = useSchoolQuery<NurseOverviewData>('/admin-command/nurse/overview');
 
-  const visits = data?.recent_visits || [];
+  const metrics = data?.metrics ?? {};
+  const visits = data?.recentVisits || [];
+  const todayVisits = metrics.todayVisits ?? 0;
+  const sickBayOccupied = metrics.waitingQueue ?? 0;
+  const lowStockItems = metrics.lowStockMeds ?? 0;
+  const pendingParentAlerts = metrics.pending_parent_alerts ?? 0;
 
   const getStatusTone = (st: string): Tone => {
     if (st === "In Sick Bay") return "warning";
@@ -42,19 +45,19 @@ export function OverviewWorkspace() {
       <div className="grid gap-4 md:grid-cols-4 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><Users className="w-4 h-4" /> Visits Today</div>
-          <div className="mt-2 text-3xl font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.visits_today ?? 0}</div>
+          <div className="mt-2 text-3xl font-black text-[#071D49]">{isLoading ? "..." : todayVisits}</div>
         </div>
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-amber-700"><BedDouble className="w-4 h-4" /> Sick Bay Occupied</div>
-          <div className="mt-2 text-3xl font-black text-amber-700">{isLoading ? "..." : data?.metrics?.sick_bay_occupied ?? 0}</div>
+          <div className="mt-2 text-3xl font-black text-amber-700">{isLoading ? "..." : sickBayOccupied}</div>
         </div>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-rose-700"><Pill className="w-4 h-4" /> Low Stock Items</div>
-          <div className="mt-2 text-3xl font-black text-rose-700">{isLoading ? "..." : data?.metrics?.low_stock_items ?? 0}</div>
+          <div className="mt-2 text-3xl font-black text-rose-700">{isLoading ? "..." : lowStockItems}</div>
         </div>
         <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-blue-700"><AlertTriangle className="w-4 h-4" /> Pending Parent Alerts</div>
-          <div className="mt-2 text-3xl font-black text-blue-700">{isLoading ? "..." : data?.metrics?.pending_parent_alerts ?? 0}</div>
+          <div className="mt-2 text-3xl font-black text-blue-700">{isLoading ? "..." : pendingParentAlerts}</div>
         </div>
       </div>
 

@@ -63,6 +63,7 @@ const schoolNavMap: Record<SchoolExperienceRole | PortalViewer, ExperienceNavIte
     { id: "communication", label: "Communication", href: toSchoolPath("communication"), icon: MessageSquareText },
     { id: "approvals", label: "Approvals", href: toSchoolPath("approvals"), icon: ClipboardList },
     { id: "reports", label: "Reports", href: toSchoolPath("reports"), icon: FileSpreadsheet },
+    { id: "ai-insights", label: "AI Insights", href: toSchoolPath("ai-insights"), icon: Activity },
     { id: "settings", label: "Settings", href: toSchoolPath("settings"), icon: Settings },
     ...supportSidebarItems,
   ],
@@ -74,6 +75,8 @@ const schoolNavMap: Record<SchoolExperienceRole | PortalViewer, ExperienceNavIte
     { id: "discipline-coordination", label: "Discipline Coordination", href: toSchoolPath("discipline-coordination"), icon: LayoutGrid },
     { id: "student-welfare", label: "Student Welfare", href: toSchoolPath("student-welfare"), icon: LayoutGrid },
     { id: "approvals", label: "Approvals", href: toSchoolPath("approvals"), icon: ClipboardList },
+    { id: "cbt", label: "CBT Exams", href: toSchoolPath("cbt"), icon: GraduationCap },
+    { id: "lms", label: "LMS", href: toSchoolPath("lms"), icon: BookOpenCheck },
     { id: "communication", label: "Communication", href: toSchoolPath("communication"), icon: MessageSquareText },
     { id: "reports", label: "Reports", href: toSchoolPath("reports"), icon: FileSpreadsheet },
     ...supportSidebarItems,
@@ -88,6 +91,13 @@ const schoolNavMap: Record<SchoolExperienceRole | PortalViewer, ExperienceNavIte
     { id: "subjects", label: "Subjects", href: toSchoolPath("subjects"), icon: LayoutGrid },
     { id: "imports", label: "Imports", href: toSchoolPath("imports"), icon: LayoutGrid },
     { id: "data-quality", label: "Data Quality", href: toSchoolPath("data-quality"), icon: ShieldAlert },
+    { id: "transport", label: "Transport", href: toSchoolPath("transport"), icon: BusFront },
+    { id: "hostel", label: "Hostel", href: toSchoolPath("hostel"), icon: Building2 },
+    { id: "boarding", label: "Boarding", href: toSchoolPath("boarding"), icon: Building2 },
+    { id: "visitors", label: "Visitors", href: toSchoolPath("visitors"), icon: Users },
+    { id: "assets", label: "Assets", href: toSchoolPath("assets"), icon: Boxes },
+    { id: "procurement", label: "Procurement", href: toSchoolPath("procurement"), icon: Boxes },
+    { id: "iot", label: "IoT & Smart Campus", href: toSchoolPath("iot"), icon: Activity },
     { id: "reports", label: "Reports", href: toSchoolPath("reports"), icon: FileSpreadsheet },
     { id: "settings", label: "Settings", href: toSchoolPath("settings"), icon: Settings },
     ...supportSidebarItems,
@@ -159,7 +169,7 @@ const schoolNavMap: Record<SchoolExperienceRole | PortalViewer, ExperienceNavIte
     { id: "overview", label: "Overview", href: toSchoolPath("overview"), icon: LayoutGrid },
     { id: "fee-structures", label: "Fee Structures", href: toSchoolPath("fee-structures"), icon: CircleDollarSign },
     { id: "invoices", label: "Invoices", href: toSchoolPath("invoices"), icon: FileSpreadsheet },
-    { id: "payments", label: "Payments", href: toSchoolPath("payments"), icon: CircleDollarSign },
+    { id: "payments", label: "Fees / Payments", href: toSchoolPath("payments"), icon: CircleDollarSign },
     { id: "receipts", label: "Receipts", href: toSchoolPath("receipts"), icon: ClipboardList },
     { id: "m-pesa-reconciliation", label: "M-Pesa Reconciliation", href: toSchoolPath("m-pesa-reconciliation"), icon: Activity },
     { id: "arrears", label: "Arrears", href: toSchoolPath("arrears"), icon: ShieldAlert },
@@ -334,7 +344,28 @@ const schoolNavMap: Record<SchoolExperienceRole | PortalViewer, ExperienceNavIte
 
 schoolNavMap["grade-master"] = schoolNavMap["class-teacher"];
 schoolNavMap["bursar"] = schoolNavMap["accountant"];
-schoolNavMap["deputy-principal"] = schoolNavMap["principal"];
+
+const examsWorkspaceNavItem: ExperienceNavItem = {
+  id: "exams",
+  label: "Exams",
+  href: toSchoolPath("exams"),
+  icon: FileSpreadsheet,
+};
+
+for (const role of [
+  "principal",
+  "deputy-principal",
+  "dean-academics",
+  "exams-manager",
+  "hod",
+  "teacher",
+  "class-teacher",
+  "grade-master",
+] as const) {
+  if (!schoolNavMap[role].some((item) => item.id === "exams")) {
+    schoolNavMap[role] = [...schoolNavMap[role], examsWorkspaceNavItem];
+  }
+}
 
 const roleToDashboardRole: Record<SchoolExperienceRole, DashboardRole> = {
   principal: "admin",
@@ -535,7 +566,7 @@ function buildSchoolProfile(role: SchoolExperienceRole, schoolName: string): Exp
       contextLabel: schoolName,
     },
     bursar: {
-      name: "Bursar",
+      name: "Bursar Achieng",
       roleLabel: "Bursar",
       contextLabel: schoolName,
     },
@@ -752,7 +783,7 @@ import { toSchoolStudentPath } from "@/lib/routing/experience-routes";
 export function buildSchoolStudentHref(
   role: SchoolExperienceRole,
   studentId: string,
-  routeMode: "nested" | "public",
+  routeMode: "hosted" | "nested" | "public",
 ) {
   if (routeMode === "public") {
     return `/school/${role}/students/${studentId}`;

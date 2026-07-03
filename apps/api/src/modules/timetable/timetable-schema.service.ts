@@ -79,6 +79,39 @@ export class TimetableSchemaService implements OnModuleInit {
         created_at timestamptz NOT NULL DEFAULT NOW()
       );
 
+      DO $$
+      DECLARE
+        target_table text;
+        policy_record record;
+      BEGIN
+        FOREACH target_table IN ARRAY ARRAY[
+          'timetable_versions',
+          'timetable_slots',
+          'timetable_audit_logs'
+        ] LOOP
+          IF to_regclass(format('public.%I', target_table)) IS NOT NULL THEN
+            EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', target_table);
+            FOR policy_record IN
+              SELECT policyname
+              FROM pg_policies
+              WHERE schemaname = 'public'
+                AND tablename = target_table
+            LOOP
+              EXECUTE format('DROP POLICY IF EXISTS %I ON %I', policy_record.policyname, target_table);
+            END LOOP;
+            EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS tenant_id text', target_table);
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id TYPE text USING tenant_id::text', target_table);
+            EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS school_id text', target_table);
+            EXECUTE format(
+              'UPDATE %I SET tenant_id = COALESCE(NULLIF(tenant_id, ''''), school_id::text, ''global'') WHERE tenant_id IS NULL OR btrim(tenant_id) = ''''',
+              target_table
+            );
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET DEFAULT ''global''', target_table);
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET NOT NULL', target_table);
+          END IF;
+        END LOOP;
+      END $$;
+
       CREATE INDEX IF NOT EXISTS ix_timetable_slots_conflict_lookup
         ON timetable_slots (tenant_id, academic_year, term_name, day_of_week, starts_at, ends_at);
       CREATE INDEX IF NOT EXISTS ix_timetable_versions_tenant_term
@@ -94,20 +127,20 @@ export class TimetableSchemaService implements OnModuleInit {
       DROP POLICY IF EXISTS timetable_versions_rls_policy ON timetable_versions;
       CREATE POLICY timetable_versions_rls_policy ON timetable_versions
       FOR ALL
-      USING (tenant_id = current_setting('app.tenant_id', true))
-      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+      USING (tenant_id::text = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id::text = current_setting('app.tenant_id', true));
 
       DROP POLICY IF EXISTS timetable_slots_rls_policy ON timetable_slots;
       CREATE POLICY timetable_slots_rls_policy ON timetable_slots
       FOR ALL
-      USING (tenant_id = current_setting('app.tenant_id', true))
-      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+      USING (tenant_id::text = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id::text = current_setting('app.tenant_id', true));
 
       DROP POLICY IF EXISTS timetable_audit_logs_rls_policy ON timetable_audit_logs;
       CREATE POLICY timetable_audit_logs_rls_policy ON timetable_audit_logs
       FOR ALL
-      USING (tenant_id = current_setting('app.tenant_id', true))
-      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+      USING (tenant_id::text = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id::text = current_setting('app.tenant_id', true));
     `);
 
     this.logger.log('Timetable schema verified');

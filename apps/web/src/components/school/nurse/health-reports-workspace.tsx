@@ -6,6 +6,7 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { generateHealthReport } from "./api-client";
+import { downloadCsvFile } from "@/lib/dashboard/export";
 
 type ReportRecord = {
   id: string;
@@ -23,13 +24,68 @@ type ReportsData = {
   reports: ReportRecord[];
 };
 
+type ReportSnapshotRecord = {
+  id?: string;
+  snapshotId?: string;
+  reportName?: string;
+  title?: string;
+  type?: string;
+  format?: string;
+  module?: string;
+  status?: string;
+  generatedDate?: string;
+  generated_at?: string;
+  artifact?: {
+    manifest?: {
+      generatedAt?: string;
+      sections?: Record<string, unknown>;
+    };
+  };
+};
+
+function normalizeReportsData(value: ReportsData | ReportSnapshotRecord[] | undefined): ReportsData {
+  if (!value) {
+    return { metrics: { total_reports: 0, generated_this_term: 0 }, reports: [] };
+  }
+
+  if (!Array.isArray(value)) {
+    return value;
+  }
+
+  const reports = value.map((snapshot) => {
+    const sections = snapshot.artifact?.manifest?.sections ?? {};
+    const visitsSection = sections.visits as { metrics?: { total_visits?: number } } | undefined;
+    const dispensingSection = sections.dispensingLog as { metrics?: { total_this_term?: number } } | undefined;
+
+    return {
+      id: String(snapshot.snapshotId ?? snapshot.id ?? ""),
+      title: String(snapshot.reportName ?? snapshot.title ?? "Health operations report"),
+      report_type: String(snapshot.type ?? snapshot.format ?? "report").toLowerCase(),
+      period: String(snapshot.module ?? "nurse-command"),
+      generated_at: String(snapshot.generatedDate ?? snapshot.generated_at ?? snapshot.artifact?.manifest?.generatedAt ?? ""),
+      status: String(snapshot.status ?? "Ready"),
+      total_visits: Number(visitsSection?.metrics?.total_visits ?? 0),
+      total_dispensed: Number(dispensingSection?.metrics?.total_this_term ?? 0),
+    };
+  });
+
+  return {
+    metrics: {
+      total_reports: reports.length,
+      generated_this_term: reports.length,
+    },
+    reports,
+  };
+}
+
 export function HealthReportsWorkspace() {
   const queryClient = useQueryClient();
-  const { data, isLoading } = useSchoolQuery<ReportsData>('/admin-command/nurse/health-reports');
+  const { data, isLoading } = useSchoolQuery<ReportsData | ReportSnapshotRecord[]>('/admin-command/nurse/health-reports');
   const [isGenerating, setIsGenerating] = useState(false);
   const [reportType, setReportType] = useState("weekly");
 
-  const reports = data?.reports || [];
+  const reportsData = normalizeReportsData(data);
+  const reports = reportsData.reports;
 
   const getStatusTone = (st: string): Tone => {
     if (st === "Ready") return "success";
@@ -43,9 +99,27 @@ export function HealthReportsWorkspace() {
     try {
       await generateHealthReport({ report_type: reportType });
       queryClient.invalidateQueries({ queryKey: ["school", "session", "/admin-command/nurse/health-reports"] });
-      toast.success(`${reportType.charAt(0).toUpperCase() + reportType.slice(1)} health report generated.`);
+      toast.success(`${reportType.charAt(0).toUpperCase() + reportType.slice(1)} health report request submitted. Refreshing report status.`);
     } catch (e: any) { toast.error(e.message || "Failed to generate report."); }
     finally { setIsGenerating(false); }
+  };
+
+  const downloadHealthReport = (report: ReportRecord) => {
+    downloadCsvFile({
+      filename: `health-report-${report.id}.csv`,
+      headers: ["Report ID", "Title", "Type", "Period", "Visits", "Dispensed", "Generated", "Status"],
+      rows: [[
+        report.id,
+        report.title,
+        report.report_type,
+        report.period,
+        String(report.total_visits),
+        String(report.total_dispensed),
+        report.generated_at,
+        report.status,
+      ]],
+    });
+    toast.success(`${report.title} downloaded as CSV.`);
   };
 
   return (
@@ -66,11 +140,11 @@ export function HealthReportsWorkspace() {
       <div className="grid gap-4 md:grid-cols-2 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="text-sm font-semibold text-[#64748B]">Total Reports</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.total_reports ?? 0}</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : reportsData.metrics.total_reports}</div>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="text-sm font-semibold text-[#64748B]">Generated This Term</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.generated_this_term ?? 0}</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : reportsData.metrics.generated_this_term}</div>
         </div>
       </div>
 
@@ -105,7 +179,7 @@ export function HealthReportsWorkspace() {
                   <td className="px-4 py-3"><StatusChip label={r.status} tone={getStatusTone(r.status)} /></td>
                   <td className="px-4 py-3 text-right">
                     {r.status === "Ready" && (
-                      <button className="inline-flex items-center gap-1 text-blue-600 hover:underline font-semibold text-xs">
+                      <button onClick={() => downloadHealthReport(r)} className="inline-flex items-center gap-1 text-blue-600 hover:underline font-semibold text-xs">
                         <Download className="w-3 h-3" /> Download
                       </button>
                     )}

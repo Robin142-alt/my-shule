@@ -1,17 +1,19 @@
 import { useState } from "react";
 import { ShieldAlert } from "lucide-react";
 import { Panel, StatusChip } from "../shared";
-import { useClassTeacherDiscipline, useReportDisciplineIncident } from "@/lib/data/class-teacher-hooks";
+import { useClassTeacherDiscipline, useClassTeacherRegister, useReportDisciplineIncident, useResolvedClassTeacherStreamId } from "@/lib/data/class-teacher-hooks";
 
 export function DisciplineWorkspace() {
-  const streamId = "stream_123";
+  const { streamId } = useResolvedClassTeacherStreamId();
   const { data, isLoading, error } = useClassTeacherDiscipline(streamId);
+  const { data: registerData, isLoading: isRegisterLoading } = useClassTeacherRegister(streamId);
   const reportMutation = useReportDisciplineIncident();
   
   const [showForm, setShowForm] = useState(false);
-  const [learner, setLearner] = useState("");
+  const [selectedLearnerId, setSelectedLearnerId] = useState("");
   const [issue, setIssue] = useState("");
   const [severity, setSeverity] = useState("low");
+  const learners = Array.isArray(registerData) ? registerData : [];
 
   if (isLoading) {
     return (
@@ -30,17 +32,19 @@ export function DisciplineWorkspace() {
   }
 
   const handleReport = () => {
+    if (!selectedLearnerId || !issue.trim()) return;
+
     reportMutation.mutate({
       streamId,
       payload: {
-        studentId: learner,
-        description: issue,
+        studentId: selectedLearnerId,
+        description: issue.trim(),
         severity
       }
     }, {
       onSuccess: () => {
         setShowForm(false);
-        setLearner("");
+        setSelectedLearnerId("");
         setIssue("");
         setSeverity("low");
       }
@@ -61,7 +65,17 @@ export function DisciplineWorkspace() {
         <div className="mb-6 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <h3 className="mb-4 font-bold text-[#071D49]">New Discipline Incident</h3>
           <div className="flex flex-col gap-4">
-            <input className="rounded border border-[#D8E0EC] p-2 text-sm" placeholder="Learner Name or ID" value={learner} onChange={e => setLearner(e.target.value)} />
+            <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-wide text-[#4B5563]">
+              Learner
+              <select className="rounded border border-[#D8E0EC] bg-white p-2 text-sm normal-case text-[#071D49]" value={selectedLearnerId} onChange={e => setSelectedLearnerId(e.target.value)}>
+                <option value="">{isRegisterLoading ? "Loading learners..." : "Select learner"}</option>
+                {learners.map((learner: any) => (
+                  <option key={learner.id} value={String(learner.id)}>
+                    {learner.name || learner.admissionNo || learner.id}
+                  </option>
+                ))}
+              </select>
+            </label>
             <textarea className="rounded border border-[#D8E0EC] p-2 text-sm" placeholder="Incident description" value={issue} onChange={e => setIssue(e.target.value)} />
             <select className="rounded border border-[#D8E0EC] p-2 text-sm bg-white" value={severity} onChange={e => setSeverity(e.target.value)}>
               <option value="low">Low</option>
@@ -69,7 +83,7 @@ export function DisciplineWorkspace() {
               <option value="high">High</option>
               <option value="critical">Critical</option>
             </select>
-            <button onClick={handleReport} disabled={reportMutation.isPending || !issue} className="self-end rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+            <button onClick={handleReport} disabled={reportMutation.isPending || !selectedLearnerId || !issue.trim()} className="self-end rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
               {reportMutation.isPending ? "Submitting..." : "Submit Report"}
             </button>
           </div>

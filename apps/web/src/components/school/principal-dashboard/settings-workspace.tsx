@@ -3,6 +3,9 @@
 import { Card } from "@/components/ui/card";
 import { AlertCircle, Bell, Lock, Paintbrush, Monitor } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { useState } from "react";
+import { toast } from "sonner";
 
 type PrincipalSettingsData = {
   status: "active" | "degraded" | "setup_required";
@@ -24,6 +27,22 @@ type PrincipalSettingsData = {
 
 export function PrincipalSettingsWorkspace() {
   const { data, isLoading, error } = useSchoolQuery<PrincipalSettingsData>('/admin-command/principal/settings');
+  const [actionBusy, setActionBusy] = useState<string | null>(null);
+
+  const submitSettingsAction = async (action: string, title: string, message: string) => {
+    setActionBusy(action);
+    try {
+      await requestDashboardApi("/admin-command/principal/settings/action", {
+        method: "POST",
+        body: { action, title, message, source_dashboard: "principal-settings" },
+      });
+      toast.success(title, { description: message });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Settings action could not be submitted.");
+    } finally {
+      setActionBusy(null);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -83,8 +102,8 @@ export function PrincipalSettingsWorkspace() {
                 <p className="font-bold text-white">Theme Preference</p>
                 <p className="text-xs text-white/60">Current: {data.dashboard.theme}</p>
               </div>
-              <button className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded text-sm transition">
-                Change
+              <button type="button" disabled={actionBusy === "theme_preference"} onClick={() => submitSettingsAction("theme_preference", "Theme change requested", `Principal requested a dashboard theme change from ${data.dashboard.theme}.`)} className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded text-sm transition disabled:opacity-50">
+                {actionBusy === "theme_preference" ? "Saving..." : "Change"}
               </button>
             </div>
           </div>
@@ -133,8 +152,8 @@ export function PrincipalSettingsWorkspace() {
                 <p className="font-bold text-white">Two-Factor Authentication</p>
                 <p className="text-xs text-white/60">Status: {data.security.twoFactorAuth ? "Enabled" : "Disabled"}</p>
               </div>
-              <button className={`px-4 py-2 rounded text-sm font-bold transition ${data.security.twoFactorAuth ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30' : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'}`}>
-                {data.security.twoFactorAuth ? "Disable" : "Enable"}
+              <button type="button" disabled={actionBusy === "two_factor"} onClick={() => submitSettingsAction("two_factor", "Two-factor authentication change requested", `Principal requested to ${data.security.twoFactorAuth ? "disable" : "enable"} two-factor authentication.`)} className={`px-4 py-2 rounded text-sm font-bold transition disabled:opacity-50 ${data.security.twoFactorAuth ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30' : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'}`}>
+                {actionBusy === "two_factor" ? "Saving..." : data.security.twoFactorAuth ? "Disable" : "Enable"}
               </button>
             </div>
 
@@ -143,8 +162,8 @@ export function PrincipalSettingsWorkspace() {
                 <p className="font-bold text-white">Password</p>
                 <p className="text-xs text-white/60">Last changed: {data.security.lastPasswordChange}</p>
               </div>
-              <button className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded text-sm font-bold transition">
-                Update
+              <button type="button" disabled={actionBusy === "password_update"} onClick={() => submitSettingsAction("password_update", "Password update requested", "Principal requested a secure password update workflow.")} className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded text-sm font-bold transition disabled:opacity-50">
+                {actionBusy === "password_update" ? "Saving..." : "Update"}
               </button>
             </div>
           </div>

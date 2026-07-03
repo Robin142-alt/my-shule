@@ -471,7 +471,7 @@ const implementation1370RoleEnrichment: Record<DocxRoleId, RolePracticalityEnric
     queueActions: ["Assign Owner", "Emergency Broadcast", "Open System Health"],
   },
   "deputy-principal": {
-    firstViewport: ["overview", "daily operations", "attendance", "discipline", "staff duty", "timetable"],
+    firstViewport: ["overview", "daily operations", "attendance", "discipline", "staff duty", "teacher movement", "timetable"],
     sidebar: [
       "Overview",
       "Daily Operations",
@@ -988,7 +988,7 @@ const roleBlueprints: OperationalRoleBlueprint[] = [
   roleBlueprint({
     id: "deputy-principal",
     identity: "Daily school operations tracker for attendance, staff coordination, timetable conflicts, incidents, and duty roster gaps.",
-    firstViewport: ["missing attendance", "absent teachers", "timetable conflicts", "unresolved incidents", "student movement issues", "duty roster gaps"],
+    firstViewport: ["missing attendance", "absent teachers", "teacher movement", "timetable conflicts", "unresolved incidents", "missing student", "student movement issues", "duty roster gaps"],
     sidebar: ["Daily Operations", "Attendance Escalations", "Staff Coordination", "Timetable Conflicts", "Duty Roster", "Incident Routing", "Users & Invitations"],
     primaryActions: ["Assign", "Reassign", "Resolve", "Escalate", "Add Note", "Notify Staff"],
     tables: [table("Daily Operations Table", ["Issue Type", "Affected Class", "Assigned Person", "Priority", "Status", "Action Required"], ["Assign", "Reassign", "Resolve", "Escalate"], ["Assign selected", "Export"])],
@@ -996,7 +996,7 @@ const roleBlueprints: OperationalRoleBlueprint[] = [
     workflows: ["Issue reported -> Assigned -> Resolved -> Archived", "Conflict detected -> Resolved -> Notified -> Closed"],
     communicationTriggers: ["Notify Teacher", "Notify Class Teacher", "Notify Class"],
     printOutputs: ["Daily operations report", "Duty roster", "Coverage report"],
-    dependencies: ["attendance", "timetable", "discipline", "staff", "communication"],
+    dependencies: ["attendance", "timetable", "discipline", "staff", "security", "communication"],
   }),
   roleBlueprint({
     id: "secretary",
@@ -1349,27 +1349,89 @@ export const DOCX_ADDED_MODULE_IDS: DocxAddedModuleId[] = [
   "universal-approvals",
 ];
 
-const addedModuleContracts: DocxAddedModuleContract[] = generatedWorkspaceDefinitions;
+const docxAddedModuleTitles: Record<string, string> = {
+  "school-admin": "School Admin",
+  "hr-payroll": "HR Payroll",
+  "timetable-builder": "Timetable Builder",
+  "communication-center": "Communication Center",
+  procurement: "Procurement",
+  "school-calendar": "School Calendar",
+  "canteen-meals": "Canteen Meals",
+  "co-curricular": "Co-curricular",
+  "data-security": "Data Security",
+  "setup-wizard": "Setup Wizard",
+  "ict-assets": "ICT Assets",
+  "document-printing": "Document Printing",
+  "reports-analytics": "Reports Analytics",
+  "universal-approvals": "Universal Approvals",
+};
+
+function titleizeModuleId(value: string) {
+  return value
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function buildDocxAddedModuleContracts(): DocxAddedModuleContract[] {
+  return DOCX_ADDED_MODULE_IDS.map((moduleId) => {
+    const title = docxAddedModuleTitles[moduleId] ?? titleizeModuleId(moduleId);
+
+    return moduleContract({
+      id: moduleId,
+      title,
+      uniqueSidebar: [
+        `${title} Overview`,
+        `${title} Queue`,
+        `${title} Records`,
+        `${title} Forms`,
+        `${title} Reports`,
+        `${title} Settings`,
+      ],
+      urgentActionStrip: ["Create Record", "Review Queue", "Submit Approval", "Send Notification", "Print Report"],
+      mainTable: table(
+        `${title} Operating Table`,
+        ["Record", "Owner", "School", "Status", "Next Action", "Updated At"],
+        ["Open", "Edit", "Approve", "Print"],
+        ["Export selected", "Submit selected"],
+      ),
+      forms: [
+        form(`${title} Form`, ["Record name", "Owner", "School", "Due date", "Notes"], ["Save", "Submit for Approval", "Print"]),
+      ],
+      rightDetailsDrawer: ["record detail", "approval history", "SMS delivery", "audit trail"],
+      approvalWorkflow: "Draft -> Submitted -> Approved",
+      smsTriggers: ["Owner notification", "Approval reminder"],
+      printOutputs: [`${title} PDF`, `${title} CSV`],
+      permissionChecks: ["tenant", "role", "capability"],
+      sampleData: ["No active records"],
+    });
+  });
+}
+
+const docxAddedModuleContracts: DocxAddedModuleContract[] = buildDocxAddedModuleContracts();
+const allGeneratedWorkspaceContracts: DocxAddedModuleContract[] = generatedWorkspaceDefinitions;
+
 export function getDocxAddedModuleContractByWorkspace(workspaceName: string) {
   // First, check by title or exact match
-  let contract = addedModuleContracts.find((c) => c.title.toLowerCase() === workspaceName.toLowerCase());
+  let contract = allGeneratedWorkspaceContracts.find((c) => c.title.toLowerCase() === workspaceName.toLowerCase());
   if (contract) return contract;
 
   // Then check by unique sidebar matching
-  contract = addedModuleContracts.find((c) => 
+  contract = allGeneratedWorkspaceContracts.find((c) => 
     c.uniqueSidebar.some(s => s.toLowerCase() === workspaceName.toLowerCase())
   );
   if (contract) return contract;
 
   // Then check for partial matches in title
-  contract = addedModuleContracts.find((c) => 
+  contract = allGeneratedWorkspaceContracts.find((c) => 
     c.title.toLowerCase().includes(workspaceName.toLowerCase()) || 
     workspaceName.toLowerCase().includes(c.title.toLowerCase())
   );
   if (contract) return contract;
 
   // Fallback to the first one as a generic template
-  return addedModuleContracts[0];
+  return docxAddedModuleContracts[0] ?? allGeneratedWorkspaceContracts[0];
 }
 
 export function generateExtremeErpBlueprintFromContract(workspaceName: string, roleFocus: string): ExtremeErpBlueprint | null {
@@ -1420,7 +1482,10 @@ export function generateExtremeErpBlueprintFromContract(workspaceName: string, r
 
 export function getOperationalRoleBlueprint(roleId: string) { return roleBlueprints.find((blueprint) => blueprint.id === roleId); }
 
-export function getDocxAddedModuleContract(moduleId: string) { return addedModuleContracts.find((contract) => contract.id === moduleId); }
+export function getDocxAddedModuleContract(moduleId: string) {
+  return docxAddedModuleContracts.find((contract) => contract.id === moduleId)
+    ?? allGeneratedWorkspaceContracts.find((contract) => contract.id === moduleId);
+}
 
 export const MYSHULE_OPERATIONAL_ROLE_BLUEPRINTS = roleBlueprints;
-export const DOCX_ADDED_MODULE_CONTRACTS = addedModuleContracts;
+export const DOCX_ADDED_MODULE_CONTRACTS = docxAddedModuleContracts;

@@ -155,3 +155,28 @@ export function readExperienceSessionCookie(
     cookieStore.get(getExperienceSessionCookieName(audience))?.value ?? null,
   );
 }
+
+export function resolveSchoolTenantSlug(input: {
+  requestedTenantSlug?: string | null;
+  tenantCookie?: string | null;
+  sessionTenantSlug?: string | null;
+}) {
+  const requestedTenantSlug = normalizeTenantSlug(input.requestedTenantSlug);
+  const tenantCookie = normalizeTenantSlug(input.tenantCookie);
+  const sessionTenantSlug = normalizeTenantSlug(input.sessionTenantSlug);
+  const tenantSlug = sessionTenantSlug ?? tenantCookie ?? requestedTenantSlug;
+  const tenantMismatch =
+    Boolean(sessionTenantSlug && tenantCookie && sessionTenantSlug !== tenantCookie)
+    || Boolean(sessionTenantSlug && requestedTenantSlug && sessionTenantSlug !== requestedTenantSlug)
+    || Boolean(!sessionTenantSlug && tenantCookie && requestedTenantSlug && tenantCookie !== requestedTenantSlug);
+
+  return {
+    tenantSlug,
+    tenantMismatch,
+  };
+}
+
+function normalizeTenantSlug(value?: string | null) {
+  const normalized = value?.trim();
+  return normalized && normalized.length > 0 ? normalized : null;
+}

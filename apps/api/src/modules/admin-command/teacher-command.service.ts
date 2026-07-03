@@ -1,12 +1,14 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
+import { AdminCommandOperationsService } from './admin-command-operations.service';
 
 @Injectable()
 export class TeacherCommandService {
   constructor(
     private readonly requestContext: RequestContextService,
     private readonly prisma: PrismaService,
+    private readonly operations: AdminCommandOperationsService,
   ) {}
 
   private requireTenantId(): string {
@@ -168,6 +170,49 @@ export class TeacherCommandService {
       [tenantId]
     );
     return res.rows;
+  }
+
+  async sendParentMessage(dto: any = {}) {
+    const tenantId = this.requireTenantId();
+    const userId = this.requestContext.getStore()?.user_id;
+    const audience = this.operations.requiredText(dto?.audience, 'Audience');
+    const message = this.operations.requiredText(dto?.message, 'Message');
+    const recipient = String(dto?.recipient ?? '').trim();
+    const subject = String(dto?.subject ?? 'Teacher parent communication').trim();
+    const event = await this.operations.recordWorkflowAction({
+      tenantId,
+      actorUserId: userId,
+      sourceRole: 'teacher',
+      targetRoles: ['parent', 'class_teacher', 'secretary', 'principal'],
+      eventType: 'teacher.parent_message_sent',
+      entityType: 'parent_message',
+      entityId: recipient || null,
+      title: subject,
+      message,
+      priority: audience === 'class_parents' ? 'normal' : 'low',
+      payload: {
+        audience,
+        recipient,
+        source_dashboard: 'teacher-parent-communication',
+      },
+    });
+
+    await this.executeSql(
+      `
+        INSERT INTO parent_messages (tenant_id, sender_user_id, recipient, audience, message, status, payload)
+        VALUES ($1, $2::uuid, $3, $4, $5, 'queued', $6::jsonb)
+      `,
+      [
+        tenantId,
+        this.operations.uuidOrNull(userId),
+        recipient || null,
+        audience,
+        message,
+        JSON.stringify({ subject, source_dashboard: 'teacher-parent-communication' }),
+      ],
+    );
+
+    return { success: true, message: 'Parent message queued for delivery', event };
   }
 
   async getNotifications() {

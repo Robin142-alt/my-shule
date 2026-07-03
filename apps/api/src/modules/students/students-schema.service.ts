@@ -41,6 +41,35 @@ export class StudentsSchemaService implements OnModuleInit {
     await this.prisma.runSchemaBootstrap(`
       CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'StudentStatus') THEN
+          CREATE TYPE "StudentStatus" AS ENUM (
+            'APPLICANT',
+            'ACCEPTED',
+            'ENROLLED',
+            'ACTIVE',
+            'INACTIVE',
+            'SUSPENDED',
+            'ON_LEAVE',
+            'TRANSFERRED_OUT',
+            'WITHDRAWN',
+            'GRADUATED',
+            'ALUMNI',
+            'ARCHIVED'
+          );
+        ELSE
+          ALTER TYPE "StudentStatus" ADD VALUE IF NOT EXISTS 'INACTIVE';
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'BoardingStatus') THEN
+          CREATE TYPE "BoardingStatus" AS ENUM (
+            'DAY_SCHOLAR',
+            'BOARDER'
+          );
+        END IF;
+      END $$;
+
       CREATE OR REPLACE FUNCTION set_updated_at()
       RETURNS trigger AS $$
       BEGIN
@@ -49,28 +78,55 @@ export class StudentsSchemaService implements OnModuleInit {
       END;
       $$ LANGUAGE plpgsql;
 
+      CREATE OR REPLACE FUNCTION sync_student_tenant_columns()
+      RETURNS trigger AS $$
+      BEGIN
+        NEW.tenant_id = COALESCE(NULLIF(NEW.tenant_id, ''), NULLIF(NEW.school_id, ''));
+        NEW.school_id = COALESCE(NULLIF(NEW.school_id, ''), NULLIF(NEW.tenant_id, ''));
+        NEW.student_status = COALESCE(NEW.student_status, upper(COALESCE(NULLIF(NEW.status, ''), 'active'))::"StudentStatus");
+        NEW.status = lower(COALESCE(NULLIF(NEW.status, ''), NEW.student_status::text, 'active'));
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+
       CREATE TABLE IF NOT EXISTS students (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
+        school_id text,
         admission_number text NOT NULL,
+        upi_number text,
+        nemis_number text,
         first_name text NOT NULL,
         last_name text NOT NULL,
         middle_name text,
         status text NOT NULL DEFAULT 'active',
-        date_of_birth date,
-        gender text,
+        student_status "StudentStatus" NOT NULL DEFAULT 'ACTIVE',
+        date_of_birth date NOT NULL DEFAULT CURRENT_DATE,
+        gender text NOT NULL DEFAULT 'undisclosed',
+        photo_url text,
+        birth_certificate_number text,
+        nationality text NOT NULL DEFAULT 'Kenyan',
+        religion text,
+        admission_date date NOT NULL DEFAULT CURRENT_DATE,
+        current_class_id text,
+        current_stream_id text,
+        boarding_status "BoardingStatus" NOT NULL DEFAULT 'DAY_SCHOLAR',
+        medical_notes_summary text,
         primary_guardian_name text,
         primary_guardian_phone text,
         metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
         created_by_user_id uuid,
+        updated_by_user_id uuid,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW(),
+        deleted_at timestamptz,
         CONSTRAINT ck_students_admission_number_not_blank CHECK (btrim(admission_number) <> ''),
         CONSTRAINT ck_students_first_name_not_blank CHECK (btrim(first_name) <> ''),
         CONSTRAINT ck_students_last_name_not_blank CHECK (btrim(last_name) <> ''),
-        CONSTRAINT ck_students_status CHECK (status IN ('active', 'inactive', 'graduated', 'transferred')),
+        CONSTRAINT ck_students_status CHECK (status IN ('applicant', 'accepted', 'enrolled', 'active', 'inactive', 'suspended', 'on_leave', 'transferred', 'transferred_out', 'withdrawn', 'graduated', 'alumni', 'archived')),
         CONSTRAINT ck_students_gender CHECK (gender IS NULL OR gender IN ('male', 'female', 'other', 'undisclosed')),
         CONSTRAINT uq_students_tenant_id_id UNIQUE (tenant_id, id),
+        CONSTRAINT uq_students_school_id_id UNIQUE (school_id, id),
         CONSTRAINT uq_students_tenant_admission_number UNIQUE (tenant_id, admission_number),
         CONSTRAINT fk_students_created_by_user
           FOREIGN KEY (created_by_user_id)
@@ -135,10 +191,119 @@ export class StudentsSchemaService implements OnModuleInit {
           ON DELETE CASCADE
       );
 
+      DO $$
+      DECLARE
+        target_table text;
+        existing_policy text;
+      BEGIN
+        FOREACH target_table IN ARRAY ARRAY['students', 'student_guardians', 'attendance_records']
+        LOOP
+          IF to_regclass('public.' || target_table) IS NOT NULL THEN
+            EXECUTE format('ALTER TABLE %I NO FORCE ROW LEVEL SECURITY', target_table);
+            EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', target_table);
+
+            FOR existing_policy IN
+              SELECT policyname
+              FROM pg_policies
+              WHERE schemaname = 'public'
+                AND tablename = target_table
+            LOOP
+              EXECUTE format('DROP POLICY IF EXISTS %I ON %I', existing_policy, target_table);
+            END LOOP;
+
+            IF NOT EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = target_table
+                AND column_name = 'tenant_id'
+            ) THEN
+              EXECUTE format('ALTER TABLE %I ADD COLUMN tenant_id text', target_table);
+            END IF;
+
+            IF EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = target_table
+                AND column_name = 'tenant_id'
+                AND data_type <> 'text'
+            ) THEN
+              EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id TYPE text USING tenant_id::text', target_table);
+            END IF;
+
+            IF EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = target_table
+                AND column_name = 'school_id'
+            ) THEN
+              EXECUTE format('UPDATE %I SET tenant_id = school_id WHERE tenant_id IS NULL AND school_id IS NOT NULL', target_table);
+            END IF;
+
+            EXECUTE format(
+              'UPDATE %I SET tenant_id = %L WHERE tenant_id IS NULL OR btrim(tenant_id) = %L',
+              target_table,
+              'legacy-unassigned',
+              ''
+            );
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET NOT NULL', target_table);
+          END IF;
+        END LOOP;
+      END $$;
+
+      ALTER TABLE students ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+      UPDATE students
+      SET status = lower(COALESCE(NULLIF(status, ''), student_status::text, 'active'))
+      WHERE status IS NULL OR btrim(status) = '';
+
+      ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS attendance_date date;
+      ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS notes text;
+      ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS source_device_id text;
+      ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS last_modified_at timestamptz NOT NULL DEFAULT NOW();
+      ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS last_operation_id uuid;
+      ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS sync_version bigint;
+      UPDATE attendance_records
+      SET attendance_date = COALESCE(attendance_date, created_at::date, CURRENT_DATE),
+          metadata = COALESCE(metadata, '{}'::jsonb),
+          last_modified_at = COALESCE(last_modified_at, updated_at, created_at, NOW())
+      WHERE attendance_date IS NULL
+         OR metadata IS NULL
+         OR last_modified_at IS NULL;
+      ALTER TABLE attendance_records ALTER COLUMN attendance_date SET DEFAULT CURRENT_DATE;
+      ALTER TABLE attendance_records ALTER COLUMN attendance_date SET NOT NULL;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'uq_students_tenant_id_id'
+        ) THEN
+          ALTER TABLE students
+            ADD CONSTRAINT uq_students_tenant_id_id UNIQUE (tenant_id, id);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'uq_students_school_id_id'
+        ) THEN
+          ALTER TABLE students
+            ADD CONSTRAINT uq_students_school_id_id UNIQUE (school_id, id);
+        END IF;
+      END $$;
+
       CREATE INDEX IF NOT EXISTS ix_students_status_created_at
         ON students (tenant_id, status, created_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_students_school_status_created_at
+        ON students (school_id, student_status, created_at DESC);
       CREATE INDEX IF NOT EXISTS ix_students_name_lookup
         ON students (tenant_id, last_name, first_name, admission_number);
+      CREATE INDEX IF NOT EXISTS ix_students_school_name_lookup
+        ON students (school_id, last_name, first_name, admission_number);
       CREATE INDEX IF NOT EXISTS ix_attendance_records_student_date
         ON attendance_records (tenant_id, student_id, attendance_date DESC);
       CREATE INDEX IF NOT EXISTS ix_attendance_records_sync_version
@@ -157,7 +322,28 @@ export class StudentsSchemaService implements OnModuleInit {
             COALESCE(primary_guardian_phone, '')
           )
         );
-      ALTER TABLE students ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+      ALTER TABLE students ADD COLUMN IF NOT EXISTS school_id text;
+      ALTER TABLE students ADD COLUMN IF NOT EXISTS upi_number text;
+      ALTER TABLE students ADD COLUMN IF NOT EXISTS nemis_number text;
+      ALTER TABLE students ADD COLUMN IF NOT EXISTS student_status "StudentStatus" NOT NULL DEFAULT 'ACTIVE';
+      ALTER TABLE students ADD COLUMN IF NOT EXISTS photo_url text;
+      ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_certificate_number text;
+      ALTER TABLE students ADD COLUMN IF NOT EXISTS nationality text NOT NULL DEFAULT 'Kenyan';
+      ALTER TABLE students ADD COLUMN IF NOT EXISTS religion text;
+      ALTER TABLE students ADD COLUMN IF NOT EXISTS admission_date date NOT NULL DEFAULT CURRENT_DATE;
+      ALTER TABLE students ADD COLUMN IF NOT EXISTS current_class_id text;
+      ALTER TABLE students ADD COLUMN IF NOT EXISTS current_stream_id text;
+      ALTER TABLE students ADD COLUMN IF NOT EXISTS boarding_status "BoardingStatus" NOT NULL DEFAULT 'DAY_SCHOLAR';
+      ALTER TABLE students ADD COLUMN IF NOT EXISTS medical_notes_summary text;
+      ALTER TABLE students ADD COLUMN IF NOT EXISTS updated_by_user_id uuid;
+      ALTER TABLE students ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+      UPDATE students
+      SET
+        school_id = COALESCE(NULLIF(school_id, ''), tenant_id),
+        tenant_id = COALESCE(NULLIF(tenant_id, ''), school_id),
+        student_status = COALESCE(student_status, upper(status)::"StudentStatus"),
+        status = lower(COALESCE(NULLIF(status, ''), student_status::text, 'active'));
+      ALTER TABLE students ALTER COLUMN school_id SET NOT NULL;
       ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS user_id uuid;
       ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS invitation_id uuid;
       ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS display_name text;
@@ -210,6 +396,12 @@ export class StudentsSchemaService implements OnModuleInit {
       BEFORE UPDATE ON students
       FOR EACH ROW
       EXECUTE FUNCTION set_updated_at();
+
+      DROP TRIGGER IF EXISTS trg_students_sync_tenant_columns ON students;
+      CREATE TRIGGER trg_students_sync_tenant_columns
+      BEFORE INSERT OR UPDATE ON students
+      FOR EACH ROW
+      EXECUTE FUNCTION sync_student_tenant_columns();
 
       DROP TRIGGER IF EXISTS trg_student_guardians_set_updated_at ON student_guardians;
       CREATE TRIGGER trg_student_guardians_set_updated_at

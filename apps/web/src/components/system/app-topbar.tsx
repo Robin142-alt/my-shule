@@ -364,6 +364,13 @@ export function AppTopbar({
       );
     });
   };
+  const searchHrefForItem = (item: ExperienceNavItem) => {
+    if (variant === "school" && /fees\s*\/\s*payments/i.test(item.label)) {
+      return "/finance";
+    }
+
+    return item.href;
+  };
 
   return (
     <header
@@ -412,7 +419,9 @@ export function AppTopbar({
                   window.setTimeout(() => setShowSearchPanel(false), 120);
                 }}
                 onKeyDown={(event) => {
-                  const firstSearchHref = filteredSearchItems[0]?.href ?? filteredSchoolEntities[0]?.actions[0]?.href;
+                  const firstSearchHref = filteredSearchItems[0]
+                    ? searchHrefForItem(filteredSearchItems[0])
+                    : filteredSchoolEntities[0]?.actions[0]?.href;
                   if (event.key === "Enter" && firstSearchHref) {
                     event.preventDefault();
                     runNavigation(firstSearchHref);
@@ -465,7 +474,7 @@ export function AppTopbar({
                         key={item.id}
                         type="button"
                         onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => runNavigation(item.href)}
+                        onClick={() => runNavigation(searchHrefForItem(item))}
                         className="flex w-full items-center justify-between gap-3 rounded-[var(--radius-sm)] px-3 py-2 text-left transition duration-150 hover:bg-surface-strong"
                       >
                         <div className="min-w-0">

@@ -1,9 +1,9 @@
 "use client";
 import { useState } from "react";
 import { ShieldAlert, Search, PlusCircle } from "lucide-react";
-import { Panel, StatusChip, Tone } from "./shared";
+import { Panel, StatusChip, Tone, openDeputyRecord } from "./shared";
 import { Modal } from "@/components/ui/modal";
-import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createDisciplineIncident, escalateDisciplineIncident } from "./api-client";
@@ -29,7 +29,7 @@ export function DeputyDisciplineWorkspace() {
   const [isSubmittingCreate, setIsSubmittingCreate] = useState(false);
 
   const queryClient = useQueryClient();
-  const { data: incidents = [], isLoading } = useSchoolQuery<DisciplineIncident[]>('/admin-command/deputy/discipline');
+  const { data: incidents = [] } = useSchoolQuery<DisciplineIncident[]>('/admin-command/deputy/discipline');
   
   const handleCreate = async () => {
     setIsSubmittingCreate(true);
@@ -43,8 +43,8 @@ export function DeputyDisciplineWorkspace() {
       setFormData({ studentName: "", incidentType: "", severity: "High" });
       queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/discipline'] });
       toast.success("Incident logged successfully.");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to log incident.");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to log incident.");
     } finally {
       setIsSubmittingCreate(false);
     }
@@ -55,8 +55,8 @@ export function DeputyDisciplineWorkspace() {
       await escalateDisciplineIncident(id);
       queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/discipline'] });
       toast.success(`Case ${caseNo} escalated to Principal.`);
-    } catch (e: any) {
-      toast.error(e.message || "Failed to escalate case.");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to escalate case.");
     }
   };
 
@@ -75,7 +75,7 @@ export function DeputyDisciplineWorkspace() {
 
   return (
     <Panel title="Discipline & Behaviour" description="Student behaviour incidents, investigations, and escalations." icon={ShieldAlert} actions={
-      <button onClick={() => setShowModal(true)} className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">
+      <button type="button" onClick={() => setShowModal(true)} className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">
         <PlusCircle className="w-4 h-4" /> Log Incident
       </button>
     }>
@@ -112,9 +112,9 @@ export function DeputyDisciplineWorkspace() {
                   <td className="px-4 py-3"><StatusChip label={inc.status} tone={getStatusTone(inc.status)} /></td>
                   <td className="px-4 py-3 text-right">
                     {inc.status !== "Escalated" && (
-                      <button onClick={() => handleEscalate(inc.id, inc.caseNo)} className="text-blue-600 hover:underline font-semibold text-xs mr-3">Escalate</button>
+                      <button type="button" onClick={() => handleEscalate(inc.id, inc.caseNo)} className="text-blue-600 hover:underline font-semibold text-xs mr-3">Escalate</button>
                     )}
-                    <button className="text-blue-600 hover:underline font-semibold text-xs">Open Case</button>
+                    <button type="button" className="text-blue-600 hover:underline font-semibold text-xs" onClick={() => openDeputyRecord("Discipline case", [["Case No.", inc.caseNo], ["Student", inc.studentName], ["Incident", inc.incidentType], ["Severity", inc.severity], ["Status", inc.status]])}>Open Case</button>
                   </td>
                 </tr>
               ))

@@ -89,6 +89,8 @@ export class LmsSchemaService implements OnModuleInit {
           ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
         ALTER TABLE lms_submissions
           ADD COLUMN IF NOT EXISTS submitted_by_user_id uuid;
+        ALTER TABLE lms_submissions
+          ADD COLUMN IF NOT EXISTS submitted_at timestamptz NOT NULL DEFAULT NOW();
         CREATE TABLE IF NOT EXISTS lms_activity_events (
           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           tenant_id text NOT NULL,

@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, relative, sep } from 'node:path';
 import test from 'node:test';
@@ -62,6 +62,17 @@ test('all HTTP route handlers declare explicit access metadata', () => {
       ...violations,
     ].join('\n'),
   );
+});
+
+test('API startup loads environment-specific files before base .env files', () => {
+  const workspaceRoot = join(__dirname, '..', '..', '..', '..');
+  const source = readFileSync(join(workspaceRoot, 'apps/api/src/app.module.ts'), 'utf8');
+
+  assert.match(source, /envFilePath:\s*ENV_FILE_PATHS/);
+  assert.match(source, /`\.env\.\$\{NODE_ENV\}\.local`/);
+  assert.match(source, /'\.env\.local'/);
+  assert.match(source, /`\.env\.\$\{NODE_ENV\}`/);
+  assert.match(source, /'\.env'/);
 });
 
 function listControllerFiles(directory: string, compiledRoot = directory): string[] {

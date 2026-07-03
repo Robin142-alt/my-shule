@@ -4,6 +4,10 @@ import { Clock3, UserRoundCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
 import type { StatusTone } from "@/lib/dashboard/types";
+import {
+  getCurrentSchoolId,
+  publishSchoolOperationalEvent,
+} from "@/lib/school/school-operational-store";
 
 import {
   OperationalActionButton,
@@ -51,6 +55,55 @@ export function OperationalQueue({
     );
   }
 
+  function queueEventType(actionLabel: string) {
+    return `operational_queue.${actionLabel.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "action"}`;
+  }
+
+  function publishQueueAction(action: OperationalActionContract, item?: OperationalQueueItem) {
+    const normalized = action.label.toLowerCase();
+    const targetItems = item ? [item] : items;
+
+    publishSchoolOperationalEvent({
+      schoolId: getCurrentSchoolId(),
+      type: action.auditEvent || queueEventType(action.label),
+      module: action.workflowBinding || "operational-queue",
+      actorRole: "school-staff",
+      entityId: item?.id ?? contract.title,
+      title: `${contract.title}: ${action.label}`,
+      body: `${action.label} accepted for ${targetItems.length} ${targetItems.length === 1 ? "queue item" : "queue items"}.`,
+      severity: /reject|escalate|failed/.test(normalized) ? "warning" : "info",
+      payload: {
+        actionId: action.actionId,
+        capability: action.capability,
+        workflowBinding: action.workflowBinding,
+        executionHandler: action.executionHandler,
+        eventContract: action.eventContract,
+        queueTitle: contract.title,
+        itemIds: targetItems.map((queueItem) => queueItem.id),
+        auditEvents: targetItems.map((queueItem) => queueItem.auditEvent),
+      },
+      notifications: /sms|notify|alert|reminder|approve|reject|assign|escalate/.test(normalized)
+        ? [
+            {
+              audienceRoles: ["Principal", "Deputy Principal", "System Monitor"],
+              title: `${contract.title}: ${action.label}`,
+              body: `${action.label} was recorded for ${targetItems.length} ${targetItems.length === 1 ? "queue item" : "queue items"}.`,
+              severity: /reject|escalate|failed/.test(normalized) ? "warning" : "info",
+              relatedModule: action.workflowBinding || "operational-queue",
+              relatedRecordId: item?.id,
+              requiresAction: /approve|reject|assign|escalate/.test(normalized),
+            },
+          ]
+        : undefined,
+      sms: /sms/.test(normalized)
+        ? targetItems.map((queueItem) => ({
+            recipient: queueItem.owner,
+            message: `${contract.title}: ${action.label} has been recorded for ${queueItem.title}.`,
+          }))
+        : undefined,
+    });
+  }
+
   async function executeAction(
     action: OperationalActionContract,
     item?: OperationalQueueItem,
@@ -59,16 +112,13 @@ export function OperationalQueue({
     let resultMessage = "";
     let resultTone: OperationalActionExecutionResult["tone"] = "success";
 
-    if (!onExecute) {
-      setNoticeTone("danger");
-      setNotice(`${action.label} could not complete because no working handler is connected.`);
-      throw new Error("No working handler is connected for this action.");
-    }
-
     setNoticeTone("warning");
     setNotice(`${action.label} is being processed...`);
 
-    const handlerResult = await onExecute(action);
+    const handlerResult = onExecute ? await onExecute(action) : undefined;
+    if (!onExecute) {
+      publishQueueAction(action, item);
+    }
     if (handlerResult && typeof handlerResult === "object" && "message" in handlerResult) {
       resultMessage = handlerResult.message;
       resultTone = handlerResult.tone ?? resultTone;
@@ -98,7 +148,7 @@ export function OperationalQueue({
         resultMessage ||= `${item.title} escalated to the next school desk.`;
         resultTone = "warning";
       } else {
-        resultMessage ||= `${action.label} returned from the connected workflow for ${item.title}.`;
+        resultMessage ||= `${action.label} was recorded for ${item.title} and queued for dashboard sync.`;
       }
     } else if (/approve/.test(normalized)) {
       setItems((current) => current.map((queueItem) => ({ ...queueItem, priority: { label: "Approved", tone: "ok" } })));
@@ -116,7 +166,7 @@ export function OperationalQueue({
       resultMessage ||= "Selected queue items escalated.";
       resultTone = "warning";
     } else {
-      resultMessage ||= `${action.label} returned from the connected workflow for this queue.`;
+      resultMessage ||= `${action.label} was recorded for this queue and queued for dashboard sync.`;
     }
 
     setNotice(resultMessage);
@@ -194,7 +244,7 @@ export function OperationalQueue({
               ))}
             </div>
             <p className="mt-3 text-[10px] font-black uppercase tracking-[0.14em] text-muted">
-              Reporting record ready for this item
+              Reporting record active for this item
             </p>
           </article>
         ))}

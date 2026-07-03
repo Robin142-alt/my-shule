@@ -1,9 +1,9 @@
 import { Stethoscope } from "lucide-react";
 import { Panel } from "../shared";
-import { useClassTeacherHealth } from "@/lib/data/class-teacher-hooks";
+import { useClassTeacherHealth, useResolvedClassTeacherStreamId } from "@/lib/data/class-teacher-hooks";
 
 export function HealthNotesWorkspace() {
-  const streamId = "stream_123";
+  const { streamId } = useResolvedClassTeacherStreamId();
   const { data, isLoading, error } = useClassTeacherHealth(streamId);
 
   if (isLoading) {

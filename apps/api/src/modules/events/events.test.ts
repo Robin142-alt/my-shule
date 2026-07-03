@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test, { beforeEach } from 'node:test';
 import { PATH_METADATA } from '@nestjs/common/constants';
 import { firstValueFrom, take, toArray } from 'rxjs';
 
@@ -10,6 +10,9 @@ import { DashboardRealtimeService } from './dashboard-realtime.service';
 import { EventConsumerRegistryService } from './event-consumer-registry.service';
 import { EventConsumerService } from './event-consumer.service';
 import { EventPublisherService } from './event-publisher.service';
+import { EventsSchemaService } from './events-schema.service';
+import { OutboxDispatcherService } from './outbox-dispatcher.service';
+import { EventsConsumerWorker } from './queue/events-consumer.worker';
 import { SchoolOperationalEventsController } from './school-operational-events.controller';
 import { SchoolOperationalEventsService } from './school-operational-events.service';
 import {
@@ -19,6 +22,176 @@ import {
   SchoolOperationRecordedPayload,
   WorkflowActionDispatchedPayload,
 } from './events.types';
+
+beforeEach(() => {
+  EventsSchemaService.resetBootstrapForTests();
+});
+
+test('EventsSchemaService repairs legacy notifications table for tenant-scoped dashboard alerts', async () => {
+  let bootstrapSql = '';
+  const service = new EventsSchemaService(
+    {
+      runSchemaBootstrap: async (sql: string) => {
+        bootstrapSql = sql;
+      },
+    } as never,
+    { onModuleInit: async () => undefined } as never,
+  );
+
+  await service.onModuleInit();
+
+  assert.match(bootstrapSql, /ALTER TABLE notifications ADD COLUMN IF NOT EXISTS tenant_id text;/);
+  assert.match(bootstrapSql, /ALTER TABLE notifications ADD COLUMN IF NOT EXISTS notification_key text;/);
+  assert.match(bootstrapSql, /ALTER TABLE notifications ADD COLUMN IF NOT EXISTS body text;/);
+  assert.match(bootstrapSql, /ALTER TABLE notifications ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '\{\}'::jsonb;/);
+  assert.match(bootstrapSql, /ALTER TABLE notifications\s+ALTER COLUMN school_id DROP NOT NULL;/);
+  assert.match(bootstrapSql, /ALTER TABLE notifications\s+ALTER COLUMN status TYPE text USING lower\(status::text\);/);
+  assert.match(bootstrapSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_notifications_tenant_notification_key/);
+  assert.match(bootstrapSql, /CREATE POLICY notifications_rls_policy ON notifications/);
+  assert.match(bootstrapSql, /ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS aggregate_id uuid;/);
+  assert.match(bootstrapSql, /SET aggregate_id = resource_id/);
+});
+
+test('EventsSchemaService uses a single bootstrap promise for concurrent startup callers', async () => {
+  let bootstrapRuns = 0;
+  const service = new EventsSchemaService(
+    {
+      runSchemaBootstrap: async () => {
+        bootstrapRuns += 1;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      },
+    } as never,
+    { onModuleInit: async () => undefined } as never,
+  );
+
+  await Promise.all([service.onModuleInit(), service.onModuleInit()]);
+
+  assert.equal(bootstrapRuns, 1);
+});
+
+test('EventsSchemaService shares schema bootstrap across instances', async () => {
+  let bootstrapRuns = 0;
+  const prisma = () => ({
+    runSchemaBootstrap: async () => {
+      bootstrapRuns += 1;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    },
+  }) as never;
+  const authSchemaService = { onModuleInit: async () => undefined } as never;
+  const firstService = new EventsSchemaService(prisma(), authSchemaService);
+  const secondService = new EventsSchemaService(prisma(), authSchemaService);
+
+  await Promise.all([firstService.onModuleInit(), secondService.onModuleInit()]);
+
+  assert.equal(bootstrapRuns, 1);
+});
+
+test('OutboxDispatcherService waits for event schema bootstrap before polling outbox events', async () => {
+  const order: string[] = [];
+  const dispatcher = new OutboxDispatcherService(
+    {
+      get: <T>(key: string) =>
+        ({
+          'events.dispatcherEnabled': true,
+          'events.dispatcherIntervalMs': 60000,
+          'events.dispatcherBatchSize': 10,
+          'events.staleProcessingAfterMs': 30000,
+        })[key] as T | undefined,
+    } as never,
+    {
+      run: async (_context: unknown, callback: () => Promise<unknown>) => callback(),
+    } as never,
+    {
+      withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
+    } as never,
+    {
+      isDegraded: () => false,
+      addBulk: async () => [],
+    } as never,
+    {
+      onModuleInit: async () => {
+        order.push('schema-start');
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        order.push('schema-done');
+      },
+    } as never,
+    {
+      lockPendingBatch: async () => {
+        order.push('lock-pending');
+        return [];
+      },
+    } as never,
+  );
+
+  await dispatcher.onModuleInit();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  await dispatcher.onModuleDestroy();
+
+  assert.deepEqual(order, ['schema-start', 'schema-done', 'lock-pending']);
+});
+
+test('OutboxDispatcherService leaves outbox events pending when the queue is degraded', async () => {
+  let lockCalls = 0;
+  const dispatcher = new OutboxDispatcherService(
+    {
+      get: <T>(key: string) =>
+        ({
+          'events.dispatcherBatchSize': 10,
+          'events.staleProcessingAfterMs': 30000,
+        })[key] as T | undefined,
+    } as never,
+    {
+      run: async (_context: unknown, callback: () => Promise<unknown>) => callback(),
+    } as never,
+    {
+      withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
+    } as never,
+    {
+      isDegraded: () => true,
+      addBulk: async () => {
+        throw new Error('queue should not be used while degraded');
+      },
+    } as never,
+    {
+      onModuleInit: async () => undefined,
+    } as never,
+    {
+      lockPendingBatch: async () => {
+        lockCalls += 1;
+        return [];
+      },
+    } as never,
+  );
+
+  const dispatched = await dispatcher.dispatchPendingEvents();
+
+  assert.equal(dispatched, 0);
+  assert.equal(lockCalls, 0);
+});
+
+test('EventsConsumerWorker does not create a BullMQ worker while Redis is degraded', async () => {
+  const worker = new EventsConsumerWorker(
+    {
+      get: <T>(key: string) =>
+        ({
+          'events.workerEnabled': true,
+          'events.queueName': 'events',
+        })[key] as T | undefined,
+    } as never,
+    {
+      ping: async () => 'degraded',
+      getBullConnectionOptions: () => {
+        throw new Error('BullMQ worker connection options should not be requested while Redis is degraded');
+      },
+    } as never,
+    {
+      consume: async () => undefined,
+    } as never,
+  );
+
+  await worker.onModuleInit();
+  await worker.onModuleDestroy();
+});
 
 test('EventPublisherService writes student.created events with request headers', async () => {
   const requestContext = new RequestContextService();
@@ -407,7 +580,7 @@ query: async (sql: string, values: unknown[] = []) => {
   assert.equal(queries.length, 1);
   assert.match(queries[0].sql, /UPDATE notifications/);
   assert.match(queries[0].sql, /tenant_id = \$1/);
-  assert.match(queries[0].sql, /id = \$2::uuid/);
+  assert.match(queries[0].sql, /id::text = \$2::text/);
   assert.match(queries[0].sql, /target_roles/);
   assert.deepEqual(queries[0].values, [
     'tenant-a',

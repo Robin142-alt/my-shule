@@ -1,4 +1,9 @@
 import { createHash } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+import * as dotenv from 'dotenv';
+import Redis from 'ioredis';
 
 import {
   S3CompatibleObjectStorageService,
@@ -40,6 +45,7 @@ export interface RunProviderCredentialSmokeOptions
   live?: boolean;
   fetchImpl?: ProviderCredentialSmokeFetch;
   objectStorageFetchImpl?: ObjectStorageFetch;
+  redisPingImpl?: RedisPingProvider;
 }
 
 export interface ProviderCredentialSmokeFetchResponse {
@@ -57,12 +63,15 @@ export type ProviderCredentialSmokeFetch = (
   },
 ) => Promise<ProviderCredentialSmokeFetchResponse>;
 
+export type RedisPingProvider = (env: ProviderCredentialEnvironment) => Promise<void>;
+
 interface ValidationSections {
   retiredAttendance: string[];
   transactionalEmail: string[];
   supportEmail: string[];
   supportSms: string[];
   retryWorker: string[];
+  redisQueueCache: string[];
   uploadMalwareScan: string[];
   uploadObjectStorage: string[];
 }
@@ -70,6 +79,14 @@ interface ValidationSections {
 const RETIRED_ATTENDANCE_PATTERN = /attendance/i;
 const EMAIL_PATTERN = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 const PHONE_PATTERN = /^\+?[0-9][0-9\s().-]{6,24}$/;
+const LOCAL_ENV_FILES = [
+  '.env.production.local',
+  '.env.local',
+  '.env.production',
+  '.env',
+  '.vercel/.env.local',
+  '.vercel/.env.production.local',
+];
 
 const RELEVANT_RETIREMENT_FIELDS = [
   'EMAIL_PROVIDER',
@@ -80,6 +97,9 @@ const RELEVANT_RETIREMENT_FIELDS = [
   'SUPPORT_NOTIFICATION_SMS_WEBHOOK_URL',
   'SUPPORT_NOTIFICATION_SMS_WEBHOOK_HEALTH_URL',
   'SUPPORT_NOTIFICATION_SMS_RECIPIENTS',
+  'REDIS_URL',
+  'REDIS_TLS_ENABLED',
+  'REDIS_CONNECT_TIMEOUT_MS',
   'EMAIL_PROVIDER_SMOKE_URL',
   'UPLOAD_MALWARE_SCAN_PROVIDER',
   'UPLOAD_MALWARE_SCAN_API_URL',
@@ -103,6 +123,7 @@ export function validateProviderCredentialEnvironment(
     ...sections.supportEmail,
     ...sections.supportSms,
     ...sections.retryWorker,
+    ...sections.redisQueueCache,
     ...sections.uploadMalwareScan,
     ...sections.uploadObjectStorage,
   ];
@@ -176,6 +197,16 @@ export async function runProviderCredentialSmoke(
       },
     ),
     buildCheck(
+      'redis-queue-cache',
+      sections.redisQueueCache,
+      'Redis queue/cache credentials are configured for provider smoke checks.',
+      {
+        url_configured: getValue(env, 'REDIS_URL').length > 0,
+        tls_enabled: isRedisTlsEnabled(env),
+        connect_timeout_ms: parsePositiveInteger(env.REDIS_CONNECT_TIMEOUT_MS, 10000),
+      },
+    ),
+    buildCheck(
       'upload-malware-scan',
       sections.uploadMalwareScan,
       sections.uploadMalwareScan.length === 0 && !requireUploadMalwareScan && !isAnyUploadMalwareScanConfigPresent(env)
@@ -210,20 +241,7 @@ export async function runProviderCredentialSmoke(
 
   if (live) {
     checks.push(
-      await runLiveCredentialCheck({
-        id: 'live-email-provider',
-        smokeUrl: getValue(env, 'EMAIL_PROVIDER_SMOKE_URL'),
-        authorizationToken: getValue(env, 'RESEND_API_KEY'),
-        missingMessage: 'EMAIL_PROVIDER_SMOKE_URL is required when live provider smoke checks are enabled.',
-        successMessage: 'Live transactional email provider credential probe succeeded.',
-        method: 'POST',
-        body: '{}',
-        extraHeaders: {
-          'Content-Type': 'application/json',
-        },
-        acceptedStatuses: [200, 400, 422],
-        fetchImpl: options.fetchImpl,
-      }),
+      await runLiveEmailProviderCheck(env, options.fetchImpl),
     );
 
     if (requireSms || isAnySmsConfigPresent(env)) {
@@ -258,6 +276,8 @@ export async function runProviderCredentialSmoke(
         await runLiveObjectStorageCheck(env, options.objectStorageFetchImpl),
       );
     }
+
+    checks.push(await runLiveRedisQueueCacheCheck(env, options.redisPingImpl));
   }
 
   const summary = {
@@ -288,6 +308,7 @@ function collectValidationSections(
     supportEmail: validateSupportEmail(env),
     supportSms: validateSupportSms(env, requireSms),
     retryWorker: validateRetryWorker(env),
+    redisQueueCache: validateRedisQueueCache(env),
     uploadMalwareScan: validateUploadMalwareScan(env, requireUploadMalwareScan),
     uploadObjectStorage: validateUploadObjectStorage(env, requireObjectStorage),
   };
@@ -316,12 +337,16 @@ function validateTransactionalEmail(env: ProviderCredentialEnvironment): string[
 
   if (!apiKey) {
     errors.push('RESEND_API_KEY is required for transactional email.');
+  } else if (isPlaceholderValue(apiKey)) {
+    errors.push('RESEND_API_KEY must be a real Resend key, not a placeholder.');
   } else if (/\s/.test(apiKey)) {
     errors.push('RESEND_API_KEY must not contain whitespace.');
   }
 
   if (!sender) {
     errors.push('EMAIL_FROM is required for transactional email.');
+  } else if (isPlaceholderValue(sender)) {
+    errors.push('EMAIL_FROM must be a real verified sender, not a placeholder.');
   } else if (!isValidEmailAddress(extractSenderEmail(sender))) {
     errors.push('EMAIL_FROM must contain a valid sender email address.');
   }
@@ -340,6 +365,10 @@ function validateSupportEmail(env: ProviderCredentialEnvironment): string[] {
 
   if (recipients.length === 0) {
     return ['SUPPORT_NOTIFICATION_EMAILS must contain at least one support recipient.'];
+  }
+
+  if (recipients.some(isPlaceholderValue)) {
+    return ['SUPPORT_NOTIFICATION_EMAILS must contain real support recipients, not placeholders.'];
   }
 
   if (recipients.some((recipient) => !isValidEmailAddress(recipient))) {
@@ -403,6 +432,36 @@ function validateRetryWorker(env: ProviderCredentialEnvironment): string[] {
 
   if (leaseMs < 30000 || leaseMs > 900000) {
     errors.push('SUPPORT_NOTIFICATION_RETRY_LEASE_MS must be between 30000 and 900000.');
+  }
+
+  return errors;
+}
+
+function validateRedisQueueCache(env: ProviderCredentialEnvironment): string[] {
+  const errors: string[] = [];
+  const redisUrl = getValue(env, 'REDIS_URL');
+  const connectTimeoutMs = parsePositiveInteger(env.REDIS_CONNECT_TIMEOUT_MS, 10000);
+
+  if (!redisUrl) {
+    errors.push('REDIS_URL is required for queue/cache provider smoke checks.');
+  } else {
+    try {
+      const parsedUrl = new URL(redisUrl);
+
+      if (!['redis:', 'rediss:'].includes(parsedUrl.protocol)) {
+        errors.push('REDIS_URL must use redis:// or rediss://.');
+      }
+
+      if (isExternalRedisHost(parsedUrl.hostname) && parsedUrl.protocol !== 'rediss:' && !isRedisTlsEnabled(env)) {
+        errors.push('Production Redis queue/cache must use TLS via rediss:// or REDIS_TLS_ENABLED=true.');
+      }
+    } catch {
+      errors.push('REDIS_URL must be a valid Redis URL.');
+    }
+  }
+
+  if (connectTimeoutMs < 1000 || connectTimeoutMs > 30000) {
+    errors.push('REDIS_CONNECT_TIMEOUT_MS must be between 1000 and 30000.');
   }
 
   return errors;
@@ -516,6 +575,7 @@ async function runLiveCredentialCheck(input: {
   extraHeaders?: Record<string, string>;
   acceptedStatuses?: number[];
   validateJson?: (payload: unknown) => string[];
+  statusFailureMessage?: (status: number) => string;
   fetchImpl?: ProviderCredentialSmokeFetch;
 }): Promise<ProviderCredentialSmokeCheck> {
   if (!input.smokeUrl) {
@@ -545,9 +605,11 @@ async function runLiveCredentialCheck(input: {
     });
 
     if (!response.ok && !acceptedStatuses.includes(response.status)) {
+      const message = input.statusFailureMessage?.(response.status)
+        ?? `Provider smoke health endpoint returned HTTP ${response.status}.`;
       return buildCheck(
         input.id,
-        [`Provider smoke health endpoint returned HTTP ${response.status}.`],
+        [message],
         input.successMessage,
         { live: true },
       );
@@ -594,6 +656,89 @@ async function runLiveCredentialCheck(input: {
   }
 }
 
+async function runLiveEmailProviderCheck(
+  env: ProviderCredentialEnvironment,
+  fetchImpl?: ProviderCredentialSmokeFetch,
+): Promise<ProviderCredentialSmokeCheck> {
+  const customSmokeUrl = getValue(env, 'EMAIL_PROVIDER_SMOKE_URL');
+
+  if (customSmokeUrl) {
+    return runLiveCredentialCheck({
+      id: 'live-email-provider',
+      smokeUrl: customSmokeUrl,
+      authorizationToken: getValue(env, 'RESEND_API_KEY'),
+      missingMessage: 'EMAIL_PROVIDER_SMOKE_URL is required when live provider smoke checks are enabled.',
+      successMessage: 'Live transactional email provider credential probe succeeded.',
+      method: 'POST',
+      body: '{}',
+      extraHeaders: {
+        'Content-Type': 'application/json',
+      },
+      acceptedStatuses: [200, 400, 422],
+      statusFailureMessage: (status) => (
+        status === 401 || status === 403
+          ? `Transactional email provider rejected live smoke authentication with HTTP ${status}; verify the Resend API key and sender-domain access.`
+          : `Provider smoke health endpoint returned HTTP ${status}.`
+      ),
+      fetchImpl,
+    });
+  }
+
+  return runLiveCredentialCheck({
+    id: 'live-email-provider',
+    smokeUrl: 'https://api.resend.com/domains',
+    authorizationToken: getValue(env, 'RESEND_API_KEY'),
+    missingMessage: 'RESEND_API_KEY is required when live provider smoke checks are enabled.',
+    successMessage: 'Live transactional email provider credential probe succeeded.',
+    validateJson: validateResendDomainsReadinessPayload(env),
+    statusFailureMessage: (status) => (
+      status === 401 || status === 403
+        ? `Resend rejected live domain readiness authentication with HTTP ${status}; verify RESEND_API_KEY is the full active key for this account.`
+        : `Provider smoke health endpoint returned HTTP ${status}.`
+    ),
+    fetchImpl,
+  });
+}
+
+function validateResendDomainsReadinessPayload(
+  env: ProviderCredentialEnvironment,
+): (payload: unknown) => string[] {
+  return (payload: unknown): string[] => {
+    if (!isRecord(payload) || !Array.isArray(payload.data)) {
+      return ['Resend domains endpoint did not return a domain list readiness body.'];
+    }
+
+    const senderDomain = extractSenderEmail(getValue(env, 'EMAIL_FROM')).split('@')[1]?.toLowerCase();
+
+    if (!senderDomain) {
+      return ['EMAIL_FROM must contain a domain before live Resend domain readiness can be checked.'];
+    }
+
+    const domain = payload.data
+      .filter(isRecord)
+      .find((entry) => String(entry.name ?? '').toLowerCase() === senderDomain);
+
+    if (!domain) {
+      return ['Resend account does not include the EMAIL_FROM sender domain.'];
+    }
+
+    const status = String(domain.status ?? '').toLowerCase();
+
+    if (!['verified', 'active'].includes(status)) {
+      return ['Resend EMAIL_FROM sender domain is not verified for production sending.'];
+    }
+
+    const capabilities = isRecord(domain.capabilities) ? domain.capabilities : {};
+    const sendingCapability = capabilities.sending;
+
+    if (sendingCapability !== undefined && String(sendingCapability).toLowerCase() !== 'enabled') {
+      return ['Resend EMAIL_FROM sender domain does not have sending enabled.'];
+    }
+
+    return [];
+  };
+}
+
 function validateSmsRelayReadinessPayload(payload: unknown): string[] {
   if (!isRecord(payload)) {
     return ['Support SMS health endpoint did not return a readiness object.'];
@@ -625,11 +770,28 @@ async function runLiveObjectStorageCheck(
   fetchImpl?: ObjectStorageFetch,
 ): Promise<ProviderCredentialSmokeCheck> {
   const provider = getValue(env, 'UPLOAD_OBJECT_STORAGE_PROVIDER') || 's3';
+  const enabled = parseBoolean(env.UPLOAD_OBJECT_STORAGE_ENABLED, false);
   const content = Buffer.from(`my-shule-provider-smoke:${new Date().toISOString()}`);
   const storagePath = 'tenant/provider-smoke/support/provider-smoke.txt';
   const storage = new S3CompatibleObjectStorageService({
     get: (key: string) => getValue(env, key),
   } as never);
+
+  if (!enabled) {
+    return buildCheck(
+      'live-upload-object-storage',
+      ['UPLOAD_OBJECT_STORAGE_ENABLED must be true before live object storage can satisfy production smoke checks.'],
+      'Live upload object storage write/read/delete probe succeeded.',
+      {
+        live: true,
+        provider,
+        enabled,
+        write_checked: false,
+        read_checked: false,
+        delete_checked: false,
+      },
+    );
+  }
 
   try {
     await storage.putObject({
@@ -657,6 +819,7 @@ async function runLiveObjectStorageCheck(
     return buildCheck('live-upload-object-storage', [], 'Live upload object storage write/read/delete probe succeeded.', {
       live: true,
       provider,
+      enabled,
       write_checked: true,
       read_checked: true,
       delete_checked: true,
@@ -669,11 +832,61 @@ async function runLiveObjectStorageCheck(
       {
         live: true,
         provider,
+        enabled,
         write_checked: false,
         read_checked: false,
         delete_checked: false,
       },
     );
+  }
+}
+
+async function runLiveRedisQueueCacheCheck(
+  env: ProviderCredentialEnvironment,
+  pingImpl: RedisPingProvider = pingRedisQueueCache,
+): Promise<ProviderCredentialSmokeCheck> {
+  try {
+    await pingImpl(env);
+
+    return buildCheck('live-redis-queue-cache', [], 'Live Redis queue/cache credential probe succeeded.', {
+      live: true,
+      tls_enabled: isRedisTlsEnabled(env),
+    });
+  } catch (error) {
+    return buildCheck(
+      'live-redis-queue-cache',
+      [`Live Redis queue/cache probe failed: ${sanitizeError(error)}`],
+      'Live Redis queue/cache credential probe succeeded.',
+      {
+        live: true,
+        tls_enabled: isRedisTlsEnabled(env),
+      },
+    );
+  }
+}
+
+async function pingRedisQueueCache(env: ProviderCredentialEnvironment): Promise<void> {
+  const redisUrl = getValue(env, 'REDIS_URL');
+
+  if (!redisUrl) {
+    throw new Error('REDIS_URL is required for live Redis queue/cache smoke checks.');
+  }
+
+  const client = new Redis(redisUrl, {
+    lazyConnect: true,
+    connectTimeout: parsePositiveInteger(env.REDIS_CONNECT_TIMEOUT_MS, 10000),
+    maxRetriesPerRequest: 0,
+    enableOfflineQueue: false,
+    tls: isRedisTlsEnabled(env) ? {} : undefined,
+  });
+
+  client.on('error', () => undefined);
+
+  try {
+    await client.connect();
+    await client.ping();
+  } finally {
+    client.disconnect();
   }
 }
 
@@ -756,6 +969,10 @@ function isValidEmailAddress(value: string): boolean {
   return EMAIL_PATTERN.test(value);
 }
 
+function isPlaceholderValue(value: string): boolean {
+  return /\b(example|placeholder|replace-with|changeme|todo|your-|test_?key|dummy)\b/i.test(value);
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -766,6 +983,28 @@ function isHttpsUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+function isExternalRedisHost(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+
+  return !['localhost', '127.0.0.1', '::1', 'redis'].includes(normalized);
+}
+
+function isRedisTlsEnabled(env: ProviderCredentialEnvironment): boolean {
+  const redisUrl = getValue(env, 'REDIS_URL');
+
+  if (redisUrl) {
+    try {
+      if (new URL(redisUrl).protocol === 'rediss:') {
+        return true;
+      }
+    } catch {
+      return parseBoolean(env.REDIS_TLS_ENABLED, false);
+    }
+  }
+
+  return parseBoolean(env.REDIS_TLS_ENABLED, false);
 }
 
 function isValidObjectStorageBucket(value: string): boolean {
@@ -783,16 +1022,41 @@ function isAnySmsConfigPresent(env: ProviderCredentialEnvironment): boolean {
 function sanitizeError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
 
-  return message.replace(/https?:\/\/\S+/gi, '[redacted-url]');
+  return message
+    .replace(/https?:\/\/\S+/gi, '[redacted-url]')
+    .replace(/rediss?:\/\/\S+/gi, '[redacted-redis-url]');
 }
 
 async function main(): Promise<void> {
+  loadLocalProviderSmokeEnv(process.cwd());
   const result = await runProviderCredentialSmoke();
 
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 
   if (!result.ok) {
     process.exitCode = 1;
+  }
+}
+
+export function loadLocalProviderSmokeEnv(workspaceRoot: string): void {
+  const originalEnvKeys = new Set(Object.keys(process.env));
+
+  for (const fileName of LOCAL_ENV_FILES) {
+    const filePath = resolve(workspaceRoot, fileName);
+
+    if (!existsSync(filePath)) {
+      continue;
+    }
+
+    const parsed = dotenv.parse(readFileSync(filePath));
+
+    for (const [key, value] of Object.entries(parsed)) {
+      if (originalEnvKeys.has(key) || Object.prototype.hasOwnProperty.call(process.env, key)) {
+        continue;
+      }
+
+      process.env[key] = value;
+    }
   }
 }
 

@@ -4,6 +4,7 @@ import { SuperadminPageHeader } from "@/components/platform/superadmin-pages";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Modal } from "@/components/ui/modal";
 import {
   fetchApiObservabilityHealth,
   fetchApiObservabilityAlerts,
@@ -23,6 +24,7 @@ export function TenantHealthWorkspace() {
   const [health, setHealth] = useState<any>(null);
   const [alerts, setAlerts] = useState<TenantHealthAlertRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedAlert, setSelectedAlert] = useState<TenantHealthAlertRow | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -79,7 +81,7 @@ export function TenantHealthWorkspace() {
     { id: "errorType", header: "Severity", render: (row) => row.severity || row.error_type || "Timeout" },
     { id: "message", header: "Message", render: (row) => row.message || "Job queue exceeded maximum latency." },
     { id: "count", header: "Count", render: (row) => row.count || "1" },
-    { id: "actions", header: "Actions", render: (row) => <Button variant="ghost" size="sm">View Log</Button> }
+    { id: "actions", header: "Actions", render: (row) => <Button variant="ghost" size="sm" onClick={() => setSelectedAlert(row)}>View Log</Button> }
   ];
 
   return (
@@ -115,9 +117,27 @@ export function TenantHealthWorkspace() {
         subtitle="System-wide error logs."
         columns={columns}
         rows={alerts}
-        getRowKey={(row) => row.id || row.timestamp || Math.random().toString()}
+        getRowKey={(row) => row.id || row.timestamp || `${row.service ?? "unknown"}-${row.message ?? "alert"}`}
         emptyMessage={isLoading ? "Loading health data..." : "No recent errors detected."}
       />
+      <Modal open={!!selectedAlert} title="System Alert Log" onClose={() => setSelectedAlert(null)}>
+        {selectedAlert ? (
+          <div className="space-y-3 text-sm">
+            <div><span className="font-semibold">Tenant:</span> {selectedAlert.tenant_id || "Platform"}</div>
+            <div><span className="font-semibold">Subsystem:</span> {selectedAlert.subsystem || selectedAlert.service || "Background Jobs"}</div>
+            <div><span className="font-semibold">Severity:</span> {selectedAlert.severity || selectedAlert.error_type || "Unknown"}</div>
+            <div><span className="font-semibold">Count:</span> {selectedAlert.count || 1}</div>
+            <div><span className="font-semibold">Time:</span> {selectedAlert.triggered_at || selectedAlert.last_evaluated_at || selectedAlert.timestamp || "N/A"}</div>
+            <div className="rounded-md border bg-slate-50 p-3">
+              <div className="font-semibold">Message</div>
+              <div className="mt-1 text-muted-foreground">{selectedAlert.message || "No alert message was supplied."}</div>
+            </div>
+            <div className="rounded-md border bg-blue-50 p-3 text-blue-900">
+              Review the related queue, integration, or service health before retrying affected jobs.
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }

@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { ClipboardCheck } from "lucide-react";
 import { Panel } from "../shared";
-import { useClassTeacherAttendance, useSaveAttendance } from "@/lib/data/class-teacher-hooks";
+import { useClassTeacherAttendance, useResolvedClassTeacherStreamId, useSaveAttendance } from "@/lib/data/class-teacher-hooks";
 
 export function AttendanceWorkspace() {
-  const streamId = "stream_123";
+  const { streamId } = useResolvedClassTeacherStreamId();
   const { data, isLoading, error } = useClassTeacherAttendance(streamId);
   const saveMutation = useSaveAttendance();
   const [localData, setLocalData] = useState<any[]>([]);

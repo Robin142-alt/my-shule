@@ -1,4 +1,4 @@
-import { Page, expect } from '@playwright/test';
+import { Locator, Page, expect } from '@playwright/test';
 
 export const RoleCredentials = {
   Principal: { email: 'principal@kisumuboys.demo', password: 'password123' },
@@ -11,29 +11,57 @@ export const RoleCredentials = {
 
 export type Role = keyof typeof RoleCredentials;
 
-export async function loginAs(page: Page, role: Role) {
+export async function loginAs(page: Page, role: Role, options?: { redirectTo?: string; expectedUrl?: RegExp }) {
   const credentials = RoleCredentials[role];
   if (!credentials) {
     throw new Error(`Credentials for role ${role} not found.`);
   }
 
-  await page.goto('/login');
-  
-  // Wait for network idle or form to be visible
-  await page.waitForLoadState('networkidle');
+  const csrfResponse = await page.context().request.get('/api/auth/csrf');
+  if (!csrfResponse.ok()) {
+    throw new Error(`Unable to fetch CSRF token for ${role}: ${csrfResponse.status()} ${await csrfResponse.text()}`);
+  }
 
-  // Fill in the login form. 
-  // Assuming standard selectors. Will adjust if they are different.
-  await page.fill('input[name="identifier"]', credentials.email);
-  await page.fill('input[name="password"]', credentials.password);
+  const csrfPayload = (await csrfResponse.json()) as { token?: string };
+  if (!csrfPayload.token) {
+    throw new Error(`CSRF token response for ${role} did not include a token.`);
+  }
 
-  await page.click('button[type="submit"]');
+  const loginResponse = await page.context().request.post('/api/auth/login', {
+    data: {
+      audience: role === 'SuperAdmin' ? 'superadmin' : 'school',
+      identifier: credentials.email,
+      password: credentials.password,
+      tenantSlug: null,
+    },
+    headers: {
+      'x-myshule-csrf': csrfPayload.token,
+    },
+  });
 
-  // We wait for navigation to complete to a dashboard or admin page
-  await page.waitForURL(/.*(\/dashboard|\/school\/admin).*/, { timeout: 30000 });
-  
-  // Optionally assert we are logged in by checking some UI element
-  await expect(page.locator('text=' + role).first()).toBeVisible({ timeout: 10000 }).catch(() => {}); // non-blocking check
+  if (!loginResponse.ok()) {
+    throw new Error(`Login failed for ${role}: ${loginResponse.status()} ${await loginResponse.text()}`);
+  }
+
+  const loginPayload = (await loginResponse.json()) as { redirectTo?: string };
+  await page.goto(options?.redirectTo ?? loginPayload.redirectTo ?? '/dashboard', { waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(options?.expectedUrl ?? /.*(\/dashboard|\/school\/[a-z0-9-]+).*/, { timeout: 45000 });
+}
+
+export async function setFormInputValue(locator: Locator, value: string) {
+  await locator.scrollIntoViewIfNeeded();
+  await locator.fill(value, { force: true });
+  await locator.evaluate((element, nextValue) => {
+    const input = element as HTMLInputElement;
+    const valueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      'value',
+    )?.set;
+
+    valueSetter?.call(input, nextValue);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }, value);
 }
 
 export async function logout(page: Page) {

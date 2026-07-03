@@ -18,6 +18,10 @@ export class DeputyCommandController {
   @Permissions('deputy:write')
   createDailyOperationNote(@Body() dto: any) { return this.deputyService.createDailyOperationNote(dto); }
 
+  @Post('morning-review')
+  @Permissions('deputy:write')
+  startMorningReview(@Body() dto: any) { return this.deputyService.startMorningReview(dto); }
+
   @Get('attendance')
   @Permissions('deputy:read')
   getAttendance() { return this.deputyService.getAttendance(); }
@@ -25,6 +29,10 @@ export class DeputyCommandController {
   @Post('attendance/:id/notify')
   @Permissions('deputy:write')
   notifyParent(@Param('id') id: string) { return this.deputyService.notifyParent(id); }
+
+  @Post('attendance/remind-unmarked')
+  @Permissions('deputy:write')
+  remindUnmarkedAttendance(@Body() dto: any) { return this.deputyService.remindUnmarkedAttendance(dto); }
 
   @Post('attendance/follow-up')
   @Permissions('deputy:write')

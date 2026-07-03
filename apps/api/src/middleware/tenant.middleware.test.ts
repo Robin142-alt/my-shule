@@ -44,20 +44,6 @@ test('TenantMiddleware defers request transactions for dashboard SSE streams', a
       }),
     } as never,
     requestContext,
-    {
-      acquireClient: async () => {
-        calls.acquireClient += 1;
-        return {
-          query: async () => undefined,
-          release: () => {
-            calls.release += 1;
-          },
-        };
-      },
-      initializeRequestSession: async () => {
-        calls.initializeRequestSession += 1;
-      },
-    } as never,
   );
 
   await requestContext.run(createRequestContext(), async () => {
@@ -92,7 +78,7 @@ test('TenantMiddleware defers request transactions for dashboard SSE streams', a
   });
 });
 
-test('TenantMiddleware defers request transactions for health readiness probes', async () => {
+test('TenantMiddleware bypasses tenant resolution for liveness health probes', async () => {
   const requestContext = new RequestContextService();
   const calls = {
     resolveTenant: 0,
@@ -108,24 +94,12 @@ test('TenantMiddleware defers request transactions for health readiness probes',
       },
     } as never,
     requestContext,
-    {
-      acquireClient: async () => {
-        calls.acquireClient += 1;
-        return {
-          query: async () => undefined,
-          release: () => undefined,
-        };
-      },
-      initializeRequestSession: async () => {
-        calls.initializeRequestSession += 1;
-      },
-    } as never,
   );
 
   await requestContext.run(
     {
       ...createRequestContext(),
-      path: '/health/ready',
+      path: '/health',
     },
     async () => {
       await middleware.use(
@@ -134,7 +108,7 @@ test('TenantMiddleware defers request transactions for health readiness probes',
             host: 'myshule.localhost',
             accept: 'application/json',
           },
-          path: '/health/ready',
+          path: '/health',
         } as unknown as Request,
         response as unknown as Response,
         ((error?: unknown) => {
@@ -154,6 +128,61 @@ test('TenantMiddleware defers request transactions for health readiness probes',
   });
 });
 
+test('TenantMiddleware resolves tenant context for readiness health probes', async () => {
+  const requestContext = new RequestContextService();
+  const calls = {
+    resolveTenant: 0,
+    acquireClient: 0,
+    initializeRequestSession: 0,
+    release: 0,
+  };
+  const response = new TestResponse();
+  const middleware = new TenantMiddleware(
+    {
+      resolveTenantContextForRequest: async () => {
+        calls.resolveTenant += 1;
+        return {
+          tenant_id: 'tenant-ready',
+          source: 'subdomain',
+        };
+      },
+    } as never,
+    requestContext,
+  );
+
+  await requestContext.run(
+    {
+      ...createRequestContext(),
+      path: '/health/ready',
+    },
+    async () => {
+      await middleware.use(
+        {
+          headers: {
+            host: 'tenant-ready.myshule.localhost',
+            accept: 'application/json',
+          },
+          path: '/health/ready',
+        } as unknown as Request,
+        response as unknown as Response,
+        ((error?: unknown) => {
+          assert.equal(error, undefined);
+        }) as NextFunction,
+      );
+
+      assert.equal(requestContext.requireStore().tenant_id, 'tenant-ready');
+      assert.equal(requestContext.requireStore().tenant_source, 'subdomain');
+    },
+  );
+
+  assert.deepEqual(calls, {
+    resolveTenant: 1,
+    acquireClient: 0,
+    initializeRequestSession: 0,
+    release: 0,
+  });
+});
+
 test('TenantMiddleware defers request transactions for CORS preflight requests', async () => {
   const requestContext = new RequestContextService();
   const calls = {
@@ -169,18 +198,6 @@ test('TenantMiddleware defers request transactions for CORS preflight requests',
       }),
     } as never,
     requestContext,
-    {
-      acquireClient: async () => {
-        calls.acquireClient += 1;
-        return {
-          query: async () => undefined,
-          release: () => undefined,
-        };
-      },
-      initializeRequestSession: async () => {
-        calls.initializeRequestSession += 1;
-      },
-    } as never,
   );
 
   await requestContext.run(
@@ -218,7 +235,7 @@ test('TenantMiddleware defers request transactions for CORS preflight requests',
   });
 });
 
-test('TenantMiddleware keeps request transaction lifecycle for regular tenant requests', async () => {
+test('TenantMiddleware leaves transaction lifecycle to explicit service transactions', async () => {
   const requestContext = new RequestContextService();
   const queries: string[] = [];
   const response = new TestResponse();
@@ -230,19 +247,6 @@ test('TenantMiddleware keeps request transaction lifecycle for regular tenant re
       }),
     } as never,
     requestContext,
-    {
-      acquireClient: async () => ({
-        query: async (sql: string) => {
-          queries.push(sql);
-        },
-        release: () => {
-          queries.push('RELEASE');
-        },
-      }),
-      initializeRequestSession: async (client: { query: (sql: string) => Promise<void> }) => {
-        await client.query('BEGIN');
-      },
-    } as never,
   );
 
   await requestContext.run(createRequestContext(), async () => {
@@ -259,13 +263,8 @@ test('TenantMiddleware keeps request transaction lifecycle for regular tenant re
       }) as NextFunction,
     );
 
-    assert.equal(requestContext.requireStore().db_client !== undefined, true);
-
-    response.emit('finish');
-
-    await new Promise((resolve) => setImmediate(resolve));
     assert.equal(requestContext.requireStore().db_client, undefined);
   });
 
-  assert.deepEqual(queries, ['BEGIN', 'COMMIT', 'RELEASE']);
+  assert.deepEqual(queries, []);
 });

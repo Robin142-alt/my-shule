@@ -27,12 +27,14 @@ import {
   LockKeyhole
 } from "lucide-react";
 
-import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
+import { getCurrentSchoolId, publishSchoolOperationalEvent, requireCurrentSchoolId } from "@/lib/school/school-operational-store";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
+import { Modal } from "@/components/ui/modal";
 
 type RouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -67,6 +69,45 @@ const toneClasses: Record<Tone, { card: string; chip: string; dot: string; text:
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
+}
+
+function counsellorActionSlug(action: string) {
+  return action
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "") || "workflow_action";
+}
+
+function formatDateTime(value: unknown, fallback = "Not scheduled") {
+  if (!value) return fallback;
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? fallback : date;
+}
+
+async function persistCounsellorWorkflowAction(action: string, payload: Record<string, unknown> = {}) {
+  return requestDashboardApi("/admin-command/guidance-counselling/actions", {
+    method: "POST",
+    body: {
+      action: counsellorActionSlug(action),
+      label: action,
+      source_dashboard: "counsellor-command-center",
+      source_module: "counselling",
+      ...payload,
+    },
+  });
+}
+
+async function generateCounsellorReport(title: string) {
+  return requestDashboardApi("/admin-command/guidance-counselling/reports/generate", {
+    method: "POST",
+    body: {
+      title,
+      name: title,
+      format: "pdf",
+      source_dashboard: "counsellor-command-center",
+    },
+  });
 }
 
 function StatusChip({ label, tone = "neutral" }: { label: string; tone?: Tone }) {
@@ -121,6 +162,109 @@ function DataTable({ title, columns, rows }: { title?: string; columns: string[]
   );
 }
 
+function NewCounsellingCaseModal({
+  open,
+  schoolId,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  schoolId: string | null;
+  onClose: () => void;
+  onCreated?: () => void;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleCreateCounsellingReferral(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const studentId = String(formData.get("student_id") ?? "").trim();
+    const classId = String(formData.get("class_id") ?? "").trim();
+    const academicTermId = String(formData.get("academic_term_id") ?? "").trim();
+    const academicYearId = String(formData.get("academic_year_id") ?? "").trim();
+    const incidentId = String(formData.get("incident_id") ?? "").trim();
+    const reason = String(formData.get("reason") ?? "").trim();
+    const riskLevel = String(formData.get("risk_level") ?? "medium").trim();
+
+    if (!studentId || !classId || !academicTermId || !academicYearId || !reason) {
+      setError("Student, class, academic term, academic year, and reason are required.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      await requestDashboardApi("/admin-command/guidance-counselling/referrals", {
+        method: "POST",
+        body: {
+          school_id: schoolId || undefined,
+          student_id: studentId,
+          class_id: classId,
+          academic_term_id: academicTermId,
+          academic_year_id: academicYearId,
+          incident_id: incidentId || undefined,
+          reason,
+          risk_level: riskLevel,
+          source_dashboard: "counsellor-command-center",
+        },
+      });
+      onCreated?.();
+      onClose();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Counselling case could not be created.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title="New counselling case" open={open} onClose={onClose} size="lg">
+      <form onSubmit={handleCreateCounsellingReferral} className="space-y-4 p-6">
+        {error ? (
+          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">
+            {error}
+          </div>
+        ) : null}
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="text-sm font-bold text-[#071D49]">Student ID
+            <input name="student_id" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Student UUID" />
+          </label>
+          <label className="text-sm font-bold text-[#071D49]">Class ID
+            <input name="class_id" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Class UUID" />
+          </label>
+          <label className="text-sm font-bold text-[#071D49]">Academic term ID
+            <input name="academic_term_id" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Term UUID" />
+          </label>
+          <label className="text-sm font-bold text-[#071D49]">Academic year ID
+            <input name="academic_year_id" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Academic year UUID" />
+          </label>
+          <label className="text-sm font-bold text-[#071D49]">Linked incident ID
+            <input name="incident_id" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Optional incident UUID" />
+          </label>
+          <label className="text-sm font-bold text-[#071D49]">Risk level
+            <select name="risk_level" defaultValue="medium" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select>
+          </label>
+        </div>
+        <label className="block text-sm font-bold text-[#071D49]">Referral reason
+          <textarea name="reason" required rows={4} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Summarise the concern, source, and first support step." />
+        </label>
+        <div className="flex justify-end gap-3 border-t border-[#D8E0EC] pt-4">
+          <button type="button" onClick={onClose} disabled={submitting} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
+          <button type="submit" disabled={submitting} className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-60">
+            {submitting ? "Creating..." : "Create Case"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 import { buildSchoolSectionHref } from "./school-pages";
 
 export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: RouteMode }) {
@@ -138,10 +282,78 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [newCaseOpen, setNewCaseOpen] = useState(false);
+  const [updatingReferralId, setUpdatingReferralId] = useState<string | null>(null);
+  const [savingCounsellorSettings, setSavingCounsellorSettings] = useState(false);
+  const [counsellorSettings, setCounsellorSettings] = useState({
+    notify_referrer_on_acceptance: true,
+    require_audit_reason: true,
+    default_case_visibility: "restricted",
+  });
 
-  const { data: dashboardData, isLoading: isLoadingDashboard } = useSchoolQuery<any>("/api/counselling/dashboard");
-  const { data: referralsData, isLoading: isLoadingReferrals } = useSchoolQuery<any>("/api/counselling/referrals");
+  const { data: dashboardData, isLoading: isLoadingDashboard } = useSchoolQuery<any>("/api/counselling/overview");
+  const { data: referralsData, isLoading: isLoadingReferrals, refetch: refetchReferrals } = useSchoolQuery<any>("/api/counselling/referrals");
+  const { data: casesData } = useSchoolQuery<any>("/api/counselling/cases");
   const { data: sessionsData, isLoading: isLoadingSessions } = useSchoolQuery<any>("/api/counselling/sessions");
+  const { data: appointmentsData } = useSchoolQuery<any>("/api/counselling/appointments");
+  const { data: followupsData } = useSchoolQuery<any>("/api/counselling/followups");
+  const { data: welfareData } = useSchoolQuery<any>("/api/counselling/welfare");
+  const { data: groupGuidanceData } = useSchoolQuery<any>("/api/counselling/group-guidance");
+  const { data: parentsData } = useSchoolQuery<any>("/api/counselling/parents");
+  const { data: teachersData } = useSchoolQuery<any>("/api/counselling/teachers");
+  const { data: disciplineData } = useSchoolQuery<any>("/api/counselling/discipline");
+  const { data: healthData } = useSchoolQuery<any>("/api/counselling/health");
+  const { data: escalationsData } = useSchoolQuery<any>("/api/counselling/escalations");
+  const { data: reportsData } = useSchoolQuery<any>("/api/counselling/reports");
+  const { data: templatesData } = useSchoolQuery<any>("/api/counselling/templates");
+  const counsellingMetrics = dashboardData?.metrics ?? dashboardData?.overview ?? dashboardData ?? {};
+
+  const asRows = <T,>(value: unknown): T[] => {
+    if (Array.isArray(value)) return value as T[];
+    if (value && typeof value === "object" && Array.isArray((value as any).data)) return (value as any).data;
+    if (value && typeof value === "object" && Array.isArray((value as any).items)) return (value as any).items;
+    return [];
+  };
+  const query = searchQuery.trim().toLowerCase();
+  const matchesSearch = (record: unknown) => !query || JSON.stringify(record ?? "").toLowerCase().includes(query);
+  const displayDate = (value: unknown, fallback = "Not dated") => {
+    const formatted = formatDateTime(value, fallback);
+    return formatted instanceof Date ? formatted.toLocaleDateString() : formatted;
+  };
+  const displayTime = (value: unknown, fallback = "Not scheduled") => {
+    const formatted = formatDateTime(value, fallback);
+    return formatted instanceof Date ? formatted.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : formatted;
+  };
+  const learnerLabel = (record: any) => record?.learner || record?.student_name || record?.admission_number || record?.student_id?.substring?.(0, 8) || "Student record";
+  const riskTone = (value: unknown): Tone => {
+    const risk = String(value ?? "").toLowerCase();
+    if (risk === "critical" || risk === "urgent" || risk === "high") return "danger";
+    if (risk === "medium") return "warning";
+    if (risk === "low") return "success";
+    return "neutral";
+  };
+  const statusTone = (value: unknown): Tone => {
+    const status = String(value ?? "").toLowerCase();
+    if (["done", "closed", "completed", "ready", "contacted", "accepted", "active"].includes(status)) return "success";
+    if (["pending", "scheduled", "open", "monitoring", "under_review"].includes(status)) return "info";
+    if (["due", "due_today", "overdue", "escalated"].includes(status)) return "warning";
+    if (["critical", "urgent", "declined", "failed"].includes(status)) return "danger";
+    return "neutral";
+  };
+  const referralRows = asRows<any>(referralsData).filter(matchesSearch);
+  const caseRows = asRows<any>(casesData).filter(matchesSearch);
+  const sessionRows = asRows<any>(sessionsData).filter(matchesSearch);
+  const appointmentRows = asRows<any>(appointmentsData).filter(matchesSearch);
+  const followupRows = asRows<any>(followupsData).filter(matchesSearch);
+  const welfareRows = asRows<any>(welfareData).filter(matchesSearch);
+  const groupRows = asRows<any>(groupGuidanceData).filter(matchesSearch);
+  const parentRows = asRows<any>(parentsData).filter(matchesSearch);
+  const teacherRows = asRows<any>(teachersData).filter(matchesSearch);
+  const disciplineRows = asRows<any>(disciplineData).filter(matchesSearch);
+  const healthRows = asRows<any>(healthData).filter(matchesSearch);
+  const escalationRows = asRows<any>(escalationsData).filter(matchesSearch);
+  const reportRows = asRows<any>(reportsData).filter(matchesSearch);
+  const templateRows = asRows<any>(templatesData).filter(matchesSearch);
 
   useEffect(() => {
     if (routeMode === "hosted") setSchoolId(getCurrentSchoolId());
@@ -152,16 +364,89 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
     setTimeout(() => setToast(null), 3000);
   };
 
-  const handleAction = (action: string) => {
-    publishSchoolOperationalEvent({
-      type: "COUNSELLOR_ACTION",
-      schoolId: schoolId ?? "demo",
-      title: "Action Executed",
-      body: `Counsellor performed ${action}`,
-      module: "counselling",
-      actorRole: "counsellor"
-    });
-    showToast(`Action performed: ${action}`);
+  const handleAction = async (action: string) => {
+    try {
+      const normalizedAction = counsellorActionSlug(action);
+      const currentSchoolId = requireCurrentSchoolId(schoolId);
+
+      if (normalizedAction.startsWith("generate_")) {
+        await generateCounsellorReport(action.replace(/^Generate\s+/i, ""));
+      } else if (normalizedAction === "export_notes") {
+        await generateCounsellorReport("Private counselling session notes");
+      } else {
+        await persistCounsellorWorkflowAction(action);
+      }
+
+      publishSchoolOperationalEvent({
+        type: "COUNSELLOR_ACTION",
+        schoolId: currentSchoolId,
+        title: "Counselling workflow saved",
+        body: `${action} was persisted through the counselling command workflow.`,
+        module: "counselling",
+        actorRole: "counsellor"
+      });
+      showToast(`${action} saved to the counselling workflow.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to record counselling action.";
+      showToast(message, "error");
+    }
+  };
+
+  const handleReferralStatus = async (referral: any, status: "accepted" | "declined" | "closed") => {
+    if (!referral?.id) {
+      showToast("A valid referral ID is required.", "error");
+      return;
+    }
+    setUpdatingReferralId(referral.id);
+    try {
+      await requestDashboardApi(`/admin-command/guidance-counselling/referrals/${referral.id}/status`, {
+        method: "POST",
+        body: {
+          status,
+          response_note: status === "accepted" ? "Accepted for counselling support from the referral inbox." : undefined,
+          source_dashboard: "counsellor-command-center",
+        },
+      });
+      await refetchReferrals?.();
+      publishSchoolOperationalEvent({
+        type: "COUNSELLOR_REFERRAL_STATUS_UPDATED",
+        schoolId: requireCurrentSchoolId(schoolId),
+        title: "Counselling referral updated",
+        body: `Referral ${String(referral.id).slice(0, 8)} marked ${status}.`,
+        module: "counselling",
+        actorRole: "counsellor",
+      });
+      showToast(`Referral ${status}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to update referral status.";
+      showToast(message, "error");
+    } finally {
+      setUpdatingReferralId(null);
+    }
+  };
+
+  const handleSaveCounsellorSettings = async () => {
+    setSavingCounsellorSettings(true);
+    try {
+      await requestDashboardApi("/admin-command/guidance-counselling/settings", {
+        method: "POST",
+        body: counsellorSettings,
+      });
+      publishSchoolOperationalEvent({
+        type: "COUNSELLOR_SETTINGS_SAVED",
+        schoolId: requireCurrentSchoolId(schoolId),
+        title: "Counselling settings saved",
+        body: "Privacy and notification settings were saved for the counselling workflow.",
+        module: "counselling",
+        actorRole: "counsellor",
+      });
+      showToast("Counselling settings saved.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to save counselling settings.";
+      showToast(message, "error");
+    } finally {
+      setSavingCounsellorSettings(false);
+    }
   };
 
   return (
@@ -187,7 +472,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
             />
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => handleAction("New Case")} className="hidden sm:inline-flex rounded-full bg-[#1D4ED8] px-4 py-2 text-sm font-bold text-white hover:bg-blue-800 transition">
+            <button onClick={() => setNewCaseOpen(true)} className="hidden sm:inline-flex rounded-full bg-[#1D4ED8] px-4 py-2 text-sm font-bold text-white hover:bg-blue-800 transition">
               <Plus className="mr-2 h-4 w-4" /> New Case
             </button>
             <TaskQueue />
@@ -245,10 +530,10 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
             <div className="space-y-6">
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {[
-                  { label: "Active Cases", value: dashboardData?.active_referrals || 0, tone: "info" },
-                  { label: "New Referrals", value: dashboardData?.upcoming_sessions || 0, tone: "warning" },
-                  { label: "Follow-ups Due", value: dashboardData?.followups_due || 0, tone: "danger" },
-                  { label: "High Risk Students", value: dashboardData?.high_risk_students || 0, tone: "success" }
+                  { label: "Open Cases", value: counsellingMetrics.openCases ?? counsellingMetrics.open_cases ?? 0, tone: "info" },
+                  { label: "New Referrals", value: counsellingMetrics.newReferrals ?? counsellingMetrics.new_referrals ?? 0, tone: "warning" },
+                  { label: "Follow-ups Due", value: counsellingMetrics.followUpsDue ?? counsellingMetrics.follow_ups_due ?? 0, tone: "danger" },
+                  { label: "Appointments Today", value: counsellingMetrics.appointmentsToday ?? counsellingMetrics.appointments_today ?? 0, tone: "success" }
                 ].map((stat, i) => (
                   <div key={i} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <p className="text-xs font-black uppercase text-slate-500">{stat.label}</p>
@@ -261,22 +546,25 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
                 <Panel title="Today's Appointments" icon={CalendarClock}>
                   <DataTable
                     columns={["Student", "Time", "Location", "Status"]}
-                    rows={isLoadingSessions ? [] : (sessionsData || []).slice(0, 5).map((s: any) => [
-                      s.student_name || s.student_id?.substring(0, 8),
-                      new Date(s.scheduled_for).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                      s.location || "Office",
-                      <StatusChip key={s.id} label={s.status} tone={s.status === 'scheduled' ? 'info' : 'success'} />
-                    ])}
+                    rows={isLoadingSessions ? [] : sessionRows.slice(0, 5).map((s: any) => {
+                      const scheduledAt = formatDateTime(s.scheduled_for ?? s.session_date ?? s.date ?? s.created_at);
+                      return [
+                        learnerLabel(s),
+                        scheduledAt instanceof Date ? scheduledAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : scheduledAt,
+                        s.location || "Office",
+                        <StatusChip key={s.id} label={s.status || "scheduled"} tone={statusTone(s.status || "scheduled")} />
+                      ];
+                    })}
                   />
                 </Panel>
                 <Panel title="New Referral Queue" icon={Inbox}>
                   <DataTable
                     columns={["Date", "Reason", "Priority", "Status"]}
-                    rows={isLoadingReferrals ? [] : (referralsData || []).filter((r: any) => r.status === 'pending').slice(0, 5).map((r: any) => [
-                      new Date(r.created_at).toLocaleDateString(),
-                      r.reason?.substring(0, 30) + "...",
-                      <StatusChip key={`p-${r.id}`} label={r.risk_level} tone={r.risk_level === 'high' ? 'danger' : 'warning'} />,
-                      <StatusChip key={`s-${r.id}`} label={r.status} tone="info" />
+                    rows={isLoadingReferrals ? [] : referralRows.filter((r: any) => String(r.status ?? "pending").toLowerCase() === "pending").slice(0, 5).map((r: any) => [
+                      displayDate(r.created_at),
+                      r.reason ? `${String(r.reason).substring(0, 30)}...` : "Referral note",
+                      <StatusChip key={`p-${r.id}`} label={r.risk_level || "normal"} tone={riskTone(r.risk_level)} />,
+                      <StatusChip key={`s-${r.id}`} label={r.status || "pending"} tone={statusTone(r.status || "pending")} />
                     ])}
                   />
                 </Panel>
@@ -288,15 +576,15 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
             <Panel title="Referral Inbox" description="Manage incoming referrals from teachers, discipline masters, and boarding." actions={<button onClick={() => handleAction("Bulk Accept")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Bulk Accept</button>}>
               <DataTable
                 columns={["ID", "Date", "Student", "Reason", "Priority", "Status", "Actions"]}
-                rows={isLoadingReferrals ? [] : (referralsData || []).map((r: any) => [
-                  r.id.substring(0, 8),
-                  new Date(r.created_at).toLocaleDateString(),
-                  r.student_name || r.student_id?.substring(0, 8),
-                  r.reason,
-                  <StatusChip key={`p-${r.id}`} label={r.risk_level} tone={r.risk_level === 'high' ? 'danger' : r.risk_level === 'medium' ? 'warning' : 'neutral'} />,
-                  <StatusChip key={`s-${r.id}`} label={r.status} tone={r.status === 'pending' ? 'info' : 'success'} />,
+                rows={isLoadingReferrals ? [] : referralRows.map((r: any) => [
+                  r.id?.substring(0, 8) || "REF",
+                  displayDate(r.created_at),
+                  learnerLabel(r),
+                  r.reason || "Referral note",
+                  <StatusChip key={`p-${r.id}`} label={r.risk_level || "normal"} tone={riskTone(r.risk_level)} />,
+                  <StatusChip key={`s-${r.id}`} label={r.status || "pending"} tone={statusTone(r.status || "pending")} />,
                   <div key={`a-${r.id}`} className="flex gap-2">
-                    <button onClick={() => handleAction("Accept Case")} className="text-blue-600 font-bold text-xs">Accept</button>
+                    <button type="button" disabled={updatingReferralId === r.id} onClick={() => void handleReferralStatus(r, "accepted")} className="text-blue-600 font-bold text-xs disabled:opacity-50">{updatingReferralId === r.id ? "Accepting..." : "Accept"}</button>
                     <button onClick={() => handleAction("Request Info")} className="text-slate-500 font-bold text-xs">More Info</button>
                   </div>
                 ])}
@@ -305,12 +593,19 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
           )}
 
           {activeView === "cases" && (
-            <Panel title="Student Cases" description="Confidential student cases under your management." actions={<button onClick={() => handleAction("New Case")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">New Case</button>}>
+            <Panel title="Student Cases" description="Confidential student cases under your management." actions={<button onClick={() => setNewCaseOpen(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">New Case</button>}>
               <DataTable
                 columns={["Case #", "Student", "Class", "Category", "Priority", "Status", "Next Follow-up", "Actions"]}
-                rows={[
-                  ["CAS-809", "Brian Otieno", "Form 2 Blue", "Behaviour", <StatusChip key="p1" label="High" tone="danger" />, <StatusChip key="s1" label="Active" tone="info" />, "Tomorrow", <div key="a1" className="flex gap-2"><button onClick={() => handleAction("Open Case")} className="text-blue-600 font-bold text-xs">Open</button><button onClick={() => handleAction("Record Session")} className="text-emerald-600 font-bold text-xs">Record</button></div>]
-                ]}
+                rows={(caseRows.length ? caseRows : referralRows).map((caseRecord: any) => [
+                  caseRecord.id?.substring(0, 8) || "CASE",
+                  learnerLabel(caseRecord),
+                  caseRecord.class_name || caseRecord.stream_name || caseRecord.admission_number || "Unassigned",
+                  caseRecord.category || caseRecord.reason || "Counselling",
+                  <StatusChip key={`p-${caseRecord.id}`} label={caseRecord.risk_level || caseRecord.priority || "normal"} tone={riskTone(caseRecord.risk_level || caseRecord.priority)} />,
+                  <StatusChip key={`s-${caseRecord.id}`} label={caseRecord.status || "open"} tone={statusTone(caseRecord.status || "open")} />,
+                  displayDate(caseRecord.due_date || caseRecord.next_followup_at, "No follow-up set"),
+                  <div key={`a-${caseRecord.id}`} className="flex gap-2"><button onClick={() => handleAction("Open Case")} className="text-blue-600 font-bold text-xs">Open</button><button onClick={() => handleAction("Record Session")} className="text-emerald-600 font-bold text-xs">Record</button></div>
+                ])}
               />
             </Panel>
           )}
@@ -319,12 +614,12 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
             <Panel title="Appointments" description="Manage your counselling calendar." actions={<button onClick={() => handleAction("Schedule Appointment")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Schedule Appointment</button>}>
               <DataTable
                 columns={["Date", "Time", "Student", "Location", "Status", "Actions"]}
-                rows={isLoadingSessions ? [] : (sessionsData || []).map((s: any) => [
-                  new Date(s.scheduled_for).toLocaleDateString(),
-                  new Date(s.scheduled_for).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  s.student_name || s.student_id?.substring(0, 8),
+                rows={(appointmentRows.length ? appointmentRows : sessionRows).map((s: any) => [
+                  displayDate(s.scheduled_for ?? s.session_date ?? s.date ?? s.created_at),
+                  displayTime(s.scheduled_for ?? s.session_date ?? s.date ?? s.created_at),
+                  learnerLabel(s),
                   s.location || "Office",
-                  <StatusChip key={`s-${s.id}`} label={s.status} tone={s.status === 'scheduled' ? 'info' : 'success'} />,
+                  <StatusChip key={`s-${s.id}`} label={s.status || "scheduled"} tone={statusTone(s.status || "scheduled")} />,
                   <div key={`a-${s.id}`} className="flex gap-2">
                     <button onClick={() => handleAction("Mark Attended")} className="text-blue-600 font-bold text-xs">Attended</button>
                     <button onClick={() => handleAction("Reschedule")} className="text-slate-500 font-bold text-xs">Reschedule</button>
@@ -338,9 +633,14 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
             <Panel title="Session Notes" description="Secure, private notes for attended sessions." actions={<button onClick={() => handleAction("Export Notes")} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold">Print Private</button>}>
               <DataTable
                 columns={["Date", "Student", "Session Type", "Visibility", "Follow-up Req.", "Actions"]}
-                rows={[
-                  ["11 Oct", "Mary Wanjiku", "Follow-up", <StatusChip key="s1" label="Private" tone="danger" />, "Yes", <div key="a1" className="flex gap-2"><button onClick={() => handleAction("View Note")} className="text-blue-600 font-bold text-xs">View Note</button><button onClick={() => handleAction("Lock Note")} className="text-slate-500 font-bold text-xs">Lock</button></div>]
-                ]}
+                rows={sessionRows.map((session: any) => [
+                  displayDate(session.scheduled_for ?? session.created_at),
+                  learnerLabel(session),
+                  session.agenda || session.session_type || "Counselling session",
+                  <StatusChip key={`v-${session.id}`} label={session.visibility || "restricted"} tone="danger" />,
+                  session.follow_up_required ? "Yes" : session.status === "completed" ? "No" : "Review",
+                  <div key={`a-${session.id}`} className="flex gap-2"><button onClick={() => handleAction("View Note")} className="text-blue-600 font-bold text-xs">View Note</button><button onClick={() => handleAction("Lock Note")} className="text-slate-500 font-bold text-xs">Lock</button></div>
+                ])}
               />
             </Panel>
           )}
@@ -349,9 +649,14 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
             <Panel title="Follow-ups" description="Track learners requiring ongoing support." actions={<button onClick={() => handleAction("Add Follow-up")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Add Follow-up</button>}>
               <DataTable
                 columns={["Student", "Reason", "Due Date", "Priority", "Status", "Actions"]}
-                rows={[
-                  ["Kevin T", "Check on peer relations", "Today", <StatusChip key="p1" label="High" tone="danger" />, <StatusChip key="s1" label="Due Today" tone="warning" />, <div key="a1" className="flex gap-2"><button onClick={() => handleAction("Mark Done")} className="text-emerald-600 font-bold text-xs">Mark Done</button><button onClick={() => handleAction("Reschedule")} className="text-blue-600 font-bold text-xs">Reschedule</button></div>]
-                ]}
+                rows={followupRows.map((followup: any) => [
+                  learnerLabel(followup),
+                  followup.reason || "Follow-up",
+                  displayDate(followup.due_date),
+                  <StatusChip key={`p-${followup.id}`} label={followup.priority || "normal"} tone={riskTone(followup.priority)} />,
+                  <StatusChip key={`s-${followup.id}`} label={followup.status || "pending"} tone={statusTone(followup.status || "pending")} />,
+                  <div key={`a-${followup.id}`} className="flex gap-2"><button onClick={() => handleAction("Mark Done")} className="text-emerald-600 font-bold text-xs">Mark Done</button><button onClick={() => handleAction("Reschedule")} className="text-blue-600 font-bold text-xs">Reschedule</button></div>
+                ])}
               />
             </Panel>
           )}
@@ -360,9 +665,14 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
             <Panel title="Welfare Concerns" description="Broader concerns regarding attendance, basics, and general welfare." actions={<button onClick={() => handleAction("New Concern")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Log Concern</button>}>
               <DataTable
                 columns={["Student", "Category", "Reported By", "Priority", "Status", "Actions"]}
-                rows={[
-                  ["Amina O", "Financial Hardship", "Class Teacher", <StatusChip key="p1" label="Medium" tone="warning" />, <StatusChip key="s1" label="Open" tone="info" />, <div key="a1" className="flex gap-2"><button onClick={() => handleAction("Create Case")} className="text-blue-600 font-bold text-xs">Create Case</button><button onClick={() => handleAction("Refer")} className="text-slate-500 font-bold text-xs">Refer</button></div>]
-                ]}
+                rows={welfareRows.map((concern: any) => [
+                  learnerLabel(concern),
+                  concern.category || "Welfare",
+                  concern.reported_by || "School staff",
+                  <StatusChip key={`p-${concern.id}`} label={concern.priority || "normal"} tone={riskTone(concern.priority)} />,
+                  <StatusChip key={`s-${concern.id}`} label={concern.status || "open"} tone={statusTone(concern.status || "open")} />,
+                  <div key={`a-${concern.id}`} className="flex gap-2"><button onClick={() => handleAction("Create Case")} className="text-blue-600 font-bold text-xs">Create Case</button><button onClick={() => handleAction("Refer")} className="text-slate-500 font-bold text-xs">Refer</button></div>
+                ])}
               />
             </Panel>
           )}
@@ -371,9 +681,13 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
             <Panel title="Group Guidance" description="Manage life skills and school-wide wellbeing programs." actions={<button onClick={() => handleAction("Create Session")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Create Group Session</button>}>
               <DataTable
                 columns={["Title", "Target Group", "Date", "Status", "Actions"]}
-                rows={[
-                  ["Exam Prep Anxiety", "Form 4", "15 Oct", <StatusChip key="s1" label="Upcoming" tone="info" />, <div key="a1" className="flex gap-2"><button onClick={() => handleAction("Take Attendance")} className="text-blue-600 font-bold text-xs">Attendance</button></div>]
-                ]}
+                rows={groupRows.map((groupSession: any) => [
+                  groupSession.title || groupSession.message || "Group guidance session",
+                  groupSession.target_group || groupSession.priority || "School group",
+                  displayDate(groupSession.scheduled_for ?? groupSession.created_at),
+                  <StatusChip key={`s-${groupSession.id}`} label={groupSession.status || "planned"} tone={statusTone(groupSession.status || "planned")} />,
+                  <div key={`a-${groupSession.id}`} className="flex gap-2"><button onClick={() => handleAction("Take Attendance")} className="text-blue-600 font-bold text-xs">Attendance</button></div>
+                ])}
               />
             </Panel>
           )}
@@ -382,9 +696,14 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
             <Panel title="Parent Engagement" description="Log parent communications safely without exposing private notes." actions={<button onClick={() => handleAction("Log Contact")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Log Parent Contact</button>}>
               <DataTable
                 columns={["Student", "Guardian", "Method", "Reason", "Status", "Actions"]}
-                rows={[
-                  ["David O", "Mr. Omondi", "Call", "Welfare check", <StatusChip key="s1" label="Contacted" tone="success" />, <div key="a1" className="flex gap-2"><button onClick={() => handleAction("Schedule Meeting")} className="text-blue-600 font-bold text-xs">Schedule Meeting</button></div>]
-                ]}
+                rows={parentRows.map((contact: any) => [
+                  contact.learner || "Linked learner",
+                  contact.display_name || contact.guardian_name || contact.email || "Guardian record",
+                  contact.preferred_channel || contact.phone || contact.email || "Portal",
+                  contact.relationship || "Guardian engagement",
+                  <StatusChip key={`s-${contact.id}`} label={contact.status || "linked"} tone={statusTone(contact.status || "linked")} />,
+                  <div key={`a-${contact.id}`} className="flex gap-2"><button onClick={() => handleAction("Schedule Meeting")} className="text-blue-600 font-bold text-xs">Schedule Meeting</button></div>
+                ])}
               />
             </Panel>
           )}
@@ -393,9 +712,15 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
             <Panel title="Teacher Collaboration" description="Request feedback or classroom observations." actions={<button onClick={() => handleAction("Request Feedback")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Request Feedback</button>}>
               <DataTable
                 columns={["Request ID", "Student", "Staff Member", "Request Type", "Due", "Status", "Actions"]}
-                rows={[
-                  ["REQ-01", "Brian Otieno", "Mr. Kariuki", "Class Observation", "14 Oct", <StatusChip key="s1" label="Pending" tone="warning" />, <button key="a1" onClick={() => handleAction("Send Reminder")} className="text-blue-600 font-bold text-xs">Reminder</button>]
-                ]}
+                rows={teacherRows.map((request: any) => [
+                  request.id?.substring?.(0, 8) || request.user_id?.substring?.(0, 8) || "STAFF",
+                  request.learner || "Learner to assign",
+                  request.display_name || request.email || "Staff member",
+                  request.request_type || "Counselling feedback",
+                  displayDate(request.due_date, "No due date"),
+                  <StatusChip key={`s-${request.user_id || request.id}`} label={request.status || "active"} tone={statusTone(request.status || "active")} />,
+                  <button key={`a-${request.user_id || request.id}`} onClick={() => handleAction("Send Reminder")} className="text-blue-600 font-bold text-xs">Reminder</button>
+                ])}
               />
             </Panel>
           )}
@@ -404,9 +729,14 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
             <Panel title="Discipline Support" description="Support plans for discipline referrals." actions={<button onClick={() => handleAction("Create Plan")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Create Support Plan</button>}>
               <DataTable
                 columns={["Student", "Incident Ref", "Referred By", "Status", "Next Action", "Actions"]}
-                rows={[
-                  ["Mark M", "INC-502", "Discipline Master", <StatusChip key="s1" label="Monitoring" tone="info" />, "Review Plan", <div key="a1" className="flex gap-2"><button onClick={() => handleAction("Record Session")} className="text-blue-600 font-bold text-xs">Record</button><button onClick={() => handleAction("Update DM")} className="text-emerald-600 font-bold text-xs">Update DM</button></div>]
-                ]}
+                rows={disciplineRows.map((incident: any) => [
+                  learnerLabel(incident),
+                  incident.id?.substring?.(0, 8) || "INC",
+                  incident.referred_by || "Discipline team",
+                  <StatusChip key={`s-${incident.id}`} label={incident.status || "open"} tone={statusTone(incident.status || "open")} />,
+                  incident.next_action || incident.category || "Review support plan",
+                  <div key={`a-${incident.id}`} className="flex gap-2"><button onClick={() => handleAction("Record Session")} className="text-blue-600 font-bold text-xs">Record</button><button onClick={() => handleAction("Update Discipline Team")} className="text-emerald-600 font-bold text-xs">Update Discipline</button></div>
+                ])}
               />
             </Panel>
           )}
@@ -415,9 +745,13 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
             <Panel title="Health Referrals" description="Coordinate with the Nurse/Sick Bay." actions={<button onClick={() => handleAction("Refer Nurse")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Refer to Nurse</button>}>
               <DataTable
                 columns={["Student", "Direction", "Summary", "Status", "Actions"]}
-                rows={[
-                  ["Faith A", "To Nurse", "Suspected migraine causing distress", <StatusChip key="s1" label="Open" tone="warning" />, <button key="a1" onClick={() => handleAction("Request Update")} className="text-blue-600 font-bold text-xs">Request Update</button>]
-                ]}
+                rows={healthRows.map((referral: any) => [
+                  learnerLabel(referral),
+                  referral.direction || "Health office",
+                  referral.symptoms_summary || referral.summary || "Health referral",
+                  <StatusChip key={`s-${referral.id}`} label={referral.status || "open"} tone={statusTone(referral.status || "open")} />,
+                  <button key={`a-${referral.id}`} onClick={() => handleAction("Request Update")} className="text-blue-600 font-bold text-xs">Request Update</button>
+                ])}
               />
             </Panel>
           )}
@@ -435,9 +769,15 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
               </div>
               <DataTable
                 columns={["ID", "Student", "Priority", "Escalated To", "Date", "Status", "Actions"]}
-                rows={[
-                  ["ESC-09", "Kevin T", <StatusChip key="p1" label="Urgent" tone="danger" />, "Principal", "Today", <StatusChip key="s1" label="Under Review" tone="warning" />, <div key="a1" className="flex gap-2"><button onClick={() => handleAction("Add Update")} className="text-blue-600 font-bold text-xs">Add Update</button><button onClick={() => handleAction("Close")} className="text-red-600 font-bold text-xs">Close</button></div>]
-                ]}
+                rows={escalationRows.map((escalation: any) => [
+                  escalation.id?.substring?.(0, 8) || "ESC",
+                  learnerLabel(escalation),
+                  <StatusChip key={`p-${escalation.id}`} label={escalation.priority || "urgent"} tone={riskTone(escalation.priority || "urgent")} />,
+                  escalation.escalated_to || "School leadership",
+                  displayDate(escalation.created_at),
+                  <StatusChip key={`s-${escalation.id}`} label={escalation.status || "under_review"} tone={statusTone(escalation.status || "under_review")} />,
+                  <div key={`a-${escalation.id}`} className="flex gap-2"><button onClick={() => handleAction("Add Update")} className="text-blue-600 font-bold text-xs">Add Update</button><button onClick={() => handleAction("Close")} className="text-red-600 font-bold text-xs">Close</button></div>
+                ])}
               />
             </Panel>
           )}
@@ -446,11 +786,17 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
             <div className="space-y-6">
               <Panel title="Counselling Reports" description="Generate anonymised welfare and workload reports for leadership.">
                 <div className="grid gap-4 md:grid-cols-3">
-                  {["Counselling Workload", "Referral Sources", "Class Welfare Trends", "Follow-up Compliance"].map((rep) => (
-                    <div key={rep} className="rounded-xl border border-slate-200 p-4 text-center transition hover:border-blue-300">
+                  {(reportRows.length ? reportRows : [
+                    { id: "workload", title: "Counselling Workload", status: "Available" },
+                    { id: "referral-sources", title: "Referral Sources", status: "Available" },
+                    { id: "welfare-trends", title: "Class Welfare Trends", status: "Available" },
+                    { id: "follow-up-compliance", title: "Follow-up Compliance", status: "Available" },
+                  ]).map((report: any) => (
+                    <div key={report.id || report.snapshot_id || report.title} className="rounded-xl border border-slate-200 p-4 text-center transition hover:border-blue-300">
                       <FileBarChart2 className="mx-auto mb-2 h-8 w-8 text-blue-600" />
-                      <h4 className="font-bold text-slate-800">{rep}</h4>
-                      <button onClick={() => handleAction(`Generate ${rep}`)} className="mt-3 w-full rounded-lg bg-blue-50 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100">Generate PDF</button>
+                      <h4 className="font-bold text-slate-800">{report.title || report.name || "Counselling report"}</h4>
+                      <p className="mt-1 text-xs font-semibold text-slate-500">{report.status || report.format || "Report template"}</p>
+                      <button onClick={() => handleAction(`Generate ${report.title || report.name || "Counselling Report"}`)} className="mt-3 w-full rounded-lg bg-blue-50 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100">Generate PDF</button>
                     </div>
                   ))}
                 </div>
@@ -462,10 +808,13 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
             <Panel title="Resources & Templates" description="Forms and materials for counselling support." actions={<button onClick={() => handleAction("Upload Resource")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Upload File</button>}>
               <DataTable
                 columns={["Resource Name", "Category", "Uploaded", "Visibility", "Actions"]}
-                rows={[
-                  ["Student Support Plan", "Template", "10 Jan", "All Staff", <button key="a1" onClick={() => handleAction("Download")} className="text-blue-600 font-bold text-xs">Download</button>],
-                  ["Parent Meeting Guide", "Template", "12 Feb", "Counsellors Only", <button key="a2" onClick={() => handleAction("Download")} className="text-blue-600 font-bold text-xs">Download</button>]
-                ]}
+                rows={templateRows.map((template: any) => [
+                  template.title || template.name || "Counselling resource",
+                  template.category || "Template",
+                  displayDate(template.created_at, "System resource"),
+                  template.visibility || "Counselling team",
+                  <button key={`a-${template.id || template.title}`} onClick={() => handleAction("Download Resource")} className="text-blue-600 font-bold text-xs">Download</button>
+                ])}
               />
             </Panel>
           )}
@@ -479,16 +828,45 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
                       <p className="font-bold text-slate-800">Notify referrer on case acceptance</p>
                       <p className="text-xs text-slate-500">Sends an automated message to the staff who made the referral.</p>
                     </div>
-                    <input type="checkbox" defaultChecked className="h-4 w-4 rounded border-slate-300 text-blue-600" />
+                    <input
+                      type="checkbox"
+                      checked={counsellorSettings.notify_referrer_on_acceptance}
+                      onChange={(event) => setCounsellorSettings((current) => ({ ...current, notify_referrer_on_acceptance: event.currentTarget.checked }))}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                    />
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-bold text-slate-800">Require audit reason</p>
                       <p className="text-xs text-slate-500">Prompt for a reason when viewing restricted files.</p>
                     </div>
-                    <input type="checkbox" defaultChecked className="h-4 w-4 rounded border-slate-300 text-blue-600" />
+                    <input
+                      type="checkbox"
+                      checked={counsellorSettings.require_audit_reason}
+                      onChange={(event) => setCounsellorSettings((current) => ({ ...current, require_audit_reason: event.currentTarget.checked }))}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                    />
                   </div>
-                  <button onClick={() => handleAction("Save Settings")} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white">Save Preferences</button>
+                  <label className="block text-sm font-bold text-slate-800">
+                    Default case visibility
+                    <select
+                      value={counsellorSettings.default_case_visibility}
+                      onChange={(event) => setCounsellorSettings((current) => ({ ...current, default_case_visibility: event.currentTarget.value }))}
+                      className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49]"
+                    >
+                      <option value="restricted">Restricted</option>
+                      <option value="private">Private counsellor only</option>
+                      <option value="team">Counselling team</option>
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    disabled={savingCounsellorSettings}
+                    onClick={() => void handleSaveCounsellorSettings()}
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
+                  >
+                    {savingCounsellorSettings ? "Saving..." : "Save Preferences"}
+                  </button>
                 </div>
               </Panel>
             </div>
@@ -496,7 +874,16 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
 
         </main>
       </div>
-      
+      <NewCounsellingCaseModal
+        open={newCaseOpen}
+        schoolId={schoolId}
+        onClose={() => setNewCaseOpen(false)}
+        onCreated={() => {
+          void refetchReferrals?.();
+          setActiveView("referrals");
+          showToast("Counselling case created and added to the referral inbox.");
+        }}
+      />
     </div>
   );
 }

@@ -33,6 +33,9 @@ export interface SafeSessionRecord {
 
 @Injectable()
 export class SessionService {
+  private readonly fallbackSessions = new Map<string, AuthSessionRecord>();
+  private readonly fallbackUserSessions = new Map<string, Set<string>>();
+
   constructor(private readonly redisService: RedisService) {}
 
   async createSession(input: CreateSessionInput): Promise<AuthSessionRecord> {
@@ -59,6 +62,10 @@ export class SessionService {
   }
 
   async getSession(sessionId: string): Promise<AuthSessionRecord | null> {
+    if (this.redisService.isDegraded()) {
+      return this.getFallbackSession(sessionId);
+    }
+
     const rawSession = await this.redisService.getClient().get(this.getSessionKey(sessionId));
 
     if (!rawSession) {
@@ -69,6 +76,11 @@ export class SessionService {
   }
 
   async invalidateSession(sessionId: string): Promise<void> {
+    if (this.redisService.isDegraded()) {
+      this.invalidateFallbackSession(sessionId);
+      return;
+    }
+
     const redis = this.redisService.getClient();
     const session = await this.getSession(sessionId);
 
@@ -80,6 +92,14 @@ export class SessionService {
   }
 
   async invalidateUserSessions(userId: string): Promise<void> {
+    if (this.redisService.isDegraded()) {
+      for (const sessionId of this.fallbackUserSessions.get(userId) ?? []) {
+        this.fallbackSessions.delete(sessionId);
+      }
+      this.fallbackUserSessions.delete(userId);
+      return;
+    }
+
     const redis = this.redisService.getClient();
     const sessionIds = await redis.smembers(this.getUserSessionKey(userId));
 
@@ -91,6 +111,16 @@ export class SessionService {
   }
 
   async listUserSessions(userId: string): Promise<SafeSessionRecord[]> {
+    if (this.redisService.isDegraded()) {
+      const sessions = Array.from(this.fallbackUserSessions.get(userId) ?? [])
+        .map((sessionId) => this.getFallbackSession(sessionId))
+        .filter((session): session is AuthSessionRecord => Boolean(session));
+
+      return sessions
+        .map((session) => this.toSafeSessionRecord(session))
+        .sort((left, right) => right.updated_at.localeCompare(left.updated_at));
+    }
+
     const redis = this.redisService.getClient();
     const sessionIds = await redis.smembers(this.getUserSessionKey(userId));
     const sessions: SafeSessionRecord[] = [];
@@ -120,6 +150,32 @@ export class SessionService {
     email_verified_at: string | null;
     refresh_expires_at: string;
   }): Promise<AuthSessionRecord> {
+    if (this.redisService.isDegraded()) {
+      const currentSession = this.getFallbackSession(input.session_id);
+
+      if (!currentSession) {
+        throw new UnauthorizedException('Session has expired');
+      }
+
+      if (currentSession.refresh_token_id !== input.current_refresh_token_id) {
+        this.invalidateFallbackSession(input.session_id);
+        throw new UnauthorizedException('Refresh token reuse detected');
+      }
+
+      const nextSession: AuthSessionRecord = {
+        ...currentSession,
+        role: input.role,
+        permissions: input.permissions,
+        email_verified_at: input.email_verified_at,
+        refresh_token_id: input.next_refresh_token_id,
+        refresh_expires_at: input.refresh_expires_at,
+        updated_at: new Date().toISOString(),
+      };
+
+      this.persistFallbackSession(nextSession);
+      return nextSession;
+    }
+
     const redis = this.redisService.getClient();
     const sessionKey = this.getSessionKey(input.session_id);
 
@@ -178,6 +234,11 @@ export class SessionService {
   }
 
   private async persistSession(session: AuthSessionRecord): Promise<void> {
+    if (this.redisService.isDegraded()) {
+      this.persistFallbackSession(session);
+      return;
+    }
+
     const ttlSeconds = this.getSessionTtlSeconds(session.refresh_expires_at);
     const redis = this.redisService.getClient();
     await redis.set(this.getSessionKey(session.session_id), JSON.stringify(session), 'EX', ttlSeconds);
@@ -238,5 +299,44 @@ export class SessionService {
 
   private getUserSessionKey(userId: string): string {
     return `${AUTH_USER_SESSION_PREFIX}:${userId}`;
+  }
+
+  private getFallbackSession(sessionId: string): AuthSessionRecord | null {
+    const session = this.fallbackSessions.get(sessionId);
+
+    if (!session) {
+      return null;
+    }
+
+    if (new Date(session.refresh_expires_at).getTime() <= Date.now()) {
+      this.invalidateFallbackSession(sessionId);
+      return null;
+    }
+
+    return session;
+  }
+
+  private persistFallbackSession(session: AuthSessionRecord): void {
+    this.fallbackSessions.set(session.session_id, session);
+
+    const userSessions = this.fallbackUserSessions.get(session.user_id) ?? new Set<string>();
+    userSessions.add(session.session_id);
+    this.fallbackUserSessions.set(session.user_id, userSessions);
+  }
+
+  private invalidateFallbackSession(sessionId: string): void {
+    const session = this.fallbackSessions.get(sessionId);
+    this.fallbackSessions.delete(sessionId);
+
+    if (!session) {
+      return;
+    }
+
+    const userSessions = this.fallbackUserSessions.get(session.user_id);
+    userSessions?.delete(sessionId);
+
+    if (userSessions?.size === 0) {
+      this.fallbackUserSessions.delete(session.user_id);
+    }
   }
 }

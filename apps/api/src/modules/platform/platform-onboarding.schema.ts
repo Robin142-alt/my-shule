@@ -62,6 +62,25 @@ export class PlatformOnboardingSchemaService implements OnModuleInit {
         CONSTRAINT uq_tenants_subdomain UNIQUE (subdomain)
       );
 
+      DO $$
+      BEGIN
+        IF to_regclass('public.tenant_domains') IS NOT NULL THEN
+          DROP POLICY IF EXISTS tenant_domains_rls_policy ON tenant_domains;
+          ALTER TABLE tenant_domains DROP CONSTRAINT IF EXISTS fk_tenant_domains_tenant;
+          ALTER TABLE tenant_domains ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+        END IF;
+
+        IF to_regclass('public.tenants') IS NOT NULL THEN
+          DROP POLICY IF EXISTS tenants_rls_policy ON tenants;
+          ALTER TABLE tenants ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+          ALTER TABLE tenants ALTER COLUMN settings TYPE jsonb USING
+            CASE
+              WHEN settings IS NULL OR btrim(settings::text) = '' THEN '{}'::jsonb
+              ELSE settings::jsonb
+            END;
+        END IF;
+      END $$;
+
       ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
       ALTER TABLE tenants FORCE ROW LEVEL SECURITY;
 
@@ -96,11 +115,11 @@ export class PlatformOnboardingSchemaService implements OnModuleInit {
       CREATE POLICY tenants_rls_policy ON tenants
       FOR ALL
       USING (
-        tenant_id = current_setting('app.tenant_id', true)
+        tenant_id::text = current_setting('app.tenant_id', true)
         OR NULLIF(current_setting('app.role', true), '') = 'platform_owner'
       )
       WITH CHECK (
-        tenant_id = current_setting('app.tenant_id', true)
+        tenant_id::text = current_setting('app.tenant_id', true)
         OR NULLIF(current_setting('app.role', true), '') = 'platform_owner'
       );
 
@@ -108,11 +127,11 @@ export class PlatformOnboardingSchemaService implements OnModuleInit {
       CREATE POLICY tenant_domains_rls_policy ON tenant_domains
       FOR ALL
       USING (
-        tenant_id = current_setting('app.tenant_id', true)
+        tenant_id::text = current_setting('app.tenant_id', true)
         OR NULLIF(current_setting('app.role', true), '') = 'platform_owner'
       )
       WITH CHECK (
-        tenant_id = current_setting('app.tenant_id', true)
+        tenant_id::text = current_setting('app.tenant_id', true)
         OR NULLIF(current_setting('app.role', true), '') = 'platform_owner'
       );
 
@@ -213,6 +232,40 @@ export class PlatformOnboardingSchemaService implements OnModuleInit {
       EXECUTE FUNCTION set_updated_at();
 
       CREATE INDEX IF NOT EXISTS idx_platform_backups_created_at ON platform_backups (created_at);
+
+      -- Platform Payment Gateways
+      CREATE TABLE IF NOT EXISTS platform_payment_gateways (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        name text NOT NULL,
+        gateway_type text NOT NULL,
+        environment text NOT NULL DEFAULT 'Sandbox',
+        status text NOT NULL DEFAULT 'Active',
+        shortcode text,
+        metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT ck_platform_payment_gateways_name_not_blank CHECK (btrim(name) <> ''),
+        CONSTRAINT ck_platform_payment_gateways_type_not_blank CHECK (btrim(gateway_type) <> ''),
+        CONSTRAINT ck_platform_payment_gateways_environment CHECK (environment IN ('Sandbox', 'Production')),
+        CONSTRAINT ck_platform_payment_gateways_status CHECK (status IN ('Active', 'Inactive', 'Testing'))
+      );
+
+      ALTER TABLE platform_payment_gateways ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE platform_payment_gateways FORCE ROW LEVEL SECURITY;
+
+      DROP POLICY IF EXISTS platform_payment_gateways_rls_policy ON platform_payment_gateways;
+      CREATE POLICY platform_payment_gateways_rls_policy ON platform_payment_gateways
+      FOR ALL
+      USING (NULLIF(current_setting('app.role', true), '') = 'platform_owner')
+      WITH CHECK (NULLIF(current_setting('app.role', true), '') = 'platform_owner');
+
+      DROP TRIGGER IF EXISTS trg_platform_payment_gateways_set_updated_at ON platform_payment_gateways;
+      CREATE TRIGGER trg_platform_payment_gateways_set_updated_at
+      BEFORE UPDATE ON platform_payment_gateways
+      FOR EACH ROW
+      EXECUTE FUNCTION set_updated_at();
+
+      CREATE INDEX IF NOT EXISTS idx_platform_payment_gateways_created_at ON platform_payment_gateways (created_at DESC);
 
       -- Platform Security Policies
       CREATE TABLE IF NOT EXISTS platform_security_policies (

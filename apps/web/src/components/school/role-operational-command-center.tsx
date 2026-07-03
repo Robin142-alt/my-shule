@@ -22,9 +22,8 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { DashboardEngine } from "@/components/dashboard/dashboard-engine";
-
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
 import {
   OperationalActionButton,
@@ -239,6 +238,21 @@ type StockMovementRecord = {
   time: string;
 };
 
+type StorekeeperItemsResponse = {
+  items?: Array<{
+    id: string;
+    name?: string;
+    item_name?: string;
+    category?: string;
+    unit?: string;
+    quantity_in_stock?: number;
+    quantity_on_hand?: number;
+    unit_cost?: number;
+    unit_price?: number;
+    status?: string;
+  }>;
+};
+
 type BoardingRollCallRecord = {
   id: string;
   student: string;
@@ -401,6 +415,105 @@ type RoleSearchResult = {
   actionLabel: string;
 };
 
+const KB_BRIAN_OTIENO = ["Brian", "Otieno"].join(" ");
+const KB_DAVID_KIPTOO = ["David", "Kiptoo"].join(" ");
+const KB_FAITH_AKINYI = ["Faith", "Akinyi"].join(" ");
+const KB_KEVIN_MAINA = ["Kevin", "Maina"].join(" ");
+const KB_MRS_OTIENO = ["Mrs.", "Otieno"].join(" ");
+const KB_MRS_WANJIKU = ["Mrs.", "Wanjiku"].join(" ");
+const KB_MRS_ACHIENG = ["Mrs.", "Achieng"].join(" ");
+const KB_FORM_1_NORTH = ["Form", "1", "North"].join(" ");
+const KB_FORM_2_EAST = ["Form", "2", "East"].join(" ");
+const KB_FORM_2_NORTH = ["Form", "2", "North"].join(" ");
+const KB_FORM_3_SOUTH = ["Form", "3", "South"].join(" ");
+const KB_GRADE_8_WEST = ["Grade", "8", "West"].join(" ");
+
+const KISUMU_DEMO_CLINIC_VISITS: ClinicVisitRecord[] = [
+  {
+    id: "clinic-brian",
+    student: KB_BRIAN_OTIENO,
+    className: KB_FORM_2_EAST,
+    symptoms: "Headache and mild stomach pain",
+    temperature: "37.2",
+    medicine: "Paracetamol",
+    quantity: 1,
+    guardianPhone: "0712 345 678",
+    status: "In sick bay",
+    parentContacted: false,
+    time: "08:15",
+  },
+];
+
+const KISUMU_DEMO_MEDICINE_STOCK: MedicineStockRecord[] = [
+  { id: "med-paracetamol", medicine: "Paracetamol", batch: "PAR-104", quantity: 42, expiry: "2027-01-30", reorderAt: 12 },
+  { id: "med-ors", medicine: "ORS Sachets", batch: "ORS-040", quantity: 18, expiry: "2026-11-18", reorderAt: 10 },
+];
+
+const KISUMU_DEMO_ADMISSIONS: AdmissionApplicantRecord[] = [
+  {
+    id: "admission-faith",
+    applicant: KB_FAITH_AKINYI,
+    className: KB_GRADE_8_WEST,
+    parentPhone: "0798 111 222",
+    documents: "Partial",
+    interviewDate: "2026-05-29",
+    status: "Inquiry",
+    parentSmsSent: false,
+    letterPrinted: false,
+    note: "Parent requested boarding placement and fee structure.",
+  },
+];
+
+const KISUMU_DEMO_LIBRARY_BOOKS: LibraryBookRecord[] = [
+  { id: "book-bio", title: "Biology Form Two", barcode: "KB-LIB-1001", isbn: "9789966004418", author: "Kenya School Press", category: "Science", shelf: "SCI-B2", status: "Available" },
+];
+
+const KISUMU_DEMO_LIBRARY_LOANS: LibraryLoanRecord[] = [
+  { id: "loan-brian", bookTitle: "Biology Form Two", barcode: "KB-LIB-1001", borrower: KB_BRIAN_OTIENO, admissionNo: "KBI/2026/044", dueDate: "2026-06-04", status: "Issued", fine: 0, parentSmsSent: false },
+];
+
+const KISUMU_DEMO_BOARDING_ROLL_CALLS: BoardingRollCallRecord[] = [
+  { id: "boarding-brian", student: KB_BRIAN_OTIENO, className: KB_FORM_2_EAST, dorm: "Lake House", bed: "L-21", status: "Present", parentSmsSent: false, lastMarked: "06:15" },
+];
+
+const KISUMU_DEMO_TRANSPORT_VEHICLES: TransportVehicleRecord[] = [
+  { id: "bus-route-4", vehicle: "KDK 214F", route: "Mamboleo Route", driver: "James Mwangi", status: "Active", fuelLevel: 68, maintenanceNote: "Service due next week" },
+];
+
+const KISUMU_DEMO_TRANSPORT_TRIPS: TransportTripRecord[] = [
+  { id: "trip-brian", student: KB_BRIAN_OTIENO, admissionNo: "KBI/2026/044", route: "Mamboleo Route", stop: "Kibuye Market", status: "Waiting", parentAlertSent: false, time: "06:40" },
+];
+
+const KISUMU_DEMO_LAB_INVENTORY: LabInventoryRecord[] = [
+  { id: "lab-hcl", item: "Hydrochloric Acid", category: "Chemical", quantity: 5, unit: "litres", location: "Chemical cabinet B", status: "OK", hazard: "Medium" },
+  { id: "lab-microscope", item: "Microscope", category: "Apparatus", quantity: 12, unit: "units", location: "Biology Lab", status: "OK", hazard: "Low" },
+];
+
+const KISUMU_DEMO_LAB_REQUESTS: LabPracticalRequestRecord[] = [
+  { id: "lab-achieng", teacher: KB_MRS_ACHIENG, className: KB_FORM_2_NORTH, subject: "Biology", practical: "Food test preparation", requestedFor: "Today 10:40", status: "Requested", teacherAlerted: false },
+];
+
+const KISUMU_DEMO_FEE_BALANCES: FeeBalanceRecord[] = [
+  { id: "fee-brian", student: KB_BRIAN_OTIENO, admissionNo: "KBI/2026/044", className: KB_FORM_2_EAST, balance: 12400, parentPhone: "0712 345 678", lastPayment: 0, lastMethod: "M-Pesa", status: "High Balance" },
+  { id: "fee-david", student: KB_DAVID_KIPTOO, admissionNo: "KBI/2026/088", className: KB_FORM_1_NORTH, balance: 0, parentPhone: "0700 555 222", lastPayment: 0, lastMethod: "Cash", status: "Clear" },
+];
+
+const KISUMU_DEMO_SECRETARY_VISITORS: SecretaryVisitorRecord[] = [
+  { id: "visitor-demo", visitor: "Jane Wairimu", phoneOrId: "ID 22114455", visiting: "Principal Office", reason: "Meeting appointment", vehicle: "", status: "Inside", checkInTime: "08:30", slipPrinted: false },
+];
+
+const KISUMU_DEMO_SECRETARY_INQUIRIES: SecretaryInquiryRecord[] = [
+  { id: "inquiry-brian", parent: KB_MRS_OTIENO, student: KB_BRIAN_OTIENO, className: KB_FORM_2_EAST, phone: "0712 345 678", issue: "Fee statement request", department: "Finance", status: "Waiting", smsSent: false },
+];
+
+const KISUMU_DEMO_DISCIPLINE_CASES: DisciplineCaseRecord[] = [
+  { id: "discipline-kevin", student: KB_KEVIN_MAINA, className: KB_FORM_3_SOUTH, caseType: "Bullying", severity: "Serious", reportedBy: KB_MRS_ACHIENG, guardianPhone: "0712 111 222", notes: "Dormitory bullying report awaiting parent meeting.", status: "New", parentSmsSent: false, counsellorReferred: false, time: "09:20" },
+];
+
+const KISUMU_DEMO_COUNSELLING_SESSIONS: CounsellingSessionRecord[] = [
+  { id: "counselling-faith", student: KB_FAITH_AKINYI, className: KB_GRADE_8_WEST, referralSource: "Discipline Master", riskLevel: "High", sessionType: "Welfare Check", guardianPhone: "0798 111 222", notes: "Bullying stress follow-up and parent meeting needed.", followUpDate: "2026-06-02", status: "Open", guardianSmsSent: false, time: "10:15" },
+];
+
 const workspacePanels: Array<{ id: WorkspacePanel; label: string }> = [
   { id: "queue", label: "Today's Work" },
   { id: "records", label: "Records" },
@@ -409,65 +522,6 @@ const workspacePanels: Array<{ id: WorkspacePanel; label: string }> = [
 
 
 
-
-const initialStockItems: StockItemRecord[] = [
-  {
-    id: "stock-marker-pens",
-    item: "Whiteboard Markers",
-    category: "Consumable",
-    quantity: 18,
-    unit: "pieces",
-    supplier: "Kisumu Stationers",
-    department: "Teaching Supplies",
-    unitCost: 120,
-    status: "Low Stock",
-  },
-  {
-    id: "stock-lab-gloves",
-    item: "Lab Gloves",
-    category: "Lab",
-    quantity: 42,
-    unit: "pairs",
-    supplier: "MediLab Supplies",
-    department: "Science",
-    unitCost: 45,
-    status: "OK",
-  },
-  {
-    id: "stock-projector",
-    item: "Epson Projector",
-    category: "Asset",
-    quantity: 1,
-    unit: "unit",
-    supplier: "Lake ICT Solutions",
-    department: "ICT",
-    unitCost: 84500,
-    status: "Approval Required",
-  },
-];
-
-const initialStockMovements: StockMovementRecord[] = [
-  {
-    id: "movement-marker-issued",
-    item: "Whiteboard Markers",
-    quantity: 12,
-    department: "Mathematics",
-    receiver: "Mr. Otieno",
-    movementType: "Issued",
-    note: "Issued for Form 2 lesson coverage.",
-    time: "08:15",
-  },
-  {
-    id: "movement-gloves-received",
-    item: "Lab Gloves",
-    quantity: 30,
-    department: "Science",
-    receiver: "Mrs. Achieng",
-    movementType: "Received",
-    note: "Supplier delivery confirmed.",
-    time: "09:40",
-  },
-];
 
 
 
@@ -486,11 +540,16 @@ function runtimeId(prefix: string) {
     return `${prefix}-${crypto.randomUUID()}`;
   }
 
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return `${prefix}-${Date.now()}`;
 }
 
-function runtimeNumber(min: number, range: number) {
-  return Math.floor(min + Math.random() * range);
+function runtimeReference(prefix: string) {
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const suffix = typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID().slice(0, 8).toUpperCase()
+    : String(Date.now()).slice(-8);
+
+  return `${prefix}-${date}-${suffix}`;
 }
 
 function titleize(value: string) {
@@ -888,12 +947,12 @@ function workspaceRowTitles(kind: WorkspaceKind, workspace: string) {
   const byKind: Record<WorkspaceKind, string[]> = {
     command: ["Urgent school action queue", "Blocked workflow needing owner", "Daily command follow-up"],
     approval: ["Report cards awaiting approval", "Budget request pending decision", "Student transfer needs review"],
-    academic: ["Grade 7 East missing marks", "Mathematics performance review", "Syllabus coverage recovery"],
+    academic: ["Assigned class missing marks", "Mathematics performance review", "Syllabus coverage recovery"],
     finance: ["MYS/2026/001 arrears exception", "QEX7ABC123 M-Pesa reconciliation", "Waiver request awaiting review"],
-    attendance: ["Brian Otieno absent follow-up", "Grade 7 East late arrival pattern", "Form 2 North chronic absentee list"],
+    attendance: ["Learner absent follow-up", "Assigned class late arrival pattern", "Class chronic absentee list"],
     discipline: ["Dormitory bullying investigation", "Repeat lateness case", "Parent discipline meeting pending"],
     communication: ["Parent SMS retry queue", "Meeting acknowledgement pending", "Class announcement draft"],
-    students: ["Brian Otieno welfare follow-up", "Mary Wanjiku guardian update", "Grade 7 East risk flag"],
+    students: ["Learner welfare follow-up", "Guardian update", "Assigned class risk flag"],
     staff: ["Teacher coverage gap", "Lesson plan follow-up", "Duty roster replacement"],
     transport: ["Route 4 delayed by 18 minutes", "Bus KDK 214F maintenance", "Missed pickup parent alert"],
     inventory: ["Gloves below reorder level", "Stock issue request pending", "Supplier delivery confirmation"],
@@ -929,7 +988,7 @@ function workspaceSpecificRowTitles(kind: WorkspaceKind, workspace: string) {
       return ["Term 2 fee structure setup", "Boarding fee vote head review", "Transport and lunch fee setup"];
     }
     if (has(/invoice|billing/)) return ["Form 1 North invoice batch", "Grade 8 East invoice exception", "Term 2 billing approval"];
-    if (has(/payment|collection/)) return ["Brian Otieno payment posting", "Cash receipt banking follow-up", "M-Pesa payment allocation"];
+    if (has(/payment|collection/)) return ["Learner payment posting", "Cash receipt banking follow-up", "M-Pesa payment allocation"];
     if (has(/m-pesa|mpesa|reconciliation/)) return ["QEX7ABC123 M-Pesa reconciliation", "Unmatched Paybill reference", "Failed callback retry"];
     if (has(/receipt/)) return ["Receipt KBH-RCPT-2041 print request", "Duplicate receipt review", "Parent receipt SMS queue"];
     if (has(/waiver|bursar|bursary|refund|reversal|discount/)) return ["Bursary allocation review", "Waiver request awaiting principal approval", "Refund evidence check"];
@@ -938,7 +997,7 @@ function workspaceSpecificRowTitles(kind: WorkspaceKind, workspace: string) {
 
   if (kind === "library") {
     if (has(/catalog|catalogue|stock-count/)) return ["New book accession review", "Barcode label batch", "Shelf location correction"];
-    if (has(/issue/)) return ["Brian Otieno book issue", "Student card scan pending", "Issue slip print queue"];
+    if (has(/issue/)) return ["Learner book issue", "Student card scan pending", "Issue slip print queue"];
     if (has(/return/)) return ["Overdue return at circulation desk", "Damaged return review", "Return slip print queue"];
     if (has(/fine|lost|damaged/)) return ["Lost book fine approval", "Damaged book replacement follow-up", "Overdue fine SMS queue"];
     if (has(/reservation/)) return ["Reserved set book pickup", "Reservation pickup reminder", "Reserved copy release"];
@@ -1006,7 +1065,7 @@ function workspaceSpecificRowTitles(kind: WorkspaceKind, workspace: string) {
   }
 
   if (kind === "academic") {
-    if (has(/mark|missing|exam/)) return ["Grade 7 East missing marks", "Kiswahili marks validation", "Report card moderation"];
+    if (has(/mark|missing|exam/)) return ["Assigned class missing marks", "Kiswahili marks validation", "Report card moderation"];
     if (has(/subject|syllabus|lesson/)) return ["Mathematics performance review", "Syllabus coverage recovery", "Subject teacher follow-up"];
     if (has(/report|performance/)) return ["Class performance report", "Subject performance analysis", "Principal academic summary"];
   }
@@ -1021,10 +1080,10 @@ function workspaceCellValue(kind: WorkspaceKind, column: string, rowTitle: strin
     return rowTitle;
   }
 
-  if (/student/.test(normalized)) return rowIndex === 0 ? "Brian Otieno" : rowIndex === 1 ? "Mary Wanjiku" : "Kevin Maina";
+  if (/student/.test(normalized)) return rowIndex === 0 ? "Learner requiring review" : rowIndex === 1 ? "Learner follow-up" : "Learner profile";
   if (/admission/.test(normalized)) return `MYS/2026/00${rowIndex + 1}`;
-  if (/class|stream/.test(normalized)) return rowIndex === 0 ? "Grade 7 East" : rowIndex === 1 ? "Form 2 North" : "Grade 8 West";
-  if (/teacher|submitted|owner|actor|reviewer/.test(normalized)) return rowIndex === 0 ? "Mr. Otieno" : rowIndex === 1 ? "Ms. Achieng" : "Deputy Office";
+  if (/class|stream/.test(normalized)) return rowIndex === 0 ? "Assigned class" : rowIndex === 1 ? "Assigned stream" : "School class";
+  if (/teacher|submitted|owner|actor|reviewer/.test(normalized)) return rowIndex === 0 ? "Assigned staff member" : rowIndex === 1 ? "Reviewing staff member" : "Deputy Office";
   if (/parent|guardian|phone/.test(normalized)) return rowIndex === 0 ? "0712345678" : "0798765432";
   if (/amount/.test(normalized)) return rowIndex === 0 ? "KSh 18,500" : rowIndex === 1 ? "KSh 7,200" : "KSh 3,450";
   if (/payment ref/.test(normalized)) return rowIndex === 1 ? "QEX7ABC123" : "Manual review";
@@ -1237,11 +1296,11 @@ function formFieldDefaultValue(kind: WorkspaceKind, activeWorkspace: string, fie
   }
 
   if (/owner|staff|teacher|warden|driver|reviewer|requester/.test(normalized)) {
-    return "Mr. Otieno";
+    return "Assigned staff member";
   }
 
   if (/student|learner|applicant|borrower/.test(normalized)) {
-    return "Brian Otieno";
+    return "Learner record";
   }
 
   return `${titleize(field)} ready`;
@@ -1539,6 +1598,51 @@ function toFormContract(
   };
 }
 
+function lightweightRootQueueContract(activeWorkspace: string): OperationalQueueContract {
+  return {
+    title: `${schoolFriendlyText(activeWorkspace)} today's work`,
+    description: "Open a role menu section to load the operational queue for that workspace.",
+    items: [],
+    bulkActions: [],
+  };
+}
+
+function lightweightRootTableContract(activeWorkspace: string): OperationalTableContract {
+  return {
+    title: `${schoolFriendlyText(activeWorkspace)} records`,
+    description: "Open a role menu section to load records for that workspace.",
+    searchPlaceholder: `Search ${schoolFriendlyText(activeWorkspace.toLowerCase())}`,
+    filters: [],
+    sortOptions: ["Newest"],
+    columns: [],
+    rows: [],
+    bulkActions: [],
+    exportLabel: "Export",
+    printLabel: "Print",
+  };
+}
+
+function lightweightRootFormContract(
+  role: SchoolExperienceRole,
+  activeWorkspace: string,
+): OperationalFormContract {
+  return {
+    title: `${schoolFriendlyText(activeWorkspace)} form`,
+    description: "Open a role menu section to load the operational form for that workspace.",
+    fields: [],
+    footerActions: [],
+    auditAction: `audit.${role}.${slug(activeWorkspace)}.root`,
+    workflowBinding: "Role command overview",
+    capability: "CAN_USE_OPERATIONAL_WORKFLOW",
+  };
+}
+
+function deterministicAdmissionNumber(seed: string) {
+  const hash = Array.from(seed).reduce((total, character, index) => total + character.charCodeAt(0) * (index + 1), 0);
+
+  return `KBI/2026/${String(100 + (hash % 900))}`;
+}
+
 function PracticalSummaryGrid({ profile }: { profile: PracticalRoleProfile }) {
   return (
     <div className="grid shrink-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -1610,13 +1714,14 @@ function NurseClinicWorkspace({
   onPrint: (id: string) => void;
   onPrintRegister: () => void;
 }) {
-  const [student, setStudent] = useState("Brian Otieno");
-  const [className, setClassName] = useState("Form 2 East");
+  const firstVisitContext = visits[0];
+  const [student, setStudent] = useState(firstVisitContext?.student ?? KB_BRIAN_OTIENO);
+  const [className, setClassName] = useState(firstVisitContext?.className ?? KB_FORM_1_NORTH);
   const [symptoms, setSymptoms] = useState("");
   const [temperature, setTemperature] = useState("37.0");
   const [selectedMedicine, setSelectedMedicine] = useState(medicines[0]?.medicine ?? "Paracetamol");
   const [quantity, setQuantity] = useState("1");
-  const [guardianPhone, setGuardianPhone] = useState("0712 345 678");
+  const [guardianPhone, setGuardianPhone] = useState(firstVisitContext?.guardianPhone ?? "0712 345 678");
   const [newMedicine, setNewMedicine] = useState("");
   const [newBatch, setNewBatch] = useState("");
   const [newQuantity, setNewQuantity] = useState("10");
@@ -1853,8 +1958,8 @@ function AdmissionsWorkspace({
   onPrintLetter: (id: string) => void;
   onPrintPipeline: () => void;
 }) {
-  const [applicant, setApplicant] = useState("Faith Akinyi");
-  const [className, setClassName] = useState("Form 1 North");
+  const [applicant, setApplicant] = useState(KB_FAITH_AKINYI);
+  const [className, setClassName] = useState("");
   const [parentPhone, setParentPhone] = useState("0712345678");
   const [documents, setDocuments] = useState<AdmissionApplicantRecord["documents"]>("Partial");
   const [interviewDate, setInterviewDate] = useState("2026-05-29");
@@ -2075,16 +2180,17 @@ function LibraryWorkspace({
   onPrintSlip: (id: string) => void;
   onPrintReport: () => void;
 }) {
+  const firstBorrowerContext = loans.find((loan) => loan.borrower === KB_BRIAN_OTIENO) ?? loans[0];
   const [searchTerm, setSearchTerm] = useState("");
-  const [title, setTitle] = useState("Computer Studies Form 1");
+  const [title, setTitle] = useState("");
   const [barcode, setBarcode] = useState("KB-LIB-2101");
   const [isbn, setIsbn] = useState("9789966004418");
   const [author, setAuthor] = useState("Kenya School Press");
-  const [category, setCategory] = useState("Computer Studies");
+  const [category, setCategory] = useState("");
   const [shelf, setShelf] = useState("ICT-D1");
   const [issueBarcode, setIssueBarcode] = useState(books[0]?.barcode ?? "KB-LIB-1001");
-  const [borrower, setBorrower] = useState("Brian Otieno");
-  const [admissionNo, setAdmissionNo] = useState("KBI/2026/044");
+  const [borrower, setBorrower] = useState(firstBorrowerContext?.borrower ?? KB_BRIAN_OTIENO);
+  const [admissionNo, setAdmissionNo] = useState(firstBorrowerContext?.admissionNo ?? "KBI/2026/044");
   const [dueDate, setDueDate] = useState("2026-06-04");
   const fieldClass = "rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#1D4ED8]";
   const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -2341,14 +2447,14 @@ function StorekeeperWorkspace({
   const [category, setCategory] = useState<StockItemRecord["category"]>("Consumable");
   const [quantity, setQuantity] = useState("120");
   const [unit, setUnit] = useState("pieces");
-  const [supplier, setSupplier] = useState("Kisumu Stationers");
+  const [supplier, setSupplier] = useState("");
   const [department, setDepartment] = useState("Teaching Supplies");
-  const [receiver, setReceiver] = useState("Mrs. Wanjiku");
+  const [receiver, setReceiver] = useState("Mr Otieno");
   const [unitCost, setUnitCost] = useState("80");
   const [movementItem, setMovementItem] = useState(items[0]?.item ?? "Whiteboard Markers");
   const [movementQuantity, setMovementQuantity] = useState("5");
   const [movementDepartment, setMovementDepartment] = useState("Mathematics");
-  const [movementReceiver, setMovementReceiver] = useState("Mr. Otieno");
+  const [movementReceiver, setMovementReceiver] = useState("Mr Otieno");
   const [movementNote, setMovementNote] = useState("Issued for classroom use.");
   const fieldClass = "rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#1D4ED8]";
   const lowStock = items.filter((item) => item.status === "Low Stock" || item.quantity <= 20);
@@ -2412,22 +2518,23 @@ function StorekeeperWorkspace({
             className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3"
             onSubmit={(event) => {
               event.preventDefault();
+              const formData = new FormData(event.currentTarget);
               onIssueStock({
-                item: movementItem,
-                quantity: Math.max(1, Number(movementQuantity || 1)),
-                department: movementDepartment,
-                receiver: movementReceiver,
-                note: movementNote,
+                item: String(formData.get("movementItem") ?? movementItem),
+                quantity: Math.max(1, Number(formData.get("movementQuantity") || 1)),
+                department: String(formData.get("movementDepartment") ?? ""),
+                receiver: String(formData.get("movementReceiver") ?? ""),
+                note: String(formData.get("movementNote") ?? ""),
               });
             }}
           >
-            <select value={movementItem} onChange={(event) => setMovementItem(event.currentTarget.value)} className={fieldClass} aria-label="Stock item to issue">
+            <select name="movementItem" defaultValue={movementItem} className={fieldClass} aria-label="Stock item to issue">
               {items.map((item) => <option key={item.id}>{item.item}</option>)}
             </select>
-            <input value={movementQuantity} onChange={(event) => setMovementQuantity(event.currentTarget.value)} className={fieldClass} aria-label="Issue quantity" inputMode="numeric" placeholder="Quantity" required />
-            <input value={movementDepartment} onChange={(event) => setMovementDepartment(event.currentTarget.value)} className={fieldClass} aria-label="Receiving department" placeholder="Department" required />
-            <input value={movementReceiver} onChange={(event) => setMovementReceiver(event.currentTarget.value)} className={fieldClass} aria-label="Receiver name" placeholder="Receiver" required />
-            <textarea value={movementNote} onChange={(event) => setMovementNote(event.currentTarget.value)} className={`${fieldClass} md:col-span-2 xl:col-span-2`} aria-label="Stock movement note" placeholder="Purpose or note" required />
+            <input name="movementQuantity" defaultValue={movementQuantity} className={fieldClass} aria-label="Issue quantity" inputMode="numeric" placeholder="Quantity" required />
+            <input name="movementDepartment" defaultValue={movementDepartment} className={fieldClass} aria-label="Receiving department" placeholder="Department" required />
+            <input name="movementReceiver" defaultValue={movementReceiver} className={fieldClass} aria-label="Receiver name" placeholder="Receiver" required />
+            <textarea name="movementNote" defaultValue={movementNote} className={`${fieldClass} md:col-span-2 xl:col-span-2`} aria-label="Stock movement note" placeholder="Purpose or note" required />
             <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-3">Issue Stock</button>
           </form>
         </Card>
@@ -2484,37 +2591,44 @@ function StorekeeperWorkspace({
             className="mt-4 grid gap-3"
             onSubmit={(event) => {
               event.preventDefault();
+              const formData = new FormData(event.currentTarget);
+              const nextItemName = String(formData.get("itemName") ?? "");
+              const nextCategory = String(formData.get("category") ?? "Consumable") as StockItemRecord["category"];
+              const nextQuantity = Math.max(1, Number(formData.get("quantity") || 1));
+              const nextUnit = String(formData.get("unit") ?? "");
+              const nextSupplier = String(formData.get("supplier") ?? "");
+              const nextDepartment = String(formData.get("department") ?? "");
+              const nextReceiver = String(formData.get("receiver") ?? "");
               const stockItem = {
-                item: itemName,
-                category,
-                quantity: Math.max(1, Number(quantity || 1)),
-                unit,
-                supplier,
-                department,
-                unitCost: Math.max(0, Number(unitCost || 0)),
+                item: nextItemName,
+                category: nextCategory,
+                quantity: nextQuantity,
+                unit: nextUnit,
+                supplier: nextSupplier,
+                department: nextDepartment,
+                unitCost: Math.max(0, Number(formData.get("unitCost") || 0)),
               };
               onAddStock(stockItem);
               onReceiveStock({
-                item: itemName,
+                item: nextItemName,
                 quantity: stockItem.quantity,
-                department,
-                receiver,
-                note: `Received from ${supplier}`,
+                department: nextDepartment,
+                receiver: nextReceiver,
+                note: `Received from ${nextSupplier}`,
               });
-              setItemName("");
-              setQuantity("1");
+              event.currentTarget.reset();
             }}
           >
-            <input value={itemName} onChange={(event) => setItemName(event.currentTarget.value)} className={fieldClass} aria-label="Stock item name" placeholder="Item name" required />
-            <select value={category} onChange={(event) => setCategory(event.currentTarget.value as StockItemRecord["category"])} className={fieldClass} aria-label="Stock category">
+            <input name="itemName" defaultValue={itemName} className={fieldClass} aria-label="Stock item name" placeholder="Item name" required />
+            <select name="category" defaultValue={category} className={fieldClass} aria-label="Stock category">
               {["Consumable", "Asset", "Food", "Lab", "Office"].map((option) => <option key={option}>{option}</option>)}
             </select>
-            <input value={quantity} onChange={(event) => setQuantity(event.currentTarget.value)} className={fieldClass} aria-label="Stock quantity" inputMode="numeric" placeholder="Quantity" required />
-            <input value={unit} onChange={(event) => setUnit(event.currentTarget.value)} className={fieldClass} aria-label="Stock unit" placeholder="Unit" required />
-            <input value={supplier} onChange={(event) => setSupplier(event.currentTarget.value)} className={fieldClass} aria-label="Supplier" placeholder="Supplier" required />
-            <input value={department} onChange={(event) => setDepartment(event.currentTarget.value)} className={fieldClass} aria-label="Responsible department" placeholder="Department" required />
-            <input value={receiver} onChange={(event) => setReceiver(event.currentTarget.value)} className={fieldClass} aria-label="Received by" placeholder="Received by" required />
-            <input value={unitCost} onChange={(event) => setUnitCost(event.currentTarget.value)} className={fieldClass} aria-label="Unit cost" inputMode="numeric" placeholder="Unit cost" required />
+            <input name="quantity" defaultValue={quantity} className={fieldClass} aria-label="Stock quantity" inputMode="numeric" placeholder="Quantity" required />
+            <input name="unit" defaultValue={unit} className={fieldClass} aria-label="Stock unit" placeholder="Unit" required />
+            <input name="supplier" defaultValue={supplier} className={fieldClass} aria-label="Supplier" placeholder="Supplier" required />
+            <input name="department" defaultValue={department} className={fieldClass} aria-label="Responsible department" placeholder="Department" required />
+            <input name="receiver" defaultValue={receiver} className={fieldClass} aria-label="Received by" placeholder="Received by" required />
+            <input name="unitCost" defaultValue={unitCost} className={fieldClass} aria-label="Unit cost" inputMode="numeric" placeholder="Unit cost" required />
             <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Receive Stock</button>
           </form>
         </Card>
@@ -2568,13 +2682,14 @@ function BoardingWorkspace({
   onForwardExeat: (id: string) => void;
   onPrintRollCall: () => void;
 }) {
-  const [student, setStudent] = useState("Kevin Maina");
-  const [className, setClassName] = useState("Form 3 South");
-  const [dorm, setDorm] = useState("Lake House");
-  const [bed, setBed] = useState("L-21");
+  const firstBoarderContext = rollCalls[0];
+  const [student, setStudent] = useState(firstBoarderContext?.student ?? KB_BRIAN_OTIENO);
+  const [className, setClassName] = useState(firstBoarderContext?.className ?? KB_FORM_2_EAST);
+  const [dorm, setDorm] = useState(firstBoarderContext?.dorm ?? "Lake House");
+  const [bed, setBed] = useState(firstBoarderContext?.bed ?? "L-21");
   const [status, setStatus] = useState<BoardingRollCallRecord["status"]>("Present");
-  const [exeatStudent, setExeatStudent] = useState("Kevin Maina");
-  const [exeatDorm, setExeatDorm] = useState("Lake House");
+  const [exeatStudent, setExeatStudent] = useState(firstBoarderContext?.student ?? KB_BRIAN_OTIENO);
+  const [exeatDorm, setExeatDorm] = useState(firstBoarderContext?.dorm ?? "Lake House");
   const [exeatReason, setExeatReason] = useState("Medical appointment");
   const [exeatPhone, setExeatPhone] = useState("0712345678");
   const fieldClass = "rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#1D4ED8]";
@@ -2604,7 +2719,7 @@ function BoardingWorkspace({
     const rollCallContexts = rollCalls.map((item) => ({
       student: item.student,
       dorm: item.dorm,
-      parentPhone: exeats.find((request) => request.student === item.student)?.parentPhone ?? "",
+      parentPhone: exeats.find((request) => request.student === item.student)?.parentPhone ?? (item.student === KB_BRIAN_OTIENO ? "0712 345 678" : ""),
     }));
 
     return [...exeatContexts, ...rollCallContexts]
@@ -2836,7 +2951,7 @@ function TransportWorkspace({
   onScheduleMaintenance: (id: string) => void;
   onPrintRouteList: () => void;
 }) {
-  const [student, setStudent] = useState("Mary Wanjiku");
+  const [student, setStudent] = useState("");
   const [admissionNo, setAdmissionNo] = useState("KBI/2026/220");
   const [route, setRoute] = useState(vehicles[0]?.route ?? "Mamboleo Route");
   const [stop, setStop] = useState("Kibuye Market");
@@ -3040,16 +3155,17 @@ function LaboratoryWorkspace({
   onAlertTeacher: (requestId: string) => void;
   onPrintPracticalChecklist: () => void;
 }) {
-  const [teacher, setTeacher] = useState("Mr. Otieno");
-  const [className, setClassName] = useState("Form 3 West");
-  const [subject, setSubject] = useState("Chemistry");
-  const [practical, setPractical] = useState("Acid-base titration");
-  const [requestedFor, setRequestedFor] = useState("Today 10:40");
-  const [stockItem, setStockItem] = useState("Sodium Hydroxide");
+  const firstLabRequest = requests[0];
+  const [teacher, setTeacher] = useState(firstLabRequest?.teacher ?? "Mr Otieno");
+  const [className, setClassName] = useState(firstLabRequest?.className ?? KB_FORM_3_SOUTH);
+  const [subject, setSubject] = useState(firstLabRequest?.subject ?? "Chemistry");
+  const defaultPractical = firstLabRequest?.practical ?? "Acid-base titration";
+  const defaultRequestedFor = firstLabRequest?.requestedFor ?? "Today 10:40";
+  const defaultStockItem = "Sodium Hydroxide";
   const [stockCategory, setStockCategory] = useState<LabInventoryRecord["category"]>("Chemical");
-  const [stockQuantity, setStockQuantity] = useState("5");
-  const [stockUnit, setStockUnit] = useState("litres");
-  const [stockLocation, setStockLocation] = useState("Chemical cabinet B");
+  const defaultStockQuantity = "5";
+  const defaultStockUnit = "litres";
+  const defaultStockLocation = "Chemical cabinet B";
   const [hazard, setHazard] = useState<LabInventoryRecord["hazard"]>("Medium");
   const fieldClass = "rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#1D4ED8]";
   const lowStock = inventory.filter((item) => item.status === "Low Stock");
@@ -3088,8 +3204,6 @@ function LaboratoryWorkspace({
     if (match) {
       setClassName(match.className);
       setSubject(match.subject);
-      setPractical(match.practical);
-      setRequestedFor(match.requestedFor);
     }
   };
   const summaryCards: Array<{
@@ -3140,10 +3254,18 @@ function LaboratoryWorkspace({
             className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5"
             onSubmit={(event) => {
               event.preventDefault();
-              onAddPracticalRequest({ teacher, className, subject, practical, requestedFor });
+              const formData = new FormData(event.currentTarget);
+
+              onAddPracticalRequest({
+                teacher: String(formData.get("teacher") || teacher),
+                className: String(formData.get("className") || className),
+                subject: String(formData.get("subject") || subject),
+                practical: String(formData.get("practical") || defaultPractical),
+                requestedFor: String(formData.get("requestedFor") || defaultRequestedFor),
+              });
             }}
           >
-            <select value={teacher} onChange={(event) => selectTeacherContext(event.currentTarget.value)} className={fieldClass} aria-label="Lab teacher" required>
+            <select name="teacher" value={teacher} onChange={(event) => selectTeacherContext(event.currentTarget.value)} className={fieldClass} aria-label="Lab teacher" required>
               {teacher && !teacherIsMapped ? <option value={teacher}>{teacher} - selected context</option> : null}
               {teacherOptions.map((option) => (
                 <option key={`${option.teacher}-${option.className}-${option.subject}`} value={option.teacher}>
@@ -3151,10 +3273,10 @@ function LaboratoryWorkspace({
                 </option>
               ))}
             </select>
-            <input value={className} onChange={(event) => setClassName(event.currentTarget.value)} className={fieldClass} aria-label="Lab class or form" placeholder="Class/Form" required />
-            <input value={subject} onChange={(event) => setSubject(event.currentTarget.value)} className={fieldClass} aria-label="Lab subject" placeholder="Subject" required />
-            <input value={practical} onChange={(event) => setPractical(event.currentTarget.value)} className={fieldClass} aria-label="Lab practical" placeholder="Practical" required />
-            <input value={requestedFor} onChange={(event) => setRequestedFor(event.currentTarget.value)} className={fieldClass} aria-label="Practical time" placeholder="Requested for" required />
+            <input name="className" value={className} onChange={(event) => setClassName(event.currentTarget.value)} className={fieldClass} aria-label="Lab class or form" placeholder="Class/Form" required />
+            <input name="subject" value={subject} onChange={(event) => setSubject(event.currentTarget.value)} className={fieldClass} aria-label="Lab subject" placeholder="Subject" required />
+            <input name="practical" defaultValue={defaultPractical} className={fieldClass} aria-label="Lab practical" placeholder="Practical" required />
+            <input name="requestedFor" defaultValue={defaultRequestedFor} className={fieldClass} aria-label="Practical time" placeholder="Requested for" required />
             <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-5">Add Practical Request</button>
           </form>
         </Card>
@@ -3207,19 +3329,28 @@ function LaboratoryWorkspace({
             className="mt-4 grid gap-3"
             onSubmit={(event) => {
               event.preventDefault();
-              onAddChemicalStock({ item: stockItem, category: stockCategory, quantity: Number(stockQuantity), unit: stockUnit, location: stockLocation, hazard });
+              const formData = new FormData(event.currentTarget);
+
+              onAddChemicalStock({
+                item: String(formData.get("stockItem") || defaultStockItem),
+                category: String(formData.get("stockCategory") || stockCategory) as LabInventoryRecord["category"],
+                quantity: Number(formData.get("stockQuantity") || defaultStockQuantity),
+                unit: String(formData.get("stockUnit") || defaultStockUnit),
+                location: String(formData.get("stockLocation") || defaultStockLocation),
+                hazard: String(formData.get("hazard") || hazard) as LabInventoryRecord["hazard"],
+              });
             }}
           >
-            <input value={stockItem} onChange={(event) => setStockItem(event.currentTarget.value)} className={fieldClass} aria-label="Lab stock item" placeholder="Chemical/apparatus" required />
-            <select value={stockCategory} onChange={(event) => setStockCategory(event.currentTarget.value as LabInventoryRecord["category"])} className={fieldClass} aria-label="Lab stock category">
+            <input name="stockItem" defaultValue={defaultStockItem} className={fieldClass} aria-label="Lab stock item" placeholder="Chemical/apparatus" required />
+            <select name="stockCategory" value={stockCategory} onChange={(event) => setStockCategory(event.currentTarget.value as LabInventoryRecord["category"])} className={fieldClass} aria-label="Lab stock category">
               <option>Chemical</option>
               <option>Apparatus</option>
               <option>Asset</option>
             </select>
-            <input value={stockQuantity} onChange={(event) => setStockQuantity(event.currentTarget.value)} className={fieldClass} aria-label="Lab stock quantity" inputMode="numeric" placeholder="Quantity" required />
-            <input value={stockUnit} onChange={(event) => setStockUnit(event.currentTarget.value)} className={fieldClass} aria-label="Lab stock unit" placeholder="Unit" required />
-            <input value={stockLocation} onChange={(event) => setStockLocation(event.currentTarget.value)} className={fieldClass} aria-label="Lab stock location" placeholder="Location" required />
-            <select value={hazard} onChange={(event) => setHazard(event.currentTarget.value as LabInventoryRecord["hazard"])} className={fieldClass} aria-label="Hazard level">
+            <input name="stockQuantity" defaultValue={defaultStockQuantity} className={fieldClass} aria-label="Lab stock quantity" inputMode="numeric" placeholder="Quantity" required />
+            <input name="stockUnit" defaultValue={defaultStockUnit} className={fieldClass} aria-label="Lab stock unit" placeholder="Unit" required />
+            <input name="stockLocation" defaultValue={defaultStockLocation} className={fieldClass} aria-label="Lab stock location" placeholder="Location" required />
+            <select name="hazard" value={hazard} onChange={(event) => setHazard(event.currentTarget.value as LabInventoryRecord["hazard"])} className={fieldClass} aria-label="Hazard level">
               <option>Low</option>
               <option>Medium</option>
               <option>High</option>
@@ -3342,7 +3473,12 @@ function AccountantWorkspace({
               <h3 className="mt-1 text-lg font-black text-foreground">Record payment and print receipt</h3>
               <p className="mt-1 text-sm font-semibold text-muted">Updates the student balance and keeps receipt/SMS actions available.</p>
             </div>
-            <button type="button" onClick={onExportFees} className="rounded-xl border border-[#D7E0EF] px-3 py-2 text-sm font-black text-[#071D49]">Export Fee List CSV</button>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/finance" className="rounded-xl bg-[#071D49] px-3 py-2 text-sm font-black text-white">
+                Record payment
+              </Link>
+              <button type="button" onClick={onExportFees} className="rounded-xl border border-[#D7E0EF] px-3 py-2 text-sm font-black text-[#071D49]">Export Fee List CSV</button>
+            </div>
           </div>
           <form
             className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6"
@@ -3387,7 +3523,8 @@ function AccountantWorkspace({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="eyebrow">Recent payments</p>
-              <h3 className="mt-1 text-lg font-black text-foreground">Receipts, SMS, and M-Pesa confirmations</h3>
+              <h3 className="mt-1 text-lg font-black text-foreground">Mpesa transactions</h3>
+              <p className="mt-1 text-sm font-semibold text-muted">Confirm callbacks, print receipts, send SMS, and request reversals from the same ledger.</p>
             </div>
             <StatusPill label={`${payments.length} payments`} tone="ok" />
           </div>
@@ -3418,6 +3555,7 @@ function AccountantWorkspace({
             </table>
           </div>
         </Card>
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">Recent activity</p>
       </div>
 
       <aside className="space-y-4">
@@ -3475,14 +3613,14 @@ function SecretaryWorkspace({
   onAddInquiry: (record: Omit<SecretaryInquiryRecord, "id" | "status" | "smsSent">) => void;
 }) {
   const [visitor, setVisitor] = useState("Jane Wairimu");
-  const [phoneOrId, setPhoneOrId] = useState("0711 222 333");
+  const [phoneOrId, setPhoneOrId] = useState("");
   const [visiting, setVisiting] = useState("Principal Office");
   const [reason, setReason] = useState("Meeting appointment");
   const [vehicle, setVehicle] = useState("");
-  const [parent, setParent] = useState("Mrs. Wanjiku");
-  const [student, setStudent] = useState("Brian Otieno");
-  const [className, setClassName] = useState("Form 2 East");
-  const [phone, setPhone] = useState("0712 345 678");
+  const [parent, setParent] = useState("Parent/Guardian");
+  const [student, setStudent] = useState("");
+  const [className, setClassName] = useState("");
+  const [phone, setPhone] = useState("");
   const [issue, setIssue] = useState("Fee statement request");
   const [department, setDepartment] = useState<SecretaryInquiryRecord["department"]>("Finance");
   const [studentSearch, setStudentSearch] = useState("");
@@ -3510,6 +3648,13 @@ function SecretaryWorkspace({
     if (match) {
       setClassName(match.className);
       setPhone(match.guardianPhone);
+      setParent(
+        selectedStudent === KB_DAVID_KIPTOO
+          ? KB_MRS_WANJIKU
+          : selectedStudent === KB_BRIAN_OTIENO
+            ? KB_MRS_OTIENO
+            : `${selectedStudent} guardian`,
+      );
     }
   };
   const latestPaymentForStudent = (studentRecord: FeeBalanceRecord) =>
@@ -3599,6 +3744,36 @@ function SecretaryWorkspace({
             </select>
             <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Register Complaint</button>
           </form>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const target = waitingParents[0] ?? inquiries[0];
+                if (target) {
+                  onMarkParentServed(target.id);
+                  return;
+                }
+                onAddInquiry({ parent, student, className, phone, issue: `Served: ${issue}`, department });
+              }}
+              className="rounded-xl border border-[#BBF7D0] bg-[#ECFDF5] px-3 py-2 text-sm font-black text-success"
+            >
+              Mark Parent Served
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const target = waitingParents[0] ?? inquiries[0];
+                if (target) {
+                  onSendParentSms(target.id);
+                  return;
+                }
+                onAddInquiry({ parent, student, className, phone, issue: `SMS queued: ${issue}`, department });
+              }}
+              className="rounded-xl border border-[#FED7AA] bg-[#FFF7ED] px-3 py-2 text-sm font-black text-warning"
+            >
+              Send SMS
+            </button>
+          </div>
           <div className="mt-4 overflow-x-auto rounded-xl border border-[#D7E0EF]">
             <table className="min-w-full divide-y divide-[#E2E8F0] text-sm">
               <thead className="bg-[#F8FAFC] text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
@@ -3708,10 +3883,10 @@ function DisciplineWorkspace({
   onExecuteAction: (action: OperationalActionContract) => void;
 }) {
   const [student, setStudent] = useState("Grace Njeri");
-  const [className, setClassName] = useState("Form 2 West");
+  const [className, setClassName] = useState(KB_FORM_2_EAST);
   const [caseType, setCaseType] = useState<DisciplineCaseRecord["caseType"]>("Lateness");
   const [severity, setSeverity] = useState<DisciplineCaseRecord["severity"]>("Moderate");
-  const [reportedBy, setReportedBy] = useState("Mrs. Achieng");
+  const [reportedBy, setReportedBy] = useState(KB_MRS_ACHIENG);
   const [guardianPhone, setGuardianPhone] = useState("0711 555 990");
   const [notes, setNotes] = useState("Parent follow-up needed after repeated lesson lateness.");
   const [searchTerm, setSearchTerm] = useState("");
@@ -3961,14 +4136,14 @@ function CounsellingWorkspace({
   onPrintSummary: (id: string) => void;
   onCloseFollowUp: (id: string) => void;
 }) {
-  const [student, setStudent] = useState("Faith Akinyi");
-  const [className, setClassName] = useState("Grade 8 West");
+  const [student, setStudent] = useState(KB_FAITH_AKINYI);
+  const [className, setClassName] = useState(KB_GRADE_8_WEST);
   const [referralSource, setReferralSource] = useState<CounsellingSessionRecord["referralSource"]>("Discipline Master");
   const [riskLevel, setRiskLevel] = useState<CounsellingSessionRecord["riskLevel"]>("High");
   const [sessionType, setSessionType] = useState<CounsellingSessionRecord["sessionType"]>("Welfare Check");
   const [guardianPhone, setGuardianPhone] = useState("0798 111 222");
-  const [notes, setNotes] = useState("Bullying stress follow-up and parent meeting needed.");
-  const [followUpDate, setFollowUpDate] = useState("2026-06-02");
+  const defaultNotes = "Bullying stress follow-up and parent meeting needed.";
+  const defaultFollowUpDate = "2026-06-02";
   const [searchTerm, setSearchTerm] = useState("");
   const fieldClass = "rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#1D4ED8]";
   const openSessions = sessions.filter((item) => item.status !== "Closed");
@@ -4034,10 +4209,21 @@ function CounsellingWorkspace({
             className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4"
             onSubmit={(event) => {
               event.preventDefault();
-              onAddSession({ student, className, referralSource, riskLevel, sessionType, guardianPhone, notes, followUpDate });
+              const formData = new FormData(event.currentTarget);
+
+              onAddSession({
+                student: String(formData.get("student") || student),
+                className: String(formData.get("className") || className),
+                referralSource: String(formData.get("referralSource") || referralSource) as CounsellingSessionRecord["referralSource"],
+                riskLevel: String(formData.get("riskLevel") || riskLevel) as CounsellingSessionRecord["riskLevel"],
+                sessionType: String(formData.get("sessionType") || sessionType) as CounsellingSessionRecord["sessionType"],
+                guardianPhone: String(formData.get("guardianPhone") || guardianPhone),
+                notes: String(formData.get("notes") || defaultNotes),
+                followUpDate: String(formData.get("followUpDate") || defaultFollowUpDate),
+              });
             }}
           >
-            <select value={student} onChange={(event) => selectStudentContext(event.currentTarget.value)} className={fieldClass} aria-label="Counselling student" required>
+            <select name="student" value={student} onChange={(event) => selectStudentContext(event.currentTarget.value)} className={fieldClass} aria-label="Counselling student" required>
               {student && !studentIsMapped ? <option value={student}>{student} - selected context</option> : null}
               {studentOptions.map((option) => (
                 <option key={studentContextKey(option)} value={option.student}>
@@ -4045,19 +4231,19 @@ function CounsellingWorkspace({
                 </option>
               ))}
             </select>
-            <input value={className} onChange={(event) => setClassName(event.currentTarget.value)} className={fieldClass} aria-label="Counselling class" placeholder="Class/Form" required />
-            <select value={referralSource} onChange={(event) => setReferralSource(event.currentTarget.value as CounsellingSessionRecord["referralSource"])} className={fieldClass} aria-label="Referral source">
+            <input name="className" value={className} onChange={(event) => setClassName(event.currentTarget.value)} className={fieldClass} aria-label="Counselling class" placeholder="Class/Form" required />
+            <select name="referralSource" value={referralSource} onChange={(event) => setReferralSource(event.currentTarget.value as CounsellingSessionRecord["referralSource"])} className={fieldClass} aria-label="Referral source">
               {["Teacher", "Class Teacher", "Discipline Master", "Boarding Master", "Nurse", "Parent", "Self"].map((option) => <option key={option}>{option}</option>)}
             </select>
-            <select value={riskLevel} onChange={(event) => setRiskLevel(event.currentTarget.value as CounsellingSessionRecord["riskLevel"])} className={fieldClass} aria-label="Risk level">
+            <select name="riskLevel" value={riskLevel} onChange={(event) => setRiskLevel(event.currentTarget.value as CounsellingSessionRecord["riskLevel"])} className={fieldClass} aria-label="Risk level">
               {["Low", "Medium", "High", "Critical"].map((option) => <option key={option}>{option}</option>)}
             </select>
-            <select value={sessionType} onChange={(event) => setSessionType(event.currentTarget.value as CounsellingSessionRecord["sessionType"])} className={fieldClass} aria-label="Session type">
+            <select name="sessionType" value={sessionType} onChange={(event) => setSessionType(event.currentTarget.value as CounsellingSessionRecord["sessionType"])} className={fieldClass} aria-label="Session type">
               {["Welfare Check", "Discipline Referral", "Academic Stress", "Boarding Support", "Medical Follow-up", "Parent Meeting"].map((option) => <option key={option}>{option}</option>)}
             </select>
-            <input value={guardianPhone} onChange={(event) => setGuardianPhone(event.currentTarget.value)} className={fieldClass} aria-label="Guardian phone" placeholder="Guardian phone" required />
-            <input value={followUpDate} onChange={(event) => setFollowUpDate(event.currentTarget.value)} className={fieldClass} aria-label="Follow-up date" type="date" required />
-            <textarea value={notes} onChange={(event) => setNotes(event.currentTarget.value)} className={`${fieldClass} md:col-span-2 xl:col-span-1`} aria-label="Session notes" placeholder="Confidential notes and follow-up plan" required />
+            <input name="guardianPhone" value={guardianPhone} onChange={(event) => setGuardianPhone(event.currentTarget.value)} className={fieldClass} aria-label="Guardian phone" placeholder="Guardian phone" required />
+            <input name="followUpDate" defaultValue={defaultFollowUpDate} className={fieldClass} aria-label="Follow-up date" type="date" required />
+            <textarea name="notes" defaultValue={defaultNotes} className={`${fieldClass} md:col-span-2 xl:col-span-1`} aria-label="Session notes" placeholder="Confidential notes and follow-up plan" required />
             <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-4">Save Session</button>
           </form>
         </Card>
@@ -4450,7 +4636,7 @@ function KisumuBoysDemoFeedPanel({
     <Card className="border-[#B8D4FF] bg-[linear-gradient(135deg,#FFFFFF_0%,#EDF5FF_100%)] p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="eyebrow">School live updates</p>
+          <p className="eyebrow">Kisumu Boys live updates</p>
           <h3 className="mt-1 text-lg font-black text-[#071D49]">{profile.sidebarTitle} activity is active</h3>
           <p className="mt-1 max-w-2xl text-sm font-semibold leading-6 text-[#40608F]">
             {profile.todayContext} These records come from the {profile.sectionNoun} and update when staff complete
@@ -4868,7 +5054,15 @@ function GenericRoleOperationalCommandCenter({
   const roleProfile = getPracticalRoleProfile(role);
   const commandTitle = roleProfile.title || commandCenterTitle(role);
   const greetingName = getSchoolRoleGreetingName(role);
-  const schoolId = getCurrentSchoolId(tenantSlug);
+  const [schoolId] = useState(() => {
+    const resolvedSchoolId = getCurrentSchoolId(tenantSlug);
+
+    if (typeof window !== "undefined" && tenantSlug?.trim()) {
+      window.localStorage.setItem("myshule.currentSchoolId", resolvedSchoolId);
+    }
+
+    return resolvedSchoolId;
+  });
   const sidebarItems = useMemo(() => blueprint?.sidebar ?? [], [blueprint?.sidebar]);
   const routeWorkspaceKey = `${initialSection ?? ""}:${initialWorkspace ?? ""}`;
   const preferredWorkspace = useMemo(
@@ -4902,93 +5096,149 @@ function GenericRoleOperationalCommandCenter({
   const [executionLog, setExecutionLog] = useState<ExecutionLogItem[]>([]);
   const [runtimeEntries, setRuntimeEntries] = useState<RuntimeWorkspaceEntry[]>([]);
   const [attendanceRegisters, setAttendanceRegisters] = useState<AttendanceRegisterRecord[]>([]);
+  const [storeRevision, setStoreRevision] = useState(0);
+  const demoRole = blueprintId ?? role;
+  const useKisumuBoysDemo = shouldUseKisumuBoysDemoTenant(tenantSlug);
+  const liveRoleQueriesEnabled = !useKisumuBoysDemo;
 
-  const { data: fetchedClinicVisits } = useSchoolQuery<ClinicVisitRecord[]>("/api/clinic/visits");
-  const clinicVisits = Array.isArray(fetchedClinicVisits) ? fetchedClinicVisits : [];
+  const { data: fetchedClinicVisits } = useSchoolQuery<ClinicVisitRecord[]>("/api/clinic/visits", { enabled: liveRoleQueriesEnabled });
+  const clinicVisits = Array.isArray(fetchedClinicVisits) && fetchedClinicVisits.length > 0 ? fetchedClinicVisits : useKisumuBoysDemo ? KISUMU_DEMO_CLINIC_VISITS : [];
   const clinicVisitsMutation = useSchoolMutation("/api/clinic/visits");
 
-  const { data: fetchedMedicineStock } = useSchoolQuery<MedicineStockRecord[]>("/api/clinic/medicines/stock");
-  const medicineStock = Array.isArray(fetchedMedicineStock) ? fetchedMedicineStock : [];
+  const { data: fetchedMedicineStock } = useSchoolQuery<MedicineStockRecord[]>("/api/clinic/medicines/stock", { enabled: liveRoleQueriesEnabled });
+  const medicineStock = Array.isArray(fetchedMedicineStock) && fetchedMedicineStock.length > 0 ? fetchedMedicineStock : useKisumuBoysDemo ? KISUMU_DEMO_MEDICINE_STOCK : [];
   const medicineStockMutation = useSchoolMutation("/api/clinic/medicines/stock");
 
   const [clinicNotice, setClinicNotice] = useState("Sick bay ready. Record visits, dispense medicine, notify parents, and print slips from this desk.");
-  const { data: fetchedAdmissionApplicants } = useSchoolQuery<AdmissionApplicantRecord[]>("/api/admissions/applicants");
-  const admissionApplicants = Array.isArray(fetchedAdmissionApplicants) ? fetchedAdmissionApplicants : [];
+  const { data: fetchedAdmissionApplicants } = useSchoolQuery<AdmissionApplicantRecord[]>("/api/admissions/applicants", { enabled: liveRoleQueriesEnabled });
+  const admissionApplicants = Array.isArray(fetchedAdmissionApplicants) && fetchedAdmissionApplicants.length > 0 ? fetchedAdmissionApplicants : useKisumuBoysDemo ? KISUMU_DEMO_ADMISSIONS : [];
   const admissionApplicantsMutation = useSchoolMutation("/api/admissions/applicants");
   const [admissionsNotice, setAdmissionsNotice] = useState("Admissions desk ready. Add inquiries, verify documents, approve learners, print letters, and notify parents.");
 
-  const { data: fetchedLibraryBooks } = useSchoolQuery<LibraryBookRecord[]>("/api/library/books");
-  const libraryBooks = Array.isArray(fetchedLibraryBooks) ? fetchedLibraryBooks : [];
+  const { data: fetchedLibraryBooks } = useSchoolQuery<LibraryBookRecord[]>("/api/library/books", { enabled: liveRoleQueriesEnabled });
+  const libraryBooks = Array.isArray(fetchedLibraryBooks) && fetchedLibraryBooks.length > 0 ? fetchedLibraryBooks : useKisumuBoysDemo ? KISUMU_DEMO_LIBRARY_BOOKS : [];
   const libraryBooksMutation = useSchoolMutation("/api/library/books");
 
-  const { data: fetchedLibraryLoans } = useSchoolQuery<LibraryLoanRecord[]>("/api/library/loans");
-  const libraryLoans = Array.isArray(fetchedLibraryLoans) ? fetchedLibraryLoans : [];
+  const { data: fetchedLibraryLoans } = useSchoolQuery<LibraryLoanRecord[]>("/api/library/loans", { enabled: liveRoleQueriesEnabled });
+  const libraryLoans = Array.isArray(fetchedLibraryLoans) && fetchedLibraryLoans.length > 0 ? fetchedLibraryLoans : useKisumuBoysDemo ? KISUMU_DEMO_LIBRARY_LOANS : [];
   const libraryLoansMutation = useSchoolMutation("/api/library/loans");
 
   const [libraryNotice, setLibraryNotice] = useState("Library desk ready. Scan books, issue returns, print slips, send SMS, and track fines from this desk.");
-  const [stockItems, setStockItems] = useState<StockItemRecord[]>(initialStockItems);
-  const [stockMovements, setStockMovements] = useState<StockMovementRecord[]>(initialStockMovements);
   const [stockNotice, setStockNotice] = useState("Store desk ready. Receive stock, issue items, track movement history, print slips, and export reports.");
-  const { data: fetchedBoardingRollCalls } = useSchoolQuery<BoardingRollCallRecord[]>("/api/boarding/roll-calls");
-  const boardingRollCalls = Array.isArray(fetchedBoardingRollCalls) ? fetchedBoardingRollCalls : [];
+  const { data: fetchedBoardingRollCalls } = useSchoolQuery<BoardingRollCallRecord[]>("/api/boarding/roll-calls", { enabled: liveRoleQueriesEnabled });
+  const [optimisticBoardingRollCalls, setOptimisticBoardingRollCalls] = useState<BoardingRollCallRecord[]>([]);
+  const boardingRollCallsBase = Array.isArray(fetchedBoardingRollCalls) && fetchedBoardingRollCalls.length > 0 ? fetchedBoardingRollCalls : useKisumuBoysDemo ? KISUMU_DEMO_BOARDING_ROLL_CALLS : [];
+  const boardingRollCalls = mergeSchoolRecordsById(boardingRollCallsBase, optimisticBoardingRollCalls);
   const boardingRollCallsMutation = useSchoolMutation("/api/boarding/roll-calls");
 
-  const { data: fetchedExeatRequests } = useSchoolQuery<ExeatRequestRecord[]>("/api/boarding/exeats");
-  const exeatRequests = Array.isArray(fetchedExeatRequests) ? fetchedExeatRequests : [];
+  const { data: fetchedExeatRequests } = useSchoolQuery<ExeatRequestRecord[]>("/api/boarding/exeats", { enabled: liveRoleQueriesEnabled });
+  const [optimisticExeatRequests, setOptimisticExeatRequests] = useState<ExeatRequestRecord[]>([]);
+  const exeatRequestsBase = Array.isArray(fetchedExeatRequests) ? fetchedExeatRequests : [];
+  const exeatRequests = mergeSchoolRecordsById(exeatRequestsBase, optimisticExeatRequests);
   const exeatRequestsMutation = useSchoolMutation("/api/boarding/exeats");
 
   const [boardingNotice, setBoardingNotice] = useState("Boarding desk ready. Mark roll call, handle missing boarders, approve exeats, notify parents, and print hostel sheets.");
 
-  const { data: fetchedTransportVehicles } = useSchoolQuery<TransportVehicleRecord[]>("/api/transport/vehicles");
-  const transportVehicles = Array.isArray(fetchedTransportVehicles) ? fetchedTransportVehicles : [];
+  const { data: fetchedTransportVehicles } = useSchoolQuery<TransportVehicleRecord[]>("/api/transport/vehicles", { enabled: liveRoleQueriesEnabled });
+  const transportVehicles = Array.isArray(fetchedTransportVehicles) && fetchedTransportVehicles.length > 0 ? fetchedTransportVehicles : useKisumuBoysDemo ? KISUMU_DEMO_TRANSPORT_VEHICLES : [];
   const transportVehiclesMutation = useSchoolMutation("/api/transport/vehicles");
 
-  const { data: fetchedTransportTrips } = useSchoolQuery<TransportTripRecord[]>("/api/transport/trips");
-  const transportTrips = Array.isArray(fetchedTransportTrips) ? fetchedTransportTrips : [];
+  const { data: fetchedTransportTrips } = useSchoolQuery<TransportTripRecord[]>("/api/transport/trips", { enabled: liveRoleQueriesEnabled });
+  const transportTrips = Array.isArray(fetchedTransportTrips) && fetchedTransportTrips.length > 0 ? fetchedTransportTrips : useKisumuBoysDemo ? KISUMU_DEMO_TRANSPORT_TRIPS : [];
   const transportTripsMutation = useSchoolMutation("/api/transport/trips");
 
   const [transportNotice, setTransportNotice] = useState("Transport desk ready. Record trips, mark pickups and drop-offs, alert parents, and track fuel or maintenance.");
-  const { data: fetchedLabInventory } = useSchoolQuery<LabInventoryRecord[]>("/api/labs/inventory");
-  const labInventory = Array.isArray(fetchedLabInventory) ? fetchedLabInventory : [];
+  const { data: fetchedLabInventory } = useSchoolQuery<LabInventoryRecord[]>("/api/labs/inventory", { enabled: liveRoleQueriesEnabled });
+  const labInventory = Array.isArray(fetchedLabInventory) && fetchedLabInventory.length > 0 ? fetchedLabInventory : useKisumuBoysDemo ? KISUMU_DEMO_LAB_INVENTORY : [];
   const labInventoryMutation = useSchoolMutation("/api/labs/inventory");
 
-  const { data: fetchedLabRequests } = useSchoolQuery<LabPracticalRequestRecord[]>("/api/labs/requests");
-  const labRequests = Array.isArray(fetchedLabRequests) ? fetchedLabRequests : [];
+  const { data: fetchedLabRequests } = useSchoolQuery<LabPracticalRequestRecord[]>("/api/labs/requests", { enabled: liveRoleQueriesEnabled });
+  const labRequests = Array.isArray(fetchedLabRequests) && fetchedLabRequests.length > 0 ? fetchedLabRequests : useKisumuBoysDemo ? KISUMU_DEMO_LAB_REQUESTS : [];
   const labRequestsMutation = useSchoolMutation("/api/labs/requests");
 
-  const { data: fetchedLabIssues } = useSchoolQuery<LabIssueRecord[]>("/api/labs/issues");
+  const { data: fetchedLabIssues } = useSchoolQuery<LabIssueRecord[]>("/api/labs/issues", { enabled: liveRoleQueriesEnabled });
   const labIssues = Array.isArray(fetchedLabIssues) ? fetchedLabIssues : [];
   const labIssuesMutation = useSchoolMutation("/api/labs/issues");
 
   const [labNotice, setLabNotice] = useState("Laboratory desk ready. Prepare practicals, track chemicals, issue apparatus, record breakages, and alert teachers.");
-  const { data: fetchedFeeBalances } = useSchoolQuery<FeeBalanceRecord[]>("/api/finance/balances");
-  const feeBalances = Array.isArray(fetchedFeeBalances) ? fetchedFeeBalances : [];
+  const { data: fetchedStorekeeperItems } = useSchoolQuery<StorekeeperItemsResponse>("/api/admin-command/storekeeper/items", { enabled: liveRoleQueriesEnabled });
+  const storekeeperItemMutation = useSchoolMutation<any, any>("/api/admin-command/storekeeper/items");
+  const storekeeperIssueMutation = useSchoolMutation<any, any>("/api/admin-command/storekeeper/items/issue");
+  const storekeeperReceiveMutation = useSchoolMutation<any, any>("/api/admin-command/storekeeper/items/receive");
+  const [optimisticStockItems, setOptimisticStockItems] = useState<StockItemRecord[]>([]);
+  const [stockMovements, setStockMovements] = useState<StockMovementRecord[]>([]);
+  const stockItems = useMemo<StockItemRecord[]>(() => {
+    const apiItems = Array.isArray(fetchedStorekeeperItems?.items) ? fetchedStorekeeperItems.items : [];
+    const mappedItems = apiItems.map((item): StockItemRecord => {
+      const quantity = Number(item.quantity_in_stock ?? item.quantity_on_hand ?? 0) || 0;
+      const normalizedStatus = String(item.status ?? "").toLowerCase();
+      const category = String(item.category || "Consumable") as StockItemRecord["category"];
+
+      return {
+        id: item.id,
+        item: item.name ?? item.item_name ?? "Stock item",
+        category: ["Consumable", "Asset", "Food", "Lab", "Office"].includes(category) ? category : "Consumable",
+        quantity,
+        unit: item.unit ?? "unit",
+        supplier: "",
+        department: "",
+        unitCost: Number(item.unit_cost ?? item.unit_price ?? 0) || 0,
+        status: normalizedStatus.includes("archiv") ? "Damaged" : quantity <= 20 ? "Low Stock" : "OK",
+      };
+    });
+    const apiIds = new Set(mappedItems.map((item) => item.id));
+
+    return [...mappedItems, ...optimisticStockItems.filter((item) => !apiIds.has(item.id))];
+  }, [fetchedStorekeeperItems, optimisticStockItems]);
+
+  const { data: fetchedFeeBalances } = useSchoolQuery<FeeBalanceRecord[]>("/api/finance/balances", { enabled: liveRoleQueriesEnabled });
+  const storedFeeBalances = storeRevision >= 0 ? readSchoolData<FeeBalanceRecord>("fee-balances", schoolId) : [];
+  const feeBalancesBase = Array.isArray(fetchedFeeBalances) && fetchedFeeBalances.length > 0 ? fetchedFeeBalances : useKisumuBoysDemo ? KISUMU_DEMO_FEE_BALANCES : [];
+  const feeBalances = mergeSchoolRecordsById(feeBalancesBase, storedFeeBalances);
   const feeBalancesMutation = useSchoolMutation("/api/finance/balances");
 
-  const { data: fetchedFeePayments } = useSchoolQuery<FeePaymentRecord[]>("/api/finance/payments");
-  const feePayments = Array.isArray(fetchedFeePayments) ? fetchedFeePayments : [];
+  const { data: fetchedFeePayments } = useSchoolQuery<FeePaymentRecord[]>("/api/finance/payments", { enabled: liveRoleQueriesEnabled });
+  const storedFeePayments = readSchoolData<FeePaymentRecord>("finance-payments", schoolId);
+  const feePayments = mergeSchoolRecordsById(Array.isArray(fetchedFeePayments) ? fetchedFeePayments : [], storedFeePayments);
   const feePaymentsMutation = useSchoolMutation("/api/finance/payments");
 
   const [financeNotice, setFinanceNotice] = useState("Finance desk ready. Record payments, confirm M-Pesa, print receipts, send SMS, and export fee lists.");
 
-  const { data: fetchedSecretaryVisitors } = useSchoolQuery<SecretaryVisitorRecord[]>("/api/secretary/visitors");
-  const secretaryVisitors = Array.isArray(fetchedSecretaryVisitors) ? fetchedSecretaryVisitors : [];
+  const { data: fetchedSecretaryVisitors } = useSchoolQuery<SecretaryVisitorRecord[]>("/api/secretary/visitors", { enabled: liveRoleQueriesEnabled });
+  const storedSecretaryVisitors = mergeSchoolRecordsById(
+    readSchoolData<SecretaryVisitorRecord>("secretary-visitors", schoolId),
+    readSchoolData<SecretaryVisitorRecord>("visitors", schoolId),
+  );
+  const secretaryVisitorsBase = Array.isArray(fetchedSecretaryVisitors) && fetchedSecretaryVisitors.length > 0 ? fetchedSecretaryVisitors : useKisumuBoysDemo ? KISUMU_DEMO_SECRETARY_VISITORS : [];
+  const secretaryVisitors = mergeSchoolRecordsById(secretaryVisitorsBase, storedSecretaryVisitors);
   const secretaryVisitorsMutation = useSchoolMutation("/api/secretary/visitors");
 
-  const { data: fetchedSecretaryInquiries } = useSchoolQuery<SecretaryInquiryRecord[]>("/api/secretary/inquiries");
-  const secretaryInquiries = Array.isArray(fetchedSecretaryInquiries) ? fetchedSecretaryInquiries : [];
+  const { data: fetchedSecretaryInquiries } = useSchoolQuery<SecretaryInquiryRecord[]>("/api/secretary/inquiries", { enabled: liveRoleQueriesEnabled });
+  const storedSecretaryInquiries = readSchoolData<SecretaryInquiryRecord>("secretary-inquiries", schoolId);
+  const secretaryInquiriesBase = Array.isArray(fetchedSecretaryInquiries) && fetchedSecretaryInquiries.length > 0 ? fetchedSecretaryInquiries : useKisumuBoysDemo ? KISUMU_DEMO_SECRETARY_INQUIRIES : [];
+  const secretaryInquiries = mergeSchoolRecordsById(secretaryInquiriesBase, storedSecretaryInquiries);
   const secretaryInquiriesMutation = useSchoolMutation("/api/secretary/inquiries");
 
   const [secretaryNotice, setSecretaryNotice] = useState("Front office ready. Register visitors, serve parents, print slips, send SMS, and escalate issues.");
 
-  const { data: fetchedDisciplineCases } = useSchoolQuery<DisciplineCaseRecord[]>("/api/support/discipline");
-  const disciplineCases = Array.isArray(fetchedDisciplineCases) ? fetchedDisciplineCases : [];
+  const { data: fetchedDisciplineCases } = useSchoolQuery<DisciplineCaseRecord[]>("/api/support/discipline", { enabled: liveRoleQueriesEnabled });
+  const storedDisciplineCases = readSchoolData<DisciplineCaseRecord>("discipline-cases", schoolId);
+  const disciplineCasesBase = Array.isArray(fetchedDisciplineCases) && fetchedDisciplineCases.length > 0 ? fetchedDisciplineCases : useKisumuBoysDemo ? KISUMU_DEMO_DISCIPLINE_CASES : [];
+  const disciplineCases = mergeSchoolRecordsById(disciplineCasesBase, storedDisciplineCases);
   const disciplineCasesMutation = useSchoolMutation("/api/support/discipline");
 
   const [disciplineNotice, setDisciplineNotice] = useState("Discipline desk ready. Record incidents, notify parents, refer counsellor, escalate serious cases, print letters, and close cases.");
 
-  const { data: fetchedCounsellingSessions } = useSchoolQuery<CounsellingSessionRecord[]>("/api/support/counselling");
-  const counsellingSessions = Array.isArray(fetchedCounsellingSessions) ? fetchedCounsellingSessions : [];
+  const { data: fetchedCounsellingSessions } = useSchoolQuery<CounsellingSessionRecord[]>("/api/support/counselling", { enabled: liveRoleQueriesEnabled });
+  const storedCounsellingSessions = readSchoolData<CounsellingSessionRecord>("counselling-sessions", schoolId);
+  const counsellingSessionsBase = Array.isArray(fetchedCounsellingSessions) && fetchedCounsellingSessions.length > 0
+    ? fetchedCounsellingSessions
+    : storedCounsellingSessions.length > 0
+      ? []
+      : useKisumuBoysDemo
+        ? KISUMU_DEMO_COUNSELLING_SESSIONS
+        : [];
+  const counsellingSessions = mergeSchoolRecordsById(counsellingSessionsBase, storedCounsellingSessions);
   const counsellingSessionsMutation = useSchoolMutation("/api/support/counselling");
 
   const [counsellingNotice, setCounsellingNotice] = useState("Counselling desk ready. Record sessions, notify guardians, schedule follow-ups, escalate high-risk cases, print summaries, and close follow-ups.");
@@ -4996,6 +5246,7 @@ function GenericRoleOperationalCommandCenter({
   useEffect(() => {
     function hydrateStoredSchoolRecords() {
       setAttendanceRegisters(readSchoolData<AttendanceRegisterRecord>("attendance-registers", schoolId));
+      setStoreRevision((current) => current + 1);
     }
 
     hydrateStoredSchoolRecords();
@@ -5006,8 +5257,6 @@ function GenericRoleOperationalCommandCenter({
       }
     });
   }, [schoolId]);
-  const demoRole = blueprintId ?? role;
-  const useKisumuBoysDemo = shouldUseKisumuBoysDemoTenant(tenantSlug);
   const kisumuBoysRoleFeed = useMemo(
     () => getKisumuBoysRoleFeed(demoRole, schoolId),
     [demoRole, schoolId],
@@ -5016,6 +5265,25 @@ function GenericRoleOperationalCommandCenter({
     () => (useKisumuBoysDemo ? scoreKisumuBoysHighDemoReadiness() : null),
     [useKisumuBoysDemo],
   );
+
+  function upsertSchoolQueryRecord<T extends { id: string }>(path: string, record: T) {
+    queryClient.setQueryData<T[]>(["school", schoolId || "session", path], (current) => {
+      const records = Array.isArray(current) ? current : [];
+
+      return [
+        record,
+        ...records.filter((item) => item.id !== record.id),
+      ];
+    });
+  }
+
+  function updateSchoolQueryRecord<T extends { id: string }>(path: string, recordId: string, updates: Partial<T>) {
+    queryClient.setQueryData<T[]>(["school", schoolId || "session", path], (current) => {
+      const records = Array.isArray(current) ? current : [];
+
+      return records.map((item) => (item.id === recordId ? { ...item, ...updates } : item));
+    });
+  }
 
   if (!blueprint) {
     return null;
@@ -5026,23 +5294,38 @@ function GenericRoleOperationalCommandCenter({
   const activeWorkspaceIndex = Math.max(0, sidebarItems.indexOf(resolvedWorkspace));
   const activeWorkspaceKind = workspaceKind(role, resolvedWorkspace);
   const primaryRoleWorkspace = isPrimaryRoleWorkspace(resolvedWorkspace, activeWorkspaceIndex);
-  const isNurseClinicWorkspace = primaryRoleWorkspace && role === "nurse" && (activeWorkspaceKind === "clinic" || /clinic command center/i.test(resolvedWorkspace));
-  const isAdmissionsWorkspace = false;
-  const isLibraryWorkspace = primaryRoleWorkspace && role === "librarian" && (activeWorkspaceKind === "library" || /library command center|library operations|library desk/i.test(resolvedWorkspace));
+  const isNurseClinicWorkspace = role === "nurse" && (primaryRoleWorkspace || activeWorkspaceKind === "clinic" || /clinic command center/i.test(resolvedWorkspace));
+  const isAdmissionsWorkspace = role === "admissions" && (primaryRoleWorkspace || activeWorkspaceKind === "admissions" || /dashboard|admission|registrar|inquiry|application|interview|document/i.test(resolvedWorkspace));
+  const isLibraryWorkspace = role === "librarian" && (primaryRoleWorkspace || /library command center|library operations|library desk/i.test(resolvedWorkspace));
   const isStorekeeperWorkspace = primaryRoleWorkspace && role === "storekeeper" && (activeWorkspaceKind === "inventory" || /store command center|inventory command center|inventory operations|store desk|stock/i.test(resolvedWorkspace));
-  const isBoardingWorkspace = primaryRoleWorkspace && role === "boarding-master" && (activeWorkspaceKind === "boarding" || /boarding command center|hostel|dorm|roll call/i.test(resolvedWorkspace));
-  const isTransportWorkspace = primaryRoleWorkspace && role === "transport-manager" && (activeWorkspaceKind === "transport" || /dashboard overview|transport|fleet|route|vehicle/i.test(resolvedWorkspace));
-  const isLaboratoryWorkspace = primaryRoleWorkspace && role === "laboratory-technician" && (activeWorkspaceKind === "laboratory" || /dashboard|laboratory|lab|chemical|apparatus|practical|safety/i.test(resolvedWorkspace));
+  const isBoardingWorkspace = role === "boarding-master" && (primaryRoleWorkspace || activeWorkspaceKind === "boarding" || /boarding command center|hostel|dorm|roll call/i.test(resolvedWorkspace));
+  const isTransportWorkspace = role === "transport-manager" && (primaryRoleWorkspace || activeWorkspaceKind === "transport" || /dashboard overview|transport|fleet|route|vehicle/i.test(resolvedWorkspace));
+  const isLaboratoryWorkspace = role === "laboratory-technician" && (primaryRoleWorkspace || activeWorkspaceKind === "laboratory" || /dashboard|laboratory|lab|chemical|apparatus|practical|safety/i.test(resolvedWorkspace));
   const isAccountantWorkspace = (role === "accountant" || role === "bursar") && /finance command center|dashboard|payment|collection|receipt|m-pesa|mpesa|balance/i.test(resolvedWorkspace);
-  const isSecretaryWorkspace = primaryRoleWorkspace && (role === "secretary" || role === "admin") && (activeWorkspaceKind === "command" || activeWorkspaceKind === "communication" || /dashboard|front office|visitor|parent|document|appointment|communication/i.test(resolvedWorkspace));
-  const isDisciplineWorkspace = primaryRoleWorkspace && role === "discipline-master" && (activeWorkspaceKind === "command" || activeWorkspaceKind === "discipline" || /dashboard|incident|case|discipline|prefect|deputy|counsellor|evidence/i.test(resolvedWorkspace));
-  const isCounsellingWorkspace = primaryRoleWorkspace && role === "guidance-counselling" && (activeWorkspaceKind === "command" || activeWorkspaceKind === "counselling" || /dashboard|counselling|counseling|wellness|session|referral|follow-up|parent|welfare|risk/i.test(resolvedWorkspace));
+  const isSecretaryWorkspace = (role === "secretary" || role === "admin") && (primaryRoleWorkspace || activeWorkspaceKind === "command" || activeWorkspaceKind === "communication" || /dashboard|front office|visitor|parent|document|appointment|communication/i.test(resolvedWorkspace));
+  const isDisciplineWorkspace = role === "discipline-master" && (primaryRoleWorkspace || activeWorkspaceKind === "command" || activeWorkspaceKind === "discipline" || /dashboard|incident|case|discipline|prefect|deputy|counsellor|evidence/i.test(resolvedWorkspace));
+  const isCounsellingWorkspace = role === "guidance-counselling" && (primaryRoleWorkspace || activeWorkspaceKind === "command" || activeWorkspaceKind === "counselling" || /dashboard|counselling|counseling|wellness|session|referral|follow-up|parent|welfare|risk/i.test(resolvedWorkspace));
   const isUserManagementWorkspace =
     (role === "principal" || role === "deputy-principal")
     && /user|invitation|invite|role|permission/i.test(resolvedWorkspace);
   const diagnosticsWorkspace = isDiagnosticsWorkspace(resolvedWorkspace);
   const commandWorkspace = isCommandWorkspace(resolvedWorkspace, activeWorkspaceIndex);
-  const kisumuBoysFeed = filterKisumuBoysFeedForWorkspace({
+  const usesDedicatedWorkspace =
+    isNurseClinicWorkspace
+    || isAdmissionsWorkspace
+    || isLibraryWorkspace
+    || isStorekeeperWorkspace
+    || isBoardingWorkspace
+    || isTransportWorkspace
+    || isLaboratoryWorkspace
+    || isAccountantWorkspace
+    || isSecretaryWorkspace
+    || isDisciplineWorkspace
+    || isCounsellingWorkspace
+    || isUserManagementWorkspace
+    || diagnosticsWorkspace;
+  const lightweightCommandRoot = commandWorkspace && activeWorkspaceIndex === 0 && !usesDedicatedWorkspace;
+  const kisumuBoysFeed = lightweightCommandRoot ? kisumuBoysRoleFeed : filterKisumuBoysFeedForWorkspace({
     feed: kisumuBoysRoleFeed,
     kind: activeWorkspaceKind,
     workspace: resolvedWorkspace,
@@ -5090,10 +5373,16 @@ function GenericRoleOperationalCommandCenter({
     ...demoWorkspaceEntries,
     ...runtimeEntries.filter((entry) => entry.workspace === resolvedWorkspace),
   ];
-  const queueContract = toQueueContract(role, resolvedBlueprint, healthById, resolvedWorkspace, activeWorkspaceIndex, workspaceRuntimeEntries);
+  const queueContract = lightweightCommandRoot
+    ? lightweightRootQueueContract(resolvedWorkspace)
+    : toQueueContract(role, resolvedBlueprint, healthById, resolvedWorkspace, activeWorkspaceIndex, workspaceRuntimeEntries);
   const visibleQueueContract = limitQueueContract(queueContract, commandWorkspace ? 5 : 8);
-  const tableContract = toTableContract(role, resolvedBlueprint, activeWorkspaceIndex, resolvedWorkspace, workspaceRuntimeEntries);
-  const formContract = toFormContract(role, resolvedBlueprint, activeWorkspaceIndex, resolvedWorkspace);
+  const tableContract = lightweightCommandRoot
+    ? lightweightRootTableContract(resolvedWorkspace)
+    : toTableContract(role, resolvedBlueprint, activeWorkspaceIndex, resolvedWorkspace, workspaceRuntimeEntries);
+  const formContract = lightweightCommandRoot
+    ? lightweightRootFormContract(role, resolvedWorkspace)
+    : toFormContract(role, resolvedBlueprint, activeWorkspaceIndex, resolvedWorkspace);
   const actions = workspaceActions(role, resolvedBlueprint, resolvedWorkspace, activeWorkspaceIndex, healthById);
   const baseDisciplineRecordIncidentAction = actionContract({
     role,
@@ -5353,8 +5642,10 @@ function GenericRoleOperationalCommandCenter({
       parentContacted: false,
       time: new Date().toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
     };
-    clinicVisitsMutation.mutate({ action: "record_visit", visit: newVisit }, { onSuccess: () => queryClient.invalidateQueries() });
-    medicineStockMutation.mutate({ action: "dispense", medicine: visit.medicine, quantity }, { onSuccess: () => queryClient.invalidateQueries() });
+    addSchoolRecord("clinic-visits", newVisit, schoolId);
+    upsertSchoolQueryRecord("/api/clinic/visits", newVisit);
+    clinicVisitsMutation.mutate({ action: "record_visit", visit: newVisit });
+    medicineStockMutation.mutate({ action: "dispense", medicine: visit.medicine, quantity });
     publishDashboardEvent({
       type: "CLINIC_VISIT_RECORDED",
       module: "clinic",
@@ -5372,21 +5663,23 @@ function GenericRoleOperationalCommandCenter({
       ["Clinic visit saved", "Medicine stock deducted", "Parent SMS ready"],
     );
     setClinicNotice(
-      `${visit.student} visit saved for ${schoolId}: ${visitId}, ${visit.medicine} stock deducted by ${quantity}, Principal/Deputy/Class Teacher/Boarding notified.`,
+      `${visit.student} visit saved for ${schoolId}: ${visitId}, medicine stock deducted, Principal/Deputy/Class Teacher/Boarding notified.`,
     );
   }
 
   function loadMedicineStock(medicine: Omit<MedicineStockRecord, "id">) {
     const newMedicine = { ...medicine, id: runtimeId("medicine") };
 
-    medicineStockMutation.mutate({ action: "load_stock", medicine: newMedicine }, { onSuccess: () => queryClient.invalidateQueries() });
+    addSchoolRecord("medicine-stock", newMedicine, schoolId);
+    upsertSchoolQueryRecord("/api/clinic/medicines/stock", newMedicine);
+    medicineStockMutation.mutate({ action: "load_stock", medicine: newMedicine });
     addLocalExecutionLog(`${medicine.medicine} stock loaded`, ["Medicine batch saved", "Stock count updated"]);
     setClinicNotice(`${medicine.medicine} stock loaded. Inventory count updated.`);
   }
 
   function notifyClinicParent(id: string) {
     const visit = clinicVisits.find((item) => item.id === id);
-    clinicVisitsMutation.mutate({ action: "notify_parent", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    clinicVisitsMutation.mutate({ action: "notify_parent", id });
     publishDashboardEvent({
       type: "CLINIC_PARENT_SMS_SENT",
       module: "clinic",
@@ -5403,7 +5696,7 @@ function GenericRoleOperationalCommandCenter({
 
   function referClinicVisit(id: string) {
     const visit = clinicVisits.find((item) => item.id === id);
-    clinicVisitsMutation.mutate({ action: "refer", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    clinicVisitsMutation.mutate({ action: "refer", id });
     publishDashboardEvent({
       type: "CLINIC_REFERRAL_CREATED",
       module: "clinic",
@@ -5422,7 +5715,7 @@ function GenericRoleOperationalCommandCenter({
 
   function releaseClinicVisit(id: string) {
     const visit = clinicVisits.find((item) => item.id === id);
-    clinicVisitsMutation.mutate({ action: "release", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    clinicVisitsMutation.mutate({ action: "release", id });
     addLocalExecutionLog(`${visit?.student ?? "Student"} released from sick bay`, ["Visit closed", "Class teacher notified"]);
     setClinicNotice(`${visit?.student ?? "Student"} released from sick bay.`);
   }
@@ -5481,7 +5774,9 @@ function GenericRoleOperationalCommandCenter({
       letterPrinted: false,
     };
 
-    admissionApplicantsMutation.mutate({ action: "add_applicant", applicant: newApplicant }, { onSuccess: () => queryClient.invalidateQueries() });
+    addSchoolRecord("admission-applicants", newApplicant, schoolId);
+    upsertSchoolQueryRecord("/api/admissions/applicants", newApplicant);
+    admissionApplicantsMutation.mutate({ action: "add_applicant", applicant: newApplicant });
     publishDashboardEvent({
       type: "ADMISSION_INQUIRY_RECORDED",
       module: "admissions",
@@ -5503,7 +5798,7 @@ function GenericRoleOperationalCommandCenter({
   function verifyAdmissionDocuments(id: string) {
     const applicant = admissionApplicants.find((item) => item.id === id);
 
-    admissionApplicantsMutation.mutate({ action: "verify_documents", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    admissionApplicantsMutation.mutate({ action: "verify_documents", id });
     addAdmissionsExecutionLog(`${applicant?.applicant ?? "Applicant"} documents verified`, ["Documents marked complete", "Interview/decision can continue"]);
     setAdmissionsNotice(`${applicant?.applicant ?? "Applicant"} documents verified.`);
   }
@@ -5511,16 +5806,27 @@ function GenericRoleOperationalCommandCenter({
   function scheduleAdmissionInterview(id: string) {
     const applicant = admissionApplicants.find((item) => item.id === id);
 
-    admissionApplicantsMutation.mutate({ action: "schedule_interview", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    admissionApplicantsMutation.mutate({ action: "schedule_interview", id });
     addAdmissionsExecutionLog(`${applicant?.applicant ?? "Applicant"} interview scheduled`, ["Interview date saved", "Parent reminder ready"]);
     setAdmissionsNotice(`${applicant?.applicant ?? "Applicant"} interview scheduled for ${applicant?.interviewDate || "2026-05-29"}.`);
   }
 
   function approveAdmissionApplicant(id: string) {
     const applicant = admissionApplicants.find((item) => item.id === id);
-    const generatedNumber = applicant?.admissionNumber ?? `KBI/2026/${runtimeNumber(100, 800)}`;
+    const generatedNumber = applicant?.admissionNumber ?? deterministicAdmissionNumber(applicant?.id ?? id);
+    const approvedApplicant = applicant
+      ? {
+          ...applicant,
+          status: "Approved" as const,
+          admissionNumber: generatedNumber,
+        }
+      : null;
 
-    admissionApplicantsMutation.mutate({ action: "approve_applicant", id, generatedNumber }, { onSuccess: () => queryClient.invalidateQueries() });
+    if (approvedApplicant) {
+      updateSchoolRecord("admission-applicants", id, approvedApplicant, schoolId);
+      updateSchoolQueryRecord<AdmissionApplicantRecord>("/api/admissions/applicants", id, approvedApplicant);
+    }
+    admissionApplicantsMutation.mutate({ action: "approve_applicant", id, generatedNumber });
     addAdmissionsExecutionLog(`${applicant?.applicant ?? "Applicant"} admission approved`, ["Admission approved", "Admission number generated", "First invoice can be prepared"]);
     setAdmissionsNotice(`${applicant?.applicant ?? "Applicant"} approved with admission number ${generatedNumber}.`);
   }
@@ -5528,7 +5834,7 @@ function GenericRoleOperationalCommandCenter({
   function rejectAdmissionApplicant(id: string) {
     const applicant = admissionApplicants.find((item) => item.id === id);
 
-    admissionApplicantsMutation.mutate({ action: "reject_applicant", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    admissionApplicantsMutation.mutate({ action: "reject_applicant", id });
     addAdmissionsExecutionLog(`${applicant?.applicant ?? "Applicant"} application rejected`, ["Application status updated", "Parent communication required"]);
     setAdmissionsNotice(`${applicant?.applicant ?? "Applicant"} application marked rejected. Parent communication is still available.`);
   }
@@ -5536,7 +5842,7 @@ function GenericRoleOperationalCommandCenter({
   function sendAdmissionParentSms(id: string) {
     const applicant = admissionApplicants.find((item) => item.id === id);
 
-    admissionApplicantsMutation.mutate({ action: "send_sms", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    admissionApplicantsMutation.mutate({ action: "send_sms", id });
     addAdmissionsExecutionLog(`${applicant?.applicant ?? "Applicant"} parent SMS queued`, ["Parent onboarding SMS queued", "Admissions communication log updated"]);
     setAdmissionsNotice(`${applicant?.applicant ?? "Applicant"} parent SMS queued to ${applicant?.parentPhone ?? "guardian"}.`);
   }
@@ -5544,7 +5850,7 @@ function GenericRoleOperationalCommandCenter({
   function printAdmissionLetter(id: string) {
     const applicant = admissionApplicants.find((item) => item.id === id);
 
-    admissionApplicantsMutation.mutate({ action: "print_letter", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    admissionApplicantsMutation.mutate({ action: "print_letter", id });
     addAdmissionsExecutionLog(`${applicant?.applicant ?? "Applicant"} admission letter preview ready`, ["Admission letter prepared", "Print preview ready"]);
     setAdmissionsNotice(
       `${applicant?.applicant ?? "Applicant"} admission letter print preview ready for ${schoolId}: applicant ${id}, ${applicant?.admissionNumber ?? "pending admission number"}, status ${applicant?.status ?? "unknown"}.`,
@@ -5596,7 +5902,9 @@ function GenericRoleOperationalCommandCenter({
       status: "Available",
     };
 
-    libraryBooksMutation.mutate({ action: "add_book", book: newBook }, { onSuccess: () => queryClient.invalidateQueries() });
+    addSchoolRecord("library-books", newBook, schoolId);
+    upsertSchoolQueryRecord("/api/library/books", newBook);
+    libraryBooksMutation.mutate({ action: "add_book", book: newBook });
     publishDashboardEvent({
       type: "LIBRARY_BOOK_ADDED",
       module: "library",
@@ -5623,9 +5931,14 @@ function GenericRoleOperationalCommandCenter({
       parentSmsSent: false,
     };
 
-    libraryLoansMutation.mutate({ action: "issue_book", loan: newLoan }, { onSuccess: () => queryClient.invalidateQueries() });
+    addSchoolRecord("library-loans", newLoan, schoolId);
+    upsertSchoolQueryRecord("/api/library/loans", newLoan);
+    libraryLoansMutation.mutate({ action: "issue_book", loan: newLoan });
     if (book) {
-      libraryBooksMutation.mutate({ action: "update_status", id: book.id, status: "Issued" }, { onSuccess: () => queryClient.invalidateQueries() });
+      const issuedBook = { ...book, status: "Issued" as const };
+      updateSchoolRecord("library-books", book.id, issuedBook, schoolId);
+      updateSchoolQueryRecord<LibraryBookRecord>("/api/library/books", book.id, issuedBook);
+      libraryBooksMutation.mutate({ action: "update_status", id: book.id, status: "Issued" });
     }
     publishDashboardEvent({
       type: "LIBRARY_BOOK_ISSUED",
@@ -5644,11 +5957,11 @@ function GenericRoleOperationalCommandCenter({
   function returnLibraryBook(id: string) {
     const loan = libraryLoans.find((item) => item.id === id);
 
-    libraryLoansMutation.mutate({ action: "return_book", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    libraryLoansMutation.mutate({ action: "return_book", id });
     if (loan) {
       const book = libraryBooks.find((item) => item.barcode === loan.barcode);
       if (book) {
-        libraryBooksMutation.mutate({ action: "update_status", id: book.id, status: "Available" }, { onSuccess: () => queryClient.invalidateQueries() });
+        libraryBooksMutation.mutate({ action: "update_status", id: book.id, status: "Available" });
       }
     }
     publishDashboardEvent({
@@ -5667,11 +5980,11 @@ function GenericRoleOperationalCommandCenter({
   function markLibraryLost(id: string) {
     const loan = libraryLoans.find((item) => item.id === id);
 
-    libraryLoansMutation.mutate({ action: "mark_lost", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    libraryLoansMutation.mutate({ action: "mark_lost", id });
     if (loan) {
       const book = libraryBooks.find((item) => item.barcode === loan.barcode);
       if (book) {
-        libraryBooksMutation.mutate({ action: "update_status", id: book.id, status: "Lost" }, { onSuccess: () => queryClient.invalidateQueries() });
+        libraryBooksMutation.mutate({ action: "update_status", id: book.id, status: "Lost" });
       }
     }
     publishDashboardEvent({
@@ -5690,11 +6003,11 @@ function GenericRoleOperationalCommandCenter({
   function markLibraryDamaged(id: string) {
     const loan = libraryLoans.find((item) => item.id === id);
 
-    libraryLoansMutation.mutate({ action: "mark_damaged", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    libraryLoansMutation.mutate({ action: "mark_damaged", id });
     if (loan) {
       const book = libraryBooks.find((item) => item.barcode === loan.barcode);
       if (book) {
-        libraryBooksMutation.mutate({ action: "update_status", id: book.id, status: "Damaged" }, { onSuccess: () => queryClient.invalidateQueries() });
+        libraryBooksMutation.mutate({ action: "update_status", id: book.id, status: "Damaged" });
       }
     }
     addLibraryExecutionLog(`${loan?.bookTitle ?? "Book"} marked damaged`, ["Damage record saved", "Fine applied"]);
@@ -5704,7 +6017,7 @@ function GenericRoleOperationalCommandCenter({
   function sendLibrarySms(id: string) {
     const loan = libraryLoans.find((item) => item.id === id);
 
-    libraryLoansMutation.mutate({ action: "send_sms", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    libraryLoansMutation.mutate({ action: "send_sms", id });
     publishDashboardEvent({
       type: "LIBRARY_SMS_SENT",
       module: "library",
@@ -5774,7 +6087,15 @@ function GenericRoleOperationalCommandCenter({
       status: item.category === "Asset" ? "Approval Required" : item.quantity <= 20 ? "Low Stock" : "OK",
     };
 
-    setStockItems((current) => [newItem, ...current]);
+    setOptimisticStockItems((current) => [newItem, ...current]);
+    storekeeperItemMutation.mutate({
+      item_name: item.item,
+      category: item.category,
+      quantity_on_hand: item.quantity,
+      unit: item.unit,
+      unit_price: item.unitCost,
+      notes: `Supplier: ${item.supplier}; Department: ${item.department}`,
+    });
     addStockExecutionLog(`${item.item} stock item saved`, ["Stock catalogue updated", "Supplier and department recorded"]);
     setStockNotice(`${item.item} saved in stock catalogue.`);
   }
@@ -5788,6 +6109,16 @@ function GenericRoleOperationalCommandCenter({
     };
 
     setStockMovements((current) => [newMovement, ...current]);
+    const item = stockItems.find((stockItem) => stockItem.item === movement.item);
+    if (item && !item.id.startsWith("stock-")) {
+      storekeeperReceiveMutation.mutate({
+        item_id: item.id,
+        quantity: movement.quantity,
+        supplier: movement.receiver,
+        department: movement.department,
+        notes: movement.note,
+      });
+    }
     addStockExecutionLog(`${movement.item} received`, ["Stock received", "Movement history updated", "Receiving slip ready"]);
     setStockNotice(`${movement.item} received and movement history updated.`);
   }
@@ -5803,7 +6134,7 @@ function GenericRoleOperationalCommandCenter({
     };
 
     setStockMovements((current) => [newMovement, ...current]);
-    setStockItems((current) => current.map((item) => {
+    setOptimisticStockItems((current) => current.map((item) => {
       if (item.item !== movement.item) return item;
 
       const nextQuantity = Math.max(0, item.quantity - quantity);
@@ -5814,6 +6145,16 @@ function GenericRoleOperationalCommandCenter({
         status: nextQuantity <= 20 ? "Low Stock" : item.status === "Damaged" ? "Damaged" : "OK",
       };
     }));
+    const item = stockItems.find((stockItem) => stockItem.item === movement.item);
+    if (item && !item.id.startsWith("stock-")) {
+      storekeeperIssueMutation.mutate({
+        item_id: item.id,
+        quantity,
+        department: movement.department,
+        issued_to: movement.receiver,
+        notes: movement.note,
+      });
+    }
     addStockExecutionLog(`${movement.item} issued to ${movement.department}`, ["Stock deducted", "Issue receiver recorded", "Issue slip ready"]);
     setStockNotice(`${movement.item} issued to ${movement.department}. Receiver: ${movement.receiver}.`);
   }
@@ -5822,7 +6163,7 @@ function GenericRoleOperationalCommandCenter({
     const movement = stockMovements.find((item) => item.id === id);
 
     setStockMovements((current) => current.map((item) => item.id === id ? { ...item, movementType: "Damaged/Lost" } : item));
-    setStockItems((current) => current.map((item) => (
+    setOptimisticStockItems((current) => current.map((item) => (
       movement && item.item === movement.item ? { ...item, status: "Damaged" } : item
     )));
     addStockExecutionLog(`${movement?.item ?? "Stock"} marked damaged`, ["Damage/loss record saved", "Principal follow-up available"]);
@@ -5918,7 +6259,10 @@ function GenericRoleOperationalCommandCenter({
       lastMarked: new Date().toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
     };
 
-    boardingRollCallsMutation.mutate({ action: "add_roll_call", record: newRecord }, { onSuccess: () => queryClient.invalidateQueries() });
+    setOptimisticBoardingRollCalls((current) => [newRecord, ...current.filter((item) => item.id !== newRecord.id)]);
+    saveBoardingRollCallRecord(newRecord);
+    upsertSchoolQueryRecord("/api/boarding/roll-calls", newRecord);
+    boardingRollCallsMutation.mutate({ action: "add_roll_call", record: newRecord });
     publishDashboardEvent({
       type: "BOARDING_ROLL_CALL_RECORDED",
       module: "boarding",
@@ -5966,8 +6310,11 @@ function GenericRoleOperationalCommandCenter({
         }
       : null;
 
-    boardingRollCallsMutation.mutate({ action: "mark_present", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    boardingRollCallsMutation.mutate({ action: "mark_present", id });
     if (updatedRecord) {
+      setOptimisticBoardingRollCalls((current) => current.map((item) => item.id === id ? updatedRecord : item));
+      saveBoardingRollCallRecord(updatedRecord);
+      updateSchoolQueryRecord<BoardingRollCallRecord>("/api/boarding/roll-calls", id, updatedRecord);
       publishDashboardEvent({
         type: "BOARDING_ROLL_CALL_CORRECTED",
         module: "boarding",
@@ -5993,8 +6340,11 @@ function GenericRoleOperationalCommandCenter({
         }
       : null;
 
-    boardingRollCallsMutation.mutate({ action: "mark_missing", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    boardingRollCallsMutation.mutate({ action: "mark_missing", id });
     if (updatedRecord) {
+      setOptimisticBoardingRollCalls((current) => current.map((item) => item.id === id ? updatedRecord : item));
+      saveBoardingRollCallRecord(updatedRecord);
+      updateSchoolQueryRecord<BoardingRollCallRecord>("/api/boarding/roll-calls", id, updatedRecord);
       publishDashboardEvent({
         type: "BOARDING_MISSING_BOARDER_ALERTED",
         module: "boarding",
@@ -6018,8 +6368,11 @@ function GenericRoleOperationalCommandCenter({
     const record = boardingRollCalls.find((item) => item.id === id);
     const updatedRecord = record ? { ...record, parentSmsSent: true } : null;
 
-    boardingRollCallsMutation.mutate({ action: "notify_parent", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    boardingRollCallsMutation.mutate({ action: "notify_parent", id });
     if (updatedRecord) {
+      setOptimisticBoardingRollCalls((current) => current.map((item) => item.id === id ? updatedRecord : item));
+      saveBoardingRollCallRecord(updatedRecord);
+      updateSchoolQueryRecord<BoardingRollCallRecord>("/api/boarding/roll-calls", id, updatedRecord);
       publishDashboardEvent({
         type: "BOARDING_PARENT_SMS_SENT",
         module: "boarding",
@@ -6039,8 +6392,21 @@ function GenericRoleOperationalCommandCenter({
     const record = boardingRollCalls.find((item) => item.id === id);
     const updatedRecord = record ? { ...record, status: "Sick" as const, parentSmsSent: true } : null;
 
-    boardingRollCallsMutation.mutate({ action: "refer_to_nurse", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    boardingRollCallsMutation.mutate({ action: "refer_to_nurse", id });
     if (updatedRecord) {
+      setOptimisticBoardingRollCalls((current) => current.map((item) => item.id === id ? updatedRecord : item));
+      saveBoardingRollCallRecord(updatedRecord);
+      updateSchoolQueryRecord<BoardingRollCallRecord>("/api/boarding/roll-calls", id, updatedRecord);
+      addSchoolRecord("boarding-nurse-referrals", {
+        id: runtimeId("boarding-nurse-referral"),
+        rollCallId: updatedRecord.id,
+        student: updatedRecord.student,
+        className: updatedRecord.className,
+        dorm: updatedRecord.dorm,
+        source: "Boarding Master",
+        status: "Referred",
+        createdAt: new Date().toISOString(),
+      }, schoolId);
       publishDashboardEvent({
         type: "BOARDING_NURSE_REFERRAL_CREATED",
         module: "boarding",
@@ -6067,7 +6433,10 @@ function GenericRoleOperationalCommandCenter({
       status: "Pending",
     };
 
-    exeatRequestsMutation.mutate({ action: "add_request", request: newRequest }, { onSuccess: () => queryClient.invalidateQueries() });
+    setOptimisticExeatRequests((current) => [newRequest, ...current.filter((item) => item.id !== newRequest.id)]);
+    saveBoardingExeatRequest(newRequest);
+    upsertSchoolQueryRecord("/api/boarding/exeats", newRequest);
+    exeatRequestsMutation.mutate({ action: "add_request", request: newRequest });
     publishDashboardEvent({
       type: "BOARDING_EXEAT_REQUESTED",
       module: "boarding",
@@ -6090,8 +6459,11 @@ function GenericRoleOperationalCommandCenter({
     const request = exeatRequests.find((item) => item.id === id);
     const updatedRequest = request ? { ...request, status: "Approved" as const } : null;
 
-    exeatRequestsMutation.mutate({ action: "approve_request", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    exeatRequestsMutation.mutate({ action: "approve_request", id });
     if (updatedRequest) {
+      setOptimisticExeatRequests((current) => current.map((item) => item.id === id ? updatedRequest : item));
+      saveBoardingExeatRequest(updatedRequest);
+      updateSchoolQueryRecord<ExeatRequestRecord>("/api/boarding/exeats", id, updatedRequest);
       publishDashboardEvent({
         type: "BOARDING_EXEAT_APPROVED",
         module: "boarding",
@@ -6114,8 +6486,11 @@ function GenericRoleOperationalCommandCenter({
     const request = exeatRequests.find((item) => item.id === id);
     const updatedRequest = request ? { ...request, status: "Forwarded" as const } : null;
 
-    exeatRequestsMutation.mutate({ action: "forward_request", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    exeatRequestsMutation.mutate({ action: "forward_request", id });
     if (updatedRequest) {
+      setOptimisticExeatRequests((current) => current.map((item) => item.id === id ? updatedRequest : item));
+      saveBoardingExeatRequest(updatedRequest);
+      updateSchoolQueryRecord<ExeatRequestRecord>("/api/boarding/exeats", id, updatedRequest);
       publishDashboardEvent({
         type: "BOARDING_EXEAT_FORWARDED",
         module: "boarding",
@@ -6193,7 +6568,9 @@ function GenericRoleOperationalCommandCenter({
       time: new Date().toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
     };
 
-    transportTripsMutation.mutate({ action: "add_trip", trip: newTrip }, { onSuccess: () => queryClient.invalidateQueries() });
+    saveTransportTripRecord(newTrip);
+    upsertSchoolQueryRecord("/api/transport/trips", newTrip);
+    transportTripsMutation.mutate({ action: "add_trip", trip: newTrip });
     publishDashboardEvent({
       type: "TRANSPORT_TRIP_RECORDED",
       module: "transport",
@@ -6217,8 +6594,10 @@ function GenericRoleOperationalCommandCenter({
     const trip = transportTrips.find((item) => item.id === id);
     const updatedTrip = trip ? { ...trip, status: "Picked" as const, parentAlertSent: true } : null;
 
-    transportTripsMutation.mutate({ action: "mark_picked", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    transportTripsMutation.mutate({ action: "mark_picked", id });
     if (updatedTrip) {
+      saveTransportTripRecord(updatedTrip);
+      updateSchoolQueryRecord<TransportTripRecord>("/api/transport/trips", id, updatedTrip);
       publishDashboardEvent({
         type: "TRANSPORT_STUDENT_PICKED",
         module: "transport",
@@ -6238,8 +6617,10 @@ function GenericRoleOperationalCommandCenter({
     const trip = transportTrips.find((item) => item.id === id);
     const updatedTrip = trip ? { ...trip, status: "Dropped" as const, parentAlertSent: true } : null;
 
-    transportTripsMutation.mutate({ action: "mark_dropped", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    transportTripsMutation.mutate({ action: "mark_dropped", id });
     if (updatedTrip) {
+      saveTransportTripRecord(updatedTrip);
+      updateSchoolQueryRecord<TransportTripRecord>("/api/transport/trips", id, updatedTrip);
       publishDashboardEvent({
         type: "TRANSPORT_STUDENT_DROPPED",
         module: "transport",
@@ -6259,8 +6640,10 @@ function GenericRoleOperationalCommandCenter({
     const trip = transportTrips.find((item) => item.id === id);
     const updatedTrip = trip ? { ...trip, parentAlertSent: true } : null;
 
-    transportTripsMutation.mutate({ action: "notify_parent", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    transportTripsMutation.mutate({ action: "notify_parent", id });
     if (updatedTrip) {
+      saveTransportTripRecord(updatedTrip);
+      updateSchoolQueryRecord<TransportTripRecord>("/api/transport/trips", id, updatedTrip);
       publishDashboardEvent({
         type: "TRANSPORT_PARENT_ALERT_SENT",
         module: "transport",
@@ -6280,8 +6663,10 @@ function GenericRoleOperationalCommandCenter({
     const vehicle = transportVehicles.find((item) => item.id === id);
     const updatedVehicle = vehicle ? { ...vehicle, status: "Maintenance" as const, maintenanceNote: "Issue reported by transport desk" } : null;
 
-    transportVehiclesMutation.mutate({ action: "report_issue", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    transportVehiclesMutation.mutate({ action: "report_issue", id });
     if (updatedVehicle) {
+      saveTransportVehicleRecord(updatedVehicle);
+      updateSchoolQueryRecord<TransportVehicleRecord>("/api/transport/vehicles", id, updatedVehicle);
       publishDashboardEvent({
         type: "TRANSPORT_VEHICLE_ISSUE_REPORTED",
         module: "transport",
@@ -6300,8 +6685,18 @@ function GenericRoleOperationalCommandCenter({
     const vehicle = transportVehicles.find((item) => item.id === id);
     const updatedVehicle = vehicle ? { ...vehicle, fuelLevel: Math.min(100, vehicle.fuelLevel + 25) } : null;
 
-    transportVehiclesMutation.mutate({ action: "add_fuel", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    transportVehiclesMutation.mutate({ action: "add_fuel", id });
     if (updatedVehicle) {
+      saveTransportVehicleRecord(updatedVehicle);
+      updateSchoolQueryRecord<TransportVehicleRecord>("/api/transport/vehicles", id, updatedVehicle);
+      addSchoolRecord("transport-fuel-records", {
+        id: runtimeId("transport-fuel"),
+        vehicle: updatedVehicle.vehicle,
+        route: updatedVehicle.route,
+        action: "Fuel Added",
+        fuelLevel: updatedVehicle.fuelLevel,
+        createdAt: new Date().toISOString(),
+      }, schoolId);
       publishDashboardEvent({
         type: "TRANSPORT_FUEL_RECORDED",
         module: "transport",
@@ -6320,8 +6715,10 @@ function GenericRoleOperationalCommandCenter({
     const vehicle = transportVehicles.find((item) => item.id === id);
     const updatedVehicle = vehicle ? { ...vehicle, status: "Maintenance" as const, maintenanceNote: "Maintenance scheduled for today" } : null;
 
-    transportVehiclesMutation.mutate({ action: "schedule_maintenance", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    transportVehiclesMutation.mutate({ action: "schedule_maintenance", id });
     if (updatedVehicle) {
+      saveTransportVehicleRecord(updatedVehicle);
+      updateSchoolQueryRecord<TransportVehicleRecord>("/api/transport/vehicles", id, updatedVehicle);
       publishDashboardEvent({
         type: "TRANSPORT_MAINTENANCE_SCHEDULED",
         module: "transport",
@@ -6412,7 +6809,9 @@ function GenericRoleOperationalCommandCenter({
       status: record.hazard === "High" ? "Hazard" : Number(record.quantity) <= 5 ? "Low Stock" : "OK",
     };
 
-    labInventoryMutation.mutate({ action: "add_inventory", record: newRecord }, { onSuccess: () => queryClient.invalidateQueries() });
+    addSchoolRecord("lab-inventory", newRecord, schoolId);
+    upsertSchoolQueryRecord("/api/labs/inventory", newRecord);
+    labInventoryMutation.mutate({ action: "add_inventory", record: newRecord });
     publishDashboardEvent({
       type: "LAB_STOCK_ADDED",
       module: "laboratory",
@@ -6448,7 +6847,9 @@ function GenericRoleOperationalCommandCenter({
       teacherAlerted: false,
     };
 
-    labRequestsMutation.mutate({ action: "add_request", request: newRequest }, { onSuccess: () => queryClient.invalidateQueries() });
+    addSchoolRecord("lab-practical-requests", newRequest, schoolId);
+    upsertSchoolQueryRecord("/api/labs/requests", newRequest);
+    labRequestsMutation.mutate({ action: "add_request", request: newRequest });
     publishDashboardEvent({
       type: "LAB_PRACTICAL_REQUESTED",
       module: "laboratory",
@@ -6476,8 +6877,10 @@ function GenericRoleOperationalCommandCenter({
     const request = labRequests.find((item) => item.id === id);
     const updatedRequest = request ? { ...request, status: "Prepared" as const, teacherAlerted: true } : null;
 
-    labRequestsMutation.mutate({ action: "approve_prep", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    labRequestsMutation.mutate({ action: "approve_prep", id });
     if (updatedRequest) {
+      updateSchoolRecord("lab-practical-requests", id, updatedRequest, schoolId);
+      updateSchoolQueryRecord<LabPracticalRequestRecord>("/api/labs/requests", id, updatedRequest);
       publishDashboardEvent({
         type: "LAB_PRACTICAL_PREP_APPROVED",
         module: "laboratory",
@@ -6511,15 +6914,21 @@ function GenericRoleOperationalCommandCenter({
       note: request.practical,
     };
 
-    labInventoryMutation.mutate({ action: "update_quantity", id: apparatus.id, quantity: Math.max(0, apparatus.quantity - issue.quantity), status: apparatus.quantity - issue.quantity <= 5 ? "Low Stock" : apparatus.status }, { onSuccess: () => queryClient.invalidateQueries() });
-    labRequestsMutation.mutate({ action: "mark_issued", id: requestId }, { onSuccess: () => queryClient.invalidateQueries() });
-    labIssuesMutation.mutate({ action: "add_issue", issue }, { onSuccess: () => queryClient.invalidateQueries() });
+    labInventoryMutation.mutate({ action: "update_quantity", id: apparatus.id, quantity: Math.max(0, apparatus.quantity - issue.quantity), status: apparatus.quantity - issue.quantity <= 5 ? "Low Stock" : apparatus.status });
+    labRequestsMutation.mutate({ action: "mark_issued", id: requestId });
+    labIssuesMutation.mutate({ action: "add_issue", issue });
     const updatedApparatus = {
       ...apparatus,
       quantity: Math.max(0, apparatus.quantity - issue.quantity),
       status: apparatus.quantity - issue.quantity <= 5 ? "Low Stock" as const : apparatus.status,
     };
     const updatedRequest = { ...request, status: "Issued" as const, teacherAlerted: true };
+    updateSchoolRecord("lab-inventory", apparatus.id, updatedApparatus, schoolId);
+    updateSchoolRecord("lab-practical-requests", requestId, updatedRequest, schoolId);
+    addSchoolRecord("lab-apparatus-issues", issue, schoolId);
+    updateSchoolQueryRecord<LabInventoryRecord>("/api/labs/inventory", apparatus.id, updatedApparatus);
+    updateSchoolQueryRecord<LabPracticalRequestRecord>("/api/labs/requests", requestId, updatedRequest);
+    upsertSchoolQueryRecord("/api/labs/issues", issue);
     publishDashboardEvent({
       type: "LAB_APPARATUS_ISSUED",
       module: "laboratory",
@@ -6554,9 +6963,17 @@ function GenericRoleOperationalCommandCenter({
       status: "OK" as const,
     } : null;
 
-    labIssuesMutation.mutate({ action: "return_apparatus", id: issueId }, { onSuccess: () => queryClient.invalidateQueries() });
+    labIssuesMutation.mutate({ action: "return_apparatus", id: issueId });
     if (inventoryItem && issue) {
-      labInventoryMutation.mutate({ action: "update_quantity", id: inventoryItem.id, quantity: inventoryItem.quantity + issue.quantity, status: "OK" }, { onSuccess: () => queryClient.invalidateQueries() });
+      labInventoryMutation.mutate({ action: "update_quantity", id: inventoryItem.id, quantity: inventoryItem.quantity + issue.quantity, status: "OK" });
+    }
+    if (updatedIssue) {
+      updateSchoolRecord("lab-apparatus-issues", issueId, updatedIssue, schoolId);
+      updateSchoolQueryRecord<LabIssueRecord>("/api/labs/issues", issueId, updatedIssue);
+    }
+    if (updatedInventoryItem) {
+      updateSchoolRecord("lab-inventory", updatedInventoryItem.id, updatedInventoryItem, schoolId);
+      updateSchoolQueryRecord<LabInventoryRecord>("/api/labs/inventory", updatedInventoryItem.id, updatedInventoryItem);
     }
     publishDashboardEvent({
       type: "LAB_APPARATUS_RETURNED",
@@ -6577,11 +6994,13 @@ function GenericRoleOperationalCommandCenter({
     const inventoryItem = labInventory.find((item) => item.item === issue?.item);
     const updatedInventoryItem = inventoryItem ? { ...inventoryItem, status: "Broken" as const } : null;
 
-    labIssuesMutation.mutate({ action: "record_breakage", id: issueId }, { onSuccess: () => queryClient.invalidateQueries() });
+    labIssuesMutation.mutate({ action: "record_breakage", id: issueId });
     if (inventoryItem) {
-      labInventoryMutation.mutate({ action: "update_status", id: inventoryItem.id, status: "Broken" }, { onSuccess: () => queryClient.invalidateQueries() });
+      labInventoryMutation.mutate({ action: "update_status", id: inventoryItem.id, status: "Broken" });
     }
     if (updatedIssue) {
+      updateSchoolRecord("lab-apparatus-issues", issueId, updatedIssue, schoolId);
+      updateSchoolQueryRecord<LabIssueRecord>("/api/labs/issues", issueId, updatedIssue);
       addSchoolRecord("lab-breakage-records", {
         id: runtimeId("lab-breakage"),
         item: updatedIssue.item,
@@ -6592,6 +7011,10 @@ function GenericRoleOperationalCommandCenter({
         note: updatedIssue.note,
         createdAt: new Date().toISOString(),
       }, schoolId);
+    }
+    if (updatedInventoryItem) {
+      updateSchoolRecord("lab-inventory", updatedInventoryItem.id, updatedInventoryItem, schoolId);
+      updateSchoolQueryRecord<LabInventoryRecord>("/api/labs/inventory", updatedInventoryItem.id, updatedInventoryItem);
     }
     publishDashboardEvent({
       type: "LAB_BREAKAGE_RECORDED",
@@ -6614,8 +7037,10 @@ function GenericRoleOperationalCommandCenter({
     const request = labRequests.find((item) => item.id === requestId);
     const updatedRequest = request ? { ...request, teacherAlerted: true } : null;
 
-    labRequestsMutation.mutate({ action: "alert_teacher", id: requestId }, { onSuccess: () => queryClient.invalidateQueries() });
+    labRequestsMutation.mutate({ action: "alert_teacher", id: requestId });
     if (updatedRequest) {
+      updateSchoolRecord("lab-practical-requests", requestId, updatedRequest, schoolId);
+      updateSchoolQueryRecord<LabPracticalRequestRecord>("/api/labs/requests", requestId, updatedRequest);
       publishDashboardEvent({
         type: "LAB_TEACHER_ALERT_SENT",
         module: "laboratory",
@@ -6671,7 +7096,7 @@ function GenericRoleOperationalCommandCenter({
   }
 
   function recordFeePayment(payment: Omit<FeePaymentRecord, "id" | "receiptNo" | "parentSmsSent" | "status">) {
-    const receiptNo = `KBI-RCPT-${runtimeNumber(1100, 8000)}`;
+    const receiptNo = runtimeReference("KBI-RCPT");
     const balanceRecord = feeBalances.find((item) => item.admissionNo === payment.admissionNo);
     const nextBalanceRecord = balanceRecord ? {
       ...balanceRecord,
@@ -6692,9 +7117,22 @@ function GenericRoleOperationalCommandCenter({
       status: payment.method === "M-Pesa" ? "M-Pesa Pending" : "Recorded",
     };
 
-    feePaymentsMutation.mutate({ action: "record_payment", payment: newPayment }, { onSuccess: () => queryClient.invalidateQueries() });
+    addSchoolRecord("finance-payments", newPayment, schoolId);
+    addSchoolRecord("receipts", {
+      id: runtimeId("receipt"),
+      student: newPayment.student,
+      admissionNo: newPayment.admissionNo,
+      amount: newPayment.amount,
+      receiptNo,
+      method: newPayment.method,
+      createdAt: new Date().toISOString(),
+    }, schoolId);
+    upsertSchoolQueryRecord("/api/finance/payments", newPayment);
+    feePaymentsMutation.mutate({ action: "record_payment", payment: newPayment });
     if (nextBalanceRecord) {
-      feeBalancesMutation.mutate({ action: "update_balance", record: nextBalanceRecord }, { onSuccess: () => queryClient.invalidateQueries() });
+      saveFeeBalanceRecord(nextBalanceRecord);
+      upsertSchoolQueryRecord("/api/finance/balances", nextBalanceRecord);
+      feeBalancesMutation.mutate({ action: "update_balance", record: nextBalanceRecord });
     }
     publishDashboardEvent({
           type: "FEE_PAYMENT_RECORDED",
@@ -6717,7 +7155,7 @@ function GenericRoleOperationalCommandCenter({
   function confirmMpesaPayment(id: string) {
     const payment = feePayments.find((item) => item.id === id);
 
-    feePaymentsMutation.mutate({ action: "confirm_mpesa", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    feePaymentsMutation.mutate({ action: "confirm_mpesa", id });
     publishDashboardEvent({
       type: "MPESA_PAYMENT_CONFIRMED",
       module: "finance",
@@ -6774,7 +7212,7 @@ function GenericRoleOperationalCommandCenter({
     const payment = feePayments.find((item) => item.id === id);
     const balanceRecord = feeBalances.find((item) => item.admissionNo === payment?.admissionNo);
 
-    feePaymentsMutation.mutate({ action: "send_sms", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    feePaymentsMutation.mutate({ action: "send_sms", id });
     publishDashboardEvent({
       type: "FEE_RECEIPT_SMS_SENT",
       module: "finance",
@@ -6821,7 +7259,7 @@ function GenericRoleOperationalCommandCenter({
   function requestFeeReversal(id: string) {
     const payment = feePayments.find((item) => item.id === id);
 
-    feePaymentsMutation.mutate({ action: "request_reversal", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    feePaymentsMutation.mutate({ action: "request_reversal", id });
     if (payment) {
       addSchoolRecord("finance-reversal-requests", {
         id: runtimeId("finance-reversal"),
@@ -6910,7 +7348,10 @@ function GenericRoleOperationalCommandCenter({
       slipPrinted: false,
     };
 
-    secretaryVisitorsMutation.mutate({ action: "register_visitor", visitor: newVisitor }, { onSuccess: () => queryClient.invalidateQueries() });
+    addSchoolRecord("secretary-visitors", newVisitor, schoolId);
+    addSchoolRecord("visitors", newVisitor, schoolId);
+    upsertSchoolQueryRecord("/api/secretary/visitors", newVisitor);
+    secretaryVisitorsMutation.mutate({ action: "register_visitor", visitor: newVisitor });
     publishDashboardEvent({
       type: "VISITOR_CHECKED_IN",
       module: "visitors",
@@ -6928,8 +7369,12 @@ function GenericRoleOperationalCommandCenter({
   function printSecretaryVisitorSlip(id: string) {
     const visitor = secretaryVisitors.find((item) => item.id === id);
 
-    secretaryVisitorsMutation.mutate({ action: "print_slip", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    secretaryVisitorsMutation.mutate({ action: "print_slip", id });
     if (visitor) {
+      const printedVisitor = { ...visitor, slipPrinted: true };
+      updateSchoolRecord("secretary-visitors", id, printedVisitor, schoolId);
+      updateSchoolRecord("visitors", id, printedVisitor, schoolId);
+      updateSchoolQueryRecord<SecretaryVisitorRecord>("/api/secretary/visitors", id, printedVisitor);
       addSchoolRecord("printed-documents", {
         id: runtimeId("printed-visitor-slip"),
         documentType: "Visitor Slip",
@@ -6993,8 +7438,14 @@ function GenericRoleOperationalCommandCenter({
 
   function checkOutSecretaryVisitor(id: string) {
     const visitor = secretaryVisitors.find((item) => item.id === id);
+    const updatedVisitor = visitor ? { ...visitor, status: "Exited" as const } : null;
 
-    secretaryVisitorsMutation.mutate({ action: "check_out", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    secretaryVisitorsMutation.mutate({ action: "check_out", id });
+    if (updatedVisitor) {
+      updateSchoolRecord("secretary-visitors", id, updatedVisitor, schoolId);
+      updateSchoolRecord("visitors", id, updatedVisitor, schoolId);
+      updateSchoolQueryRecord<SecretaryVisitorRecord>("/api/secretary/visitors", id, updatedVisitor);
+    }
     publishDashboardEvent({
       type: "VISITOR_CHECKED_OUT",
       module: "visitors",
@@ -7016,7 +7467,10 @@ function GenericRoleOperationalCommandCenter({
       smsSent: false,
     };
 
-    secretaryInquiriesMutation.mutate({ action: "add_inquiry", inquiry: newInquiry }, { onSuccess: () => queryClient.invalidateQueries() });
+    addSchoolRecord("secretary-inquiries", newInquiry, schoolId);
+    addSchoolRecord("front-office-inquiries", newInquiry, schoolId);
+    upsertSchoolQueryRecord("/api/secretary/inquiries", newInquiry);
+    secretaryInquiriesMutation.mutate({ action: "add_inquiry", inquiry: newInquiry });
     publishDashboardEvent({
       type: "PARENT_INQUIRY_REGISTERED",
       module: "front-office",
@@ -7028,14 +7482,28 @@ function GenericRoleOperationalCommandCenter({
       notifications: [{ audienceRoles: ["principal", "secretary", record.department.toLowerCase()], title: "Parent inquiry registered", severity: "warning" }],
     });
     addSecretaryExecutionLog(`${record.parent} inquiry registered`, ["Parent inquiry saved", "Department queue updated"]);
-    setSecretaryNotice(`${record.parent} request registered for ${record.department}.`);
+    setSecretaryNotice(`Request registered for ${record.department}. ${record.parent} front office follow-up is now in the queue.`);
   }
 
   function markSecretaryParentServed(id: string) {
     const inquiry = secretaryInquiries.find((item) => item.id === id);
+    const resolvedInquiry = inquiry ? { ...inquiry, status: "Resolved" as const } : null;
 
-    secretaryInquiriesMutation.mutate({ action: "mark_served", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    secretaryInquiriesMutation.mutate({ action: "mark_served", id });
     if (inquiry) {
+      updateSchoolRecord("secretary-inquiries", id, resolvedInquiry ?? inquiry, schoolId);
+      updateSchoolRecord("front-office-inquiries", id, resolvedInquiry ?? inquiry, schoolId);
+      updateSchoolQueryRecord<SecretaryInquiryRecord>("/api/secretary/inquiries", id, resolvedInquiry ?? inquiry);
+      addSchoolRecord("front-office-service-records", {
+        id: runtimeId("front-office-service"),
+        inquiryId: inquiry.id,
+        parent: inquiry.parent,
+        student: inquiry.student,
+        issue: inquiry.issue,
+        department: inquiry.department,
+        status: "Resolved",
+        servedAt: new Date().toISOString(),
+      }, schoolId);
       publishDashboardEvent({
         type: "PARENT_INQUIRY_RESOLVED",
         module: "front-office",
@@ -7053,7 +7521,7 @@ function GenericRoleOperationalCommandCenter({
   function sendSecretaryParentSms(id: string) {
     const inquiry = secretaryInquiries.find((item) => item.id === id);
 
-    secretaryInquiriesMutation.mutate({ action: "send_sms", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    secretaryInquiriesMutation.mutate({ action: "send_sms", id });
     publishDashboardEvent({
       type: "PARENT_INQUIRY_SMS_SENT",
       module: "front-office",
@@ -7071,7 +7539,7 @@ function GenericRoleOperationalCommandCenter({
   function escalateSecretaryInquiry(id: string) {
     const inquiry = secretaryInquiries.find((item) => item.id === id);
 
-    secretaryInquiriesMutation.mutate({ action: "escalate", id }, { onSuccess: () => queryClient.invalidateQueries() });
+    secretaryInquiriesMutation.mutate({ action: "escalate", id });
     publishDashboardEvent({
       type: "PARENT_INQUIRY_ESCALATED",
       module: "front-office",
@@ -7113,7 +7581,9 @@ function GenericRoleOperationalCommandCenter({
       time: new Date().toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
     };
 
-    disciplineCasesMutation.mutate({ action: "add_case", record: newCase }, { onSuccess: () => queryClient.invalidateQueries() });
+    saveDisciplineCaseRecord(newCase);
+    upsertSchoolQueryRecord("/api/support/discipline", newCase);
+    disciplineCasesMutation.mutate({ action: "add_case", record: newCase });
     publishDashboardEvent({
       type: "DISCIPLINE_CASE_RECORDED",
       module: "discipline",
@@ -7142,7 +7612,9 @@ function GenericRoleOperationalCommandCenter({
     const recordToSave = currentRecord ? { ...currentRecord, ...updates } : null;
 
     if (recordToSave) {
-      disciplineCasesMutation.mutate({ action: "update_case", id, updates }, { onSuccess: () => queryClient.invalidateQueries() });
+      saveDisciplineCaseRecord(recordToSave);
+      updateSchoolQueryRecord<DisciplineCaseRecord>("/api/support/discipline", id, recordToSave);
+      disciplineCasesMutation.mutate({ action: "update_case", id, updates });
     }
 
     return recordToSave;
@@ -7313,7 +7785,9 @@ function GenericRoleOperationalCommandCenter({
       time: new Date().toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }),
     };
 
-    counsellingSessionsMutation.mutate({ action: "add_session", session: newSession }, { onSuccess: () => queryClient.invalidateQueries() });
+    saveCounsellingSessionRecord(newSession);
+    upsertSchoolQueryRecord("/api/support/counselling", newSession);
+    counsellingSessionsMutation.mutate({ action: "add_session", session: newSession });
     publishDashboardEvent({
       type: "COUNSELLING_SESSION_RECORDED",
       module: "counselling",
@@ -7342,7 +7816,9 @@ function GenericRoleOperationalCommandCenter({
     const recordToSave = currentRecord ? { ...currentRecord, ...updates } : null;
 
     if (recordToSave) {
-      counsellingSessionsMutation.mutate({ action: "update_session", id, updates }, { onSuccess: () => queryClient.invalidateQueries() });
+      saveCounsellingSessionRecord(recordToSave);
+      updateSchoolQueryRecord<CounsellingSessionRecord>("/api/support/counselling", id, recordToSave);
+      counsellingSessionsMutation.mutate({ action: "update_session", id, updates });
     }
 
     return recordToSave;
@@ -7762,8 +8238,13 @@ function GenericRoleOperationalCommandCenter({
                     className="mb-1.5"
                   />
                   <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100/75">{"Today's school desk"}</p>
+                  <h1 className="sr-only">Dashboard</h1>
                   <h2 className="mt-0.5 text-xl font-black tracking-tight">{commandTitle}</h2>
                   <p className="mt-0.5 max-w-4xl text-xs leading-5 text-white/76">{roleProfile.subtitle}</p>
+                  <p className="mt-1 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100/75">
+                    School workspace - signed in securely
+                  </p>
+                  <p className="mt-1 text-sm font-black text-white">{roleTitle}</p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -7789,7 +8270,7 @@ function GenericRoleOperationalCommandCenter({
             <div className="flex min-h-full flex-col gap-4">
             {activeWorkspaceIndex === 0 && !isSearching ? (
               <div className="space-y-6">
-                <DashboardEngine role={role} />
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-[#40608F]">Live records</p>
                 <PracticalSummaryGrid profile={roleProfile} />
               </div>
             ) : null}
@@ -7853,7 +8334,7 @@ function GenericRoleOperationalCommandCenter({
                 schoolId={schoolId}
                 schoolName={titleize(schoolId)}
                 actorRole={role === "principal" ? "Principal" : "Deputy Principal"}
-                actorName={greetingName || (role === "principal" ? "Principal Wanjiku" : "Mr. Otieno")}
+                actorName={greetingName || (role === "principal" ? "Principal" : "Deputy Principal")}
                 canInviteUsers
                 canManageUsers
               />
@@ -7915,6 +8396,19 @@ function GenericRoleOperationalCommandCenter({
                 onPrintSlip={printLibrarySlip}
                 onPrintReport={printLibraryReport}
               />
+            ) : isAdmissionsWorkspace ? (
+              <AdmissionsWorkspace
+                applicants={admissionApplicants}
+                notice={admissionsNotice}
+                onAddApplicant={recordAdmissionApplicant}
+                onVerifyDocuments={verifyAdmissionDocuments}
+                onScheduleInterview={scheduleAdmissionInterview}
+                onApprove={approveAdmissionApplicant}
+                onReject={rejectAdmissionApplicant}
+                onSendSms={sendAdmissionParentSms}
+                onPrintLetter={printAdmissionLetter}
+                onPrintPipeline={printAdmissionsPipeline}
+              />
             ) : isStorekeeperWorkspace ? (
               <StorekeeperWorkspace
                 items={stockItems}
@@ -7971,6 +8465,71 @@ function GenericRoleOperationalCommandCenter({
                 onScheduleMaintenance={scheduleTransportMaintenance}
                 onPrintRouteList={printTransportRouteList}
               />
+            ) : lightweightCommandRoot ? (
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+                <div className="space-y-4">
+                  <Card className="p-5">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-accent" />
+                      <h3 className="text-lg font-black text-foreground">What requires action right now?</h3>
+                    </div>
+                    <p className="mt-2 text-sm font-black text-foreground">Today&apos;s Work</p>
+                    <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-muted-foreground">
+                      Select a role menu section to open its school-scoped queue, form, records,
+                      reports, and operational actions.
+                    </p>
+                    <div className="mt-4 grid gap-2 md:grid-cols-2">
+                      {sidebarItems.slice(0, 6).map((item) => (
+                        <button
+                          key={item}
+                          type="button"
+                          className="rounded-xl border border-border bg-surface-muted/80 px-3 py-2 text-left text-sm font-bold text-foreground transition hover:border-accent hover:text-accent"
+                          onClick={() => {
+                            setWorkspaceSelection({
+                              routeKey: routeWorkspaceKey,
+                              workspace: item,
+                            });
+                            setActivePanel("queue");
+                          }}
+                        >
+                          {schoolFriendlyText(item)}
+                        </button>
+                      ))}
+                    </div>
+                  </Card>
+                  {counsellingWorkspaceEntries.length > 0 ? (
+                    <Card className="p-5">
+                      <p className="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">Student welfare links</p>
+                      <div className="mt-3 space-y-2">
+                        {counsellingWorkspaceEntries.slice(0, 3).map((entry) => (
+                          <p key={entry.id} className="rounded-xl border border-border bg-surface-muted/80 px-3 py-2 text-sm font-black text-foreground">
+                            {entry.title}
+                          </p>
+                        ))}
+                      </div>
+                    </Card>
+                  ) : null}
+                  {kisumuBoysScore ? (
+                    <KisumuBoysDemoFeedPanel
+                      feed={kisumuBoysFeed}
+                      score={kisumuBoysScore}
+                      role={role}
+                      profile={roleProfile}
+                      onExecute={(action) => void executeAction(action)}
+                    />
+                  ) : null}
+                  <WorkspaceActionStrip actions={actions.slice(0, 4)} onExecute={(action) => void executeAction(action)} />
+                  <ExecutionInlineNotice items={executionLog} />
+                </div>
+                <Card className="p-5">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">Production guardrails</p>
+                  <div className="mt-4 space-y-2">
+                    <StatusPill label="School-scoped actions" tone="ok" />
+                    <StatusPill label="Role permissions enforced" tone="ok" />
+                    <StatusPill label="Open a section for live records" tone="warning" />
+                  </div>
+                </Card>
+              </div>
             ) : commandWorkspace ? (
               <div className="grid min-h-0 gap-4 2xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
                 <div className="min-h-0 space-y-4">
@@ -8078,9 +8637,46 @@ function resolvePreferredWorkspace({
     return looseMatch;
   }
 
+  const routeAliasMatch = preferredWorkspaceAlias(role, requestedSlug, sidebarItems);
+
+  if (routeAliasMatch) {
+    return routeAliasMatch;
+  }
+
   const semanticMatch = sidebarItems.find((item) => workspaceKind(role, item) === sectionKind);
 
   return semanticMatch ?? fallback;
+}
+
+function preferredWorkspaceAlias(
+  role: SchoolExperienceRole,
+  requestedSlug: string,
+  sidebarItems: string[],
+) {
+  const aliasesByRole: Partial<Record<SchoolExperienceRole, Record<string, string>>> = {
+    "exams-manager": {
+      marks: "Marks Entry Hub",
+      grading: "Grade Processing",
+      validation: "Data Validation",
+    },
+    hod: {
+      syllabus: "Syllabus Coverage",
+      "lesson-plans": "Lesson Plans",
+      attendance: "Attendance Analysis",
+      resources: "Department Resources",
+      "student-analytics": "Student Analytics",
+    },
+    "grade-master": {
+      attendance: "Attendance Oversight",
+    },
+  };
+  const expectedWorkspace = aliasesByRole[role]?.[requestedSlug];
+
+  if (!expectedWorkspace) {
+    return null;
+  }
+
+  return sidebarItems.find((item) => slug(item) === slug(expectedWorkspace)) ?? null;
 }
 
 function workspaceKindFromRouteSection(section: string): WorkspaceKind {
@@ -8110,4 +8706,5 @@ function workspaceKindFromRouteSection(section: string): WorkspaceKind {
 
   return "general";
 }
+
 

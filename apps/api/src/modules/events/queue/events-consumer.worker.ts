@@ -34,6 +34,15 @@ export class EventsConsumerWorker implements OnModuleInit, OnModuleDestroy {
 
     const queueName = this.configService.get<string>('events.queueName') ?? EVENTS_QUEUE_NAME;
 
+    const redisStatus = await this.redisService.ping();
+
+    if (redisStatus === 'degraded') {
+      this.logger.warn(
+        `Events BullMQ worker for queue "${queueName}" is paused because Redis is degraded`,
+      );
+      return;
+    }
+
     this.worker = new Worker<DispatchOutboxEventJobPayload>(
       queueName,
       async (job: Job<DispatchOutboxEventJobPayload>) => {

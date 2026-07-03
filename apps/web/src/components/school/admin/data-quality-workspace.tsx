@@ -1,17 +1,81 @@
 "use client";
 
-import { AlertTriangle, CheckCircle, Search, Settings2, Users, FileText, ArrowRight } from "lucide-react";
+import { useState } from "react";
+import { AlertTriangle, CheckCircle, Search, ArrowRight, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+
+type DataQualityAnomaly = {
+  id?: string;
+  severity?: "critical" | "warning" | string;
+  title?: string;
+  module?: string;
+  count?: number;
+};
 
 export function DataQualityWorkspace() {
   const { data: insightsData, isLoading } = useSchoolQuery<any>("/api/ai-insights/dashboard");
+  const [scanBusy, setScanBusy] = useState(false);
+  const [fixingId, setFixingId] = useState<string | null>(null);
 
-  const anomalies = insightsData?.items || [];
-  const criticalCount = anomalies.filter((a: any) => a.severity === 'critical').length;
-  const warningCount = anomalies.filter((a: any) => a.severity === 'warning').length;
+  const anomalies: DataQualityAnomaly[] = insightsData?.items || [];
+  const criticalCount = anomalies.filter((a) => a.severity === "critical").length;
+  const warningCount = anomalies.filter((a) => a.severity === "warning").length;
   const score = Math.max(0, 100 - (criticalCount * 2) - (warningCount * 0.5));
+
+  const runFullScan = async () => {
+    setScanBusy(true);
+    try {
+      await requestDashboardApi("/admin-command/principal/reports/generate", {
+        method: "POST",
+        body: {
+          title: "Data quality full scan",
+          type: "data_quality_full_scan",
+          source_dashboard: "admin-data-quality",
+          filters: {
+            current_score: score,
+            critical_count: criticalCount,
+            warning_count: warningCount,
+            anomaly_count: anomalies.length,
+          },
+        },
+      });
+      toast.success("Data quality scan requested. The generated report will be available in principal reports.");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to request data quality scan.");
+    } finally {
+      setScanBusy(false);
+    }
+  };
+
+  const requestAnomalyFix = async (anomaly: DataQualityAnomaly) => {
+    const anomalyId = anomaly.id || `${anomaly.module || "system"}-${anomaly.title || "anomaly"}`;
+    setFixingId(anomalyId);
+    try {
+      await requestDashboardApi("/admin-command/principal/settings/action", {
+        method: "POST",
+        body: {
+          action: "data_quality_fix_requested",
+          title: "Data quality fix requested",
+          message: `Fix requested for ${anomaly.title || "a detected data quality anomaly"}.`,
+          source_dashboard: "admin-data-quality",
+          anomaly_id: anomalyId,
+          module: anomaly.module || "System",
+          severity: anomaly.severity || "warning",
+          affected_records: anomaly.count || 1,
+          payload: anomaly,
+        },
+      });
+      toast.success("Fix request recorded and sent to the principal/system monitor workflow.");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to request anomaly fix.");
+    } finally {
+      setFixingId(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -21,9 +85,9 @@ export function DataQualityWorkspace() {
           <p className="text-sm text-slate-500 mt-1">Identify and resolve missing information and operational anomalies.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" className="gap-2">
-            <Search className="w-4 h-4" />
-            Run Full Scan
+          <Button variant="outline" className="gap-2" onClick={runFullScan} disabled={scanBusy || isLoading}>
+            {scanBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+            {scanBusy ? "Requesting Scan..." : "Run Full Scan"}
           </Button>
         </div>
       </div>
@@ -82,11 +146,13 @@ export function DataQualityWorkspace() {
                 <tr>
                   <td colSpan={4} className="px-4 py-8 text-center text-slate-500 animate-pulse">Loading anomalies...</td>
                 </tr>
-              ) : anomalies.length > 0 ? anomalies.map((anomaly: any) => (
-                <tr key={anomaly.id} className="hover:bg-slate-50/50 transition-colors">
+              ) : anomalies.length > 0 ? anomalies.map((anomaly) => {
+                const anomalyId = anomaly.id || `${anomaly.module || "system"}-${anomaly.title || "anomaly"}`;
+                return (
+                <tr key={anomalyId} className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <AlertTriangle className={`w-4 h-4 shrink-0 ${anomaly.severity === 'critical' ? 'text-rose-500' : 'text-orange-500'}`} />
+                      <AlertTriangle className={`w-4 h-4 shrink-0 ${anomaly.severity === "critical" ? "text-rose-500" : "text-orange-500"}`} />
                       <span className="font-medium text-slate-900">{anomaly.title}</span>
                     </div>
                   </td>
@@ -97,12 +163,20 @@ export function DataQualityWorkspace() {
                   </td>
                   <td className="px-4 py-3 font-medium text-slate-900">{anomaly.count || 1}</td>
                   <td className="px-4 py-3 text-right">
-                    <Button variant="ghost" size="sm" className="h-8 gap-1 text-slate-600 hover:text-slate-900">
-                      Fix Now <ArrowRight className="w-3 h-3" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 gap-1 text-slate-600 hover:text-slate-900"
+                      onClick={() => requestAnomalyFix(anomaly)}
+                      disabled={fixingId === anomalyId}
+                    >
+                      {fixingId === anomalyId ? "Recording..." : "Fix Now"}
+                      {fixingId === anomalyId ? <Loader2 className="w-3 h-3 animate-spin" /> : <ArrowRight className="w-3 h-3" />}
                     </Button>
                   </td>
                 </tr>
-              )) : (
+                );
+              }) : (
                 <tr>
                   <td colSpan={4} className="px-4 py-8 text-center text-emerald-600 font-medium">
                     <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto mb-2" />

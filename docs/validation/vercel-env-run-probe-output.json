@@ -1,0 +1,8 @@
+{
+  "RESEND_API_KEY": true,
+  "EMAIL_FROM": true,
+  "PUBLIC_APP_URL": true,
+  "SUPPORT_NOTIFICATION_EMAILS": true,
+  "UPLOAD_OBJECT_STORAGE_ENABLED": true,
+  "REDIS_URL": true
+}

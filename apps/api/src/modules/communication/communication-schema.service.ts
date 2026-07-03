@@ -42,10 +42,37 @@ export class CommunicationSchemaService implements OnModuleInit {
         created_at timestamptz NOT NULL DEFAULT NOW()
       );
 
+      ALTER TABLE communication_sms_outbox DISABLE ROW LEVEL SECURITY;
+      DROP POLICY IF EXISTS communication_sms_outbox_tenant_policy ON communication_sms_outbox;
+      ALTER TABLE communication_sms_outbox ADD COLUMN IF NOT EXISTS tenant_id text;
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns c
+          WHERE c.table_name = 'communication_sms_outbox'
+            AND c.column_name = 'tenant_id'
+            AND c.data_type <> 'text'
+        ) THEN
+          ALTER TABLE communication_sms_outbox
+            ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+        END IF;
+      END $$;
+      UPDATE communication_sms_outbox
+      SET tenant_id = COALESCE(NULLIF(tenant_id, ''), NULLIF(current_setting('app.tenant_id', true), ''), '00000000-0000-0000-0000-000000000000')
+      WHERE tenant_id IS NULL OR tenant_id = '';
+      ALTER TABLE communication_sms_outbox ALTER COLUMN tenant_id SET DEFAULT '00000000-0000-0000-0000-000000000000';
+      ALTER TABLE communication_sms_outbox ALTER COLUMN tenant_id SET NOT NULL;
+      ALTER TABLE communication_sms_outbox ADD COLUMN IF NOT EXISTS recipient_phone text NOT NULL DEFAULT '';
+      ALTER TABLE communication_sms_outbox ADD COLUMN IF NOT EXISTS message text NOT NULL DEFAULT '';
+      ALTER TABLE communication_sms_outbox ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'Pending';
+      ALTER TABLE communication_sms_outbox ADD COLUMN IF NOT EXISTS sent_by uuid;
+      ALTER TABLE communication_sms_outbox ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT NOW();
+      ALTER TABLE communication_sms_outbox ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
+
       ALTER TABLE communication_sms_outbox ENABLE ROW LEVEL SECURITY;
       ALTER TABLE communication_sms_outbox FORCE ROW LEVEL SECURITY;
 
-      DROP POLICY IF EXISTS communication_sms_outbox_tenant_policy ON communication_sms_outbox;
       CREATE POLICY communication_sms_outbox_tenant_policy ON communication_sms_outbox
       FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
       WITH CHECK (tenant_id = current_setting('app.tenant_id', true));

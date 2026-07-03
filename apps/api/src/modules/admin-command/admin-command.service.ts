@@ -24,8 +24,6 @@ import { AdminCommandRepository } from './repositories/admin-command.repository'
 import { PrismaService } from '../../database/prisma.service';
 import {
   ImportType,
-  AccountCategory,
-  EntryDirection,
   TicketIssueType,
   TaskPriority,
   TicketStatus,
@@ -49,6 +47,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import * as crypto from 'crypto';
+import type { AccountCategory, EntryDirection } from '../finance/finance.types';
 
 @Injectable()
 export class AdminCommandService {
@@ -245,46 +244,102 @@ export class AdminCommandService {
   }
 
   async scheduleReport(dto: any) {
-    await this.repository.scheduleReport({
+    const title = this.requireText(dto.title, 'Report title');
+    const schedule = this.requireText(dto.schedule, 'Report schedule');
+    const reportSchedule = await this.repository.scheduleReport({
       tenant_id: this.requireTenantId(),
-      user_id: this.currentUserId() || 'system',
-      title: dto.title,
-      schedule: dto.schedule,
+      user_id: this.requireUserId(),
+      title,
+      schedule,
     });
-    return { success: true, message: 'Report scheduled' };
+    if (!reportSchedule) {
+      throw new ServiceUnavailableException('Report schedule could not be created');
+    }
+    await this.audit('admin_command.report_scheduled', 'report_schedule_request', reportSchedule.id, { title, schedule });
+    return { success: true, message: 'Report schedule created', reportSchedule };
   }
 
   async createCommunicationBroadcast(dto: any) {
-    await this.repository.createCommunicationBroadcast({
+    const audience = this.requireText(dto.audience, 'Broadcast audience');
+    const message = this.requireText(dto.message, 'Broadcast message');
+    const broadcast = await this.repository.createCommunicationBroadcast({
       tenant_id: this.requireTenantId(),
-      user_id: this.currentUserId() || 'system',
-      audience: dto.audience,
-      message: dto.message,
+      user_id: this.requireUserId(),
+      audience,
+      message,
+      channels: Array.isArray(dto.channels) && dto.channels.length > 0 ? dto.channels : ['in_app'],
     });
-    return { success: true, message: 'Broadcast created' };
+    if (!broadcast?.event) {
+      throw new ServiceUnavailableException('Communication broadcast could not be created');
+    }
+    await this.audit('admin_command.communication_broadcast_created', 'communication_broadcast', broadcast.event.id, {
+      audience,
+      channels: dto.channels,
+      smsRecipientCount: broadcast.smsRecipientCount,
+    });
+    return { success: true, message: 'Broadcast created and routed', broadcast };
   }
 
   async logAbsence(dto: any) {
-    await this.repository.logAbsence({
+    const attendance = await this.repository.logAbsence({
       tenant_id: this.requireTenantId(),
-      user_id: this.currentUserId() || 'system',
-      student_id: dto.studentId,
-      date: dto.date,
+      user_id: this.requireUserId(),
+      student_id: this.requireText(dto.studentId, 'Student ID'),
+      date: this.requireText(dto.date, 'Absence date'),
       is_excused: dto.isExcused,
     });
-    return { success: true, message: 'Absence logged' };
+    if (!attendance) {
+      throw new BadRequestException('Student was not found in this school; absence was not logged');
+    }
+    await this.audit('admin_command.absence_logged', 'attendance_record', attendance.id, dto);
+    return { success: true, message: 'Absence logged', attendance };
   }
 
-  async reportIncidentMock(dto: any) {
-    await this.repository.reportIncidentMock({
-      tenant_id: this.requireTenantId(),
-      user_id: this.currentUserId() || 'system',
-      student_id: dto.studentId,
-      category: dto.category,
-      severity: dto.severity,
-      description: dto.description,
+  async recordPrincipalWorkflowAction(input: {
+    action: string;
+    entityType: string;
+    entityId?: string | null;
+    title: string;
+    message: string;
+    payload?: Record<string, unknown>;
+    targetRoles?: string[];
+    status?: string;
+  }) {
+    const tenantId = this.requireTenantId();
+    const userId = this.requireUserId();
+    const event = await this.repository.createPrincipalWorkflowAction({
+      tenant_id: tenantId,
+      user_id: userId,
+      event_type: input.action,
+      entity_type: input.entityType,
+      entity_id: input.entityId ?? null,
+      title: this.requireText(input.title, 'Action title'),
+      message: this.requireText(input.message, 'Action message'),
+      payload: input.payload ?? {},
+      target_roles: input.targetRoles ?? ['principal'],
+      status: input.status ?? 'pending',
     });
-    return { success: true, message: 'Incident reported' };
+    if (!event) {
+      throw new ServiceUnavailableException('Principal action could not be recorded');
+    }
+    await this.audit(input.action, input.entityType, event.id, { event, payload: input.payload ?? {} });
+    return { success: true, message: 'Command workflow saved and routed', event };
+  }
+
+  async reportIncident(dto: any) {
+    const incident = await this.repository.reportIncident({
+      tenant_id: this.requireTenantId(),
+      user_id: this.requireUserId(),
+      student_id: this.requireText(dto.studentId, 'Student ID'),
+      category: this.requireText(dto.category, 'Incident category'),
+      severity: this.requireSeverity(dto.severity),
+      description: this.requireText(dto.description, 'Incident description'),
+    });
+    if (!incident) {
+      throw new ServiceUnavailableException('Incident could not be reported');
+    }
+    await this.audit('admin_command.discipline_incident_reported', 'admin_incident', incident.id, dto);
+    return { success: true, message: 'Incident reported', incident };
   }
 
   async createAnnouncement(dto: CreateAnnouncementDto) {
@@ -407,6 +462,44 @@ export class AdminCommandService {
     return normalized;
   }
 
+  private generateReference(prefix: string, seed?: unknown): string {
+    const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const digest = crypto
+      .createHash('sha256')
+      .update(JSON.stringify({
+        tenantId: this.requestContext.getStore()?.tenant_id ?? null,
+        userId: this.currentUserId(),
+        seed: seed ?? crypto.randomUUID(),
+      }))
+      .digest('hex')
+      .slice(0, 10)
+      .toUpperCase();
+
+    return `${prefix}-${date}-${digest}`;
+  }
+
+  private buildIdempotencyKey(scope: string, body: unknown): string {
+    const supplied = typeof (body as { idempotencyKey?: unknown })?.idempotencyKey === 'string'
+      ? (body as { idempotencyKey: string }).idempotencyKey.trim()
+      : '';
+
+    if (supplied) {
+      return supplied;
+    }
+
+    const digest = crypto
+      .createHash('sha256')
+      .update(JSON.stringify({
+        tenantId: this.requestContext.getStore()?.tenant_id ?? null,
+        userId: this.currentUserId(),
+        scope,
+        body,
+      }))
+      .digest('hex');
+
+    return `${scope}-${digest}`;
+  }
+
   async bulkImport(type: string, file: UploadFileMetadata) {
     if (!this.prisma) {
       throw new ServiceUnavailableException('Prisma is not available');
@@ -489,7 +582,13 @@ export class AdminCommandService {
         schoolId: tenantId,
         importBatchId: importBatch.id,
         rowNumber: 1,
-        rawDataJson: { sample: 'data' },
+        rawDataJson: {
+          fileName,
+          mimeType,
+          sizeBytes,
+          importType,
+          storagePath: storedPath,
+        },
         validationStatus: 'VALID',
       }
     });
@@ -725,7 +824,7 @@ export class AdminCommandService {
         studentId,
         academicYearId,
         termId,
-        invoiceNumber: body.invoiceNumber ?? `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        invoiceNumber: body.invoiceNumber ?? this.generateReference('INV', { studentId, academicYearId, termId, amountDue }),
         amountDue,
         amountPaid: 0,
         balance: amountDue,
@@ -780,7 +879,7 @@ export class AdminCommandService {
         schoolId: tenantId,
         studentId,
         invoiceId,
-        paymentReference: body.paymentReference ?? body.reference ?? body.transactionReference ?? `PAY-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        paymentReference: body.paymentReference ?? body.reference ?? body.transactionReference ?? this.generateReference('PAY', { studentId, invoiceId, amount, paymentMethod }),
         paymentMethod,
         amount,
         paymentDate: body.paymentDate ? new Date(body.paymentDate) : new Date(),
@@ -827,18 +926,18 @@ export class AdminCommandService {
     const amount = Number(body.amount ?? 0);
     const amountMinorStr = String(amount * 100);
 
-    const cashAccount = await this.getOrCreateLedgerAccount(tenantId, '1000', 'Cash Account', 'ASSET', 'DEBIT', userId);
-    const expenseAccount = await this.getOrCreateLedgerAccount(tenantId, '5000', 'General Expense Account', 'EXPENSE', 'DEBIT', userId);
+    const cashAccount = await this.getOrCreateLedgerAccount(tenantId, '1000', 'Cash Account', 'asset', 'debit', userId);
+    const expenseAccount = await this.getOrCreateLedgerAccount(tenantId, '5000', 'General Expense Account', 'expense', 'debit', userId);
 
     const idempotencyKey = await this.prisma.idempotencyKey.create({
       data: {
         schoolId: tenantId,
         scope: 'expense',
-        idempotencyKey: `exp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        idempotencyKey: this.buildIdempotencyKey('expense', body),
         requestMethod: 'POST',
         requestPath: '/admin-command/finance/expense',
         requestHash: crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex'),
-        status: 'COMPLETED',
+        status: 'completed',
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       }
     });
@@ -864,7 +963,7 @@ export class AdminCommandService {
         transactionId: transaction.id,
         accountId: expenseAccount.id,
         lineNumber: 1,
-        direction: 'DEBIT',
+        direction: 'debit',
         amountMinor: amountMinorStr,
         currencyCode: 'KES',
         description: `Debit expense for ${title}`,
@@ -878,7 +977,7 @@ export class AdminCommandService {
         transactionId: transaction.id,
         accountId: cashAccount.id,
         lineNumber: 2,
-        direction: 'CREDIT',
+        direction: 'credit',
         amountMinor: amountMinorStr,
         currencyCode: 'KES',
         description: `Credit cash for ${title}`,

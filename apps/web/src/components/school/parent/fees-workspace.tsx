@@ -3,48 +3,111 @@
 import { CreditCard, Download, FileText, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { openPrintDocument } from "@/lib/dashboard/export";
 
 export function FeesWorkspace() {
   const [isPaying, setIsPaying] = useState(false);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [paymentPhone, setPaymentPhone] = useState("");
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   // Fetch real data from the finance endpoints
   const { data: accountsOverview, isLoading: accountsLoading } = useSchoolQuery<any>('/api/finance/accounts-overview');
   const { data: transactions, isLoading: txLoading, refetch: refetchTx } = useSchoolQuery<any>('/api/finance/collections');
   const { data: invoices, isLoading: invLoading, refetch: refetchInv } = useSchoolQuery<any>('/api/finance/invoices');
 
-  const handlePayNow = async () => {
+  const account = Array.isArray(accountsOverview) ? accountsOverview[0] : accountsOverview;
+  const balanceMinor = Number(account?.balance_minor || 0);
+  const balanceStr = (balanceMinor / 100).toLocaleString('en-US', { style: 'currency', currency: 'KES' });
+  const primaryInvoice = Array.isArray(invoices) ? invoices[0] : null;
+  const accountReference = String(
+    account?.account_reference ||
+      account?.admission_number ||
+      account?.student_number ||
+      account?.student_id ||
+      primaryInvoice?.invoice_number ||
+      "school-fees",
+  ).slice(0, 64);
+
+  const handlePayNow = () => {
+    setPaymentError(null);
+    setPaymentDialogOpen(true);
+  };
+
+  const submitMpesaPayment = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalizedPhone = paymentPhone.replace(/\s+/g, "");
+    if (!/^\+?254[17]\d{8}$|^0[17]\d{8}$/.test(normalizedPhone)) {
+      setPaymentError("Enter a valid Safaricom phone number, for example 0712345678 or 254712345678.");
+      return;
+    }
+    if (balanceMinor <= 0) {
+      setPaymentError("There is no outstanding balance to pay.");
+      return;
+    }
+
     setIsPaying(true);
+    setPaymentError(null);
     try {
-      await requestDashboardApi("/api/parent-portal/fees/pay", {
+      const response = await requestDashboardApi<{ checkout_request_id?: string | null; status?: string; customer_message?: string | null }>("/api/payments/mpesa/payment-intents", {
         method: "POST",
-        body: JSON.stringify({
-          id: `PAY-${Date.now()}`,
-          amount: balanceMinor / 100,
-          method: "M-Pesa",
-          voteHead: "Tuition",
-          term: "Term 2",
-          receiptNo: `MPESA-${Date.now().toString().slice(-6)}`,
-          reference: "Mobile Checkout",
-          parentSmsSent: true,
-          status: "completed"
-        })
+        body: {
+          idempotency_key: `parent-fees-${accountReference}-${balanceMinor}-${Date.now()}`,
+          amount_minor: String(balanceMinor),
+          phone_number: normalizedPhone,
+          student_id: isUuid(account?.student_id) ? account.student_id : undefined,
+          account_reference: accountReference,
+          transaction_desc: "School fees payment",
+          external_reference: primaryInvoice?.id ? String(primaryInvoice.id) : undefined,
+          metadata: {
+            source: "parent-portal",
+            invoice_id: primaryInvoice?.id ?? null,
+            invoice_number: primaryInvoice?.invoice_number ?? null,
+          },
+        },
       });
-      toast.success('Payment recorded successfully!');
+      toast.success("M-Pesa STK request sent.", {
+        description: response?.customer_message || "Confirm the prompt on the phone. The receipt posts after M-Pesa callback confirmation.",
+      });
+      setPaymentDialogOpen(false);
       refetchTx();
       refetchInv();
-    } catch (error) {
-      toast.error('Failed to process payment');
+    } catch (error: any) {
+      const message = error?.message || "Failed to start M-Pesa payment.";
+      setPaymentError(message);
+      toast.error(message);
     } finally {
       setIsPaying(false);
     }
   };
 
-  const balanceMinor = accountsOverview?.[0]?.balance_minor || 0;
-  const balanceStr = (balanceMinor / 100).toLocaleString('en-US', { style: 'currency', currency: 'KES' });
+  const downloadFeeStatement = () => {
+    openPrintDocument({
+      eyebrow: "Fee statement",
+      title: "Student Fee Statement",
+      subtitle: "Live parent portal balance, invoices, and payments",
+      rows: [
+        { label: "Current balance", value: balanceStr, tone: balanceMinor > 0 ? "danger" : "default" },
+        { label: "Open invoices", value: String((invoices || []).length) },
+        { label: "Recent payments", value: String((transactions || []).length) },
+        ...((invoices || []).slice(0, 4).map((invoice: any) => ({
+          label: `Invoice ${invoice.invoice_number || invoice.id || ""}`.trim(),
+          value: ((invoice.amount_minor || 0) / 100).toLocaleString("en-US", { style: "currency", currency: "KES" }),
+          tone: "danger" as const,
+        }))),
+        ...((transactions || []).slice(0, 4).map((tx: any) => ({
+          label: `Receipt ${tx.receipt_number || tx.id || ""}`.trim(),
+          value: ((tx.amount_minor || 0) / 100).toLocaleString("en-US", { style: "currency", currency: "KES" }),
+        }))),
+      ],
+      footer: "fee-statement generated from live MyShule parent portal records.",
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -74,7 +137,7 @@ export function FeesWorkspace() {
               onClick={handlePayNow}
               disabled={isPaying || balanceMinor <= 0}
             >
-              <CreditCard className="w-4 h-4" /> {isPaying ? 'Processing...' : 'Pay Now'}
+              <CreditCard className="w-4 h-4" /> Pay Now
             </Button>
           </div>
         </Card>
@@ -84,7 +147,7 @@ export function FeesWorkspace() {
             <Download className="w-4 h-4 text-slate-500" /> Statement
           </h3>
           <p className="text-sm text-slate-500 mb-4">Download a full statement of account for tax or record purposes.</p>
-          <Button variant="outline" className="w-full gap-2">
+          <Button variant="outline" className="w-full gap-2" onClick={downloadFeeStatement} disabled={accountsLoading || txLoading || invLoading}>
             <FileText className="w-4 h-4" /> Download PDF
           </Button>
         </Card>
@@ -159,7 +222,62 @@ export function FeesWorkspace() {
           </tbody>
         </table>
       </Card>
+
+      <Modal
+        open={paymentDialogOpen}
+        onClose={() => {
+          if (!isPaying) setPaymentDialogOpen(false);
+        }}
+        title="Pay school fees by M-Pesa"
+        description="A real STK request will be created. Payment is posted only after M-Pesa confirms the callback."
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={() => setPaymentDialogOpen(false)} disabled={isPaying}>
+              Cancel
+            </Button>
+            <Button type="submit" form="parent-mpesa-payment-form" disabled={isPaying || balanceMinor <= 0}>
+              {isPaying ? "Sending STK..." : "Send STK request"}
+            </Button>
+          </>
+        }
+      >
+        <form id="parent-mpesa-payment-form" onSubmit={submitMpesaPayment} className="space-y-4">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+            <div className="flex justify-between gap-4">
+              <span className="text-slate-500">Amount</span>
+              <span className="font-semibold text-slate-900">{balanceStr}</span>
+            </div>
+            <div className="mt-2 flex justify-between gap-4">
+              <span className="text-slate-500">Account reference</span>
+              <span className="font-semibold text-slate-900">{accountReference}</span>
+            </div>
+          </div>
+
+          <label className="block text-sm font-medium text-slate-700">
+            M-Pesa phone number
+            <input
+              value={paymentPhone}
+              onChange={(event) => setPaymentPhone(event.target.value)}
+              placeholder="0712345678"
+              inputMode="tel"
+              autoComplete="tel"
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              required
+            />
+          </label>
+
+          {paymentError ? (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {paymentError}
+            </div>
+          ) : null}
+        </form>
+      </Modal>
     </div>
   );
+}
+
+function isUuid(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 

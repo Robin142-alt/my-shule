@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Panel, RecordTable } from "./shared-components";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import { fetchTimetableLive } from "@/lib/modules/teacher-live";
+import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
 
 export function TimetableWorkspace() {
   const liveSession = useLiveTenantSession("school");
@@ -21,12 +22,34 @@ export function TimetableWorkspace() {
     slot.roomName,
   ]) || [];
 
+  const downloadTimetable = () => {
+    downloadCsvFile({
+      filename: "teacher-timetable.csv",
+      headers: ["Day", "Time", "Class", "Subject", "Room"],
+      rows: rows.map((row) => row.map(String)),
+    });
+  };
+
+  const reportIssue = () => {
+    openPrintDocument({
+      eyebrow: "Teacher timetable",
+      title: "Timetable Issue Report",
+      subtitle: "Review before sending to administration",
+      rows: [
+        { label: "Teacher", value: liveSession.session?.user.user_id ?? "current teacher" },
+        { label: "Timetable slots", value: String(rows.length) },
+        { label: "Required detail", value: "Affected slot, conflict, proposed correction" },
+      ],
+      footer: "Timetable issues must be resolved within the current school tenant.",
+    });
+  };
+
   return (
     <Panel title="My Timetable" description="Personal teaching schedule, duties, and clubs." icon={CalendarDays}>
       <div className="mb-4 flex flex-wrap gap-2">
-        <button type="button" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">This Week</button>
-        <button type="button" className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] bg-white">Download PDF</button>
-        <button type="button" className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] bg-white">Report Issue</button>
+        <button type="button" onClick={() => downloadTimetable()} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">This Week</button>
+        <button type="button" onClick={downloadTimetable} className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] bg-white">Download PDF</button>
+        <button type="button" onClick={reportIssue} className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] bg-white">Report Issue</button>
       </div>
       
       {isError ? (

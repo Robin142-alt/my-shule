@@ -25,7 +25,7 @@ export function ReportsWorkspace({
     setDownloading(prev => ({ ...prev, [reportId]: true }));
     setError(null);
     try {
-      const response = await fetch(buildBillingApiPath(apiPath, tenantSlug || "demo"), {
+      const response = await fetch(buildBillingApiPath(apiPath, tenantSlug), {
         cache: "no-store"
       });
 

@@ -1,16 +1,11 @@
 import { Module } from '@nestjs/common';
-import { BullModule } from '@nestjs/bullmq';
 
-import { PAYMENTS_QUEUE_NAME } from '../payments.constants';
+import { QueueModule } from '../../../queue/queue.module';
 import { PaymentsJobProducerService } from '../services/payments-job-producer.service';
 
 @Module({
-  imports: [
-    BullModule.registerQueue({
-      name: PAYMENTS_QUEUE_NAME,
-    }),
-  ],
+  imports: [QueueModule],
   providers: [PaymentsJobProducerService],
-  exports: [PaymentsJobProducerService, BullModule],
+  exports: [PaymentsJobProducerService],
 })
 export class PaymentsQueueModule {}

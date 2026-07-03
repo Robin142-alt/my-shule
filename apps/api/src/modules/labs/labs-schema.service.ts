@@ -242,26 +242,39 @@ export class LabsSchemaService implements OnModuleInit {
         CONSTRAINT ck_chemical_disposal_requests_status CHECK (status IN ('pending', 'approved', 'rejected', 'disposed'))
       );
 
+      ${LAB_TABLES.map((table) => `
+        ALTER TABLE ${table} DISABLE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS ${table}_tenant_policy ON ${table};
+        ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS tenant_id text;
+        ALTER TABLE ${table} ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+        ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS school_id text;
+        UPDATE ${table}
+        SET tenant_id = COALESCE(NULLIF(tenant_id, ''), school_id::text, 'global')
+        WHERE tenant_id IS NULL OR btrim(tenant_id) = '';
+        ALTER TABLE ${table} ALTER COLUMN tenant_id SET DEFAULT 'global';
+        ALTER TABLE ${table} ALTER COLUMN tenant_id SET NOT NULL;
+      `).join('\n')}
+
+      ALTER TABLE chemical_items ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+
       CREATE INDEX IF NOT EXISTS ix_lab_sessions_schedule
         ON lab_sessions (tenant_id, session_date, class_section_id, lab_id);
       CREATE INDEX IF NOT EXISTS ix_lab_attendance_session
         ON lab_attendance (tenant_id, session_id, status);
       CREATE INDEX IF NOT EXISTS ix_chemical_items_expiry
         ON chemical_items (tenant_id, status, expiry_date);
-    `);
 
-    await this.prisma.runSchemaBootstrap(`
       ${LAB_TABLES.map((table) => `
         ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;
         ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;
         DROP POLICY IF EXISTS ${table}_tenant_policy ON ${table};
         CREATE POLICY ${table}_tenant_policy ON ${table}
         FOR ALL USING (
-          tenant_id = current_setting('app.tenant_id', true)
+          tenant_id::text = current_setting('app.tenant_id', true)
           OR NULLIF(current_setting('app.role', true), '') = 'system'
         )
         WITH CHECK (
-          tenant_id = current_setting('app.tenant_id', true)
+          tenant_id::text = current_setting('app.tenant_id', true)
           OR NULLIF(current_setting('app.role', true), '') = 'system'
         );
       `).join('\n')}

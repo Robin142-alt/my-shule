@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { PrismaService } from '../../../database/prisma.service';
 
 @Injectable()
@@ -68,7 +69,7 @@ export class AdmissionsCommandRepository {
     const rejected = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_applications WHERE tenant_id = $1 AND status = 'rejected'`, [tenantId]);
 
     const recent = await this.executeSql(tenantId, `
-      SELECT id::text, full_name as name, class_applying as class, status, created_at as date 
+      SELECT id::text, full_name as name, class_applying as class, parent_name, parent_phone, previous_school, status, created_at as date 
       FROM admission_applications 
       WHERE tenant_id = $1 
       ORDER BY created_at DESC 
@@ -81,6 +82,22 @@ export class AdmissionsCommandRepository {
       underReview: Number(underReview.rows[0]?.count || 0),
       approved: Number(approved.rows[0]?.count || 0),
       rejected: Number(rejected.rows[0]?.count || 0),
+      metrics: {
+        total: Number(total.rows[0]?.count || 0),
+        pending: Number(pendingReview.rows[0]?.count || 0),
+        approved: Number(approved.rows[0]?.count || 0),
+        rejected: Number(rejected.rows[0]?.count || 0),
+      },
+      applicationsList: recent.rows.map((row: any) => ({
+        id: row.id,
+        student_name: row.name,
+        guardian_name: row.parent_name ?? '',
+        phone: row.parent_phone ?? '',
+        grade_applied: row.class ?? '',
+        previous_school: row.previous_school ?? '',
+        status: this.formatStatus(row.status),
+        submitted_at: this.formatDate(row.date),
+      })),
       recent: recent.rows,
     };
   }
@@ -107,6 +124,13 @@ export class AdmissionsCommandRepository {
       missing: Number(missing.rows[0]?.count || 0),
       pendingVerification: Number(pendingVerification.rows[0]?.count || 0),
       verified: Number(verified.rows[0]?.count || 0),
+      metrics: {
+        total_documents: Number(pendingVerification.rows[0]?.count || 0) + Number(verified.rows[0]?.count || 0),
+        verified: Number(verified.rows[0]?.count || 0),
+        pending_verification: Number(pendingVerification.rows[0]?.count || 0),
+        missing: Number(missing.rows[0]?.count || 0),
+      },
+      documentsList: await this.listAdmissionDocuments(tenantId),
     };
   }
 
@@ -121,6 +145,14 @@ export class AdmissionsCommandRepository {
       upcoming: Number(upcoming.rows[0]?.count || 0),
       completed: Number(completed.rows[0]?.count || 0),
       needsRescheduling: Number(needsRescheduling.rows[0]?.count || 0),
+      metrics: {
+        total_scheduled: Number(scheduledToday.rows[0]?.count || 0) + Number(upcoming.rows[0]?.count || 0) + Number(completed.rows[0]?.count || 0),
+        completed: Number(completed.rows[0]?.count || 0),
+        pending: Number(scheduledToday.rows[0]?.count || 0) + Number(upcoming.rows[0]?.count || 0),
+        passed: await this.countInterviewRecommendation(tenantId, 'passed'),
+        failed: await this.countInterviewRecommendation(tenantId, 'failed'),
+      },
+      interviewsList: await this.listAdmissionInterviews(tenantId),
     };
   }
 
@@ -172,18 +204,31 @@ export class AdmissionsCommandRepository {
       placed: Number(placed.rows[0]?.count || 0),
       unplaced: Number(unplaced.rows[0]?.count || 0),
       capacityAlerts: 0,
+      metrics: {
+        total_to_place: Number(placed.rows[0]?.count || 0) + Number(unplaced.rows[0]?.count || 0),
+        placed: Number(placed.rows[0]?.count || 0),
+        unplaced: Number(unplaced.rows[0]?.count || 0),
+      },
+      placementsList: await this.listClassPlacements(tenantId),
     };
   }
 
   async getParents(tenantId: string) {
     const onboarded = await this.executeSql(tenantId, `SELECT COUNT(DISTINCT primary_guardian_phone) as count FROM students WHERE tenant_id = $1 AND primary_guardian_phone IS NOT NULL`, [tenantId]);
     const missingContact = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND primary_guardian_phone IS NULL`, [tenantId]);
-    const portalInvitesSent = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM student_guardians WHERE tenant_id = $1 AND application_status = 'invited'`, [tenantId]);
+    const portalInvitesSent = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM student_guardians WHERE tenant_id = $1 AND status = 'invited'`, [tenantId]);
 
     return {
       onboarded: Number(onboarded.rows[0]?.count || 0),
       missingContact: Number(missingContact.rows[0]?.count || 0),
       portalInvitesSent: Number(portalInvitesSent.rows[0]?.count || 0),
+      metrics: {
+        total_students: Number(onboarded.rows[0]?.count || 0) + Number(missingContact.rows[0]?.count || 0),
+        linked: Number(onboarded.rows[0]?.count || 0),
+        unlinked: Number(missingContact.rows[0]?.count || 0),
+        invitations_sent: Number(portalInvitesSent.rows[0]?.count || 0),
+      },
+      parentLinksList: await this.listParentLinks(tenantId),
     };
   }
 
@@ -230,10 +275,23 @@ export class AdmissionsCommandRepository {
   }
 
   async getReports(tenantId: string) {
+    const reports = await this.executeSql(tenantId, `
+      SELECT id::text, title, created_at::text AS generated_at, format AS type, 'Generated' AS status
+      FROM report_snapshots
+      WHERE tenant_id = $1
+        AND module = 'admissions'
+      ORDER BY created_at DESC
+      LIMIT 50
+    `, [tenantId]);
+
     return {
-      generatedToday: 0,
+      generatedToday: reports.rows.filter((row: any) => String(row.generated_at).slice(0, 10) === new Date().toISOString().slice(0, 10)).length,
       scheduled: 0,
-      availableDownloads: 0,
+      availableDownloads: reports.rows.length,
+      metrics: {
+        reports_generated: reports.rows.length,
+      },
+      reportsList: reports.rows,
     };
   }
 
@@ -260,6 +318,422 @@ export class AdmissionsCommandRepository {
     };
   }
 
+  async getAdmissionsList(tenantId: string) {
+    const applications = await this.executeSql(tenantId, `
+      SELECT id::text, full_name, created_at, class_applying, parent_name, parent_phone, status
+      FROM admission_applications
+      WHERE tenant_id = $1
+      ORDER BY created_at DESC
+      LIMIT 100
+    `, [tenantId]);
+    const admitted = applications.rows.filter((row: any) => ['registered', 'admitted'].includes(String(row.status).toLowerCase())).length;
+    const pending = applications.rows.filter((row: any) => ['pending', 'reviewing', 'interview'].includes(String(row.status).toLowerCase())).length;
+    const rejected = applications.rows.filter((row: any) => String(row.status).toLowerCase() === 'rejected').length;
+
+    return {
+      metrics: {
+        total_applicants: applications.rows.length,
+        admitted,
+        pending,
+        rejected,
+      },
+      admissionsList: applications.rows.map((row: any) => ({
+        id: row.id,
+        student_name: row.full_name,
+        application_date: this.formatDate(row.created_at),
+        class_applied: row.class_applying,
+        parent_name: row.parent_name,
+        phone: row.parent_phone,
+        status: this.formatStatus(row.status),
+      })),
+    };
+  }
+
+  async createApplication(tenantId: string, body: any) {
+    const fullName = this.required(body.full_name ?? body.student_name, 'Student name');
+    const result = await this.executeSql(tenantId, `
+      INSERT INTO admission_applications (
+        tenant_id, application_number, full_name, date_of_birth, gender, birth_certificate_number,
+        nationality, previous_school, kcpe_results, cbc_level, nemis_upi, class_applying,
+        parent_name, parent_phone, parent_email, parent_occupation, relationship, allergies,
+        conditions, emergency_contact, status, interview_date, review_notes
+      )
+      VALUES (
+        $1, $2, $3, $4::date, $5, $6, COALESCE($7, 'Kenyan'), $8, $9, $10, $11, $12,
+        $13, $14, $15, $16, $17, $18, $19, $20, 'pending', $21::date, $22
+      )
+      RETURNING *
+    `, [
+      tenantId,
+      `APP-${Date.now()}`,
+      fullName,
+      this.required(body.date_of_birth ?? body.dateOfBirth, 'Date of birth'),
+      this.required(body.gender, 'Gender'),
+      this.required(body.birth_certificate_number ?? body.birthCertificateNumber, 'Birth certificate number'),
+      body.nationality ?? 'Kenyan',
+      body.previous_school ?? null,
+      body.kcpe_results ?? null,
+      body.cbc_level ?? null,
+      body.nemis_upi ?? null,
+      this.required(body.class_applying ?? body.grade_applied ?? body.classApplied, 'Class applying'),
+      this.required(body.parent_name ?? body.guardian_name, 'Parent or guardian name'),
+      this.required(body.parent_phone ?? body.phone, 'Parent or guardian phone'),
+      body.parent_email ?? null,
+      body.parent_occupation ?? null,
+      body.relationship ?? 'guardian',
+      body.allergies ?? null,
+      body.conditions ?? null,
+      body.emergency_contact ?? null,
+      body.interview_date ?? null,
+      body.review_notes ?? null,
+    ]);
+    return result.rows[0];
+  }
+
+  async updateApplicationStatus(tenantId: string, applicationId: string, status: string, notes?: string | null) {
+    const normalizedStatus = this.normalizeApplicationStatus(status);
+    const result = await this.executeSql(tenantId, `
+      UPDATE admission_applications
+      SET status = $3,
+          approved_at = CASE WHEN $3 = 'approved' THEN COALESCE(approved_at, NOW()) ELSE approved_at END,
+          review_notes = COALESCE($4, review_notes),
+          updated_at = NOW()
+      WHERE tenant_id = $1
+        AND id = $2::uuid
+      RETURNING *
+    `, [tenantId, applicationId, normalizedStatus, notes ?? null]);
+    return result.rows[0] ?? null;
+  }
+
+  async scheduleInterview(tenantId: string, body: any) {
+    const applicationId = this.required(body.application_id ?? body.applicationId, 'Application');
+    const result = await this.executeSql(tenantId, `
+      INSERT INTO admission_interviews (
+        tenant_id, application_id, interview_date, start_time, end_time, location,
+        interviewer_user_id, assessment_type, status
+      )
+      VALUES ($1, $2::uuid, $3::date, $4, $5, $6, $7::uuid, $8, 'scheduled')
+      RETURNING *
+    `, [
+      tenantId,
+      applicationId,
+      this.required(body.interview_date ?? body.scheduled_date, 'Interview date'),
+      this.required(body.start_time ?? body.scheduled_time, 'Start time'),
+      body.end_time ?? body.ends_at ?? '17:00',
+      body.location ?? null,
+      body.interviewer_user_id ?? null,
+      body.assessment_type ?? null,
+    ]);
+    await this.updateApplicationStatus(tenantId, applicationId, 'interview', 'Interview scheduled');
+    return result.rows[0];
+  }
+
+  async recordInterviewOutcome(tenantId: string, interviewId: string, body: any) {
+    const outcome = this.normalizeOutcome(body.outcome ?? body.recommendation);
+    const result = await this.executeSql(tenantId, `
+      UPDATE admission_interviews
+      SET status = 'completed',
+          recommendation = $3,
+          interviewer_comment = COALESCE($4, interviewer_comment),
+          updated_at = NOW()
+      WHERE tenant_id = $1
+        AND id = $2::uuid
+      RETURNING *
+    `, [tenantId, interviewId, outcome, body.notes ?? body.interviewer_comment ?? null]);
+    return result.rows[0] ?? null;
+  }
+
+  async verifyDocument(tenantId: string, documentId: string, userId: string | null) {
+    const result = await this.executeSql(tenantId, `
+      UPDATE admission_documents
+      SET verification_status = 'verified',
+          verified_by_user_id = $3::uuid,
+          verified_at = NOW(),
+          updated_at = NOW()
+      WHERE tenant_id = $1
+        AND id = $2::uuid
+      RETURNING *
+    `, [tenantId, documentId, userId]);
+    return result.rows[0] ?? null;
+  }
+
+  async requestDocument(tenantId: string, body: any) {
+    const applicationId = String(body.application_id ?? body.document_id ?? '').startsWith('missing:')
+      ? String(body.document_id).split(':')[1]
+      : body.application_id ?? null;
+    const result = await this.executeSql(tenantId, `
+      INSERT INTO admission_tasks (tenant_id, application_id, task_title, task_description, due_date, priority, status)
+      VALUES ($1, $2::uuid, $3, $4, CURRENT_DATE + INTERVAL '7 days', 'high', 'pending')
+      RETURNING *
+    `, [
+      tenantId,
+      applicationId,
+      `Request ${this.required(body.document_type, 'Document type')}`,
+      `Request ${body.document_type} from ${body.student_name ?? 'applicant guardian'}`,
+    ]);
+    return result.rows[0];
+  }
+
+  async assignClassPlacement(tenantId: string, body: any) {
+    const studentId = this.required(body.student_id ?? body.studentId, 'Student');
+    const student = await this.executeSql(tenantId, `
+      SELECT id::text, first_name, last_name, current_class_id, current_stream_id, metadata
+      FROM students
+      WHERE tenant_id = $1
+        AND id = $2::uuid
+      LIMIT 1
+    `, [tenantId, studentId]);
+    const row: any = student.rows[0];
+    if (!row) return null;
+    const className = body.class_name ?? body.assigned_class ?? row.current_class_id ?? row.metadata?.admissions?.class_applying;
+    const streamName = body.stream_name ?? body.assigned_stream ?? row.current_stream_id ?? 'Default';
+    await this.executeSql(tenantId, `
+      UPDATE student_allocations
+      SET is_current = FALSE, updated_at = NOW()
+      WHERE tenant_id = $1 AND student_id = $2::uuid AND is_current = TRUE;
+    `, [tenantId, studentId]);
+    const result = await this.executeSql(tenantId, `
+      INSERT INTO student_allocations (
+        tenant_id, student_id, class_name, stream_name, dormitory_name, transport_route, effective_from, is_current, notes
+      )
+      VALUES ($1, $2::uuid, $3, $4, $5, $6, CURRENT_DATE, TRUE, $7)
+      RETURNING *
+    `, [
+      tenantId,
+      studentId,
+      this.required(className, 'Class name'),
+      this.required(streamName, 'Stream name'),
+      body.dormitory_name ?? null,
+      body.transport_route ?? null,
+      body.notes ?? 'Placed from admissions dashboard',
+    ]);
+    return result.rows[result.rows.length - 1] ?? null;
+  }
+
+  async linkParent(tenantId: string, body: any) {
+    const studentId = this.required(body.student_id ?? body.id, 'Student');
+    const student = await this.executeSql(tenantId, `
+      SELECT id::text, first_name, last_name, primary_guardian_name, primary_guardian_phone, metadata
+      FROM students
+      WHERE tenant_id = $1 AND id = $2::uuid
+      LIMIT 1
+    `, [tenantId, studentId]);
+    const row: any = student.rows[0];
+    if (!row) return null;
+    const metadataGuardian = row.metadata?.admissions?.guardian ?? {};
+    const email = this.required(body.parent_email ?? metadataGuardian.parent_email, 'Parent email');
+    const result = await this.executeSql(tenantId, `
+      INSERT INTO student_guardians (
+        tenant_id, student_id, display_name, email, phone, relationship, is_primary, status
+      )
+      VALUES ($1, $2::uuid, $3, lower($4), $5, $6, TRUE, 'invited')
+      ON CONFLICT (tenant_id, student_id, (lower(email)))
+      DO UPDATE SET display_name = EXCLUDED.display_name,
+                    phone = EXCLUDED.phone,
+                    relationship = EXCLUDED.relationship,
+                    status = CASE WHEN student_guardians.user_id IS NULL THEN 'invited' ELSE 'active' END,
+                    updated_at = NOW()
+      RETURNING *
+    `, [
+      tenantId,
+      studentId,
+      body.parent_name ?? row.primary_guardian_name ?? metadataGuardian.parent_name,
+      email,
+      body.parent_phone ?? row.primary_guardian_phone ?? '',
+      body.relationship ?? metadataGuardian.relationship ?? 'guardian',
+    ]);
+    return result.rows[0] ?? null;
+  }
+
+  async sendParentInvitation(tenantId: string, linkId: string) {
+    const result = await this.executeSql(tenantId, `
+      UPDATE student_guardians
+      SET status = CASE WHEN user_id IS NULL THEN 'invited' ELSE 'active' END,
+          updated_at = NOW()
+      WHERE tenant_id = $1
+        AND id = $2::uuid
+      RETURNING *
+    `, [tenantId, linkId]);
+    return result.rows[0] ?? null;
+  }
+
+  private async listAdmissionDocuments(tenantId: string) {
+    const documents = await this.executeSql(tenantId, `
+      SELECT document.id::text,
+             COALESCE(application.full_name, CONCAT(student.first_name, ' ', student.last_name)) AS student_name,
+             document.document_type,
+             document.original_file_name AS file_name,
+             document.verification_status AS status,
+             document.created_at,
+             document.verified_by_user_id::text AS verified_by
+      FROM admission_documents document
+      LEFT JOIN admission_applications application ON application.tenant_id = document.tenant_id AND application.id = document.application_id
+      LEFT JOIN students student ON student.tenant_id = document.tenant_id AND student.id = document.student_id
+      WHERE document.tenant_id = $1
+      ORDER BY document.created_at DESC
+      LIMIT 75
+    `, [tenantId]);
+    const missing = await this.executeSql(tenantId, `
+      SELECT application.id::text AS application_id, application.full_name
+      FROM admission_applications application
+      WHERE application.tenant_id = $1
+        AND NOT EXISTS (
+          SELECT 1 FROM admission_documents document
+          WHERE document.tenant_id = application.tenant_id
+            AND document.application_id = application.id
+        )
+      ORDER BY application.created_at DESC
+      LIMIT 25
+    `, [tenantId]);
+    return [
+      ...documents.rows.map((row: any) => ({
+        id: row.id,
+        student_name: row.student_name,
+        document_type: row.document_type,
+        file_name: row.file_name,
+        status: this.formatStatus(row.status),
+        uploaded_at: this.formatDate(row.created_at),
+        verified_by: row.verified_by ?? '',
+      })),
+      ...missing.rows.map((row: any) => ({
+        id: `missing:${row.application_id}:admission-documents`,
+        student_name: row.full_name,
+        document_type: 'Admission documents',
+        file_name: '',
+        status: 'Missing',
+        uploaded_at: '',
+        verified_by: '',
+      })),
+    ];
+  }
+
+  private async listAdmissionInterviews(tenantId: string) {
+    const result = await this.executeSql(tenantId, `
+      SELECT interview.id::text,
+             application.full_name,
+             application.class_applying,
+             interview.interviewer_user_id::text AS interviewer,
+             interview.interview_date,
+             interview.start_time,
+             interview.end_time,
+             interview.status,
+             interview.recommendation
+      FROM admission_interviews interview
+      INNER JOIN admission_applications application ON application.tenant_id = interview.tenant_id AND application.id = interview.application_id
+      WHERE interview.tenant_id = $1
+      ORDER BY interview.interview_date DESC, interview.start_time ASC
+      LIMIT 100
+    `, [tenantId]);
+    return result.rows.map((row: any) => ({
+      id: row.id,
+      student_name: row.full_name,
+      grade_applied: row.class_applying,
+      interviewer: row.interviewer ?? 'Admissions panel',
+      scheduled_date: this.formatDate(row.interview_date),
+      scheduled_time: [row.start_time, row.end_time].filter(Boolean).join(' - '),
+      status: this.formatStatus(row.status),
+      outcome: this.formatStatus(row.recommendation ?? 'pending'),
+    }));
+  }
+
+  private async listClassPlacements(tenantId: string) {
+    const result = await this.executeSql(tenantId, `
+      SELECT student.id::text,
+             CONCAT(student.first_name, ' ', student.last_name) AS student_name,
+             COALESCE(student.current_class_id, student.metadata #>> '{admissions,class_applying}', '') AS grade_applied,
+             allocation.class_name,
+             allocation.stream_name,
+             allocation.id AS allocation_id
+      FROM students student
+      LEFT JOIN student_allocations allocation
+        ON allocation.tenant_id = student.tenant_id
+       AND allocation.student_id = student.id
+       AND allocation.is_current = TRUE
+      WHERE student.tenant_id = $1
+      ORDER BY student.created_at DESC
+      LIMIT 100
+    `, [tenantId]);
+    return result.rows.map((row: any) => ({
+      id: row.id,
+      student_name: row.student_name,
+      grade_applied: row.grade_applied,
+      assigned_class: row.class_name ?? '',
+      assigned_stream: row.stream_name ?? '',
+      status: row.allocation_id ? 'Placed' : 'Unplaced',
+    }));
+  }
+
+  private async listParentLinks(tenantId: string) {
+    const result = await this.executeSql(tenantId, `
+      SELECT COALESCE(link.id::text, student.id::text) AS id,
+             student.id::text AS student_id,
+             CONCAT(student.first_name, ' ', student.last_name) AS student_name,
+             COALESCE(allocation.class_name, student.current_class_id, '') AS grade,
+             COALESCE(link.display_name, student.primary_guardian_name, student.metadata #>> '{admissions,guardian,parent_name}', '') AS parent_name,
+             COALESCE(link.phone, student.primary_guardian_phone, '') AS parent_phone,
+             COALESCE(link.email, student.metadata #>> '{admissions,guardian,parent_email}', '') AS parent_email,
+             COALESCE(link.relationship, student.metadata #>> '{admissions,guardian,relationship}', '') AS relationship,
+             COALESCE(link.status, 'unlinked') AS link_status,
+             link.id IS NOT NULL AND link.status IN ('invited', 'active') AS invitation_sent
+      FROM students student
+      LEFT JOIN student_guardians link ON link.tenant_id = student.tenant_id AND link.student_id = student.id AND link.is_primary = TRUE
+      LEFT JOIN student_allocations allocation ON allocation.tenant_id = student.tenant_id AND allocation.student_id = student.id AND allocation.is_current = TRUE
+      WHERE student.tenant_id = $1
+      ORDER BY student.created_at DESC
+      LIMIT 100
+    `, [tenantId]);
+    return result.rows.map((row: any) => ({
+      ...row,
+      link_status: this.formatStatus(row.link_status),
+    }));
+  }
+
+  private async countInterviewRecommendation(tenantId: string, recommendation: string) {
+    const result = await this.executeSql(tenantId, `
+      SELECT COUNT(*) AS count
+      FROM admission_interviews
+      WHERE tenant_id = $1
+        AND lower(COALESCE(recommendation, '')) = $2
+    `, [tenantId, recommendation]);
+    return Number(result.rows[0]?.count ?? 0);
+  }
+
+  private required(value: unknown, label: string) {
+    const text = String(value ?? '').trim();
+    if (!text) {
+      throw new Error(`${label} is required`);
+    }
+    return text;
+  }
+
+  private normalizeApplicationStatus(status: string) {
+    const normalized = String(status || '').trim().toLowerCase().replace(/\s+/g, '_');
+    if (['approved', 'rejected', 'pending', 'registered', 'interview', 'reviewing'].includes(normalized)) return normalized;
+    if (normalized === 'under_review') return 'reviewing';
+    if (normalized === 'interview_scheduled') return 'interview';
+    throw new Error(`Unsupported application status "${status}"`);
+  }
+
+  private normalizeOutcome(outcome: unknown) {
+    const normalized = String(outcome || '').trim().toLowerCase();
+    if (['passed', 'failed', 'pending'].includes(normalized)) return normalized;
+    throw new Error(`Unsupported interview outcome "${outcome}"`);
+  }
+
+  private formatStatus(status: unknown) {
+    return String(status ?? '')
+      .split(/[_\s-]+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(' ') || 'Pending';
+  }
+
+  private formatDate(value: unknown) {
+    if (!value) return '';
+    const date = value instanceof Date ? value : new Date(String(value));
+    return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
+  }
+
   async approveApplication(tenantId: string, applicationId: string, userId: string) {
     return this.prisma.executeWithTenant(tenantId, userId, async (tx) => {
       const application = await tx.admissionApplication.findUnique({
@@ -274,8 +748,12 @@ export class AdmissionsCommandRepository {
         throw new Error('Application is already processed');
       }
 
-      const randomPart = Math.floor(1000 + Math.random() * 9000);
-      const admissionNumber = `ADM-${new Date().getFullYear()}-${randomPart}`;
+      const admissionNumberSeed = createHash('sha256')
+        .update(`${tenantId}:${application.id}`)
+        .digest('hex')
+        .slice(0, 8)
+        .toUpperCase();
+      const admissionNumber = `ADM-${new Date().getFullYear()}-${admissionNumberSeed}`;
 
       const student = await tx.student.create({
         data: {

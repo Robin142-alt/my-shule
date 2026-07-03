@@ -42,6 +42,7 @@ import {
   downloadCsvFile,
   openPrintDocument,
 } from "@/lib/dashboard/export";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import type { StatusTone } from "@/lib/dashboard/types";
 import {
   buildExamsModuleData,
@@ -334,6 +335,7 @@ function PageIntro({
   hasAssignedTeacherEntry,
   onContinueMarksEntry,
   onImportSpreadsheet,
+  onGenerateReports,
 }: {
   schoolName: string;
   currentExam: string;
@@ -342,6 +344,7 @@ function PageIntro({
   hasAssignedTeacherEntry: boolean;
   onContinueMarksEntry?: () => void;
   onImportSpreadsheet?: () => void;
+  onGenerateReports?: () => void;
 }) {
   return (
     <section className="overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-[0_18px_50px_rgba(2,6,23,0.24)]">
@@ -376,7 +379,7 @@ function PageIntro({
                 </Button>
               </>
             ) : null}
-            <Button variant="secondary" size="lg">
+            <Button variant="secondary" size="lg" onClick={onGenerateReports}>
               <FileDown className="h-4 w-4" />
               Generate reports
             </Button>
@@ -594,6 +597,7 @@ function ExamEntryMarksheetPanel({
   assignment: ExamTeachingAssignment | null;
 }) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const rows = useMemo(() => (assignment ? buildAssignmentLearners(assignment) : []), [assignment]);
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const filteredRows = normalizedSearch
@@ -605,6 +609,36 @@ function ExamEntryMarksheetPanel({
     : rows;
   const blockingRows = rows.filter((row) => row.status === "Missing" || row.status === "Invalid");
   const submitBlocked = !assignment || blockingRows.length > 0;
+
+  async function submitMarks() {
+    if (!assignment || submitBlocked) {
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await requestDashboardApi("/admin-command/exams-manager/marks-entry", {
+        method: "POST",
+        body: {
+          assignment_id: assignment.id,
+          exam: assignment.exam,
+          class_name: assignment.className,
+          stream: assignment.stream,
+          subject: assignment.subject,
+          source_dashboard: "exams-module-screen",
+          marks: filteredRows.map((row) => ({
+            student_id: row.id,
+            admission_number: row.admissionNumber,
+            learner_name: row.learnerName,
+            status: row.status,
+            teacher_comment: row.teacherComment,
+          })),
+        },
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   if (!assignment) {
     return (
@@ -711,9 +745,9 @@ function ExamEntryMarksheetPanel({
         <p className="text-[13px] font-semibold text-muted-strong">
           {filteredRows.length} visible learner records - school scope {assignment.schoolId}
         </p>
-        <Button disabled={submitBlocked}>
+        <Button disabled={submitBlocked || submitting} onClick={submitMarks}>
           <ShieldCheck className="h-3.5 w-3.5" />
-          Submit Marks
+          {submitting ? "Submitting..." : "Submit Marks"}
         </Button>
       </div>
     </Card>
@@ -1300,7 +1334,19 @@ function ExamSetupPanel({
             Plan the exam window, assessment configuration, grade boundaries, and readiness checks before teachers enter marks.
           </p>
         </div>
-        <Button variant="secondary" size="sm">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() =>
+            openPrintDocument({
+              eyebrow: "Exam setup",
+              title: "Exam configuration summary",
+              subtitle: "Current exam setup controls and readiness",
+              rows: setup.map((item) => ({ label: item.label, value: `${item.value} - ${item.helper}` })),
+              footer: "Generated from the active exams setup workspace.",
+            })
+          }
+        >
           <BookOpenCheck className="h-3.5 w-3.5" />
           Edit configuration
         </Button>
@@ -1367,6 +1413,8 @@ function AllocationPanel({
 }
 
 function BulkUploadPanel() {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const uploadChecks: Array<[string, string, StatusTone]> = [
     ["Template match", "Grade 8 Unity template recognized", "ok"],
     ["Duplicate guard", "2 duplicate admission numbers blocked", "warning"],
@@ -1384,9 +1432,17 @@ function BulkUploadPanel() {
             <Upload className="mx-auto h-8 w-8 text-info" />
             <p className="mt-3 text-sm font-semibold text-foreground">Drop Excel or CSV result sheets here</p>
             <p className="mt-1 text-[13px] text-muted">The import validates subjects, max marks, learners, duplicates, and CBC rules before writing records.</p>
-            <Button className="mt-4" variant="secondary">
+            <input
+              ref={fileInputRef}
+              className="hidden"
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              onChange={(event) => setSelectedFileName(event.target.files?.[0]?.name ?? null)}
+            />
+            <Button className="mt-4" variant="secondary" onClick={() => fileInputRef.current?.click()}>
               Select file
             </Button>
+            {selectedFileName ? <p className="mt-2 text-xs font-semibold text-info">{selectedFileName} selected for validation.</p> : null}
           </div>
         </div>
         <div className="space-y-3">
@@ -1425,7 +1481,24 @@ function ModerationPanel({
           <div className="mt-4 h-2 overflow-hidden rounded-full bg-surface-strong">
             <div className="h-full rounded-full bg-info" style={{ width: `${queue.progress}%` }} />
           </div>
-          <Button className="mt-4" variant="secondary" size="sm">
+          <Button
+            className="mt-4"
+            variant="secondary"
+            size="sm"
+            onClick={() =>
+              openPrintDocument({
+                eyebrow: "Moderation queue",
+                title: queue.title,
+                subtitle: queue.subtitle,
+                rows: [
+                  { label: "Queue value", value: queue.value },
+                  { label: "Progress", value: `${queue.progress}%` },
+                  { label: "Status", value: queue.tone },
+                ],
+                footer: "Moderation queue summary generated from exams workflow data.",
+              })
+            }
+          >
             Open moderation
           </Button>
         </Card>
@@ -1868,7 +1941,7 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
   async function downloadPdf(report: ReportCardDocumentData) {
     if (!report.id || report.id.startsWith("draft") || report.id === "1" || report.id === "2") {
       openPrintPreview(report);
-      setNotice(`${report.learner.fullName}: Choose "Save as PDF" in the print dialog. (Backend PDF unavailable for mock data)`);
+      setNotice(`${report.learner.fullName}: print preview ready. Use the browser print dialog to save this unsaved report draft as PDF.`);
       return;
     }
 
@@ -1890,8 +1963,7 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
       a.remove();
       window.URL.revokeObjectURL(url);
       setNotice(`${report.learner.fullName}: PDF download complete.`);
-    } catch (err) {
-      console.error(err);
+    } catch {
       openPrintPreview(report);
       setNotice(`${report.learner.fullName}: Choose "Save as PDF" in the print dialog as a fallback.`);
     }
@@ -2806,7 +2878,18 @@ function PublishingHistoryPanel({
               Release reports to parents only after approvals, PDF generation, portal visibility, and immutable result locking are ready.
             </p>
           </div>
-          <Button size="sm">
+          <Button
+            size="sm"
+            onClick={() =>
+              openPrintDocument({
+                eyebrow: "Publishing controls",
+                title: "Exam publishing summary",
+                subtitle: "Current report publishing state",
+                rows: publishing.map((item) => ({ label: item.label, value: `${item.value} - ${item.helper}` })),
+                footer: "Publishing controls generated from the active exams workflow.",
+              })
+            }
+          >
             <ShieldCheck className="h-3.5 w-3.5" />
             Publish controls
           </Button>
@@ -3423,6 +3506,20 @@ export function ExamsModuleScreen({
             requestTeachingImport(assignment);
           }
         }}
+        onGenerateReports={() =>
+          openPrintDocument({
+            eyebrow: "Exams report",
+            title: `${data.currentExam} operations report`,
+            subtitle: `${data.schoolName} - ${data.currentClass}`,
+            rows: [
+              { label: "Current exam", value: data.currentExam },
+              { label: "Current class", value: data.currentClass },
+              { label: "Teaching assignments", value: String(teachingAssignments.length) },
+              { label: "Live mode", value: isLiveMode ? "Connected" : "Offline/demo snapshot" },
+            ],
+            footer: "Generated from the active exams command center.",
+          })
+        }
       />
       <MetricStrip metrics={data.metrics} />
       {role === "principal" ? (

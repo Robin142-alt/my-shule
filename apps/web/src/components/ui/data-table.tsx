@@ -38,13 +38,14 @@ export function DataTable<T>({
   pageSize?: number;
 }) {
   const [currentPage, setCurrentPage] = useState(0);
-  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const safeRows = useMemo(() => (Array.isArray(rows) ? rows : []), [rows]);
+  const totalPages = Math.max(1, Math.ceil(safeRows.length / pageSize));
   const safeCurrentPage = Math.min(currentPage, totalPages - 1);
 
   const paginatedRows = useMemo(() => {
     const start = safeCurrentPage * pageSize;
-    return rows.slice(start, start + pageSize);
-  }, [rows, pageSize, safeCurrentPage]);
+    return safeRows.slice(start, start + pageSize);
+  }, [safeRows, pageSize, safeCurrentPage]);
 
   return (
     <Card className="overflow-hidden">
@@ -61,19 +62,21 @@ export function DataTable<T>({
                 <p className="mt-0.5 text-[13px] text-muted line-clamp-1">{subtitle}</p>
               ) : null}
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              {actions}
-              {rows.length > 0 ? (
-                <span className="badge badge-neutral">
-                  {rows.length} {rows.length === 1 ? "record" : "records"}
-                </span>
-              ) : null}
-            </div>
+            {actions || safeRows.length > 0 ? (
+              <div className="flex shrink-0 items-center gap-2">
+                {actions}
+                {safeRows.length > 0 ? (
+                  <span className="badge badge-neutral">
+                    {safeRows.length} {safeRows.length === 1 ? "record" : "records"}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}
 
-      {rows.length === 0 ? (
+      {safeRows.length === 0 ? (
         <div className="px-5 py-10">
           <EmptyState
             title="Nothing to show yet"
@@ -149,10 +152,10 @@ export function DataTable<T>({
                 </span>
                 –
                 <span className="font-medium text-foreground">
-                  {Math.min((safeCurrentPage + 1) * pageSize, rows.length)}
+                  {Math.min((safeCurrentPage + 1) * pageSize, safeRows.length)}
                 </span>
                 {" "}of{" "}
-                <span className="font-medium text-foreground">{rows.length}</span>
+                <span className="font-medium text-foreground">{safeRows.length}</span>
               </p>
               <div className="flex items-center gap-0.5">
                 <button

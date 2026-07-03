@@ -5,12 +5,13 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { useState } from "react";
 import { toast } from "sonner";
 import { generateReport } from "./api-client";
+import { downloadCsvFile } from "@/lib/dashboard/export";
 
 export type GeneratedReport = {
   id: string;
   reportName: string;
   generatedDate: string;
-  type: "PDF" | "Excel";
+  type: "PDF" | "Excel" | "pdf" | "xlsx" | "csv";
   status: "Ready" | "Generating";
 };
 
@@ -30,10 +31,10 @@ export function DeputyReportsDownloadsWorkspace() {
   const handleGenerate = async () => {
     try {
       setIsSubmitting(true);
-      await generateReport({ name: "Custom Operational Extract", format: "Excel" });
-      toast.success("Report generated successfully.");
+      await generateReport({ name: "Custom Operational Extract", format: "xlsx" });
+      toast.success("Operational report request submitted. Refreshing the report list for generated file status.");
       refetch();
-    } catch (e) {
+    } catch {
       toast.error("Failed to generate report.");
     } finally {
       setIsSubmitting(false);
@@ -41,6 +42,15 @@ export function DeputyReportsDownloadsWorkspace() {
   };
 
   const getTone = (st: string): Tone => st === "Ready" ? "success" : "warning";
+
+  const downloadReport = (report: GeneratedReport) => {
+    downloadCsvFile({
+      filename: `deputy-report-${report.reportName.toLowerCase().replaceAll(" ", "-")}-${report.id}.csv`,
+      headers: ["Report ID", "Report Name", "Generated Date", "Format", "Status"],
+      rows: [[report.id, report.reportName, report.generatedDate, report.type, report.status]],
+    });
+    toast.success(`${report.reportName} downloaded as CSV.`);
+  };
 
   return (
     <Panel title="Reports & Downloads" description="Generate operational reports for attendance, discipline, and duty." icon={FileText} actions={
@@ -83,7 +93,7 @@ export function DeputyReportsDownloadsWorkspace() {
                   <td className="px-4 py-3"><StatusChip label={rep.status} tone={getTone(rep.status)} /></td>
                   <td className="px-4 py-3 text-right">
                     {rep.status === "Ready" && (
-                      <button onClick={() => toast.info("Downloading file...")} className="text-blue-600 hover:underline font-semibold text-xs">Download</button>
+                      <button onClick={() => downloadReport(rep)} className="text-blue-600 hover:underline font-semibold text-xs">Download</button>
                     )}
                   </td>
                 </tr>

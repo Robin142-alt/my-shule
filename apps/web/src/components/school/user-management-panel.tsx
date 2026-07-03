@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RotateCw, Send, ShieldBan, UserCheck, UserPlus } from "lucide-react";
 
 import { getCsrfToken } from "@/lib/auth/csrf-client";
@@ -47,13 +47,13 @@ const roleOptions = [
   { value: "class_teacher", label: "Class Teacher" },
   { value: "grade_master", label: "Grade/Form Master" },
   { value: "nurse", label: "Nurse" },
-  { value: "guidance-counselling", label: "School Counsellor" },
+  { value: "school_counsellor", label: "School Counsellor" },
   { value: "discipline_master", label: "Discipline Master" },
   { value: "librarian", label: "Librarian" },
   { value: "parent", label: "Parent" },
   { value: "student", label: "Student" },
   { value: "storekeeper", label: "Storekeeper" },
-  { value: "boarding-master", label: "Boarding Master" },
+  { value: "boarding_master", label: "Boarding Master" },
   { value: "security_officer", label: "Security Officer" },
   { value: "transport_manager", label: "Transport Manager" },
   { value: "lab_technician", label: "Laboratory Technician" },
@@ -67,9 +67,9 @@ function roleLabel(roleCode: string) {
 
 export function UserManagementPanel() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [roleCode, setRoleCode] = useState("teacher");
+  const nameRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const roleRef = useRef<HTMLSelectElement>(null);
   const [busy, setBusy] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
@@ -115,8 +115,9 @@ export function UserManagementPanel() {
   }, []);
 
   async function inviteUser() {
-    const displayName = name.trim();
-    const inviteEmail = email.trim().toLowerCase();
+    const displayName = nameRef.current?.value.trim() ?? "";
+    const inviteEmail = emailRef.current?.value.trim().toLowerCase() ?? "";
+    const selectedRoleCode = roleRef.current?.value ?? "teacher";
     setMessage(null);
 
     if (!displayName || !/\S+@\S+\.\S+/.test(inviteEmail)) {
@@ -137,7 +138,7 @@ export function UserManagementPanel() {
         body: JSON.stringify({
           display_name: displayName,
           email: inviteEmail,
-          role_code: roleCode,
+          role_code: selectedRoleCode,
         }),
       });
       const payload = (await response.json().catch(() => null)) as InvitationResponse | null;
@@ -151,8 +152,8 @@ export function UserManagementPanel() {
         kind: "invitation",
         display_name: payload?.display_name ?? displayName,
         email: payload?.email ?? inviteEmail,
-        role_code: payload?.role_code ?? roleCode,
-        role_name: payload?.role_name ?? roleLabel(roleCode),
+        role_code: payload?.role_code ?? selectedRoleCode,
+        role_name: payload?.role_name ?? roleLabel(selectedRoleCode),
         status: "invited",
       });
 
@@ -160,9 +161,9 @@ export function UserManagementPanel() {
         invitedUser,
         ...current.filter((user) => user.email !== invitedUser.email),
       ]);
-      setName("");
-      setEmail("");
-      setRoleCode("teacher");
+      if (nameRef.current) nameRef.current.value = "";
+      if (emailRef.current) emailRef.current.value = "";
+      if (roleRef.current) roleRef.current.value = "teacher";
       setMessage("Invitation queued for delivery.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to create invitation.");
@@ -313,22 +314,20 @@ export function UserManagementPanel() {
         </div>
         <div className="mt-5 space-y-3">
           <input
+            ref={nameRef}
             className="min-h-10 w-full rounded-[var(--radius-sm)] border border-border bg-surface px-3 text-sm text-foreground outline-none focus:border-accent"
             placeholder="Full name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
           />
           <input
+            ref={emailRef}
             className="min-h-10 w-full rounded-[var(--radius-sm)] border border-border bg-surface px-3 text-sm text-foreground outline-none focus:border-accent"
             placeholder="name@school.ac.ke"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
           />
           <select
+            ref={roleRef}
             aria-label="Role"
             className="min-h-10 w-full rounded-[var(--radius-sm)] border border-border bg-surface px-3 text-sm text-foreground outline-none focus:border-accent"
-            value={roleCode}
-            onChange={(event) => setRoleCode(event.target.value)}
+            defaultValue="teacher"
           >
             {roleOptions.map((option) => (
               <option key={option.value} value={option.value}>

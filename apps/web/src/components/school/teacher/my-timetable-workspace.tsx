@@ -1,11 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { Clock, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function MyTimetableWorkspace() {
+  const [weekOffset, setWeekOffset] = useState(0);
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
   const periods = [
     { time: "08:00 - 08:40", name: "Period 1" },
@@ -20,8 +22,9 @@ export function MyTimetableWorkspace() {
     { time: "02:10 - 02:50", name: "Period 8" },
   ];
 
-  const { data: scheduleData, isLoading } = useSchoolQuery<any>("/api/timetable/my-schedule");
+  const { data: scheduleData, isLoading } = useSchoolQuery<any>(`/api/timetable/my-schedule?week_offset=${weekOffset}`);
   const schedule = scheduleData || {};
+  const weekLabel = weekOffset === 0 ? "This week" : weekOffset > 0 ? `${weekOffset} week${weekOffset === 1 ? "" : "s"} ahead` : `${Math.abs(weekOffset)} week${weekOffset === -1 ? "" : "s"} back`;
 
   return (
     <div className="space-y-6">
@@ -29,11 +32,12 @@ export function MyTimetableWorkspace() {
         <div>
           <h2 className="text-2xl font-semibold text-slate-900 tracking-tight">My Timetable</h2>
           <p className="text-sm text-slate-500 mt-1">Your weekly master schedule.</p>
+          <p className="text-xs text-slate-400 mt-1">{weekLabel}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-9 gap-1"><ChevronLeft className="w-4 h-4"/> Prev Week</Button>
-          <Button variant="outline" size="sm" className="h-9 gap-2"><CalendarIcon className="w-4 h-4"/> This Week</Button>
-          <Button variant="outline" size="sm" className="h-9 gap-1">Next Week <ChevronRight className="w-4 h-4"/></Button>
+          <Button variant="outline" size="sm" className="h-9 gap-1" onClick={() => setWeekOffset((current) => current - 1)}><ChevronLeft className="w-4 h-4"/> Prev Week</Button>
+          <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => setWeekOffset(0)}><CalendarIcon className="w-4 h-4"/> This Week</Button>
+          <Button variant="outline" size="sm" className="h-9 gap-1" onClick={() => setWeekOffset((current) => current + 1)}>Next Week <ChevronRight className="w-4 h-4"/></Button>
         </div>
       </div>
 

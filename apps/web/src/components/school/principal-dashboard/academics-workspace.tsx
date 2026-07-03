@@ -3,6 +3,8 @@
 import { Card } from "@/components/ui/card";
 import { AlertCircle, BookOpen, GraduationCap } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { toast } from "sonner";
 
 type PrincipalAcademicsData = {
   status: "active" | "degraded" | "setup_required";
@@ -84,7 +86,21 @@ export function PrincipalAcademicsWorkspace() {
         <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-white">Department Performance</h2>
-            <button className="text-xs bg-white/10 text-white px-3 py-1.5 rounded hover:bg-white/20 transition-colors flex items-center gap-1">
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await requestDashboardApi("/admin-command/principal/reports/generate", {
+                    method: "POST",
+                    body: { title: "Department performance report", type: "department_performance", source_dashboard: "principal-academics" },
+                  });
+                  toast.success("Department performance report requested.");
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Could not request department report.");
+                }
+              }}
+              className="text-xs bg-white/10 text-white px-3 py-1.5 rounded hover:bg-white/20 transition-colors flex items-center gap-1"
+            >
               <BookOpen className="h-3 w-3" />
               Detailed Report
             </button>

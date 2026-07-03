@@ -1,5 +1,6 @@
 // @ts-nocheck
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
@@ -1582,6 +1583,49 @@ test('PaymentsSchemaService creates M-PESA verification jobs for provider status
   assert.match(schemaSql, /last_provider_response_encrypted text/);
   assert.match(schemaSql, /next_retry_at timestamptz/);
   assert.match(schemaSql, /ALTER TABLE mpesa_verification_jobs FORCE ROW LEVEL SECURITY/);
+});
+
+test('PaymentsSchemaService only adds student payment foreign keys when student id column types match', async () => {
+  let schemaSql = '';
+  const schemaService = new PaymentsSchemaService(
+    {
+      runSchemaBootstrap: async (sql: string) => {
+        schemaSql = sql;
+      },
+    } as never,
+    {
+      onModuleInit: async () => undefined,
+    } as never,
+    {
+      onModuleInit: async () => undefined,
+    } as never,
+    {
+      onModuleInit: async () => undefined,
+    } as never,
+  );
+
+  await schemaService.onModuleInit();
+
+  assert.match(schemaSql, /student_id_type text/);
+  assert.match(schemaSql, /ALTER COLUMN student_id TYPE text USING NULLIF\(student_id::text, ''\)/);
+  assert.match(schemaSql, /ALTER COLUMN matched_student_id TYPE text USING NULLIF\(matched_student_id::text, ''\)/);
+  assert.match(schemaSql, /payment_column\.data_type = student_column\.data_type/);
+  assert.match(schemaSql, /ADD CONSTRAINT fk_payment_intents_student/);
+});
+
+test('payment repositories do not force student identifiers to UUID before persistence', () => {
+  const paymentIntentRepository = readFileSync(
+    'apps/api/src/modules/payments/repositories/payment-intents.repository.ts',
+    'utf8',
+  );
+  const c2bRepository = readFileSync(
+    'apps/api/src/modules/payments/repositories/mpesa-c2b-payments.repository.ts',
+    'utf8',
+  );
+
+  assert.doesNotMatch(paymentIntentRepository, /\$4::uuid/);
+  assert.doesNotMatch(c2bRepository, /matched_student_id = \$4::uuid/);
+  assert.doesNotMatch(c2bRepository, /matched_student_id'\)::uuid/);
 });
 
 test('PaymentsSchemaService enforces duplicate M-PESA identifiers per tenant', async () => {

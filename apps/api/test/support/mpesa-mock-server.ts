@@ -48,7 +48,10 @@ export class MpesaMockServer {
   private readonly callbackAttempts: DeliveredCallbackAttempt[] = [];
   private readonly pendingCallbacks = new Set<Promise<void>>();
 
-  constructor(private readonly callbackSecret: string) {}
+  constructor(
+    private readonly callbackSecret: string,
+    private readonly callbackDeliveryOverrideUrl?: string,
+  ) {}
 
   async start(): Promise<void> {
     this.server = createServer(async (request, response) => {
@@ -227,7 +230,7 @@ export class MpesaMockServer {
       const deliveryId =
         callback.delivery_id ?? `${scenario.checkout_request_id}:${Math.floor(Date.now())}`;
       const tenantId = callback.tenant_id ?? scenario.tenant_id;
-      const callbackTarget = new URL(callbackUrl);
+      const callbackTarget = new URL(this.callbackDeliveryOverrideUrl ?? callbackUrl);
       
       try {
         const response = await this.sendCallbackRequest(

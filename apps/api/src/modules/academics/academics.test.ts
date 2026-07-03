@@ -22,6 +22,7 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS class_streams/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS student_class_assignments/);
   assert.match(schemaSql, /ALTER TABLE subjects ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active'/);
+  assert.match(schemaSql, /ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS created_by_user_id uuid/);
   assert.match(schemaSql, /CBE/);
   assert.match(schemaSql, /ALTER TABLE teacher_subject_assignments FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /ALTER TABLE student_class_assignments FORCE ROW LEVEL SECURITY/);
@@ -151,10 +152,45 @@ test('AcademicsService bounds teacher assignment lists', async () => {
   });
 });
 
+test('AcademicsService creates lesson logs with tenant teacher and selected date', async () => {
+  const observed: Record<string, unknown> = {};
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }) } as never,
+    {
+      createLessonLog: async (input: Record<string, unknown>) => {
+        observed.input = input;
+        return { id: 'lesson-log-1', ...input };
+      },
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.createLessonLog({
+    class_id: 'class-1',
+    subject_id: 'subject-1',
+    topic: 'Linear equations',
+    notes: 'Two students need follow-up.',
+    date: '2026-06-26',
+  });
+
+  assert.equal((result as Record<string, unknown>).id, 'lesson-log-1');
+  assert.deepEqual(observed.input, {
+    tenant_id: 'tenant-a',
+    class_id: 'class-1',
+    subject_id: 'subject-1',
+    teacher_id: '11111111-1111-4111-8111-111111111111',
+    topic: 'Linear equations',
+    notes: 'Two students need follow-up.',
+    date: '2026-06-26',
+  });
+});
+
 test('AcademicsRepository lists teacher assignments with explicit columns and pagination', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
+  let tenantIdUsed: string | undefined;
   const repository = new AcademicsRepository({
         executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      tenantIdUsed = tenantId;
       return cb({
         $queryRawUnsafe: async (sql: string, ...params: any[]) => {
           const res = await (this as any).query(sql, params);
@@ -177,6 +213,9 @@ query: async (sql: string, params: unknown[]) => {
 
   assert.doesNotMatch(calls[0]!.sql, /SELECT\s+\*/i);
   assert.match(calls[0]!.sql, /LIMIT \$3::integer\s+OFFSET \$4::integer/);
+  assert.match(calls[0]!.sql, /teacher_user_id = \$2::text/);
+  assert.doesNotMatch(calls[0]!.sql, /teacher_user_id = \$2::uuid/);
+  assert.equal(tenantIdUsed, 'tenant-a');
   assert.equal(calls[0]!.params[2], 50);
   assert.equal(calls[0]!.params[3], 0);
 });

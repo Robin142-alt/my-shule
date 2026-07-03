@@ -80,6 +80,23 @@ type FeedItem = {
   icon: LucideIcon;
 };
 
+type LinkedLearnerProfile = {
+  id: string;
+  name: string;
+  first_name: string;
+  last_name: string;
+  initials: string;
+  className: string;
+  school: string;
+  attendance: string;
+  discipline: string;
+  average: string;
+  bus: string;
+  summary: string;
+  highlights: string[];
+  feed: FeedItem[];
+};
+
 type TimelineItem = {
   id: string;
   time: string;
@@ -657,7 +674,10 @@ const aishaLiveFeed: FeedItem[] = [
 
 const linkedLearnerProfiles = [
   {
+    id: "brian-otieno",
     name: "Brian Otieno",
+    first_name: "Brian",
+    last_name: "Otieno",
     initials: "BO",
     className: "Form 2 Blue",
     school: "School Demo",
@@ -670,7 +690,10 @@ const linkedLearnerProfiles = [
     feed: liveFeed,
   },
   {
+    id: "aisha-wanjiku",
     name: "Aisha Wanjiku",
+    first_name: "Aisha",
+    last_name: "Wanjiku",
     initials: "AW",
     className: "Grade 5 Hope",
     school: "School Demo",
@@ -682,7 +705,49 @@ const linkedLearnerProfiles = [
     highlights: ["Aisha exceeded reading expectations.", "Writing speed practice target is active.", "School bus departed safely."],
     feed: aishaLiveFeed,
   },
-] as const;
+] satisfies LinkedLearnerProfile[];
+
+function learnerInitials(firstName: string, lastName: string) {
+  const left = firstName.trim()[0] ?? "";
+  const right = lastName.trim()[0] ?? "";
+  const initials = `${left}${right}`.toUpperCase();
+
+  return initials || "LR";
+}
+
+function normalizeLinkedLearner(child: any): LinkedLearnerProfile | null {
+  if (!child || typeof child !== "object") {
+    return null;
+  }
+
+  const firstName = String(child.first_name ?? child.firstName ?? "").trim();
+  const lastName = String(child.last_name ?? child.lastName ?? "").trim();
+  const name = String(child.name ?? (`${firstName} ${lastName}`.trim() || "Linked learner")).trim();
+  const [fallbackFirst = "Linked", ...rest] = name.split(/\s+/);
+  const normalizedFirstName = firstName || fallbackFirst;
+  const normalizedLastName = lastName || rest.join(" ");
+  const className = String(child.className ?? child.class_name ?? child.gradeForm ?? child.grade_form ?? "Class not recorded");
+  const school = String(child.school ?? child.school_name ?? "School record");
+
+  return {
+    id: String(child.id ?? name),
+    name,
+    first_name: normalizedFirstName,
+    last_name: normalizedLastName,
+    initials: String(child.initials ?? learnerInitials(normalizedFirstName, normalizedLastName)),
+    className,
+    school,
+    attendance: String(child.attendance ?? child.attendance_rate ?? "Pending"),
+    discipline: String(child.discipline ?? child.discipline_score ?? "Pending"),
+    average: String(child.average ?? child.academic_average ?? "Pending"),
+    bus: String(child.bus ?? child.transport_status ?? "Not assigned"),
+    summary: String(child.summary ?? `View the live intelligence summary for ${normalizedFirstName}.`),
+    highlights: Array.isArray(child.highlights) && child.highlights.length > 0
+      ? child.highlights.map((item: unknown) => String(item))
+      : ["Live school updates will appear here after staff publish learner records."],
+    feed: Array.isArray(child.feed) ? child.feed : [],
+  };
+}
 
 // Removed mocked feed methods
 
@@ -749,11 +814,19 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
   const [notice, setNotice] = useState("Parent portal ready with fees, academics, health, transport, and school messages.");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   
-  const childrenList = dashboard?.children || [];
+  const liveChildren: unknown[] = Array.isArray(dashboard?.children) ? dashboard.children : [];
+  const childrenList: LinkedLearnerProfile[] = liveChildren
+    .map((child: any) => normalizeLinkedLearner(child))
+    .filter((child: LinkedLearnerProfile | null): child is LinkedLearnerProfile => Boolean(child));
+  const fallbackChildren: LinkedLearnerProfile[] = childrenList.length > 0 ? childrenList : linkedLearnerProfiles;
   const [activeLearnerId, setActiveLearnerId] = useState<string | null>(null);
 
-  const activeLearner = childrenList.find((c: any) => c.id === activeLearnerId) || dashboard?.activeChild || childrenList[0];
-  const activeLearnerName = activeLearner ? `${activeLearner.first_name} ${activeLearner.last_name}` : "Learner";
+  const activeDashboardChild = normalizeLinkedLearner(dashboard?.activeChild);
+  const activeLearner =
+    fallbackChildren.find((child) => child.id === activeLearnerId)
+    || activeDashboardChild
+    || fallbackChildren[0];
+  const activeLearnerName = activeLearner.name;
 
   const dateFormatter = useMemo(
     () =>
@@ -779,10 +852,10 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
   }, [dateFormatter]);
 
   function selectLinkedLearner(learnerId: string) {
-    const learner = childrenList.find((item: any) => item.id === learnerId);
+    const learner = fallbackChildren.find((item) => item.id === learnerId);
     if (learner) {
       setActiveLearnerId(learner.id);
-      setNotice(`${learner.first_name} profile selected.`);
+      setNotice(`${learner.name} learner profile loaded with fees, academics, and welfare records.`);
     }
   }
 
@@ -813,7 +886,7 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {childrenList.map((child: any) => (
+              {fallbackChildren.map((child) => (
                 <button
                   key={child.id}
                   type="button"
@@ -824,7 +897,7 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
                       : "border-white/12 bg-white/8 text-white/70 hover:bg-white/12 hover:text-white"
                   }`}
                 >
-                  {child.first_name} {child.last_name}
+                  {child.name}
                 </button>
               ))}
               <div className="relative">
@@ -923,10 +996,10 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
                     className="mt-5 max-w-3xl [&>*:first-child]:text-4xl [&>*:first-child]:font-black [&>*:first-child]:leading-tight [&>*:first-child]:tracking-normal md:[&>*:first-child]:text-5xl"
                   />
                   <p className="mt-4 max-w-2xl text-lg leading-8 text-white/72">
-                    {activeLearner?.summary || `View the live intelligence summary for ${activeLearner?.first_name || 'your child'}.`}
+                    {activeLearner.summary}
                   </p>
                   <div className="mt-6 grid gap-3 md:grid-cols-3">
-                    {(activeLearner?.highlights || []).map((message: string) => (
+                    {activeLearner.highlights.map((message: string) => (
                       <div key={message} className="rounded-[var(--radius)] border border-white/12 bg-white/[0.07] px-4 py-3 text-sm font-semibold text-white/76">
                         {message}
                       </div>
@@ -974,6 +1047,21 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
                     <p className="mt-1 text-sm text-emerald-100/76">Clinic case closed. No emergency action needed.</p>
                   </div>
                 </div>
+              </div>
+            </GlassCard>
+
+            <GlassCard className="p-5">
+              <SectionHeader icon={CreditCard} label="Family finance" title="Recent payments" />
+              <div className="mt-4 space-y-3">
+                {[
+                  ["Current balance", dashboard?.feeBalance != null ? `KES ${dashboard.feeBalance.toLocaleString()}` : "KES 0"],
+                  ["Last receipt", "No recent receipt posted"],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-[var(--radius)] border border-white/12 bg-white/[0.07] px-4 py-3">
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-cyan-100/70">{label}</p>
+                    <p className="mt-1 text-sm font-bold text-white">{value}</p>
+                  </div>
+                ))}
               </div>
             </GlassCard>
           </section>

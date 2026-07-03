@@ -47,7 +47,7 @@ export class AccountsRepository {
       const accounts = await tx.$queryRaw<any[]>`
         SELECT *
         FROM accounts
-        WHERE tenant_id = ${tenantId}::uuid
+        WHERE tenant_id = ${tenantId}
           AND id = ANY(${uniqueAccountIds}::uuid[])
         ORDER BY id ASC
         FOR UPDATE

@@ -100,24 +100,20 @@ export class BoardingController {
   async getRollCalls() {
     const store = this.requestContext.requireStore();
     const tenantId = store.tenant_id as string;
-    try {
-      const items = await this.prisma.boardingAttendance.findMany({
-        where: { schoolId: tenantId },
-        include: { student: true },
-      });
-      return (items as any[]).map((item) => ({
-        id: item.id,
-        student: item.student ? `${item.student.firstName} ${item.student.lastName}` : 'Unknown Student',
-        className: 'Form 4 East',
-        dorm: 'Rusinga House',
-        bed: 'Bunk A2',
-        status: (item.status as string) === 'present' ? 'Present' : 'Missing',
-        parentSmsSent: false,
-        lastMarked: item.createdAt.toISOString(),
-      }));
-    } catch (e) {
-      return [];
-    }
+    const items = await this.prisma.boardingAttendance.findMany({
+      where: { schoolId: tenantId },
+      include: { student: true },
+    });
+    return (items as any[]).map((item) => ({
+      id: item.id,
+      student: item.student ? `${item.student.firstName ?? ''} ${item.student.lastName ?? ''}`.trim() : item.studentName ?? 'Unassigned learner',
+      className: item.className ?? item.student?.className ?? item.class_name ?? 'Unassigned class',
+      dorm: item.dormName ?? item.dorm?.name ?? item.dorm_name ?? 'Unassigned dorm',
+      bed: item.bedLabel ?? item.bed?.label ?? item.bed_label ?? 'Unassigned bed',
+      status: (item.status as string) === 'present' ? 'Present' : (item.status as string) === 'sick' ? 'Sick' : (item.status as string) === 'exeat' ? 'On Exeat' : 'Missing',
+      parentSmsSent: Boolean(item.parentSmsSent ?? item.parent_sms_sent ?? false),
+      lastMarked: item.createdAt instanceof Date ? item.createdAt.toISOString() : item.createdAt,
+    }));
   }
 
   @Get('exeats')
@@ -125,41 +121,37 @@ export class BoardingController {
   async getExeats() {
     const store = this.requestContext.requireStore();
     const tenantId = store.tenant_id as string;
-    try {
-      const tasks = await this.prisma.workflowTask.findMany({
-        where: {
-          schoolId: tenantId,
-          title: {
-            startsWith: 'Exeat:',
-          },
+    const tasks = await this.prisma.workflowTask.findMany({
+      where: {
+        schoolId: tenantId,
+        title: {
+          startsWith: 'Exeat:',
         },
-      });
+      },
+    });
 
-      return tasks.map((task) => {
-        try {
-          const record = JSON.parse(task.description);
-          return {
-            id: task.relatedEntityId || task.id,
-            student: record.student || 'Unknown Student',
-            dorm: record.dorm || 'Unknown Dorm',
-            reason: record.reason || 'No Reason',
-            parentPhone: record.parentPhone || '',
-            status: record.status || 'Pending',
-          };
-        } catch (e) {
-          return {
-            id: task.id,
-            student: task.title.replace('Exeat:', '').trim(),
-            dorm: 'Unknown Dorm',
-            reason: task.description,
-            parentPhone: '',
-            status: 'Pending',
-          };
-        }
-      });
-    } catch (e) {
-      return [];
-    }
+    return tasks.map((task) => {
+      try {
+        const record = JSON.parse(task.description);
+        return {
+          id: task.relatedEntityId || task.id,
+          student: record.student || 'Unassigned learner',
+          dorm: record.dorm || 'Unassigned dorm',
+          reason: record.reason || 'No reason recorded',
+          parentPhone: record.parentPhone || '',
+          status: record.status || 'Pending',
+        };
+      } catch (e) {
+        return {
+          id: task.id,
+          student: task.title.replace('Exeat:', '').trim() || 'Unassigned learner',
+          dorm: 'Unassigned dorm',
+          reason: task.description,
+          parentPhone: '',
+          status: 'Pending',
+        };
+      }
+    });
   }
 
   @Post('exeats')
@@ -181,7 +173,7 @@ export class BoardingController {
           assignedToUserId: userId,
           createdByUserId: userId,
           priority: 'NORMAL',
-          status: 'TODO',
+          status: 'IN_PROGRESS',
           relatedEntityType: 'Exeat',
           relatedEntityId: request.id as string,
         },

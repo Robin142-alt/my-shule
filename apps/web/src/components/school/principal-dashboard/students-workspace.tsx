@@ -7,6 +7,8 @@ import { useDashboardEventBus } from "@/lib/dashboard-communication/dashboard-co
 import { useState } from "react";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
+import { buildSchoolSectionHref } from "@/components/school/school-pages";
 
 import { useStudentEvents } from "@/hooks/useStudentEvents";
 
@@ -21,9 +23,11 @@ type PrincipalStudentsData = {
 
 export function PrincipalStudentsWorkspace() {
   useStudentEvents();
+  const router = useRouter();
   const { data, isLoading, error } = useSchoolQuery<PrincipalStudentsData>('/admin-command/principal/students');
   const eventBus = useDashboardEventBus();
   const { hasPermission } = usePermissions();
+  const openAdmissionsWorkspace = () => router.push(buildSchoolSectionHref("admissions", "admissions", "public"));
 
   if (isLoading) {
     return (
@@ -101,7 +105,7 @@ export function PrincipalStudentsWorkspace() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-white">Recent Admissions</h2>
             {hasPermission('school_admissions:write') && (
-              <Button size="sm" variant="outline" className="text-xs bg-cyan-500/20 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/30">
+              <Button size="sm" variant="outline" className="text-xs bg-cyan-500/20 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/30" onClick={openAdmissionsWorkspace}>
                 <Plus className="h-3 w-3 mr-1" />
                 Admit New
               </Button>
@@ -113,7 +117,7 @@ export function PrincipalStudentsWorkspace() {
               <Users className="h-10 w-10 text-white/20 mb-3" />
               <p className="text-white/60 mb-4">No recent admissions found</p>
               {hasPermission('school_admissions:write') && (
-                <Button size="sm" variant="outline">
+                <Button size="sm" variant="outline" onClick={openAdmissionsWorkspace}>
                   <Plus className="h-4 w-4 mr-2" /> Admit Student
                 </Button>
               )}

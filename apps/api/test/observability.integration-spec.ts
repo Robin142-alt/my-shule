@@ -225,10 +225,10 @@ describe('Observability traceability', () => {
     assert.ok(Object.prototype.hasOwnProperty.call(metrics.subsystem_metrics, 'database'));
 
     const healthResponse = await request(app.getHttpServer())
-      .get('/health')
+      .get('/health/ready')
       .set('host', `${tenantId}.${process.env.APP_BASE_DOMAIN ?? 'integration.test'}`)
       .expect(200);
-    const health = healthResponse.body.data;
+    const health = healthResponse.body;
 
     assert.equal(health.status, 'ok');
     assert.equal(health.slo.overall_status, 'healthy');

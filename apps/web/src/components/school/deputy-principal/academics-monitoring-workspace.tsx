@@ -3,7 +3,7 @@ import { useState } from "react";
 import { GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
-import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { useQueryClient } from "@tanstack/react-query";
 
 export type AcademicIntervention = {
@@ -23,7 +23,7 @@ type AcademicsData = {
   interventions: AcademicIntervention[];
 };
 
-import { createIntervention } from "./api-client";
+import { createIntervention, messageHOD } from "./api-client";
 
 export function DeputyAcademicsMonitoringWorkspace() {
   const queryClient = useQueryClient();
@@ -32,26 +32,19 @@ export function DeputyAcademicsMonitoringWorkspace() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({ className: '', subject: '', teacher: '', concern: 'Low Average' });
 
-  const messageMutation = useSchoolMutation<{ id: string }, { id: string }>(
-    ({ id }) => `/admin-command/deputy/academics/${id}/message-hod`,
-    'POST',
-    {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/academics'] })
-    }
-  );
-
   const interventions = data?.interventions || [];
 
   const handleMessageHOD = async (id: string, subject: string, teacher: string) => {
     try {
-      await messageMutation.mutateAsync({ id });
+      await messageHOD(id);
+      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/academics'] });
       toast.success(`Message sent to ${subject} HOD regarding ${teacher}.`);
     } catch (e) {
       toast.error("Failed to send message.");
     }
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
@@ -160,4 +153,3 @@ export function DeputyAcademicsMonitoringWorkspace() {
     </>
   );
 }
-

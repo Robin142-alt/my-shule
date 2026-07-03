@@ -1,12 +1,14 @@
-// @ts-nocheck
 "use client";
 
+import { useMemo, useState } from "react";
 import { AlertCircle } from "lucide-react";
-import { getDocxAddedModuleContract } from "@/lib/operational/myshule-extreme-operating-system";
-import { OperationalStatePanel } from "@/components/operational/operational-state-panel";
-import { OperationalTable } from "@/components/operational/operational-table";
-import { OperationalFormShell } from "@/components/operational/operational-form-shell";
+
+import { OperationalActionButton, type OperationalActionContract } from "@/components/operational/operational-action-button";
+import { OperationalFormShell, type OperationalFormContract, type OperationalFormField, type OperationalFormFooterAction, type OperationalFormValues } from "@/components/operational/operational-form-shell";
+import { OperationalTable, type OperationalTableColumn, type OperationalTableContract } from "@/components/operational/operational-table";
 import { WorkspaceHeader } from "@/components/operational/workspace-header";
+import { getCsrfToken } from "@/lib/auth/csrf-client";
+import { getDocxAddedModuleContract } from "@/lib/operational/myshule-extreme-operating-system";
 
 function slug(value: string) {
   return value
@@ -15,8 +17,176 @@ function slug(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
+function titleize(value: string) {
+  return value
+    .split(/[-\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function currentRouteParts() {
+  if (typeof window === "undefined") {
+    return { schoolName: "School workspace", role: "School staff" };
+  }
+
+  const parts = window.location.pathname.split("/").filter(Boolean);
+  const schoolName = parts[0] === "school" && parts[1] ? titleize(parts[1]) : "School workspace";
+  const role = parts[0] === "school" && parts[2] ? titleize(parts[2]) : "School staff";
+
+  return { schoolName, role };
+}
+
+function toWorkflowBinding(label: string, moduleId: string) {
+  return `${slug(moduleId)}.${slug(label).replace(/-/g, "_") || "action"}`;
+}
+
+function toAction(label: string, index: number, moduleId: string): OperationalActionContract {
+  const workflowBinding = toWorkflowBinding(label, moduleId);
+
+  return {
+    actionId: `${slug(moduleId)}-urgent-${index}`,
+    label,
+    capability: "CAN_EXECUTE_OPERATIONAL_WORKFLOW",
+    workflowBinding,
+    executionHandler: workflowBinding,
+    eventContract: ["workflow.event.created"],
+    auditEvent: `audit.${workflowBinding}`,
+    confirmation: /delete|archive|suspend|reject|reverse/i.test(label) ? "REASON_REQUIRED" : "NONE",
+    retryPolicy: "RETRY",
+    fallbackHandler: "workflow-event",
+    health: "ACTIVE",
+  };
+}
+
+function toColumns(labels: string[]): OperationalTableColumn[] {
+  const normalized = labels.filter((label) => label.trim().length > 0);
+  const source = normalized.length ? normalized : ["Record", "Status", "Actions"];
+
+  return source.map((label, index) => ({
+    key: slug(label) || `column-${index}`,
+    label,
+  }));
+}
+
+function toTableContract(
+  table: { title: string; columns: string[]; rowActions: string[]; bulkActions: string[] },
+  moduleTitle: string,
+): OperationalTableContract {
+  const columns = toColumns(table.columns);
+
+  return {
+    title: table.title || `${moduleTitle} records`,
+    description: "Live school-scoped records for this workspace. Empty state means no records currently require action.",
+    searchPlaceholder: `Search ${moduleTitle.toLowerCase()} records`,
+    filters: ["Pending", "Today", "Urgent"],
+    sortOptions: ["Newest", "Highest priority", "Due first"],
+    columns,
+    rows: [],
+    bulkActions: table.bulkActions.filter(Boolean),
+    exportLabel: `Export ${moduleTitle}`,
+    printLabel: `Print ${moduleTitle}`,
+  };
+}
+
+const allowedFooterActions: OperationalFormFooterAction[] = [
+  "Cancel",
+  "Save Draft",
+  "Submit",
+  "Preview",
+  "Print",
+  "Submit for Approval",
+  "Send SMS",
+  "Preview Print",
+];
+
+function toFooterActions(actions: string[]): OperationalFormFooterAction[] {
+  const filtered = actions.filter((action): action is OperationalFormFooterAction =>
+    allowedFooterActions.includes(action as OperationalFormFooterAction),
+  );
+
+  return filtered.length ? Array.from(new Set(filtered)) : ["Cancel", "Save Draft", "Submit"];
+}
+
+function fieldType(label: string): OperationalFormField["type"] {
+  const value = label.toLowerCase();
+
+  if (/email/.test(value)) return "email";
+  if (/phone|mobile|sms/.test(value)) return "tel";
+  if (/date|expiry|deadline|due/.test(value)) return "date";
+  if (/time/.test(value)) return "time";
+  if (/amount|capacity|quantity|number|total|\bcount\b/.test(value)) return "number";
+  if (/note|reason|comment|message|description/.test(value)) return "textarea";
+  if (/status|role|class|stream|term|year|type|category|priority/.test(value)) return "select";
+
+  return "text";
+}
+
+function toFormContract(
+  form: { title: string; fields: string[]; footerActions: string[] },
+  moduleId: string,
+): OperationalFormContract {
+  const fields = form.fields.filter(Boolean).map((label, index): OperationalFormField => {
+    const type = fieldType(label);
+
+    return {
+      id: `${slug(moduleId)}-${slug(form.title)}-${index}`,
+      label,
+      type,
+      options: type === "select" ? ["Pending", "In progress", "Approved", "Completed"] : undefined,
+      required: !/optional|note|comment|message/i.test(label),
+    };
+  });
+
+  const workflowBinding = toWorkflowBinding(form.title, moduleId);
+
+  return {
+    title: form.title,
+    description: "This form records a governed school workflow action with tenant context and audit metadata.",
+    fields,
+    footerActions: toFooterActions(form.footerActions),
+    auditAction: `audit.${workflowBinding}`,
+    workflowBinding,
+    capability: "CAN_SUBMIT_OPERATIONAL_FORM",
+  };
+}
+
+async function postWorkflowEvent(input: {
+  moduleId: string;
+  moduleTitle: string;
+  action: string;
+  entityType: string;
+  payload: Record<string, unknown>;
+}) {
+  const csrfToken = await getCsrfToken();
+  const response = await fetch("/api/workflow/events", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+      "x-myshule-csrf": csrfToken,
+    },
+    body: JSON.stringify({
+      eventType: toWorkflowBinding(input.action, input.moduleId),
+      entityType: input.entityType,
+      title: `${input.moduleTitle}: ${input.action}`,
+      message: `${input.action} was recorded for ${input.moduleTitle}.`,
+      priority: /urgent|critical|failed|reject|delay/i.test(input.action) ? "high" : "normal",
+      targetRoles: ["principal", "deputy_principal", "system_monitor"],
+      payload: input.payload,
+    }),
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(payload?.message ?? `${input.action} could not be recorded.`);
+  }
+}
+
 export function DocxOperationalWorkspace({ moduleId }: { moduleId: string }) {
   const docxContract = getDocxAddedModuleContract(moduleId);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const routeParts = useMemo(() => currentRouteParts(), []);
 
   if (!docxContract) {
     return (
@@ -27,150 +197,116 @@ export function DocxOperationalWorkspace({ moduleId }: { moduleId: string }) {
         <div className="space-y-1">
           <h3 className="text-lg font-semibold tracking-tight">Workspace Not Found</h3>
           <p className="max-w-sm text-sm text-muted-foreground">
-            The workspace definitions for ID "{moduleId}" could not be found in the operational blueprint system.
+            The workspace definition for &quot;{moduleId}&quot; could not be found in the operational blueprint system.
           </p>
         </div>
       </div>
     );
   }
 
-  // Create an aggressive fallback mapping so UI isn't completely empty if definitions lack tables
-  const hasTables = (docxContract as any).tables && (docxContract as any).tables.length > 0;
-  const hasForms = (docxContract as any).forms && (docxContract as any).forms.length > 0;
+  const contract = docxContract;
+  const actions = contract.urgentActionStrip.map((label, index) => toAction(label, index, contract.id));
+  const tables = [toTableContract(contract.mainTable, contract.title)];
+  const forms = contract.forms.map((form) => toFormContract(form, contract.id));
 
   async function handleAction(action: string, context: { scope: string; rowId?: string }) {
+    setActionError(null);
     try {
-      const response = await fetch("/api/workflow/events", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          eventType: `UI_ACTION_TRIGGERED`,
-          payload: { action, context, moduleId }
-        })
+      await postWorkflowEvent({
+        moduleId: contract.id,
+        moduleTitle: contract.title,
+        action,
+        entityType: "operational_workspace_action",
+        payload: { context, moduleId: contract.id },
       });
-      if (!response.ok) throw new Error("API Execution Failed");
-    } catch (e) {
-      console.error("Action execution error:", e);
-      throw e;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Action execution failed.";
+      setActionError(message);
+      throw error;
     }
   }
 
   return (
     <div className="space-y-5">
       <WorkspaceHeader
-        title={docxContract.title}
-        description={`Manage and operate ${docxContract.title.toLowerCase()} workflows. Data is securely partitioned by tenant isolation.`}
-        actions={docxContract.urgentActions?.map((action, i) => ({
-          actionId: `urgent-${i}`,
-          label: action.label,
-          capability: "CAN_EXECUTE_URGENT",
-          workflowBinding: action.workflowBinding,
-          executionHandler: action.workflowBinding,
-          eventContract: [],
-          auditEvent: `audit.${action.workflowBinding}`,
-          confirmation: "NONE",
-          retryPolicy: "FAIL",
-          fallbackHandler: "",
-          health: "ACTIVE",
-          primary: true,
-        })) || []}
+        title={contract.title}
+        description={`Manage ${contract.title.toLowerCase()} workflows with school-scoped records, permissions, and audit events.`}
+        contextBar={{
+          schoolName: routeParts.schoolName,
+          academicYear: "Current year",
+          term: "Current term",
+          weekDate: new Date().toLocaleDateString("en-KE", { weekday: "short", day: "2-digit", month: "short" }),
+          userRole: routeParts.role,
+          scope: "Tenant scoped",
+        }}
+        permission="FULL_ACCESS"
+        moduleStatus="ACTIVE"
       />
 
-      {docxContract.urgentActions && docxContract.urgentActions.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <OperationalStatePanel 
-            title="System State" 
-            metrics={[
-              { label: "Active Nodes", value: "Operational", status: "ok" },
-              { label: "Pending Events", value: "0", status: "ok" }
-            ]} 
-          />
+      {actionError ? (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">
+          {actionError}
         </div>
-      )}
+      ) : null}
+
+      {actions.length > 0 ? (
+        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {actions.map((action) => (
+            <OperationalActionButton
+              key={action.actionId}
+              action={action}
+              onExecute={async (nextAction) => {
+                await handleAction(nextAction.label, { scope: "urgent" });
+                return `${nextAction.label} was recorded in the workflow event log.`;
+              }}
+            />
+          ))}
+        </section>
+      ) : null}
 
       <div className="grid gap-5 xl:grid-cols-3">
-        <div className="xl:col-span-2 space-y-5">
-          {hasTables ? (
-            docxContract.tables.map((table, i) => (
-              <OperationalTable
-                key={i}
-                onAction={handleAction}
-                contract={{
-                  title: table.title,
-                  description: "Data strictly governed by AGP Tenant Scope.",
-                  bulkActions: [],
-                  columns: table.columns,
-                  fetchStrategy: "GRAPHQL_EDGE",
-                  projectionEvent: `PROJECTION_${slug(table.title).toUpperCase()}`,
-                  rowActions: table.rowActions.map((action, j) => ({
-                    actionId: `row-${i}-${j}`,
-                    label: action.label,
-                    capability: "CAN_EXECUTE_ROW",
-                    workflowBinding: action.workflowBinding,
-                    executionHandler: action.workflowBinding,
-                    eventContract: [],
-                    auditEvent: `audit.${action.workflowBinding}`,
-                    confirmation: "NONE",
-                    retryPolicy: "FAIL",
-                    fallbackHandler: "",
-                    health: "ACTIVE"
-                  }))
-                }}
-              />
-            ))
-          ) : (
-            <div className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
-              No operational tables defined for this domain yet.
-            </div>
-          )}
+        <div className="space-y-5 xl:col-span-2">
+          {tables.map((table) => (
+            <OperationalTable
+              key={table.title}
+              onAction={handleAction}
+              contract={table}
+              emptyMessage="No live records are waiting in this workspace. Use the form or action strip to create a governed workflow item."
+            />
+          ))}
         </div>
 
         <div className="space-y-5">
-          {hasForms ? (
-            docxContract.forms.map((form, i) => (
+          {forms.length > 0 ? (
+            forms.map((form) => (
               <OperationalFormShell
-                key={i}
-                onAction={async (action, contract, values) => {
+                key={form.title}
+                onAction={async (action, formContract, values: OperationalFormValues) => {
+                  setActionError(null);
                   try {
-                    const response = await fetch("/api/workflow/events", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        eventType: `FORM_SUBMISSION`,
-                        payload: { action, formId: contract.id, values, moduleId }
-                      })
+                    await postWorkflowEvent({
+                      moduleId: contract.id,
+                      moduleTitle: contract.title,
+                      action,
+                      entityType: "operational_form_submission",
+                      payload: {
+                        formTitle: formContract.title,
+                        workflowBinding: formContract.workflowBinding,
+                        values,
+                      },
                     });
-                    if (!response.ok) throw new Error("Form submission failed");
-                  } catch (e) {
-                    console.error("Form execution error:", e);
-                    throw e;
+                  } catch (error) {
+                    const message = error instanceof Error ? error.message : "Form submission failed.";
+                    setActionError(message);
+                    throw error;
                   }
                 }}
-                contract={{
-                  id: `form-${i}`,
-                  title: form.title,
-                  description: "Form submissions are securely tracked via the event bus.",
-                  fields: form.fields,
-                  submitAction: {
-                    actionId: `submit-${i}`,
-                    label: "Submit Payload",
-                    capability: "CAN_SUBMIT",
-                    workflowBinding: "submit",
-                    executionHandler: "submit",
-                    eventContract: [],
-                    auditEvent: "audit.submit",
-                    confirmation: "NONE",
-                    retryPolicy: "FAIL",
-                    fallbackHandler: "",
-                    health: "ACTIVE",
-                    primary: true
-                  }
-                }}
+                contract={form}
               />
             ))
           ) : (
-             <div className="rounded-xl border p-5 shadow-sm text-center text-sm text-muted-foreground">
-              No operational forms defined.
+            <div className="rounded-xl border p-5 text-center text-sm text-muted-foreground shadow-sm">
+              No form is required for this workspace. Use the action strip or table controls to record work.
             </div>
           )}
         </div>

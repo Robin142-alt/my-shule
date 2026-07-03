@@ -1,0 +1,149 @@
+{
+  "status": 200,
+  "body": {
+    "status": "ok",
+    "services": {
+      "postgres": "up",
+      "redis": "up",
+      "bullmq": "configured",
+      "transactional_email": "configured",
+      "cors": "configured",
+      "production_env": "configured",
+      "support_notifications": "configured",
+      "object_storage": "configured",
+      "malware_scanning": "configured"
+    },
+    "email": {
+      "provider": "resend",
+      "status": "configured",
+      "api_key_configured": true,
+      "sender_configured": true,
+      "public_app_url_configured": true
+    },
+    "cors": {
+      "status": "configured",
+      "credentials": true,
+      "allow_all_origins": false,
+      "origin_count": 1,
+      "production_locked": true
+    },
+    "production_env": {
+      "status": "configured",
+      "node_env": "production",
+      "missing_count": 0,
+      "invalid_count": 0,
+      "issue_count": 0,
+      "issues": []
+    },
+    "support_notifications": {
+      "status": "configured",
+      "email": {
+        "status": "configured",
+        "provider": "resend",
+        "transactional_email": "configured",
+        "recipients_configured": true,
+        "recipient_count": 1
+      },
+      "sms": {
+        "status": "disabled",
+        "dispatch_provider_configured": false,
+        "dispatch_provider_status": "disabled",
+        "webhook_url_configured": false,
+        "webhook_token_configured": false,
+        "recipients_configured": false,
+        "recipient_count": 0,
+        "missing": []
+      },
+      "retry": {
+        "worker_enabled": false,
+        "interval_ms": 60000,
+        "batch_size": 50,
+        "lease_ms": 300000,
+        "max_attempts": 3
+      }
+    },
+    "object_storage": {
+      "status": "configured",
+      "enabled": true,
+      "provider": "s3",
+      "endpoint_configured": true,
+      "bucket_configured": true,
+      "region_configured": true,
+      "access_key_configured": true,
+      "secret_key_configured": true,
+      "missing": []
+    },
+    "malware_scanning": {
+      "status": "configured",
+      "required": true,
+      "provider_configured": true,
+      "api_url_configured": true,
+      "api_token_configured": true,
+      "health_url_configured": true,
+      "missing": []
+    },
+    "database_pool": {},
+    "circuit_breakers": {
+      "mpesa-api": {
+        "state": "closed",
+        "failure_count": 0
+      },
+      "sms-provider": {
+        "state": "closed",
+        "failure_count": 0
+      },
+      "email-provider": {
+        "state": "closed",
+        "failure_count": 0
+      },
+      "object-storage": {
+        "state": "closed",
+        "failure_count": 0
+      },
+      "malware-scanner": {
+        "state": "closed",
+        "failure_count": 0
+      },
+      "report-export": {
+        "state": "closed",
+        "failure_count": 0
+      },
+      "database-heavy-report": {
+        "state": "closed",
+        "failure_count": 0
+      }
+    },
+    "slo": {
+      "generated_at": "2026-07-03T15:43:40.287Z",
+      "overall_status": "healthy",
+      "active_alert_count": 0,
+      "critical_alert_count": 0,
+      "subsystem_statuses": [
+        {
+          "subsystem": "api",
+          "status": "unknown"
+        },
+        {
+          "subsystem": "mpesa",
+          "status": "healthy"
+        },
+        {
+          "subsystem": "sync",
+          "status": "unknown"
+        },
+        {
+          "subsystem": "queue",
+          "status": "healthy"
+        }
+      ]
+    },
+    "request_context": {
+      "request_id": "4ca22115-64b5-4b91-8028-ae4c4e8cad84",
+      "tenant_id": "public",
+      "user_id": "anonymous",
+      "role": "guest",
+      "session_id": null,
+      "is_authenticated": false
+    }
+  }
+}

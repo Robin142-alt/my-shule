@@ -50,7 +50,7 @@ export class PaymentsSchemaService implements OnModuleInit {
         tenant_id text NOT NULL,
         idempotency_key_id uuid NOT NULL,
         user_id uuid,
-        student_id uuid,
+        student_id text,
         request_id text,
         external_reference text,
         account_reference text NOT NULL,
@@ -202,7 +202,7 @@ export class PaymentsSchemaService implements OnModuleInit {
         third_party_trans_id text,
         status text NOT NULL DEFAULT 'received_unverified',
         matched_invoice_id uuid,
-        matched_student_id uuid,
+        matched_student_id text,
         manual_fee_payment_id uuid,
         ledger_transaction_id uuid,
         received_at timestamptz NOT NULL,
@@ -559,8 +559,100 @@ export class PaymentsSchemaService implements OnModuleInit {
       END;
       $$ LANGUAGE plpgsql;
 
-      ALTER TABLE payment_intents
-      ADD COLUMN IF NOT EXISTS student_id uuid;
+      DO $$
+      DECLARE
+        target_table text;
+      BEGIN
+        FOREACH target_table IN ARRAY ARRAY[
+          'payment_intents',
+          'callback_logs',
+          'mpesa_transactions',
+          'mpesa_c2b_payments',
+          'mpesa_payload_vault',
+          'mpesa_payload_support_access_logs',
+          'mpesa_verification_jobs',
+          'mpesa_reconciliation_batches',
+          'mpesa_reconciliation_discrepancies',
+          'finance_close_periods',
+          'finance_approval_requests'
+        ]
+        LOOP
+          IF to_regclass('public.' || target_table) IS NOT NULL THEN
+            IF NOT EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = target_table
+                AND column_name = 'tenant_id'
+            ) THEN
+              EXECUTE format('ALTER TABLE %I ADD COLUMN tenant_id text', target_table);
+            END IF;
+
+            IF EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = target_table
+                AND column_name = 'tenant_id'
+                AND data_type <> 'text'
+            ) THEN
+              EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id TYPE text USING tenant_id::text', target_table);
+            END IF;
+          END IF;
+        END LOOP;
+
+        IF to_regclass('public.mpesa_transactions') IS NOT NULL
+          AND EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'mpesa_transactions'
+              AND column_name = 'school_id'
+          ) THEN
+          UPDATE mpesa_transactions
+          SET tenant_id = school_id
+          WHERE tenant_id IS NULL
+            AND school_id IS NOT NULL;
+        END IF;
+      END $$;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'uq_payment_intents_tenant_id_id'
+        ) THEN
+          ALTER TABLE payment_intents
+            ADD CONSTRAINT uq_payment_intents_tenant_id_id UNIQUE (tenant_id, id);
+        END IF;
+      END $$;
+
+      DO $$
+      DECLARE
+        student_id_type text;
+      BEGIN
+        SELECT data_type
+        INTO student_id_type
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'students'
+          AND column_name = 'id';
+
+        IF student_id_type = 'uuid' THEN
+          ALTER TABLE payment_intents ADD COLUMN IF NOT EXISTS student_id uuid;
+          ALTER TABLE payment_intents
+          ALTER COLUMN student_id TYPE uuid USING CASE
+            WHEN student_id::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+              THEN student_id::text::uuid
+            ELSE NULL
+          END;
+        ELSE
+          ALTER TABLE payment_intents ADD COLUMN IF NOT EXISTS student_id text;
+          ALTER TABLE payment_intents
+          ALTER COLUMN student_id TYPE text USING NULLIF(student_id::text, '');
+        END IF;
+      END $$;
 
       ALTER TABLE payment_intents
       ADD COLUMN IF NOT EXISTS payment_owner text NOT NULL DEFAULT 'tenant';
@@ -576,6 +668,28 @@ export class PaymentsSchemaService implements OnModuleInit {
       ADD COLUMN IF NOT EXISTS ledger_debit_account_code text;
       ALTER TABLE payment_intents
       ADD COLUMN IF NOT EXISTS ledger_credit_account_code text;
+      ALTER TABLE payment_intents
+      ADD COLUMN IF NOT EXISTS merchant_request_id text;
+      ALTER TABLE payment_intents
+      ADD COLUMN IF NOT EXISTS checkout_request_id text;
+      ALTER TABLE payment_intents
+      ADD COLUMN IF NOT EXISTS response_code text;
+      ALTER TABLE payment_intents
+      ADD COLUMN IF NOT EXISTS response_description text;
+      ALTER TABLE payment_intents
+      ADD COLUMN IF NOT EXISTS customer_message text;
+      ALTER TABLE payment_intents
+      ADD COLUMN IF NOT EXISTS ledger_transaction_id uuid;
+      ALTER TABLE payment_intents
+      ADD COLUMN IF NOT EXISTS failure_reason text;
+      ALTER TABLE payment_intents
+      ADD COLUMN IF NOT EXISTS stk_requested_at timestamptz;
+      ALTER TABLE payment_intents
+      ADD COLUMN IF NOT EXISTS callback_received_at timestamptz;
+      ALTER TABLE payment_intents
+      ADD COLUMN IF NOT EXISTS completed_at timestamptz;
+      ALTER TABLE payment_intents
+      ADD COLUMN IF NOT EXISTS expires_at timestamptz;
 
       ALTER TABLE callback_logs
       ADD COLUMN IF NOT EXISTS mpesa_short_code text;
@@ -593,6 +707,16 @@ export class PaymentsSchemaService implements OnModuleInit {
       ADD COLUMN IF NOT EXISTS provider_result_desc text;
 
       ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS payment_intent_id uuid;
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS callback_log_id uuid;
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS result_code integer;
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS result_desc text;
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'succeeded';
+      ALTER TABLE mpesa_transactions
       ADD COLUMN IF NOT EXISTS raw_payload jsonb;
       ALTER TABLE mpesa_transactions
       ADD COLUMN IF NOT EXISTS transaction_id text;
@@ -606,9 +730,40 @@ export class PaymentsSchemaService implements OnModuleInit {
       ALTER TABLE mpesa_c2b_payments
       ADD COLUMN IF NOT EXISTS invoice_number text;
       ALTER TABLE mpesa_c2b_payments
-      ADD COLUMN IF NOT EXISTS matched_student_id uuid;
+      ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'received_unverified';
+      ALTER TABLE mpesa_c2b_payments
+      ADD COLUMN IF NOT EXISTS matched_invoice_id uuid;
+      DO $$
+      DECLARE
+        student_id_type text;
+      BEGIN
+        SELECT data_type
+        INTO student_id_type
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'students'
+          AND column_name = 'id';
+
+        IF student_id_type = 'uuid' THEN
+          ALTER TABLE mpesa_c2b_payments ADD COLUMN IF NOT EXISTS matched_student_id uuid;
+          ALTER TABLE mpesa_c2b_payments
+          ALTER COLUMN matched_student_id TYPE uuid USING CASE
+            WHEN matched_student_id::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+              THEN matched_student_id::text::uuid
+            ELSE NULL
+          END;
+        ELSE
+          ALTER TABLE mpesa_c2b_payments ADD COLUMN IF NOT EXISTS matched_student_id text;
+          ALTER TABLE mpesa_c2b_payments
+          ALTER COLUMN matched_student_id TYPE text USING NULLIF(matched_student_id::text, '');
+        END IF;
+      END $$;
       ALTER TABLE mpesa_c2b_payments
       ADD COLUMN IF NOT EXISTS manual_fee_payment_id uuid;
+      ALTER TABLE mpesa_c2b_payments
+      ADD COLUMN IF NOT EXISTS ledger_transaction_id uuid;
+      ALTER TABLE mpesa_c2b_payments
+      ADD COLUMN IF NOT EXISTS matched_at timestamptz;
       ALTER TABLE mpesa_c2b_payments
       ADD COLUMN IF NOT EXISTS raw_payload_encrypted_ref text;
       ALTER TABLE mpesa_c2b_payments
@@ -646,6 +801,8 @@ export class PaymentsSchemaService implements OnModuleInit {
       END;
       $$;
       ALTER TABLE mpesa_payload_support_access_logs
+      ADD COLUMN IF NOT EXISTS accessed_at timestamptz NOT NULL DEFAULT NOW();
+      ALTER TABLE mpesa_payload_support_access_logs
       ADD COLUMN IF NOT EXISTS access_expires_at timestamptz;
       UPDATE mpesa_payload_support_access_logs
       SET access_expires_at = accessed_at + INTERVAL '1 hour'
@@ -653,9 +810,87 @@ export class PaymentsSchemaService implements OnModuleInit {
       ALTER TABLE mpesa_payload_support_access_logs
       ALTER COLUMN access_expires_at SET NOT NULL;
 
+      ALTER TABLE mpesa_reconciliation_batches
+      ADD COLUMN IF NOT EXISTS reviewed_by_user_id uuid;
+      ALTER TABLE mpesa_reconciliation_batches
+      ADD COLUMN IF NOT EXISTS reviewed_at timestamptz;
+
+      ALTER TABLE mpesa_reconciliation_discrepancies
+      ADD COLUMN IF NOT EXISTS resolution_status text NOT NULL DEFAULT 'open';
+      ALTER TABLE mpesa_reconciliation_discrepancies
+      ADD COLUMN IF NOT EXISTS resolved_by_user_id uuid;
+      ALTER TABLE mpesa_reconciliation_discrepancies
+      ADD COLUMN IF NOT EXISTS resolved_at timestamptz;
+
+      ALTER TABLE finance_close_periods
+      ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'open';
+      ALTER TABLE finance_close_periods
+      ADD COLUMN IF NOT EXISTS closed_by_user_id uuid;
+      ALTER TABLE finance_close_periods
+      ADD COLUMN IF NOT EXISTS closed_at timestamptz;
+      ALTER TABLE finance_close_periods
+      ADD COLUMN IF NOT EXISTS reopened_by_user_id uuid;
+      ALTER TABLE finance_close_periods
+      ADD COLUMN IF NOT EXISTS reopened_at timestamptz;
+      ALTER TABLE finance_close_periods
+      ADD COLUMN IF NOT EXISTS reason text;
+
+      ALTER TABLE finance_approval_requests
+      ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'pending_first_approval';
+      ALTER TABLE finance_approval_requests
+      ADD COLUMN IF NOT EXISTS close_period_id uuid;
+      ALTER TABLE finance_approval_requests
+      ADD COLUMN IF NOT EXISTS first_approver_user_id uuid;
+      ALTER TABLE finance_approval_requests
+      ADD COLUMN IF NOT EXISTS first_approved_at timestamptz;
+      ALTER TABLE finance_approval_requests
+      ADD COLUMN IF NOT EXISTS second_approver_user_id uuid;
+      ALTER TABLE finance_approval_requests
+      ADD COLUMN IF NOT EXISTS second_approved_at timestamptz;
+      ALTER TABLE finance_approval_requests
+      ADD COLUMN IF NOT EXISTS rejected_by_user_id uuid;
+      ALTER TABLE finance_approval_requests
+      ADD COLUMN IF NOT EXISTS rejected_at timestamptz;
+
       DO $$
       BEGIN
         IF to_regclass('public.students') IS NOT NULL
+          AND EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'students'
+              AND column_name = 'tenant_id'
+          ) THEN
+          IF NOT EXISTS (
+            SELECT 1
+            FROM pg_constraint
+            WHERE conname = 'uq_students_tenant_id_id'
+          ) THEN
+            ALTER TABLE students
+            ADD CONSTRAINT uq_students_tenant_id_id
+              UNIQUE (tenant_id, id);
+          END IF;
+        END IF;
+
+        IF to_regclass('public.students') IS NOT NULL
+          AND EXISTS (
+            SELECT 1
+            FROM pg_constraint
+            WHERE conname = 'uq_students_tenant_id_id'
+          )
+          AND EXISTS (
+            SELECT 1
+            FROM information_schema.columns payment_column
+            JOIN information_schema.columns student_column
+              ON student_column.table_schema = 'public'
+             AND student_column.table_name = 'students'
+             AND student_column.column_name = 'id'
+            WHERE payment_column.table_schema = 'public'
+              AND payment_column.table_name = 'payment_intents'
+              AND payment_column.column_name = 'student_id'
+              AND payment_column.data_type = student_column.data_type
+          )
           AND NOT EXISTS (
             SELECT 1
             FROM pg_constraint

@@ -38,6 +38,7 @@ import {
   getCurrentSchoolId,
   publishSchoolOperationalEvent,
 } from "@/lib/school/school-operational-store";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 type GuidanceRouteMode = "hosted" | "public";
 type Tone = "calm" | "safe" | "teal" | "lavender" | "amber" | "critical" | "neutral";
@@ -1059,6 +1060,39 @@ function buildLiveKpis(dashboard: CounsellingDashboard | null) {
   });
 }
 
+function counsellingActionEndpoint(action: string) {
+  const normalized = action.toLowerCase();
+
+  if (/session|notes|reschedule|approve/.test(normalized)) {
+    return "/api/admin-command/guidance-counselling/sessions";
+  }
+
+  if (/guardian|parent/.test(normalized)) {
+    return "/api/admin-command/guidance-counselling/parent-engagement";
+  }
+
+  if (/check-in|follow/.test(normalized)) {
+    return "/api/admin-command/guidance-counselling/follow-ups";
+  }
+
+  if (/clinic|refer|escalate|principal|boarding|emergency|alert/.test(normalized)) {
+    return "/api/admin-command/guidance-counselling/referrals";
+  }
+
+  return "/api/admin-command/guidance-counselling/welfare-notes";
+}
+
+async function persistCounsellingWorkflowAction(action: string, payload: Record<string, unknown>) {
+  return requestDashboardApi(counsellingActionEndpoint(action), {
+    method: "POST",
+    body: {
+      ...payload,
+      action,
+      source_dashboard: "guidance-counselling-command",
+    },
+  });
+}
+
 export function GuidanceCounsellingCommandCenter({
   routeMode,
   tenantSlug,
@@ -1134,21 +1168,30 @@ export function GuidanceCounsellingCommandCenter({
 
   function openQuickAddSession() {
     setSessionDialogOpen(true);
-    setNotice("Quick-add counselling session ready.");
+    setNotice("Quick-add counselling session form opened. Save the session to persist it and notify the welfare chain.");
   }
 
   function openTimelineAction(action: CounsellingTimelineAction) {
     setActiveTimelineAction(action);
-    setNotice(`${action.action} ready for ${action.item.title}.`);
+    setNotice(`${action.action} selected for ${action.item.title}. Save the timeline action to persist it.`);
   }
 
   function openInterventionAction(action: CounsellingInterventionAction) {
     setActiveInterventionAction(action);
-    setNotice(`${action.label} ready for counselling intervention.`);
+    setNotice(`${action.label} intervention selected. Save the intervention action to persist it.`);
   }
 
-  function saveCounsellingSession() {
+  async function saveCounsellingSession() {
     const schoolId = getCurrentSchoolId();
+    try {
+      await persistCounsellingWorkflowAction("quick_add_session", {
+        summary: "Quick-add counselling session for same-school welfare follow-up.",
+        sessionType: "Quick-add counselling session",
+      });
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Counselling session could not be saved.");
+      return;
+    }
 
     publishSchoolOperationalEvent({
       schoolId,
@@ -1184,11 +1227,24 @@ export function GuidanceCounsellingCommandCenter({
     );
   }
 
-  function saveTimelineAction() {
+  async function saveTimelineAction() {
     if (!activeTimelineAction) return;
 
     const schoolId = getCurrentSchoolId();
     const entityId = `counselling-timeline-${activeTimelineAction.item.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+    try {
+      await persistCounsellingWorkflowAction(activeTimelineAction.action, {
+        id: entityId,
+        summary: `${activeTimelineAction.action} for ${activeTimelineAction.item.title}`,
+        notes: activeTimelineAction.item.detail,
+        itemTitle: activeTimelineAction.item.title,
+        itemTime: activeTimelineAction.item.time,
+        severity: activeTimelineAction.item.tone,
+      });
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Counselling timeline action could not be saved.");
+      return;
+    }
 
     publishSchoolOperationalEvent({
       schoolId,
@@ -1225,12 +1281,23 @@ export function GuidanceCounsellingCommandCenter({
     setActiveTimelineAction(null);
   }
 
-  function saveInterventionAction() {
+  async function saveInterventionAction() {
     if (!activeInterventionAction) return;
 
     const schoolId = getCurrentSchoolId();
     const entityId = `counselling-intervention-${activeInterventionAction.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
     const isUrgent = /emergency|principal|guardian/i.test(activeInterventionAction.label);
+    try {
+      await persistCounsellingWorkflowAction(activeInterventionAction.label, {
+        id: entityId,
+        summary: `${activeInterventionAction.label} counselling intervention`,
+        reason: `Recorded from ${activeInterventionAction.source} counselling controls.`,
+        urgency: isUrgent ? "critical" : "normal",
+      });
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Counselling intervention action could not be saved.");
+      return;
+    }
 
     publishSchoolOperationalEvent({
       schoolId,

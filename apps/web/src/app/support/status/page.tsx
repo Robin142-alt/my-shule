@@ -54,22 +54,27 @@ type PublicStatusView = {
   unavailable: boolean;
 };
 
+type PublicStatusSearchParams = Record<string, string | string[] | undefined>;
+
 export default async function PublicSupportStatusPage({
   searchParams,
 }: {
-  searchParams?: { subscribed?: string; token?: string; unsubscribed?: string };
+  searchParams?: Promise<PublicStatusSearchParams>;
 }) {
   const status = await fetchPublicStatus();
+  const resolvedSearchParams = (await searchParams) ?? {};
   const activeIncidents = status.incidents.filter((incident) => incident.status !== "resolved");
-  const unsubscribeToken = searchParams?.token?.trim() ?? "";
-  const subscriptionMessage = searchParams?.subscribed === "1"
+  const unsubscribeToken = readSearchParam(resolvedSearchParams, "token")?.trim() ?? "";
+  const subscribed = readSearchParam(resolvedSearchParams, "subscribed");
+  const unsubscribed = readSearchParam(resolvedSearchParams, "unsubscribed");
+  const subscriptionMessage = subscribed === "1"
     ? "Subscribed"
-    : searchParams?.subscribed === "0"
+    : subscribed === "0"
       ? "Try again"
       : null;
-  const unsubscribeMessage = searchParams?.unsubscribed === "1"
+  const unsubscribeMessage = unsubscribed === "1"
     ? "Unsubscribed"
-    : searchParams?.unsubscribed === "0"
+    : unsubscribed === "0"
       ? "Try again"
       : null;
   const overallTone = status.unavailable
@@ -234,6 +239,11 @@ export default async function PublicSupportStatusPage({
       </section>
     </main>
   );
+}
+
+function readSearchParam(searchParams: PublicStatusSearchParams, key: string) {
+  const value = searchParams[key];
+  return Array.isArray(value) ? value[0] : value;
 }
 
 async function fetchPublicStatus(): Promise<PublicStatusView> {

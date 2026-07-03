@@ -39,7 +39,7 @@ export function proxy(request: NextRequest) {
       request.headers.get("x-forwarded-host") ??
       request.headers.get("host"),
     pathname: request.nextUrl.pathname,
-    refreshToken: request.cookies.get(REFRESH_COOKIE)?.value ?? null,
+    refreshToken: request.cookies.get(REFRESH_COOKIE)?.value,
     cookies: {
       [SUPERADMIN_SESSION_COOKIE]:
         request.cookies.get(SUPERADMIN_SESSION_COOKIE)?.value,

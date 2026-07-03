@@ -340,6 +340,12 @@ export class DisciplineController {
     return this.disciplineService.exportReport(dto);
   }
 
+  @Post('workspace-actions')
+  @Permissions('discipline:write')
+  recordWorkspaceAction(@Body() dto: any) {
+    return this.disciplineService.recordWorkspaceAction(dto);
+  }
+
   @Post('incidents/:incidentId/documents')
   @Permissions('discipline:manage')
   generateDocument(
@@ -379,7 +385,7 @@ export class DisciplineController {
   async getCases() {
     const store = this.requestContext.requireStore();
     const tenantId = store.tenant_id;
-    if (!tenantId) return [];
+    if (!tenantId) throw new UnauthorizedException('Tenant context is required');
 
     try {
       const result = await this.executeSql(

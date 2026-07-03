@@ -1,9 +1,11 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 
+import { AuthSchemaService } from '../../auth/auth-schema.service';
 import { PrismaService } from '../../database/prisma.service';
 
 @Injectable()
 export class EventsSchemaService implements OnModuleInit {
+  private static bootstrapPromise: Promise<void> | null = null;
 
   private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
     const firstParam = params[0];
@@ -29,11 +31,40 @@ export class EventsSchemaService implements OnModuleInit {
 
   private readonly logger = new Logger(EventsSchemaService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly authSchemaService: AuthSchemaService,
+  ) {}
 
   async onModuleInit(): Promise<void> {
+    if (!EventsSchemaService.bootstrapPromise) {
+      EventsSchemaService.bootstrapPromise = this.bootstrapSchema().catch((error) => {
+        EventsSchemaService.bootstrapPromise = null;
+        throw error;
+      });
+    }
+
+    await EventsSchemaService.bootstrapPromise;
+  }
+
+  static resetBootstrapForTests(): void {
+    EventsSchemaService.bootstrapPromise = null;
+  }
+
+  private async bootstrapSchema(): Promise<void> {
+    await this.authSchemaService.onModuleInit();
+
     await this.prisma.runSchemaBootstrap(`
       CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+      CREATE OR REPLACE FUNCTION sync_event_school_columns()
+      RETURNS trigger AS $$
+      BEGIN
+        NEW.tenant_id = COALESCE(NULLIF(NEW.tenant_id, ''), NULLIF(NEW.school_id, ''));
+        NEW.school_id = COALESCE(NULLIF(NEW.school_id, ''), NULLIF(NEW.tenant_id, ''));
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
 
       CREATE TABLE IF NOT EXISTS audit_logs (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -43,6 +74,7 @@ export class EventsSchemaService implements OnModuleInit {
         action text NOT NULL,
         resource_type text NOT NULL,
         resource_id uuid,
+        aggregate_id uuid,
         ip_address inet,
         user_agent text,
         metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -56,6 +88,140 @@ export class EventsSchemaService implements OnModuleInit {
           REFERENCES users (id)
           ON DELETE SET NULL
       );
+
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS tenant_id text;
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS request_id text;
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS resource_type text;
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS resource_id uuid;
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS aggregate_id uuid;
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS occurred_at timestamptz;
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
+
+      DO $$
+      DECLARE
+        has_invalid_ids boolean;
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'audit_logs'
+            AND column_name = 'id'
+            AND data_type = 'text'
+        ) THEN
+          SELECT EXISTS (
+            SELECT 1 FROM audit_logs
+            WHERE id IS NOT NULL
+              AND id !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          ) INTO has_invalid_ids;
+
+          IF has_invalid_ids THEN
+            RAISE EXCEPTION 'Cannot migrate audit_logs.id from text to uuid because non-UUID IDs exist';
+          END IF;
+
+          ALTER TABLE audit_logs ALTER COLUMN id DROP DEFAULT;
+          ALTER TABLE audit_logs ALTER COLUMN id TYPE uuid USING id::uuid;
+          ALTER TABLE audit_logs ALTER COLUMN id SET DEFAULT gen_random_uuid();
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'audit_logs'
+            AND column_name = 'actor_user_id'
+            AND data_type = 'text'
+        ) THEN
+          SELECT EXISTS (
+            SELECT 1 FROM audit_logs
+            WHERE actor_user_id IS NOT NULL
+              AND actor_user_id <> ''
+              AND actor_user_id !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          ) INTO has_invalid_ids;
+
+          IF has_invalid_ids THEN
+            RAISE EXCEPTION 'Cannot migrate audit_logs.actor_user_id from text to uuid because non-UUID IDs exist';
+          END IF;
+
+          ALTER TABLE audit_logs ALTER COLUMN actor_user_id TYPE uuid USING NULLIF(actor_user_id, '')::uuid;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'audit_logs'
+            AND column_name = 'ip_address'
+            AND data_type = 'text'
+        ) THEN
+          ALTER TABLE audit_logs ALTER COLUMN ip_address TYPE inet USING NULLIF(ip_address, '')::inet;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'audit_logs'
+            AND column_name = 'school_id'
+        ) THEN
+          UPDATE audit_logs
+          SET tenant_id = COALESCE(NULLIF(tenant_id, ''), NULLIF(school_id, ''), 'global')
+          WHERE tenant_id IS NULL OR tenant_id = '';
+        ELSE
+          UPDATE audit_logs
+          SET tenant_id = COALESCE(NULLIF(tenant_id, ''), 'global')
+          WHERE tenant_id IS NULL OR tenant_id = '';
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'audit_logs'
+            AND column_name = 'entity_type'
+        ) THEN
+          UPDATE audit_logs
+          SET resource_type = COALESCE(NULLIF(resource_type, ''), NULLIF(entity_type, ''), 'unknown')
+          WHERE resource_type IS NULL OR resource_type = '';
+        ELSE
+          UPDATE audit_logs
+          SET resource_type = COALESCE(NULLIF(resource_type, ''), 'unknown')
+          WHERE resource_type IS NULL OR resource_type = '';
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'audit_logs'
+            AND column_name = 'entity_id'
+        ) THEN
+          UPDATE audit_logs
+          SET resource_id = entity_id::uuid
+          WHERE resource_id IS NULL
+            AND entity_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+        END IF;
+
+        UPDATE audit_logs
+        SET aggregate_id = resource_id
+        WHERE aggregate_id IS NULL
+          AND resource_id IS NOT NULL;
+
+        UPDATE audit_logs
+        SET occurred_at = COALESCE(occurred_at, created_at, NOW())
+        WHERE occurred_at IS NULL;
+
+        ALTER TABLE audit_logs ALTER COLUMN tenant_id SET NOT NULL;
+        ALTER TABLE audit_logs ALTER COLUMN resource_type SET NOT NULL;
+        ALTER TABLE audit_logs ALTER COLUMN metadata SET DEFAULT '{}'::jsonb;
+        ALTER TABLE audit_logs ALTER COLUMN metadata SET NOT NULL;
+        ALTER TABLE audit_logs ALTER COLUMN occurred_at SET DEFAULT NOW();
+        ALTER TABLE audit_logs ALTER COLUMN occurred_at SET NOT NULL;
+        ALTER TABLE audit_logs ALTER COLUMN updated_at SET DEFAULT NOW();
+        ALTER TABLE audit_logs ALTER COLUMN updated_at SET NOT NULL;
+      END;
+      $$;
 
       DROP TABLE IF EXISTS event_consumer_runs CASCADE;
       DROP TABLE IF EXISTS outbox_events CASCADE;
@@ -118,6 +284,205 @@ export class EventsSchemaService implements OnModuleInit {
           REFERENCES outbox_events (tenant_id, id)
           ON DELETE CASCADE
       );
+
+      CREATE TABLE IF NOT EXISTS notifications (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        notification_key text,
+        recipient_user_id uuid,
+        recipient_guardian_id uuid,
+        recipient_role text,
+        type text NOT NULL DEFAULT 'school.operation.recorded',
+        title text NOT NULL,
+        body text NOT NULL,
+        status text NOT NULL DEFAULT 'unread',
+        priority text,
+        source_module text,
+        source_record_id text,
+        metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+        read_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+
+      ALTER TABLE notifications ADD COLUMN IF NOT EXISTS tenant_id text;
+      ALTER TABLE notifications ADD COLUMN IF NOT EXISTS notification_key text;
+      ALTER TABLE notifications ADD COLUMN IF NOT EXISTS recipient_user_id uuid;
+      ALTER TABLE notifications ADD COLUMN IF NOT EXISTS recipient_guardian_id uuid;
+      ALTER TABLE notifications ADD COLUMN IF NOT EXISTS recipient_role text;
+      ALTER TABLE notifications ADD COLUMN IF NOT EXISTS type text;
+      ALTER TABLE notifications ADD COLUMN IF NOT EXISTS body text;
+      ALTER TABLE notifications ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
+      ALTER TABLE notifications ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT NOW();
+
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'notifications'
+            AND column_name = 'id'
+            AND data_type = 'text'
+        ) THEN
+          ALTER TABLE notifications
+            ALTER COLUMN id SET DEFAULT gen_random_uuid()::text;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'notifications'
+            AND column_name = 'id'
+            AND data_type = 'uuid'
+        ) THEN
+          ALTER TABLE notifications
+            ALTER COLUMN id SET DEFAULT gen_random_uuid();
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'notifications'
+            AND column_name = 'status'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE notifications
+            ALTER COLUMN status DROP DEFAULT;
+          ALTER TABLE notifications
+            ALTER COLUMN status TYPE text USING lower(status::text);
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'notifications'
+            AND column_name = 'school_id'
+        ) THEN
+          UPDATE notifications
+          SET tenant_id = COALESCE(NULLIF(tenant_id, ''), NULLIF(school_id, ''))
+          WHERE tenant_id IS NULL OR btrim(tenant_id) = '';
+
+          ALTER TABLE notifications
+            ALTER COLUMN school_id DROP NOT NULL;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'notifications'
+            AND column_name = 'event_type'
+        ) THEN
+          UPDATE notifications
+          SET type = COALESCE(NULLIF(type, ''), NULLIF(event_type, ''), 'school.operation.recorded')
+          WHERE type IS NULL OR btrim(type) = '';
+        ELSE
+          UPDATE notifications
+          SET type = COALESCE(NULLIF(type, ''), 'school.operation.recorded')
+          WHERE type IS NULL OR btrim(type) = '';
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'notifications'
+            AND column_name = 'message'
+        ) THEN
+          UPDATE notifications
+          SET body = COALESCE(NULLIF(body, ''), NULLIF(message, ''), title, 'School update')
+          WHERE body IS NULL OR btrim(body) = '';
+
+          ALTER TABLE notifications
+            ALTER COLUMN message SET DEFAULT '';
+        ELSE
+          UPDATE notifications
+          SET body = COALESCE(NULLIF(body, ''), title, 'School update')
+          WHERE body IS NULL OR btrim(body) = '';
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'notifications'
+            AND column_name = 'metadata_json'
+        ) THEN
+          UPDATE notifications
+          SET metadata = COALESCE(metadata, metadata_json, '{}'::jsonb)
+          WHERE metadata IS NULL;
+        END IF;
+
+        UPDATE notifications
+        SET tenant_id = COALESCE(NULLIF(tenant_id, ''), 'legacy-unassigned')
+        WHERE tenant_id IS NULL OR btrim(tenant_id) = '';
+
+        UPDATE notifications
+        SET notification_key = COALESCE(NULLIF(notification_key, ''), concat('legacy-notification:', id::text))
+        WHERE notification_key IS NULL OR btrim(notification_key) = '';
+
+        UPDATE notifications
+        SET updated_at = COALESCE(updated_at, created_at, NOW())
+        WHERE updated_at IS NULL;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'notifications'
+            AND column_name = 'channel'
+        ) THEN
+          ALTER TABLE notifications
+            ALTER COLUMN channel SET DEFAULT 'IN_APP';
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'notifications'
+            AND column_name = 'priority'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE notifications
+            ALTER COLUMN priority DROP DEFAULT;
+          ALTER TABLE notifications
+            ALTER COLUMN priority TYPE text USING lower(priority::text);
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'notifications'
+            AND column_name = 'priority'
+        ) THEN
+          ALTER TABLE notifications
+            ALTER COLUMN priority SET DEFAULT 'normal';
+        END IF;
+
+        ALTER TABLE notifications ALTER COLUMN tenant_id SET NOT NULL;
+        ALTER TABLE notifications ALTER COLUMN notification_key SET NOT NULL;
+        ALTER TABLE notifications ALTER COLUMN type SET DEFAULT 'school.operation.recorded';
+        ALTER TABLE notifications ALTER COLUMN type SET NOT NULL;
+        ALTER TABLE notifications ALTER COLUMN body SET NOT NULL;
+        ALTER TABLE notifications ALTER COLUMN status SET DEFAULT 'unread';
+        ALTER TABLE notifications ALTER COLUMN status SET NOT NULL;
+        ALTER TABLE notifications ALTER COLUMN metadata SET DEFAULT '{}'::jsonb;
+        ALTER TABLE notifications ALTER COLUMN metadata SET NOT NULL;
+        ALTER TABLE notifications ALTER COLUMN updated_at SET DEFAULT NOW();
+        ALTER TABLE notifications ALTER COLUMN updated_at SET NOT NULL;
+      END;
+      $$;
+
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_notifications_tenant_notification_key
+        ON notifications (tenant_id, notification_key);
+      CREATE INDEX IF NOT EXISTS ix_notifications_tenant_role_status_created
+        ON notifications (tenant_id, recipient_role, status, created_at DESC);
 
       DROP FUNCTION IF EXISTS app.claim_outbox_events(integer, integer);
 
@@ -220,6 +585,8 @@ export class EventsSchemaService implements OnModuleInit {
       ALTER TABLE outbox_events FORCE ROW LEVEL SECURITY;
       ALTER TABLE event_consumer_runs ENABLE ROW LEVEL SECURITY;
       ALTER TABLE event_consumer_runs FORCE ROW LEVEL SECURITY;
+      ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE notifications FORCE ROW LEVEL SECURITY;
 
       DROP POLICY IF EXISTS audit_logs_rls_policy ON audit_logs;
       CREATE POLICY audit_logs_rls_policy ON audit_logs
@@ -239,6 +606,12 @@ export class EventsSchemaService implements OnModuleInit {
       USING (tenant_id = current_setting('app.tenant_id', true))
       WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
 
+      DROP POLICY IF EXISTS notifications_rls_policy ON notifications;
+      CREATE POLICY notifications_rls_policy ON notifications
+      FOR ALL
+      USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
       DROP TRIGGER IF EXISTS trg_audit_logs_set_updated_at ON audit_logs;
       CREATE TRIGGER trg_audit_logs_set_updated_at
       BEFORE UPDATE ON audit_logs
@@ -251,9 +624,27 @@ export class EventsSchemaService implements OnModuleInit {
       FOR EACH ROW
       EXECUTE FUNCTION set_updated_at();
 
+      DROP TRIGGER IF EXISTS trg_outbox_events_sync_school_columns ON outbox_events;
+      CREATE TRIGGER trg_outbox_events_sync_school_columns
+      BEFORE INSERT OR UPDATE ON outbox_events
+      FOR EACH ROW
+      EXECUTE FUNCTION sync_event_school_columns();
+
+      DROP TRIGGER IF EXISTS trg_event_consumer_runs_sync_school_columns ON event_consumer_runs;
+      CREATE TRIGGER trg_event_consumer_runs_sync_school_columns
+      BEFORE INSERT OR UPDATE ON event_consumer_runs
+      FOR EACH ROW
+      EXECUTE FUNCTION sync_event_school_columns();
+
       DROP TRIGGER IF EXISTS trg_event_consumer_runs_set_updated_at ON event_consumer_runs;
       CREATE TRIGGER trg_event_consumer_runs_set_updated_at
       BEFORE UPDATE ON event_consumer_runs
+      FOR EACH ROW
+      EXECUTE FUNCTION set_updated_at();
+
+      DROP TRIGGER IF EXISTS trg_notifications_set_updated_at ON notifications;
+      CREATE TRIGGER trg_notifications_set_updated_at
+      BEFORE UPDATE ON notifications
       FOR EACH ROW
       EXECUTE FUNCTION set_updated_at();
     `);

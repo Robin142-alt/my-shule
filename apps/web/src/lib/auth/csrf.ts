@@ -4,22 +4,35 @@ import { NextResponse } from "next/server";
 export const CSRF_COOKIE = "myshule.csrf";
 export const CSRF_HEADER = "x-myshule-csrf";
 
-const secureCookies = process.env.NODE_ENV === "production";
-
 export function generateCsrfToken() {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-export function createCsrfResponse() {
+function shouldUseSecureCookie(request?: NextRequest) {
+  if (process.env.NODE_ENV !== "production") {
+    return false;
+  }
+
+  const forwardedProto = request?.headers.get("x-forwarded-proto") ?? "";
+  const host = request?.headers.get("x-forwarded-host") ?? request?.headers.get("host") ?? "";
+
+  if (/^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(host)) {
+    return false;
+  }
+
+  return forwardedProto === "https" || !forwardedProto;
+}
+
+export function createCsrfResponse(request?: NextRequest) {
   const token = generateCsrfToken();
   const response = NextResponse.json({ token });
 
   response.cookies.set(CSRF_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: secureCookies,
+    secure: shouldUseSecureCookie(request),
     path: "/",
     maxAge: 60 * 30,
   });

@@ -273,15 +273,13 @@ export class InventoryController {
   @Get('heatmap')
   @Permissions('inventory:read')
   getHeatmap() {
-    // Analytics stub - return empty array until implemented
-    return { metrics: {}, items: [] };
+    return this.inventoryService.getHeatmap();
   }
 
   @Get('insights')
   @Permissions('inventory:read')
   getInsights() {
-    // Analytics stub - return empty array until implemented
-    return { metrics: {}, items: [] };
+    return this.inventoryService.getInsights();
   }
 
   @Get('requisitions')

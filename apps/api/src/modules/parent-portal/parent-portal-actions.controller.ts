@@ -1,10 +1,11 @@
-import { Body, Controller, Post, UseGuards, InternalServerErrorException } from '@nestjs/common';
+import { Body, BadRequestException, Controller, Post, UseGuards, InternalServerErrorException } from '@nestjs/common';
 import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
 import { RbacGuard } from '../../guards/rbac.guard';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { PrismaService } from '../../database/prisma.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
+import { DisciplineService } from '../discipline/discipline.service';
 
 @Controller('parent-portal')
 @UseGuards(JwtAuthGuard, RbacGuard)
@@ -13,6 +14,7 @@ export class ParentPortalActionsController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly requestContext: RequestContextService,
+    private readonly disciplineService: DisciplineService,
   ) {}
 
   @Post('fees/pay')
@@ -38,5 +40,19 @@ export class ParentPortalActionsController {
       console.error('payFees error:', error);
       throw new InternalServerErrorException(error.message || 'Database error occurred');
     }
+  }
+
+  @Post('behavior/acknowledge')
+  @Permissions('portal:read_own_children')
+  async acknowledgeBehaviorNotice(@Body() body: any) {
+    const incidentId = String(body?.incidentId ?? body?.incident_id ?? '').trim();
+
+    if (!incidentId) {
+      throw new BadRequestException('incidentId is required');
+    }
+
+    return this.disciplineService.acknowledgeIncident(incidentId, {
+      acknowledgement_note: body?.acknowledgementNote ?? body?.acknowledgement_note ?? null,
+    });
   }
 }

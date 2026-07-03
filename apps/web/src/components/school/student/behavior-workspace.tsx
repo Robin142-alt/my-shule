@@ -1,25 +1,37 @@
-// @ts-nocheck
-
 "use client";
 
 import { Award, AlertTriangle, MessageSquare, TrendingUp } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
+type DisciplineIncident = {
+  id?: string;
+  title?: string;
+  description?: string;
+  severity?: string;
+  created_at?: string;
+};
+
+type DisciplineIncidentsResponse = {
+  data?: DisciplineIncident[];
+};
+
+type BehaviorScoreResponse = {
+  score?: number;
+  trend?: string;
+};
+
 export function BehaviorWorkspace() {
-  // Use the parent incidents endpoint as it provides a read-only view of own records
-  const { data: incidentsData, isLoading: incidentsLoading } = useSchoolQuery('/api/discipline/parent/incidents');
+  const { data: incidentsData, isLoading: incidentsLoading } = useSchoolQuery<DisciplineIncidentsResponse>('/api/discipline/parent/incidents');
   
-  // Example call to fetch behavior score (hardcoding 'me' or studentId)
-  const { data: scoreData, isLoading: scoreLoading } = useSchoolQuery('/api/discipline/students/me/behavior-score');
+  const { data: scoreData, isLoading: scoreLoading } = useSchoolQuery<BehaviorScoreResponse>('/api/discipline/students/me/behavior-score');
 
   const incidents = incidentsData?.data || [];
   const score = scoreData?.score;
-  const trend = scoreData?.trend || '+5 from last term';
+  const trend = scoreData?.trend || 'No behavior trend published yet.';
 
-  // For demonstration, we split incidents by type if we have real data, or just show them all
-  const commendations = incidents.filter((i: any) => i.severity === 'commendation' || i.title?.toLowerCase().includes('commendation'));
-  const infractions = incidents.filter((i: any) => i.severity !== 'commendation' && !i.title?.toLowerCase().includes('commendation'));
+  const commendations = incidents.filter((incident) => incident.severity === 'commendation' || incident.title?.toLowerCase().includes('commendation'));
+  const infractions = incidents.filter((incident) => incident.severity !== 'commendation' && !incident.title?.toLowerCase().includes('commendation'));
 
   return (
     <div className="space-y-6">
@@ -71,15 +83,15 @@ export function BehaviorWorkspace() {
                 <div className="h-12 bg-slate-100 rounded"></div>
               </div>
             ) : commendations.length > 0 ? (
-              commendations.map((item: any, idx: number) => (
-                <div key={idx} className="flex gap-4 items-start pb-4 border-b border-slate-100 last:border-0 last:pb-0">
+              commendations.map((item, idx) => (
+                <div key={item.id ?? idx} className="flex gap-4 items-start pb-4 border-b border-slate-100 last:border-0 last:pb-0">
                   <div className="w-8 h-8 rounded bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
                     <Award className="w-4 h-4" />
                   </div>
                   <div>
                     <h4 className="font-medium text-slate-900 text-sm">{item.title}</h4>
                     <p className="text-xs text-slate-500 mt-0.5">{item.description}</p>
-                    <p className="text-xs text-amber-600 font-medium mt-1">{new Date(item.created_at).toLocaleDateString()}</p>
+                    <p className="text-xs text-amber-600 font-medium mt-1">{item.created_at ? new Date(item.created_at).toLocaleDateString() : "Date not recorded"}</p>
                   </div>
                 </div>
               ))
@@ -100,15 +112,15 @@ export function BehaviorWorkspace() {
                 <div className="h-12 bg-slate-100 rounded"></div>
               </div>
             ) : infractions.length > 0 ? (
-              infractions.map((item: any, idx: number) => (
-                <div key={idx} className="flex gap-4 items-start pb-4 border-b border-slate-100 last:border-0 last:pb-0">
+              infractions.map((item, idx) => (
+                <div key={item.id ?? idx} className="flex gap-4 items-start pb-4 border-b border-slate-100 last:border-0 last:pb-0">
                   <div className="w-8 h-8 rounded bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 mt-0.5">
                     <MessageSquare className="w-4 h-4" />
                   </div>
                   <div>
                     <h4 className="font-medium text-slate-900 text-sm">{item.title}</h4>
                     <p className="text-xs text-slate-500 mt-0.5">{item.description}</p>
-                    <p className="text-xs text-slate-400 font-medium mt-1">{new Date(item.created_at).toLocaleDateString()}</p>
+                    <p className="text-xs text-slate-400 font-medium mt-1">{item.created_at ? new Date(item.created_at).toLocaleDateString() : "Date not recorded"}</p>
                   </div>
                 </div>
               ))

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param } from '@nestjs/common';
+import { Body, Controller, Get, Post, Param } from '@nestjs/common';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { AdmissionsCommandService } from './admissions-command.service';
 
@@ -46,9 +46,25 @@ export class AdmissionsCommandController {
   @Permissions('admissions:read')
   getClassPlacement() { return this.admissionsService.getClassPlacement(); }
 
+  @Post('class-placement')
+  @Permissions('admissions:write')
+  assignClassPlacement(@Body() body: any) { return this.admissionsService.assignClassPlacement(body); }
+
   @Get('parents')
   @Permissions('admissions:read')
   getParents() { return this.admissionsService.getParents(); }
+
+  @Get('parent-linking')
+  @Permissions('admissions:read')
+  getParentLinking() { return this.admissionsService.getParents(); }
+
+  @Post('parent-linking')
+  @Permissions('admissions:write')
+  linkParent(@Body() body: any) { return this.admissionsService.linkParent(body); }
+
+  @Post('parent-linking/:id/invite')
+  @Permissions('admissions:write')
+  sendParentInvitation(@Param('id') id: string) { return this.admissionsService.sendParentInvitation(id); }
 
   @Get('transfers')
   @Permissions('admissions:read')
@@ -69,6 +85,10 @@ export class AdmissionsCommandController {
   @Get('reports')
   @Permissions('admissions:read')
   getReports() { return this.admissionsService.getReports(); }
+
+  @Post('reports/generate')
+  @Permissions('admissions:read')
+  generateReport(@Body() body: any) { return this.admissionsService.generateReport(body); }
 
   @Get('tasks')
   @Permissions('admissions:read')
@@ -146,6 +166,69 @@ export class AdmissionsCommandController {
   @Permissions('admissions:write')
   approveApplication(@Param('id') id: string) {
     return this.admissionsService.approveApplication(id);
+  }
+
+  @Post('applications')
+  @Permissions('admissions:write')
+  createApplication(@Body() body: any) {
+    return this.admissionsService.createApplication(body);
+  }
+
+  @Post('applications/:id/status')
+  @Permissions('admissions:write')
+  updateApplicationStatus(@Param('id') id: string, @Body() body: any) {
+    return this.admissionsService.updateApplicationStatus(id, body);
+  }
+
+  @Post('interviews')
+  @Permissions('admissions:write')
+  scheduleInterview(@Body() body: any) {
+    return this.admissionsService.scheduleInterview(body);
+  }
+
+  @Post('interviews/:id/outcome')
+  @Permissions('admissions:write')
+  recordInterviewOutcome(@Param('id') id: string, @Body() body: any) {
+    return this.admissionsService.recordInterviewOutcome(id, body);
+  }
+
+  @Post('documents/:id/verify')
+  @Permissions('documents:write')
+  verifyDocument(@Param('id') id: string) {
+    return this.admissionsService.verifyDocument(id);
+  }
+
+  @Post('documents/request')
+  @Permissions('documents:write')
+  requestDocument(@Body() body: any) {
+    return this.admissionsService.requestDocument(body);
+  }
+
+  @Get('admissions')
+  @Permissions('admissions:read')
+  getAdmissionsList() { return this.admissionsService.getAdmissionsList(); }
+
+  @Post('admissions/:id/admit')
+  @Permissions('admissions:write')
+  admitStudent(@Param('id') id: string) {
+    return this.admissionsService.approveApplication(id);
+  }
+
+  @Post('admissions/:id/letter')
+  @Permissions('admissions:read')
+  generateAdmissionLetter(@Param('id') id: string) {
+    return this.admissionsService.generateReport({
+      reportId: `admission-letter-${id}`,
+      title: 'Admission letter',
+      format: 'pdf',
+      filters: { application_id: id },
+    });
+  }
+
+  @Post('actions')
+  @Permissions('admissions:write')
+  recordAction(@Body() body: any) {
+    return this.admissionsService.recordAction(body);
   }
 
 }

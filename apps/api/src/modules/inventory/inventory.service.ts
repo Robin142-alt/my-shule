@@ -1380,6 +1380,84 @@ export class InventoryService {
     return this.inventoryRepository.buildReports(this.requireTenantId());
   }
 
+  async getHeatmap() {
+    const reports = await this.inventoryRepository.buildReports(this.requireTenantId());
+    const totalValue = reports.stock_valuation.reduce(
+      (sum, row) => sum + this.numberFromReportValue(row.total_value),
+      0,
+    );
+    const varianceItems = reports.stock_reconciliation.filter(
+      (row) => this.numberFromReportValue(row.variance_quantity) !== 0,
+    );
+
+    return {
+      metrics: {
+        total_value: totalValue,
+        low_stock_count: reports.low_stock_report.length,
+        variance_count: varianceItems.length,
+        tracked_items: reports.stock_valuation.length,
+      },
+      items: reports.stock_valuation.slice(0, 20).map((row) => {
+        const reconciliation = reports.stock_reconciliation.find(
+          (item) => String(item.sku ?? '') === String(row.sku ?? ''),
+        );
+
+        return {
+          item_name: row.item_name,
+          sku: row.sku,
+          quantity_on_hand: this.numberFromReportValue(row.quantity_on_hand),
+          total_value: this.numberFromReportValue(row.total_value),
+          low_stock: reports.low_stock_report.some(
+            (item) => String(item.sku ?? '') === String(row.sku ?? ''),
+          ),
+          variance_quantity: reconciliation
+            ? this.numberFromReportValue(reconciliation.variance_quantity)
+            : 0,
+        };
+      }),
+    };
+  }
+
+  async getInsights() {
+    const reports = await this.inventoryRepository.buildReports(this.requireTenantId());
+    const lowStockItems = reports.low_stock_report.slice(0, 10);
+    const varianceItems = reports.stock_reconciliation
+      .filter((row) => this.numberFromReportValue(row.variance_quantity) !== 0)
+      .slice(0, 10);
+    const topSuppliers = reports.supplier_purchases.slice(0, 5);
+
+    return {
+      metrics: {
+        movement_types: reports.movement_history.length,
+        low_stock_count: reports.low_stock_report.length,
+        variance_count: varianceItems.length,
+        supplier_count: reports.supplier_purchases.length,
+      },
+      items: [
+        ...lowStockItems.map((row) => ({
+          type: 'low_stock',
+          severity: 'warning',
+          title: `${row.item_name} is at or below reorder level`,
+          detail: `Quantity ${row.quantity_on_hand}; reorder level ${row.reorder_level}.`,
+          sku: row.sku,
+        })),
+        ...varianceItems.map((row) => ({
+          type: 'stock_variance',
+          severity: 'critical',
+          title: `${row.item_name} stock balance needs reconciliation`,
+          detail: `Item quantity ${row.item_quantity_on_hand}; location quantity ${row.location_quantity_on_hand}; variance ${row.variance_quantity}.`,
+          sku: row.sku,
+        })),
+        ...topSuppliers.map((row) => ({
+          type: 'supplier_activity',
+          severity: 'info',
+          title: `${row.supplier_name ?? 'Unassigned supplier'} purchase activity`,
+          detail: `${row.purchase_orders} purchase orders; total spend ${row.total_spend}.`,
+        })),
+      ],
+    };
+  }
+
   async exportReportCsv(reportId: string) {
     const normalizedReportId = reportId.trim().toLowerCase();
     const definition = INVENTORY_REPORT_EXPORTS.get(normalizedReportId);
@@ -1407,6 +1485,19 @@ export class InventoryService {
     }
 
     return tenantId;
+  }
+
+  private numberFromReportValue(value: ReportCsvValue | undefined) {
+    if (typeof value === 'number') {
+      return value;
+    }
+
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    return 0;
   }
 
   private requireText(value: string | undefined, message: string): string {

@@ -355,23 +355,21 @@ export class BillingService {
     const totalAmountMinor = lineItems
       .reduce((total, item) => total + BigInt(item.amount_minor), 0n)
       .toString();
-    const feeStructure = await this.prisma.withRequestTransaction(() =>
-      feeStructuresRepository.create({
-        tenant_id: tenantId,
-        name: dto.name.trim(),
-        academic_year: dto.academic_year.trim(),
-        term: dto.term.trim(),
-        grade_level: dto.grade_level.trim(),
-        class_name: dto.class_name?.trim() || null,
-        currency_code: BILLING_DEFAULT_CURRENCY_CODE,
-        status: dto.status ?? 'active',
-        due_days: dto.due_days ?? 14,
-        line_items: lineItems,
-        total_amount_minor: totalAmountMinor,
-        metadata: dto.metadata ?? {},
-        created_by_user_id: store.user_id ?? null,
-      }),
-    );
+    const feeStructure = await feeStructuresRepository.create({
+      tenant_id: tenantId,
+      name: dto.name.trim(),
+      academic_year: dto.academic_year.trim(),
+      term: dto.term.trim(),
+      grade_level: dto.grade_level.trim(),
+      class_name: dto.class_name?.trim() || null,
+      currency_code: BILLING_DEFAULT_CURRENCY_CODE,
+      status: dto.status ?? 'active',
+      due_days: dto.due_days ?? 14,
+      line_items: lineItems,
+      total_amount_minor: totalAmountMinor,
+      metadata: dto.metadata ?? {},
+      created_by_user_id: store.user_id ?? null,
+    });
 
     return this.mapFeeStructure(feeStructure);
   }
@@ -420,8 +418,9 @@ export class BillingService {
     feeStructureId: string,
   ): Promise<FeeStructureResponseDto> {
     const tenantId = this.requireTenantId();
-    const archivedFeeStructure = await this.prisma.withRequestTransaction(() =>
-      this.requireFeeStructuresRepository().archive(tenantId, feeStructureId),
+    const archivedFeeStructure = await this.requireFeeStructuresRepository().archive(
+      tenantId,
+      feeStructureId,
     );
 
     if (!archivedFeeStructure) {
@@ -444,13 +443,14 @@ export class BillingService {
       throw new BadRequestException('Fee structure id is required for bulk invoice generation');
     }
 
-    const generated = await this.prisma.withRequestTransaction(async () => {
+    const generated = await this.prisma.withRequestTransaction(async (tx) => {
       const tenantId = this.requireTenantId();
       await this.subscriptionsRepository.acquireTenantMutationLock(tenantId);
       const subscription = await this.requireBillableSubscription(tenantId);
       const feeStructure = await feeStructuresRepository.findById(
         tenantId,
         feeStructureId,
+        tx,
       );
 
       if (!feeStructure) {

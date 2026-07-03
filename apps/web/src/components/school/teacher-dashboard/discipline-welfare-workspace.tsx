@@ -8,9 +8,11 @@ import { fetchDisciplineConcernsLive, raiseDisciplineConcernLive, fetchClassRegi
 import { useQueryClient } from "@tanstack/react-query";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Modal } from "@/components/ui/modal";
+import { openPrintDocument } from "@/lib/dashboard/export";
 
 function RaiseConcernModal({ onClose, liveSession }: { onClose: () => void, liveSession: any }) {
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [studentId, setStudentId] = useState("");
   const [concernType, setConcernType] = useState("");
   const [description, setDescription] = useState("");
@@ -24,9 +26,10 @@ function RaiseConcernModal({ onClose, liveSession }: { onClose: () => void, live
 
   const students = registerData?.students || [];
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitting(true);
+    setSubmitError(null);
     try {
       await raiseDisciplineConcernLive(liveSession.session!, {
         studentId,
@@ -37,7 +40,7 @@ function RaiseConcernModal({ onClose, liveSession }: { onClose: () => void, live
       queryClient.invalidateQueries({ queryKey: ["discipline-concerns"] });
       onClose();
     } catch (err) {
-      console.error(err);
+      setSubmitError(err instanceof Error ? err.message : "The concern could not be submitted.");
     } finally {
       setSubmitting(false);
     }
@@ -46,6 +49,11 @@ function RaiseConcernModal({ onClose, liveSession }: { onClose: () => void, live
   return (
     <Modal title="Raise Concern / Infraction" open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {submitError ? (
+          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">
+            {submitError}
+          </div>
+        ) : null}
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Learner</label>
           <select required value={studentId} onChange={(e) => setStudentId(e.target.value)} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
@@ -95,6 +103,24 @@ export function DisciplineWelfareWorkspace({
     enabled: !!liveSession.session,
   });
 
+  const openConcernStatus = (concern: NonNullable<typeof data>[number]) => {
+    openPrintDocument({
+      eyebrow: "Teacher welfare",
+      title: "Concern Status",
+      subtitle: `${concern.learner} | ${concern.className}`,
+      rows: [
+        { label: "Date", value: concern.date || "-" },
+        { label: "Learner", value: concern.learner || "-" },
+        { label: "Class", value: concern.className || "-" },
+        { label: "Concern type", value: concern.type || "-" },
+        { label: "Severity", value: concern.severity || "-" },
+        { label: "Sent to", value: concern.sentTo || "-" },
+        { label: "Status", value: concern.status || "-" },
+      ],
+      footer: "Concern follow-up must remain visible to the reporting teacher and the assigned school support roles.",
+    });
+  };
+
   const rows = data?.map(concern => [
     concern.date,
     concern.learner,
@@ -109,7 +135,7 @@ export function DisciplineWelfareWorkspace({
     ),
     concern.sentTo,
     <span key={concern.id + 'status'} className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">{concern.status}</span>,
-    <button key={concern.id + 'btn'} className="text-[#1D4ED8] hover:underline font-bold">View Status</button>
+    <button key={concern.id + 'btn'} type="button" onClick={() => openConcernStatus(concern)} className="text-[#1D4ED8] hover:underline font-bold">View Status</button>
   ]) || [];
 
   return (

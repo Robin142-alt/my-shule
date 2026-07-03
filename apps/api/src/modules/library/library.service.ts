@@ -465,24 +465,81 @@ export class LibraryService {
 
   async getVisits() {
     const tenantId = this.requireTenantId();
-    if (!this.prisma?.libraryCirculationLedger) throw new InternalServerErrorException('Prisma is not available');
-    const items = await this.prisma.libraryCirculationLedger.findMany({ 
-      where: { tenant_id: tenantId },
-      orderBy: { created_at: 'desc' },
-      take: 20
-    });
-    return { items };
+    const result = await this.executeSql(
+      `
+        SELECT
+          id::text,
+          title,
+          message,
+          created_at::text,
+          payload->>'visitor_name' AS visitor_name,
+          payload->>'visitor_type' AS visitor_type,
+          payload->>'purpose' AS purpose,
+          payload->>'time_in' AS time_in,
+          payload->>'time_out' AS time_out,
+          payload->>'reading_program' AS reading_program,
+          payload->>'notes' AS notes
+        FROM workflow_events
+        WHERE tenant_id = $1
+          AND entity_type = 'library_visit'
+        ORDER BY created_at DESC
+        LIMIT 20
+      `,
+      [tenantId],
+    );
+
+    return {
+      items: result.rows.map((row: any) => ({
+        id: row.id,
+        visitor_name: row.visitor_name || row.payload?.visitor_name || row.title || 'Library visitor',
+        visitor_type: row.visitor_type || row.payload?.visitor_type || 'student',
+        purpose: row.purpose || row.payload?.purpose || row.message || 'Library use',
+        time_in: row.time_in || row.payload?.time_in || row.created_at,
+        time_out: row.time_out || row.payload?.time_out || '',
+        reading_program: row.reading_program || row.payload?.reading_program || '',
+        notes: row.notes || row.payload?.notes || '',
+        status: row.time_out || row.payload?.time_out ? 'Completed' : 'Active',
+        created_at: row.created_at,
+      })),
+    };
   }
 
   async getRequests() {
     const tenantId = this.requireTenantId();
-    if (!this.prisma?.libraryReservations) throw new InternalServerErrorException('Prisma is not available');
-    const items = await this.prisma.libraryReservations.findMany({ 
-      where: { tenant_id: tenantId },
-      orderBy: { created_at: 'desc' },
-      take: 20
-    });
-    return { items };
+    const result = await this.executeSql(
+      `
+        SELECT
+          id::text,
+          title,
+          message,
+          priority,
+          created_at::text,
+          payload->>'request_type' AS request_type,
+          payload->>'target_role' AS target_role,
+          payload->>'details' AS details,
+          payload->>'required_by' AS required_by,
+          payload->>'status' AS status
+        FROM workflow_events
+        WHERE tenant_id = $1
+          AND entity_type = 'library_request'
+        ORDER BY created_at DESC
+        LIMIT 20
+      `,
+      [tenantId],
+    );
+
+    return {
+      items: result.rows.map((row: any) => ({
+        id: row.id,
+        request_type: row.request_type || row.payload?.request_type || row.title || 'Library request',
+        target_role: row.target_role || row.payload?.target_role || 'principal',
+        details: row.details || row.payload?.details || row.message || '',
+        required_by: row.required_by || row.payload?.required_by || '',
+        priority: row.priority || row.payload?.priority || 'normal',
+        status: row.status || row.payload?.status || 'Pending',
+        created_at: row.created_at,
+      })),
+    };
   }
 
   async getReports() {

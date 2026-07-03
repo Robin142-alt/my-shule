@@ -16,7 +16,7 @@ export function ExitStudentDialog({ studentId, isOpen, onClose, onSuccess }: Exi
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
     setError(null);

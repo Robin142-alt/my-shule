@@ -58,6 +58,13 @@ export class AdminCommandController {
     return this.adminCommandService.getPrincipalAttendanceOverview();
   }
 
+  @Get('principal/attendance-monitoring')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read')
+  getPrincipalAttendanceMonitoring() {
+    return this.adminCommandService.getPrincipalAttendanceOverview();
+  }
+
   @Get('principal/academics')
   @RequiresModule('admin_command_centers', 'principal_dashboard')
   @Permissions('principal:read', 'academics:read')
@@ -69,6 +76,13 @@ export class AdminCommandController {
   @RequiresModule('admin_command_centers', 'principal_dashboard')
   @Permissions('principal:read', 'exams:read')
   getPrincipalExams() {
+    return this.adminCommandService.getPrincipalExamsOverview();
+  }
+
+  @Get('principal/exams-report-cards')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read', 'exams:read')
+  getPrincipalExamsReportCards() {
     return this.adminCommandService.getPrincipalExamsOverview();
   }
 
@@ -86,6 +100,13 @@ export class AdminCommandController {
     return this.adminCommandService.getPrincipalClassesOverview();
   }
 
+  @Get('principal/classes-streams')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read', 'academics:read')
+  getPrincipalClassesStreams() {
+    return this.adminCommandService.getPrincipalClassesOverview();
+  }
+
   @Get('principal/subjects')
   @RequiresModule('admin_command_centers', 'principal_dashboard')
   @Permissions('principal:read', 'academics:read')
@@ -93,10 +114,24 @@ export class AdminCommandController {
     return this.adminCommandService.getPrincipalSubjectsOverview();
   }
 
+  @Get('principal/subjects-departments')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read', 'academics:read')
+  getPrincipalSubjectsDepartments() {
+    return this.adminCommandService.getPrincipalSubjectsOverview();
+  }
+
   @Get('principal/staff')
   @RequiresModule('admin_command_centers', 'principal_dashboard')
   @Permissions('principal:read', 'hr:read')
   getPrincipalStaff() {
+    return this.adminCommandService.getPrincipalStaffOverview();
+  }
+
+  @Get('principal/staff-roles')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read', 'hr:read')
+  getPrincipalStaffRoles() {
     return this.adminCommandService.getPrincipalStaffOverview();
   }
 
@@ -165,11 +200,359 @@ export class AdminCommandController {
     return this.adminCommandService.getPrincipalSettings();
   }
 
+  @Post('principal/settings/action')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:write')
+  recordPrincipalSettingsAction(@Body() dto: any) {
+    const action = String(dto?.action || 'settings_action');
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: `principal.settings_${action}`,
+      entityType: 'principal_settings',
+      title: String(dto?.title || 'Principal settings action'),
+      message: String(dto?.message || 'Principal requested a settings change.'),
+      payload: dto,
+      targetRoles: ['principal', 'system_monitor'],
+      status: 'submitted',
+    });
+  }
+
   @Get('principal/teaching')
   @RequiresModule('admin_command_centers', 'principal_dashboard')
   @Permissions('principal:read')
   getPrincipalTeachingSchedule() {
     return this.adminCommandService.getPrincipalTeachingSchedule();
+  }
+
+  @Post('principal/school-profile')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:write')
+  updatePrincipalSchoolProfile(@Body() dto: any) {
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: 'principal.school_profile_update_requested',
+      entityType: 'school_profile',
+      title: 'School profile update requested',
+      message: 'Principal submitted school profile changes.',
+      payload: dto,
+      status: 'submitted',
+    });
+  }
+
+  @Post('principal/academic-setup/year')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:write', 'academics:write')
+  createPrincipalAcademicYear(@Body() dto: any) {
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: 'principal.academic_year_create_requested',
+      entityType: 'academic_year',
+      title: 'Academic year create requested',
+      message: String(dto?.name || 'Principal requested a new academic year.'),
+      payload: dto,
+      status: 'submitted',
+    });
+  }
+
+  @Post('principal/academic-setup/term')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:write', 'academics:write')
+  createPrincipalTerm(@Body() dto: any) {
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: 'principal.academic_term_create_requested',
+      entityType: 'academic_term',
+      title: 'Academic term create requested',
+      message: String(dto?.name || 'Principal requested a new academic term.'),
+      payload: dto,
+      status: 'submitted',
+    });
+  }
+
+  @Post('principal/classes-streams')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:write', 'academics:write')
+  createPrincipalClass(@Body() dto: any) {
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: 'principal.class_create_requested',
+      entityType: 'class',
+      title: 'Class create requested',
+      message: String(dto?.name || dto?.class_name || 'Principal requested a new class.'),
+      payload: dto,
+      status: 'submitted',
+    });
+  }
+
+  @Post('principal/classes-streams/:classId/streams')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:write', 'academics:write')
+  createPrincipalStream(@Param('classId') classId: string, @Body() dto: any) {
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: 'principal.stream_create_requested',
+      entityType: 'class_stream',
+      entityId: classId,
+      title: 'Stream create requested',
+      message: String(dto?.name || dto?.stream_name || `Principal requested a stream for class ${classId}.`),
+      payload: { ...dto, classId },
+      status: 'submitted',
+    });
+  }
+
+  @Post('principal/subjects-departments/subject')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:write', 'academics:write')
+  createPrincipalSubject(@Body() dto: any) {
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: 'principal.subject_create_requested',
+      entityType: 'subject',
+      title: 'Subject create requested',
+      message: String(dto?.name || dto?.subject_name || 'Principal requested a new subject.'),
+      payload: dto,
+      status: 'submitted',
+    });
+  }
+
+  @Post('principal/subjects-departments/department')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:write', 'academics:write')
+  createPrincipalDepartment(@Body() dto: any) {
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: 'principal.department_create_requested',
+      entityType: 'department',
+      title: 'Department create requested',
+      message: String(dto?.name || dto?.department_name || 'Principal requested a new department.'),
+      payload: dto,
+      status: 'submitted',
+    });
+  }
+
+  @Post('principal/staff-roles/invite')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:write', 'hr:write')
+  invitePrincipalStaff(@Body() dto: any) {
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: 'principal.staff_invite_requested',
+      entityType: 'staff_invite',
+      title: 'Staff invite requested',
+      message: String(dto?.email || 'Principal requested a staff invite.'),
+      payload: dto,
+      targetRoles: ['principal', 'secretary'],
+      status: 'submitted',
+    });
+  }
+
+  @Post('principal/staff-roles/:staffId/role')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:write', 'hr:write')
+  updatePrincipalStaffRole(@Param('staffId') staffId: string, @Body() dto: any) {
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: 'principal.staff_role_update_requested',
+      entityType: 'staff_role',
+      entityId: staffId,
+      title: 'Staff role update requested',
+      message: `Principal requested role update for staff ${staffId}.`,
+      payload: { ...dto, staffId },
+      targetRoles: ['principal'],
+      status: 'submitted',
+    });
+  }
+
+  @Post('principal/students/admit')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:write', 'students:write')
+  admitPrincipalStudent(@Body() dto: any) {
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: 'principal.student_admission_requested',
+      entityType: 'student_admission',
+      title: 'Student admission requested',
+      message: String(dto?.name || dto?.student_name || 'Principal requested student admission.'),
+      payload: dto,
+      status: 'submitted',
+    });
+  }
+
+  @Post('principal/students/:studentId/transfer')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:write', 'students:write')
+  transferPrincipalStudent(@Param('studentId') studentId: string, @Body() dto: any) {
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: 'principal.student_transfer_requested',
+      entityType: 'student',
+      entityId: studentId,
+      title: 'Student transfer requested',
+      message: `Principal requested transfer for student ${studentId}.`,
+      payload: { ...dto, studentId },
+      status: 'submitted',
+    });
+  }
+
+  @Post('principal/attendance-monitoring/:classId/alert')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:write')
+  sendPrincipalAttendanceAlert(@Param('classId') classId: string) {
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: 'principal.attendance_alert_sent',
+      entityType: 'class_attendance',
+      entityId: classId,
+      title: 'Attendance alert sent',
+      message: `Principal sent an attendance alert for class ${classId}.`,
+      payload: { classId },
+      targetRoles: ['class_teacher', 'deputy_principal', 'principal'],
+      status: 'sent',
+    });
+  }
+
+  @Post('principal/discipline/:caseId/escalate')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:write', 'discipline:write')
+  escalatePrincipalDiscipline(@Param('caseId') caseId: string) {
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: 'principal.discipline_case_escalated',
+      entityType: 'discipline_case',
+      entityId: caseId,
+      title: 'Discipline case escalated',
+      message: `Principal escalated discipline case ${caseId}.`,
+      payload: { caseId },
+      targetRoles: ['discipline_master', 'deputy_principal', 'principal'],
+      status: 'escalated',
+    });
+  }
+
+  @Post('principal/discipline/:caseId/resolve')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:write', 'discipline:write')
+  resolvePrincipalDiscipline(@Param('caseId') caseId: string, @Body() dto: any) {
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: 'principal.discipline_case_resolved',
+      entityType: 'discipline_case',
+      entityId: caseId,
+      title: 'Discipline case resolved',
+      message: `Principal resolved discipline case ${caseId}.`,
+      payload: { ...dto, caseId },
+      targetRoles: ['discipline_master', 'deputy_principal', 'principal'],
+      status: 'resolved',
+    });
+  }
+
+  @Post('principal/exams-report-cards/:examId/publish')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:write', 'exams:write')
+  publishPrincipalReportCards(@Param('examId') examId: string) {
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: 'principal.report_cards_publish_requested',
+      entityType: 'exam',
+      entityId: examId,
+      title: 'Report cards publish requested',
+      message: `Principal requested report card publication for exam ${examId}.`,
+      payload: { examId },
+      targetRoles: ['exams_manager', 'principal'],
+      status: 'submitted',
+    });
+  }
+
+  @Post('principal/exams-report-cards/:examId/approve')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:write', 'exams:write')
+  approvePrincipalExamResults(@Param('examId') examId: string) {
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: 'principal.exam_results_approved',
+      entityType: 'exam',
+      entityId: examId,
+      title: 'Exam results approved',
+      message: `Principal approved exam results for ${examId}.`,
+      payload: { examId },
+      targetRoles: ['exams_manager', 'principal'],
+      status: 'approved',
+    });
+  }
+
+  @Post('principal/finance-overview/:expenseId/approve')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:write', 'finance:write')
+  approvePrincipalExpense(@Param('expenseId') expenseId: string) {
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: 'principal.expense_approved',
+      entityType: 'expense',
+      entityId: expenseId,
+      title: 'Expense approved',
+      message: `Principal approved expense ${expenseId}.`,
+      payload: { expenseId },
+      targetRoles: ['accountant', 'principal'],
+      status: 'approved',
+    });
+  }
+
+  @Post('principal/approvals/:approvalId/action')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:write')
+  actionPrincipalApproval(@Param('approvalId') approvalId: string, @Body() dto: any) {
+    const action = String(dto?.action || 'reviewed');
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: `principal.approval_${action}`,
+      entityType: 'approval',
+      entityId: approvalId,
+      title: `Approval ${action}`,
+      message: `Principal ${action} approval ${approvalId}.`,
+      payload: { ...dto, approvalId },
+      targetRoles: ['principal'],
+      status: action,
+    });
+  }
+
+  @Post('principal/communication/announcement')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:write', 'school_sms:send')
+  sendPrincipalAnnouncement(@Body() dto: any) {
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: 'principal.announcement_sent',
+      entityType: 'announcement',
+      title: String(dto?.title || 'Principal announcement'),
+      message: String(dto?.body || dto?.message || 'Principal announcement sent.'),
+      payload: dto,
+      targetRoles: ['staff', 'parent', 'student', 'principal'],
+      status: 'sent',
+    });
+  }
+
+  @Post('principal/communication/message')
+  @RequiresModule('admin_command_centers')
+  @Permissions('principal:write', 'school_sms:send')
+  sendPrincipalMessage(@Body() dto: any) {
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: 'principal.message_sent',
+      entityType: 'message',
+      title: String(dto?.subject || 'Principal message'),
+      message: String(dto?.message || dto?.body || 'Principal message sent.'),
+      payload: dto,
+      targetRoles: ['principal'],
+      status: 'sent',
+    });
+  }
+
+  @Post('principal/reports/generate')
+  @RequiresModule('admin_command_centers')
+  @Permissions('principal:write', 'reports:write')
+  generatePrincipalReport(@Body() dto: any) {
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: 'principal.report_generation_requested',
+      entityType: 'report',
+      title: String(dto?.title || dto?.name || 'Principal report'),
+      message: 'Principal requested a report generation.',
+      payload: dto,
+      targetRoles: ['principal'],
+      status: 'submitted',
+    });
+  }
+
+  @Post('principal/setup-checklist/:itemId/complete')
+  @RequiresModule('admin_command_centers')
+  @Permissions('principal:write')
+  markPrincipalChecklistItem(@Param('itemId') itemId: string) {
+    return this.adminCommandService.recordPrincipalWorkflowAction({
+      action: 'principal.setup_checklist_completed',
+      entityType: 'setup_checklist_item',
+      entityId: itemId,
+      title: 'Setup checklist item completed',
+      message: `Principal marked setup checklist item ${itemId} complete.`,
+      payload: { itemId },
+      status: 'completed',
+    });
   }
 
   @Get('deputy/dashboard')
@@ -236,7 +619,7 @@ export class AdminCommandController {
   @Post('discipline/incidents')
   @Permissions('discipline:write')
   async reportIncident(@Body() dto: { studentId: string; category: string; severity: any; description: string }) {
-    return this.adminCommandService.reportIncidentMock(dto);
+    return this.adminCommandService.reportIncident(dto);
   }
 
   @Post('communication-templates')

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { SecretaryCommandService } from './secretary-command.service';
@@ -30,9 +30,45 @@ export class SecretaryCommandController {
     return this.service.checkInVisitor(dto);
   }
 
+  @Post('visitors/:id/check-out')
+  @Permissions('secretary:write')
+  checkOutVisitor(@Param('id') id: string) {
+    return this.service.checkOutVisitor(id);
+  }
+
+  @Post('visitors/:id/print-slip')
+  @Permissions('secretary:write')
+  printVisitorSlip(@Param('id') id: string) {
+    return this.service.printVisitorSlip(id);
+  }
+
   @Get('appointments')
   getAppointments() {
     return this.service.getAppointments();
+  }
+
+  @Post('appointments')
+  @Permissions('secretary:write')
+  createAppointment(@Body() dto: any) {
+    return this.service.createAppointment(dto);
+  }
+
+  @Post('appointments/:id/cancel')
+  @Permissions('secretary:write')
+  cancelAppointment(@Param('id') id: string) {
+    return this.service.updateAppointmentStatus(id, 'cancelled');
+  }
+
+  @Post('appointments/:id/reschedule')
+  @Permissions('secretary:write')
+  rescheduleAppointment(@Param('id') id: string, @Body() dto: any) {
+    return this.service.rescheduleAppointment(id, dto);
+  }
+
+  @Post('appointments/:id/confirm')
+  @Permissions('secretary:write')
+  confirmAppointment(@Param('id') id: string) {
+    return this.service.updateAppointmentStatus(id, 'confirmed');
   }
 
   @Get('calls-log')
@@ -40,9 +76,39 @@ export class SecretaryCommandController {
     return this.service.getCallsLog();
   }
 
+  @Post('calls-log')
+  @Permissions('secretary:write')
+  logCall(@Body() dto: any) {
+    return this.service.logCall(dto);
+  }
+
+  @Post('calls-log/:id/follow-up')
+  @Permissions('secretary:write')
+  markCallFollowedUp(@Param('id') id: string) {
+    return this.service.completeWorkflowEvent(id, 'frontoffice.call_followed_up');
+  }
+
   @Get('reception-queue')
   getReceptionQueue() {
     return this.service.getReceptionQueue();
+  }
+
+  @Post('reception-queue')
+  @Permissions('secretary:write')
+  createQueueEntry(@Body() dto: any) {
+    return this.service.createQueueEntry(dto);
+  }
+
+  @Post('reception-queue/:id/call')
+  @Permissions('secretary:write')
+  callNextInQueue(@Param('id') id: string) {
+    return this.service.updateWorkflowEventStatus(id, 'called', 'frontoffice.queue_called');
+  }
+
+  @Post('reception-queue/:id/complete')
+  @Permissions('secretary:write')
+  completeQueueEntry(@Param('id') id: string) {
+    return this.service.updateWorkflowEventStatus(id, 'completed', 'frontoffice.queue_completed');
   }
 
   @Get('parent-messages')
@@ -50,14 +116,93 @@ export class SecretaryCommandController {
     return this.service.getParentMessages();
   }
 
+  @Post('parent-messages')
+  @Permissions('secretary:write')
+  sendParentMessage(@Body() dto: any) {
+    return this.service.sendParentMessage(dto);
+  }
+
+  @Post('parent-messages/:id/read')
+  @Permissions('secretary:write')
+  markMessageRead(@Param('id') id: string) {
+    return this.service.updateWorkflowEventStatus(id, 'read', 'frontoffice.parent_message_read');
+  }
+
+  @Post('parent-messages/:id/reply')
+  @Permissions('secretary:write')
+  replyToMessage(@Param('id') id: string, @Body() dto: any) {
+    return this.service.replyToMessage(id, dto);
+  }
+
+  @Get('lost-found')
+  getLostFoundItems() {
+    return this.service.getLostFoundItems();
+  }
+
+  @Post('lost-found')
+  @Permissions('secretary:write')
+  recordLostFoundItem(@Body() dto: any) {
+    return this.service.recordLostFoundItem(dto);
+  }
+
+  @Get('preferences')
+  getPreferences() {
+    return this.service.getPreferences();
+  }
+
+  @Post('preferences')
+  @Permissions('secretary:write')
+  updatePreferences(@Body() dto: any) {
+    return this.service.updatePreferences(dto);
+  }
+
   @Get('letters-documents')
   getLettersDocuments() {
     return this.service.getLettersDocuments();
   }
 
+  @Post('letters-documents')
+  @Permissions('secretary:write')
+  createDocument(@Body() dto: any) {
+    return this.service.createDocument(dto);
+  }
+
+  @Post('letters-documents/:id/download')
+  downloadDocument(@Param('id') id: string) {
+    return this.service.getDocumentArtifact(id, 'download');
+  }
+
+  @Post('letters-documents/:id/print')
+  printDocument(@Param('id') id: string) {
+    return this.service.getDocumentArtifact(id, 'print');
+  }
+
   @Get('student-clearance')
   getStudentClearance() {
     return this.service.getStudentClearance();
+  }
+
+  @Post('student-clearance')
+  @Permissions('secretary:write')
+  initiateClearance(@Body() dto: any) {
+    return this.service.initiateClearance(dto);
+  }
+
+  @Post('student-clearance/:id/approve')
+  @Permissions('secretary:write')
+  approveClearanceStep(@Param('id') id: string, @Body() dto: any) {
+    return this.service.approveClearanceStep(id, dto);
+  }
+
+  @Post('student-clearance/:id/complete')
+  @Permissions('secretary:write')
+  completeClearance(@Param('id') id: string) {
+    return this.service.updateWorkflowEventStatus(id, 'completed', 'frontoffice.clearance_completed');
+  }
+
+  @Post('student-clearance/:id/print')
+  printClearanceForm(@Param('id') id: string) {
+    return this.service.getDocumentArtifact(id, 'print');
   }
 
   @Get('reports')
@@ -69,5 +214,16 @@ export class SecretaryCommandController {
   @Permissions('secretary:write')
   generateReport(@Body() dto: any) {
     return this.service.generateReport(dto);
+  }
+
+  @Post('reports/:id/download')
+  downloadReport(@Param('id') id: string) {
+    return this.service.downloadReport(id);
+  }
+
+  @Post('actions')
+  @Permissions('secretary:write')
+  recordAction(@Body() dto: any) {
+    return this.service.recordAction(dto);
   }
 }

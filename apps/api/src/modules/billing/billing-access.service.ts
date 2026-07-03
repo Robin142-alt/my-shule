@@ -211,6 +211,9 @@ export class BillingAccessService {
   }
 
   private isCacheEnabled(): boolean {
-    return Boolean(this.redisService) && this.cacheTtlSeconds > 0;
+    return Boolean(this.redisService)
+      && !this.redisService!.isDegraded()
+      && this.redisService!.getClient().status === 'ready'
+      && this.cacheTtlSeconds > 0;
   }
 }

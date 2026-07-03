@@ -42,6 +42,27 @@ export class FinanceSchemaService implements OnModuleInit {
       CREATE EXTENSION IF NOT EXISTS pgcrypto;
       CREATE SCHEMA IF NOT EXISTS app;
 
+      DO $$
+      BEGIN
+        CREATE TYPE "AccountCategory" AS ENUM ('ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE');
+      EXCEPTION
+        WHEN duplicate_object THEN NULL;
+      END $$;
+
+      DO $$
+      BEGIN
+        CREATE TYPE "EntryDirection" AS ENUM ('DEBIT', 'CREDIT');
+      EXCEPTION
+        WHEN duplicate_object THEN NULL;
+      END $$;
+
+      DO $$
+      BEGIN
+        CREATE TYPE "IdempotencyStatus" AS ENUM ('IN_PROGRESS', 'COMPLETED', 'FAILED', 'EXPIRED');
+      EXCEPTION
+        WHEN duplicate_object THEN NULL;
+      END $$;
+
       CREATE OR REPLACE FUNCTION set_updated_at()
       RETURNS trigger AS $$
       BEGIN
@@ -83,6 +104,28 @@ export class FinanceSchemaService implements OnModuleInit {
           ON DELETE SET NULL
       );
 
+      ALTER TABLE idempotency_keys DROP CONSTRAINT IF EXISTS ck_idempotency_keys_status;
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = 'idempotency_keys'
+            AND column_name = 'status'
+            AND data_type = 'USER-DEFINED'
+        ) THEN
+          ALTER TABLE idempotency_keys
+            ALTER COLUMN status TYPE text USING lower(status::text);
+        ELSE
+          UPDATE idempotency_keys
+          SET status = lower(status::text)
+          WHERE status IS NOT NULL
+            AND status <> lower(status::text);
+        END IF;
+      END $$;
+      ALTER TABLE idempotency_keys ADD CONSTRAINT ck_idempotency_keys_status
+        CHECK (lower(status::text) IN ('in_progress', 'completed', 'failed', 'expired'));
+
       DO $$
       BEGIN
         IF NOT EXISTS (
@@ -117,15 +160,15 @@ export class FinanceSchemaService implements OnModuleInit {
         target_tenant_id := COALESCE(NEW.tenant_id, OLD.tenant_id);
 
         IF TG_TABLE_NAME = 'transactions' THEN
-          target_transaction_id := COALESCE(NEW.id, OLD.id);
-        ELSE
-          target_transaction_id := COALESCE(NEW.transaction_id, OLD.transaction_id);
+          RETURN NULL;
         END IF;
+
+        target_transaction_id := COALESCE(NEW.transaction_id, OLD.transaction_id);
 
         SELECT
           COUNT(*)::integer,
-          COALESCE(SUM(CASE WHEN direction = 'debit' THEN amount_minor ELSE 0 END), 0)::bigint,
-          COALESCE(SUM(CASE WHEN direction = 'credit' THEN amount_minor ELSE 0 END), 0)::bigint,
+          COALESCE(SUM(CASE WHEN lower(direction::text) = 'debit' THEN amount_minor ELSE 0 END), 0)::bigint,
+          COALESCE(SUM(CASE WHEN lower(direction::text) = 'credit' THEN amount_minor ELSE 0 END), 0)::bigint,
           COUNT(DISTINCT currency_code)::integer
         INTO entry_count, debit_total, credit_total, currency_count
         FROM ledger_entries
@@ -166,6 +209,20 @@ export class FinanceSchemaService implements OnModuleInit {
         CONSTRAINT uq_finance_fee_categories_tenant_name UNIQUE (tenant_id, name)
       );
 
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = 'finance_fee_categories'
+            AND column_name = 'tenant_id'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE finance_fee_categories
+            ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+        END IF;
+      END $$;
+
       CREATE TABLE IF NOT EXISTS accounts (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
@@ -177,14 +234,65 @@ export class FinanceSchemaService implements OnModuleInit {
         allow_manual_entries boolean NOT NULL DEFAULT TRUE,
         is_active boolean NOT NULL DEFAULT TRUE,
         metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+        created_by_user_id uuid,
+        updated_by_user_id uuid,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW(),
-        CONSTRAINT ck_accounts_category CHECK (category IN ('asset', 'liability', 'equity', 'revenue', 'expense')),
-        CONSTRAINT ck_accounts_normal_balance CHECK (normal_balance IN ('debit', 'credit')),
+        deleted_at timestamptz,
+        CONSTRAINT ck_accounts_category CHECK (category IN ('asset', 'liability', 'equity', 'revenue', 'expense', 'ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE')),
+        CONSTRAINT ck_accounts_normal_balance CHECK (normal_balance IN ('debit', 'credit', 'DEBIT', 'CREDIT')),
         CONSTRAINT ck_accounts_currency_code CHECK (currency_code ~ '^[A-Z]{3}$'),
         CONSTRAINT uq_accounts_tenant_id_id UNIQUE (tenant_id, id),
         CONSTRAINT uq_accounts_tenant_code UNIQUE (tenant_id, code)
       );
+
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS updated_by_user_id uuid;
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+
+      ALTER TABLE accounts DROP CONSTRAINT IF EXISTS ck_accounts_category;
+      ALTER TABLE accounts DROP CONSTRAINT IF EXISTS ck_accounts_normal_balance;
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = 'accounts'
+            AND column_name = 'category'
+            AND data_type = 'USER-DEFINED'
+        ) THEN
+          ALTER TABLE accounts
+            ALTER COLUMN category TYPE text USING lower(category::text);
+        ELSE
+          UPDATE accounts
+          SET category = lower(category::text)
+          WHERE category IS NOT NULL
+            AND category <> lower(category::text);
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = 'accounts'
+            AND column_name = 'normal_balance'
+            AND data_type = 'USER-DEFINED'
+        ) THEN
+          ALTER TABLE accounts
+            ALTER COLUMN normal_balance TYPE text USING lower(normal_balance::text);
+        ELSE
+          UPDATE accounts
+          SET normal_balance = lower(normal_balance::text)
+          WHERE normal_balance IS NOT NULL
+            AND normal_balance <> lower(normal_balance::text);
+        END IF;
+      END $$;
+
+      ALTER TABLE accounts DROP CONSTRAINT IF EXISTS ck_accounts_category;
+      ALTER TABLE accounts ADD CONSTRAINT ck_accounts_category
+        CHECK (lower(category::text) IN ('asset', 'liability', 'equity', 'revenue', 'expense'));
+      ALTER TABLE accounts DROP CONSTRAINT IF EXISTS ck_accounts_normal_balance;
+      ALTER TABLE accounts ADD CONSTRAINT ck_accounts_normal_balance
+        CHECK (lower(normal_balance::text) IN ('debit', 'credit'));
 
       CREATE TABLE IF NOT EXISTS transactions (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -198,10 +306,12 @@ export class FinanceSchemaService implements OnModuleInit {
         effective_at timestamptz NOT NULL DEFAULT NOW(),
         posted_at timestamptz NOT NULL DEFAULT NOW(),
         created_by_user_id uuid,
+        updated_by_user_id uuid,
         request_id text,
         metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW(),
+        deleted_at timestamptz,
         CONSTRAINT ck_transactions_currency_code CHECK (currency_code ~ '^[A-Z]{3}$'),
         CONSTRAINT ck_transactions_total_amount_minor CHECK (total_amount_minor > 0),
         CONSTRAINT ck_transactions_entry_count CHECK (entry_count >= 2),
@@ -218,6 +328,21 @@ export class FinanceSchemaService implements OnModuleInit {
           ON DELETE SET NULL
       );
 
+      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS updated_by_user_id uuid;
+      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'uq_transactions_tenant_id_id'
+        ) THEN
+          ALTER TABLE transactions
+            ADD CONSTRAINT uq_transactions_tenant_id_id UNIQUE (tenant_id, id);
+        END IF;
+      END $$;
+
       CREATE TABLE IF NOT EXISTS ledger_entries (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
@@ -229,9 +354,12 @@ export class FinanceSchemaService implements OnModuleInit {
         currency_code char(3) NOT NULL,
         description text,
         metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+        created_by_user_id uuid,
+        updated_by_user_id uuid,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW(),
-        CONSTRAINT ck_ledger_entries_direction CHECK (direction IN ('debit', 'credit')),
+        deleted_at timestamptz,
+        CONSTRAINT ck_ledger_entries_direction CHECK (direction IN ('debit', 'credit', 'DEBIT', 'CREDIT')),
         CONSTRAINT ck_ledger_entries_amount_minor CHECK (amount_minor > 0),
         CONSTRAINT ck_ledger_entries_currency_code CHECK (currency_code ~ '^[A-Z]{3}$'),
         CONSTRAINT uq_ledger_entries_tenant_id_id UNIQUE (tenant_id, id),
@@ -245,6 +373,34 @@ export class FinanceSchemaService implements OnModuleInit {
           REFERENCES accounts (tenant_id, id)
           ON DELETE RESTRICT
       );
+
+      ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
+      ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS updated_by_user_id uuid;
+      ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+
+      ALTER TABLE ledger_entries DROP CONSTRAINT IF EXISTS ck_ledger_entries_direction;
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = 'ledger_entries'
+            AND column_name = 'direction'
+            AND data_type = 'USER-DEFINED'
+        ) THEN
+          ALTER TABLE ledger_entries
+            ALTER COLUMN direction TYPE text USING lower(direction::text);
+        ELSE
+          UPDATE ledger_entries
+          SET direction = lower(direction::text)
+          WHERE direction IS NOT NULL
+            AND direction <> lower(direction::text);
+        END IF;
+      END $$;
+
+      ALTER TABLE ledger_entries DROP CONSTRAINT IF EXISTS ck_ledger_entries_direction;
+      ALTER TABLE ledger_entries ADD CONSTRAINT ck_ledger_entries_direction
+        CHECK (lower(direction::text) IN ('debit', 'credit'));
 
       CREATE INDEX IF NOT EXISTS ix_accounts_tenant_category_active
         ON accounts (tenant_id, category, is_active);
@@ -340,11 +496,6 @@ export class FinanceSchemaService implements OnModuleInit {
       EXECUTE FUNCTION app.prevent_append_only_mutation();
 
       DROP TRIGGER IF EXISTS trg_transactions_validate_balance ON transactions;
-      CREATE CONSTRAINT TRIGGER trg_transactions_validate_balance
-      AFTER INSERT ON transactions
-      DEFERRABLE INITIALLY DEFERRED
-      FOR EACH ROW
-      EXECUTE FUNCTION app.validate_financial_transaction_balance();
 
       DROP TRIGGER IF EXISTS trg_ledger_entries_validate_balance ON ledger_entries;
       CREATE CONSTRAINT TRIGGER trg_ledger_entries_validate_balance

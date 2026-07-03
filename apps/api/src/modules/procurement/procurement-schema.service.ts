@@ -221,6 +221,111 @@ export class ProcurementSchemaService implements OnModuleInit {
         audit_log_reference uuid
       );
 
+      DO $$
+      DECLARE
+        procurement_table text;
+      BEGIN
+        FOREACH procurement_table IN ARRAY ARRAY[
+          'procurement_suppliers',
+          'procurement_requests',
+          'procurement_request_items',
+          'procurement_approvals',
+          'purchase_orders',
+          'purchase_order_items',
+          'supplier_invoices',
+          'procurement_budget_links',
+          'procurement_audit_logs'
+        ] LOOP
+          EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', procurement_table);
+          EXECUTE format('DROP POLICY IF EXISTS %I ON %I', procurement_table || '_tenant_policy', procurement_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS tenant_id text', procurement_table);
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns c
+            WHERE c.table_name = procurement_table
+              AND c.column_name = 'tenant_id'
+              AND c.data_type <> 'text'
+          ) THEN
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id TYPE text USING tenant_id::text', procurement_table);
+          END IF;
+          EXECUTE format(
+            'UPDATE %I SET tenant_id = COALESCE(NULLIF(tenant_id, ''''), NULLIF(current_setting(''app.tenant_id'', true), ''''), ''00000000-0000-0000-0000-000000000000'') WHERE tenant_id IS NULL OR tenant_id = ''''',
+            procurement_table
+          );
+          EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET DEFAULT ''00000000-0000-0000-0000-000000000000''', procurement_table);
+          EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET NOT NULL', procurement_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT NOW()', procurement_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW()', procurement_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS audit_log_reference uuid', procurement_table);
+        END LOOP;
+      END $$;
+
+      ALTER TABLE procurement_suppliers ADD COLUMN IF NOT EXISTS name text NOT NULL DEFAULT 'Supplier';
+      ALTER TABLE procurement_suppliers ADD COLUMN IF NOT EXISTS category text;
+      ALTER TABLE procurement_suppliers ADD COLUMN IF NOT EXISTS contact_name text;
+      ALTER TABLE procurement_suppliers ADD COLUMN IF NOT EXISTS phone text;
+      ALTER TABLE procurement_suppliers ADD COLUMN IF NOT EXISTS email text;
+      ALTER TABLE procurement_suppliers ADD COLUMN IF NOT EXISTS kra_pin text;
+      ALTER TABLE procurement_suppliers ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+      ALTER TABLE procurement_suppliers ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
+
+      ALTER TABLE procurement_requests ADD COLUMN IF NOT EXISTS title text NOT NULL DEFAULT 'Procurement request';
+      ALTER TABLE procurement_requests ADD COLUMN IF NOT EXISTS department text NOT NULL DEFAULT 'General';
+      ALTER TABLE procurement_requests ADD COLUMN IF NOT EXISTS budget_code text;
+      ALTER TABLE procurement_requests ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'draft';
+      ALTER TABLE procurement_requests ADD COLUMN IF NOT EXISTS requested_by_user_id uuid;
+
+      ALTER TABLE procurement_request_items ADD COLUMN IF NOT EXISTS request_id uuid;
+      ALTER TABLE procurement_request_items ADD COLUMN IF NOT EXISTS item_name text NOT NULL DEFAULT 'Procurement item';
+      ALTER TABLE procurement_request_items ADD COLUMN IF NOT EXISTS quantity numeric(12, 3) NOT NULL DEFAULT 1;
+      ALTER TABLE procurement_request_items ADD COLUMN IF NOT EXISTS estimated_unit_cost_minor bigint NOT NULL DEFAULT 0;
+      ALTER TABLE procurement_request_items ADD COLUMN IF NOT EXISTS budget_code text;
+
+      ALTER TABLE procurement_approvals ADD COLUMN IF NOT EXISTS request_id uuid;
+      ALTER TABLE procurement_approvals ADD COLUMN IF NOT EXISTS decision text NOT NULL DEFAULT 'returned';
+      ALTER TABLE procurement_approvals ADD COLUMN IF NOT EXISTS approver_user_id uuid;
+      ALTER TABLE procurement_approvals ADD COLUMN IF NOT EXISTS approved_at timestamptz NOT NULL DEFAULT NOW();
+
+      ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS po_number text;
+      UPDATE purchase_orders
+      SET po_number = COALESCE(NULLIF(po_number, ''), id::text)
+      WHERE po_number IS NULL OR po_number = '';
+      ALTER TABLE purchase_orders ALTER COLUMN po_number SET NOT NULL;
+      ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_id uuid;
+      ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS request_id uuid;
+      ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS expected_delivery_date date;
+      ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS total_amount_minor bigint NOT NULL DEFAULT 0;
+      ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'draft';
+      ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
+
+      ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS purchase_order_id uuid;
+      ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS item_name text NOT NULL DEFAULT 'Purchase order item';
+      ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS quantity numeric(12, 3) NOT NULL DEFAULT 1;
+      ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS unit_cost_minor bigint NOT NULL DEFAULT 0;
+
+      ALTER TABLE supplier_invoices ADD COLUMN IF NOT EXISTS purchase_order_id uuid;
+      ALTER TABLE supplier_invoices ADD COLUMN IF NOT EXISTS invoice_number text;
+      UPDATE supplier_invoices
+      SET invoice_number = COALESCE(NULLIF(invoice_number, ''), id::text)
+      WHERE invoice_number IS NULL OR invoice_number = '';
+      ALTER TABLE supplier_invoices ALTER COLUMN invoice_number SET NOT NULL;
+      ALTER TABLE supplier_invoices ADD COLUMN IF NOT EXISTS amount_minor bigint NOT NULL DEFAULT 0;
+      ALTER TABLE supplier_invoices ADD COLUMN IF NOT EXISTS invoice_date date NOT NULL DEFAULT CURRENT_DATE;
+      ALTER TABLE supplier_invoices ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'attached';
+      ALTER TABLE supplier_invoices ADD COLUMN IF NOT EXISTS attached_by_user_id uuid;
+
+      ALTER TABLE procurement_budget_links ADD COLUMN IF NOT EXISTS request_id uuid;
+      ALTER TABLE procurement_budget_links ADD COLUMN IF NOT EXISTS purchase_order_id uuid;
+      ALTER TABLE procurement_budget_links ADD COLUMN IF NOT EXISTS budget_code text;
+      ALTER TABLE procurement_budget_links ADD COLUMN IF NOT EXISTS committed_amount_minor bigint NOT NULL DEFAULT 0;
+      ALTER TABLE procurement_budget_links ADD COLUMN IF NOT EXISTS spent_amount_minor bigint NOT NULL DEFAULT 0;
+
+      ALTER TABLE procurement_audit_logs ADD COLUMN IF NOT EXISTS actor_user_id uuid;
+      ALTER TABLE procurement_audit_logs ADD COLUMN IF NOT EXISTS action text NOT NULL DEFAULT 'procurement.audit';
+      ALTER TABLE procurement_audit_logs ADD COLUMN IF NOT EXISTS resource_type text NOT NULL DEFAULT 'procurement';
+      ALTER TABLE procurement_audit_logs ADD COLUMN IF NOT EXISTS resource_id uuid;
+      ALTER TABLE procurement_audit_logs ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+
       CREATE INDEX IF NOT EXISTS procurement_requests_budget
         ON procurement_requests (tenant_id, budget_code, status);
       CREATE INDEX IF NOT EXISTS ix_procurement_request_items_request

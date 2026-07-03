@@ -1,7 +1,6 @@
-import { Controller, Get, Param, ParseUUIDPipe, Req, UseGuards, StreamableFile, InternalServerErrorException } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Req, UseGuards, StreamableFile, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
-import { ReportCardGenerationService } from './services/report-card-generation.service';
 import { ExamsRepository } from './repositories/exams.repository';
 import { ReportCardTemplateService } from './services/report-card-template.service';
 import { createReportCardPdfArtifact } from './services/report-card-pdf-artifact';
@@ -10,7 +9,6 @@ import { createReportCardPdfArtifact } from './services/report-card-pdf-artifact
 @UseGuards(JwtAuthGuard)
 export class ReportCardDownloadController {
   constructor(
-    private readonly reportCardGenerationService: ReportCardGenerationService,
     private readonly examsRepository: ExamsRepository,
     private readonly templateService: ReportCardTemplateService,
   ) {}
@@ -21,22 +19,24 @@ export class ReportCardDownloadController {
     @Param('reportCardId', new ParseUUIDPipe()) reportCardId: string,
     @Req() req: any
   ) {
-    const { schoolId, userId } = req.user;
+    const tenantId = req.user?.tenant_id ?? req.user?.schoolId;
+    if (!tenantId) {
+      throw new UnauthorizedException('Tenant context is required for report-card downloads');
+    }
 
-    // Load report card metadata to get student_id and exam_series_id
     const result = await this.examsRepository.executeSql(
-      `SELECT * FROM generated_report_cards WHERE id = $1 AND tenant_id = $2`,
-      [reportCardId, schoolId]
+      `SELECT * FROM student_report_cards WHERE tenant_id = $1 AND id = $2::uuid`,
+      [tenantId, reportCardId]
     );
 
     if (result.rowCount === 0) {
-      throw new InternalServerErrorException('Report card not found');
+      throw new NotFoundException('Report card not found for this school');
     }
 
     const reportCard = result.rows[0];
     
     const data = await this.examsRepository.loadReportCardData({
-      tenant_id: schoolId,
+      tenant_id: tenantId,
       exam_series_id: reportCard.exam_series_id,
       student_id: reportCard.student_id,
     });

@@ -510,6 +510,14 @@ export function evaluateExperienceRouting(input: {
   const headers = buildHeaders(resolution);
 
   if (resolution.experience === "public") {
+    if (/^\/dashboard\/[^/]+(?:\/.*)?$/.test(input.pathname)) {
+      return {
+        action: "redirect",
+        location: "/forbidden",
+        headers,
+      };
+    }
+
     return {
       action: "next",
       headers,

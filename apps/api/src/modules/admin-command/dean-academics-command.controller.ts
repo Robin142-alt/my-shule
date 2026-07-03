@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { DeanAcademicsCommandService } from './dean-academics-command.service';
@@ -52,5 +52,23 @@ export class DeanAcademicsCommandController {
   @Get('reports')
   getReports() {
     return this.service.getReports();
+  }
+
+  @Post('reports/generate')
+  @Permissions('academics:write')
+  generateReport(@Body() dto: any) {
+    return this.service.generateReport(dto);
+  }
+
+  @Post('lock-batch')
+  @Permissions('academics:write')
+  lockBatch(@Body() dto: any) {
+    return this.service.recordDeanAction('lock_batch', dto);
+  }
+
+  @Post('action')
+  @Permissions('academics:write')
+  recordAction(@Body() dto: any) {
+    return this.service.recordDeanAction(dto?.action ?? 'dean_action', dto);
   }
 }

@@ -9,6 +9,6 @@ export class StudentPortalActionsController {
   @Post('assignments/mark-done')
   @Permissions('student-portal:write')
   markAssignmentDone(@Body() body: any) {
-    return this.studentPortalService.markAssignmentDone(body.assignmentId);
+    return this.studentPortalService.markAssignmentDone(body.assignmentId ?? body.id);
   }
 }

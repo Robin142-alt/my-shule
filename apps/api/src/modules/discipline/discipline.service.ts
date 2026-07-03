@@ -805,6 +805,66 @@ export class DisciplineService {
     };
   }
 
+  async recordWorkspaceAction(dto: any) {
+    this.assertDisciplineWrite();
+    const tenantId = this.requireTenantId();
+    const schoolId = await this.resolveSchoolId();
+    const action = this.slug(this.requireText(dto?.action || 'workspace_action', 'Workspace action'));
+    const title = this.requireText(dto?.title || 'Discipline workspace action', 'Workspace action title');
+    const message = this.requireText(dto?.description || dto?.message || title, 'Workspace action description');
+    const actorUserId = this.actorUserId();
+    const context = this.requestContext.requireStore();
+    const result = await this.prisma.query(
+      `
+        INSERT INTO workflow_events (
+          tenant_id, source_user_id, source_role, target_roles,
+          event_type, entity_type, entity_id, title, message, priority, payload
+        )
+        VALUES ($1, $2::uuid, $3, $4::jsonb, 'discipline.workspace_action', 'discipline_workspace', NULL, $5, $6, $7, $8::jsonb)
+        RETURNING *
+      `,
+      [
+        tenantId,
+        actorUserId,
+        context.role || 'discipline_master',
+        JSON.stringify(['discipline_master', 'deputy_principal', 'principal']),
+        title,
+        message,
+        dto?.priority === 'high' || dto?.priority === 'urgent' ? 'high' : 'normal',
+        JSON.stringify({
+          ...dto,
+          action,
+          school_id: schoolId,
+          source_dashboard: 'discipline-master-dashboard',
+        }),
+      ],
+    );
+    const event = result.rows[0];
+
+    await this.audit({
+      schoolId,
+      action: 'discipline.workspace_action',
+      entityType: 'workflow_event',
+      entityId: event?.id ?? null,
+      metadata: { action, title },
+    });
+
+    await this.schoolEvents?.recordSchoolOperation({
+      schoolId,
+      event: {
+        id: event?.id ?? `${action}-${Date.now()}`,
+        type: 'discipline.workspace_action',
+        module: 'discipline',
+        title,
+        body: message,
+        actorRole: context.role || 'discipline_master',
+        createdAt: new Date().toISOString(),
+      },
+    });
+
+    return { success: true, message: 'Discipline workspace workflow saved', event };
+  }
+
   async generateDocument(incidentId: string, dto: GenerateDisciplineDocumentDto) {
     const incident = await this.requireIncident(incidentId);
     const document = this.documentService

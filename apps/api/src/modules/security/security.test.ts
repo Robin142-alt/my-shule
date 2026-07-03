@@ -52,6 +52,11 @@ class FakeRedisClient {
   }
 }
 
+const buildFakeRedisService = (redisClient: FakeRedisClient, degraded = false) => ({
+  getClient: () => redisClient,
+  isDegraded: () => degraded,
+});
+
 const encryptionKey = 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=';
 
 test('PiiEncryptionService encrypts and decrypts field values', () => {
@@ -162,9 +167,7 @@ test('RateLimitService blocks requests after the configured threshold', async ()
       },
     } as never,
     requestContext,
-    {
-      getClient: () => redisClient,
-    } as never,
+    buildFakeRedisService(redisClient) as never,
   );
 
   const outcomes = await requestContext.run(
@@ -226,6 +229,7 @@ test('RateLimitService uses an in-memory fallback when Redis is unavailable', as
     } as never,
     requestContext,
     {
+      isDegraded: () => false,
       getClient: () => ({
         incr: async () => {
           throw new Error('connect ECONNREFUSED 127.0.0.1:6379');
@@ -305,9 +309,7 @@ test('RateLimitService applies tighter buckets to parent OTP and recovery flows'
       },
     } as never,
     requestContext,
-    {
-      getClient: () => redisClient,
-    } as never,
+    buildFakeRedisService(redisClient) as never,
   );
 
   const [otpFirst, otpSecond, recoveryFirst, recoverySecond] = await requestContext.run(
@@ -375,9 +377,7 @@ test('RateLimitService treats MPESA callback aliases as provider callback traffi
       },
     } as never,
     requestContext,
-    {
-      getClient: () => redisClient,
-    } as never,
+    buildFakeRedisService(redisClient) as never,
   );
 
   const outcomes = await requestContext.run(
@@ -444,9 +444,7 @@ test('RateLimitService assigns isolated Implementation 90 rate-limit classes', a
       },
     } as never,
     requestContext,
-    {
-      getClient: () => redisClient,
-    } as never,
+    buildFakeRedisService(redisClient) as never,
   );
 
   const decisions = await requestContext.run(

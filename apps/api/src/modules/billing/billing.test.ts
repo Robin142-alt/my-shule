@@ -5,6 +5,7 @@ import test from 'node:test';
 import { resolveApiCapabilityEnforcement } from '../../common/capability-engine/capability-engine';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { BillingLifecycleGuard } from '../../guards/billing-lifecycle.guard';
+import { BillingAccessService } from './billing-access.service';
 import { BillingLifecycleService } from './billing-lifecycle.service';
 import { BillingMpesaService } from './billing-mpesa.service';
 import { BillingSchemaService } from './billing-schema.service';
@@ -97,7 +98,43 @@ test('BillingSchemaService upgrades legacy fee structure columns before creating
   assert.notEqual(createFeeStructureScopeIndex, -1);
   assert.ok(addAcademicYearColumnIndex < createFeeStructureScopeIndex);
   assert.match(bootstrapSql, /ALTER TABLE fee_structures\s+NO FORCE ROW LEVEL SECURITY;/);
+  assert.match(bootstrapSql, /ALTER TABLE fee_structures\s+ALTER COLUMN id SET DEFAULT gen_random_uuid\(\);/);
+  assert.match(bootstrapSql, /ALTER TABLE fee_structures\s+ALTER COLUMN school_id DROP NOT NULL;/);
+  assert.match(bootstrapSql, /ALTER TABLE fee_structures\s+ALTER COLUMN school_id DROP DEFAULT;/);
+  assert.match(bootstrapSql, /ALTER TABLE fee_structures\s+ALTER COLUMN created_at SET DEFAULT NOW\(\);/);
+  assert.match(bootstrapSql, /ALTER TABLE fee_structures\s+ALTER COLUMN updated_at SET DEFAULT NOW\(\);/);
   assert.match(bootstrapSql, /ALTER TABLE fee_structures\s+ALTER COLUMN academic_year SET NOT NULL;/);
+  assert.match(bootstrapSql, /ALTER TABLE fee_structures\s+ALTER COLUMN academic_year_id DROP NOT NULL;/);
+  assert.match(bootstrapSql, /ALTER TABLE invoices\s+ADD COLUMN IF NOT EXISTS currency_code char\(3\) DEFAULT 'KES';/);
+  assert.match(bootstrapSql, /ALTER TABLE invoices\s+ALTER COLUMN currency_code SET NOT NULL;/);
+});
+
+test('BillingSchemaService guards fee payment foreign keys with child and parent column type checks', async () => {
+  let bootstrapSql = '';
+  const service = new BillingSchemaService({
+    runSchemaBootstrap: async (sql: string): Promise<void> => {
+      bootstrapSql = sql;
+    },
+  } as never);
+
+  await service.onModuleInit();
+
+  assert.match(
+    bootstrapSql,
+    /parent_column\.table_name = 'invoices'[\s\S]+parent_column\.column_name = 'id'[\s\S]+parent_column\.data_type = child_column\.data_type[\s\S]+child_column\.table_name = 'student_fee_payment_allocations'[\s\S]+child_column\.column_name = 'invoice_id'/,
+  );
+  assert.match(
+    bootstrapSql,
+    /parent_column\.table_name = 'invoices'[\s\S]+parent_column\.column_name = 'id'[\s\S]+parent_column\.data_type = child_column\.data_type[\s\S]+child_column\.table_name = 'manual_fee_payments'[\s\S]+child_column\.column_name = 'invoice_id'/,
+  );
+  assert.match(
+    bootstrapSql,
+    /parent_column\.table_name = 'manual_fee_payments'[\s\S]+parent_column\.column_name = 'id'[\s\S]+parent_column\.data_type = child_column\.data_type[\s\S]+child_column\.table_name = 'manual_fee_payment_allocations'[\s\S]+child_column\.column_name = 'manual_payment_id'/,
+  );
+  assert.match(
+    bootstrapSql,
+    /parent_column\.table_name = 'invoices'[\s\S]+parent_column\.column_name = 'id'[\s\S]+parent_column\.data_type = child_column\.data_type[\s\S]+child_column\.table_name = 'manual_fee_payment_allocations'[\s\S]+child_column\.column_name = 'invoice_id'/,
+  );
 });
 
 test('BillingService provisions a plan-backed subscription', async () => {
@@ -2502,6 +2539,86 @@ test('Capability engine translates billing lifecycle into progressive API enforc
       message: 'School access is suspended',
     },
   );
+});
+
+test('BillingAccessService bypasses Redis cache when Redis is degraded', async () => {
+  const requestContext = new RequestContextService();
+  let lifecycleCalls = 0;
+  let redisCommandCalls = 0;
+
+  const service = new BillingAccessService(
+    requestContext,
+    {} as never,
+    {
+      ensureCurrentLifecycle: async () => {
+        lifecycleCalls += 1;
+        return {
+          subscription: {
+            id: '00000000-0000-0000-0000-000000000201',
+            tenant_id: 'tenant-a',
+            plan_code: 'enterprise',
+            status: 'active',
+            features: ['billing:write'],
+            limits: {},
+            current_period_start: new Date('2026-06-01T00:00:00.000Z'),
+            current_period_end: new Date('2026-07-01T00:00:00.000Z'),
+          },
+          overview: {
+            lifecycle_state: 'ACTIVE',
+            access_mode: 'full',
+            warning_starts_at: null,
+            grace_period_ends_at: null,
+            restricted_at: null,
+            suspended_at: null,
+            suspension_reason: null,
+            renewal_required: false,
+          },
+        };
+      },
+      buildOverview: () => null,
+    } as never,
+    {
+      isDegraded: () => true,
+      getClient: () => {
+        redisCommandCalls += 1;
+        return {
+          status: 'end',
+          get: async () => {
+            throw new Error('Redis cache should be bypassed while degraded');
+          },
+          set: async () => {
+            throw new Error('Redis cache should be bypassed while degraded');
+          },
+        };
+      },
+    } as never,
+    {
+      get: () => 60,
+    } as never,
+  );
+
+  const access = await requestContext.run(
+    {
+      request_id: 'req-billing-cache-degraded',
+      tenant_id: 'tenant-a',
+      user_id: '00000000-0000-0000-0000-000000000001',
+      role: 'accountant',
+      session_id: 'session-1',
+      permissions: ['billing:write'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'POST',
+      path: '/billing/fee-structures',
+      started_at: '2026-06-30T00:00:00.000Z',
+    },
+    () => service.resolveForTenant('tenant-a'),
+  );
+
+  assert.equal(lifecycleCalls, 1);
+  assert.equal(redisCommandCalls, 0);
+  assert.equal(access.is_active, true);
+  assert.deepEqual(access.features, ['billing:write']);
 });
 
 test('BillingLifecycleGuard blocks writes in restricted mode but allows billing routes', async () => {

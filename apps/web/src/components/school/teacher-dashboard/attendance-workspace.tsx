@@ -224,7 +224,7 @@ export function AttendanceWorkspace() {
       </div>
       <div className="mb-4">
         {hasPermission('school_attendance:write') && (
-          <button type="button" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Mark All Present</button>
+          <button type="button" onClick={() => setActiveTask(data?.tasks?.[0] ?? null)} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Mark All Present</button>
         )}
       </div>
       {isError ? (

@@ -155,13 +155,17 @@ export function DisciplineMasterCommandCenter({ activeSection, routeMode }: { ac
             <div>
               <h1 className="text-sm sm:text-lg font-black text-[#071D49]">Good Morning, Discipline Master</h1>
               <p className="hidden sm:block text-xs font-semibold text-[#64748B]">
-                Kisumu Boys High School &middot; 2026 Academic Year &middot; Term 2
+                Current school &middot; Discipline workspace
               </p>
             </div>
           </div>
           
           <div className="flex items-center gap-2 sm:gap-4">
-            <button className="hidden sm:flex items-center gap-2 rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-[#0A2661] transition-colors">
+            <button
+              type="button"
+              className="hidden sm:flex items-center gap-2 rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-[#0A2661] transition-colors"
+              onClick={() => setActiveWorkspace("log-incident")}
+            >
               <FilePlus className="h-4 w-4" />
               <span>Log Incident</span>
             </button>
@@ -170,7 +174,7 @@ export function DisciplineMasterCommandCenter({ activeSection, routeMode }: { ac
               <ApprovalInbox currentUserId="school" />
               <NotificationBell />
             </div>
-            <button className="hidden sm:block rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-2 text-[#64748B] hover:bg-white hover:border-[#38BDF8] transition-all">
+            <button type="button" aria-label="Open discipline reports and help" onClick={() => setActiveWorkspace("reports")} className="hidden sm:block rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-2 text-[#64748B] hover:bg-white hover:border-[#38BDF8] transition-all">
               <HelpCircle className="h-5 w-5" />
             </button>
           </div>

@@ -2,13 +2,15 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle, RotateCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClasses } from "@/components/ui/button";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import type { ResolvedWidgetDefinition } from "@/lib/widget-registry/widget-registry";
+import { resolveDashboardActionHref } from "@/lib/dashboard/action-routes";
+import type { ResolvedWidgetAction, ResolvedWidgetDefinition } from "@/lib/widget-registry/widget-registry";
 
 export interface DashboardEngineProps {
   role: string;
@@ -18,6 +20,8 @@ type ActionButtonDto = {
   id: string;
   label: string;
   action: string;
+  executionType?: 'ROUTE';
+  href?: string;
   state: 'ACTIVE' | 'DEGRADED' | 'FAILED' | 'LOCKED';
 };
 
@@ -61,36 +65,63 @@ export function DashboardEngine({ role }: DashboardEngineProps) {
     );
   }
 
+  const widgets = Array.isArray(data.widgets) ? data.widgets : [];
+  const buttons = Array.isArray(data.buttons) ? data.buttons : [];
+  const hasMalformedLayout = !Array.isArray(data.widgets) || !Array.isArray(data.buttons);
+
   return (
     <div className="space-y-6">
+      {hasMalformedLayout ? (
+        <Alert className="border-warning/40 bg-warning/10 text-warning">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Dashboard layout needs refresh</AlertTitle>
+          <AlertDescription>
+            This role is visible, but the live layout contract did not include a valid widget registry payload.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       {/* Quick Action Buttons governed by backend Button/Action Contract */}
-      {data.buttons && data.buttons.length > 0 && (
+      {buttons.length > 0 && (
         <div className="flex flex-wrap gap-3">
-          {data.buttons.map(btn => (
-            <Button
-              key={btn.id}
-              disabled={btn.state === 'LOCKED'}
-              variant={btn.state === 'ACTIVE' ? 'default' : 'secondary'}
-              className={btn.state === 'FAILED' ? 'bg-destructive text-white' : ''}
-              onClick={() => {
-                if (btn.state !== 'LOCKED') {
-                  console.log(`Action dispatched: ${btn.action}`);
-                }
-              }}
-            >
-              {btn.label}
-              {btn.state === 'LOCKED' && <AlertCircle className="w-4 h-4 ml-2 opacity-50" />}
-            </Button>
-          ))}
+          {buttons.map((btn) => {
+            const href = btn.href ?? resolveDashboardActionHref(role, btn.action);
+
+            if (btn.state === "ACTIVE" && href) {
+              return (
+                <Link
+                  key={btn.id}
+                  href={href}
+                  className={buttonClasses({ variant: "default", size: "md" })}
+                  aria-label={`${btn.label}: open ${btn.action} workspace`}
+                >
+                  {btn.label}
+                </Link>
+              );
+            }
+
+            return (
+              <Button
+                key={btn.id}
+                disabled
+                variant="secondary"
+                className={btn.state === "FAILED" ? "bg-destructive text-white" : ""}
+                title={btn.state === "LOCKED" ? "You do not have permission for this action." : "Action unavailable in the current workflow state."}
+              >
+                {btn.label}
+                <AlertCircle className="w-4 h-4 ml-2 opacity-50" />
+              </Button>
+            );
+          })}
         </div>
       )}
 
       {/* Render Dynamic Widgets from Backend Registry */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {data.widgets.map((widget) => (
+        {widgets.map((widget) => (
           <WidgetRenderer key={widget.widgetId} widget={widget} />
         ))}
-        {data.widgets.length === 0 && (
+        {widgets.length === 0 && (
           <div className="col-span-full py-12 text-center text-white/50 bg-white/5 rounded-xl border border-white/10">
             No widgets available for this role.
           </div>
@@ -108,7 +139,7 @@ function WidgetRenderer({ widget }: { widget: ResolvedWidgetDefinition }) {
   // Use defensive parsing since backend dto might differ from frontend exact type
   const state = widget.state || 'ACTIVE';
   const stateConfig = widget.stateConfig || { visibility: 'VISIBLE' };
-  const actions = widget.actions || [];
+  const actions = (widget.actions || []) as ResolvedWidgetAction[];
 
   return (
     <Card className={`relative overflow-hidden bg-white/5 border border-white/10 text-white ${state === 'DEGRADED' ? 'border-yellow-500/50' : ''}`}>
@@ -161,13 +192,13 @@ function WidgetRenderer({ widget }: { widget: ResolvedWidgetDefinition }) {
             {actions.map((action) => (
               <Button
                 key={action.actionId}
-                variant={(action as any).state === "DEGRADED" ? "secondary" : "default"}
+                variant={action.state === "DEGRADED" ? "secondary" : "default"}
                 size="sm"
-                disabled={!(action as any).enabled && (action as any).state !== "FAILED"}
-                className={(action as any).state === "FAILED" ? "bg-destructive text-destructive-foreground" : ""}
+                disabled={!action.enabled && action.state !== "FAILED"}
+                className={action.state === "FAILED" ? "bg-destructive text-destructive-foreground" : ""}
               >
                 {action.label}
-                {(action as any).state === "FAILED" && <AlertCircle className="w-3 h-3 ml-2" />}
+                {action.state === "FAILED" && <AlertCircle className="w-3 h-3 ml-2" />}
               </Button>
             ))}
           </div>

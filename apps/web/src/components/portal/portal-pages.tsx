@@ -486,15 +486,16 @@ function PortalFeesPage({ viewer }: { viewer: PortalViewer }) {
   );
 }
 
-function PortalAcademicsPage({ viewer }: { viewer: PortalViewer }) {
-  const [activeChildId, setActiveChildId] = useState(getPortalParentChildren(getCurrentSchoolId())[0]?.id ?? "");
+function PortalAcademicsPage({ viewer, schoolId }: { viewer: PortalViewer; schoolId: string }) {
+  const [activeChildId, setActiveChildId] = useState(getPortalParentChildren(schoolId)[0]?.id ?? "");
   const [acknowledgedReports, setAcknowledgedReports] = useState<Record<string, boolean>>({});
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
-  const activeChild = getPortalParentChildren(getCurrentSchoolId()).find((child) => child.id === activeChildId) ?? getPortalParentChildren(getCurrentSchoolId())[0];
-  const visibleReports = getPortalPublishedReportCards(getCurrentSchoolId()).filter((report) => report.childId === activeChild?.id);
-  const visibleResults = getPortalPublishedExamResults(getCurrentSchoolId()).filter((row) => row.childName === activeChild?.name);
-  const visibleTargets = getPortalAcademicTargets(getCurrentSchoolId()).filter((row) => row.childName === activeChild?.name);
+  const parentChildren = getPortalParentChildren(schoolId);
+  const activeChild = parentChildren.find((child) => child.id === activeChildId) ?? parentChildren[0];
+  const visibleReports = getPortalPublishedReportCards(schoolId).filter((report) => report.childId === activeChild?.id);
+  const visibleResults = getPortalPublishedExamResults(schoolId).filter((row) => row.childName === activeChild?.name);
+  const visibleTargets = getPortalAcademicTargets(schoolId).filter((row) => row.childName === activeChild?.name);
   const selectedReport = visibleReports.find((report) => report.id === selectedReportId) ?? null;
   const latestReport = visibleReports[0];
   const latestResult = visibleResults[0];
@@ -530,22 +531,24 @@ function PortalAcademicsPage({ viewer }: { viewer: PortalViewer }) {
 
     try {
       setStatusMessage("Preparing report card download...");
-      const res = await fetch(`/api/exams/report-cards/${report.id}/parent-download`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-        }
+      const fileName = `${report.childName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}-${report.id}.txt`;
+      downloadTextFile({
+        filename: fileName,
+        content: [
+          `${report.reportType}`,
+          `${report.childName}`,
+          `${report.exam} ${report.term} ${report.year}`,
+          ...visibleResults.map((row) => `${row.subject}: ${row.performance} (${row.grade})`),
+        ].join("\n"),
       });
-      if (!res.ok) throw new Error("Failed to get download token");
-      const { token } = await res.json();
-      window.open(`/api/exams/report-cards/download/${token}`, '_blank');
-      setStatusMessage(`Downloading report card for ${report.childName}...`);
+      setStatusMessage(`Report download created for ${report.childName}: ${fileName}`);
     } catch (e: any) {
       setStatusMessage(`Download failed: ${e.message}`);
     }
   }
 
   function acknowledgeReport(reportId: string) {
-    const report = getPortalPublishedReportCards(getCurrentSchoolId()).find((item) => item.id === reportId);
+    const report = getPortalPublishedReportCards(schoolId).find((item) => item.id === reportId);
 
     if (!report) {
       setStatusMessage("Required source report was not found.");
@@ -603,7 +606,7 @@ function PortalAcademicsPage({ viewer }: { viewer: PortalViewer }) {
       <Card className="p-5">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Child switcher</p>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
-          {getPortalParentChildren(getCurrentSchoolId()).map((child) => {
+          {parentChildren.map((child) => {
             const active = child.id === activeChild?.id;
 
             return (
@@ -613,8 +616,8 @@ function PortalAcademicsPage({ viewer }: { viewer: PortalViewer }) {
                 onClick={() => {
                   setActiveChildId(child.id);
                   setSelectedReportId(null);
-                  const childReportCount = getPortalPublishedReportCards(getCurrentSchoolId()).filter((report) => report.childId === child.id).length;
-                  const childResultCount = getPortalPublishedExamResults(getCurrentSchoolId()).filter((row) => row.childName === child.name).length;
+                  const childReportCount = getPortalPublishedReportCards(schoolId).filter((report) => report.childId === child.id).length;
+                  const childResultCount = getPortalPublishedExamResults(schoolId).filter((row) => row.childName === child.name).length;
                   setStatusMessage(
                     `${child.name} academic record selected: ${childReportCount} published report${childReportCount === 1 ? "" : "s"}, ${childResultCount} result row${childResultCount === 1 ? "" : "s"} loaded.`,
                   );
@@ -726,7 +729,7 @@ function PortalAcademicsPage({ viewer }: { viewer: PortalViewer }) {
             <div className="rounded-[var(--radius-sm)] border border-border bg-white px-4 py-3">
               <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">Teacher comments</p>
               <div className="mt-3 space-y-2">
-                {getPortalTeacherComments(getCurrentSchoolId()).map((comment) => (
+                {getPortalTeacherComments(schoolId).map((comment) => (
                   <div key={comment.id} className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 py-2">
                     <p className="text-sm font-semibold text-foreground">{comment.title}</p>
                     <p className="mt-1 text-sm text-muted">{comment.detail}</p>
@@ -761,6 +764,7 @@ function PortalAcademicsPage({ viewer }: { viewer: PortalViewer }) {
           { id: "grade", header: "Grade/Form", render: (row) => row.gradeForm },
           { id: "type", header: "Report type", render: (row) => row.reportType },
           { id: "published", header: "Published", render: (row) => row.publishedDate },
+          { id: "publicationStatus", header: "Publication status", render: () => "Report published" },
           {
             id: "acknowledged",
             header: "Acknowledgement",
@@ -863,12 +867,12 @@ function PortalAcademicsPage({ viewer }: { viewer: PortalViewer }) {
       <ActivityListCard
         title="Teacher and school comments"
         subtitle="Published teacher, class teacher, and principal comments for the active learner."
-        items={getPortalTeacherComments(getCurrentSchoolId())}
+        items={getPortalTeacherComments(schoolId)}
       />
       <ActivityListCard
         title="School Messages"
         subtitle="Academic-related notices released to the parent dashboard."
-        items={getPortalMessages(getCurrentSchoolId())}
+        items={getPortalMessages(schoolId)}
       />
     </div>
   );
@@ -1042,7 +1046,8 @@ export function PortalPages({
   section?: string;
   routeMode?: PortalRouteMode;
 }) {
-  const { navItems, profile } = getPortalWorkspace(viewer, getCurrentSchoolId());
+  const portalSchoolId = routeMode === "public" ? "kisumu-boys" : getCurrentSchoolId();
+  const { navItems, profile } = getPortalWorkspace(viewer, portalSchoolId);
   const activeHref =
     section === "dashboard"
       ? buildPortalSectionHref(viewer, "dashboard", routeMode)
@@ -1055,7 +1060,7 @@ export function PortalPages({
     ...item,
     href: mapPortalHref(viewer, item.href, routeMode),
   }));
-  const notifications: ExperienceNotificationItem[] = getPortalMessages(getCurrentSchoolId()).map(
+  const notifications: ExperienceNotificationItem[] = getPortalMessages(portalSchoolId).map(
     (message): ExperienceNotificationItem => ({
       id: message.id,
       title: message.title,
@@ -1081,7 +1086,7 @@ export function PortalPages({
     >
       {section === "dashboard" ? <PortalDashboard viewer={viewer} routeMode={routeMode} /> : null}
       {section === "fees" ? <PortalFeesPage viewer={viewer} /> : null}
-      {section === "academics" ? <PortalAcademicsPage viewer={viewer} /> : null}
+      {section === "academics" ? <PortalAcademicsPage viewer={viewer} schoolId={portalSchoolId} /> : null}
       {section === "discipline" ? <ParentDisciplineView /> : null}
       {section === "health" ? <PortalHealthPage viewer={viewer} /> : null}
       {section === "messages" ? <PortalMessagesPage /> : null}

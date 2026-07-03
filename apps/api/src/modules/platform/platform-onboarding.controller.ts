@@ -132,6 +132,11 @@ export class PlatformOnboardingController {
     return this.onboardingService.getUsers();
   }
 
+  @Patch('users/:userId/status')
+  updateUserStatus(@Param('userId') userId: string, @Body() body: any) {
+    return this.onboardingService.updatePlatformUserStatus(userId, body);
+  }
+
   @Get('settings')
   getSettings() {
     return this.onboardingService.getSettings();
@@ -140,6 +145,16 @@ export class PlatformOnboardingController {
   @Get('gateways')
   getGateways() {
     return this.onboardingService.getGateways();
+  }
+
+  @Post('gateways')
+  createGateway(@Body() body: any) {
+    return this.onboardingService.createGateway(body);
+  }
+
+  @Patch('gateways/:id')
+  updateGateway(@Param('id') id: string, @Body() body: any) {
+    return this.onboardingService.updateGateway(id, body);
   }
 
   @Post('reports/request')

@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes } from "react";
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "outline" | "link" | "default";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "destructive" | "outline" | "link" | "default";
 type ButtonSize = "sm" | "md" | "lg" | "icon";
 
 export function buttonClasses({
@@ -25,6 +25,8 @@ export function buttonClasses({
     secondary:
       "bg-white text-foreground border border-border shadow-sm hover:bg-surface-strong hover:text-foreground hover:-translate-y-[1px] hover:shadow-md hover:border-border-strong active:translate-y-0 active:scale-[0.98]",
     danger:
+      "bg-gradient-to-b from-danger to-danger-hover text-white shadow-sm border border-red-700/50 hover:shadow-md hover:from-danger-hover hover:to-danger-hover hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.98]",
+    destructive:
       "bg-gradient-to-b from-danger to-danger-hover text-white shadow-sm border border-red-700/50 hover:shadow-md hover:from-danger-hover hover:to-danger-hover hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.98]",
     ghost:
       "bg-transparent text-muted-strong hover:bg-surface-strong hover:text-foreground active:scale-[0.98]",

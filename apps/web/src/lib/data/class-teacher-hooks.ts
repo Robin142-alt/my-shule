@@ -1,11 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getCurrentSchoolId } from "@/lib/school/school-operational-store";
+import { requireCurrentSchoolId } from "@/lib/school/school-operational-store";
 import { useOfflineMutation } from "@/lib/offline/use-offline-mutation";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 // Wired to real backend using the standard api client
 async function fetchApi(endpoint: string, options?: RequestInit) {
-  const tenantId = getCurrentSchoolId() || "myshule-tenant-demo";
+  const tenantId = requireCurrentSchoolId();
   
   return requestDashboardApi(endpoint, {
     method: options?.method as any || "GET",
@@ -14,30 +14,75 @@ async function fetchApi(endpoint: string, options?: RequestInit) {
   });
 }
 
-export function useClassTeacherOverview(streamId: string) {
-  return useQuery({
-    queryKey: ["class-teacher", "overview", streamId],
-    queryFn: () => fetchApi(`class-teacher/overview?streamId=${streamId}`)
+type ClassTeacherAssignment = {
+  id?: string | null;
+  classSectionId?: string | null;
+  class_section_id?: string | null;
+};
+
+type ClassTeacherAssignmentResponse = {
+  classes?: ClassTeacherAssignment[];
+};
+
+function isUnresolvedStreamId(streamId?: string | null) {
+  return !streamId || streamId === "stream_123";
+}
+
+function firstAssignedClassSectionId(response: unknown) {
+  const classes = Array.isArray(response)
+    ? response as ClassTeacherAssignment[]
+    : (response as ClassTeacherAssignmentResponse | null)?.classes;
+  const firstClass = Array.isArray(classes) ? classes[0] : null;
+
+  return firstClass?.classSectionId || firstClass?.class_section_id || firstClass?.id || "";
+}
+
+export function useResolvedClassTeacherStreamId(requestedStreamId?: string | null) {
+  const shouldResolve = isUnresolvedStreamId(requestedStreamId);
+  const assignmentsQuery = useQuery({
+    queryKey: ["class-teacher", "resolved-stream"],
+    queryFn: () => fetchApi("class-teacher/my-classes"),
+    enabled: shouldResolve,
+    staleTime: 60_000,
   });
+  const resolvedStreamId = shouldResolve ? firstAssignedClassSectionId(assignmentsQuery.data) : requestedStreamId || "";
+
+  return {
+    streamId: resolvedStreamId,
+    isResolvingStream: shouldResolve && assignmentsQuery.isLoading,
+    streamResolutionError: shouldResolve ? assignmentsQuery.error : null,
+    hasAssignedStream: Boolean(resolvedStreamId),
+  };
+}
+
+function useClassTeacherStreamQuery<T>(scope: string, endpoint: string, streamId?: string | null) {
+  const resolved = useResolvedClassTeacherStreamId(streamId);
+
+  return useQuery<T, Error>({
+    queryKey: ["class-teacher", scope, resolved.streamId || "unassigned"],
+    queryFn: async () => {
+      if (!resolved.streamId) return [] as T;
+      return await fetchApi(`${endpoint}?streamId=${encodeURIComponent(resolved.streamId)}`) as T;
+    },
+    enabled: !resolved.isResolvingStream,
+  });
+}
+
+export function useClassTeacherOverview(streamId: string) {
+  return useClassTeacherStreamQuery("overview", "class-teacher/overview", streamId);
 }
 
 export function useClassTeacherRegister(streamId: string) {
-  return useQuery({
-    queryKey: ["class-teacher", "register", streamId],
-    queryFn: () => fetchApi(`class-teacher/register?streamId=${streamId}`)
-  });
+  return useClassTeacherStreamQuery("register", "class-teacher/register", streamId);
 }
 
 export function useClassTeacherAttendance(streamId: string) {
-  return useQuery({
-    queryKey: ["class-teacher", "attendance", streamId],
-    queryFn: () => fetchApi(`class-teacher/attendance?streamId=${streamId}`)
-  });
+  return useClassTeacherStreamQuery("attendance", "class-teacher/attendance", streamId);
 }
 
 export function useSaveAttendance() {
   const queryClient = useQueryClient();
-  const schoolId = getCurrentSchoolId() || "myshule-tenant-demo";
+  const schoolId = requireCurrentSchoolId();
 
   return useOfflineMutation({
     module: "attendance",
@@ -56,29 +101,20 @@ export function useSaveAttendance() {
 }
 
 export function useClassTeacherProgress(streamId: string) {
-  return useQuery({
-    queryKey: ["class-teacher", "progress", streamId],
-    queryFn: () => fetchApi(`class-teacher/progress?streamId=${streamId}`)
-  });
+  return useClassTeacherStreamQuery("progress", "class-teacher/progress", streamId);
 }
 
 export function useClassTeacherComments(streamId: string) {
-  return useQuery({
-    queryKey: ["class-teacher", "comments", streamId],
-    queryFn: () => fetchApi(`class-teacher/comments?streamId=${streamId}`)
-  });
+  return useClassTeacherStreamQuery("comments", "class-teacher/comments", streamId);
 }
 
 export function useClassTeacherDiscipline(streamId: string) {
-  return useQuery({
-    queryKey: ["class-teacher", "discipline", streamId],
-    queryFn: () => fetchApi(`class-teacher/discipline?streamId=${streamId}`)
-  });
+  return useClassTeacherStreamQuery("discipline", "class-teacher/discipline", streamId);
 }
 
 export function useReportDisciplineIncident() {
   const queryClient = useQueryClient();
-  const schoolId = getCurrentSchoolId() || "myshule-tenant-demo";
+  const schoolId = requireCurrentSchoolId();
 
   return useOfflineMutation({
     module: "discipline",
@@ -96,15 +132,12 @@ export function useReportDisciplineIncident() {
 }
 
 export function useClassTeacherWelfare(streamId: string) {
-  return useQuery({
-    queryKey: ["class-teacher", "welfare", streamId],
-    queryFn: () => fetchApi(`class-teacher/welfare?streamId=${streamId}`)
-  });
+  return useClassTeacherStreamQuery("welfare", "class-teacher/welfare", streamId);
 }
 
 export function useReferWelfareCase() {
   const queryClient = useQueryClient();
-  const schoolId = getCurrentSchoolId() || "myshule-tenant-demo";
+  const schoolId = requireCurrentSchoolId();
 
   return useOfflineMutation({
     module: "welfare",
@@ -122,73 +155,43 @@ export function useReferWelfareCase() {
 }
 
 export function useClassTeacherTimetable(streamId: string) {
-  return useQuery({
-    queryKey: ["class-teacher", "timetable", streamId],
-    queryFn: () => fetchApi(`class-teacher/timetable?streamId=${streamId}`)
-  });
+  return useClassTeacherStreamQuery("timetable", "class-teacher/timetable", streamId);
 }
 
 export function useClassTeacherSubjects(streamId: string) {
-  return useQuery({
-    queryKey: ["class-teacher", "subjects", streamId],
-    queryFn: () => fetchApi(`class-teacher/subjects?streamId=${streamId}`)
-  });
+  return useClassTeacherStreamQuery("subjects", "class-teacher/subjects", streamId);
 }
 
 export function useClassTeacherCommunication(streamId: string) {
-  return useQuery({
-    queryKey: ["class-teacher", "communication", streamId],
-    queryFn: () => fetchApi(`class-teacher/communication?streamId=${streamId}`)
-  });
+  return useClassTeacherStreamQuery("communication", "class-teacher/communication", streamId);
 }
 
 export function useClassTeacherTasks(streamId: string) {
-  return useQuery({
-    queryKey: ["class-teacher", "tasks", streamId],
-    queryFn: () => fetchApi(`class-teacher/tasks?streamId=${streamId}`)
-  });
+  return useClassTeacherStreamQuery("tasks", "class-teacher/tasks", streamId);
 }
 
 export function useClassTeacherFees(streamId: string) {
-  return useQuery({
-    queryKey: ["class-teacher", "fees", streamId],
-    queryFn: () => fetchApi(`class-teacher/fees?streamId=${streamId}`)
-  });
+  return useClassTeacherStreamQuery("fees", "class-teacher/fees", streamId);
 }
 
 export function useClassTeacherHealth(streamId: string) {
-  return useQuery({
-    queryKey: ["class-teacher", "health", streamId],
-    queryFn: () => fetchApi(`class-teacher/health?streamId=${streamId}`)
-  });
+  return useClassTeacherStreamQuery("health", "class-teacher/health", streamId);
 }
 
 export function useClassTeacherHomework(streamId: string) {
-  return useQuery({
-    queryKey: ["class-teacher", "homework", streamId],
-    queryFn: () => fetchApi(`class-teacher/homework?streamId=${streamId}`)
-  });
+  return useClassTeacherStreamQuery("homework", "class-teacher/homework", streamId);
 }
 
 export function useClassTeacherMeetings(streamId: string) {
-  return useQuery({
-    queryKey: ["class-teacher", "meetings", streamId],
-    queryFn: () => fetchApi(`class-teacher/meetings?streamId=${streamId}`)
-  });
+  return useClassTeacherStreamQuery("meetings", "class-teacher/meetings", streamId);
 }
 
 export function useClassTeacherRequests(streamId: string) {
-  return useQuery({
-    queryKey: ["class-teacher", "requests", streamId],
-    queryFn: () => fetchApi(`class-teacher/requests?streamId=${streamId}`)
-  });
+  return useClassTeacherStreamQuery("requests", "class-teacher/requests", streamId);
 }
 
 export function useClassTeacherDocuments(streamId: string) {
-  return useQuery({
-    queryKey: ["class-teacher", "documents", streamId],
-    queryFn: () => fetchApi(`class-teacher/documents?streamId=${streamId}`)
-  });
+  return useClassTeacherStreamQuery("documents", "class-teacher/documents", streamId);
 }
 
 export function useClassTeacherNotifications(streamId: string) {
@@ -199,16 +202,28 @@ export function useClassTeacherNotifications(streamId: string) {
 }
 
 export function useClassTeacherReports(streamId: string) {
-  return useQuery({
-    queryKey: ["class-teacher", "reports", streamId],
-    queryFn: () => fetchApi(`class-teacher/reports?streamId=${streamId}`)
-  });
+  return useClassTeacherStreamQuery("reports", "class-teacher/reports", streamId);
 }
 
 export function useClassTeacherSettings(streamId: string) {
   return useQuery({
     queryKey: ["class-teacher", "settings", streamId],
     queryFn: () => fetchApi(`class-teacher/settings`)
+  });
+}
+
+export function useSaveClassTeacherSettings(streamId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (settings: { notificationsEnabled: boolean; defaultView: string; darkMode?: boolean }) =>
+      fetchApi(`class-teacher/settings?streamId=${encodeURIComponent(streamId || "")}`, {
+        method: "POST",
+        body: JSON.stringify(settings),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["class-teacher", "settings", streamId] });
+    },
   });
 }
 

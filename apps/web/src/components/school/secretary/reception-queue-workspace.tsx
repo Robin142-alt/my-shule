@@ -61,7 +61,7 @@ export function ReceptionQueueWorkspace() {
     setActionId(id);
     try {
       await completeQueueEntry(id);
-      toast.success("Visit completed successfully.");
+      toast.success(`Queue ticket ${id} closed and reception metrics refreshed.`);
       refetch();
     } catch {
       toast.error("Failed to complete visit.");

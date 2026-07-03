@@ -305,6 +305,300 @@ export class BillingSchemaService implements OnModuleInit {
       );
 
       DO $$
+      DECLARE
+        target_table text;
+        existing_policy text;
+      BEGIN
+        FOREACH target_table IN ARRAY ARRAY[
+          'subscriptions',
+          'invoices',
+          'usage_records',
+          'billing_notifications',
+          'student_fee_payment_allocations',
+          'student_fee_credits',
+          'manual_fee_payments',
+          'manual_fee_payment_allocations'
+        ]
+        LOOP
+          IF to_regclass('public.' || target_table) IS NOT NULL THEN
+            EXECUTE format('ALTER TABLE %I NO FORCE ROW LEVEL SECURITY', target_table);
+            EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', target_table);
+
+            FOR existing_policy IN
+              SELECT policyname
+              FROM pg_policies
+              WHERE schemaname = 'public'
+                AND tablename = target_table
+            LOOP
+              EXECUTE format('DROP POLICY IF EXISTS %I ON %I', existing_policy, target_table);
+            END LOOP;
+
+            IF NOT EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = target_table
+                AND column_name = 'tenant_id'
+            ) THEN
+              EXECUTE format('ALTER TABLE %I ADD COLUMN tenant_id text', target_table);
+            END IF;
+
+            IF EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = target_table
+                AND column_name = 'tenant_id'
+                AND data_type <> 'text'
+            ) THEN
+              EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id TYPE text USING tenant_id::text', target_table);
+            END IF;
+
+            IF EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = target_table
+                AND column_name = 'school_id'
+            ) THEN
+              EXECUTE format('UPDATE %I SET tenant_id = school_id WHERE tenant_id IS NULL AND school_id IS NOT NULL', target_table);
+            END IF;
+          END IF;
+        END LOOP;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'uq_subscriptions_tenant_id_id'
+        ) THEN
+          ALTER TABLE subscriptions
+            ADD CONSTRAINT uq_subscriptions_tenant_id_id UNIQUE (tenant_id, id);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'uq_invoices_tenant_id_id'
+        ) THEN
+          ALTER TABLE invoices
+            ADD CONSTRAINT uq_invoices_tenant_id_id UNIQUE (tenant_id, id);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'uq_manual_fee_payments_tenant_id_id'
+        ) THEN
+          ALTER TABLE manual_fee_payments
+            ADD CONSTRAINT uq_manual_fee_payments_tenant_id_id UNIQUE (tenant_id, id);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'uq_manual_fee_payment_allocations_tenant_id_id'
+        ) THEN
+          ALTER TABLE manual_fee_payment_allocations
+            ADD CONSTRAINT uq_manual_fee_payment_allocations_tenant_id_id UNIQUE (tenant_id, id);
+        END IF;
+      END $$;
+
+      ALTER TABLE invoices
+        ADD COLUMN IF NOT EXISTS subscription_id uuid;
+      ALTER TABLE invoices
+        ADD COLUMN IF NOT EXISTS payment_intent_id uuid;
+      ALTER TABLE invoices
+        ADD COLUMN IF NOT EXISTS currency_code char(3) DEFAULT 'KES';
+      ALTER TABLE invoices
+        ADD COLUMN IF NOT EXISTS description text;
+      ALTER TABLE invoices
+        ADD COLUMN IF NOT EXISTS subtotal_amount_minor bigint;
+      ALTER TABLE invoices
+        ADD COLUMN IF NOT EXISTS tax_amount_minor bigint DEFAULT 0;
+      ALTER TABLE invoices
+        ADD COLUMN IF NOT EXISTS total_amount_minor bigint;
+      ALTER TABLE invoices
+        ADD COLUMN IF NOT EXISTS amount_paid_minor bigint DEFAULT 0;
+      ALTER TABLE invoices
+        ADD COLUMN IF NOT EXISTS billing_phone_number text;
+      ALTER TABLE invoices
+        ADD COLUMN IF NOT EXISTS issued_at timestamptz DEFAULT NOW();
+      ALTER TABLE invoices
+        ADD COLUMN IF NOT EXISTS due_at timestamptz;
+      ALTER TABLE invoices
+        ADD COLUMN IF NOT EXISTS paid_at timestamptz;
+      ALTER TABLE invoices
+        ADD COLUMN IF NOT EXISTS voided_at timestamptz;
+      ALTER TABLE invoices
+        ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
+
+      ALTER TABLE subscriptions
+        ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+      ALTER TABLE invoices
+        ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+      ALTER TABLE invoices
+        ALTER COLUMN status TYPE text USING lower(status::text);
+      ALTER TABLE usage_records
+        ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+      ALTER TABLE billing_notifications
+        ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+      ALTER TABLE student_fee_payment_allocations
+        ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+      ALTER TABLE student_fee_credits
+        ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+      ALTER TABLE manual_fee_payments
+        ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+      ALTER TABLE manual_fee_payment_allocations
+        ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+
+      ALTER TABLE manual_fee_payments
+        ADD COLUMN IF NOT EXISTS ledger_transaction_id uuid;
+      ALTER TABLE manual_fee_payments
+        ADD COLUMN IF NOT EXISTS reversal_ledger_transaction_id uuid;
+      ALTER TABLE manual_fee_payments
+        ADD COLUMN IF NOT EXISTS deposited_at timestamptz;
+      ALTER TABLE manual_fee_payments
+        ADD COLUMN IF NOT EXISTS cleared_at timestamptz;
+      ALTER TABLE manual_fee_payments
+        ADD COLUMN IF NOT EXISTS bounced_at timestamptz;
+      ALTER TABLE manual_fee_payments
+        ADD COLUMN IF NOT EXISTS reversed_at timestamptz;
+      ALTER TABLE manual_fee_payments
+        ALTER COLUMN ledger_transaction_id TYPE text USING ledger_transaction_id::text;
+      ALTER TABLE manual_fee_payments
+        ALTER COLUMN reversal_ledger_transaction_id TYPE text USING reversal_ledger_transaction_id::text;
+      ALTER TABLE manual_fee_payments
+        ALTER COLUMN asset_account_code TYPE text USING asset_account_code::text;
+      ALTER TABLE manual_fee_payments
+        ALTER COLUMN fee_control_account_code TYPE text USING fee_control_account_code::text;
+      ALTER TABLE manual_fee_payments
+        ALTER COLUMN amount_minor TYPE bigint USING GREATEST(amount_minor::bigint, 1);
+      ALTER TABLE manual_fee_payments
+        ALTER COLUMN currency_code TYPE text USING currency_code::text;
+      ALTER TABLE manual_fee_payments
+        ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+      ALTER TABLE manual_fee_payments
+        ALTER COLUMN student_id DROP NOT NULL;
+      ALTER TABLE manual_fee_payments
+        ALTER COLUMN invoice_id DROP NOT NULL;
+      ALTER TABLE manual_fee_payments
+        ALTER COLUMN cheque_number DROP NOT NULL;
+      ALTER TABLE manual_fee_payments
+        ALTER COLUMN drawer_bank DROP NOT NULL;
+      ALTER TABLE manual_fee_payments
+        ALTER COLUMN deposit_reference DROP NOT NULL;
+      ALTER TABLE manual_fee_payments
+        ALTER COLUMN external_reference DROP NOT NULL;
+      ALTER TABLE manual_fee_payments
+        ALTER COLUMN payer_name DROP NOT NULL;
+      ALTER TABLE manual_fee_payments
+        ALTER COLUMN notes DROP NOT NULL;
+      ALTER TABLE manual_fee_payments
+        ALTER COLUMN created_by_user_id DROP NOT NULL;
+      ALTER TABLE manual_fee_payments
+        ALTER COLUMN metadata SET DEFAULT '{}'::jsonb;
+      ALTER TABLE manual_fee_payments
+        ALTER COLUMN currency_code SET DEFAULT 'KES';
+      ALTER TABLE manual_fee_payments
+        ALTER COLUMN asset_account_code SET DEFAULT '1120-BANK-CLEARING';
+      ALTER TABLE manual_fee_payments
+        ALTER COLUMN fee_control_account_code SET DEFAULT '1100-AR-FEES';
+
+      UPDATE invoices
+      SET description = COALESCE(NULLIF(btrim(description), ''), 'School fee invoice')
+      WHERE description IS NULL OR btrim(description) = '';
+
+      UPDATE invoices
+      SET currency_code = COALESCE(NULLIF(btrim(currency_code), ''), 'KES')
+      WHERE currency_code IS NULL OR btrim(currency_code) = '';
+
+      DO $$
+      DECLARE
+        has_amount_due boolean;
+        has_amount_paid boolean;
+        has_due_date boolean;
+        legacy_amount_due_expr text;
+        legacy_amount_paid_expr text;
+        legacy_due_date_expr text;
+      BEGIN
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'invoices'
+            AND column_name = 'amount_due'
+        ) INTO has_amount_due;
+
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'invoices'
+            AND column_name = 'amount_paid'
+        ) INTO has_amount_paid;
+
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'invoices'
+            AND column_name = 'due_date'
+        ) INTO has_due_date;
+
+        legacy_amount_due_expr := CASE
+          WHEN has_amount_due THEN 'CASE WHEN amount_due IS NOT NULL THEN GREATEST((amount_due * 100)::bigint, 1) ELSE 1 END'
+          ELSE '1'
+        END;
+        legacy_amount_paid_expr := CASE
+          WHEN has_amount_paid THEN 'CASE WHEN amount_paid IS NOT NULL THEN GREATEST((amount_paid * 100)::bigint, 0) ELSE 0 END'
+          ELSE '0'
+        END;
+        legacy_due_date_expr := CASE
+          WHEN has_due_date THEN 'due_date::timestamptz'
+          ELSE 'NULL::timestamptz'
+        END;
+
+        EXECUTE format(
+          'UPDATE invoices
+           SET subtotal_amount_minor = COALESCE(subtotal_amount_minor, %s),
+               total_amount_minor = COALESCE(total_amount_minor, %s),
+               amount_paid_minor = COALESCE(amount_paid_minor, %s),
+               tax_amount_minor = COALESCE(tax_amount_minor, 0),
+               issued_at = COALESCE(issued_at, created_at, NOW()),
+               due_at = COALESCE(due_at, %s, created_at, NOW()),
+               metadata = COALESCE(metadata, ''{}''::jsonb)
+           WHERE subtotal_amount_minor IS NULL
+              OR total_amount_minor IS NULL
+              OR amount_paid_minor IS NULL
+              OR tax_amount_minor IS NULL
+              OR issued_at IS NULL
+              OR due_at IS NULL
+              OR metadata IS NULL',
+          legacy_amount_due_expr,
+          legacy_amount_due_expr,
+          legacy_amount_paid_expr,
+          legacy_due_date_expr
+        );
+      END $$;
+
+      UPDATE invoices
+      SET status = CASE
+        WHEN status IN ('paid', 'void', 'draft', 'open', 'pending_payment', 'uncollectible') THEN status
+        WHEN status IN ('cancelled', 'canceled') THEN 'void'
+        WHEN status IN ('overdue', 'issued', 'partial', 'partially_paid') THEN 'open'
+        ELSE 'open'
+      END
+      WHERE status IS NULL
+         OR status NOT IN ('paid', 'void', 'draft', 'open', 'pending_payment', 'uncollectible');
+
+      ALTER TABLE invoices
+        ALTER COLUMN description SET DEFAULT 'School fee invoice';
+      ALTER TABLE invoices
+        ALTER COLUMN currency_code SET DEFAULT 'KES';
+      ALTER TABLE invoices
+        ALTER COLUMN currency_code SET NOT NULL;
+      ALTER TABLE invoices
+        ALTER COLUMN tax_amount_minor SET DEFAULT 0;
+      ALTER TABLE invoices
+        ALTER COLUMN amount_paid_minor SET DEFAULT 0;
+      ALTER TABLE invoices
+        ALTER COLUMN issued_at SET DEFAULT NOW();
+      ALTER TABLE invoices
+        ALTER COLUMN metadata SET DEFAULT '{}'::jsonb;
+
+      DO $$
       BEGIN
         ALTER TABLE subscriptions
           ADD COLUMN IF NOT EXISTS grace_period_ends_at timestamptz;
@@ -382,7 +676,19 @@ export class BillingSchemaService implements OnModuleInit {
           SELECT 1
           FROM pg_constraint
           WHERE conname = 'fk_student_fee_payment_allocations_invoice'
-        ) THEN
+        )
+          AND EXISTS (
+            SELECT 1
+            FROM information_schema.columns child_column
+            JOIN information_schema.columns parent_column
+              ON parent_column.table_schema = child_column.table_schema
+             AND parent_column.table_name = 'invoices'
+             AND parent_column.column_name = 'id'
+             AND parent_column.data_type = child_column.data_type
+            WHERE child_column.table_schema = 'public'
+              AND child_column.table_name = 'student_fee_payment_allocations'
+              AND child_column.column_name = 'invoice_id'
+          ) THEN
           ALTER TABLE student_fee_payment_allocations
           ADD CONSTRAINT fk_student_fee_payment_allocations_invoice
             FOREIGN KEY (tenant_id, invoice_id)
@@ -394,7 +700,19 @@ export class BillingSchemaService implements OnModuleInit {
           SELECT 1
           FROM pg_constraint
           WHERE conname = 'fk_manual_fee_payments_invoice'
-        ) THEN
+        )
+          AND EXISTS (
+            SELECT 1
+            FROM information_schema.columns child_column
+            JOIN information_schema.columns parent_column
+              ON parent_column.table_schema = child_column.table_schema
+             AND parent_column.table_name = 'invoices'
+             AND parent_column.column_name = 'id'
+             AND parent_column.data_type = child_column.data_type
+            WHERE child_column.table_schema = 'public'
+              AND child_column.table_name = 'manual_fee_payments'
+              AND child_column.column_name = 'invoice_id'
+          ) THEN
           ALTER TABLE manual_fee_payments
           ADD CONSTRAINT fk_manual_fee_payments_invoice
             FOREIGN KEY (tenant_id, invoice_id)
@@ -432,7 +750,19 @@ export class BillingSchemaService implements OnModuleInit {
           SELECT 1
           FROM pg_constraint
           WHERE conname = 'fk_manual_fee_payment_allocations_payment'
-        ) THEN
+        )
+          AND EXISTS (
+            SELECT 1
+            FROM information_schema.columns child_column
+            JOIN information_schema.columns parent_column
+              ON parent_column.table_schema = child_column.table_schema
+             AND parent_column.table_name = 'manual_fee_payments'
+             AND parent_column.column_name = 'id'
+             AND parent_column.data_type = child_column.data_type
+            WHERE child_column.table_schema = 'public'
+              AND child_column.table_name = 'manual_fee_payment_allocations'
+              AND child_column.column_name = 'manual_payment_id'
+          ) THEN
           ALTER TABLE manual_fee_payment_allocations
           ADD CONSTRAINT fk_manual_fee_payment_allocations_payment
             FOREIGN KEY (tenant_id, manual_payment_id)
@@ -444,7 +774,19 @@ export class BillingSchemaService implements OnModuleInit {
           SELECT 1
           FROM pg_constraint
           WHERE conname = 'fk_manual_fee_payment_allocations_invoice'
-        ) THEN
+        )
+          AND EXISTS (
+            SELECT 1
+            FROM information_schema.columns child_column
+            JOIN information_schema.columns parent_column
+              ON parent_column.table_schema = child_column.table_schema
+             AND parent_column.table_name = 'invoices'
+             AND parent_column.column_name = 'id'
+             AND parent_column.data_type = child_column.data_type
+            WHERE child_column.table_schema = 'public'
+              AND child_column.table_name = 'manual_fee_payment_allocations'
+              AND child_column.column_name = 'invoice_id'
+          ) THEN
           ALTER TABLE manual_fee_payment_allocations
           ADD CONSTRAINT fk_manual_fee_payment_allocations_invoice
             FOREIGN KEY (tenant_id, invoice_id)
@@ -457,6 +799,8 @@ export class BillingSchemaService implements OnModuleInit {
           ALTER TABLE fee_structures DISABLE ROW LEVEL SECURITY;
 
           ALTER TABLE fee_structures
+            ADD COLUMN IF NOT EXISTS tenant_id text;
+          ALTER TABLE fee_structures
             ADD COLUMN IF NOT EXISTS academic_year text;
           ALTER TABLE fee_structures
             ADD COLUMN IF NOT EXISTS term text;
@@ -465,13 +809,79 @@ export class BillingSchemaService implements OnModuleInit {
           ALTER TABLE fee_structures
             ADD COLUMN IF NOT EXISTS class_name text;
           ALTER TABLE fee_structures
+            ADD COLUMN IF NOT EXISTS currency_code char(3) DEFAULT 'KES';
+          ALTER TABLE fee_structures
             ADD COLUMN IF NOT EXISTS status text DEFAULT 'active';
           ALTER TABLE fee_structures
             ADD COLUMN IF NOT EXISTS due_days integer DEFAULT 14;
           ALTER TABLE fee_structures
+            ADD COLUMN IF NOT EXISTS total_amount_minor bigint DEFAULT 0;
+          ALTER TABLE fee_structures
             ADD COLUMN IF NOT EXISTS line_items jsonb DEFAULT '[]'::jsonb;
           ALTER TABLE fee_structures
             ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
+          ALTER TABLE fee_structures
+            ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
+          ALTER TABLE fee_structures
+            ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT NOW();
+          ALTER TABLE fee_structures
+            ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'fee_structures'
+              AND column_name = 'tenant_id'
+              AND data_type <> 'text'
+          ) THEN
+            ALTER TABLE fee_structures
+              ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+          END IF;
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'fee_structures'
+              AND column_name = 'status'
+              AND data_type <> 'text'
+          ) THEN
+            ALTER TABLE fee_structures
+              ALTER COLUMN status TYPE text USING lower(status::text);
+          END IF;
+
+          UPDATE fee_structures
+          SET tenant_id = 'legacy-unassigned'
+          WHERE tenant_id IS NULL OR btrim(tenant_id) = '';
+
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'fee_structures'
+              AND column_name = 'school_id'
+          ) THEN
+            IF EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = 'fee_structures'
+                AND column_name = 'school_id'
+                AND data_type <> 'text'
+            ) THEN
+              ALTER TABLE fee_structures
+                ALTER COLUMN school_id TYPE text USING school_id::text;
+            END IF;
+
+            ALTER TABLE fee_structures
+              ALTER COLUMN school_id DROP NOT NULL;
+            ALTER TABLE fee_structures
+              ALTER COLUMN school_id DROP DEFAULT;
+
+            UPDATE fee_structures
+            SET tenant_id = school_id
+            WHERE tenant_id = 'legacy-unassigned'
+              AND school_id IS NOT NULL;
+          END IF;
 
           UPDATE fee_structures
           SET academic_year = COALESCE(
@@ -480,6 +890,21 @@ export class BillingSchemaService implements OnModuleInit {
             EXTRACT(YEAR FROM NOW())::text
           )
           WHERE academic_year IS NULL OR btrim(academic_year) = '';
+
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'fee_structures'
+              AND column_name = 'academic_year_id'
+          ) THEN
+            ALTER TABLE fee_structures
+              ALTER COLUMN academic_year_id DROP NOT NULL;
+
+            UPDATE fee_structures
+            SET academic_year_id = NULL
+            WHERE academic_year_id IS NULL OR btrim(academic_year_id) = '';
+          END IF;
 
           UPDATE fee_structures
           SET term = COALESCE(
@@ -504,8 +929,33 @@ export class BillingSchemaService implements OnModuleInit {
           WHERE status IS NULL OR btrim(status) = '';
 
           UPDATE fee_structures
+          SET status = CASE
+            WHEN status IN ('draft', 'active', 'archived') THEN status
+            WHEN status IN ('published', 'approved', 'enabled') THEN 'active'
+            WHEN status IN ('inactive', 'disabled', 'deleted') THEN 'archived'
+            ELSE 'active'
+          END
+          WHERE status NOT IN ('draft', 'active', 'archived');
+
+          UPDATE fee_structures
           SET due_days = COALESCE(due_days, 14)
           WHERE due_days IS NULL;
+
+          UPDATE fee_structures
+          SET total_amount_minor = COALESCE(total_amount_minor, 0)
+          WHERE total_amount_minor IS NULL;
+
+          UPDATE fee_structures
+          SET metadata = COALESCE(metadata, '{}'::jsonb)
+          WHERE metadata IS NULL;
+
+          UPDATE fee_structures
+          SET created_at = NOW()
+          WHERE created_at IS NULL;
+
+          UPDATE fee_structures
+          SET updated_at = COALESCE(updated_at, created_at, NOW())
+          WHERE updated_at IS NULL;
 
           UPDATE fee_structures
           SET line_items = jsonb_build_array(
@@ -521,11 +971,17 @@ export class BillingSchemaService implements OnModuleInit {
              OR jsonb_array_length(line_items) = 0;
 
           ALTER TABLE fee_structures
+            ALTER COLUMN tenant_id SET NOT NULL;
+          ALTER TABLE fee_structures
             ALTER COLUMN academic_year SET NOT NULL;
           ALTER TABLE fee_structures
             ALTER COLUMN term SET NOT NULL;
           ALTER TABLE fee_structures
             ALTER COLUMN grade_level SET NOT NULL;
+          ALTER TABLE fee_structures
+            ALTER COLUMN currency_code SET DEFAULT 'KES';
+          ALTER TABLE fee_structures
+            ALTER COLUMN currency_code SET NOT NULL;
           ALTER TABLE fee_structures
             ALTER COLUMN status SET DEFAULT 'active';
           ALTER TABLE fee_structures
@@ -538,6 +994,24 @@ export class BillingSchemaService implements OnModuleInit {
             ALTER COLUMN line_items SET DEFAULT '[]'::jsonb;
           ALTER TABLE fee_structures
             ALTER COLUMN line_items SET NOT NULL;
+          ALTER TABLE fee_structures
+            ALTER COLUMN total_amount_minor SET DEFAULT 0;
+          ALTER TABLE fee_structures
+            ALTER COLUMN total_amount_minor SET NOT NULL;
+          ALTER TABLE fee_structures
+            ALTER COLUMN metadata SET DEFAULT '{}'::jsonb;
+          ALTER TABLE fee_structures
+            ALTER COLUMN metadata SET NOT NULL;
+          ALTER TABLE fee_structures
+            ALTER COLUMN created_at SET DEFAULT NOW();
+          ALTER TABLE fee_structures
+            ALTER COLUMN created_at SET NOT NULL;
+          ALTER TABLE fee_structures
+            ALTER COLUMN updated_at SET DEFAULT NOW();
+          ALTER TABLE fee_structures
+            ALTER COLUMN updated_at SET NOT NULL;
+          ALTER TABLE fee_structures
+            ALTER COLUMN id SET DEFAULT gen_random_uuid();
         END IF;
       END;
       $$;

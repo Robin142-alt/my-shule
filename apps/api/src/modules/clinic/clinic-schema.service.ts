@@ -146,6 +146,78 @@ export class ClinicSchemaService implements OnModuleInit {
         )
       );
 
+      DO $$
+      DECLARE
+        parent_table text;
+      BEGIN
+        FOREACH parent_table IN ARRAY ARRAY[
+          'clinic_locations',
+          'clinic_medicines',
+          'clinic_medicine_batches'
+        ] LOOP
+          EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', parent_table);
+          EXECUTE format('DROP POLICY IF EXISTS %I ON %I', parent_table || '_tenant_policy', parent_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS tenant_id text', parent_table);
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns c
+            WHERE c.table_name = parent_table
+              AND c.column_name = 'tenant_id'
+              AND c.data_type <> 'text'
+          ) THEN
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id TYPE text USING tenant_id::text', parent_table);
+          END IF;
+          EXECUTE format(
+            'UPDATE %I SET tenant_id = COALESCE(NULLIF(tenant_id, ''''), NULLIF(current_setting(''app.tenant_id'', true), ''''), ''00000000-0000-0000-0000-000000000000'') WHERE tenant_id IS NULL OR tenant_id = ''''',
+            parent_table
+          );
+          EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET DEFAULT ''00000000-0000-0000-0000-000000000000''', parent_table);
+          EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET NOT NULL', parent_table);
+        END LOOP;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'uq_clinic_locations_tenant_id_id'
+        ) THEN
+          ALTER TABLE clinic_locations
+            ADD CONSTRAINT uq_clinic_locations_tenant_id_id UNIQUE (tenant_id, id);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'uq_clinic_medicines_tenant_id_id'
+        ) THEN
+          ALTER TABLE clinic_medicines
+            ADD CONSTRAINT uq_clinic_medicines_tenant_id_id UNIQUE (tenant_id, id);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'uq_clinic_medicine_batches_tenant_id_id'
+        ) THEN
+          ALTER TABLE clinic_medicine_batches
+            ADD CONSTRAINT uq_clinic_medicine_batches_tenant_id_id UNIQUE (tenant_id, id);
+        END IF;
+      END $$;
+
+      ALTER TABLE clinic_medicines ADD COLUMN IF NOT EXISTS medicine_name text NOT NULL DEFAULT 'Medicine';
+      ALTER TABLE clinic_medicines ADD COLUMN IF NOT EXISTS brand_name text;
+      ALTER TABLE clinic_medicines ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'general';
+      ALTER TABLE clinic_medicines ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT TRUE;
+
+      ALTER TABLE clinic_medicine_batches ADD COLUMN IF NOT EXISTS medicine_id uuid;
+      ALTER TABLE clinic_medicine_batches ADD COLUMN IF NOT EXISTS batch_number text;
+      UPDATE clinic_medicine_batches
+      SET batch_number = COALESCE(NULLIF(batch_number, ''), id::text)
+      WHERE batch_number IS NULL OR batch_number = '';
+      ALTER TABLE clinic_medicine_batches ALTER COLUMN batch_number SET NOT NULL;
+      ALTER TABLE clinic_medicine_batches ADD COLUMN IF NOT EXISTS expiry_date date NOT NULL DEFAULT CURRENT_DATE;
+      ALTER TABLE clinic_medicine_batches ADD COLUMN IF NOT EXISTS date_received date NOT NULL DEFAULT CURRENT_DATE;
+      ALTER TABLE clinic_medicine_batches ADD COLUMN IF NOT EXISTS quantity_received numeric(12, 3) NOT NULL DEFAULT 0;
+      ALTER TABLE clinic_medicine_batches ADD COLUMN IF NOT EXISTS quantity_available numeric(12, 3) NOT NULL DEFAULT 0;
+      ALTER TABLE clinic_medicine_batches ADD COLUMN IF NOT EXISTS minimum_stock_threshold numeric(12, 3) NOT NULL DEFAULT 0;
+      ALTER TABLE clinic_medicine_batches ADD COLUMN IF NOT EXISTS storage_location text;
+      ALTER TABLE clinic_medicine_batches ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+      ALTER TABLE clinic_medicine_batches ADD COLUMN IF NOT EXISTS is_emergency_supply boolean NOT NULL DEFAULT FALSE;
+      ALTER TABLE clinic_medicine_batches ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
+
       CREATE TABLE IF NOT EXISTS clinic_visits (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
@@ -314,6 +386,93 @@ export class ClinicSchemaService implements OnModuleInit {
         updated_at timestamptz NOT NULL DEFAULT NOW(),
         audit_log_reference uuid
       );
+
+      DO $$
+      DECLARE
+        clinic_table text;
+      BEGIN
+        FOREACH clinic_table IN ARRAY ARRAY[
+          'clinic_locations',
+          'clinic_medicines',
+          'clinic_medicine_batches',
+          'clinic_stock_movements',
+          'clinic_visits',
+          'clinic_medicine_dispenses',
+          'clinic_disposal_requests',
+          'clinic_alerts',
+          'clinic_procurement_recommendations',
+          'clinic_audit_logs'
+        ] LOOP
+          EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', clinic_table);
+          EXECUTE format('DROP POLICY IF EXISTS %I ON %I', clinic_table || '_tenant_policy', clinic_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS tenant_id text', clinic_table);
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns c
+            WHERE c.table_name = clinic_table
+              AND c.column_name = 'tenant_id'
+              AND c.data_type <> 'text'
+          ) THEN
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id TYPE text USING tenant_id::text', clinic_table);
+          END IF;
+          EXECUTE format(
+            'UPDATE %I SET tenant_id = COALESCE(NULLIF(tenant_id, ''''), NULLIF(current_setting(''app.tenant_id'', true), ''''), ''00000000-0000-0000-0000-000000000000'') WHERE tenant_id IS NULL OR tenant_id = ''''',
+            clinic_table
+          );
+          EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET DEFAULT ''00000000-0000-0000-0000-000000000000''', clinic_table);
+          EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET NOT NULL', clinic_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT NOW()', clinic_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW()', clinic_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS audit_log_reference uuid', clinic_table);
+        END LOOP;
+      END $$;
+
+      ALTER TABLE clinic_visits ADD COLUMN IF NOT EXISTS student_id uuid;
+      ALTER TABLE clinic_visits ADD COLUMN IF NOT EXISTS clinic_location_id uuid;
+      ALTER TABLE clinic_visits ADD COLUMN IF NOT EXISTS visit_date date NOT NULL DEFAULT CURRENT_DATE;
+      ALTER TABLE clinic_visits ADD COLUMN IF NOT EXISTS visit_time time NOT NULL DEFAULT CURRENT_TIME;
+      ALTER TABLE clinic_visits ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'open';
+      ALTER TABLE clinic_visits ADD COLUMN IF NOT EXISTS recorded_by_user_id uuid;
+
+      ALTER TABLE clinic_medicine_dispenses ADD COLUMN IF NOT EXISTS visit_id uuid;
+      ALTER TABLE clinic_medicine_dispenses ADD COLUMN IF NOT EXISTS medicine_id uuid;
+      ALTER TABLE clinic_medicine_dispenses ADD COLUMN IF NOT EXISTS batch_id uuid;
+      ALTER TABLE clinic_medicine_dispenses ADD COLUMN IF NOT EXISTS quantity_dispensed numeric(12, 3) NOT NULL DEFAULT 0;
+      ALTER TABLE clinic_medicine_dispenses ADD COLUMN IF NOT EXISTS dosage text NOT NULL DEFAULT 'As directed';
+      ALTER TABLE clinic_medicine_dispenses ADD COLUMN IF NOT EXISTS dispensed_by_user_id uuid;
+      ALTER TABLE clinic_medicine_dispenses ADD COLUMN IF NOT EXISTS dispensed_at timestamptz NOT NULL DEFAULT NOW();
+
+      ALTER TABLE clinic_stock_movements ADD COLUMN IF NOT EXISTS medicine_id uuid;
+      ALTER TABLE clinic_stock_movements ADD COLUMN IF NOT EXISTS batch_id uuid;
+      ALTER TABLE clinic_stock_movements ADD COLUMN IF NOT EXISTS visit_id uuid;
+      ALTER TABLE clinic_stock_movements ADD COLUMN IF NOT EXISTS movement_type text NOT NULL DEFAULT 'adjusted';
+      ALTER TABLE clinic_stock_movements ADD COLUMN IF NOT EXISTS quantity numeric(12, 3) NOT NULL DEFAULT 0;
+      ALTER TABLE clinic_stock_movements ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE clinic_stock_movements ADD COLUMN IF NOT EXISTS occurred_at timestamptz NOT NULL DEFAULT NOW();
+
+      ALTER TABLE clinic_disposal_requests ADD COLUMN IF NOT EXISTS batch_id uuid;
+      ALTER TABLE clinic_disposal_requests ADD COLUMN IF NOT EXISTS requested_by_user_id uuid;
+      ALTER TABLE clinic_disposal_requests ADD COLUMN IF NOT EXISTS reason text NOT NULL DEFAULT 'Disposal review required';
+      ALTER TABLE clinic_disposal_requests ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'pending';
+      ALTER TABLE clinic_disposal_requests ADD COLUMN IF NOT EXISTS requested_at timestamptz NOT NULL DEFAULT NOW();
+
+      ALTER TABLE clinic_alerts ADD COLUMN IF NOT EXISTS alert_type text NOT NULL DEFAULT 'low_stock';
+      ALTER TABLE clinic_alerts ADD COLUMN IF NOT EXISTS severity text NOT NULL DEFAULT 'warning';
+      ALTER TABLE clinic_alerts ADD COLUMN IF NOT EXISTS title text NOT NULL DEFAULT 'Clinic alert';
+      ALTER TABLE clinic_alerts ADD COLUMN IF NOT EXISTS message text NOT NULL DEFAULT 'Clinic alert requires review.';
+      ALTER TABLE clinic_alerts ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'open';
+      ALTER TABLE clinic_alerts ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+      ALTER TABLE clinic_procurement_recommendations ADD COLUMN IF NOT EXISTS medicine_id uuid;
+      ALTER TABLE clinic_procurement_recommendations ADD COLUMN IF NOT EXISTS item_name text NOT NULL DEFAULT 'Medicine';
+      ALTER TABLE clinic_procurement_recommendations ADD COLUMN IF NOT EXISTS recommendation_status text NOT NULL DEFAULT 'open';
+      ALTER TABLE clinic_procurement_recommendations ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+      ALTER TABLE clinic_audit_logs ADD COLUMN IF NOT EXISTS actor_user_id uuid;
+      ALTER TABLE clinic_audit_logs ADD COLUMN IF NOT EXISTS action text NOT NULL DEFAULT 'clinic.audit';
+      ALTER TABLE clinic_audit_logs ADD COLUMN IF NOT EXISTS resource_type text NOT NULL DEFAULT 'clinic';
+      ALTER TABLE clinic_audit_logs ADD COLUMN IF NOT EXISTS resource_id uuid;
+      ALTER TABLE clinic_audit_logs ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
 
       CREATE INDEX IF NOT EXISTS ix_clinic_medicine_batches_expiry
         ON clinic_medicine_batches (tenant_id, status, expiry_date);

@@ -29,6 +29,29 @@ export function PrincipalExamsReportsWorkspace() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
 
+  const handleApproveAllReports = async () => {
+    const results = Array.isArray(data?.recentResults) ? data.recentResults : [];
+    const examIds = results
+      .map((result: any) => result.exam_id ?? result.examId ?? result.id)
+      .filter(Boolean);
+
+    if (examIds.length === 0) {
+      setFormError("No report-card batch is available for approval.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setFormError("");
+    try {
+      await Promise.all(examIds.map((examId: string) => requestDashboardApi(`/admin-command/principal/exams-report-cards/${examId}/approve`, { method: "POST" })));
+      await refetch();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Failed to approve report-card batches.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleCreateExam = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -131,9 +154,9 @@ export function PrincipalExamsReportsWorkspace() {
         <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-white">Pending Reports Action</h2>
-            <button className="text-xs bg-white/10 text-white px-3 py-1.5 rounded hover:bg-white/20 transition-colors flex items-center gap-1">
+            <button type="button" disabled={isSubmitting} onClick={handleApproveAllReports} className="text-xs bg-white/10 text-white px-3 py-1.5 rounded hover:bg-white/20 transition-colors flex items-center gap-1 disabled:opacity-50">
               <CheckCircle2 className="h-3 w-3" />
-              Approve All
+              {isSubmitting ? "Approving..." : "Approve All"}
             </button>
           </div>
           

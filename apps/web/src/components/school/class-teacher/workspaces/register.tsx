@@ -1,9 +1,10 @@
 import { Users } from "lucide-react";
 import { Panel, StatusChip } from "../shared";
-import { useClassTeacherRegister } from "@/lib/data/class-teacher-hooks";
+import { useClassTeacherRegister, useResolvedClassTeacherStreamId } from "@/lib/data/class-teacher-hooks";
 
 export function ClassRegisterWorkspace({ onSelectLearner }: { onSelectLearner?: (id: string) => void }) {
-  const { data, isLoading, error } = useClassTeacherRegister("stream_123");
+  const { streamId } = useResolvedClassTeacherStreamId();
+  const { data, isLoading, error } = useClassTeacherRegister(streamId);
 
   if (isLoading) {
     return (
@@ -44,7 +45,7 @@ export function ClassRegisterWorkspace({ onSelectLearner }: { onSelectLearner?: 
                 <td className="p-3">{learner.parentPhone}</td>
                 <td className="p-3"><StatusChip label={learner.status} tone="success"/></td>
                 <td className="p-3 text-right">
-                   <button onClick={() => onSelectLearner?.(learner.name)} className="rounded bg-[#EEF5FF] px-2 py-1 text-xs font-bold text-[#1D4ED8]">View Profile</button>
+                   <button onClick={() => onSelectLearner?.(String(learner.id))} className="rounded bg-[#EEF5FF] px-2 py-1 text-xs font-bold text-[#1D4ED8]">View Profile</button>
                 </td>
               </tr>
             ))}

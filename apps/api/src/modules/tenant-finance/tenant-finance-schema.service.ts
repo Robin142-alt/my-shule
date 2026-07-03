@@ -56,6 +56,52 @@ export class TenantFinanceSchemaService implements OnModuleInit {
         CONSTRAINT uq_tenant_financial_accounts_tenant_id_id UNIQUE (tenant_id, id)
       );
 
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'tenant_financial_accounts'
+            AND column_name = 'tenant_id'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE tenant_financial_accounts ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'tenant_financial_accounts'
+            AND column_name = 'mpesa_clearing_account_code'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE tenant_financial_accounts ALTER COLUMN mpesa_clearing_account_code TYPE text USING mpesa_clearing_account_code::text;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'tenant_financial_accounts'
+            AND column_name = 'fee_control_account_code'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE tenant_financial_accounts ALTER COLUMN fee_control_account_code TYPE text USING fee_control_account_code::text;
+        END IF;
+      END;
+      $$;
+
+      ALTER TABLE tenant_financial_accounts
+        ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE tenant_financial_accounts
+        ALTER COLUMN mpesa_clearing_account_code SET DEFAULT '1110-MPESA-CLEARING',
+        ALTER COLUMN fee_control_account_code SET DEFAULT '1100-AR-FEES',
+        ALTER COLUMN currency_code SET DEFAULT 'KES',
+        ALTER COLUMN status SET DEFAULT 'active',
+        ALTER COLUMN metadata SET DEFAULT '{}'::jsonb,
+        ALTER COLUMN metadata SET NOT NULL,
+        ALTER COLUMN updated_at SET DEFAULT NOW(),
+        ALTER COLUMN updated_at SET NOT NULL;
+
       CREATE UNIQUE INDEX IF NOT EXISTS ux_tenant_financial_accounts_active_tenant
         ON tenant_financial_accounts (tenant_id)
         WHERE status = 'active';
@@ -97,6 +143,57 @@ export class TenantFinanceSchemaService implements OnModuleInit {
         ADD COLUMN IF NOT EXISTS callback_secret_hash text;
       ALTER TABLE tenant_mpesa_configs
         ADD COLUMN IF NOT EXISTS callback_secret_rotated_at timestamptz;
+      ALTER TABLE tenant_mpesa_configs
+        ADD COLUMN IF NOT EXISTS credential_version integer NOT NULL DEFAULT 1;
+      ALTER TABLE tenant_mpesa_configs
+        ADD COLUMN IF NOT EXISTS rotated_at timestamptz;
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'tenant_mpesa_configs'
+            AND column_name = 'tenant_id'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE tenant_mpesa_configs ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'tenant_mpesa_configs'
+            AND column_name = 'credential_version'
+            AND data_type <> 'integer'
+        ) THEN
+          ALTER TABLE tenant_mpesa_configs ALTER COLUMN credential_version TYPE integer USING credential_version::integer;
+        END IF;
+      END;
+      $$;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'uq_tenant_mpesa_configs_tenant_id_id'
+        ) THEN
+          ALTER TABLE tenant_mpesa_configs
+            ADD CONSTRAINT uq_tenant_mpesa_configs_tenant_id_id UNIQUE (tenant_id, id);
+        END IF;
+      END $$;
+
+      ALTER TABLE tenant_mpesa_configs
+        ALTER COLUMN paybill_number DROP NOT NULL,
+        ALTER COLUMN till_number DROP NOT NULL,
+        ALTER COLUMN initiator_name DROP NOT NULL,
+        ALTER COLUMN environment SET DEFAULT 'sandbox',
+        ALTER COLUMN status SET DEFAULT 'draft',
+        ALTER COLUMN credential_version SET DEFAULT 1,
+        ALTER COLUMN credential_version SET NOT NULL,
+        ALTER COLUMN updated_at SET DEFAULT NOW(),
+        ALTER COLUMN updated_at SET NOT NULL;
+
       DO $$
       BEGIN
         IF NOT EXISTS (
@@ -145,6 +242,67 @@ export class TenantFinanceSchemaService implements OnModuleInit {
           ON DELETE RESTRICT
       );
 
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'mpesa_config_audit_logs'
+            AND column_name = 'tenant_id'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE mpesa_config_audit_logs ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'mpesa_config_audit_logs'
+            AND column_name = 'changed_fields'
+            AND data_type <> 'ARRAY'
+        ) THEN
+          ALTER TABLE mpesa_config_audit_logs
+            ALTER COLUMN changed_fields TYPE text[]
+            USING CASE
+              WHEN changed_fields IS NULL OR btrim(changed_fields::text) = '' THEN ARRAY[]::text[]
+              ELSE string_to_array(changed_fields::text, ',')
+            END;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'mpesa_config_audit_logs'
+            AND column_name = 'old_values'
+            AND data_type <> 'jsonb'
+        ) THEN
+          ALTER TABLE mpesa_config_audit_logs
+            ALTER COLUMN old_values TYPE jsonb
+            USING COALESCE(NULLIF(old_values::text, ''), '{}')::jsonb;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'mpesa_config_audit_logs'
+            AND column_name = 'new_values'
+            AND data_type <> 'jsonb'
+        ) THEN
+          ALTER TABLE mpesa_config_audit_logs
+            ALTER COLUMN new_values TYPE jsonb
+            USING COALESCE(NULLIF(new_values::text, ''), '{}')::jsonb;
+        END IF;
+      END;
+      $$;
+
+      ALTER TABLE mpesa_config_audit_logs
+        ALTER COLUMN changed_fields SET DEFAULT ARRAY[]::text[],
+        ALTER COLUMN changed_fields SET NOT NULL,
+        ALTER COLUMN old_values SET DEFAULT '{}'::jsonb,
+        ALTER COLUMN old_values SET NOT NULL,
+        ALTER COLUMN new_values SET DEFAULT '{}'::jsonb,
+        ALTER COLUMN new_values SET NOT NULL;
+
       CREATE INDEX IF NOT EXISTS ix_mpesa_config_audit_logs_config_created
         ON mpesa_config_audit_logs (tenant_id, mpesa_config_id, created_at DESC);
 
@@ -168,6 +326,61 @@ export class TenantFinanceSchemaService implements OnModuleInit {
         CONSTRAINT uq_tenant_bank_accounts_tenant_id_id UNIQUE (tenant_id, id),
         CONSTRAINT uq_tenant_bank_accounts_tenant_account_hash UNIQUE (tenant_id, account_number_hash)
       );
+
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'tenant_bank_accounts'
+            AND column_name = 'tenant_id'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE tenant_bank_accounts ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'tenant_bank_accounts'
+            AND column_name = 'account_name'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE tenant_bank_accounts ALTER COLUMN account_name TYPE text USING account_name::text;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'tenant_bank_accounts'
+            AND column_name = 'account_number'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE tenant_bank_accounts ALTER COLUMN account_number TYPE text USING account_number::text;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'tenant_bank_accounts'
+            AND column_name = 'account_number_hash'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE tenant_bank_accounts ALTER COLUMN account_number_hash TYPE text USING account_number_hash::text;
+        END IF;
+      END;
+      $$;
+
+      ALTER TABLE tenant_bank_accounts
+        ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE tenant_bank_accounts
+        ALTER COLUMN branch_name DROP NOT NULL,
+        ALTER COLUMN currency SET DEFAULT 'KES',
+        ALTER COLUMN status SET DEFAULT 'active',
+        ALTER COLUMN metadata SET DEFAULT '{}'::jsonb,
+        ALTER COLUMN metadata SET NOT NULL,
+        ALTER COLUMN updated_at SET DEFAULT NOW(),
+        ALTER COLUMN updated_at SET NOT NULL;
 
       CREATE INDEX IF NOT EXISTS ix_tenant_bank_accounts_tenant_status
         ON tenant_bank_accounts (tenant_id, status, bank_name);
@@ -203,6 +416,44 @@ export class TenantFinanceSchemaService implements OnModuleInit {
           ON DELETE RESTRICT
       );
 
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'tenant_payment_channels'
+            AND column_name = 'tenant_id'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE tenant_payment_channels ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+        END IF;
+      END;
+      $$;
+
+      ALTER TABLE tenant_payment_channels
+        ADD COLUMN IF NOT EXISTS bank_account_id uuid,
+        ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE tenant_payment_channels
+        ALTER COLUMN mpesa_config_id DROP NOT NULL,
+        ALTER COLUMN bank_account_id DROP NOT NULL,
+        ALTER COLUMN status SET DEFAULT 'inactive',
+        ALTER COLUMN metadata SET DEFAULT '{}'::jsonb,
+        ALTER COLUMN metadata SET NOT NULL,
+        ALTER COLUMN updated_at SET DEFAULT NOW(),
+        ALTER COLUMN updated_at SET NOT NULL;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'uq_tenant_payment_channels_tenant_id_id'
+        ) THEN
+          ALTER TABLE tenant_payment_channels
+            ADD CONSTRAINT uq_tenant_payment_channels_tenant_id_id UNIQUE (tenant_id, id);
+        END IF;
+      END $$;
+
       CREATE INDEX IF NOT EXISTS ix_tenant_payment_channels_tenant_status
         ON tenant_payment_channels (tenant_id, status, channel_type);
       CREATE UNIQUE INDEX IF NOT EXISTS ux_tenant_payment_channels_active_mpesa_config
@@ -237,9 +488,6 @@ export class TenantFinanceSchemaService implements OnModuleInit {
           ON DELETE RESTRICT
       );
 
-      CREATE INDEX IF NOT EXISTS ix_mpesa_callback_channels_tenant_shortcode
-        ON mpesa_callback_channels (tenant_id, shortcode, environment)
-        WHERE disabled_at IS NULL;
       ALTER TABLE mpesa_callback_channels
         ADD COLUMN IF NOT EXISTS secret_version integer NOT NULL DEFAULT 1;
       ALTER TABLE mpesa_callback_channels
@@ -248,6 +496,75 @@ export class TenantFinanceSchemaService implements OnModuleInit {
         ADD COLUMN IF NOT EXISTS accepts_until timestamptz;
       ALTER TABLE mpesa_callback_channels
         ADD COLUMN IF NOT EXISTS rotated_from_id uuid;
+      ALTER TABLE mpesa_callback_channels
+        ADD COLUMN IF NOT EXISTS disabled_at timestamptz;
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'mpesa_callback_channels'
+            AND column_name = 'tenant_id'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE mpesa_callback_channels ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'mpesa_callback_channels'
+            AND column_name = 'secret_version'
+            AND data_type <> 'integer'
+        ) THEN
+          ALTER TABLE mpesa_callback_channels
+            ALTER COLUMN secret_version TYPE integer
+            USING CASE
+              WHEN secret_version::text ~ '^[0-9]+$' THEN secret_version::text::integer
+              ELSE 1
+            END;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'mpesa_callback_channels'
+            AND column_name = 'requires_edge_signature'
+            AND data_type <> 'boolean'
+        ) THEN
+          ALTER TABLE mpesa_callback_channels
+            ALTER COLUMN requires_edge_signature TYPE boolean
+            USING lower(requires_edge_signature::text) IN ('true', 't', '1', 'yes', 'y');
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'mpesa_callback_channels'
+            AND column_name = 'requires_transaction_status'
+            AND data_type <> 'boolean'
+        ) THEN
+          ALTER TABLE mpesa_callback_channels
+            ALTER COLUMN requires_transaction_status TYPE boolean
+            USING lower(requires_transaction_status::text) IN ('true', 't', '1', 'yes', 'y');
+        END IF;
+      END;
+      $$;
+
+      ALTER TABLE mpesa_callback_channels
+        ALTER COLUMN environment SET DEFAULT 'sandbox',
+        ALTER COLUMN secret_version SET DEFAULT 1,
+        ALTER COLUMN secret_version SET NOT NULL,
+        ALTER COLUMN is_current SET DEFAULT TRUE,
+        ALTER COLUMN is_current SET NOT NULL,
+        ALTER COLUMN requires_edge_signature SET DEFAULT TRUE,
+        ALTER COLUMN requires_edge_signature SET NOT NULL,
+        ALTER COLUMN requires_transaction_status SET DEFAULT TRUE,
+        ALTER COLUMN requires_transaction_status SET NOT NULL;
+
+      CREATE INDEX IF NOT EXISTS ix_mpesa_callback_channels_tenant_shortcode
+        ON mpesa_callback_channels (tenant_id, shortcode, environment)
+        WHERE disabled_at IS NULL;
       DROP INDEX IF EXISTS ux_mpesa_callback_channels_active_channel_environment;
       CREATE UNIQUE INDEX IF NOT EXISTS ux_mpesa_callback_channels_current_channel_environment
         ON mpesa_callback_channels (tenant_id, channel_id, environment)

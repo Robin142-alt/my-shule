@@ -64,6 +64,10 @@ export async function notifyParentAttendance(attendanceId: string) {
   return requestDashboardApi(`/admin-command/deputy/attendance/${attendanceId}/notify`, { method: 'POST' });
 }
 
+export async function remindUnmarkedAttendance(data: any) {
+  return requestDashboardApi('/admin-command/deputy/attendance/remind-unmarked', { method: 'POST', body: data });
+}
+
 export async function createDisciplineIncident(data: any) {
   return requestDashboardApi('/admin-command/deputy/discipline', { method: 'POST', body: data });
 }

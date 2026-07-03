@@ -122,7 +122,7 @@ export class PaymentIntentsRepository {
           $1,
           $2::uuid,
           $3::uuid,
-          $4::uuid,
+          $4,
           $5,
           $6,
           $7,
@@ -409,6 +409,23 @@ export class PaymentIntentsRepository {
           AND id = $2::uuid
       `,
       [tenantId, paymentIntentId, reason],
+    );
+  }
+
+  async deletePendingProviderStartFailure(
+    tenantId: string,
+    paymentIntentId: string,
+  ): Promise<void> {
+    await this.executeSql(
+      `
+        DELETE FROM payment_intents
+        WHERE tenant_id = $1
+          AND id = $2::uuid
+          AND status = 'pending'
+          AND merchant_request_id IS NULL
+          AND checkout_request_id IS NULL
+      `,
+      [tenantId, paymentIntentId],
     );
   }
 

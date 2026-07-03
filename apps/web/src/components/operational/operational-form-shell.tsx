@@ -8,6 +8,10 @@ import {
   openPrintDocument,
   type PrintableRow,
 } from "@/lib/dashboard/export";
+import {
+  getCurrentSchoolId,
+  publishSchoolOperationalEvent,
+} from "@/lib/school/school-operational-store";
 
 export type OperationalFormField = {
   id: string;
@@ -62,6 +66,21 @@ function getSchoolScopedFormStorageKey(formId: string) {
     return `myshule:${schoolId}:operational-form:${formId}`;
   } catch {
     return `myshule:${fallbackSchoolId}:operational-form:${formId}`;
+  }
+}
+
+function resolveOperationalSchoolId() {
+  if (typeof window === "undefined") {
+    return "default-school";
+  }
+
+  try {
+    const configuredSchoolId = window.localStorage.getItem("myshule.currentSchoolId")?.trim();
+    const routeSchoolId = window.location.pathname.match(/^\/school\/([^/?#]+)/)?.[1]?.trim();
+
+    return configuredSchoolId || routeSchoolId || "default-school";
+  } catch {
+    return "default-school";
   }
 }
 
@@ -138,6 +157,14 @@ export function OperationalFormShell({
     }
   }
 
+  function closeOpenPrintPreviews() {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    document.querySelectorAll("[data-myshule-print-preview]").forEach((preview) => preview.remove());
+  }
+
   function printValues(nextValues: OperationalFormValues, title = contract.title) {
     const rows: PrintableRow[] = contract.fields.map((field) => ({
       label: field.label,
@@ -153,17 +180,79 @@ export function OperationalFormShell({
     });
   }
 
+  function formEventType(action: OperationalFormFooterAction) {
+    return `operational_form.${action.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "action"}`;
+  }
+
+  function publishFormAction(action: OperationalFormFooterAction, nextValues: OperationalFormValues) {
+    const normalized = action.toLowerCase();
+    const schoolId = getCurrentSchoolId(resolveOperationalSchoolId());
+    const providedFields = Object.entries(nextValues)
+      .filter(([, value]) => value.trim().length > 0)
+      .map(([key]) => key);
+
+    publishSchoolOperationalEvent({
+      schoolId,
+      type: formEventType(action),
+      module: contract.workflowBinding || "operational-form",
+      actorRole: "school-staff",
+      entityId: `${contract.title}:${action}`,
+      title: `${contract.title}: ${action}`,
+      body: `${action} accepted for ${contract.title} with ${providedFields.length} completed field${providedFields.length === 1 ? "" : "s"}.`,
+      severity: /approval|sms/.test(normalized) ? "warning" : "info",
+      payload: {
+        formTitle: contract.title,
+        action,
+        auditAction: contract.auditAction,
+        workflowBinding: contract.workflowBinding,
+        capability: contract.capability,
+        providedFields,
+        values: nextValues,
+      },
+      notifications: /approval|submit|sms/.test(normalized)
+        ? [
+            {
+              audienceRoles: ["Principal", "Deputy Principal", "System Monitor"],
+              title: `${contract.title}: ${action}`,
+              body: `${action} was recorded for ${contract.title}.`,
+              severity: /approval|sms/.test(normalized) ? "warning" : "info",
+              relatedModule: contract.workflowBinding || "operational-form",
+              relatedRecordId: `${contract.title}:${action}`,
+              requiresAction: /approval/.test(normalized),
+            },
+          ]
+        : undefined,
+      sms: /sms/.test(normalized)
+        ? [
+            {
+              recipient: nextValues.phone || nextValues.mobile || nextValues.parent || "school-contact",
+              message: `${contract.title}: ${action} has been recorded by the school.`,
+            },
+          ]
+        : undefined,
+    });
+  }
+
   async function runAction(action: OperationalFormFooterAction, nextValues: OperationalFormValues) {
+    if (action !== "Preview" && action !== "Print" && action !== "Preview Print") {
+      closeOpenPrintPreviews();
+    }
     setBusyAction(action);
 
     try {
-      await onAction?.(action, contract, nextValues);
+      if (onAction) {
+        await onAction(action, contract, nextValues);
+      } else {
+        publishFormAction(action, nextValues);
+      }
       setNoticeTone(action === "Save Draft" ? "warning" : "success");
-      setNotice(
-        action === "Save Draft"
-          ? "Draft saved locally for this school. It will not be treated as submitted until you submit it."
-          : `${action} returned from the connected workflow.`,
-      );
+      if (action === "Save Draft") {
+        setNotice("Draft saved locally for this school. It will not be treated as submitted until you submit it.");
+      } else if (onAction) {
+        setNotice(`${action} returned from the connected workflow.`);
+      } else {
+        setNotice(`${action} was recorded for this school and queued for dashboard sync.`);
+      }
     } catch (error) {
       setNoticeTone("danger");
       setNotice(error instanceof Error ? error.message : `${action} failed. Try again.`);
@@ -313,6 +402,7 @@ export function OperationalFormShell({
                   const nextValues = { ...values };
 
                   if (action === "Cancel") {
+                    closeOpenPrintPreviews();
                     setValues(defaultValues);
                     setErrors({});
                     clearDraft();
@@ -321,10 +411,13 @@ export function OperationalFormShell({
                     setNotice("Form cleared. No school record was changed.");
                     return;
                   } else if (action === "Preview") {
-                    setNoticeTone("warning");
-                    setNotice("Preview prepared from the current form details.");
+                    printValues(nextValues, `${contract.title} preview`);
+                    publishFormAction(action, nextValues);
+                    setNoticeTone("success");
+                    setNotice(`${contract.title} preview is ready and the preview action was recorded.`);
                   } else if (action === "Print") {
                     printValues(nextValues, `${contract.title} print copy`);
+                    publishFormAction(action, nextValues);
                     setNoticeTone("success");
                     setNotice(
                       `${contract.title} print copy ready with ${contract.fields.length} field${contract.fields.length === 1 ? "" : "s"} loaded.`,
@@ -350,6 +443,7 @@ export function OperationalFormShell({
                       return;
                     }
                     printValues(nextValues, `${contract.title} print preview`);
+                    publishFormAction(action, nextValues);
                     setNoticeTone("success");
                     setNotice(
                       `${contract.title} print preview ready with ${contract.fields.length} field${contract.fields.length === 1 ? "" : "s"} loaded.`,

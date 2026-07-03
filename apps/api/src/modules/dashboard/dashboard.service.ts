@@ -17,15 +17,35 @@ export class DashboardService {
     // Resolve static dashboard buttons based on Button and Action Execution Contract
     // "Buttons are never removed. They degrade to LOCKED if capability is missing."
     const availableButtons = [
-      { id: 'btn_create_student', label: 'Admit Student', action: 'students.admit', requiredCapability: 'students:write' },
-      { id: 'btn_record_payment', label: 'Record Payment', action: 'finance.record_payment', requiredCapability: 'finance:write' },
-      { id: 'btn_publish_exam', label: 'Publish Exam', action: 'exams.publish', requiredCapability: 'exams:write' },
+      {
+        id: 'btn_create_student',
+        label: 'Admit Student',
+        action: 'students.admit',
+        href: this.resolveActionHref(role, 'students.admit'),
+        requiredCapability: 'students:write',
+      },
+      {
+        id: 'btn_record_payment',
+        label: 'Record Payment',
+        action: 'finance.record_payment',
+        href: this.resolveActionHref(role, 'finance.record_payment'),
+        requiredCapability: 'finance:write',
+      },
+      {
+        id: 'btn_publish_exam',
+        label: 'Publish Exam',
+        action: 'exams.publish',
+        href: this.resolveActionHref(role, 'exams.publish'),
+        requiredCapability: 'exams:write',
+      },
     ];
 
     const resolvedButtons: ActionButtonDto[] = availableButtons.map(btn => ({
       id: btn.id,
       label: btn.label,
       action: btn.action,
+      executionType: 'ROUTE',
+      href: btn.href,
       state: userCapabilities.includes('*:*') || userCapabilities.includes(btn.requiredCapability) ? 'ACTIVE' : 'LOCKED'
     }));
 
@@ -84,5 +104,32 @@ export class DashboardService {
     return {
       records: []
     };
+  }
+
+  private resolveActionHref(role: string, action: string) {
+    const normalizedRole = (role || 'admin').replace(/_/g, '-');
+
+    if (action === 'students.admit') {
+      const targetRole = normalizedRole === 'admissions-officer' ? 'admissions' : normalizedRole;
+      return `/school/${targetRole}/admissions?view=new-registration`;
+    }
+
+    if (action === 'finance.record_payment') {
+      if (normalizedRole === 'accountant' || normalizedRole === 'bursar') {
+        return `/school/${normalizedRole}/payments`;
+      }
+
+      return `/school/${normalizedRole}/finance?view=record-payment`;
+    }
+
+    if (action === 'exams.publish') {
+      if (normalizedRole === 'exams-manager') {
+        return '/school/exams-manager/publishing';
+      }
+
+      return `/school/${normalizedRole}/exams?view=publishing`;
+    }
+
+    return `/school/${normalizedRole}`;
   }
 }

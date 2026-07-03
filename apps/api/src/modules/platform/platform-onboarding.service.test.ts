@@ -4,6 +4,7 @@ import { ServiceUnavailableException } from '@nestjs/common';
 
 import { EmailDeliveryError } from '../../auth/auth-email.service';
 import { PlatformOnboardingService } from './platform-onboarding.service';
+import { PlatformOnboardingSchemaService } from './platform-onboarding.schema';
 import { MaintenanceModeGuard } from '../../guards/maintenance-mode.guard';
 import { SUPERADMIN_ROLE_OWNER } from '../../auth/auth.constants';
 
@@ -1315,6 +1316,196 @@ test('PlatformOnboardingService updateSettings updates existing settings', async
   assert.equal(result.maintenanceMode, true);
   assert.equal(result.platformName, 'New Platform Name');
   assert.equal(result.maxSchools, 100);
+});
+
+test('PlatformOnboardingSchemaService creates platform payment gateways with platform-owner RLS', async () => {
+  let schemaSql = '';
+  const service = new PlatformOnboardingSchemaService({
+    runSchemaBootstrap: async (sql: string) => {
+      schemaSql += sql;
+    },
+  } as never);
+
+  await service.onModuleInit();
+
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS platform_payment_gateways/);
+  assert.match(schemaSql, /ALTER TABLE platform_payment_gateways ENABLE ROW LEVEL SECURITY/);
+  assert.match(schemaSql, /CREATE POLICY platform_payment_gateways_rls_policy/);
+  assert.match(schemaSql, /NULLIF\(current_setting\('app\.role', true\), ''\) = 'platform_owner'/);
+});
+
+test('PlatformOnboardingService creates platform payment gateways without storing raw consumer keys', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const service = new PlatformOnboardingService(
+    {
+      query: async (text: string, values: unknown[] = []) => {
+        queries.push({ text, values });
+
+        if (text.includes('INSERT INTO platform_payment_gateways')) {
+          const metadata = JSON.parse(String(values[4]));
+          return {
+            rows: [{
+              id: '00000000-0000-0000-0000-000000000991',
+              name: values[0],
+              type: values[1],
+              environment: values[2],
+              status: 'Active',
+              shortcode: values[3],
+              metadata,
+            }],
+          };
+        }
+
+        return { rows: [] };
+      },
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    { getStore: () => ({ role: 'platform_owner', user_id: 'owner-1' }) } as never,
+  );
+
+  const gateway = await service.createGateway({
+    name: 'M-Pesa Main Paybill',
+    type: 'M-Pesa Daraja',
+    environment: 'Production',
+    shortcode: '123456',
+    consumerKey: 'secret-consumer-key',
+  });
+
+  assert.equal(gateway.name, 'M-Pesa Main Paybill');
+  assert.equal(gateway.environment, 'Production');
+  assert.equal(gateway.metadata.configured_without_secret, false);
+  assert.notEqual(gateway.metadata.consumer_key_hash, 'secret-consumer-key');
+  assert.equal(JSON.stringify(queries).includes('secret-consumer-key'), false);
+});
+
+test('PlatformOnboardingService updates platform payment gateways and preserves credentials when no new key is supplied', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const service = new PlatformOnboardingService(
+    {
+      query: async (text: string, values: unknown[] = []) => {
+        queries.push({ text, values });
+
+        if (text.includes('UPDATE platform_payment_gateways')) {
+          return {
+            rowCount: 1,
+            rows: [{
+              id: values[0],
+              name: values[1],
+              type: values[2],
+              environment: values[3],
+              status: values[4],
+              shortcode: values[5],
+              metadata: { consumer_key_hash: 'existing-hash', configured_without_secret: false },
+            }],
+          };
+        }
+
+        return { rowCount: 0, rows: [] };
+      },
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    { getStore: () => ({ role: 'platform_owner', user_id: 'owner-1' }) } as never,
+  );
+
+  const gateway = await service.updateGateway('00000000-0000-0000-0000-000000000991', {
+    name: 'M-Pesa Main Paybill',
+    type: 'M-Pesa Daraja',
+    environment: 'Production',
+    status: 'Testing',
+    shortcode: '123456',
+  });
+
+  assert.equal(gateway.status, 'Testing');
+  assert.equal(queries[0].values[6], '{}');
+});
+
+test('PlatformOnboardingService hashes replacement gateway consumer keys on update', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const service = new PlatformOnboardingService(
+    {
+      query: async (text: string, values: unknown[] = []) => {
+        queries.push({ text, values });
+
+        if (text.includes('UPDATE platform_payment_gateways')) {
+          const metadata = JSON.parse(String(values[6]));
+          return {
+            rowCount: 1,
+            rows: [{
+              id: values[0],
+              name: values[1],
+              type: values[2],
+              environment: values[3],
+              status: values[4],
+              shortcode: values[5],
+              metadata,
+            }],
+          };
+        }
+
+        return { rowCount: 0, rows: [] };
+      },
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    { getStore: () => ({ role: 'platform_owner', user_id: 'owner-1' }) } as never,
+  );
+
+  const gateway = await service.updateGateway('00000000-0000-0000-0000-000000000991', {
+    name: 'M-Pesa Main Paybill',
+    type: 'M-Pesa Daraja',
+    environment: 'Production',
+    status: 'Active',
+    shortcode: '123456',
+    consumerKey: 'replacement-secret',
+  });
+
+  assert.equal(gateway.metadata.configured_without_secret, false);
+  assert.notEqual(gateway.metadata.consumer_key_hash, 'replacement-secret');
+  assert.equal(JSON.stringify(queries).includes('replacement-secret'), false);
+});
+
+test('PlatformOnboardingService updates platform user status through the users table', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const service = new PlatformOnboardingService(
+    {
+      query: async (text: string, values: unknown[] = []) => {
+        queries.push({ text, values });
+
+        if (text.includes('UPDATE users')) {
+          return {
+            rowCount: 1,
+            rows: [{
+              id: values[0],
+              email: 'operator@myshule.test',
+              display_name: 'Platform Operator',
+              status: values[1],
+              last_login_at: null,
+              updated_at: '2026-06-23T00:00:00.000Z',
+            }],
+          };
+        }
+
+        return { rowCount: 0, rows: [] };
+      },
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    { getStore: () => ({ role: 'platform_owner', user_id: 'owner-1' }) } as never,
+  );
+
+  const user = await service.updatePlatformUserStatus('00000000-0000-0000-0000-000000000888', {
+    status: 'disabled',
+  });
+
+  assert.equal(user.email, 'operator@myshule.test');
+  assert.equal(user.status, 'Disabled');
+  assert.equal(queries[0].values[1], 'disabled');
 });
 
 function createMockExecutionContext(options: { method?: string; path?: string } = {}) {

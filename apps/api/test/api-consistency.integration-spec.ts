@@ -6,6 +6,9 @@ import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 
 import { REDIS_CLIENT } from '../src/infrastructure/redis/redis.constants';
+import { PasswordService } from '../src/auth/password.service';
+import { AuthorizationRepository } from '../src/auth/repositories/authorization.repository';
+import { TrustedDeviceService } from '../src/auth/trusted-device.service';
 import { InMemoryRedis } from './support/in-memory-redis';
 import { ApiConsistencyTestModule } from './support/api-consistency-test.module';
 
@@ -17,7 +20,10 @@ type RegisteredTenantUser = {
   email: string;
   password: string;
   user_id: string;
+  role: string;
+  session_id: string;
   access_token: string;
+  refresh_token: string;
 };
 
 type StudentResponse = {
@@ -103,7 +109,7 @@ describe('API consistency checks', () => {
     await app.init();
 
     tenantOwner = await registerTenantUser(
-      app,
+      { app, testingModule, pool },
       `apic-${suffix}`,
       `owner+api-${suffix}@example.test`,
     );
@@ -283,22 +289,88 @@ describe('API consistency checks', () => {
 });
 
 const registerTenantUser = async (
-  app: INestApplication,
+  context: {
+    app: INestApplication;
+    testingModule: TestingModule;
+    pool: Pool;
+  },
   tenantId: string,
   email: string,
 ): Promise<RegisteredTenantUser> => {
+  const { app, testingModule, pool } = context;
   const password = `SecurePass!${tenantId.slice(-4)}`;
   const host = `${tenantId}.${process.env.APP_BASE_DOMAIN ?? 'integration.test'}`;
+  const authorizationRepository = testingModule.get(AuthorizationRepository);
+  const passwordService = testingModule.get(PasswordService);
+  const trustedDeviceService = testingModule.get(TrustedDeviceService);
+
+  await authorizationRepository.ensureTenantAuthorizationBaseline(tenantId);
+
+  const role = await authorizationRepository.getRoleByCode(tenantId, 'owner');
+  const passwordHash = await passwordService.hash(password);
+  const userResult = await pool.query<{ id: string }>(
+    `
+      INSERT INTO users (
+        tenant_id,
+        email,
+        password_hash,
+        display_name,
+        status,
+        email_verified_at,
+        password_changed_at
+      )
+      VALUES ($1, lower($2), $3, $4, 'active', NOW(), NOW())
+      ON CONFLICT (lower(email))
+      DO UPDATE SET
+        password_hash = EXCLUDED.password_hash,
+        display_name = EXCLUDED.display_name,
+        status = 'active',
+        email_verified_at = COALESCE(users.email_verified_at, NOW()),
+        password_changed_at = NOW(),
+        updated_at = NOW()
+      RETURNING id
+    `,
+    [tenantId, email, passwordHash, `Owner ${tenantId}`],
+  );
+  const userId = userResult.rows[0].id;
+
+  await pool.query(
+    `
+      INSERT INTO tenant_memberships (tenant_id, user_id, role_id, status)
+      VALUES ($1, $2::uuid, $3::uuid, 'active')
+      ON CONFLICT (tenant_id, user_id)
+      DO UPDATE SET
+        role_id = EXCLUDED.role_id,
+        status = 'active',
+        updated_at = NOW()
+    `,
+    [tenantId, userId, role.id],
+  );
+
+  const trustedDeviceToken = `trusted-device-token-${userId}`;
+  await trustedDeviceService.trustDevice({
+    userId,
+    rawToken: trustedDeviceToken,
+    ipAddress: '127.0.0.1',
+    userAgent: 'api-consistency.integration-spec',
+  });
 
   const response = await request(app.getHttpServer())
-    .post('/auth/register')
+    .post('/auth/login')
     .set('host', host)
     .send({
       email,
       password,
-      display_name: `Owner ${tenantId}`,
+      audience: 'school',
+      trusted_device_token: trustedDeviceToken,
     })
-    .expect(201);
+    .expect((loginResponse) => {
+      if (loginResponse.status !== 201) {
+        throw new Error(
+          `Expected seeded login to return 201, got ${loginResponse.status}: ${JSON.stringify(loginResponse.body)}`,
+        );
+      }
+    });
 
   return {
     tenant_id: tenantId,
@@ -306,7 +378,10 @@ const registerTenantUser = async (
     email,
     password,
     user_id: response.body.user.user_id,
+    role: response.body.user.role,
+    session_id: response.body.user.session_id,
     access_token: response.body.tokens.access_token,
+    refresh_token: response.body.tokens.refresh_token,
   };
 };
 

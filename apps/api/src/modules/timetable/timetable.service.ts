@@ -153,7 +153,7 @@ export class TimetableService {
         id: entry.id,
         title: `${entry.class?.name || 'Class'} timetable slot`,
         name: `${entry.class?.name || 'Class'} timetable slot`,
-        class_name: entry.class?.name || 'Unknown Class',
+        class_name: entry.class?.name || 'Class not linked',
         subject: entry.subject?.name || 'No Subject',
         teacher_name: 'Teacher',
         status: 'validated',

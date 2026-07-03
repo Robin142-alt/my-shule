@@ -136,41 +136,25 @@ test('StudentsRepository uses keyset cursor pagination for the high-volume stude
     {
       executeWithTenant: async (tenantId: string, userId: string | null, cb: any) => {
         return cb({
-          student: {
-            findMany: async (args: any) => {
-              queries.push({ text: 'prisma.student.findMany', values: [args] });
-              return [
-                {
-                  id: '00000000-0000-0000-0000-000000000202',
-                  tenant_id: 'tenant-a',
-                  admission_number: 'ADM-202',
-                  first_name: 'Amina',
-                  last_name: 'Wanjiku',
-                  middle_name: null,
-                  status: 'active',
-                  date_of_birth: new Date('2013-02-01'),
-                  gender: 'female',
-                  created_at: new Date('2026-05-20T06:00:00.000Z'),
-                  updated_at: new Date('2026-05-20T06:00:00.000Z'),
-                },
-              ];
-            }
-          },
           $queryRawUnsafe: async (sql: string, ...params: any[]) => {
             queries.push({ text: sql, values: params });
             return [
               {
                 id: '00000000-0000-0000-0000-000000000202',
-                tenant_id: 'tenant-a',
-                admission_number: 'ADM-202',
-                first_name: 'Amina',
-                last_name: 'Wanjiku',
-                middle_name: null,
-                status: 'active',
-                date_of_birth: new Date('2013-02-01'),
+                schoolId: 'tenant-a',
+                admissionNumber: 'ADM-202',
+                firstName: 'Amina',
+                lastName: 'Wanjiku',
+                middleName: null,
+                studentStatus: 'ACTIVE',
+                dateOfBirth: new Date('2013-02-01'),
                 gender: 'female',
-                created_at: new Date('2026-05-20T06:00:00.000Z'),
-                updated_at: new Date('2026-05-20T06:00:00.000Z'),
+                primaryGuardianName: null,
+                primaryGuardianPhone: null,
+                metadata: {},
+                createdByUserId: null,
+                createdAt: new Date('2026-05-20T06:00:00.000Z'),
+                updatedAt: new Date('2026-05-20T06:00:00.000Z'),
               },
             ];
           },
@@ -195,13 +179,18 @@ test('StudentsRepository uses keyset cursor pagination for the high-volume stude
   });
 
   assert.equal(queries.length, 1);
-  assert.equal(queries[0]!.text, 'prisma.student.findMany');
-  assert.deepEqual(queries[0]!.values[0], {
-    where: { schoolId: 'tenant-a', studentStatus: 'ACTIVE' },
-    take: 50,
-    skip: 1,
-    cursor: { id: '00000000-0000-0000-0000-000000000201' },
-    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-  });
+  assert.match(queries[0]!.text, /WHERE tenant_id = \$1 AND school_id = \$1/);
+  assert.match(queries[0]!.text, /student_status::text = \$2/);
+  assert.match(queries[0]!.text, /\(created_at, id\) < \(\$3::timestamptz, \$4::uuid\)/);
+  assert.match(queries[0]!.text, /ORDER BY created_at DESC, id DESC/);
+  assert.match(queries[0]!.text, /LIMIT \$5::integer/);
+  assert.doesNotMatch(queries[0]!.text, /OFFSET/i);
+  assert.deepEqual(queries[0]!.values, [
+    'tenant-a',
+    'ACTIVE',
+    '2026-05-20T07:00:00.000Z',
+    '00000000-0000-0000-0000-000000000201',
+    50,
+  ]);
 });
 

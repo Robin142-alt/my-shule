@@ -1,7 +1,10 @@
 "use client";
+import { useState } from "react";
 import { FileText } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { toast } from "sonner";
+import { generateAdmissionsReport } from "./api-client";
 
 type ReportsRecord = {
   id: string;
@@ -19,7 +22,8 @@ type ReportsData = {
 };
 
 export function ReportsWorkspace() {
-  const { data, isLoading } = useSchoolQuery<ReportsData>('/admin-command/admissions/reports');
+  const { data, isLoading, refetch } = useSchoolQuery<ReportsData>('/admin-command/admissions/reports');
+  const [generating, setGenerating] = useState(false);
   const items = data?.reportsList || [];
 
   const getStatusTone = (st: string): Tone => {
@@ -30,8 +34,34 @@ export function ReportsWorkspace() {
     return "neutral";
   };
 
+  const handleGenerateReport = async () => {
+    setGenerating(true);
+    try {
+      await generateAdmissionsReport({
+        reportId: "admissions-readiness",
+        title: "Admissions readiness report",
+        format: "pdf",
+      });
+      toast.success("Admissions report compiled from live records.");
+      refetch();
+    } catch {
+      toast.error("Failed to compile admissions report.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   return (
-    <Panel title="Admissions Reports" description="Generate and download admissions reports." icon={FileText}>
+    <Panel title="Admissions Reports" description="Generate and download admissions reports." icon={FileText} actions={
+      <button
+        type="button"
+        disabled={generating}
+        onClick={handleGenerateReport}
+        className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white shadow-sm disabled:opacity-50"
+      >
+        {generating ? "Compiling..." : "Generate Report"}
+      </button>
+    }>
       <div className="grid gap-4 md:grid-cols-1 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="text-sm font-semibold text-[#64748B]">Reports Generated</div>

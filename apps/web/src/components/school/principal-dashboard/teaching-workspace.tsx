@@ -3,6 +3,7 @@
 import { Card } from "@/components/ui/card";
 import { AlertCircle, BookOpen, Clock, Users } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { buildSchoolSectionHref } from "../school-pages";
 
 type PrincipalTeachingData = {
   status: "active" | "degraded" | "setup_required";
@@ -100,7 +101,7 @@ export function PrincipalTeachingWorkspace() {
             <p className="text-white/60 text-sm mt-1 max-w-sm">
               For entering marks, taking attendance, and managing your specific classes, please switch to the Teacher Dashboard.
             </p>
-            <button className="mt-6 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white font-bold rounded-lg transition">
+            <button type="button" onClick={() => window.location.assign(buildSchoolSectionHref("teacher", "overview", "public"))} className="mt-6 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white font-bold rounded-lg transition">
               Switch to Teacher Role
             </button>
           </div>

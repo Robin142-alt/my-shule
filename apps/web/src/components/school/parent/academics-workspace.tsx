@@ -1,18 +1,53 @@
 "use client";
 
-import { Download, BookOpen, GraduationCap, Clock } from "lucide-react";
+import { useState } from "react";
+import { Download, BookOpen, GraduationCap, Clock, FileText } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
-export function AcademicsWorkspace() {
-  // Fetch real data from the backend
-  const { data: assignments, isLoading: assignLoading } = useSchoolQuery('/api/academics/my-assignments');
-  const { data: reportCards, isLoading: reportsLoading } = useSchoolQuery('/api/exams/report-cards');
-  const { data: marks, isLoading: marksLoading } = useSchoolQuery('/api/exams/marks');
+interface Assignment {
+  id?: string;
+  title: string;
+  due_date?: string;
+  subject?: string;
+}
 
-  const activeAssignments = Array.isArray(assignments) ? assignments.slice(0, 3) : [];
+interface ReportCardSummary {
+  id?: string;
+  term?: string;
+  academic_year?: string;
+}
+
+interface MarkSummary {
+  id?: string;
+  subject?: string;
+  exam?: string;
+  score?: string | number;
+  grade?: string;
+}
+
+export function AcademicsWorkspace() {
+  const [showAllHomework, setShowAllHomework] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  // Fetch real data from the backend
+  const { data: assignments, isLoading: assignLoading } = useSchoolQuery<Assignment[]>('/api/academics/my-assignments');
+  const { data: reportCards, isLoading: reportsLoading } = useSchoolQuery<ReportCardSummary[]>('/api/exams/report-cards');
+  const { data: marks, isLoading: marksLoading } = useSchoolQuery<MarkSummary[]>('/api/exams/marks');
+
+  const allAssignments = Array.isArray(assignments) ? assignments : [];
+  const activeAssignments = showAllHomework ? allAssignments : allAssignments.slice(0, 3);
   const publishedReports = Array.isArray(reportCards) ? reportCards.slice(0, 3) : [];
+
+  function openReportCard(report: ReportCardSummary) {
+    if (!report?.id) {
+      setNotice("This report card cannot be downloaded because it has no report identifier.");
+      return;
+    }
+
+    window.open(`/api/exams/report-cards/${encodeURIComponent(report.id)}/parent-download`, "_blank", "noopener,noreferrer");
+    setNotice(`Report card download requested for ${report.term || "selected term"}.`);
+  }
 
   return (
     <div className="space-y-6">
@@ -35,8 +70,8 @@ export function AcademicsWorkspace() {
                  <div className="h-10 bg-slate-100 rounded"></div>
                </div>
             ) : Array.isArray(marks) && marks.length > 0 ? (
-               marks.slice(0, 4).map((mark: any, idx: number) => (
-                 <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100">
+               marks.slice(0, 4).map((mark, idx) => (
+                 <div key={mark.id ?? idx} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100">
                     <div>
                       <p className="font-medium text-slate-900">{mark.subject || 'Subject'}</p>
                       <p className="text-xs text-slate-500">{mark.exam || 'Assessment'}</p>
@@ -66,12 +101,12 @@ export function AcademicsWorkspace() {
                  <div className="h-16 bg-slate-100 rounded"></div>
                </div>
             ) : activeAssignments.length > 0 ? (
-               activeAssignments.map((task: any, idx: number) => (
-                 <div key={idx} className="pb-3 border-b border-slate-100 last:border-0 last:pb-0">
+               activeAssignments.map((task, idx) => (
+                 <div key={task.id ?? idx} className="pb-3 border-b border-slate-100 last:border-0 last:pb-0">
                     <p className="font-medium text-slate-900 text-sm">{task.title}</p>
                     <p className="text-xs text-slate-500 mt-1">{task.subject || 'General'}</p>
                     <p className="text-xs text-amber-600 font-medium mt-1.5 flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> Due {new Date(task.due_date).toLocaleDateString()}
+                      <Clock className="w-3 h-3" /> Due {task.due_date ? new Date(task.due_date).toLocaleDateString() : "not set"}
                     </p>
                  </div>
                ))
@@ -80,10 +115,15 @@ export function AcademicsWorkspace() {
                  No pending homework.
                </div>
             )}
-            <Button variant="outline" className="w-full text-xs h-8">View All</Button>
+            {allAssignments.length > 3 ? (
+              <Button variant="outline" className="w-full text-xs h-8" onClick={() => setShowAllHomework((current) => !current)}>
+                {showAllHomework ? "Show Recent" : "View All"}
+              </Button>
+            ) : null}
           </div>
         </Card>
       </div>
+      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <Card className="border border-slate-200 overflow-hidden mt-6">
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
@@ -95,8 +135,8 @@ export function AcademicsWorkspace() {
                Loading report cards...
              </div>
           ) : publishedReports.length > 0 ? (
-             publishedReports.map((report: any, idx: number) => (
-              <div key={idx} className="flex items-center justify-between p-4 border border-slate-200 rounded-lg bg-white hover:border-blue-200 transition-colors">
+             publishedReports.map((report, idx) => (
+              <div key={report.id ?? idx} className="flex items-center justify-between p-4 border border-slate-200 rounded-lg bg-white hover:border-blue-200 transition-colors">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-rose-50 text-rose-600 rounded">
                     <FileText className="w-5 h-5" />
@@ -106,7 +146,7 @@ export function AcademicsWorkspace() {
                     <p className="text-xs text-slate-500">{report.academic_year || 'Year'}</p>
                   </div>
                 </div>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600">
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600" onClick={() => openReportCard(report)} aria-label={`Download ${report.term || "term"} report card`}>
                   <Download className="w-4 h-4" />
                 </Button>
               </div>
@@ -120,29 +160,5 @@ export function AcademicsWorkspace() {
       </Card>
     </div>
   );
-}
-
-// Temporary icon definition for the missing FileText import from previous template
-function FileText(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="16" x2="8" y1="13" y2="13" />
-      <line x1="16" x2="8" y1="17" y2="17" />
-      <line x1="10" x2="8" y1="9" y2="9" />
-    </svg>
-  )
 }
 

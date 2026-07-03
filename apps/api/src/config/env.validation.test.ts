@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import configuration from './configuration';
-import { validateEnv } from './env.validation';
+import { collectEnvValidationIssues, validateEnv } from './env.validation';
 
 const requiredEnvironment = {
   DATABASE_URL: 'postgres://myshule:secret@localhost:5432/myshule',
@@ -20,6 +20,10 @@ const requiredEnvironment = {
   APP_TRUSTED_TENANT_HEADER_SECRET: 'trusted-tenant-header-secret',
   REPORT_CARD_DOWNLOAD_SIGNING_SECRET: 'report-card-download-secret',
   JWT_SECRET: 'jwt-secret',
+  RESEND_API_KEY: 're_test_123456789',
+  EMAIL_FROM: 'MyShule <support@myshule.test>',
+  PUBLIC_APP_URL: 'https://app.myshule.test',
+  SUPPORT_NOTIFICATION_EMAILS: 'support@myshule.test',
 };
 
 const productionEnvironment = {
@@ -43,7 +47,7 @@ const productionEnvironment = {
     'mpesa-transaction-status-security-credential-32',
   UPLOAD_OBJECT_STORAGE_ENABLED: 'true',
   UPLOAD_OBJECT_STORAGE_PROVIDER: 'r2',
-  UPLOAD_OBJECT_STORAGE_ENDPOINT: 'https://objects.example.test',
+  UPLOAD_OBJECT_STORAGE_ENDPOINT: 'https://objects.myshule-storage.internal',
   UPLOAD_OBJECT_STORAGE_BUCKET: 'my-shule-files',
   UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID: 'object-access-key',
   UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY: 'object-secret-key-with-32-characters',
@@ -78,6 +82,38 @@ function loadConfigurationWithEnv(overrides: Record<string, string | undefined>)
 
 test('validateEnv allows startup when upload object storage is disabled', () => {
   assert.equal(validateEnv(requiredEnvironment), requiredEnvironment);
+});
+
+test('collectEnvValidationIssues returns structured missing and invalid startup issues', () => {
+  const envWithoutDatabaseRedisAndJwt: Record<string, string> = { ...productionEnvironment };
+  delete envWithoutDatabaseRedisAndJwt.DATABASE_URL;
+  delete envWithoutDatabaseRedisAndJwt.REDIS_URL;
+  delete envWithoutDatabaseRedisAndJwt.JWT_SECRET;
+
+  const report = collectEnvValidationIssues({
+    ...envWithoutDatabaseRedisAndJwt,
+    APP_CORS_ORIGINS: '*',
+    MPESA_CALLBACK_URL: 'https://localhost/payments/mpesa/callback',
+  });
+
+  assert.equal(report.ok, false);
+  assert.deepEqual(report.missing, [
+    'DATABASE_URL',
+    'REDIS_URL',
+    'JWT_SECRET or both JWT_ACCESS_TOKEN_SECRET and JWT_REFRESH_TOKEN_SECRET',
+  ]);
+  assert.equal(
+    report.invalid.includes('APP_CORS_ORIGINS must not include wildcard origins in production'),
+    true,
+  );
+  assert.equal(
+    report.invalid.includes('MPESA_CALLBACK_URL must not use localhost in production'),
+    true,
+  );
+  assert.deepEqual(
+    report.issues.slice(0, 3),
+    report.missing.map((message) => ({ type: 'missing', message })),
+  );
 });
 
 test('configuration treats Railway as a long-running worker runtime even when generic serverless flags are present', () => {
@@ -144,6 +180,44 @@ test('validateEnv rejects non-HTTPS MPESA callback URLs', () => {
         MPESA_CALLBACK_URL: 'http://api.example.test/mpesa/callback',
       }),
     /MPESA_CALLBACK_URL must be an HTTPS URL/,
+  );
+});
+
+test('validateEnv requires transactional email and support notification env', () => {
+  const {
+    RESEND_API_KEY,
+    EMAIL_FROM,
+    SUPPORT_NOTIFICATION_EMAILS,
+    PUBLIC_APP_URL,
+    ...envWithoutEmail
+  } = requiredEnvironment;
+
+  assert.throws(
+    () => validateEnv(envWithoutEmail),
+    /RESEND_API_KEY.*EMAIL_FROM.*SUPPORT_NOTIFICATION_EMAILS/s,
+  );
+
+  assert.throws(
+    () =>
+      validateEnv({
+        ...requiredEnvironment,
+        PUBLIC_APP_URL: '',
+      }),
+    /PUBLIC_APP_URL or WEB_APP_URL is required/,
+  );
+});
+
+test('validateEnv rejects placeholder or invalid transactional email env', () => {
+  assert.throws(
+    () =>
+      validateEnv({
+        ...requiredEnvironment,
+        RESEND_API_KEY: 'replace-with-resend-api-key',
+        EMAIL_FROM: 'MyShule <no-reply@example.com>',
+        PUBLIC_APP_URL: 'http://app.myshule.test',
+        SUPPORT_NOTIFICATION_EMAILS: 'support@example.com',
+      }),
+    /RESEND_API_KEY must be a real Resend key.*EMAIL_FROM must be a real verified sender.*PUBLIC_APP_URL or WEB_APP_URL must be an HTTPS URL.*SUPPORT_NOTIFICATION_EMAILS must contain real support recipients/s,
   );
 });
 
@@ -270,7 +344,7 @@ test('validateEnv rejects incomplete enabled upload object storage config', () =
       validateEnv({
         ...requiredEnvironment,
         UPLOAD_OBJECT_STORAGE_ENABLED: 'true',
-        UPLOAD_OBJECT_STORAGE_ENDPOINT: 'http://objects.example.test',
+        UPLOAD_OBJECT_STORAGE_ENDPOINT: 'http://objects.myshule-storage.internal',
         UPLOAD_OBJECT_STORAGE_PROVIDER: 'gcs',
       }),
     /UPLOAD_OBJECT_STORAGE_PROVIDER must be s3 or r2.*UPLOAD_OBJECT_STORAGE_ENDPOINT must be an HTTPS URL.*UPLOAD_OBJECT_STORAGE_BUCKET is required.*UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID is required.*UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY is required/s,
@@ -282,7 +356,7 @@ test('validateEnv allows complete S3-compatible upload object storage config', (
     ...requiredEnvironment,
     UPLOAD_OBJECT_STORAGE_ENABLED: 'true',
     UPLOAD_OBJECT_STORAGE_PROVIDER: 'r2',
-    UPLOAD_OBJECT_STORAGE_ENDPOINT: 'https://objects.example.test',
+    UPLOAD_OBJECT_STORAGE_ENDPOINT: 'https://objects.myshule-storage.internal',
     UPLOAD_OBJECT_STORAGE_BUCKET: 'my-shule-files',
     UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID: 'object-access-key',
     UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY: 'object-secret-key',

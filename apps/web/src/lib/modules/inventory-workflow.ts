@@ -19,7 +19,7 @@ function buildInventoryWorkflowLineId() {
     return crypto.randomUUID();
   }
 
-  return `line-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return `line-${Date.now()}`;
 }
 
 export function createInventoryWorkflowLineDraft(

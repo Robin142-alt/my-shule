@@ -674,6 +674,22 @@ export class AdminCommandRepository {
       [tenantId],
     ).catch(() => ({ rows: [] }));
 
+    const studentsResult = await this.executeSql(
+      `
+        SELECT
+          s.id,
+          CONCAT_WS(' ', s.first_name, s.last_name) AS name,
+          s.admission_number,
+          COALESCE(c.name, 'Unassigned') AS class
+        FROM students s
+        LEFT JOIN classes c ON s.current_class_id = c.id
+        WHERE s.school_id = $1
+        ORDER BY s.first_name ASC, s.last_name ASC
+        LIMIT 250
+      `,
+      [tenantId],
+    ).catch(() => ({ rows: [] }));
+
     const openCases = summaryResult.rows[0]?.open_cases || 0;
     const criticalCases = summaryResult.rows[0]?.critical_cases || 0;
     const escalations = summaryResult.rows[0]?.escalations || 0;
@@ -709,7 +725,8 @@ export class AdminCommandRepository {
       criticalCases,
       escalations,
       incidentTrend,
-      recentIncidents: recentIncidentsResult.rows
+      recentIncidents: recentIncidentsResult.rows,
+      students: studentsResult.rows
     };
   }
 
@@ -730,6 +747,42 @@ export class AdminCommandRepository {
     const present = summaryResult.rows[0]?.present_today || 0;
     const absent = summaryResult.rows[0]?.absent_today || 0;
     const late = summaryResult.rows[0]?.late_today || 0;
+
+    const recentAbsencesResult = await this.executeSql(
+      `
+        SELECT
+          ar.id,
+          ar.student_id,
+          CONCAT_WS(' ', s.first_name, s.last_name) AS student_name,
+          s.admission_number,
+          to_char(ar.attendance_date, 'YYYY-MM-DD') AS date,
+          ar.status,
+          ar.notes AS reason
+        FROM attendance_records ar
+        JOIN students s ON s.id = ar.student_id AND s.school_id = ar.tenant_id
+        WHERE ar.tenant_id = $1
+          AND ar.status IN ('absent', 'excused_absent')
+        ORDER BY ar.attendance_date DESC, ar.created_at DESC
+        LIMIT 10
+      `,
+      [tenantId],
+    ).catch(() => ({ rows: [] }));
+
+    const studentsResult = await this.executeSql(
+      `
+        SELECT
+          s.id,
+          CONCAT_WS(' ', s.first_name, s.last_name) AS name,
+          s.admission_number,
+          COALESCE(c.name, 'Unassigned') AS class
+        FROM students s
+        LEFT JOIN classes c ON s.current_class_id = c.id
+        WHERE s.school_id = $1
+        ORDER BY s.first_name ASC, s.last_name ASC
+        LIMIT 250
+      `,
+      [tenantId],
+    ).catch(() => ({ rows: [] }));
 
     const trendResult = await this.executeSql(
       `SELECT
@@ -763,7 +816,8 @@ export class AdminCommandRepository {
       late,
       chronicAbsenteeism: 0, // Requires deeper historical aggregation
       attendanceTrend,
-      recentAbsences: []
+      recentAbsences: recentAbsencesResult.rows,
+      students: studentsResult.rows
     };
   }
 
@@ -1066,7 +1120,7 @@ export class AdminCommandRepository {
       [tenantId]
     ).catch(() => ({ rows: [] }));
     
-    const tenant = tenantResult.rows[0] || { name: "MyShule Demo", subdomain: "demo", region: "Nairobi", logo_url: null };
+    const tenant = tenantResult.rows[0] || { name: "School profile not configured", subdomain: tenantId, region: "Not configured", logo_url: null };
 
     return {
       status: "active",
@@ -1228,15 +1282,83 @@ export class AdminCommandRepository {
   }
 
   async getPrincipalTeachingSchedule(tenantId: string) {
+    const metrics = await this.executeSql(
+      `
+        SELECT
+          COUNT(DISTINCT lesson.stream_id)::int AS total_classes,
+          COUNT(*) FILTER (
+            WHERE COALESCE((lesson.metadata->>'grading_status'), 'pending') IN ('pending', 'missing', 'due')
+          )::int AS pending_grading
+        FROM timetable_lessons lesson
+        LEFT JOIN class_subject_assignments assignment
+          ON assignment.tenant_id = lesson.tenant_id
+         AND assignment.id = lesson.class_subject_assignment_id
+        LEFT JOIN staff_members staff
+          ON staff.tenant_id = assignment.tenant_id
+         AND staff.id = assignment.staff_member_id
+        WHERE lesson.tenant_id = $1
+          AND (
+            staff.metadata->>'primary_role' = 'principal'
+            OR staff.metadata->>'role' = 'principal'
+            OR staff.metadata->>'position' ILIKE '%principal%'
+            OR staff.full_name ILIKE '%principal%'
+            OR lesson.metadata->>'assigned_role' = 'principal'
+          )
+      `,
+      [tenantId],
+    );
+    const lessons = await this.executeSql(
+      `
+        SELECT
+          COALESCE(stream.name, section.name, 'Assigned class') AS class_name,
+          COALESCE(subject.name, subject.code, 'Assigned subject') AS subject_name,
+          CONCAT(lesson.starts_at::text, ' - ', lesson.ends_at::text) AS lesson_time,
+          COALESCE(lesson.room_label, lesson.metadata->>'room_label', 'Room not assigned') AS room_name
+        FROM timetable_lessons lesson
+        LEFT JOIN streams stream
+          ON stream.tenant_id = lesson.tenant_id
+         AND stream.id = lesson.stream_id
+        LEFT JOIN class_sections section
+          ON section.tenant_id = lesson.tenant_id
+         AND section.id = lesson.stream_id
+        LEFT JOIN class_subject_assignments assignment
+          ON assignment.tenant_id = lesson.tenant_id
+         AND assignment.id = lesson.class_subject_assignment_id
+        LEFT JOIN subjects subject
+          ON subject.tenant_id = assignment.tenant_id
+         AND subject.id = assignment.subject_id
+        LEFT JOIN staff_members staff
+          ON staff.tenant_id = assignment.tenant_id
+         AND staff.id = assignment.staff_member_id
+        WHERE lesson.tenant_id = $1
+          AND (
+            staff.metadata->>'primary_role' = 'principal'
+            OR staff.metadata->>'role' = 'principal'
+            OR staff.metadata->>'position' ILIKE '%principal%'
+            OR staff.full_name ILIKE '%principal%'
+            OR lesson.metadata->>'assigned_role' = 'principal'
+          )
+        ORDER BY
+          CASE WHEN lesson.weekday >= EXTRACT(ISODOW FROM CURRENT_DATE)::int THEN 0 ELSE 1 END,
+          lesson.weekday ASC,
+          lesson.period_number ASC
+        LIMIT 10
+      `,
+      [tenantId],
+    );
+    const upcomingClasses = lessons.rows.map((row: any) => ({
+      class: row.class_name,
+      subject: row.subject_name,
+      time: row.lesson_time,
+      room: row.room_name,
+    }));
+
     return {
-      status: "active",
-      totalClasses: 3,
-      subjects: ["Mathematics", "Physics"],
-      upcomingClasses: [
-        { class: "Form 4 East", subject: "Mathematics", time: "10:30 AM", room: "Room 12" },
-        { class: "Form 3 North", subject: "Physics", time: "2:00 PM", room: "Lab 2" }
-      ],
-      pendingGrading: 1
+      status: upcomingClasses.length ? "active" : "empty",
+      totalClasses: metrics.rows[0]?.total_classes ?? 0,
+      subjects: Array.from(new Set(upcomingClasses.map((lesson) => lesson.subject).filter(Boolean))),
+      upcomingClasses,
+      pendingGrading: metrics.rows[0]?.pending_grading ?? 0
     };
   }
 
@@ -1475,39 +1597,184 @@ export class AdminCommandRepository {
   }
 
   async scheduleReport(data: { tenant_id: string; user_id: string; title: string; schedule: string }) {
-    await this.executeSql(
-      `INSERT INTO operations_reports (content, prepared_by, tenant_id, title, updated_at) VALUES ($1, $2, $3, $4, NOW())`,
-      [JSON.stringify({ schedule: data.schedule }), data.user_id, data.tenant_id, data.title]
+    const result = await this.executeSql(
+      `
+        INSERT INTO report_schedule_requests (
+          tenant_id, title, schedule, requested_by, metadata
+        )
+        VALUES ($1, $2, $3, $4::uuid, $5::jsonb)
+        RETURNING *
+      `,
+      [
+        data.tenant_id,
+        data.title,
+        data.schedule,
+        data.user_id,
+        JSON.stringify({ source_dashboard: 'principal-command' }),
+      ],
     );
+    return result.rows[0];
   }
 
-  async createCommunicationBroadcast(data: { tenant_id: string; user_id: string; audience: string; message: string }) {
-    await this.executeSql(
-      `INSERT INTO communication_sms_outbox (message, recipient_phone, sent_by, status, tenant_id, updated_at) 
-       VALUES ($1, $2, $3, $4, $5, NOW())`,
-      [data.message, data.audience, data.user_id, 'Pending', data.tenant_id]
+  async createPrincipalWorkflowAction(data: {
+    tenant_id: string;
+    user_id: string;
+    event_type: string;
+    entity_type: string;
+    entity_id?: string | null;
+    title: string;
+    message: string;
+    payload?: Record<string, unknown>;
+    target_roles?: string[];
+    status?: string;
+  }) {
+    const result = await this.executeSql(
+      `
+        INSERT INTO workflow_events (
+          tenant_id, source_user_id, source_role, target_roles, event_type, entity_type, entity_id, title, message, priority, status, payload
+        )
+        VALUES ($1, $2::uuid, 'principal', $3::jsonb, $4, $5, $6, $7, $8, 'normal', $9, $10::jsonb)
+        RETURNING *
+      `,
+      [
+        data.tenant_id,
+        data.user_id,
+        JSON.stringify(data.target_roles ?? ['principal']),
+        data.event_type,
+        data.entity_type,
+        data.entity_id ?? null,
+        data.title,
+        data.message,
+        data.status ?? 'pending',
+        JSON.stringify(data.payload ?? {}),
+      ],
     );
+    return result.rows[0];
+  }
+
+  async createCommunicationBroadcast(data: { tenant_id: string; user_id: string; audience: string; message: string; channels?: string[] }) {
+    const normalizedChannels = (data.channels ?? ['in_app']).map((channel) => String(channel).toLowerCase());
+    const smsRecipients = await this.executeSql<{ phone: string }>(
+      `
+        SELECT DISTINCT phone
+        FROM (
+          SELECT phone FROM student_guardians WHERE tenant_id = $1 AND phone IS NOT NULL AND ($2 IN ('parents', 'guardians', 'all'))
+          UNION ALL
+          SELECT phone_number AS phone FROM guardians WHERE tenant_id = $1 AND phone_number IS NOT NULL AND ($2 IN ('parents', 'guardians', 'all'))
+          UNION ALL
+          SELECT phone FROM staff_profiles WHERE tenant_id = $1 AND phone IS NOT NULL AND ($2 IN ('staff', 'teachers', 'all'))
+        ) recipients
+        WHERE phone IS NOT NULL AND btrim(phone) <> ''
+        LIMIT 500
+      `,
+      [data.tenant_id, data.audience],
+    ).catch(() => ({ rows: [], rowCount: 0 }));
+    const broadcastStatus = normalizedChannels.includes('sms') ? 'PENDING' : 'SENT';
+    const broadcast = await this.executeSql(
+      `
+        INSERT INTO communication_broadcasts (
+          school_id, user_id, audience, message, channels, status
+        )
+        VALUES ($1, $2::uuid, $3, $4, $5::text[], $6)
+        RETURNING *
+      `,
+      [data.tenant_id, data.user_id, data.audience, data.message, normalizedChannels, broadcastStatus],
+    );
+    const broadcastId = broadcast.rows[0]?.id;
+    const event = await this.executeSql(
+      `
+        INSERT INTO workflow_events (
+          tenant_id, source_user_id, source_role, target_roles, event_type, entity_type, entity_id, title, message, priority, payload
+        )
+        VALUES ($1, $2::uuid, 'principal', $3::jsonb, 'communication.broadcast_created', 'communication_broadcast', $4, $5, $6, 'normal', $7::jsonb)
+        RETURNING *
+      `,
+      [
+        data.tenant_id,
+        data.user_id,
+        JSON.stringify([data.audience]),
+        broadcastId,
+        `Broadcast to ${data.audience}`,
+        data.message,
+        JSON.stringify({ audience: data.audience, channels: normalizedChannels, broadcast_id: broadcastId, source_dashboard: 'principal-command' }),
+      ],
+    );
+
+    if (normalizedChannels.includes('sms') && smsRecipients.rows.length > 0) {
+      await this.executeSql(
+        `
+          INSERT INTO communication_sms_outbox (message, recipient_phone, sent_by, status, tenant_id, updated_at)
+          SELECT $1, phone, $2::uuid, 'Pending', $3, NOW()
+          FROM unnest($4::text[]) AS phone
+        `,
+        [data.message, data.user_id, data.tenant_id, smsRecipients.rows.map((row) => row.phone)],
+      );
+    }
+
+    await this.executeSql(
+      `
+        INSERT INTO notifications (
+          tenant_id, notification_key, recipient_role, type, title, body, status, metadata
+        )
+        VALUES ($1, $2, $3, 'communication.broadcast_created', $4, $5, 'unread', $6::jsonb)
+        ON CONFLICT (tenant_id, notification_key)
+        DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, metadata = EXCLUDED.metadata, updated_at = NOW()
+      `,
+      [
+        data.tenant_id,
+        `principal-broadcast-${broadcastId ?? event.rows[0]?.id ?? Date.now()}`,
+        data.audience,
+        `Broadcast to ${data.audience}`,
+        data.message,
+        JSON.stringify({ audience: data.audience, channels: normalizedChannels, broadcast_id: broadcastId, sms_recipient_count: smsRecipients.rows.length }),
+      ],
+    );
+
+    return { broadcast: broadcast.rows[0], event: event.rows[0], smsRecipientCount: smsRecipients.rows.length };
   }
 
   async logAbsence(data: { tenant_id: string; user_id: string; student_id: string; date: string; is_excused: boolean }) {
-    const studentRes = await this.executeSql(
-      `SELECT current_class_id FROM students WHERE id = $1 AND school_id = $2`,
-      [data.student_id, data.tenant_id]
+    const result = await this.executeSql(
+      `
+        INSERT INTO attendance_records (
+          tenant_id, student_id, attendance_date, status, notes, metadata
+        )
+        SELECT $1, student.id, $3::date, $4, $5, $6::jsonb
+        FROM students student
+        WHERE student.tenant_id = $1
+          AND student.id = $2::uuid
+        RETURNING *
+      `,
+      [
+        data.tenant_id,
+        data.student_id,
+        data.date,
+        data.is_excused ? 'excused_absent' : 'absent',
+        data.is_excused ? 'Logged as excused by principal command center' : 'Logged by principal command center',
+        JSON.stringify({ source_dashboard: 'principal-command', logged_by: data.user_id }),
+      ],
     );
-    const classId = studentRes.rows[0]?.current_class_id || '00000000-0000-0000-0000-000000000000';
-
-    await this.executeSql(
-      `INSERT INTO academics_attendance (attendance_date, class_id, status, student_id, submitted_by, tenant_id, updated_at) 
-       VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
-      [data.date, classId, data.is_excused ? 'absent_excused' : 'absent', data.student_id, data.user_id, data.tenant_id]
-    );
+    return result.rows[0];
   }
 
-  async reportIncidentMock(data: { tenant_id: string; user_id: string; student_id: string; category: string; severity: string; description: string }) {
-    await this.executeSql(
-      `INSERT INTO admin_incidents (created_by, description, involved_parties, severity, tenant_id, title, updated_at) 
-       VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
-      [data.user_id, data.description, data.student_id, data.severity, data.tenant_id, data.category]
+  async reportIncident(data: { tenant_id: string; user_id: string; student_id: string; category: string; severity: string; description: string }) {
+    const result = await this.executeSql(
+      `
+        INSERT INTO admin_incidents (
+          created_by, description, involved_parties, severity, tenant_id, title, updated_at
+        )
+        VALUES ($1::uuid, $2, $3::jsonb, $4, $5, $6, NOW())
+        RETURNING *
+      `,
+      [
+        data.user_id,
+        data.description,
+        JSON.stringify([{ type: 'student', id: data.student_id }]),
+        data.severity,
+        data.tenant_id,
+        data.category,
+      ],
     );
+    return result.rows[0];
   }
 }

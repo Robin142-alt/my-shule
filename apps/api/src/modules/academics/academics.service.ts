@@ -325,6 +325,7 @@ export class AcademicsService {
       teacher_id: this.currentUserId(),
       topic: this.requireText(dto.topic, 'Topic'),
       notes: dto.notes,
+      date: dto.date ?? new Date().toISOString().split('T')[0],
       
     });
   }

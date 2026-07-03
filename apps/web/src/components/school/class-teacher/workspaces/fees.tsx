@@ -1,9 +1,9 @@
 import { Banknote } from "lucide-react";
-import { Panel, StatusChip } from "../shared";
-import { useClassTeacherFees } from "@/lib/data/class-teacher-hooks";
+import { Panel, StatusChip, sendClassTeacherCommunication } from "../shared";
+import { useClassTeacherFees, useResolvedClassTeacherStreamId } from "@/lib/data/class-teacher-hooks";
 
 export function FeesWorkspace() {
-  const streamId = "stream_123";
+  const { streamId } = useResolvedClassTeacherStreamId();
   const { data, isLoading, error } = useClassTeacherFees(streamId);
 
   if (isLoading) {
@@ -43,7 +43,7 @@ export function FeesWorkspace() {
                 <td className="p-3">{row.lastPayment}</td>
                 <td className="p-3"><StatusChip label={row.status} tone={row.status === 'Overdue' ? 'danger' : 'neutral'}/></td>
                 <td className="p-3">
-                  <button className="rounded bg-[#EEF5FF] px-2 py-1 text-xs font-bold text-[#1D4ED8]">Send Reminder</button>
+                  <button type="button" className="rounded bg-[#EEF5FF] px-2 py-1 text-xs font-bold text-[#1D4ED8]" onClick={() => sendClassTeacherCommunication({ audience: "fee_follow_up", learnerId: String(row.id ?? row.learner), subject: `Fee reminder for ${row.learner}`, message: `${row.learner} has a fee balance of ${row.balance}. Please follow up through the parent portal or school office.`, source: "class-teacher-fees" })}>Send Reminder</button>
                 </td>
               </tr>
             ))}

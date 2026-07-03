@@ -15,6 +15,10 @@ jest.mock("@/lib/auth/auth-context", () => ({
     user: { id: "test-user-id" },
     isAuthenticated: true,
   }),
+  useOptionalAuth: () => ({
+    user: { id: "test-user-id" },
+    isAuthenticated: true,
+  }),
 }));
 
 // A wrapper component to provide QueryClient
@@ -29,9 +33,11 @@ const createWrapper = () => {
       },
     },
   });
-  return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
+  function OfflineValidationWrapper({ children }: { children: React.ReactNode }) {
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  }
+
+  return OfflineValidationWrapper;
 };
 
 describe("Offline Sync Queue School ID Validation", () => {

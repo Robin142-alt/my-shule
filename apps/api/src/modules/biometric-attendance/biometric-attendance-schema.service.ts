@@ -134,13 +134,125 @@ export class BiometricAttendanceSchemaService implements OnModuleInit {
         CONSTRAINT ck_attendance_rules_grace CHECK (grace_period_minutes BETWEEN 0 AND 60)
       );
 
+      DO $$
+      DECLARE
+        biometric_table text;
+      BEGIN
+        FOREACH biometric_table IN ARRAY ARRAY[
+          'biometric_devices',
+          'biometric_identities',
+          'biometric_events',
+          'teacher_attendance_logs',
+          'attendance_rules'
+        ] LOOP
+          EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', biometric_table);
+          EXECUTE format('DROP POLICY IF EXISTS %I ON %I', biometric_table || '_tenant_policy', biometric_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS tenant_id text', biometric_table);
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns c
+            WHERE c.table_name = biometric_table
+              AND column_name = 'tenant_id'
+              AND data_type <> 'text'
+          ) THEN
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id TYPE text USING tenant_id::text', biometric_table);
+          END IF;
+          EXECUTE format(
+            'UPDATE %I SET tenant_id = COALESCE(NULLIF(tenant_id, ''''), NULLIF(current_setting(''app.tenant_id'', true), ''''), ''00000000-0000-0000-0000-000000000000'') WHERE tenant_id IS NULL OR tenant_id = ''''',
+            biometric_table
+          );
+          EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET DEFAULT ''00000000-0000-0000-0000-000000000000''', biometric_table);
+          EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET NOT NULL', biometric_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT NOW()', biometric_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW()', biometric_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS audit_log_reference uuid', biometric_table);
+        END LOOP;
+      END $$;
+
+      ALTER TABLE biometric_devices ADD COLUMN IF NOT EXISTS name text NOT NULL DEFAULT 'Biometric device';
+      ALTER TABLE biometric_devices ADD COLUMN IF NOT EXISTS location text NOT NULL DEFAULT 'Unassigned';
+      ALTER TABLE biometric_devices ADD COLUMN IF NOT EXISTS type text NOT NULL DEFAULT 'fingerprint';
+      ALTER TABLE biometric_devices ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+      ALTER TABLE biometric_devices ADD COLUMN IF NOT EXISTS last_sync_time timestamptz;
+      ALTER TABLE biometric_devices ADD COLUMN IF NOT EXISTS registered_by uuid;
+
+      ALTER TABLE biometric_identities ADD COLUMN IF NOT EXISTS teacher_user_id uuid;
+      ALTER TABLE biometric_identities ADD COLUMN IF NOT EXISTS biometric_hash text;
+      UPDATE biometric_identities
+      SET biometric_hash = COALESCE(NULLIF(biometric_hash, ''), id::text)
+      WHERE biometric_hash IS NULL OR biometric_hash = '';
+      ALTER TABLE biometric_identities ALTER COLUMN biometric_hash SET NOT NULL;
+      ALTER TABLE biometric_identities ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+      ALTER TABLE biometric_identities ADD COLUMN IF NOT EXISTS enrolled_by uuid;
+
+      ALTER TABLE biometric_events ADD COLUMN IF NOT EXISTS device_id uuid;
+      ALTER TABLE biometric_events ADD COLUMN IF NOT EXISTS biometric_hash text;
+      UPDATE biometric_events
+      SET biometric_hash = COALESCE(NULLIF(biometric_hash, ''), id::text)
+      WHERE biometric_hash IS NULL OR biometric_hash = '';
+      ALTER TABLE biometric_events ALTER COLUMN biometric_hash SET NOT NULL;
+      ALTER TABLE biometric_events ADD COLUMN IF NOT EXISTS event_hash text;
+      UPDATE biometric_events
+      SET event_hash = COALESCE(NULLIF(event_hash, ''), id::text)
+      WHERE event_hash IS NULL OR event_hash = '';
+      ALTER TABLE biometric_events ALTER COLUMN event_hash SET NOT NULL;
+      ALTER TABLE biometric_events ADD COLUMN IF NOT EXISTS event_type text NOT NULL DEFAULT 'check_in';
+      ALTER TABLE biometric_events ADD COLUMN IF NOT EXISTS occurred_at timestamptz NOT NULL DEFAULT NOW();
+      ALTER TABLE biometric_events ADD COLUMN IF NOT EXISTS offline_mode_flag boolean NOT NULL DEFAULT false;
+      ALTER TABLE biometric_events ALTER COLUMN offline_mode_flag TYPE boolean
+        USING CASE
+          WHEN LOWER(offline_mode_flag::text) IN ('true', 't', '1', 'yes', 'y') THEN true
+          ELSE false
+        END;
+      ALTER TABLE biometric_events ALTER COLUMN offline_mode_flag SET DEFAULT false;
+      ALTER TABLE biometric_events ALTER COLUMN offline_mode_flag SET NOT NULL;
+      ALTER TABLE biometric_events ADD COLUMN IF NOT EXISTS raw_payload jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE biometric_events ADD COLUMN IF NOT EXISTS processing_status text NOT NULL DEFAULT 'pending';
+
+      ALTER TABLE teacher_attendance_logs ADD COLUMN IF NOT EXISTS teacher_user_id uuid;
+      ALTER TABLE teacher_attendance_logs ADD COLUMN IF NOT EXISTS attendance_date date NOT NULL DEFAULT CURRENT_DATE;
+      ALTER TABLE teacher_attendance_logs ALTER COLUMN attendance_date TYPE date
+        USING CASE
+          WHEN attendance_date::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN attendance_date::text::date
+          ELSE CURRENT_DATE
+        END;
+      ALTER TABLE teacher_attendance_logs ALTER COLUMN attendance_date SET DEFAULT CURRENT_DATE;
+      ALTER TABLE teacher_attendance_logs ALTER COLUMN attendance_date SET NOT NULL;
+      ALTER TABLE teacher_attendance_logs ADD COLUMN IF NOT EXISTS event_id uuid;
+      ALTER TABLE teacher_attendance_logs ADD COLUMN IF NOT EXISTS event_type text NOT NULL DEFAULT 'manual_override';
+      ALTER TABLE teacher_attendance_logs ADD COLUMN IF NOT EXISTS occurred_at timestamptz NOT NULL DEFAULT NOW();
+      ALTER TABLE teacher_attendance_logs ADD COLUMN IF NOT EXISTS device_id uuid;
+      ALTER TABLE teacher_attendance_logs ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'present';
+      ALTER TABLE teacher_attendance_logs ADD COLUMN IF NOT EXISTS rule_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE teacher_attendance_logs ALTER COLUMN rule_snapshot TYPE jsonb
+        USING CASE
+          WHEN rule_snapshot::text ~ '^[[:space:]]*[\\{\\[]' THEN rule_snapshot::text::jsonb
+          ELSE '{}'::jsonb
+        END;
+      ALTER TABLE teacher_attendance_logs ALTER COLUMN rule_snapshot SET DEFAULT '{}'::jsonb;
+      ALTER TABLE teacher_attendance_logs ALTER COLUMN rule_snapshot SET NOT NULL;
+      ALTER TABLE teacher_attendance_logs ADD COLUMN IF NOT EXISTS manual_override boolean NOT NULL DEFAULT false;
+      ALTER TABLE teacher_attendance_logs ALTER COLUMN manual_override TYPE boolean
+        USING CASE
+          WHEN LOWER(manual_override::text) IN ('true', 't', '1', 'yes', 'y') THEN true
+          ELSE false
+        END;
+      ALTER TABLE teacher_attendance_logs ALTER COLUMN manual_override SET DEFAULT false;
+      ALTER TABLE teacher_attendance_logs ALTER COLUMN manual_override SET NOT NULL;
+      ALTER TABLE teacher_attendance_logs ADD COLUMN IF NOT EXISTS override_reason text;
+      ALTER TABLE teacher_attendance_logs ADD COLUMN IF NOT EXISTS override_by uuid;
+
+      ALTER TABLE attendance_rules ADD COLUMN IF NOT EXISTS default_start_time time NOT NULL DEFAULT '07:30';
+      ALTER TABLE attendance_rules ADD COLUMN IF NOT EXISTS grace_period_minutes integer NOT NULL DEFAULT 10;
+      ALTER TABLE attendance_rules ADD COLUMN IF NOT EXISTS absence_cutoff_time time NOT NULL DEFAULT '09:00';
+      ALTER TABLE attendance_rules ADD COLUMN IF NOT EXISTS half_day_checkout_cutoff time NOT NULL DEFAULT '12:30';
+      ALTER TABLE attendance_rules ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true;
+
       CREATE INDEX IF NOT EXISTS ix_biometric_events_processing
         ON biometric_events (tenant_id, processing_status, occurred_at);
       CREATE INDEX IF NOT EXISTS ix_teacher_attendance_logs_teacher_date
         ON teacher_attendance_logs (tenant_id, teacher_user_id, attendance_date, created_at DESC);
-    `);
 
-    await this.prisma.runSchemaBootstrap(`
       ${BIOMETRIC_TABLES.map((table) => `
         ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;
         ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;

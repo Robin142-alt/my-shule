@@ -176,6 +176,7 @@ enum StudentStatus {
   ACCEPTED
   ENROLLED
   ACTIVE
+  INACTIVE
   SUSPENDED
   ON_LEAVE
   TRANSFERRED_OUT
@@ -3367,8 +3368,8 @@ model LedgerAccount {
   schoolId           String          @map("tenant_id")
   code               String
   name               String
-  category           AccountCategory
-  normalBalance      EntryDirection  @map("normal_balance")
+  category           String
+  normalBalance      String          @map("normal_balance")
   currencyCode       String          @map("currency_code")
   allowManualEntries Boolean         @default(true) @map("allow_manual_entries")
   isActive           Boolean         @default(true) @map("is_active")
@@ -3396,7 +3397,7 @@ model IdempotencyKey {
   requestMethod      String            @map("request_method")
   requestPath        String            @map("request_path")
   requestHash        String            @map("request_hash")
-  status             IdempotencyStatus @default(IN_PROGRESS)
+  status             String            @default("in_progress")
   responseStatusCode Int?              @map("response_status_code")
   responseBody       Json?             @map("response_body")
   lockedAt           DateTime?         @map("locked_at")
@@ -3447,7 +3448,7 @@ model LedgerEntry {
   transactionId   String         @map("transaction_id")
   accountId       String         @map("account_id")
   lineNumber      Int            @map("line_number")
-  direction       EntryDirection
+  direction       String
   amountMinor     String         @map("amount_minor")
   currencyCode    String         @map("currency_code")
   description     String?

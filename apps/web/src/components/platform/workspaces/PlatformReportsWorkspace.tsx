@@ -31,7 +31,7 @@ export function PlatformReportsWorkspace() {
     }
   }
 
-  async function handleCreate(e: React.FormEvent) {
+  async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setIsSaving(true);
     try {

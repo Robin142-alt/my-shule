@@ -42,6 +42,7 @@ import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { openPrintDocument } from "@/lib/dashboard/export";
 import { buildSchoolSectionHref } from "./school-pages";
 
 type HodRouteMode = "hosted" | "public";
@@ -161,17 +162,90 @@ function SimpleWorkspace({
   title,
   description,
   icon,
+  dataPath = "review-queue",
+  action = "workspace_action",
+  actionLabel = "Record Action",
+  actionEndpoint,
+  actionBody,
+  submittingLabel,
+  successMessage,
 }: {
   title: string;
   description: string;
   icon: LucideIcon;
+  dataPath?: string;
+  action?: string;
+  actionLabel?: string;
+  actionEndpoint?: string;
+  actionBody?: Record<string, unknown>;
+  submittingLabel?: string;
+  successMessage?: string;
 }) {
+  const { data, isLoading } = useSchoolQuery<any[]>(`/admin-command/hod/${dataPath}`);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const rows = Array.isArray(data) ? data : [];
+
+  async function handleAction() {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await requestDashboardApi(actionEndpoint ?? "/admin-command/hod/actions", {
+        method: "POST",
+        body: actionEndpoint
+          ? { title, name: title, format: "pdf", sourceWorkspace: dataPath, ...(actionBody ?? {}) }
+          : { action, title, message: description, sourceWorkspace: dataPath },
+      });
+      toast.success(successMessage ?? `${actionLabel} saved and routed to the department workflow.`);
+    } catch (err: any) {
+      toast.error(err.message || "The department action could not be recorded.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
-    <Panel title={title} description={description} icon={icon}>
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <AlertTriangle className="h-12 w-12 text-[#64748B]/30 mb-4" />
-        <p className="text-lg font-semibold text-[#071D49]">Workspace Content Pending</p>
-        <p className="mt-2 text-sm text-[#64748B]">This module is being connected to the new MyShule architecture.</p>
+    <Panel
+      title={title}
+      description={description}
+      icon={icon}
+      actions={
+        <button type="button" disabled={isSubmitting} onClick={handleAction} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+          {isSubmitting ? (submittingLabel ?? "Recording...") : actionLabel}
+        </button>
+      }
+    >
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <span className="block text-xs font-black uppercase text-[#64748B]">Live Records</span>
+          <span className="mt-1 block text-2xl font-black text-[#071D49]">{isLoading ? "..." : rows.length}</span>
+        </div>
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <span className="block text-xs font-black uppercase text-[#64748B]">Workflow</span>
+          <span className="mt-1 block text-sm font-black text-[#071D49]">Audited</span>
+        </div>
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <span className="block text-xs font-black uppercase text-[#64748B]">Recipients</span>
+          <span className="mt-1 block text-sm font-black text-[#071D49]">HOD, Dean, Principal</span>
+        </div>
+      </div>
+      <div className="mt-5 overflow-hidden rounded-xl border border-[#D8E0EC]">
+        {isLoading ? (
+          <p className="p-6 text-sm text-[#64748B]">Loading department records...</p>
+        ) : rows.length === 0 ? (
+          <div className="p-6">
+            <p className="text-sm font-bold text-[#071D49]">No department records yet.</p>
+            <p className="mt-1 text-sm text-[#64748B]">Use {actionLabel.toLowerCase()} to create an audited department workflow entry for this workspace.</p>
+          </div>
+        ) : (
+          <div className="max-h-[360px] overflow-auto">
+            {rows.slice(0, 20).map((row: any, index) => (
+              <div key={row.id ?? index} className="border-b border-[#D8E0EC] p-4 last:border-b-0">
+                <p className="text-sm font-black text-[#071D49]">{row.title ?? row.name ?? row.subject_name ?? row.topic ?? `${title} record ${index + 1}`}</p>
+                <p className="mt-1 text-xs text-[#64748B]">{row.status ?? row.department ?? row.created_at ?? "Department-scoped record"}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </Panel>
   );
@@ -181,6 +255,31 @@ function MyTeachingWorkspace() {
   const liveSession = useLiveTenantSession("school");
   const { data: assignments, isLoading: assignmentsLoading } = useSchoolQuery<any[]>("/api/academics/my-assignments", { enabled: !!liveSession.session });
   const { data: logs, isLoading: logsLoading } = useSchoolQuery<any[]>("/api/academics/my-lesson-logs", { enabled: !!liveSession.session });
+  const [reviewingRosterId, setReviewingRosterId] = useState<string | null>(null);
+
+  async function handleRecordRosterReview(assignment: any, index: number) {
+    const assignmentKey = String(assignment?.id ?? `${assignment?.subject?.id ?? "subject"}-${assignment?.class_section?.id ?? index}`);
+    if (reviewingRosterId) return;
+    setReviewingRosterId(assignmentKey);
+    try {
+      await requestDashboardApi("/admin-command/hod/roster-review", {
+        method: "POST",
+        body: {
+          assignment_id: assignment?.id ?? null,
+          subject_id: assignment?.subject?.id ?? assignment?.subject_id ?? null,
+          subject_name: assignment?.subject?.name ?? "Subject",
+          class_section_id: assignment?.class_section?.id ?? assignment?.class_section_id ?? null,
+          class_name: assignment?.class_section?.name ?? "Class",
+          sourceWorkspace: "my-teaching",
+        },
+      });
+      toast.success("Roster review request routed to department workflow.");
+    } catch (err: any) {
+      toast.error(err.message || "Roster review could not be routed.");
+    } finally {
+      setReviewingRosterId(null);
+    }
+  }
 
   return (
     <Panel title="My Teaching" description="My classes, timetable, attendance, and marks." icon={BookOpen}>
@@ -199,8 +298,13 @@ function MyTeachingWorkspace() {
                     <span className="block font-bold text-[#071D49]">{a.subject?.name || 'Subject'}</span>
                     <span className="block text-xs text-[#64748B]">{a.class_section?.name || 'Class'}</span>
                   </div>
-                  <button className="rounded bg-white px-3 py-1.5 text-xs font-bold text-[#071D49] border border-[#D8E0EC] hover:bg-gray-50">
-                    View Roster
+                  <button
+                    type="button"
+                    onClick={() => handleRecordRosterReview(a, i)}
+                    disabled={!!reviewingRosterId}
+                    className="rounded bg-white px-3 py-1.5 text-xs font-bold text-[#071D49] border border-[#D8E0EC] hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    {reviewingRosterId === String(a?.id ?? `${a?.subject?.id ?? "subject"}-${a?.class_section?.id ?? i}`) ? "Routing..." : "View Roster"}
                   </button>
                 </div>
               ))}
@@ -243,9 +347,9 @@ function DepartmentTeachersWorkspace() {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const response = await requestDashboardApi("/api/academic/hod/requests", {
+      await requestDashboardApi("/admin-command/hod/requests", {
         method: "POST",
-        body: JSON.stringify({ action: "add_teacher" })
+        body: { action: "add_teacher" }
       });
 
       toast.success("Teacher addition request sent.");
@@ -257,6 +361,20 @@ function DepartmentTeachersWorkspace() {
   };
 
   const teachers = staff?.items || staff || [];
+
+  const openTeacherLoad = (teacher: any) => {
+    openPrintDocument({
+      eyebrow: "Department workload",
+      title: "Teacher Load",
+      subtitle: `${teacher.first_name ?? ""} ${teacher.last_name ?? ""}`.trim() || "Teacher",
+      rows: [
+        { label: "Teacher", value: `${teacher.first_name ?? ""} ${teacher.last_name ?? ""}`.trim() || "-" },
+        { label: "Role / Title", value: String(teacher.job_title || "Subject Teacher") },
+        { label: "Status", value: String(teacher.status || "Active") },
+      ],
+      footer: "Teaching load review must include assigned classes, subjects, schemes, coverage, and moderation duties.",
+    });
+  };
 
   return (
     <Panel title="Department Teachers" description="Manage and supervise teachers in the department." icon={Users} actions={
@@ -292,7 +410,7 @@ function DepartmentTeachersWorkspace() {
                     <StatusChip label={t.status || 'Active'} tone={t.status === 'on_leave' ? 'warning' : 'success'} />
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button className="text-[#1D4ED8] hover:underline text-xs font-bold">View Load</button>
+                    <button type="button" onClick={() => openTeacherLoad(t)} className="text-[#1D4ED8] hover:underline text-xs font-bold">View Load</button>
                   </td>
                 </tr>
               ))}
@@ -306,25 +424,60 @@ function DepartmentTeachersWorkspace() {
 
 function SubjectAllocationWorkspace() {
   const liveSession = useLiveTenantSession("school");
-  const { data: assignments, isLoading } = useSchoolQuery<any[]>("/api/academics/teacher-assignments", { enabled: !!liveSession.session });
+  const { data: assignments, isLoading, refetch } = useSchoolQuery<any[]>("/api/academics/teacher-assignments", { enabled: !!liveSession.session });
   const { hasPermission } = usePermissions();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const response = await requestDashboardApi("/api/academic/hod/subject-allocation", {
+      const allocationPayload = Object.fromEntries(new FormData(e.currentTarget).entries());
+      await requestDashboardApi("/admin-command/hod/subject-allocation", {
         method: "POST",
-        body: JSON.stringify({ action: "allocate_subject" })
+        body: {
+          action: "allocate_subject",
+          title: "Subject allocation updated",
+          teacher_id: String(allocationPayload.teacher_id || "").trim(),
+          subject_id: String(allocationPayload.subject_id || "").trim(),
+          class_section_id: String(allocationPayload.class_section_id || "").trim(),
+          academic_term_id: String(allocationPayload.academic_term_id || "").trim(),
+          lessons_per_week: String(allocationPayload.lessons_per_week || "").trim() || undefined,
+          notes: String(allocationPayload.notes || "").trim() || undefined,
+        }
       });
 
       toast.success("Subject allocated successfully.");
       setIsModalOpen(false);
+      refetch();
     } catch (err: any) {
       toast.error(err.message || "Failed to allocate subject.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRevokeSubjectAllocation = async (assignment: any) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await requestDashboardApi("/admin-command/hod/subject-allocation/revoke", {
+        method: "POST",
+        body: {
+          title: "Subject allocation revoke requested",
+          reason: "HOD requested subject allocation revocation for department review.",
+          assignment_id: assignment?.id ?? null,
+          subject_id: assignment?.subject?.id ?? assignment?.subject_id ?? null,
+          teacher_id: assignment?.teacher?.id ?? assignment?.teacher_id ?? null,
+          class_section_id: assignment?.class_section?.id ?? assignment?.class_section_id ?? null,
+        },
+      });
+      toast.success("Subject allocation revoke request routed for academic review.");
+      refetch();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to route revoke request.");
     } finally {
       setIsSubmitting(false);
     }
@@ -363,7 +516,7 @@ function SubjectAllocationWorkspace() {
                   <td className="px-4 py-3 text-[#64748B]">{a.subject?.name}</td>
                   <td className="px-4 py-3 text-[#64748B]">{a.class_section?.name}</td>
                   <td className="px-4 py-3 text-right">
-                    <button className="text-rose-600 hover:underline text-xs font-bold">Revoke</button>
+                    <button type="button" onClick={() => handleRevokeSubjectAllocation(a)} disabled={isSubmitting} className="text-rose-600 hover:underline text-xs font-bold disabled:opacity-50">Revoke</button>
                   </td>
                 </tr>
               ))}
@@ -376,21 +529,27 @@ function SubjectAllocationWorkspace() {
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
             <label className="text-sm font-bold text-[#071D49]">Teacher</label>
-            <select className="w-full rounded-lg border border-[#D8E0EC] p-2">
-              <option>Select teacher</option>
-            </select>
+            <input required name="teacher_id" className="w-full rounded-lg border border-[#D8E0EC] p-2" placeholder="Teacher or staff UUID" />
           </div>
           <div>
             <label className="text-sm font-bold text-[#071D49]">Subject</label>
-            <select className="w-full rounded-lg border border-[#D8E0EC] p-2">
-              <option>Select subject</option>
-            </select>
+            <input required name="subject_id" className="w-full rounded-lg border border-[#D8E0EC] p-2" placeholder="Subject UUID" />
           </div>
           <div>
             <label className="text-sm font-bold text-[#071D49]">Class/Section</label>
-            <select className="w-full rounded-lg border border-[#D8E0EC] p-2">
-              <option>Select class</option>
-            </select>
+            <input required name="class_section_id" className="w-full rounded-lg border border-[#D8E0EC] p-2" placeholder="Class section UUID" />
+          </div>
+          <div>
+            <label className="text-sm font-bold text-[#071D49]">Academic Term</label>
+            <input required name="academic_term_id" className="w-full rounded-lg border border-[#D8E0EC] p-2" placeholder="Academic term UUID" />
+          </div>
+          <div>
+            <label className="text-sm font-bold text-[#071D49]">Lessons Per Week</label>
+            <input name="lessons_per_week" type="number" min="1" className="w-full rounded-lg border border-[#D8E0EC] p-2" placeholder="e.g. 5" />
+          </div>
+          <div>
+            <label className="text-sm font-bold text-[#071D49]">Notes</label>
+            <textarea name="notes" className="w-full rounded-lg border border-[#D8E0EC] p-2" rows={3} placeholder="Allocation notes, workload context, or handover instructions"></textarea>
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
@@ -409,14 +568,21 @@ function DepartmentMeetingsWorkspace() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { hasPermission } = usePermissions();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const response = await requestDashboardApi("/api/academic/hod/department-meetings", {
+      const meetingPayload = Object.fromEntries(new FormData(e.currentTarget).entries());
+      await requestDashboardApi("/admin-command/hod/department-meetings", {
         method: "POST",
-        body: JSON.stringify({ action: "log_meeting" })
+        body: {
+          action: "log_meeting",
+          meetingTitle: String(meetingPayload.meetingTitle || "").trim(),
+          scheduledAt: String(meetingPayload.scheduledAt || "").trim(),
+          summary: String(meetingPayload.summary || "").trim(),
+          attendees: String(meetingPayload.attendees || "").trim() || undefined,
+        }
       });
 
       toast.success("Meeting logged successfully.");
@@ -445,15 +611,19 @@ function DepartmentMeetingsWorkspace() {
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
             <label className="text-sm font-bold text-[#071D49]">Meeting Title</label>
-            <input required type="text" className="w-full rounded-lg border border-[#D8E0EC] p-2" placeholder="e.g. End of Term Review" />
+            <input required name="meetingTitle" type="text" className="w-full rounded-lg border border-[#D8E0EC] p-2" placeholder="e.g. End of Term Review" />
           </div>
           <div>
             <label className="text-sm font-bold text-[#071D49]">Date & Time</label>
-            <input required type="datetime-local" className="w-full rounded-lg border border-[#D8E0EC] p-2" />
+            <input required name="scheduledAt" type="datetime-local" className="w-full rounded-lg border border-[#D8E0EC] p-2" />
           </div>
           <div>
             <label className="text-sm font-bold text-[#071D49]">Minutes / Summary</label>
-            <textarea required className="w-full rounded-lg border border-[#D8E0EC] p-2" rows={4}></textarea>
+            <textarea required name="summary" className="w-full rounded-lg border border-[#D8E0EC] p-2" rows={4}></textarea>
+          </div>
+          <div>
+            <label className="text-sm font-bold text-[#071D49]">Attendees</label>
+            <input name="attendees" type="text" className="w-full rounded-lg border border-[#D8E0EC] p-2" placeholder="Comma-separated teachers or roles" />
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
@@ -477,12 +647,12 @@ function OverviewWorkspace() {
     if (isSubmittingReport) return;
     setIsSubmittingReport(true);
     try {
-      const response = await requestDashboardApi("/api/academic/hod/requests", {
+      await requestDashboardApi("/admin-command/hod/reports/generate", {
         method: "POST",
-        body: JSON.stringify({ action: "new_report" })
+        body: { title: "HOD department operations report", format: "pdf" }
       });
 
-      toast.success("Report generated successfully.");
+      toast.success("Department report request submitted for generation and review.");
     } catch (err: any) {
       toast.error(err.message || "Failed to generate report.");
     } finally {
@@ -494,9 +664,9 @@ function OverviewWorkspace() {
     if (isSubmittingUpdate) return;
     setIsSubmittingUpdate(true);
     try {
-      const response = await requestDashboardApi("/api/academic/hod/requests", {
+      await requestDashboardApi("/admin-command/hod/requests", {
         method: "POST",
-        body: JSON.stringify({ action: "weekly_update" })
+        body: { action: "weekly_update" }
       });
 
       toast.success("Weekly update submitted successfully.");
@@ -542,7 +712,11 @@ function OverviewWorkspace() {
 
 export function HodCommandCenter({ activeSection, routeMode = "hosted" }: { activeSection?: string; routeMode?: HodRouteMode }) {
   const [activeViewState, setActiveViewState] = useState<HodView>(
-    (activeSection && activeSection !== "dashboard" ? activeSection : "overview") as HodView
+    (activeSection === "exams"
+      ? "exams-marks-moderation"
+      : activeSection && activeSection !== "dashboard"
+        ? activeSection
+        : "overview") as HodView
   );
   const activeView = activeViewState;
   const [searchTerm, setSearchTerm] = useState("");
@@ -577,21 +751,30 @@ export function HodCommandCenter({ activeSection, routeMode = "hosted" }: { acti
           {activeView === "my-teaching" && <MyTeachingWorkspace />}
           {activeView === "department-teachers" && <DepartmentTeachersWorkspace />}
           {activeView === "subject-allocation" && <SubjectAllocationWorkspace />}
-          {activeView === "schemes-of-work" && <SimpleWorkspace title="Schemes of Work" description="Track scheme of work submissions and approvals." icon={FileText} />}
-          {activeView === "lesson-plans" && <SimpleWorkspace title="Lesson Plans" description="Review weekly/daily lesson plans from department teachers." icon={FileCheck} />}
-          {activeView === "lesson-delivery" && <SimpleWorkspace title="Lesson Delivery" description="Track lesson delivery and make-up classes." icon={CheckCircle} />}
-          {activeView === "syllabus-coverage" && <SimpleWorkspace title="Syllabus Coverage" description="Monitor syllabus progress by subject and teacher." icon={TrendingUp} />}
-          {activeView === "assessments-cats" && <SimpleWorkspace title="Assessments & CATs" description="Manage department-level continuous assessments." icon={ClipboardList} />}
-          {activeView === "exams-marks-moderation" && <SimpleWorkspace title="Exams & Marks Moderation" description="Review and moderate exam marks before submission." icon={Award} />}
-          {activeView === "performance-analytics" && <SimpleWorkspace title="Performance Analytics" description="Analyze department performance trends." icon={BarChart3} />}
-          {activeView === "learner-interventions" && <SimpleWorkspace title="Learner Interventions" description="Track learners needing academic support." icon={LifeBuoy} />}
-          {activeView === "lesson-observation" && <SimpleWorkspace title="Lesson Observation" description="Observe lessons, record feedback, and support growth." icon={Eye} />}
-          {activeView === "resources-requests" && <SimpleWorkspace title="Resources & Requests" description="Manage department academic resource needs." icon={Package} />}
+          {activeView === "schemes-of-work" && <SimpleWorkspace title="Schemes of Work" description="Track scheme of work submissions and approvals." icon={FileText} dataPath="lesson-plans" action="scheme_review_recorded" actionLabel="Record Scheme Review" />}
+          {activeView === "lesson-plans" && <SimpleWorkspace title="Lesson Plans" description="Review weekly/daily lesson plans from department teachers." icon={FileCheck} dataPath="lesson-plans" action="lesson_plan_reviewed" actionLabel="Record Lesson Plan Review" />}
+          {activeView === "lesson-delivery" && <SimpleWorkspace title="Lesson Delivery" description="Track lesson delivery and make-up classes." icon={CheckCircle} dataPath="coverage-review" action="lesson_delivery_follow_up" actionLabel="Record Delivery Follow-up" />}
+          {activeView === "syllabus-coverage" && <SimpleWorkspace title="Syllabus Coverage" description="Monitor syllabus progress by subject and teacher." icon={TrendingUp} dataPath="coverage-review" action="coverage_review_recorded" actionLabel="Record Coverage Review" />}
+          {activeView === "assessments-cats" && <SimpleWorkspace title="Assessments & CATs" description="Manage department-level continuous assessments." icon={ClipboardList} dataPath="review-queue" action="assessment_review_recorded" actionLabel="Record Assessment Review" />}
+          {activeView === "exams-marks-moderation" && (
+            <SimpleWorkspace
+              title="HOD Academic Command Center"
+              description="Department exam review, department results, and subject analytics for marks moderation."
+              icon={Award}
+              dataPath="marks-moderation"
+              action="marks_moderation_recorded"
+              actionLabel="Department Exam Review"
+            />
+          )}
+          {activeView === "performance-analytics" && <SimpleWorkspace title="Performance Analytics" description="Analyze department performance trends." icon={BarChart3} dataPath="department-overview" action="performance_review_recorded" actionLabel="Record Performance Review" />}
+          {activeView === "learner-interventions" && <SimpleWorkspace title="Learner Interventions" description="Track learners needing academic support." icon={LifeBuoy} dataPath="review-queue" action="learner_intervention_requested" actionLabel="Request Intervention" />}
+          {activeView === "lesson-observation" && <SimpleWorkspace title="Lesson Observation" description="Observe lessons, record feedback, and support growth." icon={Eye} dataPath="department-teachers" action="lesson_observation_recorded" actionLabel="Record Observation" />}
+          {activeView === "resources-requests" && <SimpleWorkspace title="Resources & Requests" description="Manage department academic resource needs." icon={Package} dataPath="resource-requests" action="resource_request_recorded" actionLabel="Record Resource Request" />}
           {activeView === "department-meetings" && <DepartmentMeetingsWorkspace />}
-          {activeView === "communication" && <SimpleWorkspace title="Communication" description="Department-level messaging to teachers and parents." icon={MessageSquare} />}
-          {activeView === "approvals" && <SimpleWorkspace title="Approvals" description="Handle department-level approvals." icon={CheckSquare} />}
-          {activeView === "reports-downloads" && <SimpleWorkspace title="Reports & Downloads" description="Generate official department reports." icon={DownloadCloud} />}
-          {activeView === "department-settings" && <SimpleWorkspace title="Department Settings" description="Configure department-specific academic settings." icon={Settings} />}
+          {activeView === "communication" && <SimpleWorkspace title="Communication" description="Department-level messaging to teachers and parents." icon={MessageSquare} dataPath="department-teachers" action="department_message_sent" actionLabel="Send Department Message" />}
+          {activeView === "approvals" && <SimpleWorkspace title="Approvals" description="Handle department-level approvals." icon={CheckSquare} dataPath="review-queue" action="department_approval_recorded" actionLabel="Record Approval" />}
+          {activeView === "reports-downloads" && <SimpleWorkspace title="Reports & Downloads" description="Generate official department reports." icon={DownloadCloud} dataPath="reports" actionLabel="Generate Report" actionEndpoint="/admin-command/hod/reports/generate" actionBody={{ title: "HOD department operations report", format: "pdf" }} submittingLabel="Generating..." successMessage="Department report request submitted for generation and review." />}
+          {activeView === "department-settings" && <SimpleWorkspace title="Department Settings" description="Configure department-specific academic settings." icon={Settings} dataPath="department-overview" action="department_setting_updated" actionLabel="Record Setting Change" />}
         </div>
       </main>
       

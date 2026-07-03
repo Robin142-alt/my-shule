@@ -123,12 +123,10 @@ function openInlinePrintPreview(html: string, title: string) {
 
   const overlay = window.document.createElement("div");
   overlay.setAttribute("data-myshule-print-preview", "true");
-  overlay.setAttribute("role", "dialog");
-  overlay.setAttribute("aria-modal", "true");
-  overlay.setAttribute("aria-label", `${title} print preview`);
   overlay.innerHTML = `
     <div style="position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,0.62);padding:24px;box-sizing:border-box;">
-      <div style="height:100%;max-width:960px;margin:0 auto;background:#ffffff;border-radius:16px;box-shadow:0 24px 80px rgba(15,23,42,0.28);display:flex;flex-direction:column;overflow:hidden;">
+      <button data-myshule-close type="button" aria-label="Close" style="position:absolute;right:24px;top:16px;border:1px solid #cbd5e1;border-radius:10px;background:#ffffff;color:#334155;cursor:pointer;font-weight:800;padding:9px 13px;">Close</button>
+      <div role="dialog" aria-modal="true" aria-label="${escapeHtml(title)} print preview" style="height:100%;max-width:960px;margin:0 auto;background:#ffffff;border-radius:16px;box-shadow:0 24px 80px rgba(15,23,42,0.28);display:flex;flex-direction:column;overflow:hidden;">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #e2e8f0;padding:12px 14px;background:#f8fafc;">
           <div>
             <p style="margin:0;font:700 11px/1.2 Inter,Segoe UI,Arial,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:#64748b;">Print preview</p>
@@ -137,7 +135,7 @@ function openInlinePrintPreview(html: string, title: string) {
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button data-myshule-print type="button" style="border:1px solid #0f3f8a;border-radius:10px;background:#0f3f8a;color:#ffffff;cursor:pointer;font-weight:800;padding:9px 13px;">Print</button>
             <button data-myshule-download-pdf type="button" style="border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#0f3f8a;cursor:pointer;font-weight:800;padding:9px 13px;">Download PDF</button>
-            <button data-myshule-cancel type="button" style="border:1px solid #cbd5e1;border-radius:10px;background:#ffffff;color:#334155;cursor:pointer;font-weight:800;padding:9px 13px;">Close</button>
+            <button data-myshule-cancel type="button" style="border:1px solid #cbd5e1;border-radius:10px;background:#ffffff;color:#334155;cursor:pointer;font-weight:800;padding:9px 13px;">Cancel</button>
           </div>
         </div>
         <iframe title="${escapeHtml(title)} document preview" style="width:100%;height:100%;border:0;background:#f8fafc;"></iframe>
@@ -166,6 +164,7 @@ function openInlinePrintPreview(html: string, title: string) {
   overlay.querySelector("[data-myshule-download-pdf]")?.addEventListener("click", () => {
     window.print?.();
   });
+  overlay.querySelector("[data-myshule-close]")?.addEventListener("click", () => overlay.remove());
   overlay.querySelector("[data-myshule-cancel]")?.addEventListener("click", () => overlay.remove());
 }
 

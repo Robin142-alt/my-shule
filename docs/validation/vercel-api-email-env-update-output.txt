@@ -1,0 +1,5 @@
+﻿RESEND_API_KEY: updated
+EMAIL_FROM: updated
+PUBLIC_APP_URL: updated
+WEB_APP_URL: updated
+SUPPORT_NOTIFICATION_EMAILS: updated

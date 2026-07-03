@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Loader2 } from "lucide-react";
 import { usePermissions } from "@/components/providers/permission-context";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 type PrincipalDisciplineData = {
   status: "active" | "degraded" | "setup_required";
@@ -16,11 +17,11 @@ type PrincipalDisciplineData = {
   escalations: number;
   incidentTrend: Array<{ label: string; value: number }>;
   recentIncidents: Array<{ id: string; title: string; severity: string; status: string; date: string }>;
+  students: Array<{ id: string; name: string; admission_number: string | null; class: string }>;
 };
 
 export function PrincipalDisciplineWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalDisciplineData>('/admin-command/principal/discipline');
-  const studentsData: any = { students: [] };
   const { hasPermission } = usePermissions();
   
   const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false);
@@ -34,15 +35,15 @@ export function PrincipalDisciplineWorkspace() {
     const formData = new FormData(e.currentTarget);
     
     try {
-      // await requestDashboardApi('/admin-command/discipline/incidents', {
-      //   method: "POST",
-      //   body: {
-      //     studentId: formData.get("studentId"),
-      //     category: formData.get("category"),
-      //     severity: formData.get("severity"),
-      //     description: formData.get("description"),
-      //   }
-      // });
+      await requestDashboardApi('/admin-command/discipline/incidents', {
+        method: "POST",
+        body: {
+          studentId: formData.get("studentId"),
+          category: formData.get("category"),
+          severity: formData.get("severity"),
+          description: formData.get("description"),
+        }
+      });
       setIsIncidentModalOpen(false);
       refetch();
     } catch (err: any) {
@@ -175,9 +176,10 @@ export function PrincipalDisciplineWorkspace() {
             <label className="text-sm font-medium">Student Involved</label>
             <select name="studentId" required className="w-full border rounded p-2 text-sm bg-white text-black">
               <option value="">Select a student...</option>
-              {/* @ts-ignore */}
-              {studentsData?.students?.map((s: any) => (
-                <option key={s.id} value={s.id}>{s.user.firstName} {s.user.lastName} ({s.admissionNumber})</option>
+              {data.students?.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} {s.admission_number ? `(${s.admission_number})` : ""} - {s.class}
+                </option>
               ))}
             </select>
           </div>

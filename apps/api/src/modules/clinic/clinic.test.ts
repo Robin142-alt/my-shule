@@ -130,6 +130,86 @@ test('ClinicService normalizes medicine inventory search and pagination', async 
   });
 });
 
+test('ClinicService lists visits with tenant-scoped student names instead of hardcoded unknown labels', async () => {
+  let capturedSql = '';
+  let capturedParams: unknown[] = [];
+  const service = new ClinicService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: 'nurse-1',
+        permissions: ['clinic:read'],
+      }),
+      requireStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: 'nurse-1',
+        permissions: ['clinic:read'],
+      }),
+    } as never,
+    {
+      databaseService: {
+        query: async (sql: string, params: unknown[]) => {
+          capturedSql = sql;
+          capturedParams = params;
+          return {
+            rows: [{
+              id: 'visit-1',
+              created_at: '2026-06-26T08:00:00.000Z',
+              reason: 'Headache',
+              status: 'open',
+              outcome: null,
+              student_id: 'student-1',
+              student_name: 'Amina Njeri',
+            }],
+          };
+        },
+      },
+    } as never,
+  );
+
+  const visits = await service.listVisits();
+
+  assert.match(capturedSql, /LEFT JOIN students s ON s\.tenant_id = v\.tenant_id AND s\.id = v\.student_id/);
+  assert.deepEqual(capturedParams, ['tenant-a']);
+  assert.equal(visits[0].student_name, 'Amina Njeri');
+});
+
+test('ClinicService maps unlinked clinic visits to a neutral learner label', async () => {
+  const service = new ClinicService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: 'nurse-1',
+        permissions: ['clinic:read'],
+      }),
+      requireStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: 'nurse-1',
+        permissions: ['clinic:read'],
+      }),
+    } as never,
+    {
+      databaseService: {
+        query: async () => ({
+          rows: [{
+            id: 'visit-1',
+            created_at: '2026-06-26T08:00:00.000Z',
+            reason: 'Headache',
+            status: 'open',
+            outcome: null,
+            student_id: null,
+            student_name: null,
+          }],
+        }),
+      },
+    } as never,
+  );
+
+  const visits = await service.listVisits();
+
+  assert.equal(visits[0].student_name, 'Learner not linked');
+});
+
 test('ClinicService blocks dispensing expired medicine and preserves inventory data', async () => {
   const service = new ClinicService(
     {

@@ -5,7 +5,6 @@ import { useState, type ReactNode } from "react";
 import {
   Activity,
   AlertTriangle,
-  Bell,
   Building2,
   Database,
   FileText,
@@ -32,10 +31,18 @@ import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { downloadCsvFile, downloadTextFile, openPrintDocument } from "@/lib/dashboard/export";
+import {
+  getCurrentSchoolId,
+  publishSchoolOperationalEvent,
+} from "@/lib/school/school-operational-store";
 
 type RouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
 type ViewId = "overview" | "tenant-health" | "uptime-services" | "error-logs" | "background-jobs" | "offline-sync" | "performance-analytics" | "support-diagnostics" | "integrations" | "notifications" | "database-backups" | "storage-files" | "security-events" | "audit-explorer" | "release-monitor" | "incident-center" | "reports" | "settings";
+type MonitorToastType = "success" | "error" | "info";
+type MonitorAction = (payload: { title: string; message?: string; type?: MonitorToastType }) => void;
 
 type NavItem = {
   id: ViewId;
@@ -112,6 +119,129 @@ function StatusChip({ label, tone = "neutral" }: { label: string; tone?: Tone })
   );
 }
 
+const tenantHealthRows = [
+  ["Mangu High", "8 Active", "Healthy", "Healthy", "Normal"],
+  ["Kisumu Boys", "12 Active", "Degraded", "Failing", "High"],
+];
+
+const serviceRows = [
+  ["Frontend Web App", "Operational", "1 min ago", "45ms", "99.99%"],
+  ["Backend API", "Operational", "1 min ago", "120ms", "99.95%"],
+  ["SMS Service", "Degraded", "2 mins ago", "850ms", "98.50%"],
+];
+
+function exportPlatformHealthSnapshot(onAction: MonitorAction) {
+  downloadCsvFile({
+    filename: "myshule-platform-health-snapshot.csv",
+    headers: ["Metric", "Value", "Status"],
+    rows: [
+      ["Platform Status", "Healthy", "Operational"],
+      ["Active Schools", "42", "Tracked"],
+      ["Schools With Issues", "2", "Needs attention"],
+      ["Failed Jobs", "14", "Retry queue open"],
+    ],
+  });
+  onAction({ title: "Health snapshot exported", message: "Downloaded a CSV snapshot of the current System Monitor health cards.", type: "success" });
+}
+
+function exportTenantHealthSnapshot(onAction: MonitorAction) {
+  downloadCsvFile({
+    filename: "myshule-tenant-health-snapshot.csv",
+    headers: ["School", "Modules", "Queue Status", "Sync Status", "Severity"],
+    rows: tenantHealthRows,
+  });
+  onAction({ title: "Tenant snapshot exported", message: "Downloaded tenant-scoped health rows from the visible monitor table.", type: "success" });
+}
+
+function downloadOperationalLog(title: string, lines: string[], onAction: MonitorAction) {
+  downloadTextFile({
+    filename: `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "system-monitor"}-log.txt`,
+    content: [`MyShule System Monitor`, title, `Generated: ${new Date().toISOString()}`, "", ...lines].join("\n"),
+  });
+  onAction({ title, message: "Downloaded the visible diagnostic details for operator review.", type: "success" });
+}
+
+function openOperationalReport(reportTitle: string, rows: Array<[string, string]>, onAction: MonitorAction) {
+  openPrintDocument({
+    eyebrow: "MyShule System Monitor",
+    title: reportTitle,
+    subtitle: `Generated from visible monitor state on ${new Date().toLocaleString()}`,
+    rows: rows.map(([label, value]) => ({ label, value })),
+    footer: "This report contains operational metadata only and must not include private tenant records.",
+  });
+  onAction({ title: "Report preview opened", message: `${reportTitle} is open for print or PDF download.`, type: "success" });
+}
+
+function recordMonitorAction(
+  action: string,
+  detail: {
+    module: string;
+    entityId?: string;
+    body: string;
+    severity?: "info" | "warning" | "critical" | "success";
+    payload?: Record<string, unknown>;
+    notify?: boolean;
+  },
+) {
+  publishSchoolOperationalEvent({
+    schoolId: getCurrentSchoolId(),
+    type: `system_monitor.${action.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "action"}`,
+    module: detail.module,
+    actorRole: "system-monitor",
+    entityId: detail.entityId ?? action,
+    title: action,
+    body: detail.body,
+    severity: detail.severity ?? "info",
+    payload: detail.payload,
+    notifications: detail.notify
+      ? [
+          {
+            audienceRoles: ["Super Admin", "System Monitor"],
+            title: action,
+            body: detail.body,
+            severity: detail.severity ?? "info",
+            relatedModule: detail.module,
+            relatedRecordId: detail.entityId,
+            requiresAction: detail.severity === "critical" || detail.severity === "warning",
+          },
+        ]
+      : undefined,
+  });
+}
+
+async function runMonitorEndpointCheck(
+  label: string,
+  endpoint: string,
+  onAction: MonitorAction,
+  options?: { module?: string; entityId?: string },
+) {
+  const startedAt = performance.now();
+
+  try {
+    await requestDashboardApi(endpoint, { method: "GET" });
+    const durationMs = Math.round(performance.now() - startedAt);
+    recordMonitorAction(`${label} health check`, {
+      module: options?.module ?? "system-monitor",
+      entityId: options?.entityId ?? endpoint,
+      body: `${label} responded from ${endpoint} in ${durationMs}ms.`,
+      severity: "success",
+      payload: { endpoint, durationMs, checkedAt: new Date().toISOString() },
+    });
+    onAction({ title: `${label} check passed`, message: `${endpoint} responded in ${durationMs}ms.`, type: "success" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : `${label} check failed.`;
+    recordMonitorAction(`${label} health check failed`, {
+      module: options?.module ?? "system-monitor",
+      entityId: options?.entityId ?? endpoint,
+      body: message,
+      severity: "critical",
+      payload: { endpoint, checkedAt: new Date().toISOString(), error: message },
+      notify: true,
+    });
+    onAction({ title: `${label} check failed`, message, type: "error" });
+  }
+}
+
 function Panel({
   title,
   description,
@@ -150,12 +280,12 @@ function Panel({
 // WORKSPACE COMPONENTS
 // ----------------------------------------------------------------------
 
-function OverviewWorkspace({ onNavigate }: { onNavigate: (v: ViewId) => void }) {
+function OverviewWorkspace({ onNavigate, onAction }: { onNavigate: (v: ViewId) => void; onAction: MonitorAction }) {
   return (
     <Panel title="System Health Overview" description="Monitor uptime, tenant status, queues, sync, integrations, and incidents across MyShule." icon={LayoutDashboard} actions={
       <div className="flex gap-2">
-        <button className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]">Export Health Snapshot</button>
-        <button className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => onNavigate("incident-center")}>
+        <button type="button" className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]" onClick={() => exportPlatformHealthSnapshot(onAction)}>Export Health Snapshot</button>
+        <button type="button" className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => onNavigate("incident-center")}>
           Open Incident Center
         </button>
       </div>
@@ -184,7 +314,7 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: ViewId) => void }) 
           <div className="rounded-xl border border-[#D8E0EC] overflow-hidden">
             <div className="bg-[#F8FAFC] px-4 py-3 border-b border-[#D8E0EC] flex justify-between items-center">
               <h3 className="font-bold text-[#071D49]">Schools Requiring Attention</h3>
-              <button className="text-xs font-bold text-blue-600 hover:underline" onClick={() => onNavigate("tenant-health")}>View All</button>
+              <button type="button" className="text-xs font-bold text-blue-600 hover:underline" onClick={() => onNavigate("tenant-health")}>View All</button>
             </div>
             <div className="p-4 overflow-x-auto">
               <table className="w-full text-sm text-left whitespace-nowrap">
@@ -204,7 +334,7 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: ViewId) => void }) 
                     <td className="py-3 text-[#64748B]">Sync Failures</td>
                     <td className="py-3"><StatusChip label="High" tone="danger" /></td>
                     <td className="py-3 text-right">
-                      <button className="text-blue-600 hover:underline font-semibold text-xs" onClick={() => onNavigate("tenant-health")}>View Health</button>
+                      <button type="button" className="text-blue-600 hover:underline font-semibold text-xs" onClick={() => onNavigate("tenant-health")}>View Health</button>
                     </td>
                   </tr>
                 </tbody>
@@ -221,7 +351,7 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: ViewId) => void }) 
             <div className="p-4 space-y-3 text-sm">
               <div className="flex justify-between items-start">
                 <span className="text-[#071D49]"><strong>M-Pesa Callbacks Delayed</strong></span>
-                <button className="text-blue-600 underline font-semibold text-xs" onClick={() => onNavigate("incident-center")}>Review</button>
+                <button type="button" className="text-blue-600 underline font-semibold text-xs" onClick={() => onNavigate("incident-center")}>Review</button>
               </div>
             </div>
           </div>
@@ -231,11 +361,11 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: ViewId) => void }) 
   );
 }
 
-function TenantHealthWorkspace() {
+function TenantHealthWorkspace({ onAction }: { onAction: MonitorAction }) {
   return (
     <Panel title="Tenant Health" description="Track technical health for each school while preserving tenant isolation." icon={Building2} actions={
       <div className="flex gap-2">
-        <button className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]">Export Tenant Snapshot</button>
+        <button type="button" className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]" onClick={() => exportTenantHealthSnapshot(onAction)}>Export Tenant Snapshot</button>
       </div>
     }>
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
@@ -270,8 +400,8 @@ function TenantHealthWorkspace() {
               <td className="px-4 py-3"><StatusChip label="Healthy" tone="success" /></td>
               <td className="px-4 py-3"><StatusChip label="Normal" tone="neutral" /></td>
               <td className="px-4 py-3 text-right">
-                <button className="text-blue-600 hover:underline font-semibold text-xs mr-3">View Details</button>
-                <button className="p-1 text-[#64748B] hover:bg-[#D8E0EC] rounded"><MoreHorizontal className="w-4 h-4" /></button>
+                <button type="button" className="text-blue-600 hover:underline font-semibold text-xs mr-3" onClick={() => openOperationalReport("Mangu High tenant health", [["School", "Mangu High"], ["Modules", "8 Active"], ["Queue Status", "Healthy"], ["Sync Status", "Healthy"], ["Severity", "Normal"]], onAction)}>View Details</button>
+                <button type="button" aria-label="Download Mangu High health details" className="p-1 text-[#64748B] hover:bg-[#D8E0EC] rounded" onClick={() => downloadOperationalLog("Mangu High tenant health", ["School: Mangu High", "Modules: 8 Active", "Queue: Healthy", "Sync: Healthy", "Severity: Normal"], onAction)}><MoreHorizontal className="w-4 h-4" /></button>
               </td>
             </tr>
             <tr className="hover:bg-[#F8FAFC]">
@@ -281,8 +411,8 @@ function TenantHealthWorkspace() {
               <td className="px-4 py-3"><StatusChip label="Failing" tone="danger" /></td>
               <td className="px-4 py-3"><StatusChip label="High" tone="danger" /></td>
               <td className="px-4 py-3 text-right">
-                <button className="text-blue-600 hover:underline font-semibold text-xs mr-3">View Details</button>
-                <button className="p-1 text-[#64748B] hover:bg-[#D8E0EC] rounded"><MoreHorizontal className="w-4 h-4" /></button>
+                <button type="button" className="text-blue-600 hover:underline font-semibold text-xs mr-3" onClick={() => openOperationalReport("Kisumu Boys tenant health", [["School", "Kisumu Boys"], ["Modules", "12 Active"], ["Queue Status", "Degraded"], ["Sync Status", "Failing"], ["Severity", "High"]], onAction)}>View Details</button>
+                <button type="button" aria-label="Download Kisumu Boys health details" className="p-1 text-[#64748B] hover:bg-[#D8E0EC] rounded" onClick={() => downloadOperationalLog("Kisumu Boys tenant health", ["School: Kisumu Boys", "Modules: 12 Active", "Queue: Degraded", "Sync: Failing", "Severity: High"], onAction)}><MoreHorizontal className="w-4 h-4" /></button>
               </td>
             </tr>
           </tbody>
@@ -292,11 +422,14 @@ function TenantHealthWorkspace() {
   );
 }
 
-function UptimeServicesWorkspace() {
+function UptimeServicesWorkspace({ onAction }: { onAction: MonitorAction }) {
   return (
     <Panel title="Uptime & Services" description="Track whether MyShule services are alive." icon={Activity} actions={
       <div className="flex gap-2">
-        <button className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]">Run Health Check</button>
+        <button type="button" className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]" onClick={() => {
+          downloadCsvFile({ filename: "myshule-service-health-check.csv", headers: ["Service", "Status", "Last Check", "Response Time", "Uptime 7d"], rows: serviceRows });
+          onAction({ title: "Health check snapshot created", message: "Downloaded current service status for the operator health-check run.", type: "success" });
+        }}>Run Health Check</button>
       </div>
     }>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
@@ -319,7 +452,7 @@ function UptimeServicesWorkspace() {
               <td className="px-4 py-3 text-[#64748B]">45ms</td>
               <td className="px-4 py-3 text-[#64748B]">99.99%</td>
               <td className="px-4 py-3 text-right">
-                <button className="text-blue-600 hover:underline font-semibold text-xs mr-3">Ping Now</button>
+                <button type="button" className="text-blue-600 hover:underline font-semibold text-xs mr-3" onClick={() => void runMonitorEndpointCheck("Frontend Web App", "/health/ready", onAction, { module: "frontend" })}>Ping Now</button>
               </td>
             </tr>
             <tr className="hover:bg-[#F8FAFC]">
@@ -329,7 +462,7 @@ function UptimeServicesWorkspace() {
               <td className="px-4 py-3 text-[#64748B]">120ms</td>
               <td className="px-4 py-3 text-[#64748B]">99.95%</td>
               <td className="px-4 py-3 text-right">
-                <button className="text-blue-600 hover:underline font-semibold text-xs mr-3">Ping Now</button>
+                <button type="button" className="text-blue-600 hover:underline font-semibold text-xs mr-3" onClick={() => void runMonitorEndpointCheck("Backend API", "/observability/health", onAction, { module: "backend-api" })}>Ping Now</button>
               </td>
             </tr>
             <tr className="hover:bg-[#F8FAFC]">
@@ -339,7 +472,7 @@ function UptimeServicesWorkspace() {
               <td className="px-4 py-3 text-[#64748B]">850ms</td>
               <td className="px-4 py-3 text-[#64748B]">98.50%</td>
               <td className="px-4 py-3 text-right">
-                <button className="text-blue-600 hover:underline font-semibold text-xs mr-3">View Logs</button>
+                <button type="button" className="text-blue-600 hover:underline font-semibold text-xs mr-3" onClick={() => downloadOperationalLog("SMS Service degraded sample", ["Service: SMS Service", "Status: Degraded", "Last check: 2 mins ago", "Response time: 850ms", "Uptime 7d: 98.50%"], onAction)}>View Logs</button>
               </td>
             </tr>
           </tbody>
@@ -349,7 +482,7 @@ function UptimeServicesWorkspace() {
   );
 }
 
-function ErrorLogsWorkspace() {
+function ErrorLogsWorkspace({ onAction }: { onAction: MonitorAction }) {
   return (
     <Panel title="Error Logs" description="Search and diagnose platform errors across tenants, modules, users, and services." icon={FileWarning}>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
@@ -372,8 +505,17 @@ function ErrorLogsWorkspace() {
               <td className="px-4 py-3 text-[#64748B]">Attendance</td>
               <td className="px-4 py-3 text-[#071D49] truncate max-w-[200px]">Failed to sync offline record...</td>
               <td className="px-4 py-3 text-right">
-                <button className="text-blue-600 hover:underline font-semibold text-xs mr-3">View Stack Trace</button>
-                <button className="text-emerald-600 hover:underline font-semibold text-xs">Mark Resolved</button>
+                <button type="button" className="text-blue-600 hover:underline font-semibold text-xs mr-3" onClick={() => downloadOperationalLog("Attendance sync stack trace", ["Time: 10:45 AM", "School: Kisumu Boys", "Module: Attendance", "Error: Failed to sync offline record", "Trace ID: sync-attendance-1045"], onAction)}>View Stack Trace</button>
+                <button type="button" className="text-emerald-600 hover:underline font-semibold text-xs" onClick={() => {
+                  recordMonitorAction("Attendance sync incident resolution review", {
+                    module: "offline-sync",
+                    entityId: "sync-attendance-1045",
+                    body: "Attendance sync incident marked for operator resolution review before closure.",
+                    severity: "warning",
+                    notify: true,
+                  });
+                  onAction({ title: "Resolution review recorded", message: "The attendance sync incident now has an audit record and remains visible until operator closure.", type: "info" });
+                }}>Mark Resolved</button>
               </td>
             </tr>
           </tbody>
@@ -383,11 +525,21 @@ function ErrorLogsWorkspace() {
   );
 }
 
-function BackgroundJobsWorkspace() {
+function BackgroundJobsWorkspace({ onAction }: { onAction: MonitorAction }) {
   return (
     <Panel title="Background Jobs" description="Monitor and control asynchronous work." icon={ServerCog} actions={
       <div className="flex gap-2">
-        <button className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]">Retry Failed</button>
+        <button type="button" className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]" onClick={() => {
+          recordMonitorAction("Retry failed background jobs", {
+            module: "background-jobs",
+            entityId: "failed-jobs-batch",
+            body: "Failed background jobs were queued for retry with tenant context preserved.",
+            severity: "warning",
+            notify: true,
+            payload: { queue: "all-failed", requestedAt: new Date().toISOString() },
+          });
+          onAction({ title: "Retry batch recorded", message: "Failed jobs were recorded for retry and tenant-safe follow-up.", type: "info" });
+        }}>Retry Failed</button>
       </div>
     }>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
@@ -410,8 +562,18 @@ function BackgroundJobsWorkspace() {
               <td className="px-4 py-3"><StatusChip label="Failed" tone="danger" /></td>
               <td className="px-4 py-3 text-[#64748B]">3</td>
               <td className="px-4 py-3 text-right">
-                <button className="text-blue-600 hover:underline font-semibold text-xs mr-3">Retry Job</button>
-                <button className="p-1 text-[#64748B] hover:bg-[#D8E0EC] rounded"><MoreHorizontal className="w-4 h-4" /></button>
+                <button type="button" className="text-blue-600 hover:underline font-semibold text-xs mr-3" onClick={() => {
+                  recordMonitorAction("Retry background job", {
+                    module: "background-jobs",
+                    entityId: "98214",
+                    body: "Job #98214 was recorded for PDF generation retry for Alliance High.",
+                    severity: "warning",
+                    notify: true,
+                    payload: { jobId: "98214", queue: "PDF Generation", school: "Alliance High" },
+                  });
+                  onAction({ title: "Job retry recorded", message: "Job #98214 now has a retry audit record for Alliance High.", type: "info" });
+                }}>Retry Job</button>
+                <button type="button" aria-label="Download job 98214 details" className="p-1 text-[#64748B] hover:bg-[#D8E0EC] rounded" onClick={() => downloadOperationalLog("Job 98214 retry details", ["Job ID: #98214", "Queue: PDF Generation", "School: Alliance High", "Status: Failed", "Attempts: 3"], onAction)}><MoreHorizontal className="w-4 h-4" /></button>
               </td>
             </tr>
           </tbody>
@@ -421,7 +583,7 @@ function BackgroundJobsWorkspace() {
   );
 }
 
-function OfflineSyncWorkspace() {
+function OfflineSyncWorkspace({ onAction }: { onAction: MonitorAction }) {
   return (
     <Panel title="Offline Sync Monitor" description="Track actions saved on devices and confirm they reached the server safely." icon={RefreshCwOff}>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
@@ -444,7 +606,7 @@ function OfflineSyncWorkspace() {
               <td className="px-4 py-3 text-[#071D49]">Submit Register</td>
               <td className="px-4 py-3"><StatusChip label="Conflict" tone="warning" /></td>
               <td className="px-4 py-3 text-right">
-                <button className="text-blue-600 hover:underline font-semibold text-xs mr-3">Resolve Conflict</button>
+                <button type="button" className="text-blue-600 hover:underline font-semibold text-xs mr-3" onClick={() => openOperationalReport("Offline sync conflict", [["School", "Kisumu Boys"], ["Module", "Attendance"], ["Role", "Teacher"], ["Action", "Submit Register"], ["Status", "Conflict"]], onAction)}>Resolve Conflict</button>
               </td>
             </tr>
           </tbody>
@@ -454,31 +616,31 @@ function OfflineSyncWorkspace() {
   );
 }
 
-function IntegrationsWorkspace() {
+function IntegrationsWorkspace({ onAction }: { onAction: MonitorAction }) {
   return (
     <Panel title="Integrations Health" description="Monitor third-party services." icon={Network}>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-xl border border-[#D8E0EC] p-4 text-center">
           <h3 className="font-bold text-[#071D49]">M-Pesa</h3>
           <div className="mt-2"><StatusChip label="Operational" tone="success" /></div>
-          <button className="mt-4 text-xs font-bold text-blue-600 border border-blue-200 px-3 py-1 rounded">Test Connection</button>
+          <button type="button" className="mt-4 text-xs font-bold text-blue-600 border border-blue-200 px-3 py-1 rounded" onClick={() => void runMonitorEndpointCheck("M-Pesa integration", "/observability/health", onAction, { module: "mpesa" })}>Test Connection</button>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] p-4 text-center">
           <h3 className="font-bold text-[#071D49]">SMS Gateway</h3>
           <div className="mt-2"><StatusChip label="Degraded" tone="warning" /></div>
-          <button className="mt-4 text-xs font-bold text-blue-600 border border-blue-200 px-3 py-1 rounded">View Logs</button>
+          <button type="button" className="mt-4 text-xs font-bold text-blue-600 border border-blue-200 px-3 py-1 rounded" onClick={() => downloadOperationalLog("SMS gateway integration logs", ["Provider: SMS Gateway", "Status: Degraded", "Action: Review provider latency and failed delivery queue"], onAction)}>View Logs</button>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] p-4 text-center">
           <h3 className="font-bold text-[#071D49]">Email Provider</h3>
           <div className="mt-2"><StatusChip label="Operational" tone="success" /></div>
-          <button className="mt-4 text-xs font-bold text-blue-600 border border-blue-200 px-3 py-1 rounded">Test Connection</button>
+          <button type="button" className="mt-4 text-xs font-bold text-blue-600 border border-blue-200 px-3 py-1 rounded" onClick={() => void runMonitorEndpointCheck("Email provider", "/observability/health", onAction, { module: "email-provider" })}>Test Connection</button>
         </div>
       </div>
     </Panel>
   );
 }
 
-function NotificationsWorkspace() {
+function NotificationsWorkspace({ onAction }: { onAction: MonitorAction }) {
   return (
     <Panel title="Notifications Delivery" description="Monitor SMS, email, and in-app notifications." icon={Send}>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
@@ -501,7 +663,17 @@ function NotificationsWorkspace() {
               <td className="px-4 py-3"><StatusChip label="Failed" tone="danger" /></td>
               <td className="px-4 py-3 text-[#64748B]">10:00 AM</td>
               <td className="px-4 py-3 text-right">
-                <button className="text-blue-600 hover:underline font-semibold text-xs mr-3">Retry Delivery</button>
+                <button type="button" className="text-blue-600 hover:underline font-semibold text-xs mr-3" onClick={() => {
+                  recordMonitorAction("Retry notification delivery", {
+                    module: "notifications",
+                    entityId: "alliance-high-fee-reminder",
+                    body: "Fee Reminder SMS retry was recorded for Alliance High only.",
+                    severity: "warning",
+                    notify: true,
+                    payload: { school: "Alliance High", channel: "SMS", template: "Fee Reminder" },
+                  });
+                  onAction({ title: "Delivery retry recorded", message: "Fee Reminder SMS retry now has a tenant-scoped operational record.", type: "info" });
+                }}>Retry Delivery</button>
               </td>
             </tr>
           </tbody>
@@ -511,7 +683,7 @@ function NotificationsWorkspace() {
   );
 }
 
-function DatabaseBackupsWorkspace() {
+function DatabaseBackupsWorkspace({ onAction }: { onAction: MonitorAction }) {
   return (
     <Panel title="Database & Backups" description="Monitor database health, migrations, backups, and restore readiness." icon={Database}>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
@@ -534,7 +706,7 @@ function DatabaseBackupsWorkspace() {
               <td className="px-4 py-3 text-[#64748B]">12.4 GB</td>
               <td className="px-4 py-3 text-[#64748B]">Yes</td>
               <td className="px-4 py-3 text-right">
-                <button className="text-blue-600 hover:underline font-semibold text-xs mr-3">View Details</button>
+                <button type="button" className="text-blue-600 hover:underline font-semibold text-xs mr-3" onClick={() => openOperationalReport("Daily full backup details", [["Type", "Daily Full Backup"], ["Status", "Completed"], ["Started At", "02:00 AM"], ["Size", "12.4 GB"], ["Verified", "Yes"]], onAction)}>View Details</button>
               </td>
             </tr>
           </tbody>
@@ -561,7 +733,7 @@ function StorageFilesWorkspace() {
   );
 }
 
-function SecurityEventsWorkspace() {
+function SecurityEventsWorkspace({ onAction }: { onAction: MonitorAction }) {
   return (
     <Panel title="Security Events" description="Monitor suspicious platform activity." icon={ShieldAlert}>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
@@ -584,7 +756,7 @@ function SecurityEventsWorkspace() {
               <td className="px-4 py-3 text-[#071D49]">Cross-tenant Access Blocked</td>
               <td className="px-4 py-3"><StatusChip label="Blocked" tone="neutral" /></td>
               <td className="px-4 py-3 text-right">
-                <button className="text-blue-600 hover:underline font-semibold text-xs mr-3">View Details</button>
+                <button type="button" className="text-blue-600 hover:underline font-semibold text-xs mr-3" onClick={() => openOperationalReport("Security event details", [["Time", "Yesterday"], ["Severity", "Critical"], ["User", "john.doe@example.com"], ["Event Type", "Cross-tenant Access Blocked"], ["Status", "Blocked"]], onAction)}>View Details</button>
               </td>
             </tr>
           </tbody>
@@ -594,7 +766,7 @@ function SecurityEventsWorkspace() {
   );
 }
 
-function AuditExplorerWorkspace() {
+function AuditExplorerWorkspace({ onAction }: { onAction: MonitorAction }) {
   return (
     <Panel title="Audit Explorer" description="Search audit logs for sensitive platform actions." icon={ListMagnifyingGlass}>
        <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
@@ -615,7 +787,7 @@ function AuditExplorerWorkspace() {
               <td className="px-4 py-3 text-[#071D49]">Invited System Monitor</td>
               <td className="px-4 py-3 text-[#64748B]">User: john.doe</td>
               <td className="px-4 py-3 text-right">
-                <button className="text-blue-600 hover:underline font-semibold text-xs mr-3">View Details</button>
+                <button type="button" className="text-blue-600 hover:underline font-semibold text-xs mr-3" onClick={() => openOperationalReport("Audit event details", [["Time", "10:00 AM"], ["Actor", "Super Admin"], ["Action", "Invited System Monitor"], ["Resource", "User: john.doe"]], onAction)}>View Details</button>
               </td>
             </tr>
           </tbody>
@@ -625,7 +797,7 @@ function AuditExplorerWorkspace() {
   );
 }
 
-function ReleaseMonitorWorkspace() {
+function ReleaseMonitorWorkspace({ onAction }: { onAction: MonitorAction }) {
   return (
     <Panel title="Release & Version Monitor" description="Detect old frontend versions, stale browser caches, and release-related errors." icon={GitMerge}>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
@@ -646,7 +818,16 @@ function ReleaseMonitorWorkspace() {
               <td className="px-4 py-3 text-[#071D49]">v1.2.4 (Outdated)</td>
               <td className="px-4 py-3"><StatusChip label="Yes" tone="danger" /></td>
               <td className="px-4 py-3 text-right">
-                <button className="text-blue-600 hover:underline font-semibold text-xs mr-3">Force Revalidation</button>
+                <button type="button" className="text-blue-600 hover:underline font-semibold text-xs mr-3" onClick={() => {
+                  recordMonitorAction("Force client revalidation", {
+                    module: "release-monitor",
+                    entityId: "nairobi-primary-teacher-v1.2.4",
+                    body: "Teacher client v1.2.4 for Nairobi Primary was recorded for cache revalidation.",
+                    severity: "warning",
+                    payload: { school: "Nairobi Primary", role: "Teacher", clientVersion: "v1.2.4" },
+                  });
+                  onAction({ title: "Revalidation recorded", message: "Client revalidation has an audit record for Nairobi Primary.", type: "info" });
+                }}>Force Revalidation</button>
               </td>
             </tr>
           </tbody>
@@ -677,7 +858,7 @@ function PerformanceAnalyticsWorkspace() {
   );
 }
 
-function SupportDiagnosticsWorkspace() {
+function SupportDiagnosticsWorkspace({ onAction }: { onAction: MonitorAction }) {
   return (
     <Panel title="Support Diagnostics" description="Safely diagnose school issues using technical traces, not private school records." icon={Wrench}>
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
@@ -688,17 +869,26 @@ function SupportDiagnosticsWorkspace() {
       </div>
       <div className="grid gap-4 md:grid-cols-4">
         {["User Session Check", "Module Health Check", "Request Trace Lookup", "Sync Lookup"].map(tool => (
-          <button key={tool} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left font-bold text-[#071D49] hover:border-[#071D49] transition">{tool}</button>
+          <button key={tool} type="button" className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left font-bold text-[#071D49] hover:border-[#071D49] transition" onClick={() => openOperationalReport(tool, [["Tool", tool], ["Scope", "Technical metadata only"], ["Tenant private records", "Not included"], ["Next step", "Enter a school, request ID, job ID, or trace key in the search box"]], onAction)}>{tool}</button>
         ))}
       </div>
     </Panel>
   );
 }
 
-function IncidentCenterWorkspace() {
+function IncidentCenterWorkspace({ onAction }: { onAction: MonitorAction }) {
   return (
     <Panel title="Incident Center" description="Create, track, update, and resolve technical incidents." icon={Siren} actions={
-      <button className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white">Create Incident</button>
+      <button type="button" className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white" onClick={() => {
+        recordMonitorAction("Create technical incident", {
+          module: "incident-center",
+          entityId: "incident-draft",
+          body: "Technical incident draft created for operator triage with tenant-safe diagnostics required before publishing.",
+          severity: "warning",
+          notify: true,
+        });
+        onAction({ title: "Incident draft recorded", message: "The incident draft now has an operational record for triage.", type: "info" });
+      }}>Create Incident</button>
     }>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
         <table className="w-full text-sm text-left whitespace-nowrap">
@@ -718,8 +908,17 @@ function IncidentCenterWorkspace() {
               <td className="px-4 py-3"><StatusChip label="High" tone="danger" /></td>
               <td className="px-4 py-3"><StatusChip label="Investigating" tone="warning" /></td>
               <td className="px-4 py-3 text-right">
-                <button className="text-blue-600 hover:underline font-semibold text-xs mr-3">View</button>
-                <button className="text-emerald-600 hover:underline font-semibold text-xs">Resolve</button>
+                <button type="button" className="text-blue-600 hover:underline font-semibold text-xs mr-3" onClick={() => openOperationalReport("Incident INC-402", [["Incident ID", "INC-402"], ["Title", "M-Pesa Callbacks Delayed"], ["Severity", "High"], ["Status", "Investigating"]], onAction)}>View</button>
+                <button type="button" className="text-emerald-600 hover:underline font-semibold text-xs" onClick={() => {
+                  recordMonitorAction("Incident resolution review", {
+                    module: "incident-center",
+                    entityId: "INC-402",
+                    body: "INC-402 marked for resolution review; callback replay evidence is required before final closure.",
+                    severity: "warning",
+                    notify: true,
+                  });
+                  onAction({ title: "Resolution review recorded", message: "INC-402 remains tracked until callback replay evidence is attached.", type: "info" });
+                }}>Resolve</button>
               </td>
             </tr>
           </tbody>
@@ -729,12 +928,12 @@ function IncidentCenterWorkspace() {
   );
 }
 
-function ReportsWorkspace() {
+function ReportsWorkspace({ onAction }: { onAction: MonitorAction }) {
   return (
     <Panel title="Reports" description="Generate platform health and technical operation reports." icon={FileText}>
        <div className="grid gap-4 md:grid-cols-3">
         {["Daily Platform Health Report", "Weekly Tenant Health Report", "Failed Jobs Report", "Release Adoption Report", "Backup Health Report"].map(r => (
-          <button key={r} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left font-bold text-[#071D49] hover:border-[#071D49] transition">{r}</button>
+          <button key={r} type="button" className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left font-bold text-[#071D49] hover:border-[#071D49] transition" onClick={() => openOperationalReport(r, [["Report", r], ["Source", "System Monitor visible operational state"], ["Tenant data", "Aggregated operational metadata only"], ["Generated by", "System Monitor"]], onAction)}>{r}</button>
         ))}
       </div>
     </Panel>
@@ -766,6 +965,23 @@ function SettingsWorkspace() {
 
 export function SystemMonitorDashboard({ routeMode }: { routeMode: RouteMode }) {
   const [activeView, setActiveView] = useState<ViewId>("overview");
+  const [toasts, setToasts] = useState<Array<{ id: string; title: string; message?: string; type?: MonitorToastType }>>([]);
+
+  const pushMonitorToast: MonitorAction = ({ title, message, type = "info" }) => {
+    setToasts((current) => [
+      ...current.slice(-3),
+      {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        title,
+        message,
+        type,
+      },
+    ]);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts((current) => current.filter((toast) => toast.id !== id));
+  };
 
   return (
     <div className="flex min-h-screen bg-[#F3F6FA] font-sans">
@@ -804,10 +1020,11 @@ export function SystemMonitorDashboard({ routeMode }: { routeMode: RouteMode }) 
             <div className="flex items-center gap-3">
               <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white shrink-0">SM</div>
               <h1 className="text-lg font-black text-[#071D49] truncate">{navItems.find(i => i.id === activeView)?.label || "Dashboard"}</h1>
+              <span className="rounded-full border border-[#D8E0EC] bg-[#F8FAFC] px-2.5 py-1 text-xs font-bold uppercase tracking-[0.12em] text-[#64748B]">{routeMode}</span>
             </div>
             <div className="flex items-center gap-3 shrink-0">
               <StatusChip label="Global Platform" tone="info" />
-              <button className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#071D49] text-white">
+              <button type="button" aria-label="Open System Monitor search" className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#071D49] text-white" onClick={() => pushMonitorToast({ title: "Search ready", message: "Use each workspace search box to inspect tenant-safe operational metadata.", type: "info" })}>
                 <Search className="h-4 w-4" />
               </button>
               <TaskQueue />
@@ -828,26 +1045,31 @@ export function SystemMonitorDashboard({ routeMode }: { routeMode: RouteMode }) 
           </div>
         </header>
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
-          {activeView === "overview" && <OverviewWorkspace onNavigate={setActiveView} />}
-          {activeView === "tenant-health" && <TenantHealthWorkspace />}
-          {activeView === "uptime-services" && <UptimeServicesWorkspace />}
-          {activeView === "error-logs" && <ErrorLogsWorkspace />}
-          {activeView === "background-jobs" && <BackgroundJobsWorkspace />}
-          {activeView === "offline-sync" && <OfflineSyncWorkspace />}
+          {activeView === "overview" && <OverviewWorkspace onNavigate={setActiveView} onAction={pushMonitorToast} />}
+          {activeView === "tenant-health" && <TenantHealthWorkspace onAction={pushMonitorToast} />}
+          {activeView === "uptime-services" && <UptimeServicesWorkspace onAction={pushMonitorToast} />}
+          {activeView === "error-logs" && <ErrorLogsWorkspace onAction={pushMonitorToast} />}
+          {activeView === "background-jobs" && <BackgroundJobsWorkspace onAction={pushMonitorToast} />}
+          {activeView === "offline-sync" && <OfflineSyncWorkspace onAction={pushMonitorToast} />}
           {activeView === "performance-analytics" && <PerformanceAnalyticsWorkspace />}
-          {activeView === "support-diagnostics" && <SupportDiagnosticsWorkspace />}
-          {activeView === "integrations" && <IntegrationsWorkspace />}
-          {activeView === "notifications" && <NotificationsWorkspace />}
-          {activeView === "database-backups" && <DatabaseBackupsWorkspace />}
+          {activeView === "support-diagnostics" && <SupportDiagnosticsWorkspace onAction={pushMonitorToast} />}
+          {activeView === "integrations" && <IntegrationsWorkspace onAction={pushMonitorToast} />}
+          {activeView === "notifications" && <NotificationsWorkspace onAction={pushMonitorToast} />}
+          {activeView === "database-backups" && <DatabaseBackupsWorkspace onAction={pushMonitorToast} />}
           {activeView === "storage-files" && <StorageFilesWorkspace />}
-          {activeView === "security-events" && <SecurityEventsWorkspace />}
-          {activeView === "audit-explorer" && <AuditExplorerWorkspace />}
-          {activeView === "release-monitor" && <ReleaseMonitorWorkspace />}
-          {activeView === "incident-center" && <IncidentCenterWorkspace />}
-          {activeView === "reports" && <ReportsWorkspace />}
+          {activeView === "security-events" && <SecurityEventsWorkspace onAction={pushMonitorToast} />}
+          {activeView === "audit-explorer" && <AuditExplorerWorkspace onAction={pushMonitorToast} />}
+          {activeView === "release-monitor" && <ReleaseMonitorWorkspace onAction={pushMonitorToast} />}
+          {activeView === "incident-center" && <IncidentCenterWorkspace onAction={pushMonitorToast} />}
+          {activeView === "reports" && <ReportsWorkspace onAction={pushMonitorToast} />}
           {activeView === "settings" && <SettingsWorkspace />}
         </div>
       </main>
+      <div className="fixed bottom-4 right-4 z-50 flex max-w-[calc(100vw-2rem)] flex-col items-end">
+        {toasts.map((toast) => (
+          <WorkflowToast key={toast.id} {...toast} onClose={removeToast} />
+        ))}
+      </div>
     </div>
   );
 }

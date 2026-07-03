@@ -455,6 +455,76 @@ export function buildSimpleOperationsSchema(input: {
       audit_log_reference uuid
     );
 
+    DO $$
+    DECLARE
+      target_table text;
+      policy_record record;
+    BEGIN
+      FOREACH target_table IN ARRAY ARRAY[${input.tables.map((table) => `'${table}'`).join(', ')}]
+      LOOP
+        IF to_regclass('public.' || target_table) IS NOT NULL THEN
+          EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', target_table);
+          FOR policy_record IN
+            SELECT policyname
+            FROM pg_policies
+            WHERE schemaname = 'public'
+              AND tablename = target_table
+          LOOP
+            EXECUTE format('DROP POLICY IF EXISTS %I ON %I', policy_record.policyname, target_table);
+          END LOOP;
+
+          IF NOT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = target_table
+              AND column_name = 'tenant_id'
+          ) THEN
+            EXECUTE format('ALTER TABLE %I ADD COLUMN tenant_id text', target_table);
+          END IF;
+
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS school_id text', target_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT ''open''', target_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS priority text NOT NULL DEFAULT ''normal''', target_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS due_date date', target_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT NOW()', target_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW()', target_table);
+
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = target_table
+              AND column_name = 'tenant_id'
+              AND data_type <> 'text'
+          ) THEN
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id TYPE text USING tenant_id::text', target_table);
+          END IF;
+
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = target_table
+              AND column_name = 'school_id'
+          ) THEN
+            EXECUTE format(
+              'UPDATE %I SET tenant_id = school_id WHERE tenant_id IS NULL AND school_id IS NOT NULL',
+              target_table
+            );
+          END IF;
+
+          EXECUTE format(
+            'UPDATE %I SET tenant_id = %L WHERE tenant_id IS NULL OR btrim(tenant_id) = %L',
+            target_table,
+            'legacy-unassigned',
+            ''
+          );
+          EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET NOT NULL', target_table);
+        END IF;
+      END LOOP;
+    END $$;
+
     CREATE INDEX IF NOT EXISTS ${quoteIdentifier(`ix_${input.mainTable}_status_due`)}
       ON ${quoteIdentifier(input.mainTable)} (tenant_id, status, due_date);
     CREATE INDEX IF NOT EXISTS ${quoteIdentifier(`ix_${input.mainTable}_priority`)}
@@ -467,11 +537,11 @@ export function buildSimpleOperationsSchema(input: {
       DROP POLICY IF EXISTS ${quoteIdentifier(`${table}_tenant_policy`)} ON ${quoteIdentifier(table)};
       CREATE POLICY ${quoteIdentifier(`${table}_tenant_policy`)} ON ${quoteIdentifier(table)}
       FOR ALL USING (
-        tenant_id = current_setting('app.tenant_id', true)
+        tenant_id::text = current_setting('app.tenant_id', true)
         OR NULLIF(current_setting('app.role', true), '') = 'system'
       )
       WITH CHECK (
-        tenant_id = current_setting('app.tenant_id', true)
+        tenant_id::text = current_setting('app.tenant_id', true)
         OR NULLIF(current_setting('app.role', true), '') = 'system'
       );
     `).join('\n')}

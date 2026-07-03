@@ -13,15 +13,47 @@ const REQUIRED_ENV_VARS = [
   'MPESA_LEDGER_CREDIT_ACCOUNT_CODE',
   'APP_TRUSTED_TENANT_HEADER_SECRET',
   'REPORT_CARD_DOWNLOAD_SIGNING_SECRET',
+  'RESEND_API_KEY',
+  'EMAIL_FROM',
+  'SUPPORT_NOTIFICATION_EMAILS',
 ];
+const EMAIL_PATTERN = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
+
+export interface EnvironmentValidationIssue {
+  type: 'missing' | 'invalid';
+  message: string;
+}
+
+export interface EnvironmentValidationReport {
+  ok: boolean;
+  missing: string[];
+  invalid: string[];
+  issues: EnvironmentValidationIssue[];
+}
 
 export function validateEnv(env: Record<string, unknown>): Record<string, unknown> {
+  const report = collectEnvValidationIssues(env);
+
+  if (report.missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${report.missing.join(', ')}`);
+  }
+
+  if (report.invalid.length > 0) {
+    throw new Error(`Invalid environment variables: ${report.invalid.join(', ')}`);
+  }
+
+  return env;
+}
+
+export function collectEnvValidationIssues(env: Record<string, unknown>): EnvironmentValidationReport {
   const missingEnvVars = REQUIRED_ENV_VARS.filter((key) => {
     const value = env[key];
     return typeof value !== 'string' || value.trim().length === 0;
   });
   const invalidEnvVars = [
     ...validateMpesaEnv(env),
+    ...validateTransactionalEmailEnv(env),
+    ...validateSupportEmailEnv(env),
     ...validateProductionEnv(env),
     ...validateSupportSmsEnv(env),
     ...validateUploadMalwareScanEnv(env),
@@ -41,15 +73,65 @@ export function validateEnv(env: Record<string, unknown>): Record<string, unknow
     missingEnvVars.push('JWT_SECRET or both JWT_ACCESS_TOKEN_SECRET and JWT_REFRESH_TOKEN_SECRET');
   }
 
-  if (missingEnvVars.length > 0) {
-    throw new Error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
+  return {
+    ok: missingEnvVars.length === 0 && invalidEnvVars.length === 0,
+    missing: missingEnvVars,
+    invalid: invalidEnvVars,
+    issues: [
+      ...missingEnvVars.map((message) => ({ type: 'missing' as const, message })),
+      ...invalidEnvVars.map((message) => ({ type: 'invalid' as const, message })),
+    ],
+  };
+}
+
+function validateTransactionalEmailEnv(env: Record<string, unknown>): string[] {
+  const errors: string[] = [];
+  const provider = getString(env, 'EMAIL_PROVIDER') || 'resend';
+  const apiKey = getString(env, 'RESEND_API_KEY');
+  const sender = getString(env, 'EMAIL_FROM');
+  const publicAppUrl = getString(env, 'PUBLIC_APP_URL') || getString(env, 'WEB_APP_URL');
+
+  if (provider !== 'resend') {
+    errors.push('EMAIL_PROVIDER must be resend');
   }
 
-  if (invalidEnvVars.length > 0) {
-    throw new Error(`Invalid environment variables: ${invalidEnvVars.join(', ')}`);
+  if (apiKey && isPlaceholderValue(apiKey)) {
+    errors.push('RESEND_API_KEY must be a real Resend key, not a placeholder');
+  } else if (/\s/.test(apiKey)) {
+    errors.push('RESEND_API_KEY must not contain whitespace');
   }
 
-  return env;
+  if (sender && isPlaceholderValue(sender)) {
+    errors.push('EMAIL_FROM must be a real verified sender, not a placeholder');
+  } else if (sender && !isValidEmailAddress(extractSenderEmail(sender))) {
+    errors.push('EMAIL_FROM must contain a valid sender email address');
+  }
+
+  if (!publicAppUrl) {
+    errors.push('PUBLIC_APP_URL or WEB_APP_URL is required for email links');
+  } else if (!isHttpsUrl(publicAppUrl)) {
+    errors.push('PUBLIC_APP_URL or WEB_APP_URL must be an HTTPS URL');
+  }
+
+  return errors;
+}
+
+function validateSupportEmailEnv(env: Record<string, unknown>): string[] {
+  const recipients = parseCsv(getString(env, 'SUPPORT_NOTIFICATION_EMAILS'));
+
+  if (recipients.length === 0) {
+    return [];
+  }
+
+  if (recipients.some(isPlaceholderValue)) {
+    return ['SUPPORT_NOTIFICATION_EMAILS must contain real support recipients, not placeholders'];
+  }
+
+  if (recipients.some((recipient) => !isValidEmailAddress(recipient))) {
+    return ['SUPPORT_NOTIFICATION_EMAILS contains an invalid email address'];
+  }
+
+  return [];
 }
 
 function validateMpesaEnv(env: Record<string, unknown>): string[] {
@@ -343,22 +425,30 @@ function validateUploadObjectStorageEnv(env: Record<string, unknown>): string[] 
 
   if (!endpoint) {
     errors.push('UPLOAD_OBJECT_STORAGE_ENDPOINT is required');
+  } else if (isPlaceholderValue(endpoint)) {
+    errors.push('UPLOAD_OBJECT_STORAGE_ENDPOINT must be a real object storage endpoint, not a placeholder');
   } else if (!isHttpsUrl(endpoint)) {
     errors.push('UPLOAD_OBJECT_STORAGE_ENDPOINT must be an HTTPS URL');
   }
 
   if (!bucket) {
     errors.push('UPLOAD_OBJECT_STORAGE_BUCKET is required');
+  } else if (isPlaceholderValue(bucket)) {
+    errors.push('UPLOAD_OBJECT_STORAGE_BUCKET must be a real object storage bucket, not a placeholder');
   } else if (!isValidObjectStorageBucket(bucket)) {
     errors.push('UPLOAD_OBJECT_STORAGE_BUCKET must be a valid S3-compatible bucket name');
   }
 
   if (!accessKeyId) {
     errors.push('UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID is required');
+  } else if (isPlaceholderValue(accessKeyId)) {
+    errors.push('UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID must be a real object storage access key, not a placeholder');
   }
 
   if (!secretAccessKey) {
     errors.push('UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY is required');
+  } else if (isPlaceholderValue(secretAccessKey)) {
+    errors.push('UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY must be a real object storage secret key, not a placeholder');
   }
 
   return errors;
@@ -412,6 +502,20 @@ function isHttpsUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+function extractSenderEmail(sender: string): string {
+  const angleMatch = sender.match(/<([^<>]+)>/);
+
+  return angleMatch?.[1]?.trim() ?? sender.trim();
+}
+
+function isValidEmailAddress(value: string): boolean {
+  return EMAIL_PATTERN.test(value);
+}
+
+function isPlaceholderValue(value: string): boolean {
+  return /\b(example|placeholder|replace-with|changeme|todo|your-|test_?key|dummy)\b/i.test(value);
 }
 
 function isLocalhostUrl(value: string): boolean {

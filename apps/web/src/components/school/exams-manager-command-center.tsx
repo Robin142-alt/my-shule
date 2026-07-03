@@ -930,9 +930,9 @@ function ActiveWidgetContent({
               if (isSubmitting) return;
               setIsSubmitting(true);
               try {
-                await requestDashboardApi("/api/academic/exams-manager/import-marks", {
+                await requestDashboardApi("/admin-command/exams-manager/import-marks", {
                   method: "POST",
-                  body: JSON.stringify({ type: "csv_import" })
+                  body: { type: "csv_import" }
                 });
                 toast.success("Marks imported successfully");
               } catch (error) {
@@ -947,9 +947,9 @@ function ActiveWidgetContent({
               if (isSubmitting) return;
               setIsSubmitting(true);
               try {
-                await requestDashboardApi("/api/academic/exams-manager/export-marks", {
+                await requestDashboardApi("/admin-command/exams-manager/export-marks", {
                   method: "POST",
-                  body: JSON.stringify({ type: "csv_export" })
+                  body: { type: "csv_export" }
                 });
                 downloadCsvFile({
                   filename: "marks-template.csv",
@@ -967,9 +967,9 @@ function ActiveWidgetContent({
               if (isSubmitting) return;
               setIsSubmitting(true);
               try {
-                await requestDashboardApi("/api/academic/exams-manager/zeraki-sync", {
+                await requestDashboardApi("/admin-command/exams-manager/zeraki-sync", {
                   method: "POST",
-                  body: JSON.stringify({ sync: true })
+                  body: { sync: true }
                 });
                 toast.success("Zeraki sync initiated");
               } catch (error) {
@@ -1534,7 +1534,7 @@ export function ExamsManagerCommandCenter({
             ],
           });
 
-          setNotice(`${session.title} opened for Mathematics Form 4 North with 12 pending learners; teacher and Dean notifications created.`);
+          setNotice(`${session.title} queued for Mathematics Form 4 North with 12 pending learners; teacher and Dean notifications created.`);
         },
         onError: (err) => {
           setNotice(`Action failed: Backend API missing or denied (${err.message})`);
@@ -1747,6 +1747,7 @@ export function ExamsManagerCommandCenter({
                 <button
                   key={item.id}
                   type="button"
+                  aria-label={item.label}
                   onClick={() => setActiveView(item.id)}
                   className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-black transition ${
                     selected ? "bg-white text-[#071D49] shadow-lg" : "text-blue-100 hover:bg-white/10 hover:text-white"
@@ -1776,6 +1777,7 @@ export function ExamsManagerCommandCenter({
                   {navItems.map((item) => (
                     <button
                       key={item.id}
+                      aria-label={item.id === "builder" ? "Builder quick tab" : `${item.label} quick tab`}
                       onClick={() => setActiveView(item.id)}
                       className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold transition-colors ${activeView === item.id ? "bg-[#071D49] text-white" : "bg-white text-[#64748B] border border-[#D9E2EF]"}`}
                     >

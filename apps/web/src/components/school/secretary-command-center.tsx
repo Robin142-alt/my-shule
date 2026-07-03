@@ -5,6 +5,9 @@ import { Search, Bell, Users, Calendar, Phone, Mail } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { Modal } from "@/components/ui/modal";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { toast } from "sonner";
 
 type SecretaryDashboardData = {
   communication_summary: {
@@ -15,10 +18,46 @@ type SecretaryDashboardData = {
 
 export function SecretaryCommandCenter({ routeMode }: { routeMode?: "hosted" | "public" }) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [visitorModalOpen, setVisitorModalOpen] = useState(false);
+  const [visitorSubmitting, setVisitorSubmitting] = useState(false);
+  const [visitorDraft, setVisitorDraft] = useState({
+    visitor_name: "",
+    phone_number: "",
+    purpose: "",
+    host_user_id: "",
+  });
   const { data, isLoading } = useSchoolQuery<SecretaryDashboardData>('/admin-command/secretary/dashboard');
 
   const announcements = data?.communication_summary?.announcements || 0;
   const meetings = data?.communication_summary?.meetings || 0;
+
+  async function registerVisitor() {
+    if (!visitorDraft.visitor_name.trim() || !visitorDraft.purpose.trim()) {
+      toast.error("Visitor name and purpose are required.");
+      return;
+    }
+
+    setVisitorSubmitting(true);
+    try {
+      await requestDashboardApi("/admin-command/secretary/visitors/check-in", {
+        method: "POST",
+        body: {
+          visitor_name: visitorDraft.visitor_name,
+          phone_number: visitorDraft.phone_number || undefined,
+          purpose: visitorDraft.purpose,
+          host_user_id: visitorDraft.host_user_id || "front-office",
+          source_dashboard: "secretary-legacy-command-center",
+        },
+      });
+      toast.success("Visitor checked in and security notified.");
+      setVisitorModalOpen(false);
+      setVisitorDraft({ visitor_name: "", phone_number: "", purpose: "", host_user_id: "" });
+    } catch (error: any) {
+      toast.error(error?.message || "Visitor could not be checked in.");
+    } finally {
+      setVisitorSubmitting(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#F3F6FA]">
@@ -76,7 +115,7 @@ export function SecretaryCommandCenter({ routeMode }: { routeMode?: "hosted" | "
                       />
                     </label>
                   </div>
-                  <Button className="bg-[#071D49] hover:bg-[#071D49]/90 text-white rounded-xl">Register Visitor</Button>
+                  <Button className="bg-[#071D49] hover:bg-[#071D49]/90 text-white rounded-xl" onClick={() => setVisitorModalOpen(true)}>Register Visitor</Button>
                 </div>
               </div>
             </header>
@@ -110,6 +149,37 @@ export function SecretaryCommandCenter({ routeMode }: { routeMode?: "hosted" | "
           </div>
         </main>
       </div>
+      <Modal
+        open={visitorModalOpen}
+        title="Register visitor"
+        description="Check a visitor into the tenant-scoped front office visitor log."
+        onClose={() => setVisitorModalOpen(false)}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setVisitorModalOpen(false)}>Cancel</Button>
+            <Button onClick={registerVisitor} disabled={visitorSubmitting}>{visitorSubmitting ? "Registering..." : "Register visitor"}</Button>
+          </>
+        }
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="space-y-1 text-sm">
+            <span className="font-medium">Visitor name</span>
+            <input className="w-full rounded-md border px-3 py-2 text-sm" value={visitorDraft.visitor_name} onChange={(event) => setVisitorDraft((current) => ({ ...current, visitor_name: event.target.value }))} />
+          </label>
+          <label className="space-y-1 text-sm">
+            <span className="font-medium">Phone</span>
+            <input className="w-full rounded-md border px-3 py-2 text-sm" value={visitorDraft.phone_number} onChange={(event) => setVisitorDraft((current) => ({ ...current, phone_number: event.target.value }))} />
+          </label>
+          <label className="space-y-1 text-sm sm:col-span-2">
+            <span className="font-medium">Purpose</span>
+            <input className="w-full rounded-md border px-3 py-2 text-sm" value={visitorDraft.purpose} onChange={(event) => setVisitorDraft((current) => ({ ...current, purpose: event.target.value }))} />
+          </label>
+          <label className="space-y-1 text-sm sm:col-span-2">
+            <span className="font-medium">Host/user to see</span>
+            <input className="w-full rounded-md border px-3 py-2 text-sm" value={visitorDraft.host_user_id} onChange={(event) => setVisitorDraft((current) => ({ ...current, host_user_id: event.target.value }))} placeholder="front-office" />
+          </label>
+        </div>
+      </Modal>
     </div>
   );
 }

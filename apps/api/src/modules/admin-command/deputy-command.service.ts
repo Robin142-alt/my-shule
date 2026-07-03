@@ -22,8 +22,19 @@ export class DeputyCommandService {
   createDailyOperationNote(dto: any) {
     return this.repository.createDailyOperationNote(this.requireTenantId(), this.requestContext.getStore()?.user_id || 'system', dto);
   }
+  startMorningReview(dto: any) {
+    return this.repository.createDailyOperationNote(this.requireTenantId(), this.requestContext.getStore()?.user_id || 'system', {
+      ...dto,
+      area: 'Morning Review',
+      issue: 'Daily morning review started',
+      severity: 'low',
+      notes: `Present: ${dto?.present_today ?? 0}; Absent: ${dto?.absent_today ?? 0}; Incidents: ${dto?.reported_incidents ?? 0}; Escalations: ${dto?.escalated_incidents ?? 0}`,
+      action: 'morning_review_started',
+    });
+  }
   getAttendance() { return this.repository.getAttendance(this.requireTenantId()); }
-  notifyParent(attendanceId: string) { return this.repository.notifyParent(this.requireTenantId(), attendanceId); }
+  notifyParent(attendanceId: string) { return this.repository.notifyParent(this.requireTenantId(), this.requestContext.getStore()?.user_id || null, attendanceId); }
+  remindUnmarkedAttendance(dto: any) { return this.repository.remindUnmarkedAttendance(this.requireTenantId(), this.requestContext.getStore()?.user_id || null, dto); }
   createFollowUpList(dto: any) { return this.repository.createFollowUpList(this.requireTenantId(), this.requestContext.getStore()?.user_id || 'system', dto); }
   getDiscipline() { return this.repository.getDiscipline(this.requireTenantId()); }
   createDisciplineIncident(dto: any) { return this.repository.createDisciplineIncident(this.requireTenantId(), this.requestContext.getStore()?.user_id || 'system', dto); }
@@ -32,16 +43,16 @@ export class DeputyCommandService {
   createWelfareCase(dto: any) { return this.repository.createWelfareCase(this.requireTenantId(), this.requestContext.getStore()?.user_id || 'system', dto); }
   openWelfareCase(id: string) { return this.repository.openWelfareCase(this.requireTenantId(), id); }
   getStaffDuty() { return this.repository.getStaffDuty(this.requireTenantId()); }
-  requestDutyReport(id: string) { return this.repository.requestDutyReport(this.requireTenantId(), id); }
+  requestDutyReport(id: string) { return this.repository.requestDutyReport(this.requireTenantId(), this.requestContext.getStore()?.user_id || null, id); }
   manageDutyRoster(dto: any) { return this.repository.manageDutyRoster(this.requireTenantId(), this.requestContext.getStore()?.user_id || 'system', dto); }
   
   getTeaching() { return this.repository.getTeaching(this.requireTenantId()); }
-  markTeachingAttendance(id: string) { return this.repository.markTeachingAttendance(this.requireTenantId(), id); }
-  logTeachingLesson(id: string) { return this.repository.logTeachingLesson(this.requireTenantId(), id); }
+  markTeachingAttendance(id: string) { return this.repository.markTeachingAttendance(this.requireTenantId(), this.requestContext.getStore()?.user_id || null, id); }
+  logTeachingLesson(id: string) { return this.repository.logTeachingLesson(this.requireTenantId(), this.requestContext.getStore()?.user_id || null, id); }
   
   getTimetable() { return this.repository.getTimetable(this.requireTenantId()); }
-  assignReliefTeacher(id: string, teacherName: string) { return this.repository.assignReliefTeacher(this.requireTenantId(), id, teacherName); }
-  autoAssignRelief() { return this.repository.autoAssignRelief(this.requireTenantId()); }
+  assignReliefTeacher(id: string, teacherName: string) { return this.repository.assignReliefTeacher(this.requireTenantId(), this.requestContext.getStore()?.user_id || null, id, teacherName); }
+  autoAssignRelief() { return this.repository.autoAssignRelief(this.requireTenantId(), this.requestContext.getStore()?.user_id || null); }
   
   getAcademics() { return this.repository.getAcademics(this.requireTenantId()); }
   messageHOD(id: string) { return this.repository.messageHOD(this.requireTenantId(), id); }
@@ -61,5 +72,10 @@ export class DeputyCommandService {
   generateReport(dto: any) { return this.repository.generateReport(this.requireTenantId(), dto.name, dto.format); }
   
   getStaff() { return this.repository.getStaff(this.requireTenantId()); }
-  assignRole(dto: any) { return this.repository.assignRole(this.requireTenantId(), dto); }
+  assignRole(dto: any) {
+    return this.repository.assignRole(this.requireTenantId(), {
+      ...dto,
+      assignedByUserId: this.requestContext.getStore()?.user_id,
+    });
+  }
 }

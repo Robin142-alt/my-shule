@@ -36,7 +36,7 @@ export class AcademicsSchemaService implements OnModuleInit {
       CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
       CREATE TABLE IF NOT EXISTS academic_years (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
         name text NOT NULL,
         starts_on date NOT NULL,
@@ -51,10 +51,36 @@ export class AcademicsSchemaService implements OnModuleInit {
         CONSTRAINT ck_academic_years_status CHECK (status IN ('draft', 'active', 'closed'))
       );
 
+      ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS tenant_id text;
+      ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS school_id text;
+      UPDATE academic_years
+      SET tenant_id = COALESCE(NULLIF(tenant_id, ''), school_id::text, 'global')
+      WHERE tenant_id IS NULL OR btrim(tenant_id) = '';
+      ALTER TABLE academic_years ALTER COLUMN tenant_id SET DEFAULT 'global';
+      ALTER TABLE academic_years ALTER COLUMN tenant_id SET NOT NULL;
+      ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS start_date date;
+      ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS end_date date;
+      ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS starts_on date;
+      UPDATE academic_years SET starts_on = start_date WHERE starts_on IS NULL AND start_date IS NOT NULL;
+      UPDATE academic_years SET starts_on = CURRENT_DATE WHERE starts_on IS NULL;
+      ALTER TABLE academic_years ALTER COLUMN starts_on SET NOT NULL;
+      ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS ends_on date;
+      UPDATE academic_years SET ends_on = end_date WHERE ends_on IS NULL AND end_date IS NOT NULL;
+      UPDATE academic_years SET ends_on = starts_on WHERE ends_on IS NULL;
+      ALTER TABLE academic_years ALTER COLUMN ends_on SET NOT NULL;
+      ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
+      ALTER TABLE academic_years ALTER COLUMN status TYPE text USING status::text;
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_academic_years_tenant_id_id') THEN
+          ALTER TABLE academic_years ADD CONSTRAINT uq_academic_years_tenant_id_id UNIQUE (tenant_id, id);
+        END IF;
+      END $$;
+
       CREATE TABLE IF NOT EXISTS academic_terms (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        academic_year_id uuid NOT NULL,
+        academic_year_id text NOT NULL,
         name text NOT NULL,
         starts_on date NOT NULL,
         ends_on date NOT NULL,
@@ -73,7 +99,7 @@ export class AcademicsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS academic_levels (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
         system_type text NOT NULL,
         name text NOT NULL,
@@ -87,11 +113,26 @@ export class AcademicsSchemaService implements OnModuleInit {
         CONSTRAINT ck_academic_levels_system CHECK (system_type IN ('CBC', 'CBE', '8-4-4', 'International', 'Custom'))
       );
 
+      ALTER TABLE academic_levels ADD COLUMN IF NOT EXISTS tenant_id text;
+      ALTER TABLE academic_levels ADD COLUMN IF NOT EXISTS school_id text;
+      UPDATE academic_levels
+      SET tenant_id = COALESCE(NULLIF(tenant_id, ''), school_id::text, 'global')
+      WHERE tenant_id IS NULL OR btrim(tenant_id) = '';
+      ALTER TABLE academic_levels ALTER COLUMN tenant_id SET DEFAULT 'global';
+      ALTER TABLE academic_levels ALTER COLUMN tenant_id SET NOT NULL;
+      ALTER TABLE academic_levels ADD COLUMN IF NOT EXISTS audit_log_reference uuid;
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_academic_levels_tenant_id_id') THEN
+          ALTER TABLE academic_levels ADD CONSTRAINT uq_academic_levels_tenant_id_id UNIQUE (tenant_id, id);
+        END IF;
+      END $$;
+
       CREATE TABLE IF NOT EXISTS class_sections (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        academic_year_id uuid NOT NULL,
-        academic_level_id uuid,
+        academic_year_id text NOT NULL,
+        academic_level_id text,
         name text NOT NULL,
         grade_level text NOT NULL,
         stream text,
@@ -110,10 +151,25 @@ export class AcademicsSchemaService implements OnModuleInit {
           ON DELETE CASCADE
       );
 
-      ALTER TABLE class_sections ADD COLUMN IF NOT EXISTS academic_level_id uuid;
+      ALTER TABLE class_sections ADD COLUMN IF NOT EXISTS academic_level_id text;
       ALTER TABLE class_sections ADD COLUMN IF NOT EXISTS custom_label text;
       ALTER TABLE class_sections ADD COLUMN IF NOT EXISTS capacity integer;
       ALTER TABLE class_sections ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true;
+      ALTER TABLE class_sections ADD COLUMN IF NOT EXISTS tenant_id text;
+      ALTER TABLE class_sections ADD COLUMN IF NOT EXISTS school_id text;
+      UPDATE class_sections
+      SET tenant_id = COALESCE(NULLIF(tenant_id, ''), school_id::text, 'global')
+      WHERE tenant_id IS NULL OR btrim(tenant_id) = '';
+      ALTER TABLE class_sections ALTER COLUMN tenant_id SET DEFAULT 'global';
+      ALTER TABLE class_sections ALTER COLUMN tenant_id SET NOT NULL;
+      ALTER TABLE class_sections ALTER COLUMN academic_year_id TYPE text USING academic_year_id::text;
+      ALTER TABLE class_sections ALTER COLUMN academic_level_id TYPE text USING academic_level_id::text;
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_class_sections_tenant_id_id') THEN
+          ALTER TABLE class_sections ADD CONSTRAINT uq_class_sections_tenant_id_id UNIQUE (tenant_id, id);
+        END IF;
+      END $$;
 
       DO $$
       BEGIN
@@ -130,9 +186,9 @@ export class AcademicsSchemaService implements OnModuleInit {
       END $$;
 
       CREATE TABLE IF NOT EXISTS class_streams (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        class_section_id uuid NOT NULL,
+        class_section_id text NOT NULL,
         name text NOT NULL,
         capacity integer,
         class_teacher_id uuid,
@@ -148,13 +204,13 @@ export class AcademicsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS student_class_assignments (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        student_id uuid NOT NULL,
-        class_section_id uuid NOT NULL,
-        stream_id uuid,
-        academic_level_id uuid NOT NULL,
-        academic_year_id uuid NOT NULL,
+        student_id text NOT NULL,
+        class_section_id text NOT NULL,
+        stream_id text,
+        academic_level_id text NOT NULL,
+        academic_year_id text NOT NULL,
         status text NOT NULL DEFAULT 'active',
         assigned_by_user_id uuid,
         created_at timestamptz NOT NULL DEFAULT NOW(),
@@ -176,12 +232,32 @@ export class AcademicsSchemaService implements OnModuleInit {
         CONSTRAINT ck_student_class_assignment_status CHECK (status IN ('active', 'transferred', 'completed', 'withdrawn'))
       );
 
+      ALTER TABLE student_class_assignments ADD COLUMN IF NOT EXISTS tenant_id text;
+      ALTER TABLE student_class_assignments ADD COLUMN IF NOT EXISTS school_id text;
+      UPDATE student_class_assignments
+      SET tenant_id = COALESCE(NULLIF(tenant_id, ''), school_id::text, 'global')
+      WHERE tenant_id IS NULL OR btrim(tenant_id) = '';
+      ALTER TABLE student_class_assignments ALTER COLUMN tenant_id SET DEFAULT 'global';
+      ALTER TABLE student_class_assignments ALTER COLUMN tenant_id SET NOT NULL;
+      ALTER TABLE student_class_assignments ALTER COLUMN student_id TYPE text USING student_id::text;
+      ALTER TABLE student_class_assignments ALTER COLUMN class_section_id TYPE text USING class_section_id::text;
+      ALTER TABLE student_class_assignments ALTER COLUMN stream_id TYPE text USING stream_id::text;
+      ALTER TABLE student_class_assignments ALTER COLUMN academic_level_id TYPE text USING academic_level_id::text;
+      ALTER TABLE student_class_assignments ALTER COLUMN academic_year_id TYPE text USING academic_year_id::text;
+      ALTER TABLE student_class_assignments ALTER COLUMN status TYPE text USING status::text;
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_student_class_assignments_tenant_id_id') THEN
+          ALTER TABLE student_class_assignments ADD CONSTRAINT uq_student_class_assignments_tenant_id_id UNIQUE (tenant_id, id);
+        END IF;
+      END $$;
+
       CREATE UNIQUE INDEX IF NOT EXISTS ux_student_class_assignments_active_year
         ON student_class_assignments (tenant_id, student_id, academic_year_id)
         WHERE status = 'active';
 
       CREATE TABLE IF NOT EXISTS subjects (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
         code text NOT NULL,
         name text NOT NULL,
@@ -194,11 +270,11 @@ export class AcademicsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS class_subject_assignments (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        academic_term_id uuid NOT NULL,
-        class_section_id uuid NOT NULL,
-        subject_id uuid NOT NULL,
+        academic_term_id text NOT NULL,
+        class_section_id text NOT NULL,
+        subject_id text NOT NULL,
         created_by_user_id uuid,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         CONSTRAINT uq_class_subject_assignments_tenant_id_id UNIQUE (tenant_id, id),
@@ -206,12 +282,12 @@ export class AcademicsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS teacher_subject_assignments (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        academic_term_id uuid NOT NULL,
-        class_section_id uuid NOT NULL,
-        subject_id uuid NOT NULL,
-        teacher_user_id uuid NOT NULL,
+        academic_term_id text NOT NULL,
+        class_section_id text NOT NULL,
+        subject_id text NOT NULL,
+        teacher_user_id text NOT NULL,
         status text NOT NULL DEFAULT 'active',
         created_by_user_id uuid,
         created_at timestamptz NOT NULL DEFAULT NOW(),
@@ -227,13 +303,71 @@ export class AcademicsSchemaService implements OnModuleInit {
         CONSTRAINT ck_teacher_subject_assignments_status CHECK (status IN ('active', 'inactive'))
       );
 
+      DO $$
+      DECLARE
+        target_table text;
+        policy_record record;
+      BEGIN
+        FOREACH target_table IN ARRAY ARRAY[
+          'subjects',
+          'class_subject_assignments',
+          'teacher_subject_assignments'
+        ] LOOP
+          IF to_regclass(format('public.%I', target_table)) IS NOT NULL THEN
+            EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', target_table);
+            FOR policy_record IN
+              SELECT policyname
+              FROM pg_policies
+              WHERE schemaname = 'public'
+                AND tablename = target_table
+            LOOP
+              EXECUTE format('DROP POLICY IF EXISTS %I ON %I', policy_record.policyname, target_table);
+            END LOOP;
+
+            EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS tenant_id text', target_table);
+            EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS school_id text', target_table);
+            EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS academic_term_id text', target_table);
+            EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS class_section_id text', target_table);
+            EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS subject_id text', target_table);
+            IF target_table = 'teacher_subject_assignments' THEN
+              EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS teacher_user_id text', target_table);
+            END IF;
+            EXECUTE format(
+              'UPDATE %I SET tenant_id = COALESCE(NULLIF(tenant_id, ''''), school_id::text, ''global'') WHERE tenant_id IS NULL OR btrim(tenant_id) = ''''',
+              target_table
+            );
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET DEFAULT ''global''', target_table);
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET NOT NULL', target_table);
+
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'academic_term_id') THEN
+              EXECUTE format('ALTER TABLE %I ALTER COLUMN academic_term_id TYPE text USING academic_term_id::text', target_table);
+            END IF;
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'class_section_id') THEN
+              EXECUTE format('ALTER TABLE %I ALTER COLUMN class_section_id TYPE text USING class_section_id::text', target_table);
+            END IF;
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'subject_id') THEN
+              EXECUTE format('ALTER TABLE %I ALTER COLUMN subject_id TYPE text USING subject_id::text', target_table);
+            END IF;
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'teacher_user_id') THEN
+              EXECUTE format('ALTER TABLE %I ALTER COLUMN teacher_user_id TYPE text USING teacher_user_id::text', target_table);
+            END IF;
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'status') THEN
+              EXECUTE format('ALTER TABLE %I ALTER COLUMN status TYPE text USING status::text', target_table);
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = format('uq_%s_tenant_id_id', target_table)) THEN
+              EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I UNIQUE (tenant_id, id)', target_table, format('uq_%s_tenant_id_id', target_table));
+            END IF;
+          END IF;
+        END LOOP;
+      END $$;
+
 
       CREATE TABLE IF NOT EXISTS report_card_comments (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        student_id uuid NOT NULL,
-        academic_term_id uuid NOT NULL,
-        class_section_id uuid NOT NULL,
+        student_id text NOT NULL,
+        academic_term_id text NOT NULL,
+        class_section_id text NOT NULL,
         academic_comment text,
         behaviour_comment text,
         attendance_comment text,
@@ -247,9 +381,9 @@ export class AcademicsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS student_notes (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        student_id uuid NOT NULL,
+        student_id text NOT NULL,
         note_type text NOT NULL,
         visibility text NOT NULL DEFAULT 'private',
         description text NOT NULL,
@@ -261,9 +395,9 @@ export class AcademicsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS parent_meetings (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        student_id uuid NOT NULL,
+        student_id text NOT NULL,
         guardian_id uuid,
         reason text NOT NULL,
         meeting_type text NOT NULL,
@@ -280,7 +414,7 @@ export class AcademicsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS class_requests (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
         student_id uuid,
         request_type text NOT NULL,
@@ -294,10 +428,56 @@ export class AcademicsSchemaService implements OnModuleInit {
         CONSTRAINT uq_class_requests_tenant_id_id UNIQUE (tenant_id, id)
       );
 
+      DO $$
+      DECLARE
+        target_table text;
+        policy_record record;
+      BEGIN
+        FOREACH target_table IN ARRAY ARRAY[
+          'report_card_comments',
+          'student_notes',
+          'parent_meetings',
+          'class_requests'
+        ] LOOP
+          IF to_regclass(format('public.%I', target_table)) IS NOT NULL THEN
+            EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', target_table);
+            FOR policy_record IN
+              SELECT policyname
+              FROM pg_policies
+              WHERE schemaname = 'public'
+                AND tablename = target_table
+            LOOP
+              EXECUTE format('DROP POLICY IF EXISTS %I ON %I', policy_record.policyname, target_table);
+            END LOOP;
+            EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS tenant_id text', target_table);
+            EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS school_id text', target_table);
+            EXECUTE format(
+              'UPDATE %I SET tenant_id = COALESCE(NULLIF(tenant_id, ''''), school_id::text, ''global'') WHERE tenant_id IS NULL OR btrim(tenant_id) = ''''',
+              target_table
+            );
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET DEFAULT ''global''', target_table);
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET NOT NULL', target_table);
+
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'student_id') THEN
+              EXECUTE format('ALTER TABLE %I ALTER COLUMN student_id TYPE text USING student_id::text', target_table);
+            END IF;
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'academic_term_id') THEN
+              EXECUTE format('ALTER TABLE %I ALTER COLUMN academic_term_id TYPE text USING academic_term_id::text', target_table);
+            END IF;
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'class_section_id') THEN
+              EXECUTE format('ALTER TABLE %I ALTER COLUMN class_section_id TYPE text USING class_section_id::text', target_table);
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = format('uq_%s_tenant_id_id', target_table)) THEN
+              EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I UNIQUE (tenant_id, id)', target_table, format('uq_%s_tenant_id_id', target_table));
+            END IF;
+          END IF;
+        END LOOP;
+      END $$;
+
       CREATE INDEX IF NOT EXISTS ix_report_card_comments_term ON report_card_comments (tenant_id, academic_term_id, class_section_id);
 
       CREATE TABLE IF NOT EXISTS academic_audit_logs (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
         entity_type text NOT NULL,
         entity_id uuid,
@@ -308,7 +488,7 @@ export class AcademicsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS academics_grading_systems (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
         name text NOT NULL,
         description text,
@@ -319,7 +499,7 @@ export class AcademicsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS academics_attendance_settings (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
         name text NOT NULL,
         description text,
@@ -328,6 +508,39 @@ export class AcademicsSchemaService implements OnModuleInit {
         updated_at timestamptz NOT NULL DEFAULT NOW(),
         CONSTRAINT uq_academics_attendance_settings_tenant_name UNIQUE (tenant_id, name)
       );
+
+      DO $$
+      DECLARE
+        target_table text;
+        policy_record record;
+      BEGIN
+        FOREACH target_table IN ARRAY ARRAY[
+          'academic_audit_logs',
+          'academics_grading_systems',
+          'academics_attendance_settings'
+        ] LOOP
+          IF to_regclass(format('public.%I', target_table)) IS NOT NULL THEN
+            EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', target_table);
+            FOR policy_record IN
+              SELECT policyname
+              FROM pg_policies
+              WHERE schemaname = 'public'
+                AND tablename = target_table
+            LOOP
+              EXECUTE format('DROP POLICY IF EXISTS %I ON %I', policy_record.policyname, target_table);
+            END LOOP;
+
+            EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS tenant_id text', target_table);
+            EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS school_id text', target_table);
+            EXECUTE format(
+              'UPDATE %I SET tenant_id = COALESCE(NULLIF(tenant_id, ''''), school_id::text, ''global'') WHERE tenant_id IS NULL OR btrim(tenant_id) = ''''',
+              target_table
+            );
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET DEFAULT ''global''', target_table);
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET NOT NULL', target_table);
+          END IF;
+        END LOOP;
+      END $$;
 
       CREATE INDEX IF NOT EXISTS ix_academic_terms_year
         ON academic_terms (tenant_id, academic_year_id, starts_on);
@@ -343,6 +556,7 @@ export class AcademicsSchemaService implements OnModuleInit {
         ON teacher_subject_assignments (tenant_id, teacher_user_id, academic_term_id);
 
       ALTER TABLE subjects ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+      ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
 
 
       ALTER TABLE report_card_comments ENABLE ROW LEVEL SECURITY;

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { PrismaService } from '../../../database/prisma.service';
+import { DatabaseService } from '../../../database/database.service';
 import {
   FeeStructureEntity,
   FeeStructureLineItem,
@@ -59,31 +59,28 @@ export interface FeeStructureBillableStudentRow {
 @Injectable()
 export class FeeStructuresRepository {
 
-  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
-    const firstParam = params[0];
-    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
-
-    if ((this.prisma as any).query) {
-      return (this.prisma as any).query(query, params);
-    }
-
-    
-    if (isUuid) {
-      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
-        const result = await tx.$queryRawUnsafe(query, ...params);
-        const arr = Array.isArray(result) ? result : [result];
-        return { rows: arr, rowCount: arr.length };
-      });
-    } else {
-      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+  private async executeSql<T = any>(
+    query: string,
+    params: any[] = [],
+    tx?: { $queryRawUnsafe: (query: string, ...params: any[]) => Promise<unknown> },
+  ): Promise<{ rows: T[], rowCount: number }> {
+    if (tx) {
+      const result = await tx.$queryRawUnsafe(query, ...params);
       const arr = Array.isArray(result) ? result : [result];
-        return { rows: arr, rowCount: arr.length };
+      return { rows: arr as T[], rowCount: arr.length };
     }
+
+    const result = await this.database.query(query, params);
+    const rows = result.rows as T[];
+    return { rows, rowCount: result.rowCount ?? rows.length };
   }
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly database: DatabaseService) {}
 
-  async create(input: CreateFeeStructureInput): Promise<FeeStructureEntity> {
+  async create(
+    input: CreateFeeStructureInput,
+    tx?: { $queryRawUnsafe: (query: string, ...params: any[]) => Promise<unknown> },
+  ): Promise<FeeStructureEntity> {
     const result = await this.executeSql<FeeStructureRow>(
       `
         INSERT INTO fee_structures (
@@ -149,6 +146,7 @@ export class FeeStructuresRepository {
         JSON.stringify(input.metadata ?? {}),
         input.created_by_user_id,
       ],
+      tx,
     );
 
     return this.mapRow(result.rows[0]);
@@ -187,6 +185,7 @@ export class FeeStructuresRepository {
   async findById(
     tenantId: string,
     feeStructureId: string,
+    tx?: { $queryRawUnsafe: (query: string, ...params: any[]) => Promise<unknown> },
   ): Promise<FeeStructureEntity | null> {
     const result = await this.executeSql<FeeStructureRow>(
       `
@@ -213,6 +212,7 @@ export class FeeStructuresRepository {
         LIMIT 1
       `,
       [tenantId, feeStructureId],
+      tx,
     );
 
     return result.rows[0] ? this.mapRow(result.rows[0]) : null;
@@ -221,6 +221,7 @@ export class FeeStructuresRepository {
   async archive(
     tenantId: string,
     feeStructureId: string,
+    tx?: { $queryRawUnsafe: (query: string, ...params: any[]) => Promise<unknown> },
   ): Promise<FeeStructureEntity | null> {
     const result = await this.executeSql<FeeStructureRow>(
       `
@@ -249,6 +250,7 @@ export class FeeStructuresRepository {
           updated_at
       `,
       [tenantId, feeStructureId],
+      tx,
     );
 
     return result.rows[0] ? this.mapRow(result.rows[0]) : null;

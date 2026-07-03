@@ -54,6 +54,10 @@ export function PrincipalOverviewWorkspace() {
   if (isLoading) {
     return (
       <div className="space-y-6">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-200">School activity today</p>
+          <h2 className="mt-1 text-2xl font-black text-white">Live principal operations</h2>
+        </div>
         <div className="animate-pulse space-y-4">
           <div className="h-24 bg-white/5 rounded-xl border border-white/10" />
           <div className="h-64 bg-white/5 rounded-xl border border-white/10" />
@@ -73,24 +77,33 @@ export function PrincipalOverviewWorkspace() {
     );
   }
 
+  const totalStudents = Number(data.totalStudents ?? 0);
+  const totalStaff = Number(data.totalStaff ?? 0);
+  const pendingApprovals = Number(data.pendingApprovals ?? 0);
+  const activeIssues = Number(data.activeIssues ?? 0);
+
   return (
     <div className="space-y-6">
+      <div>
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-200">School activity today</p>
+        <h2 className="mt-1 text-2xl font-black text-white">Live principal operations</h2>
+      </div>
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="border border-white/10 bg-white/5 p-5">
           <div className="text-sm font-semibold text-white/70">Total Students</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.totalStudents}</div>
+          <div className="mt-2 text-2xl font-black text-white">{totalStudents}</div>
         </Card>
         <Card className="border border-white/10 bg-white/5 p-5">
           <div className="text-sm font-semibold text-white/70">Total Staff</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.totalStaff}</div>
+          <div className="mt-2 text-2xl font-black text-white">{totalStaff}</div>
         </Card>
         <Card className="border border-white/10 bg-white/5 p-5">
           <div className="text-sm font-semibold text-white/70">Pending Approvals</div>
-          <div className="mt-2 text-2xl font-black text-rose-400">{data.pendingApprovals}</div>
+          <div className="mt-2 text-2xl font-black text-rose-400">{pendingApprovals}</div>
         </Card>
         <Card className="border border-white/10 bg-white/5 p-5">
           <div className="text-sm font-semibold text-white/70">Active Issues</div>
-          <div className="mt-2 text-2xl font-black text-yellow-500">{data.activeIssues}</div>
+          <div className="mt-2 text-2xl font-black text-yellow-500">{activeIssues}</div>
         </Card>
       </div>
       <div className="mt-8">

@@ -14,7 +14,7 @@ import {
 import { getCsrfToken } from "@/lib/auth/csrf-client";
 import { redirectOnExpiredSessionResponse } from "@/lib/auth/session-expiry-client";
 import { getSchoolWorkspace, type SchoolExperienceRole } from "@/lib/experiences/school-data";
-import { buildBillingApiPath, toMinorUnits, formatMinorKes, formatActivityDate } from "@/lib/billing/billing-utils";
+import { buildBillingApiPath, toMinorUnits, formatMinorKes, formatActivityDate, unwrapBillingApiData } from "@/lib/billing/billing-utils";
 import type { LearnerLookupItem } from "@/lib/students/student-lookup";
 import { LearnerPicker } from "@/components/common/learner-picker";
 import { getMissingFieldError } from "@/lib/forms/validation";
@@ -54,12 +54,12 @@ const financeReconciliationBucketTone: Record<string, StatusTone> = {
 
 
 function createEmptyFeeLineItemDraft(): FeeLineItemDraft {
-  return { id: Math.random().toString(36).slice(2), code: "", label: "", amount: "" };
+  return { id: crypto.randomUUID(), code: "", label: "", amount: "" };
 }
 
 function createEmptyBulkFeeStudentDraft(): BulkFeeStudentDraft {
   return {
-    id: Math.random().toString(36).slice(2),
+    id: crypto.randomUUID(),
     student_id: "",
     student_name: "",
     admission_number: "",
@@ -99,7 +99,7 @@ export function InvoicesWorkspace({
   routeMode: SchoolRouteMode;
   activeSection?: string;
 }) {
-  const { hasPermission } = usePermissions();
+  const { hasPermission, isLoading: permissionsLoading } = usePermissions();
   const { subscription } = getSchoolWorkspace(role, tenantSlug);
   const [activity, setActivity] = useState<FinanceActivityResponse[]>([]);
   const [rows, setRows] = useState<FinanceActivityRow[]>([]);
@@ -284,10 +284,12 @@ export function InvoicesWorkspace({
       });
       const payload = (await response.json().catch(() => null)) as
         | FeeStructureResponse[]
+        | { data?: FeeStructureResponse[]; message?: string }
         | { message?: string }
         | null;
+      const feeStructuresPayload = unwrapBillingApiData<FeeStructureResponse[]>(payload);
 
-      if (!response.ok || !Array.isArray(payload)) {
+      if (!response.ok || !Array.isArray(feeStructuresPayload)) {
         throw new Error(
           payload && !Array.isArray(payload) && payload.message
             ? payload.message
@@ -295,10 +297,10 @@ export function InvoicesWorkspace({
         );
       }
 
-      setFeeStructures(payload);
+      setFeeStructures(feeStructuresPayload);
       setBulkDraft((current) => ({
         ...current,
-        fee_structure_id: current.fee_structure_id || payload[0]?.id || "",
+        fee_structure_id: current.fee_structure_id || feeStructuresPayload[0]?.id || "",
       }));
     } catch (caught) {
       setFeeStructures([]);
@@ -615,16 +617,18 @@ export function InvoicesWorkspace({
       });
       const payload = (await response.json().catch(() => null)) as
         | FeeStructureResponse
+        | { data?: FeeStructureResponse; message?: string }
         | { message?: string }
         | null;
+      const savedFeeStructure = unwrapBillingApiData<FeeStructureResponse>(payload);
 
-      if (!response.ok || !payload || !("id" in payload)) {
+      if (!response.ok || !savedFeeStructure || !("id" in savedFeeStructure)) {
         throw new Error(payload && "message" in payload && payload.message ? payload.message : "Fee structure could not be saved.");
       }
 
       setFeeStructureError(null);
-      setFinanceMessage(`${payload.name} saved for ${payload.grade_level}.`);
-      setBulkDraft((current) => ({ ...current, fee_structure_id: payload.id }));
+      setFinanceMessage(`${savedFeeStructure.name} saved for ${savedFeeStructure.grade_level}.`);
+      setBulkDraft((current) => ({ ...current, fee_structure_id: savedFeeStructure.id }));
       setFeeStructureDraft((current) => ({
         ...current,
         name: "",
@@ -654,21 +658,23 @@ export function InvoicesWorkspace({
       );
       const payload = (await response.json().catch(() => null)) as
         | FeeStructureResponse
+        | { data?: FeeStructureResponse; message?: string }
         | { message?: string }
         | null;
+      const archivedFeeStructure = unwrapBillingApiData<FeeStructureResponse>(payload);
 
-      if (!response.ok || !payload || !("id" in payload)) {
+      if (!response.ok || !archivedFeeStructure || !("id" in archivedFeeStructure)) {
         throw new Error(payload && "message" in payload && payload.message ? payload.message : "Fee structure could not be archived.");
       }
 
       setFeeStructureError(null);
-      setFinanceMessage(`${payload.name} archived.`);
+      setFinanceMessage(`${archivedFeeStructure.name} archived.`);
       setBillableStudents([]);
       setSelectedBulkStudentIds(new Set());
       setBulkStudents([]);
       setBulkDraft((current) => ({
         ...current,
-        fee_structure_id: current.fee_structure_id === payload.id ? "" : current.fee_structure_id,
+        fee_structure_id: current.fee_structure_id === archivedFeeStructure.id ? "" : current.fee_structure_id,
       }));
       await loadFeeStructures();
     } catch (caught) {
@@ -694,7 +700,7 @@ export function InvoicesWorkspace({
       const csrfToken = await getCsrfToken();
       const idempotencyKey =
         bulkDraft.idempotency_key.trim() ||
-        `bulk-fees-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        `bulk-fees-${crypto.randomUUID()}`;
       const response = await fetch(
         buildBillingApiPath(`/api/billing/fee-structures/${encodeURIComponent(selectedFeeStructureId)}/generate-invoices`, tenantSlug),
         {
@@ -723,15 +729,17 @@ export function InvoicesWorkspace({
       );
       const payload = (await response.json().catch(() => null)) as
         | BulkFeeInvoiceGenerationResponse
+        | { data?: BulkFeeInvoiceGenerationResponse; message?: string }
         | { message?: string }
         | null;
+      const generationResult = unwrapBillingApiData<BulkFeeInvoiceGenerationResponse>(payload);
 
-      if (!response.ok || !payload || !("generated_count" in payload)) {
+      if (!response.ok || !generationResult || !("generated_count" in generationResult)) {
         throw new Error(payload && "message" in payload && payload.message ? payload.message : "Bulk invoices could not be generated.");
       }
 
       setBulkError(null);
-      setFinanceMessage(`${payload.generated_count} invoices generated; ${payload.skipped_count} duplicate rows skipped.`);
+      setFinanceMessage(`${generationResult.generated_count} invoices generated; ${generationResult.skipped_count} duplicate rows skipped.`);
       setBulkDraft((current) => ({ ...current, idempotency_key: "", due_at: "" }));
       setSelectedBulkStudentIds(new Set());
       setBulkStudents([]);
@@ -761,10 +769,12 @@ export function InvoicesWorkspace({
       );
       const payload = (await response.json().catch(() => null)) as
         | BillableFeeStudentResponse[]
+        | { data?: BillableFeeStudentResponse[]; message?: string }
         | { message?: string }
         | null;
+      const billableStudentsPayload = unwrapBillingApiData<BillableFeeStudentResponse[]>(payload);
 
-      if (!response.ok || !Array.isArray(payload)) {
+      if (!response.ok || !Array.isArray(billableStudentsPayload)) {
         throw new Error(
           payload && !Array.isArray(payload) && payload.message
             ? payload.message
@@ -772,16 +782,16 @@ export function InvoicesWorkspace({
         );
       }
 
-      setBillableStudents(payload);
+      setBillableStudents(billableStudentsPayload);
       setSelectedBulkStudentIds(new Set());
       setBulkStudents([]);
 
-      if (payload.length === 0) {
+      if (billableStudentsPayload.length === 0) {
         setFinanceMessage("No active roster students matched this fee structure.");
         return;
       }
 
-      setFinanceMessage(`${payload.length} roster students loaded. Select learners to bill.`);
+      setFinanceMessage(`${billableStudentsPayload.length} roster students loaded. Select learners to bill.`);
     } catch (caught) {
       setBillableStudents([]);
       setBulkError(caught instanceof Error ? caught.message : "Billable roster could not be loaded.");
@@ -873,7 +883,7 @@ export function InvoicesWorkspace({
           "x-myshule-csrf": csrfToken,
         },
         body: JSON.stringify({
-          idempotency_key: `finance-quick-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          idempotency_key: `finance-quick-${crypto.randomUUID()}`,
           payment_method: paymentDraft.payment_method,
           amount_minor: amountMinor,
           student_id: paymentDraft.student_id.trim() || undefined,
@@ -934,7 +944,9 @@ export function InvoicesWorkspace({
         title="Collections desk"
         description="Record payments, generate statements, and keep balances obvious enough for bursars and admins to trust instantly."
         actions={
-          hasPermission('finance:write') ? (
+          permissionsLoading ? (
+            <Button disabled>Checking access...</Button>
+          ) : hasPermission('finance:write') ? (
             <div className="flex flex-wrap items-center gap-3">
               <Button variant="outline" onClick={() => setShowBulkModal(true)}>Bulk invoicing</Button>
               <Button onClick={openInvoiceModal}>Generate invoice</Button>
@@ -982,7 +994,7 @@ export function InvoicesWorkspace({
       ) : (
         <MetricGrid items={buildFinanceSummaryItems(activity, activityLoading)} />
       )}
-      <SubscriptionLifecyclePanel subscription={subscription} role={role} routeMode={routeMode} />
+      <SubscriptionLifecyclePanel subscription={subscription} role={role} routeMode={routeMode} tenantSlug={tenantSlug} />
       <DataTable
         title="Student balances"
         subtitle={balancesLoading ? "Loading persisted student statements..." : "Outstanding balances from live invoices, cleared allocations, and unapplied credits."}

@@ -5,6 +5,7 @@ import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { toast } from "sonner";
 import { updateApplicationStatus } from "./api-client";
+import { openPrintDocument } from "@/lib/dashboard/export";
 
 type ApplicationRecord = {
   id: string;
@@ -52,6 +53,24 @@ export function ApplicationsWorkspace() {
     } finally {
       setActioningId(null);
     }
+  };
+
+  const handleViewApplication = (app: ApplicationRecord) => {
+    openPrintDocument({
+      eyebrow: "Admissions",
+      title: "Application Review",
+      subtitle: `${app.student_name} | ${app.grade_applied}`,
+      rows: [
+        { label: "Student", value: app.student_name },
+        { label: "Guardian", value: app.guardian_name },
+        { label: "Phone", value: app.phone },
+        { label: "Grade applied", value: app.grade_applied },
+        { label: "Previous school", value: app.previous_school || "-" },
+        { label: "Status", value: app.status },
+        { label: "Submitted", value: app.submitted_at || "-" },
+      ],
+      footer: "Admission decisions must be tenant-scoped and auditable.",
+    });
   };
 
   return (
@@ -112,7 +131,7 @@ export function ApplicationsWorkspace() {
                   <td className="px-4 py-3 text-[#64748B]">{app.submitted_at}</td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button className="text-blue-600 hover:underline text-xs font-semibold inline-flex items-center gap-1"><Eye className="w-3 h-3" /> View</button>
+                      <button type="button" onClick={() => handleViewApplication(app)} className="text-blue-600 hover:underline text-xs font-semibold inline-flex items-center gap-1"><Eye className="w-3 h-3" /> View</button>
                       {app.status?.toLowerCase() === "pending" && (
                         <>
                           <button disabled={actioningId === app.id} onClick={() => handleStatusChange(app.id, "Approved")}

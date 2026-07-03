@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Panel, RecordTable } from "./shared-components";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import { fetchClassRegisterOverviewLive } from "@/lib/modules/teacher-live";
+import { openPrintDocument } from "@/lib/dashboard/export";
 
 export function ClassTeacherWorkspace() {
   const liveSession = useLiveTenantSession("school");
@@ -14,6 +15,50 @@ export function ClassTeacherWorkspace() {
   });
 
   const stats = data?.stats || { totalLearners: 0, absentToday: 0 };
+
+  const openLearnerProfile = (student: NonNullable<typeof data>["students"][number]) => {
+    openPrintDocument({
+      eyebrow: "Class teacher",
+      title: "Learner Profile",
+      subtitle: `${student.name} | ${student.admissionNo}`,
+      rows: [
+        { label: "Admission number", value: student.admissionNo || "-" },
+        { label: "Learner", value: student.name || "-" },
+        { label: "Attendance", value: `${student.attendancePercent ?? "-"}%` },
+        { label: "Fee status", value: student.feeStatus || "-" },
+        { label: "Academic", value: student.academic || "-" },
+        { label: "Discipline", value: student.discipline || "-" },
+      ],
+      footer: "Learner profile visibility is limited to the assigned class teacher and school roles with permission.",
+    });
+  };
+
+  const openClassAttendance = () => {
+    openPrintDocument({
+      eyebrow: "Class teacher",
+      title: "Class Attendance Register",
+      subtitle: `Learners: ${stats.totalLearners} | Absent today: ${stats.absentToday}`,
+      rows: (data?.students ?? []).map((student) => ({
+        label: student.admissionNo || student.name,
+        value: `${student.name} | attendance ${student.attendancePercent ?? "-"}%`,
+      })),
+      footer: "Use this register to verify attendance before submission.",
+    });
+  };
+
+  const openParentMessageQueue = () => {
+    openPrintDocument({
+      eyebrow: "Class teacher",
+      title: "Class Parent Message Queue",
+      subtitle: "Prepare a tenant-scoped parent communication",
+      rows: [
+        { label: "Recipients", value: `${stats.totalLearners} linked learner households` },
+        { label: "Channel", value: "In-app / SMS where configured" },
+        { label: "Required review", value: "Message content and recipient list before sending" },
+      ],
+      footer: "Parent messages must only go to guardians linked to learners in this class.",
+    });
+  };
   
   const rows = data?.students.map(s => [
     s.admissionNo,
@@ -26,7 +71,7 @@ export function ClassTeacherWorkspace() {
     ),
     s.academic,
     s.discipline,
-    <button key={s.id + 'btn'} className="text-[#1D4ED8] hover:underline font-bold">View Profile</button>
+    <button key={s.id + 'btn'} type="button" onClick={() => openLearnerProfile(s)} className="text-[#1D4ED8] hover:underline font-bold">View Profile</button>
   ]) || [];
 
   return (
@@ -46,8 +91,8 @@ export function ClassTeacherWorkspace() {
         </article>
       </div>
       <div className="mb-4 flex flex-wrap gap-2">
-        <button type="button" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Mark Class Attendance</button>
-        <button type="button" className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] bg-white">Message Class Parents</button>
+        <button type="button" onClick={openClassAttendance} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Mark Class Attendance</button>
+        <button type="button" onClick={openParentMessageQueue} className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] bg-white">Message Class Parents</button>
       </div>
       {isError ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">

@@ -4,6 +4,11 @@ async function fetchWithTenant(url: string, options: RequestInit = {}) {
   // In a real app, this tenantId would be retrieved from auth state/context
   const tenantId = localStorage.getItem('tenantId') || '';
   const token = localStorage.getItem('token') || '';
+  const method = (options.method ?? 'GET').toUpperCase();
+
+  if (!tenantId && !token && method === 'GET' && isPassiveDashboardRead(url)) {
+    return [];
+  }
 
   const headers = new Headers(options.headers || {});
   if (tenantId) headers.set('x-tenant-id', tenantId);
@@ -15,12 +20,24 @@ async function fetchWithTenant(url: string, options: RequestInit = {}) {
     headers,
   });
 
+  if (!response || typeof response.ok !== 'boolean') {
+    throw new Error('Dashboard API did not return a valid response.');
+  }
+
   if (!response.ok) {
     const errorData = await response.json().catch(() => null);
     throw new Error(errorData?.message || 'API Request Failed');
   }
 
   return response.json();
+}
+
+function isPassiveDashboardRead(url: string) {
+  return url === '/tasks'
+    || url === '/approvals'
+    || url === '/notifications'
+    || url.startsWith('/dashboard/feed')
+    || url.startsWith('/dashboard/summary');
 }
 
 export const DashboardApi = {

@@ -5,6 +5,7 @@ import type { PoolClient, QueryResult, QueryResultRow } from 'pg';
 import { RequestContextService } from '../common/request-context/request-context.service';
 import { buildDatabasePoolOptions } from './database.module';
 import { DatabaseService } from './database.service';
+import { buildTenantSessionSettingsQuery } from './prisma.service';
 
 interface RecordedQuery {
   text: string;
@@ -174,6 +175,20 @@ test('buildDatabasePoolOptions keeps serverless API pools small by default', () 
   assert.equal(options.ssl !== undefined, true);
 });
 
+test('buildTenantSessionSettingsQuery binds tenant and user context without string interpolation', () => {
+  const statement = buildTenantSessionSettingsQuery(
+    "tenant-a'; SELECT pg_sleep(10); --",
+    "user-b'; DROP TABLE students; --",
+  ) as any;
+
+  assert.equal(statement.sql.includes('pg_sleep'), false);
+  assert.equal(statement.sql.includes('DROP TABLE'), false);
+  assert.deepEqual(statement.values, [
+    "tenant-a'; SELECT pg_sleep(10); --",
+    "user-b'; DROP TABLE students; --",
+  ]);
+});
+
 test('DatabaseService.query scopes request-context calls into a transaction-local session', async () => {
   const requestContext = new RequestContextService();
   const pool = new FakePool();
@@ -210,15 +225,37 @@ test('DatabaseService.query scopes request-context calls into a transaction-loca
 
   assert.equal(pool.connectCalls, 1);
   assert.equal(pool.client.released, true);
-  assert.deepEqual(
-    pool.client.queries.map((query) => query.text),
-    [
-      'BEGIN',
-      "SET LOCAL ROLE my_shule_runtime; SET LOCAL app.tenant_id = 'tenant-a'; SET LOCAL app.user_id = '00000000-0000-0000-0000-000000000001'; SET LOCAL app.request_id = 'req-1'; SET LOCAL app.role = 'owner'; SET LOCAL app.session_id = 'session-1'; SET LOCAL app.method = 'GET'; SET LOCAL app.path = '/students'; SET LOCAL app.client_ip = ''; SET LOCAL app.user_agent = 'database.test'; SET LOCAL app.started_at = '2026-04-26T00:00:00.000Z'; SET LOCAL app.is_authenticated = 'true'",
-      'SELECT 42',
-      'COMMIT',
-    ],
-  );
+  assert.deepEqual(pool.client.queries.map((query) => normalizeSql(query.text)), [
+    'BEGIN',
+    'SET LOCAL ROLE my_shule_runtime',
+    'SELECT set_config($1, $2, true), set_config($3, $4, true), set_config($5, $6, true), set_config($7, $8, true), set_config($9, $10, true), set_config($11, $12, true), set_config($13, $14, true), set_config($15, $16, true), set_config($17, $18, true), set_config($19, $20, true), set_config($21, $22, true)',
+    'SELECT 42',
+    'COMMIT',
+  ]);
+  assert.deepEqual(pool.client.queries[2]?.values, [
+    'app.tenant_id',
+    'tenant-a',
+    'app.user_id',
+    '00000000-0000-0000-0000-000000000001',
+    'app.request_id',
+    'req-1',
+    'app.role',
+    'owner',
+    'app.session_id',
+    'session-1',
+    'app.method',
+    'GET',
+    'app.path',
+    '/students',
+    'app.client_ip',
+    '',
+    'app.user_agent',
+    'database.test',
+    'app.started_at',
+    '2026-04-26T00:00:00.000Z',
+    'app.is_authenticated',
+    'true',
+  ]);
 });
 
 test('DatabaseService.query bypasses request transactions for safe public read-only GETs', async () => {
@@ -280,15 +317,49 @@ test('DatabaseService.runSchemaBootstrap serializes concurrent schema bootstraps
 
   assert.deepEqual(pool.queryLog, [
     'client-1:BEGIN',
+    "client-1:SET LOCAL lock_timeout = '10s'",
+    "client-1:SET LOCAL statement_timeout = '60s'",
     'client-1:LOCK',
     'client-1:SCHEMA ONE',
     'client-1:COMMIT',
     'client-1:release',
     'client-2:BEGIN',
+    "client-2:SET LOCAL lock_timeout = '10s'",
+    "client-2:SET LOCAL statement_timeout = '60s'",
     'client-2:LOCK',
     'client-2:SCHEMA TWO',
     'client-2:COMMIT',
     'client-2:release',
+  ]);
+});
+
+test('DatabaseService.runSchemaBootstrap reuses identical schema bootstraps inside one process', async () => {
+  const requestContext = new RequestContextService();
+  const pool = new OrderedBootstrapPool();
+  const service = new DatabaseService(
+    pool as never,
+    requestContext,
+    {
+      getRuntimeRoleName: () => 'my_shule_runtime',
+    } as never,
+    {
+      get: () => undefined,
+    } as never,
+  );
+
+  await Promise.all([
+    service.runSchemaBootstrap('SCHEMA DEDUPE'),
+    service.runSchemaBootstrap('SCHEMA DEDUPE'),
+  ]);
+
+  assert.deepEqual(pool.queryLog, [
+    'client-1:BEGIN',
+    "client-1:SET LOCAL lock_timeout = '10s'",
+    "client-1:SET LOCAL statement_timeout = '60s'",
+    'client-1:LOCK',
+    'client-1:SCHEMA DEDUPE',
+    'client-1:COMMIT',
+    'client-1:release',
   ]);
 });
 
@@ -355,13 +426,39 @@ test('DatabaseService.withIndependentRequestTransaction commits outside the requ
 
   assert.equal(pool.connectCalls, 1);
   assert.equal(pool.client.released, true);
-  assert.deepEqual(
-    pool.client.queries.map((query) => query.text),
-    [
-      'BEGIN',
-      "SET LOCAL ROLE my_shule_runtime; SET LOCAL app.tenant_id = ''; SET LOCAL app.user_id = 'anonymous'; SET LOCAL app.request_id = 'req-independent'; SET LOCAL app.role = 'guest'; SET LOCAL app.session_id = ''; SET LOCAL app.method = 'POST'; SET LOCAL app.path = '/auth/login'; SET LOCAL app.client_ip = ''; SET LOCAL app.user_agent = 'database.test'; SET LOCAL app.started_at = '2026-05-17T00:00:00.000Z'; SET LOCAL app.is_authenticated = 'false'",
-      'INSERT INTO auth_mfa_challenges DEFAULT VALUES',
-      'COMMIT',
-    ],
-  );
+  assert.deepEqual(pool.client.queries.map((query) => normalizeSql(query.text)), [
+    'BEGIN',
+    'SET LOCAL ROLE my_shule_runtime',
+    'SELECT set_config($1, $2, true), set_config($3, $4, true), set_config($5, $6, true), set_config($7, $8, true), set_config($9, $10, true), set_config($11, $12, true), set_config($13, $14, true), set_config($15, $16, true), set_config($17, $18, true), set_config($19, $20, true), set_config($21, $22, true)',
+    'INSERT INTO auth_mfa_challenges DEFAULT VALUES',
+    'COMMIT',
+  ]);
+  assert.deepEqual(pool.client.queries[2]?.values, [
+    'app.tenant_id',
+    '',
+    'app.user_id',
+    'anonymous',
+    'app.request_id',
+    'req-independent',
+    'app.role',
+    'guest',
+    'app.session_id',
+    '',
+    'app.method',
+    'POST',
+    'app.path',
+    '/auth/login',
+    'app.client_ip',
+    '',
+    'app.user_agent',
+    'database.test',
+    'app.started_at',
+    '2026-05-17T00:00:00.000Z',
+    'app.is_authenticated',
+    'false',
+  ]);
 });
+
+function normalizeSql(sql: string): string {
+  return sql.replace(/\s+/g, ' ').trim();
+}

@@ -138,6 +138,35 @@ export type PlatformUser = {
   status: string;
 };
 
+export type PlatformSmsProviderCode = "textsms_kenya" | "africas_talking" | "twilio";
+
+export type PlatformSmsProvider = {
+  id: string;
+  provider_name: string;
+  provider_code: PlatformSmsProviderCode;
+  api_key_masked: string;
+  username_masked?: string | null;
+  sender_id: string;
+  base_url?: string | null;
+  is_active: boolean;
+  is_default: boolean;
+  last_test_status?: string | null;
+  last_tested_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type PlatformSmsProviderInput = {
+  provider_name: string;
+  provider_code: PlatformSmsProviderCode;
+  api_key?: string;
+  username?: string;
+  sender_id: string;
+  base_url?: string;
+  is_active?: boolean;
+  is_default?: boolean;
+};
+
 type ApiEnvelope<T> = {
   data: T;
   meta?: Record<string, unknown>;
@@ -521,6 +550,20 @@ export async function fetchPlatformUsers() {
   return Array.isArray(payload) ? payload : [];
 }
 
+export async function updatePlatformUserStatus(id: string, status: "active" | "disabled") {
+  const response = await fetchWithTimeout(`/api/platform/users/${encodeURIComponent(id)}/status`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "x-myshule-csrf": await getCsrfToken(),
+    },
+    credentials: "same-origin",
+    body: JSON.stringify({ status }),
+  });
+
+  return await parsePlatformResponse<PlatformUser>(response);
+}
+
 export async function createPlatformTemplate(input: Partial<PlatformTemplate>) {
   const response = await fetchWithTimeout("/api/platform/templates", {
     method: "POST",
@@ -595,6 +638,107 @@ export async function fetchPlatformPaymentGateways() {
   const response = await fetch("/api/platform/gateways", { method: "GET", credentials: "same-origin", cache: "no-store" });
   const payload = await parsePlatformResponse<any[]>(response);
   return Array.isArray(payload) ? payload : [];
+}
+
+export async function fetchPlatformSmsProviders() {
+  const response = await fetch("/api/platform/sms/providers", { method: "GET", credentials: "same-origin", cache: "no-store" });
+  const payload = await parsePlatformResponse<PlatformSmsProvider[]>(response);
+  return Array.isArray(payload) ? payload : [];
+}
+
+export async function createPlatformSmsProvider(input: PlatformSmsProviderInput) {
+  const response = await fetchWithTimeout("/api/platform/sms/providers", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-myshule-csrf": await getCsrfToken(),
+    },
+    credentials: "same-origin",
+    body: JSON.stringify(input),
+  });
+
+  return await parsePlatformResponse<PlatformSmsProvider>(response);
+}
+
+export async function updatePlatformSmsProvider(id: string, input: PlatformSmsProviderInput) {
+  const response = await fetchWithTimeout(`/api/platform/sms/providers/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "x-myshule-csrf": await getCsrfToken(),
+    },
+    credentials: "same-origin",
+    body: JSON.stringify(input),
+  });
+
+  return await parsePlatformResponse<PlatformSmsProvider>(response);
+}
+
+export async function testPlatformSmsProvider(id: string) {
+  const response = await fetchWithTimeout(`/api/platform/sms/providers/${encodeURIComponent(id)}/test`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-myshule-csrf": await getCsrfToken(),
+    },
+    credentials: "same-origin",
+  });
+
+  return await parsePlatformResponse<{ status: "ok"; provider_id: string }>(response);
+}
+
+export async function setDefaultPlatformSmsProvider(id: string) {
+  const response = await fetchWithTimeout(`/api/platform/sms/providers/${encodeURIComponent(id)}/set-default`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-myshule-csrf": await getCsrfToken(),
+    },
+    credentials: "same-origin",
+  });
+
+  return await parsePlatformResponse<PlatformSmsProvider>(response);
+}
+
+export async function createPlatformPaymentGateway(input: {
+  name: string;
+  type: string;
+  environment: string;
+  shortcode?: string;
+  consumerKey?: string;
+}) {
+  const response = await fetchWithTimeout("/api/platform/gateways", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-myshule-csrf": await getCsrfToken(),
+    },
+    credentials: "same-origin",
+    body: JSON.stringify(input),
+  });
+
+  return await parsePlatformResponse<any>(response);
+}
+
+export async function updatePlatformPaymentGateway(id: string, input: {
+  name: string;
+  type: string;
+  environment: string;
+  status?: string;
+  shortcode?: string;
+  consumerKey?: string;
+}) {
+  const response = await fetchWithTimeout(`/api/platform/gateways/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "x-myshule-csrf": await getCsrfToken(),
+    },
+    credentials: "same-origin",
+    body: JSON.stringify(input),
+  });
+
+  return await parsePlatformResponse<any>(response);
 }
 
 export async function deletePlatformBroadcast(id: string) {

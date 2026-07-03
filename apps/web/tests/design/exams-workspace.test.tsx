@@ -19,6 +19,10 @@ jest.mock("@/lib/auth/auth-context", () => ({
     user: { id: "teacher-1", display_name: "Beatrice Wanjiku", role: "teacher" },
     tenantId: "barakaacademy",
   }),
+  useOptionalAuth: () => ({
+    user: { id: "teacher-1", display_name: "Beatrice Wanjiku", role: "teacher" },
+    tenantId: "barakaacademy",
+  }),
 }));
 
 const mockUseLiveTenantSession = useLiveTenantSession as jest.MockedFunction<typeof useLiveTenantSession>;

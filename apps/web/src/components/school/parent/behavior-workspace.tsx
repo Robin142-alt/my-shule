@@ -29,9 +29,9 @@ export function BehaviorWorkspace() {
     try {
       await requestDashboardApi(`/api/parent-portal/behavior/acknowledge`, {
         method: "POST",
-        body: JSON.stringify({ incidentId: id }),
+        body: { incidentId: id },
       });
-      toast.success('Incident Acknowledged');
+      toast.success('Incident acknowledged.');
       refetch();
     } catch (error) {
       toast.error('Failed to acknowledge incident');

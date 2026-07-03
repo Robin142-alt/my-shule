@@ -6,6 +6,7 @@ import { AuthEmailService } from '../../auth/auth-email.service';
 import { Public } from '../../auth/decorators/public.decorator';
 import { SkipResponseEnvelope } from '../../common/decorators/skip-response-envelope.decorator';
 import { RequestContextService } from '../../common/request-context/request-context.service';
+import { collectEnvValidationIssues } from '../../config/env.validation';
 import { PrismaService } from '../../database/prisma.service';
 import { RedisService } from '../../infrastructure/redis/redis.service';
 import { CircuitBreakerService } from '../../infrastructure/resilience/circuit-breaker.service';
@@ -95,6 +96,7 @@ export class HealthController {
         : null;
     const objectStorageStatus = this.getObjectStorageReadiness();
     const malwareScanStatus = this.getMalwareScanReadiness();
+    const productionEnvStatus = this.getProductionEnvReadiness();
     const supportNotificationDegraded = this.isSupportNotificationDegraded(
       supportNotificationStatus?.status,
     );
@@ -105,6 +107,7 @@ export class HealthController {
         || database !== 'up'
         || redis !== 'up'
         || corsStatus.status === 'invalid'
+        || productionEnvStatus.status === 'invalid'
         || supportNotificationDegraded
         || this.isOperationalReadinessDegraded(objectStorageStatus.status)
         || this.isOperationalReadinessDegraded(malwareScanStatus.status)
@@ -113,15 +116,17 @@ export class HealthController {
       services: {
         postgres: database,
         redis,
-        bullmq: 'configured',
+        bullmq: redis === 'up' ? 'configured' : 'degraded',
         transactional_email: emailStatus.status,
         cors: corsStatus.status,
+        production_env: productionEnvStatus.status,
         support_notifications: supportNotificationStatus?.status ?? 'unknown',
         object_storage: objectStorageStatus.status,
         malware_scanning: malwareScanStatus.status,
       },
       email: emailStatus,
       cors: corsStatus,
+      production_env: productionEnvStatus,
       support_notifications: supportNotificationStatus,
       object_storage: objectStorageStatus,
       malware_scanning: malwareScanStatus,
@@ -148,6 +153,7 @@ export class HealthController {
         bullmq: 'degraded',
         transactional_email: 'unknown',
         cors: 'unknown',
+        production_env: 'unknown',
         support_notifications: 'unknown',
         object_storage: 'unknown',
         malware_scanning: 'unknown',
@@ -358,6 +364,32 @@ export class HealthController {
       api_token_configured: apiTokenConfigured,
       health_url_configured: healthUrlConfigured,
       missing,
+    };
+  }
+
+  private getProductionEnvReadiness() {
+    const nodeEnv = this.configService?.get<string>('app.nodeEnv') ?? process.env.NODE_ENV ?? 'development';
+
+    if (nodeEnv !== 'production') {
+      return {
+        status: 'not_applicable' as const,
+        node_env: nodeEnv,
+        missing_count: 0,
+        invalid_count: 0,
+        issue_count: 0,
+        issues: [],
+      };
+    }
+
+    const report = collectEnvValidationIssues(process.env);
+
+    return {
+      status: report.ok ? 'configured' as const : 'invalid' as const,
+      node_env: nodeEnv,
+      missing_count: report.missing.length,
+      invalid_count: report.invalid.length,
+      issue_count: report.issues.length,
+      issues: report.issues.map((issue) => issue.message),
     };
   }
 

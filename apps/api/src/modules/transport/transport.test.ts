@@ -51,6 +51,84 @@ test('TransportController is gated by transport module and transport permissions
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, createTripHandler), ['transport:write']);
 });
 
+test('TransportController lists tenant-scoped vehicles and trips from real records', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const controller = new TransportController(
+    {
+      transportVehicle: {
+        findMany: async (query: any) => {
+          calls.push({ method: 'vehicles', query });
+          return [{
+            id: 'vehicle-1',
+            vehicleType: 'Bus',
+            registrationNumber: 'KDA 123A',
+            routeName: 'Eastlands AM',
+            driverName: 'Driver A',
+            status: 'MAINTENANCE',
+            fuelLevel: 42,
+            maintenanceNote: 'Tyre service due',
+          }];
+        },
+      },
+      transportTrips: {
+        findMany: async (query: any) => {
+          calls.push({ method: 'trips', query });
+          return [{
+            id: 'trip-1',
+            studentName: 'Learner One',
+            admissionNo: 'ADM-001',
+            routeName: 'Eastlands AM',
+            stopName: 'Donholm',
+            scheduled_start_at: new Date('2026-05-21T06:30:00.000Z'),
+            status: 'started',
+          }];
+        },
+      },
+    } as never,
+    {} as never,
+  );
+  (controller as any).requestContext = { requireStore: () => ({ tenant_id: 'tenant-a' }) };
+
+  const vehicles = await controller.getVehicles();
+  const trips = await controller.getTrips();
+
+  assert.deepEqual(calls.map((call) => (call.query as any).where), [{ schoolId: 'tenant-a' }, { tenant_id: 'tenant-a' }]);
+  assert.deepEqual(vehicles, [{
+    id: 'vehicle-1',
+    vehicle: 'Bus (KDA 123A)',
+    route: 'Eastlands AM',
+    driver: 'Driver A',
+    status: 'Maintenance',
+    fuelLevel: 42,
+    maintenanceNote: 'Tyre service due',
+  }]);
+  assert.deepEqual(trips, [{
+    id: 'trip-1',
+    student: 'Learner One',
+    admissionNo: 'ADM-001',
+    route: 'Eastlands AM',
+    stop: 'Donholm',
+    pickupTime: '2026-05-21T06:30:00.000Z',
+    status: 'Boarded',
+  }]);
+});
+
+test('TransportController does not hide transport database failures as empty lists', async () => {
+  const controller = new TransportController(
+    {
+      transportVehicle: {
+        findMany: async () => {
+          throw new Error('transport database unavailable');
+        },
+      },
+    } as never,
+    {} as never,
+  );
+  (controller as any).requestContext = { requireStore: () => ({ tenant_id: 'tenant-a' }) };
+
+  await assert.rejects(() => controller.getVehicles(), /transport database unavailable/);
+});
+
 test('TransportService creates auditable routes, vehicles, manifests, trips, events, and principal dashboard data', async () => {
   const calls: Array<Record<string, unknown>> = [];
   const service = new TransportService(

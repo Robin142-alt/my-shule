@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 
@@ -40,5 +40,34 @@ export class SchoolSettingsService {
     });
 
     return settings;
+  }
+
+  async updateProfile(body: { address?: string; phone?: string; email?: string; motto?: string }) {
+    const tenantId = this.tenantId;
+    const data = {
+      ...(typeof body.address === 'string' ? { address: body.address.trim() } : {}),
+      ...(typeof body.phone === 'string' ? { phone: body.phone.trim() } : {}),
+      ...(typeof body.email === 'string' ? { email: body.email.trim() } : {}),
+      ...(typeof body.motto === 'string' ? { motto: body.motto.trim() } : {}),
+    };
+
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException('At least one school profile field is required');
+    }
+
+    return this.prisma.school.update({
+      where: { id: tenantId },
+      data,
+      select: {
+        id: true,
+        name: true,
+        registrationNumber: true,
+        address: true,
+        phone: true,
+        email: true,
+        motto: true,
+        updatedAt: true,
+      },
+    });
   }
 }

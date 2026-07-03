@@ -635,7 +635,7 @@ export function UserManagementWorkspace({
     const record = addSchoolRecord<UserManagementAuditRecord>(
       userAuditModule,
       {
-        id: `user-audit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        id: `user-audit-${crypto.randomUUID()}`,
         schoolId,
         action,
         actorUser: actorName,

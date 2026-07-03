@@ -319,6 +319,171 @@ test('AdmissionsRepository applies bounded LIMIT/OFFSET to large admissions list
   assert.equal(calls[5]!.params.at(-2), 50);
 });
 
+test('AdmissionsRepository creates applications using the live tenant-scoped schema', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new AdmissionsRepository({
+    executeWithTenant: async (_tenantId: string, _userId: string | null, cb: any) => {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          calls.push({ sql, params });
+          return [{
+            id: '00000000-0000-0000-0000-000000000931',
+            school_id: params[0],
+            application_number: params[1],
+            full_name: params[2],
+            date_of_birth: params[3],
+            gender: params[4],
+            birth_certificate_number: params[5],
+            nationality: params[6],
+            class_applying: params[11],
+            parent_name: params[12],
+            parent_phone: params[13],
+            relationship: params[16],
+            status: params[20],
+          }];
+        },
+      });
+    },
+  } as never);
+
+  const application = await repository.createApplication({
+    school_id: 'tenant-a',
+    application_number: 'APP-20260623-001',
+    full_name: 'Achieng Otieno',
+    date_of_birth: '2016-09-12',
+    gender: 'female',
+    birth_certificate_number: 'BC-2026-001',
+    nationality: 'Kenyan',
+    previous_school: null,
+    kcpe_results: null,
+    cbc_level: null,
+    nemis_upi: null,
+    class_applying: 'Grade 4',
+    parent_name: 'Janet Otieno',
+    parent_phone: '+254700000001',
+    parent_email: null,
+    parent_occupation: null,
+    relationship: 'Mother',
+    allergies: null,
+    conditions: null,
+    emergency_contact: null,
+    status: 'pending',
+    interview_date: null,
+    review_notes: null,
+  });
+
+  const insertColumnList = calls[0]!.sql.slice(
+    calls[0]!.sql.indexOf('INSERT INTO admission_applications'),
+    calls[0]!.sql.indexOf('VALUES'),
+  );
+  assert.match(insertColumnList, /INSERT INTO admission_applications\s+\(\s+tenant_id,\s+application_number,\s+full_name,/);
+  assert.doesNotMatch(insertColumnList, /first_name|last_name|guardian_name|application_status|school_id,/);
+  assert.deepEqual(calls[0]!.params.slice(0, 5), [
+    'tenant-a',
+    'APP-20260623-001',
+    'Achieng Otieno',
+    '2016-09-12',
+    'female',
+  ]);
+  assert.equal(application.full_name, 'Achieng Otieno');
+  assert.equal(application.class_applying, 'Grade 4');
+});
+
+test('AdmissionsService persists enquiries with tenant context and records an operational event', async () => {
+  const requestContext = new RequestContextService();
+  const createdInputs: any[] = [];
+  const recordedEvents: any[] = [];
+  const service = new AdmissionsService(
+    requestContext,
+    {} as never,
+    {
+      createEnquiry: async (input: any) => {
+        createdInputs.push(input);
+        return {
+          id: '00000000-0000-0000-0000-000000000941',
+          ...input,
+        };
+      },
+    } as never,
+    {} as never,
+    {} as never,
+    undefined,
+    undefined,
+    undefined,
+    {
+      recordSchoolOperation: async (input: any) => {
+        recordedEvents.push(input);
+        return { status: 'accepted' };
+      },
+    } as never,
+  );
+
+  await requestContext.run(
+    {
+      request_id: 'req-admissions-enquiry-create',
+      tenant_id: 'tenant-a',
+      user_id: '00000000-0000-0000-0000-000000000001',
+      role: 'admissions',
+      session_id: 'session-1',
+      permissions: ['admissions:*'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'POST',
+      path: '/admissions/enquiries',
+      started_at: '2026-06-23T08:00:00.000Z',
+    },
+    () =>
+      service.createEnquiry(
+        'tenant-a',
+        {
+          enquiry_code: ' ENQ-001 ',
+          student_first_name: ' Amina ',
+          student_last_name: ' Wanjiku ',
+          parent_name: ' Grace Wanjiku ',
+          parent_phone: ' 0712345678 ',
+          class_applying: ' Grade 3 ',
+        },
+        '00000000-0000-0000-0000-000000000001',
+      ),
+  );
+
+  assert.equal(createdInputs[0].tenant_id, 'tenant-a');
+  assert.equal(createdInputs[0].enquiry_code, 'ENQ-001');
+  assert.equal(createdInputs[0].student_first_name, 'Amina');
+  assert.equal(createdInputs[0].class_applying, 'Grade 3');
+  assert.equal(recordedEvents[0].schoolId, 'tenant-a');
+  assert.equal(recordedEvents[0].event.type, 'admissions.enquiry.created');
+});
+
+test('AdmissionsService previews import files from uploaded content instead of demo rows', () => {
+  const service = new AdmissionsService(
+    new RequestContextService(),
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+
+  const preview = service.previewApplicationImport({
+    originalname: 'admissions.csv',
+    mimetype: 'text/csv',
+    size: 320,
+    buffer: Buffer.from([
+      'full_name,date_of_birth,gender,birth_certificate_number,nationality,class_applying,parent_name,parent_phone,relationship',
+      'Achieng Otieno,2016-09-12,Female,BC-001,Kenyan,Grade 4,Janet Otieno,+254700000001,Mother',
+      'Missing Fields,,,,,,,,',
+    ].join('\n')),
+  });
+
+  assert.equal(preview.total_rows, 2);
+  assert.equal(preview.valid_rows, 1);
+  assert.equal(preview.invalid_rows, 1);
+  assert.equal(preview.rows[0].full_name, 'Achieng Otieno');
+  assert.ok(!preview.rows.some((row) => row.full_name === 'Joy Kemboi'));
+  assert.ok(preview.rows[1].errors.includes('date_of_birth is required'));
+});
+
 test('AdmissionsService rejects unknown server-side report exports', async () => {
   const requestContext = new RequestContextService();
   const service = new AdmissionsService(

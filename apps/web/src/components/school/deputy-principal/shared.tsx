@@ -1,6 +1,12 @@
 
+"use client";
+
 import { type ReactNode } from "react";
 import { LucideIcon } from "lucide-react";
+import { toast } from "sonner";
+
+import { openPrintDocument } from "@/lib/dashboard/export";
+import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 
 export type Tone = "success" | "info" | "warning" | "danger" | "neutral";
 
@@ -82,4 +88,27 @@ export function Panel({
       {children}
     </section>
   );
+}
+
+export function recordDeputyAction(title: string, body: string, tone: "success" | "info" | "warning" | "danger" = "info") {
+  const notify = tone === "danger" ? toast.error : tone === "success" ? toast.success : toast.info;
+  notify(title, { description: body });
+  publishSchoolOperationalEvent({
+    type: "deputy_principal.workflow_action",
+    module: "deputy_principal",
+    actorRole: "deputy_principal",
+    title,
+    body,
+  });
+}
+
+export function openDeputyRecord(title: string, rows: Array<[string, string]>) {
+  openPrintDocument({
+    eyebrow: "MyShule Deputy Principal",
+    title,
+    subtitle: `School: ${getCurrentSchoolId() || "current tenant"} | Generated ${new Date().toLocaleString()}`,
+    rows: rows.map(([label, value]) => ({ label, value })),
+    footer: "Deputy Principal actions should preserve student, staff, incident, and follow-up context.",
+  });
+  recordDeputyAction("Deputy record opened", `${title} is ready for preview, print, or PDF download.`, "success");
 }

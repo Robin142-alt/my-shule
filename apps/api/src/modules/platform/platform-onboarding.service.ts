@@ -2345,11 +2345,46 @@ export class PlatformOnboardingService {
     `);
     return result.rows.map((row: any) => ({
       id: row.id,
+      email: row.email,
       name: row.display_name || row.email || 'Unnamed User',
       role: row.role_name || 'Staff',
       status: row.status ? (row.status.charAt(0).toUpperCase() + row.status.slice(1).toLowerCase()) : 'Active',
       lastActive: row.last_login_at ? new Date(row.last_login_at).toLocaleString() : 'Never',
     }));
+  }
+
+  async updatePlatformUserStatus(userId: string, body: any) {
+    const targetUserId = this.requireText(userId, 'User id');
+    const status = this.normalizePlatformUserStatus(body.status);
+
+    const result = await this.executeSql(
+      `UPDATE users
+        SET status = $2,
+            updated_at = NOW()
+        WHERE id = $1::uuid
+        RETURNING
+          id::text,
+          email,
+          display_name,
+          status,
+          last_login_at,
+          updated_at`,
+      [targetUserId, status],
+    );
+
+    if (result.rowCount === 0) {
+      throw new NotFoundException('Platform user was not found');
+    }
+
+    const row = result.rows[0];
+    return {
+      id: row.id,
+      email: row.email,
+      name: row.display_name || row.email || 'Unnamed User',
+      status: row.status ? (row.status.charAt(0).toUpperCase() + row.status.slice(1).toLowerCase()) : 'Active',
+      lastActive: row.last_login_at ? new Date(row.last_login_at).toLocaleString() : 'Never',
+      updatedAt: row.updated_at,
+    };
   }
 
   async getSettings() {
@@ -2435,8 +2470,181 @@ export class PlatformOnboardingService {
   }
 
   async getGateways() {
-    const result = await this.executeSql('SELECT * FROM tenant_payment_channels');
+    const result = await this.executeSql(`
+      SELECT
+        id::text,
+        name,
+        gateway_type AS type,
+        environment,
+        status,
+        shortcode,
+        metadata,
+        created_at,
+        updated_at
+      FROM platform_payment_gateways
+      ORDER BY created_at DESC
+    `);
     return result.rows;
+  }
+
+  async createGateway(body: any) {
+    const name = this.requireText(body.name, 'Gateway name');
+    const gatewayType = this.requireText(body.type ?? body.gateway_type, 'Gateway type');
+    const environment = this.normalizeGatewayEnvironment(body.environment);
+    const shortcode = this.optionalText(body.shortcode);
+    const consumerKey = this.optionalText(body.consumerKey ?? body.consumer_key);
+    const consumerKeyHash = consumerKey
+      ? createHash('sha256').update(consumerKey).digest('hex')
+      : null;
+
+    const result = await this.executeSql(
+      `INSERT INTO platform_payment_gateways (
+          name,
+          gateway_type,
+          environment,
+          status,
+          shortcode,
+          metadata
+        )
+        VALUES ($1, $2, $3, 'Active', $4, $5::jsonb)
+        RETURNING
+          id::text,
+          name,
+          gateway_type AS type,
+          environment,
+          status,
+          shortcode,
+          metadata,
+          created_at,
+          updated_at`,
+      [
+        name,
+        gatewayType,
+        environment,
+        shortcode,
+        JSON.stringify({
+          consumer_key_hash: consumerKeyHash,
+          configured_without_secret: consumerKeyHash ? false : true,
+        }),
+      ],
+    );
+
+    return result.rows[0];
+  }
+
+  async updateGateway(id: string, body: any) {
+    const gatewayId = this.requireText(id, 'Gateway id');
+    const name = this.requireText(body.name, 'Gateway name');
+    const gatewayType = this.requireText(body.type ?? body.gateway_type, 'Gateway type');
+    const environment = this.normalizeGatewayEnvironment(body.environment);
+    const shortcode = this.optionalText(body.shortcode);
+    const status = this.normalizeGatewayStatus(body.status);
+    const consumerKey = this.optionalText(body.consumerKey ?? body.consumer_key);
+    const metadataPatch = consumerKey
+      ? {
+          consumer_key_hash: createHash('sha256').update(consumerKey).digest('hex'),
+          configured_without_secret: false,
+        }
+      : {};
+
+    const result = await this.executeSql(
+      `UPDATE platform_payment_gateways
+        SET
+          name = $2,
+          gateway_type = $3,
+          environment = $4,
+          status = $5,
+          shortcode = $6,
+          metadata = metadata || $7::jsonb,
+          updated_at = NOW()
+        WHERE id = $1::uuid
+        RETURNING
+          id::text,
+          name,
+          gateway_type AS type,
+          environment,
+          status,
+          shortcode,
+          metadata,
+          created_at,
+          updated_at`,
+      [
+        gatewayId,
+        name,
+        gatewayType,
+        environment,
+        status,
+        shortcode,
+        JSON.stringify(metadataPatch),
+      ],
+    );
+
+    if (result.rowCount === 0) {
+      throw new NotFoundException('Payment gateway was not found');
+    }
+
+    return result.rows[0];
+  }
+
+  private optionalText(value: unknown): string | null {
+    const text = typeof value === 'string' ? value.trim() : '';
+    return text || null;
+  }
+
+  private requireText(value: unknown, fieldName: string): string {
+    const text = this.optionalText(value);
+
+    if (!text) {
+      throw new BadRequestException(`${fieldName} is required`);
+    }
+
+    return text;
+  }
+
+  private normalizeGatewayEnvironment(value: unknown): 'Sandbox' | 'Production' {
+    const text = typeof value === 'string' ? value.trim().toLowerCase() : 'sandbox';
+
+    if (text === 'production') {
+      return 'Production';
+    }
+
+    if (text === 'sandbox') {
+      return 'Sandbox';
+    }
+
+    throw new BadRequestException('Gateway environment must be Sandbox or Production');
+  }
+
+  private normalizeGatewayStatus(value: unknown): 'Active' | 'Inactive' | 'Testing' {
+    const text = typeof value === 'string' ? value.trim().toLowerCase() : 'active';
+
+    if (text === 'active') {
+      return 'Active';
+    }
+
+    if (text === 'inactive') {
+      return 'Inactive';
+    }
+
+    if (text === 'testing') {
+      return 'Testing';
+    }
+
+    throw new BadRequestException('Gateway status must be Active, Inactive, or Testing');
+  }
+
+  private normalizePlatformUserStatus(value: unknown): 'active' | 'disabled' {
+    const text = typeof value === 'string' ? value.trim().toLowerCase() : '';
+
+    if (text === 'active') {
+      return 'active';
+    }
+
+    if (text === 'disabled' || text === 'suspended') {
+      return 'disabled';
+    }
+
+    throw new BadRequestException('Platform user status must be active or disabled');
   }
 
   async requestReport(body: any) {

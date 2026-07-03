@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import {
   AlertTriangle,
   BusFront,
@@ -37,10 +37,12 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { buildSchoolSectionHref } from "./school-pages";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { downloadCsvFile } from "@/lib/dashboard/export";
 import { toast } from "sonner";
 
 type TransportRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
+const TRANSPORT_COMPLIANCE_REFERENCE_TIME = Date.now();
 type TransportView =
   | "overview"
   | "fleet"
@@ -92,16 +94,8 @@ const navItems: NavItem[] = [
   { id: "settings", label: "Settings", icon: Settings, group: "Administration" },
 ];
 
-const transportSearchRecords = [
-  { id: "vehicle-bus-04", label: "Bus 04", detail: "Kisumu West route | Mr. Omondi | Active", view: "fleet" },
-  { id: "route-mamboleo", label: "Mamboleo route", detail: "Bus 11 delayed | 48 students", view: "routes" },
-  { id: "student-brian-transport", label: "Brian Otieno", detail: "Bus 04 | Kibuye stage | Pending drop-off", view: "attendance" },
-  { id: "fuel-bus-11", label: "Bus 11 fuel alert", detail: "Highest consumption this month", view: "fuel" },
-  { id: "incident-van-03", label: "Van 03 steering fault", detail: "Urgent maintenance case", view: "maintenance" },
-] satisfies Array<{ id: string; label: string; detail: string; view: TransportView }>;
-
-type TransportSearchRecord = (typeof transportSearchRecords)[number];
-type TransportActionHandler = (message: string) => void;
+type TransportSearchRecord = { id: string; label: string; detail: string; view: TransportView };
+type TransportActionHandler = (message: string, options?: { kind?: "workflow" | "report"; title?: string }) => void;
 
 const toneClasses: Record<Tone, { chip: string; card: string; dot: string; text: string; rail: string }> = {
   success: {
@@ -148,40 +142,67 @@ const overviewKpis: Kpi[] = [
   { label: "Vehicles Under Maintenance", value: "3", helper: "1 urgent brake check", trend: "safety hold", tone: "warning", icon: Wrench },
 ];
 
-const routeRows = [
-  ["Bus 04", "Kisumu West", "Mr. Omondi", "On route", "7 min", "72", "success"],
-  ["Bus 11", "Mamboleo", "Ms. Akinyi", "Minor delay", "14 min", "48", "warning"],
-  ["Bus 02", "Milimani", "Mr. Karanja", "At gate", "Arrived", "100", "success"],
-  ["Van 03", "Emergency shuttle", "Driver absent", "Unassigned", "Hold", "18", "danger"],
-] as const;
-
-const vehicleRows = [
-  ["KDA 214B", "Bus 04", "52", "Mr. Omondi", "Kisumu West", "Active", "12 Aug 2026", "03 Jun 2026", "success"],
-  ["KCF 902L", "Bus 11", "48", "Ms. Akinyi", "Mamboleo", "Delayed", "29 May 2026", "11 Jun 2026", "warning"],
-  ["KDM 774P", "Bus 02", "60", "Mr. Karanja", "Milimani", "Active", "18 Sep 2026", "07 Jun 2026", "success"],
-  ["KCG 118R", "Van 03", "14", "Unassigned", "Emergency", "In Maintenance", "Expired", "Overdue", "danger"],
-] as const;
-
-const students = [
-  ["Brian Otieno", "ADM-2041", "Kisumu West", "Kibuye stage", "Bus 04", "0712 444 201", "Paid"],
-  ["Aisha Njeri", "ADM-2077", "Mamboleo", "Nyamasaria", "Bus 11", "0790 221 889", "Cleared"],
-  ["Kevin Mwangi", "ADM-2132", "Milimani", "Mega City", "Bus 02", "0704 882 110", "Arrears"],
-] as const;
-
-const fuelRows = [
-  ["Bus 04", "42 L", "KES 8,610", "Total Energies", "Today 06:10", "Storekeeper"],
-  ["Bus 11", "38 L", "KES 7,790", "Shell Mamboleo", "Yesterday", "Driver Akinyi"],
-  ["Bus 02", "56 L", "KES 11,480", "Rubis", "Mon", "Transport Manager"],
-] as const;
-
-const incidents = [
-  ["Today", "Bus 11", "Ms. Akinyi", "Delay", "Medium", "Follow-up"],
-  ["Yesterday", "Van 03", "Unassigned", "Breakdown", "High", "Open"],
-  ["18 May", "Bus 04", "Mr. Omondi", "Student issue", "Low", "Closed"],
-] as const;
-
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
+}
+
+function asRows<T>(value: unknown): T[] {
+  if (Array.isArray(value)) return value as T[];
+  if (value && typeof value === "object" && Array.isArray((value as any).data)) return (value as any).data;
+  if (value && typeof value === "object" && Array.isArray((value as any).items)) return (value as any).items;
+  return [];
+}
+
+function toneFromStatus(value: unknown): Tone {
+  const status = String(value ?? "").toLowerCase();
+  if (["active", "complete", "completed", "ready", "cleared", "delivered", "read"].includes(status)) return "success";
+  if (["delayed", "pending", "scheduled", "in_progress", "maintenance"].includes(status)) return "warning";
+  if (["suspended", "retired", "blocked", "critical", "failed", "expired"].includes(status)) return "danger";
+  if (["open", "assigned", "on_route"].includes(status)) return "info";
+  return "neutral";
+}
+
+function dateLabel(value: unknown, fallback = "Not dated") {
+  if (!value) return fallback;
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString();
+}
+
+function moneyLabel(value: unknown) {
+  const amount = Number(value ?? 0);
+  return Number.isFinite(amount) ? `KES ${amount.toLocaleString()}` : "KES 0";
+}
+
+function transportActionSlug(message: string) {
+  return message
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ".")
+    .replace(/^\.+|\.+$/g, "") || "workflow.action";
+}
+
+async function persistTransportWorkflowAction(message: string) {
+  return requestDashboardApi("/api/admin-command/transport-manager/actions", {
+    method: "POST",
+    body: {
+      action: transportActionSlug(message),
+      title: "Transport workflow action",
+      description: message,
+      priority: /emergency|incident|fault|delay|expired|blocked/i.test(message) ? "high" : "normal",
+      source: "transport-manager-dashboard",
+    },
+  });
+}
+
+async function generateTransportReport(title: string) {
+  return requestDashboardApi("/api/admin-command/transport-manager/reports/generate", {
+    method: "POST",
+    body: {
+      title,
+      format: "pdf",
+      source: "transport-manager-dashboard",
+    },
+  });
 }
 
 function getViewLabel(view: TransportView) {
@@ -263,7 +284,7 @@ function Topbar({
 }: {
   activeView: TransportView;
   searchTerm: string;
-  searchResults: typeof transportSearchRecords;
+  searchResults: TransportSearchRecord[];
   onSearchTermChange: (value: string) => void;
   onSearchResult: (record: TransportSearchRecord) => void;
   onViewChange: (view: TransportView) => void;
@@ -424,6 +445,12 @@ function DataTable({
   columns: string[];
   onAction: TransportActionHandler;
 }) {
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [filterTerm, setFilterTerm] = useState("");
+  const displayedRows = filterTerm.trim()
+    ? rows.filter((row) => row.join(" ").toLowerCase().includes(filterTerm.toLowerCase()))
+    : rows;
+
   return (
     <div className="overflow-hidden rounded-2xl border border-[#D8E0EC] bg-white/80">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#D8E0EC] bg-[#F8FAFC] px-4 py-3">
@@ -431,20 +458,45 @@ function DataTable({
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => onAction(`${title} filters ready.`)}
+            onClick={() => setIsFilterOpen((current) => !current)}
             className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]"
           >
             Filters
           </button>
           <button
             type="button"
-            onClick={() => onAction(`${title} exported to CSV for transport records.`)}
+            onClick={() => {
+              downloadCsvFile({
+                filename: `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${new Date().toISOString().slice(0, 10)}.csv`,
+                headers: columns,
+                rows: displayedRows.map((row) => [...row]),
+              });
+              onAction(`${title} CSV file prepared from current transport route records.`);
+            }}
             className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]"
           >
             Export
           </button>
         </div>
       </div>
+      {isFilterOpen ? (
+        <div className="border-b border-[#D8E0EC] bg-white px-4 py-3">
+          <label className="text-xs font-black uppercase tracking-[0.12em] text-[#64748B]">
+            Filter {title}
+            <input
+              value={filterTerm}
+              onChange={(event) => setFilterTerm(event.target.value)}
+              className="mt-2 w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#071D49]"
+              placeholder="Search current rows by vehicle, route, student, status, driver..."
+            />
+          </label>
+          {filterTerm ? (
+            <button type="button" className="mt-2 text-xs font-black text-[#1D4ED8] hover:underline" onClick={() => setFilterTerm("")}>
+              Clear filter
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] text-left text-sm">
           <thead className="sticky top-0 bg-[#EEF5FF] text-xs uppercase tracking-[0.12em] text-[#64748B]">
@@ -455,7 +507,7 @@ function DataTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E2E8F0]">
-            {rows.map((row) => (
+            {displayedRows.map((row) => (
               <tr key={row.join("-")} className="transition hover:bg-[#F8FAFC]">
                 {row.map((cell, index) => (
                   <td key={`${row[0]}-${columns[index]}`} className="px-4 py-3 font-semibold text-[#334155]">
@@ -466,29 +518,44 @@ function DataTable({
                 ))}
               </tr>
             ))}
+            {displayedRows.length === 0 ? (
+              <tr>
+                <td colSpan={columns.length} className="px-4 py-6 text-center text-sm font-semibold text-[#64748B]">
+                  No transport records match the current filter.
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>
       <div className="flex items-center justify-between border-t border-[#D8E0EC] px-4 py-3 text-xs font-bold text-[#64748B]">
-        <span>Showing 1-4 of 24</span>
-        <span>Pagination ready</span>
+        <span>Showing {displayedRows.length} of {rows.length}</span>
+        <span>{filterTerm ? "Filtered" : "Ready"}</span>
       </div>
     </div>
   );
 }
 
 function OverviewWorkspace({ onViewChange }: { onViewChange: (view: TransportView) => void }) {
-  const { data: dashboard, isLoading } = useSchoolQuery<any>("/api/transport/dashboard");
+  const { data: dashboard, isLoading } = useSchoolQuery<any>("/api/admin-command/transport-manager/overview");
+  const { data: routesData } = useSchoolQuery<any>("/api/admin-command/transport-manager/routes");
+  const metrics = dashboard?.metrics ?? {};
   
   const kpis = isLoading || !dashboard ? overviewKpis : [
-    { label: "Active Vehicles", value: String(dashboard.active_vehicles), helper: `${dashboard.service_due_vehicles} due for service`, trend: "Active", tone: "success", icon: BusFront },
-    { label: "Students Using Transport", value: String(dashboard.active_manifests), helper: "Registered", trend: "Allocated", tone: "info", icon: Users },
-    { label: "Trips Completed Today", value: String(dashboard.trips_today), helper: "Daily count", trend: "Live", tone: "success", icon: CheckCircle2 },
-    { label: "Alerts Open", value: String(dashboard.open_alerts), helper: "Pending action", trend: "Watch", tone: dashboard.open_alerts > 0 ? "warning" : "neutral", icon: AlertTriangle },
+    { label: "Active Vehicles", value: String(metrics.totalVehicles ?? 0), helper: "Tenant fleet records", trend: "Active", tone: "success", icon: BusFront },
+    { label: "Registered Drivers", value: String(metrics.totalDrivers ?? 0), helper: "Driver records", trend: "Staffed", tone: "info", icon: Users },
+    { label: "Routes Configured", value: String(metrics.totalRoutes ?? 0), helper: "School transport routes", trend: "Configured", tone: "success", icon: Route },
+    { label: "Trips Today", value: String(metrics.todayTrips ?? 0), helper: "Daily trip records", trend: "Live", tone: Number(metrics.todayTrips ?? 0) > 0 ? "info" : "neutral", icon: CheckCircle2 },
   ];
 
-  const routes = isLoading || !dashboard ? routeRows : (dashboard.routes || []).map((r: any) => [
-    r.id, r.name, "Active", r.status, r.zone || "-", String(r.learner_count || 0), "success"
+  const routes = asRows<any>(routesData).map((r: any) => [
+    r.code || r.id?.substring?.(0, 8) || "ROUTE",
+    r.route_name || r.name || "Route",
+    r.zone || "Zone not set",
+    r.status || "active",
+    r.direction || "round_trip",
+    String(r.learner_count || r.student_count || 0),
+    toneFromStatus(r.status || "active")
   ]);
 
   return (
@@ -503,7 +570,11 @@ function OverviewWorkspace({ onViewChange }: { onViewChange: (view: TransportVie
             </p>
           </div>
           <div className="grid gap-3">
-            {["Fuel alerts: 2", "Vehicle alerts: 3", "Emergency indicator: clear"].map((item) => (
+            {[
+              `Fleet records: ${metrics.totalVehicles ?? 0}`,
+              `Routes configured: ${metrics.totalRoutes ?? 0}`,
+              `Trips today: ${metrics.todayTrips ?? 0}`,
+            ].map((item) => (
               <div key={item} className="rounded-xl border border-white/12 bg-white/10 px-4 py-3 text-sm font-black text-blue-50">{item}</div>
             ))}
           </div>
@@ -514,10 +585,10 @@ function OverviewWorkspace({ onViewChange }: { onViewChange: (view: TransportVie
         <Panel title="Transport status panel" description="Priority-ordered operational alerts for routes, drivers, vehicles, and emergencies." icon={AlertTriangle}>
           <div className="space-y-3">
             {[
-              ["Vehicles currently on route", "15 buses are live with GPS heartbeat under 60 seconds.", "success"],
-              ["Delayed routes", "Mamboleo is 14 minutes behind because of road works.", "warning"],
-              ["Drivers absent today", "Van 03 needs reassignment before evening drop-off.", "danger"],
-              ["Vehicles offline", "Bus 09 tracker has not reported for 11 minutes.", "warning"],
+              ["Vehicles currently on route", "Live trips and route heartbeats are pulled from tenant transport trip records.", "success"],
+              ["Delayed routes", "Any delayed trips should be logged against the affected route for parent notification.", "warning"],
+              ["Driver coverage", "Driver assignment gaps should be resolved before opening the next trip.", "info"],
+              ["Vehicle safety", "Maintenance and compliance holds block unsafe transport operations.", "warning"],
             ].map(([title, detail, tone]) => (
               <article key={title} className={cn("rounded-xl border p-4", toneClasses[tone as Tone].card)}>
                 <div className="flex items-start justify-between gap-3">
@@ -557,15 +628,15 @@ function OverviewWorkspace({ onViewChange }: { onViewChange: (view: TransportVie
         <Panel title="Today's operations" description="Morning, evening, fuel, and repair indicators without analytics overload." icon={Gauge}>
           <div className="grid gap-3 md:grid-cols-4">
             {[
-              ["Morning pickup progress", "96%", "success"],
-              ["Evening drop-off progress", "Ready", "info"],
-              ["Fuel consumption today", "486 L", "warning"],
-              ["Pending repairs", "5", "danger"],
+              ["Morning pickup records", String(metrics.todayTrips ?? 0), "success"],
+              ["Evening drop-off readiness", String(metrics.totalRoutes ?? 0), "info"],
+              ["Fleet records", String(metrics.totalVehicles ?? 0), "warning"],
+              ["Driver records", String(metrics.totalDrivers ?? 0), "danger"],
             ].map(([title, value, tone]) => (
               <div key={title} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
                 <p className="text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">{title}</p>
                 <p className="mt-3 text-2xl font-black text-[#071D49]">{value}</p>
-                <ProgressBar value={title.includes("Morning") ? "96" : title.includes("Evening") ? "72" : title.includes("Fuel") ? "64" : "38"} tone={tone as Tone} />
+                <ProgressBar value={Number(value) > 0 ? "72" : "8"} tone={tone as Tone} />
               </div>
             ))}
           </div>
@@ -591,24 +662,25 @@ function OverviewWorkspace({ onViewChange }: { onViewChange: (view: TransportVie
 }
 
 function FleetWorkspace({ onAction }: { onAction: TransportActionHandler }) {
-  const { data: dashboard } = useSchoolQuery<any>("/api/transport/dashboard");
-  const mappedVehicles = dashboard?.vehicles?.map((v: any) => [
-    v.registration_number,
-    v.id,
+  const { data: vehiclesData } = useSchoolQuery<any>("/api/admin-command/transport-manager/vehicles");
+  const mappedVehicles = asRows<any>(vehiclesData).map((v: any) => [
+    v.registration_number || v.plate_number || v.id?.substring?.(0, 8) || "Vehicle",
+    v.make || v.model || v.id?.substring?.(0, 8) || "Vehicle record",
     String(v.capacity),
     v.ownership_type,
-    "-",
-    v.status,
-    v.insurance_expiry_date || "N/A",
-    v.service_due_date || "N/A",
-    v.service_status === "due" ? "danger" : "success",
-  ]) || vehicleRows;
+    v.assigned_driver || "Not assigned",
+    v.assigned_route || "Not assigned",
+    v.status || "active",
+    dateLabel(v.insurance_expiry_date, "Not set"),
+    dateLabel(v.service_due_date, "Not set"),
+    toneFromStatus(v.service_status || v.status),
+  ]);
 
   return (
     <>
       <Panel title="Fleet Management" description="Manage all vehicles with search, filters, pagination, export, status badges, and side detail drawers." icon={BusFront}>
         <KpiGrid items={[
-          { label: "Fleet Available", value: "Loading...", helper: "...", trend: "...", tone: "success", icon: BusFront },
+          { label: "Fleet Available", value: String(mappedVehicles.length), helper: "Tenant vehicles", trend: "Live records", tone: "success", icon: BusFront },
         ]} />
       </Panel>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -635,33 +707,49 @@ function FleetWorkspace({ onAction }: { onAction: TransportActionHandler }) {
   );
 }
 
-function RoutesWorkspace({ onAction }: { onAction: TransportActionHandler }) {
+function RoutesWorkspace({ onViewChange }: { onViewChange: (view: TransportView) => void }) {
+  const { data: routesData } = useSchoolQuery<any>("/api/admin-command/transport-manager/routes");
+  const routeCards = asRows<any>(routesData);
+
+  function handleRoutePlanningAction(action: string) {
+    if (action === "Assign students") {
+      onViewChange("allocation");
+      return;
+    }
+    if (action === "Optimize route") {
+      onViewChange("reports");
+      return;
+    }
+    onViewChange("routes");
+  }
+
   return (
     <div className="grid gap-4 xl:grid-cols-[420px_minmax(0,1fr)]">
       <Panel title="Routes & Stops" description="Logistics planner for route cards, stop ordering, student assignment, and route optimization." icon={Route}>
         <div className="space-y-3">
-          {[
-            ["Kisumu West", "Bus 04", "Mr. Omondi", "74 students", "52 min", "Active"],
-            ["Mamboleo", "Bus 11", "Ms. Akinyi", "48 students", "61 min", "Delayed"],
-            ["Milimani", "Bus 02", "Mr. Karanja", "58 students", "39 min", "Complete"],
-          ].map(([route, bus, driver, count, duration, status]) => (
-            <article key={route} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          {routeCards.map((route: any) => (
+            <article key={route.id || route.name} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="font-black text-[#071D49]">{route}</h3>
-                  <p className="mt-1 text-sm font-semibold text-[#64748B]">{bus} - {driver} - {count}</p>
-                  <p className="mt-1 text-xs font-bold text-[#64748B]">Estimated duration: {duration}</p>
+                  <h3 className="font-black text-[#071D49]">{route.route_name || route.name || "Transport route"}</h3>
+                  <p className="mt-1 text-sm font-semibold text-[#64748B]">{route.code || "No code"} - {route.zone || "Zone not set"} - {route.direction || "round trip"}</p>
+                  <p className="mt-1 text-xs font-bold text-[#64748B]">Students assigned: {route.learner_count || route.student_count || 0}</p>
                 </div>
-                <StatusChip label={status} tone={status === "Delayed" ? "warning" : "success"} />
+                <StatusChip label={route.status || "active"} tone={toneFromStatus(route.status || "active")} />
               </div>
             </article>
           ))}
+          {routeCards.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-[#D8E0EC] bg-white p-4 text-sm font-semibold text-[#64748B]">
+              No routes have been configured yet. Use Create Route to add the first tenant-scoped transport route.
+            </div>
+          ) : null}
         </div>
       </Panel>
       <Panel title="Map / route panel" description="Google Maps-inspired operational view with stops, pickup order, distance, estimated arrival time, and route path." icon={Map}>
         <div className="relative min-h-[410px] overflow-hidden rounded-2xl border border-[#D8E0EC] bg-[linear-gradient(135deg,#EAF3FF,#F8FAFC)] p-5">
           <div className="absolute inset-x-8 top-1/2 h-2 -translate-y-1/2 rounded-full bg-[#BFDBFE]" />
-          {["School", "Kibuye", "Kondele", "Mamboleo", "Nyamasaria"].map((stop, index) => (
+          {["School", "Stop 1", "Stop 2", "Stop 3", "Stop 4"].map((stop, index) => (
             <div key={stop} className="absolute top-[calc(50%-18px)]" style={{ left: `${8 + index * 21}%` }}>
               <span className="grid h-9 w-9 place-items-center rounded-full bg-[#071D49] text-xs font-black text-white shadow-lg">{index + 1}</span>
               <p className="mt-2 w-24 text-xs font-black text-[#071D49]">{stop}</p>
@@ -672,7 +760,7 @@ function RoutesWorkspace({ onAction }: { onAction: TransportActionHandler }) {
               <button
                 key={action}
                 type="button"
-                onClick={() => onAction(`${action} planning workspace ready.`)}
+                onClick={() => handleRoutePlanningAction(action)}
                 className="rounded-xl bg-white/88 px-4 py-3 text-sm font-black text-[#071D49] shadow-sm"
               >
                 {action}
@@ -693,14 +781,25 @@ function AssignRouteModal({ onClose }: { onClose: () => void }) {
     try {
       const formData = new FormData(e.currentTarget);
       const data = Object.fromEntries(formData.entries());
-      await requestDashboardApi("/api/admin-command/transport/route", {
+      const assignment = {
+        manifest_id: String(data.manifest_id || "").trim(),
+        student_id: String(data.student_id || "").trim(),
+        pickup_stop_id: String(data.pickup_stop_id || "").trim() || undefined,
+        dropoff_stop_id: String(data.dropoff_stop_id || "").trim() || undefined,
+        guardian_contact: String(data.guardian_contact || "").trim() || undefined,
+        notes: String(data.notes || "").trim() || undefined,
+        source_dashboard: "transport-manager-command-center",
+      };
+      await requestDashboardApi("/admin-command/transport-manager/student-transport-list", {
         method: "POST",
-        body: JSON.stringify(data),
+        body: assignment,
       });
       toast.success("Transport assigned successfully");
       onClose();
     } catch (error) {
-      toast.error("Failed to assign transport");
+      toast.error("Failed to assign transport", {
+        description: error instanceof Error ? error.message : "The student transport assignment could not be saved.",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -709,20 +808,28 @@ function AssignRouteModal({ onClose }: { onClose: () => void }) {
     <Modal title="Assign Route & Vehicle" open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Student</label>
-          <input required name="student" type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Select student..." />
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Transport Manifest ID</label>
+          <input required name="manifest_id" type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Route manifest UUID" />
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Route & Zone</label>
-          <select required name="route" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
-            <option value="">Select route...</option>
-            <option value="kisumu_west">Kisumu West / Mamboleo</option>
-            <option value="milimani">Milimani Zone</option>
-          </select>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Student ID</label>
+          <input required name="student_id" type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Student UUID" />
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Pickup Stop</label>
-          <input required name="pickup_stop" type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="e.g. Kibuye stage" />
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Pickup Stop ID</label>
+          <input name="pickup_stop_id" type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Optional pickup stop UUID" />
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Drop-off Stop ID</label>
+          <input name="dropoff_stop_id" type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Optional drop-off stop UUID" />
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Guardian Contact</label>
+          <input name="guardian_contact" type="tel" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Parent or guardian phone number" />
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Notes</label>
+          <textarea name="notes" rows={3} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Route, pickup instructions, or safety notes"></textarea>
         </div>
         <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
           <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
@@ -738,6 +845,16 @@ function AssignRouteModal({ onClose }: { onClose: () => void }) {
 function AllocationWorkspace({ onAction }: { onAction: TransportActionHandler }) {
   const { hasPermission } = usePermissions();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const { data: studentTransportData } = useSchoolQuery<any>("/api/admin-command/transport-manager/student-transport-list");
+  const allocationRows = asRows<any>(studentTransportData).map((assignment: any) => [
+    assignment.student_name || assignment.student_id?.substring?.(0, 8) || "Student record",
+    assignment.admission_number || assignment.student_id?.substring?.(0, 8) || "Admission not set",
+    assignment.route_name || assignment.manifest_id?.substring?.(0, 8) || "Route manifest",
+    assignment.pickup_stop_name || assignment.pickup_stop_id?.substring?.(0, 8) || "Pickup not set",
+    assignment.vehicle_name || assignment.vehicle_id?.substring?.(0, 8) || "Vehicle not set",
+    assignment.guardian_contact || "Guardian contact not set",
+    assignment.payment_status || assignment.boarding_status || "active",
+  ]);
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -753,7 +870,7 @@ function AllocationWorkspace({ onAction }: { onAction: TransportActionHandler })
           )
         }
       >
-        <DataTable title="Student transport table" columns={["Student Name", "Admission Number", "Route", "Pickup Stop", "Vehicle", "Parent Contact", "Payment Status"]} rows={students} onAction={onAction} />
+        <DataTable title="Student transport table" columns={["Student Name", "Admission Number", "Route", "Pickup Stop", "Vehicle", "Parent Contact", "Payment Status"]} rows={allocationRows} onAction={onAction} />
       </Panel>
       <Panel title="Student side panel" description="Transport history, attendance, parent contacts, route details, and payment history." icon={UserCheck}>
         <div className="space-y-3">
@@ -769,39 +886,56 @@ function AllocationWorkspace({ onAction }: { onAction: TransportActionHandler })
 }
 
 function DriversWorkspace() {
+  const { data: driversData } = useSchoolQuery<any>("/api/admin-command/transport-manager/drivers");
+  const driverCards = asRows<any>(driversData);
+
   return (
     <Panel title="Driver Management" description="License status, vehicle assignments, phone numbers, attendance, performance scores, and missing-document alerts." icon={IdCard}>
       <div className="grid gap-3 md:grid-cols-3">
-        {[
-          ["Mr. Omondi", "License valid", "Bus 04", "98% attendance", "success"],
-          ["Ms. Akinyi", "License renews in 9 days", "Bus 11", "92% performance", "warning"],
-          ["Mr. Otieno", "Missing PSV document", "Standby", "Driver absent", "danger"],
-        ].map(([name, license, vehicle, score, tone]) => (
-          <article key={name} className={cn("rounded-2xl border p-4", toneClasses[tone as Tone].card)}>
-            <h3 className="font-black">{name}</h3>
-            <p className="mt-2 text-sm font-semibold opacity-75">{license}</p>
-            <p className="mt-1 text-sm font-semibold opacity-75">{vehicle} - {score}</p>
+        {driverCards.map((driver: any) => {
+          const tone = toneFromStatus(driver.status || "active");
+          return (
+          <article key={driver.id || driver.user_id || driver.name} className={cn("rounded-2xl border p-4", toneClasses[tone].card)}>
+            <h3 className="font-black">{driver.name || driver.display_name || "Driver record"}</h3>
+            <p className="mt-2 text-sm font-semibold opacity-75">License: {driver.license_number || "Not recorded"}</p>
+            <p className="mt-1 text-sm font-semibold opacity-75">Phone: {driver.phone || "Not recorded"} - {driver.status || "active"}</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              {["Documents", "Driving history", "Incident reports", "Assigned routes"].map((tab) => <StatusChip key={tab} label={tab} tone={tone as Tone} />)}
+              {["Documents", "Driving history", "Incident reports", "Assigned routes"].map((tab) => <StatusChip key={tab} label={tab} tone={tone} />)}
             </div>
           </article>
-        ))}
+        );})}
+        {driverCards.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-[#D8E0EC] bg-white p-4 text-sm font-semibold text-[#64748B]">
+            No drivers are registered yet. Add driver records before assigning routes.
+          </div>
+        ) : null}
       </div>
     </Panel>
   );
 }
 
 function FuelWorkspace({ onAction }: { onAction: TransportActionHandler }) {
+  const { data: fuelMaintenanceData } = useSchoolQuery<any>("/api/admin-command/transport-manager/fuel-maintenance");
+  const fuelLogs = asRows<any>(fuelMaintenanceData?.fuelLogs);
+  const fuelLogRows = fuelLogs.map((log: any) => [
+    log.vehicle_registration || log.vehicle_id?.substring?.(0, 8) || "Vehicle",
+    `${log.amount ?? log.litres ?? log.liters ?? 0} L`,
+    moneyLabel(log.cost),
+    log.station || "Station not recorded",
+    dateLabel(log.log_date || log.created_at),
+    log.created_by || "Transport team",
+  ]);
+
   return (
     <>
       <KpiGrid items={[
-        { label: "Fuel consumed this month", value: "6,840 L", helper: "+8% route load", trend: "watch", tone: "warning", icon: Fuel },
-        { label: "Highest consuming vehicle", value: "Bus 11", helper: "9.8 L / 10km", trend: "inspect", tone: "danger", icon: BusFront },
-        { label: "Monthly fuel cost", value: "KES 1.38M", helper: "Across all buses", trend: "+6%", tone: "info", icon: Gauge },
-        { label: "Fuel efficiency", value: "82%", helper: "Fleet average", trend: "stable", tone: "success", icon: CheckCircle2 },
+        { label: "Fuel logs", value: String(fuelLogs.length), helper: "Tenant fuel records", trend: "live", tone: "warning", icon: Fuel },
+        { label: "Vehicles logged", value: String(new Set(fuelLogs.map((log: any) => log.vehicle_id)).size), helper: "With fuel activity", trend: "inspect", tone: "info", icon: BusFront },
+        { label: "Fuel cost captured", value: moneyLabel(fuelLogs.reduce((sum: number, log: any) => sum + Number(log.cost ?? 0), 0)), helper: "Across records", trend: "audit", tone: "info", icon: Gauge },
+        { label: "Fuel records ready", value: fuelLogs.length ? "Yes" : "No", helper: "Exportable ledger", trend: "stable", tone: fuelLogs.length ? "success" : "neutral", icon: CheckCircle2 },
       ]} />
       <Panel title="Fuel Management" description="Fuel costs, refills, station logs, vehicle efficiency, and suspicious consumption alerts." icon={Fuel}>
-        <DataTable title="Fuel log table" columns={["Vehicle", "Liters", "Cost", "Station", "Date", "Logged By"]} rows={fuelRows} onAction={onAction} />
+        <DataTable title="Fuel log table" columns={["Vehicle", "Liters", "Cost", "Station", "Date", "Logged By"]} rows={fuelLogRows} onAction={onAction} />
       </Panel>
     </>
   );
@@ -815,14 +949,24 @@ function LogMaintenanceModal({ onClose }: { onClose: () => void }) {
     try {
       const formData = new FormData(e.currentTarget);
       const data = Object.fromEntries(formData.entries());
-      await requestDashboardApi("/api/admin-command/transport/maintenance", {
+      const maintenanceLog = {
+        vehicle_id: String(data.vehicle_id || "").trim(),
+        description: String(data.description || "").trim(),
+        priority: String(data.priority || "").trim(),
+        cost: String(data.cost || "").trim() || undefined,
+        log_date: String(data.log_date || "").trim() || undefined,
+        source_dashboard: "transport-manager-command-center",
+      };
+      await requestDashboardApi("/admin-command/transport-manager/fuel-maintenance/maintenance", {
         method: "POST",
-        body: JSON.stringify(data),
+        body: maintenanceLog,
       });
       toast.success("Maintenance issue logged successfully");
       onClose();
     } catch (error) {
-      toast.error("Failed to log maintenance issue");
+      toast.error("Failed to log maintenance issue", {
+        description: error instanceof Error ? error.message : "The vehicle maintenance log could not be saved.",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -832,11 +976,7 @@ function LogMaintenanceModal({ onClose }: { onClose: () => void }) {
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Vehicle</label>
-          <select required name="vehicle" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
-            <option value="">Select vehicle...</option>
-            <option value="bus04">Bus 04 (KCA 123X)</option>
-            <option value="bus11">Bus 11 (KCB 456Y)</option>
-          </select>
+          <input required name="vehicle_id" type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Vehicle UUID" />
         </div>
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Issue Description</label>
@@ -850,6 +990,14 @@ function LogMaintenanceModal({ onClose }: { onClose: () => void }) {
             <option value="high">High</option>
             <option value="critical">Critical (Do not drive)</option>
           </select>
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Estimated Cost</label>
+          <input name="cost" type="number" min="0" step="0.01" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="0.00" />
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Log Date</label>
+          <input name="log_date" type="date" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />
         </div>
         <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
           <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
@@ -865,6 +1013,8 @@ function LogMaintenanceModal({ onClose }: { onClose: () => void }) {
 function MaintenanceWorkspace() {
   const { hasPermission } = usePermissions();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const { data: fuelMaintenanceData } = useSchoolQuery<any>("/api/admin-command/transport-manager/fuel-maintenance");
+  const maintenanceLogs = asRows<any>(fuelMaintenanceData?.maintenanceLogs);
 
   return (
     <>
@@ -881,19 +1031,21 @@ function MaintenanceWorkspace() {
         }
       >
         <div className="grid gap-3 md:grid-cols-4">
-          {[
-            ["Scheduled", "Bus 02 tire rotation", "Medium", "Mechanic Otis", "Tomorrow", "info"],
-            ["In Progress", "Bus 11 brake pads", "High", "Garage B", "Today 4 PM", "warning"],
-            ["Completed", "Bus 04 oil service", "Low", "In-house", "Closed", "success"],
-            ["Urgent", "Van 03 steering fault", "Critical", "External mechanic", "Blocked", "danger"],
-          ].map(([stage, issue, priority, mechanic, eta, tone]) => (
-            <article key={stage} className={cn("rounded-2xl border p-4", toneClasses[tone as Tone].card)}>
-              <StatusChip label={stage} tone={tone as Tone} />
-              <h3 className="mt-3 font-black">{issue}</h3>
-              <p className="mt-2 text-sm font-semibold opacity-75">{priority} - {mechanic}</p>
-              <p className="mt-1 text-sm font-semibold opacity-75">Estimated completion: {eta}</p>
+          {maintenanceLogs.map((log: any) => {
+            const tone = toneFromStatus(log.status || log.priority || "open");
+            return (
+            <article key={log.id || log.vehicle_id || log.description} className={cn("rounded-2xl border p-4", toneClasses[tone].card)}>
+              <StatusChip label={log.status || log.priority || "open"} tone={tone} />
+              <h3 className="mt-3 font-black">{log.description || "Maintenance record"}</h3>
+              <p className="mt-2 text-sm font-semibold opacity-75">Vehicle: {log.vehicle_id?.substring?.(0, 8) || "Vehicle not set"}</p>
+              <p className="mt-1 text-sm font-semibold opacity-75">Logged: {dateLabel(log.log_date || log.created_at)}</p>
             </article>
-          ))}
+          );})}
+          {maintenanceLogs.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[#D8E0EC] bg-white p-4 text-sm font-semibold text-[#64748B]">
+              No maintenance records are logged. Use Log Maintenance when a vehicle needs service or safety review.
+            </div>
+          ) : null}
         </div>
       </Panel>
       {isModalOpen && <LogMaintenanceModal onClose={() => setIsModalOpen(false)} />}
@@ -902,24 +1054,40 @@ function MaintenanceWorkspace() {
 }
 
 function TripsWorkspace({ onAction }: { onAction: TransportActionHandler }) {
+  const { data: tripsData } = useSchoolQuery<any>("/api/admin-command/transport-manager/trips");
+  const tripRows = asRows<any>(tripsData).map((trip: any) => [
+    trip.vehicle_registration || trip.vehicle_id?.substring?.(0, 8) || "Vehicle",
+    trip.route_name || trip.route_id?.substring?.(0, 8) || "Route",
+    trip.driver_name || trip.driver_id?.substring?.(0, 8) || "Driver not assigned",
+    trip.status || "in_progress",
+    trip.actual_end_at ? "Completed" : "Open",
+    String(trip.learner_count ?? 0),
+    toneFromStatus(trip.status || "in_progress"),
+  ]);
+
   return (
     <Panel title="Trip Monitoring" description="Live daily operations for in-progress trips, delayed trips, missed pickups, and emergency incidents." icon={RadioTower}>
-      <DataTable title="Live trip table" columns={["Vehicle", "Route", "Driver", "Status", "ETA", "Progress", "Tone"]} rows={routeRows} onAction={onAction} />
+      <DataTable title="Live trip table" columns={["Vehicle", "Route", "Driver", "Status", "ETA", "Progress", "Tone"]} rows={tripRows} onAction={onAction} />
     </Panel>
   );
 }
 
 function AttendanceWorkspace({ onAction }: { onAction: TransportActionHandler }) {
+  const { data: studentTransportData } = useSchoolQuery<any>("/api/admin-command/transport-manager/student-transport-list");
+  const boardingRows = asRows<any>(studentTransportData).map((assignment: any) => [
+    assignment.student_name || assignment.student_id?.substring?.(0, 8) || "Student record",
+    assignment.vehicle_name || assignment.vehicle_id?.substring?.(0, 8) || "Vehicle not set",
+    assignment.pickup_stop_name || assignment.pickup_stop_id?.substring?.(0, 8) || "Pickup not set",
+    assignment.boarded_at ? dateLabel(assignment.boarded_at) : assignment.boarding_status || "Not boarded",
+    assignment.dropped_at ? dateLabel(assignment.dropped_at) : "Pending",
+  ]);
+
   return (
     <Panel title="Transport Attendance" description="Boarding and drop-off activity with missed pickup, unauthorized boarding, and unknown passenger alerts." icon={UserCheck}>
       <DataTable
         title="Boarding log"
         columns={["Student", "Vehicle", "Pickup Stop", "Time Boarded", "Time Dropped"]}
-        rows={[
-          ["Brian Otieno", "Bus 04", "Kibuye stage", "06:42", "Pending"],
-          ["Aisha Njeri", "Bus 11", "Nyamasaria", "06:58", "Pending"],
-          ["Unknown passenger", "Bus 02", "Mega City", "Blocked", "Security review"],
-        ]}
+        rows={boardingRows}
         onAction={onAction}
       />
     </Panel>
@@ -927,6 +1095,9 @@ function AttendanceWorkspace({ onAction }: { onAction: TransportActionHandler })
 }
 
 function GpsWorkspace() {
+  const { data: tripsData } = useSchoolQuery<any>("/api/admin-command/transport-manager/trips");
+  const liveTrips = asRows<any>(tripsData);
+
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <Panel title="GPS Tracking Center" description="Real-time vehicle positions, route progress, current speed, and estimated arrival." icon={MapPin}>
@@ -937,76 +1108,217 @@ function GpsWorkspace() {
               <div key={item} className="rounded-2xl border border-[#BFDBFE] bg-white/82 p-5 text-center font-black text-[#071D49] shadow-sm">{item}</div>
             ))}
           </div>
-          <div className="absolute bottom-6 left-6 rounded-2xl bg-[#071D49] px-5 py-4 text-sm font-bold text-white shadow-lg">Bus 04 - 41 km/h - ETA 7 min</div>
+          <div className="absolute bottom-6 left-6 rounded-2xl bg-[#071D49] px-5 py-4 text-sm font-bold text-white shadow-lg">{liveTrips.length} live trip record(s) loaded</div>
         </div>
       </Panel>
       <Panel title="Live status sidebar" description="Active buses, drivers, delay status, route deviations, and emergency indicators." icon={RadioTower}>
         <div className="space-y-3">
-          {routeRows.map(([bus, route, driver, status, eta, , tone]) => (
-            <div key={bus} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3">
+          {liveTrips.map((trip: any) => {
+            const tone = toneFromStatus(trip.status || "in_progress");
+            return (
+            <div key={trip.id || trip.vehicle_id || trip.route_id} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="font-black text-[#071D49]">{bus}</p>
-                  <p className="text-xs font-semibold text-[#64748B]">{route} - {driver} - ETA {eta}</p>
+                  <p className="font-black text-[#071D49]">{trip.vehicle_registration || trip.vehicle_id?.substring?.(0, 8) || "Vehicle"}</p>
+                  <p className="text-xs font-semibold text-[#64748B]">{trip.route_name || trip.route_id?.substring?.(0, 8) || "Route"} - {trip.driver_name || "Driver not assigned"} - {trip.status || "in_progress"}</p>
                 </div>
-                <StatusChip label={status} tone={tone as Tone} />
+                <StatusChip label={trip.status || "in_progress"} tone={tone} />
               </div>
             </div>
-          ))}
+          );})}
+          {liveTrips.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-[#D8E0EC] bg-white p-3 text-sm font-semibold text-[#64748B]">
+              No live trips have been started.
+            </div>
+          ) : null}
         </div>
       </Panel>
     </div>
   );
 }
 
-function NotificationsWorkspace({ onAction }: { onAction: TransportActionHandler }) {
+function ComposeTransportNoticeModal({
+  template,
+  onClose,
+}: {
+  template: string;
+  onClose: () => void;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSendTransportNotice(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const title = String(form.get("title") ?? "").trim();
+    const message = String(form.get("message") ?? "").trim();
+    const noticeType = String(form.get("notice_type") ?? "general").trim();
+    const priority = String(form.get("priority") ?? "normal").trim();
+    const targetRoles = form.getAll("target_roles").map((value) => String(value).trim()).filter(Boolean);
+    const channels = form.getAll("channels").map((value) => String(value).trim()).filter(Boolean);
+
+    if (!title || !message || targetRoles.length === 0) {
+      toast.error("Title, message, and at least one recipient role are required.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await requestDashboardApi("/api/admin-command/transport-manager/notices", {
+        method: "POST",
+        body: {
+          title,
+          message,
+          notice_type: noticeType,
+          priority,
+          target_roles: targetRoles,
+          channels: channels.length > 0 ? channels : ["in_app"],
+        },
+      });
+      toast.success("Transport notice sent", {
+        description: `Notice queued for ${targetRoles.join(", ")}.`,
+      });
+      onClose();
+    } catch (error) {
+      toast.error("Transport notice was not sent", {
+        description: error instanceof Error ? error.message : "The transport notice could not be queued.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const defaultMessage =
+    template === "Bus delayed"
+      ? "The assigned school bus is delayed. We will update you when it reaches the next stop."
+      : template === "Bus arriving"
+        ? "The school bus is approaching the pickup/drop-off point. Please be ready."
+        : template === "Emergency alert"
+          ? "Transport emergency alert. The school transport team is handling the situation and will share updates."
+          : template === "Route change"
+            ? "There is a route change affecting today's school transport movement."
+            : "Pickup confirmation has been recorded for the student transport trip.";
+
   return (
-    <Panel title="Parent Notifications" description="Communication center for bus arriving, bus delayed, emergency alert, route change, and pickup confirmation templates." icon={MessageSquareText}>
-      <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <div className="grid gap-3">
-          {["Bus arriving", "Bus delayed", "Emergency alert", "Route change", "Pickup confirmation"].map((template) => (
-            <button
-              key={template}
-              type="button"
-              onClick={() => onAction(`${template} parent SMS template ready for review.`)}
-              className="rounded-xl border border-[#D8E0EC] bg-[#EEF5FF] p-4 text-left text-sm font-black text-[#071D49]"
-            >
-              {template}
-            </button>
-          ))}
+    <Modal title="Send transport notice" open={true} onClose={onClose} size="lg">
+      <form onSubmit={handleSendTransportNotice} className="space-y-4 p-6">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="text-sm font-bold text-[#071D49]">Title
+            <input name="title" required defaultValue={template} className="mt-1 w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" />
+          </label>
+          <label className="text-sm font-bold text-[#071D49]">Notice type
+            <select name="notice_type" defaultValue={template.toLowerCase().replace(/[^a-z0-9]+/g, "_")} className="mt-1 w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm">
+              <option value="bus_arriving">Bus arriving</option>
+              <option value="bus_delayed">Bus delayed</option>
+              <option value="emergency_alert">Emergency alert</option>
+              <option value="route_change">Route change</option>
+              <option value="pickup_confirmation">Pickup confirmation</option>
+            </select>
+          </label>
         </div>
-        <DataTable
-          title="Communication log"
-          columns={["Parent", "Student", "Message Type", "Delivery Status", "Timestamp"]}
-          rows={[
-            ["Mrs. Wanjiku", "Brian Otieno", "Bus delayed", "Delivered", "08:10"],
-            ["Mr. Njuguna", "Aisha Njeri", "Pickup confirmation", "Read", "07:20"],
-            ["Mrs. Achieng", "Kevin Mwangi", "Emergency alert", "Delivered", "Yesterday"],
-          ]}
-          onAction={onAction}
-        />
-      </div>
-    </Panel>
+        <label className="block text-sm font-bold text-[#071D49]">Message
+          <textarea name="message" required rows={4} defaultValue={defaultMessage} className="mt-1 w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" />
+        </label>
+        <fieldset className="rounded-xl border border-[#D8E0EC] p-3">
+          <legend className="px-1 text-sm font-bold text-[#071D49]">Recipients</legend>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {[
+              ["parent", "Parents"],
+              ["class_teacher", "Class Teachers"],
+              ["student", "Students"],
+              ["principal", "Principal"],
+            ].map(([value, label]) => (
+              <label key={value} className="flex items-center gap-2 text-sm font-semibold text-[#64748B]">
+                <input type="checkbox" name="target_roles" value={value} defaultChecked={value === "parent"} />
+                {label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <fieldset className="rounded-xl border border-[#D8E0EC] p-3">
+            <legend className="px-1 text-sm font-bold text-[#071D49]">Channels</legend>
+            <div className="mt-2 space-y-2">
+              <label className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><input type="checkbox" name="channels" value="in_app" defaultChecked /> In-app</label>
+              <label className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><input type="checkbox" name="channels" value="sms" /> SMS queue</label>
+            </div>
+          </fieldset>
+          <label className="text-sm font-bold text-[#071D49]">Priority
+            <select name="priority" defaultValue={template === "Emergency alert" ? "high" : "normal"} className="mt-1 w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm">
+              <option value="normal">Normal</option>
+              <option value="high">High</option>
+            </select>
+          </label>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-[#D8E0EC] pt-4">
+          <button type="button" className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button type="submit" className="rounded-xl bg-[#071D49] px-5 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting}>
+            {submitting ? "Sending..." : "Send Notice"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function NotificationsWorkspace({ onAction }: { onAction: TransportActionHandler }) {
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+
+  return (
+    <>
+      <Panel title="Parent Notifications" description="Communication center for bus arriving, bus delayed, emergency alert, route change, and pickup confirmation templates." icon={MessageSquareText}>
+        <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <div className="grid gap-3">
+            {["Bus arriving", "Bus delayed", "Emergency alert", "Route change", "Pickup confirmation"].map((template) => (
+              <button
+                key={template}
+                type="button"
+                onClick={() => setSelectedTemplate(template)}
+                className="rounded-xl border border-[#D8E0EC] bg-[#EEF5FF] p-4 text-left text-sm font-black text-[#071D49]"
+              >
+                {template}
+              </button>
+            ))}
+          </div>
+          <DataTable
+            title="Communication log"
+            columns={["Parent", "Student", "Message Type", "Delivery Status", "Timestamp"]}
+            rows={[]}
+            onAction={onAction}
+          />
+        </div>
+      </Panel>
+      {selectedTemplate ? <ComposeTransportNoticeModal template={selectedTemplate} onClose={() => setSelectedTemplate(null)} /> : null}
+    </>
   );
 }
 
 function IncidentsWorkspace({ onAction }: { onAction: TransportActionHandler }) {
   return (
     <Panel title="Incident Reports" description="Breakdown, accident, student issue, delay, and safety concern records with timeline, photos, actions taken, and follow-up tasks." icon={ShieldAlert}>
-      <DataTable title="Incident table" columns={["Date", "Vehicle", "Driver", "Type", "Severity", "Status"]} rows={incidents} onAction={onAction} />
+      <DataTable title="Incident table" columns={["Date", "Vehicle", "Driver", "Type", "Severity", "Status"]} rows={[]} onAction={onAction} />
     </Panel>
   );
 }
 
 function ComplianceWorkspace() {
+  const { data: vehiclesData } = useSchoolQuery<any>("/api/admin-command/transport-manager/vehicles");
+  const { data: driversData } = useSchoolQuery<any>("/api/admin-command/transport-manager/drivers");
+  const vehicles = asRows<any>(vehiclesData);
+  const drivers = asRows<any>(driversData);
+  const expiredInsurance = vehicles.filter((vehicle: any) => {
+    if (!vehicle.insurance_expiry_date) return false;
+    return new Date(String(vehicle.insurance_expiry_date)).getTime() < TRANSPORT_COMPLIANCE_REFERENCE_TIME;
+  }).length;
+  const missingLicenses = drivers.filter((driver: any) => !driver.license_number).length;
+
   return (
     <Panel title="Compliance & Insurance" description="Insurance expiries, inspection dates, driver license renewals, road permits, and failed inspection warnings." icon={ShieldCheck}>
       <div className="grid gap-3 md:grid-cols-3">
         {[
-          ["Expired insurance", "Van 03 has expired cover and is blocked from trips.", "danger"],
-          ["Missing permits", "Bus 11 county route permit requires upload.", "warning"],
-          ["Driver license renewals", "Two renewals due within 21 days.", "info"],
-          ["Vehicle inspections", "18 of 21 vehicles current.", "success"],
+          ["Expired insurance", `${expiredInsurance} vehicle record(s) need insurance review.`, expiredInsurance > 0 ? "danger" : "success"],
+          ["Missing driver license data", `${missingLicenses} driver record(s) need license details.`, missingLicenses > 0 ? "warning" : "success"],
+          ["Driver records", `${drivers.length} transport driver record(s) loaded.`, "info"],
+          ["Vehicle inspections", `${vehicles.length} vehicle record(s) available for inspection tracking.`, "success"],
         ].map(([title, detail, tone]) => (
           <article key={title} className={cn("rounded-2xl border p-4", toneClasses[tone as Tone].card)}>
             <h3 className="font-black">{title}</h3>
@@ -1019,6 +1331,10 @@ function ComplianceWorkspace() {
 }
 
 function ReportsWorkspace({ onAction }: { onAction: TransportActionHandler }) {
+  const [activeReportFilter, setActiveReportFilter] = useState("Date range");
+  const { data: reportsData } = useSchoolQuery<any>("/api/admin-command/transport-manager/reports");
+  const existingReports = asRows<any>(reportsData);
+
   return (
     <Panel title="Reports & Analytics" description="Fleet utilization, fuel costs, route efficiency, student transport usage, incident trends, and maintenance costs." icon={ClipboardList}>
       <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -1029,17 +1345,43 @@ function ReportsWorkspace({ onAction }: { onAction: TransportActionHandler }) {
               <button
                 key={filter}
                 type="button"
-                onClick={() => onAction(`${filter} report option ready.`)}
-                className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-3 text-left text-sm font-black text-[#071D49]"
+                onClick={() => setActiveReportFilter(filter)}
+                className={cn(
+                  "rounded-xl border px-4 py-3 text-left text-sm font-black",
+                  activeReportFilter === filter
+                    ? "border-[#071D49] bg-[#EEF5FF] text-[#071D49]"
+                    : "border-[#D8E0EC] bg-white text-[#071D49]",
+                )}
               >
                 {filter}
               </button>
             ))}
           </div>
+          <p className="mt-3 rounded-xl border border-[#D8E0EC] bg-white px-4 py-3 text-xs font-bold text-[#64748B]">
+            Active filter: {activeReportFilter}. Generated reports include this filter in the report title for audit clarity.
+          </p>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
+          {existingReports.map((report: any) => (
+            <button
+              key={report.id || report.snapshot_id || report.title}
+              type="button"
+              onClick={() => onAction(`${report.title || "Transport report"} opened from report snapshots.`, { kind: "workflow" })}
+              className="rounded-xl border border-[#D8E0EC] bg-white p-4 text-left font-black text-[#071D49] transition hover:border-[#071D49]"
+            >
+              {report.title || "Transport report"}
+              <span className="mt-1 block text-xs font-semibold text-[#64748B]">{report.status || report.format || "Snapshot"}</span>
+            </button>
+          ))}
           {["Fleet utilization", "Fuel costs", "Route efficiency", "Student transport usage", "Incident trends", "Maintenance costs"].map((report) => (
-            <div key={report} className="rounded-xl border border-[#D8E0EC] bg-[#EEF5FF] p-4 font-black text-[#071D49]">{report}</div>
+            <button
+              key={report}
+              type="button"
+              onClick={() => onAction(`${report} report generated and added to downloads.`, { kind: "report", title: `${report} - ${activeReportFilter}` })}
+              className="rounded-xl border border-[#D8E0EC] bg-[#EEF5FF] p-4 text-left font-black text-[#071D49] transition hover:border-[#071D49]"
+            >
+              {report}
+            </button>
           ))}
         </div>
       </div>
@@ -1075,7 +1417,7 @@ function ActiveWorkspace({
     case "fleet":
       return <FleetWorkspace onAction={onAction} />;
     case "routes":
-      return <RoutesWorkspace onAction={onAction} />;
+      return <RoutesWorkspace onViewChange={onViewChange} />;
     case "allocation":
       return <AllocationWorkspace onAction={onAction} />;
     case "drivers":
@@ -1111,6 +1453,29 @@ export function TransportManagerCommandCenter({ routeMode, activeSection }: { ro
   );
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Ready for today's transport operations.");
+  const { data: searchVehiclesData } = useSchoolQuery<any>("/api/admin-command/transport-manager/vehicles");
+  const { data: searchRoutesData } = useSchoolQuery<any>("/api/admin-command/transport-manager/routes");
+  const { data: searchStudentTransportData } = useSchoolQuery<any>("/api/admin-command/transport-manager/student-transport-list");
+  const transportSearchRecords: TransportSearchRecord[] = [
+    ...asRows<any>(searchVehiclesData).slice(0, 8).map((vehicle: any) => ({
+      id: `vehicle-${vehicle.id || vehicle.registration_number}`,
+      label: vehicle.registration_number || vehicle.plate_number || "Vehicle record",
+      detail: `${vehicle.status || "active"} | capacity ${vehicle.capacity || "not set"}`,
+      view: "fleet" as TransportView,
+    })),
+    ...asRows<any>(searchRoutesData).slice(0, 8).map((route: any) => ({
+      id: `route-${route.id || route.name}`,
+      label: route.route_name || route.name || "Transport route",
+      detail: `${route.zone || "Zone not set"} | ${route.status || "active"}`,
+      view: "routes" as TransportView,
+    })),
+    ...asRows<any>(searchStudentTransportData).slice(0, 8).map((assignment: any) => ({
+      id: `assignment-${assignment.id || assignment.student_id}`,
+      label: assignment.student_name || assignment.student_id?.substring?.(0, 8) || "Student transport assignment",
+      detail: `${assignment.boarding_status || "active"} | ${assignment.guardian_contact || "guardian contact not set"}`,
+      view: "allocation" as TransportView,
+    })),
+  ];
   const searchResults = searchTerm.trim()
     ? transportSearchRecords.filter((record) => `${record.label} ${record.detail}`.toLowerCase().includes(searchTerm.toLowerCase()))
     : [];
@@ -1118,7 +1483,7 @@ export function TransportManagerCommandCenter({ routeMode, activeSection }: { ro
   function openView(view: TransportView) {
     setActiveView(view);
     window.history.replaceState(null, "", buildSchoolSectionHref("transport-manager", view, routeMode ?? "hosted"));
-    setNotice(`${getViewLabel(view)} workspace ready.`);
+    setNotice(`${getViewLabel(view)} workspace opened with transport controls loaded.`);
   }
 
   function openSearchRecord(record: TransportSearchRecord) {
@@ -1146,7 +1511,7 @@ export function TransportManagerCommandCenter({ routeMode, activeSection }: { ro
               <div role="status" className="rounded-xl border border-[#BFDBFE] bg-[#EEF5FF] px-4 py-3 text-sm font-bold text-[#071D49]">
                 {notice}
               </div>
-              <ActiveWorkspace activeView={activeView} onViewChange={openView} onAction={setNotice} />
+              <ActiveWorkspace activeView={activeView} onViewChange={openView} onAction={recordTransportAction} />
             </div>
           </main>
         </div>
@@ -1154,4 +1519,19 @@ export function TransportManagerCommandCenter({ routeMode, activeSection }: { ro
       
     </div>
   );
+
+  async function recordTransportAction(message: string, options?: { kind?: "workflow" | "report"; title?: string }) {
+    try {
+      if (options?.kind === "report") {
+        await generateTransportReport(options.title || message);
+      } else {
+        await persistTransportWorkflowAction(message);
+      }
+      setNotice(message);
+    } catch (error) {
+      toast.error("Transport action was not saved", {
+        description: error instanceof Error ? error.message : "The transport workflow could not be persisted for audit and dashboard follow-up.",
+      });
+    }
+  }
 }

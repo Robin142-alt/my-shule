@@ -25,7 +25,7 @@ export default function PortalLoginPage() {
   return (
     <AuthShell
       eyebrow="Parent and student portal"
-      heroTitle="Stay connected to your child in real time."
+      heroTitle="School update parents wanted."
       heroDescription="Attendance, fees, progress, clinic notes, teacher messages, and school notices appear in a secure family workspace when the school enables those modules."
       badge="Portal access"
       logoMark="PT"

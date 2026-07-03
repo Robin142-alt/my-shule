@@ -140,10 +140,12 @@ export class LedgerService {
       const existingTransaction = await transactionsRepository.findByReference(tenantId, reference);
 
       if (existingTransaction) {
-        const existingResponse = await this.hydratePostedTransaction(
+        const existingResponse = await this.hydrateOrCompleteTransaction(
           tenantId,
           input.idempotency_key,
           existingTransaction,
+          accounts,
+          postingPlan,
         );
         this.assertReferenceReuseCompatible(description, postingPlan, existingResponse);
         await idempotencyKeysRepository.markCompleted(
@@ -183,10 +185,12 @@ export class LedgerService {
             throw error;
           }
 
-          const existingResponse = await this.hydratePostedTransaction(
+          const existingResponse = await this.hydrateOrCompleteTransaction(
             tenantId,
             input.idempotency_key,
             conflictTransaction,
+            accounts,
+            postingPlan,
           );
           this.assertReferenceReuseCompatible(description, postingPlan, existingResponse);
           await idempotencyKeysRepository.markCompleted(
@@ -466,6 +470,61 @@ export class LedgerService {
       );
     }
 
+    const balanceMap = await ledgerEntriesRepository.calculateBalances(tenantId, accountIds);
+
+    return this.buildPostedTransaction(
+      tenantId,
+      idempotencyKey,
+      transaction,
+      accounts,
+      ledgerEntries,
+      balanceMap,
+    );
+  }
+
+  private async hydrateOrCompleteTransaction(
+    tenantId: string,
+    idempotencyKey: string,
+    transaction: FinancialTransactionEntity,
+    accounts: AccountEntity[],
+    postingPlan: LedgerPostingPlan,
+  ): Promise<PostedFinancialTransaction> {
+    const ledgerEntriesRepository = this.requireRuntimeDependency(
+      this.ledgerEntriesRepository,
+      'LedgerEntriesRepository',
+    );
+    const existingEntries = await ledgerEntriesRepository.findByTransactionId(tenantId, transaction.id);
+
+    if (existingEntries.length > 0) {
+      const accountIds = Array.from(new Set(existingEntries.map((entry) => entry.account_id))).sort();
+      const existingAccounts = await this.requireRuntimeDependency(
+        this.accountsRepository,
+        'AccountsRepository',
+      ).findByIds(tenantId, accountIds);
+
+      if (existingAccounts.length !== accountIds.length) {
+        throw new NotFoundException(
+          `Unable to hydrate transaction "${transaction.reference}" because one or more accounts are missing`,
+        );
+      }
+
+      const balanceMap = await ledgerEntriesRepository.calculateBalances(tenantId, accountIds);
+      return this.buildPostedTransaction(
+        tenantId,
+        idempotencyKey,
+        transaction,
+        existingAccounts,
+        existingEntries,
+        balanceMap,
+      );
+    }
+
+    const ledgerEntries = await ledgerEntriesRepository.insertEntries(
+      tenantId,
+      transaction.id,
+      postingPlan.entries,
+    );
+    const accountIds = Array.from(new Set(postingPlan.entries.map((entry) => entry.account_id))).sort();
     const balanceMap = await ledgerEntriesRepository.calculateBalances(tenantId, accountIds);
 
     return this.buildPostedTransaction(

@@ -92,6 +92,40 @@ export class ExamsRepository {
     return result.rows[0];
   }
 
+  async updateAssessment(input: Record<string, unknown>) {
+    const result = await this.executeSql(
+      `UPDATE exam_assessments
+       SET name = COALESCE($3, name), max_score = COALESCE($4, max_score),
+           weight = COALESCE($5, weight), updated_at = NOW()
+       WHERE tenant_id = $1 AND id = $2::uuid
+       RETURNING *`,
+      [input.tenant_id, input.assessment_id, input.name ?? null, input.max_score ?? null, input.weight ?? null],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async deleteAssessment(input: Record<string, unknown>) {
+    const result = await this.executeSql(
+      `WITH target AS MATERIALIZED (
+         SELECT id, name FROM exam_assessments WHERE tenant_id = $1 AND id = $2::uuid
+       ), dependencies AS MATERIALIZED (
+         SELECT
+           (SELECT COUNT(*)::integer FROM exam_marks WHERE tenant_id = $1 AND assessment_id = $2::uuid) AS mark_count,
+           (SELECT COUNT(*)::integer FROM exam_assessment_components WHERE tenant_id = $1 AND assessment_id = $2::uuid) AS component_count
+       ), deleted AS (
+         DELETE FROM exam_assessments assessment USING target, dependencies
+         WHERE assessment.tenant_id = $1 AND assessment.id = target.id
+           AND dependencies.mark_count = 0 AND dependencies.component_count = 0
+         RETURNING assessment.id
+       )
+       SELECT target.id::text, target.name, deleted.id::text AS deleted_id,
+         dependencies.mark_count, dependencies.component_count
+       FROM target CROSS JOIN dependencies LEFT JOIN deleted ON TRUE`,
+      [input.tenant_id, input.assessment_id],
+    );
+    return result.rows[0] ?? null;
+  }
+
   async findTeacherAssignment(input: {
     tenant_id: string;
     teacher_user_id: string;
@@ -194,6 +228,255 @@ export class ExamsRepository {
     );
 
     return result.rows[0];
+  }
+
+  async commitBulkMarkImport(input: Record<string, unknown>) {
+    const rows = Array.isArray(input.rows) ? input.rows : [];
+    const result = await this.executeSql(
+      `WITH source AS MATERIALIZED (
+         SELECT *
+         FROM jsonb_to_recordset($4::jsonb) AS row(
+           row_number integer,
+           exam_series_id uuid,
+           assessment_id uuid,
+           academic_term_id uuid,
+           class_section_id uuid,
+           subject_id uuid,
+           student_id uuid,
+           score numeric,
+           remarks text
+         )
+       ), previous AS MATERIALIZED (
+         SELECT source.*,
+           mark.id AS previous_mark_id,
+           mark.score AS previous_score,
+           mark.remarks AS previous_remarks,
+           mark.status AS previous_status
+         FROM source
+         LEFT JOIN exam_marks mark
+           ON mark.tenant_id = $1
+          AND mark.assessment_id = source.assessment_id
+          AND mark.student_id = source.student_id
+       ), upserted AS (
+         INSERT INTO exam_marks (
+           tenant_id, exam_series_id, assessment_id, academic_term_id,
+           class_section_id, subject_id, student_id, score, remarks,
+           entered_by_user_id, updated_by_user_id
+         )
+         SELECT $1, exam_series_id, assessment_id, academic_term_id,
+           class_section_id, subject_id, student_id, score, remarks, $2::uuid, $2::uuid
+         FROM source
+         ON CONFLICT (tenant_id, assessment_id, student_id)
+         DO UPDATE SET
+           score = EXCLUDED.score,
+           remarks = EXCLUDED.remarks,
+           updated_by_user_id = EXCLUDED.updated_by_user_id,
+           updated_at = NOW()
+         WHERE exam_marks.exam_series_id = EXCLUDED.exam_series_id
+           AND exam_marks.academic_term_id = EXCLUDED.academic_term_id
+           AND exam_marks.class_section_id = EXCLUDED.class_section_id
+           AND exam_marks.subject_id = EXCLUDED.subject_id
+           AND exam_marks.status = 'draft'
+         RETURNING *
+       ), batch AS (
+         INSERT INTO exam_mark_import_batches (
+           tenant_id, file_name, status, total_rows, valid_rows, invalid_rows,
+           duplicate_rows, committed_rows, preview_hash, imported_by_user_id,
+           metadata
+         )
+         SELECT $1, $3, 'imported', source_count, source_count, 0, 0,
+           CASE WHEN committed_count = source_count THEN committed_count ELSE NULL END,
+           $5, $2::uuid, jsonb_build_object('source', 'marks_bulk_upload', 'source_rows', $4::jsonb)
+         FROM (SELECT COUNT(*)::integer AS source_count FROM source) source_totals
+         CROSS JOIN (SELECT COUNT(*)::integer AS committed_count FROM upserted) committed_totals
+         RETURNING *
+       ), items AS (
+         INSERT INTO exam_mark_import_batch_items (
+           tenant_id, batch_id, mark_id, row_number, previous_exists,
+           previous_score, previous_remarks, previous_status,
+           imported_score, imported_remarks, imported_status
+         )
+         SELECT $1, batch.id, mark.id, previous.row_number,
+           previous.previous_mark_id IS NOT NULL,
+           previous.previous_score, previous.previous_remarks, previous.previous_status,
+           mark.score, mark.remarks, mark.status
+         FROM batch
+         JOIN upserted mark ON TRUE
+         JOIN previous
+           ON previous.assessment_id = mark.assessment_id
+          AND previous.student_id = mark.student_id
+         RETURNING *
+       ), audits AS (
+         INSERT INTO exam_mark_audit_logs (
+           tenant_id, mark_id, exam_series_id, assessment_id, student_id,
+           action, actor_user_id, previous_score, new_score, metadata
+         )
+         SELECT $1, mark.id, mark.exam_series_id, mark.assessment_id, mark.student_id,
+           'bulk_grade.updated', $2::uuid, previous.previous_score, mark.score,
+           jsonb_build_object('bulk_upload', true, 'batch_id', batch.id, 'row_number', previous.row_number)
+         FROM batch
+         JOIN upserted mark ON TRUE
+         JOIN previous
+           ON previous.assessment_id = mark.assessment_id
+          AND previous.student_id = mark.student_id
+         RETURNING id
+       )
+       SELECT batch.id::text AS batch_id, batch.file_name, batch.status,
+         batch.total_rows, batch.valid_rows, batch.invalid_rows,
+         batch.duplicate_rows, batch.committed_rows, batch.imported_at
+       FROM batch`,
+      [
+        input.tenant_id,
+        input.actor_user_id,
+        input.file_name,
+        JSON.stringify(rows),
+        input.preview_token,
+      ],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async listMarkImportBatches(input: Record<string, unknown>) {
+    const result = await this.executeSql(
+      `SELECT id::text, file_name, status, total_rows, valid_rows, invalid_rows,
+         duplicate_rows, committed_rows, imported_by_user_id::text,
+         imported_at, rolled_back_by_user_id::text, rolled_back_at, rollback_reason
+       FROM exam_mark_import_batches
+       WHERE tenant_id = $1
+       ORDER BY imported_at DESC
+       LIMIT $2 OFFSET $3`,
+      [input.tenant_id, input.limit, input.offset],
+    );
+    return result.rows;
+  }
+
+  async getExamReadinessStats(input: Record<string, unknown>) {
+    const result = await this.executeSql(
+      `WITH windows AS (
+         SELECT class_section_id, subject_id
+         FROM exam_mark_entry_windows
+         WHERE tenant_id = $1 AND exam_series_id = $2::uuid
+       ), expected AS (
+         SELECT window.class_section_id, window.subject_id, COUNT(student.id)::integer AS expected_count
+         FROM windows window
+         LEFT JOIN students student
+           ON student.tenant_id = $1
+          AND student.status = 'active'
+          AND NULLIF(student.metadata->>'class_section_id', '')::uuid = window.class_section_id
+         GROUP BY window.class_section_id, window.subject_id
+       ), saved AS (
+         SELECT class_section_id, subject_id, COUNT(DISTINCT student_id)::integer AS saved_count
+         FROM exam_marks
+         WHERE tenant_id = $1 AND exam_series_id = $2::uuid
+         GROUP BY class_section_id, subject_id
+       )
+       SELECT
+         (SELECT COUNT(*)::integer FROM exam_marks
+          WHERE tenant_id = $1 AND exam_series_id = $2::uuid
+            AND status NOT IN ('reviewed', 'locked', 'published')) AS unapproved_count,
+         COALESCE(SUM(GREATEST(expected.expected_count - COALESCE(saved.saved_count, 0), 0)), 0)::integer AS missing_count
+       FROM expected
+       LEFT JOIN saved
+         ON saved.class_section_id = expected.class_section_id
+        AND saved.subject_id = expected.subject_id`,
+      [input.tenant_id, input.exam_series_id],
+    );
+    return result.rows[0] ?? { unapproved_count: 0, missing_count: 0 };
+  }
+
+  async getMarkImportBatch(input: Record<string, unknown>) {
+    const result = await this.executeSql(
+      `SELECT id::text, file_name, status, total_rows, valid_rows, invalid_rows,
+         duplicate_rows, committed_rows, imported_by_user_id::text,
+         imported_at, rolled_back_by_user_id::text, rolled_back_at, rollback_reason,
+         COALESCE(metadata->'source_rows', '[]'::jsonb) AS source_rows
+       FROM exam_mark_import_batches
+       WHERE tenant_id = $1 AND id = $2::uuid
+       LIMIT 1`,
+      [input.tenant_id, input.batch_id],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async rollbackMarkImportBatch(input: Record<string, unknown>) {
+    const result = await this.executeSql(
+      `WITH target AS MATERIALIZED (
+         SELECT * FROM exam_mark_import_batches
+         WHERE tenant_id = $1 AND id = $2::uuid AND status = 'imported'
+         FOR UPDATE
+       ), conflicts AS MATERIALIZED (
+         SELECT COUNT(*)::integer AS conflict_count
+         FROM target
+         JOIN exam_mark_import_batch_items item
+           ON item.tenant_id = target.tenant_id AND item.batch_id = target.id
+         LEFT JOIN exam_marks mark
+           ON mark.tenant_id = item.tenant_id AND mark.id = item.mark_id
+         WHERE mark.id IS NULL
+            OR mark.score IS DISTINCT FROM item.imported_score
+            OR mark.remarks IS DISTINCT FROM item.imported_remarks
+            OR mark.status IS DISTINCT FROM item.imported_status
+       ), restored AS (
+         UPDATE exam_marks mark
+         SET score = item.previous_score,
+             remarks = item.previous_remarks,
+             status = item.previous_status,
+             updated_by_user_id = $3::uuid,
+             updated_at = NOW()
+         FROM target
+         JOIN exam_mark_import_batch_items item
+           ON item.tenant_id = target.tenant_id AND item.batch_id = target.id
+         WHERE (SELECT conflict_count FROM conflicts) = 0
+           AND item.previous_exists
+           AND mark.tenant_id = item.tenant_id
+           AND mark.id = item.mark_id
+         RETURNING mark.id, item.imported_score, mark.score AS restored_score
+       ), deleted AS (
+         DELETE FROM exam_marks mark
+         USING target, exam_mark_import_batch_items item
+         WHERE (SELECT conflict_count FROM conflicts) = 0
+           AND NOT item.previous_exists
+           AND item.tenant_id = target.tenant_id
+           AND item.batch_id = target.id
+           AND mark.tenant_id = item.tenant_id
+           AND mark.id = item.mark_id
+         RETURNING mark.id, mark.exam_series_id, mark.assessment_id, mark.student_id, mark.score
+       ), restore_audits AS (
+         INSERT INTO exam_mark_audit_logs (
+           tenant_id, mark_id, action, actor_user_id, previous_score, new_score, reason, metadata
+         )
+         SELECT $1, restored.id, 'bulk_grade.rollback', $3::uuid,
+           restored.imported_score, restored.restored_score, $4,
+           jsonb_build_object('batch_id', $2::text, 'operation', 'restore')
+         FROM restored
+         RETURNING id
+       ), delete_audits AS (
+         INSERT INTO exam_mark_audit_logs (
+           tenant_id, mark_id, exam_series_id, assessment_id, student_id,
+           action, actor_user_id, previous_score, reason, metadata
+         )
+         SELECT $1, deleted.id, deleted.exam_series_id, deleted.assessment_id, deleted.student_id,
+           'bulk_grade.rollback', $3::uuid, deleted.score, $4,
+           jsonb_build_object('batch_id', $2::text, 'operation', 'delete_imported_row')
+         FROM deleted
+         RETURNING id
+       ), updated_batch AS (
+         UPDATE exam_mark_import_batches batch
+         SET status = CASE WHEN conflicts.conflict_count = 0 THEN 'rolled_back' ELSE batch.status END,
+             rolled_back_by_user_id = CASE WHEN conflicts.conflict_count = 0 THEN $3::uuid ELSE NULL END,
+             rolled_back_at = CASE WHEN conflicts.conflict_count = 0 THEN NOW() ELSE NULL END,
+             rollback_reason = CASE WHEN conflicts.conflict_count = 0 THEN $4 ELSE NULL END
+         FROM target, conflicts
+         WHERE batch.tenant_id = target.tenant_id AND batch.id = target.id
+         RETURNING batch.*, conflicts.conflict_count
+       )
+       SELECT id::text, status, conflict_count,
+         (SELECT COUNT(*)::integer FROM restored) AS restored_rows,
+         (SELECT COUNT(*)::integer FROM deleted) AS deleted_rows,
+         rolled_back_at, rollback_reason
+       FROM updated_batch`,
+      [input.tenant_id, input.batch_id, input.actor_user_id, input.reason],
+    );
+    return result.rows[0] ?? null;
   }
 
   async findExistingMark(input: { tenant_id: string; mark_id: string }) {
@@ -401,6 +684,66 @@ export class ExamsRepository {
     );
 
     return result.rows[0];
+  }
+
+  async transitionReportCard(input: { tenant_id: string; actor_user_id: string; report_card_id: string; action: string }) {
+    const result = await this.executeSql(
+      `WITH transition AS (
+         SELECT
+           CASE $4
+             WHEN 'submit' THEN ARRAY['draft_generated', 'draft', 'regeneration_required']::text[]
+             WHEN 'approve' THEN ARRAY['under_review']::text[]
+             WHEN 'recall' THEN ARRAY['under_review']::text[]
+             WHEN 'publish' THEN ARRAY['approved']::text[]
+             WHEN 'unpublish' THEN ARRAY['published']::text[]
+             ELSE ARRAY[]::text[]
+           END AS source_statuses,
+           CASE $4
+             WHEN 'submit' THEN 'under_review'
+             WHEN 'approve' THEN 'approved'
+             WHEN 'recall' THEN 'draft_generated'
+             WHEN 'publish' THEN 'published'
+             WHEN 'unpublish' THEN 'withdrawn'
+             ELSE NULL
+           END AS target_status
+       )
+       UPDATE student_report_cards card
+       SET status = transition.target_status,
+           published_by_user_id = CASE WHEN $4 = 'publish' THEN $2::uuid ELSE card.published_by_user_id END,
+           published_at = CASE WHEN $4 = 'publish' THEN NOW() ELSE card.published_at END,
+           metadata = card.metadata || CASE
+             WHEN $4 = 'unpublish' THEN jsonb_build_object('withdrawn_at', NOW(), 'withdrawn_by', $2::text)
+             WHEN $4 = 'publish' THEN jsonb_build_object('published_by', $2::text)
+             ELSE jsonb_build_object('last_transition', $4::text, 'transitioned_by', $2::text, 'transitioned_at', NOW())
+           END,
+           updated_at = NOW()
+       FROM transition
+       WHERE card.tenant_id = $1
+         AND card.id = $3::uuid
+         AND card.status = ANY(transition.source_statuses)
+       RETURNING card.*`,
+      [input.tenant_id, input.actor_user_id, input.report_card_id, input.action],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async updateReportCardComments(input: { tenant_id: string; actor_user_id: string; report_card_id: string; class_teacher_comment: string; principal_comment: string }) {
+    const result = await this.executeSql(
+      `UPDATE student_report_cards
+       SET metadata = metadata || jsonb_build_object(
+             'class_teacher_comment', $4::text,
+             'principal_comment', $5::text,
+             'comments_updated_by', $2::text,
+             'comments_updated_at', NOW()
+           ),
+           updated_at = NOW()
+       WHERE tenant_id = $1
+         AND id = $3::uuid
+         AND status NOT IN ('published', 'withdrawn')
+       RETURNING *`,
+      [input.tenant_id, input.actor_user_id, input.report_card_id, input.class_teacher_comment, input.principal_comment],
+    );
+    return result.rows[0] ?? null;
   }
 
   async recordReportCardArtifact(input: Record<string, unknown>) {
@@ -678,6 +1021,7 @@ export class ExamsRepository {
   async listReportCards(input: {
     tenant_id: string;
     student_id?: string;
+    status_in?: string[];
     limit?: number;
     offset?: number;
   }) {
@@ -685,6 +1029,9 @@ export class ExamsRepository {
     const requestedOffset = Number.isFinite(input.offset) ? Math.floor(Number(input.offset)) : 0;
     const limit = requestedLimit > 0 ? Math.min(requestedLimit, 50) : 25;
     const offset = Math.max(requestedOffset, 0);
+    const params: unknown[] = [input.tenant_id, input.student_id ?? null, limit, offset];
+    const statusClause = input.status_in?.length ? 'AND card.status = ANY($5::text[])' : '';
+    if (input.status_in?.length) params.push(input.status_in);
 
     const result = await this.executeSql(
       `
@@ -704,11 +1051,12 @@ export class ExamsRepository {
         FROM student_report_cards card
         WHERE card.tenant_id = $1
           AND ($2::uuid IS NULL OR card.student_id = $2::uuid)
+          ${statusClause}
         ORDER BY card.published_at DESC NULLS LAST, card.created_at DESC
         LIMIT $3::integer
         OFFSET $4::integer
       `,
-      [input.tenant_id, input.student_id ?? null, limit, offset],
+      params,
     );
 
     return result.rows;
@@ -925,6 +1273,27 @@ export class ExamsRepository {
     return result.rows[0] ?? null;
   }
 
+  async submitMarks(input: { tenant_id: string; actor_user_id: string; mark_ids: string[] }) {
+    const result = await this.executeSql(
+      `
+        UPDATE exam_marks
+        SET status = 'submitted',
+            updated_at = NOW()
+        WHERE tenant_id = $1
+          AND id = ANY($2::uuid[])
+          AND status IN ('draft', 'submitted')
+        RETURNING id::text
+      `,
+      [input.tenant_id, input.mark_ids],
+    );
+
+    return {
+      submitted_count: result.rows.length,
+      mark_ids: result.rows.map((row: any) => row.id),
+      submitted_by_user_id: input.actor_user_id,
+    };
+  }
+
   async appendMarkAuditLog(input: Record<string, unknown>) {
     await this.executeSql(
       `
@@ -980,6 +1349,348 @@ export class ExamsRepository {
         input.student_id ?? null,
         input.action,
         input.actor_user_id ?? null,
+        JSON.stringify(input.metadata ?? {}),
+      ],
+    );
+  }
+
+  async getExamSettings(tenantId: string) {
+    const result = await this.executeSql(
+      `
+        SELECT
+          id::text,
+          tenant_id,
+          lock_after_deadline,
+          grace_period_hours,
+          include_school_logo,
+          include_principal_signature,
+          include_official_stamp,
+          block_results_for_fee_balances,
+          fee_balance_block_threshold::float,
+          show_student_rank_to_parents,
+          updated_by_user_id::text,
+          created_at::text,
+          updated_at::text
+        FROM exam_settings
+        WHERE tenant_id = $1
+        LIMIT 1
+      `,
+      [tenantId],
+    );
+
+    return result.rows[0] ?? null;
+  }
+
+  async transitionMarkWindow(input: { tenant_id: string; actor_user_id: string; mark_window_id: string; action: string; reason?: string }) {
+    const result = await this.executeSql(
+      `WITH window_scope AS (
+         SELECT id, exam_series_id, class_section_id, subject_id
+         FROM exam_mark_entry_windows
+         WHERE tenant_id = $1 AND id = $3::uuid
+       ), mark_state AS (
+         SELECT
+           COUNT(mark.id)::integer AS total_marks,
+           COUNT(mark.id) FILTER (WHERE mark.status NOT IN ('reviewed', 'locked', 'published'))::integer AS blockers,
+           COUNT(mark.id) FILTER (WHERE mark.status = 'published')::integer AS published_marks
+         FROM window_scope
+         LEFT JOIN exam_marks mark
+           ON mark.tenant_id = $1
+          AND mark.exam_series_id = window_scope.exam_series_id
+          AND mark.class_section_id = window_scope.class_section_id
+          AND mark.subject_id = window_scope.subject_id
+       ), changed_marks AS (
+         UPDATE exam_marks mark
+         SET status = CASE WHEN $4 = 'return' THEN 'draft' ELSE 'locked' END,
+             updated_by_user_id = $2::uuid,
+             locked_at = CASE WHEN $4 = 'lock' THEN NOW() ELSE NULL END,
+             updated_at = NOW()
+         FROM window_scope, mark_state
+         WHERE mark.tenant_id = $1
+           AND mark.exam_series_id = window_scope.exam_series_id
+           AND mark.class_section_id = window_scope.class_section_id
+           AND mark.subject_id = window_scope.subject_id
+           AND (($4 = 'lock' AND mark.status = 'reviewed' AND mark_state.blockers = 0)
+             OR ($4 = 'return' AND mark.status IN ('submitted', 'reviewed', 'locked') AND mark_state.published_marks = 0))
+         RETURNING mark.id
+       ), changed_summary AS (
+         SELECT COUNT(*)::integer AS affected_marks FROM changed_marks
+       )
+       UPDATE exam_mark_entry_windows window
+       SET status = CASE WHEN $4 = 'lock' THEN 'closed' ELSE 'open' END,
+           last_action = CASE WHEN $4 = 'return' THEN 'returned' WHEN $4 = 'lock' THEN 'locked' ELSE 'opened' END,
+           last_action_at = NOW(),
+           last_action_by_user_id = $2::uuid,
+           return_reason = CASE WHEN $4 = 'return' THEN $5 ELSE NULL END,
+           updated_at = NOW()
+       FROM mark_state, changed_summary
+       WHERE window.tenant_id = $1
+         AND window.id = $3::uuid
+         AND (
+           $4 = 'open'
+           OR ($4 = 'lock' AND mark_state.total_marks > 0 AND mark_state.blockers = 0)
+           OR ($4 = 'return' AND mark_state.total_marks > 0 AND mark_state.published_marks = 0)
+         )
+       RETURNING window.*, window.last_action AS workflow_status, changed_summary.affected_marks`,
+      [input.tenant_id, input.actor_user_id, input.mark_window_id, input.action, input.reason ?? null],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async findMarkWindowRecipients(input: { tenant_id: string; mark_window_id: string }) {
+    const result = await this.executeSql(
+      `SELECT
+         window.id::text,
+         COALESCE(class_section.name, window.class_section_id::text) AS class_name,
+         COALESCE(subject.name, window.subject_id::text) AS subject_name,
+         window.closes_at::text,
+         COALESCE(array_remove(array_agg(DISTINCT assignment.teacher_user_id::text), NULL), ARRAY[]::text[]) AS recipient_user_ids
+       FROM exam_mark_entry_windows window
+       INNER JOIN exam_series series
+         ON series.tenant_id = window.tenant_id AND series.id = window.exam_series_id
+       LEFT JOIN teacher_subject_assignments assignment
+         ON assignment.tenant_id = window.tenant_id
+        AND assignment.academic_term_id = series.academic_term_id
+        AND assignment.class_section_id = window.class_section_id
+        AND assignment.subject_id = window.subject_id
+        AND assignment.status = 'active'
+       LEFT JOIN class_sections class_section
+         ON class_section.tenant_id = window.tenant_id AND class_section.id = window.class_section_id
+       LEFT JOIN subjects subject
+         ON subject.tenant_id = window.tenant_id AND subject.id = window.subject_id
+       WHERE window.tenant_id = $1 AND window.id = $2::uuid
+       GROUP BY window.id, class_section.name, subject.name
+       LIMIT 1`,
+      [input.tenant_id, input.mark_window_id],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async processResultBatch(input: { tenant_id: string; actor_user_id: string; batch_id: string; mode: 'aggregates' | 'rankings' }) {
+    const result = await this.executeSql(
+      `WITH batch_scope AS (
+         SELECT id, exam_series_id, class_section_id
+         FROM report_card_generation_batches
+         WHERE tenant_id = $1 AND id = $3::uuid
+       ), scores AS (
+         SELECT
+           batch_scope.id AS batch_id,
+           batch_scope.exam_series_id,
+           batch_scope.class_section_id,
+           mark.student_id,
+           ROUND(SUM(mark.score)::numeric, 2) AS raw_total,
+           COUNT(*)::integer AS assessment_count,
+           ROUND(AVG((mark.score / assessment.max_score) * 100)::numeric, 2) AS average_percentage
+         FROM batch_scope
+         INNER JOIN exam_marks mark
+           ON mark.tenant_id = $1
+          AND mark.exam_series_id = batch_scope.exam_series_id
+          AND (batch_scope.class_section_id IS NULL OR mark.class_section_id = batch_scope.class_section_id)
+          AND mark.status IN ('reviewed', 'locked', 'published')
+         INNER JOIN exam_assessments assessment
+           ON assessment.tenant_id = mark.tenant_id
+          AND assessment.id = mark.assessment_id
+          AND assessment.max_score > 0
+         GROUP BY batch_scope.id, batch_scope.exam_series_id, batch_scope.class_section_id, mark.student_id
+       ), ranked AS (
+         SELECT scores.*,
+           CASE WHEN $4 = 'rankings'
+             THEN DENSE_RANK() OVER (ORDER BY average_percentage DESC, raw_total DESC)::integer
+             ELSE NULL
+           END AS class_rank
+         FROM scores
+       ), removed AS (
+         DELETE FROM exam_result_snapshots
+         WHERE tenant_id = $1 AND batch_id = $3::uuid
+         RETURNING id
+       ), imported AS (
+         INSERT INTO exam_result_snapshots (
+           tenant_id, batch_id, exam_series_id, class_section_id, student_id,
+           raw_total, assessment_count, average_percentage, grade_label,
+           class_rank, processed_by_user_id
+         )
+         SELECT
+           $1, ranked.batch_id, ranked.exam_series_id, ranked.class_section_id, ranked.student_id,
+           ranked.raw_total, ranked.assessment_count, ranked.average_percentage, boundary.label,
+           ranked.class_rank, $2::uuid
+         FROM ranked
+         CROSS JOIN (SELECT COUNT(*) FROM removed) cleanup
+         LEFT JOIN LATERAL (
+           SELECT label
+           FROM exam_grade_boundaries
+           WHERE tenant_id = $1
+             AND exam_series_id = ranked.exam_series_id
+             AND ranked.average_percentage BETWEEN min_score AND max_score
+           ORDER BY min_score DESC
+           LIMIT 1
+         ) boundary ON TRUE
+         RETURNING id, class_rank
+       ), summary AS (
+         SELECT COUNT(*)::integer AS aggregate_count, COUNT(class_rank)::integer AS ranked_count
+         FROM imported
+       ), updated AS (
+         UPDATE report_card_generation_batches batch
+         SET metadata = jsonb_set(
+               batch.metadata,
+               '{results_processing}',
+               jsonb_build_object(
+                 'mode', $4::text,
+                 'aggregate_count', summary.aggregate_count,
+                 'ranked_count', summary.ranked_count,
+                 'processed_at', NOW(),
+                 'processed_by_user_id', $2::text
+               ),
+               TRUE
+             ),
+             updated_at = NOW()
+         FROM summary
+         WHERE batch.tenant_id = $1
+           AND batch.id = $3::uuid
+           AND EXISTS (SELECT 1 FROM batch_scope)
+         RETURNING batch.id::text, batch.metadata->'results_processing'->>'processed_at' AS processed_at
+       )
+       SELECT updated.id AS batch_id, summary.aggregate_count, summary.ranked_count, updated.processed_at
+       FROM updated CROSS JOIN summary`,
+      [input.tenant_id, input.actor_user_id, input.batch_id, input.mode],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async clearResultProcessing(input: { tenant_id: string; actor_user_id: string; batch_id: string }) {
+    const result = await this.executeSql(
+      `WITH removed AS (
+         DELETE FROM exam_result_snapshots
+         WHERE tenant_id = $1 AND batch_id = $3::uuid
+         RETURNING id
+       ), summary AS (
+         SELECT COUNT(*)::integer AS removed_count FROM removed
+       )
+       UPDATE report_card_generation_batches batch
+       SET metadata = batch.metadata - 'results_processing', updated_at = NOW()
+       FROM summary
+       WHERE batch.tenant_id = $1 AND batch.id = $3::uuid
+       RETURNING batch.id::text AS batch_id, summary.removed_count, $2::text AS cleared_by_user_id`,
+      [input.tenant_id, input.actor_user_id, input.batch_id],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async getResultBroadsheet(input: { tenant_id: string; batch_id: string }) {
+    const result = await this.executeSql(
+      `SELECT
+         batch.id::text AS batch_id,
+         batch.exam_series_id::text,
+         COALESCE(series.name, 'Exam series') AS exam_series_name,
+         COALESCE(result_rows.rows, '[]'::jsonb) AS rows
+       FROM report_card_generation_batches batch
+       LEFT JOIN exam_series series
+         ON series.tenant_id = batch.tenant_id AND series.id = batch.exam_series_id
+       LEFT JOIN LATERAL (
+         SELECT jsonb_agg(to_jsonb(output_row) ORDER BY output_row.class_rank NULLS LAST, output_row.admission_number) AS rows
+         FROM (
+           SELECT
+             snapshot.student_id::text,
+             student.admission_number,
+             concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS student_name,
+             snapshot.raw_total::float,
+             snapshot.assessment_count,
+             snapshot.average_percentage::float,
+             snapshot.grade_label,
+             snapshot.class_rank,
+             snapshot.processed_at::text
+           FROM exam_result_snapshots snapshot
+           INNER JOIN students student
+             ON student.tenant_id = snapshot.tenant_id AND student.id = snapshot.student_id
+           WHERE snapshot.tenant_id = $1 AND snapshot.batch_id = batch.id
+           ORDER BY snapshot.class_rank NULLS LAST, student.admission_number
+           LIMIT 5000
+         ) output_row
+       ) result_rows ON TRUE
+       WHERE batch.tenant_id = $1 AND batch.id = $2::uuid
+       LIMIT 1`,
+      [input.tenant_id, input.batch_id],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async upsertExamSettings(input: Record<string, unknown>) {
+    const result = await this.executeSql(
+      `
+        INSERT INTO exam_settings (
+          tenant_id,
+          lock_after_deadline,
+          grace_period_hours,
+          include_school_logo,
+          include_principal_signature,
+          include_official_stamp,
+          block_results_for_fee_balances,
+          fee_balance_block_threshold,
+          show_student_rank_to_parents,
+          updated_by_user_id
+        )
+        VALUES ($1, $2::boolean, $3::integer, $4::boolean, $5::boolean, $6::boolean, $7::boolean, $8::numeric, $9::boolean, $10::uuid)
+        ON CONFLICT (tenant_id)
+        DO UPDATE SET
+          lock_after_deadline = EXCLUDED.lock_after_deadline,
+          grace_period_hours = EXCLUDED.grace_period_hours,
+          include_school_logo = EXCLUDED.include_school_logo,
+          include_principal_signature = EXCLUDED.include_principal_signature,
+          include_official_stamp = EXCLUDED.include_official_stamp,
+          block_results_for_fee_balances = EXCLUDED.block_results_for_fee_balances,
+          fee_balance_block_threshold = EXCLUDED.fee_balance_block_threshold,
+          show_student_rank_to_parents = EXCLUDED.show_student_rank_to_parents,
+          updated_by_user_id = EXCLUDED.updated_by_user_id,
+          updated_at = NOW()
+        RETURNING
+          id::text,
+          tenant_id,
+          lock_after_deadline,
+          grace_period_hours,
+          include_school_logo,
+          include_principal_signature,
+          include_official_stamp,
+          block_results_for_fee_balances,
+          fee_balance_block_threshold::float,
+          show_student_rank_to_parents,
+          updated_by_user_id::text,
+          created_at::text,
+          updated_at::text
+      `,
+      [
+        input.tenant_id,
+        input.lock_after_deadline,
+        input.grace_period_hours,
+        input.include_school_logo,
+        input.include_principal_signature,
+        input.include_official_stamp,
+        input.block_results_for_fee_balances,
+        input.fee_balance_block_threshold,
+        input.show_student_rank_to_parents,
+        input.updated_by_user_id ?? null,
+      ],
+    );
+
+    return result.rows[0];
+  }
+
+  async appendExamSettingsAuditLog(input: Record<string, unknown>) {
+    await this.executeSql(
+      `
+        INSERT INTO exam_settings_audit_logs (
+          tenant_id,
+          action,
+          actor_user_id,
+          previous_settings,
+          new_settings,
+          metadata
+        )
+        VALUES ($1, $2, $3::uuid, $4::jsonb, $5::jsonb, $6::jsonb)
+      `,
+      [
+        input.tenant_id,
+        input.action,
+        input.actor_user_id ?? null,
+        JSON.stringify(input.previous_settings ?? {}),
+        JSON.stringify(input.new_settings ?? {}),
         JSON.stringify(input.metadata ?? {}),
       ],
     );
@@ -1149,6 +1860,33 @@ export class ExamsRepository {
     return result.rows[0];
   }
 
+  async updateTimetableSlot(input: Record<string, unknown>) {
+    const result = await this.executeSql(
+      `
+        UPDATE exam_timetable_slots
+        SET
+          date = COALESCE($3::date, date),
+          start_time = COALESCE($4::time, start_time),
+          end_time = COALESCE($5::time, end_time),
+          room_name = COALESCE($6, room_name),
+          status = COALESCE($7, status),
+          updated_at = NOW()
+        WHERE tenant_id = $1 AND id = $2::uuid
+        RETURNING *
+      `,
+      [
+        input.tenant_id,
+        input.timetable_slot_id,
+        input.date ?? null,
+        input.start_time ?? null,
+        input.end_time ?? null,
+        input.room_name ?? null,
+        input.status ?? null,
+      ],
+    );
+    return result.rows[0] ?? null;
+  }
+
   async assignInvigilator(input: Record<string, unknown>) {
     const result = await this.executeSql(
       `
@@ -1159,6 +1897,7 @@ export class ExamsRepository {
           role
         )
         VALUES ($1, $2::uuid, $3::uuid, $4)
+        ON CONFLICT (tenant_id, timetable_slot_id, staff_user_id) DO NOTHING
         RETURNING *
       `,
       [
@@ -1168,7 +1907,160 @@ export class ExamsRepository {
         input.role ?? 'invigilator',
       ],
     );
+    if (!result.rows[0]) {
+      throw new ConflictException('Staff member is already assigned to this timetable slot');
+    }
+
     return result.rows[0];
+  }
+
+  async autoAssignInvigilators(tenantId: string) {
+    const result = await this.executeSql(
+      `WITH unassigned_slots AS (
+         SELECT slot.*,
+                row_number() OVER (ORDER BY slot.date, slot.start_time, slot.id) AS assignment_order
+         FROM exam_timetable_slots slot
+         WHERE slot.tenant_id = $1
+           AND NOT EXISTS (
+             SELECT 1 FROM exam_invigilators assigned
+             WHERE assigned.tenant_id = slot.tenant_id
+               AND assigned.timetable_slot_id = slot.id
+               AND assigned.status <> 'replaced'
+           )
+         ORDER BY slot.date, slot.start_time, slot.id
+         LIMIT 200
+       ), active_staff AS (
+         SELECT profile.user_id,
+                row_number() OVER (ORDER BY profile.display_name, profile.id) AS assignment_order
+         FROM staff_profiles profile
+         WHERE profile.tenant_id = $1
+           AND profile.status = 'active'
+           AND profile.user_id IS NOT NULL
+         ORDER BY profile.display_name, profile.id
+         LIMIT 200
+       ), conflict_free_pairs AS (
+         SELECT slot.id AS timetable_slot_id, staff.user_id AS staff_user_id
+         FROM unassigned_slots slot
+         INNER JOIN active_staff staff USING (assignment_order)
+         WHERE NOT EXISTS (
+           SELECT 1
+           FROM exam_invigilators existing
+           INNER JOIN exam_timetable_slots occupied
+             ON occupied.tenant_id = existing.tenant_id
+            AND occupied.id = existing.timetable_slot_id
+           WHERE existing.tenant_id = $1
+             AND existing.staff_user_id = staff.user_id
+             AND existing.status <> 'replaced'
+             AND occupied.date = slot.date
+             AND occupied.start_time < slot.end_time
+             AND occupied.end_time > slot.start_time
+         )
+       )
+       INSERT INTO exam_invigilators (tenant_id, timetable_slot_id, staff_user_id, role, status)
+       SELECT $1, timetable_slot_id, staff_user_id, 'invigilator', 'assigned'
+       FROM conflict_free_pairs
+       ON CONFLICT (tenant_id, timetable_slot_id, staff_user_id) DO NOTHING
+       RETURNING *`,
+      [tenantId],
+    );
+    return result.rows;
+  }
+
+  async findInvigilatorAssignmentScope(input: {
+    tenant_id: string;
+    timetable_slot_id: string;
+    staff_user_id: string;
+  }) {
+    const result = await this.executeSql<{
+      staff_name: string;
+      slot_label: string;
+      existing_assignment_id: string | null;
+    }>(
+      `
+        SELECT
+          profile.display_name AS staff_name,
+          concat_ws(' ', slot.date::text, slot.start_time::text, COALESCE(slot.room_name, '')) AS slot_label,
+          assignment.id::text AS existing_assignment_id
+        FROM exam_timetable_slots slot
+        INNER JOIN staff_profiles profile
+          ON profile.tenant_id = slot.tenant_id
+         AND profile.user_id = $3::uuid
+         AND profile.status = 'active'
+        LEFT JOIN exam_invigilators assignment
+          ON assignment.tenant_id = slot.tenant_id
+         AND assignment.timetable_slot_id = slot.id
+         AND assignment.staff_user_id = profile.user_id
+        WHERE slot.tenant_id = $1
+          AND slot.id = $2::uuid
+        LIMIT 1
+      `,
+      [input.tenant_id, input.timetable_slot_id, input.staff_user_id],
+    );
+
+    return result.rows[0] ?? null;
+  }
+
+  async updateInvigilatorStatus(input: { tenant_id: string; assignment_id: string; status: string }) {
+    const result = await this.executeSql(
+      `UPDATE exam_invigilators
+       SET status = $3, updated_at = NOW()
+       WHERE tenant_id = $1 AND id = $2::uuid
+       RETURNING *`,
+      [input.tenant_id, input.assignment_id, input.status],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async findInvigilatorAssignmentById(input: { tenant_id: string; assignment_id: string }) {
+    const result = await this.executeSql<{
+      id: string;
+      staff_user_id: string;
+      staff_name: string;
+      slot_label: string;
+    }>(
+      `SELECT assignment.id::text, assignment.staff_user_id::text,
+              profile.display_name AS staff_name,
+              concat_ws(' ', slot.date::text, slot.start_time::text, COALESCE(slot.room_name, '')) AS slot_label
+       FROM exam_invigilators assignment
+       INNER JOIN staff_profiles profile
+         ON profile.tenant_id = assignment.tenant_id AND profile.user_id = assignment.staff_user_id
+       INNER JOIN exam_timetable_slots slot
+         ON slot.tenant_id = assignment.tenant_id AND slot.id = assignment.timetable_slot_id
+       WHERE assignment.tenant_id = $1 AND assignment.id = $2::uuid
+       LIMIT 1`,
+      [input.tenant_id, input.assignment_id],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async replaceInvigilator(input: { tenant_id: string; assignment_id: string; replacement_staff_user_id: string; role: string }) {
+    const result = await this.executeSql(
+      `WITH current_assignment AS (
+         SELECT timetable_slot_id
+         FROM exam_invigilators
+         WHERE tenant_id = $1 AND id = $2::uuid
+         FOR UPDATE
+       ), replacement AS (
+         INSERT INTO exam_invigilators (tenant_id, timetable_slot_id, staff_user_id, role, status)
+         SELECT $1, current_assignment.timetable_slot_id, profile.user_id, $4, 'assigned'
+         FROM current_assignment
+         INNER JOIN staff_profiles profile
+           ON profile.tenant_id = $1 AND profile.user_id = $3::uuid AND profile.status = 'active'
+         ON CONFLICT (tenant_id, timetable_slot_id, staff_user_id)
+         DO UPDATE SET role = EXCLUDED.role, status = 'assigned', updated_at = NOW()
+         RETURNING *
+       ), replaced AS (
+         UPDATE exam_invigilators original
+         SET status = 'replaced', updated_at = NOW()
+         WHERE original.tenant_id = $1 AND original.id = $2::uuid
+           AND EXISTS (SELECT 1 FROM replacement)
+         RETURNING original.id::text AS replaced_assignment_id
+       )
+       SELECT replacement.*, replaced.replaced_assignment_id
+       FROM replacement CROSS JOIN replaced`,
+      [input.tenant_id, input.assignment_id, input.replacement_staff_user_id, input.role],
+    );
+    return result.rows[0] ?? null;
   }
 
   async markAttendance(input: Record<string, unknown>) {
@@ -1183,6 +2075,13 @@ export class ExamsRepository {
           recorded_by_user_id
         )
         VALUES ($1, $2::uuid, $3::uuid, $4, $5, $6::uuid)
+        ON CONFLICT (tenant_id, timetable_slot_id, student_id)
+        DO UPDATE SET
+          status = EXCLUDED.status,
+          remarks = EXCLUDED.remarks,
+          recorded_by_user_id = EXCLUDED.recorded_by_user_id,
+          updated_at = NOW()
+        WHERE exam_attendance_records.locked_at IS NULL
         RETURNING *
       `,
       [
@@ -1194,7 +2093,195 @@ export class ExamsRepository {
         input.actor_user_id,
       ],
     );
-    return result.rows[0];
+    return result.rows[0] ?? null;
+  }
+
+  async bulkImportExamAttendance(input: { tenant_id: string; actor_user_id: string; rows: Array<Record<string, unknown>> }) {
+    const result = await this.executeSql(
+      `WITH source AS (
+         SELECT *
+         FROM jsonb_to_recordset($3::jsonb) AS row_data(
+           row_number integer,
+           timetable_slot_id text,
+           admission_number text,
+           student_id text,
+           status text,
+           remarks text
+         )
+       ), resolved AS (
+         SELECT
+           source.*,
+           slot.id AS resolved_slot_id,
+           student.id AS resolved_student_id,
+           existing.locked_at,
+           CASE
+             WHEN slot.id IS NULL THEN 'Timetable slot was not found for this school'
+             WHEN student.id IS NULL THEN 'Student was not found for this school'
+             WHEN existing.locked_at IS NOT NULL THEN 'Attendance record is locked and cannot be changed'
+             ELSE NULL
+           END AS validation_error
+         FROM source
+         LEFT JOIN exam_timetable_slots slot
+           ON slot.tenant_id = $1 AND slot.id = source.timetable_slot_id::uuid
+         LEFT JOIN students student
+           ON student.tenant_id = $1
+          AND student.status = 'active'
+          AND (
+            (source.student_id IS NOT NULL AND student.id = source.student_id::uuid)
+            OR (source.student_id IS NULL AND lower(student.admission_number) = lower(source.admission_number))
+          )
+         LEFT JOIN exam_attendance_records existing
+           ON existing.tenant_id = $1
+          AND existing.timetable_slot_id = slot.id
+          AND existing.student_id = student.id
+       ), imported AS (
+         INSERT INTO exam_attendance_records (
+           tenant_id, timetable_slot_id, student_id, status, remarks, recorded_by_user_id
+         )
+         SELECT $1, resolved_slot_id, resolved_student_id, status, remarks, $2::uuid
+         FROM resolved
+         WHERE validation_error IS NULL
+         ON CONFLICT (tenant_id, timetable_slot_id, student_id)
+         DO UPDATE SET
+           status = EXCLUDED.status,
+           remarks = EXCLUDED.remarks,
+           recorded_by_user_id = EXCLUDED.recorded_by_user_id,
+           updated_at = NOW()
+         WHERE exam_attendance_records.locked_at IS NULL
+         RETURNING id::text, timetable_slot_id, student_id
+       )
+       SELECT
+         resolved.row_number,
+         CASE WHEN imported.id IS NOT NULL THEN 'committed' ELSE 'invalid' END AS status,
+         imported.id AS attendance_id,
+         CASE
+           WHEN resolved.validation_error IS NOT NULL THEN ARRAY[resolved.validation_error]::text[]
+           WHEN imported.id IS NULL THEN ARRAY['Attendance record was locked while the import was running']::text[]
+           ELSE ARRAY[]::text[]
+         END AS errors
+       FROM resolved
+       LEFT JOIN imported
+         ON imported.timetable_slot_id = resolved.resolved_slot_id
+        AND imported.student_id = resolved.resolved_student_id
+       ORDER BY resolved.row_number`,
+      [input.tenant_id, input.actor_user_id, JSON.stringify(input.rows)],
+    );
+    return result.rows;
+  }
+
+  async lockExamAttendance(input: { tenant_id: string; attendance_id: string; actor_user_id: string }) {
+    const result = await this.executeSql(
+      `UPDATE exam_attendance_records
+       SET locked_at = COALESCE(locked_at, NOW()),
+           locked_by_user_id = COALESCE(locked_by_user_id, $3::uuid),
+           updated_at = NOW()
+       WHERE tenant_id = $1 AND id = $2::uuid
+       RETURNING *`,
+      [input.tenant_id, input.attendance_id, input.actor_user_id],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async createAttendanceSpecialCase(input: { tenant_id: string; attendance_id: string; case_type: string; description: string; actor_user_id: string }) {
+    const result = await this.executeSql(
+      `INSERT INTO exam_student_cases (
+         tenant_id, exam_series_id, student_id, case_type, description, reported_by_user_id
+       )
+       SELECT attendance.tenant_id, slot.exam_series_id, attendance.student_id, $3, $4, $5::uuid
+       FROM exam_attendance_records attendance
+       INNER JOIN exam_timetable_slots slot
+         ON slot.tenant_id = attendance.tenant_id AND slot.id = attendance.timetable_slot_id
+       WHERE attendance.tenant_id = $1 AND attendance.id = $2::uuid
+       RETURNING *`,
+      [input.tenant_id, input.attendance_id, input.case_type, input.description, input.actor_user_id],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async findExamAttendanceScope(input: {
+    tenant_id: string;
+    timetable_slot_id: string;
+    student_id: string;
+  }) {
+    const result = await this.executeSql<{
+      student_name: string;
+      slot_label: string;
+    }>(
+      `
+        SELECT
+          concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS student_name,
+          concat_ws(' ', slot.date::text, slot.start_time::text, COALESCE(slot.room_name, '')) AS slot_label
+        FROM exam_timetable_slots slot
+        INNER JOIN students student
+          ON student.tenant_id = slot.tenant_id
+         AND student.id = $3::uuid
+         AND student.status = 'active'
+        WHERE slot.tenant_id = $1
+          AND slot.id = $2::uuid
+        LIMIT 1
+      `,
+      [input.tenant_id, input.timetable_slot_id, input.student_id],
+    );
+
+    return result.rows[0] ?? null;
+  }
+
+  async listExamAbsenceGuardianRecipients(input: { tenant_id: string; attendance_ids: string[] }) {
+    const result = await this.executeSql<{
+      attendance_id: string;
+      guardian_user_id: string;
+      student_name: string;
+      slot_label: string;
+    }>(
+      `SELECT attendance.id::text AS attendance_id,
+              guardian.user_id::text AS guardian_user_id,
+              concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS student_name,
+              concat_ws(' ', slot.date::text, slot.start_time::text, COALESCE(slot.room_name, '')) AS slot_label
+       FROM exam_attendance_records attendance
+       INNER JOIN students student
+         ON student.tenant_id = attendance.tenant_id AND student.id = attendance.student_id
+       INNER JOIN exam_timetable_slots slot
+         ON slot.tenant_id = attendance.tenant_id AND slot.id = attendance.timetable_slot_id
+       INNER JOIN student_guardians guardian
+         ON guardian.tenant_id = attendance.tenant_id
+        AND guardian.student_id = attendance.student_id
+        AND guardian.status = 'active'
+        AND guardian.user_id IS NOT NULL
+       WHERE attendance.tenant_id = $1
+         AND attendance.id = ANY($2::uuid[])
+         AND attendance.status = 'absent'
+       ORDER BY attendance.id, guardian.is_primary DESC, guardian.created_at`,
+      [input.tenant_id, input.attendance_ids],
+    );
+    return result.rows;
+  }
+
+  async findStudentCaseScope(input: {
+    tenant_id: string;
+    exam_series_id: string;
+    student_id: string;
+  }) {
+    const result = await this.executeSql<{
+      exam_series_name: string;
+      student_name: string;
+    }>(
+      `
+        SELECT
+          series.name AS exam_series_name,
+          concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS student_name
+        FROM exam_series series
+        INNER JOIN students student
+          ON student.tenant_id = series.tenant_id
+         AND student.id = $3::uuid
+        WHERE series.tenant_id = $1
+          AND series.id = $2::uuid
+          AND student.status <> 'archived'
+        LIMIT 1
+      `,
+      [input.tenant_id, input.exam_series_id, input.student_id],
+    );
+
+    return result.rows[0] ?? null;
   }
 
   async reportStudentCase(input: Record<string, unknown>) {
@@ -1221,6 +2308,33 @@ export class ExamsRepository {
       ],
     );
     return result.rows[0];
+  }
+
+  async resolveStudentCase(input: { tenant_id: string; case_id: string; resolution: string }) {
+    const result = await this.executeSql(
+      `UPDATE exam_student_cases
+       SET status = 'resolved', resolution = $3, updated_at = NOW()
+       WHERE tenant_id = $1 AND id = $2::uuid AND status <> 'resolved'
+       RETURNING *`,
+      [input.tenant_id, input.case_id, input.resolution],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async findStudentCaseById(input: { tenant_id: string; case_id: string }) {
+    const result = await this.executeSql(
+      `SELECT student_case.*,
+              concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS student_name
+       FROM exam_student_cases student_case
+       INNER JOIN students student
+         ON student.tenant_id = student_case.tenant_id AND student.id = student_case.student_id
+       WHERE student_case.tenant_id = $1
+         AND student_case.id = $2::uuid
+         AND student_case.status <> 'resolved'
+       LIMIT 1`,
+      [input.tenant_id, input.case_id],
+    );
+    return result.rows[0] ?? null;
   }
 
   async getTimetableSlots(tenantId: string, filters: Record<string, any> = {}) {
@@ -1333,6 +2447,120 @@ export class ExamsRepository {
     return result.rows;
   }
 
+  async createGradingPolicy(input: Record<string, unknown>) {
+    const result = await this.executeSql(
+      `INSERT INTO exam_grading_policies (
+         tenant_id,
+         exam_series_id,
+         name,
+         reporting_mode,
+         status,
+         created_by_user_id
+       )
+       VALUES ($1, $2::uuid, $3, $4, 'draft', $5::uuid)
+       RETURNING *`,
+      [
+        input.tenant_id,
+        input.exam_series_id ?? null,
+        input.name,
+        input.reporting_mode,
+        input.actor_user_id,
+      ],
+    );
+    return result.rows[0];
+  }
+
+  async transitionGradingPolicy(input: Record<string, unknown>) {
+    const result = await this.executeSql(
+      `WITH target AS (
+         SELECT id, exam_series_id
+         FROM exam_grading_policies
+         WHERE tenant_id = $1 AND id = $2::uuid
+       ), retired AS (
+         UPDATE exam_grading_policies policy
+         SET status = 'retired', updated_at = NOW()
+         FROM target
+         WHERE $3 = 'active'
+           AND policy.tenant_id = $1
+           AND policy.status = 'active'
+           AND policy.id <> target.id
+           AND policy.exam_series_id IS NOT DISTINCT FROM target.exam_series_id
+         RETURNING policy.id
+       )
+       UPDATE exam_grading_policies policy
+       SET status = $3, updated_at = NOW()
+       FROM target
+       WHERE policy.tenant_id = $1 AND policy.id = target.id
+       RETURNING policy.*`,
+      [input.tenant_id, input.policy_id, input.status],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async updateGradingPolicy(input: Record<string, unknown>) {
+    const result = await this.executeSql(
+      `UPDATE exam_grading_policies
+       SET
+         name = COALESCE($3, name),
+         reporting_mode = COALESCE($4, reporting_mode),
+         updated_at = NOW()
+       WHERE tenant_id = $1 AND id = $2::uuid
+       RETURNING *`,
+      [input.tenant_id, input.policy_id, input.name ?? null, input.reporting_mode ?? null],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async deleteDraftGradingPolicy(input: Record<string, unknown>) {
+    const result = await this.executeSql(
+      `DELETE FROM exam_grading_policies
+       WHERE tenant_id = $1 AND id = $2::uuid AND status = 'draft'
+       RETURNING *`,
+      [input.tenant_id, input.policy_id],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async getGradingPolicyBoundaries(input: Record<string, unknown>) {
+    const result = await this.executeSql(
+      `SELECT boundary.* FROM exam_grading_policy_boundaries boundary
+       JOIN exam_grading_policies policy ON policy.tenant_id = boundary.tenant_id AND policy.id = boundary.grading_policy_id
+       WHERE boundary.tenant_id = $1 AND boundary.grading_policy_id = $2::uuid
+       ORDER BY boundary.max_score DESC, boundary.min_score DESC`,
+      [input.tenant_id, input.policy_id],
+    );
+    return result.rows;
+  }
+
+  async createGradingPolicyBoundary(input: Record<string, unknown>) {
+    const result = await this.executeSql(
+      `INSERT INTO exam_grading_policy_boundaries (tenant_id, grading_policy_id, label, min_score, max_score, points, descriptor)
+       SELECT $1, policy.id, $3, $4, $5, $6, $7 FROM exam_grading_policies policy
+       WHERE policy.tenant_id = $1 AND policy.id = $2::uuid RETURNING *`,
+      [input.tenant_id, input.policy_id, input.label, input.min_score, input.max_score, input.points ?? null, input.descriptor ?? null],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async updateGradingPolicyBoundary(input: Record<string, unknown>) {
+    const result = await this.executeSql(
+      `UPDATE exam_grading_policy_boundaries
+       SET label = COALESCE($3, label), min_score = COALESCE($4, min_score), max_score = COALESCE($5, max_score),
+           points = COALESCE($6, points), descriptor = COALESCE($7, descriptor)
+       WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+      [input.tenant_id, input.boundary_id, input.label ?? null, input.min_score ?? null, input.max_score ?? null, input.points ?? null, input.descriptor ?? null],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async deleteGradingPolicyBoundary(input: Record<string, unknown>) {
+    const result = await this.executeSql(
+      `DELETE FROM exam_grading_policy_boundaries WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+      [input.tenant_id, input.boundary_id],
+    );
+    return result.rows[0] ?? null;
+  }
+
   async getAuditLogs(tenantId: string, filters: Record<string, any> = {}) {
     let query = `SELECT * FROM exam_marks_audit_logs WHERE tenant_id = $1`;
     const params: any[] = [tenantId];
@@ -1365,6 +2593,17 @@ export class ExamsRepository {
     return result.rows;
   }
 
+  async deleteSubjectWeighting(input: { tenant_id: string; actor_user_id: string; weighting_id: string }) {
+    const result = await this.executeSql(
+      `DELETE FROM exam_subject_weightings
+       WHERE tenant_id = $1 AND id = $2::uuid
+       RETURNING id::text, subject_id::text, weight, is_compulsory`,
+      [input.tenant_id, input.weighting_id],
+    );
+
+    return result.rows[0] ?? null;
+  }
+
   async getAssessmentComponents(tenantId: string, filters: Record<string, any> = {}) {
     let query = `SELECT * FROM exam_assessment_components WHERE tenant_id = $1`;
     const params: any[] = [tenantId];
@@ -1381,18 +2620,111 @@ export class ExamsRepository {
     return result.rows;
   }
 
+  async createAssessmentComponent(input: Record<string, unknown>) {
+    const result = await this.executeSql(
+      `INSERT INTO exam_assessment_components (
+         tenant_id, assessment_id, component_code, component_name, max_score, weight
+       )
+       SELECT $1, assessment.id, $3, $4, $5, $6
+       FROM exam_assessments assessment
+       WHERE assessment.tenant_id = $1 AND assessment.id = $2::uuid
+       RETURNING *`,
+      [
+        input.tenant_id,
+        input.assessment_id,
+        input.component_code,
+        input.component_name,
+        input.max_score,
+        input.weight,
+      ],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async updateAssessmentComponent(input: Record<string, unknown>) {
+    const result = await this.executeSql(
+      `UPDATE exam_assessment_components
+       SET component_code = COALESCE($3, component_code),
+           component_name = COALESCE($4, component_name),
+           max_score = COALESCE($5, max_score),
+           weight = COALESCE($6, weight)
+       WHERE tenant_id = $1 AND id = $2::uuid
+       RETURNING *`,
+      [
+        input.tenant_id,
+        input.component_id,
+        input.component_code ?? null,
+        input.component_name ?? null,
+        input.max_score ?? null,
+        input.weight ?? null,
+      ],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async deleteAssessmentComponent(input: Record<string, unknown>) {
+    const result = await this.executeSql(
+      `DELETE FROM exam_assessment_components
+       WHERE tenant_id = $1 AND id = $2::uuid
+       RETURNING *`,
+      [input.tenant_id, input.component_id],
+    );
+    return result.rows[0] ?? null;
+  }
+
   async getMarkEntryWindows(tenantId: string, filters: Record<string, any> = {}) {
-    let query = `SELECT * FROM exam_mark_entry_windows WHERE tenant_id = $1`;
+    let query = `SELECT
+      window.*,
+      COALESCE(class_section.name, window.class_section_id::text) AS class_name,
+      COALESCE(subject.name, window.subject_id::text) AS subject_name,
+      COALESCE(window.last_action, window.status) AS workflow_status,
+      COALESCE(student_counts.expected_count, 0)::integer AS expected_count,
+      COALESCE(mark_counts.saved_count, 0)::integer AS saved_count,
+      COALESCE(mark_counts.submitted_count, 0)::integer AS submitted_count,
+      GREATEST(COALESCE(student_counts.expected_count, 0) - COALESCE(mark_counts.saved_count, 0), 0)::integer AS missing_count,
+      COALESCE(teacher_assignments.teacher_user_ids, ARRAY[]::text[]) AS teacher_user_ids
+      FROM exam_mark_entry_windows window
+      LEFT JOIN class_sections class_section
+        ON class_section.tenant_id = window.tenant_id AND class_section.id = window.class_section_id
+      LEFT JOIN subjects subject
+        ON subject.tenant_id = window.tenant_id AND subject.id = window.subject_id
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*)::integer AS expected_count FROM students student
+        WHERE student.tenant_id = window.tenant_id
+          AND student.status = 'active'
+          AND NULLIF(student.metadata->>'class_section_id', '')::uuid = window.class_section_id
+      ) student_counts ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT COUNT(DISTINCT mark.student_id)::integer AS saved_count,
+          COUNT(DISTINCT mark.student_id) FILTER (WHERE mark.status IN ('submitted', 'reviewed', 'locked', 'published'))::integer AS submitted_count
+        FROM exam_marks mark
+        WHERE mark.tenant_id = window.tenant_id
+          AND mark.exam_series_id = window.exam_series_id
+          AND mark.class_section_id = window.class_section_id
+          AND mark.subject_id = window.subject_id
+      ) mark_counts ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT array_agg(DISTINCT assignment.teacher_user_id::text) AS teacher_user_ids
+        FROM exam_series series
+        JOIN teacher_subject_assignments assignment
+          ON assignment.tenant_id = series.tenant_id
+         AND assignment.academic_term_id = series.academic_term_id
+         AND assignment.class_section_id = window.class_section_id
+         AND assignment.subject_id = window.subject_id
+         AND assignment.status = 'active'
+        WHERE series.tenant_id = window.tenant_id AND series.id = window.exam_series_id
+      ) teacher_assignments ON TRUE
+      WHERE window.tenant_id = $1`;
     const params: any[] = [tenantId];
     let paramCount = 2;
 
     if (filters.exam_series_id) {
-      query += ` AND exam_series_id = $${paramCount}::uuid`;
+      query += ` AND window.exam_series_id = $${paramCount}::uuid`;
       params.push(filters.exam_series_id);
       paramCount++;
     }
     
-    query += ` ORDER BY opens_at ASC`;
+    query += ` ORDER BY window.opens_at ASC`;
     const result = await this.executeSql(query, params);
     return result.rows;
   }
@@ -1436,17 +2768,22 @@ export class ExamsRepository {
   }
 
   async getReportCardBatches(tenantId: string, filters: Record<string, any> = {}) {
-    let query = `SELECT * FROM report_card_generation_batches WHERE tenant_id = $1`;
+    let query = `SELECT batch.*,
+      batch.metadata->'results_processing'->>'mode' AS processing_mode,
+      batch.metadata->'results_processing'->>'processed_at' AS processed_at,
+      COALESCE((batch.metadata->'results_processing'->>'aggregate_count')::integer, 0) AS snapshot_count,
+      COALESCE((batch.metadata->'results_processing'->>'ranked_count')::integer, 0) AS ranked_count
+      FROM report_card_generation_batches batch WHERE batch.tenant_id = $1`;
     const params: any[] = [tenantId];
     let paramCount = 2;
 
     if (filters.exam_series_id) {
-      query += ` AND exam_series_id = $${paramCount}::uuid`;
+      query += ` AND batch.exam_series_id = $${paramCount}::uuid`;
       params.push(filters.exam_series_id);
       paramCount++;
     }
     
-    query += ` ORDER BY created_at DESC LIMIT 100`;
+    query += ` ORDER BY batch.created_at DESC LIMIT 100`;
     const result = await this.executeSql(query, params);
     return result.rows;
   }

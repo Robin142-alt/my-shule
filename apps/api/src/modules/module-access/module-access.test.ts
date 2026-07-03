@@ -91,7 +91,12 @@ query: async () => ({ rows: [] }),
   assert.match(schemaSql, /expires_at/);
   assert.match(schemaSql, /billing_plan_code/);
   assert.match(schemaSql, /permission_scopes/);
+  assert.match(schemaSql, /ALTER TABLE school_module_access ALTER COLUMN updated_at SET DEFAULT NOW\(\)/);
   assert.match(schemaSql, /ALTER TABLE module_usage_events FORCE ROW LEVEL SECURITY/);
+  assert.match(schemaSql, /ranked_school_module_access/);
+  assert.match(schemaSql, /duplicate_rank > 1/);
+  assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_school_module_access_tenant_module/);
+  assert.match(schemaSql, /ON school_module_access \(tenant_id, module_id\)/);
 });
 
 test('ModuleAccessSchemaService restores enabled modules hidden by stale trial or expiry gates', async () => {

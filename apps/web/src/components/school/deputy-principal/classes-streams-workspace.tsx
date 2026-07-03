@@ -35,7 +35,7 @@ export function DeputyClassesStreamsWorkspace() {
 
   const classes = data?.classesList || [];
 
-  const handleManageStreams = async (e: React.FormEvent) => {
+  const handleManageStreams = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {

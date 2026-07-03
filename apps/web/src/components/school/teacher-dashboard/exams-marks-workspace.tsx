@@ -6,6 +6,7 @@ import { TeacherAction, TeacherView } from "./types";
 import { Modal } from "@/components/ui/modal";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import { fetchPendingMarksLive, fetchClassRegisterLive, saveExamMarksLive, type PendingMarksWindow } from "@/lib/modules/teacher-live";
+import { openPrintDocument } from "@/lib/dashboard/export";
 
 
 function MarksEntryModal({ windowTask, onClose }: { windowTask: PendingMarksWindow; onClose: () => void }) {
@@ -133,6 +134,32 @@ export function ExamsMarksWorkspace({
     </button>
   ]) || [];
 
+  const openMarksValidation = () => {
+    openPrintDocument({
+      eyebrow: "Teacher marks",
+      title: "Marks Validation",
+      subtitle: "Assigned exam windows",
+      rows: (data?.windows ?? []).map((window) => ({
+        label: `${window.examName} | ${window.className}`,
+        value: `${window.subjectName}: ${window.enteredCount}/${window.totalStudents} entered`,
+      })),
+      footer: "Validate missing marks, score ranges, and learner list before submission.",
+    });
+  };
+
+  const openHodSubmission = () => {
+    openPrintDocument({
+      eyebrow: "Teacher marks",
+      title: "Submit to HOD",
+      subtitle: "Submission review",
+      rows: [
+        { label: "Open windows", value: String(data?.stats?.totalWindows ?? 0) },
+        { label: "Near deadline", value: String(data?.stats?.nearingDeadline ?? 0) },
+      ],
+      footer: "HOD submission must preserve subject, class, teacher, and tenant context.",
+    });
+  };
+
   return (
     <Panel title="Exams & Marks" description="Enter formal exam marks for assigned papers during open exam windows." icon={BookOpenCheck}>
       <div className="grid gap-3 sm:grid-cols-4 mb-4">
@@ -150,8 +177,8 @@ export function ExamsMarksWorkspace({
         </article>
       </div>
       <div className="mb-4 flex flex-wrap gap-2">
-        <button type="button" className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] bg-white">Validate Marks</button>
-        <button type="button" className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] bg-white">Submit to HOD</button>
+        <button type="button" onClick={openMarksValidation} className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] bg-white">Validate Marks</button>
+        <button type="button" onClick={openHodSubmission} className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] bg-white">Submit to HOD</button>
       </div>
       {isError ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">

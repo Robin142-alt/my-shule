@@ -38,9 +38,13 @@ import { EventConsumerRunsRepository } from './repositories/event-consumer-runs.
 import { OutboxEventsRepository } from './repositories/outbox-events.repository';
 import { SchoolOperationNotificationsRepository } from './repositories/school-operation-notifications.repository';
 import { WorkflowRepository } from './repositories/workflow.repository';
+import { AuthModule } from '../../auth/auth.module';
+import { ModuleAccessModule } from '../module-access/module-access.module';
+import { QueueModule } from '../../queue/queue.module';
 
 @Global()
 @Module({
+  imports: [AuthModule, ModuleAccessModule, QueueModule],
   controllers: [
     DashboardRealtimeController,
     OperationalWorkflowDispatcherController,

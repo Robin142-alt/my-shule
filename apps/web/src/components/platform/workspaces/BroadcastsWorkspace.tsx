@@ -18,7 +18,7 @@ export function BroadcastsWorkspace() {
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({ subject: '', target: 'all', message: '' });
 
-  async function handleCreate(e: React.FormEvent) {
+  async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setIsSaving(true);
     try {

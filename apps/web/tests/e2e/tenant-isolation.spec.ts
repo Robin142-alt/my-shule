@@ -1,11 +1,12 @@
-import { expect } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { test } from "./fixtures/database.fixture";
-import { loginAs } from "./fixtures/auth.fixture";
 import {
   SCHOOL_SESSION_COOKIE,
   serializeExperienceSession,
 } from "../../src/lib/auth/experience-routing";
+import { CSRF_COOKIE, CSRF_HEADER } from "../../src/lib/auth/csrf";
 import { ACCESS_COOKIE, REFRESH_COOKIE, TENANT_COOKIE } from "../../src/lib/auth/session-cookies";
+import type { SchoolExperienceRole } from "../../src/lib/experiences/types";
 
 const APP_PORT = 3005;
 const BASE_URL = `http://127.0.0.1:${APP_PORT}`;
@@ -14,10 +15,10 @@ const SCHOOL_B_URL = `http://alliance.localhost:${APP_PORT}`;
 
 // Helper to inject mock session cookies
 async function seedSession(
-  page: any,
+  page: Page,
   config: {
     tenantSlug: string;
-    role: string;
+    role: SchoolExperienceRole;
     targetUrl: string;
     token?: string;
   }
@@ -25,7 +26,7 @@ async function seedSession(
   const sessionValue = serializeExperienceSession({
     experience: "school",
     homePath: "/dashboard",
-    role: config.role as any,
+    role: config.role,
     tenantSlug: config.tenantSlug,
     userLabel: `${config.role} User`,
   });
@@ -82,6 +83,13 @@ test.describe("Tenant Isolation and Router Security", () => {
 
   test("GET /api/academics/students fails with 401 when no session is present", async ({ request }) => {
     const response = await request.get(`${BASE_URL}/api/academics/students`);
+    expect(response.status()).toBe(401);
+    const body = await response.json();
+    expect(body.message).toContain("A signed-in session is required");
+  });
+
+  test("GET /api/workflow/events fails with 401 when no session is present", async ({ request }) => {
+    const response = await request.get(`${BASE_URL}/api/workflow/events`);
     expect(response.status()).toBe(401);
     const body = await response.json();
     expect(body.message).toContain("A signed-in session is required");
@@ -145,38 +153,143 @@ test.describe("Tenant Isolation and Router Security", () => {
   // SCENARIO 4: API Gateway Boundaries (Swapped Tenant)
   // ==========================================
 
-  test.skip("logged-in Accountant cannot access another school via tenantSlug swap", async ({ page }) => {
-    // Requires a seeded test environment which is not present in the production-pilot harness
-    // 1. Log in to establish Tenant A session
-    await loginAs(page, "Accountant");
+  test("logged-in Accountant cannot access another school via tenantSlug swap", async ({ page }) => {
+    await seedSession(page, {
+      tenantSlug: "barakaacademy",
+      role: "accountant",
+      targetUrl: BASE_URL,
+    });
 
-    // 2. Perform a request to a school-scoped endpoint but swap the tenantSlug query parameter
-    const response = await page.request.get(`/api/finance/summary?tenantSlug=another-school`);
+    const response = await page.request.get(`${BASE_URL}/api/finance/summary?tenantSlug=another-school`);
+    const body = await response.json();
 
-    // 3. Assert the request is blocked by NestJS token-to-tenant validation or Next.js gateway
-    expect([401, 403, 404]).toContain(response.status());
+    expect(response.status()).toBe(403);
+    expect(body.message).toContain("does not match the signed-in session");
   });
 
-  test.skip("logged-in Accountant requesting a foreign student ID receives a 404 (RLS protection)", async ({ page, dbQuery }) => {
-    // Requires a seeded test environment which is not present in the production-pilot harness
-    // 1. Log in to establish Tenant A session (kisumuboys)
-    await loginAs(page, "Accountant");
+  test("logged-in Accountant cannot swap tenant through the tenant cookie", async ({ page }) => {
+    await seedSession(page, {
+      tenantSlug: "barakaacademy",
+      role: "accountant",
+      targetUrl: BASE_URL,
+    });
+    await page.context().addCookies([
+      {
+        name: TENANT_COOKIE,
+        value: "another-school",
+        url: BASE_URL,
+      },
+    ]);
 
-    // 2. Query the database to find a student belonging to a different tenant
-    const foreignStudents = await dbQuery(
-      "SELECT id FROM students WHERE tenant_id != 'kisumuboys' LIMIT 1"
-    ).catch(() => []);
+    const response = await page.request.get(`${BASE_URL}/api/billing/student-balances`);
+    const body = await response.json();
 
-    if (foreignStudents.length === 0) {
-      test.skip("No foreign students found in the database to run the isolation check.");
-    }
+    expect(response.status()).toBe(403);
+    expect(body.message).toContain("does not match the signed-in session");
+  });
 
-    const foreignStudentId = foreignStudents[0].id;
+  test("logged-in Storekeeper cannot submit inventory data under a swapped tenant cookie", async ({ page }) => {
+    await seedSession(page, {
+      tenantSlug: "barakaacademy",
+      role: "storekeeper",
+      targetUrl: BASE_URL,
+    });
+    const csrf = await page.request.get(`${BASE_URL}/api/auth/csrf`);
+    const csrfPayload = (await csrf.json()) as { token?: string };
+    const csrfToken = csrfPayload.token ?? "";
 
-    // 3. Request the foreign student detail under Tenant A context
-    const response = await page.request.get(`/api/academics/students/${foreignStudentId}`);
+    await page.context().addCookies([
+      {
+        name: CSRF_COOKIE,
+        value: csrfToken,
+        url: BASE_URL,
+      },
+      {
+        name: TENANT_COOKIE,
+        value: "another-school",
+        url: BASE_URL,
+      },
+    ]);
 
-    // 4. Assert 404 Not Found is returned (database RLS filtered the record)
-    expect([401, 403, 404]).toContain(response.status());
+    const response = await page.request.post(`${BASE_URL}/api/inventory/stock-requests`, {
+      headers: { [CSRF_HEADER]: csrfToken },
+      data: { itemId: "chalk", quantity: 12, reason: "Classroom restock" },
+    });
+    const body = await response.json();
+
+    expect(response.status()).toBe(403);
+    expect(body.message).toContain("does not match the signed-in session");
+  });
+
+  test("logged-in Librarian cannot submit circulation data under a swapped tenant cookie", async ({ page }) => {
+    await seedSession(page, {
+      tenantSlug: "barakaacademy",
+      role: "librarian",
+      targetUrl: BASE_URL,
+    });
+    const csrf = await page.request.get(`${BASE_URL}/api/auth/csrf`);
+    const csrfPayload = (await csrf.json()) as { token?: string };
+    const csrfToken = csrfPayload.token ?? "";
+
+    await page.context().addCookies([
+      {
+        name: CSRF_COOKIE,
+        value: csrfToken,
+        url: BASE_URL,
+      },
+      {
+        name: TENANT_COOKIE,
+        value: "another-school",
+        url: BASE_URL,
+      },
+    ]);
+
+    const response = await page.request.post(`${BASE_URL}/api/library/borrowings`, {
+      headers: { [CSRF_HEADER]: csrfToken },
+      data: { bookId: "bk-001", studentId: "student-001", dueDate: "2026-07-03" },
+    });
+    const body = await response.json();
+
+    expect(response.status()).toBe(403);
+    expect(body.message).toContain("does not match the signed-in session");
+  });
+
+  test("logged-in Exams Manager cannot submit workflow events under a swapped tenant cookie", async ({ page }) => {
+    await seedSession(page, {
+      tenantSlug: "barakaacademy",
+      role: "exams-manager",
+      targetUrl: BASE_URL,
+    });
+    const csrf = await page.request.get(`${BASE_URL}/api/auth/csrf`);
+    const csrfPayload = (await csrf.json()) as { token?: string };
+    const csrfToken = csrfPayload.token ?? "";
+
+    await page.context().addCookies([
+      {
+        name: CSRF_COOKIE,
+        value: csrfToken,
+        url: BASE_URL,
+      },
+      {
+        name: TENANT_COOKIE,
+        value: "another-school",
+        url: BASE_URL,
+      },
+    ]);
+
+    const response = await page.request.post(`${BASE_URL}/api/workflow/events`, {
+      headers: { [CSRF_HEADER]: csrfToken },
+      data: {
+        eventType: "exams.report.generated",
+        entityType: "report",
+        title: "Generate report",
+        targetRoles: ["principal"],
+        payload: { moduleId: "reports-exam" },
+      },
+    });
+    const body = await response.json();
+
+    expect(response.status()).toBe(403);
+    expect(body.message).toContain("does not match the signed-in session");
   });
 });

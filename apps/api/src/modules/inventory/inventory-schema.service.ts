@@ -334,6 +334,161 @@ export class InventorySchemaService implements OnModuleInit {
           ON DELETE CASCADE
       );
 
+      DO $$
+      DECLARE
+        target_table text;
+        existing_policy text;
+        has_school_id boolean;
+      BEGIN
+        FOREACH target_table IN ARRAY ARRAY[
+          'inventory_categories',
+          'inventory_suppliers',
+          'inventory_items',
+          'inventory_locations',
+          'inventory_item_balances',
+          'inventory_stock_count_snapshots',
+          'inventory_stock_movements',
+          'inventory_purchase_orders',
+          'inventory_requests',
+          'inventory_reservations',
+          'inventory_request_backorders',
+          'inventory_transfers',
+          'inventory_incidents'
+        ]
+        LOOP
+          IF to_regclass('public.' || target_table) IS NOT NULL THEN
+            EXECUTE format('ALTER TABLE %I NO FORCE ROW LEVEL SECURITY', target_table);
+            EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', target_table);
+
+            FOR existing_policy IN
+              SELECT policyname
+              FROM pg_policies
+              WHERE schemaname = 'public'
+                AND tablename = target_table
+            LOOP
+              EXECUTE format('DROP POLICY IF EXISTS %I ON %I', existing_policy, target_table);
+            END LOOP;
+
+            SELECT EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = target_table
+                AND column_name = 'school_id'
+            ) INTO has_school_id;
+
+            EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS tenant_id text', target_table);
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id TYPE text USING tenant_id::text', target_table);
+
+            IF has_school_id THEN
+              EXECUTE format('UPDATE %I SET tenant_id = COALESCE(NULLIF(tenant_id, %L), school_id::text) WHERE tenant_id IS NULL OR tenant_id = %L', target_table, '', '');
+            END IF;
+
+            EXECUTE format('UPDATE %I SET tenant_id = COALESCE(NULLIF(tenant_id, %L), %L) WHERE tenant_id IS NULL OR tenant_id = %L', target_table, '', 'global', '');
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET NOT NULL', target_table);
+            IF target_table IN (
+              'inventory_suppliers',
+              'inventory_items',
+              'inventory_locations',
+              'inventory_stock_count_snapshots',
+              'inventory_purchase_orders',
+              'inventory_requests',
+              'inventory_reservations',
+              'inventory_request_backorders',
+              'inventory_transfers',
+              'inventory_incidents'
+            ) THEN
+              EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS status text', target_table);
+              IF EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = target_table
+                  AND column_name = 'status'
+                  AND data_type <> 'text'
+              ) THEN
+                EXECUTE format('ALTER TABLE %I ALTER COLUMN status TYPE text USING status::text', target_table);
+              END IF;
+              EXECUTE format('UPDATE %I SET status = COALESCE(NULLIF(status, %L), %L) WHERE status IS NULL OR status = %L', target_table, '', 'active', '');
+            END IF;
+
+            IF EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = target_table
+                AND column_name = 'updated_at'
+            ) THEN
+              EXECUTE format('UPDATE %I SET updated_at = COALESCE(updated_at, created_at, NOW()) WHERE updated_at IS NULL', target_table);
+              EXECUTE format('ALTER TABLE %I ALTER COLUMN updated_at SET DEFAULT NOW()', target_table);
+              EXECUTE format('ALTER TABLE %I ALTER COLUMN updated_at SET NOT NULL', target_table);
+            END IF;
+          END IF;
+        END LOOP;
+
+        IF to_regclass('public.inventory_items') IS NOT NULL THEN
+          ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS item_name text;
+          UPDATE inventory_items
+          SET item_name = COALESCE(NULLIF(item_name, ''), name, sku, id::text)
+          WHERE item_name IS NULL OR item_name = '';
+
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'inventory_items'
+              AND column_name = 'unit'
+              AND data_type <> 'text'
+          ) THEN
+            ALTER TABLE inventory_items
+            ALTER COLUMN unit TYPE text USING unit::text;
+          END IF;
+
+          ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS quantity_on_hand integer;
+          UPDATE inventory_items
+          SET quantity_on_hand = COALESCE(quantity_on_hand, floor(COALESCE(quantity_available, 0))::integer, 0)
+          WHERE quantity_on_hand IS NULL;
+
+          ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS unit_price numeric(12,2) NOT NULL DEFAULT 0;
+          ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS notes text;
+          ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS is_archived boolean NOT NULL DEFAULT FALSE;
+        END IF;
+
+        IF to_regclass('public.inventory_suppliers') IS NOT NULL THEN
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'inventory_suppliers'
+              AND column_name = 'county'
+              AND data_type <> 'text'
+          ) THEN
+            ALTER TABLE inventory_suppliers
+            ALTER COLUMN county TYPE text USING county::text;
+          END IF;
+        END IF;
+
+        IF to_regclass('public.inventory_stock_movements') IS NOT NULL THEN
+          ALTER TABLE inventory_stock_movements ADD COLUMN IF NOT EXISTS occurred_at timestamptz;
+          ALTER TABLE inventory_stock_movements ADD COLUMN IF NOT EXISTS submission_id text;
+          UPDATE inventory_stock_movements
+          SET occurred_at = COALESCE(occurred_at, created_at, updated_at, NOW())
+          WHERE occurred_at IS NULL;
+          ALTER TABLE inventory_stock_movements ALTER COLUMN occurred_at SET DEFAULT NOW();
+          ALTER TABLE inventory_stock_movements ALTER COLUMN occurred_at SET NOT NULL;
+        END IF;
+
+        IF to_regclass('public.inventory_incidents') IS NOT NULL THEN
+          ALTER TABLE inventory_incidents ADD COLUMN IF NOT EXISTS reported_at timestamptz;
+          UPDATE inventory_incidents
+          SET reported_at = COALESCE(reported_at, created_at, updated_at, NOW())
+          WHERE reported_at IS NULL;
+          ALTER TABLE inventory_incidents ALTER COLUMN reported_at SET DEFAULT NOW();
+          ALTER TABLE inventory_incidents ALTER COLUMN reported_at SET NOT NULL;
+        END IF;
+
+      END $$;
+
       CREATE INDEX IF NOT EXISTS ix_inventory_items_status ON inventory_items (tenant_id, status, updated_at DESC);
       CREATE INDEX IF NOT EXISTS ix_inventory_items_search_vector
         ON inventory_items

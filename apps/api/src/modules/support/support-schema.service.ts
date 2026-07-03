@@ -229,6 +229,12 @@ export class SupportSchemaService implements OnModuleInit {
       );
 
       ALTER TABLE support_notifications
+        ADD COLUMN IF NOT EXISTS read_at timestamptz;
+
+      ALTER TABLE support_notifications
+        ADD COLUMN IF NOT EXISTS delivery_status text NOT NULL DEFAULT 'queued';
+
+      ALTER TABLE support_notifications
         ADD COLUMN IF NOT EXISTS delivery_attempts integer NOT NULL DEFAULT 0;
 
       ALTER TABLE support_notifications
@@ -272,6 +278,75 @@ export class SupportSchemaService implements OnModuleInit {
         CONSTRAINT uq_support_system_components_tenant_slug UNIQUE (tenant_id, slug),
         CONSTRAINT ck_support_system_components_status CHECK (status IN ('operational', 'degraded', 'partial_outage', 'major_outage', 'maintenance'))
       );
+
+      DO $$
+      DECLARE
+        existing_policy text;
+      BEGIN
+        IF to_regclass('public.support_system_components') IS NOT NULL THEN
+          ALTER TABLE support_system_components NO FORCE ROW LEVEL SECURITY;
+          ALTER TABLE support_system_components DISABLE ROW LEVEL SECURITY;
+
+          FOR existing_policy IN
+            SELECT policyname
+            FROM pg_policies
+            WHERE schemaname = 'public'
+              AND tablename = 'support_system_components'
+          LOOP
+            EXECUTE format('DROP POLICY IF EXISTS %I ON support_system_components', existing_policy);
+          END LOOP;
+
+          ALTER TABLE support_system_components
+            ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
+          ALTER TABLE support_system_components
+            ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+          ALTER TABLE support_system_components
+            ALTER COLUMN uptime_percent TYPE numeric(5,2) USING COALESCE(NULLIF(uptime_percent::text, '')::numeric, 99.99);
+          ALTER TABLE support_system_components
+            ALTER COLUMN latency_ms TYPE integer USING COALESCE(NULLIF(latency_ms::text, '')::integer, 0);
+
+          UPDATE support_system_components
+          SET tenant_id = COALESCE(NULLIF(btrim(tenant_id), ''), 'global'),
+              status = CASE
+                WHEN status IN ('operational', 'degraded', 'partial_outage', 'major_outage', 'maintenance') THEN status
+                ELSE 'operational'
+              END,
+              metadata = COALESCE(metadata, '{}'::jsonb)
+          WHERE tenant_id IS NULL
+             OR btrim(tenant_id) = ''
+             OR status NOT IN ('operational', 'degraded', 'partial_outage', 'major_outage', 'maintenance')
+             OR metadata IS NULL;
+
+          ALTER TABLE support_system_components
+            ALTER COLUMN tenant_id SET DEFAULT 'global';
+          ALTER TABLE support_system_components
+            ALTER COLUMN metadata SET DEFAULT '{}'::jsonb;
+          ALTER TABLE support_system_components
+            ALTER COLUMN metadata SET NOT NULL;
+          ALTER TABLE support_system_components
+            ALTER COLUMN uptime_percent SET DEFAULT 99.99;
+          ALTER TABLE support_system_components
+            ALTER COLUMN latency_ms SET DEFAULT 0;
+
+          IF NOT EXISTS (
+            SELECT 1
+            FROM pg_constraint
+            WHERE conname = 'uq_support_system_components_tenant_id_id'
+          ) THEN
+            ALTER TABLE support_system_components
+              ADD CONSTRAINT uq_support_system_components_tenant_id_id UNIQUE (tenant_id, id);
+          END IF;
+
+          IF NOT EXISTS (
+            SELECT 1
+            FROM pg_constraint
+            WHERE conname = 'uq_support_system_components_tenant_slug'
+          ) THEN
+            ALTER TABLE support_system_components
+              ADD CONSTRAINT uq_support_system_components_tenant_slug UNIQUE (tenant_id, slug);
+          END IF;
+        END IF;
+      END $$;
 
       CREATE TABLE IF NOT EXISTS support_incidents (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -364,6 +439,192 @@ export class SupportSchemaService implements OnModuleInit {
 
       ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
       ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS updated_by_user_id uuid;
+      ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS merged_into_ticket_id uuid;
+      ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS first_responded_at timestamptz;
+      ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS resolved_at timestamptz;
+      ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS closed_at timestamptz;
+      ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS last_school_reply_at timestamptz;
+      ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS last_support_reply_at timestamptz;
+
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'support_tickets'
+            AND column_name = 'context'
+            AND data_type <> 'jsonb'
+        ) THEN
+          ALTER TABLE support_tickets
+            ALTER COLUMN context DROP DEFAULT;
+          ALTER TABLE support_tickets
+            ALTER COLUMN context TYPE jsonb
+            USING CASE
+              WHEN context IS NULL OR btrim(context::text) = '' THEN '{}'::jsonb
+              ELSE jsonb_build_object('legacy_context', context::text)
+            END;
+          ALTER TABLE support_tickets
+            ALTER COLUMN context SET DEFAULT '{}'::jsonb;
+          ALTER TABLE support_tickets
+            ALTER COLUMN context SET NOT NULL;
+        END IF;
+      END $$;
+
+      ALTER TABLE support_kb_articles
+        ADD COLUMN IF NOT EXISTS published boolean NOT NULL DEFAULT TRUE;
+      ALTER TABLE support_kb_articles
+        ADD COLUMN IF NOT EXISTS helpful_count integer NOT NULL DEFAULT 0;
+      ALTER TABLE support_kb_articles
+        ALTER COLUMN tags TYPE text[] USING CASE
+          WHEN tags IS NULL OR btrim(tags::text) = '' THEN ARRAY[]::text[]
+          WHEN pg_typeof(tags)::text = 'text[]' THEN tags::text[]
+          ELSE regexp_split_to_array(tags::text, '\\s*,\\s*')
+        END;
+      ALTER TABLE support_kb_articles
+        ALTER COLUMN tags SET DEFAULT ARRAY[]::text[];
+      ALTER TABLE support_kb_articles
+        ALTER COLUMN tags SET NOT NULL;
+
+      ALTER TABLE support_status_subscriptions
+        ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE support_status_subscriptions
+        ALTER COLUMN locale DROP NOT NULL;
+      ALTER TABLE support_status_subscriptions
+        ALTER COLUMN client_ip_hash DROP NOT NULL;
+      ALTER TABLE support_status_subscriptions
+        ALTER COLUMN unsubscribed_at DROP NOT NULL;
+
+      ALTER TABLE support_status_unsubscribe_tokens
+        ADD COLUMN IF NOT EXISTS used_at timestamptz;
+
+      ALTER TABLE support_status_notification_attempts
+        ADD COLUMN IF NOT EXISTS attempts integer NOT NULL DEFAULT 0;
+      ALTER TABLE support_status_notification_attempts
+        ADD COLUMN IF NOT EXISTS last_error text;
+      ALTER TABLE support_status_notification_attempts
+        ADD COLUMN IF NOT EXISTS next_attempt_at timestamptz;
+      ALTER TABLE support_status_notification_attempts
+        ADD COLUMN IF NOT EXISTS sent_at timestamptz;
+      ALTER TABLE support_status_notification_attempts
+        ALTER COLUMN payload SET DEFAULT '{}'::jsonb;
+
+      DO $$
+      DECLARE
+        target_table text;
+        existing_policy text;
+      BEGIN
+        FOREACH target_table IN ARRAY ARRAY[
+          'support_categories',
+          'support_agents',
+          'support_tickets',
+          'support_messages',
+          'support_internal_notes',
+          'support_attachments',
+          'support_status_logs',
+          'support_notifications',
+          'support_kb_articles',
+          'support_system_components',
+          'support_incidents',
+          'support_status_subscriptions',
+          'support_status_unsubscribe_tokens',
+          'support_status_notification_attempts'
+        ]
+        LOOP
+          IF to_regclass('public.' || target_table) IS NOT NULL THEN
+            EXECUTE format('ALTER TABLE %I NO FORCE ROW LEVEL SECURITY', target_table);
+            EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', target_table);
+
+            FOR existing_policy IN
+              SELECT policyname
+              FROM pg_policies
+              WHERE schemaname = 'public'
+                AND tablename = target_table
+            LOOP
+              EXECUTE format('DROP POLICY IF EXISTS %I ON %I', existing_policy, target_table);
+            END LOOP;
+
+            IF EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = target_table
+                AND column_name = 'tenant_id'
+                AND data_type <> 'text'
+            ) THEN
+              EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id TYPE text USING tenant_id::text', target_table);
+            END IF;
+
+            EXECUTE format(
+              'UPDATE %I SET tenant_id = %L WHERE tenant_id IS NULL OR btrim(tenant_id) = %L',
+              target_table,
+              'global',
+              ''
+            );
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET NOT NULL', target_table);
+
+            IF EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = target_table
+                AND column_name = 'created_at'
+            ) THEN
+              EXECUTE format('UPDATE %I SET created_at = NOW() WHERE created_at IS NULL', target_table);
+              EXECUTE format('ALTER TABLE %I ALTER COLUMN created_at SET DEFAULT NOW()', target_table);
+              EXECUTE format('ALTER TABLE %I ALTER COLUMN created_at SET NOT NULL', target_table);
+            END IF;
+
+            IF EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = target_table
+                AND column_name = 'updated_at'
+            ) THEN
+              EXECUTE format('UPDATE %I SET updated_at = COALESCE(updated_at, created_at, NOW()) WHERE updated_at IS NULL', target_table);
+              EXECUTE format('ALTER TABLE %I ALTER COLUMN updated_at SET DEFAULT NOW()', target_table);
+              EXECUTE format('ALTER TABLE %I ALTER COLUMN updated_at SET NOT NULL', target_table);
+            END IF;
+          END IF;
+        END LOOP;
+
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'uq_support_categories_tenant_id_id'
+        ) THEN
+          ALTER TABLE support_categories
+            ADD CONSTRAINT uq_support_categories_tenant_id_id UNIQUE (tenant_id, id);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'uq_support_categories_tenant_code'
+        ) THEN
+          ALTER TABLE support_categories
+            ADD CONSTRAINT uq_support_categories_tenant_code UNIQUE (tenant_id, code);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'uq_support_kb_articles_tenant_id_id'
+        ) THEN
+          ALTER TABLE support_kb_articles
+            ADD CONSTRAINT uq_support_kb_articles_tenant_id_id UNIQUE (tenant_id, id);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'uq_support_kb_articles_tenant_slug'
+        ) THEN
+          ALTER TABLE support_kb_articles
+            ADD CONSTRAINT uq_support_kb_articles_tenant_slug UNIQUE (tenant_id, slug);
+        END IF;
+      END $$;
 
       CREATE INDEX IF NOT EXISTS ix_support_tickets_queue
         ON support_tickets (tenant_id, status, priority, updated_at DESC);
@@ -680,41 +941,19 @@ export class SupportSchemaService implements OnModuleInit {
   }
 
   private async seedGlobalSupportContent(): Promise<void> {
-    for (const [index, category] of SUPPORT_CATEGORIES.entries()) {
+    const categoryValues = SUPPORT_CATEGORIES.map((category, index) => {
       const code = category.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '');
 
-      await this.prisma.runSchemaBootstrap(format(
-        `
-          SET LOCAL app.role = 'system';
-          SET LOCAL app.tenant_id = 'global';
-
-          INSERT INTO support_categories (
-            tenant_id,
-            code,
-            name,
-            description,
-            response_sla_minutes,
-            resolution_sla_minutes,
-            sort_order
-          )
-          VALUES ('global', %L, %L, %L, %L, %L, %L)
-          ON CONFLICT (tenant_id, code)
-          DO UPDATE SET
-            name = EXCLUDED.name,
-            description = EXCLUDED.description,
-            response_sla_minutes = EXCLUDED.response_sla_minutes,
-            resolution_sla_minutes = EXCLUDED.resolution_sla_minutes,
-            sort_order = EXCLUDED.sort_order,
-            updated_at = NOW()
-        `,
+      return format(
+        `('global', %L, %L, %L, %L, %L, %L)`,
         code,
         category,
         `${category} support and troubleshooting requests.`,
         category === 'MPESA' || category === 'Login Issues' ? 30 : 240,
         category === 'MPESA' || category === 'Performance' ? 480 : 2880,
         index + 1,
-      ));
-    }
+      );
+    }).join(',\n');
 
     const articles = [
       {
@@ -743,41 +982,18 @@ export class SupportSchemaService implements OnModuleInit {
       },
     ];
 
-    for (const article of articles) {
+    const articleValues = articles.map((article) => {
       const tagsSql = article.tags.map((tag) => format('%L', tag)).join(', ');
 
-      await this.prisma.runSchemaBootstrap(format(
-        `
-          SET LOCAL app.role = 'system';
-          SET LOCAL app.tenant_id = 'global';
-
-          INSERT INTO support_kb_articles (
-            tenant_id,
-            slug,
-            category,
-            title,
-            summary,
-            body,
-            tags
-          )
-          VALUES ('global', %L, %L, %L, %L, %L, ARRAY[${tagsSql}]::text[])
-          ON CONFLICT (tenant_id, slug)
-          DO UPDATE SET
-            category = EXCLUDED.category,
-            title = EXCLUDED.title,
-            summary = EXCLUDED.summary,
-            body = EXCLUDED.body,
-            tags = EXCLUDED.tags,
-            published = TRUE,
-            updated_at = NOW()
-        `,
+      return format(
+        `('global', %L, %L, %L, %L, %L, ARRAY[${tagsSql}]::text[])`,
         article.slug,
         article.category,
         article.title,
         article.summary,
         article.body,
-      ));
-    }
+      );
+    }).join(',\n');
 
     const components = [
       ['api', 'API', 'operational', 99.98, 182],
@@ -787,35 +1003,76 @@ export class SupportSchemaService implements OnModuleInit {
       ['uptime', 'School dashboards', 'operational', 99.99, 160],
     ] as const;
 
-    for (const [slug, name, status, uptime, latency] of components) {
-      await this.prisma.runSchemaBootstrap(format(
-        `
-          SET LOCAL app.role = 'system';
-          SET LOCAL app.tenant_id = 'global';
-
-          INSERT INTO support_system_components (
-            tenant_id,
-            slug,
-            name,
-            status,
-            uptime_percent,
-            latency_ms
-          )
-          VALUES ('global', %L, %L, %L, %L, %L)
-          ON CONFLICT (tenant_id, slug)
-          DO UPDATE SET
-            name = EXCLUDED.name,
-            status = EXCLUDED.status,
-            uptime_percent = EXCLUDED.uptime_percent,
-            latency_ms = EXCLUDED.latency_ms,
-            updated_at = NOW()
-        `,
+    const componentValues = components.map(([slug, name, status, uptime, latency]) =>
+      format(
+        `('global', %L, %L, %L, %L, %L)`,
         slug,
         name,
         status,
         uptime,
         latency,
-      ));
-    }
+      ),
+    ).join(',\n');
+
+    await this.prisma.runSchemaBootstrap(`
+      SET LOCAL app.role = 'system';
+      SET LOCAL app.tenant_id = 'global';
+
+      INSERT INTO support_categories (
+        tenant_id,
+        code,
+        name,
+        description,
+        response_sla_minutes,
+        resolution_sla_minutes,
+        sort_order
+      )
+      VALUES ${categoryValues}
+      ON CONFLICT (tenant_id, code)
+      DO UPDATE SET
+        name = EXCLUDED.name,
+        description = EXCLUDED.description,
+        response_sla_minutes = EXCLUDED.response_sla_minutes,
+        resolution_sla_minutes = EXCLUDED.resolution_sla_minutes,
+        sort_order = EXCLUDED.sort_order,
+        updated_at = NOW();
+
+      INSERT INTO support_kb_articles (
+        tenant_id,
+        slug,
+        category,
+        title,
+        summary,
+        body,
+        tags
+      )
+      VALUES ${articleValues}
+      ON CONFLICT (tenant_id, slug)
+      DO UPDATE SET
+        category = EXCLUDED.category,
+        title = EXCLUDED.title,
+        summary = EXCLUDED.summary,
+        body = EXCLUDED.body,
+        tags = EXCLUDED.tags,
+        published = TRUE,
+        updated_at = NOW();
+
+      INSERT INTO support_system_components (
+        tenant_id,
+        slug,
+        name,
+        status,
+        uptime_percent,
+        latency_ms
+      )
+      VALUES ${componentValues}
+      ON CONFLICT (tenant_id, slug)
+      DO UPDATE SET
+        name = EXCLUDED.name,
+        status = EXCLUDED.status,
+        uptime_percent = EXCLUDED.uptime_percent,
+        latency_ms = EXCLUDED.latency_ms,
+        updated_at = NOW();
+    `);
   }
 }

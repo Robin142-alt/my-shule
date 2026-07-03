@@ -8,6 +8,7 @@ import { FinanceTasksService } from './finance-tasks.service';
 import { FinanceWidgetDataDto } from '../dashboard/dashboard.dto';
 import { EventPublisherService } from '../events/event-publisher.service';
 import { ApprovalsService } from '../approvals/approvals.service';
+import { createHash } from 'node:crypto';
 
 export class CreatePaymentDto {
 
@@ -30,6 +31,109 @@ export class CreateFinanceTaskDto {
   description!: string;
   dueDate!: string;
   assignedTo?: string;
+}
+
+type FeeStatementInvoice = {
+  invoiceNumber: string;
+  studentName: string;
+  academicYear: string;
+  term: string;
+  amountDue: number;
+  amountPaid: number;
+  balance: number;
+  status: string;
+  dueDate: Date;
+};
+
+type FeeStatementPayment = {
+  paymentReference: string;
+  studentName: string;
+  paymentMethod: string;
+  amount: number;
+  paymentDate: Date;
+  status: string;
+};
+
+function formatKes(value: number) {
+  return `KES ${value.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatDate(value: Date) {
+  return value.toLocaleDateString('en-KE', {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+  });
+}
+
+function generateInvoiceNumber(tenantId: string, studentId: string, feeStructureId: string, academicYear: string, term: string) {
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const digest = createHash('sha256')
+    .update(JSON.stringify({ tenantId, studentId, feeStructureId, academicYear, term }))
+    .digest('hex')
+    .slice(0, 10)
+    .toUpperCase();
+
+  return `INV-${date}-${digest}`;
+}
+
+export function buildFeeStatementContent(input: {
+  generatedAt: Date;
+  linkedChildCount: number;
+  invoices: FeeStatementInvoice[];
+  payments: FeeStatementPayment[];
+}) {
+  const totalDue = input.invoices.reduce((sum, invoice) => sum + invoice.amountDue, 0);
+  const totalPaid = input.invoices.reduce((sum, invoice) => sum + invoice.amountPaid, 0);
+  const totalBalance = input.invoices.reduce((sum, invoice) => sum + invoice.balance, 0);
+  const paymentTotal = input.payments.reduce((sum, payment) => sum + payment.amount, 0);
+
+  const invoiceLines = input.invoices.length > 0
+    ? input.invoices.map((invoice) =>
+        [
+          invoice.invoiceNumber,
+          invoice.studentName,
+          `${invoice.academicYear} ${invoice.term}`,
+          `Due ${formatKes(invoice.amountDue)}`,
+          `Paid ${formatKes(invoice.amountPaid)}`,
+          `Balance ${formatKes(invoice.balance)}`,
+          invoice.status,
+          `Due date ${formatDate(invoice.dueDate)}`,
+        ].join(' | '),
+      )
+    : ['No invoices found for the linked learner records in this school.'];
+
+  const paymentLines = input.payments.length > 0
+    ? input.payments.map((payment) =>
+        [
+          payment.paymentReference,
+          payment.studentName,
+          payment.paymentMethod,
+          formatKes(payment.amount),
+          payment.status,
+          formatDate(payment.paymentDate),
+        ].join(' | '),
+      )
+    : ['No payments found for the linked learner records in this school.'];
+
+  return [
+    `Generated: ${formatDate(input.generatedAt)}`,
+    `Linked learners: ${input.linkedChildCount}`,
+    '',
+    'Summary',
+    `Total invoiced: ${formatKes(totalDue)}`,
+    `Total paid against invoices: ${formatKes(totalPaid)}`,
+    `Current balance: ${formatKes(totalBalance)}`,
+    `Payments recorded: ${formatKes(paymentTotal)}`,
+    '',
+    'Invoices',
+    ...invoiceLines,
+    '',
+    'Payments',
+    ...paymentLines,
+    '',
+    'This statement is generated from tenant-scoped school finance records and only includes learners linked to the signed-in portal user.',
+  ].join('\n');
 }
 
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
@@ -196,12 +300,132 @@ export class FinanceController {
   @Get('statements/download')
   @Permissions('portal:read_own_children')
   async downloadStatement(@Res({ passthrough: true }) res: any) {
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
+    const userId = store.user_id;
+    if (!tenantId) {
+      throw new Error('Tenant context required');
+    }
+    if (!userId) {
+      throw new Error('User context required');
+    }
+
+    const statementData = await this.prisma.executeWithTenant(tenantId, userId, async (tx) => {
+      const linkedChildren = await tx.studentGuardian.findMany({
+        where: {
+          guardianId: userId,
+          schoolId: tenantId,
+        },
+        select: {
+          studentId: true,
+        },
+      });
+      const childIds = linkedChildren.map((child) => child.studentId);
+
+      if (childIds.length === 0) {
+        return {
+          childIds,
+          invoices: [],
+          payments: [],
+        };
+      }
+
+      const [invoices, payments] = await Promise.all([
+        tx.invoice.findMany({
+          where: {
+            schoolId: tenantId,
+            studentId: { in: childIds },
+            deletedAt: null,
+          },
+          include: {
+            student: { select: { firstName: true, lastName: true } },
+            academicYear: { select: { name: true } },
+            term: { select: { name: true } },
+          },
+          orderBy: [{ dueDate: 'desc' }, { createdAt: 'desc' }],
+          take: 100,
+        }),
+        tx.payment.findMany({
+          where: {
+            schoolId: tenantId,
+            studentId: { in: childIds },
+            deletedAt: null,
+          },
+          include: {
+            student: { select: { firstName: true, lastName: true } },
+          },
+          orderBy: { paymentDate: 'desc' },
+          take: 100,
+        }),
+      ]);
+
+      return {
+        childIds,
+        invoices: invoices.map((invoice) => ({
+          invoiceNumber: invoice.invoiceNumber,
+          studentName: `${invoice.student.firstName} ${invoice.student.lastName}`,
+          academicYear: invoice.academicYear.name,
+          term: invoice.term.name,
+          amountDue: invoice.amountDue,
+          amountPaid: invoice.amountPaid,
+          balance: invoice.balance,
+          status: String(invoice.status),
+          dueDate: invoice.dueDate,
+        })),
+        payments: payments.map((payment) => ({
+          paymentReference: payment.paymentReference,
+          studentName: `${payment.student.firstName} ${payment.student.lastName}`,
+          paymentMethod: String(payment.paymentMethod),
+          amount: payment.amount,
+          paymentDate: payment.paymentDate,
+          status: String(payment.status),
+        })),
+      };
+    });
+
+    const content = buildFeeStatementContent({
+      generatedAt: new Date(),
+      linkedChildCount: statementData.childIds.length,
+      invoices: statementData.invoices,
+      payments: statementData.payments,
+    });
+
+    await this.db.query(
+      `
+        INSERT INTO audit_logs (
+          tenant_id,
+          actor_user_id,
+          action,
+          resource_type,
+          resource_id,
+          metadata
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6
+        )
+      `,
+      [
+        tenantId,
+        userId,
+        'FEE_STATEMENT_GENERATED',
+        'finance_statement',
+        userId,
+        JSON.stringify({
+          linked_child_count: statementData.childIds.length,
+          invoice_count: statementData.invoices.length,
+          payment_count: statementData.payments.length,
+        }),
+      ],
+    );
+
     const pdfService = new PdfService();
-    const stream = pdfService.generatePdfStream("Statement of Account - Coming Soon", { title: 'Fee Statement' });
+    const stream = pdfService.generatePdfStream(content, {
+      title: 'Fee Statement',
+      subject: 'Parent portal fee statement',
+    });
     
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="statement.pdf"`,
+      'Content-Disposition': `attachment; filename="fee-statement-${new Date().toISOString().slice(0, 10)}.pdf"`,
     });
     return new StreamableFile(stream);
   }
@@ -387,6 +611,10 @@ export class FinanceController {
   async generateInvoices(@Body() dto: any) {
     const tenantId = this.requestContext.requireStore().tenant_id;
     const { fee_structure_id, term, academic_year } = dto;
+
+    if (!tenantId) {
+      throw new Error('Tenant context is required to generate invoices');
+    }
     
     const fsRes = await this.db.query(`SELECT * FROM fee_structures WHERE id = $1 AND tenant_id = $2`, [fee_structure_id, tenantId]);
     if (fsRes.rowCount === 0) throw new Error('Fee structure not found');
@@ -400,10 +628,28 @@ export class FinanceController {
 
     const invoices = [];
     for (const student of studentsRes.rows) {
+      const invoiceTerm = term || fs.term;
+      const invoiceAcademicYear = academic_year || fs.academic_year;
+      const studentId = typeof student.id === 'string' && student.id.trim() ? student.id : '';
+      const feeStructureId = typeof fs.id === 'string' && fs.id.trim() ? fs.id : '';
+
+      if (!invoiceTerm || !invoiceAcademicYear || !studentId || !feeStructureId) {
+        throw new Error('Student, fee structure, term, and academic year are required to generate invoices');
+      }
+
       const invRes = await this.db.query(
         `INSERT INTO student_invoices (tenant_id, student_id, invoice_number, fee_structure_id, term, academic_year, amount_minor, balance_minor)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-        [tenantId, student.id, `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`, fs.id, term || fs.term, academic_year || fs.academic_year, fs.total_amount_minor, fs.total_amount_minor]
+        [
+          tenantId,
+          studentId,
+          generateInvoiceNumber(tenantId, studentId, feeStructureId, invoiceAcademicYear, invoiceTerm),
+          feeStructureId,
+          invoiceTerm,
+          invoiceAcademicYear,
+          fs.total_amount_minor,
+          fs.total_amount_minor,
+        ]
       );
       invoices.push(invRes.rows[0]);
     }

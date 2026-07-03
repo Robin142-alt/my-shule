@@ -20,7 +20,7 @@ export class LedgerEntriesRepository {
             transactionId: transactionId,
             accountId: entry.account_id,
             lineNumber: entry.line_number,
-            direction: entry.direction === 'debit' ? 'DEBIT' : 'CREDIT',
+            direction: entry.direction === 'debit' ? 'debit' : 'credit',
             amountMinor: entry.amount_minor,
             currencyCode: entry.currency_code,
             description: entry.description ?? null,
@@ -48,18 +48,18 @@ export class LedgerEntriesRepository {
           a.currency_code,
           a.normal_balance,
           COALESCE(
-            SUM(CASE WHEN le.direction = 'DEBIT' THEN le.amount_minor::numeric ELSE 0 END),
+            SUM(CASE WHEN lower(le.direction::text) = 'debit' THEN le.amount_minor::numeric ELSE 0 END),
             0
           )::text AS debit_total_minor,
           COALESCE(
-            SUM(CASE WHEN le.direction = 'CREDIT' THEN le.amount_minor::numeric ELSE 0 END),
+            SUM(CASE WHEN lower(le.direction::text) = 'credit' THEN le.amount_minor::numeric ELSE 0 END),
             0
           )::text AS credit_total_minor
         FROM accounts a
         LEFT JOIN ledger_entries le
           ON le.tenant_id = a.tenant_id
          AND le.account_id = a.id
-        WHERE a.tenant_id = ${tenantId}::uuid
+        WHERE a.tenant_id = ${tenantId}
           AND a.id = ANY(${uniqueAccountIds}::uuid[])
         GROUP BY a.id, a.code, a.currency_code, a.normal_balance
       `;

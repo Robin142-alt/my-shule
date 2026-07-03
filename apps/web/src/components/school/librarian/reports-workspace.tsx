@@ -45,7 +45,7 @@ export function ReportsWorkspace() {
     setIsGenerating(true);
     try {
       await generateLibraryReport({ report_type: reportType, period });
-      toast.success("Report generation started. It will appear in the list when ready.");
+      toast.success("Report generation request accepted. Refresh the reports list to check the generated file status.");
       refetch();
     } catch {
       toast.error("Failed to generate report.");

@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "generated_at": "2026-07-03T15:32:25.633Z",
+  "targets": {
+    "webUrl": "https://www.myshule.online",
+    "apiUrl": "https://my-shule-erp-api.vercel.app",
+    "tenant": "kb-high",
+    "email_masked": "t***@example.test"
+  },
+  "summary": {
+    "total": 6,
+    "passed": 6,
+    "failed": 0
+  },
+  "checks": [
+    "API readiness",
+    "school accepted-invite login page",
+    "parent accepted-invite login page",
+    "web CSRF endpoint",
+    "web auth proxy",
+    "public system status"
+  ],
+  "failures": []
+}

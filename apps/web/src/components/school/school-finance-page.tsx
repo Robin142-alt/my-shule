@@ -17,7 +17,7 @@ import {
 import { getCsrfToken } from "@/lib/auth/csrf-client";
 import { redirectOnExpiredSessionResponse } from "@/lib/auth/session-expiry-client";
 import { getSchoolWorkspace, type SchoolExperienceRole } from "@/lib/experiences/school-data";
-import { buildBillingApiPath, toMinorUnits, formatMinorKes, formatActivityDate } from "@/lib/billing/billing-utils";
+import { buildBillingApiPath, toMinorUnits, formatMinorKes, formatActivityDate, unwrapBillingApiData } from "@/lib/billing/billing-utils";
 import type { LearnerLookupItem } from "@/lib/students/student-lookup";
 import { LearnerPicker } from "@/components/common/learner-picker";
 import { SubscriptionLifecyclePanel } from "@/components/school/school-pages";
@@ -157,12 +157,12 @@ type ReconciliationResponse = {
 };
 
 function createEmptyFeeLineItemDraft(): FeeLineItemDraft {
-  return { id: Math.random().toString(36).slice(2), code: "", label: "", amount: "" };
+  return { id: crypto.randomUUID(), code: "", label: "", amount: "" };
 }
 
 function createEmptyBulkFeeStudentDraft(): BulkFeeStudentDraft {
   return {
-    id: Math.random().toString(36).slice(2),
+    id: crypto.randomUUID(),
     student_id: "",
     student_name: "",
     admission_number: "",
@@ -385,10 +385,12 @@ export function SchoolFinancePage({
       });
       const payload = (await response.json().catch(() => null)) as
         | FeeStructureResponse[]
+        | { data?: FeeStructureResponse[]; message?: string }
         | { message?: string }
         | null;
+      const feeStructuresPayload = unwrapBillingApiData<FeeStructureResponse[]>(payload);
 
-      if (!response.ok || !Array.isArray(payload)) {
+      if (!response.ok || !Array.isArray(feeStructuresPayload)) {
         throw new Error(
           payload && !Array.isArray(payload) && payload.message
             ? payload.message
@@ -396,10 +398,10 @@ export function SchoolFinancePage({
         );
       }
 
-      setFeeStructures(payload);
+      setFeeStructures(feeStructuresPayload);
       setBulkDraft((current) => ({
         ...current,
-        fee_structure_id: current.fee_structure_id || payload[0]?.id || "",
+        fee_structure_id: current.fee_structure_id || feeStructuresPayload[0]?.id || "",
       }));
     } catch (caught) {
       setFeeStructures([]);
@@ -699,16 +701,18 @@ export function SchoolFinancePage({
       });
       const payload = (await response.json().catch(() => null)) as
         | FeeStructureResponse
+        | { data?: FeeStructureResponse; message?: string }
         | { message?: string }
         | null;
+      const savedFeeStructure = unwrapBillingApiData<FeeStructureResponse>(payload);
 
-      if (!response.ok || !payload || !("id" in payload)) {
+      if (!response.ok || !savedFeeStructure || !("id" in savedFeeStructure)) {
         throw new Error(payload && "message" in payload && payload.message ? payload.message : "Fee structure could not be saved.");
       }
 
       setFeeStructureError(null);
-      setFinanceMessage(`${payload.name} saved for ${payload.grade_level}.`);
-      setBulkDraft((current) => ({ ...current, fee_structure_id: payload.id }));
+      setFinanceMessage(`${savedFeeStructure.name} saved for ${savedFeeStructure.grade_level}.`);
+      setBulkDraft((current) => ({ ...current, fee_structure_id: savedFeeStructure.id }));
       setFeeStructureDraft((current) => ({
         ...current,
         name: "",
@@ -738,21 +742,23 @@ export function SchoolFinancePage({
       );
       const payload = (await response.json().catch(() => null)) as
         | FeeStructureResponse
+        | { data?: FeeStructureResponse; message?: string }
         | { message?: string }
         | null;
+      const archivedFeeStructure = unwrapBillingApiData<FeeStructureResponse>(payload);
 
-      if (!response.ok || !payload || !("id" in payload)) {
+      if (!response.ok || !archivedFeeStructure || !("id" in archivedFeeStructure)) {
         throw new Error(payload && "message" in payload && payload.message ? payload.message : "Fee structure could not be archived.");
       }
 
       setFeeStructureError(null);
-      setFinanceMessage(`${payload.name} archived.`);
+      setFinanceMessage(`${archivedFeeStructure.name} archived.`);
       setBillableStudents([]);
       setSelectedBulkStudentIds(new Set());
       setBulkStudents([]);
       setBulkDraft((current) => ({
         ...current,
-        fee_structure_id: current.fee_structure_id === payload.id ? "" : current.fee_structure_id,
+        fee_structure_id: current.fee_structure_id === archivedFeeStructure.id ? "" : current.fee_structure_id,
       }));
       await loadFeeStructures();
     } catch (caught) {
@@ -778,7 +784,7 @@ export function SchoolFinancePage({
       const csrfToken = await getCsrfToken();
       const idempotencyKey =
         bulkDraft.idempotency_key.trim() ||
-        `bulk-fees-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        `bulk-fees-${crypto.randomUUID()}`;
       const response = await fetch(
         buildBillingApiPath(`/api/billing/fee-structures/${encodeURIComponent(selectedFeeStructureId)}/generate-invoices`, tenantSlug),
         {
@@ -807,15 +813,17 @@ export function SchoolFinancePage({
       );
       const payload = (await response.json().catch(() => null)) as
         | BulkFeeInvoiceGenerationResponse
+        | { data?: BulkFeeInvoiceGenerationResponse; message?: string }
         | { message?: string }
         | null;
+      const generationResult = unwrapBillingApiData<BulkFeeInvoiceGenerationResponse>(payload);
 
-      if (!response.ok || !payload || !("generated_count" in payload)) {
+      if (!response.ok || !generationResult || !("generated_count" in generationResult)) {
         throw new Error(payload && "message" in payload && payload.message ? payload.message : "Bulk invoices could not be generated.");
       }
 
       setBulkError(null);
-      setFinanceMessage(`${payload.generated_count} invoices generated; ${payload.skipped_count} duplicate rows skipped.`);
+      setFinanceMessage(`${generationResult.generated_count} invoices generated; ${generationResult.skipped_count} duplicate rows skipped.`);
       setBulkDraft((current) => ({ ...current, idempotency_key: "", due_at: "" }));
       setSelectedBulkStudentIds(new Set());
       setBulkStudents([]);
@@ -845,10 +853,12 @@ export function SchoolFinancePage({
       );
       const payload = (await response.json().catch(() => null)) as
         | BillableFeeStudentResponse[]
+        | { data?: BillableFeeStudentResponse[]; message?: string }
         | { message?: string }
         | null;
+      const billableStudentsPayload = unwrapBillingApiData<BillableFeeStudentResponse[]>(payload);
 
-      if (!response.ok || !Array.isArray(payload)) {
+      if (!response.ok || !Array.isArray(billableStudentsPayload)) {
         throw new Error(
           payload && !Array.isArray(payload) && payload.message
             ? payload.message
@@ -856,16 +866,16 @@ export function SchoolFinancePage({
         );
       }
 
-      setBillableStudents(payload);
+      setBillableStudents(billableStudentsPayload);
       setSelectedBulkStudentIds(new Set());
       setBulkStudents([]);
 
-      if (payload.length === 0) {
+      if (billableStudentsPayload.length === 0) {
         setFinanceMessage("No active roster students matched this fee structure.");
         return;
       }
 
-      setFinanceMessage(`${payload.length} roster students loaded. Select learners to bill.`);
+      setFinanceMessage(`${billableStudentsPayload.length} roster students loaded. Select learners to bill.`);
     } catch (caught) {
       setBillableStudents([]);
       setBulkError(caught instanceof Error ? caught.message : "Billable roster could not be loaded.");
@@ -957,7 +967,7 @@ export function SchoolFinancePage({
           "x-myshule-csrf": csrfToken,
         },
         body: JSON.stringify({
-          idempotency_key: `finance-quick-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          idempotency_key: `finance-quick-${crypto.randomUUID()}`,
           payment_method: paymentDraft.payment_method,
           amount_minor: amountMinor,
           student_id: paymentDraft.student_id.trim() || undefined,
@@ -1064,7 +1074,7 @@ export function SchoolFinancePage({
       ) : (
         <MetricGrid items={buildFinanceSummaryItems(activity, activityLoading)} />
       )}
-      <SubscriptionLifecyclePanel subscription={subscription} role={role} routeMode={routeMode} />
+      <SubscriptionLifecyclePanel subscription={subscription} role={role} routeMode={routeMode} tenantSlug={tenantSlug} />
       <section className="space-y-5 rounded-xl border border-border bg-surface px-5 py-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>

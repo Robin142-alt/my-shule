@@ -42,8 +42,19 @@ export class AcademicsRepository {
 
   private getTenantId(params: any[]): string {
     for (const p of params) {
-      if (typeof p === 'string' && p.length > 20) return p;
+      if (Array.isArray(p)) {
+        try {
+          return this.getTenantId(p);
+        } catch {
+          continue;
+        }
+      }
+
+      if (typeof p === 'string' && /^[a-z0-9][a-z0-9_-]{1,127}$/i.test(p)) {
+        return p;
+      }
     }
+
     throw new Error('Tenant ID missing for raw query');
   }
 
@@ -431,7 +442,7 @@ export class AcademicsRepository {
           updated_at::text
         FROM teacher_subject_assignments
         WHERE tenant_id = $1
-          AND ($2::uuid IS NULL OR teacher_user_id = $2::uuid)
+          AND ($2::text IS NULL OR teacher_user_id = $2::text)
           AND status = 'active'
         ORDER BY created_at DESC
         LIMIT $3::integer
@@ -451,7 +462,7 @@ export class AcademicsRepository {
           updated_at::text
         FROM teacher_subject_assignments
         WHERE tenant_id = $1
-          AND ($2::uuid IS NULL OR teacher_user_id = $2::uuid)
+          AND ($2::text IS NULL OR teacher_user_id = $2::text)
           AND status = 'active'
         ORDER BY created_at DESC
         LIMIT $3::integer

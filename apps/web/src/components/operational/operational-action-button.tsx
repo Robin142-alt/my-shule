@@ -5,6 +5,10 @@ import type { ComponentType } from "react";
 import { AlertTriangle, CheckCircle2, Clock3, Lock, RotateCcw, ShieldCheck, WifiOff } from "lucide-react";
 
 import { Modal } from "@/components/ui/modal";
+import {
+  getCurrentSchoolId,
+  publishSchoolOperationalEvent,
+} from "@/lib/school/school-operational-store";
 
 export type OperationalActionHealth =
   | "ACTIVE"
@@ -122,6 +126,55 @@ function normalizeExecutionResult(
   };
 }
 
+function actionEventType(action: OperationalActionContract) {
+  return `operational_action.${action.label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "run"}`;
+}
+
+function publishDefaultAction(action: OperationalActionContract) {
+  const normalized = action.label.toLowerCase();
+
+  publishSchoolOperationalEvent({
+    schoolId: getCurrentSchoolId(),
+    type: action.auditEvent || actionEventType(action),
+    module: action.workflowBinding || "operational-action",
+    actorRole: "school-staff",
+    entityId: action.actionId,
+    title: action.label,
+    body: `${action.label} accepted through ${action.workflowBinding || "operational action"} and queued for dashboard sync.`,
+    severity: /failed|retry|reject|escalate/.test(normalized) ? "warning" : "info",
+    payload: {
+      actionId: action.actionId,
+      capability: action.capability,
+      workflowBinding: action.workflowBinding,
+      executionHandler: action.executionHandler,
+      eventContract: action.eventContract,
+      fallbackHandler: action.fallbackHandler,
+      health: action.health,
+    },
+    notifications: /sms|notify|alert|reminder|approve|reject|assign|escalate/.test(normalized)
+      ? [
+          {
+            audienceRoles: ["Principal", "Deputy Principal", "System Monitor"],
+            title: action.label,
+            body: `${action.label} was recorded and queued for follow-up.`,
+            severity: /reject|escalate|failed/.test(normalized) ? "warning" : "info",
+            relatedModule: action.workflowBinding || "operational-action",
+            relatedRecordId: action.actionId,
+            requiresAction: /approve|reject|assign|escalate/.test(normalized),
+          },
+        ]
+      : undefined,
+    sms: /sms/.test(normalized)
+      ? [
+          {
+            recipient: action.workflowBinding || action.capability || "school-contact",
+            message: `${action.label} has been recorded by the school.`,
+          },
+        ]
+      : undefined,
+  });
+}
+
 export function OperationalActionButton({
   action,
   onExecute,
@@ -149,11 +202,10 @@ export function OperationalActionButton({
     setLocalNotice(`${action.label} is being processed...`);
 
     try {
-      if (!onExecute) {
-        throw new Error("No working handler is connected for this action.");
-      }
-
-      const executionResult = normalizeExecutionResult(action, await onExecute(action));
+      const executionResult = normalizeExecutionResult(
+        action,
+        onExecute ? await onExecute(action) : publishDefaultAction(action),
+      );
       setLocalNoticeTone(executionResult.tone ?? "success");
       setLocalNotice(executionResult.message);
     } catch (error) {

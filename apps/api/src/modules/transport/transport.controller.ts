@@ -147,22 +147,18 @@ export class TransportController {
   async getVehicles() {
     const store = this.requestContext.requireStore();
     const tenantId = store.tenant_id as string;
-    try {
-      const items = await this.prisma.transportVehicle.findMany({
-        where: { schoolId: tenantId },
-      });
-      return items.map((item) => ({
-        id: item.id,
-        vehicle: `${item.vehicleType} (${item.registrationNumber})`,
-        route: 'Route A',
-        driver: item.driverName || 'No Driver',
-        status: item.status === 'ACTIVE' ? 'Active' : 'Active',
-        fuelLevel: 80,
-        maintenanceNote: 'Last serviced recently',
-      }));
-    } catch (e) {
-      return [];
-    }
+    const items = await this.prisma.transportVehicle.findMany({
+      where: { schoolId: tenantId },
+    });
+    return (items as any[]).map((item) => ({
+      id: item.id,
+      vehicle: `${item.vehicleType ?? 'Vehicle'} (${item.registrationNumber ?? item.registration_number ?? 'Unregistered'})`,
+      route: item.routeName ?? item.route?.name ?? item.route_name ?? 'Unassigned route',
+      driver: item.driverName ?? item.driver?.name ?? item.driver_name ?? 'Unassigned driver',
+      status: this.transportStatusLabel(item.status),
+      fuelLevel: Number(item.fuelLevel ?? item.fuel_level ?? 0),
+      maintenanceNote: item.maintenanceNote ?? item.maintenance_note ?? '',
+    }));
   }
 
   @Get('trips')
@@ -170,21 +166,25 @@ export class TransportController {
   async getTrips() {
     const store = this.requestContext.requireStore();
     const tenantId = store.tenant_id as string;
-    try {
-      const items = await this.prisma.transportTrips.findMany({
-        where: { tenant_id: tenantId },
-      });
-      return items.map((item) => ({
-        id: item.id,
-        student: 'John Doe',
-        admissionNo: 'ADM001',
-        route: 'Route ' + item.direction,
-        stop: 'Main Gate',
-        pickupTime: item.scheduled_start_at.toISOString(),
-        status: item.status === 'started' ? 'Boarded' : 'Scheduled',
-      }));
-    } catch (e) {
-      return [];
-    }
+    const items = await this.prisma.transportTrips.findMany({
+      where: { tenant_id: tenantId },
+    });
+    return (items as any[]).map((item) => ({
+      id: item.id,
+      student: item.studentName ?? item.student?.fullName ?? item.student?.name ?? item.learner_name ?? 'Unassigned learner',
+      admissionNo: item.admissionNo ?? item.student?.admissionNumber ?? item.admission_no ?? '',
+      route: item.routeName ?? item.route?.name ?? item.route_name ?? item.direction ?? 'Unassigned route',
+      stop: item.stopName ?? item.stop?.name ?? item.stop_name ?? '',
+      pickupTime: item.scheduled_start_at instanceof Date ? item.scheduled_start_at.toISOString() : item.scheduled_start_at,
+      status: item.status === 'started' ? 'Boarded' : item.status === 'completed' ? 'Dropped' : 'Scheduled',
+    }));
+  }
+
+  private transportStatusLabel(status: string | null | undefined) {
+    const normalized = String(status ?? '').toLowerCase();
+    if (normalized.includes('maintenance')) return 'Maintenance';
+    if (normalized.includes('delay')) return 'Delayed';
+    if (normalized.includes('offline')) return 'Offline';
+    return 'Active';
   }
 }

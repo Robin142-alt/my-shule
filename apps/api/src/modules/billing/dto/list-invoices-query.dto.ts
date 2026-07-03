@@ -8,6 +8,11 @@ export class ListInvoicesQueryDto {
   @Transform(trim)
   @IsOptional()
   @IsString()
+  tenant_slug?: string;
+
+  @Transform(trim)
+  @IsOptional()
+  @IsString()
   @IsIn(['draft', 'open', 'pending_payment', 'paid', 'void', 'uncollectible'])
   status?: string;
 
@@ -26,6 +31,11 @@ export class ListInvoicesQueryDto {
 }
 
 export class ListStudentBalancesQueryDto {
+  @Transform(trim)
+  @IsOptional()
+  @IsString()
+  tenant_slug?: string;
+
   @Type(() => Number)
   @IsOptional()
   @IsInt()

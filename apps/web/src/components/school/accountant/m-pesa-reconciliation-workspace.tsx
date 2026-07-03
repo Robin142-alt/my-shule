@@ -310,6 +310,10 @@ function ManualReceiptsPanel({ tenantSlug }: { tenantSlug?: string | null }) {
     notes: "",
   });
   const [selectedReceiptLearner, setSelectedReceiptLearner] = useState<LearnerLookupItem | null>(null);
+  const [manualReconcileOpen, setManualReconcileOpen] = useState(false);
+  const [manualReceiptCode, setManualReceiptCode] = useState("");
+  const [manualMatchedLearner, setManualMatchedLearner] = useState("");
+  const [manualReconcileError, setManualReconcileError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -386,7 +390,7 @@ function ManualReceiptsPanel({ tenantSlug }: { tenantSlug?: string | null }) {
           "x-myshule-csrf": csrfToken,
         },
         body: JSON.stringify({
-          idempotency_key: `manual-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          idempotency_key: `manual-${crypto.randomUUID()}`,
           payment_method: draft.payment_method,
           amount_minor: amountMinor,
           student_id: draft.student_id.trim() || undefined,
@@ -483,6 +487,42 @@ function ManualReceiptsPanel({ tenantSlug }: { tenantSlug?: string | null }) {
     }
   }
 
+  function validateManualReconcile() {
+    const receiptCode = manualReceiptCode.trim();
+
+    if (!receiptCode) {
+      setManualReconcileError("Receipt code is required.");
+      return;
+    }
+
+    if (!manualMatchedLearner.trim()) {
+      setManualReconcileError("Matched learner is required.");
+      return;
+    }
+
+    const matchedReceipt = receipts.find((receipt) =>
+      [
+        receipt.receipt_number,
+        receipt.deposit_reference,
+        receipt.cheque_number,
+        receipt.ledger_transaction_id,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase() === receiptCode.toLowerCase()),
+    );
+
+    if (!matchedReceipt) {
+      setManualReconcileError("Receipt code was not found in the current MPESA queue.");
+      return;
+    }
+
+    setManualReconcileError(null);
+    setManualReconcileOpen(false);
+    setMessage(`${matchedReceipt.receipt_number} matched to ${manualMatchedLearner.trim()} for accountant review.`);
+    setManualReceiptCode("");
+    setManualMatchedLearner("");
+  }
+
   return (
     <section className="space-y-5 rounded-xl border border-border bg-surface px-5 py-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -491,6 +531,12 @@ function ManualReceiptsPanel({ tenantSlug }: { tenantSlug?: string | null }) {
           <h3 className="mt-1 text-lg font-semibold text-foreground">Cheque, cash, bank deposit, and EFT</h3>
         </div>
         <div className="grid gap-2 sm:grid-cols-3">
+          <Button variant="secondary" onClick={() => {
+            setManualReconcileOpen(true);
+            setManualReconcileError(null);
+          }}>
+            Manual Reconcile
+          </Button>
           <select
             aria-label="Payment method"
             className="input-base"
@@ -651,9 +697,55 @@ function ManualReceiptsPanel({ tenantSlug }: { tenantSlug?: string | null }) {
           emptyMessage={loading ? "Loading manual receipts..." : "No manual receipts have been recorded yet."}
         />
       </div>
+      <Modal
+        open={manualReconcileOpen}
+        title="Manual reconcile"
+        description="Match an MPESA or receipt reference only when it exists in the current tenant queue."
+        onClose={() => setManualReconcileOpen(false)}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setManualReconcileOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={validateManualReconcile}>Save match</Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          {manualReconcileError ? (
+            <div role="alert" className="rounded-xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-foreground">
+              {manualReconcileError}
+            </div>
+          ) : null}
+          <label className="space-y-2 text-sm text-foreground">
+            <span className="font-medium">Receipt code</span>
+            <input
+              aria-label="Receipt code"
+              className="input-base"
+              value={manualReceiptCode}
+              onChange={(event) => {
+                setManualReceiptCode(event.target.value);
+                setManualReconcileError(null);
+              }}
+            />
+          </label>
+          <label className="space-y-2 text-sm text-foreground">
+            <span className="font-medium">Matched learner</span>
+            <input
+              aria-label="Matched learner"
+              className="input-base"
+              value={manualMatchedLearner}
+              onChange={(event) => {
+                setManualMatchedLearner(event.target.value);
+                setManualReconcileError(null);
+              }}
+            />
+          </label>
+        </div>
+      </Modal>
     </section>
   );
-}
+}
 
 
 

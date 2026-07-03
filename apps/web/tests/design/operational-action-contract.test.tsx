@@ -23,6 +23,10 @@ const baseAction: OperationalActionContract = {
 };
 
 describe("OperationalActionButton", () => {
+  beforeEach(() => {
+    window.localStorage.setItem("myshule.currentSchoolId", "barakaacademy");
+  });
+
   it("keeps every action health state visible with school-friendly action context", () => {
     const healthStates: OperationalActionContract["health"][] = [
       "ACTIVE",
@@ -137,7 +141,7 @@ describe("OperationalActionButton", () => {
     expect(screen.queryByText(/print register completed/i)).not.toBeInTheDocument();
   });
 
-  it("does not show fake success when no execution handler is provided", async () => {
+  it("uses the governed default workflow when no custom execution handler is provided", async () => {
     const user = userEvent.setup();
 
     renderWithProviders(
@@ -158,7 +162,7 @@ describe("OperationalActionButton", () => {
     expect(screen.queryByText(/exam-release/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/audit\.approve-results/i)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /yes, continue/i }));
-    expect(screen.getByText(/could not complete because no working handler is connected/i)).toBeVisible();
+    expect(screen.getByText(/delete visitor record workflow accepted/i)).toBeVisible();
     expect(screen.queryByText(/delete visitor record sent/i)).not.toBeInTheDocument();
   });
 });

@@ -1,9 +1,9 @@
 import { GitPullRequest } from "lucide-react";
-import { Panel, StatusChip } from "../shared";
-import { useClassTeacherRequests } from "@/lib/data/class-teacher-hooks";
+import { Panel, StatusChip, openClassTeacherRecord } from "../shared";
+import { useClassTeacherRequests, useResolvedClassTeacherStreamId } from "@/lib/data/class-teacher-hooks";
 
 export function RequestsWorkspace() {
-  const streamId = "stream_123";
+  const { streamId } = useResolvedClassTeacherStreamId();
   const { data, isLoading, error } = useClassTeacherRequests(streamId);
 
   if (isLoading) {
@@ -45,7 +45,7 @@ export function RequestsWorkspace() {
                 <td className="p-3">{row.requestedBy}</td>
                 <td className="p-3"><StatusChip label={row.status} tone={row.status === 'Pending' ? 'warning' : 'success'}/></td>
                 <td className="p-3">
-                   <button className="rounded bg-[#EEF5FF] px-2 py-1 text-xs font-bold text-[#1D4ED8]">Review</button>
+                   <button type="button" className="rounded bg-[#EEF5FF] px-2 py-1 text-xs font-bold text-[#1D4ED8]" onClick={() => openClassTeacherRecord("Learner request review", [["Date", String(row.date)], ["Learner", String(row.learner)], ["Type", String(row.type)], ["Requested By", String(row.requestedBy)], ["Status", String(row.status)]])}>Review</button>
                 </td>
               </tr>
             ))}

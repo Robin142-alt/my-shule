@@ -170,6 +170,10 @@ export class MpesaService {
           payment_intent_id: paymentIntent.id,
           error_message: error instanceof Error ? error.message : String(error),
         });
+        await this.paymentIntentsRepository.deletePendingProviderStartFailure(
+          tenantId,
+          paymentIntent.id,
+        );
         throw error;
       }
       const updatedPaymentIntent = await this.paymentIntentsRepository.markStkRequested(

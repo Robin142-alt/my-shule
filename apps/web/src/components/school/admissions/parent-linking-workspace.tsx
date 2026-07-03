@@ -4,7 +4,7 @@ import { Users, Link2, Send } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { toast } from "sonner";
-import { sendParentInvitation } from "./api-client";
+import { linkParent, sendParentInvitation } from "./api-client";
 
 type ParentLinkRecord = {
   id: string;
@@ -26,6 +26,7 @@ type ParentLinkingData = {
 export function ParentLinkingWorkspace() {
   const { data, isLoading, refetch } = useSchoolQuery<ParentLinkingData>('/admin-command/admissions/parent-linking');
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [linkingId, setLinkingId] = useState<string | null>(null);
 
   const links = data?.parentLinksList || [];
 
@@ -48,6 +49,25 @@ export function ParentLinkingWorkspace() {
       toast.error("Failed to send parent invitation.");
     } finally {
       setSendingId(null);
+    }
+  };
+
+  const handleLinkParent = async (link: ParentLinkRecord) => {
+    setLinkingId(link.id);
+    try {
+      await linkParent({
+        id: link.id,
+        parent_name: link.parent_name,
+        parent_phone: link.parent_phone,
+        parent_email: link.parent_email,
+        relationship: link.relationship || "guardian",
+      });
+      toast.success("Parent linked to student successfully.");
+      refetch();
+    } catch {
+      toast.error("Failed to link parent. Confirm the parent email and phone are recorded.");
+    } finally {
+      setLinkingId(null);
     }
   };
 
@@ -104,7 +124,8 @@ export function ParentLinkingWorkspace() {
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
                       {link.link_status?.toLowerCase() === "unlinked" && (
-                        <button className="text-blue-600 hover:underline text-xs font-semibold inline-flex items-center gap-1"><Link2 className="w-3 h-3" /> Link</button>
+                        <button disabled={linkingId === link.id} onClick={() => handleLinkParent(link)}
+                          className="text-blue-600 hover:underline text-xs font-semibold inline-flex items-center gap-1 disabled:opacity-50"><Link2 className="w-3 h-3" /> Link</button>
                       )}
                       {link.link_status?.toLowerCase() !== "unlinked" && !link.invitation_sent && (
                         <button disabled={sendingId === link.id} onClick={() => handleSendInvite(link.id)}

@@ -9,6 +9,7 @@ import { buildRedisClientOptions } from './redis.options';
 export class RedisService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
   private degraded = false;
+  private degradedAt = 0;
 
   constructor(
     @Inject(REDIS_CLIENT) private readonly redisClient: Redis,
@@ -16,21 +17,36 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    try {
-      if (this.redisClient.status === 'wait') {
-        await this.redisClient.connect();
-      }
+    const redisRequired = this.isRedisRequired();
 
-      await this.redisClient.ping();
+    if (this.degraded && !this.shouldRetryDegradedConnection()) {
+      this.logger.warn('Redis startup skipped because a recent degraded state is still active');
+      return;
+    }
+
+    try {
+      const initialize = async (): Promise<void> => {
+        if (this.redisClient.status === 'wait') {
+          await this.redisClient.connect();
+        }
+
+        await this.redisClient.ping();
+      };
+
+      await this.withStartupTimeout(initialize(), redisRequired);
+
       this.degraded = false;
+      this.degradedAt = 0;
       this.logger.log('Redis connection initialized');
     } catch (error) {
-      this.degraded = true;
+      this.markDegraded();
       const message = `Redis initialization failed: ${error instanceof Error ? error.message : String(error)}`;
 
-      if (this.isRedisRequired()) {
+      this.stopReconnects();
+
+      if (redisRequired) {
         this.logger.error(
-          `CRITICAL: ${message}. Redis is required but allowing graceful degradation.`,
+          `CRITICAL: ${message}. Redis is required; HTTP startup will continue in degraded mode so health checks can report the failure.`,
           error instanceof Error ? error.stack : undefined,
         );
       } else {
@@ -63,12 +79,18 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   async ping(): Promise<'up' | 'degraded'> {
+    if (this.degraded && !this.shouldRetryDegradedConnection()) {
+      return 'degraded';
+    }
+
     try {
-      await this.redisClient.ping();
+      await this.withPingTimeout(this.redisClient.ping());
       this.degraded = false;
+      this.degradedAt = 0;
       return 'up';
     } catch (error) {
-      this.degraded = true;
+      this.markDegraded();
+      this.stopReconnects();
 
       if (this.isRedisRequired()) {
         this.logger.error(
@@ -107,5 +129,93 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
 
     return true;
+  }
+
+  private getStartupTimeoutMs(redisRequired: boolean): number {
+    const configuredTimeoutMs = Number(this.configService.get<number>('redis.connectTimeoutMs') ?? 10000);
+
+    if (redisRequired) {
+      return Math.min(Math.max(configuredTimeoutMs, 250), 1500);
+    }
+
+    return Math.min(Math.max(configuredTimeoutMs, 500), 1500);
+  }
+
+  private async withStartupTimeout<T>(operation: Promise<T>, redisRequired: boolean): Promise<T> {
+    let timeout: NodeJS.Timeout | undefined;
+    const startupTimeoutMs = this.getStartupTimeoutMs(redisRequired);
+
+    try {
+      return await Promise.race([
+        operation,
+        new Promise<T>((_, reject) => {
+          timeout = setTimeout(
+            () => reject(new Error(`Redis startup timed out after ${startupTimeoutMs}ms`)),
+            startupTimeoutMs,
+          );
+        }),
+      ]);
+    } finally {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    }
+  }
+
+  private async withPingTimeout<T>(operation: Promise<T>): Promise<T> {
+    let timeout: NodeJS.Timeout | undefined;
+    const configuredTimeoutMs = Number(this.configService.get<number>('redis.connectTimeoutMs') ?? 10000);
+    const pingTimeoutMs = Math.min(Math.max(configuredTimeoutMs, 100), 1500);
+
+    try {
+      return await Promise.race([
+        operation,
+        new Promise<T>((_, reject) => {
+          timeout = setTimeout(
+            () => reject(new Error(`Redis ping timed out after ${pingTimeoutMs}ms`)),
+            pingTimeoutMs,
+          );
+        }),
+      ]);
+    } finally {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    }
+  }
+
+  private getDegradedRetryAfterMs(): number {
+    const configuredRetryAfterMs = Number(this.configService.get<number>('redis.degradedRetryAfterMs') ?? 30000);
+
+    return Math.min(Math.max(configuredRetryAfterMs, 1000), 300000);
+  }
+
+  private shouldRetryDegradedConnection(): boolean {
+    if (!this.degraded) {
+      return true;
+    }
+
+    if (this.degradedAt === 0) {
+      return false;
+    }
+
+    return Date.now() - this.degradedAt >= this.getDegradedRetryAfterMs();
+  }
+
+  private markDegraded(): void {
+    this.degraded = true;
+    this.degradedAt = Date.now();
+  }
+
+  private stopReconnects(): void {
+    try {
+      if (this.redisClient.status !== 'end') {
+        this.redisClient.disconnect(false);
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Unable to stop optional Redis reconnects: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 }

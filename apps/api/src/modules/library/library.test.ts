@@ -164,6 +164,107 @@ test('LibraryService lists circulation ledger for the current tenant', async () 
   assert.equal(rows[0]?.id, 'ledger-1');
 });
 
+test('LibraryService lists tenant-scoped library visit workflow events', async () => {
+  let capturedSql = '';
+  let capturedValues: unknown[] = [];
+  const service = new LibraryService({
+    query: async (sql: string, values: unknown[]) => {
+      capturedSql = sql;
+      capturedValues = values;
+      return {
+        rows: [
+          {
+            id: 'visit-event-1',
+            title: 'Library visit logged',
+            message: 'Form 1 East visited the library for reading.',
+            created_at: '2026-06-25T08:30:00.000Z',
+            payload: {
+              visitor_name: 'Form 1 East',
+              visitor_type: 'class',
+              purpose: 'Reading',
+              time_in: '2026-06-25T08:30:00.000Z',
+              time_out: null,
+              reading_program: 'Drop Everything And Read',
+              notes: 'Class session',
+            },
+          },
+        ],
+      };
+    },
+  } as never, { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    {} as never,
+    {} as never,
+  );
+
+  const result = await service.getVisits();
+
+  assert.match(capturedSql, /FROM workflow_events/i);
+  assert.match(capturedSql, /tenant_id = \$1/i);
+  assert.match(capturedSql, /entity_type = 'library_visit'/i);
+  assert.deepEqual(capturedValues, ['tenant-a']);
+  assert.deepEqual(result.items[0], {
+    id: 'visit-event-1',
+    visitor_name: 'Form 1 East',
+    visitor_type: 'class',
+    purpose: 'Reading',
+    time_in: '2026-06-25T08:30:00.000Z',
+    time_out: '',
+    reading_program: 'Drop Everything And Read',
+    notes: 'Class session',
+    status: 'Active',
+    created_at: '2026-06-25T08:30:00.000Z',
+  });
+});
+
+test('LibraryService lists tenant-scoped library request workflow events', async () => {
+  let capturedSql = '';
+  let capturedValues: unknown[] = [];
+  const service = new LibraryService({
+    query: async (sql: string, values: unknown[]) => {
+      capturedSql = sql;
+      capturedValues = values;
+      return {
+        rows: [
+          {
+            id: 'request-event-1',
+            title: 'Library request submitted',
+            message: 'Purchase request for Grade 7 science books.',
+            created_at: '2026-06-25T09:30:00.000Z',
+            payload: {
+              request_type: 'purchase',
+              target_role: 'principal',
+              details: 'Grade 7 science books',
+              required_by: '2026-07-01',
+              priority: 'high',
+              status: 'Pending',
+            },
+          },
+        ],
+      };
+    },
+  } as never, { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    {} as never,
+    {} as never,
+  );
+
+  const result = await service.getRequests();
+
+  assert.match(capturedSql, /FROM workflow_events/i);
+  assert.match(capturedSql, /tenant_id = \$1/i);
+  assert.match(capturedSql, /entity_type = 'library_request'/i);
+  assert.deepEqual(capturedValues, ['tenant-a']);
+  assert.deepEqual(result.items[0], {
+    id: 'request-event-1',
+    request_type: 'purchase',
+    target_role: 'principal',
+    details: 'Grade 7 science books',
+    required_by: '2026-07-01',
+    priority: 'high',
+    status: 'Pending',
+    created_at: '2026-06-25T09:30:00.000Z',
+  });
+});
+
 test('LibraryService issues a book by scanner codes using ordinary keyboard input values', async () => {
   const calls: string[] = [];
   const service = new LibraryService({} as never, { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'librarian-1' }) } as never,

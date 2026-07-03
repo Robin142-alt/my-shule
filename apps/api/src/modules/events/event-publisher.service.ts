@@ -59,7 +59,7 @@ export class EventPublisherService {
     );
     const actorRole = input.actor_role ?? requestContext.role ?? null;
     const sourceDashboard = input.source_dashboard ?? requestContext.role ?? 'system';
-    const correlationId = input.correlation_id ?? requestContext.trace_id ?? null;
+    const correlationId = this.normalizeUuidOrNull(input.correlation_id ?? requestContext.trace_id);
 
     return this.outboxEventsRepository.createEvent({
       tenant_id: schoolId,
@@ -355,5 +355,19 @@ export class EventPublisherService {
     }
 
     return normalizedValue;
+  }
+
+  private normalizeUuidOrNull(value: string | null | undefined): string | null {
+    const normalizedValue = value?.trim();
+
+    if (!normalizedValue) {
+      return null;
+    }
+
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      normalizedValue,
+    )
+      ? normalizedValue
+      : null;
   }
 }

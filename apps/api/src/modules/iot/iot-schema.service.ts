@@ -196,6 +196,136 @@ export class IotSchemaService implements OnModuleInit {
         audit_log_reference uuid
       );
 
+      DO $$
+      DECLARE
+        iot_table text;
+      BEGIN
+        FOREACH iot_table IN ARRAY ARRAY[
+          'iot_devices',
+          'iot_device_credentials',
+          'iot_telemetry_readings',
+          'iot_gateway_ingestions',
+          'iot_device_commands',
+          'iot_alerts',
+          'iot_audit_logs'
+        ] LOOP
+          EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', iot_table);
+          EXECUTE format('DROP POLICY IF EXISTS %I ON %I', iot_table || '_tenant_policy', iot_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS tenant_id text', iot_table);
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns c
+            WHERE c.table_name = iot_table
+              AND c.column_name = 'tenant_id'
+              AND c.data_type <> 'text'
+          ) THEN
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id TYPE text USING tenant_id::text', iot_table);
+          END IF;
+          EXECUTE format(
+            'UPDATE %I SET tenant_id = COALESCE(NULLIF(tenant_id, ''''), NULLIF(current_setting(''app.tenant_id'', true), ''''), ''00000000-0000-0000-0000-000000000000'') WHERE tenant_id IS NULL OR tenant_id = ''''',
+            iot_table
+          );
+          EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET DEFAULT ''00000000-0000-0000-0000-000000000000''', iot_table);
+          EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET NOT NULL', iot_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT NOW()', iot_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW()', iot_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS audit_log_reference uuid', iot_table);
+        END LOOP;
+      END $$;
+
+      ALTER TABLE iot_devices ADD COLUMN IF NOT EXISTS name text NOT NULL DEFAULT 'IoT device';
+      ALTER TABLE iot_devices ADD COLUMN IF NOT EXISTS device_type text NOT NULL DEFAULT 'sensor';
+      ALTER TABLE iot_devices ADD COLUMN IF NOT EXISTS location_name text;
+      ALTER TABLE iot_devices ADD COLUMN IF NOT EXISTS external_device_id text;
+      ALTER TABLE iot_devices ALTER COLUMN external_device_id TYPE text USING external_device_id::text;
+      ALTER TABLE iot_devices ADD COLUMN IF NOT EXISTS installation_date date;
+      ALTER TABLE iot_devices ALTER COLUMN installation_date TYPE date
+        USING CASE
+          WHEN installation_date::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN installation_date::text::date
+          ELSE CURRENT_DATE
+        END;
+      ALTER TABLE iot_devices ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'offline';
+      ALTER TABLE iot_devices ADD COLUMN IF NOT EXISTS health_status text NOT NULL DEFAULT 'unknown';
+      ALTER TABLE iot_devices ADD COLUMN IF NOT EXISTS last_seen_at timestamptz;
+      ALTER TABLE iot_devices ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE iot_devices ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
+
+      ALTER TABLE iot_device_credentials ADD COLUMN IF NOT EXISTS device_id uuid;
+      ALTER TABLE iot_device_credentials ADD COLUMN IF NOT EXISTS key_id text;
+      ALTER TABLE iot_device_credentials ALTER COLUMN key_id TYPE text USING key_id::text;
+      UPDATE iot_device_credentials
+      SET key_id = COALESCE(NULLIF(key_id, ''), id::text)
+      WHERE key_id IS NULL OR key_id = '';
+      ALTER TABLE iot_device_credentials ALTER COLUMN key_id SET NOT NULL;
+      ALTER TABLE iot_device_credentials ADD COLUMN IF NOT EXISTS label text;
+      ALTER TABLE iot_device_credentials ADD COLUMN IF NOT EXISTS credential_hash text;
+      UPDATE iot_device_credentials
+      SET credential_hash = COALESCE(NULLIF(credential_hash, ''), id::text)
+      WHERE credential_hash IS NULL OR credential_hash = '';
+      ALTER TABLE iot_device_credentials ALTER COLUMN credential_hash SET NOT NULL;
+      ALTER TABLE iot_device_credentials ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+      ALTER TABLE iot_device_credentials ADD COLUMN IF NOT EXISTS last_used_at timestamptz;
+      ALTER TABLE iot_device_credentials ADD COLUMN IF NOT EXISTS expires_at timestamptz;
+      ALTER TABLE iot_device_credentials ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
+
+      ALTER TABLE iot_telemetry_readings ADD COLUMN IF NOT EXISTS device_id uuid;
+      ALTER TABLE iot_telemetry_readings ADD COLUMN IF NOT EXISTS metric_name text NOT NULL DEFAULT 'reading';
+      ALTER TABLE iot_telemetry_readings ADD COLUMN IF NOT EXISTS metric_value numeric NOT NULL DEFAULT 0;
+      ALTER TABLE iot_telemetry_readings ALTER COLUMN metric_value TYPE numeric
+        USING CASE
+          WHEN metric_value::text ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN metric_value::text::numeric
+          ELSE 0
+        END;
+      ALTER TABLE iot_telemetry_readings ADD COLUMN IF NOT EXISTS unit text;
+      ALTER TABLE iot_telemetry_readings ADD COLUMN IF NOT EXISTS severity text NOT NULL DEFAULT 'normal';
+      ALTER TABLE iot_telemetry_readings ADD COLUMN IF NOT EXISTS recorded_at timestamptz NOT NULL DEFAULT NOW();
+      ALTER TABLE iot_telemetry_readings ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE iot_telemetry_readings ADD COLUMN IF NOT EXISTS recorded_by_user_id uuid;
+
+      ALTER TABLE iot_gateway_ingestions ADD COLUMN IF NOT EXISTS device_id uuid;
+      ALTER TABLE iot_gateway_ingestions ADD COLUMN IF NOT EXISTS credential_id uuid;
+      ALTER TABLE iot_gateway_ingestions ADD COLUMN IF NOT EXISTS idempotency_key text;
+      UPDATE iot_gateway_ingestions
+      SET idempotency_key = COALESCE(NULLIF(idempotency_key, ''), id::text)
+      WHERE idempotency_key IS NULL OR idempotency_key = '';
+      ALTER TABLE iot_gateway_ingestions ALTER COLUMN idempotency_key SET NOT NULL;
+      ALTER TABLE iot_gateway_ingestions ADD COLUMN IF NOT EXISTS payload_sha256 text;
+      ALTER TABLE iot_gateway_ingestions ALTER COLUMN payload_sha256 TYPE text USING payload_sha256::text;
+      UPDATE iot_gateway_ingestions
+      SET payload_sha256 = COALESCE(NULLIF(payload_sha256, ''), id::text)
+      WHERE payload_sha256 IS NULL OR payload_sha256 = '';
+      ALTER TABLE iot_gateway_ingestions ALTER COLUMN payload_sha256 SET NOT NULL;
+      ALTER TABLE iot_gateway_ingestions ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'accepted';
+      ALTER TABLE iot_gateway_ingestions ADD COLUMN IF NOT EXISTS reading_count int NOT NULL DEFAULT 0;
+      ALTER TABLE iot_gateway_ingestions ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE iot_gateway_ingestions ADD COLUMN IF NOT EXISTS accepted_at timestamptz NOT NULL DEFAULT NOW();
+
+      ALTER TABLE iot_device_commands ADD COLUMN IF NOT EXISTS device_id uuid;
+      ALTER TABLE iot_device_commands ADD COLUMN IF NOT EXISTS command_type text NOT NULL DEFAULT 'sync';
+      ALTER TABLE iot_device_commands ADD COLUMN IF NOT EXISTS payload jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE iot_device_commands ADD COLUMN IF NOT EXISTS priority text NOT NULL DEFAULT 'normal';
+      ALTER TABLE iot_device_commands ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'queued';
+      ALTER TABLE iot_device_commands ADD COLUMN IF NOT EXISTS requested_by_user_id uuid;
+      ALTER TABLE iot_device_commands ADD COLUMN IF NOT EXISTS sent_at timestamptz;
+      ALTER TABLE iot_device_commands ADD COLUMN IF NOT EXISTS acknowledged_at timestamptz;
+      ALTER TABLE iot_device_commands ADD COLUMN IF NOT EXISTS result_metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+      ALTER TABLE iot_alerts ADD COLUMN IF NOT EXISTS device_id uuid;
+      ALTER TABLE iot_alerts ADD COLUMN IF NOT EXISTS title text NOT NULL DEFAULT 'IoT alert';
+      ALTER TABLE iot_alerts ADD COLUMN IF NOT EXISTS message text NOT NULL DEFAULT 'IoT alert requires review.';
+      ALTER TABLE iot_alerts ADD COLUMN IF NOT EXISTS severity text NOT NULL DEFAULT 'warning';
+      ALTER TABLE iot_alerts ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'open';
+      ALTER TABLE iot_alerts ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE iot_alerts ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
+      ALTER TABLE iot_alerts ADD COLUMN IF NOT EXISTS resolved_by_user_id uuid;
+      ALTER TABLE iot_alerts ADD COLUMN IF NOT EXISTS resolved_at timestamptz;
+
+      ALTER TABLE iot_audit_logs ADD COLUMN IF NOT EXISTS actor_user_id uuid;
+      ALTER TABLE iot_audit_logs ADD COLUMN IF NOT EXISTS action text NOT NULL DEFAULT 'iot.audit';
+      ALTER TABLE iot_audit_logs ADD COLUMN IF NOT EXISTS resource_type text NOT NULL DEFAULT 'iot';
+      ALTER TABLE iot_audit_logs ADD COLUMN IF NOT EXISTS resource_id uuid;
+      ALTER TABLE iot_audit_logs ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+
       CREATE INDEX IF NOT EXISTS ix_iot_devices_status
         ON iot_devices (tenant_id, status, health_status);
       CREATE INDEX IF NOT EXISTS ix_iot_credentials_device_status

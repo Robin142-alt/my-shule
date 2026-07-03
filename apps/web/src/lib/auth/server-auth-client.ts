@@ -1,5 +1,4 @@
 import type { LiveAuthUser } from "@/lib/dashboard/api-client";
-import { getDashboardApiBaseUrl } from "@/lib/dashboard/api-client";
 import type { ExperienceAudience } from "@/lib/auth/experience-audience";
 import { resolveExperienceHost } from "@/lib/auth/experience-routing";
 import { normalizeMfaCode } from "@/lib/auth/mfa-challenge";
@@ -34,6 +33,10 @@ type BackendAuthResponse = {
   user: LiveAuthUser;
 };
 
+type BackendMeResponse =
+  | { user: LiveAuthUser }
+  | { data: { user: LiveAuthUser } };
+
 type CookieReader = {
   get(name: string): { value: string } | undefined;
 };
@@ -57,6 +60,10 @@ function getBackendErrorMessage(payload: unknown) {
   const message = (payload as { message?: unknown }).message;
 
   if (typeof message === "string" && message.trim()) {
+    if (message.trim().toLowerCase() === "invalid email or password") {
+      return "Invalid credentials";
+    }
+
     return message;
   }
 
@@ -73,7 +80,41 @@ function getBackendErrorMessage(payload: unknown) {
 
 const AUTH_SERVICE_UNAVAILABLE =
   "Authentication service is temporarily unavailable. Please try again shortly.";
-const AUTH_REQUEST_TIMEOUT_MS = 6_000;
+const AUTH_REQUEST_TIMEOUT_MS = 25_000;
+
+function normalizeConfiguredAuthUrl(value: string | undefined) {
+  const normalized = value?.trim().replace(/^['"]|['"]$/g, "").replace(/\/+$/, "") ?? null;
+
+  return normalized?.replace(/\/api$/i, "") ?? null;
+}
+
+function buildTenantAuthOrigin(tenantId: string, domain: string) {
+  const trimmedDomain = normalizeConfiguredAuthUrl(domain)?.replace(/^\.+/, "") ?? "";
+
+  if (/^https?:\/\//i.test(trimmedDomain)) {
+    const parsed = new URL(trimmedDomain);
+    return `${parsed.protocol}//${tenantId}.${parsed.host}`;
+  }
+
+  const protocol = /localhost|127\.0\.0\.1/i.test(trimmedDomain) ? "http" : "https";
+  return `${protocol}://${tenantId}.${trimmedDomain}`;
+}
+
+function isLocalAuthDomain(domain: string | null) {
+  return Boolean(domain && /^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(domain));
+}
+
+function getServerAuthBaseUrl(tenantId?: string) {
+  const configuredBaseUrl = normalizeConfiguredAuthUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
+  const configuredBaseDomain =
+    normalizeConfiguredAuthUrl(process.env.NEXT_PUBLIC_API_BASE_DOMAIN)?.replace(/^\.+/, "") ?? null;
+
+  if (configuredBaseDomain && tenantId && !isLocalAuthDomain(configuredBaseDomain)) {
+    return buildTenantAuthOrigin(tenantId, configuredBaseDomain);
+  }
+
+  return configuredBaseUrl;
+}
 
 function buildExperienceHomePath(input: {
   audience: ExperienceAudience;
@@ -127,6 +168,14 @@ function buildGatewaySession(input: {
   } satisfies ExperienceGatewaySession;
 }
 
+function unwrapBackendUser(response: BackendMeResponse) {
+  if ("user" in response) {
+    return response.user;
+  }
+
+  return response.data.user;
+}
+
 async function requestBackendAuth<T>(
   path: string,
   input: {
@@ -138,7 +187,7 @@ async function requestBackendAuth<T>(
   },
 ) {
   const tenantSlug = input.tenantSlug?.trim() || undefined;
-  const baseUrl = getDashboardApiBaseUrl(tenantSlug);
+  const baseUrl = getServerAuthBaseUrl(tenantSlug);
 
   if (!baseUrl) {
     throw unauthorized(AUTH_SERVICE_UNAVAILABLE);
@@ -341,22 +390,23 @@ export function createServerAuthClient(request: Request) {
         throw unauthorized("No active session found.");
       }
 
-      const response = await requestBackendAuth<{ user: LiveAuthUser }>("/auth/me", {
+      const response = await requestBackendAuth<BackendMeResponse>("/auth/me", {
         audience: requestedAudience,
         tenantSlug,
         method: "GET",
         accessToken,
       });
+      const user = unwrapBackendUser(response);
 
       return buildGatewaySession({
         audience: requestedAudience,
-        userLabel: response.user.display_name || response.user.email,
-        tenantSlug: response.user.tenant_id ?? tenantSlug ?? null,
-        role: response.user.role,
-        viewer: requestedAudience === "portal" ? (response.user.role === "student" ? "student" : "parent") : undefined,
+        userLabel: user.display_name || user.email,
+        tenantSlug: user.tenant_id ?? tenantSlug ?? null,
+        role: user.role,
+        viewer: requestedAudience === "portal" ? (user.role === "student" ? "student" : "parent") : undefined,
         accessToken,
         refreshToken: readRefreshCookie(cookies),
-        user: response.user,
+        user,
       });
     },
   };

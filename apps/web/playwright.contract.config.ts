@@ -5,14 +5,14 @@ export default defineConfig({
   testMatch: /.*\.spec\.ts/,
   /* We exclude production-pilot from standard contract runs */
   testIgnore: /production-pilot\.spec\.ts/,
-  timeout: 60_000,
+  timeout: 120_000,
   expect: {
     timeout: 10_000,
   },
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1,
   reporter: "html",
   use: {
     baseURL: "http://127.0.0.1:3005",

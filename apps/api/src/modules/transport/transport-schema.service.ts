@@ -295,6 +295,102 @@ export class TransportSchemaService implements OnModuleInit {
         audit_log_reference uuid
       );
 
+      DO $$
+      DECLARE
+        transport_table text;
+      BEGIN
+        FOREACH transport_table IN ARRAY ARRAY[
+          'transport_routes',
+          'transport_route_stops',
+          'transport_vehicles',
+          'transport_drivers',
+          'transport_manifests',
+          'transport_manifest_students',
+          'transport_trips',
+          'transport_trip_events',
+          'transport_alerts',
+          'vehicle_service_logs',
+          'transport_audit_logs'
+        ] LOOP
+          EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', transport_table);
+          EXECUTE format('DROP POLICY IF EXISTS %I ON %I', transport_table || '_tenant_policy', transport_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS tenant_id text', transport_table);
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns c
+            WHERE c.table_name = transport_table
+              AND c.column_name = 'tenant_id'
+              AND c.data_type <> 'text'
+          ) THEN
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id TYPE text USING tenant_id::text', transport_table);
+          END IF;
+          EXECUTE format(
+            'UPDATE %I SET tenant_id = COALESCE(NULLIF(tenant_id, ''''), NULLIF(current_setting(''app.tenant_id'', true), ''''), ''00000000-0000-0000-0000-000000000000'') WHERE tenant_id IS NULL OR tenant_id = ''''',
+            transport_table
+          );
+          EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET DEFAULT ''00000000-0000-0000-0000-000000000000''', transport_table);
+          EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET NOT NULL', transport_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT NOW()', transport_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW()', transport_table);
+          EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS audit_log_reference uuid', transport_table);
+        END LOOP;
+      END $$;
+
+      ALTER TABLE transport_routes ADD COLUMN IF NOT EXISTS name text NOT NULL DEFAULT 'Transport route';
+      ALTER TABLE transport_routes ADD COLUMN IF NOT EXISTS direction text NOT NULL DEFAULT 'round_trip';
+      ALTER TABLE transport_routes ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+
+      ALTER TABLE transport_route_stops ADD COLUMN IF NOT EXISTS route_id uuid;
+      ALTER TABLE transport_route_stops ADD COLUMN IF NOT EXISTS name text NOT NULL DEFAULT 'Route stop';
+      ALTER TABLE transport_route_stops ADD COLUMN IF NOT EXISTS stop_sequence integer NOT NULL DEFAULT 1;
+
+      ALTER TABLE transport_vehicles ADD COLUMN IF NOT EXISTS registration_number text;
+      UPDATE transport_vehicles
+      SET registration_number = COALESCE(NULLIF(registration_number, ''), id::text)
+      WHERE registration_number IS NULL OR registration_number = '';
+      ALTER TABLE transport_vehicles ALTER COLUMN registration_number SET NOT NULL;
+      ALTER TABLE transport_vehicles ADD COLUMN IF NOT EXISTS capacity integer NOT NULL DEFAULT 1;
+      ALTER TABLE transport_vehicles ADD COLUMN IF NOT EXISTS ownership_type text NOT NULL DEFAULT 'school_owned';
+      ALTER TABLE transport_vehicles ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+
+      ALTER TABLE transport_drivers ADD COLUMN IF NOT EXISTS name text NOT NULL DEFAULT 'Driver';
+      ALTER TABLE transport_drivers ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+
+      ALTER TABLE transport_manifests ADD COLUMN IF NOT EXISTS route_id uuid;
+      ALTER TABLE transport_manifests ADD COLUMN IF NOT EXISTS effective_from date NOT NULL DEFAULT CURRENT_DATE;
+      ALTER TABLE transport_manifests ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+
+      ALTER TABLE transport_manifest_students ADD COLUMN IF NOT EXISTS manifest_id uuid;
+      ALTER TABLE transport_manifest_students ADD COLUMN IF NOT EXISTS student_id uuid;
+      ALTER TABLE transport_manifest_students ADD COLUMN IF NOT EXISTS boarding_status text NOT NULL DEFAULT 'active';
+
+      ALTER TABLE transport_trips ADD COLUMN IF NOT EXISTS route_id uuid;
+      ALTER TABLE transport_trips ADD COLUMN IF NOT EXISTS vehicle_id uuid;
+      ALTER TABLE transport_trips ADD COLUMN IF NOT EXISTS driver_id uuid;
+      ALTER TABLE transport_trips ADD COLUMN IF NOT EXISTS manifest_id uuid;
+      ALTER TABLE transport_trips ADD COLUMN IF NOT EXISTS trip_date date NOT NULL DEFAULT CURRENT_DATE;
+      ALTER TABLE transport_trips ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'scheduled';
+
+      ALTER TABLE transport_trip_events ADD COLUMN IF NOT EXISTS trip_id uuid;
+      ALTER TABLE transport_trip_events ADD COLUMN IF NOT EXISTS event_type text NOT NULL DEFAULT 'incident';
+      ALTER TABLE transport_trip_events ADD COLUMN IF NOT EXISTS event_time timestamptz NOT NULL DEFAULT NOW();
+      ALTER TABLE transport_trip_events ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+      ALTER TABLE transport_alerts ADD COLUMN IF NOT EXISTS title text NOT NULL DEFAULT 'Transport alert';
+      ALTER TABLE transport_alerts ADD COLUMN IF NOT EXISTS message text NOT NULL DEFAULT 'Transport alert requires review.';
+      ALTER TABLE transport_alerts ADD COLUMN IF NOT EXISTS severity text NOT NULL DEFAULT 'warning';
+      ALTER TABLE transport_alerts ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'open';
+      ALTER TABLE transport_alerts ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+      ALTER TABLE vehicle_service_logs ADD COLUMN IF NOT EXISTS vehicle_id uuid;
+      ALTER TABLE vehicle_service_logs ADD COLUMN IF NOT EXISTS service_date date NOT NULL DEFAULT CURRENT_DATE;
+
+      ALTER TABLE transport_audit_logs ADD COLUMN IF NOT EXISTS actor_user_id uuid;
+      ALTER TABLE transport_audit_logs ADD COLUMN IF NOT EXISTS action text NOT NULL DEFAULT 'transport.audit';
+      ALTER TABLE transport_audit_logs ADD COLUMN IF NOT EXISTS resource_type text NOT NULL DEFAULT 'transport';
+      ALTER TABLE transport_audit_logs ADD COLUMN IF NOT EXISTS resource_id uuid;
+      ALTER TABLE transport_audit_logs ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+
       CREATE UNIQUE INDEX IF NOT EXISTS transport_routes_name
         ON transport_routes (tenant_id, lower(name));
       CREATE INDEX IF NOT EXISTS ix_transport_route_stops_route_sequence

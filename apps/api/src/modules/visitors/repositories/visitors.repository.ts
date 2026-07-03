@@ -69,7 +69,7 @@ export class VisitorsRepository {
   async checkOutVisitor(tenantId: string, logId: string) {
     const result = await this.executeSql(
       `UPDATE visitors_logs 
-       SET time_out = NOW(), status = 'checked_out'
+       SET time_out = NOW(), status = 'checked_out', updated_at = NOW()
        WHERE tenant_id = $1 AND id = $2 AND status = 'active'
        RETURNING *`,
       [tenantId, logId]
@@ -99,7 +99,7 @@ export class VisitorsRepository {
   async returnStudent(tenantId: string, exitId: string) {
     const result = await this.executeSql(
       `UPDATE student_exits 
-       SET time_in = NOW(), status = 'returned'
+       SET time_in = NOW(), status = 'returned', updated_at = NOW()
        WHERE tenant_id = $1 AND id = $2 AND status = 'out'
        RETURNING *`,
       [tenantId, exitId]

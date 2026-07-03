@@ -60,6 +60,7 @@ const passingPackageJsonSource = JSON.stringify({
       'dist/apps/api/src/scripts/query-plan-review.test.js',
       'dist/apps/api/src/scripts/release-readiness-gate.test.js',
       'dist/apps/api/src/scripts/provider-credential-smoke.test.js',
+      'dist/apps/api/src/scripts/production-env-audit.test.js',
       'dist/apps/api/src/scripts/incident-drill.test.js',
       'dist/apps/api/src/scripts/implementation20-certification.test.js',
       'dist/apps/api/src/scripts/implementation21-certification.test.js',
@@ -103,6 +104,9 @@ const passingPackageJsonSource = JSON.stringify({
     'monitor:synthetic': 'node apps/api/src/scripts/synthetic-journey-monitor.ts',
     'maintainability:scan': 'node apps/api/src/scripts/maintainability-scan.ts',
     'smoke:providers': 'node apps/api/src/scripts/provider-credential-smoke.ts',
+    'smoke:production-auth': 'node scripts/production-auth-smoke.mjs',
+    'test:production-auth-smoke': 'node --test scripts/production-auth-smoke.test.mjs',
+    'env:production:audit': 'node apps/api/src/scripts/production-env-audit.ts',
     'release:readiness': 'node dist/apps/api/src/scripts/release-readiness-gate.js',
     'scorecard:production': 'node apps/api/src/scripts/generate-production-scorecard.ts',
     'certify:pilot': 'node apps/api/src/scripts/run-pilot-certification.ts',
@@ -181,11 +185,15 @@ const passingIncidentRunbookSource = `
 const passingProviderCredentialSmokeTestSource = `
   test('live provider smoke covers required providers', () => {
     process.env.SUPPORT_PROVIDER_SMOKE_REQUIRE_SMS = 'true';
+    assert.equal(result.checks.some((check) => check.id === 'live-email-provider'), true);
+    assert.equal('https://api.resend.com/domains'.includes('api.resend.com/domains'), true);
     assert.equal(result.checks.some((check) => check.id === 'live-support-sms-provider'), true);
     assert.equal(result.checks.some((check) => check.id === 'live-upload-malware-scan-provider'), true);
     assert.equal(process.env.UPLOAD_MALWARE_SCAN_HEALTH_URL, 'https://scanner.example.test/health');
     assert.equal(result.checks.some((check) => check.id === 'live-upload-object-storage'), true);
     assert.equal(result.checks.some((check) => check.metadata.delete_checked), true);
+    assert.equal(result.checks.some((check) => check.id === 'live-redis-queue-cache'), true);
+    assert.equal('rediss://redis.example.test'.startsWith('rediss://'), true);
   });
 `;
 
@@ -198,9 +206,11 @@ const passingProductionOperabilityWorkflowSource = `
           env:
             SYNTHETIC_MONITOR_TOKEN: \${{ secrets.PROD_MONITOR_ACCESS_TOKEN }}
         - run: npm run maintainability:scan
-        - run: npm run load:core-api
-        - run: npm run smoke:providers
-        - run: npm run perf:query-plan-review
+    - run: npm run load:core-api
+    - run: npm run smoke:providers
+    - run: npm run env:production:audit
+    - run: npm run smoke:production-auth
+    - run: npm run perf:query-plan-review
         - run: npm run release:readiness
         - run: npm run scorecard:production
         - run: npm run certify:pilot

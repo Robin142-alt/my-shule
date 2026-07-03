@@ -1,5 +1,12 @@
+"use client";
+
 import { type ReactNode } from "react";
 import { LucideIcon } from "lucide-react";
+import { toast } from "sonner";
+
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
+import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 
 export type Tone = "success" | "info" | "warning" | "danger" | "neutral";
 export type TeacherView = "home" | "register" | "attendance" | "progress" | "comments" | "discipline" | "welfare" | "health" | "fees" | "communication" | "meetings" | "homework" | "timetable" | "documents" | "requests" | "reports" | "notifications" | "settings" | string;
@@ -50,6 +57,75 @@ export function StatusChip({ label, tone = "neutral" }: { label: string; tone?: 
   );
 }
 
+function classTeacherActionSlug(title: string) {
+  return title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ".")
+    .replace(/^\.+|\.+$/g, "") || "workflow.action";
+}
+
+async function persistClassTeacherWorkflowAction(title: string, body: string, tone: "success" | "info" | "warning" | "danger") {
+  return requestDashboardApi("/api/admin-command/class-teacher/actions", {
+    method: "POST",
+    body: {
+      action: classTeacherActionSlug(title),
+      title,
+      description: body,
+      priority: tone === "danger" || tone === "warning" ? "high" : "normal",
+      source: "class-teacher-dashboard",
+    },
+  });
+}
+
+type ClassTeacherCommunicationInput = {
+  audience: string;
+  message: string;
+  subject?: string;
+  learnerId?: string;
+  sendSms?: boolean;
+  source?: string;
+};
+
+export async function sendClassTeacherCommunication(input: ClassTeacherCommunicationInput) {
+  const message = input.message.trim();
+  if (!message) {
+    toast.error("Message is required before sending a class-teacher communication.");
+    return false;
+  }
+
+  try {
+    const response = await requestDashboardApi<{ message?: string }>("/api/admin-command/class-teacher/communications", {
+      method: "POST",
+      body: {
+        audience: input.audience,
+        message,
+        subject: input.subject,
+        learnerId: input.learnerId,
+        sendSms: Boolean(input.sendSms),
+        source: input.source ?? "class-teacher-dashboard",
+      },
+    });
+
+    toast.success(response?.message || "Class-teacher communication queued.", {
+      description: input.subject || message,
+    });
+    publishSchoolOperationalEvent({
+      type: "class_teacher.communication_sent",
+      module: "class_teacher",
+      actorRole: "class_teacher",
+      title: input.subject || "Class-teacher communication",
+      body: message,
+    });
+    return true;
+  } catch (error) {
+    toast.error("Class-teacher communication was not sent", {
+      description: error instanceof Error ? error.message : "The communication could not be queued for the selected audience.",
+    });
+    return false;
+  }
+}
+
 export function Panel({
   title,
   description,
@@ -82,4 +158,50 @@ export function Panel({
       {children}
     </section>
   );
+}
+
+export async function recordClassTeacherAction(title: string, body: string, tone: "success" | "info" | "warning" | "danger" = "info") {
+  try {
+    await persistClassTeacherWorkflowAction(title, body, tone);
+  } catch (error) {
+    toast.error("Class-teacher action was not saved", {
+      description: error instanceof Error ? error.message : "The action could not be persisted for audit and dashboard follow-up.",
+    });
+    return false;
+  }
+
+  const notify = tone === "danger" ? toast.error : tone === "success" ? toast.success : toast.info;
+  notify(title, { description: body });
+  publishSchoolOperationalEvent({
+    type: "class_teacher.workflow_action",
+    module: "class_teacher",
+    actorRole: "class_teacher",
+    title,
+    body,
+  });
+  return true;
+}
+
+export async function openClassTeacherRecord(title: string, rows: Array<[string, string]>) {
+  const persisted = await recordClassTeacherAction("Class-teacher record opened", `${title} is ready for preview, print, or PDF download.`, "success");
+  if (!persisted) {
+    return;
+  }
+
+  openPrintDocument({
+    eyebrow: "MyShule Class Teacher",
+    title,
+    subtitle: `School: ${getCurrentSchoolId() || "current tenant"} | Generated ${new Date().toLocaleString()}`,
+    rows: rows.map(([label, value]) => ({ label, value })),
+    footer: "Class teacher actions should preserve learner, parent, stream, and follow-up context.",
+  });
+}
+
+export async function exportClassTeacherCsv(filename: string, headers: string[], rows: string[][], title: string) {
+  const persisted = await recordClassTeacherAction("Class-teacher export created", `${title} was downloaded for the current class stream.`, "success");
+  if (!persisted) {
+    return;
+  }
+
+  downloadCsvFile({ filename, headers, rows });
 }

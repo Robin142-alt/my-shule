@@ -26,7 +26,9 @@ import { ObservabilityController } from '../../src/modules/observability/observa
 import { SloMetricsService } from '../../src/modules/observability/slo-metrics.service';
 import { SloMonitoringService } from '../../src/modules/observability/slo-monitoring.service';
 import { StructuredLoggerService } from '../../src/modules/observability/structured-logger.service';
+import { PaymentsSchemaService } from '../../src/modules/payments/payments-schema.service';
 import { SyncOperationLogService } from '../../src/modules/sync/sync-operation-log.service';
+import { TenantFinanceSchemaService } from '../../src/modules/tenant-finance/tenant-finance-schema.service';
 import { QueueService } from '../../src/queue/queue.service';
 import { TenantModule } from '../../src/tenant/tenant.module';
 import { CapturingStructuredLoggerService } from './capturing-structured-logger.service';
@@ -151,6 +153,8 @@ export class ObservabilityQueueProbeService {
     AuthSchemaService,
     EventsSchemaService,
     FinanceSchemaService,
+    TenantFinanceSchemaService,
+    PaymentsSchemaService,
     LedgerService,
     TransactionService,
     AccountsRepository,

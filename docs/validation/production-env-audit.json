@@ -1,0 +1,30 @@
+{
+  "ok": false,
+  "generated_at": "2026-07-03T10:05:11.484Z",
+  "env_file_order": [
+    ".env.production.local",
+    ".env.local",
+    ".env.production",
+    ".env"
+  ],
+  "loaded_files": [
+    ".env.production.local",
+    ".env.production",
+    ".env"
+  ],
+  "summary": {
+    "missing": 0,
+    "invalid": 2,
+    "total": 2
+  },
+  "issues": [
+    {
+      "type": "invalid",
+      "message": "UPLOAD_OBJECT_STORAGE_ENABLED must be true in production"
+    },
+    {
+      "type": "invalid",
+      "message": "MPESA_TRANSACTION_STATUS_SECURITY_CREDENTIAL must be a strong production secret"
+    }
+  ]
+}

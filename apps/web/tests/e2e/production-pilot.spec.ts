@@ -15,7 +15,8 @@ test("school login page loads as a secure tenant-aware entry", async ({ page }) 
   await page.goto("/school/login");
 
   await expect(page.getByRole("heading", { level: 2, name: /run your school with operational clarity/i })).toBeVisible();
-  await expect(page.getByText(/school access pending/i)).toBeVisible();
+  await expect(page.getByText(/school account lookup/i)).toBeVisible();
+  await expect(page.getByText(/opens? the school linked to your account/i)).toBeVisible();
   await expect(page.getByLabel(/email/i)).toBeVisible();
   await expect(page.getByRole("textbox", { name: /^password$/i })).toBeVisible();
   await expect(page.getByText(/demo|example user|seed/i)).toHaveCount(0);
@@ -35,27 +36,23 @@ test("support ticket creation route requires an authenticated school session", a
   await expect(page).toHaveURL(/\/school\/login/);
 });
 
-test("forgot password request returns a user-safe success state when explicitly enabled", async ({ request }) => {
-  test.skip(
-    !productionPilotConfig.enableRecoveryRequest || !productionPilotConfig.recoveryEmail,
-    "Set E2E_ENABLE_RECOVERY_REQUEST=true and E2E_RECOVERY_EMAIL to exercise the live recovery request.",
-  );
-
+test("forgot password request returns a user-safe response without exposing identifiers", async ({ request }) => {
   const csrf = await request.get("/api/auth/csrf");
   const csrfPayload = (await csrf.json()) as { token?: string };
+  const recoveryIdentifier = "not-a-real-email";
   const response = await request.post("/api/auth/password-recovery/request", {
     headers: {
       "x-myshule-csrf": csrfPayload.token ?? "",
     },
     data: {
       audience: "school",
-      identifier: productionPilotConfig.recoveryEmail,
+      identifier: recoveryIdentifier,
       tenantSlug: productionPilotConfig.pilotTenantId || null,
     },
   });
   const payload = (await response.json()) as { message?: string; success?: boolean };
 
   expect(response.status()).toBeLessThan(500);
-  expect(JSON.stringify(payload)).not.toContain(productionPilotConfig.recoveryEmail);
+  expect(JSON.stringify(payload)).not.toContain(recoveryIdentifier);
   expect(payload.message ?? "").toMatch(/instructions|temporarily unavailable|eligible/i);
 });

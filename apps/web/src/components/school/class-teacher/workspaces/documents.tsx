@@ -1,9 +1,9 @@
 import { FolderOpen } from "lucide-react";
-import { Panel } from "../shared";
-import { useClassTeacherDocuments } from "@/lib/data/class-teacher-hooks";
+import { Panel, openClassTeacherRecord } from "../shared";
+import { useClassTeacherDocuments, useResolvedClassTeacherStreamId } from "@/lib/data/class-teacher-hooks";
 
 export function DocumentsWorkspace() {
-  const streamId = "stream_123";
+  const { streamId } = useResolvedClassTeacherStreamId();
   const { data, isLoading, error } = useClassTeacherDocuments(streamId);
 
   if (isLoading) {
@@ -25,7 +25,7 @@ export function DocumentsWorkspace() {
   return (
     <Panel title="Class Documents" description="Shared files, syllabuses, and class resources." icon={FolderOpen}>
       <div className="mb-4 flex justify-end">
-         <button className="rounded-lg bg-[#1D4ED8] px-4 py-2 text-sm font-black text-white">Upload Document</button>
+         <button type="button" className="rounded-lg bg-[#1D4ED8] px-4 py-2 text-sm font-black text-white" onClick={() => openClassTeacherRecord("Document upload workflow", [["Stream", streamId], ["Action", "Upload class document"], ["Required", "Title, file, visibility, and audit context"]])}>Upload Document</button>
       </div>
       <div className="overflow-hidden rounded-xl border border-[#D8E0EC]">
         <table className="w-full text-left text-sm text-[#071D49]">
@@ -46,7 +46,7 @@ export function DocumentsWorkspace() {
                 <td className="p-3">{row.uploadedAt}</td>
                 <td className="p-3">{row.size}</td>
                 <td className="p-3 text-right">
-                  <button className="rounded bg-[#EEF5FF] px-2 py-1 text-xs font-bold text-[#1D4ED8]">Download</button>
+                  <button type="button" className="rounded bg-[#EEF5FF] px-2 py-1 text-xs font-bold text-[#1D4ED8]" onClick={() => openClassTeacherRecord("Class document download", [["Title", String(row.title)], ["Type", String(row.type)], ["Uploaded", String(row.uploadedAt)], ["Size", String(row.size)]])}>Download</button>
                 </td>
               </tr>
             ))}

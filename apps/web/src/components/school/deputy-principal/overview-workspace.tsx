@@ -1,11 +1,15 @@
 "use client";
-import { useState, useEffect } from "react";
-import { LayoutDashboard, Users, UserX, UserCheck, AlertTriangle, ShieldAlert } from "lucide-react";
+import { useState } from "react";
+import { LayoutDashboard, UserX, UserCheck, AlertTriangle, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
-import { Panel, StatusChip, Tone } from "./shared";
-import { readSchoolData, subscribeToSchoolDataUpdates, updateSchoolRecord, createNotification } from "@/lib/school/school-operational-store";
+import { Panel, StatusChip, Tone, openDeputyRecord } from "./shared";
 
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import {
+  getCurrentSchoolId,
+  publishSchoolOperationalEvent,
+} from "@/lib/school/school-operational-store";
 
 type DeputyOverviewData = {
   incident_summary: {
@@ -33,10 +37,34 @@ export function DeputyOverviewWorkspace() {
   const handleStartMorningReview = async () => {
     setIsSubmitting(true);
     try {
-      await new Promise(res => setTimeout(res, 500));
-      toast.success("Morning Review Started successfully!");
-    } catch (e) {
-      toast.error("Failed to start Morning Review.");
+      await requestDashboardApi("/admin-command/deputy/morning-review", {
+        method: "POST",
+        body: {
+          started_at: new Date().toISOString(),
+          present_today: presentToday,
+          absent_today: absentToday,
+          reported_incidents: reportedIncidents,
+          escalated_incidents: escalatedIncidents,
+        },
+      });
+      publishSchoolOperationalEvent({
+        schoolId: getCurrentSchoolId(),
+        type: "deputy.morning_review.started",
+        module: "deputy-principal",
+        actorRole: "deputy-principal",
+        title: "Morning review started",
+        body: "Deputy Principal started the daily morning review from live attendance and incident metrics.",
+        severity: "info",
+        payload: {
+          presentToday,
+          absentToday,
+          reportedIncidents,
+          escalatedIncidents,
+        },
+      });
+      toast.success("Morning review started and recorded.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to start Morning Review.");
     } finally {
       setIsSubmitting(false);
     }
@@ -60,7 +88,7 @@ export function DeputyOverviewWorkspace() {
 
   return (
     <Panel title="Overview" description="Today's Priority Queue and school state." icon={LayoutDashboard} actions={
-      <button disabled={isSubmitting} onClick={handleStartMorningReview} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50">{isSubmitting ? "Starting..." : "Start Morning Review"}</button>
+      <button type="button" disabled={isSubmitting} onClick={handleStartMorningReview} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50">{isSubmitting ? "Starting..." : "Start Morning Review"}</button>
     }>
       <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-4 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 flex flex-col justify-between">
@@ -105,7 +133,7 @@ export function DeputyOverviewWorkspace() {
                   <td className="px-4 py-3 text-[#64748B]">{incident.involved_parties || "Unknown"}</td>
                   <td className="px-4 py-3 text-[#64748B]">{incident.status}</td>
                   <td className="px-4 py-3 text-right">
-                    <button className="text-blue-600 hover:underline font-semibold text-xs">View Details</button>
+                    <button type="button" className="text-blue-600 hover:underline font-semibold text-xs" onClick={() => openDeputyRecord("Priority incident details", [["Title", incident.title], ["Parties", incident.involved_parties || "Unknown"], ["Status", incident.status], ["Severity", incident.severity || "Normal"], ["Created At", incident.created_at || "-"]])}>View Details</button>
                   </td>
                 </tr>
               ))

@@ -941,8 +941,8 @@ export class LabsRepository {
 
       return sessions.rows.map(s => ({
         id: s.id,
-        teacher: teachersMap[s.teacher_id] || 'Unknown Teacher',
-        className: classesMap[s.class_section_id] || 'Unknown Class',
+        teacher: teachersMap[s.teacher_id] || 'Teacher not linked',
+        className: classesMap[s.class_section_id] || 'Class not linked',
         subject: s.subject_name || 'Science',
         practical: `${s.subject_name || 'Lab'} Session`,
         requestedFor: `${s.session_date} ${s.start_time}`,
@@ -1011,8 +1011,8 @@ export class LabsRepository {
 
         for (const s of sessions.rows) {
           sessionsMap[s.id] = {
-            teacher: teachersMap[s.teacher_id] || 'Unknown Teacher',
-            className: classesMap[s.class_section_id] || 'Unknown Class'
+            teacher: teachersMap[s.teacher_id] || 'Teacher not linked',
+            className: classesMap[s.class_section_id] || 'Class not linked'
           };
         }
       }
@@ -1045,7 +1045,7 @@ export class LabsRepository {
 
       const list: any[] = [];
       for (const eq of eqUsages.rows) {
-        const sInfo = sessionsMap[eq.session_id] || { teacher: 'Unknown Teacher', className: 'Unknown Class' };
+        const sInfo = sessionsMap[eq.session_id] || { teacher: 'Teacher not linked', className: 'Class not linked' };
         list.push({
           id: eq.id,
           item: eqMap[eq.equipment_id] || 'Lab Equipment',
@@ -1058,7 +1058,7 @@ export class LabsRepository {
       }
 
       for (const chem of chemUsages.rows) {
-        const sInfo = sessionsMap[chem.session_id] || { teacher: 'Unknown Teacher', className: 'Unknown Class' };
+        const sInfo = sessionsMap[chem.session_id] || { teacher: 'Teacher not linked', className: 'Class not linked' };
         list.push({
           id: chem.id,
           item: chemMap[chem.chemical_id] || 'Chemical Item',

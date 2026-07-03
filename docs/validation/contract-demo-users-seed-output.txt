@@ -1,0 +1,5 @@
+
+> my-shule@0.1.0 seed:contract-demo-users
+> node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/ensure-contract-demo-users.ts --confirm-contract-demo-users
+
+Seeded contract demo credentials for kb-high and platform owner.

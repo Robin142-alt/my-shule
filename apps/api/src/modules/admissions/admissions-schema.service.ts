@@ -53,7 +53,7 @@ export class AdmissionsSchemaService implements OnModuleInit {
       ${FILE_OBJECT_STORAGE_SCHEMA_SQL}
 
       CREATE TABLE IF NOT EXISTS admission_applications (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
         application_number text NOT NULL,
         full_name text NOT NULL,
@@ -78,7 +78,7 @@ export class AdmissionsSchemaService implements OnModuleInit {
         interview_date date,
         review_notes text,
         approved_at timestamptz,
-        admitted_student_id uuid,
+        admitted_student_id text,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW(),
         CONSTRAINT uq_admission_applications_tenant_id_id UNIQUE (tenant_id, id),
@@ -86,12 +86,77 @@ export class AdmissionsSchemaService implements OnModuleInit {
       );
 
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS nemis_upi text;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS school_id text;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS first_name text;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS middle_name text;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS last_name text;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS guardian_name text;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS guardian_phone text;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS guardian_email text;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS guardian_occupation text;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS guardian_relationship text;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS applying_for_class_id text;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS application_status text;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS tenant_id text;
+      UPDATE admission_applications
+      SET tenant_id = COALESCE(NULLIF(tenant_id, ''), school_id::text, 'global')
+      WHERE tenant_id IS NULL OR btrim(tenant_id) = '';
+      ALTER TABLE admission_applications ALTER COLUMN tenant_id SET DEFAULT 'global';
+      ALTER TABLE admission_applications ALTER COLUMN tenant_id SET NOT NULL;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS full_name text;
+      UPDATE admission_applications
+      SET full_name = btrim(CONCAT_WS(' ', first_name, middle_name, last_name))
+      WHERE full_name IS NULL OR btrim(full_name) = '';
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS parent_name text;
+      UPDATE admission_applications SET parent_name = guardian_name WHERE (parent_name IS NULL OR btrim(parent_name) = '') AND guardian_name IS NOT NULL;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS parent_phone text;
+      UPDATE admission_applications SET parent_phone = guardian_phone WHERE (parent_phone IS NULL OR btrim(parent_phone) = '') AND guardian_phone IS NOT NULL;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS parent_email text;
+      UPDATE admission_applications SET parent_email = guardian_email WHERE (parent_email IS NULL OR btrim(parent_email) = '') AND guardian_email IS NOT NULL;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS parent_occupation text;
+      UPDATE admission_applications SET parent_occupation = guardian_occupation WHERE (parent_occupation IS NULL OR btrim(parent_occupation) = '') AND guardian_occupation IS NOT NULL;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS relationship text;
+      UPDATE admission_applications SET relationship = COALESCE(NULLIF(guardian_relationship, ''), 'Guardian') WHERE relationship IS NULL OR btrim(relationship) = '';
+      ALTER TABLE admission_applications ALTER COLUMN relationship SET DEFAULT 'Guardian';
+      ALTER TABLE admission_applications ALTER COLUMN relationship SET NOT NULL;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS class_applying text;
+      UPDATE admission_applications SET class_applying = COALESCE(NULLIF(applying_for_class_id, ''), 'Unassigned') WHERE class_applying IS NULL OR btrim(class_applying) = '';
+      ALTER TABLE admission_applications ALTER COLUMN class_applying SET DEFAULT 'Unassigned';
+      ALTER TABLE admission_applications ALTER COLUMN class_applying SET NOT NULL;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS status text;
+      UPDATE admission_applications SET status = COALESCE(NULLIF(lower(application_status::text), ''), 'pending') WHERE status IS NULL OR btrim(status) = '';
+      ALTER TABLE admission_applications ALTER COLUMN status SET DEFAULT 'pending';
+      ALTER TABLE admission_applications ALTER COLUMN status SET NOT NULL;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS nationality text;
+      UPDATE admission_applications SET nationality = 'Kenyan' WHERE nationality IS NULL OR btrim(nationality) = '';
+      ALTER TABLE admission_applications ALTER COLUMN nationality SET DEFAULT 'Kenyan';
+      ALTER TABLE admission_applications ALTER COLUMN nationality SET NOT NULL;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS previous_school text;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS kcpe_results text;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS cbc_level text;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS allergies text;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS conditions text;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS emergency_contact text;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS birth_certificate_number text;
+      UPDATE admission_applications SET birth_certificate_number = id WHERE birth_certificate_number IS NULL OR btrim(birth_certificate_number) = '';
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS interview_date date;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS review_notes text;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS approved_at timestamptz;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS admitted_student_id text;
+      ALTER TABLE admission_applications ALTER COLUMN admitted_student_id TYPE text USING admitted_student_id::text;
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_admission_applications_tenant_id_id') THEN
+          ALTER TABLE admission_applications
+            ADD CONSTRAINT uq_admission_applications_tenant_id_id UNIQUE (tenant_id, id);
+        END IF;
+      END $$;
 
       CREATE TABLE IF NOT EXISTS admission_documents (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        application_id uuid,
-        student_id uuid,
+        application_id text,
+        student_id text,
         document_type text NOT NULL,
         original_file_name text NOT NULL,
         stored_path text NOT NULL,
@@ -115,9 +180,9 @@ export class AdmissionsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS student_allocations (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        student_id uuid NOT NULL,
+        student_id text NOT NULL,
         class_name text NOT NULL,
         stream_name text NOT NULL,
         dormitory_name text,
@@ -135,10 +200,10 @@ export class AdmissionsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS student_transfer_records (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        student_id uuid,
-        application_id uuid,
+        student_id text,
+        application_id text,
         transfer_type text NOT NULL,
         school_name text NOT NULL,
         reason text NOT NULL,
@@ -159,7 +224,7 @@ export class AdmissionsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS academic_class_sections (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
         class_name text NOT NULL,
         stream_name text NOT NULL,
@@ -177,11 +242,11 @@ export class AdmissionsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS student_academic_enrollments (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        student_id uuid NOT NULL,
-        application_id uuid NOT NULL,
-        class_section_id uuid,
+        student_id text NOT NULL,
+        application_id text NOT NULL,
+        class_section_id text,
         class_name text NOT NULL,
         stream_name text NOT NULL,
         academic_year text NOT NULL,
@@ -210,16 +275,16 @@ export class AdmissionsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS student_academic_lifecycle_events (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        student_id uuid NOT NULL,
-        source_enrollment_id uuid NOT NULL,
-        target_enrollment_id uuid,
+        student_id text NOT NULL,
+        source_enrollment_id text NOT NULL,
+        target_enrollment_id text,
         event_type text NOT NULL,
         from_class_name text NOT NULL,
         from_stream_name text NOT NULL,
         from_academic_year text NOT NULL,
-        to_class_section_id uuid,
+        to_class_section_id text,
         to_class_name text,
         to_stream_name text,
         to_academic_year text,
@@ -252,9 +317,9 @@ export class AdmissionsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS academic_subject_offerings (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        class_section_id uuid NOT NULL,
+        class_section_id text NOT NULL,
         subject_code text NOT NULL,
         subject_name text NOT NULL,
         teacher_user_id uuid,
@@ -277,11 +342,11 @@ export class AdmissionsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS student_subject_enrollments (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        student_id uuid NOT NULL,
-        academic_enrollment_id uuid NOT NULL,
-        subject_offering_id uuid NOT NULL,
+        student_id text NOT NULL,
+        academic_enrollment_id text NOT NULL,
+        subject_offering_id text NOT NULL,
         subject_code text NOT NULL,
         subject_name text NOT NULL,
         status text NOT NULL DEFAULT 'active',
@@ -308,10 +373,10 @@ export class AdmissionsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS academic_timetable_slots (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        class_section_id uuid NOT NULL,
-        subject_offering_id uuid,
+        class_section_id text NOT NULL,
+        subject_offering_id text,
         day_of_week text NOT NULL,
         starts_at text NOT NULL,
         ends_at text NOT NULL,
@@ -336,11 +401,11 @@ export class AdmissionsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS student_timetable_enrollments (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        student_id uuid NOT NULL,
-        academic_enrollment_id uuid NOT NULL,
-        timetable_slot_id uuid NOT NULL,
+        student_id text NOT NULL,
+        academic_enrollment_id text NOT NULL,
+        timetable_slot_id text NOT NULL,
         day_of_week text NOT NULL,
         starts_at text NOT NULL,
         ends_at text NOT NULL,
@@ -371,7 +436,7 @@ export class AdmissionsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS student_fee_structures (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
         class_name text NOT NULL,
         academic_year text NOT NULL,
@@ -395,11 +460,11 @@ export class AdmissionsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS student_fee_assignments (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        student_id uuid NOT NULL,
-        application_id uuid NOT NULL,
-        fee_structure_id uuid NOT NULL,
+        student_id text NOT NULL,
+        application_id text NOT NULL,
+        fee_structure_id text NOT NULL,
         status text NOT NULL DEFAULT 'assigned',
         amount_minor bigint NOT NULL,
         currency_code text NOT NULL DEFAULT 'KES',
@@ -427,10 +492,10 @@ export class AdmissionsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS student_fee_invoices (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        assignment_id uuid NOT NULL,
-        student_id uuid NOT NULL,
+        assignment_id text NOT NULL,
+        student_id text NOT NULL,
         invoice_number text NOT NULL,
         status text NOT NULL DEFAULT 'open',
         description text NOT NULL,
@@ -459,9 +524,238 @@ export class AdmissionsSchemaService implements OnModuleInit {
           ON DELETE CASCADE
       );
 
+      DO $$
+      DECLARE
+        target_table text;
+        policy_record record;
+      BEGIN
+        FOREACH target_table IN ARRAY ARRAY[
+          'admission_documents',
+          'student_allocations',
+          'student_transfer_records',
+          'student_academic_enrollments',
+          'student_academic_lifecycle_events',
+          'student_subject_enrollments',
+          'student_timetable_enrollments',
+          'student_fee_assignments',
+          'student_fee_invoices'
+        ] LOOP
+          IF to_regclass(format('public.%I', target_table)) IS NOT NULL THEN
+            EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', target_table);
+
+            FOR policy_record IN
+              SELECT policyname
+              FROM pg_policies
+              WHERE schemaname = 'public'
+                AND tablename = target_table
+            LOOP
+              EXECUTE format('DROP POLICY IF EXISTS %I ON %I', policy_record.policyname, target_table);
+            END LOOP;
+
+            FOR policy_record IN
+              SELECT c.conname
+              FROM pg_constraint c
+              JOIN pg_attribute a
+                ON a.attrelid = c.conrelid
+               AND a.attnum = ANY (c.conkey)
+              WHERE c.conrelid = format('public.%I', target_table)::regclass
+                AND c.contype = 'f'
+                AND a.attname = 'student_id'
+            LOOP
+              EXECUTE format('ALTER TABLE %I DROP CONSTRAINT IF EXISTS %I', target_table, policy_record.conname);
+            END LOOP;
+
+            IF NOT EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = target_table
+                AND column_name = 'tenant_id'
+            ) THEN
+              EXECUTE format('ALTER TABLE %I ADD COLUMN tenant_id text', target_table);
+            END IF;
+
+            IF EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = target_table
+                AND column_name = 'school_id'
+            ) THEN
+              EXECUTE format(
+                'UPDATE %I SET tenant_id = COALESCE(NULLIF(tenant_id, ''''), school_id::text, ''global'') WHERE tenant_id IS NULL OR btrim(tenant_id) = ''''',
+                target_table
+              );
+            ELSE
+              EXECUTE format(
+                'UPDATE %I SET tenant_id = ''global'' WHERE tenant_id IS NULL OR btrim(tenant_id) = ''''',
+                target_table
+              );
+            END IF;
+
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET DEFAULT ''global''', target_table);
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET NOT NULL', target_table);
+
+            IF target_table = 'admission_documents' THEN
+              ALTER TABLE admission_documents ADD COLUMN IF NOT EXISTS student_id text;
+              ALTER TABLE admission_documents ADD COLUMN IF NOT EXISTS file_url text;
+              ALTER TABLE admission_documents ADD COLUMN IF NOT EXISTS status text;
+              ALTER TABLE admission_documents ADD COLUMN IF NOT EXISTS original_file_name text;
+              UPDATE admission_documents
+              SET original_file_name = COALESCE(NULLIF(original_file_name, ''), split_part(file_url, '/', array_length(string_to_array(file_url, '/'), 1)), id)
+              WHERE original_file_name IS NULL OR btrim(original_file_name) = '';
+              ALTER TABLE admission_documents ALTER COLUMN original_file_name SET DEFAULT 'document';
+              ALTER TABLE admission_documents ALTER COLUMN original_file_name SET NOT NULL;
+              ALTER TABLE admission_documents ADD COLUMN IF NOT EXISTS stored_path text;
+              UPDATE admission_documents
+              SET stored_path = COALESCE(NULLIF(stored_path, ''), file_url, id)
+              WHERE stored_path IS NULL OR btrim(stored_path) = '';
+              ALTER TABLE admission_documents ALTER COLUMN stored_path SET NOT NULL;
+              ALTER TABLE admission_documents ADD COLUMN IF NOT EXISTS mime_type text;
+              UPDATE admission_documents
+              SET mime_type = 'application/octet-stream'
+              WHERE mime_type IS NULL OR btrim(mime_type) = '';
+              ALTER TABLE admission_documents ALTER COLUMN mime_type SET DEFAULT 'application/octet-stream';
+              ALTER TABLE admission_documents ALTER COLUMN mime_type SET NOT NULL;
+              ALTER TABLE admission_documents ADD COLUMN IF NOT EXISTS size_bytes bigint DEFAULT 0;
+              UPDATE admission_documents SET size_bytes = 0 WHERE size_bytes IS NULL;
+              ALTER TABLE admission_documents ALTER COLUMN size_bytes SET NOT NULL;
+              ALTER TABLE admission_documents ADD COLUMN IF NOT EXISTS verification_status text;
+              UPDATE admission_documents
+              SET verification_status = COALESCE(NULLIF(status::text, ''), 'pending')
+              WHERE verification_status IS NULL OR btrim(verification_status) = '';
+              ALTER TABLE admission_documents ALTER COLUMN verification_status SET DEFAULT 'pending';
+              ALTER TABLE admission_documents ALTER COLUMN verification_status SET NOT NULL;
+              ALTER TABLE admission_documents ADD COLUMN IF NOT EXISTS uploaded_by_user_id uuid;
+              ALTER TABLE admission_documents ADD COLUMN IF NOT EXISTS verified_at timestamptz;
+              ALTER TABLE admission_documents ALTER COLUMN application_id TYPE text USING application_id::text;
+              ALTER TABLE admission_documents ALTER COLUMN document_type TYPE text USING document_type::text;
+              ALTER TABLE admission_documents ALTER COLUMN verification_status TYPE text USING verification_status::text;
+            END IF;
+
+            IF EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = target_table
+                AND column_name = 'tenant_id'
+            ) THEN
+              EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id TYPE text USING tenant_id::text', target_table);
+            END IF;
+
+            IF EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = target_table
+                AND column_name = 'student_id'
+            ) THEN
+              EXECUTE format('ALTER TABLE %I ALTER COLUMN student_id TYPE text USING student_id::text', target_table);
+            END IF;
+          END IF;
+        END LOOP;
+
+        IF to_regclass('public.admission_applications') IS NOT NULL THEN
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'admission_applications'
+              AND column_name = 'admitted_student_id'
+          ) THEN
+            ALTER TABLE admission_applications
+              ALTER COLUMN admitted_student_id TYPE text USING admitted_student_id::text;
+          END IF;
+        END IF;
+      END $$;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_admission_documents_student') THEN
+          ALTER TABLE admission_documents
+            ADD CONSTRAINT fk_admission_documents_student
+            FOREIGN KEY (tenant_id, student_id)
+            REFERENCES students (tenant_id, id)
+            ON DELETE CASCADE
+            NOT VALID;
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_student_allocations_student') THEN
+          ALTER TABLE student_allocations
+            ADD CONSTRAINT fk_student_allocations_student
+            FOREIGN KEY (tenant_id, student_id)
+            REFERENCES students (tenant_id, id)
+            ON DELETE CASCADE
+            NOT VALID;
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_student_transfer_student') THEN
+          ALTER TABLE student_transfer_records
+            ADD CONSTRAINT fk_student_transfer_student
+            FOREIGN KEY (tenant_id, student_id)
+            REFERENCES students (tenant_id, id)
+            ON DELETE CASCADE
+            NOT VALID;
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_student_academic_enrollments_student') THEN
+          ALTER TABLE student_academic_enrollments
+            ADD CONSTRAINT fk_student_academic_enrollments_student
+            FOREIGN KEY (tenant_id, student_id)
+            REFERENCES students (tenant_id, id)
+            ON DELETE CASCADE
+            NOT VALID;
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_student_academic_lifecycle_events_student') THEN
+          ALTER TABLE student_academic_lifecycle_events
+            ADD CONSTRAINT fk_student_academic_lifecycle_events_student
+            FOREIGN KEY (tenant_id, student_id)
+            REFERENCES students (tenant_id, id)
+            ON DELETE CASCADE
+            NOT VALID;
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_student_subject_enrollments_student') THEN
+          ALTER TABLE student_subject_enrollments
+            ADD CONSTRAINT fk_student_subject_enrollments_student
+            FOREIGN KEY (tenant_id, student_id)
+            REFERENCES students (tenant_id, id)
+            ON DELETE CASCADE
+            NOT VALID;
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_student_timetable_enrollments_student') THEN
+          ALTER TABLE student_timetable_enrollments
+            ADD CONSTRAINT fk_student_timetable_enrollments_student
+            FOREIGN KEY (tenant_id, student_id)
+            REFERENCES students (tenant_id, id)
+            ON DELETE CASCADE
+            NOT VALID;
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_student_fee_assignments_student') THEN
+          ALTER TABLE student_fee_assignments
+            ADD CONSTRAINT fk_student_fee_assignments_student
+            FOREIGN KEY (tenant_id, student_id)
+            REFERENCES students (tenant_id, id)
+            ON DELETE CASCADE
+            NOT VALID;
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_student_fee_invoices_student') THEN
+          ALTER TABLE student_fee_invoices
+            ADD CONSTRAINT fk_student_fee_invoices_student
+            FOREIGN KEY (tenant_id, student_id)
+            REFERENCES students (tenant_id, id)
+            ON DELETE CASCADE
+            NOT VALID;
+        END IF;
+      END $$;
+
 
       CREATE TABLE IF NOT EXISTS admission_enquiries (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
         enquiry_code text NOT NULL,
         student_first_name text NOT NULL,
@@ -484,9 +778,9 @@ export class AdmissionsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS admission_interviews (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        application_id uuid NOT NULL,
+        application_id text NOT NULL,
         interview_date date NOT NULL,
         start_time text NOT NULL,
         end_time text NOT NULL,
@@ -510,9 +804,9 @@ export class AdmissionsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS admission_offers (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        application_id uuid NOT NULL,
+        application_id text NOT NULL,
         offer_status text NOT NULL DEFAULT 'pending',
         required_deposit bigint,
         deposit_paid bigint DEFAULT 0,
@@ -529,9 +823,9 @@ export class AdmissionsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS admission_appointments (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        application_id uuid,
+        application_id text,
         visitor_name text NOT NULL,
         purpose text NOT NULL,
         appointment_date date NOT NULL,
@@ -548,9 +842,9 @@ export class AdmissionsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS admission_tasks (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
-        application_id uuid,
+        application_id text,
         task_title text NOT NULL,
         task_description text,
         due_date date,
@@ -567,7 +861,7 @@ export class AdmissionsSchemaService implements OnModuleInit {
       );
 
       CREATE TABLE IF NOT EXISTS admission_templates (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
         template_name text NOT NULL,
         template_type text NOT NULL,
@@ -578,6 +872,86 @@ export class AdmissionsSchemaService implements OnModuleInit {
         updated_at timestamptz NOT NULL DEFAULT NOW(),
         CONSTRAINT uq_admission_templates_tenant_id_id UNIQUE (tenant_id, id)
       );
+
+      DO $$
+      DECLARE
+        target_table text;
+        policy_record record;
+      BEGIN
+        FOREACH target_table IN ARRAY ARRAY[
+          'admission_enquiries',
+          'admission_interviews',
+          'admission_offers',
+          'admission_appointments',
+          'admission_tasks',
+          'admission_templates'
+        ] LOOP
+          IF to_regclass(format('public.%I', target_table)) IS NOT NULL THEN
+            EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', target_table);
+
+            FOR policy_record IN
+              SELECT policyname
+              FROM pg_policies
+              WHERE schemaname = 'public'
+                AND tablename = target_table
+            LOOP
+              EXECUTE format('DROP POLICY IF EXISTS %I ON %I', policy_record.policyname, target_table);
+            END LOOP;
+
+            IF NOT EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = target_table
+                AND column_name = 'tenant_id'
+            ) THEN
+              EXECUTE format('ALTER TABLE %I ADD COLUMN tenant_id text', target_table);
+            END IF;
+
+            IF EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = target_table
+                AND column_name = 'school_id'
+            ) THEN
+              EXECUTE format(
+                'UPDATE %I SET tenant_id = COALESCE(NULLIF(tenant_id, ''''), school_id::text, ''global'') WHERE tenant_id IS NULL OR btrim(tenant_id) = ''''',
+                target_table
+              );
+            ELSE
+              EXECUTE format(
+                'UPDATE %I SET tenant_id = ''global'' WHERE tenant_id IS NULL OR btrim(tenant_id) = ''''',
+                target_table
+              );
+            END IF;
+
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id TYPE text USING tenant_id::text', target_table);
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET DEFAULT ''global''', target_table);
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET NOT NULL', target_table);
+            EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT NOW()', target_table);
+            EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW()', target_table);
+
+            IF EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = target_table
+                AND column_name = 'application_id'
+            ) THEN
+              EXECUTE format('ALTER TABLE %I ALTER COLUMN application_id TYPE text USING application_id::text', target_table);
+            END IF;
+
+            IF NOT EXISTS (
+              SELECT 1
+              FROM pg_constraint
+              WHERE conname = format('uq_%s_tenant_id_id', target_table)
+            ) THEN
+              EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I UNIQUE (tenant_id, id)', target_table, format('uq_%s_tenant_id_id', target_table));
+            END IF;
+          END IF;
+        END LOOP;
+      END $$;
 
       CREATE INDEX IF NOT EXISTS ix_admission_applications_status ON admission_applications (tenant_id, status, created_at DESC);
       CREATE INDEX IF NOT EXISTS ix_admission_applications_search_vector

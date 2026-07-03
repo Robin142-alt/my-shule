@@ -1,42 +1,51 @@
 import { MessageCircle } from "lucide-react";
-import { useState } from "react";
-import { Panel, StatusChip } from "../shared";
-import { useClassTeacherCommunication } from "@/lib/data/class-teacher-hooks";
+import { useState, type FormEvent } from "react";
+import { Panel, StatusChip, sendClassTeacherCommunication } from "../shared";
+import { useClassTeacherCommunication, useResolvedClassTeacherStreamId } from "@/lib/data/class-teacher-hooks";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Modal } from "@/components/ui/modal";
-import { requestDashboardApi } from "@/lib/dashboard/api-client";
-import { toast } from "sonner";
 
-function CreateAnnouncementModal({ onClose }: { onClose: () => void }) {
+type ComposerMode = "class_announcement" | "individual_parent";
+
+function CreateAnnouncementModal({ mode, onClose }: { mode: ComposerMode; onClose: () => void }) {
   const [submitting, setSubmitting] = useState(false);
+  const isIndividual = mode === "individual_parent";
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitting(true);
-    const formData = new FormData(e.target as HTMLFormElement);
     try {
-      await requestDashboardApi("/api/academic/communications", {
-        method: "POST",
-        body: JSON.stringify({
-          message: formData.get("message"),
-          sendSms: formData.get("sendSms") === "on",
-        }),
+      const formData = new FormData(e.currentTarget);
+      const sent = await sendClassTeacherCommunication({
+        audience: mode,
+        learnerId: String(formData.get("learnerId") || "").trim() || undefined,
+        subject: String(formData.get("subject") || (isIndividual ? "Parent message" : "Class announcement")),
+        message: String(formData.get("message") || ""),
+        sendSms: formData.get("sendSms") === "on",
+        source: "class-teacher-communication-workspace",
       });
-      toast.success("Announcement published successfully.");
-      onClose();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to publish announcement.");
+      if (sent) onClose();
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Modal title="Add Class Announcement" open={true} onClose={onClose} size="md">
+    <Modal title={isIndividual ? "Send Parent Message" : "Add Class Announcement"} open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {isIndividual ? (
+          <div>
+            <label className="block text-sm font-bold text-[#071D49] mb-1">Learner or guardian reference</label>
+            <input name="learnerId" required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Learner admission number, guardian name, or portal reference" />
+          </div>
+        ) : null}
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Subject</label>
+          <input name="subject" required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder={isIndividual ? "Parent follow-up" : "Class announcement"} />
+        </div>
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Message</label>
-          <textarea name="message" required rows={4} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Write your announcement here..."></textarea>
+          <textarea name="message" required rows={4} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder={isIndividual ? "Write the parent message..." : "Write your announcement here..."}></textarea>
         </div>
         <div className="flex items-center gap-2">
           <input name="sendSms" type="checkbox" id="sms" className="h-4 w-4 rounded border-[#D8E0EC]" />
@@ -45,7 +54,7 @@ function CreateAnnouncementModal({ onClose }: { onClose: () => void }) {
         <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
           <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
           <button disabled={submitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
-            {submitting ? "Publishing..." : "Publish Announcement"}
+            {submitting ? "Sending..." : isIndividual ? "Send Message" : "Publish Announcement"}
           </button>
         </div>
       </form>
@@ -54,9 +63,9 @@ function CreateAnnouncementModal({ onClose }: { onClose: () => void }) {
 }
 
 export function CommunicationWorkspace() {
-  const streamId = "stream_123";
+  const { streamId } = useResolvedClassTeacherStreamId();
   const { hasPermission } = usePermissions();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [composerMode, setComposerMode] = useState<ComposerMode | null>(null);
   const { data, isLoading, error } = useClassTeacherCommunication(streamId);
 
   if (isLoading) {
@@ -79,9 +88,9 @@ export function CommunicationWorkspace() {
     <Panel title="Parent Communication" description="Message history with parents of learners in your class." icon={MessageCircle}>
       <div className="mb-4 flex gap-2 justify-end">
          {hasPermission('school_communication:write') && (
-           <button onClick={() => setIsModalOpen(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Add Class Announcement</button>
+           <button type="button" onClick={() => setComposerMode("class_announcement")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Add Class Announcement</button>
          )}
-         <button className="rounded-lg bg-[#1D4ED8] px-4 py-2 text-sm font-black text-white">Send Individual Message</button>
+         <button type="button" className="rounded-lg bg-[#1D4ED8] px-4 py-2 text-sm font-black text-white" onClick={() => setComposerMode("individual_parent")}>Send Individual Message</button>
       </div>
       <div className="overflow-hidden rounded-xl border border-[#D8E0EC]">
         <table className="w-full text-left text-sm text-[#071D49]">
@@ -107,7 +116,7 @@ export function CommunicationWorkspace() {
           </tbody>
         </table>
       </div>
-      {isModalOpen && <CreateAnnouncementModal onClose={() => setIsModalOpen(false)} />}
+      {composerMode && <CreateAnnouncementModal mode={composerMode} onClose={() => setComposerMode(null)} />}
     </Panel>
   );
 }

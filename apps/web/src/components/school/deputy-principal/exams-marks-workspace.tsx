@@ -5,6 +5,7 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { useState } from "react";
 import { toast } from "sonner";
 import { flagExamDelay } from "./api-client";
+import { buildSchoolSectionHref } from "../school-pages";
 
 export type ExamMarkProgress = {
   id: string;
@@ -28,6 +29,10 @@ export function DeputyExamsMarksWorkspace() {
 
   const exams = data?.examsList || [];
 
+  const openMarksWorkspace = () => {
+    window.location.assign(buildSchoolSectionHref("teacher", "exams", "public"));
+  };
+
   const handleFlagDelay = async (id: string, teacher: string) => {
     try {
       setSubmittingId(id);
@@ -49,7 +54,7 @@ export function DeputyExamsMarksWorkspace() {
 
   return (
     <Panel title="Exams & Marks" description="Monitor exams at senior level and enter marks for assigned classes." icon={ClipboardCheck} actions={
-      <button onClick={() => toast.info("Opening gradebook module...")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Enter My Marks</button>
+      <button onClick={openMarksWorkspace} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Enter My Marks</button>
     }>
       <div className="grid gap-4 md:grid-cols-2 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">

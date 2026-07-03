@@ -1,25 +1,33 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { SuperadminPageHeader } from "@/components/platform/superadmin-pages";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { fetchPlatformPaymentGateways } from "@/lib/platform/school-onboarding-client";
+import {
+  createPlatformPaymentGateway,
+  fetchPlatformPaymentGateways,
+  updatePlatformPaymentGateway,
+} from "@/lib/platform/school-onboarding-client";
+
+const emptyGatewayDraft = {
+  name: "",
+  type: "M-Pesa Daraja",
+  environment: "Sandbox",
+  status: "Active",
+  shortcode: "",
+  consumerKey: ""
+};
 
 export function PaymentGatewaysWorkspace() {
-  const router = useRouter();
   const [gateways, setGateways] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("providers");
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [newGateway, setNewGateway] = useState({
-    name: "",
-    type: "M-Pesa Daraja",
-    environment: "Sandbox",
-    shortcode: "",
-    consumerKey: ""
-  });
+  const [editingGatewayId, setEditingGatewayId] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newGateway, setNewGateway] = useState(emptyGatewayDraft);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,20 +36,7 @@ export function PaymentGatewaysWorkspace() {
       try {
         const liveRows = await fetchPlatformPaymentGateways();
         if (!cancelled) {
-          // Fallback default payment channel if empty
-          if (liveRows.length === 0) {
-            setGateways([
-              {
-                id: "default-mpesa",
-                name: "M-Pesa Main Paybill",
-                type: "M-Pesa Daraja",
-                environment: "Production",
-                status: "Active"
-              }
-            ]);
-          } else {
-            setGateways(liveRows);
-          }
+          setGateways(liveRows);
         }
       } catch (error) {
         console.error(error);
@@ -51,26 +46,58 @@ export function PaymentGatewaysWorkspace() {
     }
     void loadData();
     return () => { cancelled = true; };
-  }, [router]);
+  }, []);
 
-  function handleAddGateway(e: React.FormEvent) {
+  async function handleAddGateway(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const created = {
-      id: Math.random().toString(),
-      name: newGateway.name,
-      type: newGateway.type,
-      environment: newGateway.environment,
-      status: "Active"
-    };
-    setGateways((prev) => [...prev, created]);
-    setIsAddOpen(false);
+    setSubmitError(null);
+    setIsSubmitting(true);
+
+    try {
+      const saved = editingGatewayId
+        ? await updatePlatformPaymentGateway(editingGatewayId, newGateway)
+        : await createPlatformPaymentGateway(newGateway);
+      setGateways((prev) => [saved, ...prev.filter((gateway) => gateway.id !== saved.id)]);
+      setIsAddOpen(false);
+      setEditingGatewayId(null);
+      setNewGateway(emptyGatewayDraft);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Unable to save payment gateway.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function openAddGateway() {
+    setEditingGatewayId(null);
+    setSubmitError(null);
+    setNewGateway(emptyGatewayDraft);
+    setIsAddOpen(true);
+  }
+
+  function openEditGateway(row: any) {
+    setEditingGatewayId(row.id);
+    setSubmitError(null);
     setNewGateway({
-      name: "",
-      type: "M-Pesa Daraja",
-      environment: "Sandbox",
-      shortcode: "",
+      name: row.name ?? "",
+      type: row.type ?? "M-Pesa Daraja",
+      environment: row.environment ?? "Sandbox",
+      status: row.status ?? "Active",
+      shortcode: row.shortcode ?? "",
       consumerKey: ""
     });
+    setIsAddOpen(true);
+  }
+
+  function closeGatewayModal() {
+    if (isSubmitting) {
+      return;
+    }
+
+    setIsAddOpen(false);
+    setEditingGatewayId(null);
+    setSubmitError(null);
+    setNewGateway(emptyGatewayDraft);
   }
 
   const providerColumns: DataTableColumn<any>[] = [
@@ -78,7 +105,7 @@ export function PaymentGatewaysWorkspace() {
     { id: "type", header: "Type", render: (row) => row.type || "M-Pesa Paybill" },
     { id: "environment", header: "Environment", render: (row) => row.environment || "Production" },
     { id: "status", header: "Status", render: (row) => row.status || "Active" },
-    { id: "actions", header: "Actions", render: (row) => <Button variant="ghost" size="sm">Edit</Button> }
+    { id: "actions", header: "Actions", render: (row) => <Button variant="ghost" size="sm" onClick={() => openEditGateway(row)}>Edit</Button> }
   ];
 
   const mappingColumns: DataTableColumn<any>[] = [
@@ -109,7 +136,7 @@ export function PaymentGatewaysWorkspace() {
           <button className={`px-4 py-2 border-b-2 ${activeTab === "callbacks" ? "border-primary font-semibold" : "border-transparent text-muted-foreground"}`} onClick={() => setActiveTab("callbacks")}>Callback Logs</button>
         </div>
         {activeTab === "providers" && <div className="pt-4 space-y-4">
-          <div className="flex justify-end"><Button onClick={() => setIsAddOpen(true)}>Add Gateway</Button></div>
+          <div className="flex justify-end"><Button onClick={openAddGateway}>Add Gateway</Button></div>
           <DataTable title="Configured Gateways" subtitle="Available endpoints." columns={providerColumns} rows={gateways} getRowKey={(row) => row.id} emptyMessage={isLoading ? "Loading..." : "No gateways configured."} />
         </div>}
         {activeTab === "mapping" && <div className="pt-4">
@@ -120,8 +147,13 @@ export function PaymentGatewaysWorkspace() {
         </div>}
       </div>
       
-      <Modal open={isAddOpen} title="Add Gateway" onClose={() => setIsAddOpen(false)}>
+      <Modal open={isAddOpen} title={editingGatewayId ? "Edit Gateway" : "Add Gateway"} onClose={closeGatewayModal}>
         <form className="space-y-4" onSubmit={handleAddGateway}>
+          {submitError ? (
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {submitError}
+            </div>
+          ) : null}
           <label className="block space-y-1">
             <span className="text-sm font-semibold">Gateway Name</span>
             <input className="input-base w-full" required value={newGateway.name} onChange={(e) => setNewGateway({...newGateway, name: e.target.value})} />
@@ -140,17 +172,28 @@ export function PaymentGatewaysWorkspace() {
               <option value="Production">Production</option>
             </select>
           </label>
+          {editingGatewayId ? (
+            <label className="block space-y-1">
+              <span className="text-sm font-semibold">Status</span>
+              <select className="input-base w-full" value={newGateway.status} onChange={(e) => setNewGateway({...newGateway, status: e.target.value})}>
+                <option value="Active">Active</option>
+                <option value="Testing">Testing</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </label>
+          ) : null}
           <label className="block space-y-1">
             <span className="text-sm font-semibold">Shortcode / ID</span>
             <input className="input-base w-full" required value={newGateway.shortcode} onChange={(e) => setNewGateway({...newGateway, shortcode: e.target.value})} />
           </label>
           <label className="block space-y-1">
             <span className="text-sm font-semibold">Consumer Key</span>
-            <input type="password" className="input-base w-full" required value={newGateway.consumerKey} onChange={(e) => setNewGateway({...newGateway, consumerKey: e.target.value})} />
+            <input type="password" className="input-base w-full" required={!editingGatewayId} value={newGateway.consumerKey} onChange={(e) => setNewGateway({...newGateway, consumerKey: e.target.value})} />
+            {editingGatewayId ? <span className="text-xs text-muted-foreground">Leave blank to keep the existing stored credential hash.</span> : null}
           </label>
           <div className="flex justify-end gap-2 pt-4">
-            <Button variant="secondary" onClick={() => setIsAddOpen(false)} type="button">Cancel</Button>
-            <Button type="submit">Save Gateway</Button>
+            <Button variant="secondary" onClick={closeGatewayModal} type="button" disabled={isSubmitting}>Cancel</Button>
+            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Saving..." : editingGatewayId ? "Save Changes" : "Save Gateway"}</Button>
           </div>
         </form>
       </Modal>

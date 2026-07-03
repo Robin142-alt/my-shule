@@ -125,6 +125,9 @@ const REQUIRED_NPM_SCRIPTS = [
   'monitor:synthetic',
   'maintainability:scan',
   'smoke:providers',
+  'smoke:production-auth',
+  'test:production-auth-smoke',
+  'env:production:audit',
   'release:readiness',
   'scorecard:production',
   'certify:pilot',
@@ -198,6 +201,7 @@ const REQUIRED_DEFAULT_TEST_ARTIFACTS = [
   'query-plan-review.test.js',
   'release-readiness-gate.test.js',
   'provider-credential-smoke.test.js',
+  'production-env-audit.test.js',
   'incident-drill.test.js',
   'implementation20-certification.test.js',
   'implementation21-certification.test.js',
@@ -287,16 +291,22 @@ const REQUIRED_BACKUP_RESTORE_RUNBOOK_SECTIONS = [
 ];
 const REQUIRED_IMPLEMENTATION7_PROVIDER_SMOKE_TEST_PATTERNS = [
   { label: 'required SMS smoke flag', pattern: /SUPPORT_PROVIDER_SMOKE_REQUIRE_SMS/ },
+  { label: 'live email provider check', pattern: /live-email-provider/ },
+  { label: 'Resend sender domain verification', pattern: /Resend.*sender domain|api\.resend\.com\/domains/i },
   { label: 'live SMS provider check', pattern: /live-support-sms-provider/ },
   { label: 'live malware scanner health check', pattern: /live-upload-malware-scan-provider/ },
   { label: 'malware scanner health URL', pattern: /UPLOAD_MALWARE_SCAN_HEALTH_URL/ },
   { label: 'live object storage smoke check', pattern: /live-upload-object-storage/ },
   { label: 'object storage delete verification', pattern: /delete_checked|DELETE/i },
+  { label: 'live Redis queue/cache smoke check', pattern: /live-redis-queue-cache/ },
+  { label: 'Redis queue/cache TLS validation', pattern: /redis-queue-cache|REDIS_TLS_ENABLED|rediss:\/\// },
 ];
 const REQUIRED_OPERABILITY_WORKFLOW_PATTERNS = [
   { label: 'synthetic monitor', pattern: /monitor:synthetic/ },
   { label: 'core API load', pattern: /load:core-api/ },
-  { label: 'provider smoke', pattern: /smoke:providers/ },
+  { label: 'provider smoke', pattern: /smoke:providers|provider-credential-smoke\.ts/ },
+  { label: 'production env audit', pattern: /env:production:audit/ },
+  { label: 'hosted production auth smoke', pattern: /smoke:production-auth/ },
   { label: 'query-plan review', pattern: /perf:query-plan-review/ },
   { label: 'release readiness', pattern: /release:readiness/ },
   { label: 'production scorecard', pattern: /scorecard:production/ },
@@ -1075,7 +1085,7 @@ function checkReleaseScripts(packageJsonSource: string): ReleaseReadinessGateChe
   return buildCheck(
     'release-scripts',
     details,
-    'Release scripts include readiness, load, query-plan, provider-smoke, Implementation 90, route-permission, export-queue, and report-snapshot checks.',
+    'Release scripts include readiness, production env audit, production auth smoke, load, query-plan, provider-smoke, Implementation 90, route-permission, export-queue, and report-snapshot checks.',
   );
 }
 

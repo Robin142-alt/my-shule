@@ -1,12 +1,14 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
+import { AdminCommandOperationsService } from './admin-command-operations.service';
 
 @Injectable()
 export class LaboratoryTechnicianCommandService {
   constructor(
     private readonly requestContext: RequestContextService,
     private readonly prisma: PrismaService,
+    private readonly operations: AdminCommandOperationsService,
   ) {}
 
   private requireTenantId(): string {
@@ -92,15 +94,47 @@ export class LaboratoryTechnicianCommandService {
 
   async getReports() {
     const tenantId = this.requireTenantId();
-    const res = await this.executeSql(
-      `SELECT * FROM lab_reports WHERE tenant_id = $1 ORDER BY created_at DESC`,
-      [tenantId]
-    );
-    return res.rows;
+    return this.operations.listReportSnapshots(tenantId, 'laboratory-technician-command');
   }
 
   async generateReport(dto: any) {
     const tenantId = this.requireTenantId();
-    return { success: true, message: 'Lab report generated successfully' };
+    const userId = this.operations.uuidOrNull(this.requestContext.getStore()?.user_id);
+    const [overview, labInventory, chemicals, apparatusIssue, labTimetable, safetyIncidents] = await Promise.all([
+      this.getOverview(),
+      this.getLabInventory(),
+      this.getChemicals(),
+      this.getApparatusIssue(),
+      this.getLabTimetable(),
+      this.getSafetyIncidents(),
+    ]);
+    return this.operations.generateReportSnapshot({
+      tenantId,
+      module: 'laboratory-technician-command',
+      reportId: 'laboratory-operations',
+      title: String(dto?.name || dto?.title || 'Laboratory operations report'),
+      format: dto?.format,
+      generatedByUserId: userId,
+      sections: { overview, labInventory, chemicals, apparatusIssue, labTimetable, safetyIncidents },
+      filters: { requested_from: 'laboratory-technician-dashboard' },
+      targetRoles: ['principal', 'laboratory_technician', 'dean_academics'],
+    });
+  }
+
+  async recordLaboratoryAction(action: string, dto: any = {}, entityId?: string | null) {
+    const tenantId = this.requireTenantId();
+    return this.operations.recordWorkflowAction({
+      tenantId,
+      actorUserId: this.requestContext.getStore()?.user_id,
+      sourceRole: 'laboratory_technician',
+      targetRoles: ['laboratory_technician', 'dean_academics', 'principal', 'teacher'],
+      eventType: `laboratory.${action}`,
+      entityType: 'laboratory_workflow',
+      entityId: entityId ?? dto?.id ?? null,
+      title: `Laboratory: ${action.replace(/[-_.]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())}`,
+      message: dto?.description ?? dto?.notes ?? dto?.reason ?? null,
+      priority: action.includes('incident') || action.includes('dispose') ? 'high' : 'normal',
+      payload: { action, ...dto },
+    });
   }
 }

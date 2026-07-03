@@ -59,6 +59,9 @@ export async function approveLeaveRequest(id: string) {
 export async function rejectLeaveRequest(id: string, reason: string) {
   return requestDashboardApi(`/admin-command/boarding-master/leave-exit/${id}/reject`, { method: 'POST', body: { reason } });
 }
+export async function checkoutLeaveRequest(id: string) {
+  return requestDashboardApi(`/admin-command/boarding-master/leave-exit/${id}/check-out`, { method: 'POST' });
+}
 
 // ── Incidents ──
 export async function fetchIncidents() {

@@ -6,6 +6,9 @@ import { Pool, PoolClient, QueryResultRow } from 'pg';
 import { randomUUID } from 'node:crypto';
 
 import { REDIS_CLIENT } from '../src/infrastructure/redis/redis.constants';
+import { AuthorizationRepository } from '../src/auth/repositories/authorization.repository';
+import { PasswordService } from '../src/auth/password.service';
+import { TrustedDeviceService } from '../src/auth/trusted-device.service';
 import { InMemoryRedis } from './support/in-memory-redis';
 import { TenantIsolationTestModule } from './support/tenant-isolation-test.module';
 
@@ -18,6 +21,12 @@ type RegisteredTenantUser = {
   password: string;
   user_id: string;
   access_token: string;
+};
+
+type RegisterTenantUserContext = {
+  app: INestApplication;
+  testingModule: TestingModule;
+  pool: Pool;
 };
 
 type CreatedStudent = {
@@ -134,8 +143,17 @@ describe('Multi-tenant isolation hardening', () => {
 
     await app.init();
 
-    tenantA = await registerTenantUser(app, `tenanta-${suffix}`, `owner+a-${suffix}@example.test`);
-    tenantB = await registerTenantUser(app, `tenantb-${suffix}`, `owner+b-${suffix}@example.test`);
+    const tenantUserContext = { app, testingModule, pool };
+    tenantA = await registerTenantUser(
+      tenantUserContext,
+      `tenanta-${suffix}`,
+      `owner+a-${suffix}@example.test`,
+    );
+    tenantB = await registerTenantUser(
+      tenantUserContext,
+      `tenantb-${suffix}`,
+      `owner+b-${suffix}@example.test`,
+    );
 
     tenantAStudent = await createStudent(app, tenantA, {
       admission_number: `ADM-A-${suffix}`,
@@ -575,24 +593,81 @@ describe('Multi-tenant isolation hardening', () => {
 });
 
 const registerTenantUser = async (
-  app: INestApplication,
+  context: RegisterTenantUserContext,
   tenantId: string,
   email: string,
 ): Promise<RegisteredTenantUser> => {
+  const { app, testingModule, pool } = context;
   const password = `SecurePass!${tenantId.slice(-4)}`;
   const host = `${tenantId}.${process.env.APP_BASE_DOMAIN ?? 'integration.test'}`;
+  const authorizationRepository = testingModule.get(AuthorizationRepository);
+  const passwordService = testingModule.get(PasswordService);
+  const trustedDeviceService = testingModule.get(TrustedDeviceService);
+
+  await authorizationRepository.ensureTenantAuthorizationBaseline(tenantId);
+
+  const role = await authorizationRepository.getRoleByCode(tenantId, 'owner');
+  const passwordHash = await passwordService.hash(password);
+  const userResult = await pool.query<{ id: string }>(
+    `
+      INSERT INTO users (
+        tenant_id,
+        email,
+        password_hash,
+        display_name,
+        status,
+        email_verified_at,
+        password_changed_at
+      )
+      VALUES ($1, lower($2), $3, $4, 'active', NOW(), NOW())
+      ON CONFLICT (lower(email))
+      DO UPDATE SET
+        tenant_id = EXCLUDED.tenant_id,
+        password_hash = EXCLUDED.password_hash,
+        display_name = EXCLUDED.display_name,
+        status = 'active',
+        email_verified_at = COALESCE(users.email_verified_at, NOW()),
+        password_changed_at = NOW(),
+        updated_at = NOW()
+      RETURNING id
+    `,
+    [tenantId, email, passwordHash, `Owner ${tenantId}`],
+  );
+  const userId = userResult.rows[0].id;
+
+  await pool.query(
+    `
+      INSERT INTO tenant_memberships (tenant_id, user_id, role_id, status)
+      VALUES ($1, $2::uuid, $3::uuid, 'active')
+      ON CONFLICT (tenant_id, user_id)
+      DO UPDATE SET
+        role_id = EXCLUDED.role_id,
+        status = 'active',
+        updated_at = NOW()
+    `,
+    [tenantId, userId, role.id],
+  );
+
+  const trustedDeviceToken = `trusted-device-token-${userId}-${tenantId}`;
+  await trustedDeviceService.trustDevice({
+    userId,
+    rawToken: trustedDeviceToken,
+    ipAddress: '127.0.0.1',
+    userAgent: 'tenant-isolation.integration-spec',
+  });
 
   const response = await request(app.getHttpServer())
-    .post('/auth/register')
+    .post('/auth/login')
     .set('host', host)
     .send({
       email,
       password,
-      display_name: `Owner ${tenantId}`,
+      audience: 'school',
+      trusted_device_token: trustedDeviceToken,
     });
 
   if (response.status !== 201) {
-    console.error('Registration failed:', response.body, response.text);
+    console.error('Seeded login failed:', response.body, response.text);
     throw new Error(`Expected 201, got ${response.status}`);
   }
 

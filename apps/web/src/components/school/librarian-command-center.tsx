@@ -5,14 +5,11 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import {
   AlertTriangle,
   Banknote,
-  Bell,
   BookDown,
   Bookmark,
-  BookOpen,
   BookPlus,
   BookUp,
   Briefcase,
-  Calendar,
   CheckCircle2,
   CheckSquare,
   ChevronDown,
@@ -28,7 +25,6 @@ import {
   MessageCircle,
   MoreHorizontal,
   Plus,
-  Printer,
   ScanBarcode,
   Search,
   Settings,
@@ -45,15 +41,49 @@ import {
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
-import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Modal } from "@/components/ui/modal";
 import { toast } from "sonner";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
 
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
 type LibrarianView = "overview" | "issue" | "return" | "catalogue" | "add_books" | "loans" | "lost_damaged" | "fines" | "borrowers" | "class_textbooks" | "reservations" | "stocktake" | "departments" | "visits" | "requests" | "reports" | "notices" | "settings";
+
+type LibrarySummary = {
+  total_catalog_items?: number;
+  available_copies?: number;
+  active_loans?: number;
+  overdue_loans?: number;
+  lost_or_damaged_copies?: number;
+  total_fines_minor?: number;
+  recent_activities?: LibraryActivity[];
+};
+
+type LibraryActivity = {
+  id: string | number;
+  action?: string;
+  item_title?: string;
+  borrower_id?: string;
+};
+
+type LibraryCirculationItem = {
+  id: string | number;
+  borrower_id?: string;
+  copy_id?: string;
+  status?: string;
+  action?: string;
+};
+
+type LibraryCatalogItem = {
+  title?: string;
+  author?: string;
+  isbn?: string;
+  subject?: string;
+  total?: number;
+  available?: number;
+};
 
 type NavItem = {
   id: LibrarianView;
@@ -163,13 +193,80 @@ function Panel({
   );
 }
 
+function libraryActionSlug(title: string) {
+  return title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ".")
+    .replace(/^\.+|\.+$/g, "") || "workflow.action";
+}
+
+async function persistLibraryWorkflowAction(title: string, body: string, tone: "success" | "info" | "warning" | "danger") {
+  return requestDashboardApi("/api/admin-command/librarian/actions", {
+    method: "POST",
+    body: {
+      action: libraryActionSlug(title),
+      title,
+      description: body,
+      priority: tone === "danger" || tone === "warning" ? "high" : "normal",
+      source: "librarian-dashboard",
+    },
+  });
+}
+
+async function recordLibraryAction(title: string, body: string, tone: "success" | "info" | "warning" | "danger" = "info") {
+  try {
+    await persistLibraryWorkflowAction(title, body, tone);
+  } catch (error) {
+    toast.error("Library action was not saved", {
+      description: error instanceof Error ? error.message : "The action could not be persisted for audit and dashboard follow-up.",
+    });
+    return false;
+  }
+
+  const notify = tone === "danger" ? toast.error : tone === "success" ? toast.success : toast.info;
+  notify(title, { description: body });
+  publishSchoolOperationalEvent({
+    type: "library.workflow_action",
+    module: "library",
+    actorRole: "librarian",
+    title,
+    body,
+  });
+  return true;
+}
+
+async function openLibraryRecord(title: string, rows: Array<[string, string]>) {
+  const persisted = await recordLibraryAction("Library record preview generated", `${title} preview generated for print or PDF download.`, "success");
+  if (!persisted) {
+    return;
+  }
+
+  openPrintDocument({
+    eyebrow: "MyShule Library",
+    title,
+    subtitle: `School: ${getCurrentSchoolId() || "current tenant"} | Generated ${new Date().toLocaleString()}`,
+    rows: rows.map(([label, value]) => ({ label, value })),
+    footer: "Library records must preserve borrower, book-copy, fine, and audit context.",
+  });
+}
+
+async function exportLibraryCsv(filename: string, headers: string[], rows: string[][], title: string) {
+  const persisted = await recordLibraryAction("Library export created", `${title} was downloaded for the current school tenant.`, "success");
+  if (!persisted) {
+    return;
+  }
+
+  downloadCsvFile({ filename, headers, rows });
+}
+
 // ----------------------------------------------------------------------
 // WORKSPACE COMPONENTS
 // ----------------------------------------------------------------------
 
 function OverviewWorkspace({ onNavigate }: { onNavigate: (v: LibrarianView) => void }) {
-  const { data: summaryData, isLoading } = useSchoolQuery<any>("/api/library/summary");
-  const { data: circulationResponse, isLoading: loadingCirc } = useSchoolQuery<any>("/api/library/circulation");
+  const { data: summaryData, isLoading } = useSchoolQuery<LibrarySummary>("/api/library/summary");
+  const { data: circulationResponse, isLoading: loadingCirc } = useSchoolQuery<LibraryCirculationItem[]>("/api/library/circulation");
   const circulation = Array.isArray(circulationResponse) ? circulationResponse : [];
 
   const totalBooks = isLoading ? "..." : (summaryData?.total_catalog_items?.toLocaleString() || "0");
@@ -214,8 +311,8 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: LibrarianView) => v
         <div className="lg:col-span-2 space-y-6">
           <div className="rounded-xl border border-[#D8E0EC] overflow-hidden">
             <div className="bg-[#F8FAFC] px-4 py-3 border-b border-[#D8E0EC] flex justify-between items-center">
-              <h3 className="font-bold text-[#071D49]">TodayÃ¢â‚¬â„¢s Library Queue</h3>
-              <button className="text-sm text-blue-600 font-semibold hover:underline">View All</button>
+              <h3 className="font-bold text-[#071D49]">TodayÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s Library Queue</h3>
+              <button type="button" className="text-sm text-blue-600 font-semibold hover:underline" onClick={() => onNavigate("loans")}>View All</button>
             </div>
             <div className="p-4">
               <table className="w-full text-sm text-left">
@@ -234,14 +331,14 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: LibrarianView) => v
                   ) : circulation.length === 0 ? (
                     <tr><td colSpan={5} className="py-3 text-center text-[#64748B]">No active library queue.</td></tr>
                   ) : (
-                    circulation.slice(0, 5).map((item: any) => (
+                    circulation.slice(0, 5).map((item) => (
                       <tr key={item.id}>
                         <td className="py-3 font-medium text-[#071D49]">{item.borrower_id}</td>
                         <td className="py-3 text-[#64748B]">-</td>
                         <td className="py-3 text-[#071D49]">{item.copy_id}</td>
                         <td className="py-3"><StatusChip label={item.status || "Active"} tone={item.status === "Overdue" ? "danger" : "info"} /></td>
                         <td className="py-3 text-right">
-                          <button className="text-blue-600 hover:underline font-semibold" onClick={() => onNavigate(item.action === "issue" ? "return" : "loans")}>Action</button>
+                          <button type="button" className="text-blue-600 hover:underline font-semibold" onClick={() => onNavigate(item.action === "issue" ? "return" : "loans")}>Action</button>
                         </td>
                       </tr>
                     ))
@@ -259,7 +356,7 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: LibrarianView) => v
               {recentActivity.length === 0 ? (
                 <div className="text-[#64748B] italic">No recent activity.</div>
               ) : (
-                recentActivity.map((activity: any) => (
+                recentActivity.map((activity) => (
                   <div key={activity.id} className="flex gap-3">
                     <div className={cn("w-2 h-2 rounded-full mt-1.5 shrink-0", activity.action === "issue" ? "bg-emerald-500" : activity.action === "return" ? "bg-blue-500" : "bg-rose-500")}></div>
                     <div>
@@ -280,10 +377,10 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: LibrarianView) => v
               <h3 className="font-bold text-rose-900">Urgent Alerts</h3>
             </div>
             <div className="p-4 space-y-3 text-sm text-rose-800">
-              {summaryData?.overdue_loans > 0 ? (
+              {(summaryData?.overdue_loans ?? 0) > 0 ? (
                 <div className="flex justify-between items-start">
-                  <span><strong>{summaryData.overdue_loans} books</strong> are currently overdue.</span>
-                  <button className="text-rose-900 underline font-semibold text-xs" onClick={() => onNavigate("loans")}>View</button>
+                  <span><strong>{summaryData?.overdue_loans ?? 0} books</strong> are currently overdue.</span>
+                  <button type="button" className="text-rose-900 underline font-semibold text-xs" onClick={() => onNavigate("loans")}>View</button>
                 </div>
               ) : (
                 <div className="flex justify-between items-start text-emerald-700">
@@ -297,8 +394,8 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: LibrarianView) => v
             <ScanBarcode className="h-10 w-10 text-[#071D49] mx-auto mb-2 opacity-80" />
             <p className="text-sm font-bold text-[#071D49] mb-4">Quick Issue / Return</p>
             <div className="flex flex-col gap-2">
-              <button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => onNavigate("issue")}>Open Issue Desk</button>
-              <button className="rounded-lg border border-[#071D49] px-4 py-2 text-sm font-black text-[#071D49]" onClick={() => onNavigate("return")}>Open Return Desk</button>
+              <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => onNavigate("issue")}>Open Issue Desk</button>
+              <button type="button" className="rounded-lg border border-[#071D49] px-4 py-2 text-sm font-black text-[#071D49]" onClick={() => onNavigate("return")}>Open Return Desk</button>
             </div>
           </div>
         </div>
@@ -314,7 +411,7 @@ function IssueBooksWorkspace() {
   const [successMsg, setSuccessMsg] = useState("");
   const [selectedBorrower, setSelectedBorrower] = useState<{name: string, adm: string, class: string, status: string} | null>(null);
 
-  const handleScan = (e: React.FormEvent) => {
+  const handleScan = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!barcodeInput) return;
     setBasket([...basket, { title: "Sample Book Scanned", barcode: barcodeInput }]);
@@ -327,14 +424,14 @@ function IssueBooksWorkspace() {
     if (basket.length === 0) return;
     setIsSubmitting(true);
     try {
-      await requestDashboardApi("/api/admin-command/library/issue", {
+      await requestDashboardApi("/api/admin-command/librarian/issue-book", {
         method: "POST",
-        body: JSON.stringify({ borrowerId: selectedBorrower?.adm, books: basket })
+        body: { borrowerId: selectedBorrower?.adm, books: basket }
       });
       toast.success(`${basket.length} books issued to ${selectedBorrower?.name || 'borrower'}.`);
       setSuccessMsg(`${basket.length} books issued to ${selectedBorrower?.name || 'borrower'}.`);
       setBasket([]);
-    } catch (error) {
+    } catch {
       toast.error("Failed to issue books");
     } finally {
       setIsSubmitting(false);
@@ -346,7 +443,7 @@ function IssueBooksWorkspace() {
       {successMsg && (
         <div className="mb-4 rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-sm font-bold text-emerald-800 flex justify-between">
           <div className="flex items-center gap-2"><CheckCircle2 className="w-5 h-5" /> {successMsg}</div>
-          <button className="underline">Print Issue Slip</button>
+          <button type="button" className="underline" onClick={() => openLibraryRecord("Library issue slip", [["Borrower", selectedBorrower?.name || "Borrower"], ["Books issued", String(basket.length)], ["Status", successMsg]])}>Print Issue Slip</button>
         </div>
       )}
       
@@ -362,9 +459,9 @@ function IssueBooksWorkspace() {
               <div className="mt-2 rounded-xl border border-blue-200 bg-blue-50 p-3 flex justify-between items-center">
                 <div>
                   <div className="font-bold text-blue-900">{selectedBorrower.name}</div>
-                  <div className="text-xs text-blue-700">{selectedBorrower.adm} • {selectedBorrower.class} • <span className="font-bold">{selectedBorrower.status}</span></div>
+                  <div className="text-xs text-blue-700">{selectedBorrower.adm} â€¢ {selectedBorrower.class} â€¢ <span className="font-bold">{selectedBorrower.status}</span></div>
                 </div>
-                <button onClick={() => setSelectedBorrower(null)} className="text-blue-500 hover:bg-blue-100 p-1 rounded"><X className="w-4 h-4" /></button>
+                <button type="button" onClick={() => setSelectedBorrower(null)} className="text-blue-500 hover:bg-blue-100 p-1 rounded"><X className="w-4 h-4" /></button>
               </div>
             )}
           </div>
@@ -381,7 +478,7 @@ function IssueBooksWorkspace() {
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] flex flex-col">
           <div className="px-4 py-3 border-b border-[#D8E0EC] font-bold text-[#071D49] flex justify-between">
             <span>Issue Basket ({basket.length})</span>
-            {basket.length > 0 && <button className="text-xs text-rose-600 hover:underline" onClick={() => setBasket([])}>Clear</button>}
+            {basket.length > 0 && <button type="button" className="text-xs text-rose-600 hover:underline" onClick={() => setBasket([])}>Clear</button>}
           </div>
           <div className="p-4 flex-1 overflow-auto min-h-[200px]">
             {basket.length === 0 ? (
@@ -394,7 +491,7 @@ function IssueBooksWorkspace() {
                       <div className="font-semibold text-[#071D49]">{item.title}</div>
                       <div className="text-xs text-[#64748B]">Barcode: {item.barcode}</div>
                     </div>
-                    <button className="text-rose-500"><XCircle className="w-4 h-4" /></button>
+                    <button type="button" aria-label={`Remove ${item.title} from issue basket`} className="text-rose-500" onClick={() => setBasket((current) => current.filter((_, itemIndex) => itemIndex !== idx))}><XCircle className="w-4 h-4" /></button>
                   </li>
                 ))}
               </ul>
@@ -403,6 +500,7 @@ function IssueBooksWorkspace() {
           <div className="p-4 border-t border-[#D8E0EC] bg-white rounded-b-xl">
             {hasPermission('library:write') ? (
               <button 
+                type="button"
                 disabled={basket.length === 0 || isSubmitting}
                 onClick={handleIssue}
                 className="w-full rounded-xl bg-[#071D49] py-3 text-sm font-black text-white disabled:opacity-50"
@@ -426,19 +524,19 @@ function ReturnBooksWorkspace() {
   const [returned, setReturned] = useState<{title: string, borrower: string, fine: string} | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleScan = async (e: React.FormEvent) => {
+  const handleScan = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!barcodeInput) return;
     setIsSubmitting(true);
     try {
-      await requestDashboardApi("/api/admin-command/library/return", {
+      await requestDashboardApi("/api/admin-command/librarian/return-book", {
         method: "POST",
-        body: JSON.stringify({ barcode: barcodeInput })
+        body: { barcode: barcodeInput }
       });
       setReturned({ title: "Returned Book", borrower: "Library User", fine: "None" });
       toast.success("Book returned successfully");
       setBarcodeInput("");
-    } catch (error) {
+    } catch {
       toast.error("Failed to return book");
     } finally {
       setIsSubmitting(false);
@@ -462,8 +560,8 @@ function ReturnBooksWorkspace() {
             <h3 className="text-xl font-black text-emerald-900 mb-1">Book Returned Successfully</h3>
             <p className="text-emerald-700 font-medium mb-4">{returned.title} returned by {returned.borrower}.</p>
             <div className="flex justify-center gap-3">
-              <button className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-black text-white" onClick={() => setReturned(null)}>Scan Next Book</button>
-              <button className="rounded-lg border border-emerald-300 px-4 py-2 text-sm font-black text-emerald-800">Print Return Slip</button>
+              <button type="button" className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-black text-white" onClick={() => setReturned(null)}>Scan Next Book</button>
+              <button type="button" className="rounded-lg border border-emerald-300 px-4 py-2 text-sm font-black text-emerald-800" onClick={() => openLibraryRecord("Library return slip", [["Book", returned.title], ["Borrower", returned.borrower], ["Fine", returned.fine]])}>Print Return Slip</button>
             </div>
           </div>
         )}
@@ -474,17 +572,17 @@ function ReturnBooksWorkspace() {
 
 function AddBookModal({ onClose }: { onClose: () => void }) {
   const [submitting, setSubmitting] = useState(false);
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await requestDashboardApi("/api/admin-command/library/add", {
+      await requestDashboardApi("/api/admin-command/librarian/books", {
         method: "POST",
-        body: JSON.stringify({ title: "New Book" })
+        body: { title: "New Book" }
       });
       toast.success("Book added successfully");
       onClose();
-    } catch (error) {
+    } catch {
       toast.error("Failed to add book");
     } finally {
       setSubmitting(false);
@@ -532,15 +630,24 @@ function AddBookModal({ onClose }: { onClose: () => void }) {
 }
 
 function BookCatalogueWorkspace() {
-  const { data: catalog = [], isLoading } = useSchoolQuery<any>("/api/library/catalog");
+  const { data: catalog = [], isLoading } = useSchoolQuery<LibraryCatalogItem[]>("/api/library/catalog");
   const { hasPermission } = usePermissions();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [catalogueSearchTerm, setCatalogueSearchTerm] = useState("");
+  const [availableOnly, setAvailableOnly] = useState(false);
+  const filteredCatalogue = catalog.filter((book) => {
+    const matchesSearch = `${book.title || ""} ${book.author || ""} ${book.isbn || ""} ${book.subject || ""}`
+      .toLowerCase()
+      .includes(catalogueSearchTerm.toLowerCase());
+    const matchesAvailability = !availableOnly || Number(book.available || 0) > 0;
+    return matchesSearch && matchesAvailability;
+  });
 
   return (
     <>
       <Panel title="Book Catalogue" description="View, search, filter, edit, and manage all library books and copies." icon={Library} actions={
         hasPermission('library:write') ? (
-          <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">
+          <button type="button" onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">
             <Plus className="h-4 w-4" /> Add Book
           </button>
         ) : (
@@ -550,10 +657,23 @@ function BookCatalogueWorkspace() {
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#64748B]" />
-          <input type="text" placeholder="Search title, author, ISBN, barcode..." className="w-full rounded-xl border border-[#D8E0EC] py-2 pl-9 pr-3 text-sm focus:border-[#071D49] focus:outline-none focus:ring-1 focus:ring-[#071D49]" />
+          <input
+            type="text"
+            value={catalogueSearchTerm}
+            onChange={(event) => setCatalogueSearchTerm(event.target.value)}
+            placeholder="Search title, author, ISBN, barcode..."
+            className="w-full rounded-xl border border-[#D8E0EC] py-2 pl-9 pr-3 text-sm focus:border-[#071D49] focus:outline-none focus:ring-1 focus:ring-[#071D49]"
+          />
         </div>
-        <button className="flex items-center gap-2 rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49]">
-          <Filter className="h-4 w-4" /> Filters
+        <button
+          type="button"
+          className={cn(
+            "flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold",
+            availableOnly ? "border-[#071D49] bg-[#071D49] text-white" : "border-[#D8E0EC] bg-white text-[#071D49]",
+          )}
+          onClick={() => setAvailableOnly((current) => !current)}
+        >
+          <Filter className="h-4 w-4" /> {availableOnly ? "Available only" : "All availability"}
         </button>
       </div>
       
@@ -573,9 +693,9 @@ function BookCatalogueWorkspace() {
           <tbody className="divide-y divide-[#D8E0EC]">
             {isLoading ? (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
-            ) : catalog.length === 0 ? (
+            ) : filteredCatalogue.length === 0 ? (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No books found in catalogue.</td></tr>
-            ) : catalog.map((b: any, i: number) => (
+            ) : filteredCatalogue.map((b, i) => (
               <tr key={i} className="hover:bg-[#F8FAFC]">
                 <td className="px-4 py-3 font-semibold text-[#071D49]">{b.title}</td>
                 <td className="px-4 py-3 text-[#64748B]">{b.author || "-"}</td>
@@ -584,7 +704,7 @@ function BookCatalogueWorkspace() {
                 <td className="px-4 py-3 font-medium">{b.total || 0}</td>
                 <td className="px-4 py-3 font-medium text-emerald-600">{b.available || 0}</td>
                 <td className="px-4 py-3 text-right">
-                  <button className="p-1 text-[#64748B] hover:bg-[#D8E0EC] rounded"><MoreHorizontal className="w-4 h-4" /></button>
+                  <button type="button" aria-label={`View ${b.title} catalogue details`} className="p-1 text-[#64748B] hover:bg-[#D8E0EC] rounded" onClick={() => openLibraryRecord("Catalogue item", [["Title", String(b.title)], ["Author", String(b.author || "-")], ["ISBN", String(b.isbn || "-")], ["Subject", String(b.subject || "-")], ["Total", String(b.total || 0)], ["Available", String(b.available || 0)]])}><MoreHorizontal className="w-4 h-4" /></button>
                 </td>
               </tr>
             ))}
@@ -598,57 +718,17 @@ function BookCatalogueWorkspace() {
 }
 
 
-function ReservationsWorkspace() {
-  return (
-    <Panel title="Reservations" description="Manage book reservations, waiting lists, availability alerts, and reservation expiry." icon={Bookmark} actions={
-      <button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Create Reservation</button>
-    }>
-      <div className="flex gap-4 mb-4 border-b border-[#D8E0EC]">
-        <button className="pb-2 text-sm font-black text-[#071D49] border-b-2 border-[#071D49]">Active Reservations</button>
-        <button className="pb-2 text-sm font-bold text-[#64748B]">Ready for Collection</button>
-        <button className="pb-2 text-sm font-bold text-[#64748B]">Waiting List</button>
-        <button className="pb-2 text-sm font-bold text-[#64748B]">Expired</button>
-      </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
-        <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
-            <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Borrower</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Book Title</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Requested Date</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Expiry Date</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
-            {[
-              { borrower: "Amina Wanjiku", title: "A Doll's House", date: "09 Jun 2026", expiry: "12 Jun 2026", status: "Ready" },
-              { borrower: "John Doe", title: "Secondary Math Bk 2", date: "10 Jun 2026", expiry: "-", status: "Waiting" },
-            ].map((r, i) => (
-              <tr key={i} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{r.borrower}</td>
-                <td className="px-4 py-3 text-[#071D49]">{r.title}</td>
-                <td className="px-4 py-3 text-[#64748B]">{r.date}</td>
-                <td className="px-4 py-3 text-[#64748B]">{r.expiry}</td>
-                <td className="px-4 py-3"><StatusChip label={r.status} tone={r.status === 'Ready' ? 'success' : 'warning'} /></td>
-                <td className="px-4 py-3 text-right">
-                  <button className="text-blue-600 hover:underline font-semibold mr-3">Notify</button>
-                  <button className="p-1 text-[#64748B] hover:bg-[#D8E0EC] rounded"><MoreHorizontal className="w-4 h-4" /></button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Panel>
-  );
-}
-
 function DepartmentsWorkspace() {
+  const [isDepartmentIssueOpen, setIsDepartmentIssueOpen] = useState(false);
+  const resources = [
+    { title: "Advanced Chemistry Guide", dept: "Science", assigned: "Mr. Omondi", total: 3, available: 1 },
+    { title: "Kamusi ya Kiswahili", dept: "Languages", assigned: "Dept Office", total: 10, available: 8 },
+  ];
+
   return (
+    <>
     <Panel title="Departments & Subject Resources" description="Manage resources assigned to subjects, departments, teachers, and learning areas." icon={Briefcase} actions={
-      <button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Issue to Department</button>
+      <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => setIsDepartmentIssueOpen(true)}>Issue to Department</button>
     }>
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <select className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49]">
@@ -678,10 +758,7 @@ function DepartmentsWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            {[
-              { title: "Advanced Chemistry Guide", dept: "Science", assigned: "Mr. Omondi", total: 3, available: 1 },
-              { title: "Kamusi ya Kiswahili", dept: "Languages", assigned: "Dept Office", total: 10, available: 8 },
-            ].map((d, i) => (
+            {resources.map((d, i) => (
               <tr key={i} className="hover:bg-[#F8FAFC]">
                 <td className="px-4 py-3 font-semibold text-[#071D49]">{d.title}</td>
                 <td className="px-4 py-3 text-[#64748B]">{d.dept}</td>
@@ -689,7 +766,7 @@ function DepartmentsWorkspace() {
                 <td className="px-4 py-3 font-medium">{d.total}</td>
                 <td className="px-4 py-3 font-medium text-emerald-600">{d.available}</td>
                 <td className="px-4 py-3 text-right">
-                  <button className="text-blue-600 hover:underline font-semibold">View</button>
+                  <button type="button" className="text-blue-600 hover:underline font-semibold" onClick={() => openLibraryRecord("Department resource", [["Title", d.title], ["Department", d.dept], ["Assigned to", d.assigned], ["Total", String(d.total)], ["Available", String(d.available)]])}>View</button>
                 </td>
               </tr>
             ))}
@@ -697,13 +774,22 @@ function DepartmentsWorkspace() {
         </table>
       </div>
     </Panel>
+    <IssueDepartmentResourceModal open={isDepartmentIssueOpen} onClose={() => setIsDepartmentIssueOpen(false)} />
+    </>
   );
 }
 
 function VisitsWorkspace() {
+  const [isVisitOpen, setIsVisitOpen] = useState(false);
+  const visits = [
+    { name: "Joy Kendi", in: "10:00 AM", out: "10:45 AM", purpose: "Reading", status: "Completed" },
+    { name: "Form 1 East", in: "11:00 AM", out: "-", purpose: "Class Session", status: "Active" },
+  ];
+
   return (
+    <>
     <Panel title="Library Visits & Reading Logs" description="Record student library visits, reading sessions, and reading program participation." icon={Footprints} actions={
-      <button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Log Visit</button>
+      <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => setIsVisitOpen(true)}>Log Visit</button>
     }>
       <div className="grid gap-4 md:grid-cols-3 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
@@ -732,10 +818,7 @@ function VisitsWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            {[
-              { name: "Joy Kendi", in: "10:00 AM", out: "10:45 AM", purpose: "Reading", status: "Completed" },
-              { name: "Form 1 East", in: "11:00 AM", out: "-", purpose: "Class Session", status: "Active" },
-            ].map((v, i) => (
+            {visits.map((v, i) => (
               <tr key={i} className="hover:bg-[#F8FAFC]">
                 <td className="px-4 py-3 font-semibold text-[#071D49]">{v.name}</td>
                 <td className="px-4 py-3 text-[#64748B]">{v.in}</td>
@@ -743,8 +826,8 @@ function VisitsWorkspace() {
                 <td className="px-4 py-3 text-[#64748B]">{v.purpose}</td>
                 <td className="px-4 py-3"><StatusChip label={v.status} tone={v.status === 'Active' ? 'success' : 'neutral'} /></td>
                 <td className="px-4 py-3 text-right">
-                  {v.status === "Active" && <button className="text-blue-600 hover:underline font-semibold mr-3">Check Out</button>}
-                  <button className="p-1 text-[#64748B] hover:bg-[#D8E0EC] rounded"><MoreHorizontal className="w-4 h-4" /></button>
+                  {v.status === "Active" && <button type="button" className="text-blue-600 hover:underline font-semibold mr-3" onClick={() => openLibraryRecord("Library visit checkout", [["Student/Class", v.name], ["Time in", v.in], ["Purpose", v.purpose], ["Next action", "Use the routed visits workspace to persist checkout with notes."]])}>Check Out</button>}
+                  <button type="button" aria-label={`View visit for ${v.name}`} className="p-1 text-[#64748B] hover:bg-[#D8E0EC] rounded" onClick={() => openLibraryRecord("Library visit", [["Student/Class", v.name], ["Time in", v.in], ["Time out", v.out], ["Purpose", v.purpose], ["Status", v.status]])}><MoreHorizontal className="w-4 h-4" /></button>
                 </td>
               </tr>
             ))}
@@ -752,13 +835,22 @@ function VisitsWorkspace() {
         </table>
       </div>
     </Panel>
+    <LogLibraryVisitModal open={isVisitOpen} onClose={() => setIsVisitOpen(false)} />
+    </>
   );
 }
 
 function RequestsApprovalsWorkspace() {
+  const [isRequestOpen, setIsRequestOpen] = useState(false);
+  const requests = [
+    { type: "Write-off Approval", target: "Principal", details: "3 Books Damaged by Water", date: "10 Jun 2026", status: "Pending" },
+    { type: "New Books Purchase", target: "Procurement", details: "CBC Grade 7 Science Books", date: "05 Jun 2026", status: "Approved" },
+  ];
+
   return (
+    <>
     <Panel title="Requests & Approvals" description="Handle book requests, stock purchase requests, write-off approvals, and waivers." icon={CheckSquare} actions={
-      <button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Create Request</button>
+      <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => setIsRequestOpen(true)}>Create Request</button>
     }>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
         <table className="w-full text-sm text-left whitespace-nowrap">
@@ -773,10 +865,7 @@ function RequestsApprovalsWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            {[
-              { type: "Write-off Approval", target: "Principal", details: "3 Books Damaged by Water", date: "10 Jun 2026", status: "Pending" },
-              { type: "New Books Purchase", target: "Procurement", details: "CBC Grade 7 Science Books", date: "05 Jun 2026", status: "Approved" },
-            ].map((r, i) => (
+            {requests.map((r, i) => (
               <tr key={i} className="hover:bg-[#F8FAFC]">
                 <td className="px-4 py-3 font-semibold text-[#071D49]">{r.type}</td>
                 <td className="px-4 py-3 text-[#64748B]">{r.target}</td>
@@ -784,7 +873,7 @@ function RequestsApprovalsWorkspace() {
                 <td className="px-4 py-3 text-[#64748B]">{r.date}</td>
                 <td className="px-4 py-3"><StatusChip label={r.status} tone={r.status === 'Approved' ? 'success' : 'warning'} /></td>
                 <td className="px-4 py-3 text-right">
-                  <button className="text-blue-600 hover:underline font-semibold">View</button>
+                  <button type="button" className="text-blue-600 hover:underline font-semibold" onClick={() => openLibraryRecord("Library request", [["Type", r.type], ["Target role", r.target], ["Details", r.details], ["Date", r.date], ["Status", r.status]])}>View</button>
                 </td>
               </tr>
             ))}
@@ -792,37 +881,64 @@ function RequestsApprovalsWorkspace() {
         </table>
       </div>
     </Panel>
+    <CreateLibraryRequestModal open={isRequestOpen} onClose={() => setIsRequestOpen(false)} />
+    </>
   );
 }
 
 function ReportsDownloadsWorkspace() {
+  const { data: reportsResponse = [], isLoading } = useSchoolQuery<Array<Record<string, unknown>>>("/api/admin-command/librarian/reports");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const reports = Array.isArray(reportsResponse) ? reportsResponse : [];
+
+  const generateReport = async (format: string) => {
+    setIsGenerating(true);
+    try {
+      await requestDashboardApi("/api/admin-command/librarian/reports/generate", {
+        method: "POST",
+        body: { title: "Library operations report", format },
+      });
+      toast.success("Library report compiled", { description: "The report snapshot was generated from live library records." });
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to generate library report");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   return (
-    <Panel title="Reports & Downloads" description="Generate library reports for management, classes, departments, audits, and parents." icon={FileText}>
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {[
-          "Full Library Catalogue",
-          "Available Books List",
-          "Active Loans Report",
-          "Overdue Books by Class",
-          "Lost & Damaged Books",
-          "Library Fines & Payments",
-          "Stocktake Summary",
-          "Subject Resource Distribution"
-        ].map((report, i) => (
-          <div key={i} className="rounded-xl border border-[#D8E0EC] p-4 bg-white hover:border-blue-300 transition cursor-pointer flex justify-between items-center group">
-            <span className="font-semibold text-[#071D49] text-sm">{report}</span>
-            <Download className="w-4 h-4 text-[#64748B] group-hover:text-blue-600" />
-          </div>
-        ))}
+    <Panel title="Reports & Downloads" description="Generate, preview, and export tenant-scoped library reports." icon={FileText} actions={
+      <div className="flex flex-wrap gap-2">
+        <button type="button" disabled={isGenerating} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50" onClick={() => generateReport("pdf")}>
+          {isGenerating ? "Generating..." : "Generate PDF"}
+        </button>
+        <button type="button" disabled={isGenerating} className="rounded-lg border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49] disabled:opacity-50" onClick={() => generateReport("csv")}>
+          Generate CSV
+        </button>
       </div>
+    }>
+      <EndpointTable
+        isLoading={isLoading}
+        rows={reports}
+        emptyText="No library reports have been generated yet. Generate a report to compile live catalogue, loan, overdue, and fine records."
+        columns={["reportName", "type", "status", "generatedDate", "snapshotId"]}
+        title="Library reports"
+      />
     </Panel>
   );
 }
 
 function NoticesCommunicationWorkspace() {
+  const [isNoticeOpen, setIsNoticeOpen] = useState(false);
+  const messages = [
+    { title: "Form 2 Overdue Reminder", target: "Students & Parents", method: "SMS, In-app", date: "10 Jun 2026", status: "Sent (45)" },
+    { title: "New Set Books Arrival", target: "Language Dept", method: "In-app", date: "08 Jun 2026", status: "Sent (8)" },
+  ];
+
   return (
+    <>
     <Panel title="Notices & Communication" description="Send library notices, overdue reminders, fine alerts, and lost book notices." icon={MessageCircle} actions={
-      <button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Compose Notice</button>
+      <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => setIsNoticeOpen(true)}>Compose Notice</button>
     }>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
         <table className="w-full text-sm text-left whitespace-nowrap">
@@ -837,10 +953,7 @@ function NoticesCommunicationWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            {[
-              { title: "Form 2 Overdue Reminder", target: "Students & Parents", method: "SMS, In-app", date: "10 Jun 2026", status: "Sent (45)" },
-              { title: "New Set Books Arrival", target: "Language Dept", method: "In-app", date: "08 Jun 2026", status: "Sent (8)" },
-            ].map((m, i) => (
+            {messages.map((m, i) => (
               <tr key={i} className="hover:bg-[#F8FAFC]">
                 <td className="px-4 py-3 font-semibold text-[#071D49]">{m.title}</td>
                 <td className="px-4 py-3 text-[#64748B]">{m.target}</td>
@@ -848,7 +961,7 @@ function NoticesCommunicationWorkspace() {
                 <td className="px-4 py-3 text-[#64748B]">{m.date}</td>
                 <td className="px-4 py-3"><StatusChip label={m.status} tone="success" /></td>
                 <td className="px-4 py-3 text-right">
-                  <button className="text-blue-600 hover:underline font-semibold">View</button>
+                  <button type="button" className="text-blue-600 hover:underline font-semibold" onClick={() => openLibraryRecord("Library notice", [["Title", m.title], ["Recipients", m.target], ["Method", m.method], ["Sent date", m.date], ["Status", m.status]])}>View</button>
                 </td>
               </tr>
             ))}
@@ -856,33 +969,885 @@ function NoticesCommunicationWorkspace() {
         </table>
       </div>
     </Panel>
+    <ComposeLibraryNoticeModal open={isNoticeOpen} onClose={() => setIsNoticeOpen(false)} />
+    </>
   );
 }
-// Minimal placeholder for the remaining 14 workspaces to maintain the structure
-function SimpleWorkspace({ title, description, icon: Icon }: { title: string; description: string; icon: LucideIcon }) {
+type LibraryWorkspaceContract = {
+  endpoint: string;
+  dataKeys: string[];
+  columns: string[];
+  title: string;
+  description: string;
+  emptyText: string;
+};
+
+const libraryWorkspaceContracts: Partial<Record<LibrarianView, LibraryWorkspaceContract>> = {
+  add_books: {
+    endpoint: "/api/admin-command/librarian/books",
+    dataKeys: ["books"],
+    columns: ["title", "author", "isbn", "category", "copies_total", "copies_available", "status"],
+    title: "Add / Accession Books",
+    description: "Add catalogue records and review accessioned copies for the current school library.",
+    emptyText: "No accessioned books found. Use Add Book to create the first catalogue record and copies.",
+  },
+  loans: {
+    endpoint: "/api/admin-command/librarian/overdue-books",
+    dataKeys: ["overdueBooks", "overdue_books"],
+    columns: ["student_name", "admission_no", "class_name", "book_title", "issue_date", "due_date", "status"],
+    title: "Loans & Overdues",
+    description: "Review overdue active loans and follow up with borrowers.",
+    emptyText: "No overdue loans found for this school.",
+  },
+  lost_damaged: {
+    endpoint: "/api/admin-command/librarian/fines-lost-damaged",
+    dataKeys: ["fines"],
+    columns: ["student_name", "admission_no", "class_name", "book_title", "fine_type", "amount", "status"],
+    title: "Lost / Damaged Books",
+    description: "Track lost and damaged book fines with borrower and copy context.",
+    emptyText: "No lost or damaged book fines have been recorded.",
+  },
+  fines: {
+    endpoint: "/api/admin-command/librarian/fines-lost-damaged",
+    dataKeys: ["fines"],
+    columns: ["student_name", "admission_no", "book_title", "fine_type", "amount", "date_created", "status"],
+    title: "Fines & Payments",
+    description: "Review pending, paid, and waived library fines.",
+    emptyText: "No library fines have been recorded.",
+  },
+  borrowers: {
+    endpoint: "/api/admin-command/librarian/borrowers",
+    dataKeys: [],
+    columns: ["name", "admission_no", "class_name", "borrower_type", "scan_code", "created_at"],
+    title: "Students & Borrowers",
+    description: "Search registered library borrowers created from students and scan codes.",
+    emptyText: "No borrowers have been registered yet. Borrowers are created when books are issued to students.",
+  },
+  class_textbooks: {
+    endpoint: "/api/admin-command/librarian/books",
+    dataKeys: ["books"],
+    columns: ["title", "category", "copies_total", "copies_available", "shelf_location", "status"],
+    title: "Class Textbook Distribution",
+    description: "Use catalogue copy availability to plan class textbook distribution.",
+    emptyText: "No textbook catalogue records found.",
+  },
+  reservations: {
+    endpoint: "/api/admin-command/librarian/reservations",
+    dataKeys: ["reservations"],
+    columns: ["borrower_name", "book_title", "requested_date", "expiry_date", "status"],
+    title: "Reservations",
+    description: "Manage tenant-scoped book reservation requests and waiting lists.",
+    emptyText: "No reservations have been created yet. Use Create Reservation to add a borrower to a book waiting list.",
+  },
+  stocktake: {
+    endpoint: "/api/admin-command/librarian/books",
+    dataKeys: ["books"],
+    columns: ["title", "isbn", "copies_total", "copies_available", "shelf_location", "status"],
+    title: "Library Stocktake",
+    description: "Compare catalogue totals, available copies, shelf locations, and issue status.",
+    emptyText: "No catalogue records available for stocktake.",
+  },
+  departments: {
+    endpoint: "/api/admin-command/librarian/books",
+    dataKeys: ["books"],
+    columns: ["title", "category", "author", "copies_total", "copies_available", "status"],
+    title: "Departments & Subject Resources",
+    description: "Review subject and category resource availability for department allocation.",
+    emptyText: "No department or subject resources found in the catalogue.",
+  },
+  visits: {
+    endpoint: "/api/library/visits",
+    dataKeys: ["items"],
+    columns: ["visitor_name", "visitor_type", "purpose", "time_in", "time_out", "reading_program", "status"],
+    title: "Library Visits & Reading Logs",
+    description: "Record and review audited student, staff, and class library visits for the current school.",
+    emptyText: "No library visits have been logged yet. Use Log Visit to record student, class, or staff library use.",
+  },
+  requests: {
+    endpoint: "/api/library/requests",
+    dataKeys: ["items"],
+    columns: ["request_type", "target_role", "details", "required_by", "priority", "status"],
+    title: "Requests & Approvals",
+    description: "Create and review purchase, write-off, stock-adjustment, and fine-waiver requests.",
+    emptyText: "No library requests are pending. Use Create Request to submit the first approval request.",
+  },
+  notices: {
+    endpoint: "/api/library/notices",
+    dataKeys: ["items"],
+    columns: ["title", "body", "recipientRole", "status", "createdAt"],
+    title: "Notices & Communication",
+    description: "Send and review tenant-scoped library notices for overdue, fine, lost-book, and new-arrival communication.",
+    emptyText: "No library notices have been sent yet. Use Compose Notice to notify the right roles.",
+  },
+  settings: {
+    endpoint: "/api/admin-command/librarian/overview",
+    dataKeys: [],
+    columns: ["metric", "value"],
+    title: "Library Settings",
+    description: "Review live library operating totals before changing circulation policies.",
+    emptyText: "Library settings totals are not available yet.",
+  },
+};
+
+function getRowsFromResponse(response: unknown, keys: string[]): Array<Record<string, unknown>> {
+  if (Array.isArray(response)) return response as Array<Record<string, unknown>>;
+  if (!response || typeof response !== "object") return [];
+  const record = response as Record<string, unknown>;
+
+  if ("metrics" in record && keys.length === 0) {
+    return Object.entries((record.metrics as Record<string, unknown>) ?? {}).map(([metric, value]) => ({ metric, value })) as Array<Record<string, unknown>>;
+  }
+
+  for (const key of keys) {
+    const value = record[key];
+    if (Array.isArray(value)) return value as Array<Record<string, unknown>>;
+  }
+
+  return [];
+}
+
+function valueText(value: unknown) {
+  if (value === null || value === undefined || value === "") return "-";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function EndpointTable({
+  isLoading,
+  rows,
+  emptyText,
+  columns,
+  title,
+  rowActions,
+}: {
+  isLoading: boolean;
+  rows: Array<Record<string, unknown>>;
+  emptyText: string;
+  columns: string[];
+  title: string;
+  rowActions?: (row: Record<string, unknown>, index: number) => ReactNode;
+}) {
+  const visibleColumns = columns.length > 0 ? columns : Object.keys(rows[0] ?? {}).slice(0, 6);
+
   return (
-    <Panel title={title} description={description} icon={Icon}>
-      <div className="flex flex-col items-center justify-center py-16 text-center bg-[#F8FAFC] rounded-xl border border-dashed border-[#D8E0EC]">
-        <Icon className="h-12 w-12 text-[#64748B]/30 mb-4" />
-        <p className="text-lg font-bold text-[#071D49]">{title} Workspace</p>
-        <p className="mt-2 text-sm text-[#64748B] max-w-sm">{description}</p>
-        <div className="mt-6 flex gap-3">
-          <button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Main Action</button>
-          <button className="rounded-lg border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49]">Export</button>
-        </div>
-      </div>
-    </Panel>
+    <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <table className="w-full text-left text-sm whitespace-nowrap">
+        <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <tr>
+            {visibleColumns.map((column) => (
+              <th key={column} className="border-b border-[#D8E0EC] px-4 py-3 font-bold">{column.replace(/_/g, " ")}</th>
+            ))}
+            <th className="border-b border-[#D8E0EC] px-4 py-3 text-right font-bold">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[#D8E0EC]">
+          {isLoading ? (
+            <tr><td colSpan={visibleColumns.length + 1} className="px-4 py-8 text-center text-[#64748B]">Loading {title.toLowerCase()}...</td></tr>
+          ) : rows.length === 0 ? (
+            <tr><td colSpan={visibleColumns.length + 1} className="px-4 py-8 text-center text-[#64748B]">{emptyText}</td></tr>
+          ) : (
+            rows.map((row, index) => (
+              <tr key={String(row.id ?? index)} className="hover:bg-[#F8FAFC]">
+                {visibleColumns.map((column) => (
+                  <td key={column} className="px-4 py-3 text-[#64748B]">{valueText(row[column])}</td>
+                ))}
+                <td className="px-4 py-3 text-right">
+                  {rowActions?.(row, index)}
+                  <button
+                    type="button"
+                    className="text-blue-600 hover:underline font-semibold"
+                    onClick={() => openLibraryRecord(title, visibleColumns.map((column) => [column.replace(/_/g, " "), valueText(row[column])] as [string, string]))}
+                  >
+                    View
+                  </button>
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 }
+
+function CreateLibraryReservationModal({
+  open,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreated?: () => void;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleCreateReservation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const catalogItemId = String(form.get("catalog_item_id") ?? "").trim();
+    const borrowerId = String(form.get("borrower_id") ?? "").trim();
+
+    if (!catalogItemId || !borrowerId) {
+      toast.error("Borrower ID and catalogue item ID are required.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await requestDashboardApi("/api/admin-command/librarian/reservations", {
+        method: "POST",
+        body: {
+          catalog_item_id: catalogItemId,
+          borrower_id: borrowerId,
+        },
+      });
+      toast.success("Library reservation created", {
+        description: "The borrower was added to the reservation queue for the selected catalogue item.",
+      });
+      publishSchoolOperationalEvent({
+        type: "library.reservation_created",
+        module: "library",
+        actorRole: "librarian",
+        title: "Library reservation created",
+        body: `Reservation created for borrower ${borrowerId}.`,
+      });
+      onCreated?.();
+      onClose();
+    } catch (error) {
+      toast.error("Library reservation was not created", {
+        description: error instanceof Error ? error.message : "The reservation could not be saved.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title="Create library reservation" open={open} onClose={onClose} size="lg">
+      <form onSubmit={handleCreateReservation} className="space-y-4 p-6">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="text-sm font-bold text-[#071D49]">Borrower ID
+            <input name="borrower_id" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Student borrower UUID or scan record ID" />
+          </label>
+          <label className="text-sm font-bold text-[#071D49]">Catalogue item ID
+            <input name="catalog_item_id" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Book catalogue UUID" />
+          </label>
+        </div>
+        <p className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-3 text-sm font-semibold text-[#64748B]">
+          Reservations are saved to the tenant-scoped library reservation queue and appended to the circulation ledger.
+        </p>
+        <div className="flex justify-end gap-2 border-t border-[#D8E0EC] pt-4">
+          <button type="button" className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button type="submit" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting}>
+            {submitting ? "Creating..." : "Create Reservation"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function IssueDepartmentResourceModal({
+  open,
+  onClose,
+  onIssued,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onIssued?: () => void;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleIssueDepartmentResource(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const bookCode = String(form.get("book_code") ?? "").trim();
+    const staffIdentifier = String(form.get("staff_identifier") ?? "").trim();
+    const department = String(form.get("department") ?? "").trim();
+    const assignedTo = String(form.get("assigned_to") ?? "").trim();
+    const dueDate = String(form.get("due_date") ?? "").trim();
+    const notes = String(form.get("notes") ?? "").trim();
+
+    if (!bookCode || !staffIdentifier || !department || !assignedTo) {
+      toast.error("Book, responsible staff, department, and assigned-to fields are required.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await requestDashboardApi("/api/admin-command/librarian/department-issues", {
+        method: "POST",
+        body: {
+          book_isbn: bookCode,
+          staff_identifier: staffIdentifier,
+          department,
+          assigned_to: assignedTo,
+          due_date: dueDate || undefined,
+          notes: notes || undefined,
+        },
+      });
+      toast.success("Department resource issued", {
+        description: `${bookCode} issued to ${department} under ${assignedTo}.`,
+      });
+      publishSchoolOperationalEvent({
+        type: "library.department_resource_issued",
+        module: "library",
+        actorRole: "librarian",
+        title: "Department resource issued",
+        body: `${bookCode} issued to ${department} under ${assignedTo}.`,
+      });
+      onIssued?.();
+      onClose();
+    } catch (error) {
+      toast.error("Department resource was not issued", {
+        description: error instanceof Error ? error.message : "The department issue could not be saved to the circulation ledger.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title="Issue resource to department" open={open} onClose={onClose} size="lg">
+      <form onSubmit={handleIssueDepartmentResource} className="space-y-4 p-6">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="text-sm font-bold text-[#071D49]">Book ISBN, title, accession, or barcode
+            <input name="book_code" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="CHEM-ADV or accession number" />
+          </label>
+          <label className="text-sm font-bold text-[#071D49]">Responsible staff identifier
+            <input name="staff_identifier" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Staff UUID, user UUID, staff number, or name" />
+          </label>
+          <label className="text-sm font-bold text-[#071D49]">Department
+            <input name="department" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Science, Languages..." />
+          </label>
+          <label className="text-sm font-bold text-[#071D49]">Assigned to
+            <input name="assigned_to" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Mr. Omondi / Department office" />
+          </label>
+          <label className="text-sm font-bold text-[#071D49]">Due date
+            <input name="due_date" type="date" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+          </label>
+        </div>
+        <label className="block text-sm font-bold text-[#071D49]">Notes
+          <textarea name="notes" rows={3} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Purpose, class set, return condition, or handover notes" />
+        </label>
+        <p className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-3 text-sm font-semibold text-[#64748B]">
+          Department resources are issued against a responsible staff borrower and saved in the tenant-scoped circulation ledger.
+        </p>
+        <div className="flex justify-end gap-2 border-t border-[#D8E0EC] pt-4">
+          <button type="button" className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button type="submit" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting}>
+            {submitting ? "Issuing..." : "Issue Resource"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function LogLibraryVisitModal({
+  open,
+  onClose,
+  onLogged,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onLogged?: () => void;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleLogLibraryVisit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const visitorName = String(form.get("visitor_name") ?? "").trim();
+    const visitorType = String(form.get("visitor_type") ?? "student").trim();
+    const purpose = String(form.get("purpose") ?? "").trim();
+    const timeIn = String(form.get("time_in") ?? "").trim();
+    const timeOut = String(form.get("time_out") ?? "").trim();
+    const readingProgram = String(form.get("reading_program") ?? "").trim();
+    const notes = String(form.get("notes") ?? "").trim();
+
+    if (!visitorName || !purpose) {
+      toast.error("Visitor or class and purpose are required.");
+      return;
+    }
+
+    const normalizedTimeIn = timeIn ? new Date(timeIn).toISOString() : new Date().toISOString();
+    const normalizedTimeOut = timeOut ? new Date(timeOut).toISOString() : undefined;
+
+    setSubmitting(true);
+    try {
+      await requestDashboardApi("/api/admin-command/librarian/actions", {
+        method: "POST",
+        body: {
+          action: "visit_logged",
+          title: "Library visit logged",
+          description: `${visitorName} visited the library for ${purpose}.`,
+          entityType: "library_visit",
+          priority: "normal",
+          source: "librarian-dashboard",
+          payload: {
+            visitor_name: visitorName,
+            visitor_type: visitorType,
+            purpose,
+            time_in: normalizedTimeIn,
+            time_out: normalizedTimeOut,
+            reading_program: readingProgram || undefined,
+            notes: notes || undefined,
+          },
+        },
+      });
+      toast.success("Library visit logged", {
+        description: `${visitorName} was saved to the tenant-scoped library visit log.`,
+      });
+      publishSchoolOperationalEvent({
+        type: "library.visit_logged",
+        module: "library",
+        actorRole: "librarian",
+        title: "Library visit logged",
+        body: `${visitorName} visited the library for ${purpose}.`,
+      });
+      onLogged?.();
+      onClose();
+    } catch (error) {
+      toast.error("Library visit was not logged", {
+        description: error instanceof Error ? error.message : "The visit could not be saved to the workflow ledger.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title="Log library visit" open={open} onClose={onClose} size="lg">
+      <form onSubmit={handleLogLibraryVisit} className="space-y-4 p-6">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="text-sm font-bold text-[#071D49]">Student, staff, class, or group
+            <input name="visitor_name" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Joy Kendi / Form 1 East / Debate Club" />
+          </label>
+          <label className="text-sm font-bold text-[#071D49]">Visitor type
+            <select name="visitor_type" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" defaultValue="student">
+              <option value="student">Student</option>
+              <option value="class">Class</option>
+              <option value="staff">Staff</option>
+              <option value="club">Club / Group</option>
+            </select>
+          </label>
+          <label className="text-sm font-bold text-[#071D49]">Purpose
+            <input name="purpose" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Reading, research, class session..." />
+          </label>
+          <label className="text-sm font-bold text-[#071D49]">Reading program
+            <input name="reading_program" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="DEAR, book club, remedial reading..." />
+          </label>
+          <label className="text-sm font-bold text-[#071D49]">Time in
+            <input name="time_in" type="datetime-local" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+          </label>
+          <label className="text-sm font-bold text-[#071D49]">Time out
+            <input name="time_out" type="datetime-local" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+          </label>
+        </div>
+        <label className="block text-sm font-bold text-[#071D49]">Notes
+          <textarea name="notes" rows={3} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Books read, session outcome, teacher notes, or follow-up needed" />
+        </label>
+        <p className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-3 text-sm font-semibold text-[#64748B]">
+          Visit logs are saved as tenant-scoped library workflow events and appear in the visits workspace.
+        </p>
+        <div className="flex justify-end gap-2 border-t border-[#D8E0EC] pt-4">
+          <button type="button" className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button type="submit" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting}>
+            {submitting ? "Logging..." : "Log Visit"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function CreateLibraryRequestModal({
+  open,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreated?: () => void;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleCreateLibraryRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const requestType = String(form.get("request_type") ?? "").trim();
+    const targetRole = String(form.get("target_role") ?? "principal").trim();
+    const details = String(form.get("details") ?? "").trim();
+    const requiredBy = String(form.get("required_by") ?? "").trim();
+    const priority = String(form.get("priority") ?? "normal").trim();
+    const notes = String(form.get("notes") ?? "").trim();
+
+    if (!requestType || !targetRole || !details) {
+      toast.error("Request type, target role, and details are required.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await requestDashboardApi("/api/admin-command/librarian/actions", {
+        method: "POST",
+        body: {
+          action: "request_submitted",
+          title: "Library request submitted",
+          description: `${requestType} request submitted to ${targetRole}: ${details}`,
+          entityType: "library_request",
+          priority,
+          target_roles: [targetRole, "librarian"],
+          source: "librarian-dashboard",
+          payload: {
+            request_type: requestType,
+            target_role: targetRole,
+            details,
+            required_by: requiredBy || undefined,
+            priority,
+            notes: notes || undefined,
+            status: "Pending",
+          },
+        },
+      });
+      toast.success("Library request submitted", {
+        description: `${requestType} request sent to ${targetRole} for review.`,
+      });
+      publishSchoolOperationalEvent({
+        type: "library.request_submitted",
+        module: "library",
+        actorRole: "librarian",
+        title: "Library request submitted",
+        body: `${requestType} request submitted to ${targetRole}.`,
+      });
+      onCreated?.();
+      onClose();
+    } catch (error) {
+      toast.error("Library request was not submitted", {
+        description: error instanceof Error ? error.message : "The request could not be saved for approval follow-up.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title="Create library request" open={open} onClose={onClose} size="lg">
+      <form onSubmit={handleCreateLibraryRequest} className="space-y-4 p-6">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="text-sm font-bold text-[#071D49]">Request type
+            <select name="request_type" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" defaultValue="purchase">
+              <option value="purchase">Purchase request</option>
+              <option value="write_off">Write-off approval</option>
+              <option value="stock_adjustment">Stock adjustment</option>
+              <option value="fine_waiver">Fine waiver</option>
+            </select>
+          </label>
+          <label className="text-sm font-bold text-[#071D49]">Target role
+            <select name="target_role" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" defaultValue="principal">
+              <option value="principal">Principal</option>
+              <option value="procurement_officer">Procurement Officer</option>
+              <option value="accountant">Accountant</option>
+              <option value="storekeeper">Storekeeper</option>
+            </select>
+          </label>
+          <label className="text-sm font-bold text-[#071D49]">Required by
+            <input name="required_by" type="date" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+          </label>
+          <label className="text-sm font-bold text-[#071D49]">Priority
+            <select name="priority" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" defaultValue="normal">
+              <option value="normal">Normal</option>
+              <option value="high">High</option>
+            </select>
+          </label>
+        </div>
+        <label className="block text-sm font-bold text-[#071D49]">Details
+          <textarea name="details" required rows={3} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Books, quantities, affected copies, fine waiver reason, or adjustment details" />
+        </label>
+        <label className="block text-sm font-bold text-[#071D49]">Notes
+          <textarea name="notes" rows={2} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Approval context, budget notes, supplier notes, or learner/borrower reference" />
+        </label>
+        <p className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-3 text-sm font-semibold text-[#64748B]">
+          Requests are saved as tenant-scoped approval workflow records and remain visible in the Requests workspace.
+        </p>
+        <div className="flex justify-end gap-2 border-t border-[#D8E0EC] pt-4">
+          <button type="button" className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button type="submit" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting}>
+            {submitting ? "Submitting..." : "Submit Request"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function ComposeLibraryNoticeModal({
+  open,
+  onClose,
+  onSent,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSent?: () => void;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSendLibraryNotice(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const title = String(form.get("title") ?? "").trim();
+    const message = String(form.get("message") ?? "").trim();
+    const noticeType = String(form.get("notice_type") ?? "general").trim();
+    const priority = String(form.get("priority") ?? "normal").trim();
+    const targetRoles = form.getAll("target_roles").map((value) => String(value).trim()).filter(Boolean);
+    const channels = form.getAll("channels").map((value) => String(value).trim()).filter(Boolean);
+
+    if (!title || !message || targetRoles.length === 0) {
+      toast.error("Title, message, and at least one recipient role are required.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await requestDashboardApi("/api/admin-command/librarian/notices", {
+        method: "POST",
+        body: {
+          title,
+          message,
+          notice_type: noticeType,
+          priority,
+          target_roles: targetRoles,
+          channels: channels.length > 0 ? channels : ["in_app"],
+        },
+      });
+      toast.success("Library notice sent", {
+        description: `Notice sent to ${targetRoles.join(", ")}.`,
+      });
+      publishSchoolOperationalEvent({
+        type: "library.notice_sent",
+        module: "library",
+        actorRole: "librarian",
+        title,
+        body: message,
+      });
+      onSent?.();
+      onClose();
+    } catch (error) {
+      toast.error("Library notice was not sent", {
+        description: error instanceof Error ? error.message : "The notice could not be delivered through the notification pipeline.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title="Compose library notice" open={open} onClose={onClose} size="lg">
+      <form onSubmit={handleSendLibraryNotice} className="space-y-4 p-6">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="text-sm font-bold text-[#071D49]">Notice title
+            <input name="title" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Overdue book reminder" />
+          </label>
+          <label className="text-sm font-bold text-[#071D49]">Notice type
+            <select name="notice_type" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" defaultValue="overdue">
+              <option value="overdue">Overdue reminder</option>
+              <option value="fine">Fine alert</option>
+              <option value="lost_book">Lost book notice</option>
+              <option value="new_arrival">New arrival</option>
+              <option value="general">General</option>
+            </select>
+          </label>
+        </div>
+        <label className="block text-sm font-bold text-[#071D49]">Message
+          <textarea name="message" required rows={4} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Write the notice that recipients should receive." />
+        </label>
+        <fieldset className="rounded-lg border border-[#D8E0EC] p-3">
+          <legend className="px-1 text-sm font-bold text-[#071D49]">Recipient roles</legend>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {[
+              ["parent", "Parents"],
+              ["student", "Students"],
+              ["class_teacher", "Class Teachers"],
+              ["principal", "Principal"],
+              ["librarian", "Librarians"],
+            ].map(([value, label]) => (
+              <label key={value} className="flex items-center gap-2 text-sm font-semibold text-[#64748B]">
+                <input type="checkbox" name="target_roles" value={value} defaultChecked={value === "parent"} />
+                {label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <fieldset className="rounded-lg border border-[#D8E0EC] p-3">
+            <legend className="px-1 text-sm font-bold text-[#071D49]">Channels</legend>
+            <div className="mt-2 space-y-2">
+              <label className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><input type="checkbox" name="channels" value="in_app" defaultChecked /> In-app</label>
+              <label className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><input type="checkbox" name="channels" value="sms" /> SMS queue</label>
+              <label className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><input type="checkbox" name="channels" value="email" /> Email queue</label>
+            </div>
+          </fieldset>
+          <label className="text-sm font-bold text-[#071D49]">Priority
+            <select name="priority" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" defaultValue="normal">
+              <option value="normal">Normal</option>
+              <option value="high">High</option>
+            </select>
+          </label>
+        </div>
+        <p className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-3 text-sm font-semibold text-[#64748B]">
+          Notices create tenant-scoped notifications for selected recipient roles and record an auditable library notice event.
+        </p>
+        <div className="flex justify-end gap-2 border-t border-[#D8E0EC] pt-4">
+          <button type="button" className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button type="submit" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting}>
+            {submitting ? "Sending..." : "Send Notice"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function DataBackedLibraryWorkspace({ viewId }: { viewId: LibrarianView }) {
+  const contract = libraryWorkspaceContracts[viewId] ?? libraryWorkspaceContracts.borrowers!;
+  const { data, isLoading, refetch } = useSchoolQuery<unknown>(contract.endpoint);
+  const [search, setSearch] = useState("");
+  const [isAddBookOpen, setIsAddBookOpen] = useState(false);
+  const [isReservationOpen, setIsReservationOpen] = useState(false);
+  const [isDepartmentIssueOpen, setIsDepartmentIssueOpen] = useState(false);
+  const [isVisitOpen, setIsVisitOpen] = useState(false);
+  const [isRequestOpen, setIsRequestOpen] = useState(false);
+  const [isNoticeOpen, setIsNoticeOpen] = useState(false);
+  const [pendingVisitCheckout, setPendingVisitCheckout] = useState<string | null>(null);
+  const rows = getRowsFromResponse(data, contract.dataKeys).filter((row) =>
+    JSON.stringify(row).toLowerCase().includes(search.toLowerCase()),
+  );
+  const Icon = navItems.find((item) => item.id === viewId)?.icon ?? Library;
+  async function handleCheckoutLibraryVisit(row: Record<string, unknown>) {
+    const visitId = valueText(row.id ?? row.visit_id ?? row.visitor_name ?? row.name);
+    const visitorName = valueText(row.visitor_name ?? row.name ?? row.student_name ?? row.group_name);
+    const purpose = valueText(row.purpose ?? row.visit_purpose ?? "Library visit");
+    const readingNotes = valueText(row.reading_notes ?? row.notes ?? "");
+
+    setPendingVisitCheckout(visitId);
+    try {
+      await requestDashboardApi("/api/admin-command/librarian/visits/checkout", {
+        method: "POST",
+        body: {
+          visit_id: visitId,
+          visitor_name: visitorName,
+          purpose,
+          checked_out_at: new Date().toISOString(),
+          reading_notes: readingNotes === "-" ? undefined : readingNotes,
+        },
+      });
+      toast.success("Library visit checked out", {
+        description: `${visitorName} was checked out and saved to the library visit workflow.`,
+      });
+      publishSchoolOperationalEvent({
+        type: "library.visit.checked_out",
+        module: "library",
+        actorRole: "librarian",
+        title: "Library visit checked out",
+        body: `${visitorName} was checked out from the library visit log.`,
+      });
+      void refetch?.();
+    } catch (error) {
+      toast.error("Library visit checkout failed", {
+        description: error instanceof Error ? error.message : "The checkout could not be saved to the library workflow.",
+      });
+    } finally {
+      setPendingVisitCheckout(null);
+    }
+  }
+  const visitRowActions = viewId === "visits"
+    ? (row: Record<string, unknown>) => {
+        const status = valueText(row.status).toLowerCase();
+        const isClosed = ["checked_out", "checked out", "completed", "closed"].includes(status);
+        const visitId = valueText(row.id ?? row.visit_id ?? row.visitor_name ?? row.name);
+        if (isClosed) return null;
+        return (
+          <button
+            type="button"
+            className="mr-3 text-emerald-700 hover:underline font-semibold disabled:opacity-60"
+            disabled={pendingVisitCheckout === visitId}
+            onClick={() => void handleCheckoutLibraryVisit(row)}
+          >
+            {pendingVisitCheckout === visitId ? "Checking out..." : "Check Out"}
+          </button>
+        );
+      }
+    : undefined;
+
+  return (
+    <>
+      <Panel title={contract.title} description={contract.description} icon={Icon} actions={
+        <div className="flex flex-wrap gap-2">
+          {viewId === "add_books" ? (
+            <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => setIsAddBookOpen(true)}>Add Book</button>
+          ) : null}
+              {viewId === "reservations" ? (
+                <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => setIsReservationOpen(true)}>Create Reservation</button>
+              ) : null}
+              {viewId === "departments" ? (
+                <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => setIsDepartmentIssueOpen(true)}>Issue to Department</button>
+              ) : null}
+              {viewId === "visits" ? (
+                <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => setIsVisitOpen(true)}>Log Visit</button>
+              ) : null}
+              {viewId === "requests" ? (
+                <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => setIsRequestOpen(true)}>Create Request</button>
+              ) : null}
+              {viewId === "notices" ? (
+                <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => setIsNoticeOpen(true)}>Compose Notice</button>
+              ) : null}
+              <button
+            type="button"
+            className="rounded-lg border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49]"
+            onClick={() => exportLibraryCsv(
+              `library-${viewId}.csv`,
+              contract.columns,
+              rows.map((row) => contract.columns.map((column) => valueText(row[column]))),
+              contract.title,
+            )}
+          >
+            Export CSV
+          </button>
+        </div>
+      }>
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#64748B]" />
+          <input
+            type="text"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder={`Search ${contract.title.toLowerCase()}...`}
+            className="w-full rounded-xl border border-[#D8E0EC] py-2 pl-9 pr-3 text-sm focus:border-[#071D49] focus:outline-none focus:ring-1 focus:ring-[#071D49]"
+          />
+        </div>
+          <EndpointTable isLoading={isLoading} rows={rows} emptyText={contract.emptyText} columns={contract.columns} title={contract.title} rowActions={visitRowActions} />
+      </Panel>
+          {isAddBookOpen && <AddBookModal onClose={() => setIsAddBookOpen(false)} />}
+          <CreateLibraryReservationModal open={isReservationOpen} onClose={() => setIsReservationOpen(false)} onCreated={() => void refetch?.()} />
+          <IssueDepartmentResourceModal open={isDepartmentIssueOpen} onClose={() => setIsDepartmentIssueOpen(false)} onIssued={() => void refetch?.()} />
+          <LogLibraryVisitModal open={isVisitOpen} onClose={() => setIsVisitOpen(false)} onLogged={() => void refetch?.()} />
+          <CreateLibraryRequestModal open={isRequestOpen} onClose={() => setIsRequestOpen(false)} onCreated={() => void refetch?.()} />
+          <ComposeLibraryNoticeModal open={isNoticeOpen} onClose={() => setIsNoticeOpen(false)} onSent={() => void refetch?.()} />
+        </>
+      );
+    }
 
 import { buildSchoolSectionHref } from "./school-pages";
 
 export function LibrarianCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: "hosted" | "public" }) {
-  const [activeViewState, setActiveViewState] = useState<any>(
-    activeSection && activeSection !== "dashboard" ? activeSection : "overview"
-  );
+  const initialView: LibrarianView =
+    activeSection && activeSection !== "dashboard" && navItems.some((item) => item.id === activeSection)
+      ? (activeSection as LibrarianView)
+      : "overview";
+  const [activeViewState, setActiveViewState] = useState<LibrarianView>(initialView);
 
-  const setActiveView = (view: any) => {
+  const setActiveView = (view: LibrarianView) => {
     setActiveViewState(view);
     const newPath = buildSchoolSectionHref("librarian", view, routeMode ?? "hosted");
     window.history.replaceState(null, "", newPath);
@@ -892,27 +1857,27 @@ export function LibrarianCommandCenter({ activeSection, routeMode }: { activeSec
     <div className="flex min-h-screen bg-[#F3F6FA] font-sans">
       <Sidebar activeView={activeViewState} onViewChange={setActiveView} />
       <main className="flex-1 min-w-0 flex flex-col h-screen">
-        <Topbar activeView={activeViewState} />
+        <Topbar activeView={activeViewState} onViewChange={setActiveView} />
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
           {activeViewState === "overview" && <OverviewWorkspace onNavigate={setActiveView} />}
           {activeViewState === "issue" && <IssueBooksWorkspace />}
           {activeViewState === "return" && <ReturnBooksWorkspace />}
           {activeViewState === "catalogue" && <BookCatalogueWorkspace />}
+          {activeViewState === "add_books" && <DataBackedLibraryWorkspace viewId="add_books" />}
+          {activeViewState === "loans" && <DataBackedLibraryWorkspace viewId="loans" />}
+          {activeViewState === "lost_damaged" && <DataBackedLibraryWorkspace viewId="lost_damaged" />}
+          {activeViewState === "fines" && <DataBackedLibraryWorkspace viewId="fines" />}
+          {activeViewState === "borrowers" && <DataBackedLibraryWorkspace viewId="borrowers" />}
+          {activeViewState === "class_textbooks" && <DataBackedLibraryWorkspace viewId="class_textbooks" />}
+          {activeViewState === "reservations" && <DataBackedLibraryWorkspace viewId="reservations" />}
+          {activeViewState === "stocktake" && <DataBackedLibraryWorkspace viewId="stocktake" />}
+          {activeViewState === "departments" && <DataBackedLibraryWorkspace viewId="departments" />}
+          {activeViewState === "visits" && <DataBackedLibraryWorkspace viewId="visits" />}
+          {activeViewState === "requests" && <DataBackedLibraryWorkspace viewId="requests" />}
+          {activeViewState === "notices" && <DataBackedLibraryWorkspace viewId="notices" />}
+          {activeViewState === "settings" && <DataBackedLibraryWorkspace viewId="settings" />}
 
-          {activeViewState === "reservations" && <ReservationsWorkspace />}
-          {activeViewState === "departments" && <DepartmentsWorkspace />}
-          {activeViewState === "visits" && <VisitsWorkspace />}
-          {activeViewState === "requests" && <RequestsApprovalsWorkspace />}
           {activeViewState === "reports" && <ReportsDownloadsWorkspace />}
-          {activeViewState === "notices" && <NoticesCommunicationWorkspace />}
-          {/* Dynamically render the rest with SimpleWorkspace */}
-          {!["overview", "issue", "return", "catalogue", "reservations", "departments", "visits", "requests", "reports", "notices"].includes(activeViewState) && (
-             <SimpleWorkspace 
-               title={navItems.find(i => i.id === activeViewState)?.label || ""} 
-               description="" 
-               icon={navItems.find(i => i.id === activeViewState)?.icon || AlertTriangle} 
-             />
-          )}
         </div>
       </main>
       
@@ -954,7 +1919,7 @@ function Sidebar({ activeView, onViewChange }: { activeView: LibrarianView; onVi
   );
 }
 
-function Topbar({ activeView }: { activeView: LibrarianView }) {
+function Topbar({ activeView, onViewChange }: { activeView: LibrarianView; onViewChange: (view: LibrarianView) => void }) {
   const label = navItems.find(i => i.id === activeView)?.label || "Dashboard";
   return (
     <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
@@ -965,7 +1930,7 @@ function Topbar({ activeView }: { activeView: LibrarianView }) {
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <StatusChip label="Term 2 (2026)" tone="info" />
-          <button className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#D8E0EC] hover:bg-[#F8FAFC] transition text-[#071D49]">
+          <button type="button" aria-label="Search library records" className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#D8E0EC] hover:bg-[#F8FAFC] transition text-[#071D49]" onClick={() => onViewChange("catalogue")}>
             <Search className="h-4 w-4" />
           </button>
           <div className="flex items-center gap-2">
@@ -974,15 +1939,15 @@ function Topbar({ activeView }: { activeView: LibrarianView }) {
             <NotificationBell />
           </div>
           <div className="relative group">
-            <button className="flex h-10 items-center justify-center rounded-xl bg-[#071D49] px-4 text-sm font-black text-white gap-2">
+            <button type="button" aria-haspopup="menu" className="flex h-10 items-center justify-center rounded-xl bg-[#071D49] px-4 text-sm font-black text-white gap-2">
               Quick Action <ChevronDown className="h-4 w-4" />
             </button>
-            <div className="absolute right-0 mt-2 w-48 rounded-xl border border-[#D8E0EC] bg-white p-2 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
-              <button className="w-full text-left px-3 py-2 text-sm font-semibold text-[#071D49] hover:bg-[#F8FAFC] rounded-lg">Scan Book</button>
-              <button className="w-full text-left px-3 py-2 text-sm font-semibold text-[#071D49] hover:bg-[#F8FAFC] rounded-lg">Issue Book</button>
-              <button className="w-full text-left px-3 py-2 text-sm font-semibold text-[#071D49] hover:bg-[#F8FAFC] rounded-lg">Return Book</button>
+            <div role="menu" className="absolute right-0 mt-2 w-48 rounded-xl border border-[#D8E0EC] bg-white p-2 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all">
+              <button type="button" role="menuitem" className="w-full text-left px-3 py-2 text-sm font-semibold text-[#071D49] hover:bg-[#F8FAFC] rounded-lg" onClick={() => onViewChange("issue")}>Scan Book</button>
+              <button type="button" role="menuitem" className="w-full text-left px-3 py-2 text-sm font-semibold text-[#071D49] hover:bg-[#F8FAFC] rounded-lg" onClick={() => onViewChange("issue")}>Issue Book</button>
+              <button type="button" role="menuitem" className="w-full text-left px-3 py-2 text-sm font-semibold text-[#071D49] hover:bg-[#F8FAFC] rounded-lg" onClick={() => onViewChange("return")}>Return Book</button>
               <div className="h-px bg-[#D8E0EC] my-1"></div>
-              <button className="w-full text-left px-3 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50 rounded-lg">Record Lost Book</button>
+              <button type="button" role="menuitem" className="w-full text-left px-3 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50 rounded-lg" onClick={() => onViewChange("lost_damaged")}>Record Lost Book</button>
             </div>
           </div>
         </div>

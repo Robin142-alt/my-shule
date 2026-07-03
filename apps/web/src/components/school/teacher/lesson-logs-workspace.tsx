@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Edit3, CheckCircle, Clock, Calendar } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { toast } from "sonner";
 
 export function LessonLogsWorkspace() {
   const [activeDate, setActiveDate] = useState(new Date().toISOString().split("T")[0]);
@@ -14,6 +15,32 @@ export function LessonLogsWorkspace() {
   const dailyLessons = lessonLogs.length > 0 ? lessonLogs : [];
 
   const [selectedLesson, setSelectedLesson] = useState<any>(null);
+
+  async function submitLessonLog(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedLesson) return;
+
+    const formData = new FormData(event.currentTarget);
+    const topic = String(formData.get("topic") ?? "").trim();
+    const notes = String(formData.get("notes") ?? "").trim();
+    const classId = selectedLesson.class_id ?? selectedLesson.classId ?? selectedLesson.class?.id;
+    const subjectId = selectedLesson.subject_id ?? selectedLesson.subjectId ?? selectedLesson.subject?.id;
+
+    if (!topic || !classId || !subjectId) {
+      toast.error("Class, subject, and topic are required before submitting a lesson log.");
+      return;
+    }
+
+    await logMutation.mutateAsync({
+      class_id: classId,
+      subject_id: subjectId,
+      topic,
+      notes,
+      date: activeDate,
+    });
+    await refetch();
+    toast.success(selectedLesson.logged ? "Lesson log updated." : "Lesson log submitted.");
+  }
 
   return (
     <div className="space-y-6">
@@ -76,14 +103,15 @@ export function LessonLogsWorkspace() {
                 )}
               </div>
 
-              <div className="space-y-4">
+              <form key={selectedLesson.id} className="space-y-4" onSubmit={submitLessonLog}>
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-slate-700">Topic Covered</label>
-                  <input type="text" defaultValue={selectedLesson.logged ? "Linear Equations" : ""} placeholder="What did you teach today?" className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-1 text-sm shadow-sm" />
+                  <input name="topic" type="text" defaultValue={selectedLesson.topic || ""} placeholder="What did you teach today?" className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-1 text-sm shadow-sm" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-slate-700">Teacher's Reflection & Notes</label>
                   <textarea 
+                    name="notes"
                     defaultValue={selectedLesson.notes} 
                     placeholder="Note down any challenges, students who need help, or objectives not met..." 
                     className="flex min-h-[150px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm"
@@ -92,21 +120,14 @@ export function LessonLogsWorkspace() {
 
                 <div className="pt-4 flex justify-end">
                   <Button 
+                    type="submit"
                     className="gap-2"
-                    onClick={async () => {
-                      await logMutation.mutateAsync({
-                        lesson_id: selectedLesson.id,
-                        notes: selectedLesson.notes,
-                        logged: true,
-                        date: activeDate
-                      });
-                      refetch();
-                    }}
+                    disabled={logMutation.isPending}
                   >
-                    {selectedLesson.logged ? "Update Log" : "Submit Log"}
+                    {logMutation.isPending ? "Saving..." : selectedLesson.logged ? "Update Log" : "Submit Log"}
                   </Button>
                 </div>
-              </div>
+              </form>
             </Card>
           ) : (
             <div className="h-full border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center p-12 text-center text-slate-500">

@@ -156,6 +156,76 @@ describe("server auth client production gateway", () => {
     );
   });
 
+  it("strips a trailing api segment from configured backend auth origins", async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = "http://127.0.0.1:3000/api";
+    const fetchMock = jest.mocked(global.fetch).mockResolvedValue(
+      jsonResponse({
+        tokens: {
+          access_token: "access-token",
+          refresh_token: "refresh-token",
+        },
+        user: {
+          user_id: "user-school-admin",
+          tenant_id: "school-alpha",
+          role: "admin",
+          audience: "school",
+          email: "admin@example.invalid",
+          display_name: "School Admin",
+          permissions: ["students:read"],
+          session_id: "session-school-admin",
+        },
+      }),
+    );
+    const client = createServerAuthClient(buildRequest("localhost:3000"));
+
+    await client.login({
+      audience: "school",
+      identifier: "admin@example.invalid",
+      password: "ManagedByPasswordVault!42",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:3000/auth/login",
+      expect.any(Object),
+    );
+  });
+
+  it("does not create tenant subdomains for local auth base domains", async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = "http://127.0.0.1:3000/api";
+    process.env.NEXT_PUBLIC_API_BASE_DOMAIN = "localhost";
+    const fetchMock = jest.mocked(global.fetch).mockResolvedValue(
+      jsonResponse({
+        tokens: {
+          access_token: "access-token",
+          refresh_token: "refresh-token",
+        },
+        user: {
+          user_id: "user-school-admin",
+          tenant_id: "kb-high",
+          role: "admin",
+          audience: "school",
+          email: "admin@example.invalid",
+          display_name: "School Admin",
+          permissions: ["students:read"],
+          session_id: "session-school-admin",
+        },
+      }),
+    );
+    const client = createServerAuthClient(buildRequest("localhost:3000"));
+
+    await client.login({
+      audience: "school",
+      identifier: "admin@example.invalid",
+      password: "ManagedByPasswordVault!42",
+      tenantSlug: "kb-high",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:3000/auth/login",
+      expect.any(Object),
+    );
+  });
+
   it("times out slow backend sign-in requests", async () => {
     jest.useFakeTimers();
     try {
@@ -180,7 +250,7 @@ describe("server auth client production gateway", () => {
         password: "ManagedByPasswordVault!42",
       });
 
-      jest.advanceTimersByTime(6_000);
+      jest.advanceTimersByTime(25_000);
 
       await expect(loginPromise).rejects.toThrow(
         "Authentication service is temporarily unavailable.",

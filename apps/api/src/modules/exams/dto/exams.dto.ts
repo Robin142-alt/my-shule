@@ -98,6 +98,10 @@ export class BulkExamMarkUploadDto {
   @IsString()
   preview_token?: string;
 
+  @IsOptional()
+  @IsString()
+  file_name?: string;
+
   // You would typically use @Type and @ValidateNested for rows,
   // but to keep it simple if it's handled differently or needs validation
   rows!: BulkExamMarkUploadRowDto[];
@@ -178,4 +182,15 @@ export class ReportStudentExamCaseDto {
   student_id!: string;
   case_type!: string;
   description!: string;
+}
+
+export class UpdateExamSettingsDto {
+  lock_after_deadline?: boolean;
+  grace_period_hours?: number;
+  include_school_logo?: boolean;
+  include_principal_signature?: boolean;
+  include_official_stamp?: boolean;
+  block_results_for_fee_balances?: boolean;
+  fee_balance_block_threshold?: number;
+  show_student_rank_to_parents?: boolean;
 }

@@ -50,7 +50,9 @@ export default async function SchoolSectionPage({
     notFound();
   }
 
-  const session = await readPublicSchoolSession(role as SchoolExperienceRole);
+  const session = await readPublicSchoolSession(role as SchoolExperienceRole, {
+    preserveSection: section,
+  });
   const cookieStore = await cookies();
   const liveDataEnabled = Boolean(readAccessCookie(cookieStore));
 

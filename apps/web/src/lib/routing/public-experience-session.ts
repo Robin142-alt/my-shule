@@ -10,6 +10,7 @@ import {
 import {
   readAccessCookie,
   readTenantCookie,
+  resolveSchoolTenantSlug,
 } from "@/lib/auth/server-session";
 import type { PortalViewer, SchoolExperienceRole } from "@/lib/experiences/types";
 import {
@@ -31,7 +32,10 @@ export async function readPublicSuperadminSession() {
   return session;
 }
 
-export async function readPublicSchoolSession(expectedRole?: SchoolExperienceRole) {
+export async function readPublicSchoolSession(
+  expectedRole?: SchoolExperienceRole,
+  options?: { preserveSection?: string },
+) {
   const cookieStore = await cookies();
   const session = parseExperienceSession(
     "school",
@@ -43,7 +47,9 @@ export async function readPublicSchoolSession(expectedRole?: SchoolExperienceRol
   }
 
   if (expectedRole && session.role !== expectedRole) {
-    redirect(`/school/${session.role}`);
+    const section = options?.preserveSection?.trim();
+
+    redirect(`/school/${session.role}${section ? `/${section}` : ""}`);
   }
 
   return session;
@@ -82,7 +88,15 @@ export async function readLibrarianLibrarySession() {
     redirect("/forbidden");
   }
 
-  const tenantId = readTenantCookie(cookieStore) ?? session.tenantSlug;
+  const { tenantSlug: tenantId, tenantMismatch } = resolveSchoolTenantSlug({
+    tenantCookie: readTenantCookie(cookieStore),
+    sessionTenantSlug: session.tenantSlug,
+  });
+
+  if (tenantMismatch) {
+    redirect("/forbidden");
+  }
+
   const accessToken = readAccessCookie(cookieStore);
   const libraryModuleAccess: SchoolModuleAccessState = await checkSchoolModuleAccess({
     tenantId,

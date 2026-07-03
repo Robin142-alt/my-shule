@@ -30,6 +30,10 @@ export interface ProductionScorecardOptions extends ReleaseReadinessGateOptions 
   generatedAt?: string;
   outputPath?: string;
   minimumScore?: number;
+  providerCredentialSmokeResultSource?: string;
+  productionEnvAuditSource?: string;
+  productionAuthSmokeSource?: string;
+  apiReadinessLiveSource?: string;
 }
 
 type PackageJsonLike = {
@@ -60,6 +64,30 @@ export function generateProductionScorecard(
     'apps/api/src/scripts/provider-credential-smoke.ts',
     options.providerCredentialSmokeTestSource,
   );
+  const providerSmokeResultSource = readOptionalFile(
+    workspaceRoot,
+    'docs/validation/provider-credential-smoke-live.json',
+    options.providerCredentialSmokeResultSource,
+  );
+  const providerSmokeResult = parseProviderSmokeResult(providerSmokeResultSource);
+  const productionEnvAuditSource = readOptionalFile(
+    workspaceRoot,
+    'docs/validation/production-env-audit.json',
+    options.productionEnvAuditSource,
+  );
+  const productionEnvAudit = parseProductionEnvAudit(productionEnvAuditSource);
+  const productionAuthSmokeSource = readOptionalFile(
+    workspaceRoot,
+    'docs/validation/production-auth-smoke.json',
+    options.productionAuthSmokeSource,
+  );
+  const productionAuthSmoke = parseProductionAuthSmoke(productionAuthSmokeSource);
+  const apiReadinessLiveSource = readOptionalFile(
+    workspaceRoot,
+    'docs/validation/api-readiness-live-output.txt',
+    options.apiReadinessLiveSource,
+  );
+  const apiReadinessLive = parseApiReadinessLive(apiReadinessLiveSource);
   const moduleReadiness = readOptionalFile(
     workspaceRoot,
     'apps/web/src/lib/features/module-readiness.ts',
@@ -191,18 +219,87 @@ export function generateProductionScorecard(
       score: scoreByEvidence([
         /class SmsDispatchService/.test(smsDispatchSource),
         hasScript(scripts, 'smoke:providers'),
+        /live-email-provider/.test(providerSmokeSource),
+        /api\.resend\.com\/domains|Resend.*sender domain/i.test(providerSmokeSource),
         /live-support-sms-provider/.test(providerSmokeSource),
         /live-upload-malware-scan-provider/.test(providerSmokeSource),
         /live-upload-object-storage/.test(providerSmokeSource),
-      ], 84, 2),
+        /live-redis-queue-cache/.test(providerSmokeSource),
+      ], 82, 2),
       target: 94,
       evidence: [
         evidenceLine(/class SmsDispatchService/.test(smsDispatchSource), 'shared SMS dispatch service exists'),
         evidenceLine(hasScript(scripts, 'smoke:providers'), 'provider smoke script exists'),
+        evidenceLine(/live-email-provider/.test(providerSmokeSource), 'transactional email live smoke coverage exists'),
+        evidenceLine(/api\.resend\.com\/domains|Resend.*sender domain/i.test(providerSmokeSource), 'Resend sender-domain verification coverage exists'),
         evidenceLine(/live-upload-malware-scan-provider/.test(providerSmokeSource), 'malware scanner smoke coverage exists'),
         evidenceLine(/live-upload-object-storage/.test(providerSmokeSource), 'object storage smoke coverage exists'),
+        evidenceLine(/live-redis-queue-cache/.test(providerSmokeSource), 'Redis queue/cache smoke coverage exists'),
       ],
       remediation: 'Configure live production secrets and require provider smoke evidence in the production operability workflow.',
+    }),
+    createCategory({
+      id: 'live-provider-smoke',
+      label: 'Live provider smoke',
+      score: apiReadinessLive.providerOk
+        ? 100
+        : providerSmokeResult.exists
+          ? providerSmokeResult.ok ? 100 : 68
+        : 72,
+      target: 100,
+      evidence: [
+        apiReadinessLive.providerOk
+          ? 'live API readiness reports Redis, email, support notifications, object storage, and malware scanning configured'
+          : providerSmokeResult.exists
+          ? `live smoke artifact recorded ${providerSmokeResult.passed}/${providerSmokeResult.total} passing checks`
+          : 'missing: live provider smoke artifact',
+        apiReadinessLive.providerOk
+          ? 'no live provider readiness failures recorded'
+          : providerSmokeResult.failed > 0
+          ? `failed live checks: ${providerSmokeResult.failedCheckIds.join(', ')}`
+          : 'no failed live checks recorded',
+      ],
+      remediation: 'Run SUPPORT_PROVIDER_SMOKE_LIVE=true npm run smoke:providers and fix every failing live provider before go-live.',
+    }),
+    createCategory({
+      id: 'production-env-audit',
+      label: 'Production environment audit',
+      score: apiReadinessLive.productionEnvOk
+        ? 100
+        : productionEnvAudit.exists
+          ? productionEnvAudit.ok ? 100 : 68
+        : 72,
+      target: 100,
+      evidence: [
+        apiReadinessLive.productionEnvOk
+          ? 'live API readiness reports production_env configured with 0 issues'
+          : productionEnvAudit.exists
+          ? `production env audit recorded ${productionEnvAudit.total} issue(s): ${productionEnvAudit.missing} missing, ${productionEnvAudit.invalid} invalid`
+          : 'missing: production env audit artifact',
+        apiReadinessLive.productionEnvOk
+          ? 'no production env issues recorded in hosted runtime'
+          : productionEnvAudit.issueMessages.length > 0
+          ? `blocking env issues: ${productionEnvAudit.issueMessages.join(', ')}`
+          : 'no production env issues recorded',
+      ],
+      remediation: 'Run npm run env:production:audit and fix every missing or invalid production runtime setting before deployment.',
+    }),
+    createCategory({
+      id: 'hosted-production-auth-smoke',
+      label: 'Hosted production auth smoke',
+      score: productionAuthSmoke.exists
+        ? productionAuthSmoke.ok ? 100 : 68
+        : 72,
+      target: 100,
+      evidence: [
+        productionAuthSmoke.exists
+          ? `production auth smoke recorded ${productionAuthSmoke.passed}/${productionAuthSmoke.total} passing checks`
+          : 'missing: production auth smoke artifact',
+        productionAuthSmoke.errorMessage
+          ? `blocking hosted auth issue: ${productionAuthSmoke.errorMessage}`
+          : 'no hosted auth smoke failure recorded',
+      ],
+      remediation: 'Run npm run smoke:production-auth against the deployed web/API URLs and fix readiness, login, CSRF, proxy, and public status failures before go-live.',
     }),
     createCategory({
       id: 'frontend-ux',
@@ -393,6 +490,220 @@ function scoreByEvidence(
 
 function evidenceLine(passed: boolean, label: string): string {
   return `${passed ? 'present' : 'missing'}: ${label}`;
+}
+
+function parseProviderSmokeResult(source: string): {
+  exists: boolean;
+  ok: boolean;
+  total: number;
+  passed: number;
+  failed: number;
+  failedCheckIds: string[];
+} {
+  const normalizedSource = source.replace(/^\uFEFF/, '').trim();
+
+  if (!normalizedSource) {
+    return {
+      exists: false,
+      ok: false,
+      total: 0,
+      passed: 0,
+      failed: 0,
+      failedCheckIds: [],
+    };
+  }
+
+  try {
+    const payload = JSON.parse(normalizedSource) as {
+      ok?: unknown;
+      summary?: {
+        total?: unknown;
+        passed?: unknown;
+        failed?: unknown;
+      };
+      checks?: Array<{
+        id?: unknown;
+        status?: unknown;
+      }>;
+    };
+    const failedCheckIds = Array.isArray(payload.checks)
+      ? payload.checks
+        .filter((check) => check.status === 'fail')
+        .map((check) => String(check.id ?? 'unknown-check'))
+      : [];
+
+    return {
+      exists: true,
+      ok: payload.ok === true,
+      total: toSafeNumber(payload.summary?.total, Array.isArray(payload.checks) ? payload.checks.length : 0),
+      passed: toSafeNumber(payload.summary?.passed, Array.isArray(payload.checks) ? payload.checks.filter((check) => check.status === 'pass').length : 0),
+      failed: toSafeNumber(payload.summary?.failed, failedCheckIds.length),
+      failedCheckIds,
+    };
+  } catch {
+    return {
+      exists: true,
+      ok: false,
+      total: 0,
+      passed: 0,
+      failed: 1,
+      failedCheckIds: ['invalid-provider-smoke-artifact'],
+    };
+  }
+}
+
+function parseProductionEnvAudit(source: string): {
+  exists: boolean;
+  ok: boolean;
+  total: number;
+  missing: number;
+  invalid: number;
+  issueMessages: string[];
+} {
+  const normalizedSource = source.replace(/^\uFEFF/, '').trim();
+
+  if (!normalizedSource) {
+    return {
+      exists: false,
+      ok: false,
+      total: 0,
+      missing: 0,
+      invalid: 0,
+      issueMessages: [],
+    };
+  }
+
+  try {
+    const payload = JSON.parse(normalizedSource) as {
+      ok?: unknown;
+      summary?: {
+        missing?: unknown;
+        invalid?: unknown;
+        total?: unknown;
+      };
+      issues?: Array<{
+        message?: unknown;
+      }>;
+    };
+    const issueMessages = Array.isArray(payload.issues)
+      ? payload.issues.map((issue) => String(issue.message ?? 'unknown-env-issue'))
+      : [];
+
+    return {
+      exists: true,
+      ok: payload.ok === true,
+      total: toSafeNumber(payload.summary?.total, issueMessages.length),
+      missing: toSafeNumber(payload.summary?.missing, 0),
+      invalid: toSafeNumber(payload.summary?.invalid, issueMessages.length),
+      issueMessages,
+    };
+  } catch {
+    return {
+      exists: true,
+      ok: false,
+      total: 1,
+      missing: 0,
+      invalid: 1,
+      issueMessages: ['invalid-production-env-audit-artifact'],
+    };
+  }
+}
+
+function parseApiReadinessLive(source: string): {
+  exists: boolean;
+  providerOk: boolean;
+  productionEnvOk: boolean;
+} {
+  const normalizedSource = source.replace(/^\uFEFF/, '').trim();
+
+  if (!normalizedSource) {
+    return {
+      exists: false,
+      providerOk: false,
+      productionEnvOk: false,
+    };
+  }
+
+  try {
+    const payload = JSON.parse(normalizedSource) as any;
+    const body = payload.body ?? payload;
+    const services = body?.services ?? {};
+    const providerOk = body?.status === 'ok'
+      && services.redis === 'up'
+      && services.transactional_email === 'configured'
+      && services.support_notifications === 'configured'
+      && services.object_storage === 'configured'
+      && services.malware_scanning === 'configured';
+    const productionEnvOk = services.production_env === 'configured'
+      && body?.production_env?.status === 'configured'
+      && toSafeNumber(body.production_env.issue_count, 1) === 0;
+
+    return {
+      exists: true,
+      providerOk,
+      productionEnvOk,
+    };
+  } catch {
+    return {
+      exists: true,
+      providerOk: false,
+      productionEnvOk: false,
+    };
+  }
+}
+
+function parseProductionAuthSmoke(source: string): {
+  exists: boolean;
+  ok: boolean;
+  total: number;
+  passed: number;
+  errorMessage: string;
+} {
+  const normalizedSource = source.replace(/^\uFEFF/, '').trim();
+
+  if (!normalizedSource) {
+    return {
+      exists: false,
+      ok: false,
+      total: 0,
+      passed: 0,
+      errorMessage: '',
+    };
+  }
+
+  try {
+    const payload = JSON.parse(normalizedSource) as {
+      ok?: unknown;
+      summary?: {
+        total?: unknown;
+        passed?: unknown;
+      };
+      checks?: unknown[];
+      error?: {
+        message?: unknown;
+      };
+    };
+
+    return {
+      exists: true,
+      ok: payload.ok === true,
+      total: toSafeNumber(payload.summary?.total, Array.isArray(payload.checks) ? payload.checks.length : 0),
+      passed: toSafeNumber(payload.summary?.passed, Array.isArray(payload.checks) ? payload.checks.length : 0),
+      errorMessage: typeof payload.error?.message === 'string' ? payload.error.message : '',
+    };
+  } catch {
+    return {
+      exists: true,
+      ok: false,
+      total: 1,
+      passed: 0,
+      errorMessage: 'invalid-production-auth-smoke-artifact',
+    };
+  }
+}
+
+function toSafeNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
 function hasScript(scripts: Record<string, string>, name: string): boolean {

@@ -1050,19 +1050,15 @@ test('AuthService ignores default tenant context when generic login resolves one
   assert.equal(synchronizedTenantId, 'greenhill-academy');
 });
 
-test('AuthService uses tenant-scoped user lookup when school login supplies a tenant context', async () => {
+test('AuthService resolves invited user then enforces tenant membership for school login', async () => {
   const requestContext = new RequestContextService();
-  let lookedUpTenantId: string | null = null;
   let lookedUpEmail: string | null = null;
+  let membershipTenantId: string | null = null;
   let ensuredTenantId: string | null = null;
   const service = new AuthService(
     requestContext,
     {
-      findByEmail: async () => {
-        throw new Error('generic lookup should not run for explicit school login');
-      },
-      findActiveTenantUserByEmail: async (tenantId: string, email: string) => {
-        lookedUpTenantId = tenantId;
+      findByEmail: async (email: string) => {
         lookedUpEmail = email;
         return {
           id: 'user-teacher',
@@ -1074,19 +1070,25 @@ test('AuthService uses tenant-scoped user lookup when school login supplies a te
           email_verified_at: '2026-06-01T08:00:00.000Z',
         };
       },
+      findActiveTenantUserByEmail: async () => {
+        throw new Error('tenant-scoped lookup should not hide wrong-school membership denial');
+      },
     } as never,
     {
-      findActiveMembership: async (userId: string, tenantId: string) => ({
-        id: 'membership-teacher',
-        tenant_id: tenantId,
-        user_id: userId,
-        role_id: 'role-teacher',
-        role_code: 'teacher',
-        role_name: 'Teacher',
-        status: 'active',
-        created_at: new Date(),
-        updated_at: new Date(),
-      }),
+      findActiveMembership: async (userId: string, tenantId: string) => {
+        membershipTenantId = tenantId;
+        return {
+          id: 'membership-teacher',
+          tenant_id: tenantId,
+          user_id: userId,
+          role_id: 'role-teacher',
+          role_code: 'teacher',
+          role_name: 'Teacher',
+          status: 'active',
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+      },
     } as never,
     {
       ensureTenantAuthorizationBaseline: async (tenantId: string) => {
@@ -1152,11 +1154,78 @@ test('AuthService uses tenant-scoped user lookup when school login supplies a te
       ),
   );
 
-  assert.equal(lookedUpTenantId, 'kb-high');
   assert.equal(lookedUpEmail, 'tabithanjuguna410@gmail.com');
+  assert.equal(membershipTenantId, 'kb-high');
   assert.equal(response.user.tenant_id, 'kb-high');
   assert.equal(response.user.role, 'teacher');
   assert.equal(ensuredTenantId, 'kb-high');
+});
+
+test('AuthService clearly denies correct credentials without membership in the requested tenant', async () => {
+  const requestContext = new RequestContextService();
+  const service = new AuthService(
+    requestContext,
+    {
+      findByEmail: async () => ({
+        id: 'user-teacher',
+        tenant_id: 'global',
+        email: 'teacher@example.test',
+        password_hash: 'hashed-password',
+        display_name: 'School Teacher',
+        status: 'active',
+        email_verified_at: '2026-06-01T08:00:00.000Z',
+      }),
+      findActiveTenantUserByEmail: async () => {
+        throw new Error('tenant-scoped lookup should not hide wrong-school membership denial');
+      },
+    } as never,
+    {
+      findActiveMembership: async () => null,
+    } as never,
+    {} as never,
+    {
+      compare: async () => true,
+    } as never,
+    {} as never,
+    {} as never,
+    { get: () => undefined } as never,
+  );
+
+  await assert.rejects(
+    () =>
+      requestContext.run(
+        {
+          request_id: 'req-wrong-tenant-login',
+          tenant_id: 'other-school',
+          tenant_source: 'signed_header',
+          user_id: 'anonymous',
+          role: 'guest',
+          session_id: null,
+          permissions: [],
+          is_authenticated: false,
+          client_ip: '127.0.0.1',
+          user_agent: 'test-suite',
+          method: 'POST',
+          path: '/auth/login',
+          started_at: '2026-06-01T08:00:00.000Z',
+        },
+        () =>
+          service.login(
+            {
+              email: 'teacher@example.test',
+              password: 'SecurePass!2026',
+              audience: 'school',
+            },
+            {
+              ip_address: '127.0.0.1',
+              user_agent: 'test-suite',
+            },
+          ),
+      ),
+    (error: unknown) =>
+      error instanceof UnauthorizedException &&
+      String(error.message).includes('does not have access to this tenant'),
+  );
 });
 
 test('AuthService enforces MFA and can persist a trusted device during high-privilege login', async () => {
@@ -1301,4 +1370,243 @@ test('AuthService enforces MFA and can persist a trusted device during high-priv
     ipAddress: '127.0.0.1',
     userAgent: 'test-suite',
   });
+});
+
+test('AuthService allows the contract demo MFA bypass only for kb-high demo users outside production', async () => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  const previousBypass = process.env.AUTH_CONTRACT_DEMO_MFA_BYPASS;
+  process.env.NODE_ENV = 'test';
+  process.env.AUTH_CONTRACT_DEMO_MFA_BYPASS = 'true';
+
+  const requestContext = new RequestContextService();
+  let mfaChallengeCount = 0;
+  let sessionCount = 0;
+
+  try {
+    const service = new AuthService(
+      requestContext,
+      {
+        findByEmail: async () => ({
+          id: 'user-principal-demo',
+          tenant_id: 'kb-high',
+          email: 'principal@kisumuboys.demo',
+          password_hash: 'hashed-password',
+          display_name: 'Kisumu Boys Principal',
+          status: 'active',
+          email_verified_at: '2026-05-14T00:00:00.000Z',
+          mfa_enabled: true,
+          mfa_verified_at: '2026-05-14T00:00:00.000Z',
+        }),
+      } as never,
+      {
+        findActiveMembership: async () => ({
+          id: 'membership-principal-demo',
+          tenant_id: 'kb-high',
+          user_id: 'user-principal-demo',
+          role_id: 'role-principal',
+          role_code: 'principal',
+          role_name: 'Principal',
+          status: 'active',
+          created_at: new Date(),
+          updated_at: new Date(),
+        }),
+      } as never,
+      {
+        ensureTenantAuthorizationBaseline: async () => undefined,
+        getPermissionsByRoleId: async () => ['students:read', 'users:write'],
+      } as never,
+      {
+        compare: async () => true,
+      } as never,
+      {
+        issueTokenPair: async () => ({
+          access_token: 'access-token',
+          refresh_token: 'refresh-token',
+          token_type: 'Bearer' as const,
+          access_expires_in: 900,
+          refresh_expires_in: 2592000,
+          access_expires_at: '2026-05-14T00:15:00.000Z',
+          refresh_expires_at: '2026-06-13T00:00:00.000Z',
+          access_token_id: 'access-token-id',
+          refresh_token_id: 'refresh-token-id',
+          session_id: 'session-principal-demo',
+        }),
+      } as never,
+      {
+        createSession: async () => {
+          sessionCount += 1;
+        },
+        invalidateSession: async () => undefined,
+        getSession: async () => null,
+        rotateRefreshToken: async () => undefined,
+        toPrincipal: () => {
+          throw new Error('not used');
+        },
+      } as never,
+      { get: () => undefined } as never,
+      {
+        enforceLoginChallenge: async () => {
+          mfaChallengeCount += 1;
+          throw new UnauthorizedException('MFA should not run for non-production contract demo users');
+        },
+      } as never,
+      {} as never,
+    );
+
+    await requestContext.run(
+      {
+        request_id: 'req-contract-demo-bypass',
+        tenant_id: 'kb-high',
+        tenant_source: 'subdomain',
+        user_id: 'anonymous',
+        role: 'guest',
+        session_id: null,
+        permissions: [],
+        is_authenticated: false,
+        client_ip: '127.0.0.1',
+        user_agent: 'test-suite',
+        method: 'POST',
+        path: '/auth/login',
+        started_at: '2026-05-14T00:00:00.000Z',
+      },
+      () =>
+        service.login(
+          {
+            email: 'principal@kisumuboys.demo',
+            password: 'SecurePass!2026',
+            audience: 'school',
+          },
+          {
+            ip_address: '127.0.0.1',
+            user_agent: 'test-suite',
+          },
+        ),
+    );
+
+    assert.equal(mfaChallengeCount, 0);
+    assert.equal(sessionCount, 1);
+  } finally {
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousNodeEnv;
+
+    if (previousBypass === undefined) delete process.env.AUTH_CONTRACT_DEMO_MFA_BYPASS;
+    else process.env.AUTH_CONTRACT_DEMO_MFA_BYPASS = previousBypass;
+  }
+});
+
+test('AuthService never honors the contract demo MFA bypass in production', async () => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  const previousBypass = process.env.AUTH_CONTRACT_DEMO_MFA_BYPASS;
+  process.env.NODE_ENV = 'production';
+  process.env.AUTH_CONTRACT_DEMO_MFA_BYPASS = 'true';
+
+  const requestContext = new RequestContextService();
+  let mfaChallengeCount = 0;
+
+  try {
+    const service = new AuthService(
+      requestContext,
+      {
+        findByEmail: async () => ({
+          id: 'user-principal-demo',
+          tenant_id: 'kb-high',
+          email: 'principal@kisumuboys.demo',
+          password_hash: 'hashed-password',
+          display_name: 'Kisumu Boys Principal',
+          status: 'active',
+          email_verified_at: '2026-05-14T00:00:00.000Z',
+          mfa_enabled: true,
+          mfa_verified_at: '2026-05-14T00:00:00.000Z',
+        }),
+      } as never,
+      {
+        findActiveMembership: async () => ({
+          id: 'membership-principal-demo',
+          tenant_id: 'kb-high',
+          user_id: 'user-principal-demo',
+          role_id: 'role-principal',
+          role_code: 'principal',
+          role_name: 'Principal',
+          status: 'active',
+          created_at: new Date(),
+          updated_at: new Date(),
+        }),
+      } as never,
+      {
+        ensureTenantAuthorizationBaseline: async () => undefined,
+        getPermissionsByRoleId: async () => ['students:read', 'users:write'],
+      } as never,
+      {
+        compare: async () => true,
+      } as never,
+      {
+        issueTokenPair: async () => {
+          throw new Error('tokens should not be issued before MFA');
+        },
+      } as never,
+      {
+        createSession: async () => {
+          throw new Error('session should not be created before MFA');
+        },
+        invalidateSession: async () => undefined,
+        getSession: async () => null,
+        rotateRefreshToken: async () => undefined,
+        toPrincipal: () => {
+          throw new Error('not used');
+        },
+      } as never,
+      { get: () => undefined } as never,
+      {
+        enforceLoginChallenge: async () => {
+          mfaChallengeCount += 1;
+          throw new UnauthorizedException('MFA challenge required for this role');
+        },
+      } as never,
+      {} as never,
+    );
+
+    await assert.rejects(
+      () =>
+        requestContext.run(
+          {
+            request_id: 'req-contract-demo-prod-bypass-denied',
+            tenant_id: 'kb-high',
+            tenant_source: 'subdomain',
+            user_id: 'anonymous',
+            role: 'guest',
+            session_id: null,
+            permissions: [],
+            is_authenticated: false,
+            client_ip: '127.0.0.1',
+            user_agent: 'test-suite',
+            method: 'POST',
+            path: '/auth/login',
+            started_at: '2026-05-14T00:00:00.000Z',
+          },
+          () =>
+            service.login(
+              {
+                email: 'principal@kisumuboys.demo',
+                password: 'SecurePass!2026',
+                audience: 'school',
+              },
+              {
+                ip_address: '127.0.0.1',
+                user_agent: 'test-suite',
+              },
+            ),
+        ),
+      (error: unknown) =>
+        error instanceof UnauthorizedException
+        && error.message === 'MFA challenge required for this role',
+    );
+
+    assert.equal(mfaChallengeCount, 1);
+  } finally {
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousNodeEnv;
+
+    if (previousBypass === undefined) delete process.env.AUTH_CONTRACT_DEMO_MFA_BYPASS;
+    else process.env.AUTH_CONTRACT_DEMO_MFA_BYPASS = previousBypass;
+  }
 });

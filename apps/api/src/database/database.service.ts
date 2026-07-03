@@ -25,6 +25,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DatabaseService.name);
   private static readonly SCHEMA_BOOTSTRAP_LOCK_KEY = 'my_shule_schema_bootstrap';
   private static schemaBootstrapQueue: Promise<void> = Promise.resolve();
+  private static schemaBootstrapByHash = new Map<string, Promise<void>>();
   private structuredLoggerRef: StructuredLoggerService | null | undefined;
   private sloMetricsRef: SloMetricsService | null | undefined;
 
@@ -74,29 +75,50 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private async applySessionConfig(client: PoolClient, context: RequestContextState): Promise<void> {
     const runtimeRoleName = this.databaseSecurityService.getRuntimeRoleName();
 
-    // Batch all SET LOCAL statements into a single SQL call to eliminate per-statement round-trips.
-    // At 10K concurrent users this saves ~10 round-trips per request.
-    const statements: string[] = [];
-
     if (runtimeRoleName) {
-      statements.push(format('SET LOCAL ROLE %I', runtimeRoleName));
+      await client.query(format('SET LOCAL ROLE %I', runtimeRoleName));
     }
 
-    statements.push(
-      format('SET LOCAL app.tenant_id = %L', context.tenant_id ?? ''),
-      format('SET LOCAL app.user_id = %L', context.user_id),
-      format('SET LOCAL app.request_id = %L', context.request_id),
-      format('SET LOCAL app.role = %L', context.role ?? ''),
-      format('SET LOCAL app.session_id = %L', context.session_id ?? ''),
-      format('SET LOCAL app.method = %L', context.method ?? ''),
-      format('SET LOCAL app.path = %L', context.path ?? ''),
-      format('SET LOCAL app.client_ip = %L', context.client_ip ?? ''),
-      format('SET LOCAL app.user_agent = %L', context.user_agent ?? ''),
-      format('SET LOCAL app.started_at = %L', context.started_at ?? ''),
-      format('SET LOCAL app.is_authenticated = %L', context.is_authenticated ? 'true' : 'false'),
+    await client.query(
+      `
+        SELECT
+          set_config($1, $2, true),
+          set_config($3, $4, true),
+          set_config($5, $6, true),
+          set_config($7, $8, true),
+          set_config($9, $10, true),
+          set_config($11, $12, true),
+          set_config($13, $14, true),
+          set_config($15, $16, true),
+          set_config($17, $18, true),
+          set_config($19, $20, true),
+          set_config($21, $22, true)
+      `,
+      [
+        'app.tenant_id',
+        context.tenant_id ?? '',
+        'app.user_id',
+        context.user_id,
+        'app.request_id',
+        context.request_id,
+        'app.role',
+        context.role ?? '',
+        'app.session_id',
+        context.session_id ?? '',
+        'app.method',
+        context.method ?? '',
+        'app.path',
+        context.path ?? '',
+        'app.client_ip',
+        context.client_ip ?? '',
+        'app.user_agent',
+        context.user_agent ?? '',
+        'app.started_at',
+        context.started_at ?? '',
+        'app.is_authenticated',
+        context.is_authenticated ? 'true' : 'false',
+      ],
     );
-
-    await client.query(statements.join('; '));
   }
 
   async query<T extends QueryResultRow = QueryResultRow>(
@@ -125,13 +147,29 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   }
 
   async runSchemaBootstrap(sql: string): Promise<void> {
+    const sqlHash = this.hashSchemaBootstrap(sql);
+    const existingBootstrap = DatabaseService.schemaBootstrapByHash.get(sqlHash);
+
+    if (existingBootstrap) {
+      return existingBootstrap;
+    }
+
     const queuedBootstrap = DatabaseService.schemaBootstrapQueue
       .catch(() => undefined)
       .then(() => this.runSchemaBootstrapTransaction(sql));
+    const trackedBootstrap = queuedBootstrap.catch((error) => {
+      DatabaseService.schemaBootstrapByHash.delete(sqlHash);
+      throw error;
+    });
 
-    DatabaseService.schemaBootstrapQueue = queuedBootstrap.catch(() => undefined);
+    DatabaseService.schemaBootstrapByHash.set(sqlHash, trackedBootstrap);
+    DatabaseService.schemaBootstrapQueue = trackedBootstrap.catch(() => undefined);
 
-    return queuedBootstrap;
+    return trackedBootstrap;
+  }
+
+  private hashSchemaBootstrap(sql: string): string {
+    return createHash('sha256').update(sql).digest('hex');
   }
 
   private async runSchemaBootstrapTransaction(sql: string): Promise<void> {
@@ -139,6 +177,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
     try {
       await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '10s'`);
+      await client.query(`SET LOCAL statement_timeout = '60s'`);
       await client.query(
         'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
         [DatabaseService.SCHEMA_BOOTSTRAP_LOCK_KEY],
@@ -255,24 +295,49 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     context: RequestContextState,
     callback: (client: PoolClient) => Promise<T>,
   ): Promise<T> {
-    const client = await this.acquireClient();
     const previousClient = context.db_client;
 
-    try {
-      await this.initializeRequestSession(client, context);
-      this.requestContext.setDatabaseClient(client);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const client = await this.acquireClient();
 
-      const result = await callback(client);
-      await client.query('COMMIT');
+      try {
+        await this.initializeRequestSession(client, context);
+        this.requestContext.setDatabaseClient(client);
 
-      return result;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      this.requestContext.setDatabaseClient(previousClient);
-      client.release();
+        const result = await callback(client);
+        await client.query('COMMIT');
+
+        return result;
+      } catch (error) {
+        await this.rollbackClient(client);
+
+        if (attempt === 0 && this.isStaleDatabaseCacheError(error)) {
+          this.logger.warn('Retrying request database session after stale PostgreSQL function cache error');
+          continue;
+        }
+
+        throw error;
+      } finally {
+        this.requestContext.setDatabaseClient(previousClient);
+        client.release();
+      }
     }
+
+    throw new Error('Request database session retry exhausted');
+  }
+
+  private async rollbackClient(client: PoolClient): Promise<void> {
+    try {
+      await client.query('ROLLBACK');
+    } catch (rollbackError) {
+      const message = rollbackError instanceof Error ? rollbackError.message : String(rollbackError);
+      this.logger.warn(`Failed to roll back request database session: ${message}`);
+    }
+  }
+
+  private isStaleDatabaseCacheError(error: unknown): boolean {
+    const pgError = error as { code?: string; message?: string };
+    return pgError.code === 'XX000' && /cache lookup failed for function/i.test(pgError.message ?? '');
   }
 
   private isSafePublicReadOnlyRequestQuery(

@@ -136,7 +136,23 @@ export function DeputyPrincipalCommandCenter({ activeSection, routeMode }: { act
       case "timetable": return <DeputyTimetableReliefWorkspace />;
       case "academics": return <DeputyAcademicsMonitoringWorkspace />;
       case "teaching": return <DeputyTeachingWorkspace />;
-      case "exams": return <DeputyExamsMarksWorkspace />;
+      case "exams":
+        return (
+          <div className="space-y-4">
+            <section className="rounded-2xl border border-white/10 bg-white/5 p-5 text-white">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200">Deputy principal command center</p>
+              <h2 className="mt-2 text-2xl font-black">Academic Review</h2>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {["Academic Review", "Results Moderation", "Academic Analytics"].map((label) => (
+                  <button key={label} type="button" className="rounded-lg border border-cyan-200/30 bg-cyan-200/10 px-3 py-2 text-sm font-black text-cyan-100">
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </section>
+            <DeputyExamsMarksWorkspace />
+          </div>
+        );
       case "classes": return <DeputyClassesStreamsWorkspace />;
       case "approvals": return <DeputyApprovalsWorkspace />;
       case "communication": return <DeputyCommunicationWorkspace />;

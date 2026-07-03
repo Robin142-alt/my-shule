@@ -51,7 +51,7 @@ export class ExamsSchemaService implements OnModuleInit {
         CONSTRAINT uq_exam_series_tenant_id_id UNIQUE (tenant_id, id),
         CONSTRAINT uq_exam_series_term_name UNIQUE (tenant_id, academic_term_id, name),
         CONSTRAINT ck_exam_series_dates CHECK (ends_on >= starts_on),
-        CONSTRAINT ck_exam_series_status CHECK (status IN ('draft', 'submitted', 'reviewed', 'locked', 'published'))
+        CONSTRAINT ck_exam_series_status CHECK (status IN ('draft', 'submitted', 'reviewed', 'locked', 'published', 'archived'))
       );
 
       CREATE TABLE IF NOT EXISTS exam_assessments (
@@ -81,6 +81,10 @@ export class ExamsSchemaService implements OnModuleInit {
         closes_at timestamptz NOT NULL,
         status text NOT NULL DEFAULT 'open',
         created_by_user_id uuid,
+        last_action text,
+        last_action_at timestamptz,
+        last_action_by_user_id uuid,
+        return_reason text,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW(),
         CONSTRAINT uq_exam_mark_entry_windows_tenant_id_id UNIQUE (tenant_id, id),
@@ -219,6 +223,52 @@ export class ExamsSchemaService implements OnModuleInit {
         )
       );
 
+      CREATE TABLE IF NOT EXISTS exam_mark_import_batches (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        file_name text NOT NULL,
+        status text NOT NULL DEFAULT 'imported',
+        total_rows integer NOT NULL,
+        valid_rows integer NOT NULL,
+        invalid_rows integer NOT NULL DEFAULT 0,
+        duplicate_rows integer NOT NULL DEFAULT 0,
+        committed_rows integer NOT NULL,
+        preview_hash char(64) NOT NULL,
+        imported_by_user_id uuid NOT NULL,
+        imported_at timestamptz NOT NULL DEFAULT NOW(),
+        rolled_back_by_user_id uuid,
+        rolled_back_at timestamptz,
+        rollback_reason text,
+        metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+        CONSTRAINT uq_exam_mark_import_batches_tenant_id_id UNIQUE (tenant_id, id),
+        CONSTRAINT ck_exam_mark_import_batches_status CHECK (status IN ('imported', 'rolled_back', 'failed')),
+        CONSTRAINT ck_exam_mark_import_batches_counts CHECK (
+          total_rows >= 0 AND valid_rows >= 0 AND invalid_rows >= 0
+          AND duplicate_rows >= 0 AND committed_rows >= 0
+        )
+      );
+
+      CREATE TABLE IF NOT EXISTS exam_mark_import_batch_items (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        batch_id uuid NOT NULL,
+        mark_id uuid NOT NULL,
+        row_number integer NOT NULL,
+        previous_exists boolean NOT NULL,
+        previous_score numeric(8,2),
+        previous_remarks text,
+        previous_status text,
+        imported_score numeric(8,2) NOT NULL,
+        imported_remarks text,
+        imported_status text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_exam_mark_import_batch_items_tenant_id_id UNIQUE (tenant_id, id),
+        CONSTRAINT uq_exam_mark_import_batch_items_scope UNIQUE (tenant_id, batch_id, mark_id),
+        CONSTRAINT fk_exam_mark_import_batch_items_batch FOREIGN KEY (tenant_id, batch_id)
+          REFERENCES exam_mark_import_batches (tenant_id, id) ON DELETE CASCADE,
+        CONSTRAINT ck_exam_mark_import_batch_items_row CHECK (row_number > 0)
+      );
+
       CREATE TABLE IF NOT EXISTS student_report_cards (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
@@ -291,12 +341,63 @@ export class ExamsSchemaService implements OnModuleInit {
         CONSTRAINT ck_report_card_artifacts_size CHECK (byte_size > 0)
       );
 
+      DROP POLICY IF EXISTS exam_series_tenant_policy ON exam_series;
+      DROP POLICY IF EXISTS exam_assessments_tenant_policy ON exam_assessments;
+      DROP POLICY IF EXISTS exam_mark_windows_tenant_policy ON exam_mark_entry_windows;
+      DROP POLICY IF EXISTS exam_grade_boundaries_tenant_policy ON exam_grade_boundaries;
+      DROP POLICY IF EXISTS exam_grading_policies_tenant_policy ON exam_grading_policies;
+      DROP POLICY IF EXISTS exam_grading_policy_boundaries_tenant_policy ON exam_grading_policy_boundaries;
+      DROP POLICY IF EXISTS exam_subject_weightings_tenant_policy ON exam_subject_weightings;
+      DROP POLICY IF EXISTS exam_competency_outcomes_tenant_policy ON exam_competency_outcomes;
+      DROP POLICY IF EXISTS exam_assessment_components_tenant_policy ON exam_assessment_components;
+      DROP POLICY IF EXISTS exam_marks_tenant_policy ON exam_marks;
+      DROP POLICY IF EXISTS exam_mark_versions_tenant_policy ON exam_mark_versions;
+      DROP POLICY IF EXISTS exam_mark_import_batches_tenant_policy ON exam_mark_import_batches;
+      DROP POLICY IF EXISTS exam_mark_import_batch_items_tenant_policy ON exam_mark_import_batch_items;
+      DROP POLICY IF EXISTS student_report_cards_tenant_policy ON student_report_cards;
+      DROP POLICY IF EXISTS report_card_generation_batches_tenant_policy ON report_card_generation_batches;
+      DROP POLICY IF EXISTS exam_result_snapshots_tenant_policy ON exam_result_snapshots;
+      DROP POLICY IF EXISTS report_card_artifacts_tenant_policy ON report_card_artifacts;
+      DROP POLICY IF EXISTS student_report_card_audit_logs_tenant_policy ON student_report_card_audit_logs;
+      DROP POLICY IF EXISTS exam_mark_audit_logs_tenant_policy ON exam_mark_audit_logs;
+      DROP POLICY IF EXISTS exam_settings_tenant_policy ON exam_settings;
+      DROP POLICY IF EXISTS exam_settings_audit_logs_tenant_policy ON exam_settings_audit_logs;
+      DROP POLICY IF EXISTS exam_timetable_slots_tenant_policy ON exam_timetable_slots;
+      DROP POLICY IF EXISTS exam_invigilators_tenant_policy ON exam_invigilators;
+      DROP POLICY IF EXISTS exam_attendance_records_tenant_policy ON exam_attendance_records;
+      DROP POLICY IF EXISTS exam_student_cases_tenant_policy ON exam_student_cases;
+
       ALTER TABLE student_report_cards
       ADD COLUMN IF NOT EXISTS verification_code text;
+      ALTER TABLE student_report_cards
+      ADD COLUMN IF NOT EXISTS published_at timestamptz;
       ALTER TABLE student_report_cards
       ALTER COLUMN status SET DEFAULT 'draft_requested';
       ALTER TABLE student_report_cards
       ALTER COLUMN published_at DROP NOT NULL;
+      ALTER TABLE student_report_cards
+      ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+      UPDATE student_report_cards
+      SET metadata = COALESCE(metadata, '{}'::jsonb),
+          published_at = CASE
+            WHEN status = 'published' THEN COALESCE(published_at, updated_at, created_at, NOW())
+            ELSE published_at
+          END
+      WHERE metadata IS NULL
+         OR (status = 'published' AND published_at IS NULL);
+
+      ALTER TABLE report_card_artifacts
+      ADD COLUMN IF NOT EXISTS generated_at timestamptz NOT NULL DEFAULT NOW();
+      ALTER TABLE report_card_artifacts
+      ADD COLUMN IF NOT EXISTS generated_by_user_id uuid;
+      ALTER TABLE report_card_artifacts
+      ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+      UPDATE report_card_artifacts
+      SET metadata = COALESCE(metadata, '{}'::jsonb),
+          generated_at = COALESCE(generated_at, NOW())
+      WHERE metadata IS NULL
+         OR generated_at IS NULL;
+
       DO $$
       BEGIN
         IF EXISTS (
@@ -351,6 +452,56 @@ export class ExamsSchemaService implements OnModuleInit {
         created_at timestamptz NOT NULL DEFAULT NOW()
       );
 
+      CREATE TABLE IF NOT EXISTS exam_result_snapshots (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        batch_id uuid NOT NULL,
+        exam_series_id uuid NOT NULL,
+        class_section_id uuid,
+        student_id uuid NOT NULL,
+        raw_total numeric(12,2) NOT NULL,
+        assessment_count integer NOT NULL,
+        average_percentage numeric(8,2) NOT NULL,
+        grade_label text,
+        class_rank integer,
+        processed_by_user_id uuid NOT NULL,
+        processed_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_exam_result_snapshots_tenant_id_id UNIQUE (tenant_id, id),
+        CONSTRAINT uq_exam_result_snapshots_batch_student UNIQUE (tenant_id, batch_id, student_id),
+        CONSTRAINT ck_exam_result_snapshots_counts CHECK (assessment_count > 0),
+        CONSTRAINT ck_exam_result_snapshots_average CHECK (average_percentage >= 0),
+        CONSTRAINT ck_exam_result_snapshots_rank CHECK (class_rank IS NULL OR class_rank > 0)
+      );
+
+      CREATE TABLE IF NOT EXISTS exam_settings (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL UNIQUE,
+        lock_after_deadline boolean NOT NULL DEFAULT true,
+        grace_period_hours integer NOT NULL DEFAULT 24,
+        include_school_logo boolean NOT NULL DEFAULT true,
+        include_principal_signature boolean NOT NULL DEFAULT true,
+        include_official_stamp boolean NOT NULL DEFAULT true,
+        block_results_for_fee_balances boolean NOT NULL DEFAULT true,
+        fee_balance_block_threshold numeric(12,2) NOT NULL DEFAULT 1000,
+        show_student_rank_to_parents boolean NOT NULL DEFAULT true,
+        updated_by_user_id uuid,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT ck_exam_settings_grace_period CHECK (grace_period_hours >= 0 AND grace_period_hours <= 168),
+        CONSTRAINT ck_exam_settings_fee_threshold CHECK (fee_balance_block_threshold >= 0)
+      );
+
+      CREATE TABLE IF NOT EXISTS exam_settings_audit_logs (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        action text NOT NULL,
+        actor_user_id uuid,
+        previous_settings jsonb NOT NULL DEFAULT '{}'::jsonb,
+        new_settings jsonb NOT NULL DEFAULT '{}'::jsonb,
+        metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+        created_at timestamptz NOT NULL DEFAULT NOW()
+      );
+
       CREATE TABLE IF NOT EXISTS exam_timetable_slots (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
@@ -385,6 +536,8 @@ export class ExamsSchemaService implements OnModuleInit {
         status text NOT NULL DEFAULT 'present',
         remarks text,
         recorded_by_user_id uuid,
+        locked_at timestamptz,
+        locked_by_user_id uuid,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW()
       );
@@ -403,6 +556,120 @@ export class ExamsSchemaService implements OnModuleInit {
         updated_at timestamptz NOT NULL DEFAULT NOW()
       );
 
+      ALTER TABLE exam_series
+      ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'draft';
+      ALTER TABLE exam_series
+      ADD COLUMN IF NOT EXISTS locked_at timestamptz;
+      ALTER TABLE exam_series
+      ADD COLUMN IF NOT EXISTS published_at timestamptz;
+      ALTER TABLE exam_series
+      ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
+      ALTER TABLE exam_series
+      ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
+      UPDATE exam_series
+      SET status = COALESCE(status, 'draft'),
+          updated_at = COALESCE(updated_at, created_at, NOW())
+      WHERE status IS NULL
+         OR updated_at IS NULL;
+
+      ALTER TABLE report_card_generation_batches
+      ADD COLUMN IF NOT EXISTS completed_students integer NOT NULL DEFAULT 0;
+      ALTER TABLE report_card_generation_batches
+      ADD COLUMN IF NOT EXISTS failed_students integer NOT NULL DEFAULT 0;
+      ALTER TABLE report_card_generation_batches
+      ADD COLUMN IF NOT EXISTS completed_at timestamptz;
+      UPDATE report_card_generation_batches
+      SET completed_students = COALESCE(completed_students, 0),
+          failed_students = COALESCE(failed_students, 0),
+          status = COALESCE(status, 'draft_requested'),
+          metadata = COALESCE(metadata, '{}'::jsonb),
+          updated_at = COALESCE(updated_at, created_at, NOW())
+      WHERE completed_students IS NULL
+         OR failed_students IS NULL
+         OR status IS NULL
+         OR metadata IS NULL
+         OR updated_at IS NULL;
+
+      DROP POLICY IF EXISTS exam_series_tenant_policy ON exam_series;
+      DROP POLICY IF EXISTS exam_assessments_tenant_policy ON exam_assessments;
+      DROP POLICY IF EXISTS exam_mark_windows_tenant_policy ON exam_mark_entry_windows;
+      DROP POLICY IF EXISTS exam_grade_boundaries_tenant_policy ON exam_grade_boundaries;
+      DROP POLICY IF EXISTS exam_grading_policies_tenant_policy ON exam_grading_policies;
+      DROP POLICY IF EXISTS exam_grading_policy_boundaries_tenant_policy ON exam_grading_policy_boundaries;
+      DROP POLICY IF EXISTS exam_subject_weightings_tenant_policy ON exam_subject_weightings;
+      DROP POLICY IF EXISTS exam_competency_outcomes_tenant_policy ON exam_competency_outcomes;
+      DROP POLICY IF EXISTS exam_assessment_components_tenant_policy ON exam_assessment_components;
+      DROP POLICY IF EXISTS exam_marks_tenant_policy ON exam_marks;
+      DROP POLICY IF EXISTS exam_mark_versions_tenant_policy ON exam_mark_versions;
+      DROP POLICY IF EXISTS exam_mark_import_batches_tenant_policy ON exam_mark_import_batches;
+      DROP POLICY IF EXISTS exam_mark_import_batch_items_tenant_policy ON exam_mark_import_batch_items;
+      DROP POLICY IF EXISTS student_report_cards_tenant_policy ON student_report_cards;
+      DROP POLICY IF EXISTS report_card_generation_batches_tenant_policy ON report_card_generation_batches;
+      DROP POLICY IF EXISTS exam_result_snapshots_tenant_policy ON exam_result_snapshots;
+      DROP POLICY IF EXISTS report_card_artifacts_tenant_policy ON report_card_artifacts;
+      DROP POLICY IF EXISTS student_report_card_audit_logs_tenant_policy ON student_report_card_audit_logs;
+      DROP POLICY IF EXISTS exam_mark_audit_logs_tenant_policy ON exam_mark_audit_logs;
+      DROP POLICY IF EXISTS exam_settings_tenant_policy ON exam_settings;
+      DROP POLICY IF EXISTS exam_settings_audit_logs_tenant_policy ON exam_settings_audit_logs;
+      DROP POLICY IF EXISTS exam_timetable_slots_tenant_policy ON exam_timetable_slots;
+      DROP POLICY IF EXISTS exam_invigilators_tenant_policy ON exam_invigilators;
+      DROP POLICY IF EXISTS exam_attendance_records_tenant_policy ON exam_attendance_records;
+      DROP POLICY IF EXISTS exam_student_cases_tenant_policy ON exam_student_cases;
+
+      DO $$
+      DECLARE
+        table_name text;
+        existing_policy text;
+      BEGIN
+        FOREACH table_name IN ARRAY ARRAY[
+          'exam_series',
+          'exam_assessments',
+          'exam_mark_entry_windows',
+          'exam_grade_boundaries',
+          'exam_grading_policies',
+          'exam_grading_policy_boundaries',
+          'exam_subject_weightings',
+          'exam_competency_outcomes',
+          'exam_assessment_components',
+          'exam_marks',
+          'exam_mark_versions',
+          'exam_mark_import_batches',
+          'exam_mark_import_batch_items',
+          'student_report_cards',
+          'report_card_generation_batches',
+          'report_card_artifacts',
+          'exam_result_snapshots',
+          'exam_settings_audit_logs',
+          'exam_mark_audit_logs',
+          'student_report_card_audit_logs',
+          'exam_settings',
+          'exam_import_templates',
+          'exam_audit_approvals',
+          'exam_timetable_slots',
+          'exam_papers',
+          'exam_invigilators',
+          'exam_attendance_records',
+          'exam_student_cases'
+        ]
+        LOOP
+          IF to_regclass('public.' || table_name) IS NOT NULL THEN
+            EXECUTE format('ALTER TABLE %I NO FORCE ROW LEVEL SECURITY', table_name);
+            EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', table_name);
+
+            FOR existing_policy IN
+              SELECT policyname
+              FROM pg_policies
+              WHERE pg_policies.schemaname = 'public'
+                AND pg_policies.tablename = table_name
+            LOOP
+              EXECUTE format('DROP POLICY IF EXISTS %I ON %I', existing_policy, table_name);
+            END LOOP;
+
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id TYPE text USING tenant_id::text', table_name);
+          END IF;
+        END LOOP;
+      END $$;
+
       CREATE INDEX IF NOT EXISTS ix_exam_marks_subject_scope
         ON exam_marks (tenant_id, exam_series_id, academic_term_id, class_section_id, subject_id);
       CREATE INDEX IF NOT EXISTS ix_exam_marks_student
@@ -413,12 +680,32 @@ export class ExamsSchemaService implements OnModuleInit {
         ON student_report_cards (tenant_id, published_at DESC NULLS LAST, created_at DESC);
       CREATE INDEX IF NOT EXISTS ix_exam_mark_audit_logs_mark
         ON exam_mark_audit_logs (tenant_id, mark_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_exam_settings_audit_logs_tenant
+        ON exam_settings_audit_logs (tenant_id, created_at DESC);
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_exam_invigilators_tenant_slot_staff
+        ON exam_invigilators (tenant_id, timetable_slot_id, staff_user_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_exam_attendance_tenant_slot_student
+        ON exam_attendance_records (tenant_id, timetable_slot_id, student_id);
+      ALTER TABLE exam_mark_entry_windows ADD COLUMN IF NOT EXISTS last_action text;
+      ALTER TABLE exam_mark_entry_windows ADD COLUMN IF NOT EXISTS last_action_at timestamptz;
+      ALTER TABLE exam_mark_entry_windows ADD COLUMN IF NOT EXISTS last_action_by_user_id uuid;
+      ALTER TABLE exam_mark_entry_windows ADD COLUMN IF NOT EXISTS return_reason text;
+      ALTER TABLE exam_attendance_records ADD COLUMN IF NOT EXISTS locked_at timestamptz;
+      ALTER TABLE exam_attendance_records ADD COLUMN IF NOT EXISTS locked_by_user_id uuid;
       CREATE INDEX IF NOT EXISTS ix_exam_mark_versions_mark
         ON exam_mark_versions (tenant_id, mark_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_exam_mark_import_batches_history
+        ON exam_mark_import_batches (tenant_id, imported_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_exam_mark_import_batch_items_batch
+        ON exam_mark_import_batch_items (tenant_id, batch_id, row_number);
       CREATE INDEX IF NOT EXISTS ix_report_card_generation_batches_status
         ON report_card_generation_batches (tenant_id, status, created_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_exam_result_snapshots_batch_rank
+        ON exam_result_snapshots (tenant_id, batch_id, class_rank, student_id);
       CREATE INDEX IF NOT EXISTS ix_report_card_artifacts_report_card
         ON report_card_artifacts (tenant_id, report_card_id, generated_at DESC);
+      ALTER TABLE exam_series DROP CONSTRAINT IF EXISTS ck_exam_series_status;
+      ALTER TABLE exam_series ADD CONSTRAINT ck_exam_series_status CHECK (status IN ('draft', 'submitted', 'reviewed', 'locked', 'published', 'archived'));
       DROP INDEX IF EXISTS ux_report_card_artifacts_verification_code;
       CREATE UNIQUE INDEX IF NOT EXISTS ux_report_card_artifacts_verification_code_type
         ON report_card_artifacts (tenant_id, verification_code, artifact_type);
@@ -445,16 +732,26 @@ export class ExamsSchemaService implements OnModuleInit {
       ALTER TABLE exam_marks FORCE ROW LEVEL SECURITY;
       ALTER TABLE exam_mark_versions ENABLE ROW LEVEL SECURITY;
       ALTER TABLE exam_mark_versions FORCE ROW LEVEL SECURITY;
+      ALTER TABLE exam_mark_import_batches ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE exam_mark_import_batches FORCE ROW LEVEL SECURITY;
+      ALTER TABLE exam_mark_import_batch_items ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE exam_mark_import_batch_items FORCE ROW LEVEL SECURITY;
       ALTER TABLE student_report_cards ENABLE ROW LEVEL SECURITY;
       ALTER TABLE student_report_cards FORCE ROW LEVEL SECURITY;
       ALTER TABLE report_card_generation_batches ENABLE ROW LEVEL SECURITY;
       ALTER TABLE report_card_generation_batches FORCE ROW LEVEL SECURITY;
+      ALTER TABLE exam_result_snapshots ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE exam_result_snapshots FORCE ROW LEVEL SECURITY;
       ALTER TABLE report_card_artifacts ENABLE ROW LEVEL SECURITY;
       ALTER TABLE report_card_artifacts FORCE ROW LEVEL SECURITY;
       ALTER TABLE student_report_card_audit_logs ENABLE ROW LEVEL SECURITY;
       ALTER TABLE student_report_card_audit_logs FORCE ROW LEVEL SECURITY;
       ALTER TABLE exam_mark_audit_logs ENABLE ROW LEVEL SECURITY;
       ALTER TABLE exam_mark_audit_logs FORCE ROW LEVEL SECURITY;
+      ALTER TABLE exam_settings ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE exam_settings FORCE ROW LEVEL SECURITY;
+      ALTER TABLE exam_settings_audit_logs ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE exam_settings_audit_logs FORCE ROW LEVEL SECURITY;
       ALTER TABLE exam_timetable_slots ENABLE ROW LEVEL SECURITY;
       ALTER TABLE exam_timetable_slots FORCE ROW LEVEL SECURITY;
       ALTER TABLE exam_invigilators ENABLE ROW LEVEL SECURITY;
@@ -519,6 +816,16 @@ export class ExamsSchemaService implements OnModuleInit {
       FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
       WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
 
+      DROP POLICY IF EXISTS exam_mark_import_batches_tenant_policy ON exam_mark_import_batches;
+      CREATE POLICY exam_mark_import_batches_tenant_policy ON exam_mark_import_batches
+      FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+      DROP POLICY IF EXISTS exam_mark_import_batch_items_tenant_policy ON exam_mark_import_batch_items;
+      CREATE POLICY exam_mark_import_batch_items_tenant_policy ON exam_mark_import_batch_items
+      FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
       DROP POLICY IF EXISTS student_report_cards_tenant_policy ON student_report_cards;
       CREATE POLICY student_report_cards_tenant_policy ON student_report_cards
       FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
@@ -526,6 +833,11 @@ export class ExamsSchemaService implements OnModuleInit {
 
       DROP POLICY IF EXISTS report_card_generation_batches_tenant_policy ON report_card_generation_batches;
       CREATE POLICY report_card_generation_batches_tenant_policy ON report_card_generation_batches
+      FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+      DROP POLICY IF EXISTS exam_result_snapshots_tenant_policy ON exam_result_snapshots;
+      CREATE POLICY exam_result_snapshots_tenant_policy ON exam_result_snapshots
       FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
       WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
 
@@ -541,6 +853,16 @@ export class ExamsSchemaService implements OnModuleInit {
 
       DROP POLICY IF EXISTS exam_mark_audit_logs_tenant_policy ON exam_mark_audit_logs;
       CREATE POLICY exam_mark_audit_logs_tenant_policy ON exam_mark_audit_logs
+      FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+      DROP POLICY IF EXISTS exam_settings_tenant_policy ON exam_settings;
+      CREATE POLICY exam_settings_tenant_policy ON exam_settings
+      FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+      DROP POLICY IF EXISTS exam_settings_audit_logs_tenant_policy ON exam_settings_audit_logs;
+      CREATE POLICY exam_settings_audit_logs_tenant_policy ON exam_settings_audit_logs
       FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
       WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
 

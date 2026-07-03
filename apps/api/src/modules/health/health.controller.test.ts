@@ -3,6 +3,68 @@ import test from 'node:test';
 
 import { HealthController } from './health.controller';
 
+const productionEnvKeys = [
+  'NODE_ENV',
+  'DATABASE_URL',
+  'REDIS_URL',
+  'SECURITY_PII_ENCRYPTION_KEY',
+  'MPESA_CONSUMER_KEY',
+  'MPESA_CONSUMER_SECRET',
+  'MPESA_SHORT_CODE',
+  'MPESA_PASSKEY',
+  'MPESA_TRANSACTION_STATUS_SECURITY_CREDENTIAL',
+  'MPESA_CALLBACK_URL',
+  'MPESA_CALLBACK_SECRET',
+  'MPESA_LEDGER_DEBIT_ACCOUNT_CODE',
+  'MPESA_LEDGER_CREDIT_ACCOUNT_CODE',
+  'APP_TRUSTED_TENANT_HEADER_SECRET',
+  'REPORT_CARD_DOWNLOAD_SIGNING_SECRET',
+  'RESEND_API_KEY',
+  'EMAIL_FROM',
+  'PUBLIC_APP_URL',
+  'SUPPORT_NOTIFICATION_EMAILS',
+  'JWT_SECRET',
+  'APP_CORS_ORIGINS',
+  'APP_TRUSTED_PROXY_CIDRS',
+  'DATABASE_PGBOUNCER_MODE',
+  'DATABASE_RLS_AUDIT_ENABLED',
+  'MPESA_PAYLOAD_VAULT_ENABLED',
+  'UPLOAD_OBJECT_STORAGE_ENABLED',
+  'UPLOAD_OBJECT_STORAGE_PROVIDER',
+  'UPLOAD_OBJECT_STORAGE_ENDPOINT',
+  'UPLOAD_OBJECT_STORAGE_BUCKET',
+  'UPLOAD_OBJECT_STORAGE_REGION',
+  'UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID',
+  'UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY',
+  'AUTH_COOKIE_SECURE',
+  'AUTH_COOKIE_SAME_SITE',
+  'DATABASE_API_MAX_CONNECTIONS',
+  'DATABASE_WORKER_MAX_CONNECTIONS',
+];
+
+function withTemporaryProductionEnv(values: Record<string, string>, run: () => Promise<void>): Promise<void> {
+  const previous = new Map<string, string | undefined>();
+
+  for (const key of productionEnvKeys) {
+    previous.set(key, process.env[key]);
+    delete process.env[key];
+  }
+
+  Object.assign(process.env, values);
+
+  return run().finally(() => {
+    for (const key of productionEnvKeys) {
+      const previousValue = previous.get(key);
+
+      if (previousValue === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = previousValue;
+      }
+    }
+  });
+}
+
 test('HealthController readiness surfaces transactional email configuration without secrets', async () => {
   const controller = new HealthController(
     {
@@ -87,6 +149,95 @@ test('HealthController readiness surfaces production CORS allowlist status witho
     production_locked: true,
   });
   assert.equal(JSON.stringify(readiness).includes('my-shule-erp.vercel.app'), false);
+});
+
+test('HealthController readiness rejects placeholder production provider environment', async () => {
+  await withTemporaryProductionEnv(
+    {
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgres://user:pass@db.example.test:5432/myshule?sslmode=require',
+      REDIS_URL: 'rediss://default:redis-secret@cache.example.test:6379',
+      SECURITY_PII_ENCRYPTION_KEY: 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=',
+      MPESA_CONSUMER_KEY: 'mpesa-consumer-key',
+      MPESA_CONSUMER_SECRET: 'mpesa-consumer-secret',
+      MPESA_SHORT_CODE: '123456',
+      MPESA_PASSKEY: 'mpesa-passkey',
+      MPESA_TRANSACTION_STATUS_SECURITY_CREDENTIAL: 'mpesa-security-credential',
+      MPESA_CALLBACK_URL: 'https://api.myshule.test/payments/mpesa/callback',
+      MPESA_CALLBACK_SECRET: 'long-random-mpesa-callback-secret',
+      MPESA_LEDGER_DEBIT_ACCOUNT_CODE: 'BANK',
+      MPESA_LEDGER_CREDIT_ACCOUNT_CODE: 'FEES',
+      APP_TRUSTED_TENANT_HEADER_SECRET: 'long-random-tenant-header-secret',
+      REPORT_CARD_DOWNLOAD_SIGNING_SECRET: 'long-random-report-card-secret',
+      RESEND_API_KEY: 'replace-with-resend-api-key',
+      EMAIL_FROM: 'MyShule <no-reply@example.com>',
+      PUBLIC_APP_URL: 'https://www.myshule.test',
+      SUPPORT_NOTIFICATION_EMAILS: 'support@example.com',
+      JWT_SECRET: 'long-random-jwt-secret-for-production',
+      APP_CORS_ORIGINS: 'https://www.myshule.test',
+      APP_TRUSTED_PROXY_CIDRS: '10.0.0.0/8',
+      DATABASE_PGBOUNCER_MODE: 'transaction',
+      DATABASE_RLS_AUDIT_ENABLED: 'true',
+      MPESA_PAYLOAD_VAULT_ENABLED: 'true',
+      UPLOAD_OBJECT_STORAGE_ENABLED: 'true',
+      UPLOAD_OBJECT_STORAGE_PROVIDER: 'r2',
+      UPLOAD_OBJECT_STORAGE_ENDPOINT: 'https://objects.example.com',
+      UPLOAD_OBJECT_STORAGE_BUCKET: 'myshule-files',
+      UPLOAD_OBJECT_STORAGE_REGION: 'auto',
+      UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID: 'replace-with-object-storage-access-key',
+      UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY: 'replace-with-object-storage-secret-key',
+      AUTH_COOKIE_SECURE: 'true',
+      AUTH_COOKIE_SAME_SITE: 'lax',
+      DATABASE_API_MAX_CONNECTIONS: '3',
+      DATABASE_WORKER_MAX_CONNECTIONS: '2',
+    },
+    async () => {
+      const controller = new HealthController(
+        {
+          requireStore: () => ({
+            request_id: 'req-prod-env',
+            tenant_id: null,
+            user_id: 'system',
+            role: 'system',
+            session_id: null,
+            is_authenticated: false,
+          }),
+        } as never,
+        {
+          ping: async () => 'up',
+          getPoolMetrics: () => ({ totalCount: 1, idleCount: 1, waitingCount: 0 }),
+        } as never,
+        { ping: async () => 'up' } as never,
+        undefined,
+        undefined,
+        undefined,
+        {
+          get: <T>(key: string) =>
+            ({
+              'app.corsEnabled': true,
+              'app.nodeEnv': 'production',
+              'app.corsOrigins': ['https://www.myshule.test'],
+              'app.corsCredentials': true,
+              UPLOAD_OBJECT_STORAGE_ENABLED: 'true',
+              UPLOAD_OBJECT_STORAGE_PROVIDER: 'r2',
+              UPLOAD_OBJECT_STORAGE_ENDPOINT: 'https://objects.example.com',
+              UPLOAD_OBJECT_STORAGE_BUCKET: 'myshule-files',
+              UPLOAD_OBJECT_STORAGE_REGION: 'auto',
+              UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID: 'replace-with-object-storage-access-key',
+              UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY: 'replace-with-object-storage-secret-key',
+            })[key] as T | undefined,
+        } as never,
+      );
+
+      const readiness = await controller.getReadiness();
+
+      assert.equal(readiness.status, 'degraded');
+      assert.equal(readiness.services.production_env, 'invalid');
+      assert.match(readiness.production_env.issues.join('\n'), /RESEND_API_KEY must be a real Resend key/);
+      assert.match(readiness.production_env.issues.join('\n'), /UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID/);
+      assert.equal(JSON.stringify(readiness).includes('replace-with-object-storage-secret-key'), false);
+    },
+  );
 });
 
 test('HealthController readiness surfaces support notification provider status without secrets', async () => {
@@ -317,6 +468,7 @@ test('HealthController readiness reports optional Redis degradation without thro
 
   assert.equal(readiness.status, 'degraded');
   assert.equal(readiness.services.redis, 'degraded');
+  assert.equal(readiness.services.bullmq, 'degraded');
 });
 
 test('HealthController readiness converts dependency failures into degraded status', async () => {

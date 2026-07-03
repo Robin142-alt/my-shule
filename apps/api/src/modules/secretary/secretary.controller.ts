@@ -20,90 +20,74 @@ export class SecretaryController {
   async getDashboard() {
     const tenantId = this.requestContext.requireStore().tenant_id;
     if (!tenantId) {
-      return {
-        metrics: { newAdmissions: 0, pendingInquiries: 0, visitorsToday: 0, activeTasks: 0 },
-        quickLinks: [],
-        recentActivity: []
-      };
+      throw new BadRequestException('Tenant context required');
     }
 
-    try {
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const todayEnd = new Date();
-      todayEnd.setHours(23, 59, 59, 999);
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
 
-      const [newAdmissions, pendingInquiries, visitorsToday] = await Promise.all([
-        this.prisma.admissionApplication.count({
-          where: {
-            schoolId: tenantId,
-            applicationStatus: { in: ['SUBMITTED', 'INTERVIEW'] }
+    const [newAdmissions, pendingInquiries, visitorsToday] = await Promise.all([
+      this.prisma.admissionApplication.count({
+        where: {
+          schoolId: tenantId,
+          applicationStatus: { in: ['SUBMITTED', 'INTERVIEW'] }
+        }
+      }),
+      this.prisma.workflowTask.count({
+        where: {
+          schoolId: tenantId,
+          title: { startsWith: 'Inquiry:' },
+          status: { not: 'DONE' }
+        }
+      }),
+      this.prisma.visitorLog.count({
+        where: {
+          schoolId: tenantId,
+          timeIn: {
+            gte: todayStart,
+            lte: todayEnd
           }
-        }),
-        this.prisma.workflowTask.count({
-          where: {
-            schoolId: tenantId,
-            title: { startsWith: 'Inquiry:' },
-            status: { not: 'DONE' }
-          }
-        }),
-        this.prisma.visitorLog.count({
-          where: {
-            schoolId: tenantId,
-            timeIn: {
-              gte: todayStart,
-              lte: todayEnd
-            }
-          }
-        })
-      ]);
+        }
+      })
+    ]);
 
-      return {
-        metrics: {
-          newAdmissions,
-          pendingInquiries,
-          visitorsToday,
-          activeTasks: pendingInquiries
-        },
-        quickLinks: [],
-        recentActivity: []
-      };
-    } catch (e) {
-      return {
-        metrics: { newAdmissions: 0, pendingInquiries: 0, visitorsToday: 0, activeTasks: 0 },
-        quickLinks: [],
-        recentActivity: []
-      };
-    }
+    return {
+      metrics: {
+        newAdmissions,
+        pendingInquiries,
+        visitorsToday,
+        activeTasks: pendingInquiries
+      },
+      quickLinks: [],
+      recentActivity: []
+    };
   }
 
   @Get('visitors')
   @Permissions('secretary:read')
   async getVisitors() {
     const tenantId = this.requestContext.requireStore().tenant_id;
-    if (!tenantId) return [];
+    if (!tenantId) throw new BadRequestException('Tenant context required');
 
-    try {
-      const logs = await this.prisma.visitorLog.findMany({
-        where: { schoolId: tenantId },
-        include: { visitor: true },
-        orderBy: { timeIn: 'desc' }
-      });
+    const logs = await this.prisma.visitorLog.findMany({
+      where: { schoolId: tenantId },
+      include: { visitor: true },
+      orderBy: { timeIn: 'desc' }
+    });
 
-      return logs.map(log => ({
-        id: log.id,
-        visitor: log.visitor?.fullName || '',
-        phoneOrId: log.visitor?.phone || log.visitor?.idNumber || '',
-        visiting: log.personToSeeUserId || log.studentToSeeId || '',
-        reason: log.purpose,
-        vehicle: log.passNumber || '',
-        status: log.status === 'CHECKED_OUT' ? 'Exited' : (log.status === 'CHECKED_IN' ? 'Inside' : 'Waiting'),
-        checkInTime: log.timeIn.toISOString(),
-        slipPrinted: !!log.passNumber,
-      }));
-    } catch (e) {
-      return [];
-    }
+    return logs.map(log => ({
+      id: log.id,
+      visitor: log.visitor?.fullName || '',
+      phoneOrId: log.visitor?.phone || log.visitor?.idNumber || '',
+      visiting: log.personToSeeUserId || log.studentToSeeId || '',
+      reason: log.purpose,
+      vehicle: log.passNumber || '',
+      status: log.status === 'CHECKED_OUT' ? 'Exited' : (log.status === 'CHECKED_IN' ? 'Inside' : 'Waiting'),
+      checkInTime: log.timeIn.toISOString(),
+      slipPrinted: !!log.passNumber,
+    }));
   }
 
   @Post('visitors')
@@ -188,38 +172,34 @@ export class SecretaryController {
   @Permissions('secretary:read')
   async getInquiries() {
     const tenantId = this.requestContext.requireStore().tenant_id;
-    if (!tenantId) return [];
+    if (!tenantId) throw new BadRequestException('Tenant context required');
 
-    try {
-      const tasks = await this.prisma.workflowTask.findMany({
-        where: {
-          schoolId: tenantId,
-          title: { startsWith: 'Inquiry:' }
-        },
-        orderBy: { createdAt: 'desc' }
-      });
+    const tasks = await this.prisma.workflowTask.findMany({
+      where: {
+        schoolId: tenantId,
+        title: { startsWith: 'Inquiry:' }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
 
-      return tasks.map(task => {
-        try {
-          const record = JSON.parse(task.description);
-          return { ...record, id: task.id };
-        } catch (e) {
-          return {
-            id: task.id,
-            parent: task.title.replace('Inquiry:', '').trim(),
-            student: '',
-            className: '',
-            phone: '',
-            issue: task.description,
-            department: 'Finance',
-            status: 'Waiting',
-            smsSent: false,
-          };
-        }
-      });
-    } catch (e) {
-      return [];
-    }
+    return tasks.map(task => {
+      try {
+        const record = JSON.parse(task.description);
+        return { ...record, id: task.id };
+      } catch (e) {
+        return {
+          id: task.id,
+          parent: task.title.replace('Inquiry:', '').trim(),
+          student: '',
+          className: '',
+          phone: '',
+          issue: task.description,
+          department: 'Finance',
+          status: 'Waiting',
+          smsSent: false,
+        };
+      }
+    });
   }
 
   @Post('inquiries')
@@ -243,7 +223,7 @@ export class SecretaryController {
               assignedToUserId: store.user_id || 'system',
               createdByUserId: store.user_id || 'system',
               priority: 'NORMAL',
-              status: 'TODO',
+              status: 'IN_PROGRESS',
             }
           });
         } else if (action === 'mark_served') {

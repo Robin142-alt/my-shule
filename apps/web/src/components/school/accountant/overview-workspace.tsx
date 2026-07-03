@@ -35,7 +35,7 @@ export function OverviewWorkspace({
       setError(null);
       try {
         const response = await fetch(
-          buildBillingApiPath("/api/billing/finance-activity?limit=10&offset=0", tenantSlug || "demo"),
+          buildBillingApiPath("/api/billing/finance-activity?limit=10&offset=0", tenantSlug),
           { cache: "no-store" }
         );
 
@@ -87,7 +87,7 @@ export function OverviewWorkspace({
         ) : (
           <DataTable
             rows={rows}
-            getRowKey={(row: any) => row.id || String(Math.random())}
+            getRowKey={(row: any) => row.id || row.reference || `${row.date}-${row.student}-${row.amount}`}
             columns={[
               { id: "date", header: "Date", render: (row: any) => row.date },
               { id: "student", header: "Student", render: (row: any) => row.student },

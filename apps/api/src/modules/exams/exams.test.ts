@@ -28,6 +28,12 @@ test('ExamsSchemaService creates exam and report-card tables with tenant RLS', a
   assert.match(schemaSql, /ALTER TABLE exam_marks FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_exam_marks_subject_scope/);
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_student_report_cards_tenant_published/);
+  assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_exam_invigilators_tenant_slot_staff/);
+  assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_exam_attendance_tenant_slot_student/);
+  assert.match(schemaSql, /locked_at timestamptz/);
+  assert.match(schemaSql, /locked_by_user_id uuid/);
+  assert.match(schemaSql, /last_action text/);
+  assert.match(schemaSql, /return_reason text/);
   assert.doesNotMatch(schemaSql, /CREATE TABLE IF NOT EXISTS student_attendance/i);
 });
 
@@ -46,14 +52,819 @@ test('ExamsSchemaService creates grading policy, mark version, report-card workf
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS exam_subject_weightings/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS exam_competency_outcomes/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS exam_assessment_components/);
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS exam_mark_import_batches/);
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS exam_mark_import_batch_items/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS exam_mark_versions/);
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS exam_settings/);
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS exam_settings_audit_logs/);
   assert.match(schemaSql, /approval_state text NOT NULL/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS report_card_generation_batches/);
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS exam_result_snapshots/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS report_card_artifacts/);
   assert.match(schemaSql, /draft_requested/);
   assert.match(schemaSql, /regeneration_required/);
   assert.match(schemaSql, /verification_code text/);
   assert.match(schemaSql, /ALTER TABLE report_card_generation_batches FORCE ROW LEVEL SECURITY/);
+  assert.match(schemaSql, /ALTER TABLE exam_result_snapshots FORCE ROW LEVEL SECURITY/);
+  assert.match(schemaSql, /CREATE POLICY exam_result_snapshots_tenant_policy ON exam_result_snapshots/);
+  assert.match(schemaSql, /ALTER TABLE exam_settings FORCE ROW LEVEL SECURITY/);
+  assert.match(schemaSql, /CREATE POLICY exam_settings_tenant_policy ON exam_settings/);
+  assert.match(schemaSql, /CREATE POLICY exam_mark_import_batches_tenant_policy ON exam_mark_import_batches/);
+  assert.match(schemaSql, /CREATE POLICY exam_mark_import_batch_items_tenant_policy ON exam_mark_import_batch_items/);
+});
+
+test('ExamsService saves tenant-scoped settings with audit log', async () => {
+  const calls: Array<{ name: string; input?: Record<string, unknown> }> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      getExamSettings: async (tenantId: string) => {
+        calls.push({ name: 'get', input: { tenantId } });
+        return {
+          lock_after_deadline: true,
+          grace_period_hours: 24,
+          include_school_logo: true,
+          include_principal_signature: true,
+          include_official_stamp: true,
+          block_results_for_fee_balances: true,
+          fee_balance_block_threshold: 1000,
+          show_student_rank_to_parents: true,
+        };
+      },
+      upsertExamSettings: async (input: Record<string, unknown>) => {
+        calls.push({ name: 'upsert', input });
+        return { id: 'settings-1', ...input };
+      },
+      appendExamSettingsAuditLog: async (input: Record<string, unknown>) => {
+        calls.push({ name: 'audit', input });
+      },
+    } as never,
+  );
+
+  const result = await service.updateSettings({
+    lock_after_deadline: false,
+    grace_period_hours: 12,
+    fee_balance_block_threshold: 2500,
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.tenant_id, 'tenant-a');
+  assert.equal(result.data.updated_by_user_id, 'exam-manager-1');
+  assert.equal(result.data.lock_after_deadline, false);
+  assert.equal(result.data.grace_period_hours, 12);
+  assert.equal(result.data.fee_balance_block_threshold, 2500);
+  assert.deepEqual(calls.map((call) => call.name), ['get', 'upsert', 'audit']);
+  assert.equal(calls[2].input?.action, 'exam_settings.updated');
+});
+
+test('ExamsService rejects invalid exam settings payloads', async () => {
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      getExamSettings: async () => null,
+    } as never,
+  );
+
+  await assert.rejects(
+    () => service.updateSettings({ grace_period_hours: 200 }),
+    /grace_period_hours must be an integer between 0 and 168/,
+  );
+});
+
+test('ExamsService rejects student exam cases outside the current tenant scope', async () => {
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      findStudentCaseScope: async () => null,
+      reportStudentCase: async () => {
+        throw new Error('student case must not be persisted');
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    () => service.reportStudentCase({
+      exam_series_id: '00000000-0000-0000-0000-000000000010',
+      student_id: '00000000-0000-0000-0000-000000000020',
+      case_type: 'irregularity',
+      description: 'Student was found with unauthorized examination notes.',
+    }),
+    /student or exam series was not found for this school/i,
+  );
+});
+
+test('ExamsService records a tenant-scoped operation after creating a student exam case', async () => {
+  const calls: Array<{ name: string; input: Record<string, unknown> }> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      findStudentCaseScope: async (input: Record<string, unknown>) => {
+        calls.push({ name: 'scope', input });
+        return { exam_series_name: 'Term 2 Exams', student_name: 'Amina Otieno' };
+      },
+      reportStudentCase: async (input: Record<string, unknown>) => {
+        calls.push({ name: 'persist', input });
+        return { id: 'case-1', status: 'pending', ...input };
+      },
+    } as never,
+    undefined,
+    undefined,
+    {
+      recordSchoolOperation: async (input: Record<string, unknown>) => {
+        calls.push({ name: 'event', input });
+      },
+    } as never,
+  );
+
+  const result = await service.reportStudentCase({
+    exam_series_id: '00000000-0000-0000-0000-000000000010',
+    student_id: '00000000-0000-0000-0000-000000000020',
+    case_type: 'irregularity',
+    description: 'Student was found with unauthorized examination notes.',
+  });
+
+  assert.equal(result.success, true);
+  assert.deepEqual(calls.map((call) => call.name), ['scope', 'persist', 'event']);
+  assert.equal(calls[0].input.tenant_id, 'tenant-a');
+  assert.equal(calls[1].input.actor_user_id, 'exam-manager-1');
+  assert.equal((calls[2].input.event as Record<string, unknown>).type, 'exam.student_case_reported');
+  assert.deepEqual(
+    ((calls[2].input.notifications as Array<Record<string, unknown>>)[0].audienceRoles),
+    ['principal', 'deputy-principal'],
+  );
+});
+
+test('ExamsService routes student exam case guidance only within the current tenant', async () => {
+  const tasks: Array<Record<string, unknown>> = [];
+  const notifications: Array<Record<string, unknown>> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      findStudentCaseById: async () => ({ id: 'case-1', student_id: 'student-1', student_name: 'Amina Otieno', case_type: 'medical' }),
+    } as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    {
+      createTask: async (input: Record<string, unknown>) => tasks.push(input),
+      createNotification: async (input: Record<string, unknown>) => notifications.push(input),
+    } as never,
+  );
+  const result = await service.requestStudentCaseGuidance('case-1', 'Please review the medical evidence and advise on a deferred paper.');
+  assert.equal(result.success, true);
+  assert.equal(tasks[0].tenant_id, 'tenant-a');
+  assert.equal(tasks[0].assigned_to_role, 'principal');
+  assert.equal(notifications[0].recipient_role, 'principal');
+});
+
+test('ExamsService rejects invigilator assignments outside the current tenant scope', async () => {
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      findInvigilatorAssignmentScope: async () => null,
+      assignInvigilator: async () => {
+        throw new Error('invigilator assignment must not be persisted');
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    () => service.assignInvigilator({
+      timetable_slot_id: '00000000-0000-0000-0000-000000000030',
+      staff_user_id: '00000000-0000-0000-0000-000000000040',
+      role: 'invigilator',
+    }),
+    /timetable slot or active staff account was not found for this school/i,
+  );
+});
+
+test('ExamsService rejects duplicate invigilator assignments', async () => {
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      findInvigilatorAssignmentScope: async () => ({
+        staff_name: 'John Kamau',
+        slot_label: '2026-07-10 08:00',
+        existing_assignment_id: 'assignment-1',
+      }),
+      assignInvigilator: async () => {
+        throw new Error('duplicate assignment must not be persisted');
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    () => service.assignInvigilator({
+      timetable_slot_id: '00000000-0000-0000-0000-000000000030',
+      staff_user_id: '00000000-0000-0000-0000-000000000040',
+      role: 'invigilator',
+    }),
+    /already assigned to this timetable slot/i,
+  );
+});
+
+test('ExamsService refuses invigilator status updates outside the current tenant', async () => {
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      updateInvigilatorStatus: async () => null,
+    } as never,
+  );
+
+  await assert.rejects(
+    () => service.updateInvigilatorStatus('00000000-0000-0000-0000-000000000050', 'present'),
+    /invigilator assignment was not found for this school/i,
+  );
+});
+
+test('ExamsService sends an invigilation reminder only to the assigned tenant staff user', async () => {
+  const notifications: Array<Record<string, unknown>> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      findInvigilatorAssignmentById: async () => ({
+        id: 'assignment-1',
+        staff_user_id: 'staff-user-1',
+        staff_name: 'John Kamau',
+        slot_label: '2026-07-10 08:00 Room 2',
+      }),
+    } as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    {
+      createNotification: async (input: Record<string, unknown>) => {
+        notifications.push(input);
+        return { created: true };
+      },
+    } as never,
+  );
+
+  const result = await service.remindInvigilator('assignment-1');
+
+  assert.equal(result.success, true);
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].tenant_id, 'tenant-a');
+  assert.equal(notifications[0].recipient_user_id, 'staff-user-1');
+});
+
+test('ExamsService refuses invigilator replacements outside the current tenant scope', async () => {
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      replaceInvigilator: async () => null,
+    } as never,
+  );
+
+  await assert.rejects(
+    () => service.replaceInvigilator(
+      '00000000-0000-0000-0000-000000000050',
+      '00000000-0000-0000-0000-000000000060',
+      'relief',
+    ),
+    /assignment or replacement staff account was not found for this school/i,
+  );
+});
+
+test('ExamsService auto-assigns only tenant-scoped conflict-free invigilation candidates', async () => {
+  let capturedTenant = '';
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      autoAssignInvigilators: async (tenantId: string) => {
+        capturedTenant = tenantId;
+        return [{ id: 'assignment-1' }, { id: 'assignment-2' }];
+      },
+    } as never,
+  );
+  const result = await service.autoAssignInvigilators();
+  assert.equal(capturedTenant, 'tenant-a');
+  assert.equal(result.data.assigned, 2);
+});
+
+test('ExamsService rejects exam attendance outside the current tenant scope', async () => {
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      findExamAttendanceScope: async () => null,
+      markAttendance: async () => {
+        throw new Error('exam attendance must not be persisted');
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    () => service.markAttendance({
+      timetable_slot_id: '00000000-0000-0000-0000-000000000030',
+      student_id: '00000000-0000-0000-0000-000000000020',
+      status: 'present',
+      remarks: '',
+    }),
+    /student or timetable slot was not found for this school/i,
+  );
+});
+
+test('ExamsService imports parsed attendance rows only within the current tenant', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      bulkImportExamAttendance: async (input: Record<string, unknown>) => {
+        calls.push(input);
+        return [
+          { row_number: 2, status: 'committed', attendance_id: 'attendance-1', errors: [] },
+          { row_number: 3, status: 'invalid', attendance_id: null, errors: ['Student was not found for this school'] },
+        ];
+      },
+    } as never,
+  );
+
+  const result = await service.importAttendance({
+    originalname: 'exam-attendance.csv',
+    mimetype: 'text/csv',
+    size: 181,
+    buffer: Buffer.from([
+      'timetable_slot_id,admission_number,status,remarks',
+      '00000000-0000-0000-0000-000000000030,ADM-001,present,On time',
+      '00000000-0000-0000-0000-000000000030,ADM-404,absent,No notice',
+    ].join('\n')),
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].tenant_id, 'tenant-a');
+  assert.equal(calls[0].actor_user_id, 'exam-manager-1');
+  assert.deepEqual(calls[0].rows, [
+    {
+      row_number: 2,
+      timetable_slot_id: '00000000-0000-0000-0000-000000000030',
+      admission_number: 'ADM-001',
+      student_id: null,
+      status: 'present',
+      remarks: 'On time',
+    },
+    {
+      row_number: 3,
+      timetable_slot_id: '00000000-0000-0000-0000-000000000030',
+      admission_number: 'ADM-404',
+      student_id: null,
+      status: 'absent',
+      remarks: 'No notice',
+    },
+  ]);
+  assert.equal(result.data.found, 2);
+  assert.equal(result.data.committed, 1);
+  assert.equal(result.data.failed, 1);
+  assert.equal(result.data.rows[1].errors[0], 'Student was not found for this school');
+});
+
+test('ExamsService persists tenant-scoped result aggregates and rankings', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      processResultBatch: async (input: Record<string, unknown>) => {
+        calls.push(input);
+        return { batch_id: input.batch_id, aggregate_count: 42, ranked_count: 42, processed_at: '2026-06-24T18:00:00.000Z' };
+      },
+    } as never,
+  );
+
+  const result = await service.processResultBatch('00000000-0000-0000-0000-000000000080', 'rankings');
+
+  assert.deepEqual(calls[0], {
+    tenant_id: 'tenant-a',
+    actor_user_id: 'exam-manager-1',
+    batch_id: '00000000-0000-0000-0000-000000000080',
+    mode: 'rankings',
+  });
+  assert.equal(result.data.aggregate_count, 42);
+  assert.equal(result.data.ranked_count, 42);
+});
+
+test('ExamsService refuses to clear result snapshots outside the current tenant', async () => {
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    { clearResultProcessing: async () => null } as never,
+  );
+  await assert.rejects(
+    () => service.clearResultProcessing('00000000-0000-0000-0000-000000000080'),
+    /processing batch was not found for this school/i,
+  );
+});
+
+test('ExamsService transitions report-card approval state only inside the current tenant', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:approve'] }) } as never,
+    {
+      transitionReportCard: async (input: Record<string, unknown>) => {
+        calls.push(input);
+        return { id: input.report_card_id, exam_series_id: 'series-1', student_id: 'student-1', status: 'published' };
+      },
+      appendReportCardAuditLog: async (input: Record<string, unknown>) => calls.push(input),
+    } as never,
+  );
+
+  const result = await service.transitionReportCard('00000000-0000-0000-0000-000000000090', 'publish');
+
+  assert.equal(result.data.status, 'published');
+  assert.equal(calls[0].tenant_id, 'tenant-a');
+  assert.equal(calls[0].actor_user_id, 'exam-manager-1');
+  assert.equal(calls[0].action, 'publish');
+  assert.equal(calls[1].action, 'report_card.published');
+});
+
+test('ExamsService rejects report-card transitions outside the current tenant or state', async () => {
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:approve'] }) } as never,
+    { transitionReportCard: async () => null } as never,
+  );
+  await assert.rejects(
+    () => service.transitionReportCard('00000000-0000-0000-0000-000000000090', 'publish'),
+    /not found for this school or is not ready to publish/i,
+  );
+});
+
+test('ExamsService persists validated report-card comments inside the current tenant', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      updateReportCardComments: async (input: Record<string, unknown>) => {
+        calls.push(input);
+        return { id: input.report_card_id, status: 'draft_generated', metadata: { class_teacher_comment: input.class_teacher_comment } };
+      },
+      appendReportCardAuditLog: async (input: Record<string, unknown>) => calls.push(input),
+    } as never,
+  );
+
+  const result = await service.updateReportCardComments(
+    '00000000-0000-0000-0000-000000000090',
+    'Consistent progress across the term.',
+    'A strong term. Maintain the same focus.',
+  );
+
+  assert.equal(result.success, true);
+  assert.equal(calls[0].tenant_id, 'tenant-a');
+  assert.equal(calls[0].actor_user_id, 'exam-manager-1');
+  assert.equal(calls[1].action, 'report_card.comments_updated');
+});
+
+test('ExamsService transitions mark windows with tenant actor and correction reason', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      transitionMarkWindow: async (input: Record<string, unknown>) => {
+        calls.push(input);
+        return { id: input.mark_window_id, status: 'open', workflow_status: 'returned', affected_marks: 14 };
+      },
+    } as never,
+  );
+
+  const result = await service.transitionMarkWindow(
+    '00000000-0000-0000-0000-000000000095',
+    'return',
+    'Subject totals require correction before approval.',
+  );
+
+  assert.equal(calls[0].tenant_id, 'tenant-a');
+  assert.equal(calls[0].actor_user_id, 'exam-manager-1');
+  assert.equal(calls[0].action, 'return');
+  assert.equal(calls[0].reason, 'Subject totals require correction before approval.');
+  assert.equal(result.data.workflow_status, 'returned');
+});
+
+test('ExamsService sends mark-window reminders only to assigned tenant teachers', async () => {
+  const notifications: Array<Record<string, unknown>> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      findMarkWindowRecipients: async () => ({ id: 'window-1', class_name: 'Form 2 East', subject_name: 'Mathematics', closes_at: '2026-07-10', recipient_user_ids: ['teacher-1'] }),
+    } as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    {
+      createNotification: async (input: Record<string, unknown>) => notifications.push(input),
+    } as never,
+  );
+
+  const result = await service.remindMarkWindow('window-1');
+  assert.equal(result.data.sent, 1);
+  assert.equal(notifications[0].tenant_id, 'tenant-a');
+  assert.equal(notifications[0].recipient_user_id, 'teacher-1');
+});
+
+test('ExamsService submits selected marks only inside the current tenant', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'teacher-1', role: 'teacher', permissions: ['exams:enter-marks'] }) } as never,
+    {
+      submitMarks: async (input: Record<string, unknown>) => {
+        calls.push(input);
+        return { submitted_count: 2, mark_ids: input.mark_ids };
+      },
+    } as never,
+  );
+
+  const result = await service.submitMarks(['mark-1', 'mark-2']);
+
+  assert.equal(result.success, true);
+  assert.equal(calls[0].tenant_id, 'tenant-a');
+  assert.equal(calls[0].actor_user_id, 'teacher-1');
+  assert.deepEqual(calls[0].mark_ids, ['mark-1', 'mark-2']);
+  assert.equal(result.data.submitted_count, 2);
+});
+
+test('ExamsService deletes subject weightings only inside the current tenant', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      deleteSubjectWeighting: async (input: Record<string, unknown>) => {
+        calls.push(input);
+        return { id: input.weighting_id, subject_id: 'subject-1', weight: '1.0000', is_compulsory: true };
+      },
+    } as never,
+  );
+
+  const result = await service.deleteSubjectWeighting('00000000-0000-0000-0000-000000000096');
+
+  assert.equal(result.success, true);
+  assert.equal(calls[0].tenant_id, 'tenant-a');
+  assert.equal(calls[0].actor_user_id, 'exam-manager-1');
+  assert.equal(calls[0].weighting_id, '00000000-0000-0000-0000-000000000096');
+  assert.equal(result.data.id, '00000000-0000-0000-0000-000000000096');
+});
+
+test('ExamsService updates timetable slots only inside the current tenant', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      updateTimetableSlot: async (input: Record<string, unknown>) => {
+        calls.push(input);
+        return { id: input.timetable_slot_id, date: input.date, start_time: input.start_time, end_time: input.end_time, room_name: input.room_name, status: input.status };
+      },
+    } as never,
+  );
+
+  const result = await service.updateTimetableSlot('00000000-0000-0000-0000-000000000097', {
+    date: '2026-07-15',
+    start_time: '09:00',
+    end_time: '10:30',
+    room_name: 'Lab 2',
+    status: 'scheduled',
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(calls[0].tenant_id, 'tenant-a');
+  assert.equal(calls[0].actor_user_id, 'exam-manager-1');
+  assert.equal(calls[0].timetable_slot_id, '00000000-0000-0000-0000-000000000097');
+  assert.equal(calls[0].room_name, 'Lab 2');
+  assert.equal(result.data.status, 'scheduled');
+});
+
+test('ExamsService manages grading policies only inside the current tenant', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      createGradingPolicy: async (input: Record<string, unknown>) => {
+        calls.push({ method: 'create', ...input });
+        return { id: 'policy-1', name: input.name, status: 'draft' };
+      },
+      transitionGradingPolicy: async (input: Record<string, unknown>) => {
+        calls.push({ method: 'transition', ...input });
+        return { id: input.policy_id, name: 'Policy 1', status: input.status };
+      },
+      deleteDraftGradingPolicy: async (input: Record<string, unknown>) => {
+        calls.push({ method: 'delete', ...input });
+        return { id: input.policy_id, name: 'Policy 1', status: 'draft' };
+      },
+    } as never,
+  );
+
+  await service.createGradingPolicy({ name: 'CBC Scale', reporting_mode: 'cbc_competency' });
+  await service.transitionGradingPolicy('00000000-0000-0000-0000-000000000098', 'active');
+  const deleted = await service.deleteDraftGradingPolicy('00000000-0000-0000-0000-000000000098');
+
+  assert.equal(calls[0].tenant_id, 'tenant-a');
+  assert.equal(calls[0].actor_user_id, 'exam-manager-1');
+  assert.equal(calls[0].name, 'CBC Scale');
+  assert.equal(calls[1].tenant_id, 'tenant-a');
+  assert.equal(calls[1].policy_id, '00000000-0000-0000-0000-000000000098');
+  assert.equal(calls[1].status, 'active');
+  assert.equal(calls[2].tenant_id, 'tenant-a');
+  assert.equal(deleted.success, true);
+});
+
+test('ExamsService manages assessment components only inside the current tenant', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      createAssessmentComponent: async (input: Record<string, unknown>) => {
+        calls.push({ method: 'create', ...input });
+        return { id: 'component-1', ...input };
+      },
+      updateAssessmentComponent: async (input: Record<string, unknown>) => {
+        calls.push({ method: 'update', ...input });
+        return { id: input.component_id, ...input };
+      },
+      deleteAssessmentComponent: async (input: Record<string, unknown>) => {
+        calls.push({ method: 'delete', ...input });
+        return { id: input.component_id, component_name: 'Paper 1' };
+      },
+    } as never,
+  );
+
+  await service.createAssessmentComponent({
+    assessment_id: '00000000-0000-0000-0000-000000000101',
+    component_code: 'P1',
+    component_name: 'Paper 1',
+    max_score: 100,
+    weight: 60,
+  });
+  await service.updateAssessmentComponent('00000000-0000-0000-0000-000000000102', {
+    component_name: 'Paper 1 Theory',
+    max_score: 80,
+    weight: 55,
+  });
+  const deleted = await service.deleteAssessmentComponent('00000000-0000-0000-0000-000000000102');
+
+  assert.equal(calls[0].tenant_id, 'tenant-a');
+  assert.equal(calls[0].actor_user_id, 'exam-manager-1');
+  assert.equal(calls[0].assessment_id, '00000000-0000-0000-0000-000000000101');
+  assert.equal(calls[1].tenant_id, 'tenant-a');
+  assert.equal(calls[1].component_id, '00000000-0000-0000-0000-000000000102');
+  assert.equal(calls[2].tenant_id, 'tenant-a');
+  assert.equal(deleted.success, true);
+});
+
+test('ExamsService refuses to create components for assessments outside the current tenant', async () => {
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    { createAssessmentComponent: async () => null } as never,
+  );
+
+  await assert.rejects(
+    () => service.createAssessmentComponent({
+      assessment_id: '00000000-0000-0000-0000-000000000199',
+      component_code: 'P1',
+      component_name: 'Paper 1',
+      max_score: 100,
+      weight: 100,
+    }),
+    /assessment was not found for this school/i,
+  );
+});
+
+test('ExamsService blocks exam publishing when tenant-scoped marks are missing', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:approve'] }) } as never,
+    {
+      getExamReadinessStats: async (input: Record<string, unknown>) => {
+        calls.push(input);
+        return { unapproved_count: 0, missing_count: 7 };
+      },
+    } as never,
+  );
+
+  const readiness = await service.getExamReadiness('00000000-0000-0000-0000-000000000301');
+
+  assert.equal(readiness.ready, false);
+  assert.equal(readiness.missingCount, 7);
+  assert.match(readiness.issues.join(' '), /7 marks are missing/i);
+  assert.equal(calls[0].tenant_id, 'tenant-a');
+  assert.equal(calls[0].exam_series_id, '00000000-0000-0000-0000-000000000301');
+});
+
+test('ExamsService updates and deletes assessments only inside the current tenant', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      updateAssessment: async (input: Record<string, unknown>) => {
+        calls.push({ method: 'update', ...input });
+        return { id: input.assessment_id, name: input.name, max_score: input.max_score, weight: input.weight };
+      },
+      deleteAssessment: async (input: Record<string, unknown>) => {
+        calls.push({ method: 'delete', ...input });
+        return { id: input.assessment_id, name: 'Paper 1', deleted_id: input.assessment_id, mark_count: 0, component_count: 0 };
+      },
+    } as never,
+  );
+
+  await service.updateAssessment('00000000-0000-0000-0000-000000000302', { name: 'Paper 1 Revised', max_score: 80, weight: 1 });
+  const deleted = await service.deleteAssessment('00000000-0000-0000-0000-000000000302');
+
+  assert.equal(calls[0].tenant_id, 'tenant-a');
+  assert.equal(calls[0].actor_user_id, 'exam-manager-1');
+  assert.equal(calls[0].assessment_id, '00000000-0000-0000-0000-000000000302');
+  assert.equal(calls[1].tenant_id, 'tenant-a');
+  assert.equal(deleted.success, true);
+});
+
+test('ExamsService manages grading policy boundaries only inside the current tenant', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      createGradingPolicyBoundary: async (input: Record<string, unknown>) => { calls.push({ method: 'create', ...input }); return { id: 'boundary-1', ...input }; },
+      updateGradingPolicyBoundary: async (input: Record<string, unknown>) => { calls.push({ method: 'update', ...input }); return { id: input.boundary_id, ...input }; },
+      deleteGradingPolicyBoundary: async (input: Record<string, unknown>) => { calls.push({ method: 'delete', ...input }); return { id: input.boundary_id, label: 'A' }; },
+    } as never,
+  );
+
+  await service.createGradingPolicyBoundary('00000000-0000-0000-0000-000000000303', { label: 'A', min_score: 80, max_score: 100, points: 4, descriptor: 'Exceeds expectations' });
+  await service.updateGradingPolicyBoundary('00000000-0000-0000-0000-000000000304', { label: 'A1', min_score: 85, max_score: 100 });
+  const deleted = await service.deleteGradingPolicyBoundary('00000000-0000-0000-0000-000000000304');
+
+  assert.equal(calls[0].tenant_id, 'tenant-a');
+  assert.equal(calls[0].actor_user_id, 'exam-manager-1');
+  assert.equal(calls[0].policy_id, '00000000-0000-0000-0000-000000000303');
+  assert.equal(calls[1].boundary_id, '00000000-0000-0000-0000-000000000304');
+  assert.equal(calls[2].tenant_id, 'tenant-a');
+  assert.equal(deleted.success, true);
+});
+
+test('ExamsService sends absence alerts only to linked guardians in the current tenant', async () => {
+  const notifications: Array<Record<string, unknown>> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      listExamAbsenceGuardianRecipients: async () => [{
+        attendance_id: 'attendance-1',
+        guardian_user_id: 'guardian-user-1',
+        student_name: 'Amina Otieno',
+        slot_label: '2026-07-10 08:00 Room 2',
+      }],
+    } as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    {
+      createNotification: async (input: Record<string, unknown>) => {
+        notifications.push(input);
+        return { created: true };
+      },
+    } as never,
+  );
+
+  const result = await service.sendExamAbsenceAlerts(['attendance-1']);
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.sent, 1);
+  assert.equal(notifications[0].tenant_id, 'tenant-a');
+  assert.equal(notifications[0].recipient_user_id, 'guardian-user-1');
+});
+
+test('ExamsService refuses attendance locks outside the current tenant', async () => {
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    { lockExamAttendance: async () => null } as never,
+  );
+
+  await assert.rejects(
+    () => service.lockExamAttendance('00000000-0000-0000-0000-000000000070'),
+    /attendance record was not found for this school/i,
+  );
+});
+
+test('ExamsService refuses normal updates to locked exam attendance', async () => {
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      findExamAttendanceScope: async () => ({ student_name: 'Amina Otieno', slot_label: 'Term exam' }),
+      markAttendance: async () => null,
+    } as never,
+  );
+  await assert.rejects(
+    () => service.markAttendance({ timetable_slot_id: 'slot-1', student_id: 'student-1', status: 'present' }),
+    /attendance record is locked/i,
+  );
+});
+
+test('ExamsService refuses attendance special cases outside the current tenant', async () => {
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    { createAttendanceSpecialCase: async () => null } as never,
+  );
+  await assert.rejects(
+    () => service.createAttendanceSpecialCase(
+      '00000000-0000-0000-0000-000000000070',
+      'medical',
+      'Learner presented a medical note after missing the paper.',
+    ),
+    /attendance record was not found for this school/i,
+  );
 });
 
 test('ExamsService allows an assigned teacher to enter subject-scoped marks with audit', async () => {
@@ -612,6 +1423,10 @@ test('ExamsService previews bulk mark uploads and commits only previewed valid r
       appendMarkAuditLog: async (input: Record<string, unknown>) => {
         calls.push({ name: 'audit', input });
       },
+      commitBulkMarkImport: async (input: Record<string, unknown>) => {
+        calls.push({ name: 'commit', input });
+        return { batch_id: 'batch-1', committed_rows: 1 };
+      },
     } as never,
   );
 
@@ -638,11 +1453,47 @@ test('ExamsService previews bulk mark uploads and commits only previewed valid r
 
   const committed = await (service as unknown as {
     bulkUploadMarks: (dto: Record<string, unknown>) => Promise<Record<string, unknown>>;
-  }).bulkUploadMarks({ mode: 'commit', preview_token: preview.preview_token, rows });
+  }).bulkUploadMarks({ mode: 'commit', preview_token: preview.preview_token, file_name: 'term-1-marks.csv', rows });
 
   assert.equal(committed.committed_rows, 1);
-  assert.deepEqual(calls.map((call) => call.name), ['mark', 'audit']);
-  assert.equal(calls[1]?.input?.action, 'bulk_grade.updated');
+  assert.equal(committed.batch_id, 'batch-1');
+  assert.deepEqual(calls.map((call) => call.name), ['commit']);
+  assert.equal(calls[0]?.input?.tenant_id, 'tenant-a');
+  assert.equal(calls[0]?.input?.file_name, 'term-1-marks.csv');
+});
+
+test('ExamsService lists and rolls back mark import batches only inside the current tenant', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
+    {
+      listMarkImportBatches: async (input: Record<string, unknown>) => {
+        calls.push({ method: 'list', ...input });
+        return [{ id: 'batch-1', status: 'imported', committed_rows: 12 }];
+      },
+      getMarkImportBatch: async (input: Record<string, unknown>) => {
+        calls.push({ method: 'detail', ...input });
+        return { id: input.batch_id, file_name: 'marks.csv', source_rows: [{ student_id: 'student-1', score: 80 }] };
+      },
+      rollbackMarkImportBatch: async (input: Record<string, unknown>) => {
+        calls.push({ method: 'rollback', ...input });
+        return { id: input.batch_id, status: 'rolled_back', restored_rows: 2, deleted_rows: 10 };
+      },
+    } as never,
+  );
+
+  const listed = await service.getMarkImportBatches({ limit: '25' });
+  const detail = await service.getMarkImportBatch('00000000-0000-0000-0000-000000000201');
+  const rolledBack = await service.rollbackMarkImportBatch('00000000-0000-0000-0000-000000000201', 'Incorrect student mapping');
+
+  assert.equal(listed.data[0].id, 'batch-1');
+  assert.equal(calls[0].tenant_id, 'tenant-a');
+  assert.equal(detail.data.source_rows[0].student_id, 'student-1');
+  assert.equal(calls[1].tenant_id, 'tenant-a');
+  assert.equal(calls[2].tenant_id, 'tenant-a');
+  assert.equal(calls[2].actor_user_id, 'exam-manager-1');
+  assert.equal(calls[2].reason, 'Incorrect student mapping');
+  assert.equal(rolledBack.data.status, 'rolled_back');
 });
 
 test('ExamsService reports duplicate and unauthorized rows during bulk mark upload preview', async () => {
@@ -1504,4 +2355,3 @@ test('ExamsRepository correctly aggregates exam analytics data', async () => {
   assert.equal(paramsList[0][0], 'tenant-xyz');
   assert.equal(paramsList[1][0], 'tenant-xyz');
 });
-

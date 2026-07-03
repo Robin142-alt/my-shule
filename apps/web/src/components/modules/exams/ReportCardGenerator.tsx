@@ -42,7 +42,7 @@ export function ReportCardGenerator({ tenantId, examSeriesId }: ReportCardGenera
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["exam-readiness", tenantId, examSeriesId] });
-      toast.success("Report cards generated and exam series published successfully!");
+      toast.success("Report-card publishing request accepted. Refresh readiness to confirm generated artifacts and parent portal visibility.");
     },
     onError: (err: any) => {
       setGenerateError(err.message);
@@ -88,7 +88,7 @@ export function ReportCardGenerator({ tenantId, examSeriesId }: ReportCardGenera
           {generateMutation.isPending ? "Generating..." : "Generate & Publish Report Cards"}
         </Button>
         <p className="text-xs text-gray-500 mt-2">
-          This action will lock all marks and make report cards available to parents and students.
+          This action will lock all marks and publish report cards to the parent portal after backend generation completes.
         </p>
       </div>
     </div>

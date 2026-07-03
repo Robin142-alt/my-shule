@@ -2,9 +2,9 @@
 import { useState } from "react";
 import { UserRoundCheck, Search } from "lucide-react";
 import { toast } from "sonner";
-import { Panel, StatusChip, Tone } from "./shared";
+import { Panel, StatusChip, Tone, openDeputyRecord } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { notifyParentAttendance, createFollowUpList } from "./api-client";
+import { notifyParentAttendance, createFollowUpList, remindUnmarkedAttendance } from "./api-client";
 
 export type AttendanceRecord = {
   id: string;
@@ -28,6 +28,7 @@ export function DeputyAttendanceWorkspace() {
   const { data, isLoading, refetch } = useSchoolQuery<AttendanceData>('/admin-command/deputy/attendance');
   const [showFollowUpModal, setShowFollowUpModal] = useState(false);
   const [isSubmittingFollowUp, setIsSubmittingFollowUp] = useState(false);
+  const [isRemindingUnmarked, setIsRemindingUnmarked] = useState(false);
   const [followUpData, setFollowUpData] = useState({ listName: '', dateRange: 'This Week', assignedTo: '' });
 
   const records = data?.records || [];
@@ -38,14 +39,14 @@ export function DeputyAttendanceWorkspace() {
       await notifyParentAttendance(id);
       toast.success(`Parent of ${studentName} has been notified.`);
       refetch();
-    } catch (e) {
+    } catch {
       toast.error("Failed to notify parent");
     } finally {
       setIsSubmittingId(null);
     }
   };
 
-  const handleCreateFollowUp = async (e: React.FormEvent) => {
+  const handleCreateFollowUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmittingFollowUp(true);
     try {
@@ -54,10 +55,26 @@ export function DeputyAttendanceWorkspace() {
       setShowFollowUpModal(false);
       setFollowUpData({ listName: '', dateRange: 'This Week', assignedTo: '' });
       refetch();
-    } catch (error) {
+    } catch {
       toast.error("Failed to create follow-up list");
     } finally {
       setIsSubmittingFollowUp(false);
+    }
+  };
+
+  const handleRemindUnmarked = async () => {
+    setIsRemindingUnmarked(true);
+    try {
+      await remindUnmarkedAttendance({
+        attendanceDate: new Date().toISOString().slice(0, 10),
+        message: "Please submit pending attendance registers for the current school day.",
+      });
+      toast.success("Class teacher attendance reminders were routed.");
+      refetch();
+    } catch {
+      toast.error("Failed to route unmarked attendance reminders.");
+    } finally {
+      setIsRemindingUnmarked(false);
     }
   };
 
@@ -77,8 +94,10 @@ export function DeputyAttendanceWorkspace() {
     <>
       <Panel title="Attendance & Punctuality" description="Follow up missing records, repeated absenteeism, and lateness." icon={UserRoundCheck} actions={
         <div className="flex gap-2">
-          <button className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]">Remind Unmarked</button>
-          <button onClick={() => setShowFollowUpModal(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Create Follow-Up</button>
+          <button type="button" disabled={isRemindingUnmarked} className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49] disabled:opacity-50" onClick={handleRemindUnmarked}>
+            {isRemindingUnmarked ? "Routing..." : "Remind Unmarked"}
+          </button>
+          <button type="button" onClick={() => setShowFollowUpModal(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Create Follow-Up</button>
         </div>
       }>
         <div className="flex flex-col sm:flex-row gap-3 mb-4">
@@ -124,11 +143,11 @@ export function DeputyAttendanceWorkspace() {
                     <td className="px-4 py-3"><StatusChip label={rec.parentNotified} tone={getNotifiedTone(rec.parentNotified)} /></td>
                     <td className="px-4 py-3 text-right">
                       {rec.parentNotified === "Pending" && (
-                        <button disabled={isSubmittingId === rec.id} onClick={() => handleNotifyParent(rec.id, rec.studentName)} className="text-blue-600 hover:underline font-semibold text-xs mr-3 disabled:opacity-50 disabled:no-underline">
+                        <button type="button" disabled={isSubmittingId === rec.id} onClick={() => handleNotifyParent(rec.id, rec.studentName)} className="text-blue-600 hover:underline font-semibold text-xs mr-3 disabled:opacity-50 disabled:no-underline">
                           {isSubmittingId === rec.id ? "Notifying..." : "Contact Parent"}
                         </button>
                       )}
-                      <button className="text-blue-600 hover:underline font-semibold text-xs">Follow Up</button>
+                      <button type="button" className="text-blue-600 hover:underline font-semibold text-xs" onClick={() => openDeputyRecord("Attendance follow-up", [["Student", rec.studentName], ["Class", rec.className], ["Status", rec.status], ["Reason", rec.reason], ["Parent Notified", rec.parentNotified]])}>Follow Up</button>
                     </td>
                   </tr>
                 ))

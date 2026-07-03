@@ -132,7 +132,7 @@ export function SchoolLoginView({
               {resolution.branding.logoMark}
             </span>
             <div>
-              <p className="text-sm font-bold text-foreground">{resolution.branding.name}</p>
+              <h3 className="text-sm font-bold text-foreground">School workspace</h3>
               <p className="text-sm text-muted">{resolution.branding.county}</p>
             </div>
           </div>
@@ -145,6 +145,7 @@ export function SchoolLoginView({
             <h2 className="text-3xl font-bold leading-tight text-foreground">
               Run your school with operational clarity.
             </h2>
+            <h3 className="text-3xl font-bold leading-tight text-foreground">Secure admin access</h3>
             <p className="mt-2 text-sm leading-6 text-muted">
               Visibility across departments, accountable payments, traceable incidents, and responsible student monitoring.
             </p>

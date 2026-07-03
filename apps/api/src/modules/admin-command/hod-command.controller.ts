@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { HodCommandService } from './hod-command.service';
@@ -57,5 +57,59 @@ export class HODCommandController {
   @Get('reports')
   getReports() {
     return this.service.getReports();
+  }
+
+  @Post('requests')
+  @Permissions('academics:write')
+  createDepartmentRequest(@Body() dto: any) {
+    return this.service.recordHodAction('request', dto);
+  }
+
+  @Post('actions')
+  @Permissions('academics:write')
+  recordAction(@Body() dto: any) {
+    return this.service.recordHodAction(dto?.action ?? 'action_recorded', dto);
+  }
+
+  @Post('subject-allocation')
+  @Permissions('academics:write')
+  createSubjectAllocation(@Body() dto: any) {
+    return this.service.createSubjectAllocation(dto);
+  }
+
+  @Post('subject-allocation/revoke')
+  @Permissions('academics:write')
+  requestSubjectAllocationRevocation(@Body() dto: any) {
+    return this.service.requestSubjectAllocationRevocation(dto);
+  }
+
+  @Post('roster-review')
+  @Permissions('academics:write')
+  recordRosterReview(@Body() dto: any) {
+    return this.service.recordRosterReview(dto);
+  }
+
+  @Post('department-meetings')
+  @Permissions('academics:write')
+  logDepartmentMeeting(@Body() dto: any) {
+    return this.service.logDepartmentMeeting(dto);
+  }
+
+  @Post('review-queue/:id/approve')
+  @Permissions('academics:write')
+  approveReviewItem(@Param('id') id: string, @Body() dto: any) {
+    return this.service.recordHodAction('review_approved', { ...dto, id }, id);
+  }
+
+  @Post('review-queue/:id/reject')
+  @Permissions('academics:write')
+  rejectReviewItem(@Param('id') id: string, @Body() dto: any) {
+    return this.service.recordHodAction('review_rejected', { ...dto, id }, id);
+  }
+
+  @Post('reports/generate')
+  @Permissions('academics:write')
+  generateReport(@Body() dto: any) {
+    return this.service.generateReport(dto);
   }
 }

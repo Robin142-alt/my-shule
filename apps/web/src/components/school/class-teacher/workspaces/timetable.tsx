@@ -1,9 +1,9 @@
 import { CalendarDays } from "lucide-react";
 import { Panel } from "../shared";
-import { useClassTeacherTimetable } from "@/lib/data/class-teacher-hooks";
+import { useClassTeacherTimetable, useResolvedClassTeacherStreamId } from "@/lib/data/class-teacher-hooks";
 
 export function TimetableWorkspace() {
-  const streamId = "stream_123";
+  const { streamId } = useResolvedClassTeacherStreamId();
   const { data, isLoading, error } = useClassTeacherTimetable(streamId);
 
   if (isLoading) {

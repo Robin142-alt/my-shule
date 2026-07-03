@@ -14,7 +14,7 @@ import {
 import { getCsrfToken } from "@/lib/auth/csrf-client";
 import { redirectOnExpiredSessionResponse } from "@/lib/auth/session-expiry-client";
 import { getSchoolWorkspace, type SchoolExperienceRole } from "@/lib/experiences/school-data";
-import { buildBillingApiPath, toMinorUnits, formatMinorKes, formatActivityDate } from "@/lib/billing/billing-utils";
+import { buildBillingApiPath, toMinorUnits, formatMinorKes, formatActivityDate, unwrapBillingApiData } from "@/lib/billing/billing-utils";
 import type { LearnerLookupItem } from "@/lib/students/student-lookup";
 import { LearnerPicker } from "@/components/common/learner-picker";
 import { getMissingFieldError } from "@/lib/forms/validation";
@@ -42,6 +42,26 @@ const manualReceiptSelectableMethods: ManualReceiptMethod[] = [
   "mpesa_c2b",
 ];
 
+const academicYearOptions = ["2025", "2026", "2027", "2028"];
+const termOptions = ["Term 1", "Term 2", "Term 3"];
+const gradeLevelOptions = [
+  "PP1",
+  "PP2",
+  "Grade 1",
+  "Grade 2",
+  "Grade 3",
+  "Grade 4",
+  "Grade 5",
+  "Grade 6",
+  "Grade 7",
+  "Grade 8",
+  "Grade 9",
+  "Form 1",
+  "Form 2",
+  "Form 3",
+  "Form 4",
+];
+
 import type { StatusTone } from "@/lib/dashboard/types";
 
 const financeReconciliationBucketTone: Record<string, StatusTone> = {
@@ -53,12 +73,12 @@ const financeReconciliationBucketTone: Record<string, StatusTone> = {
 
 
 function createEmptyFeeLineItemDraft(): FeeLineItemDraft {
-  return { id: Math.random().toString(36).slice(2), code: "", label: "", amount: "" };
+  return { id: crypto.randomUUID(), code: "", label: "", amount: "" };
 }
 
 function createEmptyBulkFeeStudentDraft(): BulkFeeStudentDraft {
   return {
-    id: Math.random().toString(36).slice(2),
+    id: crypto.randomUUID(),
     student_id: "",
     student_name: "",
     admission_number: "",
@@ -123,6 +143,7 @@ export function FeeStructuresWorkspace({
   }));
   const [feeStructures, setFeeStructures] = useState<FeeStructureResponse[]>([]);
   const [feeStructuresLoading, setFeeStructuresLoading] = useState(true);
+  const [feeStructureSaving, setFeeStructureSaving] = useState(false);
   const [feeStructureError, setFeeStructureError] = useState<string | null>(null);
   const [feeStructureDraft, setFeeStructureDraft] = useState({
     name: "",
@@ -283,10 +304,12 @@ export function FeeStructuresWorkspace({
       });
       const payload = (await response.json().catch(() => null)) as
         | FeeStructureResponse[]
+        | { data?: FeeStructureResponse[]; message?: string }
         | { message?: string }
         | null;
+      const feeStructuresPayload = unwrapBillingApiData<FeeStructureResponse[]>(payload);
 
-      if (!response.ok || !Array.isArray(payload)) {
+      if (!response.ok || !Array.isArray(feeStructuresPayload)) {
         throw new Error(
           payload && !Array.isArray(payload) && payload.message
             ? payload.message
@@ -294,10 +317,10 @@ export function FeeStructuresWorkspace({
         );
       }
 
-      setFeeStructures(payload);
+      setFeeStructures(feeStructuresPayload);
       setBulkDraft((current) => ({
         ...current,
-        fee_structure_id: current.fee_structure_id || payload[0]?.id || "",
+        fee_structure_id: current.fee_structure_id || feeStructuresPayload[0]?.id || "",
       }));
     } catch (caught) {
       setFeeStructures([]);
@@ -549,6 +572,10 @@ export function FeeStructuresWorkspace({
   const canGenerateBulkInvoices = bulkDraft.fee_structure_id.trim().length > 0 && hasBulkBillingStudents;
 
   async function saveFeeStructure() {
+    if (feeStructureSaving) {
+      return;
+    }
+
     const validationError = getMissingFieldError([
       { label: "Fee name", value: feeStructureDraft.name },
       { label: "Academic year", value: feeStructureDraft.academic_year },
@@ -574,6 +601,7 @@ export function FeeStructuresWorkspace({
     }
 
     try {
+      setFeeStructureSaving(true);
       const csrfToken = await getCsrfToken();
       const response = await fetch(buildBillingApiPath("/api/billing/fee-structures", tenantSlug), {
         method: "POST",
@@ -597,16 +625,18 @@ export function FeeStructuresWorkspace({
       });
       const payload = (await response.json().catch(() => null)) as
         | FeeStructureResponse
+        | { data?: FeeStructureResponse; message?: string }
         | { message?: string }
         | null;
+      const savedFeeStructure = unwrapBillingApiData<FeeStructureResponse>(payload);
 
-      if (!response.ok || !payload || !("id" in payload)) {
+      if (!response.ok || !savedFeeStructure || !("id" in savedFeeStructure)) {
         throw new Error(payload && "message" in payload && payload.message ? payload.message : "Fee structure could not be saved.");
       }
 
       setFeeStructureError(null);
-      setFinanceMessage(`${payload.name} saved for ${payload.grade_level}.`);
-      setBulkDraft((current) => ({ ...current, fee_structure_id: payload.id }));
+      setFinanceMessage(`${savedFeeStructure.name} saved for ${savedFeeStructure.grade_level}.`);
+      setBulkDraft((current) => ({ ...current, fee_structure_id: savedFeeStructure.id }));
       setFeeStructureDraft((current) => ({
         ...current,
         name: "",
@@ -618,6 +648,8 @@ export function FeeStructuresWorkspace({
       await loadFeeStructures();
     } catch (caught) {
       setFeeStructureError(caught instanceof Error ? caught.message : "Fee structure could not be saved.");
+    } finally {
+      setFeeStructureSaving(false);
     }
   }
 
@@ -636,21 +668,23 @@ export function FeeStructuresWorkspace({
       );
       const payload = (await response.json().catch(() => null)) as
         | FeeStructureResponse
+        | { data?: FeeStructureResponse; message?: string }
         | { message?: string }
         | null;
+      const archivedFeeStructure = unwrapBillingApiData<FeeStructureResponse>(payload);
 
-      if (!response.ok || !payload || !("id" in payload)) {
+      if (!response.ok || !archivedFeeStructure || !("id" in archivedFeeStructure)) {
         throw new Error(payload && "message" in payload && payload.message ? payload.message : "Fee structure could not be archived.");
       }
 
       setFeeStructureError(null);
-      setFinanceMessage(`${payload.name} archived.`);
+      setFinanceMessage(`${archivedFeeStructure.name} archived.`);
       setBillableStudents([]);
       setSelectedBulkStudentIds(new Set());
       setBulkStudents([]);
       setBulkDraft((current) => ({
         ...current,
-        fee_structure_id: current.fee_structure_id === payload.id ? "" : current.fee_structure_id,
+        fee_structure_id: current.fee_structure_id === archivedFeeStructure.id ? "" : current.fee_structure_id,
       }));
       await loadFeeStructures();
     } catch (caught) {
@@ -676,7 +710,7 @@ export function FeeStructuresWorkspace({
       const csrfToken = await getCsrfToken();
       const idempotencyKey =
         bulkDraft.idempotency_key.trim() ||
-        `bulk-fees-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        `bulk-fees-${crypto.randomUUID()}`;
       const response = await fetch(
         buildBillingApiPath(`/api/billing/fee-structures/${encodeURIComponent(selectedFeeStructureId)}/generate-invoices`, tenantSlug),
         {
@@ -705,15 +739,17 @@ export function FeeStructuresWorkspace({
       );
       const payload = (await response.json().catch(() => null)) as
         | BulkFeeInvoiceGenerationResponse
+        | { data?: BulkFeeInvoiceGenerationResponse; message?: string }
         | { message?: string }
         | null;
+      const generationResult = unwrapBillingApiData<BulkFeeInvoiceGenerationResponse>(payload);
 
-      if (!response.ok || !payload || !("generated_count" in payload)) {
+      if (!response.ok || !generationResult || !("generated_count" in generationResult)) {
         throw new Error(payload && "message" in payload && payload.message ? payload.message : "Bulk invoices could not be generated.");
       }
 
       setBulkError(null);
-      setFinanceMessage(`${payload.generated_count} invoices generated; ${payload.skipped_count} duplicate rows skipped.`);
+      setFinanceMessage(`${generationResult.generated_count} invoices generated; ${generationResult.skipped_count} duplicate rows skipped.`);
       setBulkDraft((current) => ({ ...current, idempotency_key: "", due_at: "" }));
       setSelectedBulkStudentIds(new Set());
       setBulkStudents([]);
@@ -743,10 +779,12 @@ export function FeeStructuresWorkspace({
       );
       const payload = (await response.json().catch(() => null)) as
         | BillableFeeStudentResponse[]
+        | { data?: BillableFeeStudentResponse[]; message?: string }
         | { message?: string }
         | null;
+      const billableStudentsPayload = unwrapBillingApiData<BillableFeeStudentResponse[]>(payload);
 
-      if (!response.ok || !Array.isArray(payload)) {
+      if (!response.ok || !Array.isArray(billableStudentsPayload)) {
         throw new Error(
           payload && !Array.isArray(payload) && payload.message
             ? payload.message
@@ -754,16 +792,16 @@ export function FeeStructuresWorkspace({
         );
       }
 
-      setBillableStudents(payload);
+      setBillableStudents(billableStudentsPayload);
       setSelectedBulkStudentIds(new Set());
       setBulkStudents([]);
 
-      if (payload.length === 0) {
+      if (billableStudentsPayload.length === 0) {
         setFinanceMessage("No active roster students matched this fee structure.");
         return;
       }
 
-      setFinanceMessage(`${payload.length} roster students loaded. Select learners to bill.`);
+      setFinanceMessage(`${billableStudentsPayload.length} roster students loaded. Select learners to bill.`);
     } catch (caught) {
       setBillableStudents([]);
       setBulkError(caught instanceof Error ? caught.message : "Billable roster could not be loaded.");
@@ -855,7 +893,7 @@ export function FeeStructuresWorkspace({
           "x-myshule-csrf": csrfToken,
         },
         body: JSON.stringify({
-          idempotency_key: `finance-quick-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          idempotency_key: `finance-quick-${crypto.randomUUID()}`,
           payment_method: paymentDraft.payment_method,
           amount_minor: amountMinor,
           student_id: paymentDraft.student_id.trim() || undefined,
@@ -962,7 +1000,7 @@ export function FeeStructuresWorkspace({
       ) : (
         <MetricGrid items={buildFinanceSummaryItems(activity, activityLoading)} />
       )}
-      <SubscriptionLifecyclePanel subscription={subscription} role={role} routeMode={routeMode} />
+      <SubscriptionLifecyclePanel subscription={subscription} role={role} routeMode={routeMode} tenantSlug={tenantSlug} />
       <section className="space-y-5 rounded-xl border border-border bg-surface px-5 py-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -1003,39 +1041,59 @@ export function FeeStructuresWorkspace({
               </label>
               <label className="space-y-2 text-sm text-foreground">
                 <span className="font-medium">Academic year</span>
-                <input
-                  aria-label="Fee structure academic year"
+                <select
+                  aria-label="Academic year"
                   className="input-base"
                   value={feeStructureDraft.academic_year}
                   onChange={(event) => {
                     setFeeStructureDraft((current) => ({ ...current, academic_year: event.target.value }));
                     setFeeStructureError(null);
                   }}
-                />
+                >
+                  {academicYearOptions.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="space-y-2 text-sm text-foreground">
                 <span className="font-medium">Term</span>
-                <input
-                  aria-label="Fee structure term"
+                <select
+                  aria-label="Term"
                   className="input-base"
                   value={feeStructureDraft.term}
                   onChange={(event) => {
                     setFeeStructureDraft((current) => ({ ...current, term: event.target.value }));
                     setFeeStructureError(null);
                   }}
-                />
+                >
+                  <option value="">Select term</option>
+                  {termOptions.map((term) => (
+                    <option key={term} value={term}>
+                      {term}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="space-y-2 text-sm text-foreground">
                 <span className="font-medium">Grade level</span>
-                <input
-                  aria-label="Fee structure grade level"
+                <select
+                  aria-label="Grade level"
                   className="input-base"
                   value={feeStructureDraft.grade_level}
                   onChange={(event) => {
                     setFeeStructureDraft((current) => ({ ...current, grade_level: event.target.value }));
                     setFeeStructureError(null);
                   }}
-                />
+                >
+                  <option value="">Select grade or form</option>
+                  {gradeLevelOptions.map((grade) => (
+                    <option key={grade} value={grade}>
+                      {grade}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="space-y-2 text-sm text-foreground">
                 <span className="font-medium">Class</span>
@@ -1071,7 +1129,7 @@ export function FeeStructuresWorkspace({
               <label className="space-y-2 text-sm text-foreground">
                 <span className="font-medium">Due days</span>
                 <input
-                  aria-label="Fee structure due days"
+                  aria-label="Due days (from invoice)"
                   className="input-base"
                   inputMode="numeric"
                   value={feeStructureDraft.due_days}
@@ -1090,7 +1148,7 @@ export function FeeStructuresWorkspace({
                   variant="ghost"
                   onClick={() => setFeeLineItems((current) => [...current, createEmptyFeeLineItemDraft()])}
                 >
-                  Add line
+                  Add line item
                 </Button>
               </div>
               {feeLineItems.map((item) => (
@@ -1098,12 +1156,14 @@ export function FeeStructuresWorkspace({
                   <input
                     aria-label="Fee line item code"
                     className="input-base"
+                    placeholder="e.g. TUITION"
                     value={item.code}
                     onChange={(event) => updateFeeLineItem(item.id, "code", event.target.value)}
                   />
                   <input
                     aria-label="Fee line item label"
                     className="input-base"
+                    placeholder="e.g. Tuition"
                     value={item.label}
                     onChange={(event) => updateFeeLineItem(item.id, "label", event.target.value)}
                   />
@@ -1111,6 +1171,7 @@ export function FeeStructuresWorkspace({
                     aria-label="Fee line item amount"
                     className="input-base"
                     inputMode="decimal"
+                    placeholder="e.g. 15000"
                     value={item.amount}
                     onChange={(event) => updateFeeLineItem(item.id, "amount", event.target.value)}
                   />
@@ -1120,7 +1181,9 @@ export function FeeStructuresWorkspace({
                 </div>
               ))}
             </div>
-            <Button onClick={() => void saveFeeStructure()}>Save fee structure</Button>
+            <Button onClick={() => void saveFeeStructure()} disabled={feeStructureSaving}>
+              {feeStructureSaving ? "Saving fee structure..." : "Save fee structure"}
+            </Button>
           </div>
           <div className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2">

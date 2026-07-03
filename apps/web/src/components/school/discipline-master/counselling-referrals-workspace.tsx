@@ -4,13 +4,10 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { StatusPill } from "@/components/ui/status-pill";
-import { Button } from "@/components/ui/button";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { useDashboardEventBus } from "@/lib/dashboard-communication/dashboard-communication-provider";
-import { Plus, Download } from "lucide-react";
+import { DisciplineWorkspaceActions } from "./shared";
 
 export function CounsellingReferralsWorkspace() {
-  const eventBus = useDashboardEventBus();
   const { data, isLoading } = useSchoolQuery<any[]>("/discipline/counselling-referrals");
   
   const records = data || [];
@@ -30,10 +27,7 @@ export function CounsellingReferralsWorkspace() {
           title="Counselling Referrals" 
           description="Manage Counselling Referrals records and workflows." 
         />
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline"><Download className="mr-2 h-4 w-4" /> Export</Button>
-          <Button><Plus className="mr-2 h-4 w-4" /> New Record</Button>
-        </div>
+        <DisciplineWorkspaceActions title="Counselling Referrals" records={records} />
       </div>
       
       <section className="grid gap-4 md:grid-cols-3">

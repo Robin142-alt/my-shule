@@ -374,4 +374,15 @@ export class ClassTeacherController {
   ) {
     return this.classTeacherService.getSettings(tenantId, userId, streamId);
   }
+
+  @Post('settings')
+  @Permissions('academics:write')
+  saveSettings(
+    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-user-id') userId: string,
+    @Query('streamId') streamId: string,
+    @Body() body: any,
+  ) {
+    return this.classTeacherService.saveSettings(tenantId, userId, streamId, body);
+  }
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -54,6 +54,7 @@ import {
 } from "@/lib/school/school-operational-store";
 import { supportSidebarItems } from "@/lib/support/support-data";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 type StorekeeperRouteMode = "hosted" | "public";
 type StorekeeperTheme = "dark" | "light";
@@ -78,9 +79,17 @@ const storekeeperSearchRecords = [
 
 type StorekeeperSearchRecord = (typeof storekeeperSearchRecords)[number];
 
-function announceAction(message: string) {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("myshule-dashboard-action", { detail: message }));
+async function announceAction(message: string | Promise<string>) {
+  try {
+    const resolvedMessage = await message;
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("myshule-dashboard-action", { detail: resolvedMessage }));
+    }
+  } catch (error) {
+    if (typeof window !== "undefined") {
+      const messageText = error instanceof Error ? error.message : "Storekeeper action could not be completed.";
+      window.dispatchEvent(new CustomEvent("myshule-dashboard-action", { detail: messageText }));
+    }
   }
 }
 
@@ -280,11 +289,16 @@ const kpis = (data: any, isLoading: boolean): Array<{
     ];
   }
 
+  const totalInventoryValue = Number(data.total_inventory_value ?? 0);
+  const lowStockItems = Number(data.low_stock_items ?? 0);
+  const pendingRequests = Number(data.pending_requests ?? 0);
+  const recentPurchases = Number(data.recent_purchases ?? 0);
+
   return [
     {
       id: "value",
       label: "Total Inventory Value",
-      value: `KES ${data.total_inventory_value.toLocaleString("en-KE")}`,
+      value: `KES ${totalInventoryValue.toLocaleString("en-KE")}`,
       detail: "Audited value across kitchen, labs, boarding, office, and library.",
       trend: "Live value",
       tone: "accent",
@@ -295,17 +309,17 @@ const kpis = (data: any, isLoading: boolean): Array<{
     {
       id: "risk",
       label: "Low Stock Items",
-      value: String(data.low_stock_items),
+      value: String(lowStockItems),
       detail: "Items below reorder level.",
-      trend: `${data.low_stock_items > 0 ? "Action required" : "Healthy"}`,
-      tone: data.low_stock_items > 0 ? "critical" : "success",
+      trend: `${lowStockItems > 0 ? "Action required" : "Healthy"}`,
+      tone: lowStockItems > 0 ? "critical" : "success",
       icon: AlertTriangle,
       points: [24, 34, 29, 42, 46, 55, 61],
     },
     {
       id: "approvals",
       label: "Pending Requests",
-      value: String(data.pending_requests),
+      value: String(pendingRequests),
       detail: "Requisitions pending approval.",
       trend: "Awaiting action",
       tone: data.pending_requests > 0 ? "warning" : "info",
@@ -315,7 +329,7 @@ const kpis = (data: any, isLoading: boolean): Array<{
     {
       id: "purchases",
       label: "Recent Purchases",
-      value: String(data.recent_purchases),
+      value: String(recentPurchases),
       detail: "POs generated in the last 30 days.",
       trend: "Active procurement",
       tone: "success",
@@ -495,7 +509,53 @@ function recordId(prefix: string, source: string) {
   return `${prefix}-${normalizedSource || "item"}-${Date.now()}`;
 }
 
-function recordStorekeeperAction(input: {
+function storekeeperActionSlug(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "") || "storekeeper_action";
+}
+
+async function persistStorekeeperWorkflowAction(input: {
+  type: string;
+  title: string;
+  body: string;
+  entityId: string;
+  severity: SchoolOperationalSeverity;
+  payload?: Record<string, unknown>;
+  notice: string;
+  record?: {
+    moduleName: string;
+    data: StorekeeperOperationalRecord;
+  };
+  notifications?: Array<{
+    audienceRoles: string[];
+    title?: string;
+    body?: string;
+    severity?: SchoolOperationalSeverity;
+  }>;
+}) {
+  return requestDashboardApi("/admin-command/storekeeper/actions", {
+    method: "POST",
+    body: {
+      action: storekeeperActionSlug(input.type || input.title),
+      type: input.type,
+      title: input.title,
+      message: input.body,
+      body: input.body,
+      entityId: input.entityId,
+      severity: input.severity,
+      payload: input.payload,
+      notice: input.notice,
+      record: input.record,
+      notifications: input.notifications,
+      source_dashboard: "storekeeper-command-center",
+    },
+  });
+}
+
+async function recordStorekeeperAction(input: {
   type: string;
   title: string;
   body: string;
@@ -515,8 +575,14 @@ function recordStorekeeperAction(input: {
   }>;
 }) {
   const schoolId = getCurrentSchoolId();
-  const createdAt = new Date().toISOString();
   const entityId = input.entityId ?? recordId("store-action", input.title);
+  const severity = input.severity ?? "info";
+
+  await persistStorekeeperWorkflowAction({
+    ...input,
+    entityId,
+    severity,
+  });
 
   publishSchoolOperationalEvent({
     schoolId,
@@ -526,7 +592,7 @@ function recordStorekeeperAction(input: {
     title: input.title,
     body: input.body,
     entityId,
-    severity: input.severity ?? "info",
+    severity,
     payload: input.payload,
     notifications: input.notifications,
   });
@@ -538,11 +604,11 @@ function recordHeroAlertAction(alert: (typeof heroAlerts)[number]) {
   const createsPurchaseOrder = alert.action.toLowerCase().includes("purchase order");
   const notice = createsPurchaseOrder
     ? `${alert.action} drafted for ${alert.title}.`
-    : `${alert.action} review ready for ${alert.title}.`;
+    : `${alert.action} review request recorded for ${alert.title}.`;
 
   return recordStorekeeperAction({
-    type: createsPurchaseOrder ? "STORE_PURCHASE_ORDER_DRAFTED" : "STORE_ALERT_REVIEW_READY",
-    title: createsPurchaseOrder ? "Purchase order drafted" : `${alert.action} review ready`,
+    type: createsPurchaseOrder ? "STORE_PURCHASE_ORDER_DRAFTED" : "STORE_ALERT_REVIEW_REQUESTED",
+    title: createsPurchaseOrder ? "Purchase order drafted" : `${alert.action} review requested`,
     body: notice,
     entityId: alert.id,
     severity: toSeverity(alert.tone),
@@ -579,11 +645,11 @@ function recordHeroAlertAction(alert: (typeof heroAlerts)[number]) {
 
 function recordBulkApprovalReview(requisitions: InventoryRequisition[]) {
   return recordStorekeeperAction({
-    type: "STORE_REQUISITION_BULK_REVIEW_READY",
-    title: "Safe requisition bulk approval review ready",
-    body: "Storekeeper prepared a bulk review for safe, low-risk requisitions.",
+    type: "STORE_REQUISITION_BULK_REVIEW_REQUESTED",
+    title: "Safe requisition bulk approval review requested",
+    body: "Storekeeper requested a bulk review for safe, low-risk requisitions.",
     severity: "info",
-    notice: "Safe requisition bulk approval review ready.",
+    notice: "Safe requisition bulk approval review request recorded.",
     payload: {
       eligibleRequisitions: requisitions.filter((req) => req.tone === "success" || req.tone === "info").map((req) => req.id),
       source: "requisition-management",
@@ -593,11 +659,11 @@ function recordBulkApprovalReview(requisitions: InventoryRequisition[]) {
 
 function recordUrgencyFilterOpened(requisitions: InventoryRequisition[]) {
   return recordStorekeeperAction({
-    type: "STORE_REQUISITION_URGENCY_FILTER_READY",
-    title: "Requisition urgency filters ready",
-    body: "Storekeeper prepared urgency filters for requisition triage.",
+    type: "STORE_REQUISITION_URGENCY_FILTER_APPLIED",
+    title: "Requisition urgency filter applied",
+    body: "Storekeeper applied urgency filters for requisition triage.",
     severity: "info",
-    notice: "Requisition urgency filters ready.",
+    notice: "Requisition urgency filter recorded.",
     payload: {
       availableUrgencies: Array.from(new Set(requisitions.map((req) => req.urgency))),
       source: "requisition-management",
@@ -622,8 +688,8 @@ function recordRequisitionDecision(
     decision === "approve"
       ? `${req.item} approved for ${req.department}.`
       : decision === "partial"
-        ? `Partial issue review ready for ${req.item} to ${req.department}.`
-        : `${req.item} rejection reason form ready.`;
+        ? `Partial issue review request recorded for ${req.item} to ${req.department}.`
+        : `${req.item} rejection decision recorded for reason capture.`;
 
   return recordStorekeeperAction({
     type: eventType,
@@ -667,10 +733,10 @@ function recordRequisitionDecision(
 }
 
 function recordInventoryInsightOpened(insight: AiInsight) {
-  const notice = `${insight.action} review ready from inventory insights.`;
+  const notice = `${insight.action} review request recorded from inventory insights.`;
 
   return recordStorekeeperAction({
-    type: "STORE_INVENTORY_INSIGHT_REVIEW_READY",
+    type: "STORE_INVENTORY_INSIGHT_REVIEW_REQUESTED",
     title: insight.action,
     body: notice,
     severity: toSeverity(insight.tone),
@@ -1591,11 +1657,13 @@ export function StorekeeperCommandCenter({
   routeMode: StorekeeperRouteMode;
 }) {
   const { hasPermission } = usePermissions();
+  const queryClient = useQueryClient();
   const { data: summaryData, isLoading: isLoadingSummary } = useSchoolQuery<any>("/api/inventory/summary");
   const [theme, setTheme] = useState<StorekeeperTheme>("dark");
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Store desk ready for receiving, issuing, stock counts, and approvals.");
   const [activeModal, setActiveModal] = useState<string | null>(null);
+  const [modalSubmitting, setModalSubmitting] = useState(false);
   const surface = useMemo(() => getSurfaceClasses(theme), [theme]);
   
 
@@ -1627,6 +1695,63 @@ export function StorekeeperCommandCenter({
     if (typeof document !== "undefined") {
       const target = document.getElementById(record.sectionId);
       target?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  async function submitStoreMovement(event: FormEvent<HTMLFormElement>, movement: "receive" | "issue") {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const itemId = String(formData.get("item_id") || "").trim();
+    const quantity = Number(formData.get("quantity") || 0);
+    const reference = String(formData.get("reference") || "").trim();
+    const department = String(formData.get("department") || "").trim();
+    const counterparty = String(formData.get("counterparty") || "").trim();
+    const notes = String(formData.get("notes") || "").trim();
+
+    if (!itemId) {
+      setNotice("Select or paste the inventory item ID before saving the stock movement.");
+      return;
+    }
+
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      setNotice("Enter a received/issued quantity greater than zero.");
+      return;
+    }
+
+    setModalSubmitting(true);
+    try {
+      const endpoint =
+        movement === "receive"
+          ? "/admin-command/storekeeper/items/receive"
+          : "/admin-command/storekeeper/items/issue";
+      const response = await requestDashboardApi<{ message?: string; item?: { item_name?: string; after_quantity?: number } }>(
+        endpoint,
+        {
+          method: "POST",
+          body: {
+            item_id: itemId,
+            quantity,
+            reference,
+            department,
+            notes,
+            ...(movement === "receive" ? { supplier: counterparty } : { issued_to: counterparty }),
+          },
+        },
+      );
+
+      await queryClient.invalidateQueries();
+      setActiveModal(null);
+      setNotice(
+        response?.message
+          ? `${response.message}${response.item?.after_quantity !== undefined ? ` Balance: ${response.item.after_quantity}.` : ""}`
+          : movement === "receive"
+            ? "Stock received and inventory balance refreshed."
+            : "Item issued and inventory balance refreshed.",
+      );
+    } catch (error) {
+      setNotice(error instanceof Error ? `Store movement failed: ${error.message}` : "Store movement failed. Check item, quantity, and permissions.");
+    } finally {
+      setModalSubmitting(false);
     }
   }
 
@@ -1710,12 +1835,84 @@ export function StorekeeperCommandCenter({
 
       {activeModal === "receive" && hasPermission('inventory:write') && (
         <Modal title="Receive Stock" open={true} onClose={() => setActiveModal(null)} size="md">
-          <div className="p-4"><p>Receive stock functionality goes here.</p></div>
+          <form className="space-y-4 p-4" onSubmit={(event) => submitStoreMovement(event, "receive")}>
+            <p className="text-sm font-semibold text-[#64748B]">
+              Receive stock into an existing inventory item. The backend updates stock balance, writes a movement record, emits audit evidence, and notifies leadership.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-1 text-sm font-bold text-[#071D49]">
+                Item ID
+                <input name="item_id" required className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Inventory item UUID" />
+              </label>
+              <label className="grid gap-1 text-sm font-bold text-[#071D49]">
+                Quantity received
+                <input name="quantity" required min="1" step="1" type="number" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="0" />
+              </label>
+              <label className="grid gap-1 text-sm font-bold text-[#071D49]">
+                GRN / reference
+                <input name="reference" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="GRN-2026-001" />
+              </label>
+              <label className="grid gap-1 text-sm font-bold text-[#071D49]">
+                Supplier
+                <input name="counterparty" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Supplier name" />
+              </label>
+              <label className="grid gap-1 text-sm font-bold text-[#071D49] sm:col-span-2">
+                Department / store
+                <input name="department" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Main store, Kitchen, Lab..." />
+              </label>
+              <label className="grid gap-1 text-sm font-bold text-[#071D49] sm:col-span-2">
+                Notes
+                <textarea name="notes" rows={3} className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Delivery condition, invoice note, verifier..." />
+              </label>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="button" disabled={modalSubmitting} onClick={() => setActiveModal(null)} className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] disabled:opacity-50">Cancel</button>
+              <button type="submit" disabled={modalSubmitting} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+                {modalSubmitting ? "Receiving..." : "Receive stock"}
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
       {activeModal === "issue" && hasPermission('inventory:write') && (
         <Modal title="Issue Item" open={true} onClose={() => setActiveModal(null)} size="md">
-          <div className="p-4"><p>Issue item functionality goes here.</p></div>
+          <form className="space-y-4 p-4" onSubmit={(event) => submitStoreMovement(event, "issue")}>
+            <p className="text-sm font-semibold text-[#64748B]">
+              Issue stock to a department or staff member. The backend checks available quantity, updates balance, records the movement, and keeps the audit trail tenant-scoped.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-1 text-sm font-bold text-[#071D49]">
+                Item ID
+                <input name="item_id" required className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Inventory item UUID" />
+              </label>
+              <label className="grid gap-1 text-sm font-bold text-[#071D49]">
+                Quantity issued
+                <input name="quantity" required min="1" step="1" type="number" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="0" />
+              </label>
+              <label className="grid gap-1 text-sm font-bold text-[#071D49]">
+                Issue reference
+                <input name="reference" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="ISS-2026-001" />
+              </label>
+              <label className="grid gap-1 text-sm font-bold text-[#071D49]">
+                Issued to
+                <input name="counterparty" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Staff, department, or requester" />
+              </label>
+              <label className="grid gap-1 text-sm font-bold text-[#071D49] sm:col-span-2">
+                Department
+                <input name="department" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Kitchen, Lab, Boarding..." />
+              </label>
+              <label className="grid gap-1 text-sm font-bold text-[#071D49] sm:col-span-2">
+                Notes
+                <textarea name="notes" rows={3} className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Purpose, approval note, requisition link..." />
+              </label>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="button" disabled={modalSubmitting} onClick={() => setActiveModal(null)} className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] disabled:opacity-50">Cancel</button>
+              <button type="submit" disabled={modalSubmitting} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+                {modalSubmitting ? "Issuing..." : "Issue item"}
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
       

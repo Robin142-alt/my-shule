@@ -50,11 +50,11 @@ export function OverviewWorkspace({
   ];
 
   const quickActions: Array<[string, TeacherView, TeacherAction, string]> = [
-    ["Mark Today's Attendance", "attendance", "attendance", "Attendance register form ready."],
-    ["Record Lesson Log", "lesson-log", "lesson-log", "Lesson log form ready."],
-    ["Create Assignment", "assignments", "assignment", "Assignment form ready."],
-    ["Enter CAT Marks", "assessments-cats", "marks", "Marks entry form ready."],
-    ["Message Class", "parent-communication", "sms", "Message form ready."],
+    ["Mark Today's Attendance", "attendance", "attendance", "Attendance register loaded. Select a class and submit real attendance."],
+    ["Record Lesson Log", "lesson-log", "lesson-log", "Lesson coverage log loaded for your assigned lesson."],
+    ["Create Assignment", "assignments", "assignment", "Assignment editor loaded for class homework publishing."],
+    ["Enter CAT Marks", "assessments-cats", "marks", "Marks entry sheet loaded for an active assessment."],
+    ["Message Class", "parent-communication", "sms", "Parent communication composer loaded with class recipients."],
   ];
 
   return (

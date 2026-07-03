@@ -6,8 +6,9 @@ import { SchoolPageHeader } from "@/components/school/school-page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { buildBillingApiPath } from "@/lib/billing/billing-utils";
+import { buildBillingApiPath, toMinorUnits } from "@/lib/billing/billing-utils";
 import { StatusPill } from "@/components/ui/status-pill";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 type SchoolRouteMode = "hosted" | "public";
 
@@ -23,62 +24,71 @@ export function WaiversDiscountsWorkspace({
   const [waivers, setWaivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const [showModal, setShowModal] = useState(false);
   const [formDraft, setFormDraft] = useState({ studentId: "", amount: "", reason: "" });
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    async function loadWaivers() {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await fetch(
-          buildBillingApiPath("/api/billing/waivers", tenantSlug || "demo"),
-          { cache: "no-store" }
-        );
+  async function loadWaivers() {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(
+        buildBillingApiPath("/api/billing/waivers", tenantSlug),
+        { cache: "no-store" }
+      );
 
-        if (!response.ok) {
-          throw new Error("Waivers endpoints are not fully implemented yet in the backend.");
-        }
-
-        const data = await response.json();
-        setWaivers(data);
-      } catch (e: any) {
-        setError(e.message || "An error occurred");
-      } finally {
-        setLoading(false);
+      if (!response.ok) {
+        throw new Error("Unable to load fee waivers for this school.");
       }
-    }
 
+      const data = await response.json();
+      setWaivers(Array.isArray(data) ? data : data?.items ?? data?.waivers ?? []);
+    } catch (e: any) {
+      setError(e.message || "An error occurred");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
     loadWaivers();
   }, [tenantSlug]);
 
-  async function handleApplyWaiver(e: React.FormEvent) {
+  async function handleApplyWaiver(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!formDraft.studentId || !formDraft.amount || !formDraft.reason) {
       setSubmitError("Please fill out all fields.");
+      return;
+    }
+    const amountMinor = toMinorUnits(formDraft.amount);
+    if (!amountMinor) {
+      setSubmitError("Enter a valid waiver amount greater than zero.");
       return;
     }
     setSubmitError(null);
     setSubmitting(true);
 
     try {
-      const response = await fetch(buildBillingApiPath("/api/billing/waivers", tenantSlug || "demo"), {
+      const response = await requestDashboardApi<{ message?: string; waiver?: any; request?: any }>("/finance/waivers", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formDraft),
+        body: {
+          student_id: formDraft.studentId.trim(),
+          student_name: formDraft.studentId.trim(),
+          amount_minor: amountMinor,
+          reason: formDraft.reason.trim(),
+          source_dashboard: "accountant-waivers-discounts-workspace",
+        },
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to apply waiver. The backend endpoint might not be ready.");
-      }
-
       setShowModal(false);
-      // Reload logic here if we wanted
+      setFormDraft({ studentId: "", amount: "", reason: "" });
+      await loadWaivers();
+      setNotice(response?.message ?? "Fee waiver request submitted.");
     } catch (e: any) {
-      setSubmitError(e.message);
+      setSubmitError(e.message || "Failed to submit fee waiver request.");
     } finally {
       setSubmitting(false);
     }
@@ -98,6 +108,11 @@ export function WaiversDiscountsWorkspace({
       />
 
       <div className="rounded-md border border-slate-200 bg-white p-6 shadow-sm">
+        {notice ? (
+          <div className="mb-4 rounded-md bg-emerald-50 p-4 text-sm text-emerald-700">
+            {notice}
+          </div>
+        ) : null}
         {error ? (
           <div className="rounded-md bg-red-50 p-4 text-sm text-red-600">
             {error}
@@ -105,7 +120,7 @@ export function WaiversDiscountsWorkspace({
         ) : (
           <DataTable
             rows={waivers}
-            getRowKey={(row: any) => row.id || String(Math.random())}
+            getRowKey={(row: any) => row.id || `${row.created_at}-${row.student_name}-${row.amount}`}
             columns={[
               { id: "created_at", header: "Date", render: (row: any) => row.created_at },
               { id: "student_name", header: "Student", render: (row: any) => row.student_name },

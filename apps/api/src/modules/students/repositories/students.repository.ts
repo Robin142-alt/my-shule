@@ -24,6 +24,36 @@ type UpdateStudentInput = Partial<Omit<CreateStudentInput, 'tenant_id' | 'create
   metadata?: Record<string, unknown>;
 };
 
+const toPrismaStudentStatus = (status?: StudentEntity['status']): StudentStatus => {
+  switch (status) {
+    case 'inactive':
+      return StudentStatus.INACTIVE;
+    case 'graduated':
+      return StudentStatus.GRADUATED;
+    case 'transferred':
+      return StudentStatus.TRANSFERRED_OUT;
+    case 'active':
+    case undefined:
+      return StudentStatus.ACTIVE;
+    default:
+      return StudentStatus.ACTIVE;
+  }
+};
+
+const fromPrismaStudentStatus = (status: StudentStatus | string | null | undefined): StudentEntity['status'] => {
+  switch (status) {
+    case StudentStatus.INACTIVE:
+      return 'inactive';
+    case StudentStatus.GRADUATED:
+      return 'graduated';
+    case StudentStatus.TRANSFERRED_OUT:
+      return 'transferred';
+    case StudentStatus.ACTIVE:
+    default:
+      return 'active';
+  }
+};
+
 @Injectable()
 export class StudentsRepository {
   constructor(
@@ -40,7 +70,7 @@ export class StudentsRepository {
           firstName: input.first_name,
           lastName: input.last_name,
           middleName: input.middle_name,
-          studentStatus: (input.status?.toUpperCase() ?? 'ACTIVE') as StudentStatus,
+          studentStatus: toPrismaStudentStatus(input.status),
           dateOfBirth: input.date_of_birth ? new Date(input.date_of_birth) : new Date(),
           gender: input.gender ?? 'undisclosed',
           primaryGuardianName: this.piiEncryptionService.encryptNullable(
@@ -86,39 +116,56 @@ export class StudentsRepository {
     },
   ): Promise<StudentEntity[]> {
     return this.prisma.executeWithTenant(tenantId, null, async (tx) => {
-      const where: Prisma.StudentWhereInput = {
-        schoolId: tenantId,
-      };
-
+      const conditions = ['tenant_id = $1', 'school_id = $1'];
+      const params: unknown[] = [tenantId];
+      
       if (options.status) {
-        where.studentStatus = options.status.toUpperCase() as StudentStatus;
+        params.push(toPrismaStudentStatus(options.status));
+        conditions.push(`student_status::text = $${params.length}`);
       }
 
       if (options.search) {
-        where.OR = [
-          { admissionNumber: { contains: options.search, mode: 'insensitive' } },
-          { firstName: { contains: options.search, mode: 'insensitive' } },
-          { lastName: { contains: options.search, mode: 'insensitive' } },
-          { middleName: { contains: options.search, mode: 'insensitive' } },
-        ];
+        params.push(`%${options.search}%`);
+        conditions.push(`(
+          admission_number ILIKE $${params.length}
+          OR first_name ILIKE $${params.length}
+          OR last_name ILIKE $${params.length}
+          OR middle_name ILIKE $${params.length}
+        )`);
       }
 
-      let cursorQuery: Prisma.StudentWhereUniqueInput | undefined;
       if (options.cursor) {
         const cursor = decodeCreatedAtIdCursor(options.cursor);
-        cursorQuery = { id: cursor.id };
+        params.push(cursor.created_at, cursor.id);
+        conditions.push(`(created_at, id) < ($${params.length - 1}::timestamptz, $${params.length}::uuid)`);
       }
 
-      const students = await tx.student.findMany({
-        where,
-        take: options.limit,
-        skip: options.cursor ? 1 : undefined,
-        cursor: cursorQuery,
-        orderBy: [
-          { createdAt: 'desc' },
-          { id: 'desc' },
-        ],
-      });
+      params.push(options.limit);
+      const students = await tx.$queryRawUnsafe<any[]>(
+        `
+          SELECT
+            id,
+            tenant_id AS "schoolId",
+            admission_number AS "admissionNumber",
+            first_name AS "firstName",
+            last_name AS "lastName",
+            middle_name AS "middleName",
+            student_status::text AS "studentStatus",
+            date_of_birth AS "dateOfBirth",
+            gender,
+            primary_guardian_name AS "primaryGuardianName",
+            primary_guardian_phone AS "primaryGuardianPhone",
+            metadata,
+            created_by_user_id AS "createdByUserId",
+            created_at AS "createdAt",
+            updated_at AS "updatedAt"
+          FROM students
+          WHERE ${conditions.join(' AND ')}
+          ORDER BY created_at DESC, id DESC
+          LIMIT $${params.length}::integer
+        `,
+        ...params,
+      );
 
       return students.map((s) => this.mapRow(s));
     });
@@ -132,7 +179,7 @@ export class StudentsRepository {
       return tx.student.count({
         where: {
           schoolId: tenantId,
-          studentStatus: status.toUpperCase() as StudentStatus,
+          studentStatus: toPrismaStudentStatus(status),
         },
       });
     });
@@ -150,7 +197,7 @@ export class StudentsRepository {
       if (input.first_name !== undefined) data.firstName = input.first_name;
       if (input.last_name !== undefined) data.lastName = input.last_name;
       if (input.middle_name !== undefined) data.middleName = input.middle_name;
-      if (input.status !== undefined) data.studentStatus = input.status.toUpperCase() as StudentStatus;
+      if (input.status !== undefined) data.studentStatus = toPrismaStudentStatus(input.status);
       if (input.date_of_birth !== undefined) data.dateOfBirth = input.date_of_birth ? new Date(input.date_of_birth) : undefined;
       if (input.gender !== undefined) data.gender = input.gender ?? 'undisclosed';
 
@@ -195,7 +242,7 @@ export class StudentsRepository {
       first_name: row.firstName,
       last_name: row.lastName,
       middle_name: row.middleName,
-      status: (row.studentStatus || '').toLowerCase(),
+      status: fromPrismaStudentStatus(row.studentStatus),
       date_of_birth: row.dateOfBirth ? row.dateOfBirth.toISOString().split('T')[0] : null,
       gender: row.gender,
       primary_guardian_name: this.piiEncryptionService.decryptNullable(

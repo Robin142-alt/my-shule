@@ -4,9 +4,57 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Card } from "@/components/ui/card";
 import { Calendar, CheckCircle, BookOpen, Clock, AlertCircle } from "lucide-react";
 
+type TeacherOverviewMetric = {
+  count?: number;
+  detail?: string;
+};
+
+type TeacherOverviewLesson = {
+  id?: string;
+  className?: string;
+  class_name?: string;
+  subjectName?: string;
+  subject_name?: string;
+  subject?: string;
+  startTime?: string;
+  start_time?: string;
+  endTime?: string;
+  end_time?: string;
+  time?: string;
+  roomName?: string;
+  room_name?: string;
+  status?: string;
+};
+
+type TeacherOverviewData = {
+  todaysLessons?: TeacherOverviewMetric;
+  pendingAttendance?: TeacherOverviewMetric;
+  pendingLessonLogs?: TeacherOverviewMetric;
+  openMarkEntry?: TeacherOverviewMetric;
+  assignmentsDue?: TeacherOverviewMetric;
+  unreadMessages?: TeacherOverviewMetric;
+  lessons?: TeacherOverviewLesson[];
+  timetable?: TeacherOverviewLesson[];
+  todaysSchedule?: TeacherOverviewLesson[];
+};
+
+function metricValue(metric: TeacherOverviewMetric | undefined) {
+  return metric?.count ?? 0;
+}
+
+function metricDetail(metric: TeacherOverviewMetric | undefined, emptyDetail: string) {
+  return metric?.detail || emptyDetail;
+}
+
+function lessonTime(lesson: TeacherOverviewLesson) {
+  if (lesson.time) return lesson.time;
+  if (lesson.startTime || lesson.endTime) return [lesson.startTime, lesson.endTime].filter(Boolean).join(" - ");
+  if (lesson.start_time || lesson.end_time) return [lesson.start_time, lesson.end_time].filter(Boolean).join(" - ");
+  return "Time not set";
+}
+
 export function OverviewWorkspace() {
-  // Pass the role to the dashboard endpoint to get teacher-specific layout
-  const { data: dashboard, isLoading, error } = useSchoolQuery<any>("/api/dashboard/layout?role=teacher");
+  const { data: overview, isLoading, error } = useSchoolQuery<TeacherOverviewData>("/admin-command/teacher/overview");
 
   if (isLoading) {
     return (
@@ -16,7 +64,7 @@ export function OverviewWorkspace() {
     );
   }
 
-  if (error || !dashboard) {
+  if (error) {
     return (
       <div className="flex h-64 flex-col items-center justify-center text-slate-500 gap-4">
         <AlertCircle className="w-8 h-8 text-rose-500" />
@@ -25,11 +73,13 @@ export function OverviewWorkspace() {
     );
   }
 
-  // Teacher specific widgets could be resolved here. We'll use static stubs
-  // that represent standard teacher metrics while mapping to real data later if available.
-  const todayClasses = 4;
-  const pendingGrading = 2;
-  const unreadMessages = 5;
+  const schedule = overview?.todaysSchedule ?? overview?.lessons ?? overview?.timetable ?? [];
+  const todayClasses = metricValue(overview?.todaysLessons);
+  const pendingGrading = metricValue(overview?.openMarkEntry);
+  const lessonPlansDetail = metricDetail(
+    overview?.pendingLessonLogs,
+    "No lesson log gaps returned by the teacher overview service.",
+  );
 
   return (
     <div className="space-y-6">
@@ -53,7 +103,9 @@ export function OverviewWorkspace() {
               <span className="text-3xl font-semibold text-slate-900">{todayClasses}</span>
               <span className="text-sm font-medium text-slate-500">sessions</span>
             </div>
-            <p className="text-xs text-slate-500">First class: Math at 8:00 AM (Form 1 East)</p>
+            <p className="text-xs text-slate-500">
+              {metricDetail(overview?.todaysLessons, "No lessons assigned for today.")}
+            </p>
           </div>
         </Card>
 
@@ -69,7 +121,9 @@ export function OverviewWorkspace() {
               <span className="text-3xl font-semibold text-rose-600">{pendingGrading}</span>
               <span className="text-sm font-medium text-slate-500">assignments</span>
             </div>
-            <p className="text-xs text-slate-500">Mid-Term Math Exam needs scores.</p>
+            <p className="text-xs text-slate-500">
+              {metricDetail(overview?.openMarkEntry, "No open mark-entry work returned.")}
+            </p>
           </div>
         </Card>
 
@@ -82,9 +136,11 @@ export function OverviewWorkspace() {
           </div>
           <div className="space-y-4">
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-semibold text-slate-900">Up to date</span>
+              <span className="text-3xl font-semibold text-slate-900">
+                {metricValue(overview?.pendingLessonLogs) === 0 ? "Up to date" : metricValue(overview?.pendingLessonLogs)}
+              </span>
             </div>
-            <p className="text-xs text-slate-500">All lesson plans submitted for this week.</p>
+            <p className="text-xs text-slate-500">{lessonPlansDetail}</p>
           </div>
         </Card>
       </div>
@@ -107,30 +163,22 @@ export function OverviewWorkspace() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              <tr className="hover:bg-slate-50/50 transition-colors">
-                <td className="px-4 py-3 text-slate-900 whitespace-nowrap">08:00 AM - 08:40 AM</td>
-                <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">Form 1 East</td>
-                <td className="px-4 py-3 text-slate-500 whitespace-nowrap">Mathematics</td>
-                <td className="px-4 py-3 text-emerald-600 font-medium whitespace-nowrap">Completed</td>
-              </tr>
-              <tr className="hover:bg-slate-50/50 transition-colors bg-blue-50/30">
-                <td className="px-4 py-3 text-slate-900 whitespace-nowrap">09:20 AM - 10:00 AM</td>
-                <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">Form 2 West</td>
-                <td className="px-4 py-3 text-slate-500 whitespace-nowrap">Mathematics</td>
-                <td className="px-4 py-3 text-blue-600 font-medium flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span> In Progress</td>
-              </tr>
-              <tr className="hover:bg-slate-50/50 transition-colors">
-                <td className="px-4 py-3 text-slate-900 whitespace-nowrap">11:20 AM - 12:00 PM</td>
-                <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">Form 3 South</td>
-                <td className="px-4 py-3 text-slate-500 whitespace-nowrap">Physics</td>
-                <td className="px-4 py-3 text-slate-500 whitespace-nowrap">Upcoming</td>
-              </tr>
-              <tr className="hover:bg-slate-50/50 transition-colors">
-                <td className="px-4 py-3 text-slate-900 whitespace-nowrap">02:00 PM - 02:40 PM</td>
-                <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">Form 1 East</td>
-                <td className="px-4 py-3 text-slate-500 whitespace-nowrap">Physics</td>
-                <td className="px-4 py-3 text-slate-500 whitespace-nowrap">Upcoming</td>
-              </tr>
+              {schedule.length > 0 ? (
+                schedule.map((lesson, index) => (
+                  <tr key={lesson.id ?? `${lessonTime(lesson)}-${index}`} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="px-4 py-3 text-slate-900 whitespace-nowrap">{lessonTime(lesson)}</td>
+                    <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">{lesson.className ?? lesson.class_name ?? "Class not set"}</td>
+                    <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{lesson.subjectName ?? lesson.subject_name ?? lesson.subject ?? "Subject not set"}</td>
+                    <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{lesson.status ?? "Scheduled"}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
+                    No lessons were returned for today. Open the timetable workspace to assign or review lessons.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

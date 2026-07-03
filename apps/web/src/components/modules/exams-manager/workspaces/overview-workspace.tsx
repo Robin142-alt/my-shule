@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -8,13 +10,100 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Plus, Upload, Download, CheckCircle, FileText, Send, Bell, AlertCircle, PlayCircle, Eye, Edit, Archive, UserX, Loader2 } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { downloadCsvFile } from "@/lib/dashboard/export";
 
-export function OverviewWorkspace({ model }: { model: any }) {
-  const { data: statsResponse, isLoading, error } = useSchoolQuery<any>("/exams/dashboard-stats");
-  const { data: seriesResponse } = useSchoolQuery<any>("/exams/series");
+interface ExamStats {
+  total_series?: number | string;
+  draft_marks?: number;
+  pending_moderations?: number;
+  published_reports?: number;
+}
 
-  const stats = statsResponse?.data || statsResponse;
-  const series = seriesResponse?.data || seriesResponse;
+interface ExamSeries {
+  id?: string;
+  name: string;
+  status?: string;
+}
+
+interface ApiResponse<T> {
+  data?: T;
+}
+
+export function OverviewWorkspace({ model }: { model: unknown }) {
+  void model;
+  const router = useRouter();
+  const [notice, setNotice] = useState<string | null>(null);
+  const [savingAction, setSavingAction] = useState<string | null>(null);
+  const { data: statsResponse, isLoading, error } = useSchoolQuery<ApiResponse<ExamStats> | ExamStats>("/exams/dashboard-stats");
+  const { data: seriesResponse } = useSchoolQuery<ApiResponse<ExamSeries[]> | ExamSeries[]>("/exams/series");
+
+  const stats = unwrapApiResponse(statsResponse) ?? {};
+  const series = unwrapApiResponse(seriesResponse) ?? [];
+  const routeTo = (workspace: string) => router.push(`/school/exams-manager/${workspace}`);
+
+  function downloadMarksTemplate() {
+    downloadCsvFile({
+      filename: `marks-entry-template-${new Date().toISOString().slice(0, 10)}.csv`,
+      headers: ["admission_number", "student_name", "exam", "class", "subject", "score", "max_score", "teacher_comment"],
+      rows: [["", "", "", "", "", "", "100", ""]],
+    });
+    setNotice("Marks template downloaded for the current school exam workflow.");
+  }
+
+  async function updateExamLifecycle(exam: ExamSeries | undefined, status: "published" | "archived") {
+    if (!exam?.id) {
+      setNotice("Select a persisted exam series before changing its lifecycle.");
+      return;
+    }
+    setSavingAction(`${status}:${exam.id}`);
+    try {
+      await requestDashboardApi("/api/exams/lifecycle", {
+        method: "POST",
+        body: {
+          id: exam.id,
+          status,
+        },
+      });
+      setNotice(`Exam series ${exam.name} moved to ${status}.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not update the exam lifecycle.");
+    } finally {
+      setSavingAction(null);
+    }
+  }
+
+  function handleExamAction(action: string, exam?: ExamSeries) {
+    const examName = exam?.name ?? "selected exam";
+    switch (action) {
+      case "view":
+        setNotice(`Navigating to exam overview for ${examName}.`);
+        routeTo("exam-setup");
+        break;
+      case "edit":
+        setNotice(`Navigating to edit workspace for ${examName}.`);
+        routeTo("exam-setup");
+        break;
+      case "marks":
+        routeTo("marks-monitor");
+        break;
+      case "validate":
+        routeTo("moderation");
+        break;
+      case "reports":
+        routeTo("report-cards");
+        break;
+      case "approval":
+        routeTo("approvals-publishing");
+        break;
+      case "publish":
+        void updateExamLifecycle(exam, "published");
+        break;
+      case "archive":
+        void updateExamLifecycle(exam, "archived");
+        break;
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -23,6 +112,7 @@ export function OverviewWorkspace({ model }: { model: any }) {
         title="Overview"
         description="Monitor exam readiness, marks entry progress, validation issues, approvals, and report card publishing."
       />
+      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
         {isLoading && <div className="col-span-full py-10 flex flex-col items-center"><Loader2 className="h-6 w-6 animate-spin mb-2" /> Loading stats...</div>}
@@ -60,8 +150,8 @@ export function OverviewWorkspace({ model }: { model: any }) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {Array.isArray(series) && series.map((exam: any, idx: number) => (
-                    <TableRow key={idx}>
+                  {Array.isArray(series) && series.map((exam, idx) => (
+                    <TableRow key={exam.id ?? idx}>
                       <TableCell className="font-medium">{exam.name}</TableCell>
                       <TableCell>Term</TableCell>
                       <TableCell>All</TableCell>
@@ -77,14 +167,14 @@ export function OverviewWorkspace({ model }: { model: any }) {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem><Eye className="mr-2 h-4 w-4" /> View</DropdownMenuItem>
-                            <DropdownMenuItem><Edit className="mr-2 h-4 w-4" /> Edit</DropdownMenuItem>
-                            <DropdownMenuItem><PlayCircle className="mr-2 h-4 w-4" /> Open Marks Entry</DropdownMenuItem>
-                            <DropdownMenuItem><CheckCircle className="mr-2 h-4 w-4" /> Validate Results</DropdownMenuItem>
-                            <DropdownMenuItem><FileText className="mr-2 h-4 w-4" /> Generate Report Cards</DropdownMenuItem>
-                            <DropdownMenuItem><Send className="mr-2 h-4 w-4" /> Submit for Approval</DropdownMenuItem>
-                            <DropdownMenuItem disabled><Send className="mr-2 h-4 w-4" /> Publish</DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive"><Archive className="mr-2 h-4 w-4" /> Archive</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleExamAction("view", exam)}><Eye className="mr-2 h-4 w-4" /> View</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleExamAction("edit", exam)}><Edit className="mr-2 h-4 w-4" /> Edit</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleExamAction("marks", exam)}><PlayCircle className="mr-2 h-4 w-4" /> Open Marks Entry</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleExamAction("validate", exam)}><CheckCircle className="mr-2 h-4 w-4" /> Validate Results</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleExamAction("reports", exam)}><FileText className="mr-2 h-4 w-4" /> Generate Report Cards</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleExamAction("approval", exam)}><Send className="mr-2 h-4 w-4" /> Submit for Approval</DropdownMenuItem>
+                            <DropdownMenuItem disabled={!!savingAction} onClick={() => handleExamAction("publish", exam)}><Send className="mr-2 h-4 w-4" /> Publish</DropdownMenuItem>
+                            <DropdownMenuItem disabled={!!savingAction} className="text-destructive" onClick={() => handleExamAction("archive", exam)}><Archive className="mr-2 h-4 w-4" /> Archive</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -105,7 +195,7 @@ export function OverviewWorkspace({ model }: { model: any }) {
               <h3 className="text-lg font-semibold">Urgent Exam Tasks</h3>
             </div>
             <div className="p-0 divide-y">
-              {stats?.pending_moderations > 0 && (
+              {(stats.pending_moderations ?? 0) > 0 && (
                 <div className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-full bg-warning/10 text-warning">
@@ -113,10 +203,10 @@ export function OverviewWorkspace({ model }: { model: any }) {
                     </div>
                     <span className="text-sm font-medium">{stats.pending_moderations} report cards awaiting moderation</span>
                   </div>
-                  <Button variant="outline" size="sm">Review</Button>
+                  <Button variant="outline" size="sm" onClick={() => routeTo("moderation")}>Review</Button>
                 </div>
               )}
-              {stats?.draft_marks > 0 && (
+              {(stats.draft_marks ?? 0) > 0 && (
                 <div className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-full bg-destructive/10 text-destructive">
@@ -124,10 +214,10 @@ export function OverviewWorkspace({ model }: { model: any }) {
                     </div>
                     <span className="text-sm font-medium">{stats.draft_marks} missing marks entries</span>
                   </div>
-                  <Button variant="outline" size="sm">Monitor</Button>
+                  <Button variant="outline" size="sm" onClick={() => routeTo("marks-monitor")}>Monitor</Button>
                 </div>
               )}
-              {stats?.published_reports > 0 && (
+              {(stats.published_reports ?? 0) > 0 && (
                 <div className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-full bg-success/10 text-success">
@@ -135,7 +225,7 @@ export function OverviewWorkspace({ model }: { model: any }) {
                     </div>
                     <span className="text-sm font-medium">{stats.published_reports} published reports ready for parents</span>
                   </div>
-                  <Button variant="outline" size="sm">View</Button>
+                  <Button variant="outline" size="sm" onClick={() => routeTo("approvals-publishing")}>View</Button>
                 </div>
               )}
               {!stats?.pending_moderations && !stats?.draft_marks && !stats?.published_reports && (
@@ -151,31 +241,31 @@ export function OverviewWorkspace({ model }: { model: any }) {
           <Card className="p-5">
             <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
             <div className="space-y-2">
-              <Button className="w-full justify-start" variant="outline">
+              <Button className="w-full justify-start" variant="outline" onClick={() => routeTo("exam-setup")}>
                 <Plus className="mr-2 h-4 w-4" /> Create New Exam
               </Button>
-              <Button className="w-full justify-start" variant="outline">
+              <Button className="w-full justify-start" variant="outline" onClick={() => routeTo("imports-templates")}>
                 <Upload className="mr-2 h-4 w-4" /> Upload Marks CSV
               </Button>
-              <Button className="w-full justify-start" variant="outline">
+              <Button className="w-full justify-start" variant="outline" onClick={downloadMarksTemplate}>
                 <Download className="mr-2 h-4 w-4" /> Download Marks Template
               </Button>
-              <Button className="w-full justify-start" variant="outline">
+              <Button className="w-full justify-start" variant="outline" onClick={() => routeTo("marks-monitor")}>
                 <PlayCircle className="mr-2 h-4 w-4" /> Open Marks Window
               </Button>
-              <Button className="w-full justify-start" variant="outline">
+              <Button className="w-full justify-start" variant="outline" onClick={() => routeTo("moderation")}>
                 <CheckCircle className="mr-2 h-4 w-4" /> Validate All Results
               </Button>
-              <Button className="w-full justify-start" variant="outline">
+              <Button className="w-full justify-start" variant="outline" onClick={() => routeTo("report-cards")}>
                 <FileText className="mr-2 h-4 w-4" /> Generate Report Cards
               </Button>
-              <Button className="w-full justify-start" variant="outline">
+              <Button className="w-full justify-start" variant="outline" onClick={() => routeTo("approvals-publishing")}>
                 <Send className="mr-2 h-4 w-4" /> Submit to Principal
               </Button>
-              <Button className="w-full justify-start" variant="outline">
+              <Button className="w-full justify-start" variant="outline" onClick={() => routeTo("approvals-publishing")}>
                 <CheckCircle className="mr-2 h-4 w-4" /> Publish Approved Results
               </Button>
-              <Button className="w-full justify-start" variant="outline">
+              <Button className="w-full justify-start" variant="outline" onClick={() => routeTo("communication-exam")}>
                 <Bell className="mr-2 h-4 w-4" /> Send Parent Notice
               </Button>
             </div>
@@ -184,4 +274,8 @@ export function OverviewWorkspace({ model }: { model: any }) {
       </div>
     </div>
   );
+}
+
+function unwrapApiResponse<T>(response: ApiResponse<T> | T | undefined): T | undefined {
+  return response && typeof response === "object" && "data" in response ? (response as ApiResponse<T>).data : (response as T | undefined);
 }

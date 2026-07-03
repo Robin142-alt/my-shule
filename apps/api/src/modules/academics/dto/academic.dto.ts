@@ -178,6 +178,7 @@ export class CreateLessonLogDto {
   subject_id!: string;
   topic!: string;
   notes?: string;
+  date?: string;
 }
 
 export class UpdateAcademicYearDto {

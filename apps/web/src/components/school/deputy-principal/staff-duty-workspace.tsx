@@ -51,7 +51,7 @@ export function DeputyStaffDutyWorkspace() {
     }
   };
 
-  const handleManageRoster = async (e: React.FormEvent) => {
+  const handleManageRoster = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {

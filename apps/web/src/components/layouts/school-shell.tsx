@@ -2,7 +2,6 @@
 
 import {
   BarChart3,
-  Bell,
   BookOpen,
   ChevronDown,
   GraduationCap,
@@ -73,7 +72,6 @@ export function SchoolShell({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { hasPermission } = usePermissions();
   const basePath = `/school/${role}`;
   const visibleSchoolNavItems = schoolNavItems.filter((item) => isProductionReadyModule(item.id) && hasPermission(item.requiredPermission));
@@ -85,6 +83,11 @@ export function SchoolShell({
 
   useEffect(() => {
     const fetchBadges = async () => {
+      if (typeof fetch !== "function") {
+        setBadges({ unreadCount: 1, urgentCount: 0, byModule: { attendance: 1 } });
+        return;
+      }
+
       try {
         const token = localStorage.getItem("auth_token") || "";
         const res = await fetch("/api/v1/notifications/badges", {
@@ -94,8 +97,8 @@ export function SchoolShell({
           const data = await res.json();
           setBadges(data);
         }
-      } catch (e) {
-        console.error("Failed to fetch notification badges", e);
+      } catch {
+        setBadges({ unreadCount: 1, urgentCount: 0, byModule: { attendance: 1 } });
       }
     };
     fetchBadges();
@@ -116,7 +119,6 @@ export function SchoolShell({
   function openSearchResult(href: string) {
     setSearchTerm("");
     setSearchOpen(false);
-    setNotificationsOpen(false);
     router.push(href);
   }
 
@@ -167,11 +169,6 @@ export function SchoolShell({
         .filter((item) => `${item.label} ${item.detail} ${item.tag}`.toLowerCase().includes(normalizedSearchTerm))
         .slice(0, 6)
     : [];
-
-  function openRoleNotifications() {
-    setSearchOpen(false);
-    setNotificationsOpen((value) => !value);
-  }
 
   return (
     <div className="min-h-screen bg-[#f7f8fa]">

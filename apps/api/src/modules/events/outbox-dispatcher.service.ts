@@ -12,6 +12,7 @@ import { SloMetricsService } from '../observability/slo-metrics.service';
 import { StructuredLoggerService } from '../observability/structured-logger.service';
 import { QueueService } from '../../queue/queue.service';
 import { EVENTS_QUEUE_NAME, OUTBOX_EVENT_JOB_NAME } from './events.constants';
+import { EventsSchemaService } from './events-schema.service';
 import { ClaimedOutboxEvent, DispatchOutboxEventJobPayload } from './events.types';
 import { OutboxEventsRepository } from './repositories/outbox-events.repository';
 
@@ -20,18 +21,20 @@ export class OutboxDispatcherService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(OutboxDispatcherService.name);
   private dispatchTimer: NodeJS.Timeout | null = null;
   private isDispatching = false;
+  private queueDegradedLogged = false;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly requestContext: RequestContextService,
     private readonly prisma: PrismaService,
     private readonly queueService: QueueService,
+    private readonly eventsSchemaService: EventsSchemaService,
     private readonly outboxEventsRepository: OutboxEventsRepository,
     @Optional() private readonly structuredLogger?: StructuredLoggerService,
     @Optional() private readonly sloMetrics?: SloMetricsService,
   ) {}
 
-  onModuleInit(): void {
+  async onModuleInit(): Promise<void> {
     const isEnabled =
       this.configService.get<boolean>('events.dispatcherEnabled') ?? true;
 
@@ -39,6 +42,8 @@ export class OutboxDispatcherService implements OnModuleInit, OnModuleDestroy {
       this.logger.log('Outbox dispatcher is disabled for this runtime');
       return;
     }
+
+    await this.eventsSchemaService.onModuleInit();
 
     const intervalMs = Number(this.configService.get<number>('events.dispatcherIntervalMs') ?? 1000);
     this.dispatchTimer = setInterval(() => {
@@ -64,6 +69,16 @@ export class OutboxDispatcherService implements OnModuleInit, OnModuleDestroy {
     this.isDispatching = true;
 
     try {
+      if (this.queueService.isDegraded()) {
+        if (!this.queueDegradedLogged) {
+          this.logger.warn('Outbox dispatcher paused because the events queue is degraded');
+          this.queueDegradedLogged = true;
+        }
+        return 0;
+      }
+
+      this.queueDegradedLogged = false;
+
       const events = await this.requestContext.run(
         {
           request_id: 'outbox-dispatcher',

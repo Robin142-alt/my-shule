@@ -7,6 +7,7 @@ import {
   readAccessCookie,
   readExperienceSessionCookie,
   readTenantCookie,
+  resolveSchoolTenantSlug,
 } from "@/lib/auth/server-session";
 import {
   isDashboardApiConfigured,
@@ -36,8 +37,29 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const tenantId = readTenantCookie(cookieStore) ?? session.tenantSlug;
+  const { tenantSlug: tenantId, tenantMismatch } = resolveSchoolTenantSlug({
+    tenantCookie: readTenantCookie(cookieStore),
+    sessionTenantSlug: session.tenantSlug,
+  });
   const accessToken = readAccessCookie(cookieStore);
+
+  if (tenantMismatch) {
+    return NextResponse.json(
+      { synced: false, message: "Requested school workspace does not match the signed-in session." },
+      { status: 403 },
+    );
+  }
+
+  if (!tenantId || !accessToken) {
+    return NextResponse.json(
+      {
+        synced: false,
+        message: "Librarian session expired. Sign in again to save the return.",
+      },
+      { status: 401 },
+    );
+  }
+
   const moduleAccess = await checkSchoolModuleAccess({
     tenantId,
     accessToken,
@@ -57,7 +79,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!isDashboardApiConfigured() || !tenantId || !accessToken) {
+  if (!isDashboardApiConfigured()) {
     return NextResponse.json(
       {
         synced: false,

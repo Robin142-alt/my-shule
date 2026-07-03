@@ -199,6 +199,248 @@ export class IntegrationsSchemaService implements OnModuleInit {
         created_at timestamptz NOT NULL DEFAULT NOW()
       );
 
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'school_sms_wallets'
+            AND column_name = 'tenant_id'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE school_sms_wallets ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'sms_logs'
+            AND column_name = 'id'
+            AND data_type <> 'uuid'
+        ) AND NOT EXISTS (
+          SELECT 1 FROM sms_logs
+          WHERE id::text !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+        ) THEN
+          ALTER TABLE sms_logs ALTER COLUMN id TYPE uuid USING id::uuid;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'sms_logs'
+            AND column_name = 'status'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE sms_logs ALTER COLUMN status TYPE text USING lower(status::text);
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'sms_wallet_transactions'
+            AND column_name = 'tenant_id'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE sms_wallet_transactions ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'sms_wallet_transactions'
+            AND column_name = 'balance_after'
+            AND data_type <> 'integer'
+        ) THEN
+          ALTER TABLE sms_wallet_transactions ALTER COLUMN balance_after TYPE integer USING balance_after::integer;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'sms_purchase_requests'
+            AND column_name = 'tenant_id'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE sms_purchase_requests ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'school_integrations'
+            AND column_name = 'tenant_id'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE school_integrations ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'integration_logs'
+            AND column_name = 'tenant_id'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE integration_logs ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'integration_logs'
+            AND column_name = 'request_id'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE integration_logs ALTER COLUMN request_id TYPE text USING request_id::text;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'parent_otp_challenges'
+            AND column_name = 'tenant_id'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE parent_otp_challenges ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+        END IF;
+      END;
+      $$;
+
+      ALTER TABLE school_sms_wallets
+        ADD COLUMN IF NOT EXISTS sms_balance integer NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS monthly_used integer NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS monthly_limit integer,
+        ADD COLUMN IF NOT EXISTS sms_plan text NOT NULL DEFAULT 'starter',
+        ADD COLUMN IF NOT EXISTS low_balance_threshold integer NOT NULL DEFAULT 100,
+        ADD COLUMN IF NOT EXISTS allow_negative_balance boolean NOT NULL DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS billing_status text NOT NULL DEFAULT 'active',
+        ADD COLUMN IF NOT EXISTS last_reset_at timestamptz;
+      ALTER TABLE school_sms_wallets
+        ALTER COLUMN sms_balance SET DEFAULT 0,
+        ALTER COLUMN sms_balance SET NOT NULL,
+        ALTER COLUMN monthly_used SET DEFAULT 0,
+        ALTER COLUMN monthly_used SET NOT NULL,
+        ALTER COLUMN sms_plan SET DEFAULT 'starter',
+        ALTER COLUMN sms_plan SET NOT NULL,
+        ALTER COLUMN low_balance_threshold SET DEFAULT 100,
+        ALTER COLUMN low_balance_threshold SET NOT NULL,
+        ALTER COLUMN allow_negative_balance SET DEFAULT FALSE,
+        ALTER COLUMN allow_negative_balance SET NOT NULL,
+        ALTER COLUMN billing_status SET DEFAULT 'active',
+        ALTER COLUMN billing_status SET NOT NULL,
+        ALTER COLUMN updated_at SET DEFAULT NOW(),
+        ALTER COLUMN updated_at SET NOT NULL;
+
+      ALTER TABLE sms_logs
+        ADD COLUMN IF NOT EXISTS school_id text,
+        ADD COLUMN IF NOT EXISTS phone_number text,
+        ADD COLUMN IF NOT EXISTS message text,
+        ADD COLUMN IF NOT EXISTS cost double precision,
+        ADD COLUMN IF NOT EXISTS error_message text,
+        ADD COLUMN IF NOT EXISTS tenant_id text,
+        ADD COLUMN IF NOT EXISTS provider_id uuid,
+        ADD COLUMN IF NOT EXISTS recipient_ciphertext text,
+        ADD COLUMN IF NOT EXISTS recipient_last4 text,
+        ADD COLUMN IF NOT EXISTS recipient_hash text,
+        ADD COLUMN IF NOT EXISTS message_ciphertext text,
+        ADD COLUMN IF NOT EXISTS message_preview text,
+        ADD COLUMN IF NOT EXISTS message_type text,
+        ADD COLUMN IF NOT EXISTS credit_cost integer NOT NULL DEFAULT 1,
+        ADD COLUMN IF NOT EXISTS failure_reason text,
+        ADD COLUMN IF NOT EXISTS sent_by_user_id uuid,
+        ADD COLUMN IF NOT EXISTS sent_at timestamptz,
+        ADD COLUMN IF NOT EXISTS delivered_at timestamptz;
+      UPDATE sms_logs
+      SET tenant_id = COALESCE(NULLIF(tenant_id, ''), NULLIF(school_id, ''), 'legacy-unassigned'),
+          recipient_ciphertext = COALESCE(NULLIF(recipient_ciphertext, ''), NULLIF(phone_number, ''), 'legacy-redacted'),
+          recipient_hash = COALESCE(NULLIF(recipient_hash, ''), encode(digest(COALESCE(NULLIF(phone_number, ''), id::text), 'sha256'), 'hex')),
+          message_preview = COALESCE(NULLIF(message_preview, ''), left(COALESCE(message, ''), 160)),
+          message_ciphertext = COALESCE(NULLIF(message_ciphertext, ''), NULLIF(message, '')),
+          message_type = COALESCE(NULLIF(message_type, ''), 'sms'),
+          credit_cost = COALESCE(credit_cost, GREATEST(1, CEIL(COALESCE(cost, 1))::integer)),
+          failure_reason = COALESCE(NULLIF(failure_reason, ''), NULLIF(error_message, '')),
+          status = CASE lower(status)
+            WHEN 'delivered' THEN 'delivered'
+            WHEN 'sent' THEN 'sent'
+            WHEN 'failed' THEN 'failed'
+            WHEN 'rejected' THEN 'rejected'
+            ELSE 'queued'
+          END,
+          updated_at = COALESCE(updated_at, created_at, NOW())
+      WHERE tenant_id IS NULL
+         OR recipient_ciphertext IS NULL
+         OR recipient_hash IS NULL
+         OR credit_cost IS NULL
+         OR status IS NULL
+         OR updated_at IS NULL;
+      ALTER TABLE sms_logs
+        ALTER COLUMN tenant_id SET NOT NULL,
+        ALTER COLUMN recipient_ciphertext SET NOT NULL,
+        ALTER COLUMN recipient_hash SET NOT NULL,
+        ALTER COLUMN status SET DEFAULT 'queued',
+        ALTER COLUMN status SET NOT NULL,
+        ALTER COLUMN credit_cost SET DEFAULT 1,
+        ALTER COLUMN credit_cost SET NOT NULL,
+        ALTER COLUMN updated_at SET DEFAULT NOW(),
+        ALTER COLUMN updated_at SET NOT NULL;
+
+      ALTER TABLE sms_wallet_transactions
+        ALTER COLUMN reference DROP NOT NULL,
+        ALTER COLUMN reason DROP NOT NULL,
+        ALTER COLUMN created_by_user_id DROP NOT NULL;
+
+      ALTER TABLE sms_purchase_requests
+        ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'pending',
+        ADD COLUMN IF NOT EXISTS reviewed_by_user_id uuid;
+      ALTER TABLE sms_purchase_requests
+        ALTER COLUMN note DROP NOT NULL,
+        ALTER COLUMN requested_by_user_id DROP NOT NULL,
+        ALTER COLUMN status SET DEFAULT 'pending',
+        ALTER COLUMN status SET NOT NULL,
+        ALTER COLUMN updated_at SET DEFAULT NOW(),
+        ALTER COLUMN updated_at SET NOT NULL;
+
+      ALTER TABLE school_integrations
+        ADD COLUMN IF NOT EXISTS callback_secret_hash text,
+        ADD COLUMN IF NOT EXISTS last_test_status text,
+        ADD COLUMN IF NOT EXISTS last_tested_at timestamptz;
+      ALTER TABLE school_integrations
+        ALTER COLUMN paybill_number DROP NOT NULL,
+        ALTER COLUMN till_number DROP NOT NULL,
+        ALTER COLUMN shortcode DROP NOT NULL,
+        ALTER COLUMN consumer_key_ciphertext DROP NOT NULL,
+        ALTER COLUMN consumer_secret_ciphertext DROP NOT NULL,
+        ALTER COLUMN passkey_ciphertext DROP NOT NULL,
+        ALTER COLUMN callback_url DROP NOT NULL,
+        ALTER COLUMN created_by_user_id DROP NOT NULL,
+        ALTER COLUMN updated_by_user_id DROP NOT NULL,
+        ALTER COLUMN environment SET DEFAULT 'sandbox',
+        ALTER COLUMN is_active SET DEFAULT FALSE,
+        ALTER COLUMN is_active SET NOT NULL,
+        ALTER COLUMN updated_at SET DEFAULT NOW(),
+        ALTER COLUMN updated_at SET NOT NULL;
+
+      ALTER TABLE integration_logs
+        ALTER COLUMN tenant_id SET NOT NULL,
+        ALTER COLUMN provider_reference DROP NOT NULL,
+        ALTER COLUMN error_message DROP NOT NULL,
+        ALTER COLUMN request_id DROP NOT NULL,
+        ALTER COLUMN created_by_user_id DROP NOT NULL;
+
+      ALTER TABLE parent_otp_challenges
+        ADD COLUMN IF NOT EXISTS purpose text NOT NULL DEFAULT 'parent_login',
+        ADD COLUMN IF NOT EXISTS consumed_at timestamptz,
+        ADD COLUMN IF NOT EXISTS attempts integer NOT NULL DEFAULT 0;
+      ALTER TABLE parent_otp_challenges
+        ALTER COLUMN user_id DROP NOT NULL,
+        ALTER COLUMN phone_hash DROP NOT NULL,
+        ALTER COLUMN phone_last4 DROP NOT NULL,
+        ALTER COLUMN email DROP NOT NULL,
+        ALTER COLUMN purpose SET DEFAULT 'parent_login',
+        ALTER COLUMN purpose SET NOT NULL,
+        ALTER COLUMN attempts SET DEFAULT 0,
+        ALTER COLUMN attempts SET NOT NULL;
+
       CREATE INDEX IF NOT EXISTS ix_sms_logs_tenant_created ON sms_logs (tenant_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS ix_sms_logs_tenant_status_created ON sms_logs (tenant_id, status, created_at DESC);
       CREATE INDEX IF NOT EXISTS ix_sms_wallet_transactions_tenant_created ON sms_wallet_transactions (tenant_id, created_at DESC);

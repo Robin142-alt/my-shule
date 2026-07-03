@@ -9,6 +9,7 @@ const BOARDING_TABLES = [
   'boarding_meals',
   'boarding_dormitory_checks',
   'boarding_incidents',
+  'boarding_reports',
   'boarding_audit_logs',
 ] as const;
 
@@ -94,10 +95,23 @@ export class BoardingSchemaService implements OnModuleInit {
           updated_at timestamptz NOT NULL DEFAULT NOW(),
           audit_log_reference uuid
         );
+        CREATE TABLE IF NOT EXISTS boarding_reports (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          tenant_id text NOT NULL,
+          report_type text NOT NULL,
+          status text NOT NULL DEFAULT 'queued',
+          generated_by_user_id text,
+          generated_from text,
+          metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW(),
+          audit_log_reference uuid
+        );
       `,
       indexesSql: `
         CREATE INDEX IF NOT EXISTS ix_boarding_students_house ON boarding_students (tenant_id, house_id, status);
         CREATE INDEX IF NOT EXISTS ix_boarding_meals_date ON boarding_meals (tenant_id, meal_date, meal_type);
+        CREATE INDEX IF NOT EXISTS ix_boarding_reports_tenant_status ON boarding_reports (tenant_id, status, created_at DESC);
       `,
     }));
 

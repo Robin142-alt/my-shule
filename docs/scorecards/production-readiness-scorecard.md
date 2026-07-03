@@ -1,8 +1,8 @@
 # Production Readiness Scorecard
 
-Generated at: 2026-06-12T15:08:06.425Z
+Generated at: 2026-07-03T15:44:01.245Z
 
-Overall score: 96/95
+Overall score: 97/95
 
 Status: pass
 
@@ -13,7 +13,10 @@ Status: pass
 | Tenant isolation | 98 | 96 | pass | present: tenant isolation test script exists; present: tenant isolation audit script exists; present: security scan script exists; present: dependency vulnerability scan script exists; present: API consistency test script exists; present: implementation10 requires tenant isolation audit | Add the tenant isolation audit runner and require it in CI for finance, support, library, discipline, reports, and files. |
 | Finance and payments | 96 | 95 | pass | present: finance integrity test script exists; present: financial reconciliation test script exists; present: MPESA adversarial test script exists; present: finance certification script exists | Run finance certification against real tenant workflows: cheque, MPESA callback, reversal, receipts, balances, and exports. |
 | Support and operations | 96 | 95 | pass | present: support SMS uses dashboard-managed dispatch service; present: support notification health reports precise missing provider state; present: support notification health reports precise missing credential state | Wire support analytics and system status dashboards to live operational endpoints. |
-| Provider integrations | 94 | 94 | pass | present: shared SMS dispatch service exists; present: provider smoke script exists; present: malware scanner smoke coverage exists; present: object storage smoke coverage exists | Configure live production secrets and require provider smoke evidence in the production operability workflow. |
+| Provider integrations | 98 | 94 | pass | present: shared SMS dispatch service exists; present: provider smoke script exists; present: transactional email live smoke coverage exists; present: Resend sender-domain verification coverage exists; present: malware scanner smoke coverage exists; present: object storage smoke coverage exists; present: Redis queue/cache smoke coverage exists | Configure live production secrets and require provider smoke evidence in the production operability workflow. |
+| Live provider smoke | 100 | 100 | pass | live API readiness reports Redis, email, support notifications, object storage, and malware scanning configured; no live provider readiness failures recorded | Run SUPPORT_PROVIDER_SMOKE_LIVE=true npm run smoke:providers and fix every failing live provider before go-live. |
+| Production environment audit | 100 | 100 | pass | live API readiness reports production_env configured with 0 issues; no production env issues recorded in hosted runtime | Run npm run env:production:audit and fix every missing or invalid production runtime setting before deployment. |
+| Hosted production auth smoke | 100 | 100 | pass | production auth smoke recorded 6/6 passing checks; no hosted auth smoke failure recorded | Run npm run smoke:production-auth against the deployed web/API URLs and fix readiness, login, CSRF, proxy, and public status failures before go-live. |
 | Frontend UX completeness | 94 | 93 | pass | present: web lint script exists; present: web build script exists; present: design test script exists; attendance remains inactive in module readiness | Replace fallback telemetry with live states and run mobile journeys for login, parent, finance, library, support, and discipline. |
 | Performance and scale proof | 94 | 94 | pass | present: tenant-scale load script exists; present: Kenyan school load script exists; present: query-plan review script exists | Publish tenant-scale load artifacts and enforce query budgets in CI. |
 | Implementation 90 extreme scale and security | 95 | 95 | pass | present: Implementation 90 load-profile script exists; present: 5,000+ users/sec traffic profile exists; present: release budget validator exists; present: scale architecture is documented; present: breach-resistant security model is documented; present: extreme-scale runbook covers database saturation; present: extreme-scale runbook covers Redis degradation; present: extreme-scale runbook covers queue backlog; present: security lockdown runbook covers secret rotation; present: security lockdown runbook covers provider callback shutdown; present: Implementation 90 observability dashboard exists | Run the mixed 5,000+ users/sec profile against production-like infrastructure before raising public launch traffic. |

@@ -4,7 +4,7 @@ import { FileText, CheckCircle, AlertCircle, Send } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { toast } from "sonner";
-import { verifyDocument } from "./api-client";
+import { requestDocument, verifyDocument } from "./api-client";
 
 type DocumentRecord = {
   id: string;
@@ -24,6 +24,7 @@ type DocumentsData = {
 export function DocumentsWorkspace() {
   const { data, isLoading, refetch } = useSchoolQuery<DocumentsData>('/admin-command/admissions/documents');
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
+  const [requestingId, setRequestingId] = useState<string | null>(null);
 
   const documents = data?.documentsList || [];
 
@@ -47,6 +48,23 @@ export function DocumentsWorkspace() {
       toast.error("Failed to verify document.");
     } finally {
       setVerifyingId(null);
+    }
+  };
+
+  const handleRequestDocument = async (doc: DocumentRecord) => {
+    setRequestingId(doc.id);
+    try {
+      await requestDocument({
+        document_id: doc.id,
+        student_name: doc.student_name,
+        document_type: doc.document_type,
+      });
+      toast.success(`Document request sent for ${doc.student_name}.`);
+      refetch();
+    } catch {
+      toast.error("Failed to send document request.");
+    } finally {
+      setRequestingId(null);
     }
   };
 
@@ -105,7 +123,7 @@ export function DocumentsWorkspace() {
                           className="text-emerald-600 hover:underline text-xs font-semibold inline-flex items-center gap-1 disabled:opacity-50"><CheckCircle className="w-3 h-3" /> Verify</button>
                       )}
                       {doc.status?.toLowerCase() === "missing" && (
-                        <button className="text-blue-600 hover:underline text-xs font-semibold inline-flex items-center gap-1"><Send className="w-3 h-3" /> Request</button>
+                        <button type="button" disabled={requestingId === doc.id} onClick={() => handleRequestDocument(doc)} className="text-blue-600 hover:underline text-xs font-semibold inline-flex items-center gap-1 disabled:opacity-50"><Send className="w-3 h-3" /> Request</button>
                       )}
                     </div>
                   </td>

@@ -1,12 +1,14 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
+import { AdminCommandOperationsService } from './admin-command-operations.service';
 
 @Injectable()
 export class ExamsManagerCommandService {
   constructor(
     private readonly requestContext: RequestContextService,
     private readonly prisma: PrismaService,
+    private readonly operations: AdminCommandOperationsService,
   ) {}
 
   private requireTenantId(): string {
@@ -110,15 +112,54 @@ export class ExamsManagerCommandService {
 
   async getReports() {
     const tenantId = this.requireTenantId();
-    const res = await this.executeSql(
-      `SELECT * FROM exam_reports WHERE tenant_id = $1 ORDER BY created_at DESC`,
-      [tenantId]
-    );
-    return res.rows;
+    return this.operations.listReportSnapshots(tenantId, 'exams-manager-command');
   }
 
   async generateReport(dto: any) {
     const tenantId = this.requireTenantId();
-    return { success: true, message: 'Exams report generated successfully' };
+    const userId = this.operations.uuidOrNull(this.requestContext.getStore()?.user_id);
+    const [overview, examSetup, examTimetable, marksEntry, moderation, publishing, reportCards, analysis] = await Promise.all([
+      this.getOverview(),
+      this.getExamSetup(),
+      this.getExamTimetable(),
+      this.getMarksEntry(),
+      this.getModeration(),
+      this.getPublishing(),
+      this.getReportCards(),
+      this.getAnalysis(),
+    ]);
+    return this.operations.generateReportSnapshot({
+      tenantId,
+      module: 'exams-manager-command',
+      reportId: 'exams-operations',
+      title: String(dto?.name || dto?.title || 'Exams operations report'),
+      format: dto?.format,
+      generatedByUserId: userId,
+      sections: { overview, examSetup, examTimetable, marksEntry, moderation, publishing, reportCards, analysis },
+      filters: { requested_from: 'exams-manager-dashboard' },
+      targetRoles: ['principal', 'dean_academics', 'exams_manager'],
+    });
+  }
+
+  async recordExamAction(action: string, dto: any = {}, entityId?: string | null) {
+    const tenantId = this.requireTenantId();
+    const eventType = `exams.${action}`;
+    return this.operations.recordWorkflowAction({
+      tenantId,
+      actorUserId: this.requestContext.getStore()?.user_id,
+      sourceRole: 'exams_manager',
+      targetRoles: ['principal', 'dean_academics', 'hod', 'teacher'],
+      eventType,
+      entityType: 'exam_workflow',
+      entityId: entityId ?? dto?.id ?? null,
+      title: this.titleForAction('Exams', action),
+      message: dto?.reason ?? dto?.notes ?? dto?.title ?? null,
+      priority: ['publish', 'unpublish', 'reject'].some((part) => action.includes(part)) ? 'high' : 'normal',
+      payload: { action, ...dto },
+    });
+  }
+
+  private titleForAction(prefix: string, action: string) {
+    return `${prefix}: ${action.replace(/[-_.]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())}`;
   }
 }

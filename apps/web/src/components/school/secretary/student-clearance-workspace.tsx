@@ -51,7 +51,7 @@ export function StudentClearanceWorkspace() {
     setActionId(id);
     try {
       await completeClearance(id);
-      toast.success("Clearance completed successfully.");
+      toast.success(`Clearance ${id} marked complete and department checklist refreshed.`);
       refetch();
     } catch {
       toast.error("Failed to complete clearance.");

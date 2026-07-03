@@ -1,5 +1,3 @@
-
-import { Inject } from '@nestjs/common';
 import { CreateEnquiryDto } from './dto/create-enquiry.dto';
 import { CreateInterviewDto } from './dto/create-interview.dto';
 import { CreateOfferDto } from './dto/create-offer.dto';
@@ -7,9 +5,7 @@ import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { CreateTemplateDto } from './dto/create-template.dto';
 
-import { PrismaService } from '../../database/prisma.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 
 import {
   Body,
@@ -48,40 +44,7 @@ import type { UploadedBinaryFile } from './storage/local-document-storage.servic
 @Controller('admissions')
 @RequiresModule('admissions')
 export class AdmissionsController {
-
-  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
-    const firstParam = params[0];
-    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
-
-    if ((this.prisma as any).query) {
-      return (this.prisma as any).query(query, params);
-    }
-
-    
-    if (isUuid) {
-      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
-        const result = await tx.$queryRawUnsafe(query, ...params);
-        const arr = Array.isArray(result) ? result : [result];
-        return { rows: arr, rowCount: arr.length };
-      });
-    } else {
-      const result = await this.prisma.$queryRawUnsafe(query, ...params);
-      const arr = Array.isArray(result) ? result : [result];
-        return { rows: arr, rowCount: arr.length };
-    }
-  }
-
-
-  @Inject(PrismaService)
-  private readonly db!: PrismaService;
-
-  @Inject(RequestContextService)
-  private readonly requestContext!: RequestContextService;
-
-  @Inject(SchoolOperationalEventsService)
-  private readonly events!: SchoolOperationalEventsService;
-
-  constructor(private readonly prisma: PrismaService, private readonly admissionsService: AdmissionsService,
+  constructor(private readonly requestContext: RequestContextService, private readonly admissionsService: AdmissionsService,
     private readonly reportExportQueueService: ReportExportQueueService,
   ) {}
 
@@ -101,7 +64,7 @@ export class AdmissionsController {
   @Post('applications/:id/enrol')
   @Permissions('admissions:write')
   async enrolApplication(@Param('id') id: string) {
-    return { success: true, admissionNumber: `ADM-${Math.floor(Math.random() * 10000)}` };
+    return this.admissionsService.enrolApplicationWithGeneratedNumber(id);
   }
 
   @Post('applications')
@@ -261,39 +224,13 @@ export class AdmissionsController {
   async importApplications(
     @UploadedFile() file: UploadedBinaryFile,
   ) {
-    // Basic implementation of import parsing.
-    return {
-      success: true,
-      rows: [
-        { id: "1", name: "Joy Kemboi", grade: "Form 1", parentContact: "0712345678", status: "Valid" },
-        { id: "2", name: "Paul Ochieng", grade: "Form 1", parentContact: "0789123456", status: "Valid" },
-        { id: "3", name: "Invalid Entry", grade: "Unknown", parentContact: "123", status: "Invalid", error: "Missing grade map" },
-      ]
-    };
+    return this.admissionsService.previewApplicationImport(file);
   }
 
   @Post('apply')
   @Permissions('admissions:write')
-  async applyPhase5(@Body() body: any) {
-    const store = this.requestContext.requireStore();
-    const result = await this.db.query(
-      `INSERT INTO admissions_applications (tenant_id, school_id, reference_number, applicant_first_name, applicant_last_name, status) 
-       VALUES ($1, $1, $2, $3, $4, $5) RETURNING *`,
-      [store.tenant_id, store.tenant_id, Date.now().toString(), body.first_name || 'FN', body.last_name || 'LN', 'draft']
-    );
-    await this.events.recordSchoolOperation({
-      schoolId: store.tenant_id,
-      event: { 
-        id: result.rows[0].id,
-        type: 'admissions.application.submitted', 
-        module: 'admissions', 
-        title: 'New Admission Application', 
-        body: 'A new admission application was submitted', 
-        actorRole: store.role || 'system',
-        createdAt: new Date().toISOString()
-      }
-    });
-    return result.rows[0];
+  async applyPhase5(@Body() body: CreateApplicationDto) {
+    return this.admissionsService.createApplication(body);
   }
 
 

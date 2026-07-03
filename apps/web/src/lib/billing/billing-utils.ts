@@ -64,3 +64,13 @@ export function buildPaymentsApiPath(path: string, tenantSlug?: string | null) {
   const separator = path.includes("?") ? "&" : "?";
   return `${path}${separator}tenant_slug=${encodeURIComponent(tenantSlug)}`;
 }
+
+export function unwrapBillingApiData<T>(
+  payload: T | { data?: T; message?: string } | { message?: string } | null | undefined,
+): T | null {
+  if (payload && typeof payload === "object" && !Array.isArray(payload) && "data" in payload) {
+    return payload.data === undefined ? null : (payload.data as T);
+  }
+
+  return payload === undefined ? null : (payload as T);
+}

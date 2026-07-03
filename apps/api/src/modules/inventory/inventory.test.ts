@@ -2275,6 +2275,107 @@ test('InventoryService rejects unknown server-side report exports', async () => 
   );
 });
 
+test('InventoryService builds heatmap analytics from tenant inventory reports', async () => {
+  const requestContext = new RequestContextService();
+  let tenantUsed: string | null = null;
+  const service = new InventoryService(
+    requestContext,
+    {} as never,
+    {
+      buildReports: async (tenantId: string) => {
+        tenantUsed = tenantId;
+        return {
+          stock_valuation: [
+            { item_name: 'Exercise Books', sku: 'EX-001', quantity_on_hand: 25, unit_price: 80, total_value: 2000 },
+            { item_name: 'Chalk', sku: 'CHK-001', quantity_on_hand: 3, unit_price: 50, total_value: 150 },
+          ],
+          low_stock_report: [
+            { item_name: 'Chalk', sku: 'CHK-001', quantity_on_hand: 3, reorder_level: 10 },
+          ],
+          movement_history: [{ movement_type: 'stock_in', movement_count: 4 }],
+          supplier_purchases: [],
+          stock_reconciliation: [
+            { item_name: 'Exercise Books', sku: 'EX-001', item_quantity_on_hand: 25, location_quantity_on_hand: 25, variance_quantity: 0, status: 'matched' },
+            { item_name: 'Chalk', sku: 'CHK-001', item_quantity_on_hand: 3, location_quantity_on_hand: 1, variance_quantity: 2, status: 'variance' },
+          ],
+        };
+      },
+    } as never,
+  );
+
+  const heatmap = await requestContext.run(
+    {
+      request_id: 'req-inventory-heatmap',
+      tenant_id: 'tenant-a',
+      user_id: '00000000-0000-0000-0000-000000000001',
+      role: 'storekeeper',
+      session_id: 'session-1',
+      permissions: ['inventory:*'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'GET',
+      path: '/inventory/heatmap',
+      started_at: '2026-05-04T00:00:00.000Z',
+    },
+    () => service.getHeatmap(),
+  );
+
+  assert.equal(tenantUsed, 'tenant-a');
+  assert.equal(heatmap.metrics.total_value, 2150);
+  assert.equal(heatmap.metrics.low_stock_count, 1);
+  assert.equal(heatmap.metrics.variance_count, 1);
+  assert.equal(heatmap.items.find((item) => item.sku === 'CHK-001')?.low_stock, true);
+});
+
+test('InventoryService builds operational insights from low stock, variance, and supplier report data', async () => {
+  const requestContext = new RequestContextService();
+  const service = new InventoryService(
+    requestContext,
+    {} as never,
+    {
+      buildReports: async () => ({
+        stock_valuation: [],
+        low_stock_report: [
+          { item_name: 'Chalk', sku: 'CHK-001', quantity_on_hand: 3, reorder_level: 10 },
+        ],
+        movement_history: [{ movement_type: 'stock_out', movement_count: 7 }],
+        supplier_purchases: [
+          { supplier_name: 'Nairobi Stationers', purchase_orders: 2, total_spend: 45000 },
+        ],
+        stock_reconciliation: [
+          { item_name: 'Marker Pens', sku: 'MRK-001', item_quantity_on_hand: 8, location_quantity_on_hand: 5, variance_quantity: 3, status: 'variance' },
+        ],
+      }),
+    } as never,
+  );
+
+  const insights = await requestContext.run(
+    {
+      request_id: 'req-inventory-insights',
+      tenant_id: 'tenant-a',
+      user_id: '00000000-0000-0000-0000-000000000001',
+      role: 'storekeeper',
+      session_id: 'session-1',
+      permissions: ['inventory:*'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'GET',
+      path: '/inventory/insights',
+      started_at: '2026-05-04T00:00:00.000Z',
+    },
+    () => service.getInsights(),
+  );
+
+  assert.equal(insights.metrics.low_stock_count, 1);
+  assert.equal(insights.metrics.variance_count, 1);
+  assert.equal(insights.metrics.supplier_count, 1);
+  assert.ok(insights.items.some((item) => item.type === 'low_stock' && /Chalk/.test(item.title)));
+  assert.ok(insights.items.some((item) => item.type === 'stock_variance' && /Marker Pens/.test(item.title)));
+  assert.ok(insights.items.some((item) => item.type === 'supplier_activity' && /Nairobi Stationers/.test(item.title)));
+});
+
 import { PATH_METADATA } from '@nestjs/common/constants';
 import { InventoryController } from './inventory.controller';
 

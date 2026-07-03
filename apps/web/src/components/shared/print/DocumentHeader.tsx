@@ -37,7 +37,7 @@ export default function DocumentHeader({ title, documentNumber, schoolDetails }:
         )}
         <div>
           <h1 className="text-[16px] md:text-[20px] font-bold uppercase text-[#071D49] m-0 leading-tight">
-            {schoolDetails?.name || 'MYSHULE SECONDARY SCHOOL'}
+            {schoolDetails?.name || 'School name not configured'}
           </h1>
           {schoolDetails?.motto && (
             <p className="text-[10px] italic text-gray-600 m-0 mt-1">"{schoolDetails.motto}"</p>
@@ -54,8 +54,8 @@ export default function DocumentHeader({ title, documentNumber, schoolDetails }:
 
       {/* Right: Contact & Meta */}
       <div className="flex flex-col items-end w-1/3 text-[10px] text-gray-700 space-y-1">
-        <p className="m-0 font-semibold">{schoolDetails?.address || 'P.O. Box 123, Nairobi'}</p>
-        <p className="m-0">{schoolDetails?.phone || '0712 345 678'} | {schoolDetails?.email || 'info@school.ac.ke'}</p>
+        <p className="m-0 font-semibold">{schoolDetails?.address || 'School address not configured'}</p>
+        <p className="m-0">{schoolDetails?.phone || 'Phone not configured'} | {schoolDetails?.email || 'Email not configured'}</p>
         {documentNumber && (
           <p className="m-0 mt-2 font-mono">
             <span className="font-bold">Doc No:</span> {documentNumber}

@@ -87,6 +87,36 @@ type ApplicantRow = {
   tone: Tone;
 };
 
+function admissionsActionSlug(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ".")
+    .replace(/^\.+|\.+$/g, "") || "workflow.action";
+}
+
+async function persistAdmissionsWorkflowAction(input: {
+  action: string;
+  title: string;
+  message: string;
+  priority?: "normal" | "high" | "urgent";
+  entityId?: string | null;
+  payload?: Record<string, unknown>;
+}) {
+  return requestDashboardApi("/api/admin-command/admissions/actions", {
+    method: "POST",
+    body: {
+      action: admissionsActionSlug(input.action),
+      title: input.title,
+      message: input.message,
+      priority: input.priority ?? "normal",
+      entityId: input.entityId ?? null,
+      payload: input.payload ?? {},
+      source: "registrar-command-center",
+    },
+  });
+}
+
 type ApplicantFilter = "All statuses" | "Pending" | "Verified" | "Interview Scheduled" | "Approved" | "Rejected" | "Waitlisted";
 
 type Insight = {
@@ -115,14 +145,7 @@ type AdmissionsDashboardModel = {
   auditCards: SimpleCard[];
 };
 
-const registrarSearchRecords = [
-  { id: "applicant-faith", label: "Faith Akinyi", detail: "Grade 8 East applicant | documents pending", sectionId: "applications" },
-  { id: "admission-kb-1042", label: "KB-2026-1042", detail: "Admission number generated, fee clearance pending", sectionId: "student-ids" },
-  { id: "parent-otieno", label: "Mr. Otieno", detail: "Guardian contact verification needed", sectionId: "parent-records" },
-  { id: "transfer-letter", label: "Transfer request", detail: "Outgoing transfer letter pending print", sectionId: "transfers" },
-] satisfies Array<{ id: string; label: string; detail: string; sectionId: string }>;
-
-type RegistrarSearchRecord = (typeof registrarSearchRecords)[number];
+type RegistrarSearchRecord = { id: string; label: string; detail: string; sectionId: string };
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -255,13 +278,7 @@ const funnelStages: FunnelStage[] = [
   { label: "Fully Enrolled", value: 646, conversion: "96%", tone: "cyan" },
 ];
 
-const applicants: ApplicantRow[] = [
-  { id: "applicant-amina-wanjiru", name: "Amina Wanjiru", admissionNumber: "ADM-2026-1184", grade: "Form 1 East", parent: "0712 440 901", status: "Verified", fee: "Confirmed", documents: "Complete", interview: "Recommended", risk: "Clear", date: "May 24", tone: "success" },
-  { id: "applicant-brian-otieno", name: "Brian Otieno", admissionNumber: "Pending", grade: "Form 2 North", parent: "0790 104 228", status: "Pending", fee: "Mismatch", documents: "Missing KCPE", interview: "Scheduled", risk: "Payment mismatch", date: "May 23", tone: "danger" },
-  { id: "applicant-grace-achieng", name: "Grace Achieng", admissionNumber: "ADM-2026-1169", grade: "Grade 7", parent: "0700 551 119", status: "Waitlisted", fee: "Pending", documents: "Parent ID missing", interview: "Rescheduled", risk: "Incomplete guardian data", date: "May 22", tone: "warning" },
-  { id: "applicant-moses-kariuki", name: "Moses Kariuki", admissionNumber: "ADM-2026-1164", grade: "Form 1 West", parent: "0722 880 441", status: "Rejected", fee: "Unverified", documents: "Tampering alert", interview: "Declined", risk: "Fake document suspicion", date: "May 21", tone: "danger" },
-  { id: "applicant-njeri-mwangi", name: "Njeri Mwangi", admissionNumber: "ADM-2026-1157", grade: "Form 3 South", parent: "0788 119 002", status: "Approved", fee: "Confirmed", documents: "OCR verified", interview: "Attended", risk: "Duplicate records checked", date: "May 20", tone: "success" },
-];
+const applicants: ApplicantRow[] = [];
 
 const documentCards: SimpleCard[] = [
   { title: "Birth Certificate", value: "94%", detail: "OCR verification passed for most uploads", tone: "success" },
@@ -1001,7 +1018,7 @@ function useAdmissionsDashboardMapper(backendData: any): AdmissionsDashboardMode
 }
 
 export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRouteMode }) {
-  const { data: rawData, isLoading, refetch } = useSchoolQuery<any>('/admin-command/admissions/dashboard');
+  const { data: rawData, isLoading, refetch } = useSchoolQuery<any>("/api/admin-command/admissions/dashboard");
   const data = useAdmissionsDashboardMapper(rawData);
   const [searchTerm, setSearchTerm] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1037,25 +1054,43 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
 
   function openQuickActions() {
     setQuickActionsOpen(true);
-    setNotice("Quick admissions action ready.");
+    setNotice("Quick admissions action drawer opened. Save an action to persist it and notify the admissions chain.");
   }
 
   function openApplicantFilter(filter: ApplicantFilter) {
     setActiveApplicantFilter(filter);
-    setNotice(`${filter} applicant filter ready to apply.`);
+    setNotice(`${filter} applicant filter selected. Apply it to persist the filter action and notify follow-up roles.`);
   }
 
   function openApplicationPreview(applicant: ApplicantRow) {
     setSelectedApplicantPreview(applicant);
-    setNotice(`${applicant.name} application preview ready.`);
+    setNotice(`${applicant.name} application print preview generated. Record the review to persist it for admissions follow-up.`);
   }
 
-  function applyApplicantFilter() {
+  async function applyApplicantFilter() {
     if (!activeApplicantFilter) return;
 
     const schoolId = getCurrentSchoolId();
     const filterId = activeApplicantFilter.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const visibleRecords = applicants.filter((applicant) => activeApplicantFilter === "All statuses" || applicant.status === activeApplicantFilter).length;
+
+    try {
+      await persistAdmissionsWorkflowAction({
+        action: "applicant_filter_applied",
+        title: `${activeApplicantFilter} applicant filter applied`,
+        message: `Admissions Officer applied the ${activeApplicantFilter} filter to the school applicant table.`,
+        entityId: `admissions-filter-${filterId}`,
+        payload: {
+          filter: activeApplicantFilter,
+          visibleRecords,
+        },
+      });
+    } catch (error) {
+      toast.error("Admissions filter action was not saved", {
+        description: error instanceof Error ? error.message : "The filter action could not be persisted for audit and dashboard follow-up.",
+      });
+      return;
+    }
 
     publishSchoolOperationalEvent({
       schoolId,
@@ -1112,7 +1147,7 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
     }
   }
 
-  function recordApplicationPreview() {
+  async function recordApplicationPreview() {
 
     if (!selectedApplicantPreview) return;
 
@@ -1120,6 +1155,30 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
     const applicantId = selectedApplicantPreview.admissionNumber === "Pending"
       ? selectedApplicantPreview.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
       : selectedApplicantPreview.admissionNumber.toLowerCase();
+
+    try {
+      await persistAdmissionsWorkflowAction({
+        action: "application_preview_recorded",
+        title: `${selectedApplicantPreview.name} application preview recorded`,
+        message: `Admissions Officer reviewed ${selectedApplicantPreview.name}'s application, document status, fee status, interview status, and risk notes.`,
+        priority: selectedApplicantPreview.tone === "danger" ? "high" : "normal",
+        entityId: `admissions-preview-${applicantId}`,
+        payload: {
+          applicantName: selectedApplicantPreview.name,
+          admissionNumber: selectedApplicantPreview.admissionNumber,
+          grade: selectedApplicantPreview.grade,
+          status: selectedApplicantPreview.status,
+          feeStatus: selectedApplicantPreview.fee,
+          documentStatus: selectedApplicantPreview.documents,
+          risk: selectedApplicantPreview.risk,
+        },
+      });
+    } catch (error) {
+      toast.error("Admissions preview was not saved", {
+        description: error instanceof Error ? error.message : "The preview action could not be persisted for audit and dashboard follow-up.",
+      });
+      return;
+    }
 
     publishSchoolOperationalEvent({
       schoolId,
@@ -1164,9 +1223,14 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
     const schoolId = getCurrentSchoolId();
 
     try {
-      await requestDashboardApi("/api/admissions/quick-actions", {
-        method: "POST",
-        body: { action: "quick_admission_action" },
+      await persistAdmissionsWorkflowAction({
+        action: "quick_admission_action",
+        title: "Quick admissions action saved",
+        message: "Admissions Officer recorded a same-school admissions follow-up action.",
+        entityId: "admissions-quick-action",
+        payload: {
+          nextStep: "Verify documents and notify parent",
+        },
       });
       toast.success("Admissions quick action saved");
     } catch (error: any) {

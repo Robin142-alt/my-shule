@@ -1,0 +1,342 @@
+  ? Console
+  ? STEP 4: Role tests › renders every school role root through exactly one operational command center
+  ? STEP 4: Role tests › renders every school role root through exactly one operational command center
+  ? STEP 4: Role tests › does not wrap operational command centers in the legacy ERP shell
+  ? STEP 4: Role tests › does not wrap operational command centers in the legacy ERP shell
+  ? STEP 4: Role tests › renders role workspaces as isolated panels instead of one long stacked page
+  ? STEP 4: Role tests › renders role workspaces as isolated panels instead of one long stacked page
+  ? STEP 4: Role tests › makes the nurse sick bay practical with visit entry, medicine stock deduction, and parent 
+  ? STEP 4: Role tests › makes admissions practical with inquiry intake, document verification, approval, SMS, and 
+  ? STEP 4: Role tests › makes admissions practical with inquiry intake, document verification, approval, SMS, and 
+  ? STEP 4: Role tests › makes the librarian desk practical with barcode add, issue, return, SMS, and slip printing
+  ? STEP 4: Role tests › makes the librarian desk practical with barcode add, issue, return, SMS, and slip printing
+  ? STEP 4: Role tests › makes the storekeeper desk practical with stock receiving, issuing, movement history, and 
+  ? STEP 4: Role tests › makes the storekeeper desk practical with stock receiving, issuing, movement history, and 
+  ? STEP 4: Role tests › makes the boarding desk practical with roll call, missing alerts, nurse referral, exeats, and 
+  ? STEP 4: Role tests › makes the boarding desk practical with roll call, missing alerts, nurse referral, exeats, and 
+  ? STEP 4: Role tests › makes the transport desk practical with trip attendance, parent alerts, fuel, maintenance, 
+  ? STEP 4: Role tests › makes the transport desk practical with trip attendance, parent alerts, fuel, maintenance, 
+  ? STEP 4: Role tests › makes the laboratory desk practical with practical prep, stock, issue, returns, breakages, 
+  ? STEP 4: Role tests › makes the laboratory desk practical with practical prep, stock, issue, returns, breakages, 
+  ? STEP 4: Role tests › makes the accountant desk practical with payment entry, M-Pesa confirmation, receipts, SMS, 
+  ? STEP 4: Role tests › makes the secretary desk practical with visitor check-in, parent inquiries, slips, SMS, and 
+  ? STEP 4: Role tests › makes the discipline master desk practical with incident intake, parent SMS, counselling 
+  ? STEP 4: Role tests › makes the discipline master desk practical with incident intake, parent SMS, counselling 
+  ? STEP 4: Role tests › makes the counselling desk practical with session intake, guardian SMS, follow-ups, 
+  ? STEP 4: Role tests › makes the counselling desk practical with session intake, guardian SMS, follow-ups, 
+  ? STEP 4: Role tests › surfaces counselling outcomes on related school dashboards without exposing confidential notes
+  ? STEP 4: Role tests › surfaces counselling outcomes on related school dashboards without exposing confidential notes
+  ? STEP 4: Role tests › lets the secretary print a fee statement directly from student search
+  ? STEP 4: Role tests › shows accountant payment status in the secretary student search
+  ? STEP 4: Role tests › renders role-specific sidebar aliases as operational workspaces instead of falling through to 
+  ? STEP 4: Role tests › renders role-specific sidebar aliases as operational workspaces instead of falling through to 
+  ? STEP 4: Role tests › keeps self-healing diagnostics out of the normal principal first viewport
+  ? STEP 4: Role tests › keeps self-healing diagnostics out of the normal principal first viewport
+  ? STEP 4: Role tests › dispatches role dashboard actions through the governed workflow proxy
+  ? STEP 4: Role tests › dispatches role dashboard actions through the governed workflow proxy
+  ? STEP 4: Role tests › keeps failed role actions visible and triggers repair events instead of hiding controls
+  ? STEP 4: Role tests › keeps failed role actions visible and triggers repair events instead of hiding controls
+  ? STEP 4: Role tests › submits real form values, sends them through workflow dispatch, and materializes the entry in 
+FAIL tests/design/admissions-workspace.test.tsx (37.543 s)
+  ? admissions workspace › records promotion and graduation lifecycle actions from the student profile
+FAIL tests/design/frontend-operationalization.test.tsx (22.192 s)
+  ? frontend operational command surfaces › opens a selectable exam report queue and reports partial approval success 
+FAIL tests/design/role-dashboard-structure.test.tsx (17.183 s)
+  ? Console
+  ? role dashboard operational structure › keeps exams workspaces scoped to the academic chain and out of 
+  ? role dashboard operational structure › renders the operational role blueprint on actual school dashboard routes
+  ? role dashboard operational structure › routes academic-chain exams pages to their dedicated command centers
+  ? role dashboard operational structure › keeps executive role sidebar routes inside one operational workspace 
+  ? role dashboard operational structure › shows practical Kisumu Boys school data on hosted principal dashboards even 
+  ? role dashboard operational structure › shows accountant payment records inside the principal fees workspace
+  ? role dashboard operational structure › shows secretary visitor and parent inquiry records inside the principal 
+  ? role dashboard operational structure › shows nurse sick bay and medicine stock records inside the principal sick 
+  ? role dashboard operational structure › shows librarian circulation and fine records inside the principal library 
+  ? role dashboard operational structure › keeps the command center short and makes sidebar workspaces render 
+  ? role dashboard operational structure › renders principal first screen as a practical Kenyan school command center 
+  ? role dashboard operational structure › keeps principal overview wide by replacing the permanent approvals rail 
+  ? role dashboard operational structure › opens principal navigation as a mobile drawer instead of a short inline 
+  ? role dashboard operational structure › keeps non-principal role dashboards on one main scroll area with a mobile 
+  ? role dashboard operational structure › does not repeat the same specialized workspace for different role sidebar 
+  ? role dashboard operational structure › keeps operational queues page-scrolled and operational tables horizontally 
+FAIL tests/design/experience-actions.test.tsx (13.434 s)
+  ? Console
+  ? experience actions › routes expired school sessions back to login instead of showing module-disabled state
+  ? experience actions › supports shell search and notifications inside live module workspaces
+  ? experience actions › supports shell search and notifications inside live module workspaces
+  ? experience actions › loads backend school notifications into the shell and marks them read when opened
+  ? experience actions › loads backend school notifications into the shell and marks them read when opened
+  ? experience actions › adds a learner from the school students workspace instead of exposing a dead action
+  ? experience actions › adds a learner from the school students workspace instead of exposing a dead action
+  ? experience actions › shows persisted live school and module totals on the superadmin dashboard after reload
+  ? experience actions › records a school payment through the collections workspace
+  ? experience actions › records a school payment through the collections workspace
+  ? experience actions › blocks manual MPESA reconciliation when the receipt is not in live tenant data
+  ? experience actions › blocks manual MPESA reconciliation when the receipt is not in live tenant data
+  ? experience actions › lets accountants reconcile unmatched MPESA Paybill deposits from live envelope responses
+FAIL tests/design/operational-modules-production-readiness.test.tsx (13.643 s)
+  ? Console
+  ? operational module production readiness › nurse actions save visits, deduct medicine stock, and open print preview 
+  ? operational module production readiness › library actions issue books and open real report preview evidence
+  ? operational module production readiness › storekeeper actions issue stock and generate a real CSV download result
+  ? operational module production readiness › boarding actions save roll call records and open hostel print preview 
+  ? operational module production readiness › transport actions record trips and open route list preview evidence
+  ? operational module production readiness › laboratory actions save practical requests and open checklist preview 
+  ? operational module production readiness › discipline actions create incidents and open discipline letter preview 
+  ? operational module production readiness › counselling actions save sessions and open counselling summary preview 
+FAIL tests/design/user-management-invitations.test.tsx (9.256 s)
+  ? Console
+  ? school-scoped user management and invitations › adds a dedicated Principal Users & Invitations workspace without 
+  ? school-scoped user management and invitations › lets the Principal send a school-scoped email invitation and audit 
+  ? school-scoped user management and invitations › lets the Principal send a school-scoped email invitation and audit 
+  ? school-scoped user management and invitations › uses the live invitation API contract and does not create a local 
+  ? school-scoped user management and invitations › prevents duplicate active users inside the same school and filters 
+  ? school-scoped user management and invitations › adds the same dedicated workspace to the Deputy Principal 
+  ? school-scoped user management and invitations › adds the same dedicated workspace to the Deputy Principal 
+FAIL tests/design/implementation100-live-modules.test.tsx (8.451 s)
+  ? Implementation 100 live module workspaces › registers every remaining Implementation 100 module as a 
+  ? Implementation 100 live module workspaces › opens Hostel operations from the school workspace route when the 
+  ? Implementation 100 live module workspaces › opens Boarding operations from the school workspace route when the 
+  ? Implementation 100 live module workspaces › opens CBT exams from the school workspace route when the module is 
+  ? Implementation 100 live module workspaces › opens LMS operations from the school workspace route when the module 
+  ? Implementation 100 live module workspaces › opens AI insights from the school workspace route when the module is 
+  ? Implementation 100 live module workspaces › opens Visitor management from the school workspace route when the 
+  ? Implementation 100 live module workspaces › opens Asset tracking from the school workspace route when the module 
+  ? Implementation 100 live module workspaces › makes the ICT asset desk searchable and updates assets through 
+FAIL tests/design/user-management-panel.test.tsx (7.219 s)
+  ? Console
+  ? school user management › offers the full school operating team as invitation roles
+  ? school user management › exposes user invitations from school settings
+FAIL tests/design/academic-parent-portal-upgrade.test.tsx (9.556 s)
+  ? academic parent portal upgrade › shows published child reports, results, comments, targets, and child switching in 
+  ? academic parent portal upgrade › lets a parent acknowledge an existing published report without claiming a fake 
+  ? academic parent portal upgrade › opens parent report viewers for CBC and legacy reports with child-scoped academic 
+  ? academic parent portal upgrade › uses proof-based parent report print, download, and child-switching feedback
+FAIL tests/design/principal-production-readiness.test.tsx (5.19 s)
+  ? Console
+  ? principal production readiness › opens Fees workspace actions without fake success
+  ? principal production readiness › opens attendance SMS confirmation with recipient evidence
+FAIL tests/design/time-aware-greeting.test.tsx (5.78 s)
+  ? Console
+  ? time-aware dashboard greeting › greets the person on operational school command centers
+  ? time-aware dashboard greeting › greets the person on operational school command centers
+  ? time-aware dashboard greeting › greets the person on hosted school module workspaces
+  ? time-aware dashboard greeting › greets the person on hosted school module workspaces
+FAIL tests/design/front-office-finance-production-readiness.test.tsx (6.156 s)
+  ? Console
+  ? front office and finance production readiness › admissions officer actions create application workflow evidence
+FAIL tests/design/experience-shells.test.tsx
+  ? experience shells › scopes school command-center actions by role instead of showing the same global action list to 
+FAIL tests/design/transport-module.test.tsx
+  ? transport module workspace › opens the implemented transport module from the school workspace when enabled
+FAIL tests/design/iot-module.test.tsx
+  ? IoT and Smart Campus module workspace › opens the implemented IoT module from the school workspace when enabled
+FAIL tests/design/procurement-module.test.tsx
+  ? procurement module workspace › opens the implemented procurement module from the school workspace when enabled
+FAIL tests/design/production-hardening.test.tsx
+  ? production ERP hardening › opens a printable preview before the user prints
+  ? production ERP hardening › keeps school dashboard action labels free from phone-call and combined save actions
+FAIL tests/design/dashboard-production-readiness.test.tsx
+  ? dashboard production readiness safety › does not contain fake-only success phrases in dashboard source
+FAIL tests/design/school-shell-search.test.tsx
+  ? Console
+  ? SchoolShell search › opens school notifications and account settings instead of leaving topbar buttons inert
+FAIL tests/design/academic-office-production-readiness.test.tsx
+  ? Console
+  ? academic office production readiness › opens exams manager lifecycle workspaces and avoids fake completion
+FAIL tests/design/implementation1370-practicality.test.ts
+  ? Implementation 1370 frontend practicality certification › makes principal/deputy command views practical for 
+  ? Implementation 1370 frontend practicality certification › covers parent, student, superadmin, system monitor, ICT, 
+FAIL tests/design/extreme-erp-reconstruction.test.tsx
+  ? extreme frontend ERP reconstruction registry › renders Kenyan operational actions, queues, forms, print outputs, 
+FAIL tests/design/server-auth-client.test.ts
+  ? server auth client production gateway › routes superadmin sign-in through the backend instead of local credentials
+  ? server auth client production gateway › passes backend validation messages through without misclassifying auth as 
+  ? server auth client production gateway › lets the backend resolve the school tenant during sign-in
+  ? server auth client production gateway › does not infer the public apex domain as a school tenant during sign-in
+  ? server auth client production gateway › routes school staff to the backend tenant context and role home
+FAIL tests/design/extreme-docx-operating-system.test.ts
+  ? MYSHULE EXTREME FRONTEND ERP RECONSTRUCTION docx coverage › turns every added module into a complete operational 
+FAIL tests/design/implementation142-certification.test.ts
+  ? Implementation 142 certification › certifies role, module, workflow, search, action, queue, form, table, state, 
+FAIL tests/design/production-module-proxies.test.ts
+  ? production module live API proxies › keeps principal insight event streams as streaming responses through the proxy
+FAIL tests/design/universal-form-table-system.test.tsx (9.033 s)
+  ? Console
+  ? universal operational form and table system › opens operational form print previews with form and field-count 
+  ? universal operational form and table system › opens operational form print previews with form and field-count 
+  ? universal operational form and table system › makes table search, row view/edit/delete, sms, print, and export 
+  ? universal operational form and table system › makes table search, row view/edit/delete, sms, print, and export 
+  ? universal operational form and table system › validates required form fields, saves drafts locally, submits new 
+FAIL tests/design/exams-workspace.test.tsx (15.813 s)
+  ? Console
+  ? exams workspace › opens the implemented exams command center from the school workspace
+FAIL tests/design/operational-action-contract.test.tsx
+  ? OperationalActionButton › does not show fake success when no execution handler is provided
+FAIL tests/design/dashboard-communication-enforcer.test.ts
+  ? dashboard communication enforcer › prevents school command centers from importing other dashboard command centers 
+FAIL tests/design/role.test.tsx (72.23 s)
+  ? STEP 4: Role tests › renders every school role root through exactly one operational command center
+  ? STEP 4: Role tests › renders every school role root through exactly one operational command center
+  ? STEP 4: Role tests › does not wrap operational command centers in the legacy ERP shell
+  ? STEP 4: Role tests › does not wrap operational command centers in the legacy ERP shell
+  ? STEP 4: Role tests › renders role workspaces as isolated panels instead of one long stacked page
+  ? STEP 4: Role tests › renders role workspaces as isolated panels instead of one long stacked page
+  ? STEP 4: Role tests › makes the nurse sick bay practical with visit entry, medicine stock deduction, and parent 
+  ? STEP 4: Role tests › makes admissions practical with inquiry intake, document verification, approval, SMS, and 
+  ? STEP 4: Role tests › makes admissions practical with inquiry intake, document verification, approval, SMS, and 
+  ? STEP 4: Role tests › makes the librarian desk practical with barcode add, issue, return, SMS, and slip printing
+  ? STEP 4: Role tests › makes the librarian desk practical with barcode add, issue, return, SMS, and slip printing
+  ? STEP 4: Role tests › makes the storekeeper desk practical with stock receiving, issuing, movement history, and 
+  ? STEP 4: Role tests › makes the storekeeper desk practical with stock receiving, issuing, movement history, and 
+  ? STEP 4: Role tests › makes the boarding desk practical with roll call, missing alerts, nurse referral, exeats, and 
+  ? STEP 4: Role tests › makes the boarding desk practical with roll call, missing alerts, nurse referral, exeats, and 
+  ? STEP 4: Role tests › makes the transport desk practical with trip attendance, parent alerts, fuel, maintenance, 
+  ? STEP 4: Role tests › makes the transport desk practical with trip attendance, parent alerts, fuel, maintenance, 
+  ? STEP 4: Role tests › makes the laboratory desk practical with practical prep, stock, issue, returns, breakages, 
+  ? STEP 4: Role tests › makes the laboratory desk practical with practical prep, stock, issue, returns, breakages, 
+  ? STEP 4: Role tests › makes the accountant desk practical with payment entry, M-Pesa confirmation, receipts, SMS, 
+  ? STEP 4: Role tests › makes the secretary desk practical with visitor check-in, parent inquiries, slips, SMS, and 
+  ? STEP 4: Role tests › makes the discipline master desk practical with incident intake, parent SMS, counselling 
+  ? STEP 4: Role tests › makes the discipline master desk practical with incident intake, parent SMS, counselling 
+  ? STEP 4: Role tests › makes the counselling desk practical with session intake, guardian SMS, follow-ups, 
+  ? STEP 4: Role tests › makes the counselling desk practical with session intake, guardian SMS, follow-ups, 
+  ? STEP 4: Role tests › surfaces counselling outcomes on related school dashboards without exposing confidential notes
+  ? STEP 4: Role tests › surfaces counselling outcomes on related school dashboards without exposing confidential notes
+  ? STEP 4: Role tests › lets the secretary print a fee statement directly from student search
+  ? STEP 4: Role tests › shows accountant payment status in the secretary student search
+  ? STEP 4: Role tests › renders role-specific sidebar aliases as operational workspaces instead of falling through to 
+  ? STEP 4: Role tests › renders role-specific sidebar aliases as operational workspaces instead of falling through to 
+  ? STEP 4: Role tests › keeps self-healing diagnostics out of the normal principal first viewport
+  ? STEP 4: Role tests › keeps self-healing diagnostics out of the normal principal first viewport
+  ? STEP 4: Role tests › dispatches role dashboard actions through the governed workflow proxy
+  ? STEP 4: Role tests › dispatches role dashboard actions through the governed workflow proxy
+  ? STEP 4: Role tests › keeps failed role actions visible and triggers repair events instead of hiding controls
+  ? STEP 4: Role tests › keeps failed role actions visible and triggers repair events instead of hiding controls
+  ? STEP 4: Role tests › submits real form values, sends them through workflow dispatch, and materializes the entry in 
+FAIL tests/design/admissions-workspace.test.tsx (37.543 s)
+  ? admissions workspace › records promotion and graduation lifecycle actions from the student profile
+FAIL tests/design/frontend-operationalization.test.tsx (22.192 s)
+  ? frontend operational command surfaces › opens a selectable exam report queue and reports partial approval success 
+FAIL tests/design/role-dashboard-structure.test.tsx (17.183 s)
+  ? role dashboard operational structure › keeps exams workspaces scoped to the academic chain and out of 
+  ? role dashboard operational structure › renders the operational role blueprint on actual school dashboard routes
+  ? role dashboard operational structure › routes academic-chain exams pages to their dedicated command centers
+  ? role dashboard operational structure › keeps executive role sidebar routes inside one operational workspace 
+  ? role dashboard operational structure › shows practical Kisumu Boys school data on hosted principal dashboards even 
+  ? role dashboard operational structure › shows accountant payment records inside the principal fees workspace
+  ? role dashboard operational structure › shows secretary visitor and parent inquiry records inside the principal 
+  ? role dashboard operational structure › shows nurse sick bay and medicine stock records inside the principal sick 
+  ? role dashboard operational structure › shows librarian circulation and fine records inside the principal library 
+  ? role dashboard operational structure › keeps the command center short and makes sidebar workspaces render 
+  ? role dashboard operational structure › renders principal first screen as a practical Kenyan school command center 
+  ? role dashboard operational structure › keeps principal overview wide by replacing the permanent approvals rail 
+  ? role dashboard operational structure › opens principal navigation as a mobile drawer instead of a short inline 
+  ? role dashboard operational structure › keeps non-principal role dashboards on one main scroll area with a mobile 
+  ? role dashboard operational structure › does not repeat the same specialized workspace for different role sidebar 
+  ? role dashboard operational structure › keeps operational queues page-scrolled and operational tables horizontally 
+FAIL tests/design/experience-actions.test.tsx (13.434 s)
+  ? experience actions › routes expired school sessions back to login instead of showing module-disabled state
+  ? experience actions › supports shell search and notifications inside live module workspaces
+  ? experience actions › supports shell search and notifications inside live module workspaces
+  ? experience actions › loads backend school notifications into the shell and marks them read when opened
+  ? experience actions › loads backend school notifications into the shell and marks them read when opened
+  ? experience actions › adds a learner from the school students workspace instead of exposing a dead action
+  ? experience actions › adds a learner from the school students workspace instead of exposing a dead action
+  ? experience actions › shows persisted live school and module totals on the superadmin dashboard after reload
+  ? experience actions › records a school payment through the collections workspace
+  ? experience actions › records a school payment through the collections workspace
+  ? experience actions › blocks manual MPESA reconciliation when the receipt is not in live tenant data
+  ? experience actions › blocks manual MPESA reconciliation when the receipt is not in live tenant data
+  ? experience actions › lets accountants reconcile unmatched MPESA Paybill deposits from live envelope responses
+FAIL tests/design/operational-modules-production-readiness.test.tsx (13.643 s)
+  ? operational module production readiness › nurse actions save visits, deduct medicine stock, and open print preview 
+  ? operational module production readiness › library actions issue books and open real report preview evidence
+  ? operational module production readiness › storekeeper actions issue stock and generate a real CSV download result
+  ? operational module production readiness › boarding actions save roll call records and open hostel print preview 
+  ? operational module production readiness › transport actions record trips and open route list preview evidence
+  ? operational module production readiness › laboratory actions save practical requests and open checklist preview 
+  ? operational module production readiness › discipline actions create incidents and open discipline letter preview 
+  ? operational module production readiness › counselling actions save sessions and open counselling summary preview 
+FAIL tests/design/user-management-invitations.test.tsx (9.256 s)
+  ? school-scoped user management and invitations › adds a dedicated Principal Users & Invitations workspace without 
+  ? school-scoped user management and invitations › lets the Principal send a school-scoped email invitation and audit 
+  ? school-scoped user management and invitations › lets the Principal send a school-scoped email invitation and audit 
+  ? school-scoped user management and invitations › uses the live invitation API contract and does not create a local 
+  ? school-scoped user management and invitations › prevents duplicate active users inside the same school and filters 
+  ? school-scoped user management and invitations › adds the same dedicated workspace to the Deputy Principal 
+  ? school-scoped user management and invitations › adds the same dedicated workspace to the Deputy Principal 
+FAIL tests/design/implementation100-live-modules.test.tsx (8.451 s)
+  ? Implementation 100 live module workspaces › registers every remaining Implementation 100 module as a 
+  ? Implementation 100 live module workspaces › opens Hostel operations from the school workspace route when the 
+  ? Implementation 100 live module workspaces › opens Boarding operations from the school workspace route when the 
+  ? Implementation 100 live module workspaces › opens CBT exams from the school workspace route when the module is 
+  ? Implementation 100 live module workspaces › opens LMS operations from the school workspace route when the module 
+  ? Implementation 100 live module workspaces › opens AI insights from the school workspace route when the module is 
+  ? Implementation 100 live module workspaces › opens Visitor management from the school workspace route when the 
+  ? Implementation 100 live module workspaces › opens Asset tracking from the school workspace route when the module 
+  ? Implementation 100 live module workspaces › makes the ICT asset desk searchable and updates assets through 
+FAIL tests/design/user-management-panel.test.tsx (7.219 s)
+  ? school user management › offers the full school operating team as invitation roles
+  ? school user management › exposes user invitations from school settings
+FAIL tests/design/academic-parent-portal-upgrade.test.tsx (9.556 s)
+  ? academic parent portal upgrade › shows published child reports, results, comments, targets, and child switching in 
+  ? academic parent portal upgrade › lets a parent acknowledge an existing published report without claiming a fake 
+  ? academic parent portal upgrade › opens parent report viewers for CBC and legacy reports with child-scoped academic 
+  ? academic parent portal upgrade › uses proof-based parent report print, download, and child-switching feedback
+FAIL tests/design/principal-production-readiness.test.tsx (5.19 s)
+  ? principal production readiness › opens Fees workspace actions without fake success
+  ? principal production readiness › opens attendance SMS confirmation with recipient evidence
+FAIL tests/design/time-aware-greeting.test.tsx (5.78 s)
+  ? time-aware dashboard greeting › greets the person on operational school command centers
+  ? time-aware dashboard greeting › greets the person on operational school command centers
+  ? time-aware dashboard greeting › greets the person on hosted school module workspaces
+  ? time-aware dashboard greeting › greets the person on hosted school module workspaces
+FAIL tests/design/front-office-finance-production-readiness.test.tsx (6.156 s)
+  ? front office and finance production readiness › admissions officer actions create application workflow evidence
+FAIL tests/design/experience-shells.test.tsx
+  ? experience shells › scopes school command-center actions by role instead of showing the same global action list to 
+FAIL tests/design/transport-module.test.tsx
+  ? transport module workspace › opens the implemented transport module from the school workspace when enabled
+FAIL tests/design/iot-module.test.tsx
+  ? IoT and Smart Campus module workspace › opens the implemented IoT module from the school workspace when enabled
+FAIL tests/design/procurement-module.test.tsx
+  ? procurement module workspace › opens the implemented procurement module from the school workspace when enabled
+FAIL tests/design/production-hardening.test.tsx
+  ? production ERP hardening › opens a printable preview before the user prints
+  ? production ERP hardening › keeps school dashboard action labels free from phone-call and combined save actions
+FAIL tests/design/dashboard-production-readiness.test.tsx
+  ? dashboard production readiness safety › does not contain fake-only success phrases in dashboard source
+FAIL tests/design/school-shell-search.test.tsx
+  ? SchoolShell search › opens school notifications and account settings instead of leaving topbar buttons inert
+FAIL tests/design/academic-office-production-readiness.test.tsx
+  ? academic office production readiness › opens exams manager lifecycle workspaces and avoids fake completion
+FAIL tests/design/implementation1370-practicality.test.ts
+  ? Implementation 1370 frontend practicality certification › makes principal/deputy command views practical for 
+  ? Implementation 1370 frontend practicality certification › covers parent, student, superadmin, system monitor, ICT, 
+FAIL tests/design/extreme-erp-reconstruction.test.tsx
+  ? extreme frontend ERP reconstruction registry › renders Kenyan operational actions, queues, forms, print outputs, 
+FAIL tests/design/server-auth-client.test.ts
+  ? server auth client production gateway › routes superadmin sign-in through the backend instead of local credentials
+  ? server auth client production gateway › passes backend validation messages through without misclassifying auth as 
+  ? server auth client production gateway › lets the backend resolve the school tenant during sign-in
+  ? server auth client production gateway › does not infer the public apex domain as a school tenant during sign-in
+  ? server auth client production gateway › routes school staff to the backend tenant context and role home
+FAIL tests/design/extreme-docx-operating-system.test.ts
+  ? MYSHULE EXTREME FRONTEND ERP RECONSTRUCTION docx coverage › turns every added module into a complete operational 
+FAIL tests/design/implementation142-certification.test.ts
+  ? Implementation 142 certification › certifies role, module, workflow, search, action, queue, form, table, state, 
+FAIL tests/design/production-module-proxies.test.ts
+  ? production module live API proxies › keeps principal insight event streams as streaming responses through the proxy
+FAIL tests/design/universal-form-table-system.test.tsx (9.033 s)
+  ? universal operational form and table system › opens operational form print previews with form and field-count 
+  ? universal operational form and table system › opens operational form print previews with form and field-count 
+  ? universal operational form and table system › makes table search, row view/edit/delete, sms, print, and export 
+  ? universal operational form and table system › makes table search, row view/edit/delete, sms, print, and export 
+  ? universal operational form and table system › validates required form fields, saves drafts locally, submits new 
+FAIL tests/design/exams-workspace.test.tsx (15.813 s)
+  ? exams workspace › opens the implemented exams command center from the school workspace
+FAIL tests/design/operational-action-contract.test.tsx
+  ? OperationalActionButton › does not show fake success when no execution handler is provided
+FAIL tests/design/dashboard-communication-enforcer.test.ts
+  ? dashboard communication enforcer › prevents school command centers from importing other dashboard command centers 
