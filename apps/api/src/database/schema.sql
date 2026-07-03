@@ -201,8 +201,8 @@ BEGIN
 
   IF existing_user_id IS NULL THEN
     RETURN QUERY
-    INSERT INTO users (tenant_id, email, password_hash, display_name, status)
-    VALUES ('global', normalized_email, input_password_hash, input_display_name, 'active')
+    INSERT INTO users (tenant_id, email, password_hash, full_name, display_name, status)
+    VALUES ('global', normalized_email, input_password_hash, input_display_name, input_display_name, 'active')
     RETURNING
       users.id,
       users.tenant_id,
@@ -412,6 +412,7 @@ CREATE TABLE users (
   tenant_id tenant_key NOT NULL DEFAULT 'global',
   email citext NOT NULL,
   password_hash text NOT NULL,
+  full_name text NOT NULL,
   display_name text NOT NULL,
   user_type text NOT NULL DEFAULT 'member',
   status text NOT NULL DEFAULT 'active',
@@ -426,6 +427,7 @@ CREATE TABLE users (
   CONSTRAINT ck_users_tenant_id_global CHECK (tenant_id = 'global'),
   CONSTRAINT ck_users_user_type CHECK (user_type IN ('member', 'platform_owner')),
   CONSTRAINT ck_users_status CHECK (status IN ('active', 'disabled', 'locked')),
+  CONSTRAINT ck_users_full_name_not_blank CHECK (btrim(full_name) <> ''),
   CONSTRAINT ck_users_display_name_not_blank CHECK (btrim(display_name) <> ''),
   CONSTRAINT ck_users_password_hash_not_blank CHECK (btrim(password_hash) <> ''),
   CONSTRAINT uq_users_tenant_id_id UNIQUE (tenant_id, id),

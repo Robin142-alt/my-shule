@@ -38,6 +38,7 @@ export class AuthSchemaService implements OnModuleInit {
         tenant_id text NOT NULL DEFAULT 'global',
         email text NOT NULL,
         password_hash text NOT NULL,
+        full_name text NOT NULL,
         display_name text NOT NULL,
         user_type text NOT NULL DEFAULT 'member' CHECK (user_type IN ('member', 'platform_owner')),
         status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disabled', 'locked')),
@@ -180,6 +181,7 @@ export class AuthSchemaService implements OnModuleInit {
       $$;
 
       ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id text NOT NULL DEFAULT 'global';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name text;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name text;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS user_type text NOT NULL DEFAULT 'member';
       ALTER TABLE users ADD COLUMN IF NOT EXISTS recovery_email text;
@@ -218,22 +220,15 @@ export class AuthSchemaService implements OnModuleInit {
 
       DO $$
       BEGIN
-        IF EXISTS (
-          SELECT 1
-          FROM information_schema.columns
-          WHERE table_schema = 'public'
-            AND table_name = 'users'
-            AND column_name = 'full_name'
-        ) THEN
-          UPDATE users
-          SET display_name = COALESCE(NULLIF(display_name, ''), NULLIF(full_name, ''), NULLIF(email, ''), 'User')
-          WHERE display_name IS NULL OR display_name = '';
-        ELSE
-          UPDATE users
-          SET display_name = COALESCE(NULLIF(display_name, ''), NULLIF(email, ''), 'User')
-          WHERE display_name IS NULL OR display_name = '';
-        END IF;
+        UPDATE users
+        SET display_name = COALESCE(NULLIF(display_name, ''), NULLIF(full_name, ''), NULLIF(email, ''), 'User')
+        WHERE display_name IS NULL OR display_name = '';
 
+        UPDATE users
+        SET full_name = COALESCE(NULLIF(full_name, ''), NULLIF(display_name, ''), NULLIF(email, ''), 'User')
+        WHERE full_name IS NULL OR full_name = '';
+
+        ALTER TABLE users ALTER COLUMN full_name SET NOT NULL;
         ALTER TABLE users ALTER COLUMN display_name SET NOT NULL;
 
         IF NOT EXISTS (
@@ -746,8 +741,8 @@ export class AuthSchemaService implements OnModuleInit {
 
         IF existing_user_id IS NULL THEN
           RETURN QUERY
-          INSERT INTO users (tenant_id, email, password_hash, display_name, status, email_verified_at)
-          VALUES ('global', normalized_email, input_password_hash, input_display_name, 'active', NOW())
+          INSERT INTO users (tenant_id, email, password_hash, full_name, display_name, status, email_verified_at)
+          VALUES ('global', normalized_email, input_password_hash, input_display_name, input_display_name, 'active', NOW())
           RETURNING
             users.id,
             users.tenant_id,
@@ -1383,6 +1378,7 @@ export class AuthSchemaService implements OnModuleInit {
             tenant_id,
             email,
             password_hash,
+            full_name,
             display_name,
             status,
             email_verified_at,
@@ -1393,6 +1389,7 @@ export class AuthSchemaService implements OnModuleInit {
             lower(invite_email),
             input_password_hash,
             invite_display_name,
+            invite_display_name,
             'active',
             NOW(),
             NOW()
@@ -1402,6 +1399,7 @@ export class AuthSchemaService implements OnModuleInit {
           UPDATE users
           SET
             password_hash = input_password_hash,
+            full_name = invite_display_name,
             display_name = invite_display_name,
             status = 'active',
             email_verified_at = COALESCE(email_verified_at, NOW()),
@@ -1459,6 +1457,7 @@ export class AuthSchemaService implements OnModuleInit {
         tenant_id text NOT NULL DEFAULT 'global',
         email text NOT NULL,
         password_hash text NOT NULL,
+        full_name text NOT NULL,
         display_name text NOT NULL,
         user_type text NOT NULL DEFAULT 'member' CHECK (user_type IN ('member', 'platform_owner')),
         status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disabled', 'locked')),
@@ -1558,6 +1557,7 @@ export class AuthSchemaService implements OnModuleInit {
       $$;
 
       ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id text NOT NULL DEFAULT 'global';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name text;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name text;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS user_type text NOT NULL DEFAULT 'member';
       ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at timestamptz;
@@ -1568,22 +1568,15 @@ export class AuthSchemaService implements OnModuleInit {
 
       DO $$
       BEGIN
-        IF EXISTS (
-          SELECT 1
-          FROM information_schema.columns
-          WHERE table_schema = 'public'
-            AND table_name = 'users'
-            AND column_name = 'full_name'
-        ) THEN
-          UPDATE users
-          SET display_name = COALESCE(NULLIF(display_name, ''), NULLIF(full_name, ''), NULLIF(email, ''), 'User')
-          WHERE display_name IS NULL OR display_name = '';
-        ELSE
-          UPDATE users
-          SET display_name = COALESCE(NULLIF(display_name, ''), NULLIF(email, ''), 'User')
-          WHERE display_name IS NULL OR display_name = '';
-        END IF;
+        UPDATE users
+        SET display_name = COALESCE(NULLIF(display_name, ''), NULLIF(full_name, ''), NULLIF(email, ''), 'User')
+        WHERE display_name IS NULL OR display_name = '';
 
+        UPDATE users
+        SET full_name = COALESCE(NULLIF(full_name, ''), NULLIF(display_name, ''), NULLIF(email, ''), 'User')
+        WHERE full_name IS NULL OR full_name = '';
+
+        ALTER TABLE users ALTER COLUMN full_name SET NOT NULL;
         ALTER TABLE users ALTER COLUMN display_name SET NOT NULL;
 
         IF NOT EXISTS (

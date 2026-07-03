@@ -73,6 +73,8 @@ test('AuthSchemaService marks accepted invitations and active school memberships
   )?.[0] ?? '';
 
   assert.match(consumeInviteFunction, /status = 'active'/);
+  assert.match(consumeInviteFunction, /full_name,\s*display_name/);
+  assert.match(consumeInviteFunction, /full_name = invite_display_name/);
   assert.match(consumeInviteFunction, /ON CONFLICT \(tenant_id, user_id\)[\s\S]+status = 'active'/);
   assert.match(consumeInviteFunction, /metadata = auth_action_tokens\.metadata \|\| jsonb_build_object\([\s\S]*'status',\s*'accepted'[\s\S]*'accepted_at'/);
   assert.match(consumeInviteFunction, /consumed_at = NOW\(\)/);
@@ -225,6 +227,10 @@ test('AuthSchemaService returns auth security state from user lookup functions',
   assert.match(
     bootstrapSql,
     /app\.create_global_user_from_invitation[\s\S]+users\.email_verified_at[\s\S]+users\.mfa_enabled[\s\S]+users\.mfa_verified_at/,
+  );
+  assert.match(
+    bootstrapSql,
+    /app\.create_global_user_from_invitation[\s\S]+INSERT INTO users \(tenant_id, email, password_hash, full_name, display_name, status, email_verified_at\)/,
   );
 });
 
