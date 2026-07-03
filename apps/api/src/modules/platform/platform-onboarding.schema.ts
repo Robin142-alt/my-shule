@@ -83,6 +83,12 @@ export class PlatformOnboardingSchemaService implements OnModuleInit {
 
       ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
       ALTER TABLE tenants FORCE ROW LEVEL SECURITY;
+      ALTER TABLE tenants ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE tenants ALTER COLUMN updated_at SET DEFAULT NOW();
+      UPDATE tenants SET created_at = NOW() WHERE created_at IS NULL;
+      UPDATE tenants SET updated_at = COALESCE(updated_at, created_at, NOW()) WHERE updated_at IS NULL;
+      ALTER TABLE tenants ALTER COLUMN created_at SET NOT NULL;
+      ALTER TABLE tenants ALTER COLUMN updated_at SET NOT NULL;
 
       CREATE TABLE IF NOT EXISTS tenant_domains (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -110,6 +116,12 @@ export class PlatformOnboardingSchemaService implements OnModuleInit {
 
       ALTER TABLE tenant_domains ENABLE ROW LEVEL SECURITY;
       ALTER TABLE tenant_domains FORCE ROW LEVEL SECURITY;
+      ALTER TABLE tenant_domains ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE tenant_domains ALTER COLUMN updated_at SET DEFAULT NOW();
+      UPDATE tenant_domains SET created_at = NOW() WHERE created_at IS NULL;
+      UPDATE tenant_domains SET updated_at = COALESCE(updated_at, created_at, NOW()) WHERE updated_at IS NULL;
+      ALTER TABLE tenant_domains ALTER COLUMN created_at SET NOT NULL;
+      ALTER TABLE tenant_domains ALTER COLUMN updated_at SET NOT NULL;
 
       DROP POLICY IF EXISTS tenants_rls_policy ON tenants;
       CREATE POLICY tenants_rls_policy ON tenants

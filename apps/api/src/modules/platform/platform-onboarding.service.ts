@@ -730,8 +730,8 @@ export class PlatformOnboardingService {
     const onboardingProfile = this.buildBlueprintOnboardingProfile(input.dto);
     const result = await this.executeSql<TenantRow>(
       `
-        INSERT INTO tenants (tenant_id, name, subdomain, status, settings, metadata)
-        VALUES ($1, $2, $3, 'active', $4::jsonb, $5::jsonb)
+        INSERT INTO tenants (tenant_id, name, subdomain, status, settings, metadata, created_at, updated_at)
+        VALUES ($1, $2, $3, 'active', $4::jsonb, $5::jsonb, NOW(), NOW())
         ON CONFLICT (tenant_id) DO NOTHING
         RETURNING tenant_id, name, subdomain, status, metadata, created_at
       `,
@@ -774,8 +774,8 @@ export class PlatformOnboardingService {
 
     await this.executeSql(
       `
-        INSERT INTO tenant_domains (tenant_id, domain, domain_type, status, created_by_user_id, metadata)
-        VALUES ($1, $2, 'custom', 'pending_verification', $3, $4::jsonb)
+        INSERT INTO tenant_domains (tenant_id, domain, domain_type, status, created_by_user_id, metadata, created_at, updated_at)
+        VALUES ($1, $2, 'custom', 'pending_verification', $3, $4::jsonb, NOW(), NOW())
         ON CONFLICT (tenant_id, domain) DO UPDATE
         SET status = EXCLUDED.status,
             created_by_user_id = EXCLUDED.created_by_user_id,

@@ -210,6 +210,10 @@ query: async (text: string, values: unknown[]) => {
   const tenantMetadata = JSON.parse(String(tenantInsert?.values[4]));
   const domainInsert = queries.find((query) => query.text.includes('INSERT INTO tenant_domains'));
 
+  assert.match(tenantInsert?.text ?? '', /created_at,\s*updated_at/);
+  assert.match(tenantInsert?.text ?? '', /NOW\(\),\s*NOW\(\)/);
+  assert.match(domainInsert?.text ?? '', /created_at,\s*updated_at/);
+  assert.match(domainInsert?.text ?? '', /NOW\(\),\s*NOW\(\)/);
   assert.equal(tenantMetadata.registration_number, 'REG-2026-001');
   assert.equal(tenantMetadata.curriculum, 'cambridge');
   assert.equal(tenantMetadata.institution_category, 'international_school');
@@ -1329,6 +1333,8 @@ test('PlatformOnboardingSchemaService creates platform payment gateways with pla
   await service.onModuleInit();
 
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS platform_payment_gateways/);
+  assert.match(schemaSql, /ALTER TABLE tenants ALTER COLUMN updated_at SET DEFAULT NOW\(\)/);
+  assert.match(schemaSql, /ALTER TABLE tenant_domains ALTER COLUMN updated_at SET DEFAULT NOW\(\)/);
   assert.match(schemaSql, /ALTER TABLE platform_payment_gateways ENABLE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /CREATE POLICY platform_payment_gateways_rls_policy/);
   assert.match(schemaSql, /NULLIF\(current_setting\('app\.role', true\), ''\) = 'platform_owner'/);

@@ -195,6 +195,19 @@ test('AuthSchemaService does not grant broad public path access to auth token ta
   assert.doesNotMatch(emailOutboxPolicy, /app\.path/);
 });
 
+test('AuthSchemaService keeps invitation action tokens nullable until invite acceptance', async () => {
+  let bootstrapSql = '';
+  const service = new AuthSchemaService({
+    runSchemaBootstrap: async (sql: string) => {
+      bootstrapSql = sql;
+    },
+  } as never);
+
+  await service.onModuleInit();
+
+  assert.match(bootstrapSql, /ALTER TABLE auth_action_tokens ALTER COLUMN user_id DROP NOT NULL/);
+});
+
 test('AuthSchemaService returns auth security state from user lookup functions', async () => {
   let bootstrapSql = '';
   const service = new AuthSchemaService({

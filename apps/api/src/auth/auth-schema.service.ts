@@ -1892,6 +1892,7 @@ export class AuthSchemaService implements OnModuleInit {
       );
 
       ALTER TABLE auth_action_tokens ADD COLUMN IF NOT EXISTS consumed_at timestamptz;
+      ALTER TABLE auth_action_tokens ALTER COLUMN user_id DROP NOT NULL;
       ALTER TABLE auth_action_tokens ALTER COLUMN metadata SET DEFAULT '{}'::jsonb;
       ALTER TABLE auth_action_tokens ALTER COLUMN metadata SET NOT NULL;
       ALTER TABLE auth_action_tokens ALTER COLUMN created_at SET DEFAULT NOW();
