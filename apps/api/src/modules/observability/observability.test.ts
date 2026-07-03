@@ -204,6 +204,44 @@ test('SloMonitoringService raises and clears alerts when objectives are violated
   );
 });
 
+test('SloMetricsService exposes recent API failure paths for production triage', () => {
+  const metricsService = new SloMetricsService({
+    get(key: string) {
+      return key === 'observability.sloWindowSeconds' ? 900 : undefined;
+    },
+  } as never);
+
+  metricsService.recordApiRequest({
+    outcome: 'success',
+    duration_ms: 40,
+    status_code: 200,
+    method: 'GET',
+    path: '/health',
+    event: 'request.completed',
+    timestamp_ms: Date.parse('2026-07-03T18:00:00.000Z'),
+  });
+  metricsService.recordApiRequest({
+    outcome: 'failure',
+    duration_ms: 123.45,
+    status_code: 500,
+    method: 'POST',
+    path: '/platform/schools?token=%5Bredacted%5D',
+    event: 'request.completed',
+    timestamp_ms: Date.parse('2026-07-03T18:01:00.000Z'),
+  });
+
+  assert.deepEqual(metricsService.getRecentApiFailures(), [
+    {
+      timestamp: '2026-07-03T18:01:00.000Z',
+      method: 'POST',
+      path: '/platform/schools?token=%5Bredacted%5D',
+      status_code: 500,
+      event: 'request.completed',
+      duration_ms: 123.45,
+    },
+  ]);
+});
+
 test('production observability catalog covers Kenyan school operating dashboards, alerts, runbooks, and synthetics', () => {
   assert.deepEqual(validateProductionObservabilityCatalog(), []);
   assert.equal(PRODUCTION_OBSERVABILITY_DASHBOARDS.some((dashboard) => dashboard.id === 'api-latency-by-module'), true);

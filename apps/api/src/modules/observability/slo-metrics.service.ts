@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   MetricOperation,
   MetricOutcome,
+  RecentApiFailure,
   SloMetricEvent,
   SloSubsystemKey,
 } from './slo-monitoring.types';
@@ -220,6 +221,24 @@ export class SloMetricsService {
     this.events.length = 0;
   }
 
+  getRecentApiFailures(limit = 20): RecentApiFailure[] {
+    const safeLimit = Math.max(1, Math.min(Number.isFinite(limit) ? Math.trunc(limit) : 20, 100));
+
+    return this.getEvents({ subsystem: 'api', operation: 'request' })
+      .filter((event) => event.outcome === 'failure')
+      .slice()
+      .sort((left, right) => right.timestamp_ms - left.timestamp_ms)
+      .slice(0, safeLimit)
+      .map((event) => ({
+        timestamp: new Date(event.timestamp_ms).toISOString(),
+        method: this.stringMetadata(event, 'method'),
+        path: this.stringMetadata(event, 'path'),
+        status_code: this.numberMetadata(event, 'status_code'),
+        event: this.stringMetadata(event, 'event'),
+        duration_ms: event.duration_ms,
+      }));
+  }
+
   private record(input: {
     subsystem: SloSubsystemKey;
     operation: MetricOperation;
@@ -245,5 +264,17 @@ export class SloMetricsService {
     while (this.events.length > 0 && this.events[0].timestamp_ms < windowStartMs) {
       this.events.shift();
     }
+  }
+
+  private stringMetadata(event: SloMetricEvent, key: string): string {
+    const value = event.metadata[key];
+
+    return typeof value === 'string' ? value : '';
+  }
+
+  private numberMetadata(event: SloMetricEvent, key: string): number {
+    const value = event.metadata[key];
+
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
   }
 }

@@ -1,12 +1,16 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 
 import { Public } from '../../auth/decorators/public.decorator';
+import { SloMetricsService } from './slo-metrics.service';
 import { SloMonitoringService } from './slo-monitoring.service';
 
 @Public()
 @Controller('observability')
 export class ObservabilityController {
-  constructor(private readonly sloMonitoringService: SloMonitoringService) {}
+  constructor(
+    private readonly sloMonitoringService: SloMonitoringService,
+    private readonly sloMetricsService: SloMetricsService,
+  ) {}
 
   @Get('slos')
   getSloCatalog() {
@@ -30,6 +34,13 @@ export class ObservabilityController {
   async getAlerts() {
     return {
       alerts: await this.sloMonitoringService.getAlerts(),
+    };
+  }
+
+  @Get('api-failures')
+  getRecentApiFailures(@Query('limit') limit?: string) {
+    return {
+      failures: this.sloMetricsService.getRecentApiFailures(Number(limit ?? 20)),
     };
   }
 

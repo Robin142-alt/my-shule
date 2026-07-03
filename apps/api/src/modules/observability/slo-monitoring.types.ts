@@ -77,6 +77,15 @@ export interface SloMetricsResponse {
   live_gauges: Record<string, unknown>;
 }
 
+export interface RecentApiFailure {
+  timestamp: string;
+  method: string;
+  path: string;
+  status_code: number;
+  event: string;
+  duration_ms: number | null;
+}
+
 export type MetricOutcome = 'success' | 'failure' | 'ignored';
 
 export type MetricOperation =
