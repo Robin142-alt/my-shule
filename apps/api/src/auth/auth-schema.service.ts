@@ -188,6 +188,12 @@ export class AuthSchemaService implements OnModuleInit {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled boolean NOT NULL DEFAULT FALSE;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_verified_at timestamptz;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at timestamptz;
+      ALTER TABLE users ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE users ALTER COLUMN updated_at SET DEFAULT NOW();
+      UPDATE users SET created_at = NOW() WHERE created_at IS NULL;
+      UPDATE users SET updated_at = COALESCE(updated_at, created_at, NOW()) WHERE updated_at IS NULL;
+      ALTER TABLE users ALTER COLUMN created_at SET NOT NULL;
+      ALTER TABLE users ALTER COLUMN updated_at SET NOT NULL;
 
       DO $$
       DECLARE
@@ -741,8 +747,8 @@ export class AuthSchemaService implements OnModuleInit {
 
         IF existing_user_id IS NULL THEN
           RETURN QUERY
-          INSERT INTO users (tenant_id, email, password_hash, full_name, display_name, status, email_verified_at)
-          VALUES ('global', normalized_email, input_password_hash, input_display_name, input_display_name, 'active', NOW())
+          INSERT INTO users (tenant_id, email, password_hash, full_name, display_name, status, email_verified_at, created_at, updated_at)
+          VALUES ('global', normalized_email, input_password_hash, input_display_name, input_display_name, 'active', NOW(), NOW(), NOW())
           RETURNING
             users.id,
             users.tenant_id,
@@ -1382,7 +1388,9 @@ export class AuthSchemaService implements OnModuleInit {
             display_name,
             status,
             email_verified_at,
-            password_changed_at
+            password_changed_at,
+            created_at,
+            updated_at
           )
           VALUES (
             invite_tenant_id,
@@ -1391,6 +1399,8 @@ export class AuthSchemaService implements OnModuleInit {
             invite_display_name,
             invite_display_name,
             'active',
+            NOW(),
+            NOW(),
             NOW(),
             NOW()
           )
@@ -1565,6 +1575,12 @@ export class AuthSchemaService implements OnModuleInit {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled boolean NOT NULL DEFAULT FALSE;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_verified_at timestamptz;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at timestamptz;
+      ALTER TABLE users ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE users ALTER COLUMN updated_at SET DEFAULT NOW();
+      UPDATE users SET created_at = NOW() WHERE created_at IS NULL;
+      UPDATE users SET updated_at = COALESCE(updated_at, created_at, NOW()) WHERE updated_at IS NULL;
+      ALTER TABLE users ALTER COLUMN created_at SET NOT NULL;
+      ALTER TABLE users ALTER COLUMN updated_at SET NOT NULL;
 
       DO $$
       BEGIN

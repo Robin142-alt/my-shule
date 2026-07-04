@@ -147,8 +147,8 @@ export class UsersRepository {
   }): Promise<UserEntity> {
     const result = await this.databaseService.query<UserRow>(
       `
-        INSERT INTO users (tenant_id, email, password_hash, full_name, display_name)
-        VALUES ($1, lower($2), $3, $4, $4)
+        INSERT INTO users (tenant_id, email, password_hash, full_name, display_name, created_at, updated_at)
+        VALUES ($1, lower($2), $3, $4, $4, NOW(), NOW())
         RETURNING id, tenant_id, email, password_hash, display_name, status, email_verified_at, mfa_enabled, mfa_verified_at, created_at, updated_at
       `,
       [input.tenant_id, input.email, input.password_hash, input.display_name],

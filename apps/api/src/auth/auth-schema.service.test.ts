@@ -75,6 +75,7 @@ test('AuthSchemaService marks accepted invitations and active school memberships
   assert.match(consumeInviteFunction, /status = 'active'/);
   assert.match(consumeInviteFunction, /full_name,\s*display_name/);
   assert.match(consumeInviteFunction, /full_name = invite_display_name/);
+  assert.match(consumeInviteFunction, /created_at,\s*updated_at/);
   assert.match(consumeInviteFunction, /ON CONFLICT \(tenant_id, user_id\)[\s\S]+status = 'active'/);
   assert.match(consumeInviteFunction, /metadata = auth_action_tokens\.metadata \|\| jsonb_build_object\([\s\S]*'status',\s*'accepted'[\s\S]*'accepted_at'/);
   assert.match(consumeInviteFunction, /consumed_at = NOW\(\)/);
@@ -230,8 +231,9 @@ test('AuthSchemaService returns auth security state from user lookup functions',
   );
   assert.match(
     bootstrapSql,
-    /app\.create_global_user_from_invitation[\s\S]+INSERT INTO users \(tenant_id, email, password_hash, full_name, display_name, status, email_verified_at\)/,
+    /app\.create_global_user_from_invitation[\s\S]+INSERT INTO users \(tenant_id, email, password_hash, full_name, display_name, status, email_verified_at, created_at, updated_at\)/,
   );
+  assert.match(bootstrapSql, /ALTER TABLE users ALTER COLUMN updated_at SET DEFAULT NOW\(\)/);
 });
 
 test('AuthSchemaService creates MFA, trusted-device, and magic-link persistence', async () => {

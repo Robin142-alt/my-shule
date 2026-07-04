@@ -201,8 +201,8 @@ BEGIN
 
   IF existing_user_id IS NULL THEN
     RETURN QUERY
-    INSERT INTO users (tenant_id, email, password_hash, full_name, display_name, status)
-    VALUES ('global', normalized_email, input_password_hash, input_display_name, input_display_name, 'active')
+    INSERT INTO users (tenant_id, email, password_hash, full_name, display_name, status, created_at, updated_at)
+    VALUES ('global', normalized_email, input_password_hash, input_display_name, input_display_name, 'active', NOW(), NOW())
     RETURNING
       users.id,
       users.tenant_id,
