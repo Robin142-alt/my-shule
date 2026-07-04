@@ -52,6 +52,23 @@ test('EventsSchemaService repairs legacy notifications table for tenant-scoped d
   assert.match(bootstrapSql, /SET aggregate_id = resource_id/);
 });
 
+test('EventsSchemaService preserves outbox claim function identity across bootstraps', async () => {
+  let bootstrapSql = '';
+  const service = new EventsSchemaService(
+    {
+      runSchemaBootstrap: async (sql: string) => {
+        bootstrapSql = sql;
+      },
+    } as never,
+    { onModuleInit: async () => undefined } as never,
+  );
+
+  await service.onModuleInit();
+
+  assert.doesNotMatch(bootstrapSql, /DROP FUNCTION IF EXISTS app\.claim_outbox_events/);
+  assert.match(bootstrapSql, /CREATE OR REPLACE FUNCTION app\.claim_outbox_events/);
+});
+
 test('EventsSchemaService uses a single bootstrap promise for concurrent startup callers', async () => {
   let bootstrapRuns = 0;
   const service = new EventsSchemaService(

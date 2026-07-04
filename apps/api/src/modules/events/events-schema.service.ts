@@ -484,9 +484,7 @@ export class EventsSchemaService implements OnModuleInit {
       CREATE INDEX IF NOT EXISTS ix_notifications_tenant_role_status_created
         ON notifications (tenant_id, recipient_role, status, created_at DESC);
 
-      DROP FUNCTION IF EXISTS app.claim_outbox_events(integer, integer);
-
-      CREATE FUNCTION app.claim_outbox_events(
+      CREATE OR REPLACE FUNCTION app.claim_outbox_events(
         batch_size integer,
         stale_processing_after_ms integer
       )

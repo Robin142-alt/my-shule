@@ -675,9 +675,7 @@ CREATE TABLE event_consumer_runs (
     ON DELETE CASCADE
 );
 
-DROP FUNCTION IF EXISTS app.claim_outbox_events(integer, integer);
-
-CREATE FUNCTION app.claim_outbox_events(
+CREATE OR REPLACE FUNCTION app.claim_outbox_events(
   batch_size integer,
   stale_processing_after_ms integer
 )
