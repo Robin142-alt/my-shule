@@ -228,7 +228,13 @@ jobs:
         if: github.event.inputs.check == 'all' || github.event.inputs.check == 'backup-restore' || github.event.schedule == '21 3 * * 0'
         env:
           DATABASE_URL: ${{ secrets.DR_DATABASE_URL }}
-        run: npm run dr:backup-restore > production-backup-restore.txt
+        run: |
+          if [ -z "${DATABASE_URL:-}" ]; then
+            sudo apt-get update
+            sudo apt-get install -y postgresql
+            export PG_BIN_DIR="$(pg_config --bindir)"
+          fi
+          npm run dr:backup-restore > production-backup-restore.txt
 
       - name: Incident drill validation
         if: github.event.inputs.check == 'all' || github.event.inputs.check == 'incident-drill' || github.event.schedule == '21 3 * * 0'
