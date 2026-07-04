@@ -26,11 +26,13 @@ type ManagedUserApi = {
   email?: string;
   role_code?: string;
   role_name?: string;
-  status?: "active" | "suspended" | "invited" | "expired";
+  status?: "active" | "suspended" | "invited" | "expired" | "email_failed" | "failed";
 };
 
 type InvitationResponse = ManagedUserApi & {
   invitation_sent?: boolean;
+  invitation_message?: string;
+  invitation_action_required?: string;
   message?: string;
 };
 
@@ -154,7 +156,7 @@ export function UserManagementPanel() {
         email: payload?.email ?? inviteEmail,
         role_code: payload?.role_code ?? selectedRoleCode,
         role_name: payload?.role_name ?? roleLabel(selectedRoleCode),
-        status: "invited",
+        status: payload?.status ?? "invited",
       });
 
       setUsers((current) => [
@@ -164,7 +166,13 @@ export function UserManagementPanel() {
       if (nameRef.current) nameRef.current.value = "";
       if (emailRef.current) emailRef.current.value = "";
       if (roleRef.current) roleRef.current.value = "teacher";
-      setMessage("Invitation queued for delivery.");
+      if (payload?.invitation_sent === false) {
+        const deliveryMessage = payload.invitation_message ?? "Email delivery failed.";
+        const actionRequired = payload.invitation_action_required ? ` ${payload.invitation_action_required}` : "";
+        setMessage(`Invitation created, but email delivery failed: ${deliveryMessage}${actionRequired}`);
+      } else {
+        setMessage("Invitation queued for delivery.");
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to create invitation.");
     } finally {
@@ -184,7 +192,7 @@ export function UserManagementPanel() {
           "x-myshule-csrf": await getCsrfToken(),
         },
       });
-      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+      const payload = (await response.json().catch(() => null)) as InvitationResponse | null;
 
       if (!response.ok) {
         throw new Error(payload?.message ?? "Unable to resend invitation.");
@@ -195,7 +203,11 @@ export function UserManagementPanel() {
           currentUser.id === user.id ? { ...currentUser, status: "Invited" } : currentUser,
         ),
       );
-      setMessage("Invitation resent.");
+      if (payload?.invitation_sent === false) {
+        setMessage(`Invitation remains pending, but email delivery failed: ${payload.invitation_message ?? "Resend after email delivery is fixed."}`);
+      } else {
+        setMessage("Invitation resent.");
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to resend invitation.");
     } finally {
@@ -449,7 +461,7 @@ function toManagedUser(user: ManagedUserApi): ManagedUser {
       ? "Suspended"
       : user.status === "expired"
         ? "Expired"
-        : user.status === "invited"
+        : user.status === "invited" || user.status === "email_failed" || user.status === "failed"
           ? "Invited"
           : "Active";
 

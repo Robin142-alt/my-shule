@@ -111,6 +111,9 @@ type ManagedUserApi = {
   invited_by_role?: string;
   expires_at?: string;
   invite_code?: string;
+  invitation_sent?: boolean;
+  invitation_message?: string;
+  invitation_action_required?: string;
 };
 
 const userModule = "school-users";
@@ -779,7 +782,10 @@ export function UserManagementWorkspace({
       }
 
       const apiInvite = readManagedInvitationPayload(payload);
-      if (apiInvite?.id) {
+      const resendSent = apiInvite?.invitation_sent !== false;
+      const resendMessage = apiInvite?.invitation_message?.trim() || "Email delivery failed. Resend the pending invitation after email delivery is fixed.";
+      const hasFullInvitePayload = Boolean(apiInvite?.email || apiInvite?.display_name || apiInvite?.role_code);
+      if (apiInvite?.id && hasFullInvitePayload) {
         nextInvite = {
           ...apiUserToInvitation({ ...apiInvite, kind: "invitation", status: apiInvite.status ?? "invited" }, schoolId, actorRole),
           phone: apiInvite.phone ?? invite.phone,
@@ -792,16 +798,40 @@ export function UserManagementWorkspace({
           invitedByRole: invite.invitedByRole,
           expiryDate: apiInvite.expires_at ?? expiryDate,
         };
+      } else if (apiInvite?.id) {
+        nextInvite = {
+          ...nextInvite,
+          invitationStatus: apiStatusToInvitationStatus(apiInvite.status),
+          expiryDate: apiInvite.expires_at ?? expiryDate,
+        };
       }
 
       updateSchoolRecord<UserInvitationRecord>(invitationModule, invite.id, { invitationStatus: nextInvite.invitationStatus, expiryDate: nextInvite.expiryDate, updatedAt: nowIso() }, schoolId);
       setInvitations((current) =>
         current.map((item) => (item.id === invite.id ? { ...item, ...nextInvite } : item)),
       );
-      addUserAudit("Invitation resent", invite.invitedName, invite.expiryDate, nextInvite.expiryDate, "Invitation email resent");
-      publishUserEvent("USER_INVITATION_RESENT", "Invitation email resent", `${invite.invitedName} invitation email was resent.`, invite.id);
-      setNotice(`Invitation email resent to ${invite.invitedName}.`);
-      setError(null);
+      addUserAudit(
+        resendSent ? "Invitation resent" : "Invitation resend failed",
+        invite.invitedName,
+        invite.expiryDate,
+        nextInvite.expiryDate,
+        resendSent ? "Invitation email resent" : resendMessage,
+      );
+      publishUserEvent(
+        resendSent ? "USER_INVITATION_RESENT" : "USER_INVITATION_RESEND_FAILED",
+        resendSent ? "Invitation email resent" : "Invitation resend failed",
+        resendSent
+          ? `${invite.invitedName} invitation email was resent.`
+          : `${invite.invitedName} invitation remains pending, but email delivery failed: ${resendMessage}`,
+        invite.id,
+      );
+      if (resendSent) {
+        setNotice(`Invitation email resent to ${invite.invitedName}.`);
+        setError(null);
+      } else {
+        setNotice(`${invite.invitedName} remains in Pending Invitations. Resend once email delivery is fixed.`);
+        setError(`Email delivery failed: ${resendMessage}`);
+      }
     } catch (resendError) {
       const message = resendError instanceof Error ? resendError.message : "Unable to resend invitation email.";
       addUserAudit("Invitation resend failed", invite.invitedName, invite.invitationStatus, "Failed", message);
@@ -1039,6 +1069,9 @@ export function UserManagementWorkspace({
       if (!apiInvite?.id) {
         throw new Error("Invitation email provider returned no invitation record.");
       }
+      const invitationSent = apiInvite.invitation_sent !== false;
+      const deliveryMessage = apiInvite.invitation_message?.trim() || "Email delivery failed. Resend the pending invitation after email delivery is fixed.";
+      const deliveryAction = apiInvite.invitation_action_required?.trim();
 
       const saved = {
         ...apiUserToInvitation(
@@ -1067,12 +1100,30 @@ export function UserManagementWorkspace({
 
       const savedInvite = addSchoolRecord<UserInvitationRecord>(invitationModule, saved, schoolId);
       setInvitations((current) => [savedInvite, ...current.filter((item) => item.id !== savedInvite.id)]);
-      addUserAudit("User invited", invitedName, undefined, `${role} invitation email sent`, note);
-      publishUserEvent("USER_INVITED", "Invitation email sent", `${invitedName} was invited as ${role} in ${schoolName}.`, savedInvite.id);
+      addUserAudit(
+        invitationSent ? "User invited" : "Invitation email failed",
+        invitedName,
+        undefined,
+        invitationSent ? `${role} invitation email sent` : `${role} invitation created; email delivery failed`,
+        invitationSent ? note : deliveryMessage,
+      );
+      publishUserEvent(
+        invitationSent ? "USER_INVITED" : "USER_INVITE_EMAIL_FAILED",
+        invitationSent ? "Invitation email sent" : "Invitation email failed",
+        invitationSent
+          ? `${invitedName} was invited as ${role} in ${schoolName}.`
+          : `${invitedName} has a pending ${role} invitation, but email delivery failed: ${deliveryMessage}`,
+        savedInvite.id,
+      );
       setInviteForm(initialInviteForm());
       setActiveTab("invitations");
-      setNotice(`Invitation email sent to ${invitedName}.`);
-      setError(null);
+      if (invitationSent) {
+        setNotice(`Invitation email sent to ${invitedName}.`);
+        setError(null);
+      } else {
+        setNotice(`${invitedName} was added to Pending Invitations. Resend once email delivery is fixed.`);
+        setError(`Email delivery failed: ${deliveryMessage}${deliveryAction ? ` ${deliveryAction}` : ""}`);
+      }
     } catch (inviteError) {
       const providerMessage = inviteError instanceof Error ? inviteError.message : "Unable to send invitation email.";
       const message = `Email delivery failed: ${providerMessage}`;

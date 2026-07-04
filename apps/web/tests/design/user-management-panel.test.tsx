@@ -153,6 +153,39 @@ describe("school user management", () => {
     expect(screen.getAllByText("Jane Parent").length).toBeGreaterThan(0);
   });
 
+  it("keeps failed email invitations visible for resend instead of treating creation as failed", async () => {
+    const user = userEvent.setup();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ users: [] }))
+      .mockResolvedValueOnce(jsonResponse({ token: "csrf-invite-token" }))
+      .mockResolvedValueOnce(jsonResponse({
+        id: "invite-email-failed-1",
+        kind: "invitation",
+        display_name: "Grace Njeri",
+        email: "grace.njeri@example.test",
+        role_code: "teacher",
+        role_name: "Teacher",
+        status: "email_failed",
+        invitation_sent: false,
+        invitation_message: "Email provider rejected the invite.",
+        invitation_action_required: "Verify the sender domain, then resend the invitation.",
+      }));
+
+    renderWithProviders(<UserManagementPanel />);
+
+    await user.type(await screen.findByPlaceholderText(/full name/i), "Grace Njeri");
+    await user.type(screen.getByPlaceholderText(/name@school\.ac\.ke/i), "grace.njeri@example.test");
+    await user.selectOptions(screen.getByLabelText(/role/i), "teacher");
+    await user.click(screen.getByRole("button", { name: /send invitation/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/invitation created, but email delivery failed/i)).toBeVisible(),
+    );
+    expect(screen.getAllByText("Grace Njeri").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Invited").length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /resend grace njeri/i }).length).toBeGreaterThan(0);
+  });
+
   it("loads live tenant users and supports resend and revoke for pending invitations", async () => {
     const user = userEvent.setup();
     fetchMock

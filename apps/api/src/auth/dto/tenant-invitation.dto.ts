@@ -135,14 +135,21 @@ export type TenantInvitationResponseDto = {
   email: string;
   display_name: string;
   role_code: TenantInvitableRoleCode;
+  role_name?: string;
+  kind?: 'invitation';
+  status?: 'invited' | 'email_failed';
   phone?: string;
   department?: string;
   assignment?: string;
   identifier?: string;
   delivery_method?: 'Email' | 'SMS' | 'Copy link';
   note?: string;
-  invitation_sent: true;
+  invitation_sent: boolean;
+  invitation_message?: string;
+  invitation_failure_code?: string;
+  invitation_action_required?: string;
   expires_at: string;
+  created_at?: string;
 };
 
 export type TenantManagedUserStatus = 'active' | 'suspended' | 'invited' | 'expired';
@@ -176,7 +183,10 @@ export type TenantManagedUsersResponseDto = {
 
 export type TenantInvitationActionResponseDto = {
   id: string;
-  status?: 'revoked';
-  invitation_sent?: true;
+  status?: 'revoked' | 'invited' | 'email_failed';
+  invitation_sent?: boolean;
+  invitation_message?: string;
+  invitation_failure_code?: string;
+  invitation_action_required?: string;
   expires_at?: string;
 };

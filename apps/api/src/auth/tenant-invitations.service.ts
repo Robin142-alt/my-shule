@@ -5,7 +5,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { RequestContextService } from '../common/request-context/request-context.service';
 import { DatabaseService } from '../database/database.service';
 import { AuditLogService } from '../modules/observability/audit-log.service';
-import { AuthEmailService } from './auth-email.service';
+import { AuthEmailService, EmailDeliveryError } from './auth-email.service';
 import {
   CreateTenantInvitationDto,
   ListTenantUsersQueryDto,
@@ -83,6 +83,14 @@ type PendingInvitationRow = {
   expires_at: Date | string;
 };
 
+type InvitationEmailDelivery = {
+  sent: boolean;
+  status: 'sent' | 'failed';
+  message: string;
+  failureCode?: string;
+  actionRequired?: string;
+};
+
 @Injectable()
 export class TenantInvitationsService {
   constructor(
@@ -156,7 +164,7 @@ export class TenantInvitationsService {
         ...invitationDetails,
       };
 
-      const invitationId = await this.createInvitationAction({
+      const invitation = await this.createInvitationAction({
         tenantId,
         email,
         displayName,
@@ -169,23 +177,40 @@ export class TenantInvitationsService {
         roleName,
         inviterName,
       });
-      await this.recordAudit('tenant.invitation.created', 'tenant_invitation', invitationId, {
+      await this.recordAudit('tenant.invitation.created', 'tenant_invitation', invitation.invitationId, {
         email,
         display_name: displayName,
         role_code: roleCode,
         ...invitationDetails,
         expires_at: expiresAt.toISOString(),
+        email_delivery_status: invitation.delivery.status,
       });
+      if (!invitation.delivery.sent) {
+        await this.recordAudit('tenant.invitation.email_failed', 'tenant_invitation', invitation.invitationId, {
+          email,
+          display_name: displayName,
+          role_code: roleCode,
+          failure_code: invitation.delivery.failureCode,
+          failure_message: invitation.delivery.message,
+        });
+      }
 
       return {
-        id: invitationId,
+        id: invitation.invitationId,
         tenant_id: tenantId,
         email,
         display_name: displayName,
         role_code: roleCode,
+        role_name: roleName,
+        kind: 'invitation',
+        status: invitation.delivery.sent ? 'invited' : 'email_failed',
         ...invitationDetails,
-        invitation_sent: true,
+        invitation_sent: invitation.delivery.sent,
+        invitation_message: invitation.delivery.message,
+        invitation_failure_code: invitation.delivery.failureCode,
+        invitation_action_required: invitation.delivery.actionRequired,
         expires_at: expiresAt.toISOString(),
+        created_at: new Date().toISOString(),
       };
     });
   }
@@ -400,32 +425,40 @@ export class TenantInvitationsService {
         payload: metadata,
       });
 
-      try {
-        await this.emailService.sendInvitationEmail({
-          to: invitation.email.toLowerCase(),
-          displayName: invitation.display_name,
-          schoolName,
-          assignedRole: roleName,
-          inviterName,
-          inviteUrl,
-          expiresAt,
-          supportNote: this.getInvitationSupportNote(),
-        });
-        await this.markOutboxDelivery(outboxId, 'sent');
-      } catch (error) {
-        await this.markOutboxDelivery(outboxId, 'failed');
-        throw error;
-      }
+      const delivery = await this.deliverInvitationEmail({
+        outboxId,
+        to: invitation.email.toLowerCase(),
+        displayName: invitation.display_name,
+        schoolName,
+        assignedRole: roleName,
+        inviterName,
+        inviteUrl,
+        expiresAt,
+      });
       await this.recordAudit('tenant.invitation.resent', 'tenant_invitation', invitationId, {
         email: invitation.email.toLowerCase(),
         display_name: invitation.display_name,
         role_code: roleCode,
         expires_at: expiresAt.toISOString(),
+        email_delivery_status: delivery.status,
       });
+      if (!delivery.sent) {
+        await this.recordAudit('tenant.invitation.email_failed', 'tenant_invitation', invitationId, {
+          email: invitation.email.toLowerCase(),
+          display_name: invitation.display_name,
+          role_code: roleCode,
+          failure_code: delivery.failureCode,
+          failure_message: delivery.message,
+        });
+      }
 
       return {
         id: invitationId,
-        invitation_sent: true,
+        status: delivery.sent ? 'invited' : 'email_failed',
+        invitation_sent: delivery.sent,
+        invitation_message: delivery.message,
+        invitation_failure_code: delivery.failureCode,
+        invitation_action_required: delivery.actionRequired,
         expires_at: expiresAt.toISOString(),
       };
     });
@@ -747,7 +780,7 @@ export class TenantInvitationsService {
     schoolName: string;
     roleName: string;
     inviterName: string;
-  }): Promise<string> {
+  }): Promise<{ invitationId: string; delivery: InvitationEmailDelivery }> {
     await this.databaseService.query(
       `
         UPDATE auth_action_tokens
@@ -812,24 +845,78 @@ export class TenantInvitationsService {
     );
     const outboxId = outboxResult.rows[0]?.id;
 
+    const delivery = await this.deliverInvitationEmail({
+      outboxId,
+      to: input.email,
+      displayName: input.displayName,
+      schoolName: input.schoolName,
+      assignedRole: input.roleName,
+      inviterName: input.inviterName,
+      inviteUrl: input.inviteUrl,
+      expiresAt: input.expiresAt,
+    });
+
+    return { invitationId, delivery };
+  }
+
+  private async deliverInvitationEmail(input: {
+    outboxId: string | undefined;
+    to: string;
+    displayName: string;
+    schoolName: string;
+    assignedRole: string;
+    inviterName: string;
+    inviteUrl: string;
+    expiresAt: Date;
+  }): Promise<InvitationEmailDelivery> {
     try {
       await this.emailService.sendInvitationEmail({
-        to: input.email,
+        to: input.to,
         displayName: input.displayName,
         schoolName: input.schoolName,
-        assignedRole: input.roleName,
+        assignedRole: input.assignedRole,
         inviterName: input.inviterName,
         inviteUrl: input.inviteUrl,
         expiresAt: input.expiresAt,
         supportNote: this.getInvitationSupportNote(),
       });
-      await this.markOutboxDelivery(outboxId, 'sent');
+      await this.markOutboxDelivery(input.outboxId, 'sent');
+      return {
+        sent: true,
+        status: 'sent',
+        message: 'Invitation email sent.',
+      };
     } catch (error) {
-      await this.markOutboxDelivery(outboxId, 'failed');
-      throw error;
+      await this.markOutboxDelivery(input.outboxId, 'failed');
+      return this.invitationDeliveryFailureFromError(error);
+    }
+  }
+
+  private invitationDeliveryFailureFromError(error: unknown): InvitationEmailDelivery {
+    if (error instanceof EmailDeliveryError) {
+      return {
+        sent: false,
+        status: 'failed',
+        message: error.safeMessage,
+        failureCode: error.code,
+        actionRequired:
+          error.code === 'resend_domain_not_verified'
+            ? 'Verify the Resend sending domain and set EMAIL_FROM to that verified domain, then resend the invitation.'
+            : 'Fix transactional email delivery, then resend the pending invitation.',
+      };
     }
 
-    return invitationId;
+    const message = error instanceof Error && error.message.trim()
+      ? error.message.trim()
+      : 'School invitation email could not be sent right now.';
+
+    return {
+      sent: false,
+      status: 'failed',
+      message,
+      failureCode: 'provider_rejected',
+      actionRequired: 'Fix transactional email delivery, then resend the pending invitation.',
+    };
   }
 
   private async queueInvitationEmail(input: {

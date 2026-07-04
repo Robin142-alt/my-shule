@@ -4,6 +4,7 @@ import test from 'node:test';
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 
 import { CreateTenantInvitationDto } from './dto/tenant-invitation.dto';
+import { EmailDeliveryError } from './auth-email.service';
 import { TenantInvitationsService } from './tenant-invitations.service';
 
 test('CreateTenantInvitationDto accepts school assignment fields sent by the user management form', async () => {
@@ -224,6 +225,106 @@ test('TenantInvitationsService allows a head teacher school admin to invite depu
   assert.equal(sentInvites.length, 1);
   assert.equal(sentInvites[0]?.to, 'deputy@example.test');
   assert.equal(sentInvites[0]?.assignedRole, 'Deputy Principal');
+});
+
+test('TenantInvitationsService preserves pending invitation when email delivery fails', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const auditLogs: Array<{
+    action: string;
+    resource_type: string;
+    resource_id?: string | null;
+    metadata?: Record<string, unknown>;
+  }> = [];
+
+  const service = new TenantInvitationsService(
+    {
+      withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
+      query: async (text: string, values: unknown[]) => {
+        queries.push({ text, values });
+
+        if (text.includes('SELECT name FROM tenants')) {
+          return { rows: [{ name: 'Green Valley School' }] };
+        }
+
+        if (text.includes('FROM users') && text.includes('display_name')) {
+          return { rows: [{ display_name: 'Principal Wanjiku', email: 'principal@example.test' }] };
+        }
+
+        if (text.includes('INSERT INTO auth_action_tokens')) {
+          return { rows: [{ id: '00000000-0000-0000-0000-000000000803' }] };
+        }
+
+        if (text.includes('INSERT INTO auth_email_outbox')) {
+          return { rows: [{ id: '00000000-0000-0000-0000-000000000903' }] };
+        }
+
+        return { rows: [] };
+      },
+    } as never,
+    {
+      ensureTenantAuthorizationBaseline: async () => undefined,
+      getRoleByCode: async (_tenantId: string, code: string) => ({ id: `role-${code}`, code, name: 'Admissions Officer' }),
+    } as never,
+    {
+      assertTransactionalEmailConfigured: () => undefined,
+      sendInvitationEmail: async () => {
+        throw new EmailDeliveryError(
+          'provider_rejected',
+          'School invitation email could not be sent right now.',
+          500,
+        );
+      },
+    } as never,
+    { get: (key: string) => (key === 'email.publicAppUrl' ? 'https://my-shule-erp.vercel.app' : undefined) } as never,
+    {
+      requireStore: () => ({
+        tenant_id: 'green-valley',
+        user_id: 'school-admin',
+        role: 'principal',
+      }),
+    } as never,
+    {
+      record: async (input: {
+        action: string;
+        resource_type: string;
+        resource_id?: string | null;
+        metadata?: Record<string, unknown>;
+      }) => {
+        auditLogs.push(input);
+      },
+    } as never,
+  );
+
+  const response = await service.inviteTenantUser({
+    email: 'admissions@example.test',
+    display_name: 'Admissions One',
+    role_code: 'admissions_officer',
+    delivery_method: 'Email',
+  });
+
+  assert.equal(response.id, '00000000-0000-0000-0000-000000000803');
+  assert.equal(response.tenant_id, 'green-valley');
+  assert.equal(response.email, 'admissions@example.test');
+  assert.equal(response.invitation_sent, false);
+  assert.equal(response.status, 'email_failed');
+  assert.equal(response.invitation_failure_code, 'provider_rejected');
+  assert.match(response.invitation_message ?? '', /could not be sent/i);
+  assert.match(response.invitation_action_required ?? '', /resend the pending invitation/i);
+  assert.ok(queries.some((query) => query.text.includes('INSERT INTO auth_action_tokens')));
+  assert.ok(queries.some((query) => query.text.includes('INSERT INTO auth_email_outbox')));
+  assert.ok(
+    queries.some(
+      (query) =>
+        query.text.includes('app.mark_auth_email_outbox_delivery')
+        && query.values[1] === 'failed',
+    ),
+  );
+  assert.deepEqual(
+    auditLogs.map((entry) => entry.action),
+    ['tenant.invitation.created', 'tenant.invitation.email_failed'],
+  );
+  assert.equal(auditLogs[0]?.metadata?.email_delivery_status, 'failed');
+  assert.equal(auditLogs[1]?.metadata?.failure_code, 'provider_rejected');
 });
 
 test('TenantInvitationsService rejects unsupported tenant invitation roles before sending email', async () => {
