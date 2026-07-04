@@ -3939,6 +3939,7 @@ type SchoolPagesProps = {
   section?: string;
   studentId?: string;
   tenantSlug?: string | null;
+  userLabel?: string | null;
   routeMode?: SchoolRouteMode;
   liveDataEnabled?: boolean;
 };
@@ -4040,6 +4041,7 @@ function SchoolPagesShell({
   section = "dashboard",
   studentId,
   tenantSlug,
+  userLabel,
   routeMode = "hosted",
   liveDataEnabled = true,
 }: SchoolPagesProps) {
@@ -4342,7 +4344,7 @@ function SchoolPagesShell({
 
   if (renderRoleOperationalWorkspace) {
     if (role === "principal") {
-      return <PrincipalCommandCenter routeMode={routeMode} tenantSlug={tenantSlug} activeSection={section} />;
+      return <PrincipalCommandCenter routeMode={routeMode} tenantSlug={tenantSlug} activeSection={section} userLabel={userLabel} />;
     }
 
     if (role === "student") {

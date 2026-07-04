@@ -6,6 +6,23 @@ import { SchoolPages } from "@/components/school/school-pages";
 import { renderWithProviders } from "./test-utils";
 
 describe("principal production readiness", () => {
+  it("renders a new invited principal inside their own school tenant instead of Kisumu Boys demo", async () => {
+    renderWithProviders(
+      <SchoolPages
+        role="principal"
+        tenantSlug="maranda-high"
+        userLabel="Principal Wanjiku"
+      />,
+    );
+
+    const commandCenter = await screen.findByTestId("principal-practical-command-center");
+
+    expect(within(commandCenter).getAllByText(/Maranda High/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).queryByText(/Kisumu Boys/i)).not.toBeInTheDocument();
+    expect(within(commandCenter).queryByText(/KSh 248,500/i)).not.toBeInTheDocument();
+    expect(within(commandCenter).getByText(/0 modules enabled|Loading modules/i)).toBeVisible();
+  });
+
   it("opens Fees workspace actions without fake success", async () => {
     const user = userEvent.setup();
 

@@ -29,6 +29,7 @@ import {
 } from "@/lib/school/school-operational-store";
 
 import { DashboardCommunicationProvider } from "@/lib/dashboard-communication/dashboard-communication-provider";
+import { tenantSlugToName } from "@/lib/seo/tenant-routes";
 import { buildSchoolSectionHref } from "./school-pages";
 
 type PrincipalSection =
@@ -149,15 +150,15 @@ function formatKsh(value: number) {
 }
 
 function getPrincipalSchoolId(tenantSlug?: string | null) {
-  if (tenantSlug) {
-    return tenantSlug;
-  }
+  return tenantSlug?.trim() || "school-workspace";
+}
 
-  if (typeof window !== "undefined") {
-    return window.localStorage.getItem("myshule.currentSchoolId") || "kisumu-boys";
-  }
+function getPrincipalSchoolName(schoolId: string) {
+  return schoolId === "school-workspace" ? "School workspace" : tenantSlugToName(schoolId);
+}
 
-  return "kisumu-boys";
+function isKisumuDemoTenant(schoolId: string) {
+  return schoolId === "kisumu-boys" || schoolId === "kisumu-boys-demo";
 }
 
 function normalizePrincipalSection(section?: string): PrincipalSection {
@@ -198,12 +199,17 @@ export function PrincipalCommandCenter({
   routeMode,
   tenantSlug,
   activeSection,
+  userLabel,
 }: {
   routeMode?: "hosted" | "public";
   tenantSlug?: string | null;
   activeSection?: string;
+  userLabel?: string | null;
 }) {
   const schoolId = getPrincipalSchoolId(tenantSlug);
+  const schoolName = getPrincipalSchoolName(schoolId);
+  const principalName = userLabel?.trim() || "Principal";
+  const isDemoTenant = isKisumuDemoTenant(schoolId);
   const [activeWorkspace, setActiveWorkspaceState] = useState<PrincipalSection>(() =>
     normalizePrincipalSection(activeSection),
   );
@@ -312,14 +318,18 @@ export function PrincipalCommandCenter({
   }, [revision, schoolId]);
 
   const collectedToday = schoolRecords.feePayments.reduce((total, row) => total + Number(row.amount || 0), 0);
-  const visibleCollections = collectedToday > 0 ? collectedToday : 248500;
+  const visibleCollections = collectedToday > 0 ? collectedToday : isDemoTenant ? 248500 : 0;
   const visitorsInside = schoolRecords.visitors.filter((row) => /inside/i.test(row.status)).length;
   const waitingInquiries = schoolRecords.inquiries.filter((row) => /waiting/i.test(row.status)).length;
   const medicineAlerts = schoolRecords.medicineStock.filter((row) => Number(row.quantity) <= Number(row.reorderAt)).length;
   const libraryFollowUps = schoolRecords.libraryLoans.filter((row) => /overdue|lost|damaged/i.test(row.status) || Number(row.fine) > 0).length;
   const attendanceRegister = schoolRecords.attendanceRegisters[0];
+  const presentStudents = attendanceRegister?.present ?? (isDemoTenant ? 944 : 0);
+  const absentStudents = attendanceRegister?.absent ?? (isDemoTenant ? 18 : 0);
+  const lateStudents = attendanceRegister?.late ?? (isDemoTenant ? 12 : 0);
+  const missingRegisters = schoolRecords.attendanceRegisters.length === 0 ? 0 : 3;
   const guardianRecipientCount =
-    attendanceRegister?.absentStudents?.filter((student) => Boolean(student.phone || student.guardian)).length ?? 2;
+    attendanceRegister?.absentStudents?.filter((student) => Boolean(student.phone || student.guardian)).length ?? 0;
   const principalDashboard = streamedPrincipalDashboard ?? fetchedPrincipalDashboard;
   const principalAlerts = principalDashboard?.alerts ?? [];
   function setActiveWorkspace(section: PrincipalSection) {
@@ -357,7 +367,7 @@ export function PrincipalCommandCenter({
       return (
         <section aria-label="Principal attendance workspace" className="space-y-4">
           <WorkspaceHeading title="Attendance" subtitle="Attendance items needing attention" />
-          <p className="text-sm font-black text-white">18 students absent, 12 late</p>
+          <p className="text-sm font-black text-white">{absentStudents} students absent, {lateStudents} late</p>
           <div className="grid gap-3 md:grid-cols-3">
             <label className="text-sm font-bold text-white">
               Attendance date
@@ -365,7 +375,7 @@ export function PrincipalCommandCenter({
             </label>
             <label className="text-sm font-bold text-white">
               Class or stream
-              <input className="mt-1 w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-white" defaultValue={attendanceRegister?.className ?? "Form 2 Blue"} />
+              <input className="mt-1 w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-white" defaultValue={attendanceRegister?.className ?? ""} placeholder="No class register submitted yet" />
             </label>
             <label className="text-sm font-bold text-white">
               Search attendance records
@@ -373,10 +383,10 @@ export function PrincipalCommandCenter({
             </label>
           </div>
           <div className="grid gap-3 md:grid-cols-4">
-            <MetricCard label="Present students" value={String(attendanceRegister?.present ?? 944)} />
-            <MetricCard label="Absent students" value={String(attendanceRegister?.absent ?? 18)} />
-            <MetricCard label="Late students" value={String(attendanceRegister?.late ?? 12)} />
-            <MetricCard label="Missing registers" value="3" />
+            <MetricCard label="Present students" value={String(presentStudents)} />
+            <MetricCard label="Absent students" value={String(absentStudents)} />
+            <MetricCard label="Late students" value={String(lateStudents)} />
+            <MetricCard label="Missing registers" value={String(missingRegisters)} />
           </div>
           <p className="text-sm font-semibold text-white/75">Teacher responsible: {attendanceRegister?.teacher ?? "Class Teacher dashboard"}</p>
           <p className="text-sm font-semibold text-white/75">Last updated from Teacher and Class Teacher dashboards</p>
@@ -462,9 +472,9 @@ export function PrincipalCommandCenter({
       return (
         <UserManagementWorkspace
           schoolId={schoolId}
-          schoolName="Kisumu Boys"
+          schoolName={schoolName}
           actorRole="Principal"
-          actorName="Principal Wanjiku"
+          actorName={principalName}
           canInviteUsers={true}
           canManageUsers={true}
         />
@@ -493,7 +503,7 @@ export function PrincipalCommandCenter({
               </thead>
               <tbody>
                 {[
-                  ["08:10", "Principal Wanjiku", "Viewed fee summary", "Finance dashboard", "Allowed"],
+                  ["08:10", principalName, "Viewed fee summary", "Finance dashboard", "Allowed"],
                   ["08:32", "Deputy Principal", "Flagged late class register", "Attendance", "Allowed"],
                   ["09:05", "Exams Manager", "Generated report-card batch", "Report cards", "Allowed"],
                 ].map(([time, actor, action, entity, result]) => (
@@ -516,14 +526,14 @@ export function PrincipalCommandCenter({
       <section aria-label="Principal overview workspace" className="space-y-5">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-200">School activity today</p>
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-200">Kisumu Boys live updates</p>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-200">{schoolName} live updates</p>
           <h2 className="mt-1 text-2xl font-black text-white">Practical Kenyan school command center</h2>
         </div>
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <MetricCard label="Students Present Today" value="944" helper="From: Teacher and Class Teacher dashboards" />
+          <MetricCard label="Students Present Today" value={String(presentStudents)} helper="From: Teacher and Class Teacher dashboards" />
           <MetricCard label="Fees Collected Today" value={formatKsh(visibleCollections)} helper="From: Accountant dashboard and M-Pesa confirmations" />
-          <MetricCard label="Visitors Inside" value={String(Math.max(1, visitorsInside))} helper="From: Secretary and Security dashboards" />
-          <MetricCard label="Sick Bay Cases" value={String(Math.max(1, schoolRecords.clinicVisits.length))} helper="From: Nurse dashboard and medicine stock records" />
+          <MetricCard label="Visitors Inside" value={String(visitorsInside)} helper="From: Secretary and Security dashboards" />
+          <MetricCard label="Sick Bay Cases" value={String(schoolRecords.clinicVisits.length)} helper="From: Nurse dashboard and medicine stock records" />
           <MetricCard label="Pending Approvals" value="4" helper="Approval queue" />
           <MetricCard label="System Alerts" value="2" helper="System monitor" />
         </div>
@@ -626,7 +636,7 @@ export function PrincipalCommandCenter({
           >
             <div className="rounded-[var(--radius-lg)] border border-white/10 bg-white/[0.06] p-4">
               <p className="text-xs font-black uppercase text-cyan-200">Principal Command</p>
-              <h2 className="mt-2 text-2xl font-black">Kisumu Boys</h2>
+              <h2 className="mt-2 text-2xl font-black">{schoolName}</h2>
             </div>
             <nav aria-label="Principal dashboard sidebar" className="mt-5 flex-1 space-y-2 overflow-auto pr-1 pb-10">
               {navItems.map((item) => {
@@ -659,8 +669,8 @@ export function PrincipalCommandCenter({
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <DashboardGreeting
-                    name="Principal Wanjiku"
-                    context="Kisumu Boys command center"
+                    name={principalName}
+                    context={`${schoolName} command center`}
                   />
                   <h1 className="mt-1 text-2xl font-black">Principal Dashboard</h1>
                 </div>
@@ -701,7 +711,7 @@ export function PrincipalCommandCenter({
         ) : null}
 
         {printDialogOpen ? (
-          <PrincipalDialog title="Kisumu Boys attendance report print preview" onClose={() => setPrintDialogOpen(false)}>
+          <PrincipalDialog title={`${schoolName} attendance report print preview`} onClose={() => setPrintDialogOpen(false)}>
             <p className="font-black">Preview document</p>
             <p className="mt-2 text-sm font-semibold text-slate-600">Attendance register, missing learners, late arrivals, and teacher source are compiled for the principal.</p>
             <div className="mt-4 flex justify-end gap-2">

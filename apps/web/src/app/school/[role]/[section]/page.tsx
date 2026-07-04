@@ -61,6 +61,7 @@ export default async function SchoolSectionPage({
       role={session.role}
       section={section}
       tenantSlug={session.tenantSlug}
+      userLabel={session.userLabel}
       routeMode="public"
       liveDataEnabled={liveDataEnabled}
     />

@@ -225,17 +225,18 @@ describe("role dashboard operational structure", () => {
     deputyDiscipline.unmount();
   }, 30000);
 
-  it("shows practical Kisumu Boys school data on hosted principal dashboards even when no tenant slug is present", async () => {
+  it("does not fall back to Kisumu Boys when no principal tenant slug is present", async () => {
     renderWithProviders(<SchoolPages role="principal" />);
 
     expect(await screen.findByTestId("role-operational-command-center")).toBeVisible();
     expect(screen.getByTestId("principal-practical-command-center")).toBeVisible();
-    expect(screen.getAllByText(/Kisumu Boys/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/School workspace/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Kisumu Boys/i)).not.toBeInTheDocument();
     expect(screen.getAllByText(/Students Present/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Fees Collected Today/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Visitors Inside/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Sick Bay Cases/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/KSh 248,500/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText(/KSh 248,500/i)).not.toBeInTheDocument();
     expect(screen.getByText(/From: Accountant dashboard and M-Pesa confirmations/i)).toBeVisible();
     expect(screen.getByText(/From: Teacher and Class Teacher dashboards/i)).toBeVisible();
   }, 30000);

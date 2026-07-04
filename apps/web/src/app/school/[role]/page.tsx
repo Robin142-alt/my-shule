@@ -165,6 +165,7 @@ export default async function SchoolRoleHomePage({
     <SchoolPages
       role={session.role}
       tenantSlug={session.tenantSlug}
+      userLabel={session.userLabel}
       routeMode="public"
       liveDataEnabled={liveDataEnabled}
     />
