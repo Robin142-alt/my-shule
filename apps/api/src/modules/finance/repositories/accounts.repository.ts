@@ -7,42 +7,54 @@ import { AccountCategory, EntryDirection } from '../finance.types';
 export class AccountsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findById(tenantId: string, accountId: string): Promise<AccountEntity | null> {
-    return this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+  async findById(tenantId: string, accountId: string, transactionClient?: any): Promise<AccountEntity | null> {
+    const read = async (tx: any) => {
       const account = await tx.ledgerAccount.findUnique({
         where: { id: accountId, schoolId: tenantId },
       });
       return account ? this.mapAccount(account) : null;
-    });
+    };
+
+    return transactionClient
+      ? read(transactionClient)
+      : this.prisma.executeWithTenant(tenantId, null, read);
   }
 
-  async findByCode(tenantId: string, accountCode: string): Promise<AccountEntity | null> {
-    return this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+  async findByCode(tenantId: string, accountCode: string, transactionClient?: any): Promise<AccountEntity | null> {
+    const read = async (tx: any) => {
       const account = await tx.ledgerAccount.findFirst({
         where: { schoolId: tenantId, code: accountCode },
       });
       return account ? this.mapAccount(account) : null;
-    });
+    };
+
+    return transactionClient
+      ? read(transactionClient)
+      : this.prisma.executeWithTenant(tenantId, null, read);
   }
 
-  async findByIds(tenantId: string, accountIds: string[]): Promise<AccountEntity[]> {
+  async findByIds(tenantId: string, accountIds: string[], transactionClient?: any): Promise<AccountEntity[]> {
     const uniqueAccountIds = Array.from(new Set(accountIds));
     if (uniqueAccountIds.length === 0) return [];
 
-    return this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+    const read = async (tx: any) => {
       const accounts = await tx.ledgerAccount.findMany({
         where: { schoolId: tenantId, id: { in: uniqueAccountIds } },
         orderBy: { id: 'asc' },
       });
-      return accounts.map((row) => this.mapAccount(row));
-    });
+      return accounts.map((row: any) => this.mapAccount(row));
+    };
+
+    return transactionClient
+      ? read(transactionClient)
+      : this.prisma.executeWithTenant(tenantId, null, read);
   }
 
-  async lockAccountsByIds(tenantId: string, accountIds: string[]): Promise<AccountEntity[]> {
+  async lockAccountsByIds(tenantId: string, accountIds: string[], transactionClient?: any): Promise<AccountEntity[]> {
     const uniqueAccountIds = Array.from(new Set(accountIds));
     if (uniqueAccountIds.length === 0) return [];
 
-    return this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+    const read = async (tx: any) => {
       // Prisma has no native FOR UPDATE on findMany, so we use $queryRaw
       const accounts = await tx.$queryRaw<any[]>`
         SELECT *
@@ -52,8 +64,12 @@ export class AccountsRepository {
         ORDER BY id ASC
         FOR UPDATE
       `;
-      return accounts.map((row) => this.mapRawAccount(row));
-    });
+      return accounts.map((row: any) => this.mapRawAccount(row));
+    };
+
+    return transactionClient
+      ? read(transactionClient)
+      : this.prisma.executeWithTenant(tenantId, null, read);
   }
 
   private mapAccount(row: any): AccountEntity {

@@ -11,8 +11,9 @@ export class LedgerEntriesRepository {
     tenantId: string,
     transactionId: string,
     entries: ValidatedLedgerEntry[],
+    transactionClient?: any,
   ): Promise<LedgerEntryEntity[]> {
-    return this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+    const write = async (tx: any) => {
       const createdEntries = await Promise.all(entries.map(entry => 
         tx.ledgerEntry.create({
           data: {
@@ -30,17 +31,25 @@ export class LedgerEntriesRepository {
       ));
 
       return createdEntries.map(row => this.mapLedgerEntry(row));
-    });
+    };
+
+    return transactionClient
+      ? write(transactionClient)
+      : this.prisma.executeWithTenant(tenantId, null, write);
   }
 
-  async calculateBalances(tenantId: string, accountIds: string[]): Promise<Map<string, AccountBalanceSnapshot>> {
+  async calculateBalances(
+    tenantId: string,
+    accountIds: string[],
+    transactionClient?: any,
+  ): Promise<Map<string, AccountBalanceSnapshot>> {
     const uniqueAccountIds = Array.from(new Set(accountIds));
 
     if (uniqueAccountIds.length === 0) {
       return new Map();
     }
 
-    return this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+    const read = async (tx: any): Promise<Map<string, AccountBalanceSnapshot>> => {
       const result = await tx.$queryRaw<any[]>`
         SELECT
           a.id AS account_id,
@@ -65,7 +74,7 @@ export class LedgerEntriesRepository {
       `;
 
       return new Map(
-        result.map((row) => [
+        result.map((row: any) => [
           row.account_id,
           {
             account_id: row.account_id,
@@ -78,20 +87,29 @@ export class LedgerEntriesRepository {
           },
         ]),
       );
-    });
+    };
+
+    return transactionClient
+      ? read(transactionClient)
+      : this.prisma.executeWithTenant(tenantId, null, read);
   }
 
   async findByTransactionId(
     tenantId: string,
     transactionId: string,
+    transactionClient?: any,
   ): Promise<LedgerEntryEntity[]> {
-    return this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+    const read = async (tx: any) => {
       const entries = await tx.ledgerEntry.findMany({
         where: { schoolId: tenantId, transactionId },
         orderBy: { lineNumber: 'asc' },
       });
-      return entries.map(row => this.mapLedgerEntry(row));
-    });
+      return entries.map((row: any) => this.mapLedgerEntry(row));
+    };
+
+    return transactionClient
+      ? read(transactionClient)
+      : this.prisma.executeWithTenant(tenantId, null, read);
   }
 
   private mapLedgerEntry(row: any): LedgerEntryEntity {

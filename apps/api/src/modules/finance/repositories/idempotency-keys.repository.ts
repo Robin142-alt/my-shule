@@ -25,7 +25,17 @@ interface IdempotencyKeyRow {
 @Injectable()
 export class IdempotencyKeysRepository {
 
-  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+  private async executeSql<T = any>(
+    query: string,
+    params: any[] = [],
+    transactionClient?: any,
+  ): Promise<{ rows: T[], rowCount: number }> {
+    if (transactionClient) {
+      const result = await transactionClient.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+      return { rows: arr, rowCount: arr.length };
+    }
+
     const firstParam = params[0];
     const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
 
@@ -49,7 +59,7 @@ export class IdempotencyKeysRepository {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async lockRequest(input: IdempotencyRequestLock): Promise<IdempotencyKeyRecord> {
+  async lockRequest(input: IdempotencyRequestLock, transactionClient?: any): Promise<IdempotencyKeyRecord> {
     await this.executeSql(
       `
         INSERT INTO idempotency_keys (
@@ -78,16 +88,22 @@ export class IdempotencyKeysRepository {
         input.request_hash,
         input.ttl_seconds,
       ],
+      transactionClient,
     );
 
-    const record = await this.getLockedRecord(input.tenant_id, input.scope, input.idempotency_key);
+    const record = await this.getLockedRecord(
+      input.tenant_id,
+      input.scope,
+      input.idempotency_key,
+      transactionClient,
+    );
 
     if (!record) {
       throw new ConflictException('Unable to lock idempotency key');
     }
 
     if (new Date(record.expires_at).getTime() <= Date.now()) {
-      return this.resetExpiredRecord(record.id, input);
+      return this.resetExpiredRecord(record.id, input, transactionClient);
     }
 
     if (record.request_hash !== input.request_hash) {
@@ -139,6 +155,7 @@ export class IdempotencyKeysRepository {
         input.request_hash,
         input.ttl_seconds,
       ],
+      transactionClient,
     );
 
     return this.mapRecord(result.rows[0]);
@@ -149,6 +166,7 @@ export class IdempotencyKeysRepository {
     idempotencyKeyId: string,
     responseStatusCode: number,
     responseBody: PostedFinancialTransaction,
+    transactionClient?: any,
   ): Promise<void> {
     await this.executeSql(
       `
@@ -163,6 +181,7 @@ export class IdempotencyKeysRepository {
           AND id = $2::uuid
       `,
       [tenantId, idempotencyKeyId, responseStatusCode, JSON.stringify(responseBody)],
+      transactionClient,
     );
   }
 
@@ -170,6 +189,7 @@ export class IdempotencyKeysRepository {
     tenantId: string,
     scope: string,
     idempotencyKey: string,
+    transactionClient?: any,
   ): Promise<IdempotencyKeyRecord | null> {
     const result = await this.executeSql<IdempotencyKeyRow>(
       `
@@ -198,6 +218,7 @@ export class IdempotencyKeysRepository {
         FOR UPDATE
       `,
       [tenantId, scope, idempotencyKey],
+      transactionClient,
     );
 
     return result.rows[0] ? this.mapRecord(result.rows[0]) : null;
@@ -206,6 +227,7 @@ export class IdempotencyKeysRepository {
   private async resetExpiredRecord(
     recordId: string,
     input: IdempotencyRequestLock,
+    transactionClient?: any,
   ): Promise<IdempotencyKeyRecord> {
     const result = await this.executeSql<IdempotencyKeyRow>(
       `
@@ -252,6 +274,7 @@ export class IdempotencyKeysRepository {
         input.request_hash,
         input.ttl_seconds,
       ],
+      transactionClient,
     );
 
     return this.mapRecord(result.rows[0]);

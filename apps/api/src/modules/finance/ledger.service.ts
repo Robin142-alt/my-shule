@@ -101,7 +101,7 @@ export class LedgerService {
     ).requireStore();
     const tenantId = this.requireTenantId();
 
-    return databaseService.executeWithTenant(tenantId, null, async () => {
+    return databaseService.executeWithTenant(tenantId, null, async (tx) => {
       const accountsRepository = this.requireRuntimeDependency(
         this.accountsRepository,
         'AccountsRepository',
@@ -121,23 +121,23 @@ export class LedgerService {
       const reference = this.requireNonEmptyText(input.reference, 'reference');
       const description = this.requireNonEmptyText(input.description, 'description');
 
-      await transactionsRepository.acquireReferenceLock(tenantId, reference);
+      await transactionsRepository.acquireReferenceLock(tenantId, reference, tx);
 
-      const idempotencyRecord = await this.lockIdempotencyKey(input);
+      const idempotencyRecord = await this.lockIdempotencyKey(input, tx);
 
       if (idempotencyRecord.status === 'completed' && idempotencyRecord.response_body) {
         return idempotencyRecord.response_body;
       }
 
       const accountIds = Array.from(new Set(input.entries.map((entry) => entry.account_id))).sort();
-      const accounts = await accountsRepository.lockAccountsByIds(tenantId, accountIds);
+      const accounts = await accountsRepository.lockAccountsByIds(tenantId, accountIds, tx);
       const postingPlan = this.buildPostingPlan(input, accounts);
 
       if (accounts.length !== accountIds.length) {
         throw new BadRequestException('One or more accounts could not be locked for the transaction');
       }
 
-      const existingTransaction = await transactionsRepository.findByReference(tenantId, reference);
+      const existingTransaction = await transactionsRepository.findByReference(tenantId, reference, tx);
 
       if (existingTransaction) {
         const existingResponse = await this.hydrateOrCompleteTransaction(
@@ -146,6 +146,7 @@ export class LedgerService {
           existingTransaction,
           accounts,
           postingPlan,
+          tx,
         );
         this.assertReferenceReuseCompatible(description, postingPlan, existingResponse);
         await idempotencyKeysRepository.markCompleted(
@@ -153,6 +154,7 @@ export class LedgerService {
           idempotencyRecord.id,
           200,
           existingResponse,
+          tx,
         );
         return existingResponse;
       }
@@ -176,10 +178,10 @@ export class LedgerService {
               : null,
           request_id: requestContext.request_id,
           metadata: input.metadata ?? {},
-        });
+        }, tx);
       } catch (error) {
         if (this.isReferenceUniquenessViolation(error)) {
-          const conflictTransaction = await transactionsRepository.findByReference(tenantId, reference);
+          const conflictTransaction = await transactionsRepository.findByReference(tenantId, reference, tx);
 
           if (!conflictTransaction) {
             throw error;
@@ -191,6 +193,7 @@ export class LedgerService {
             conflictTransaction,
             accounts,
             postingPlan,
+            tx,
           );
           this.assertReferenceReuseCompatible(description, postingPlan, existingResponse);
           await idempotencyKeysRepository.markCompleted(
@@ -198,6 +201,7 @@ export class LedgerService {
             idempotencyRecord.id,
             200,
             existingResponse,
+            tx,
           );
           return existingResponse;
         }
@@ -209,8 +213,9 @@ export class LedgerService {
         tenantId,
         transaction.id,
         postingPlan.entries,
+        tx,
       );
-      const balanceMap = await ledgerEntriesRepository.calculateBalances(tenantId, accountIds);
+      const balanceMap = await ledgerEntriesRepository.calculateBalances(tenantId, accountIds, tx);
       const response = this.buildPostedTransaction(
         tenantId,
         input.idempotency_key,
@@ -220,7 +225,7 @@ export class LedgerService {
         balanceMap,
       );
 
-      await idempotencyKeysRepository.markCompleted(tenantId, idempotencyRecord.id, 201, response);
+      await idempotencyKeysRepository.markCompleted(tenantId, idempotencyRecord.id, 201, response, tx);
       await this.requireRuntimeDependency(
         this.auditLogService,
         'AuditLogService',
@@ -360,14 +365,12 @@ export class LedgerService {
       description: input.description,
       effective_at: input.effective_at ?? null,
       posted_at: input.posted_at ?? null,
-      metadata: input.metadata ?? {},
       entries: input.entries.map((entry) => ({
         account_id: entry.account_id,
         direction: entry.direction,
         amount_minor: this.normalizeMinorAmount(entry.amount_minor),
         currency_code: entry.currency_code?.trim().toUpperCase() ?? null,
         description: entry.description ?? null,
-        metadata: entry.metadata ?? {},
       })),
     });
 
@@ -488,19 +491,24 @@ export class LedgerService {
     transaction: FinancialTransactionEntity,
     accounts: AccountEntity[],
     postingPlan: LedgerPostingPlan,
+    transactionClient?: any,
   ): Promise<PostedFinancialTransaction> {
     const ledgerEntriesRepository = this.requireRuntimeDependency(
       this.ledgerEntriesRepository,
       'LedgerEntriesRepository',
     );
-    const existingEntries = await ledgerEntriesRepository.findByTransactionId(tenantId, transaction.id);
+    const existingEntries = await ledgerEntriesRepository.findByTransactionId(
+      tenantId,
+      transaction.id,
+      transactionClient,
+    );
 
     if (existingEntries.length > 0) {
       const accountIds = Array.from(new Set(existingEntries.map((entry) => entry.account_id))).sort();
       const existingAccounts = await this.requireRuntimeDependency(
         this.accountsRepository,
         'AccountsRepository',
-      ).findByIds(tenantId, accountIds);
+      ).findByIds(tenantId, accountIds, transactionClient);
 
       if (existingAccounts.length !== accountIds.length) {
         throw new NotFoundException(
@@ -508,7 +516,11 @@ export class LedgerService {
         );
       }
 
-      const balanceMap = await ledgerEntriesRepository.calculateBalances(tenantId, accountIds);
+      const balanceMap = await ledgerEntriesRepository.calculateBalances(
+        tenantId,
+        accountIds,
+        transactionClient,
+      );
       return this.buildPostedTransaction(
         tenantId,
         idempotencyKey,
@@ -523,9 +535,14 @@ export class LedgerService {
       tenantId,
       transaction.id,
       postingPlan.entries,
+      transactionClient,
     );
     const accountIds = Array.from(new Set(postingPlan.entries.map((entry) => entry.account_id))).sort();
-    const balanceMap = await ledgerEntriesRepository.calculateBalances(tenantId, accountIds);
+    const balanceMap = await ledgerEntriesRepository.calculateBalances(
+      tenantId,
+      accountIds,
+      transactionClient,
+    );
 
     return this.buildPostedTransaction(
       tenantId,
@@ -617,6 +634,7 @@ export class LedgerService {
 
   private async lockIdempotencyKey(
     input: PostFinancialTransactionInput,
+    transactionClient?: any,
   ): Promise<IdempotencyKeyRecord> {
     const requestContext = this.requireRuntimeDependency(
       this.requestContext,
@@ -642,7 +660,7 @@ export class LedgerService {
           'finance.idempotencyTtlSeconds',
         ) ?? 86400,
       ),
-    });
+    }, transactionClient);
   }
 
   private requireTenantId(): string {

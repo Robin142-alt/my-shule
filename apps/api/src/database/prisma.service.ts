@@ -48,6 +48,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     return this.$transaction(async (tx) => {
       await tx.$queryRaw(buildTenantSessionSettingsQuery(tenantId, userId));
       return callback(tx);
+    }, {
+      maxWait: 30000,
+      timeout: 60000,
     });
   }
 

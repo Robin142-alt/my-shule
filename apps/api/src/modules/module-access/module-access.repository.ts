@@ -54,7 +54,7 @@ export class ModuleAccessRepository {
         return { rows: arr, rowCount: arr.length };
       });
     } else {
-      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      const result = await (this.prisma as any).$queryRawUnsafe(query, ...params);
       const arr = Array.isArray(result) ? result : [result];
         return { rows: arr, rowCount: arr.length };
     }

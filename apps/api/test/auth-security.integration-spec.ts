@@ -252,15 +252,17 @@ const registerTenantUser = async (
         tenant_id,
         email,
         password_hash,
+        full_name,
         display_name,
         status,
         email_verified_at,
         password_changed_at
       )
-      VALUES ($1, lower($2), $3, $4, 'active', NOW(), NOW())
+      VALUES ($1, lower($2), $3, $4, $4, 'active', NOW(), NOW())
       ON CONFLICT (lower(email))
       DO UPDATE SET
         password_hash = EXCLUDED.password_hash,
+        full_name = EXCLUDED.full_name,
         display_name = EXCLUDED.display_name,
         status = 'active',
         email_verified_at = COALESCE(users.email_verified_at, NOW()),

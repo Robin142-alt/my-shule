@@ -21,15 +21,19 @@ interface CreateTransactionInput {
 export class TransactionsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async acquireReferenceLock(tenantId: string, reference: string): Promise<void> {
-    await this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+  async acquireReferenceLock(tenantId: string, reference: string, transactionClient?: any): Promise<void> {
+    const lock = async (tx: any) => {
       const lockStr = `finance:transaction:${tenantId}:${reference}`;
       await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, lockStr);
-    });
+    };
+
+    await (transactionClient
+      ? lock(transactionClient)
+      : this.prisma.executeWithTenant(tenantId, null, lock));
   }
 
-  async createTransaction(input: CreateTransactionInput): Promise<FinancialTransactionEntity> {
-    return this.prisma.executeWithTenant(input.tenant_id, input.created_by_user_id, async (tx) => {
+  async createTransaction(input: CreateTransactionInput, transactionClient?: any): Promise<FinancialTransactionEntity> {
+    const write = async (tx: any) => {
       const transaction = await tx.ledgerTransaction.create({
         data: {
           schoolId: input.tenant_id,
@@ -48,19 +52,28 @@ export class TransactionsRepository {
       });
 
       return this.mapTransaction(transaction);
-    });
+    };
+
+    return transactionClient
+      ? write(transactionClient)
+      : this.prisma.executeWithTenant(input.tenant_id, input.created_by_user_id, write);
   }
 
   async findByReference(
     tenantId: string,
     reference: string,
+    transactionClient?: any,
   ): Promise<FinancialTransactionEntity | null> {
-    return this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+    const read = async (tx: any) => {
       const transaction = await tx.ledgerTransaction.findFirst({
         where: { schoolId: tenantId, reference },
       });
       return transaction ? this.mapTransaction(transaction) : null;
-    });
+    };
+
+    return transactionClient
+      ? read(transactionClient)
+      : this.prisma.executeWithTenant(tenantId, null, read);
   }
 
   private mapTransaction(row: any): FinancialTransactionEntity {
