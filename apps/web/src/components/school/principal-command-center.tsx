@@ -25,6 +25,9 @@ import { UserManagementWorkspace } from "@/components/school/user-management-wor
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import {
   readSchoolData,
+  type SchoolAuditLog,
+  type SchoolNotification,
+  type SchoolOperationalRequest,
   subscribeToSchoolDataUpdates,
 } from "@/lib/school/school-operational-store";
 
@@ -114,6 +117,29 @@ type AttendanceRegisterRecord = {
   absentStudents?: Array<{ name: string; guardian?: string; phone?: string }>;
   lateStudents?: string[];
   markedAt?: string;
+};
+
+type PrincipalGenericRecord = {
+  id: string;
+  title?: string;
+  student?: string;
+  incident?: string;
+  subject?: string;
+  name?: string;
+  role?: string;
+  route?: string;
+  vehicle?: string;
+  dorm?: string;
+  type?: string;
+  status?: string;
+  severity?: string;
+};
+
+type PrincipalWorkspaceRow = {
+  id: string;
+  title: string;
+  detail: string;
+  value: string;
 };
 
 type PrincipalNavItem = {
@@ -225,6 +251,10 @@ export function PrincipalCommandCenter({
     });
 
   useEffect(() => {
+    setActiveWorkspaceState(normalizePrincipalSection(activeSection));
+  }, [activeSection]);
+
+  useEffect(() => {
     window.localStorage.setItem("myshule.currentSchoolId", schoolId);
   }, [schoolId]);
 
@@ -265,29 +295,6 @@ export function PrincipalCommandCenter({
     };
   }, [schoolId]);
 
-  const navItems = useMemo<PrincipalNavItem[]>(
-    () => [
-      { id: "overview", label: "Overview", icon: Home },
-      { id: "fees", label: "Fees", count: "1", icon: Wallet },
-      { id: "attendance", label: "Attendance", count: "7", icon: Activity },
-      { id: "discipline", label: "Discipline", icon: ShieldAlert },
-      { id: "visitors", label: "Parents & Visitors", icon: UsersRound },
-      { id: "sick-bay", label: "Sick Bay", icon: HeartPulse },
-      { id: "boarding", label: "Boarding", icon: BookOpen },
-      { id: "academics", label: "Academics", icon: ClipboardCheck },
-      { id: "staff", label: "Staff", icon: UsersRound },
-      { id: "transport", label: "Transport", icon: BusFront },
-      { id: "library", label: "Library", icon: Library },
-      { id: "exams-reports", label: "Exams & Report Cards", icon: ClipboardCheck },
-      { id: "communication", label: "Communication", icon: MessageSquareText },
-      { id: "users-invitations", label: "Users & Invitations", icon: UsersRound },
-      { id: "approvals", label: "Approvals", icon: CheckCircle2 },
-      { id: "reports", label: "Reports", icon: Bell },
-      { id: "audit-logs", label: "Audit Logs", icon: ClipboardCheck },
-    ],
-    [],
-  );
-
   const schoolRecords = useMemo(() => {
     const dataSnapshot = { schoolId, revision };
     const feePayments = readSchoolData<FeePaymentRecord>("finance-payments", dataSnapshot.schoolId);
@@ -304,6 +311,31 @@ export function PrincipalCommandCenter({
     const medicineStock = readSchoolData<MedicineStockRecord>("medicine-stock", dataSnapshot.schoolId);
     const libraryLoans = readSchoolData<LibraryLoanRecord>("library-loans", dataSnapshot.schoolId);
     const attendanceRegisters = readSchoolData<AttendanceRegisterRecord>("attendance-registers", dataSnapshot.schoolId);
+    const operationalRequests = readSchoolData<SchoolOperationalRequest>("operationalRequests", dataSnapshot.schoolId);
+    const notifications = readSchoolData<SchoolNotification>("notifications", dataSnapshot.schoolId);
+    const auditLogs = readSchoolData<SchoolAuditLog>("auditLogs", dataSnapshot.schoolId);
+    const disciplineCases = readSchoolData<PrincipalGenericRecord>("discipline-cases", dataSnapshot.schoolId);
+    const boardingRecords = [
+      ...readSchoolData<PrincipalGenericRecord>("boarding-roll-calls", dataSnapshot.schoolId),
+      ...readSchoolData<PrincipalGenericRecord>("boarding-exeat-requests", dataSnapshot.schoolId),
+    ];
+    const academicRecords = [
+      ...readSchoolData<PrincipalGenericRecord>("subjects", dataSnapshot.schoolId),
+      ...readSchoolData<PrincipalGenericRecord>("teacher-allocations", dataSnapshot.schoolId),
+      ...readSchoolData<PrincipalGenericRecord>("lesson-coverage", dataSnapshot.schoolId),
+    ];
+    const staffRecords = [
+      ...readSchoolData<PrincipalGenericRecord>("staff-records", dataSnapshot.schoolId),
+      ...readSchoolData<PrincipalGenericRecord>("user-invitations", dataSnapshot.schoolId),
+    ];
+    const transportRecords = [
+      ...readSchoolData<PrincipalGenericRecord>("transport-routes", dataSnapshot.schoolId),
+      ...readSchoolData<PrincipalGenericRecord>("transport-trips", dataSnapshot.schoolId),
+    ];
+    const reportRecords = [
+      ...readSchoolData<PrincipalGenericRecord>("generated-reports", dataSnapshot.schoolId),
+      ...readSchoolData<PrincipalGenericRecord>("printed-documents", dataSnapshot.schoolId),
+    ];
 
     return {
       feePayments,
@@ -314,6 +346,15 @@ export function PrincipalCommandCenter({
       medicineStock,
       libraryLoans,
       attendanceRegisters,
+      operationalRequests,
+      notifications,
+      auditLogs,
+      disciplineCases,
+      boardingRecords,
+      academicRecords,
+      staffRecords,
+      transportRecords,
+      reportRecords,
     };
   }, [revision, schoolId]);
 
@@ -332,6 +373,60 @@ export function PrincipalCommandCenter({
     attendanceRegister?.absentStudents?.filter((student) => Boolean(student.phone || student.guardian)).length ?? 0;
   const principalDashboard = streamedPrincipalDashboard ?? fetchedPrincipalDashboard;
   const principalAlerts = principalDashboard?.alerts ?? [];
+  const pendingApprovals = schoolRecords.operationalRequests.filter((request) =>
+    request.status === "Pending"
+    && (request.targetRoles.includes("principal") || request.originRole === "principal"),
+  ).length;
+  const unresolvedSystemAlerts = [
+    ...principalAlerts.filter((alert) => alert.severity === "critical" || alert.severity === "warning"),
+    ...schoolRecords.notifications.filter((notification) =>
+      !notification.read
+      && (notification.severity === "critical" || notification.severity === "warning")
+      && (notification.audienceRoles.includes("principal") || notification.recipientRole === "principal"),
+    ),
+  ].length;
+  const pendingFeeItems = schoolRecords.feeBalances.filter((balance) => Number(balance.balance) > 0).length;
+  const attendanceFollowUps = absentStudents + lateStudents + missingRegisters;
+  const navCount = (value: number) => (value > 0 ? String(value) : undefined);
+  const navItems = useMemo<PrincipalNavItem[]>(
+    () => [
+      { id: "overview", label: "Overview", icon: Home },
+      { id: "fees", label: "Fees", count: navCount(pendingFeeItems), icon: Wallet },
+      { id: "attendance", label: "Attendance", count: navCount(attendanceFollowUps), icon: Activity },
+      { id: "discipline", label: "Discipline", count: navCount(schoolRecords.disciplineCases.length), icon: ShieldAlert },
+      { id: "visitors", label: "Parents & Visitors", count: navCount(visitorsInside + waitingInquiries), icon: UsersRound },
+      { id: "sick-bay", label: "Sick Bay", count: navCount(schoolRecords.clinicVisits.length + medicineAlerts), icon: HeartPulse },
+      { id: "boarding", label: "Boarding", count: navCount(schoolRecords.boardingRecords.length), icon: BookOpen },
+      { id: "academics", label: "Academics", count: navCount(schoolRecords.academicRecords.length), icon: ClipboardCheck },
+      { id: "staff", label: "Staff", count: navCount(schoolRecords.staffRecords.length), icon: UsersRound },
+      { id: "transport", label: "Transport", count: navCount(schoolRecords.transportRecords.length), icon: BusFront },
+      { id: "library", label: "Library", count: navCount(libraryFollowUps), icon: Library },
+      { id: "exams-reports", label: "Exams & Report Cards", icon: ClipboardCheck },
+      { id: "communication", label: "Communication", count: navCount(schoolRecords.notifications.filter((notification) => !notification.read).length), icon: MessageSquareText },
+      { id: "users-invitations", label: "Users & Invitations", icon: UsersRound },
+      { id: "approvals", label: "Approvals", count: navCount(pendingApprovals), icon: CheckCircle2 },
+      { id: "reports", label: "Reports", count: navCount(schoolRecords.reportRecords.length), icon: Bell },
+      { id: "audit-logs", label: "Audit Logs", count: navCount(schoolRecords.auditLogs.length), icon: ClipboardCheck },
+    ],
+    [
+      attendanceFollowUps,
+      libraryFollowUps,
+      medicineAlerts,
+      pendingApprovals,
+      pendingFeeItems,
+      schoolRecords.academicRecords.length,
+      schoolRecords.auditLogs.length,
+      schoolRecords.boardingRecords.length,
+      schoolRecords.clinicVisits.length,
+      schoolRecords.disciplineCases.length,
+      schoolRecords.notifications,
+      schoolRecords.reportRecords.length,
+      schoolRecords.staffRecords.length,
+      schoolRecords.transportRecords.length,
+      visitorsInside,
+      waitingInquiries,
+    ],
+  );
   function setActiveWorkspace(section: PrincipalSection) {
     setActiveWorkspaceState(section);
     setMobileSidebarOpen(false);
@@ -425,6 +520,30 @@ export function PrincipalCommandCenter({
       );
     }
 
+    if (activeWorkspace === "discipline") {
+      return (
+        <PrincipalListWorkspace
+          section="discipline"
+          title="Discipline"
+          subtitle="Discipline incidents, parent summons, counselling referrals, and serious-case approvals"
+          emptyTitle="No discipline cases recorded yet"
+          emptyBody="Discipline records will appear after the discipline master logs a case, escalates a serious incident, or requests principal approval."
+          primaryAction="Review Discipline Policy"
+          rows={schoolRecords.disciplineCases.map((record) => ({
+            id: record.id,
+            title: record.student ?? record.incident ?? record.title ?? "Discipline case",
+            detail: record.incident ?? record.severity ?? "Awaiting incident details",
+            value: record.status ?? "Recorded",
+          }))}
+          metrics={[
+            ["Open cases", schoolRecords.disciplineCases.filter((record) => !/resolved|closed/i.test(record.status ?? "")).length],
+            ["Serious cases", schoolRecords.disciplineCases.filter((record) => /serious|critical/i.test(`${record.severity ?? ""} ${record.status ?? ""}`)).length],
+            ["Pending approvals", pendingApprovals],
+          ]}
+        />
+      );
+    }
+
     if (activeWorkspace === "sick-bay") {
       return (
         <section aria-label="Principal sick bay workspace" className="space-y-4">
@@ -441,6 +560,102 @@ export function PrincipalCommandCenter({
             </p>
           ))}
         </section>
+      );
+    }
+
+    if (activeWorkspace === "boarding") {
+      return (
+        <PrincipalListWorkspace
+          section="boarding"
+          title="Boarding"
+          subtitle="Boarding roll call, dorm capacity, exeat requests, incidents, and welfare follow-up"
+          emptyTitle="No boarding activity yet"
+          emptyBody="Boarding records will appear after dorm setup, roll call submission, exeat requests, or boarding welfare incidents."
+          primaryAction="Open Boarding Setup"
+          rows={schoolRecords.boardingRecords.map((record) => ({
+            id: record.id,
+            title: record.student ?? record.dorm ?? record.title ?? "Boarding record",
+            detail: record.dorm ?? record.type ?? "Boarding operation",
+            value: record.status ?? "Recorded",
+          }))}
+          metrics={[
+            ["Boarding records", schoolRecords.boardingRecords.length],
+            ["Pending exeats", schoolRecords.boardingRecords.filter((record) => /pending/i.test(record.status ?? "")).length],
+            ["Welfare alerts", schoolRecords.notifications.filter((notification) => /boarding|hostel|dorm/i.test(notification.sourceModule)).length],
+          ]}
+        />
+      );
+    }
+
+    if (activeWorkspace === "academics") {
+      return (
+        <PrincipalListWorkspace
+          section="academics"
+          title="Academics"
+          subtitle="Subjects, teacher allocation, lesson coverage, syllabus progress, and curriculum setup"
+          emptyTitle="No academic setup records yet"
+          emptyBody="Academic records will appear after subjects, streams, teacher allocations, lesson coverage, or syllabus plans are configured."
+          primaryAction="Open Academic Setup"
+          rows={schoolRecords.academicRecords.map((record) => ({
+            id: record.id,
+            title: record.title ?? record.subject ?? "Academic record",
+            detail: record.subject ?? record.type ?? "Academic setup item",
+            value: record.status ?? "Recorded",
+          }))}
+          metrics={[
+            ["Academic records", schoolRecords.academicRecords.length],
+            ["Teacher allocations", schoolRecords.academicRecords.filter((record) => /teacher|allocation/i.test(`${record.type ?? ""} ${record.title ?? ""}`)).length],
+            ["Lesson coverage", schoolRecords.academicRecords.filter((record) => /lesson|coverage/i.test(`${record.type ?? ""} ${record.title ?? ""}`)).length],
+          ]}
+        />
+      );
+    }
+
+    if (activeWorkspace === "staff") {
+      return (
+        <PrincipalListWorkspace
+          section="staff"
+          title="Staff"
+          subtitle="Staff invitations, active roles, teaching duties, leave, and operational ownership"
+          emptyTitle="No staff records yet"
+          emptyBody="Staff records will appear after the principal invites users or the administrator creates staff profiles."
+          primaryAction="Invite Staff"
+          rows={schoolRecords.staffRecords.map((record) => ({
+            id: record.id,
+            title: record.name ?? record.title ?? "Staff member",
+            detail: record.role ?? record.type ?? "School staff",
+            value: record.status ?? "Recorded",
+          }))}
+          metrics={[
+            ["Staff records", schoolRecords.staffRecords.length],
+            ["Pending invitations", schoolRecords.staffRecords.filter((record) => /invited|pending/i.test(record.status ?? "")).length],
+            ["Active staff", schoolRecords.staffRecords.filter((record) => /active/i.test(record.status ?? "")).length],
+          ]}
+        />
+      );
+    }
+
+    if (activeWorkspace === "transport") {
+      return (
+        <PrincipalListWorkspace
+          section="transport"
+          title="Transport"
+          subtitle="Routes, vehicles, student assignments, trips, pickup/drop-off events, and safety alerts"
+          emptyTitle="No transport records yet"
+          emptyBody="Transport records will appear after routes, vehicles, drivers, or student transport assignments are configured."
+          primaryAction="Open Transport Setup"
+          rows={schoolRecords.transportRecords.map((record) => ({
+            id: record.id,
+            title: record.route ?? record.vehicle ?? record.title ?? "Transport record",
+            detail: record.vehicle ?? record.type ?? "Transport operation",
+            value: record.status ?? "Recorded",
+          }))}
+          metrics={[
+            ["Transport records", schoolRecords.transportRecords.length],
+            ["Routes", schoolRecords.transportRecords.filter((record) => Boolean(record.route)).length],
+            ["Trips today", schoolRecords.transportRecords.filter((record) => /trip|picked|dropped/i.test(`${record.type ?? ""} ${record.status ?? ""}`)).length],
+          ]}
+        />
       );
     }
 
@@ -468,6 +683,30 @@ export function PrincipalCommandCenter({
       );
     }
 
+    if (activeWorkspace === "communication") {
+      return (
+        <PrincipalListWorkspace
+          section="communication"
+          title="Communication"
+          subtitle="Parent/staff messages, delivery failures, notification queues, and unread alerts"
+          emptyTitle="No communication records yet"
+          emptyBody="Messages and notifications will appear after school workflows send parent, staff, or student communication."
+          primaryAction="Open Communication Center"
+          rows={schoolRecords.notifications.map((notification) => ({
+            id: notification.id,
+            title: notification.title,
+            detail: notification.body,
+            value: notification.read ? "Read" : "Unread",
+          }))}
+          metrics={[
+            ["Unread notifications", schoolRecords.notifications.filter((notification) => !notification.read).length],
+            ["Action required", schoolRecords.notifications.filter((notification) => notification.requiresAction).length],
+            ["System alerts", unresolvedSystemAlerts],
+          ]}
+        />
+      );
+    }
+
     if (activeWorkspace === "users-invitations") {
       return (
         <UserManagementWorkspace
@@ -481,14 +720,66 @@ export function PrincipalCommandCenter({
       );
     }
 
+    if (activeWorkspace === "approvals") {
+      const approvalRows = schoolRecords.operationalRequests.filter((request) =>
+        request.targetRoles.includes("principal") || request.originRole === "principal",
+      );
+
+      return (
+        <PrincipalListWorkspace
+          section="approvals"
+          title="Approvals"
+          subtitle="Principal approval queue across finance, exams, discipline, boarding, stock, and reports"
+          emptyTitle="No approvals pending"
+          emptyBody="This fresh school has no pending principal approvals. Requests will appear here after staff submit governed workflows."
+          primaryAction="Refresh Approval Queue"
+          rows={approvalRows.map((request) => ({
+            id: request.id,
+            title: request.title,
+            detail: request.body,
+            value: request.status,
+          }))}
+          metrics={[
+            ["Pending approvals", pendingApprovals],
+            ["Approved", approvalRows.filter((request) => request.status === "Approved").length],
+            ["Rejected or failed", approvalRows.filter((request) => request.status === "Rejected" || request.status === "Failed").length],
+          ]}
+        />
+      );
+    }
+
+    if (activeWorkspace === "reports") {
+      return (
+        <PrincipalListWorkspace
+          section="reports"
+          title="Reports"
+          subtitle="Generated reports, printed documents, exports, and audit-safe download evidence"
+          emptyTitle="No reports generated yet"
+          emptyBody="Reports will appear after fee statements, attendance summaries, board reports, report cards, or operational exports are generated."
+          primaryAction="Generate Principal Report"
+          rows={schoolRecords.reportRecords.map((record) => ({
+            id: record.id,
+            title: record.title ?? record.type ?? "Generated report",
+            detail: record.type ?? "Report/document",
+            value: record.status ?? "Generated",
+          }))}
+          metrics={[
+            ["Generated reports", schoolRecords.reportRecords.length],
+            ["Printed documents", schoolRecords.reportRecords.filter((record) => /print|document/i.test(record.type ?? "")).length],
+            ["Exports needing approval", pendingApprovals],
+          ]}
+        />
+      );
+    }
+
     if (activeWorkspace === "audit-logs") {
       return (
         <section aria-label="Principal audit logs workspace" className="space-y-4">
           <WorkspaceHeading title="Audit Logs" subtitle="Accountability records for school operations" />
           <div className="grid gap-3 md:grid-cols-3">
-            <MetricCard label="Today actions" value="18" helper="Student, finance, attendance, and access events" />
-            <MetricCard label="Sensitive changes" value="4" helper="Role, fee, marks, and report-card governance" />
-            <MetricCard label="Failed actions" value="0" helper="No unresolved governed workflow failures" />
+            <MetricCard label="Today actions" value={String(schoolRecords.auditLogs.length)} helper="Student, finance, attendance, and access events" />
+            <MetricCard label="Sensitive changes" value={String(schoolRecords.auditLogs.filter((log) => /role|fee|mark|report|approval|permission/i.test(log.action)).length)} helper="Role, fee, marks, and report-card governance" />
+            <MetricCard label="Failed actions" value={String(schoolRecords.auditLogs.filter((log) => /fail|error|reject/i.test(log.action)).length)} helper="No unresolved governed workflow failures" />
           </div>
           <div className="overflow-x-auto rounded-xl border border-white/10">
             <table className="w-full min-w-[680px] text-left text-sm text-white">
@@ -502,19 +793,19 @@ export function PrincipalCommandCenter({
                 </tr>
               </thead>
               <tbody>
-                {[
-                  ["08:10", principalName, "Viewed fee summary", "Finance dashboard", "Allowed"],
-                  ["08:32", "Deputy Principal", "Flagged late class register", "Attendance", "Allowed"],
-                  ["09:05", "Exams Manager", "Generated report-card batch", "Report cards", "Allowed"],
-                ].map(([time, actor, action, entity, result]) => (
-                  <tr key={`${time}-${action}`} className="border-t border-white/10">
-                    <td className="px-4 py-3">{time}</td>
-                    <td className="px-4 py-3">{actor}</td>
-                    <td className="px-4 py-3">{action}</td>
-                    <td className="px-4 py-3">{entity}</td>
-                    <td className="px-4 py-3">{result}</td>
+                {schoolRecords.auditLogs.length ? schoolRecords.auditLogs.map((log) => (
+                  <tr key={log.id} className="border-t border-white/10">
+                    <td className="px-4 py-3">{new Date(log.createdAt).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" })}</td>
+                    <td className="px-4 py-3">{log.actorRole}</td>
+                    <td className="px-4 py-3">{log.action}</td>
+                    <td className="px-4 py-3">{log.module}</td>
+                    <td className="px-4 py-3">{log.title}</td>
                   </tr>
-                ))}
+                )) : (
+                  <tr className="border-t border-white/10">
+                    <td className="px-4 py-6 text-white/70" colSpan={5}>No audit events recorded for this school yet.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -534,8 +825,8 @@ export function PrincipalCommandCenter({
           <MetricCard label="Fees Collected Today" value={formatKsh(visibleCollections)} helper="From: Accountant dashboard and M-Pesa confirmations" />
           <MetricCard label="Visitors Inside" value={String(visitorsInside)} helper="From: Secretary and Security dashboards" />
           <MetricCard label="Sick Bay Cases" value={String(schoolRecords.clinicVisits.length)} helper="From: Nurse dashboard and medicine stock records" />
-          <MetricCard label="Pending Approvals" value="4" helper="Approval queue" />
-          <MetricCard label="System Alerts" value="2" helper="System monitor" />
+          <MetricCard label="Pending Approvals" value={String(pendingApprovals)} helper="Approval queue" testId="principal-metric-pending-approvals" />
+          <MetricCard label="System Alerts" value={String(unresolvedSystemAlerts)} helper="System monitor" testId="principal-metric-system-alerts" />
         </div>
         <Card className="border-white/10 bg-white/5 p-4 text-white">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -734,9 +1025,69 @@ function WorkspaceHeading({ title, subtitle }: { title: string; subtitle: string
   );
 }
 
-function MetricCard({ label, value, helper }: { label: string; value: string; helper?: string }) {
+function PrincipalListWorkspace({
+  section,
+  title,
+  subtitle,
+  emptyTitle,
+  emptyBody,
+  primaryAction,
+  rows,
+  metrics,
+}: {
+  section: PrincipalSection;
+  title: string;
+  subtitle: string;
+  emptyTitle: string;
+  emptyBody: string;
+  primaryAction: string;
+  rows: PrincipalWorkspaceRow[];
+  metrics: Array<[string, number]>;
+}) {
   return (
-    <Card className="border-white/10 bg-white/5 p-4 text-white">
+    <section aria-label={`Principal ${section} workspace`} className="space-y-4">
+      <WorkspaceHeading title={title} subtitle={subtitle} />
+      <div className="grid gap-3 md:grid-cols-3">
+        {metrics.map(([label, value]) => (
+          <MetricCard key={label} label={label} value={String(value)} />
+        ))}
+      </div>
+      <ActionRow labels={[primaryAction, "Export Summary", "Print Workspace Report"]} />
+      {rows.length ? (
+        <div className="space-y-3">
+          {rows.map((row) => (
+            <Card key={row.id} className="border-white/10 bg-white/5 p-4 text-white">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="font-black">{row.title}</p>
+                  <p className="mt-1 text-sm font-semibold text-white/70">{row.detail}</p>
+                </div>
+                <span className="rounded-full border border-cyan-200/30 bg-cyan-200/10 px-3 py-1 text-xs font-black text-cyan-100">
+                  {row.value}
+                </span>
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card className="border-white/10 bg-white/5 p-4 text-white">
+          <p className="font-black">{emptyTitle}</p>
+          <p className="mt-2 text-sm font-semibold text-white/70">{emptyBody}</p>
+          <button
+            type="button"
+            className="mt-4 rounded-lg border border-cyan-200/30 bg-cyan-200/10 px-3 py-2 text-sm font-black text-cyan-100"
+          >
+            {primaryAction}
+          </button>
+        </Card>
+      )}
+    </section>
+  );
+}
+
+function MetricCard({ label, value, helper, testId }: { label: string; value: string; helper?: string; testId?: string }) {
+  return (
+    <Card data-testid={testId} className="border-white/10 bg-white/5 p-4 text-white">
       <p className="text-sm font-black">{label}</p>
       <p className="mt-2 text-2xl font-black">{value}</p>
       {helper ? <p className="mt-2 text-xs font-semibold text-white/65">{helper}</p> : null}

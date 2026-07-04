@@ -425,14 +425,14 @@ describe("role dashboard operational structure", () => {
     expect(screen.queryByText(/Workflow state machines/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Kisumu Boys High live demo fabric/i)).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /^Fees 1$/i }));
+    await user.click(screen.getByRole("button", { name: /^Fees$/i }));
 
     expect(screen.getByRole("heading", { name: /^Fees$/i })).toBeVisible();
     expect(screen.getByText(/Fees items needing attention/i)).toBeVisible();
     expect(screen.getAllByText(/Print Defaulters List/i).length).toBeGreaterThan(0);
     expect(screen.queryByText(/Two exeat requests pending/i)).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /^Attendance 7$/i }));
+    await user.click(screen.getByRole("button", { name: /^Attendance$/i }));
 
     expect(screen.getByRole("heading", { name: /^Attendance$/i })).toBeVisible();
     expect(screen.getByText(/Attendance items needing attention/i)).toBeVisible();
