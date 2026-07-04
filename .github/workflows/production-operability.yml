@@ -55,7 +55,7 @@ jobs:
         if: github.event.inputs.check == 'all' || github.event.inputs.check == 'synthetic' || github.event.schedule == '*/15 * * * *'
         env:
           SYNTHETIC_API_BASE_URL: ${{ secrets.PROD_API_BASE_URL }}
-          SYNTHETIC_WEB_BASE_URL: ${{ secrets.PROD_WEB_BASE_URL }}
+          SYNTHETIC_WEB_BASE_URL: ${{ secrets.WEB_APP_URL || secrets.PUBLIC_APP_URL || secrets.PROD_WEB_BASE_URL }}
           SYNTHETIC_TENANT_ID: ${{ secrets.PROD_MONITOR_TENANT_ID }}
           SYNTHETIC_MONITOR_TOKEN: ${{ secrets.PROD_MONITOR_ACCESS_TOKEN }}
           SYNTHETIC_ALLOW_REMOTE: "true"
@@ -87,7 +87,7 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_PROVIDER_SMOKE_URL: ${{ secrets.EMAIL_PROVIDER_SMOKE_URL }}
-          PUBLIC_APP_URL: ${{ secrets.PROD_WEB_BASE_URL }}
+          PUBLIC_APP_URL: ${{ secrets.PUBLIC_APP_URL || secrets.WEB_APP_URL || secrets.PROD_WEB_BASE_URL }}
           UPLOAD_MALWARE_SCAN_PROVIDER: "clamav"
           UPLOAD_MALWARE_SCAN_API_URL: ${{ secrets.UPLOAD_MALWARE_SCAN_API_URL }}
           UPLOAD_MALWARE_SCAN_HEALTH_URL: ${{ secrets.UPLOAD_MALWARE_SCAN_HEALTH_URL }}
@@ -118,7 +118,7 @@ jobs:
           REDIS_URL: ${{ secrets.PROD_REDIS_URL }}
           REDIS_TLS_ENABLED: "true"
           APP_CORS_ENABLED: "true"
-          APP_CORS_ORIGINS: ${{ secrets.PROD_WEB_BASE_URL }}
+          APP_CORS_ORIGINS: ${{ secrets.WEB_APP_URL || secrets.PUBLIC_APP_URL || secrets.PROD_WEB_BASE_URL }}
           APP_TRUSTED_PROXY_CIDRS: ${{ secrets.APP_TRUSTED_PROXY_CIDRS }}
           APP_TRUSTED_TENANT_HEADER_SECRET: ${{ secrets.APP_TRUSTED_TENANT_HEADER_SECRET }}
           AUTH_COOKIE_SECURE: "true"
@@ -140,7 +140,7 @@ jobs:
           EMAIL_PROVIDER: resend
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-          PUBLIC_APP_URL: ${{ secrets.PROD_WEB_BASE_URL }}
+          PUBLIC_APP_URL: ${{ secrets.PUBLIC_APP_URL || secrets.WEB_APP_URL || secrets.PROD_WEB_BASE_URL }}
           SUPPORT_NOTIFICATION_EMAILS: ${{ secrets.SUPPORT_NOTIFICATION_EMAILS }}
           UPLOAD_MALWARE_SCAN_PROVIDER: clamav
           UPLOAD_MALWARE_SCAN_API_URL: ${{ secrets.UPLOAD_MALWARE_SCAN_API_URL }}
@@ -160,7 +160,7 @@ jobs:
         if: github.event.inputs.check == 'all' || github.event.inputs.check == 'auth-smoke' || github.event.inputs.check == 'readiness' || github.event.inputs.check == 'scorecard' || github.event.schedule == '33 2 * * *'
         continue-on-error: true
         env:
-          MYSHULE_WEB_URL: ${{ secrets.PROD_WEB_BASE_URL }}
+          MYSHULE_WEB_URL: ${{ secrets.WEB_APP_URL || secrets.PUBLIC_APP_URL || secrets.PROD_WEB_BASE_URL }}
           MYSHULE_API_URL: ${{ secrets.PROD_API_BASE_URL }}
           MYSHULE_SMOKE_TENANT: ${{ secrets.PROD_SMOKE_TENANT_SLUG }}
           MYSHULE_SMOKE_EMAIL: ${{ secrets.PROD_SMOKE_EMAIL }}
@@ -201,7 +201,7 @@ jobs:
         env:
           PILOT_CERTIFICATION_LIVE: ${{ secrets.PILOT_CERTIFICATION_LIVE || 'false' }}
           PILOT_API_BASE_URL: ${{ secrets.PROD_API_BASE_URL }}
-          PILOT_WEB_BASE_URL: ${{ secrets.PROD_WEB_BASE_URL }}
+          PILOT_WEB_BASE_URL: ${{ secrets.WEB_APP_URL || secrets.PUBLIC_APP_URL || secrets.PROD_WEB_BASE_URL }}
           PILOT_TENANT_ID: ${{ secrets.PROD_MONITOR_TENANT_ID }}
           PILOT_ACCESS_TOKEN: ${{ secrets.PROD_MONITOR_ACCESS_TOKEN }}
         run: |
