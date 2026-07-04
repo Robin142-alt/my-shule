@@ -230,9 +230,24 @@ jobs:
           DATABASE_URL: ${{ secrets.DR_DATABASE_URL }}
         run: |
           if [ -z "${DATABASE_URL:-}" ]; then
-            sudo apt-get update
-            sudo apt-get install -y postgresql
-            export PG_BIN_DIR="$(pg_config --bindir)"
+            docker rm -f myshule-dr-postgres >/dev/null 2>&1 || true
+            docker run -d --name myshule-dr-postgres \
+              -e POSTGRES_DB=my_shule \
+              -e POSTGRES_PASSWORD=postgres \
+              -p 55432:5432 \
+              postgres:16-alpine
+            trap 'docker rm -f myshule-dr-postgres >/dev/null 2>&1 || true' EXIT
+            for attempt in {1..30}; do
+              if docker exec myshule-dr-postgres pg_isready -U postgres -d my_shule >/dev/null 2>&1; then
+                break
+              fi
+              if [ "$attempt" -eq 30 ]; then
+                docker logs myshule-dr-postgres
+                exit 1
+              fi
+              sleep 1
+            done
+            export DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:55432/my_shule"
           fi
           npm run dr:backup-restore > production-backup-restore.txt
 
