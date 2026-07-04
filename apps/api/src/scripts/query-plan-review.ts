@@ -113,7 +113,7 @@ export const QUERY_PLAN_REVIEWS: readonly QueryPlanReview[] = [
       SELECT id, academic_term_id, class_section_id, subject_id
       FROM teacher_subject_assignments
       WHERE tenant_id = $1
-        AND teacher_user_id = $2::uuid
+        AND teacher_user_id = $2
       ORDER BY academic_term_id ASC
       LIMIT 50
     `,
@@ -127,8 +127,8 @@ export const QUERY_PLAN_REVIEWS: readonly QueryPlanReview[] = [
       SELECT id, assessment_id, score, status
       FROM exam_marks
       WHERE tenant_id = $1
-        AND student_id = $2::uuid
-        AND exam_series_id = $3::uuid
+        AND student_id = $2
+        AND exam_series_id = $3
       ORDER BY updated_at DESC
       LIMIT 50
     `,
@@ -146,7 +146,7 @@ export const QUERY_PLAN_REVIEWS: readonly QueryPlanReview[] = [
       SELECT id, invoice_id, amount_minor, created_at
       FROM student_fee_payment_allocations
       WHERE tenant_id = $1
-        AND student_id = $2::uuid
+        AND student_id = $2
       ORDER BY created_at DESC
       LIMIT 50
     `,
@@ -255,7 +255,7 @@ export const QUERY_PLAN_REVIEWS: readonly QueryPlanReview[] = [
       SELECT id, student_id, scheduled_for, status
       FROM counselling_sessions
       WHERE tenant_id = $1
-        AND counsellor_user_id = $2::uuid
+        AND counsellor_user_id = $2
         AND status = $3
       ORDER BY scheduled_for ASC
       LIMIT 50

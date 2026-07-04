@@ -36,6 +36,16 @@ test('query plan reviews cover active search hotspots and exclude retired attend
   assert.deepEqual(validateQueryPlanReviews(QUERY_PLAN_REVIEWS), []);
 });
 
+test('query plan reviews avoid hard uuid casts for production schema compatibility', () => {
+  for (const review of QUERY_PLAN_REVIEWS) {
+    assert.doesNotMatch(
+      review.sql,
+      /::uuid\b/i,
+      `${review.id} should let Postgres infer deployed ID column types`,
+    );
+  }
+});
+
 test('query plan validation rejects retired attendance reviews', () => {
   const errors = validateQueryPlanReviews([
     ...QUERY_PLAN_REVIEWS,
