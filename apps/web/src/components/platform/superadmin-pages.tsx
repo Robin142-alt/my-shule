@@ -1991,6 +1991,7 @@ export function SuperadminPages({
     "module-access-control": "modules",
     "tenant-health": "health",
     "users-roles": "users",
+    "sms-settings": "sms-email",
     "communication-templates": "templates",
     "support-desk": "support",
     "system-settings": "settings",
@@ -2067,7 +2068,11 @@ export function SuperadminPages({
       {normalizedSection === "demo-manager" ? <DemoManagerWorkspace /> : null}
       {normalizedSection === "users" ? <UsersWorkspace /> : null}
       {normalizedSection === "health" ? <TenantHealthWorkspace /> : null}
-      {normalizedSection === "sms-email" ? <PlatformSmsSettingsWorkspace /> : null}
+      {normalizedSection === "sms-email" ? (
+        <section aria-label="SMS settings">
+          <PlatformSmsSettingsWorkspace />
+        </section>
+      ) : null}
       {normalizedSection === "gateways" ? <PaymentGatewaysWorkspace /> : null}
       {normalizedSection === "templates" ? <TemplatesCenterWorkspace /> : null}
       {normalizedSection === "support" ? <SupportPage /> : null}

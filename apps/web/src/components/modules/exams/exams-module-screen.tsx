@@ -3270,7 +3270,7 @@ export function ExamsModuleScreen({
     queryKey: ["exams-report-card-batch", liveSession.session?.tenantId, activeBatchId],
     queryFn: () => fetchReportCardBatchStatusLive(liveSession.session!, activeBatchId!),
     enabled: Boolean(liveSession.session && activeBatchId),
-    refetchInterval: false,
+    refetchInterval: activeBatchId ? 3000 : false,
   });
   const analyticsQuery = useQuery({
     queryKey: ["exams-analytics", liveSession.session?.tenantId],

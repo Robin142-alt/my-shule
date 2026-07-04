@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 
-import { createReportCardPdfArtifact } from './report-card-pdf-artifact';
+import { createPdfReportArtifact } from './report-card-pdf-artifact';
 import { ExamsRepository } from '../repositories/exams.repository';
 import { ReportCardTemplateService } from './report-card-template.service';
 
@@ -66,7 +66,7 @@ export class ReportCardGenerationService {
       verificationCode,
       generatedAt,
     );
-    const pdfArtifact = await createReportCardPdfArtifact(
+    const pdfArtifact = await createPdfReportArtifact(
       payload,
       verificationCode,
     );

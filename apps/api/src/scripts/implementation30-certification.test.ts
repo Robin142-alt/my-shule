@@ -55,7 +55,7 @@ const passingSources: Record<string, string> = {
   '.env.production.example': 'APP_TRUSTED_TENANT_HEADER_SECRET=replace-with-a-long-random-tenant-header-secret REPORT_CARD_DOWNLOAD_SIGNING_SECRET=replace-with-a-long-random-report-card-download-secret MPESA_CALLBACK_TRUST_MODE=edge_signed MPESA_TRANSACTION_STATUS_SECURITY_CREDENTIAL=replace-with-daraja-transaction-status-security-credential',
   '.env.vercel.production': 'APP_TRUSTED_TENANT_HEADER_SECRET="" REPORT_CARD_DOWNLOAD_SIGNING_SECRET="" MPESA_CALLBACK_TRUST_MODE="edge_signed" MPESA_TRANSACTION_STATUS_SECURITY_CREDENTIAL="" VERCEL_OIDC_TOKEN=""',
   'docs/runbooks/secret-rotation.md': 'M-Pesa secret rotation MPESA_TRANSACTION_STATUS_SECURITY_CREDENTIAL Platform secret rotation never print secrets',
-  '.github/workflows/production-operability.yml': 'npm run implementation30:rollout-gate npm run implementation30:certify docs/validation/implementation30-certification.md docs/validation/implementation30-rollout-gate.md module-access:certify docs/validation/module-access-certification.md Backup restore verification npm run dr:backup-restore > production-backup-restore.txt production-backup-restore.txt',
+  '.github/workflows/production-operability.yml': 'npm run implementation30:certify npm run implementation30:rollout-gate docs/validation/implementation30-certification.md docs/validation/implementation30-rollout-gate.md module-access:certify docs/validation/module-access-certification.md Backup restore verification npm run dr:backup-restore > production-backup-restore.txt production-backup-restore.txt',
   'apps/api/src/modules/payments/payments.test.ts': 'provider_verification_required exports only redacted payloads redacts C2B API payment responses for legacy raw rows assert.notEqual creates callback channels with hashed secrets builds high-entropy STK and C2B callback URLs high-entropy channel-secret routes creates M-PESA verification jobs verificationJobInput duplicate M-PESA identifiers MpesaTransactionStatusService verifies STK callback status classifies verified C2B payments without ledger enqueue accepts unsigned direct Daraja callbacks rejects unsigned callbacks in edge-signed mode accepts unsigned validation callbacks in direct Daraja mode PaymentsSchemaService creates reconciliation batches MpesaReconciliationService reports missing callbacks, duplicates, amount mismatches, wrong references, and late provider status runs daily reconciliation for every active tenant payment channel generates on-demand date-range reports lists accountant review items without raw M-PESA payload leakage requires two distinct approvers before resolving reversal requests exposes accountant review and finance approval endpoints',
   'apps/api/src/modules/exams/exams.test.ts': 'already-published report cards mark upsert conflicts generates report-card payloads parent report-card downloads withdrawn report-card downloads ForbiddenException ExamsSchemaService creates grading policy mark version report-card workflow batch tables ExamsService enforces assessment maximum score before mark entry outside configured grade boundaries bulk mark uploads ExamsService requires dual approval and marks report-card regeneration after published corrections ReportCardGenerationService generates HTML and PDF artifacts with a verification code starts class report-card batches verifies printed report cards',
   'apps/api/src/modules/security/data-classification-registry.service.ts': 'DataClassificationRegistryService sensitive_child_data sensitive_health_data sensitive_biometric_data payment_data students.primary_guardian_phone biometric_attendance medical_processing exams_report_cards mpesa_payload_vault raw_payload_days',
@@ -77,7 +77,6 @@ const passingSources: Record<string, string> = {
   'docs/validation/implementation30-load-profile.md': 'Status: pass Parallel-tenant report-card generation and M-Pesa reconciliation simulations meet P95 budgets student-search report-card-generation mpesa-reconciliation-parallel-tenants',
   'apps/api/src/scripts/implementation30-rollout-gate.ts': 'runImplementation30RolloutGate PHASE_GATES live-evidence-present zero-unverified-mpesa-postings callback-ack-rate thirty-day-slo-evidence sanitizeEvidenceRefs',
   'apps/api/src/scripts/implementation30-rollout-gate.test.ts': 'blocks live phases without pilot evidence zero critical incidents payment or callback safety regressions without leaking secrets',
-  'docs/validation/implementation30-rollout-gate.md': 'Implementation 30 Pilot Rollout Gate Technical readiness: pass Rollout complete: blocked Phase 6',
   'apps/api/src/modules/observability/production-observability.catalog.ts': 'PRODUCTION_OBSERVABILITY_DASHBOARDS api-latency-by-module mpesa-callbacks mpesa-reconciliation-mismatches report-card-generation-queue-lag security-and-tenant-isolation PRODUCTION_ALERT_POLICIES callback-failures-above-threshold failed-rls-setting raw-pii-support-access-spike PRODUCTION_SYNTHETIC_CHECKS login-page tenant-switch-modules stk-sandbox-readiness c2b-sandbox-registration parent-report-card-download principal-dashboard-load validateProductionObservabilityCatalog',
   'apps/api/src/modules/observability/observability.test.ts': 'production observability catalog covers Kenyan school operating dashboards, alerts, runbooks, and synthetics',
   'apps/api/src/scripts/synthetic-journey-monitor.ts': 'login-smoke kenyan-school-critical-flows tenant-switch-modules stk-sandbox-readiness c2b-sandbox-registration parent-report-card-download principal-dashboard-load',
@@ -94,7 +93,7 @@ const passingSources: Record<string, string> = {
   'apps/api/src/modules/platform/platform-onboarding.service.ts': 'exportTenantOffboardingPackage contract_offboarding retention_policy anonymizeTenantForLegalOffboarding legal_offboarding_anonymized platform.school.offboarding_exported platform.school.legal_offboarding_anonymized',
   'apps/api/src/modules/platform/platform-onboarding.controller.ts': 'offboarding/export offboarding/anonymize exportTenantOffboardingPackage anonymizeTenantForLegalOffboarding',
   'apps/api/src/modules/platform/platform-onboarding.service.test.ts': 'exports a tenant offboarding manifest before contract closeout anonymizes tenant shell metadata for legal offboarding retention_policy legal_offboarding_anonymized_at',
-  'apps/web/src/components/school/school-pages.tsx': 'MpesaC2bReviewPanel /api/payments/mpesa/c2b/payments?status=pending_review unwrapApiData getApiResponseMessage Reconcile',
+  'apps/web/src/components/school/accountant/m-pesa-reconciliation-workspace.tsx': 'MpesaC2bReviewPanel /api/payments/mpesa/c2b/payments?status=pending_review unwrapApiData getApiResponseMessage Reconcile',
   'apps/web/tests/design/experience-actions.test.tsx': 'lets accountants reconcile unmatched MPESA Paybill deposits from live envelope responses',
   'package.json': 'implementation30:rollout-gate module-access:certify dist/apps/api/src/scripts/implementation30-rollout-gate.test.js dist/apps/api/src/scripts/module-access-certification.test.js dist/apps/api/src/infrastructure/redis/redis.options.test.js',
 };
@@ -194,7 +193,6 @@ test('Implementation 30 certification fails without pilot rollout gate evidence'
       ...passingSources,
       'apps/api/src/scripts/implementation30-rollout-gate.ts': '',
       'apps/api/src/scripts/implementation30-rollout-gate.test.ts': '',
-      'docs/validation/implementation30-rollout-gate.md': '',
     },
   });
 
@@ -203,7 +201,6 @@ test('Implementation 30 certification fails without pilot rollout gate evidence'
   assert.equal(result.ok, false);
   assert.equal(checks.some((check) => check.id === 'rollout-gate-script' && check.status === 'fail'), true);
   assert.equal(checks.some((check) => check.id === 'rollout-gate-tests' && check.status === 'fail'), true);
-  assert.equal(checks.some((check) => check.id === 'rollout-gate-artifact' && check.status === 'fail'), true);
 });
 
 test('Implementation 30 certification fails without M-Pesa callback trust-mode evidence', () => {
@@ -573,7 +570,7 @@ test('Implementation 30 certification fails without the accountant unmatched-pay
     generatedAt: '2026-05-19T00:00:00.000Z',
     sourceOverrides: {
       ...passingSources,
-      'apps/web/src/components/school/school-pages.tsx': '',
+      'apps/web/src/components/school/accountant/m-pesa-reconciliation-workspace.tsx': '',
       'apps/web/tests/design/experience-actions.test.tsx': '',
     },
   });

@@ -21,6 +21,8 @@ export async function createReportCardPdfArtifact(
   };
 }
 
+export const createPdfReportArtifact = createReportCardPdfArtifact;
+
 function renderReportCardPdf(payload: ReportCardPayload, verificationCode: string, generatedAt: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];

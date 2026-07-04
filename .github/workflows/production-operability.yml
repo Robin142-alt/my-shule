@@ -187,8 +187,8 @@ jobs:
       - name: Implementation 30 certification
         if: github.event.inputs.check == 'all' || github.event.inputs.check == 'implementation30' || github.event.schedule == '33 2 * * *'
         run: |
-          npm run implementation30:rollout-gate
           npm run implementation30:certify
+          npm run implementation30:rollout-gate
           npm run implementation30:load-profile
           npm run module-access:certify
 
@@ -211,8 +211,8 @@ jobs:
           npm run discipline:certify
           npm run implementation20:certify
           npm run implementation21:certify
-          npm run implementation30:rollout-gate
           npm run implementation30:certify
+          npm run implementation30:rollout-gate
           npm run implementation30:load-profile
           npm run module-access:certify
 

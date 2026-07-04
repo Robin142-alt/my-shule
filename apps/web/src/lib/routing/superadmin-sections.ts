@@ -22,6 +22,7 @@ export const SUPERADMIN_PUBLIC_SECTIONS = [
   "users",
   "health",
   "sms-email",
+  "sms-settings",
   "templates",
   "support-open",
   "support-in-progress",

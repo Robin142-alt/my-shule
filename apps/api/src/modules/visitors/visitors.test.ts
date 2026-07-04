@@ -17,6 +17,8 @@ test('VisitorsSchemaService creates tenant-safe visitors registry tables', async
   for (const table of ['visitors_registry', 'visitors_appointments', 'visitors_logs', 'student_exits']) {
     assert.match(schemaSql, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
   }
+  assert.match(schemaSql, /CREATE OR REPLACE VIEW visitor_checkins/);
+  assert.match(schemaSql, /FROM visitors_logs/);
 });
 
 test('VisitorsController is gated by visitor management module and permissions', () => {

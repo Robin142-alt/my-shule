@@ -22,6 +22,7 @@ export const SUPERADMIN_SECTIONS = [
   "users",
   "health",
   "sms-email",
+  "sms-settings",
   "templates",
   "support-open",
   "support-in-progress",

@@ -22,6 +22,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
 import { UserManagementWorkspace } from "@/components/school/user-management-workspace";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 import {
   readSchoolData,
   subscribeToSchoolDataUpdates,
@@ -121,6 +122,24 @@ type PrincipalNavItem = {
   icon: typeof Home;
 };
 
+type PrincipalDashboardAlert = {
+  id: string;
+  module_code: string;
+  title: string;
+  message: string;
+  severity: "warning" | "critical";
+  action_hint?: string;
+};
+
+type PrincipalExecutiveDashboard = {
+  tenant_id: string;
+  generated_at: string;
+  enabled_modules: string[];
+  alerts: PrincipalDashboardAlert[];
+  notifications: PrincipalDashboardAlert[];
+  realtime_channels: string[];
+};
+
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -192,6 +211,12 @@ export function PrincipalCommandCenter({
   const [absenceDialogOpen, setAbsenceDialogOpen] = useState(false);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [revision, setRevision] = useState(0);
+  const [streamedPrincipalDashboard, setStreamedPrincipalDashboard] =
+    useState<PrincipalExecutiveDashboard | null>(null);
+  const { data: fetchedPrincipalDashboard, isLoading: principalDashboardLoading } =
+    useSchoolQuery<PrincipalExecutiveDashboard>("/admin-command/principal/dashboard", {
+      tenantId: schoolId,
+    });
 
   useEffect(() => {
     window.localStorage.setItem("myshule.currentSchoolId", schoolId);
@@ -210,18 +235,26 @@ export function PrincipalCommandCenter({
       return undefined;
     }
 
-    const stream = new EventSource(`/api/events/dashboard/stream?schoolId=${encodeURIComponent(schoolId)}&role=principal`);
-    const refreshFromDashboardEvent = () => setRevision((current) => current + 1);
+    const stream = new EventSource(`/api/admin-command/principal/dashboard/stream?tenantId=${encodeURIComponent(schoolId)}`);
+    const applyPrincipalDashboardEvent = (event: MessageEvent) => {
+      try {
+        const dashboard = JSON.parse(event.data) as PrincipalExecutiveDashboard;
+        setStreamedPrincipalDashboard(dashboard);
+        setRevision((current) => current + 1);
+      } catch {
+        setRevision((current) => current + 1);
+      }
+    };
 
-    stream.addEventListener("dashboard.events", refreshFromDashboardEvent);
-    stream.addEventListener("message", refreshFromDashboardEvent);
+    stream.addEventListener("principal.dashboard", applyPrincipalDashboardEvent);
+    stream.addEventListener("message", applyPrincipalDashboardEvent);
     stream.onerror = () => {
       stream.close();
     };
 
     return () => {
-      stream.removeEventListener("dashboard.events", refreshFromDashboardEvent);
-      stream.removeEventListener("message", refreshFromDashboardEvent);
+      stream.removeEventListener("principal.dashboard", applyPrincipalDashboardEvent);
+      stream.removeEventListener("message", applyPrincipalDashboardEvent);
       stream.close();
     };
   }, [schoolId]);
@@ -287,6 +320,8 @@ export function PrincipalCommandCenter({
   const attendanceRegister = schoolRecords.attendanceRegisters[0];
   const guardianRecipientCount =
     attendanceRegister?.absentStudents?.filter((student) => Boolean(student.phone || student.guardian)).length ?? 2;
+  const principalDashboard = streamedPrincipalDashboard ?? fetchedPrincipalDashboard;
+  const principalAlerts = principalDashboard?.alerts ?? [];
   function setActiveWorkspace(section: PrincipalSection) {
     setActiveWorkspaceState(section);
     setMobileSidebarOpen(false);
@@ -492,6 +527,41 @@ export function PrincipalCommandCenter({
           <MetricCard label="Pending Approvals" value="4" helper="Approval queue" />
           <MetricCard label="System Alerts" value="2" helper="System monitor" />
         </div>
+        <Card className="border-white/10 bg-white/5 p-4 text-white">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-sm font-black">Alerts and risk center</p>
+              <p className="mt-1 text-xs font-semibold text-white/65">
+                Module-aware principal dashboard using enabled_modules from the live backend.
+              </p>
+            </div>
+            <span className="rounded-full border border-cyan-200/30 bg-cyan-200/10 px-3 py-1 text-xs font-black text-cyan-100">
+              {principalDashboardLoading ? "Loading modules" : `${principalDashboard?.enabled_modules.length ?? 0} modules enabled`}
+            </span>
+          </div>
+          <p className="mt-3 text-xs font-semibold text-white/65">
+            Enabled modules: {principalDashboard?.enabled_modules.join(", ") || "Waiting for live principal dashboard"}
+          </p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {(principalAlerts.length ? principalAlerts.slice(0, 4) : [
+              {
+                id: "fallback-principal-risk",
+                module_code: "principal_dashboard",
+                title: "No live risk alerts returned",
+                message: "The principal dashboard endpoint is reachable but has no current risk alerts for this tenant.",
+                severity: "warning" as const,
+              },
+            ]).map((alert) => (
+              <div key={alert.id} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                <p className="text-sm font-black">{alert.title}</p>
+                <p className="mt-1 text-xs font-semibold text-white/65">{alert.message}</p>
+                <p className="mt-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
+                  {alert.module_code} - {alert.severity}
+                </p>
+              </div>
+            ))}
+          </div>
+        </Card>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {[
             ["Attendance", "View Attendance"],

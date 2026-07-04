@@ -309,6 +309,25 @@ export class VisitorsSchemaService implements OnModuleInit {
       CREATE INDEX IF NOT EXISTS ix_visitors_appointments_tenant ON visitors_appointments (tenant_id, appointment_time);
       CREATE INDEX IF NOT EXISTS ix_visitors_logs_tenant ON visitors_logs (tenant_id, status);
       CREATE INDEX IF NOT EXISTS ix_student_exits_tenant ON student_exits (tenant_id, status);
+
+      CREATE OR REPLACE VIEW visitor_checkins AS
+      SELECT
+        id,
+        tenant_id,
+        visitor_id,
+        visitor_name,
+        phone_number,
+        purpose,
+        host_user_id,
+        badge_number,
+        time_in AS checked_in_at,
+        time_out AS checked_out_at,
+        status,
+        logged_by_user_id,
+        created_at,
+        updated_at
+      FROM visitors_logs;
+
       ALTER TABLE visitors_registry FORCE ROW LEVEL SECURITY;
       ALTER TABLE visitors_appointments FORCE ROW LEVEL SECURITY;
       ALTER TABLE visitors_logs FORCE ROW LEVEL SECURITY;
