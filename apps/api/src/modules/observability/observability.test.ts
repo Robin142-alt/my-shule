@@ -207,7 +207,7 @@ test('SloMonitoringService raises and clears alerts when objectives are violated
 test('SloMetricsService exposes recent API failure paths for production triage', () => {
   const metricsService = new SloMetricsService({
     get(key: string) {
-      return key === 'observability.sloWindowSeconds' ? 900 : undefined;
+      return key === 'observability.sloWindowSeconds' ? 60 * 60 * 24 * 30 : undefined;
     },
   } as never);
 
