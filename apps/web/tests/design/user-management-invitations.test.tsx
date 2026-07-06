@@ -68,6 +68,37 @@ describe("school-scoped user management and invitations", () => {
     expect(within(commandCenter).getAllByRole("button", { name: /Audit Log/i }).length).toBeGreaterThan(0);
   }, 30000);
 
+  it("keeps a fresh school user workspace clean when the live access API has no users", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+
+      if (url.startsWith("/api/auth/invitations") && method === "GET") {
+        return Promise.resolve(jsonResponse({ users: [] }));
+      }
+
+      return Promise.resolve(jsonResponse({}));
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    renderWithProviders(<SchoolPages role="principal" tenantSlug="homabay-high" />);
+
+    const commandCenter = await screen.findByTestId("role-operational-command-center");
+    await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
+
+    await waitFor(() => {
+      expect(within(commandCenter).getByText("0 active users")).toBeVisible();
+      expect(within(commandCenter).getByText("0 pending invites")).toBeVisible();
+      expect(within(commandCenter).getByText("0 inactive")).toBeVisible();
+    });
+    expect(within(commandCenter).queryByText(/principal\.wanjiku@kisumuboys\.ac\.ke/i)).not.toBeInTheDocument();
+    expect(within(commandCenter).queryByText(/Principal Wanjiku/i)).not.toBeInTheDocument();
+    expect(within(commandCenter).queryByText(/faith\.akinyi@kisumuboys\.ac\.ke/i)).not.toBeInTheDocument();
+    expect(readSchoolData("school-users", "homabay-high")).toEqual([]);
+    expect(readSchoolData("user-invitations", "homabay-high")).toEqual([]);
+  }, 30000);
+
   it("lets the Principal send a school-scoped email invitation and audit record but not a Super Admin invite", async () => {
     const user = userEvent.setup();
     fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {

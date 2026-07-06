@@ -1450,7 +1450,7 @@ export class PlatformOnboardingService {
           supportNote: 'Contact your school administrator or MyShule support if this invitation looks wrong.',
         }),
       );
-      await this.markOutboxDelivery(input.outboxId, 'sent');
+      await this.markOutboxDelivery(input.outboxId, 'sent').catch(() => undefined);
 
       return {
         status: 'sent',

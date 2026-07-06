@@ -241,150 +241,6 @@ function initialInviteForm(): InviteFormState {
   };
 }
 
-function seedSchoolUsers(schoolId: string): SchoolUserRecord[] {
-  const createdAt = "2026-01-08T06:00:00.000Z";
-
-  return [
-    {
-      id: `${schoolId}-principal-wanjiku`,
-      schoolId,
-      name: "Principal Wanjiku",
-      role: "Principal",
-      department: "School Administration",
-      assignment: "School Principal",
-      phone: "0700111222",
-      email: "principal.wanjiku@kisumuboys.ac.ke",
-      status: "Active",
-      lastActive: "Today 8:15 AM",
-      joinedAt: "2026-01-08",
-      createdAt,
-    },
-    {
-      id: `${schoolId}-deputy-otieno`,
-      schoolId,
-      name: "Mr. Otieno",
-      role: "Deputy Principal",
-      department: "Discipline and Operations",
-      assignment: "Daily operations",
-      phone: "0700222333",
-      email: "deputy.otieno@kisumuboys.ac.ke",
-      status: "Active",
-      lastActive: "Today 8:27 AM",
-      joinedAt: "2026-01-08",
-      createdAt,
-    },
-    {
-      id: `${schoolId}-secretary-achieng`,
-      schoolId,
-      name: "Mrs. Achieng",
-      role: "Secretary",
-      department: "Front Office",
-      assignment: "Parent desk",
-      phone: "0700333444",
-      email: "secretary@kisumuboys.ac.ke",
-      status: "Active",
-      lastActive: "Today 9:05 AM",
-      joinedAt: "2026-01-09",
-      createdAt,
-    },
-    {
-      id: `${schoolId}-accountant-mwangi`,
-      schoolId,
-      name: "Mr. Mwangi",
-      role: "Accountant",
-      department: "Finance",
-      assignment: "Fees and M-Pesa",
-      phone: "0700444555",
-      email: "accounts@kisumuboys.ac.ke",
-      status: "Active",
-      lastActive: "Today 8:55 AM",
-      joinedAt: "2026-01-09",
-      createdAt,
-    },
-    {
-      id: `${schoolId}-librarian-njeri`,
-      schoolId,
-      name: "Grace Njeri",
-      role: "Librarian",
-      department: "Library",
-      assignment: "Library desk",
-      phone: "0700555666",
-      email: "library@kisumuboys.ac.ke",
-      status: "Suspended",
-      lastActive: "Yesterday 4:12 PM",
-      joinedAt: "2026-01-11",
-      createdAt,
-      statusReason: "Temporary access review",
-      statusChangedBy: "Principal Wanjiku",
-      statusChangedAt: "2026-05-25T11:00:00.000Z",
-    },
-  ];
-}
-
-function seedInvitations(schoolId: string, actorRole: string): UserInvitationRecord[] {
-  return [
-    {
-      id: `${schoolId}-invite-nurse-faith`,
-      schoolId,
-      invitedName: "Faith Akinyi",
-      phone: "0710888999",
-      email: "faith.akinyi@kisumuboys.ac.ke",
-      role: "Nurse",
-      department: "Sick Bay",
-      assignment: "School clinic",
-      identifier: "STAFF-NURSE-01",
-      deliveryMethod: "Email",
-      note: "Join before Monday morning sick bay shift.",
-      invitedByUserId: `${schoolId}-${slug(actorRole)}`,
-      invitedByRole: actorRole,
-      invitationStatus: "Pending",
-      inviteCode: "INV-KBH-NURSE",
-      inviteToken: `${schoolId}.seed.nurse`,
-      expiryDate: inviteExpiryDate(5),
-      createdAt: "2026-05-24T08:30:00.000Z",
-      updatedAt: "2026-05-24T08:30:00.000Z",
-    },
-    {
-      id: `${schoolId}-invite-security-david`,
-      schoolId,
-      invitedName: "David Kiptoo",
-      phone: "0710999000",
-      email: "",
-      role: "Security Officer",
-      department: "Security",
-      assignment: "Main gate",
-      identifier: "SEC-02",
-      deliveryMethod: "Copy link",
-      note: "Night shift access pending.",
-      invitedByUserId: `${schoolId}-${slug(actorRole)}`,
-      invitedByRole: actorRole,
-      invitationStatus: "Expired",
-      inviteCode: "INV-KBH-EXPIRED",
-      inviteToken: `${schoolId}.seed.expired`,
-      expiryDate: "2026-05-20T08:30:00.000Z",
-      createdAt: "2026-05-12T08:30:00.000Z",
-      updatedAt: "2026-05-20T08:30:00.000Z",
-    },
-  ];
-}
-
-function seedAudit(schoolId: string, actorRole: string, actorName: string): UserManagementAuditRecord[] {
-  return [
-    {
-      id: `${schoolId}-audit-seed-invite`,
-      schoolId,
-      action: "User invited",
-      actorUser: actorName,
-      actorRole,
-      target: "Faith Akinyi",
-      timestamp: "2026-05-24T08:30:00.000Z",
-      newValue: "Nurse invitation sent by email",
-      reason: "Sick bay staffing",
-      device: "School office browser",
-    },
-  ];
-}
-
 function apiStatusToUserStatus(status: ManagedUserApi["status"]): SchoolUserStatus {
   if (status === "suspended") return "Suspended";
   if (status === "deactivated") return "Deactivated";
@@ -554,17 +410,21 @@ export function UserManagementWorkspace({
     let mounted = true;
 
     function localUsers() {
-      return mergeSchoolRecordsById(seedSchoolUsers(schoolId), readSchoolData<SchoolUserRecord>(userModule, schoolId));
+      return readSchoolData<SchoolUserRecord>(userModule, schoolId);
     }
 
     function localInvitations() {
-      return mergeSchoolRecordsById(seedInvitations(schoolId, actorRole), readSchoolData<UserInvitationRecord>(invitationModule, schoolId));
+      return readSchoolData<UserInvitationRecord>(invitationModule, schoolId);
+    }
+
+    function localAuditRecords() {
+      return readSchoolData<UserManagementAuditRecord>(userAuditModule, schoolId);
     }
 
     function hydrate() {
       setUsers(localUsers());
       setInvitations(localInvitations());
-      setAuditRecords(mergeSchoolRecordsById(seedAudit(schoolId, actorRole, actorName), readSchoolData<UserManagementAuditRecord>(userAuditModule, schoolId)));
+      setAuditRecords(localAuditRecords());
     }
 
     async function hydrateLiveAccess() {

@@ -120,6 +120,85 @@ query: async (text: string, values: unknown[]) => {
   assert.equal(outboxPayload.invited_by_display_name, 'Platform Owner');
 });
 
+test('PlatformOnboardingService keeps a delivered school invite successful when outbox delivery marking fails', async () => {
+  const sentInvites: Array<{ to: string; inviteUrl: string }> = [];
+
+  const service = new PlatformOnboardingService(
+    {
+      withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
+          executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string) => {
+        if (text.includes('INSERT INTO tenants')) {
+          return {
+            rows: [
+              {
+                tenant_id: 'green-valley',
+                name: 'Green Valley School',
+                subdomain: 'green-valley',
+                status: 'active',
+                created_at: new Date('2026-05-11T00:00:00.000Z'),
+              },
+            ],
+          };
+        }
+
+        if (text.includes('INSERT INTO auth_action_tokens')) {
+          return { rows: [{ id: '00000000-0000-0000-0000-000000000801' }] };
+        }
+
+        if (text.includes('INSERT INTO auth_email_outbox')) {
+          return { rows: [{ id: '00000000-0000-0000-0000-000000000901' }] };
+        }
+
+        if (text.includes('FROM users') && text.includes('display_name')) {
+          return { rows: [{ display_name: 'Platform Owner', email: 'owner@myshule.online' }] };
+        }
+
+        if (text.includes('app.mark_auth_email_outbox_delivery')) {
+          throw new Error('outbox write failed after provider accepted email');
+        }
+
+        return { rows: [] };
+      },
+    } as never,
+    {
+      ensureTenantAuthorizationBaseline: async () => undefined,
+    } as never,
+    {
+      assertTransactionalEmailConfigured: () => undefined,
+      sendInvitationEmail: async (input: { to: string; inviteUrl: string }) => {
+        sentInvites.push(input);
+      },
+    } as never,
+    { get: (key: string) => (key === 'email.publicAppUrl' ? 'https://my-shule-erp.vercel.app' : undefined) } as never,
+    {
+      getStore: () => ({
+        user_id: 'platform-owner',
+      }),
+    } as never,
+  );
+
+  const response = await service.createSchool({
+    school_name: 'Green Valley School',
+    tenant_id: 'Green Valley',
+    admin_email: 'principal@example.test',
+    admin_name: 'Principal User',
+  });
+
+  assert.equal(sentInvites.length, 1);
+  assert.equal(response.tenant_id, 'green-valley');
+  assert.equal(response.invitation_sent, true);
+  assert.equal(response.invitation_status, 'sent');
+  assert.match(response.invitation_message, /Invitation sent/i);
+});
+
 test('PlatformOnboardingService persists the full blueprint onboarding profile and tenant domain', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
 

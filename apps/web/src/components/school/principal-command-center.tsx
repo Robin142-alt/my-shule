@@ -373,6 +373,7 @@ export function PrincipalCommandCenter({
     attendanceRegister?.absentStudents?.filter((student) => Boolean(student.phone || student.guardian)).length ?? 0;
   const principalDashboard = streamedPrincipalDashboard ?? fetchedPrincipalDashboard;
   const principalAlerts = principalDashboard?.alerts ?? [];
+  const enabledPrincipalModules = principalDashboard?.enabled_modules ?? [];
   const pendingApprovals = schoolRecords.operationalRequests.filter((request) =>
     request.status === "Pending"
     && (request.targetRoles.includes("principal") || request.originRole === "principal"),
@@ -837,11 +838,11 @@ export function PrincipalCommandCenter({
               </p>
             </div>
             <span className="rounded-full border border-cyan-200/30 bg-cyan-200/10 px-3 py-1 text-xs font-black text-cyan-100">
-              {principalDashboardLoading ? "Loading modules" : `${principalDashboard?.enabled_modules.length ?? 0} modules enabled`}
+              {principalDashboardLoading ? "Loading modules" : `${enabledPrincipalModules.length} modules enabled`}
             </span>
           </div>
           <p className="mt-3 text-xs font-semibold text-white/65">
-            Enabled modules: {principalDashboard?.enabled_modules.join(", ") || "Waiting for live principal dashboard"}
+            Enabled modules: {enabledPrincipalModules.join(", ") || "Waiting for live principal dashboard"}
           </p>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {(principalAlerts.length ? principalAlerts.slice(0, 4) : [
