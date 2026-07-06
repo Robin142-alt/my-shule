@@ -323,8 +323,97 @@ test('TenantInvitationsService preserves pending invitation when email delivery 
     auditLogs.map((entry) => entry.action),
     ['tenant.invitation.created', 'tenant.invitation.email_failed'],
   );
-  assert.equal(auditLogs[0]?.metadata?.email_delivery_status, 'failed');
+  assert.equal(auditLogs[0]?.metadata?.email_delivery_status, 'queued');
   assert.equal(auditLogs[1]?.metadata?.failure_code, 'provider_rejected');
+});
+
+test('TenantInvitationsService sends invitation email only after the token transaction commits', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const auditLogs: string[] = [];
+  const sentInvites: Array<{ inviteUrl: string; insideTransaction: boolean }> = [];
+  let insideTransaction = false;
+
+  const service = new TenantInvitationsService(
+    {
+      withRequestTransaction: async (callback: () => Promise<unknown>) => {
+        insideTransaction = true;
+        try {
+          return await callback();
+        } finally {
+          insideTransaction = false;
+        }
+      },
+      query: async (text: string, values: unknown[]) => {
+        queries.push({ text, values });
+
+        if (text.includes('SELECT name FROM tenants')) {
+          return { rows: [{ name: 'Green Valley School' }] };
+        }
+
+        if (text.includes('FROM users') && text.includes('display_name')) {
+          return { rows: [{ display_name: 'Principal Wanjiku', email: 'principal@example.test' }] };
+        }
+
+        if (text.includes('INSERT INTO auth_action_tokens')) {
+          return { rows: [{ id: '00000000-0000-0000-0000-000000000804' }] };
+        }
+
+        if (text.includes('INSERT INTO auth_email_outbox')) {
+          return { rows: [{ id: '00000000-0000-0000-0000-000000000904' }] };
+        }
+
+        if (text.includes('app.mark_auth_email_outbox_delivery')) {
+          throw new Error('outbox status update failed after provider acceptance');
+        }
+
+        return { rows: [] };
+      },
+    } as never,
+    {
+      ensureTenantAuthorizationBaseline: async () => undefined,
+      getRoleByCode: async (_tenantId: string, code: string) => ({ id: `role-${code}`, code, name: 'Admissions Officer' }),
+    } as never,
+    {
+      assertTransactionalEmailConfigured: () => undefined,
+      sendInvitationEmail: async (input: { inviteUrl: string }) => {
+        sentInvites.push({
+          inviteUrl: input.inviteUrl,
+          insideTransaction,
+        });
+      },
+    } as never,
+    { get: (key: string) => (key === 'email.publicAppUrl' ? 'https://my-shule-erp.vercel.app' : undefined) } as never,
+    {
+      requireStore: () => ({
+        tenant_id: 'green-valley',
+        user_id: 'school-admin',
+        role: 'principal',
+      }),
+    } as never,
+    {
+      record: async (input: { action: string }) => {
+        auditLogs.push(input.action);
+      },
+    } as never,
+  );
+
+  const response = await service.inviteTenantUser({
+    email: 'admissions@example.test',
+    display_name: 'Admissions One',
+    role_code: 'admissions_officer',
+    delivery_method: 'Email',
+  });
+
+  assert.equal(response.id, '00000000-0000-0000-0000-000000000804');
+  assert.equal(response.invitation_sent, true);
+  assert.equal(response.status, 'invited');
+  assert.equal(sentInvites.length, 1);
+  assert.equal(sentInvites[0]?.insideTransaction, false);
+  assert.match(sentInvites[0]?.inviteUrl ?? '', /^https:\/\/my-shule-erp\.vercel\.app\/invite\/accept\?token=/);
+  assert.ok(queries.some((query) => query.text.includes('INSERT INTO auth_action_tokens')));
+  assert.ok(queries.some((query) => query.text.includes('INSERT INTO auth_email_outbox')));
+  assert.ok(queries.some((query) => query.text.includes('app.mark_auth_email_outbox_delivery')));
+  assert.deepEqual(auditLogs, ['tenant.invitation.created', 'tenant.invitation.email_sent']);
 });
 
 test('TenantInvitationsService rejects unsupported tenant invitation roles before sending email', async () => {
@@ -828,7 +917,9 @@ test('TenantInvitationsService records audit logs for invitation and membership 
     auditLogs.map((entry) => entry.action),
     [
       'tenant.invitation.created',
+      'tenant.invitation.email_sent',
       'tenant.invitation.resent',
+      'tenant.invitation.email_sent',
       'tenant.invitation.revoked',
       'tenant.membership.status_changed',
       'tenant.membership.role_changed',
@@ -837,6 +928,6 @@ test('TenantInvitationsService records audit logs for invitation and membership 
   assert.equal(auditLogs[0]?.resource_type, 'tenant_invitation');
   assert.equal(auditLogs[0]?.resource_id, 'invite-1');
   assert.equal(auditLogs[0]?.metadata?.email, 'teacher@example.test');
-  assert.equal(auditLogs[3]?.resource_type, 'tenant_membership');
-  assert.equal(auditLogs[4]?.metadata?.role_code, 'teacher');
+  assert.equal(auditLogs[5]?.resource_type, 'tenant_membership');
+  assert.equal(auditLogs[6]?.metadata?.role_code, 'teacher');
 });
