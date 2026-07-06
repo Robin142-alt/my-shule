@@ -137,6 +137,37 @@ test('BillingSchemaService guards fee payment foreign keys with child and parent
   );
 });
 
+test('BillingSchemaService relaxes legacy subscription lifecycle columns for manual billing saves', async () => {
+  let bootstrapSql = '';
+  const service = new BillingSchemaService({
+    runSchemaBootstrap: async (sql: string): Promise<void> => {
+      bootstrapSql = sql;
+    },
+  } as never);
+
+  await service.onModuleInit();
+
+  for (const column of [
+    'billing_phone_number',
+    'trial_ends_at',
+    'grace_period_ends_at',
+    'restricted_at',
+    'suspended_at',
+    'suspension_reason',
+    'activated_at',
+    'canceled_at',
+  ]) {
+    assert.match(
+      bootstrapSql,
+      new RegExp(`ALTER TABLE subscriptions\\s+ALTER COLUMN ${column} DROP NOT NULL;`),
+      `${column} should be nullable for current manual billing writes`,
+    );
+  }
+
+  assert.match(bootstrapSql, /ALTER TABLE subscriptions\s+ALTER COLUMN updated_at SET DEFAULT NOW\(\);/);
+  assert.match(bootstrapSql, /ALTER TABLE subscriptions\s+ALTER COLUMN metadata SET DEFAULT '\{\}'::jsonb;/);
+});
+
 test('BillingService provisions a plan-backed subscription', async () => {
   const requestContext = new RequestContextService();
   let expiredTenantId: string | null = null;

@@ -610,6 +610,27 @@ export class BillingSchemaService implements OnModuleInit {
           ADD COLUMN IF NOT EXISTS suspension_reason text;
 
         ALTER TABLE subscriptions
+          ALTER COLUMN billing_phone_number DROP NOT NULL;
+        ALTER TABLE subscriptions
+          ALTER COLUMN trial_ends_at DROP NOT NULL;
+        ALTER TABLE subscriptions
+          ALTER COLUMN grace_period_ends_at DROP NOT NULL;
+        ALTER TABLE subscriptions
+          ALTER COLUMN restricted_at DROP NOT NULL;
+        ALTER TABLE subscriptions
+          ALTER COLUMN suspended_at DROP NOT NULL;
+        ALTER TABLE subscriptions
+          ALTER COLUMN suspension_reason DROP NOT NULL;
+        ALTER TABLE subscriptions
+          ALTER COLUMN activated_at DROP NOT NULL;
+        ALTER TABLE subscriptions
+          ALTER COLUMN canceled_at DROP NOT NULL;
+        ALTER TABLE subscriptions
+          ALTER COLUMN updated_at SET DEFAULT NOW();
+        ALTER TABLE subscriptions
+          ALTER COLUMN metadata SET DEFAULT '{}'::jsonb;
+
+        ALTER TABLE subscriptions
           DROP CONSTRAINT IF EXISTS ck_subscriptions_status;
         ALTER TABLE subscriptions
           ADD CONSTRAINT ck_subscriptions_status CHECK (
