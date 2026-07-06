@@ -271,6 +271,77 @@ describe("experience actions", () => {
     expect(screen.queryByRole("button", { name: /open school/i })).not.toBeInTheDocument();
   });
 
+  it("resends a failed principal invite from the Super Admin schools table with truthful success feedback", async () => {
+    const user = userEvent.setup();
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+
+      if (url.includes("/api/platform/schools/homabay-high/admin-invite/resend")) {
+        return Promise.resolve(jsonResponse({
+          tenant_id: "homabay-high",
+          school_name: "Homabay High",
+          subdomain: "homabay-high",
+          status: "active",
+          invitation_sent: true,
+          invitation_status: "sent",
+          invitation_message: "School created. Invitation sent to principal@homabay.ac.ke.",
+          can_resend_invite: false,
+          invite_expires_at: "2026-07-13T00:00:00.000Z",
+          admin_email: "principal@homabay.ac.ke",
+          created_at: "2026-07-06T00:00:00.000Z",
+          enabled_modules: ["students", "staff"],
+        }));
+      }
+
+      if (url.includes("/api/platform/schools")) {
+        return Promise.resolve(jsonResponse([
+          {
+            tenant_id: "homabay-high",
+            school_name: "Homabay High",
+            subdomain: "homabay-high",
+            status: "active",
+            invitation_sent: false,
+            invitation_status: "failed",
+            invitation_message: "School created. The invite could not be delivered yet. You can resend it.",
+            can_resend_invite: true,
+            invite_expires_at: "2026-07-13T00:00:00.000Z",
+            admin_email: "principal@homabay.ac.ke",
+            created_at: "2026-07-06T00:00:00.000Z",
+            enabled_modules: ["students", "staff"],
+          },
+        ]));
+      }
+
+      if (url.includes("/api/platform/modules")) {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      return Promise.resolve(jsonResponse({ token: "csrf-token" }));
+    });
+
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      renderWithProviders(createElement(SuperadminPages, { section: "schools" }));
+
+      await waitFor(() => expect(screen.getAllByText("Homabay High").length).toBeGreaterThan(0));
+      await user.click(screen.getAllByRole("button", { name: /resend invite to homabay high/i })[0]);
+
+      await waitFor(() =>
+        expect(fetchMock).toHaveBeenCalledWith(
+          "/api/platform/schools/homabay-high/admin-invite/resend",
+          expect.objectContaining({ method: "POST" }),
+        ),
+      );
+      const status = await screen.findByRole("status");
+      expect(status).toHaveTextContent("School created. Invitation sent to principal@homabay.ac.ke.");
+      expect(screen.queryByText("School created. The invite could not be delivered yet. You can resend it.")).not.toBeInTheDocument();
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
   it("keeps a visible logout button on the superadmin dashboard", () => {
     renderWithProviders(createElement(SuperadminPages, { section: "overview" }));
 

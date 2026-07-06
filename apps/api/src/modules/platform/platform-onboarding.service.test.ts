@@ -122,6 +122,7 @@ query: async (text: string, values: unknown[]) => {
 
 test('PlatformOnboardingService keeps a delivered school invite successful when outbox delivery marking fails', async () => {
   const sentInvites: Array<{ to: string; inviteUrl: string }> = [];
+  const queries: Array<{ text: string; values: unknown[] }> = [];
 
   const service = new PlatformOnboardingService(
     {
@@ -134,7 +135,9 @@ test('PlatformOnboardingService keeps a delivered school invite successful when 
         }
       });
     },
-query: async (text: string) => {
+query: async (text: string, values: unknown[] = []) => {
+        queries.push({ text, values });
+
         if (text.includes('INSERT INTO tenants')) {
           return {
             rows: [
@@ -197,6 +200,15 @@ query: async (text: string) => {
   assert.equal(response.invitation_sent, true);
   assert.equal(response.invitation_status, 'sent');
   assert.match(response.invitation_message, /Invitation sent/i);
+  assert.equal(
+    queries.some(
+      (query) =>
+        query.text.includes('UPDATE auth_email_outbox') &&
+        String(query.values[0]) === 'sent' &&
+        String(query.values[1]) === '00000000-0000-0000-0000-000000000901',
+    ),
+    true,
+  );
 });
 
 test('PlatformOnboardingService persists the full blueprint onboarding profile and tenant domain', async () => {

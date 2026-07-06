@@ -1482,16 +1482,59 @@ export class PlatformOnboardingService {
       return;
     }
 
-    await this.executeSql(
-      'SELECT app.mark_auth_email_outbox_delivery($1::uuid, $2::text, $3::text, $4::text, $5::integer)',
-      [
-        outboxId,
-        status,
-        options.errorCode ?? null,
-        options.errorSummary ?? null,
-        options.providerStatusCode ?? null,
-      ],
-    );
+    try {
+      await this.executeSql(
+        'SELECT app.mark_auth_email_outbox_delivery($1::uuid, $2::text, $3::text, $4::text, $5::integer)',
+        [
+          outboxId,
+          status,
+          options.errorCode ?? null,
+          options.errorSummary ?? null,
+          options.providerStatusCode ?? null,
+        ],
+      );
+      return;
+    } catch {
+      await this.executeSql(
+        `
+          WITH _operation AS (
+            SELECT set_config('app.auth_email_outbox_operation', 'mark_delivery', true)
+          )
+          UPDATE auth_email_outbox
+          SET
+            status = $1::text,
+            attempts = attempts + 1,
+            sent_at = CASE WHEN $1::text = 'sent' THEN NOW() ELSE sent_at END,
+            last_error_code = CASE
+              WHEN $1::text = 'sent' THEN NULL
+              ELSE NULLIF($3::text, '')
+            END,
+            last_error_summary = CASE
+              WHEN $1::text = 'sent' THEN NULL
+              ELSE NULLIF($4::text, '')
+            END,
+            provider_status_code = CASE
+              WHEN $1::text = 'sent' THEN NULL
+              ELSE $5::integer
+            END,
+            last_attempt_at = NOW(),
+            next_attempt_at = CASE
+              WHEN $1::text = 'failed' THEN NOW() + INTERVAL '10 minutes'
+              ELSE next_attempt_at
+            END
+          FROM _operation
+          WHERE id = $2::uuid
+          RETURNING id
+        `,
+        [
+          status,
+          outboxId,
+          options.errorCode ?? null,
+          options.errorSummary ?? null,
+          options.providerStatusCode ?? null,
+        ],
+      );
+    }
   }
 
   private toPlatformSchoolResponse(

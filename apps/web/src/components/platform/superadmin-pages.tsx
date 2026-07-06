@@ -833,6 +833,7 @@ function SchoolsWorkspace() {
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [resendMessage, setResendMessage] = useState<string | null>(null);
+  const [resendMessageTone, setResendMessageTone] = useState<"success" | "warning">("warning");
   const [resendingTenantId, setResendingTenantId] = useState<string | null>(null);
   const [billingMessage, setBillingMessage] = useState<string | null>(null);
   const [billingError, setBillingError] = useState<string | null>(null);
@@ -1088,6 +1089,7 @@ function SchoolsWorkspace() {
     }
 
     if (tenant.canResendInvite === false) {
+      setResendMessageTone("warning");
       setResendMessage(
         tenant.invitationActionRequired ??
           "Email delivery is blocked by provider setup. Fix the email settings, then refresh this page.",
@@ -1097,6 +1099,7 @@ function SchoolsWorkspace() {
 
     setResendingTenantId(tenantId);
     setResendMessage(null);
+    setResendMessageTone("warning");
     setResetMessage(null);
 
     try {
@@ -1112,6 +1115,11 @@ function SchoolsWorkspace() {
       if (selectedTenantId === updatedRow.id) {
         setSelectedTenantId(updatedRow.id);
       }
+      setResendMessageTone(
+        updatedSchool.invitation_sent || updatedSchool.invitation_status === "sent"
+          ? "success"
+          : "warning",
+      );
       setResendMessage(updatedSchool.invitation_message);
       setCreateSuccess((currentMessage) =>
         createdTenantForInvite?.id === updatedRow.id ? updatedSchool.invitation_message : currentMessage,
@@ -1121,6 +1129,7 @@ function SchoolsWorkspace() {
         return;
       }
 
+      setResendMessageTone("warning");
       setResendMessage(
         error instanceof Error
           ? error.message
@@ -1351,7 +1360,14 @@ function SchoolsWorkspace() {
         }
       />
       {resendMessage && !selectedTenant ? (
-        <div className="mb-4 rounded-[var(--radius-sm)] border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-foreground">
+        <div
+          role={resendMessageTone === "success" ? "status" : "alert"}
+          className={`mb-4 rounded-[var(--radius-sm)] border px-4 py-3 text-sm text-foreground ${
+            resendMessageTone === "success"
+              ? "border-success/20 bg-success/10"
+              : "border-warning/20 bg-warning/10"
+          }`}
+        >
           {resendMessage}
         </div>
       ) : null}
@@ -1740,7 +1756,14 @@ function SchoolsWorkspace() {
               </div>
             ) : null}
             {resendMessage ? (
-              <div className="rounded-xl border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-foreground">
+              <div
+                role={resendMessageTone === "success" ? "status" : "alert"}
+                className={`rounded-xl border px-4 py-3 text-sm text-foreground ${
+                  resendMessageTone === "success"
+                    ? "border-success/20 bg-success/10"
+                    : "border-warning/20 bg-warning/10"
+                }`}
+              >
                 {resendMessage}
               </div>
             ) : null}
