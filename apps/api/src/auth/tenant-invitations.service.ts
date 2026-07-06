@@ -350,6 +350,12 @@ export class TenantInvitationsService {
           managed_users.role_code,
           managed_users.role_name,
           managed_users.status,
+          managed_users.phone,
+          managed_users.department,
+          managed_users.assignment,
+          managed_users.identifier,
+          managed_users.delivery_method,
+          managed_users.note,
           managed_users.expires_at,
           managed_users.created_at
         FROM (

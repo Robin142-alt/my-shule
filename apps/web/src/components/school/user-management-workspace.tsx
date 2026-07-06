@@ -450,8 +450,10 @@ export function UserManagementWorkspace({
           return;
         }
 
-        setUsers(mergeSchoolRecordsById(live.users, localUsers()));
-        setInvitations(mergeSchoolRecordsById(live.invitations, localInvitations()));
+        writeSchoolData(userModule, live.users, schoolId);
+        writeSchoolData(invitationModule, live.invitations, schoolId);
+        setUsers(live.users);
+        setInvitations(live.invitations);
       } catch {
         if (mounted) {
           setNotice((current) => current ?? "Live user service is unavailable. Showing saved school user records.");
@@ -986,9 +988,9 @@ export function UserManagementWorkspace({
       }
     } catch (inviteError) {
       const providerMessage = inviteError instanceof Error ? inviteError.message : "Unable to send invitation email.";
-      const message = `Email delivery failed: ${providerMessage}`;
-      addUserAudit("Invitation email failed", invitedName, undefined, `${role} invitation email failed`, providerMessage);
-      publishUserEvent("USER_INVITE_EMAIL_FAILED", "Invitation email failed", `${invitedName} invitation email failed: ${providerMessage}`, `${schoolId}-${slug(invitedName)}`);
+      const message = `Invitation request failed: ${providerMessage}`;
+      addUserAudit("Invitation request failed", invitedName, undefined, `${role} invitation request failed`, providerMessage);
+      publishUserEvent("USER_INVITE_REQUEST_FAILED", "Invitation request failed", `${invitedName} invitation request failed: ${providerMessage}`, `${schoolId}-${slug(invitedName)}`);
       setError(message);
       setNotice(null);
     } finally {

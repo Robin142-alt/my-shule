@@ -99,6 +99,42 @@ describe("school-scoped user management and invitations", () => {
     expect(readSchoolData("user-invitations", "homabay-high")).toEqual([]);
   }, 30000);
 
+  it("treats the live access API as authoritative over stale local users for a real school", async () => {
+    const user = userEvent.setup();
+    seedSchoolUser("homabay-high", {
+      id: "homabay-stale-principal",
+      name: "Principal Wanjiku",
+      role: "Principal",
+      department: "School Administration",
+      assignment: "School Principal",
+      phone: "0700111222",
+      email: "principal.wanjiku@kisumuboys.ac.ke",
+      status: "Active",
+    });
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+
+      if (url.startsWith("/api/auth/invitations") && method === "GET") {
+        return Promise.resolve(jsonResponse({ users: [] }));
+      }
+
+      return Promise.resolve(jsonResponse({}));
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    renderWithProviders(<SchoolPages role="principal" tenantSlug="homabay-high" />);
+
+    const commandCenter = await screen.findByTestId("role-operational-command-center");
+    await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
+
+    await waitFor(() => {
+      expect(within(commandCenter).getByText("0 active users")).toBeVisible();
+    });
+    expect(within(commandCenter).queryByText(/Principal Wanjiku/i)).not.toBeInTheDocument();
+    expect(within(commandCenter).queryByText(/principal\.wanjiku@kisumuboys\.ac\.ke/i)).not.toBeInTheDocument();
+  }, 30000);
+
   it("lets the Principal send a school-scoped email invitation and audit record but not a Super Admin invite", async () => {
     const user = userEvent.setup();
     fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
@@ -270,6 +306,45 @@ describe("school-scoped user management and invitations", () => {
     expect(readSchoolData("user-invitations", "kisumu-boys")).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ invitedName: "Brian Otieno" })]),
     );
+  }, 30000);
+
+  it("does not claim email delivery failed when the invitation API fails after submission", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+
+      if (url.startsWith("/api/auth/invitations") && method === "GET") {
+        return Promise.resolve(jsonResponse({ users: [] }));
+      }
+
+      if (url === "/api/auth/csrf") {
+        return Promise.resolve(jsonResponse({ token: "csrf-user-workspace-token" }));
+      }
+
+      if (url === "/api/auth/invitations" && method === "POST") {
+        return Promise.resolve(jsonResponse({ message: "Internal server error" }, { status: 500 }));
+      }
+
+      return Promise.resolve(jsonResponse({}));
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    renderWithProviders(<SchoolPages role="principal" tenantSlug="homabay-high" />);
+
+    const commandCenter = await screen.findByTestId("role-operational-command-center");
+    await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
+    await user.click(within(commandCenter).getByRole("button", { name: /Invite New User/i }));
+    await user.type(within(commandCenter).getByLabelText(/Full name/i), "Mr Story");
+    await user.type(within(commandCenter).getByLabelText(/Phone number/i), "0762562722");
+    await user.type(within(commandCenter).getByLabelText(/Email address/i), "storytime0516@gmail.com");
+    await user.selectOptions(within(commandCenter).getByLabelText(/^Role$/i), "Boarding Master");
+    await user.click(within(commandCenter).getByRole("button", { name: /Send Invitation/i }));
+
+    await waitFor(() => {
+      expect(within(commandCenter).getByText(/Invitation request failed: Internal server error/i)).toBeVisible();
+    });
+    expect(within(commandCenter).queryByText(/Email delivery failed: Internal server error/i)).not.toBeInTheDocument();
   }, 30000);
 
   it("prevents duplicate active users inside the same school and filters out another school's users", async () => {

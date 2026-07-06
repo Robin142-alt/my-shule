@@ -472,6 +472,12 @@ test('TenantInvitationsService lists active users and pending tenant invitations
         assert.match(text, /tenant_memberships/);
         assert.match(text, /auth_action_tokens/);
         assert.doesNotMatch(text, /SELECT \*/);
+        assert.match(text, /managed_users\.phone/);
+        assert.match(text, /managed_users\.department/);
+        assert.match(text, /managed_users\.assignment/);
+        assert.match(text, /managed_users\.identifier/);
+        assert.match(text, /managed_users\.delivery_method/);
+        assert.match(text, /managed_users\.note/);
         assert.match(text, /LIMIT \$5::integer/);
         assert.match(text, /OFFSET \$6::integer/);
         assert.match(text, /ORDER BY\s+CASE managed_users\.kind WHEN 'invitation' THEN 0 ELSE 1 END/);
