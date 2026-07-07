@@ -133,15 +133,35 @@ export class PlatformOnboardingService {
     
     if (isUuid) {
       return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
+        if (!this.rawSqlReturnsRows(query)) {
+          const rowCount = await tx.$executeRawUnsafe(query, ...params);
+          return { rows: [], rowCount };
+        }
+
         const result = await tx.$queryRawUnsafe(query, ...params);
         const arr = Array.isArray(result) ? result : [result];
         return { rows: arr, rowCount: arr.length };
       });
     } else {
+      if (!this.rawSqlReturnsRows(query)) {
+        const rowCount = await this.prisma.$executeRawUnsafe(query, ...params);
+        return { rows: [], rowCount };
+      }
+
       const result = await this.prisma.$queryRawUnsafe(query, ...params);
       const arr = Array.isArray(result) ? result : [result];
         return { rows: arr, rowCount: arr.length };
     }
+  }
+
+  private rawSqlReturnsRows(query: string): boolean {
+    const normalized = query.trim().replace(/^\/\*[\s\S]*?\*\/\s*/, '');
+
+    if (/^(SELECT|WITH|SHOW|EXPLAIN|VALUES)\b/i.test(normalized)) {
+      return true;
+    }
+
+    return /\bRETURNING\b/i.test(normalized);
   }
 
   constructor(

@@ -5,7 +5,7 @@ import type { PoolClient, QueryResult, QueryResultRow } from 'pg';
 import { RequestContextService } from '../common/request-context/request-context.service';
 import { buildDatabasePoolOptions } from './database.module';
 import { DatabaseService } from './database.service';
-import { buildTenantSessionSettingsQuery } from './prisma.service';
+import { buildTenantSessionSettingsQuery, PrismaService } from './prisma.service';
 
 interface RecordedQuery {
   text: string;
@@ -331,6 +331,60 @@ test('DatabaseService.runSchemaBootstrap serializes concurrent schema bootstraps
     'client-2:COMMIT',
     'client-2:release',
   ]);
+});
+
+test('PrismaService.query uses executeRaw for non-returning mutations and reports row count', async () => {
+  const calls: string[] = [];
+  const prisma = Object.create(PrismaService.prototype) as any;
+
+  prisma.$executeRawUnsafe = async (sql: string, ...params: unknown[]) => {
+    calls.push(`execute:${normalizeSql(sql)}:${params.join(',')}`);
+    return 2;
+  };
+  prisma.$queryRawUnsafe = async (sql: string, ...params: unknown[]) => {
+    calls.push(`query:${normalizeSql(sql)}:${params.join(',')}`);
+    return [{ ignored: true }];
+  };
+
+  const result = await prisma.query(
+    `
+      UPDATE subscriptions
+      SET status = $2
+      WHERE tenant_id = $1
+    `,
+    ['homabay-high', 'active'],
+  );
+
+  assert.deepEqual(result, { rows: [], rowCount: 2 });
+  assert.equal(calls.length, 1);
+  assert.match(calls[0] ?? '', /^execute:UPDATE subscriptions/);
+});
+
+test('PrismaService.query keeps returning mutations on queryRaw', async () => {
+  const calls: string[] = [];
+  const prisma = Object.create(PrismaService.prototype) as any;
+
+  prisma.$executeRawUnsafe = async (sql: string, ...params: unknown[]) => {
+    calls.push(`execute:${normalizeSql(sql)}:${params.join(',')}`);
+    return 1;
+  };
+  prisma.$queryRawUnsafe = async (sql: string, ...params: unknown[]) => {
+    calls.push(`query:${normalizeSql(sql)}:${params.join(',')}`);
+    return [{ id: 'sub-1' }];
+  };
+
+  const result = await prisma.query(
+    `
+      INSERT INTO subscriptions (tenant_id, status)
+      VALUES ($1, $2)
+      RETURNING id
+    `,
+    ['homabay-high', 'active'],
+  );
+
+  assert.deepEqual(result, { rows: [{ id: 'sub-1' }], rowCount: 1 });
+  assert.equal(calls.length, 1);
+  assert.match(calls[0] ?? '', /^query:INSERT INTO subscriptions/);
 });
 
 test('DatabaseService.runSchemaBootstrap reuses identical schema bootstraps inside one process', async () => {

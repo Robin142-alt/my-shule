@@ -57,17 +57,38 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   async query<T = any>(sql: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
     const firstParam = params[0];
     const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    const expectsRows = this.rawSqlReturnsRows(sql);
     if (isUuid) {
       return this.executeWithTenant(firstParam, null, async (tx: any) => {
+        if (!expectsRows) {
+          const rowCount = await tx.$executeRawUnsafe(sql, ...params);
+          return { rows: [], rowCount };
+        }
+
         const result = await tx.$queryRawUnsafe(sql, ...params);
         const arr = Array.isArray(result) ? result : [result];
         return { rows: arr, rowCount: arr.length };
       });
     } else {
+      if (!expectsRows) {
+        const rowCount = await this.$executeRawUnsafe(sql, ...params);
+        return { rows: [], rowCount };
+      }
+
       const result = await this.$queryRawUnsafe(sql, ...params);
       const arr = Array.isArray(result) ? result : [result];
         return { rows: arr, rowCount: arr.length };
     }
+  }
+
+  private rawSqlReturnsRows(sql: string): boolean {
+    const normalized = sql.trim().replace(/^\/\*[\s\S]*?\*\/\s*/, '');
+
+    if (/^(SELECT|WITH|SHOW|EXPLAIN|VALUES)\b/i.test(normalized)) {
+      return true;
+    }
+
+    return /\bRETURNING\b/i.test(normalized);
   }
 
   async runSchemaBootstrap(sql: string): Promise<void> {
