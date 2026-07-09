@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { resolveDashboardApiProxyTenant } from "@/lib/dashboard/proxy-tenant-context";
+
 type ProxyExpectation = {
   route: string;
   upstream: string;
@@ -51,7 +53,35 @@ describe("production module live API proxies", () => {
     expect(proxySource).toContain("text/event-stream");
     expect(proxySource).toContain("upstreamResponse.body");
     expect(principalCommandCenterSource).toContain("new EventSource");
-    expect(principalCommandCenterSource).toContain("/api/events/dashboard/stream");
-    expect(principalCommandCenterSource).toContain("dashboard.events");
+    expect(principalCommandCenterSource).toContain("/api/admin-command/principal/dashboard/stream");
+    expect(principalCommandCenterSource).toContain("principal.dashboard");
+  });
+
+  it("keeps platform owner API calls isolated from school tenant cookies", () => {
+    expect(
+      resolveDashboardApiProxyTenant({
+        audience: "superadmin",
+        requestedTenantSlug: "kisumu-boys",
+        tenantCookie: "homabay-high",
+        sessionTenantSlug: "maranda-high",
+      }),
+    ).toEqual({
+      tenantSlug: null,
+      tenantMismatch: false,
+    });
+  });
+
+  it("still blocks school workspace tenant mismatch", () => {
+    expect(
+      resolveDashboardApiProxyTenant({
+        audience: "school",
+        requestedTenantSlug: "kisumu-boys",
+        tenantCookie: "homabay-high",
+        sessionTenantSlug: "homabay-high",
+      }),
+    ).toEqual({
+      tenantSlug: "homabay-high",
+      tenantMismatch: true,
+    });
   });
 });

@@ -9,10 +9,10 @@ import {
   readAccessCookie,
   readExperienceSessionCookie,
   readTenantCookie,
-  resolveSchoolTenantSlug,
   setExperienceSessionCookies,
 } from "@/lib/auth/server-session";
 import { getDashboardApiBaseUrl } from "@/lib/dashboard/api-client";
+import { resolveDashboardApiProxyTenant, type DashboardApiProxyAudience } from "@/lib/dashboard/proxy-tenant-context";
 import { fetchWithSessionRefresh } from "@/lib/dashboard/session-refreshing-fetch";
 
 type CatchAllContext = {
@@ -64,7 +64,7 @@ export async function proxySchoolApiRequest(
   upstreamPrefix: string,
   options?: {
     requireSchoolSession?: boolean;
-    audience?: "school" | "superadmin" | "portal";
+    audience?: DashboardApiProxyAudience;
   },
 ) {
   if (request.method !== "GET" && !validateCsrfRequest(request)) {
@@ -95,8 +95,10 @@ export async function proxySchoolApiRequest(
   }
 
   const requestUrl = new URL(request.url);
-  const sessionTenantSlug = session && "tenantSlug" in session ? session.tenantSlug : null;
-  const { tenantSlug, tenantMismatch } = resolveSchoolTenantSlug({
+  const sessionTenantSlug =
+    audience !== "superadmin" && session && "tenantSlug" in session ? session.tenantSlug : null;
+  const { tenantSlug, tenantMismatch } = resolveDashboardApiProxyTenant({
+    audience,
     requestedTenantSlug: requestUrl.searchParams.get("tenantSlug"),
     tenantCookie: readTenantCookie(cookieStore),
     sessionTenantSlug,
