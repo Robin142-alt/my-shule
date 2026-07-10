@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       tenantSlug?: string | null;
     };
     const audience = body.audience ?? "school";
-    const baseUrl = getDashboardApiBaseUrl(body.tenantSlug ?? undefined);
+    const baseUrl = getDashboardApiBaseUrl();
 
     if (!baseUrl) {
       return NextResponse.json(

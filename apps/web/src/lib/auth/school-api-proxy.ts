@@ -75,7 +75,7 @@ async function getSchoolApiSession(): Promise<SchoolApiSession | null> {
   const tenantSlug = readTenantCookie(cookieStore);
   const audience = readAudienceCookie(cookieStore);
   const accessToken = readAccessCookie(cookieStore);
-  const baseUrl = tenantSlug ? getDashboardApiBaseUrl(tenantSlug) : null;
+  const baseUrl = tenantSlug ? getDashboardApiBaseUrl() : null;
 
   if (!tenantSlug || !baseUrl || !accessToken || audience !== "school") {
     return null;
@@ -93,7 +93,7 @@ async function refreshSchoolApiSession(request: Request, tenantSlug: string) {
       cookieStore,
     );
     const resolvedTenantSlug = session.tenantSlug ?? tenantSlug;
-    const baseUrl = getDashboardApiBaseUrl(resolvedTenantSlug);
+    const baseUrl = getDashboardApiBaseUrl();
 
     if (!baseUrl) {
       return null;

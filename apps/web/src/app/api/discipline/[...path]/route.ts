@@ -47,7 +47,7 @@ async function proxyDisciplineRequest(request: NextRequest, context: RouteContex
   const requestUrl = new URL(request.url);
   const tenantSlug = requestUrl.searchParams.get("tenantSlug") ?? readTenantCookie(cookieStore);
   const audience = readAudienceCookie(cookieStore) ?? "school";
-  const baseUrl = getDashboardApiBaseUrl(tenantSlug ?? undefined);
+  const baseUrl = getDashboardApiBaseUrl();
 
   if (!baseUrl) {
     return NextResponse.json(

@@ -58,7 +58,7 @@ async function proxyPaymentsRequest(request: NextRequest, context: RouteContext)
     );
   }
 
-  const baseUrl = getDashboardApiBaseUrl(tenantSlug ?? undefined);
+  const baseUrl = getDashboardApiBaseUrl();
 
   if (!tenantSlug || !baseUrl) {
     return NextResponse.json(

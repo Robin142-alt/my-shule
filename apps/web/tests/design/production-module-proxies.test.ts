@@ -28,6 +28,10 @@ function readProxyRoute(route: string) {
   return readFileSync(routePath, "utf8");
 }
 
+function readSource(...parts: string[]) {
+  return readFileSync(join(process.cwd(), ...parts), "utf8");
+}
+
 describe("production module live API proxies", () => {
   it.each(productionModuleProxies)(
     "exposes /api/$route through the guarded school API proxy",
@@ -83,5 +87,24 @@ describe("production module live API proxies", () => {
       tenantSlug: "homabay-high",
       tenantMismatch: true,
     });
+  });
+
+  it("keeps server-side API proxies on the central upstream while passing tenant context in headers", () => {
+    const serverProxySources = [
+      readSource("src", "lib", "dashboard", "server-api-proxy.ts"),
+      readSource("src", "lib", "auth", "school-api-proxy.ts"),
+      readSource("src", "app", "api", "auth", "invitations", "accept", "route.ts"),
+      readSource("src", "app", "api", "billing", "[...path]", "route.ts"),
+      readSource("src", "app", "api", "payments", "[...path]", "route.ts"),
+      readSource("src", "app", "api", "support", "[...path]", "route.ts"),
+    ];
+
+    for (const source of serverProxySources) {
+      expect(source).not.toContain("getDashboardApiBaseUrl(tenantSlug");
+      expect(source).not.toContain("getDashboardApiBaseUrl(expectedTenantId");
+      expect(source).not.toContain("getDashboardApiBaseUrl(resolvedTenantSlug");
+    }
+
+    expect(serverProxySources.join("\n")).toContain("\"x-tenant-id\"");
   });
 });

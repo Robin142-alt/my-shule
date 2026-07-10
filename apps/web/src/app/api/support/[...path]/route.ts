@@ -57,7 +57,7 @@ async function proxySupportRequest(request: NextRequest, context: RouteContext) 
   const audience = isExperienceAudience(audienceParam)
     ? audienceParam
     : readAudienceCookie(cookieStore) ?? "school";
-  const baseUrl = getDashboardApiBaseUrl(tenantSlug ?? undefined);
+  const baseUrl = getDashboardApiBaseUrl();
 
   if (!baseUrl) {
     return NextResponse.json(

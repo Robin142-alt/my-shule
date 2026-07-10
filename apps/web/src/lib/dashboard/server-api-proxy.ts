@@ -111,7 +111,7 @@ export async function proxySchoolApiRequest(
     );
   }
 
-  const baseUrl = getDashboardApiBaseUrl(tenantSlug ?? undefined);
+  const baseUrl = getDashboardApiBaseUrl();
 
   if (!baseUrl) {
     return NextResponse.json(

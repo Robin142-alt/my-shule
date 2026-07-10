@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     };
     const expectedTenantId = body.tenantSlug?.trim() || body.tenant_id?.trim() || null;
     const displayName = body.displayName?.trim() || body.display_name?.trim() || undefined;
-    const baseUrl = getDashboardApiBaseUrl(expectedTenantId ?? undefined);
+    const baseUrl = getDashboardApiBaseUrl();
 
     if (!baseUrl) {
       return NextResponse.json(

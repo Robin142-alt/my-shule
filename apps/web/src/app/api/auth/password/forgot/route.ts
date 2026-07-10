@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, message: genericMessage });
     }
 
-    const baseUrl = getDashboardApiBaseUrl(body.tenantSlug ?? undefined);
+    const baseUrl = getDashboardApiBaseUrl();
 
     if (!baseUrl) {
       return NextResponse.json(

@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     }
 
     const tenantSlug = body.tenantSlug ?? readTenantCookie(cookieStore);
-    const baseUrl = getDashboardApiBaseUrl(tenantSlug ?? undefined);
+    const baseUrl = getDashboardApiBaseUrl();
 
     if (!baseUrl) {
       return NextResponse.json(

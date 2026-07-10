@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       token?: string;
       tenantSlug?: string | null;
     };
-    const baseUrl = getDashboardApiBaseUrl(body.tenantSlug ?? undefined);
+    const baseUrl = getDashboardApiBaseUrl();
 
     if (!baseUrl) {
       return NextResponse.json(
