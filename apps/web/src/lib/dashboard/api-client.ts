@@ -183,6 +183,30 @@ function isLocalApiDomain(domain: string | null) {
   return Boolean(domain && /^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(domain));
 }
 
+const DEFAULT_PRODUCTION_API_BASE_URL = "https://my-shule-api-production.up.railway.app";
+const DEPRECATED_PRODUCTION_API_HOSTS = new Set(["my-shule-erp-api.vercel.app"]);
+
+function isProductionRuntime() {
+  return process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production";
+}
+
+function shouldUseProductionApiFallback(baseUrl: string | null) {
+  if (!isProductionRuntime()) {
+    return false;
+  }
+
+  if (!baseUrl) {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(baseUrl);
+    return isLocalApiDomain(parsed.host) || DEPRECATED_PRODUCTION_API_HOSTS.has(parsed.host);
+  } catch {
+    return true;
+  }
+}
+
 function buildTenantOrigin(tenantId: string, domain: string) {
   const trimmedDomain = normalizeConfiguredUrl(domain)?.replace(/^\.+/, "") ?? "";
 
@@ -201,14 +225,19 @@ export function getDashboardApiBaseUrl(tenantId?: string) {
     return "/api";
   }
 
-  const configuredBaseUrl = normalizeConfiguredUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
+  const configuredBaseUrl = normalizeConfiguredUrl(
+    process.env.SERVER_API_BASE_URL ?? process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL,
+  );
   const configuredBaseDomain = normalizeConfiguredUrl(process.env.NEXT_PUBLIC_API_BASE_DOMAIN)?.replace(/^\.+/, "") ?? null;
+  const centralBaseUrl = shouldUseProductionApiFallback(configuredBaseUrl)
+    ? DEFAULT_PRODUCTION_API_BASE_URL
+    : configuredBaseUrl;
 
   if (configuredBaseDomain && tenantId && !isLocalApiDomain(configuredBaseDomain)) {
     return buildTenantOrigin(tenantId, configuredBaseDomain);
   }
 
-  return configuredBaseUrl;
+  return centralBaseUrl;
 }
 
 export function isDashboardApiConfigured() {

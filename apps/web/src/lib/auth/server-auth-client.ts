@@ -104,16 +104,45 @@ function isLocalAuthDomain(domain: string | null) {
   return Boolean(domain && /^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(domain));
 }
 
+const DEFAULT_PRODUCTION_AUTH_BASE_URL = "https://my-shule-api-production.up.railway.app";
+const DEPRECATED_PRODUCTION_AUTH_HOSTS = new Set(["my-shule-erp-api.vercel.app"]);
+
+function isProductionRuntime() {
+  return process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production";
+}
+
+function shouldUseProductionAuthFallback(baseUrl: string | null) {
+  if (!isProductionRuntime()) {
+    return false;
+  }
+
+  if (!baseUrl) {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(baseUrl);
+    return isLocalAuthDomain(parsed.host) || DEPRECATED_PRODUCTION_AUTH_HOSTS.has(parsed.host);
+  } catch {
+    return true;
+  }
+}
+
 function getServerAuthBaseUrl(tenantId?: string) {
-  const configuredBaseUrl = normalizeConfiguredAuthUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
+  const configuredBaseUrl = normalizeConfiguredAuthUrl(
+    process.env.SERVER_API_BASE_URL ?? process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL,
+  );
   const configuredBaseDomain =
     normalizeConfiguredAuthUrl(process.env.NEXT_PUBLIC_API_BASE_DOMAIN)?.replace(/^\.+/, "") ?? null;
+  const centralBaseUrl = shouldUseProductionAuthFallback(configuredBaseUrl)
+    ? DEFAULT_PRODUCTION_AUTH_BASE_URL
+    : configuredBaseUrl;
 
   if (configuredBaseDomain && tenantId && !isLocalAuthDomain(configuredBaseDomain)) {
     return buildTenantAuthOrigin(tenantId, configuredBaseDomain);
   }
 
-  return configuredBaseUrl;
+  return centralBaseUrl;
 }
 
 function buildExperienceHomePath(input: {
