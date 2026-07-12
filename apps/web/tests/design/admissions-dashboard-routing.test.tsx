@@ -1,5 +1,6 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { createElement } from "react";
+import userEvent from "@testing-library/user-event";
 
 import { SchoolPages } from "@/components/school/school-pages";
 import { getSchoolWorkspace } from "@/lib/experiences/school-data";
@@ -91,5 +92,138 @@ describe("admissions dashboard routing", () => {
       "href",
       "/school/admissions/fee-clearance",
     );
+  });
+
+  it("renders live application rows returned by the admissions backend contract", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        metrics: { total: 1, pending: 1, approved: 0, rejected: 0 },
+        applicationsList: [
+          {
+            id: "application-1",
+            student_name: "Achieng Otieno",
+            guardian_name: "Mary Otieno",
+            phone: "0712345678",
+            grade_applied: "Grade 7",
+            previous_school: "Lake Primary",
+            status: "Pending",
+            submitted_at: "2026-07-13",
+          },
+        ],
+      }),
+    }) as unknown as typeof fetch;
+
+    renderWithProviders(
+      createElement(SchoolPages, {
+        role: "admissions",
+        section: "applications",
+        tenantSlug: "homabay-high",
+        routeMode: "public",
+        liveDataEnabled: false,
+      }),
+    );
+
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
+
+    expect(await within(dashboard).findByText("Achieng Otieno")).toBeVisible();
+    expect(within(dashboard).getByRole("button", { name: /start review for Achieng Otieno/i })).toBeVisible();
+    expect(within(dashboard).queryByText(/No records found/i)).not.toBeInTheDocument();
+  });
+
+  it("lets admissions officers start the first student admission from an empty workspace", async () => {
+    const user = userEvent.setup();
+    const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/auth/csrf")) {
+        return { ok: true, json: async () => ({ token: "csrf-token" }) };
+      }
+      if (url.includes("/api/admin-command/admissions/applications") && init?.method === "POST") {
+        return {
+          ok: true,
+          json: async () => ({
+            id: "application-2",
+            full_name: "Brian Ouma",
+            class_applying: "Grade 8",
+            status: "pending",
+          }),
+        };
+      }
+      if (url.includes("/api/admin-command/admissions/applications")) {
+        return {
+          ok: true,
+          json: async () => ({ metrics: { total: 0, pending: 0, approved: 0, rejected: 0 }, applicationsList: [] }),
+        };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    renderWithProviders(
+      createElement(SchoolPages, {
+        role: "admissions",
+        section: "applications",
+        tenantSlug: "homabay-high",
+        routeMode: "public",
+        liveDataEnabled: false,
+      }),
+    );
+
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
+    await user.click(within(dashboard).getByRole("button", { name: /start student admission/i }));
+
+    await user.type(within(dashboard).getByLabelText(/student full name/i), "Brian Ouma");
+    await user.type(within(dashboard).getByLabelText(/date of birth/i), "2012-01-12");
+    await user.selectOptions(within(dashboard).getByLabelText(/gender/i), "Male");
+    await user.type(within(dashboard).getByLabelText(/birth certificate number/i), "BC123456");
+    await user.type(within(dashboard).getByLabelText(/class applying/i), "Grade 8");
+    await user.type(within(dashboard).getByLabelText(/guardian name/i), "Peter Ouma");
+    await user.type(within(dashboard).getByLabelText(/guardian phone/i), "0799999999");
+    await user.click(within(dashboard).getByRole("button", { name: /save application/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/admin-command/admissions/applications"),
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"full_name":"Brian Ouma"'),
+        }),
+      );
+    });
+  });
+
+  it("shows approved applications in enrolment for final admission-number generation", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        metrics: { total_applicants: 1, admitted: 0, pending: 0, rejected: 0 },
+        admissionsList: [
+          {
+            id: "application-3",
+            student_name: "Faith Anyango",
+            application_date: "2026-07-13",
+            class_applied: "Grade 9",
+            parent_name: "Rose Anyango",
+            phone: "0700000000",
+            status: "Approved",
+          },
+        ],
+      }),
+    }) as unknown as typeof fetch;
+
+    renderWithProviders(
+      createElement(SchoolPages, {
+        role: "admissions",
+        section: "enrolment",
+        tenantSlug: "homabay-high",
+        routeMode: "public",
+        liveDataEnabled: false,
+      }),
+    );
+
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
+
+    expect(await within(dashboard).findByText("Faith Anyango")).toBeVisible();
+    expect(within(dashboard).getByRole("button", { name: /enrol Faith Anyango/i })).toBeVisible();
   });
 });

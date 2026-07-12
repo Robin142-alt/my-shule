@@ -23,20 +23,20 @@ import { ApplicantProfilesWorkspace } from "./applicant-profiles-workspace";
 import { ApplicationsWorkspace } from "./applications-workspace";
 import { AppointmentsWorkspace } from "./appointments-workspace";
 import { CommunicationWorkspace } from "./communication-workspace";
-import { DocumentsWorkspace } from "./documents-workspace";
 import { EnquiriesWorkspace } from "./enquiries-workspace";
 import { AdmissionsEnrolmentWorkspace } from "./enrolment-workspace";
 import { FeeClearanceWorkspace } from "./fee-clearance-workspace";
 import { ImportsWorkspace } from "./imports-workspace";
-import { InterviewsWorkspace } from "./interviews-workspace";
 import { AdmissionsOverviewWorkspace } from "./overview-workspace";
-import { ParentsWorkspace } from "./parents-workspace";
-import { PlacementWorkspace } from "./placement-workspace";
-import { ReportsWorkspace } from "./reports-workspace";
 import { SelectionWorkspace } from "./selection-workspace";
 import { TasksWorkspace } from "./tasks-workspace";
 import { TemplatesWorkspace } from "./templates-workspace";
 import { TransfersWorkspace } from "./transfers-workspace";
+import { ClassPlacementWorkspace } from "../admissions/class-placement-workspace";
+import { DocumentsWorkspace } from "../admissions/documents-workspace";
+import { InterviewsWorkspace } from "../admissions/interviews-workspace";
+import { ParentLinkingWorkspace } from "../admissions/parent-linking-workspace";
+import { ReportsWorkspace } from "../admissions/reports-workspace";
 
 type AdmissionsRouteMode = "hosted" | "nested" | "public";
 
@@ -98,9 +98,9 @@ const workspaceComponents: Record<AdmissionsWorkspaceId, ComponentType> = {
   appointments: AppointmentsWorkspace,
   selection: SelectionWorkspace,
   "fee-clearance": FeeClearanceWorkspace,
-  placement: PlacementWorkspace,
+  placement: ClassPlacementWorkspace,
   enrolment: AdmissionsEnrolmentWorkspace,
-  parents: ParentsWorkspace,
+  parents: ParentLinkingWorkspace,
   transfers: TransfersWorkspace,
   imports: ImportsWorkspace,
   templates: TemplatesWorkspace,
