@@ -456,6 +456,31 @@ const supportWorkspaceSectionIds = new Set([
   "support-system-status",
 ]);
 
+const admissionsDashboardSectionIds = new Set([
+  "dashboard",
+  "overview",
+  "enquiries",
+  "applications",
+  "applicant-profiles",
+  "documents",
+  "interviews",
+  "appointments",
+  "selection",
+  "fee-clearance",
+  "placement",
+  "enrolment",
+  "parents",
+  "transfers",
+  "imports",
+  "templates",
+  "tasks",
+  "communication",
+  "reports",
+  "admissions",
+  "class-placement",
+  "parent-linking",
+]);
+
 function canCreateSupportTickets(role: SchoolExperienceRole) {
   return role === "principal" || role === "deputy-principal";
 }
@@ -553,6 +578,10 @@ const unifiedOperationalRoleIds = new Set<SchoolExperienceRole>([
 ]);
 
 function shouldRenderRoleOperationalWorkspace(role: SchoolExperienceRole, section: string) {
+  if (role === "admissions") {
+    return admissionsDashboardSectionIds.has(section);
+  }
+
   if (role === "admin") {
     return section === "dashboard";
   }

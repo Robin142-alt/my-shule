@@ -71,4 +71,25 @@ describe("admissions dashboard routing", () => {
     expect(navIds).not.toContain("class-placement");
     expect(navIds).not.toContain("parent-linking");
   });
+
+  it("opens routed admissions sidebar sections as workable dashboard workspaces", async () => {
+    renderWithProviders(
+      createElement(SchoolPages, {
+        role: "admissions",
+        section: "fee-clearance",
+        tenantSlug: "homabay-high",
+        routeMode: "public",
+        liveDataEnabled: false,
+      }),
+    );
+
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
+
+    expect(within(dashboard).getAllByRole("heading", { name: /Fee Clearance/i }).length).toBeGreaterThan(0);
+    expect(within(dashboard).getByText(/Manage admission fee clearance/i)).toBeVisible();
+    expect(within(dashboard).getByRole("link", { name: /Fee Clearance/i })).toHaveAttribute(
+      "href",
+      "/school/admissions/fee-clearance",
+    );
+  });
 });
