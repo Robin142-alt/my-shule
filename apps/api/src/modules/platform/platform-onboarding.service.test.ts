@@ -892,8 +892,17 @@ query: async (text: string, values: unknown[]) => {
   const subscriptionQuery = queries.find((query) =>
     query.text.includes('INSERT INTO subscriptions'),
   );
+  const lockQuery = queries.find((query) =>
+    query.text.includes('pg_advisory_xact_lock'),
+  );
 
   assert.ok(subscriptionQuery);
+  assert.ok(lockQuery);
+  assert.match(
+    lockQuery.text,
+    /SELECT\s+TRUE\s+AS\s+locked/i,
+    'manual billing tenant lock must return a Prisma-supported scalar row instead of PostgreSQL void',
+  );
   assert.equal(
     subscriptionQuery?.text.includes('ON CONFLICT'),
     false,

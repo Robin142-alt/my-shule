@@ -1024,7 +1024,12 @@ export class PlatformOnboardingService {
 
     // Serialize manual saves per tenant without depending on a production-only conflict index.
     await this.executeSql(
-      'SELECT pg_advisory_xact_lock(hashtext($1::text), 702101)',
+      `
+        WITH tenant_billing_lock AS (
+          SELECT pg_advisory_xact_lock(hashtext($1::text), 702101)
+        )
+        SELECT TRUE AS locked
+      `,
       [input.tenantId],
     );
 
