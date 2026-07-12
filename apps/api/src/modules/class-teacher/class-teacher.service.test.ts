@@ -68,6 +68,125 @@ test('ClassTeacherService publishes attendance counts from submitted attendance 
   assert.equal(attendanceEvents[0].stream_id, 'stream-a');
 });
 
+test('ClassTeacherService saves teacher mark drafts with current exam mark schema and without false submission events', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const submissionEvents: any[] = [];
+  const service = new ClassTeacherService(
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        if (/FROM exam_mark_entry_windows/.test(sql) && /w\.id = \$1/.test(sql)) {
+          return {
+            rows: [{
+              id: 'window-a',
+              out_of: 80,
+              exam_series_id: 'series-a',
+              academic_term_id: 'term-a',
+              assessment_id: 'assessment-a',
+              class_section_id: 'stream-a',
+              subject_id: 'subject-a',
+            }],
+            rowCount: 1,
+          };
+        }
+        if (/FROM student_class_assignments/.test(sql)) {
+          return { rows: [{ id: 'assignment-a' }], rowCount: 1 };
+        }
+        if (/SELECT id FROM exam_marks/.test(sql)) {
+          return { rows: [], rowCount: 0 };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+    {
+      publishExamSubmitted: async (input: any) => {
+        submissionEvents.push(input);
+      },
+    } as never,
+  );
+
+  const result = await service.saveMarks('tenant-a', 'teacher-a', {
+    action: 'draft',
+    examId: 'window-a',
+    classSectionId: 'stream-a',
+    scores: { 'student-a': '74' },
+  });
+
+  assert.equal(result.success, true);
+  const insertQuery = queries.find((query) => /INSERT INTO exam_marks/.test(query.sql));
+  assert.ok(insertQuery);
+  assert.match(insertQuery.sql, /entered_by_user_id/);
+  assert.match(insertQuery.sql, /updated_by_user_id/);
+  assert.doesNotMatch(insertQuery.sql, /\bentered_by\b/);
+  assert.equal(submissionEvents.length, 0);
+});
+
+test('ClassTeacherService submits teacher marks for moderation with tenant scoped completion event', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const submissionEvents: any[] = [];
+  const service = new ClassTeacherService(
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        if (/FROM exam_mark_entry_windows/.test(sql) && /w\.id = \$1/.test(sql)) {
+          return {
+            rows: [{
+              id: 'window-a',
+              exam_series_id: 'series-a',
+              academic_term_id: 'term-a',
+              assessment_id: 'assessment-a',
+              class_section_id: 'stream-a',
+              subject_id: 'subject-a',
+              out_of: 80,
+              exam_name: 'Term 2 Opener',
+              class_name: 'Form 2 Blue',
+              subject_name: 'Mathematics',
+            }],
+            rowCount: 1,
+          };
+        }
+        if (/FROM student_class_assignments/.test(sql) && /COUNT/.test(sql)) {
+          return { rows: [{ total: 1 }], rowCount: 1 };
+        }
+        if (/FROM student_class_assignments/.test(sql)) {
+          return { rows: [{ id: 'assignment-a' }], rowCount: 1 };
+        }
+        if (/SELECT id\s+FROM exam_marks/.test(sql)) {
+          return { rows: [{ id: 'mark-a' }], rowCount: 1 };
+        }
+        if (/FROM exam_marks/.test(sql) && /COUNT/.test(sql)) {
+          return { rows: [{ total: 1 }], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+    {
+      publishExamSubmitted: async (input: any) => {
+        submissionEvents.push(input);
+      },
+    } as never,
+  );
+
+  const result = await service.saveMarks('tenant-a', 'teacher-a', {
+    action: 'submit',
+    examId: 'window-a',
+    classSectionId: 'stream-a',
+    scores: { 'student-a': '74' },
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.status, 'submitted');
+  const updateQuery = queries.find((query) => /UPDATE exam_marks/.test(query.sql));
+  assert.ok(updateQuery);
+  assert.match(updateQuery.sql, /status = \$2/);
+  assert.equal(updateQuery.params[1], 'submitted');
+  assert.equal(submissionEvents.length, 1);
+  assert.equal(submissionEvents[0].tenant_id, 'tenant-a');
+  assert.equal(submissionEvents[0].exam_id, 'series-a');
+  assert.equal(submissionEvents[0].completion_status, 'SUBMITTED');
+  assert.equal(submissionEvents[0].missing_marks_count, 0);
+});
+
 test('ClassTeacherService calculates assigned class average attendance from attendance rows', async () => {
   const queries: Array<{ sql: string; params: unknown[] }> = [];
   const service = new ClassTeacherService(
