@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Search } from "lucide-react";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
@@ -32,9 +32,30 @@ import { ClassTeacherWorkspace } from "./teacher-dashboard/class-teacher-workspa
 import { ClubWorkspace } from "./teacher-dashboard/club-workspace";
 import { InvigilationWorkspace } from "./teacher-dashboard/invigilation-workspace";
 
+function normalizeTeacherView(section?: string): TeacherView {
+  const sectionMap: Record<string, TeacherView> = {
+    dashboard: "overview",
+    "my-timetable": "timetable",
+    "teacher-attendance": "attendance",
+    "subjects-classes": "classes",
+    "lesson-plans": "lesson-log",
+    "lesson-logs": "lesson-log",
+    "assignments-homework": "assignments",
+    "marks-entry": "exams-marks",
+    exams: "exams-marks",
+    "student-notes": "learner-progress",
+    "resource-requests": "teaching-resources",
+    messages: "parent-communication",
+  };
+
+  const normalized = section && section !== "dashboard" ? section : "overview";
+  const mapped = sectionMap[normalized] ?? normalized;
+  return navItems.some((item) => item.id === mapped) ? mapped : "overview";
+}
+
 export function TeacherCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: "hosted" | "public" } = {}) {
   const [activeViewState, setActiveViewState] = useState<TeacherView>(
-    (activeSection && activeSection !== "dashboard" ? activeSection : "overview") as TeacherView
+    normalizeTeacherView(activeSection)
   );
   const activeView = activeViewState;
   const [notice, setNotice] = useState("");
@@ -92,7 +113,7 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
           ].includes(activeView) && (
             <div className="rounded-xl bg-white border border-[#D8E0EC] p-12 text-center text-[#64748B]">
               <p className="font-bold text-[#071D49] text-lg">Workspace Not Found</p>
-              <p className="mt-2 text-sm">The requested workspace '{activeView}' does not exist or is currently unavailable.</p>
+              <p className="mt-2 text-sm">The requested workspace &quot;{activeView}&quot; does not exist or is currently unavailable.</p>
             </div>
           )}
         </div>

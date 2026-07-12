@@ -481,6 +481,41 @@ const admissionsDashboardSectionIds = new Set([
   "parent-linking",
 ]);
 
+const teacherDashboardSectionIds = new Set([
+  "dashboard",
+  "overview",
+  "timetable",
+  "my-timetable",
+  "classes",
+  "subjects-classes",
+  "attendance",
+  "teacher-attendance",
+  "lesson-log",
+  "lesson-logs",
+  "lesson-plans",
+  "syllabus-coverage",
+  "assignments",
+  "assignments-homework",
+  "assessments-cats",
+  "exams",
+  "exams-marks",
+  "marks-entry",
+  "learner-progress",
+  "student-notes",
+  "discipline-welfare",
+  "parent-communication",
+  "messages",
+  "teaching-resources",
+  "resource-requests",
+  "store-requests",
+  "reports",
+  "notifications",
+  "profile",
+  "class-teacher",
+  "club",
+  "invigilation",
+]);
+
 function canCreateSupportTickets(role: SchoolExperienceRole) {
   return role === "principal" || role === "deputy-principal";
 }
@@ -559,7 +594,6 @@ const unifiedOperationalRoleIds = new Set<SchoolExperienceRole>([
   "secretary",
   "bursar",
   "accountant",
-  "teacher",
   "dean-academics",
   "exams-manager",
   "hod",
@@ -580,6 +614,10 @@ const unifiedOperationalRoleIds = new Set<SchoolExperienceRole>([
 function shouldRenderRoleOperationalWorkspace(role: SchoolExperienceRole, section: string) {
   if (role === "admissions") {
     return admissionsDashboardSectionIds.has(section);
+  }
+
+  if (role === "teacher") {
+    return teacherDashboardSectionIds.has(section);
   }
 
   if (role === "admin") {
@@ -4492,9 +4530,9 @@ function SchoolPagesShell({
       return <ExamsManagerCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
-    if (role === "teacher" && section !== "exams") {
+    if (role === "teacher") {
       // @ts-ignore
-      return <TeacherCommandCenter activeSection={section} />;
+      return <TeacherCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
     if (role === "class-teacher") {
