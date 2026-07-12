@@ -47,7 +47,7 @@ import { IctManagerCommandCenter } from "@/components/school/ict-manager-command
 import { ProcurementOfficerCommandCenter } from "@/components/school/procurement-officer-command-center";
 import { StudentCommandCenter } from "@/components/school/student-command-center";
 import { ClassTeacherCommandCenter } from "@/components/school/class-teacher-command-center";
-import { RegistrarCommandCenter } from "@/components/school/registrar-command-center";
+import { AdmissionsDashboardCommandCenter } from "@/components/school/admissions-dashboard/admissions-dashboard-command-center";
 import { StorekeeperCommandCenter } from "@/components/school/storekeeper-command-center";
 import { TransportManagerCommandCenter } from "@/components/school/transport-manager-command-center";
 import { UserManagementPanel } from "@/components/school/user-management-panel";
@@ -550,7 +550,6 @@ const unifiedOperationalRoleIds = new Set<SchoolExperienceRole>([
   "laboratory-technician",
   "guidance-counselling",
   "discipline-master",
-  "admissions",
 ]);
 
 function shouldRenderRoleOperationalWorkspace(role: SchoolExperienceRole, section: string) {
@@ -4475,8 +4474,7 @@ function SchoolPagesShell({
     }
 
     if (role === "admissions") {
-      // @ts-ignore
-      return <RegistrarCommandCenter routeMode={routeMode} activeSection={section} />;
+      return <AdmissionsDashboardCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
     if (role === "storekeeper") {

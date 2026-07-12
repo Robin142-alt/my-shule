@@ -136,14 +136,22 @@ describe("STEP 4: Role tests", () => {
         }),
       );
 
-      expect(await screen.findByTestId("role-operational-command-center")).toBeVisible();
-      expect(screen.getAllByTestId("role-operational-command-center")).toHaveLength(1);
+      if (role === "admissions") {
+        expect(await screen.findByTestId("admissions-dashboard-command-center")).toBeVisible();
+        expect(screen.getAllByTestId("admissions-dashboard-command-center")).toHaveLength(1);
+        expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
+      } else {
+        expect(await screen.findByTestId("role-operational-command-center")).toBeVisible();
+        expect(screen.getAllByTestId("role-operational-command-center")).toHaveLength(1);
+      }
       expect(screen.queryByRole("heading", { name: /class teacher dashboard/i })).not.toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: /transport operations center/i })).not.toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: /school discipline intelligence center/i })).not.toBeInTheDocument();
       if (role === "principal") {
         expect(screen.getByTestId("principal-practical-command-center")).toBeVisible();
         expect(screen.getByText(/School activity today/i)).toBeVisible();
+      } else if (role === "admissions") {
+        expect(screen.getByText(/Enquiries, applications, verification, placement, enrolment, and parent handoff/i)).toBeVisible();
       } else {
         expect(screen.getByText(/Use the role menu to switch sections/i)).toBeVisible();
       }
@@ -281,66 +289,31 @@ describe("STEP 4: Role tests", () => {
     expect(within(commandCenter).getAllByText(/Antiseptic Cream/i).length).toBeGreaterThan(0);
   }, 30000);
 
-  it("makes admissions practical with inquiry intake, document verification, approval, SMS, and letter printing", async () => {
-    const user = userEvent.setup();
-    const printMock = jest.fn();
-    Object.defineProperty(window, "print", { value: printMock, writable: true });
-
+  it("renders the admissions officer dashboard with routed admissions workspaces", async () => {
     renderWithProviders(
       createElement(SchoolPages, {
         role: "admissions" as SchoolExperienceRole,
         tenantSlug: "kisumu-boys",
+        routeMode: "public",
       }),
     );
 
-    const commandCenter = await screen.findByTestId("role-operational-command-center");
-    expect(within(commandCenter).getByRole("heading", { name: /add inquiry or application/i })).toBeVisible();
-    expect(within(commandCenter).getByText(/application pipeline/i)).toBeVisible();
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
 
-    await user.click(within(commandCenter).getByRole("button", { name: /print pipeline/i }));
-    expect(within(commandCenter).getByText(/admissions pipeline print preview ready/i)).toBeVisible();
-    await printFromPreview(user, printMock);
-
-    await user.clear(within(commandCenter).getByLabelText(/applicant name/i));
-    await user.type(within(commandCenter).getByLabelText(/applicant name/i), "Sharon Achieng");
-    await user.selectOptions(within(commandCenter).getByLabelText(/class or form requested/i), "Form 1 North");
-    await user.clear(within(commandCenter).getByLabelText(/parent phone/i));
-    await user.type(within(commandCenter).getByLabelText(/parent phone/i), "0700 555 999");
-    await user.selectOptions(within(commandCenter).getByLabelText(/document status/i), "Complete");
-    await user.clear(within(commandCenter).getByLabelText(/interview date/i));
-    await user.type(within(commandCenter).getByLabelText(/interview date/i), "2026-06-03");
-    await user.clear(within(commandCenter).getByLabelText(/admission note/i));
-    await user.type(within(commandCenter).getByLabelText(/admission note/i), "Parent needs boarding invoice and uniform checklist.");
-    await user.click(within(commandCenter).getByRole("button", { name: /save inquiry/i }));
-
-    expect(
-      within(commandCenter).getByText(
-        /sharon achieng admission inquiry saved for kisumu-boys: admission-.+, documents Complete, parent contact captured, Principal\/Secretary\/Accountant\/Class Teacher notified/i,
-      ),
-    ).toBeVisible();
-    expect(within(commandCenter).getByText("Sharon Achieng")).toBeVisible();
-
-    let applicantRow = within(commandCenter).getByText("Sharon Achieng").closest("tr");
-    expect(applicantRow).not.toBeNull();
-    await user.click(within(applicantRow as HTMLElement).getByRole("button", { name: /verify documents/i }));
-    expect(within(commandCenter).getByText(/sharon achieng documents verified/i)).toBeVisible();
-
-    applicantRow = within(commandCenter).getByText("Sharon Achieng").closest("tr");
-    expect(applicantRow).not.toBeNull();
-    await user.click(within(applicantRow as HTMLElement).getByRole("button", { name: /approve admission/i }));
-    expect(within(commandCenter).getByText(/sharon achieng approved with admission number/i)).toBeVisible();
-    expect(within(commandCenter).getAllByText(/KBI\/2026\//i).length).toBeGreaterThan(0);
-
-    applicantRow = within(commandCenter).getByText("Sharon Achieng").closest("tr");
-    expect(applicantRow).not.toBeNull();
-    await user.click(within(applicantRow as HTMLElement).getByRole("button", { name: /send parent sms/i }));
-    expect(within(commandCenter).getByText(/sharon achieng parent sms queued/i)).toBeVisible();
-
-    applicantRow = within(commandCenter).getByText("Sharon Achieng").closest("tr");
-    expect(applicantRow).not.toBeNull();
-    await user.click(within(applicantRow as HTMLElement).getByRole("button", { name: /print letter/i }));
-    expect(within(commandCenter).getByText(/sharon achieng admission letter print preview ready/i)).toBeVisible();
-    await printFromPreview(user, printMock);
+    expect(within(dashboard).getByRole("heading", { name: /^Admissions$/i })).toBeVisible();
+    expect(within(dashboard).getByRole("link", { name: /Applications/i })).toHaveAttribute(
+      "href",
+      "/school/admissions/applications",
+    );
+    expect(within(dashboard).getByRole("link", { name: /Class Placement/i })).toHaveAttribute(
+      "href",
+      "/school/admissions/placement",
+    );
+    expect(within(dashboard).getByRole("link", { name: /Communication/i })).toHaveAttribute(
+      "href",
+      "/school/admissions/communication",
+    );
+    expect(within(dashboard).queryByText(/add inquiry or application/i)).not.toBeInTheDocument();
   }, 30000);
 
   it("makes the librarian desk practical with barcode add, issue, return, SMS, and slip printing", async () => {
