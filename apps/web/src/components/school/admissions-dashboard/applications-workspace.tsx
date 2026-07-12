@@ -28,6 +28,16 @@ type ApplicationsData = {
   items?: ApplicationRecord[];
 };
 
+type SchoolClassRecord = {
+  id: string;
+  name: string;
+  status?: string;
+};
+
+type ClassesData = {
+  classesList?: SchoolClassRecord[];
+};
+
 type ApplicationFormState = {
   full_name: string;
   date_of_birth: string;
@@ -92,6 +102,7 @@ function requiredFieldsMissing(form: ApplicationFormState) {
 
 export function ApplicationsWorkspace() {
   const { data, isLoading, refetch } = useSchoolQuery<ApplicationsData>("/admin-command/admissions/applications");
+  const { data: classesData, isLoading: classesLoading } = useSchoolQuery<ClassesData>("/admin-command/deputy/classes");
   const createApplication = useSchoolMutation<Record<string, unknown>, ApplicationFormState>(
     "/admin-command/admissions/applications",
     "POST",
@@ -110,6 +121,11 @@ export function ApplicationsWorkspace() {
   const [form, setForm] = useState<ApplicationFormState>(emptyApplicationForm);
   const [formError, setFormError] = useState<string | null>(null);
   const [actioningId, setActioningId] = useState<string | null>(null);
+
+  const classOptions = (classesData?.classesList ?? [])
+    .filter((schoolClass) => normalizeStatus(schoolClass.status ?? "Active") === "active")
+    .sort((left, right) => left.name.localeCompare(right.name));
+  const hasConfiguredClasses = classOptions.length > 0;
 
   const applications = (data?.applicationsList ?? data?.items ?? []).filter((application) => {
     const needle = search.trim().toLowerCase();
@@ -281,7 +297,30 @@ export function ApplicationsWorkspace() {
             </label>
             <label className="grid gap-1 text-sm font-bold text-[#071D49]">
               Class applying
-              <input className="rounded-xl border border-[#D8E0EC] bg-white px-3 py-2" value={form.class_applying} onChange={(event) => setForm({ ...form, class_applying: event.target.value })} />
+              <select
+                className="rounded-xl border border-[#D8E0EC] bg-white px-3 py-2 disabled:bg-[#F1F5F9] disabled:text-[#64748B]"
+                value={form.class_applying}
+                onChange={(event) => setForm({ ...form, class_applying: event.target.value })}
+                disabled={classesLoading || !hasConfiguredClasses}
+              >
+                <option value="">
+                  {classesLoading
+                    ? "Loading classes..."
+                    : hasConfiguredClasses
+                      ? "Select class"
+                      : "No classes configured"}
+                </option>
+                {classOptions.map((schoolClass) => (
+                  <option key={schoolClass.id} value={schoolClass.name}>
+                    {schoolClass.name}
+                  </option>
+                ))}
+              </select>
+              {!classesLoading && !hasConfiguredClasses ? (
+                <span className="text-xs font-semibold text-amber-700">
+                  Ask the Deputy Principal to create active classes before admissions can receive applicants.
+                </span>
+              ) : null}
             </label>
             <label className="grid gap-1 text-sm font-bold text-[#071D49]">
               Previous school
@@ -304,7 +343,7 @@ export function ApplicationsWorkspace() {
             <button type="button" onClick={() => setFormOpen(false)} className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49]">
               Cancel
             </button>
-            <button type="submit" disabled={createApplication.isPending} className="rounded-xl bg-[#FF6B1A] px-4 py-2 text-sm font-black text-white disabled:opacity-60">
+            <button type="submit" disabled={createApplication.isPending || classesLoading || !hasConfiguredClasses} className="rounded-xl bg-[#FF6B1A] px-4 py-2 text-sm font-black text-white disabled:opacity-60">
               {createApplication.isPending ? "Saving..." : "Save application"}
             </button>
           </div>
