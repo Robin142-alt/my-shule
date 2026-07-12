@@ -156,7 +156,8 @@ test('TenantInvitationsService sends a tenant-scoped role invitation without exp
   assert.equal(response.assignment, 'Form 2 West Mathematics');
   const outboxInsert = queries.find((query) => query.text.includes('INSERT INTO auth_email_outbox'));
   const markDeliveryQuery = queries.find((query) => query.text.includes('app.mark_auth_email_outbox_delivery'));
-  assert.match(markDeliveryQuery?.text ?? '', /\$1::uuid,\s*\$2::text/);
+  assert.match(markDeliveryQuery?.text ?? '', /\$1::uuid,\s*\$2::text,\s*\$3::text,\s*\$4::text,\s*\$5::integer/);
+  assert.deepEqual(markDeliveryQuery?.values, ['00000000-0000-0000-0000-000000000901', 'sent', null, null, null]);
   assert.doesNotMatch(String(outboxInsert?.values[3] ?? ''), /token=|invite_url/);
   const outboxPayload = JSON.parse(String(outboxInsert?.values[3] ?? '{}'));
   assert.equal(outboxPayload.role_name, 'Teacher');
@@ -319,6 +320,13 @@ test('TenantInvitationsService preserves pending invitation when email delivery 
         && query.values[1] === 'failed',
     ),
   );
+  const markDeliveryQuery = queries.find((query) => query.text.includes('app.mark_auth_email_outbox_delivery'));
+  assert.deepEqual(markDeliveryQuery?.values.slice(1), [
+    'failed',
+    'provider_rejected',
+    'School invitation email could not be sent right now.',
+    500,
+  ]);
   assert.deepEqual(
     auditLogs.map((entry) => entry.action),
     ['tenant.invitation.created', 'tenant.invitation.email_failed'],
@@ -413,6 +421,15 @@ test('TenantInvitationsService sends invitation email only after the token trans
   assert.ok(queries.some((query) => query.text.includes('INSERT INTO auth_action_tokens')));
   assert.ok(queries.some((query) => query.text.includes('INSERT INTO auth_email_outbox')));
   assert.ok(queries.some((query) => query.text.includes('app.mark_auth_email_outbox_delivery')));
+  assert.ok(
+    queries.some(
+      (query) =>
+        query.text.includes('UPDATE auth_email_outbox')
+        && query.text.includes("set_config('app.auth_email_outbox_operation', 'mark_delivery', true)")
+        && query.values[0] === 'sent'
+        && query.values[1] === '00000000-0000-0000-0000-000000000904',
+    ),
+  );
   assert.deepEqual(auditLogs, ['tenant.invitation.created', 'tenant.invitation.email_sent']);
 });
 
@@ -676,7 +693,8 @@ test('TenantInvitationsService resends a pending invitation with a rotated token
   const tokenMetadata = JSON.parse(String(tokenUpdate?.values[4] ?? '{}'));
   assert.equal(tokenMetadata.role_name, 'Parent');
   assert.equal(tokenMetadata.invited_by_display_name, 'Deputy Otieno');
-  assert.match(markDeliveryQuery?.text ?? '', /\$1::uuid,\s*\$2::text/);
+  assert.match(markDeliveryQuery?.text ?? '', /\$1::uuid,\s*\$2::text,\s*\$3::text,\s*\$4::text,\s*\$5::integer/);
+  assert.deepEqual(markDeliveryQuery?.values, ['outbox-1', 'sent', null, null, null]);
 });
 
 test('TenantInvitationsService revokes only pending tenant invitations for the current tenant', async () => {

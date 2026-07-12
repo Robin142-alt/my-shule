@@ -89,6 +89,7 @@ type InvitationEmailDelivery = {
   message: string;
   failureCode?: string;
   actionRequired?: string;
+  providerStatusCode?: number;
 };
 
 type PreparedInvitationDelivery = {
@@ -936,7 +937,11 @@ export class TenantInvitationsService {
       };
     } catch (error) {
       const delivery = this.invitationDeliveryFailureFromError(error);
-      await this.markOutboxDeliverySafely(input.outboxId, 'failed');
+      await this.markOutboxDeliverySafely(input.outboxId, 'failed', {
+        errorCode: delivery.failureCode,
+        errorSummary: delivery.message,
+        providerStatusCode: delivery.providerStatusCode,
+      });
       return delivery;
     }
   }
@@ -952,6 +957,7 @@ export class TenantInvitationsService {
           error.code === 'resend_domain_not_verified'
             ? 'Verify the Resend sending domain and set EMAIL_FROM to that verified domain, then resend the invitation.'
             : 'Fix transactional email delivery, then resend the pending invitation.',
+        providerStatusCode: error.providerStatus,
       };
     }
 
@@ -1112,23 +1118,82 @@ export class TenantInvitationsService {
   private async markOutboxDelivery(
     outboxId: string | undefined,
     status: 'sent' | 'failed',
+    options: {
+      errorCode?: string;
+      errorSummary?: string;
+      providerStatusCode?: number;
+    } = {},
   ): Promise<void> {
     if (!outboxId) {
       return;
     }
 
-    await this.databaseService.query(
-      'SELECT app.mark_auth_email_outbox_delivery($1::uuid, $2::text)',
-      [outboxId, status],
-    );
+    try {
+      await this.databaseService.query(
+        'SELECT app.mark_auth_email_outbox_delivery($1::uuid, $2::text, $3::text, $4::text, $5::integer)',
+        [
+          outboxId,
+          status,
+          options.errorCode ?? null,
+          options.errorSummary ?? null,
+          options.providerStatusCode ?? null,
+        ],
+      );
+      return;
+    } catch {
+      await this.databaseService.query(
+        `
+          WITH _operation AS (
+            SELECT set_config('app.auth_email_outbox_operation', 'mark_delivery', true)
+          )
+          UPDATE auth_email_outbox
+          SET
+            status = $1::text,
+            attempts = attempts + 1,
+            sent_at = CASE WHEN $1::text = 'sent' THEN NOW() ELSE sent_at END,
+            last_error_code = CASE
+              WHEN $1::text = 'sent' THEN NULL
+              ELSE NULLIF($3::text, '')
+            END,
+            last_error_summary = CASE
+              WHEN $1::text = 'sent' THEN NULL
+              ELSE NULLIF($4::text, '')
+            END,
+            provider_status_code = CASE
+              WHEN $1::text = 'sent' THEN NULL
+              ELSE $5::integer
+            END,
+            last_attempt_at = NOW(),
+            next_attempt_at = CASE
+              WHEN $1::text = 'failed' THEN NOW() + INTERVAL '10 minutes'
+              ELSE next_attempt_at
+            END
+          FROM _operation
+          WHERE id = $2::uuid
+          RETURNING id
+        `,
+        [
+          status,
+          outboxId,
+          options.errorCode ?? null,
+          options.errorSummary ?? null,
+          options.providerStatusCode ?? null,
+        ],
+      );
+    }
   }
 
   private async markOutboxDeliverySafely(
     outboxId: string | undefined,
     status: 'sent' | 'failed',
+    options: {
+      errorCode?: string;
+      errorSummary?: string;
+      providerStatusCode?: number;
+    } = {},
   ): Promise<void> {
     try {
-      await this.markOutboxDelivery(outboxId, status);
+      await this.markOutboxDelivery(outboxId, status, options);
     } catch {
       // Provider delivery and invite token durability are the source of truth for the caller.
       // Outbox repair can be handled separately by operational monitoring.
