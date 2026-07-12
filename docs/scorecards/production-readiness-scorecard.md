@@ -1,6 +1,6 @@
 # Production Readiness Scorecard
 
-Generated at: 2026-07-07T08:30:47.478Z
+Generated at: 2026-07-12T19:28:36.577Z
 
 Overall score: 97/95
 
