@@ -48,6 +48,12 @@ test('EventsSchemaService repairs legacy notifications table for tenant-scoped d
   assert.match(bootstrapSql, /ALTER TABLE notifications\s+ALTER COLUMN status TYPE text USING lower\(status::text\);/);
   assert.match(bootstrapSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_notifications_tenant_notification_key/);
   assert.match(bootstrapSql, /CREATE POLICY notifications_rls_policy ON notifications/);
+  assert.match(bootstrapSql, /ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS module text;/);
+  assert.match(bootstrapSql, /ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity_type text;/);
+  assert.match(bootstrapSql, /ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity_id text;/);
+  assert.match(bootstrapSql, /ALTER TABLE audit_logs ALTER COLUMN module SET DEFAULT 'system';/);
+  assert.match(bootstrapSql, /ALTER TABLE audit_logs ALTER COLUMN entity_type SET DEFAULT 'unknown';/);
+  assert.match(bootstrapSql, /ALTER TABLE audit_logs ALTER COLUMN entity_id SET DEFAULT '';/);
   assert.match(bootstrapSql, /ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS aggregate_id uuid;/);
   assert.match(bootstrapSql, /SET aggregate_id = resource_id/);
 });

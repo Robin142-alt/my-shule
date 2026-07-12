@@ -69,14 +69,21 @@ export class EventsSchemaService implements OnModuleInit {
       CREATE TABLE IF NOT EXISTS audit_logs (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
+        school_id text,
         actor_user_id uuid,
         request_id text,
         action text NOT NULL,
+        module text NOT NULL DEFAULT 'system',
+        entity_type text NOT NULL DEFAULT 'unknown',
+        entity_id text NOT NULL DEFAULT '',
+        old_values_json jsonb,
+        new_values_json jsonb,
         resource_type text NOT NULL,
         resource_id uuid,
         aggregate_id uuid,
         ip_address inet,
         user_agent text,
+        reason text,
         metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
         occurred_at timestamptz NOT NULL DEFAULT NOW(),
         created_at timestamptz NOT NULL DEFAULT NOW(),
@@ -90,13 +97,20 @@ export class EventsSchemaService implements OnModuleInit {
       );
 
       ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS tenant_id text;
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS school_id text;
       ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS request_id text;
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS module text;
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity_type text;
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity_id text;
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS old_values_json jsonb;
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS new_values_json jsonb;
       ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS resource_type text;
       ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS resource_id uuid;
       ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS aggregate_id uuid;
       ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
       ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS occurred_at timestamptz;
       ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS reason text;
 
       DO $$
       DECLARE
@@ -209,10 +223,28 @@ export class EventsSchemaService implements OnModuleInit {
           AND resource_id IS NOT NULL;
 
         UPDATE audit_logs
+        SET module = COALESCE(NULLIF(module, ''), split_part(action, '.', 1), 'system')
+        WHERE module IS NULL OR module = '';
+
+        UPDATE audit_logs
+        SET entity_type = COALESCE(NULLIF(entity_type, ''), NULLIF(resource_type, ''), 'unknown')
+        WHERE entity_type IS NULL OR entity_type = '';
+
+        UPDATE audit_logs
+        SET entity_id = COALESCE(NULLIF(entity_id, ''), resource_id::text, aggregate_id::text, '')
+        WHERE entity_id IS NULL;
+
+        UPDATE audit_logs
         SET occurred_at = COALESCE(occurred_at, created_at, NOW())
         WHERE occurred_at IS NULL;
 
         ALTER TABLE audit_logs ALTER COLUMN tenant_id SET NOT NULL;
+        ALTER TABLE audit_logs ALTER COLUMN module SET DEFAULT 'system';
+        ALTER TABLE audit_logs ALTER COLUMN module SET NOT NULL;
+        ALTER TABLE audit_logs ALTER COLUMN entity_type SET DEFAULT 'unknown';
+        ALTER TABLE audit_logs ALTER COLUMN entity_type SET NOT NULL;
+        ALTER TABLE audit_logs ALTER COLUMN entity_id SET DEFAULT '';
+        ALTER TABLE audit_logs ALTER COLUMN entity_id SET NOT NULL;
         ALTER TABLE audit_logs ALTER COLUMN resource_type SET NOT NULL;
         ALTER TABLE audit_logs ALTER COLUMN metadata SET DEFAULT '{}'::jsonb;
         ALTER TABLE audit_logs ALTER COLUMN metadata SET NOT NULL;

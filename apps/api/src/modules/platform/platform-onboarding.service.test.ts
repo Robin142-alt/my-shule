@@ -895,14 +895,22 @@ query: async (text: string, values: unknown[]) => {
   const lockQuery = queries.find((query) =>
     query.text.includes('pg_advisory_xact_lock'),
   );
+  const auditQuery = queries.find((query) =>
+    query.text.includes('INSERT INTO audit_logs'),
+  );
 
   assert.ok(subscriptionQuery);
   assert.ok(lockQuery);
+  assert.ok(auditQuery);
   assert.match(
     lockQuery.text,
     /SELECT\s+TRUE\s+AS\s+locked/i,
     'manual billing tenant lock must return a Prisma-supported scalar row instead of PostgreSQL void',
   );
+  assert.match(auditQuery.text, /\bmodule\b/i);
+  assert.match(auditQuery.text, /\bentity_type\b/i);
+  assert.match(auditQuery.text, /\bentity_id\b/i);
+  assert.match(auditQuery.text, /\bnew_values_json\b/i);
   assert.equal(
     subscriptionQuery?.text.includes('ON CONFLICT'),
     false,

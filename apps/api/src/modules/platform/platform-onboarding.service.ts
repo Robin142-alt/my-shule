@@ -1307,22 +1307,29 @@ export class PlatformOnboardingService {
       `
         INSERT INTO audit_logs (
           tenant_id,
+          school_id,
           actor_user_id,
           request_id,
           action,
+          module,
+          entity_type,
+          entity_id,
           resource_type,
           resource_id,
           ip_address,
           user_agent,
+          reason,
+          new_values_json,
           metadata
         )
-        VALUES ($1, NULL, $2, $3, 'tenant', NULL, NULL, $4, $5::jsonb)
+        VALUES ($1, $1, NULL, $2, $3, 'platform', 'tenant', $1, 'tenant', NULL, NULL, $4, $5, $6::jsonb, $6::jsonb)
       `,
       [
         tenant.tenant_id,
         context?.request_id ?? null,
         action,
         context?.user_agent ?? null,
+        reason,
         JSON.stringify({
           tenant_id: tenant.tenant_id,
           school_name: tenant.name,
