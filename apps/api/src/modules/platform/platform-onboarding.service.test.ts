@@ -911,6 +911,11 @@ query: async (text: string, values: unknown[]) => {
   assert.match(auditQuery.text, /\bentity_type\b/i);
   assert.match(auditQuery.text, /\bentity_id\b/i);
   assert.match(auditQuery.text, /\bnew_values_json\b/i);
+  assert.doesNotMatch(
+    auditQuery.text,
+    /VALUES\s*\(\$1,\s*\$1/i,
+    'platform tenant lifecycle audits must not write tenant slugs into school_id foreign keys',
+  );
   assert.equal(
     subscriptionQuery?.text.includes('ON CONFLICT'),
     false,

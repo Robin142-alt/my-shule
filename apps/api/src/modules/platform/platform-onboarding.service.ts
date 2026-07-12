@@ -1322,7 +1322,7 @@ export class PlatformOnboardingService {
           new_values_json,
           metadata
         )
-        VALUES ($1, $1, NULL, $2, $3, 'platform', 'tenant', $1, 'tenant', NULL, NULL, $4, $5, $6::jsonb, $6::jsonb)
+        VALUES ($1, NULL, NULL, $2, $3, 'platform', 'tenant', $1, 'tenant', NULL, NULL, $4, $5, $6::jsonb, $6::jsonb)
       `,
       [
         tenant.tenant_id,
