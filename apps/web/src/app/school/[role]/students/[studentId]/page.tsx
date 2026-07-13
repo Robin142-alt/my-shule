@@ -1,6 +1,7 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { SchoolPages } from "@/components/school/school-pages";
+import { getSchoolRoleAlias } from "@/lib/auth/school-role-normalization";
 import type { SchoolExperienceRole } from "@/lib/experiences/types";
 import { readPublicSchoolSession } from "@/lib/routing/public-experience-session";
 
@@ -36,6 +37,11 @@ export default async function SchoolStudentProfilePage({
   params: Promise<{ role: string; studentId: string }>;
 }) {
   const { role, studentId } = await params;
+  const roleAlias = getSchoolRoleAlias(role);
+
+  if (roleAlias) {
+    redirect(`/school/${roleAlias}/students/${studentId}`);
+  }
 
   if (!allowedRoles.includes(role as (typeof allowedRoles)[number])) {
     notFound();

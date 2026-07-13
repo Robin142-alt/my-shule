@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { DashboardEngine } from "@/components/dashboard/dashboard-engine";
 import {
   AlertTriangle,
   Archive,
@@ -1859,12 +1858,6 @@ export function ExamsManagerCommandCenter({
                 {activeCapability.reason}
               </div>
             )}
-
-            {activeView === "overview" ? (
-              <div className="mb-6">
-                <DashboardEngine role="exams-manager" />
-              </div>
-            ) : null}
 
             <MainWorkspace
               view={activeView}

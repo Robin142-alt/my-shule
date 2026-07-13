@@ -64,6 +64,8 @@ const schoolRoleAliases: Record<string, SchoolExperienceRole> = {
   "dean-academics": "dean-academics",
   "dean-of-academics": "dean-academics",
   "academic-dean": "dean-academics",
+  "exam-manager": "exams-manager",
+  "exams-officer": "exams-manager",
   "exams-manager": "exams-manager",
   "exam-officer": "exams-manager",
   "examination-officer": "exams-manager",

@@ -22,7 +22,9 @@ describe("SaaS identity role routing", () => {
     expect(getRoleHomePath("academic_dean")).toBe("/school/dean-academics");
     expect(getRoleHomePath("exams_manager")).toBe("/school/exams-manager");
     expect(getRoleHomePath("exams-manager")).toBe("/school/exams-manager");
+    expect(getRoleHomePath("exam-manager")).toBe("/school/exams-manager");
     expect(getRoleHomePath("exam_officer")).toBe("/school/exams-manager");
+    expect(getRoleHomePath("exams_officer")).toBe("/school/exams-manager");
     expect(getRoleHomePath("hod")).toBe("/school/hod");
     expect(getRoleHomePath("head_of_department")).toBe("/school/hod");
     expect(getRoleHomePath("head-of-department")).toBe("/school/hod");
@@ -130,7 +132,10 @@ describe("SaaS identity role routing", () => {
     expect(getSchoolRoleAlias("academic_dean")).toBe("dean-academics");
     expect(getSchoolRoleAlias("dean-academics")).toBeNull();
     expect(getSchoolRoleAlias("exams_manager")).toBe("exams-manager");
+    expect(getSchoolRoleAlias("exam_manager")).toBe("exams-manager");
+    expect(getSchoolRoleAlias("exam-manager")).toBe("exams-manager");
     expect(getSchoolRoleAlias("exam_officer")).toBe("exams-manager");
+    expect(getSchoolRoleAlias("exams_officer")).toBe("exams-manager");
     expect(getSchoolRoleAlias("examination_officer")).toBe("exams-manager");
     expect(getSchoolRoleAlias("exams-manager")).toBeNull();
     expect(getSchoolRoleAlias("class_teacher")).toBe("class-teacher");

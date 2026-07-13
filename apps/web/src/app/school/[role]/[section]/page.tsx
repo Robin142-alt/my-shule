@@ -1,8 +1,9 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { cookies } from "next/headers";
 
 import { SchoolPages } from "@/components/school/school-pages";
 import { readAccessCookie } from "@/lib/auth/server-session";
+import { getSchoolRoleAlias } from "@/lib/auth/school-role-normalization";
 import type { SchoolExperienceRole } from "@/lib/experiences/types";
 import { isProductionReadyModule } from "@/lib/features/module-readiness";
 import { readPublicSchoolSession } from "@/lib/routing/public-experience-session";
@@ -41,6 +42,11 @@ export default async function SchoolSectionPage({
   params: Promise<{ role: string; section: string }>;
 }) {
   const { role, section } = await params;
+  const roleAlias = getSchoolRoleAlias(role);
+
+  if (roleAlias) {
+    redirect(`/school/${roleAlias}/${section}`);
+  }
 
   if (!allowedRoles.includes(role as SchoolExperienceRole)) {
     notFound();

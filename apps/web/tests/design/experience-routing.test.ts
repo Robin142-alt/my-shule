@@ -466,6 +466,20 @@ describe("experience routing", () => {
     expect(
       evaluateExperienceRouting({
         host: "127.0.0.1:3005",
+        pathname: "/dashboard/exam-manager/overview",
+        cookies: {},
+      }),
+    ).toEqual({
+      action: "redirect",
+      location: "/school/exams-manager/overview",
+      headers: {
+        "x-platform-experience": "public",
+      },
+    });
+
+    expect(
+      evaluateExperienceRouting({
+        host: "127.0.0.1:3005",
         pathname: "/dashboard/deputy-principal/approvals",
         cookies: {},
       }),
