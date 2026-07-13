@@ -1342,17 +1342,17 @@ describe("STEP 4: Role tests", () => {
     const routeCases: Array<{
       role: SchoolExperienceRole;
       section: string;
-      workspace: string;
+      expectedText: RegExp;
     }> = [
-      { role: "exams-manager", section: "marks", workspace: "Marks Entry Hub" },
-      { role: "exams-manager", section: "grading", workspace: "Grade Processing" },
-      { role: "exams-manager", section: "validation", workspace: "Data Validation" },
-      { role: "hod", section: "syllabus", workspace: "Syllabus Coverage" },
-      { role: "hod", section: "lesson-plans", workspace: "Lesson Plans" },
-      { role: "hod", section: "attendance", workspace: "Attendance Analysis" },
-      { role: "hod", section: "resources", workspace: "Department Resources" },
-      { role: "hod", section: "student-analytics", workspace: "Student Analytics" },
-      { role: "grade-master", section: "attendance", workspace: "Attendance Oversight" },
+      { role: "exams-manager", section: "marks", expectedText: /Marks Entry Hub is connected to the live exams backend/i },
+      { role: "exams-manager", section: "grading", expectedText: /Grade Processing is connected to the live exams backend/i },
+      { role: "exams-manager", section: "validation", expectedText: /Data Validation is connected to the live exams backend/i },
+      { role: "hod", section: "syllabus", expectedText: /Coverage Review opened/i },
+      { role: "hod", section: "lesson-plans", expectedText: /Lesson Plans Review opened/i },
+      { role: "hod", section: "attendance", expectedText: /Coverage Review opened/i },
+      { role: "hod", section: "resources", expectedText: /Resource Requests opened/i },
+      { role: "hod", section: "student-analytics", expectedText: /Marks Moderation opened/i },
+      { role: "grade-master", section: "attendance", expectedText: /Attendance Monitor/i },
     ];
 
     for (const routeCase of routeCases) {
@@ -1368,7 +1368,7 @@ describe("STEP 4: Role tests", () => {
 
       expect(commandCenter).toBeVisible();
       expect(screen.getAllByTestId("role-operational-command-center")).toHaveLength(1);
-      expect(within(commandCenter).getByText(new RegExp(`${routeCase.workspace} today['’]s work`, "i"))).toBeVisible();
+      expect(within(commandCenter).getAllByText(routeCase.expectedText).length).toBeGreaterThan(0);
       expect(screen.queryByText(/module not enabled for your school/i)).not.toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: /dashboard home/i })).not.toBeInTheDocument();
 

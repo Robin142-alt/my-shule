@@ -450,22 +450,23 @@ describe("dashboard action contract safety", () => {
   });
 
   it("keeps HOD allocation and meeting actions carrying real form payloads", () => {
-    const source = fs.readFileSync(path.join(process.cwd(), "src/components/school/hod-command-center.tsx"), "utf8");
+    const allocationSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/hod/subject-allocation-workspace.tsx"), "utf8");
+    const reportsSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/hod/reports-workspace.tsx"), "utf8");
     const serviceSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/admin-command/hod-command.service.ts"), "utf8");
     const controllerSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/admin-command/hod-command.controller.ts"), "utf8");
 
-    expect(source).toMatch(/const allocationPayload = Object\.fromEntries/);
-    expect(source).toMatch(/name="teacher_id"/);
-    expect(source).toMatch(/name="subject_id"/);
-    expect(source).toMatch(/name="class_section_id"/);
-    expect(source).toMatch(/name="academic_term_id"/);
-    expect(source).toMatch(/handleRevokeSubjectAllocation/);
-    expect(source).toMatch(/\/admin-command\/hod\/subject-allocation\/revoke/);
-    expect(source).not.toMatch(/Subject allocation revoke request recorded\./);
-    expect(source).toMatch(/const meetingPayload = Object\.fromEntries/);
-    expect(source).toMatch(/name="meetingTitle"/);
-    expect(source).toMatch(/name="scheduledAt"/);
-    expect(source).toMatch(/name="summary"/);
+    expect(allocationSource).toMatch(/const allocationPayload = Object\.fromEntries/);
+    expect(allocationSource).toMatch(/name="teacher_id"/);
+    expect(allocationSource).toMatch(/name="subject_id"/);
+    expect(allocationSource).toMatch(/name="class_section_id"/);
+    expect(allocationSource).toMatch(/name="academic_term_id"/);
+    expect(allocationSource).toMatch(/handleRevokeSubjectAllocation/);
+    expect(allocationSource).toMatch(/\/admin-command\/hod\/subject-allocation\/revoke/);
+    expect(allocationSource).not.toMatch(/Subject allocation revoke request recorded\./);
+    expect(reportsSource).toMatch(/const meetingPayload = Object\.fromEntries/);
+    expect(reportsSource).toMatch(/name="meetingTitle"/);
+    expect(reportsSource).toMatch(/name="scheduledAt"/);
+    expect(reportsSource).toMatch(/name="summary"/);
     expect(serviceSource).toMatch(/upsertSubjectAllocation/);
     expect(serviceSource).toMatch(/requestSubjectAllocationRevocation/);
     expect(serviceSource).toMatch(/INSERT INTO class_subject_assignments/);
@@ -476,7 +477,7 @@ describe("dashboard action contract safety", () => {
   });
 
   it("keeps HOD roster review wired to a concrete backend workflow", () => {
-    const source = fs.readFileSync(path.join(process.cwd(), "src/components/school/hod-command-center.tsx"), "utf8");
+    const source = fs.readFileSync(path.join(process.cwd(), "src/components/school/hod/department-teachers-workspace.tsx"), "utf8");
     const serviceSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/admin-command/hod-command.service.ts"), "utf8");
     const controllerSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/admin-command/hod-command.controller.ts"), "utf8");
 
@@ -490,7 +491,7 @@ describe("dashboard action contract safety", () => {
   });
 
   it("keeps HOD report generation on the real report endpoint", () => {
-    const source = fs.readFileSync(path.join(process.cwd(), "src/components/school/hod-command-center.tsx"), "utf8");
+    const source = fs.readFileSync(path.join(process.cwd(), "src/components/school/hod/reports-workspace.tsx"), "utf8");
     const serviceSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/admin-command/hod-command.service.ts"), "utf8");
 
     expect(source).toMatch(/\/admin-command\/hod\/reports\/generate/);
@@ -1510,16 +1511,17 @@ describe("dashboard action contract safety", () => {
   });
 
   it("keeps dean academic decisions backed by command endpoints with object request bodies", () => {
-    const source = fs.readFileSync(path.join(process.cwd(), "src/components/school/dean-academics-command-center.tsx"), "utf8");
+    const assessmentsSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/dean-academics/assessments-workspace.tsx"), "utf8");
+    const reportsSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/dean-academics/reports-workspace.tsx"), "utf8");
     const controllerSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/admin-command/dean-academics-command.controller.ts"), "utf8");
     const serviceSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/admin-command/dean-academics-command.service.ts"), "utf8");
 
-    expect(source).toMatch(/requestDashboardApi\("\/admin-command\/dean-academics\/lock-batch"/);
-    expect(source).toMatch(/requestDashboardApi\("\/admin-command\/dean-academics\/action"/);
-    expect(source).toMatch(/requestDashboardApi\("\/admin-command\/dean-academics\/reports\/generate"/);
-    expect(source).not.toMatch(/requestDashboardApi\("[^"]*dean-academics[\s\S]*?body:\s*JSON\.stringify/);
-    expect(source).not.toMatch(/\$\{selectedAction\} recorded/);
-    expect(source).toMatch(/Dean academic workflow saved/);
+    expect(assessmentsSource).toMatch(/requestDashboardApi\("\/admin-command\/dean-academics\/lock-batch"/);
+    expect(assessmentsSource).toMatch(/requestDashboardApi\("\/admin-command\/dean-academics\/action"/);
+    expect(reportsSource).toMatch(/requestDashboardApi\("\/admin-command\/dean-academics\/reports\/generate"/);
+    expect(`${assessmentsSource}\n${reportsSource}`).not.toMatch(/requestDashboardApi\("[^"]*dean-academics[\s\S]*?body:\s*JSON\.stringify/);
+    expect(assessmentsSource).not.toMatch(/\$\{selectedAction\} recorded/);
+    expect(assessmentsSource).toMatch(/Dean academic workflow saved/);
     expect(controllerSource).toMatch(/@Post\('action'\)/);
     expect(controllerSource).toMatch(/@Post\('reports\/generate'\)/);
     expect(serviceSource).toMatch(/recordDeanAction/);

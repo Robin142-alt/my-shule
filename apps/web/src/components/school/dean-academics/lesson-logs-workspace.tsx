@@ -1,6 +1,6 @@
 "use client";
 import { FileEdit } from "lucide-react";
-import { Panel, StatusChip, Tone } from "./shared";
+import { Panel, StatusChip, Tone, listFromData } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type LessonLogsRecord = {
@@ -25,7 +25,7 @@ type LessonLogsData = {
 
 export function LessonLogsWorkspace() {
   const { data, isLoading } = useSchoolQuery<LessonLogsData>('/admin-command/dean-academics/lesson-logs');
-  const items = data?.lessonlogsList || [];
+  const items = listFromData<LessonLogsRecord>(data, "lessonlogsList");
 
   const getStatusTone = (st: string): Tone => {
     if (st === "Active" || st === "Available" || st === "Approved" || st === "Completed" || st === "Resolved" || st === "Present" || st === "Functional" || st === "On Track" || st === "Cleared") return "success";

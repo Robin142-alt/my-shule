@@ -540,10 +540,21 @@ const roleOperationalWorkspaceSectionIds = new Set([
   "school-admin",
   "mpesa",
   "academics",
+  "academic-interventions",
   "syllabus",
+  "curriculum-coverage",
+  "department-performance",
+  "teacher-workload",
   "lesson-plans",
+  "lesson-logs",
+  "assessments",
   "attendance",
   "resources",
+  "department-teachers",
+  "subject-allocation",
+  "coverage-review",
+  "marks-moderation",
+  "resource-requests",
   "student-analytics",
   "marks",
   "grading",
@@ -575,6 +586,82 @@ const roleOperationalWorkspaceSectionIds = new Set([
   "co-curricular",
   "setup-wizard",
   "ict-assets",
+]);
+
+const deanAcademicsWorkspaceSectionIds = new Set([
+  "dashboard",
+  "overview",
+  "academic-overview",
+  "academics",
+  "curriculum",
+  "syllabus",
+  "curriculum-coverage",
+  "academic-analytics",
+  "department-performance",
+  "student-analytics",
+  "teachers",
+  "staff",
+  "teacher-workload",
+  "lesson-plans",
+  "lesson-logs",
+  "attendance",
+  "pending",
+  "moderation",
+  "results-moderation",
+  "integrity",
+  "exams",
+  "marks",
+  "grading",
+  "validation",
+  "assessments",
+  "interventions",
+  "alerts",
+  "academic-interventions",
+  "history",
+  "reports",
+  "reports-analytics",
+]);
+
+const hodWorkspaceSectionIds = new Set([
+  "dashboard",
+  "overview",
+  "my-teaching",
+  "department-settings",
+  "department-overview",
+  "department-teachers",
+  "staff",
+  "teacher-attendance",
+  "lesson-observation",
+  "subject-allocation",
+  "timetable",
+  "schemes-of-work",
+  "syllabus",
+  "syllabus-coverage",
+  "attendance",
+  "academics",
+  "lesson-delivery",
+  "coverage-review",
+  "lesson-plans",
+  "assessments-cats",
+  "exams",
+  "exams-marks-moderation",
+  "marks",
+  "grading",
+  "validation",
+  "performance-analytics",
+  "student-analytics",
+  "learner-interventions",
+  "marks-moderation",
+  "resources",
+  "resources-requests",
+  "resource-requests",
+  "procurement",
+  "inventory",
+  "approvals",
+  "communication",
+  "department-meetings",
+  "reports",
+  "reports-downloads",
 ]);
 
 const financeRoleDedicatedSectionIds = new Set([
@@ -612,6 +699,14 @@ const unifiedOperationalRoleIds = new Set<SchoolExperienceRole>([
 ]);
 
 function shouldRenderRoleOperationalWorkspace(role: SchoolExperienceRole, section: string) {
+  if (role === "dean-academics") {
+    return deanAcademicsWorkspaceSectionIds.has(section);
+  }
+
+  if (role === "hod") {
+    return hodWorkspaceSectionIds.has(section);
+  }
+
   if (role === "admissions") {
     return admissionsDashboardSectionIds.has(section);
   }
@@ -4425,7 +4520,7 @@ function SchoolPagesShell({
 
       if (role === "hod") {
         // @ts-ignore
-        return <HodCommandCenter routeMode={routeMode} activeSection={section} />;
+        return <HodCommandCenter routeMode={routeMode} activeSection="exams-marks-moderation" />;
       }
 
       if (role === "dean-academics") {

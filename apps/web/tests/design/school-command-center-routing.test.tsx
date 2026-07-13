@@ -159,4 +159,88 @@ describe("school command center routing", () => {
       expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
     },
   );
+
+  it("routes academic leadership exam links to their moderation workspaces", async () => {
+    const cases = [
+      {
+        role: "hod",
+        testId: "hod-command-center",
+        expected: "HOD exams-marks-moderation",
+      },
+      {
+        role: "dean-academics",
+        testId: "dean-academics-command-center",
+        expected: "Dean results-moderation",
+      },
+    ] as const;
+
+    for (const routeCase of cases) {
+      const view = renderWithProviders(
+        createElement(SchoolPages, {
+          role: routeCase.role,
+          section: "exams",
+          tenantSlug: "homabay-high",
+          routeMode: "public",
+          liveDataEnabled: false,
+        }),
+      );
+
+      expect(await screen.findByTestId(routeCase.testId)).toHaveTextContent(routeCase.expected);
+      expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
+
+      view.unmount();
+    }
+  });
+
+  it("routes legacy academic leadership sidebar aliases to the new command centers", async () => {
+    const cases = [
+      {
+        role: "dean-academics",
+        section: "academic-analytics",
+        testId: "dean-academics-command-center",
+        expected: "Dean academic-analytics",
+      },
+      {
+        role: "dean-academics",
+        section: "teachers",
+        testId: "dean-academics-command-center",
+        expected: "Dean teachers",
+      },
+      {
+        role: "hod",
+        section: "department-settings",
+        testId: "hod-command-center",
+        expected: "HOD department-settings",
+      },
+      {
+        role: "hod",
+        section: "schemes-of-work",
+        testId: "hod-command-center",
+        expected: "HOD schemes-of-work",
+      },
+      {
+        role: "hod",
+        section: "performance-analytics",
+        testId: "hod-command-center",
+        expected: "HOD performance-analytics",
+      },
+    ] as const;
+
+    for (const routeCase of cases) {
+      const view = renderWithProviders(
+        createElement(SchoolPages, {
+          role: routeCase.role,
+          section: routeCase.section,
+          tenantSlug: "homabay-high",
+          routeMode: "public",
+          liveDataEnabled: false,
+        }),
+      );
+
+      expect(await screen.findByTestId(routeCase.testId)).toHaveTextContent(routeCase.expected);
+      expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
+
+      view.unmount();
+    }
+  });
 });

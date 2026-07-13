@@ -1,6 +1,6 @@
 "use client";
 import { Briefcase } from "lucide-react";
-import { Panel, StatusChip, Tone } from "./shared";
+import { Panel, StatusChip, Tone, listFromData } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type OverviewRecord = {
@@ -21,7 +21,7 @@ type OverviewData = {
 
 export function OverviewWorkspace() {
   const { data, isLoading } = useSchoolQuery<OverviewData>('/admin-command/hod/overview');
-  const items = data?.overviewList || [];
+  const items = listFromData<OverviewRecord>(data, "overviewList");
 
   const getStatusTone = (st: string): Tone => {
     if (st === "Active" || st === "Available" || st === "Approved" || st === "Completed" || st === "Resolved" || st === "Present" || st === "Functional" || st === "On Track" || st === "Cleared") return "success";

@@ -1,16 +1,17 @@
 "use client";
 import { BookOpen } from "lucide-react";
-import { Panel, StatusChip, Tone } from "./shared";
+import { fieldValue, listFromData, Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type CoverageReviewRecord = {
-  id: string;
-  subject: string;
-  class: string;
-  teacher: string;
-  coverage_percent: number;
-  target_percent: number;
-  status: string;
+  id?: string;
+  subject?: string;
+  class?: string;
+  teacher?: string;
+  coverage_percent?: number | string;
+  target_percent?: number | string;
+  status?: string;
+  [key: string]: unknown;
 };
 
 type CoverageReviewData = {
@@ -24,7 +25,7 @@ type CoverageReviewData = {
 
 export function CoverageReviewWorkspace() {
   const { data, isLoading } = useSchoolQuery<CoverageReviewData>('/admin-command/hod/coverage-review');
-  const items = data?.coveragereviewList || [];
+  const items = listFromData<CoverageReviewRecord>(data, "coveragereviewList");
 
   const getStatusTone = (st: string): Tone => {
     if (st === "Active" || st === "Available" || st === "Approved" || st === "Completed" || st === "Resolved" || st === "Present" || st === "Functional" || st === "On Track" || st === "Cleared") return "success";
@@ -68,14 +69,14 @@ export function CoverageReviewWorkspace() {
             ) : items.length === 0 ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
             ) : (
-              items.map(row => (
-                <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 text-[#64748B]">{row.subject}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.class}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.teacher}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.coverage_percent}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.target_percent}</td>
-                  <td className="px-4 py-3"><StatusChip label={row.status} tone={getStatusTone(row.status)} /></td>
+              items.map((row, index) => (
+                <tr key={row.id ?? `${fieldValue(row, ["subject", "subject_name"])}-${fieldValue(row, ["class", "class_name"])}-${index}`} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["subject", "subject_name"])}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["class", "class_name"])}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["teacher", "teacher_name"])}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["coverage_percent", "coverage"], "0")}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["target_percent", "target"], "0")}</td>
+                  <td className="px-4 py-3"><StatusChip label={fieldValue(row, ["status"], "Pending Review")} tone={getStatusTone(fieldValue(row, ["status"], "Pending Review"))} /></td>
                 </tr>
               ))
             )}

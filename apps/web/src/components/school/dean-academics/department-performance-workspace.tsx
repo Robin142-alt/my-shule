@@ -1,6 +1,6 @@
 "use client";
 import { BarChart3 } from "lucide-react";
-import { Panel, StatusChip, Tone } from "./shared";
+import { Panel, StatusChip, Tone, listFromData } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type DepartmentPerformanceRecord = {
@@ -24,7 +24,7 @@ type DepartmentPerformanceData = {
 
 export function DepartmentPerformanceWorkspace() {
   const { data, isLoading } = useSchoolQuery<DepartmentPerformanceData>('/admin-command/dean-academics/department-performance');
-  const items = data?.departmentperformanceList || [];
+  const items = listFromData<DepartmentPerformanceRecord>(data, "departmentperformanceList");
 
   const getStatusTone = (st: string): Tone => {
     if (st === "Active" || st === "Available" || st === "Approved" || st === "Completed" || st === "Resolved" || st === "Present" || st === "Functional" || st === "On Track" || st === "Cleared") return "success";

@@ -1,6 +1,6 @@
 "use client";
 import { Clock } from "lucide-react";
-import { Panel, StatusChip, Tone } from "./shared";
+import { Panel, StatusChip, Tone, listFromData } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type TeacherWorkloadRecord = {
@@ -24,7 +24,7 @@ type TeacherWorkloadData = {
 
 export function TeacherWorkloadWorkspace() {
   const { data, isLoading } = useSchoolQuery<TeacherWorkloadData>('/admin-command/dean-academics/teacher-workload');
-  const items = data?.teacherworkloadList || [];
+  const items = listFromData<TeacherWorkloadRecord>(data, "teacherworkloadList");
 
   const getStatusTone = (st: string): Tone => {
     if (st === "Active" || st === "Available" || st === "Approved" || st === "Completed" || st === "Resolved" || st === "Present" || st === "Functional" || st === "On Track" || st === "Cleared") return "success";

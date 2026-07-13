@@ -1,17 +1,18 @@
 "use client";
 import { BookMarked } from "lucide-react";
-import { Panel, StatusChip, Tone } from "./shared";
+import { fieldValue, listFromData, Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type LessonPlansRecord = {
-  id: string;
-  teacher: string;
-  subject: string;
-  class: string;
-  term: string;
-  week: string;
-  topic: string;
-  status: string;
+  id?: string;
+  teacher?: string;
+  subject?: string;
+  class?: string;
+  term?: string;
+  week?: string;
+  topic?: string;
+  status?: string;
+  [key: string]: unknown;
 };
 
 type LessonPlansData = {
@@ -25,7 +26,7 @@ type LessonPlansData = {
 
 export function LessonPlansWorkspace() {
   const { data, isLoading } = useSchoolQuery<LessonPlansData>('/admin-command/hod/lesson-plans');
-  const items = data?.lessonplansList || [];
+  const items = listFromData<LessonPlansRecord>(data, "lessonplansList");
 
   const getStatusTone = (st: string): Tone => {
     if (st === "Active" || st === "Available" || st === "Approved" || st === "Completed" || st === "Resolved" || st === "Present" || st === "Functional" || st === "On Track" || st === "Cleared") return "success";
@@ -70,15 +71,15 @@ export function LessonPlansWorkspace() {
             ) : items.length === 0 ? (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
             ) : (
-              items.map(row => (
-                <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 text-[#64748B]">{row.teacher}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.subject}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.class}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.term}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.week}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.topic}</td>
-                  <td className="px-4 py-3"><StatusChip label={row.status} tone={getStatusTone(row.status)} /></td>
+              items.map((row, index) => (
+                <tr key={row.id ?? `${fieldValue(row, ["teacher", "teacher_name"])}-${fieldValue(row, ["topic", "title"])}-${index}`} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["teacher", "teacher_name"])}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["subject", "subject_name"])}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["class", "class_name"])}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["term", "academic_term"])}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["week", "week_number"])}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["topic", "title"])}</td>
+                  <td className="px-4 py-3"><StatusChip label={fieldValue(row, ["status"], "Pending Review")} tone={getStatusTone(fieldValue(row, ["status"], "Pending Review"))} /></td>
                 </tr>
               ))
             )}

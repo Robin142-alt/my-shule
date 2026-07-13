@@ -15,6 +15,61 @@ export function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
+export function listFromData<T>(data: unknown, listKey: string): T[] {
+  if (Array.isArray(data)) {
+    return data as T[];
+  }
+
+  if (!data || typeof data !== "object") {
+    return [];
+  }
+
+  const record = data as Record<string, unknown>;
+  const directList = record[listKey];
+
+  if (Array.isArray(directList)) {
+    return directList as T[];
+  }
+
+  const firstArray = Object.values(record).find(Array.isArray);
+  return Array.isArray(firstArray) ? (firstArray as T[]) : [];
+}
+
+export function metricFromData(data: unknown, key: string, fallback = 0) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    return fallback;
+  }
+
+  const metrics = (data as { metrics?: Record<string, unknown> }).metrics;
+  const value = metrics?.[key];
+  return typeof value === "number" || typeof value === "string" ? value : fallback;
+}
+
+export function fieldValue(record: unknown, keys: string[], fallback = "-") {
+  if (!record || typeof record !== "object") {
+    return fallback;
+  }
+
+  const row = record as Record<string, any>;
+
+  for (const key of keys) {
+    const value = row[key];
+    if (value !== undefined && value !== null && value !== "") {
+      if (typeof value === "object") {
+        const nested = value as Record<string, unknown>;
+        const nestedValue = nested.name ?? nested.title ?? nested.label ?? nested.id;
+        if (nestedValue !== undefined && nestedValue !== null && nestedValue !== "") {
+          return String(nestedValue);
+        }
+      }
+
+      return String(value);
+    }
+  }
+
+  return fallback;
+}
+
 export function StatusChip({ label, tone = "neutral" }: { label: string; tone?: Tone }) {
   return (
     <span className={cn("inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold whitespace-nowrap", toneClasses[tone].chip)}>

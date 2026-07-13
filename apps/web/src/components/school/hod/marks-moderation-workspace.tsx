@@ -1,18 +1,19 @@
 "use client";
 import { CheckSquare } from "lucide-react";
-import { Panel, StatusChip, Tone } from "./shared";
+import { fieldValue, listFromData, Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type MarksModerationRecord = {
-  id: string;
-  exam: string;
-  subject: string;
-  class: string;
-  teacher: string;
-  mean_score: number;
-  highest: number;
-  lowest: number;
-  status: string;
+  id?: string;
+  exam?: string;
+  subject?: string;
+  class?: string;
+  teacher?: string;
+  mean_score?: number | string;
+  highest?: number | string;
+  lowest?: number | string;
+  status?: string;
+  [key: string]: unknown;
 };
 
 type MarksModerationData = {
@@ -26,7 +27,7 @@ type MarksModerationData = {
 
 export function MarksModerationWorkspace() {
   const { data, isLoading } = useSchoolQuery<MarksModerationData>('/admin-command/hod/marks-moderation');
-  const items = data?.marksmoderationList || [];
+  const items = listFromData<MarksModerationRecord>(data, "marksmoderationList");
 
   const getStatusTone = (st: string): Tone => {
     if (st === "Active" || st === "Available" || st === "Approved" || st === "Completed" || st === "Resolved" || st === "Present" || st === "Functional" || st === "On Track" || st === "Cleared") return "success";
@@ -72,16 +73,16 @@ export function MarksModerationWorkspace() {
             ) : items.length === 0 ? (
               <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
             ) : (
-              items.map(row => (
-                <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 text-[#64748B]">{row.exam}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.subject}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.class}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.teacher}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.mean_score}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.highest}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.lowest}</td>
-                  <td className="px-4 py-3"><StatusChip label={row.status} tone={getStatusTone(row.status)} /></td>
+              items.map((row, index) => (
+                <tr key={row.id ?? `${fieldValue(row, ["exam", "exam_name"])}-${fieldValue(row, ["subject", "subject_name"])}-${index}`} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["exam", "exam_name", "assessment"])}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["subject", "subject_name"])}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["class", "class_name", "class_section"])}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["teacher", "teacher_name"])}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["mean_score", "average_score"], "0")}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["highest", "highest_score"], "0")}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["lowest", "lowest_score"], "0")}</td>
+                  <td className="px-4 py-3"><StatusChip label={fieldValue(row, ["status"], "Pending Moderation")} tone={getStatusTone(fieldValue(row, ["status"], "Pending Moderation"))} /></td>
                 </tr>
               ))
             )}

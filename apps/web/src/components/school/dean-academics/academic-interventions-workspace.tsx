@@ -1,6 +1,6 @@
 "use client";
 import { Target } from "lucide-react";
-import { Panel, StatusChip, Tone } from "./shared";
+import { Panel, StatusChip, Tone, listFromData } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type AcademicInterventionsRecord = {
@@ -25,7 +25,7 @@ type AcademicInterventionsData = {
 
 export function AcademicInterventionsWorkspace() {
   const { data, isLoading } = useSchoolQuery<AcademicInterventionsData>('/admin-command/dean-academics/academic-interventions');
-  const items = data?.academicinterventionsList || [];
+  const items = listFromData<AcademicInterventionsRecord>(data, "academicinterventionsList");
 
   const getStatusTone = (st: string): Tone => {
     if (st === "Active" || st === "Available" || st === "Approved" || st === "Completed" || st === "Resolved" || st === "Present" || st === "Functional" || st === "On Track" || st === "Cleared") return "success";

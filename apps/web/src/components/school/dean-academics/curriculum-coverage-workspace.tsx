@@ -1,6 +1,6 @@
 "use client";
 import { BookOpen } from "lucide-react";
-import { Panel, StatusChip, Tone } from "./shared";
+import { Panel, StatusChip, Tone, listFromData } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type CurriculumCoverageRecord = {
@@ -25,7 +25,7 @@ type CurriculumCoverageData = {
 
 export function CurriculumCoverageWorkspace() {
   const { data, isLoading } = useSchoolQuery<CurriculumCoverageData>('/admin-command/dean-academics/curriculum-coverage');
-  const items = data?.curriculumcoverageList || [];
+  const items = listFromData<CurriculumCoverageRecord>(data, "curriculumcoverageList");
 
   const getStatusTone = (st: string): Tone => {
     if (st === "Active" || st === "Available" || st === "Approved" || st === "Completed" || st === "Resolved" || st === "Present" || st === "Functional" || st === "On Track" || st === "Cleared") return "success";

@@ -1,16 +1,17 @@
 "use client";
 import { PackagePlus } from "lucide-react";
-import { Panel, StatusChip, Tone } from "./shared";
+import { fieldValue, listFromData, Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type ResourceRequestsRecord = {
-  id: string;
-  item: string;
-  quantity: number;
-  requested_by: string;
-  date: string;
-  priority: string;
-  status: string;
+  id?: string;
+  item?: string;
+  quantity?: number | string;
+  requested_by?: string;
+  date?: string;
+  priority?: string;
+  status?: string;
+  [key: string]: unknown;
 };
 
 type ResourceRequestsData = {
@@ -24,7 +25,7 @@ type ResourceRequestsData = {
 
 export function ResourceRequestsWorkspace() {
   const { data, isLoading } = useSchoolQuery<ResourceRequestsData>('/admin-command/hod/resource-requests');
-  const items = data?.resourcerequestsList || [];
+  const items = listFromData<ResourceRequestsRecord>(data, "resourcerequestsList");
 
   const getStatusTone = (st: string): Tone => {
     if (st === "Active" || st === "Available" || st === "Approved" || st === "Completed" || st === "Resolved" || st === "Present" || st === "Functional" || st === "On Track" || st === "Cleared") return "success";
@@ -68,14 +69,14 @@ export function ResourceRequestsWorkspace() {
             ) : items.length === 0 ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
             ) : (
-              items.map(row => (
-                <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 text-[#64748B]">{row.item}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.quantity}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.requested_by}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.date}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.priority}</td>
-                  <td className="px-4 py-3"><StatusChip label={row.status} tone={getStatusTone(row.status)} /></td>
+              items.map((row, index) => (
+                <tr key={row.id ?? `${fieldValue(row, ["item", "title"])}-${index}`} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["item", "title", "name"])}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["quantity"], "0")}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["requested_by", "requester", "created_by"])}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["date", "created_at"])}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["priority"], "Normal")}</td>
+                  <td className="px-4 py-3"><StatusChip label={fieldValue(row, ["status"], "Pending")} tone={getStatusTone(fieldValue(row, ["status"], "Pending"))} /></td>
                 </tr>
               ))
             )}

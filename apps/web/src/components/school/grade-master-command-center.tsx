@@ -1602,7 +1602,7 @@ export function GradeMasterCommandCenter({ activeSection, routeMode }: { activeS
   }
 
   return (
-    <div className="flex min-h-screen bg-[#F3F6FA]">
+    <div data-testid="role-operational-command-center" className="flex min-h-screen bg-[#F3F6FA]">
       {/* Sidebar */}
       <aside className="hidden h-screen w-[260px] overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-6">

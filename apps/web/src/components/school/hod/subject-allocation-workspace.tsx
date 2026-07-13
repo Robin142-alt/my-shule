@@ -1,15 +1,27 @@
 "use client";
+import { useState, type FormEvent } from "react";
 import { LayoutGrid } from "lucide-react";
-import { Panel, StatusChip, Tone } from "./shared";
+import { toast } from "sonner";
+
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { fieldValue, listFromData, metricFromData, Panel, StatusChip, Tone } from "./shared";
 
 type SubjectAllocationRecord = {
-  id: string;
-  subject: string;
-  class: string;
-  teacher: string;
-  lessons_per_week: number;
-  status: string;
+  id?: string;
+  subject?: string;
+  subject_id?: string;
+  subjectId?: string;
+  class?: string;
+  class_section_id?: string;
+  classSectionId?: string;
+  teacher?: string;
+  teacher_id?: string;
+  teacherId?: string;
+  staff_member_id?: string;
+  lessons_per_week?: number | string;
+  status?: string;
+  [key: string]: unknown;
 };
 
 type SubjectAllocationData = {
@@ -22,8 +34,9 @@ type SubjectAllocationData = {
 };
 
 export function SubjectAllocationWorkspace() {
-  const { data, isLoading } = useSchoolQuery<SubjectAllocationData>('/admin-command/hod/subject-allocation');
-  const items = data?.subjectallocationList || [];
+  const { data, isLoading, refetch } = useSchoolQuery<SubjectAllocationData | SubjectAllocationRecord[]>('/admin-command/hod/subject-allocation');
+  const items = listFromData<SubjectAllocationRecord>(data, "subjectallocationList");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const getStatusTone = (st: string): Tone => {
     if (st === "Active" || st === "Available" || st === "Approved" || st === "Completed" || st === "Resolved" || st === "Present" || st === "Functional" || st === "On Track" || st === "Cleared") return "success";
@@ -33,20 +46,118 @@ export function SubjectAllocationWorkspace() {
     return "neutral";
   };
 
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (isSubmitting) return;
+
+    const allocationPayload = Object.fromEntries(new FormData(event.currentTarget).entries());
+    const teacherId = String(allocationPayload.teacher_id || "").trim();
+    const subjectId = String(allocationPayload.subject_id || "").trim();
+    const classSectionId = String(allocationPayload.class_section_id || "").trim();
+    const academicTermId = String(allocationPayload.academic_term_id || "").trim();
+
+    if (!subjectId || !classSectionId || !academicTermId) {
+      toast.error("Subject, class, and academic term are required before assigning duties.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await requestDashboardApi("/admin-command/hod/subject-allocation", {
+        method: "POST",
+        body: {
+          action: "allocate_subject",
+          title: "Subject allocation updated",
+          teacher_id: teacherId || undefined,
+          subject_id: subjectId,
+          class_section_id: classSectionId,
+          academic_term_id: academicTermId,
+          lessons_per_week: String(allocationPayload.lessons_per_week || "").trim() || undefined,
+          notes: String(allocationPayload.notes || "").trim() || undefined,
+        },
+      });
+
+      toast.success("Subject allocation saved and routed to the department workflow.");
+      event.currentTarget.reset();
+      await refetch();
+    } catch (err: any) {
+      toast.error(err.message || "Subject allocation could not be saved.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleRevokeSubjectAllocation(assignment: SubjectAllocationRecord) {
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    try {
+      await requestDashboardApi("/admin-command/hod/subject-allocation/revoke", {
+        method: "POST",
+        body: {
+          title: "Subject allocation revoke requested",
+          reason: "HOD requested subject allocation revocation for department review.",
+          assignment_id: assignment.id ?? null,
+          subject_id: assignment.subject_id ?? assignment.subjectId ?? null,
+          teacher_id: assignment.teacher_id ?? assignment.teacherId ?? assignment.staff_member_id ?? null,
+          class_section_id: assignment.class_section_id ?? assignment.classSectionId ?? null,
+        },
+      });
+
+      toast.success("Subject allocation revoke request routed for academic review.");
+      await refetch();
+    } catch (err: any) {
+      toast.error(err.message || "Subject allocation revoke request could not be sent.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <Panel title="Subject Allocation" description="Allocate subjects and classes to department teachers." icon={LayoutGrid}>
+      <form onSubmit={handleSubmit} className="mb-6 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-2 xl:grid-cols-4">
+        <label className="text-sm font-bold text-[#071D49]">
+          Teacher ID
+          <input name="teacher_id" className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE]" placeholder="Staff member ID" />
+        </label>
+        <label className="text-sm font-bold text-[#071D49]">
+          Subject ID
+          <input name="subject_id" required className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE]" placeholder="Subject ID" />
+        </label>
+        <label className="text-sm font-bold text-[#071D49]">
+          Class Section ID
+          <input name="class_section_id" required className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE]" placeholder="Class section ID" />
+        </label>
+        <label className="text-sm font-bold text-[#071D49]">
+          Academic Term ID
+          <input name="academic_term_id" required className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE]" placeholder="Academic term ID" />
+        </label>
+        <label className="text-sm font-bold text-[#071D49]">
+          Lessons per week
+          <input name="lessons_per_week" type="number" min="1" className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE]" placeholder="5" />
+        </label>
+        <label className="text-sm font-bold text-[#071D49] xl:col-span-2">
+          Notes
+          <input name="notes" className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE]" placeholder="Allocation context or constraints" />
+        </label>
+        <div className="flex items-end">
+          <button type="submit" disabled={isSubmitting} className="w-full rounded-xl bg-[#071D49] px-4 py-2.5 text-sm font-black text-white shadow-sm disabled:opacity-50">
+            {isSubmitting ? "Saving..." : "Save allocation"}
+          </button>
+        </div>
+      </form>
       <div className="grid gap-4 md:grid-cols-3 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="text-sm font-semibold text-[#64748B]">Allocated</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.allocated ?? 0}</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : metricFromData(data, "allocated")}</div>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="text-sm font-semibold text-[#64748B]">Unallocated</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.unallocated ?? 0}</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : metricFromData(data, "unallocated")}</div>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="text-sm font-semibold text-[#64748B]">Total Slots</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.total_slots ?? 0}</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : metricFromData(data, "total_slots", items.length)}</div>
         </div>
       </div>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
@@ -58,21 +169,27 @@ export function SubjectAllocationWorkspace() {
               <th className="px-4 py-3 font-bold">Teacher</th>
               <th className="px-4 py-3 font-bold">Lessons Per Week</th>
               <th className="px-4 py-3 font-bold">Status</th>
+              <th className="px-4 py-3 font-bold">Actions</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No subject allocations yet. Use the form above to assign a subject to a class and teacher.</td></tr>
             ) : (
               items.map(row => (
-                <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 text-[#64748B]">{row.subject}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.class}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.teacher}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.lessons_per_week}</td>
-                  <td className="px-4 py-3"><StatusChip label={row.status} tone={getStatusTone(row.status)} /></td>
+                <tr key={row.id ?? `${fieldValue(row, ["subject", "subject_id"])}-${fieldValue(row, ["class", "class_section_id"])}`} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["subject", "subject_name", "subject_id"])}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["class", "class_name", "class_section", "class_section_id"])}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["teacher", "teacher_name", "staff_member", "teacher_id", "staff_member_id"])}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["lessons_per_week", "weekly_lessons"], "0")}</td>
+                  <td className="px-4 py-3"><StatusChip label={fieldValue(row, ["status"], "Active")} tone={getStatusTone(fieldValue(row, ["status"], "Active"))} /></td>
+                  <td className="px-4 py-3">
+                    <button type="button" onClick={() => handleRevokeSubjectAllocation(row)} disabled={isSubmitting} className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-black text-rose-700 disabled:opacity-50">
+                      Revoke
+                    </button>
+                  </td>
                 </tr>
               ))
             )}

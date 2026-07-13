@@ -1,14 +1,21 @@
 "use client";
+import { useState } from "react";
 import { FileText } from "lucide-react";
-import { Panel, StatusChip, Tone } from "./shared";
+import { toast } from "sonner";
+
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { fieldValue, listFromData, metricFromData, Panel, StatusChip, Tone } from "./shared";
 
 type ReportsRecord = {
-  id: string;
-  title: string;
-  generated_at: string;
-  type: string;
-  status: string;
+  id?: string;
+  title?: string;
+  generated_at?: string;
+  created_at?: string;
+  type?: string;
+  format?: string;
+  status?: string;
+  [key: string]: unknown;
 };
 
 type ReportsData = {
@@ -19,8 +26,9 @@ type ReportsData = {
 };
 
 export function ReportsWorkspace() {
-  const { data, isLoading } = useSchoolQuery<ReportsData>('/admin-command/dean-academics/reports');
-  const items = data?.reportsList || [];
+  const { data, isLoading, refetch } = useSchoolQuery<ReportsData | ReportsRecord[]>('/admin-command/dean-academics/reports');
+  const items = listFromData<ReportsRecord>(data, "reportsList");
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const getStatusTone = (st: string): Tone => {
     if (st === "Active" || st === "Available" || st === "Approved" || st === "Completed" || st === "Resolved" || st === "Present" || st === "Functional" || st === "On Track" || st === "Cleared") return "success";
@@ -30,12 +38,45 @@ export function ReportsWorkspace() {
     return "neutral";
   };
 
+  async function handleGenerateReport() {
+    if (isGenerating) return;
+
+    setIsGenerating(true);
+    try {
+      await requestDashboardApi("/admin-command/dean-academics/reports/generate", {
+        method: "POST",
+        body: {
+          title: "Dean academic operations report",
+          reportId: "dean-academic-operations",
+          format: "pdf",
+          scope: "whole_school",
+        },
+      });
+
+      toast.success("Dean academic report request submitted for generation.");
+      await refetch();
+    } catch (err: any) {
+      toast.error(err.message || "Dean academic report could not be generated.");
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
   return (
-    <Panel title="Academic Reports" description="Generate and download academic reports." icon={FileText}>
+    <Panel
+      title="Academic Reports"
+      description="Generate and download academic reports."
+      icon={FileText}
+      actions={
+        <button type="button" onClick={handleGenerateReport} disabled={isGenerating} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+          {isGenerating ? "Generating..." : "Generate report"}
+        </button>
+      }
+    >
       <div className="grid gap-4 md:grid-cols-1 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="text-sm font-semibold text-[#64748B]">Reports Generated</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.reports_generated ?? 0}</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : metricFromData(data, "reports_generated", items.length)}</div>
         </div>
       </div>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
@@ -56,10 +97,10 @@ export function ReportsWorkspace() {
             ) : (
               items.map(row => (
                 <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 text-[#64748B]">{row.title}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.generated_at}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.type}</td>
-                  <td className="px-4 py-3"><StatusChip label={row.status} tone={getStatusTone(row.status)} /></td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["title", "name"])}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["generated_at", "created_at"])}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["type", "format"], "pdf")}</td>
+                  <td className="px-4 py-3"><StatusChip label={fieldValue(row, ["status"], "Generated")} tone={getStatusTone(fieldValue(row, ["status"], "Generated"))} /></td>
                 </tr>
               ))
             )}
