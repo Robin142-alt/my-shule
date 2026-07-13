@@ -68,7 +68,7 @@ export function ReportCardsWorkspace() {
             {isLoading ? (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No report cards have been generated yet. Report cards appear after exam marks are moderated and a generation batch is created.</td></tr>
             ) : (
               items.map(row => (
                 <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">

@@ -73,7 +73,7 @@ export function AnalysisWorkspace() {
             {isLoading ? (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No analysis is available yet. Create an exam cycle, let teachers submit marks, then class and grade analysis will appear here.</td></tr>
             ) : (
               items.map(row => (
                 <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">

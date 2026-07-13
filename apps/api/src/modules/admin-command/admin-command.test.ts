@@ -23,6 +23,7 @@ import { HodCommandService } from './hod-command.service';
 import { LibrarianCommandService } from './librarian-command.service';
 import { ProcurementOfficerCommandService } from './procurement-officer-command.service';
 import { TransportManagerCommandService } from './transport-manager-command.service';
+import { ExamsManagerCommandService } from './exams-manager-command.service';
 
 test('AdminCommandSchemaService creates leadership workflow tables with tenant RLS', async () => {
   let schemaSql = '';
@@ -1992,4 +1993,85 @@ test('TransportManagerCommandService sends transport notices through tenant-scop
   assert.equal(notificationCalls[0].tenantId, 'tenant-a');
   assert.deepEqual(notificationCalls[0].input.targetRoles, ['parent', 'class_teacher']);
   assert.equal(notificationCalls[0].input.type, 'transport.notice_sent');
+});
+
+test('ExamsManagerCommandService reads fresh-school overview from tenant-scoped exam series only', async () => {
+  const reads: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new ExamsManagerCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {} as never,
+    {
+      readSql: async (sql: string, params: unknown[]) => {
+        reads.push({ sql, params });
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+  );
+
+  const result = await service.getOverview();
+
+  assert.equal(result.metrics.active_exams, 0);
+  assert.equal(result.metrics.pending_moderation, 0);
+  assert.deepEqual(result.recent_exams, []);
+  assert.equal(reads.length >= 1, true);
+  assert.equal(reads.every((read) => read.params[0] === 'tenant-a'), true);
+  assert.equal(reads.some((read) => /exam_series/i.test(read.sql)), true);
+  assert.equal(reads.some((read) => /exam_cycles/i.test(read.sql)), false);
+});
+
+test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped exam series', async () => {
+  const writes: Array<{ sql: string; params: unknown[] }> = [];
+  const workflowCalls: any[] = [];
+  const service = new ExamsManagerCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {} as never,
+    {
+      writeSql: async (sql: string, params: unknown[]) => {
+        writes.push({ sql, params });
+        return {
+          rows: [{
+            id: '22222222-2222-4222-8222-222222222222',
+            name: params[1],
+            starts_on: params[2],
+            ends_on: params[3],
+            status: params[4],
+            created_at: '2026-07-13T00:00:00.000Z',
+          }],
+          rowCount: 1,
+        };
+      },
+      readSql: async () => ({ rows: [], rowCount: 0 }),
+      recordWorkflowAction: async (input: any) => {
+        workflowCalls.push(input);
+        return { id: 'workflow-1', ...input };
+      },
+      requiredText: (value: unknown, label: string) => {
+        const text = String(value ?? '').trim();
+        if (!text) throw new Error(`${label} is required`);
+        return text;
+      },
+    } as never,
+  );
+
+  const result = await service.createExamSetup({
+    name: 'Term 1 Opener',
+    starts_on: '2026-01-12',
+    ends_on: '2026-01-16',
+    status: 'scheduled',
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.exam.name, 'Term 1 Opener');
+  assert.match(writes[0].sql, /INSERT INTO exam_series/i);
+  assert.equal(writes[0].params[0], 'tenant-a');
+  assert.equal(writes[0].params[1], 'Term 1 Opener');
+  assert.equal(workflowCalls.length, 1);
+  assert.equal(workflowCalls[0].tenantId, 'tenant-a');
+  assert.equal(workflowCalls[0].eventType, 'exams.exam-setup.created');
+  assert.equal(workflowCalls[0].entityType, 'exam_series');
+  assert.equal(workflowCalls[0].entityId, '22222222-2222-4222-8222-222222222222');
 });

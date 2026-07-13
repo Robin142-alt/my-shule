@@ -1,11 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { ClipboardList, Plus, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { createExam } from "./api-client";
 import { openPrintDocument } from "@/lib/dashboard/export";
+import { Modal } from "@/components/ui/modal";
 
 type ExamConfig = {
   id: string;
@@ -19,6 +20,8 @@ type ExamConfig = {
   subjects_count: number;
   classes_count: number;
   created_at: string;
+  starts_on?: string;
+  ends_on?: string;
 };
 
 type ExamSetupData = {
@@ -34,6 +37,14 @@ type ExamSetupData = {
 export function ExamSetupWorkspace() {
   const { data, isLoading, refetch } = useSchoolQuery<ExamSetupData>('/admin-command/exams-manager/exam-setup');
   const [isCreating, setIsCreating] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    name: "",
+    starts_on: "",
+    ends_on: "",
+    status: "scheduled",
+  });
 
   const exams = data?.exams || [];
 
@@ -47,12 +58,48 @@ export function ExamSetupWorkspace() {
     }
   };
 
-  const handleCreate = async () => {
+  const openCreateForm = () => {
+    setFormError(null);
+    setForm({
+      name: "",
+      starts_on: "",
+      ends_on: "",
+      status: "scheduled",
+    });
+    setIsCreateOpen(true);
+  };
+
+  const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setFormError(null);
+
+    const name = form.name.trim();
+    if (!name) {
+      setFormError("Exam name is required.");
+      return;
+    }
+
+    if (!form.starts_on || !form.ends_on) {
+      setFormError("Start and end dates are required.");
+      return;
+    }
+
+    if (new Date(form.ends_on) < new Date(form.starts_on)) {
+      setFormError("End date cannot be before start date.");
+      return;
+    }
+
     setIsCreating(true);
     try {
-      await createExam({});
+      await createExam({
+        name,
+        starts_on: form.starts_on,
+        ends_on: form.ends_on,
+        status: form.status,
+      });
       toast.success("Exam created successfully.");
-      refetch();
+      setIsCreateOpen(false);
+      await refetch();
     } catch {
       toast.error("Failed to create exam.");
     } finally {
@@ -86,8 +133,8 @@ export function ExamSetupWorkspace() {
       description="Configure examinations, grading systems, and subject mappings."
       icon={ClipboardList}
       actions={
-        <button onClick={handleCreate} disabled={isCreating} className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50">
-          <Plus className="w-4 h-4" /> {isCreating ? "Creating..." : "New Exam"}
+        <button type="button" onClick={openCreateForm} disabled={isCreating} className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50">
+          <Plus className="w-4 h-4" /> New Exam
         </button>
       }
     >
@@ -130,7 +177,7 @@ export function ExamSetupWorkspace() {
             {isLoading ? (
               <tr><td colSpan={10} className="px-4 py-8 text-center text-[#64748B]">Loading exam configurations...</td></tr>
             ) : exams.length === 0 ? (
-              <tr><td colSpan={10} className="px-4 py-8 text-center text-[#64748B]">No exams configured yet. Click &quot;New Exam&quot; to set up the first examination.</td></tr>
+              <tr><td colSpan={10} className="px-4 py-8 text-center text-[#64748B]">No exams configured yet. Create the first exam cycle here before timetable, marks entry, moderation, and report cards can run.</td></tr>
             ) : (
               exams.map((exam) => (
                 <tr key={exam.id} className="hover:bg-[#F8FAFC]">
@@ -152,6 +199,90 @@ export function ExamSetupWorkspace() {
           </tbody>
         </table>
       </div>
+
+      <Modal
+        open={isCreateOpen}
+        onClose={() => !isCreating && setIsCreateOpen(false)}
+        title="Create exam cycle"
+        description="This creates a real tenant-scoped exam cycle for the current school."
+        size="lg"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setIsCreateOpen(false)}
+              disabled={isCreating}
+              className="rounded-lg border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49] hover:bg-[#F8FAFC] disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="exam-setup-create-form"
+              disabled={isCreating}
+              className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50"
+            >
+              {isCreating ? "Creating..." : "Create exam"}
+            </button>
+          </>
+        }
+      >
+        <form id="exam-setup-create-form" onSubmit={handleCreate} className="space-y-4">
+          {formError ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
+              {formError}
+            </div>
+          ) : null}
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-1 text-sm font-bold text-[#334155] md:col-span-2">
+              Exam name
+              <input
+                value={form.name}
+                onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
+                placeholder="Term 1 Opener"
+                required
+              />
+            </label>
+
+            <label className="space-y-1 text-sm font-bold text-[#334155]">
+              Starts on
+              <input
+                type="date"
+                value={form.starts_on}
+                onChange={(event) => setForm((current) => ({ ...current, starts_on: event.target.value }))}
+                className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
+                required
+              />
+            </label>
+
+            <label className="space-y-1 text-sm font-bold text-[#334155]">
+              Ends on
+              <input
+                type="date"
+                value={form.ends_on}
+                onChange={(event) => setForm((current) => ({ ...current, ends_on: event.target.value }))}
+                className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
+                required
+              />
+            </label>
+
+            <label className="space-y-1 text-sm font-bold text-[#334155]">
+              Status
+              <select
+                value={form.status}
+                onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}
+                className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
+              >
+                <option value="scheduled">Scheduled</option>
+                <option value="draft">Draft</option>
+                <option value="active">Active</option>
+              </select>
+            </label>
+          </div>
+        </form>
+      </Modal>
     </Panel>
   );
 }

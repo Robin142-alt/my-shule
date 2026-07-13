@@ -22,7 +22,7 @@ export class ExamsManagerCommandController {
   @Post('exam-setup')
   @Permissions('exams:write')
   createExamSetup(@Body() dto: any) {
-    return this.service.recordExamAction('exam-setup.created', dto);
+    return this.service.createExamSetup(dto);
   }
 
   @Get('exam-timetable')
@@ -74,7 +74,7 @@ export class ExamsManagerCommandController {
   @Post('marks-entry/:id/lock')
   @Permissions('exams:write')
   lockMarks(@Param('id') id: string, @Body() dto: any) {
-    return this.service.recordExamAction('marks-entry.locked', dto, id);
+    return this.service.lockMarksEntry(id, dto);
   }
 
   @Get('moderation')
@@ -85,13 +85,13 @@ export class ExamsManagerCommandController {
   @Post('moderation/:id/approve')
   @Permissions('exams:write')
   approveModeration(@Param('id') id: string, @Body() dto: any) {
-    return this.service.recordExamAction('moderation.approved', dto, id);
+    return this.service.approveModeration(id, dto);
   }
 
   @Post('moderation/:id/reject')
   @Permissions('exams:write')
   rejectModeration(@Param('id') id: string, @Body() dto: any) {
-    return this.service.recordExamAction('moderation.rejected', dto, id);
+    return this.service.rejectModeration(id, dto);
   }
 
   @Get('publishing')
