@@ -24,6 +24,7 @@ const schoolExperienceRoles = new Set<string>([
   "laboratory-technician",
   "guidance-counselling",
   "discipline-master",
+  "procurement-officer",
   "admissions",
 ]);
 
@@ -57,6 +58,9 @@ const schoolRoleAliases: Record<string, SchoolExperienceRole> = {
   counselor: "guidance-counselling",
   "discipline-master": "discipline-master",
   "dean-of-students": "discipline-master",
+  procurement: "procurement-officer",
+  "procurement-manager": "procurement-officer",
+  "procurement-officer": "procurement-officer",
   "dean-academics": "dean-academics",
   "dean-of-academics": "dean-academics",
   "academic-dean": "dean-academics",
@@ -84,6 +88,13 @@ export function normalizeSchoolExperienceRole(
   const aliasedRole = schoolRoleAliases[normalizedRole] ?? normalizedRole;
 
   return schoolExperienceRoles.has(aliasedRole) ? (aliasedRole as SchoolExperienceRole) : "admin";
+}
+
+export function isSchoolExperienceRole(role: string | null | undefined) {
+  const normalizedRole = normalizeSchoolRoleKey(role);
+  const aliasedRole = schoolRoleAliases[normalizedRole] ?? normalizedRole;
+
+  return schoolExperienceRoles.has(aliasedRole);
 }
 
 export function getSchoolRoleAlias(role: string | null | undefined) {

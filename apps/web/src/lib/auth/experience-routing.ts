@@ -2,7 +2,10 @@ import type {
   PortalViewer,
   SchoolExperienceRole,
 } from "@/lib/experiences/types";
-import { normalizeSchoolExperienceRole } from "@/lib/auth/school-role-normalization";
+import {
+  isSchoolExperienceRole,
+  normalizeSchoolExperienceRole,
+} from "@/lib/auth/school-role-normalization";
 import { isProductionReadyModule } from "@/lib/features/module-readiness";
 import {
   isPortalSection,
@@ -142,6 +145,66 @@ function getHomePath(
   session: ExperienceSession | null,
 ) {
   return session?.homePath ?? getLoginPath();
+}
+
+function getCanonicalHomePath(session: ExperienceSession | null) {
+  if (!session) {
+    return null;
+  }
+
+  if (session.experience === "superadmin") {
+    return session.homePath.startsWith("/dashboard") ? "/superadmin" : session.homePath;
+  }
+
+  if (session.experience === "school") {
+    return session.homePath.startsWith("/dashboard")
+      ? `/school/${session.role}`
+      : session.homePath;
+  }
+
+  return session.homePath.startsWith("/dashboard")
+    ? `/portal/${session.viewer}`
+    : session.homePath;
+}
+
+function resolvePublicSessionHomePath(
+  cookies: Record<string, string | undefined>,
+  refreshToken: string | null | undefined,
+) {
+  if (!isRefreshTokenUsable(refreshToken)) {
+    return null;
+  }
+
+  return (
+    getCanonicalHomePath(parseExperienceSession("school", cookies[SCHOOL_SESSION_COOKIE] ?? null))
+    ?? getCanonicalHomePath(parseExperienceSession("portal", cookies[PORTAL_SESSION_COOKIE] ?? null))
+    ?? getCanonicalHomePath(parseExperienceSession("superadmin", cookies[SUPERADMIN_SESSION_COOKIE] ?? null))
+  );
+}
+
+function resolvePublicLegacyDashboardPath(pathname: string) {
+  const match = pathname.match(/^\/dashboard\/([^/]+)(?:\/(.+))?$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const roleSegment = match[1]!;
+  const sectionPath = match[2] ? `/${match[2]}` : "";
+
+  if (roleSegment === "parent") {
+    return `/portal/parent${sectionPath}`;
+  }
+
+  if (roleSegment === "superadmin" || roleSegment === "platform-owner") {
+    return `/superadmin${sectionPath}`;
+  }
+
+  if (isSchoolExperienceRole(roleSegment)) {
+    return `/school/${normalizeSchoolExperienceRole(roleSegment)}${sectionPath}`;
+  }
+
+  return null;
 }
 
 function isStorekeeperInventoryPath(pathname: string) {
@@ -510,6 +573,23 @@ export function evaluateExperienceRouting(input: {
   const headers = buildHeaders(resolution);
 
   if (resolution.experience === "public") {
+    if (input.pathname === "/dashboard") {
+      return {
+        action: "redirect",
+        location: resolvePublicSessionHomePath(input.cookies, input.refreshToken) ?? getLoginPath(),
+        headers,
+      };
+    }
+
+    const publicLegacyDashboardPath = resolvePublicLegacyDashboardPath(input.pathname);
+    if (publicLegacyDashboardPath) {
+      return {
+        action: "redirect",
+        location: publicLegacyDashboardPath,
+        headers,
+      };
+    }
+
     if (/^\/dashboard\/[^/]+(?:\/.*)?$/.test(input.pathname)) {
       return {
         action: "redirect",

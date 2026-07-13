@@ -432,7 +432,7 @@ describe("experience routing", () => {
     });
   });
 
-  test("blocks legacy dashboard role routes on local public hosts", () => {
+  test("redirects legacy dashboard role routes on local public hosts to new school dashboards", () => {
     expect(
       evaluateExperienceRouting({
         host: "127.0.0.1:3005",
@@ -441,7 +441,75 @@ describe("experience routing", () => {
       }),
     ).toEqual({
       action: "redirect",
-      location: "/forbidden",
+      location: "/school/admin",
+      headers: {
+        "x-platform-experience": "public",
+      },
+    });
+  });
+
+  test("preserves legacy dashboard workspace paths when redirecting to new school dashboards", () => {
+    expect(
+      evaluateExperienceRouting({
+        host: "127.0.0.1:3005",
+        pathname: "/dashboard/teacher/exams-marks",
+        cookies: {},
+      }),
+    ).toEqual({
+      action: "redirect",
+      location: "/school/teacher/exams-marks",
+      headers: {
+        "x-platform-experience": "public",
+      },
+    });
+
+    expect(
+      evaluateExperienceRouting({
+        host: "127.0.0.1:3005",
+        pathname: "/dashboard/deputy-principal/approvals",
+        cookies: {},
+      }),
+    ).toEqual({
+      action: "redirect",
+      location: "/school/deputy-principal/approvals",
+      headers: {
+        "x-platform-experience": "public",
+      },
+    });
+
+    expect(
+      evaluateExperienceRouting({
+        host: "127.0.0.1:3005",
+        pathname: "/dashboard/teacher/students/std-1",
+        cookies: {},
+      }),
+    ).toEqual({
+      action: "redirect",
+      location: "/school/teacher/students/std-1",
+      headers: {
+        "x-platform-experience": "public",
+      },
+    });
+  });
+
+  test("redirects public dashboard home to the canonical school dashboard from the session", () => {
+    expect(
+      evaluateExperienceRouting({
+        host: "127.0.0.1:3005",
+        pathname: "/dashboard",
+        cookies: {
+          [SCHOOL_SESSION_COOKIE]: serializeExperienceSession({
+            experience: "school",
+            homePath: "/dashboard/teacher",
+            role: "teacher",
+            tenantSlug: "homabay-high",
+            userLabel: "Teacher",
+          }),
+        },
+      }),
+    ).toEqual({
+      action: "redirect",
+      location: "/school/teacher",
       headers: {
         "x-platform-experience": "public",
       },

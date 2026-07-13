@@ -4444,23 +4444,16 @@ function SchoolPagesShell({
       }
     }
 
-    if ((role === "accountant" || role === "bursar") && financeRoleDedicatedSectionIds.has(section)) {
+    if (role === "dean-academics") {
+      // @ts-ignore
+      return <DeanAcademicsCommandCenter routeMode={routeMode} activeSection={section} />;
+    }
+
+    if (role === "accountant" || role === "bursar") {
       return (
         <PermissionProvider schoolId={tenantSlug ?? undefined}>
           <AccountantCommandCenter routeMode={routeMode} role={role} activeSection={section} tenantSlug={tenantSlug} />
         </PermissionProvider>
-      );
-    }
-
-    if (unifiedOperationalRoleIds.has(role)) {
-      return (
-        <RoleOperationalCommandCenter
-          role={role}
-          initialSection={section}
-          initialWorkspace={schoolSectionLabels[section]}
-          tenantSlug={tenantSlug}
-          routeMode={routeMode}
-        />
       );
     }
 
@@ -4552,6 +4545,18 @@ function SchoolPagesShell({
     if (role === "transport-manager") {
       // @ts-ignore
       return <TransportManagerCommandCenter routeMode={routeMode} activeSection={section} />;
+    }
+
+    if (unifiedOperationalRoleIds.has(role)) {
+      return (
+        <RoleOperationalCommandCenter
+          role={role}
+          initialSection={section}
+          initialWorkspace={schoolSectionLabels[section]}
+          tenantSlug={tenantSlug}
+          routeMode={routeMode}
+        />
+      );
     }
 
     return (
