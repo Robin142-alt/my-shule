@@ -70,7 +70,12 @@ export class StudentPortalService {
     const studentId = this.requireStudentId();
 
     const reportCards = await this.prisma.reportCard.findMany({
-      where: { studentId, schoolId: tenantId },
+      where: {
+        studentId,
+        schoolId: tenantId,
+        status: 'RELEASED',
+        releasedAt: { not: null },
+      },
       orderBy: { term: { startDate: 'desc' } }
     });
 

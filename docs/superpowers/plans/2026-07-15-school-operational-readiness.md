@@ -307,20 +307,20 @@ npm run build
 node --test dist/apps/api/src/modules/platform/school-activation-golden-path.test.js
 ```
 
-- [ ] Step 3: Implement or repair service behavior.
+- [x] Step 3: Implement or repair service behavior.
 
 Acceptance:
 - Tenant/school IDs are generated and bound once.
 - Initial principal membership is pending until invite acceptance.
 - Demo data seeding is impossible unless the explicit demo seed command is used.
 
-- [ ] Step 4: Add duplicate-invite and wrong-email tests.
+- [x] Step 4: Add duplicate-invite and wrong-email tests.
 
 Acceptance:
 - Duplicate principal/staff invite updates/resends safely or rejects cleanly.
 - Acceptance validates token, email, school, role, status, and expiry.
 
-- [ ] Step 5: Verify.
+- [x] Step 5: Verify.
 
 ```powershell
 npm run typecheck

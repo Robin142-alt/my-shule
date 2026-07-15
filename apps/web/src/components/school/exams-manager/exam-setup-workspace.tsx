@@ -47,16 +47,10 @@ type ExamManagerOptions = {
   terms?: ExamManagerOption[];
   subjects?: ExamManagerOption[];
   classes?: ExamManagerOption[];
+  gradingSystems?: ExamManagerOption[];
 };
 
 const toDateInputValue = (value?: string) => value ? value.slice(0, 10) : "";
-
-const gradingOptions = [
-  "CBC performance levels",
-  "8-4-4 A to E",
-  "Percentage bands",
-  "Competency rubric",
-];
 
 const emptyForm = {
   name: "",
@@ -66,7 +60,7 @@ const emptyForm = {
   status: "draft",
   exam_type: "Opener",
   max_marks: "100",
-  grading_system: "CBC performance levels",
+  grading_system: "",
   subject_ids: [] as string[],
   class_section_ids: [] as string[],
 };
@@ -89,10 +83,12 @@ export function ExamSetupWorkspace() {
   const termOptions = options?.terms || [];
   const subjectOptions = options?.subjects || [];
   const classOptions = options?.classes || [];
+  const gradingSystemOptions = options?.gradingSystems || [];
   const hasTerms = termOptions.length > 0;
   const hasSubjects = subjectOptions.length > 0;
   const hasClasses = classOptions.length > 0;
-  const setupReady = hasTerms && hasSubjects && hasClasses;
+  const hasGradingSystems = gradingSystemOptions.length > 0;
+  const setupReady = hasTerms && hasSubjects && hasClasses && hasGradingSystems;
 
   const getStatusTone = (st: string): Tone => {
     switch (st?.toLowerCase()) {
@@ -111,6 +107,7 @@ export function ExamSetupWorkspace() {
     setForm({
       ...emptyForm,
       academic_term_id: termOptions.find((term) => String(term.status || "").toLowerCase() === "active")?.id ?? termOptions[0]?.id ?? "",
+      grading_system: gradingSystemOptions[0]?.label ?? "",
       subject_ids: subjectOptions.map((subject) => subject.id),
       class_section_ids: classOptions.map((schoolClass) => schoolClass.id),
     });
@@ -127,7 +124,7 @@ export function ExamSetupWorkspace() {
       status: exam.status?.toLowerCase() || "draft",
       exam_type: exam.type || "Exam cycle",
       max_marks: String(exam.max_marks || 100),
-      grading_system: exam.grading_system || "CBC performance levels",
+      grading_system: exam.grading_system || gradingSystemOptions[0]?.label || "",
       academic_term_id: termOptions.find((term) => exam.term?.includes(term.label))?.id ?? termOptions[0]?.id ?? "",
       subject_ids: subjectOptions.map((subject) => subject.id),
       class_section_ids: classOptions.map((schoolClass) => schoolClass.id),
@@ -143,6 +140,7 @@ export function ExamSetupWorkspace() {
     if (new Date(form.ends_on) < new Date(form.starts_on)) return "End date cannot be before start date.";
     if (!Number.isFinite(maxMarks) || maxMarks <= 0) return "Max marks must be a positive number.";
     if (hasTerms && !form.academic_term_id) return "Choose the academic term for this exam.";
+    if (hasGradingSystems && !form.grading_system) return "Choose the school grading system for this exam.";
     if (hasSubjects && form.subject_ids.length === 0) return "Choose at least one subject for this exam.";
     if (hasClasses && form.class_section_ids.length === 0) return "Choose at least one class for this exam.";
     return null;
@@ -222,6 +220,7 @@ export function ExamSetupWorkspace() {
       {!hasTerms ? " add an academic term;" : ""}
       {!hasSubjects ? " add subjects;" : ""}
       {!hasClasses ? " add classes and streams;" : ""}
+      {!hasGradingSystems ? " add a grading system;" : ""}
       {" "}Use Principal setup before opening marks entry.
     </div>
   ) : null;
@@ -346,8 +345,10 @@ export function ExamSetupWorkspace() {
             value={form.grading_system}
             onChange={(event) => setForm((current) => ({ ...current, grading_system: event.target.value }))}
             className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
+            disabled={optionsLoading || gradingSystemOptions.length === 0}
           >
-            {gradingOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+            <option value="">{optionsLoading ? "Loading grading systems..." : gradingSystemOptions.length === 0 ? "No grading systems configured" : "Select grading system"}</option>
+            {gradingSystemOptions.map((option) => <option key={option.id} value={option.label}>{option.label}</option>)}
           </select>
         </label>
 

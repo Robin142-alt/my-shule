@@ -152,6 +152,241 @@ test('AdmissionsService registers an approved application into the student direc
   assert.equal(applicationRegistered, true);
 });
 
+test('AdmissionsService completes approved application enrolment with guardian, fee, academic, and event handoffs', async () => {
+  const requestContext = new RequestContextService();
+  const calls: Record<string, any[]> = {
+    studentCreates: [],
+    allocations: [],
+    academicEnrollments: [],
+    subjectTimetableEnrollments: [],
+    guardianLinks: [],
+    feeAssignments: [],
+    parentInvites: [],
+    events: [],
+    schoolOperations: [],
+  };
+
+  const service = new AdmissionsService(
+    requestContext,
+    {
+      withRequestTransaction: async <T>(callback: () => Promise<T>): Promise<T> => callback(),
+    } as never,
+    {
+      findApplicationByIdForUpdate: async (tenantId: string, applicationId: string) => {
+        assert.equal(tenantId, 'tenant-a');
+        assert.equal(applicationId, '00000000-0000-0000-0000-000000000731');
+        return {
+          id: applicationId,
+          tenant_id: tenantId,
+          full_name: 'Amina Wairimu Njeri',
+          date_of_birth: '2014-02-19',
+          gender: 'female',
+          birth_certificate_number: 'BC-448211',
+          nationality: 'Kenyan',
+          class_applying: 'Grade 7',
+          status: 'approved',
+          parent_name: 'Janet Njeri',
+          parent_phone: '254712300401',
+          parent_email: 'janet.njeri@example.test',
+          parent_occupation: 'Nurse',
+          relationship: 'Mother',
+          previous_school: 'Lake Primary',
+          kcpe_results: null,
+          cbc_level: 'Grade 6',
+          nemis_upi: 'UPI-731',
+          allergies: null,
+          conditions: null,
+          emergency_contact: '254722300401',
+        };
+      },
+      findAcademicClassSectionForUpdate: async (tenantId: string, className: string, streamName: string) => {
+        assert.equal(tenantId, 'tenant-a');
+        assert.equal(className, 'Grade 7');
+        assert.equal(streamName, 'Hope');
+        return {
+          id: '00000000-0000-0000-0000-000000000732',
+          class_name: className,
+          stream_name: streamName,
+          academic_year: '2026',
+          capacity: 45,
+          current_enrollments: 12,
+        };
+      },
+      markApplicationRegistered: async (tenantId: string, applicationId: string, studentId: string) => {
+        assert.equal(tenantId, 'tenant-a');
+        assert.equal(applicationId, '00000000-0000-0000-0000-000000000731');
+        assert.equal(studentId, '00000000-0000-0000-0000-000000000733');
+        return { id: applicationId, status: 'registered', admitted_student_id: studentId };
+      },
+      attachApplicationDocumentsToStudent: async (tenantId: string, applicationId: string, studentId: string) => {
+        assert.equal(tenantId, 'tenant-a');
+        return [{ id: 'document-1', application_id: applicationId, student_id: studentId }];
+      },
+      createAllocation: async (input: any) => {
+        calls.allocations.push(input);
+        return {
+          id: '00000000-0000-0000-0000-000000000734',
+          class_name: input.class_name,
+          stream_name: input.stream_name,
+          dormitory_name: input.dormitory_name,
+          transport_route: input.transport_route,
+        };
+      },
+      createStudentAcademicEnrollment: async (input: any) => {
+        calls.academicEnrollments.push(input);
+        return {
+          id: '00000000-0000-0000-0000-000000000735',
+          application_id: input.application_id,
+          class_section_id: input.class_section_id,
+          class_name: input.class_name,
+          stream_name: input.stream_name,
+          academic_year: input.academic_year,
+          status: 'active',
+        };
+      },
+      enrollStudentSubjectsAndTimetable: async (input: any) => {
+        calls.subjectTimetableEnrollments.push(input);
+        return {
+          subject_enrollments: [{ id: 'subject-enrollment-1', student_id: input.student_id }],
+          timetable_enrollments: [{ id: 'timetable-enrollment-1', student_id: input.student_id }],
+        };
+      },
+      findActiveFeeStructureForClass: async (tenantId: string, className: string) => {
+        assert.equal(tenantId, 'tenant-a');
+        assert.equal(className, 'Grade 7');
+        return {
+          id: '00000000-0000-0000-0000-000000000736',
+          description: 'Grade 7 admission fee',
+          currency_code: 'KES',
+          amount_minor: 150000,
+          due_days_after_registration: 7,
+        };
+      },
+      createStudentFeeAssignmentInvoice: async (input: any) => {
+        calls.feeAssignments.push(input);
+        return {
+          assignment: { id: 'fee-assignment-1', student_id: input.student_id },
+          invoice: {
+            id: 'invoice-1',
+            student_id: input.student_id,
+            invoice_number: input.invoice_number,
+            amount_due_minor: input.amount_minor,
+          },
+        };
+      },
+      upsertStudentGuardianLink: async (input: any) => {
+        calls.guardianLinks.push(input);
+        return {
+          id: 'guardian-link-1',
+          student_id: input.student_id,
+          invitation_id: input.invitation_id,
+          email: input.email,
+          status: 'invited',
+        };
+      },
+    } as never,
+    {
+      save: async () => {
+        throw new Error('not used in this test');
+      },
+    } as never,
+    {
+      createStudent: async (input: any) => {
+        calls.studentCreates.push(input);
+        return {
+          id: '00000000-0000-0000-0000-000000000733',
+          tenant_id: 'tenant-a',
+          admission_number: input.admission_number,
+          first_name: input.first_name,
+          last_name: input.last_name,
+          middle_name: input.middle_name ?? null,
+          status: input.status,
+          date_of_birth: input.date_of_birth,
+          gender: input.gender,
+          primary_guardian_name: input.primary_guardian_name,
+          primary_guardian_phone: input.primary_guardian_phone,
+          metadata: input.metadata,
+          created_by_user_id: '00000000-0000-0000-0000-000000000001',
+          created_at: new Date('2026-05-04T10:00:00.000Z'),
+          updated_at: new Date('2026-05-04T10:00:00.000Z'),
+        };
+      },
+    } as never,
+    {
+      inviteTenantUser: async (input: any) => {
+        calls.parentInvites.push(input);
+        return { id: 'parent-invite-1', email: input.email, role_code: input.role_code };
+      },
+    } as never,
+    {
+      publish: async (event: any) => {
+        calls.events.push(event);
+        return { id: 'event-1', ...event };
+      },
+    } as never,
+    undefined,
+    {
+      recordSchoolOperation: async (operation: any) => {
+        calls.schoolOperations.push(operation);
+        return { id: 'school-operation-1' };
+      },
+    } as never,
+  );
+
+  const response = await requestContext.run(
+    {
+      request_id: 'req-admissions-complete-chain-1',
+      tenant_id: 'tenant-a',
+      user_id: '00000000-0000-0000-0000-000000000001',
+      role: 'admissions',
+      session_id: 'session-1',
+      permissions: ['admissions:*', 'students:*', 'documents:*', 'users:write', 'tenant_memberships:write'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'POST',
+      path: '/admissions/applications/00000000-0000-0000-0000-000000000731/register',
+      started_at: '2026-05-04T00:00:00.000Z',
+    },
+    () =>
+      service.registerApprovedApplication('00000000-0000-0000-0000-000000000731', {
+        admission_number: 'ADM-G7-731',
+        class_name: 'Grade 7',
+        stream_name: 'Hope',
+        dormitory_name: 'Mara House',
+        transport_route: 'Eastern Bypass',
+      }),
+  );
+
+  assert.equal(response.student.status, 'active');
+  assert.equal(response.application_status, 'registered');
+  assert.equal(response.academic_enrollment?.class_section_id, '00000000-0000-0000-0000-000000000732');
+  assert.equal(response.subject_enrollments.length, 1);
+  assert.equal(response.timetable_enrollments.length, 1);
+  assert.equal(response.parent_invitation?.id, 'parent-invite-1');
+  assert.equal(response.guardian_link?.student_id, '00000000-0000-0000-0000-000000000733');
+  assert.equal(response.fee_invoice?.amount_due_minor, 150000);
+  assert.equal(calls.studentCreates[0].metadata.admissions.guardian.parent_email, 'janet.njeri@example.test');
+  assert.equal(calls.allocations[0].school_id, 'tenant-a');
+  assert.equal(calls.academicEnrollments[0].school_id, 'tenant-a');
+  assert.equal(calls.subjectTimetableEnrollments[0].school_id, 'tenant-a');
+  assert.equal(calls.guardianLinks[0].school_id, 'tenant-a');
+  assert.equal(calls.guardianLinks[0].email, 'janet.njeri@example.test');
+  assert.equal(calls.feeAssignments[0].school_id, 'tenant-a');
+  assert.match(calls.feeAssignments[0].invoice_number, /^SF-\d{8}-[0-9A-F]{8}$/);
+  assert.deepEqual(calls.parentInvites[0], {
+    email: 'janet.njeri@example.test',
+    display_name: 'Janet Njeri',
+    role_code: 'parent',
+  });
+  assert.equal(calls.events[0].event_name, 'student.academic_enrollment.created');
+  assert.equal(calls.events[0].payload.tenant_id, 'tenant-a');
+  assert.equal(calls.schoolOperations[0].schoolId, 'tenant-a');
+  assert.equal(calls.schoolOperations[0].event.type, 'admission.application.registered');
+  assert.equal(calls.schoolOperations[0].notifications.length, 2);
+  assert.equal(calls.schoolOperations[0].sms[0].phone, '254712300401');
+});
+
 test('AdmissionsService exports applications as a server-side CSV artifact with checksum', async () => {
   const requestContext = new RequestContextService();
   let tenantUsed: string | null = null;

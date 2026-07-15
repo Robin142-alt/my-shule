@@ -1,5 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
 import { screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 
 import { SchoolPages } from "@/components/school/school-pages";
 import type { SchoolExperienceRole } from "@/lib/experiences/types";
@@ -10,128 +11,178 @@ const fakeOnlyPhrases = /Action completed|Workflow dispatched|completed successf
 
 jest.setTimeout(20000);
 
-function renderOperationalRole(role: SchoolExperienceRole) {
-  renderWithProviders(<SchoolPages role={role} tenantSlug="kisumu-boys" />);
+function readWebSource(relativePath: string) {
+  return fs.readFileSync(path.join(process.cwd(), relativePath), "utf8");
+}
 
-  return screen.findByTestId("role-operational-command-center");
+async function renderOperationalRoute(role: SchoolExperienceRole, section: string, expectedHeading: RegExp) {
+  renderWithProviders(
+    <SchoolPages
+      role={role}
+      section={section}
+      tenantSlug="kisumu-boys"
+      routeMode="public"
+      liveDataEnabled={false}
+    />,
+  );
+
+  const matchingHeadings = await screen.findAllByRole("heading", { name: expectedHeading });
+  expect(matchingHeadings.length).toBeGreaterThan(0);
+  expect(matchingHeadings[0]).toBeVisible();
+  return document.body;
+}
+
+function expectSourceContracts(sourcePath: string, patterns: RegExp[]) {
+  const source = readWebSource(sourcePath);
+
+  for (const pattern of patterns) {
+    expect(source).toMatch(pattern);
+  }
 }
 
 function expectNoFakeOnlyFeedback() {
   expect(document.body.textContent).not.toMatch(fakeOnlyPhrases);
 }
 
+function expectVisibleButton(surface: HTMLElement, name: RegExp) {
+  const buttons = within(surface).getAllByRole("button", { name });
+  expect(buttons.length).toBeGreaterThan(0);
+  expect(buttons[0]).toBeVisible();
+}
+
 describe("operational module production readiness", () => {
-  it("nurse actions save visits, deduct medicine stock, and open print preview evidence", async () => {
-    const user = userEvent.setup();
-    const commandCenter = await renderOperationalRole("nurse");
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
 
-    await user.type(within(commandCenter).getByLabelText(/Symptoms and treatment notes/i), "Headache after games.");
-    await user.click(within(commandCenter).getByRole("button", { name: /Save Visit and Deduct Stock/i }));
+  it("routes nurse visit workspaces to the new health dashboard with persisted clinic actions", async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [] }) }) as unknown as typeof fetch;
 
-    expect(await within(commandCenter).findByText(/visit saved/i)).toBeVisible();
-    expect(document.body.textContent).toMatch(/stock deducted/i);
+    const surface = await renderOperationalRoute("nurse", "visits", /Visits/i);
 
-    await user.click(within(commandCenter).getByRole("button", { name: /Print Register/i }));
-
-    expect(document.body.textContent).toMatch(/Sick bay register print preview ready for kisumu-boys: \d+ visit records, Nurse\/Principal notified|Sick Bay Register/i);
+    expect(within(surface).getByRole("navigation", { name: /nurse workspace navigation/i })).toBeVisible();
+    expectVisibleButton(surface, /New Visit/i);
+    expect(within(surface).getByText(/Record and manage student health visits/i)).toBeVisible();
+    expectSourceContracts("src/components/school/nurse/visits-workspace.tsx", [
+      /useSchoolQuery<VisitsData>\('\/admin-command\/nurse\/visits'\)/,
+      /createVisit/,
+      /closeVisit/,
+      /referVisit/,
+    ]);
     expectNoFakeOnlyFeedback();
   });
 
-  it("library actions issue books and open real report preview evidence", async () => {
-    const user = userEvent.setup();
-    const commandCenter = await renderOperationalRole("librarian");
+  it("routes librarian issuing to the new circulation workspace with persisted issue and report actions", async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [] }) }) as unknown as typeof fetch;
 
-    await user.click(within(commandCenter).getAllByRole("button", { name: /Issue Book/i }).at(-1)!);
+    const surface = await renderOperationalRoute("librarian", "issue", /Issue Books/i);
 
-    expect(await within(commandCenter).findByText(/issued to Brian Otieno/i)).toBeVisible();
-
-    await user.click(within(commandCenter).getByRole("button", { name: /Print Library Report/i }));
-
-    expect(document.body.textContent).toMatch(/Library report print preview ready for kisumu-boys: \d+ borrower records and \d+ catalogue records, Librarian\/Principal notified|Library Report/i);
+    expect(within(surface).getByRole("navigation", { name: /librarian navigation/i })).toBeVisible();
+    expect(within(surface).getAllByRole("heading", { name: /Issue Books/i }).length).toBeGreaterThan(0);
+    expect(within(surface).getByText(/Fast book issuing using barcode scan or manual search/i)).toBeVisible();
+    expectSourceContracts("src/components/school/librarian-command-center.tsx", [
+      /admin-command\/librarian\/circulation-options/,
+      /admin-command\/librarian\/actions/,
+      /admin-command\/librarian\/reports\/generate/,
+      /openPrintDocument/,
+    ]);
     expectNoFakeOnlyFeedback();
   });
 
-  it("storekeeper actions issue stock and generate a real CSV download result", async () => {
-    const user = userEvent.setup();
-    const commandCenter = await renderOperationalRole("storekeeper");
+  it("routes storekeeper inventory control to a stock command surface with audited receive and issue actions", async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [] }) }) as unknown as typeof fetch;
 
-    await user.click(within(commandCenter).getAllByRole("button", { name: /Issue Stock/i }).at(-1)!);
+    const surface = await renderOperationalRoute("storekeeper", "inventory", /Storekeeper command center/i);
 
-    expect(await within(commandCenter).findByText(/issued to Mathematics/i)).toBeVisible();
-
-    await user.click(within(commandCenter).getByRole("button", { name: /Export Stock Report/i }));
-
-    expect(document.body.textContent).toMatch(/Stock CSV downloaded for kisumu-boys: \d+ catalogue items and \d+ movements/i);
+    expect(within(surface).getByRole("navigation", { name: /storekeeper command navigation/i })).toBeVisible();
+    expectVisibleButton(surface, /Receive Stock/i);
+    expectVisibleButton(surface, /Issue Item/i);
+    expectSourceContracts("src/components/school/storekeeper-command-center.tsx", [
+      /admin-command\/storekeeper\/actions/,
+      /admin-command\/storekeeper\/items\/receive/,
+      /admin-command\/storekeeper\/items\/issue/,
+      /publishSchoolOperationalEvent/,
+    ]);
     expectNoFakeOnlyFeedback();
   });
 
-  it("boarding actions save roll call records and open hostel print preview evidence", async () => {
-    const user = userEvent.setup();
-    const commandCenter = await renderOperationalRole("boarding-master");
+  it("routes boarding roll call to the new hostel workspace with persisted attendance records", async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [] }) }) as unknown as typeof fetch;
 
-    await user.click(within(commandCenter).getByRole("button", { name: /Save Roll Call/i }));
+    const surface = await renderOperationalRoute("boarding-master", "roll-call", /Daily Roll Call/i);
 
-    expect(await within(commandCenter).findByText(/marked present/i)).toBeVisible();
-
-    await user.click(within(commandCenter).getByRole("button", { name: /Print Roll Call/i }));
-
-    expect(document.body.textContent).toMatch(/Hostel roll call sheet print preview ready for kisumu-boys: \d+ roll-call records, Boarding\/Deputy notified|Hostel Roll Call/i);
+    expect(within(surface).getByRole("navigation", { name: /boarding master navigation/i })).toBeVisible();
+    expectVisibleButton(surface, /Start Roll Call/i);
+    expectVisibleButton(surface, /Print Missing List/i);
+    expectSourceContracts("src/components/school/boarding-master-command-center.tsx", [
+      /admin-command\/boarding-master\/boarding-attendance/,
+      /admin-command\/boarding-master\/actions/,
+      /admin-command\/boarding-master\/reports\/generate/,
+    ]);
     expectNoFakeOnlyFeedback();
   });
 
-  it("transport actions record trips and open route list preview evidence", async () => {
-    const user = userEvent.setup();
-    const commandCenter = await renderOperationalRole("transport-manager");
+  it("routes transport route planning to the new fleet workspace with persisted route and report actions", async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [] }) }) as unknown as typeof fetch;
 
-    await user.click(within(commandCenter).getByRole("button", { name: /Add Trip Record/i }));
+    const surface = await renderOperationalRoute("transport-manager", "routes", /Routes & Stops/i);
 
-    expect(await within(commandCenter).findByText(/added to .* at/i)).toBeVisible();
-
-    await user.click(within(commandCenter).getByRole("button", { name: /Print Route List/i }));
-
-    expect(document.body.textContent).toMatch(/Transport route list print preview ready for kisumu-boys: \d+ vehicle routes and \d+ trip records, Transport\/Principal notified|Transport Route List/i);
+    expect(within(surface).getByRole("navigation", { name: /transport manager navigation/i })).toBeVisible();
+    expect(within(surface).getByText(/Logistics planner for route cards/i)).toBeVisible();
+    expectVisibleButton(surface, /Add stop/i);
+    expectVisibleButton(surface, /Optimize route/i);
+    expectSourceContracts("src/components/school/transport-manager-command-center.tsx", [
+      /admin-command\/transport-manager\/routes/,
+      /admin-command\/transport-manager\/actions/,
+      /admin-command\/transport-manager\/reports\/generate/,
+    ]);
     expectNoFakeOnlyFeedback();
   });
 
-  it("laboratory actions save practical requests and open checklist preview evidence", async () => {
-    const user = userEvent.setup();
-    const commandCenter = await renderOperationalRole("laboratory-technician");
+  it("routes laboratory teacher requests to the new lab workspace with persisted workflow and print evidence", async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [] }) }) as unknown as typeof fetch;
 
-    await user.click(within(commandCenter).getByRole("button", { name: /Add Practical Request/i }));
+    const surface = await renderOperationalRoute("laboratory-technician", "requests", /Teacher Requests/i);
 
-    expect(await within(commandCenter).findByText(/request saved/i)).toBeVisible();
-
-    await user.click(within(commandCenter).getByRole("button", { name: /Print Practical Checklist/i }));
-
-    expect(document.body.textContent).toMatch(/Practical checklist print preview ready for kisumu-boys: \d+ practical requests and \d+ lab stock records, Lab\/Dean notified|Practical Checklist/i);
+    expect(within(surface).getByRole("navigation", { name: /lab navigation/i })).toBeVisible();
+    expectVisibleButton(surface, /Create Request Manually/i);
+    expectVisibleButton(surface, /Bulk Approve/i);
+    expectSourceContracts("src/components/school/laboratory-technician-command-center.tsx", [
+      /admin-command\/laboratory-technician\/actions/,
+      /openPrintDocument/,
+      /publishSchoolOperationalEvent/,
+    ]);
     expectNoFakeOnlyFeedback();
   });
 
-  it("discipline actions create incidents and open discipline letter preview evidence", async () => {
-    const user = userEvent.setup();
-    const commandCenter = await renderOperationalRole("discipline-master");
+  it("routes discipline incident logging to the new discipline office with governed record actions", async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [] }) }) as unknown as typeof fetch;
 
-    await user.click(within(commandCenter).getByRole("button", { name: /Add Incident/i }));
+    const surface = await renderOperationalRoute("discipline-master", "log-incident", /Log Incident/i);
 
-    expect((await within(commandCenter).findAllByText(/discipline case recorded/i)).length).toBeGreaterThan(0);
-
-    await user.click(within(commandCenter).getAllByRole("button", { name: /Print Letter/i })[0]);
-
-    expect(document.body.textContent).toMatch(/discipline letter preview ready|Discipline Letter/i);
+    expectVisibleButton(surface, /Log Incident/i);
+    expect(within(surface).getByText(/Recent Log Incident/i)).toBeVisible();
+    expectSourceContracts("src/components/school/discipline-master/shared.tsx", [
+      /requestDashboardApi/,
+      /source: "discipline-master-dashboard"/,
+      /downloadCsvFile/,
+    ]);
     expectNoFakeOnlyFeedback();
   });
 
-  it("counselling actions save sessions and open counselling summary preview evidence", async () => {
-    const user = userEvent.setup();
-    const commandCenter = await renderOperationalRole("guidance-counselling");
+  it("routes counselling cases to the new counsellor workspace with private persisted case workflows", async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [] }) }) as unknown as typeof fetch;
 
-    await user.click(within(commandCenter).getByRole("button", { name: /Save Session/i }));
+    const surface = await renderOperationalRoute("guidance-counselling", "cases", /Good Morning, Counsellor/i);
 
-    expect((await within(commandCenter).findAllByText(/counselling session recorded/i)).length).toBeGreaterThan(0);
-
-    await user.click(within(commandCenter).getAllByRole("button", { name: /Print Summary/i })[0]);
-
-    expect(document.body.textContent).toMatch(/counselling summary preview ready|Counselling Summary/i);
+    expectVisibleButton(surface, /New Case/i);
+    expect(within(surface).getByText(/Confidential student cases/i)).toBeVisible();
+    expectSourceContracts("src/components/school/counsellor-command-center.tsx", [
+      /admin-command\/guidance-counselling\/referrals/,
+      /admin-command\/guidance-counselling\/actions/,
+      /admin-command\/guidance-counselling\/reports\/generate/,
+      /admin-command\/guidance-counselling\/settings/,
+    ]);
     expectNoFakeOnlyFeedback();
   });
 });

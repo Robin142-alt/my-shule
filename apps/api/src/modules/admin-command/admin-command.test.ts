@@ -2893,6 +2893,17 @@ test('ExamsManagerCommandService returns tenant-scoped exam setup options for hu
         if (/FROM class_sections/.test(sql)) {
           return { rows: [{ id: 'class-a', label: 'Form 2 East' }], rowCount: 1 };
         }
+        if (/FROM academics_grading_systems/.test(sql)) {
+          return {
+            rows: [{
+              id: 'grading-a',
+              label: 'Kenya CBC Performance Levels',
+              description: 'Exceeding, Meeting, Approaching, Below expectation',
+              status: 'active',
+            }],
+            rowCount: 1,
+          };
+        }
         if (/FROM staff_profiles/.test(sql)) {
           return {
             rows: [{
@@ -2938,6 +2949,12 @@ test('ExamsManagerCommandService returns tenant-scoped exam setup options for hu
   assert.deepEqual(result.terms, [{ id: 'term-a', label: 'Term 2 2026', status: 'active' }]);
   assert.deepEqual(result.subjects, [{ id: 'subject-a', label: 'Mathematics', code: 'MATH' }]);
   assert.deepEqual(result.classes, [{ id: 'class-a', label: 'Form 2 East' }]);
+  assert.deepEqual((result as any).gradingSystems, [{
+    id: 'grading-a',
+    label: 'Kenya CBC Performance Levels',
+    description: 'Exceeding, Meeting, Approaching, Below expectation',
+    status: 'active',
+  }]);
   assert.deepEqual(result.staff, [{
     id: 'staff-a',
     user_id: 'teacher-user-a',
@@ -2952,7 +2969,7 @@ test('ExamsManagerCommandService returns tenant-scoped exam setup options for hu
     label: 'Mathematics Paper 1',
     subject_id: 'subject-a',
   }]);
-  assert.equal(reads.length, 6);
+  assert.equal(reads.length, 7);
   assert.ok(reads.every((read) => read.params[0] === 'tenant-a'));
 });
 

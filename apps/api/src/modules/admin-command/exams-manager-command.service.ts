@@ -259,7 +259,7 @@ export class ExamsManagerCommandService {
 
   async getExamSetupOptions() {
     const tenantId = this.requireTenantId();
-    const [terms, subjects, classes, staff, examSeries, assessments] = await Promise.all([
+    const [terms, subjects, classes, gradingSystems, staff, examSeries, assessments] = await Promise.all([
       this.readSql(
         `
           SELECT
@@ -293,6 +293,21 @@ export class ExamsManagerCommandService {
             AND LOWER(COALESCE(status, 'active')) = 'active'
           ORDER BY grade_level ASC, stream ASC, name ASC
           LIMIT 200
+        `,
+        [tenantId],
+      ),
+      this.readSql(
+        `
+          SELECT
+            id::text,
+            name AS label,
+            description,
+            CASE WHEN is_active THEN 'active' ELSE 'inactive' END AS status
+          FROM academics_grading_systems
+          WHERE tenant_id = $1
+            AND is_active = TRUE
+          ORDER BY name ASC
+          LIMIT 80
         `,
         [tenantId],
       ),
@@ -350,6 +365,7 @@ export class ExamsManagerCommandService {
       terms: terms.rows,
       subjects: subjects.rows,
       classes: classes.rows,
+      gradingSystems: gradingSystems.rows,
       staff: staff.rows,
       examSeries: examSeries.rows,
       assessments: assessments.rows,

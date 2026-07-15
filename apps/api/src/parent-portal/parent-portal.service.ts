@@ -205,6 +205,8 @@ export class ParentPortalService {
       where: {
         studentId: { in: childIds },
         schoolId: tenantId,
+        status: 'RELEASED',
+        releasedAt: { not: null },
       },
       include: {
         student: {
@@ -239,6 +241,17 @@ export class ParentPortalService {
       where: {
         studentId: { in: childIds },
         schoolId: tenantId,
+        status: { in: ['APPROVED', 'LOCKED'] },
+        examCycle: {
+          reportCards: {
+            some: {
+              studentId: { in: childIds },
+              schoolId: tenantId,
+              status: 'RELEASED',
+              releasedAt: { not: null },
+            },
+          },
+        },
       },
       include: {
         student: {
@@ -535,6 +548,8 @@ export class ParentPortalService {
       where: {
         studentId: activeChild.id,
         schoolId: tenantId,
+        status: 'RELEASED',
+        releasedAt: { not: null },
       },
       include: {
         academicYear: true,

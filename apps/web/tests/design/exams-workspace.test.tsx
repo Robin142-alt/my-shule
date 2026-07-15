@@ -453,7 +453,7 @@ describe("exams workspace", () => {
     } as never);
   });
 
-  it("opens the implemented exams command center from the school workspace", async () => {
+  it("opens the new teacher exams markbook from the school workspace", async () => {
     await act(async () => {
       renderWithProviders(
         createElement(SchoolPages, {
@@ -466,13 +466,16 @@ describe("exams workspace", () => {
       await Promise.resolve();
     });
 
-  expect(
-    screen.getAllByRole("heading", { name: /teaching desk/i }).length,
-  ).toBeGreaterThan(0);
-  expect(
-    screen.getAllByRole("button", { name: /open academic review ready/i }).length,
-  ).toBeGreaterThan(0);
-});
+    expect(
+      screen.getAllByRole("heading", { name: /Teacher Workspace/i }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("heading", { name: /Exams & Marks/i }).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /Download CSV/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Save draft/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Submit for moderation/i })).toBeDisabled();
+  });
 
   it("blocks the exams workspace when the tenant module is disabled", async () => {
     expect(isSchoolSectionEnabled("exams", ["students", "billing"])).toBe(false);

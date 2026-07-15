@@ -742,6 +742,143 @@ const principalCommandCenterSectionIds = new Set([
   "audit-logs",
   "settings",
 ]);
+
+const nurseCommandCenterSectionIds = new Set([
+  "dashboard",
+  "overview",
+  "visits",
+  "sick-bay-queue",
+  "medicine-inventory",
+  "dispensing-log",
+  "parent-notifications",
+  "health-reports",
+]);
+
+const librarianCommandCenterSectionIds = new Set([
+  "dashboard",
+  "overview",
+  "issue",
+  "return",
+  "catalogue",
+  "add_books",
+  "loans",
+  "lost_damaged",
+  "fines",
+  "borrowers",
+  "class_textbooks",
+  "reservations",
+  "stocktake",
+  "departments",
+  "visits",
+  "requests",
+  "reports",
+  "notices",
+  "settings",
+]);
+
+const boardingMasterCommandCenterSectionIds = new Set([
+  "dashboard",
+  "overview",
+  "register",
+  "dorms",
+  "beds",
+  "roll-call",
+  "leave",
+  "late-returns",
+  "duty",
+  "incidents",
+  "welfare",
+  "meals",
+  "inspections",
+  "maintenance",
+  "inventory",
+  "visitors",
+  "communication",
+  "approvals",
+  "reports",
+  "settings",
+]);
+
+const transportManagerCommandCenterSectionIds = new Set([
+  "dashboard",
+  "overview",
+  "fleet",
+  "routes",
+  "allocation",
+  "drivers",
+  "fuel",
+  "maintenance",
+  "trips",
+  "attendance",
+  "gps",
+  "notifications",
+  "incidents",
+  "compliance",
+  "reports",
+  "settings",
+]);
+
+const laboratoryTechnicianCommandCenterSectionIds = new Set([
+  "dashboard",
+  "overview",
+  "schedule",
+  "requests",
+  "preparation",
+  "issue_return",
+  "apparatus",
+  "chemicals",
+  "consumables",
+  "intake",
+  "stocktake",
+  "faults",
+  "incidents",
+  "disposal",
+  "procurement",
+  "reports",
+  "messages",
+  "settings",
+]);
+
+const counsellorCommandCenterSectionIds = new Set([
+  "dashboard",
+  "overview",
+  "referrals",
+  "cases",
+  "appointments",
+  "sessions",
+  "followups",
+  "welfare",
+  "group",
+  "parents",
+  "teachers",
+  "discipline",
+  "health",
+  "escalations",
+  "reports",
+  "templates",
+  "settings",
+]);
+
+const disciplineMasterCommandCenterSectionIds = new Set([
+  "dashboard",
+  "overview",
+  "report-intake",
+  "log-incident",
+  "incident-register",
+  "triage-queue",
+  "student-conduct",
+  "investigations",
+  "actions",
+  "parent-comm",
+  "counselling",
+  "approvals",
+  "detention",
+  "monitoring",
+  "reports",
+  "templates",
+  "audit",
+  "settings",
+]);
 const unifiedOperationalRoleIds = new Set<SchoolExperienceRole>([
   "deputy-principal",
   "secretary",
@@ -791,6 +928,34 @@ function shouldRenderRoleOperationalWorkspace(role: SchoolExperienceRole, sectio
 
   if (role === "principal") {
     return principalCommandCenterSectionIds.has(section);
+  }
+
+  if (role === "nurse") {
+    return nurseCommandCenterSectionIds.has(section);
+  }
+
+  if (role === "librarian") {
+    return librarianCommandCenterSectionIds.has(section);
+  }
+
+  if (role === "boarding-master") {
+    return boardingMasterCommandCenterSectionIds.has(section);
+  }
+
+  if (role === "transport-manager") {
+    return transportManagerCommandCenterSectionIds.has(section);
+  }
+
+  if (role === "laboratory-technician") {
+    return laboratoryTechnicianCommandCenterSectionIds.has(section);
+  }
+
+  if (role === "guidance-counselling") {
+    return counsellorCommandCenterSectionIds.has(section);
+  }
+
+  if (role === "discipline-master") {
+    return disciplineMasterCommandCenterSectionIds.has(section);
   }
 
   if ((role === "accountant" || role === "bursar") && section === "finance") {

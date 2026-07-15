@@ -74,6 +74,24 @@ describe("exams manager human workflow contracts", () => {
     expect(activeSetupSource).toMatch(/onSubmit=\{handleConfigure\}/);
   });
 
+  it("loads exam grading choices from school-configured grading systems", () => {
+    const activeSetupSource = fs.readFileSync(
+      path.join(process.cwd(), "src/components/school/exams-manager/exam-setup-workspace.tsx"),
+      "utf8",
+    );
+    const backendSource = fs.readFileSync(
+      path.join(process.cwd(), "../api/src/modules/admin-command/exams-manager-command.service.ts"),
+      "utf8",
+    );
+
+    expect(backendSource).toMatch(/FROM academics_grading_systems/);
+    expect(backendSource).toMatch(/WHERE tenant_id = \$1/);
+    expect(activeSetupSource).toMatch(/gradingSystems/);
+    expect(activeSetupSource).toMatch(/No grading systems configured/);
+    expect(activeSetupSource).toMatch(/gradingSystemOptions\.map/);
+    expect(activeSetupSource).not.toMatch(/const gradingOptions/);
+  });
+
   it("wires active exam timetable slot creation to a human form and durable API payload", () => {
     const activeTimetableSource = fs.readFileSync(
       path.join(process.cwd(), "src/components/school/exams-manager/exam-timetable-workspace.tsx"),

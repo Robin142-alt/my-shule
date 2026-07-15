@@ -1,6 +1,6 @@
 # MyShule School Capability Matrix
 
-Generated: 2026-07-15T17:16:11.024Z
+Generated: 2026-07-15T21:01:36.619Z
 
 Status: NOT_YET_MANUALLY_VERIFIED
 
@@ -1064,7 +1064,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - operations | controllers=2 | services=2 | tests=2
 - parent-portal | controllers=1 | services=0 | tests=0
 - payments | controllers=5 | services=22 | tests=1
-- platform | controllers=1 | services=1 | tests=1
+- platform | controllers=1 | services=1 | tests=2
 - procurement | controllers=1 | services=2 | tests=1
 - secretary | controllers=1 | services=1 | tests=1
 - security | controllers=1 | services=6 | tests=2
@@ -1136,6 +1136,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/api/src/modules/operations/school-settings.service.test.ts
 - apps/api/src/modules/payments/payments.test.ts
 - apps/api/src/modules/platform/platform-onboarding.service.test.ts
+- apps/api/src/modules/platform/school-activation-golden-path.test.ts
 - apps/api/src/modules/procurement/procurement.test.ts
 - apps/api/src/modules/secretary/secretary.controller.test.ts
 - apps/api/src/modules/security/security-operations.test.ts

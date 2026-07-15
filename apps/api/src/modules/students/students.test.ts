@@ -6,7 +6,9 @@ import { MODULE_METADATA } from '@nestjs/common/constants';
 
 import { BillingAccessService } from '../billing/billing-access.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
+import { ParentPortalService } from '../../parent-portal/parent-portal.service';
 import { AttendanceService } from './attendance.service';
+import { StudentPortalService } from './student-portal.service';
 import { StudentsModule } from './students.module';
 import { StudentsRepository } from './repositories/students.repository';
 import { StudentsSchemaService } from './students-schema.service';
@@ -192,5 +194,146 @@ test('StudentsRepository uses keyset cursor pagination for the high-volume stude
     '00000000-0000-0000-0000-000000000201',
     50,
   ]);
+});
+
+test('ParentPortalService exposes only linked published academic records', async () => {
+  const requestContext = new RequestContextService();
+  const calls: Record<string, any[]> = {
+    guardians: [],
+    reportCards: [],
+    marks: [],
+    students: [],
+    classSubjects: [],
+  };
+  const service = new ParentPortalService(
+    {
+      studentGuardian: {
+        findMany: async (args: any) => {
+          calls.guardians.push(args);
+
+          if (args.select?.studentId) {
+            return [{ studentId: 'student-linked' }];
+          }
+
+          return [];
+        },
+      },
+      reportCard: {
+        findMany: async (args: any) => {
+          calls.reportCards.push(args);
+          return [];
+        },
+      },
+      marksEntry: {
+        findMany: async (args: any) => {
+          calls.marks.push(args);
+          return [];
+        },
+      },
+      student: {
+        findMany: async (args: any) => {
+          calls.students.push(args);
+          return [];
+        },
+      },
+      classSubject: {
+        findMany: async (args: any) => {
+          calls.classSubjects.push(args);
+          return [];
+        },
+      },
+    } as never,
+    requestContext,
+  );
+
+  await requestContext.run(
+    {
+      request_id: 'req-parent-academics',
+      tenant_id: 'tenant-a',
+      user_id: 'parent-user-1',
+      role: 'parent',
+      session_id: 'session-parent',
+      permissions: ['parent_portal:read'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'GET',
+      path: '/portal/parent/academics',
+      started_at: '2026-07-15T00:00:00.000Z',
+    },
+    () => service.getAcademics(),
+  );
+
+  assert.deepEqual(calls.guardians[0].where, {
+    guardianId: 'parent-user-1',
+    schoolId: 'tenant-a',
+  });
+  assert.deepEqual(calls.reportCards[0].where, {
+    studentId: { in: ['student-linked'] },
+    schoolId: 'tenant-a',
+    status: 'RELEASED',
+    releasedAt: { not: null },
+  });
+  assert.deepEqual(calls.marks[0].where, {
+    studentId: { in: ['student-linked'] },
+    schoolId: 'tenant-a',
+    status: { in: ['APPROVED', 'LOCKED'] },
+    examCycle: {
+      reportCards: {
+        some: {
+          studentId: { in: ['student-linked'] },
+          schoolId: 'tenant-a',
+          status: 'RELEASED',
+          releasedAt: { not: null },
+        },
+      },
+    },
+  });
+  assert.deepEqual(calls.students[0].where, {
+    id: { in: ['student-linked'] },
+    schoolId: 'tenant-a',
+  });
+});
+
+test('StudentPortalService exposes only the signed-in student released report cards', async () => {
+  const requestContext = new RequestContextService();
+  const reportCardCalls: any[] = [];
+  const service = new StudentPortalService(
+    {
+      reportCard: {
+        findMany: async (args: any) => {
+          reportCardCalls.push(args);
+          return [];
+        },
+      },
+    } as never,
+    requestContext,
+    {} as never,
+  );
+
+  await requestContext.run(
+    {
+      request_id: 'req-student-academics',
+      tenant_id: 'tenant-a',
+      user_id: 'student-1',
+      role: 'student',
+      session_id: 'session-student',
+      permissions: ['student_portal:read'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'GET',
+      path: '/portal/student/academics',
+      started_at: '2026-07-15T00:00:00.000Z',
+    },
+    () => service.getAcademics(),
+  );
+
+  assert.deepEqual(reportCardCalls[0].where, {
+    studentId: 'student-1',
+    schoolId: 'tenant-a',
+    status: 'RELEASED',
+    releasedAt: { not: null },
+  });
 });
 
