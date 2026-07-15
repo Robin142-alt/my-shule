@@ -23,13 +23,37 @@ type DisciplineIncidentDraft = {
   severity: DisciplineIncident["severity"];
 };
 
+type DisciplineResponse =
+  | DisciplineIncident[]
+  | {
+      incidents?: DisciplineIncident[];
+      data?: DisciplineIncident[];
+    };
+
+function normalizeIncidents(payload: DisciplineResponse | null | undefined): DisciplineIncident[] {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.incidents)) {
+    return payload.incidents;
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  return [];
+}
+
 export function DeputyDisciplineWorkspace() {
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState<DisciplineIncidentDraft>({ studentName: "", incidentType: "", severity: "High" });
   const [isSubmittingCreate, setIsSubmittingCreate] = useState(false);
 
   const queryClient = useQueryClient();
-  const { data: incidents = [] } = useSchoolQuery<DisciplineIncident[]>('/admin-command/deputy/discipline');
+  const { data: incidentPayload } = useSchoolQuery<DisciplineResponse>('/admin-command/deputy/discipline');
+  const incidents = normalizeIncidents(incidentPayload);
   
   const handleCreate = async () => {
     setIsSubmittingCreate(true);
