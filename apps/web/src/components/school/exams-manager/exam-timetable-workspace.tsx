@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { Calendar, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
@@ -172,7 +173,7 @@ export function ExamTimetableWorkspace() {
       {!optionsLoading && !canSchedule ? (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
           Create an exam cycle before scheduling timetable slots.{" "}
-          <a href="/school/exams-manager/exam-setup" className="underline">Open exam setup</a>
+          <Link href="/school/exams-manager/exam-setup" className="underline">Open exam setup</Link>
         </div>
       ) : null}
 
@@ -254,7 +255,7 @@ export function ExamTimetableWorkspace() {
           {!canSchedule && !optionsLoading ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
               No exam cycle exists for this school yet.{" "}
-              <a href="/school/exams-manager/exam-setup" className="underline">Create an exam cycle first.</a>
+              <Link href="/school/exams-manager/exam-setup" className="underline">Create an exam cycle first.</Link>
             </div>
           ) : null}
 
