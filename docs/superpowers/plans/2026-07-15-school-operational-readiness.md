@@ -10,6 +10,18 @@
 
 ---
 
+## Checklist Status
+
+This file is a full implementation roadmap, not a claim that every milestone is complete.
+
+- Checked boxes (`- [x]`) are items completed with evidence in this branch or previous verified readiness work.
+- Unchecked boxes (`- [ ]`) are intentionally left open because the work still requires implementation, hosted smoke evidence, manual provider verification, or broader end-to-end tests.
+- Do not mark unchecked boxes complete unless the relevant code, tests, tenant isolation, permissions, persistence, audit/event behavior, and verification evidence exist.
+- Current automated evidence after the latest main push includes: API build pass, web production build pass, typecheck pass, focused school dashboard design suite pass, platform onboarding suite pass, readiness inventory generation pass, and targeted changed-file ESLint pass.
+- Current remaining go-live evidence is mainly deployed production smoke, real Gmail/provider invitation acceptance, mobile/browser proof for critical workflows, and deeper end-to-end operational chains such as admissions-to-active-student, fee-to-receipt, and exams-to-published-report-card.
+
+---
+
 ## Current Evidence Baseline
 
 - Current source inventory: `docs/SCHOOL_CAPABILITY_MATRIX.md`
