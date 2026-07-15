@@ -78,6 +78,22 @@ type NavItem = {
   aliases: ExamsManagerView[];
 };
 
+type MarksEntryExportRow = {
+  exam_name?: string | null;
+  subject?: string | null;
+  class_name?: string | null;
+  teacher?: string | null;
+  total_students?: number | string | null;
+  entered?: number | string | null;
+  missing?: number | string | null;
+  deadline?: string | null;
+  status?: string | null;
+};
+
+type MarksEntryExportResponse = {
+  entries?: MarksEntryExportRow[];
+};
+
 const routeAliases: Record<ExamsManagerView, ExamsManagerCanonicalView> = {
   dashboard: "overview",
   overview: "overview",
@@ -311,8 +327,8 @@ export function ExamsManagerCommandCenter({
   async function requestMarksExport() {
     setCommandState("export");
     try {
-      const response = await requestDashboardApi("/admin-command/exams-manager/marks-entry");
-      const entries = Array.isArray(response?.entries) ? response.entries : [];
+      const response = await requestDashboardApi<MarksEntryExportResponse>("/admin-command/exams-manager/marks-entry");
+      const entries = Array.isArray(response.entries) ? response.entries : [];
 
       if (entries.length === 0) {
         setActiveView("marks-entry");
@@ -323,7 +339,7 @@ export function ExamsManagerCommandCenter({
       downloadCsvFile({
         filename: `marks-entry-export-${new Date().toISOString().slice(0, 10)}.csv`,
         headers: ["exam_name", "subject", "class_name", "teacher", "total_students", "entered", "missing", "deadline", "status"],
-        rows: entries.map((entry: any) => [
+        rows: entries.map((entry) => [
           entry.exam_name ?? "",
           entry.subject ?? "",
           entry.class_name ?? "",
