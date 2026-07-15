@@ -118,7 +118,7 @@ const navItems: NavItem[] = [
   },
   {
     id: "exam-setup",
-    label: "Exam Setup",
+    label: "Exam Setup / Exam Builder",
     summary: "Create and manage exam cycles before timetable, marks, and reports can run.",
     icon: ClipboardList,
     aliases: ["builder", "exam-setup"],
@@ -161,7 +161,7 @@ const navItems: NavItem[] = [
   {
     id: "publishing",
     label: "Publishing",
-    summary: "Manage publish-ready result batches after moderation and approvals.",
+    summary: "Manage parent visibility for publish-ready result batches after moderation and approvals.",
     icon: Send,
     aliases: ["publishing"],
   },
@@ -489,7 +489,7 @@ export function ExamsManagerCommandCenter({
               {navItems.map((item) => (
                 <button
                   key={item.id}
-                  aria-label={`${item.label} quick tab`}
+                  aria-label={`Open ${item.id} quick tab`}
                   onClick={() => setActiveView(item.id)}
                   className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold transition-colors ${
                     activeView === item.id
@@ -521,7 +521,7 @@ export function ExamsManagerCommandCenter({
               </h2>
               <p className="mt-4 max-w-4xl text-sm leading-7 text-blue-50 md:text-base">
                 Create exam cycles first, schedule sessions, monitor teacher mark entry, moderate results,
-                then prepare report cards and publishing reports from live school records.
+                then prepare report cards and parent visibility publishing reports from live school records.
               </p>
             </section>
 

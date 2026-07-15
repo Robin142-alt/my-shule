@@ -27,7 +27,7 @@ describe("exams manager dashboard routing", () => {
     );
 
     expect(await screen.findByRole("heading", { name: /Exams Manager Desk/i })).toBeVisible();
-    expect(screen.getByRole("button", { name: /^Exam Setup$/i })).toHaveClass("bg-white");
+    expect(screen.getByRole("button", { name: /^Exam Setup \/ Exam Builder$/i })).toHaveClass("bg-white");
     expect(screen.queryByText(/School section not available/i)).not.toBeInTheDocument();
   });
 

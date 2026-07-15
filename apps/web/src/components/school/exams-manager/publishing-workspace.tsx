@@ -1,7 +1,11 @@
 "use client";
+import { useState } from "react";
 import { Send } from "lucide-react";
+import { toast } from "sonner";
+
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { publishResults, unpublishResults } from "./api-client";
 
 type PublishingRecord = {
   id: string;
@@ -23,7 +27,8 @@ type PublishingData = {
 };
 
 export function PublishingWorkspace() {
-  const { data, isLoading } = useSchoolQuery<PublishingData>('/admin-command/exams-manager/publishing');
+  const { data, isLoading, refetch } = useSchoolQuery<PublishingData>('/admin-command/exams-manager/publishing');
+  const [busyId, setBusyId] = useState<string | null>(null);
   const items = data?.publishingList || [];
 
   const getStatusTone = (st: string): Tone => {
@@ -34,8 +39,31 @@ export function PublishingWorkspace() {
     return "neutral";
   };
 
+  const changePublication = async (row: PublishingRecord) => {
+    const published = row.status?.toLowerCase() === "published";
+    setBusyId(row.id);
+    try {
+      if (published) {
+        await unpublishResults(row.id);
+        toast.success(`${row.exam_name} is no longer visible to parents.`);
+      } else {
+        await publishResults(row.id);
+        toast.success(`${row.exam_name} is now visible to parents.`);
+      }
+      await refetch();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update result visibility.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
-    <Panel title="Results Publishing" description="Publish exam results and report cards." icon={Send}>
+    <Panel
+      title="Results Publishing"
+      description="Publish moderated report-card batches to parent visibility only after approval. Fresh schools show no batches until real marks, moderation, and report-card generation are complete."
+      icon={Send}
+    >
       <div className="grid gap-4 md:grid-cols-3 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="text-sm font-semibold text-[#64748B]">Pending Publish</div>
@@ -60,13 +88,14 @@ export function PublishingWorkspace() {
               <th className="px-4 py-3 font-bold">Students</th>
               <th className="px-4 py-3 font-bold">Published At</th>
               <th className="px-4 py-3 font-bold">Status</th>
+              <th className="px-4 py-3 text-right font-bold">Actions</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading publishing queue...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No result batch is ready to publish. Publishable batches appear here only after moderation and report-card readiness checks pass.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No result batch is ready to publish to parents. Publishable batches appear here only after moderation and report-card readiness checks pass.</td></tr>
             ) : (
               items.map(row => (
                 <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
@@ -76,6 +105,20 @@ export function PublishingWorkspace() {
                   <td className="px-4 py-3 text-[#64748B]">{row.students}</td>
                   <td className="px-4 py-3 text-[#64748B]">{row.published_at}</td>
                   <td className="px-4 py-3"><StatusChip label={row.status} tone={getStatusTone(row.status)} /></td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      type="button"
+                      onClick={() => changePublication(row)}
+                      disabled={busyId === row.id}
+                      className="inline-flex items-center justify-center rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-xs font-black text-[#071D49] hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {busyId === row.id
+                        ? "Updating..."
+                        : row.status?.toLowerCase() === "published"
+                          ? "Unpublish from parents"
+                          : "Publish to parents"}
+                    </button>
+                  </td>
                 </tr>
               ))
             )}
