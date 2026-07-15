@@ -1,6 +1,7 @@
 "use client";
 import { FileText } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { AdmissionsEmptyStateCell, APPLICATIONS_HREF } from "./empty-state-cell";
 
 type TemplatesData = {
   metrics: Record<string, number>;
@@ -48,7 +49,13 @@ export function TemplatesWorkspace() {
             {isLoading ? (
               <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+              <AdmissionsEmptyStateCell
+                colSpan={4}
+                title="No admission templates yet"
+                body="Open applications to see the active admission flow before preparing email, SMS, or letter templates."
+                actionHref={APPLICATIONS_HREF}
+                actionLabel="Open applications"
+              />
             ) : (
               items.map((row: any, i: number) => (
                 <tr key={row.id || i} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">

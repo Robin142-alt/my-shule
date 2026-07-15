@@ -219,6 +219,10 @@ export class AdmissionsService {
     return this.admissionsRepository.buildSummary(this.requireTenantId());
   }
 
+  async listClassOptions() {
+    return this.admissionsRepository.listClassOptions(this.requireTenantId());
+  }
+
   async listApplications(query: ListAdmissionsQueryDto) {
     const normalized = this.normalizeListQuery(query, 25);
 

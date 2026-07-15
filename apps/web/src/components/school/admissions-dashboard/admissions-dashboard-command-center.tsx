@@ -111,7 +111,8 @@ const workspaceComponents: Record<AdmissionsWorkspaceId, ComponentType> = {
 
 const legacyRouteAliases: Record<string, AdmissionsWorkspaceId> = {
   dashboard: "overview",
-  admissions: "enrolment",
+  admissions: "applications",
+  "new-registration": "applications",
   "class-placement": "placement",
   "parent-linking": "parents",
 };

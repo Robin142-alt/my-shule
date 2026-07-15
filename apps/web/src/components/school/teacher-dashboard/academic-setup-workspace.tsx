@@ -45,7 +45,7 @@ export function AcademicSetupWorkspace() {
         <RecordTable
           columns={["Subject","Class","Stream","Lessons/Week","Status"]}
           rows={rows}
-          emptyState={isLoading ? "Loading..." : "No records found. Create the first entry to get started."}
+          emptyState={isLoading ? "Loading..." : "No academic setup records yet. Deputy or HOD class, subject, and term setup will appear here."}
         />
       )}
     </Panel>

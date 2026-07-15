@@ -53,7 +53,7 @@ export function ClassesWorkspace() {
         <RecordTable
           columns={["Class", "Subject", "Learners", "Attendance Status", "CAT Average", "Actions"]}
           rows={rows}
-          emptyState={isLoading ? "Loading your classes..." : "No assigned classes found."}
+          emptyState={isLoading ? "Loading your classes..." : "No assigned classes yet. HOD or deputy allocations must link this teacher to a class and subject before class workspaces open."}
         />
       )}
     </Panel>

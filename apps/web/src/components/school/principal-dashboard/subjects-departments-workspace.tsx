@@ -20,11 +20,23 @@ type PrincipalSubjectsData = {
   departmentHeads: Array<any>;
 };
 
+type StaffOption = {
+  id?: string;
+  user_id?: string;
+  label?: string;
+  full_name?: string;
+  preferred_name?: string;
+  display_name?: string;
+  staff_number?: string;
+  email?: string;
+};
+
 export function PrincipalSubjectsDepartmentsWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalSubjectsData>('/admin-command/principal/subjects');
   const { data: yearsData } = useSchoolQuery<any[]>('/academics/academic-years');
   const { data: subjectsData } = useSchoolQuery<any[]>('/academics/subjects');
   const { data: departmentsData } = useSchoolQuery<any[]>('/academics/departments');
+  const { data: staffData } = useSchoolQuery<StaffOption[]>('/academics/teachers');
   const { hasPermission } = usePermissions();
 
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
@@ -35,6 +47,15 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
   const [deptFormError, setDeptFormError] = useState("");
 
   const hasYears = yearsData && yearsData.length > 0;
+  const staffOptions = (staffData ?? [])
+    .map((staff) => {
+      const value = staff.user_id || staff.id || "";
+      const label = staff.label || staff.full_name || staff.preferred_name || staff.display_name || staff.staff_number || staff.email || "Unnamed staff member";
+
+      return { value, label };
+    })
+    .filter((staff) => staff.value);
+  const staffLabelByUserId = new Map(staffOptions.map((staff) => [staff.value, staff.label]));
 
   const handleCreateSubject = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -239,7 +260,11 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
                 <div key={d.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
                   <div>
                     <div className="font-medium text-white">{d.name}</div>
-                    <div className="text-xs text-white/50">{d.head_of_department_user_id ? "Has HOD" : "No HOD assigned"}</div>
+                    <div className="text-xs text-white/50">
+                      {d.head_of_department_user_id
+                        ? `Head of Department: ${d.head_of_department_name || staffLabelByUserId.get(String(d.head_of_department_user_id)) || "Unlinked staff member"}`
+                        : "No HOD assigned"}
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" className="text-red-400 border-red-500/20 hover:bg-red-500/20" onClick={() => handleArchiveDepartment(d.id)}>
@@ -289,8 +314,16 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
             <input name="name" required className="w-full border rounded p-2 text-sm" placeholder="e.g. Languages, Sciences" />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">HOD User ID (Optional UUID)</label>
-            <input name="head_of_department_user_id" className="w-full border rounded p-2 text-sm" placeholder="e.g. 123e4567-e89b-12d3-a456-426614174000" />
+            <label className="text-sm font-medium">Head of Department</label>
+            <select name="head_of_department_user_id" className="w-full border rounded p-2 text-sm">
+              <option value="">No HOD yet</option>
+              {staffOptions.map((staff) => (
+                <option key={staff.value} value={staff.value}>{staff.label}</option>
+              ))}
+            </select>
+            {staffOptions.length === 0 && (
+              <p className="text-xs text-amber-600">Invite and activate staff before assigning a department head.</p>
+            )}
           </div>
           <div className="pt-4 flex justify-end">
             <Button type="submit" disabled={isSubmittingDept}>

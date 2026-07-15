@@ -14,6 +14,7 @@ const roleHomePaths: Record<string, string> = {
   bursar: "/school/bursar",
   accountant: "/school/accountant",
   teacher: "/school/teacher",
+  dean: "/school/dean-academics",
   dean_academics: "/school/dean-academics",
   "dean-academics": "/school/dean-academics",
   "dean-of-academics": "/school/dean-academics",

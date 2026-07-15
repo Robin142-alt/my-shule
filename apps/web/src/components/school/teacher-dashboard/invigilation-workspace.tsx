@@ -47,7 +47,7 @@ export function InvigilationWorkspace() {
         <RecordTable
           columns={["Date","Time","Exam","Room","Paper","Class","Status"]}
           rows={rows}
-          emptyState={isLoading ? "Loading..." : "No records found. Create the first entry to get started."}
+          emptyState={isLoading ? "Loading..." : "No invigilation duties assigned yet. Exams office assignments will appear here once scheduled."}
         />
       )}
     </Panel>

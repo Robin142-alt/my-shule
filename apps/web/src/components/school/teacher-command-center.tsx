@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
@@ -35,6 +35,9 @@ import { InvigilationWorkspace } from "./teacher-dashboard/invigilation-workspac
 function normalizeTeacherView(section?: string): TeacherView {
   const sectionMap: Record<string, TeacherView> = {
     dashboard: "overview",
+    students: "learner-progress",
+    academics: "exams-marks",
+    communication: "parent-communication",
     "my-timetable": "timetable",
     "teacher-attendance": "attendance",
     "subjects-classes": "classes",
@@ -45,6 +48,8 @@ function normalizeTeacherView(section?: string): TeacherView {
     exams: "exams-marks",
     "student-notes": "learner-progress",
     "resource-requests": "teaching-resources",
+    "reports-downloads": "reports",
+    "reports-analytics": "reports",
     messages: "parent-communication",
   };
 
@@ -60,6 +65,10 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
   const activeView = activeViewState;
   const [notice, setNotice] = useState("");
 
+  useEffect(() => {
+    setActiveViewState(normalizeTeacherView(activeSection));
+  }, [activeSection]);
+
   const setActiveView = (view: TeacherView) => {
     setActiveViewState(view);
     const newPath = buildSchoolSectionHref("teacher", view, routeMode ?? "hosted");
@@ -73,7 +82,7 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F3F6FA]">
+    <div data-testid="teacher-command-center" className="flex min-h-screen bg-[#F3F6FA]">
       <Sidebar activeView={activeView} onViewChange={setActiveView} />
       <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
         <Topbar activeView={activeView} onViewChange={setActiveView} />

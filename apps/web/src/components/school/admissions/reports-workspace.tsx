@@ -82,7 +82,11 @@ export function ReportsWorkspace() {
             {isLoading ? (
               <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+              <tr>
+                <td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">
+                  No admissions reports yet. Generate Report compiles the current applications, document checks, interview outcomes, placement, and enrolment records into a downloadable admissions report.
+                </td>
+              </tr>
             ) : (
               items.map(row => (
                 <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">

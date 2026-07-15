@@ -211,7 +211,7 @@ export class AdmissionsCommandController {
   @Post('admissions/:id/admit')
   @Permissions('admissions:write')
   admitStudent(@Param('id') id: string) {
-    return this.admissionsService.approveApplication(id);
+    return this.admissionsService.admitStudent(id);
   }
 
   @Post('admissions/:id/letter')

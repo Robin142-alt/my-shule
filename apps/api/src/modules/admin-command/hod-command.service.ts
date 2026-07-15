@@ -20,11 +20,7 @@ export class HodCommandService {
   }
 
   private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
-    try {
-      return await this.prisma.query<T>(query, params);
-    } catch (e) {
-      return { rows: [], rowCount: 0 };
-    }
+    return this.prisma.query<T>(query, params);
   }
 
   async getOverview() {
@@ -71,6 +67,55 @@ export class HodCommandService {
       [tenantId]
     );
     return res.rows;
+  }
+
+  async getSubjectAllocationOptions() {
+    const tenantId = this.requireTenantId();
+    const [teachers, subjects, classes, terms] = await Promise.all([
+      this.executeSql(
+        `SELECT id::text, user_id::text, display_name AS label
+         FROM staff_profiles
+         WHERE tenant_id = $1
+           AND status IN ('active', 'pending_acceptance', 'profile_incomplete')
+         ORDER BY display_name ASC`,
+        [tenantId],
+      ),
+      this.executeSql(
+        `SELECT id::text, name AS label, code
+         FROM subjects
+         WHERE tenant_id = $1
+           AND status = 'active'
+         ORDER BY name ASC`,
+        [tenantId],
+      ),
+      this.executeSql(
+        `SELECT id::text,
+                COALESCE(custom_label, name || COALESCE(' ' || NULLIF(stream, ''), '')) AS label,
+                grade_level,
+                stream
+         FROM class_sections
+         WHERE tenant_id = $1
+           AND is_active = true
+           AND status = 'active'
+         ORDER BY grade_level ASC, stream ASC, name ASC`,
+        [tenantId],
+      ),
+      this.executeSql(
+        `SELECT id::text, name AS label, status
+         FROM academic_terms
+         WHERE tenant_id = $1
+           AND status IN ('active', 'draft')
+         ORDER BY starts_on DESC`,
+        [tenantId],
+      ),
+    ]);
+
+    return {
+      teachers: teachers.rows,
+      subjects: subjects.rows,
+      classes: classes.rows,
+      terms: terms.rows,
+    };
   }
 
   async getDepartmentTeachers() {

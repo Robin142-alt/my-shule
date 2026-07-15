@@ -198,7 +198,9 @@ function DataTable({
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-8 text-center text-[#64748B]">No records found.</td>
+                <td colSpan={columns.length} className="px-4 py-8 text-center text-[#64748B]">
+                  This boarding workspace is empty for the current school. Use the action above to add the first dormitory, allocation, roll call, or welfare record.
+                </td>
               </tr>
             )}
           </tbody>

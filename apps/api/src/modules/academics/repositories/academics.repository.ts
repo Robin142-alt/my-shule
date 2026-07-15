@@ -473,6 +473,72 @@ export class AcademicsRepository {
     return result.rows;
   }
 
+  async listTeacherOptions(tenantId: string) {
+    const result = await this.executeSql(this.getTenantId([`
+        SELECT
+          id::text,
+          user_id::text,
+          COALESCE(full_name, preferred_name, staff_number, email, id::text) AS label,
+          staff_number,
+          COALESCE(status, 'active') AS status
+        FROM staff_profiles
+        WHERE tenant_id = $1
+          AND user_id IS NOT NULL
+          AND COALESCE(status, 'active') = 'active'
+        ORDER BY label ASC
+        LIMIT 300
+      `,
+      [tenantId],]), `
+        SELECT
+          id::text,
+          user_id::text,
+          COALESCE(full_name, preferred_name, staff_number, email, id::text) AS label,
+          staff_number,
+          COALESCE(status, 'active') AS status
+        FROM staff_profiles
+        WHERE tenant_id = $1
+          AND user_id IS NOT NULL
+          AND COALESCE(status, 'active') = 'active'
+        ORDER BY label ASC
+        LIMIT 300
+      `,
+      [tenantId],);
+
+    return result.rows;
+  }
+
+  async findTeacherOptionByUserId(tenantId: string, teacherUserId: string) {
+    const result = await this.executeSql(this.getTenantId([`
+        SELECT
+          id::text,
+          user_id::text,
+          COALESCE(full_name, preferred_name, staff_number, email, id::text) AS label,
+          staff_number,
+          COALESCE(status, 'active') AS status
+        FROM staff_profiles
+        WHERE tenant_id = $1
+          AND user_id = $2::uuid
+          AND COALESCE(status, 'active') = 'active'
+        LIMIT 1
+      `,
+      [tenantId, teacherUserId],]), `
+        SELECT
+          id::text,
+          user_id::text,
+          COALESCE(full_name, preferred_name, staff_number, email, id::text) AS label,
+          staff_number,
+          COALESCE(status, 'active') AS status
+        FROM staff_profiles
+        WHERE tenant_id = $1
+          AND user_id = $2::uuid
+          AND COALESCE(status, 'active') = 'active'
+        LIMIT 1
+      `,
+      [tenantId, teacherUserId],);
+
+    return result.rows[0] ?? null;
+  }
+
   async assignStudentToClass(input: Record<string, unknown>) {
     return this.prisma.executeWithTenant<any>(input.tenant_id || (input as any).tenant_id, (input as any).created_by_user_id || null, async (tx: any) => {
       if (input.stream_id) {
@@ -989,8 +1055,44 @@ export class AcademicsRepository {
 
   // --- Departments ---
   async getDepartments(tenantId: string) {
-    const result = await this.executeSql(this.getTenantId([`SELECT * FROM academics_departments WHERE tenant_id = $1 AND is_active = true ORDER BY name ASC`,
-      [tenantId]]), `SELECT * FROM academics_departments WHERE tenant_id = $1 AND is_active = true ORDER BY name ASC`,
+    const result = await this.executeSql(this.getTenantId([`
+        SELECT
+          department.id::text,
+          department.tenant_id,
+          department.name,
+          department.head_of_department_user_id::text,
+          COALESCE(staff.full_name, staff.preferred_name, staff.staff_number, staff.email) AS head_of_department_name,
+          staff.staff_number AS head_of_department_staff_number,
+          department.is_active,
+          department.created_at::text,
+          department.updated_at::text
+        FROM academics_departments department
+        LEFT JOIN staff_profiles staff
+          ON staff.tenant_id = department.tenant_id
+         AND staff.user_id = department.head_of_department_user_id
+        WHERE department.tenant_id = $1
+          AND department.is_active = true
+        ORDER BY department.name ASC
+      `,
+      [tenantId]]), `
+        SELECT
+          department.id::text,
+          department.tenant_id,
+          department.name,
+          department.head_of_department_user_id::text,
+          COALESCE(staff.full_name, staff.preferred_name, staff.staff_number, staff.email) AS head_of_department_name,
+          staff.staff_number AS head_of_department_staff_number,
+          department.is_active,
+          department.created_at::text,
+          department.updated_at::text
+        FROM academics_departments department
+        LEFT JOIN staff_profiles staff
+          ON staff.tenant_id = department.tenant_id
+         AND staff.user_id = department.head_of_department_user_id
+        WHERE department.tenant_id = $1
+          AND department.is_active = true
+        ORDER BY department.name ASC
+      `,
       [tenantId]);
     return result.rows;
   }
@@ -1013,8 +1115,62 @@ export class AcademicsRepository {
 
   // --- Class Teachers ---
   async getClassTeachers(tenantId: string) {
-    const result = await this.executeSql(this.getTenantId([`SELECT * FROM academics_class_teachers WHERE tenant_id = $1 AND is_active = true`,
-      [tenantId]]), `SELECT * FROM academics_class_teachers WHERE tenant_id = $1 AND is_active = true`,
+    const result = await this.executeSql(this.getTenantId([`
+        SELECT
+          ct.id::text,
+          ct.tenant_id,
+          ct.academic_year_id::text,
+          ay.name AS academic_year_name,
+          ct.class_section_id::text,
+          cs.name AS class_section_name,
+          ct.teacher_user_id::text,
+          COALESCE(sp.full_name, sp.preferred_name, sp.staff_number, sp.email, 'Unlinked teacher') AS teacher_name,
+          sp.staff_number,
+          ct.is_active,
+          ct.created_at::text,
+          ct.updated_at::text
+        FROM academics_class_teachers ct
+        LEFT JOIN academic_years ay
+          ON ay.tenant_id = ct.tenant_id
+         AND ay.id = ct.academic_year_id
+        LEFT JOIN class_sections cs
+          ON cs.tenant_id = ct.tenant_id
+         AND cs.id = ct.class_section_id
+        LEFT JOIN staff_profiles sp
+          ON sp.tenant_id = ct.tenant_id
+         AND sp.user_id = ct.teacher_user_id
+        WHERE ct.tenant_id = $1
+          AND ct.is_active = true
+        ORDER BY cs.name ASC NULLS LAST, teacher_name ASC
+      `,
+      [tenantId]]), `
+        SELECT
+          ct.id::text,
+          ct.tenant_id,
+          ct.academic_year_id::text,
+          ay.name AS academic_year_name,
+          ct.class_section_id::text,
+          cs.name AS class_section_name,
+          ct.teacher_user_id::text,
+          COALESCE(sp.full_name, sp.preferred_name, sp.staff_number, sp.email, 'Unlinked teacher') AS teacher_name,
+          sp.staff_number,
+          ct.is_active,
+          ct.created_at::text,
+          ct.updated_at::text
+        FROM academics_class_teachers ct
+        LEFT JOIN academic_years ay
+          ON ay.tenant_id = ct.tenant_id
+         AND ay.id = ct.academic_year_id
+        LEFT JOIN class_sections cs
+          ON cs.tenant_id = ct.tenant_id
+         AND cs.id = ct.class_section_id
+        LEFT JOIN staff_profiles sp
+          ON sp.tenant_id = ct.tenant_id
+         AND sp.user_id = ct.teacher_user_id
+        WHERE ct.tenant_id = $1
+          AND ct.is_active = true
+        ORDER BY cs.name ASC NULLS LAST, teacher_name ASC
+      `,
       [tenantId]);
     return result.rows;
   }

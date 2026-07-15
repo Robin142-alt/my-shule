@@ -6,18 +6,24 @@ import {
   CalendarDays,
   ClipboardCheck,
   ClipboardList,
+  Download,
   FileSpreadsheet,
   GraduationCap,
   LockKeyhole,
   PenLine,
   Search,
   Send,
+  Upload,
   type LucideIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
+import { ImportsTemplatesWorkspace } from "@/components/modules/exams-manager/workspaces/imports-templates-workspace";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { downloadCsvFile } from "@/lib/dashboard/export";
 import { AnalysisWorkspace } from "./exams-manager/analysis-workspace";
 import { ExamSetupWorkspace } from "./exams-manager/exam-setup-workspace";
 import { ExamTimetableWorkspace } from "./exams-manager/exam-timetable-workspace";
@@ -40,10 +46,12 @@ type ExamsManagerCanonicalView =
   | "analysis"
   | "report-cards"
   | "publishing"
+  | "imports-templates"
   | "reports";
 
 type ExamsManagerLegacyView =
   | "dashboard"
+  | "exams"
   | "builder"
   | "scheduler"
   | "marks"
@@ -55,6 +63,8 @@ type ExamsManagerLegacyView =
   | "submissions"
   | "validation"
   | "exports"
+  | "imports"
+  | "templates"
   | "audit-log"
   | "archive";
 
@@ -71,6 +81,7 @@ type NavItem = {
 const routeAliases: Record<ExamsManagerView, ExamsManagerCanonicalView> = {
   dashboard: "overview",
   overview: "overview",
+  exams: "exam-setup",
   builder: "exam-setup",
   "exam-setup": "exam-setup",
   scheduler: "exam-timetable",
@@ -88,6 +99,9 @@ const routeAliases: Record<ExamsManagerView, ExamsManagerCanonicalView> = {
   "report-templates": "report-cards",
   "report-cards": "report-cards",
   publishing: "publishing",
+  imports: "imports-templates",
+  templates: "imports-templates",
+  "imports-templates": "imports-templates",
   exports: "reports",
   "audit-log": "reports",
   archive: "reports",
@@ -150,6 +164,13 @@ const navItems: NavItem[] = [
     summary: "Manage publish-ready result batches after moderation and approvals.",
     icon: Send,
     aliases: ["publishing"],
+  },
+  {
+    id: "imports-templates",
+    label: "Imports & Templates",
+    summary: "Preview CSV mark uploads, commit valid batches, download templates, and roll back imports.",
+    icon: Upload,
+    aliases: ["imports", "templates", "imports-templates"],
   },
   {
     id: "reports",
@@ -221,6 +242,8 @@ function Workspace({ view }: { view: ExamsManagerCanonicalView }) {
       return <ReportCardsWorkspace />;
     case "publishing":
       return <PublishingWorkspace />;
+    case "imports-templates":
+      return <ImportsTemplatesWorkspace model={{}} />;
     case "reports":
       return <ReportsWorkspace />;
     case "overview":
@@ -245,6 +268,7 @@ export function ExamsManagerCommandCenter({
     canonicalizeExamsManagerView(activeSection),
   );
   const [searchTerm, setSearchTerm] = useState("");
+  const [commandState, setCommandState] = useState<"export" | null>(null);
 
   useEffect(() => {
     setActiveViewState(canonicalizeExamsManagerView(activeSection));
@@ -272,6 +296,51 @@ export function ExamsManagerCommandCenter({
     setActiveViewState(view);
     setSearchTerm("");
     updateBrowserPath(view, actualRouteMode);
+  }
+
+  function requestMarksImport() {
+    setActiveView("imports-templates");
+    toast.info("Open the marks CSV upload workflow, preview rows, then commit the valid batch.");
+  }
+
+  function openExternalImportWorkspace() {
+    setActiveView("imports-templates");
+    toast.info("Use templates or upload a CSV export, preview validation, then commit the valid school-scoped batch.");
+  }
+
+  async function requestMarksExport() {
+    setCommandState("export");
+    try {
+      const response = await requestDashboardApi("/admin-command/exams-manager/marks-entry");
+      const entries = Array.isArray(response?.entries) ? response.entries : [];
+
+      if (entries.length === 0) {
+        setActiveView("marks-entry");
+        toast.error("No marks-entry rows are available to export yet. Open an exam cycle and wait for teacher submissions first.");
+        return;
+      }
+
+      downloadCsvFile({
+        filename: `marks-entry-export-${new Date().toISOString().slice(0, 10)}.csv`,
+        headers: ["exam_name", "subject", "class_name", "teacher", "total_students", "entered", "missing", "deadline", "status"],
+        rows: entries.map((entry: any) => [
+          entry.exam_name ?? "",
+          entry.subject ?? "",
+          entry.class_name ?? "",
+          entry.teacher ?? "",
+          String(entry.total_students ?? 0),
+          String(entry.entered ?? 0),
+          String(entry.missing ?? 0),
+          entry.deadline ?? "",
+          entry.status ?? "",
+        ]),
+      });
+      toast.success(`Downloaded ${entries.length} marks-entry row${entries.length === 1 ? "" : "s"}.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not export marks.");
+    } finally {
+      setCommandState(null);
+    }
   }
 
   return (
@@ -378,6 +447,36 @@ export function ExamsManagerCommandCenter({
                   <TaskQueue />
                   <ApprovalInbox currentUserId="school" />
                   <NotificationBell />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={requestMarksImport}
+                    disabled={Boolean(lockedReason) || commandState !== null}
+                    className="inline-flex items-center gap-2 rounded-full border border-[#D9E2EF] bg-white px-3 py-2 text-xs font-black text-[#071D49] shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Upload className="h-4 w-4" aria-hidden="true" />
+                    Import marks
+                  </button>
+                  <button
+                    type="button"
+                    onClick={requestMarksExport}
+                    disabled={Boolean(lockedReason) || commandState !== null}
+                    className="inline-flex items-center gap-2 rounded-full border border-[#D9E2EF] bg-white px-3 py-2 text-xs font-black text-[#071D49] shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Download className="h-4 w-4" aria-hidden="true" />
+                    {commandState === "export" ? "Exporting..." : "Export marks"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openExternalImportWorkspace}
+                    disabled={Boolean(lockedReason) || commandState !== null}
+                    className="inline-flex items-center gap-2 rounded-full border border-[#D9E2EF] bg-white px-3 py-2 text-xs font-black text-[#071D49] shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+                    CSV templates
+                  </button>
                 </div>
 
                 <span className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700">

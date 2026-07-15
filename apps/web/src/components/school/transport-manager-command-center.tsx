@@ -96,6 +96,21 @@ const navItems: NavItem[] = [
 
 type TransportSearchRecord = { id: string; label: string; detail: string; view: TransportView };
 type TransportActionHandler = (message: string, options?: { kind?: "workflow" | "report"; title?: string }) => void;
+type TransportSelectOption = {
+  id: string;
+  label: string;
+  route_id?: string | null;
+  class_id?: string | null;
+  guardian_contact?: string | null;
+  status?: string | null;
+};
+type TransportAssignmentOptions = {
+  routes?: TransportSelectOption[];
+  manifests?: TransportSelectOption[];
+  students?: TransportSelectOption[];
+  stops?: TransportSelectOption[];
+  vehicles?: TransportSelectOption[];
+};
 
 const toneClasses: Record<Tone, { chip: string; card: string; dot: string; text: string; rail: string }> = {
   success: {
@@ -773,8 +788,14 @@ function RoutesWorkspace({ onViewChange }: { onViewChange: (view: TransportView)
   );
 }
 
-function AssignRouteModal({ onClose }: { onClose: () => void }) {
+function AssignRouteModal({ onClose, onAssigned }: { onClose: () => void; onAssigned?: () => void }) {
   const [submitting, setSubmitting] = useState(false);
+  const { data: optionsData, isLoading: optionsLoading } = useSchoolQuery<TransportAssignmentOptions>("/api/admin-command/transport-manager/assignment-options");
+  const routeOptions = optionsData?.routes ?? [];
+  const studentOptions = optionsData?.students ?? [];
+  const stopOptions = optionsData?.stops ?? [];
+  const setupMissing = !optionsLoading && (!routeOptions.length || !studentOptions.length);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitting(true);
@@ -782,7 +803,7 @@ function AssignRouteModal({ onClose }: { onClose: () => void }) {
       const formData = new FormData(e.currentTarget);
       const data = Object.fromEntries(formData.entries());
       const assignment = {
-        manifest_id: String(data.manifest_id || "").trim(),
+        route_id: String(data.route_id || "").trim(),
         student_id: String(data.student_id || "").trim(),
         pickup_stop_id: String(data.pickup_stop_id || "").trim() || undefined,
         dropoff_stop_id: String(data.dropoff_stop_id || "").trim() || undefined,
@@ -795,6 +816,7 @@ function AssignRouteModal({ onClose }: { onClose: () => void }) {
         body: assignment,
       });
       toast.success("Transport assigned successfully");
+      onAssigned?.();
       onClose();
     } catch (error) {
       toast.error("Failed to assign transport", {
@@ -807,21 +829,46 @@ function AssignRouteModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="Assign Route & Vehicle" open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {setupMissing ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+            Add at least one active route and active learner before assigning transport.
+          </div>
+        ) : null}
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Transport Manifest ID</label>
-          <input required name="manifest_id" type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Route manifest UUID" />
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Route</label>
+          <select required name="route_id" disabled={optionsLoading || routeOptions.length === 0} className="w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+            <option value="">{optionsLoading ? "Loading routes..." : "Select route"}</option>
+            {routeOptions.map((option) => (
+              <option key={option.id} value={option.id}>{option.label}</option>
+            ))}
+          </select>
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Student ID</label>
-          <input required name="student_id" type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Student UUID" />
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Learner</label>
+          <select required name="student_id" disabled={optionsLoading || studentOptions.length === 0} className="w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+            <option value="">{optionsLoading ? "Loading learners..." : "Select learner"}</option>
+            {studentOptions.map((option) => (
+              <option key={option.id} value={option.id}>{option.label}</option>
+            ))}
+          </select>
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Pickup Stop ID</label>
-          <input name="pickup_stop_id" type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Optional pickup stop UUID" />
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Pickup stop</label>
+          <select name="pickup_stop_id" disabled={optionsLoading} className="w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+            <option value="">{optionsLoading ? "Loading stops..." : "Select pickup stop"}</option>
+            {stopOptions.map((option) => (
+              <option key={option.id} value={option.id}>{option.label}</option>
+            ))}
+          </select>
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Drop-off Stop ID</label>
-          <input name="dropoff_stop_id" type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Optional drop-off stop UUID" />
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Drop-off stop</label>
+          <select name="dropoff_stop_id" disabled={optionsLoading} className="w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+            <option value="">{optionsLoading ? "Loading stops..." : "Select drop-off stop"}</option>
+            {stopOptions.map((option) => (
+              <option key={option.id} value={option.id}>{option.label}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Guardian Contact</label>
@@ -833,7 +880,7 @@ function AssignRouteModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
           <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-          <button disabled={submitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
+          <button disabled={submitting || setupMissing} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-60">
             {submitting ? "Saving..." : "Assign Transport"}
           </button>
         </div>
@@ -845,7 +892,7 @@ function AssignRouteModal({ onClose }: { onClose: () => void }) {
 function AllocationWorkspace({ onAction }: { onAction: TransportActionHandler }) {
   const { hasPermission } = usePermissions();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { data: studentTransportData } = useSchoolQuery<any>("/api/admin-command/transport-manager/student-transport-list");
+  const { data: studentTransportData, refetch: refetchStudentTransport } = useSchoolQuery<any>("/api/admin-command/transport-manager/student-transport-list");
   const allocationRows = asRows<any>(studentTransportData).map((assignment: any) => [
     assignment.student_name || assignment.student_id?.substring?.(0, 8) || "Student record",
     assignment.admission_number || assignment.student_id?.substring?.(0, 8) || "Admission not set",
@@ -880,7 +927,7 @@ function AllocationWorkspace({ onAction }: { onAction: TransportActionHandler })
         </div>
       </Panel>
       
-      {isModalOpen && <AssignRouteModal onClose={() => setIsModalOpen(false)} />}
+      {isModalOpen && <AssignRouteModal onClose={() => setIsModalOpen(false)} onAssigned={() => void refetchStudentTransport?.()} />}
     </div>
   );
 }
@@ -943,6 +990,10 @@ function FuelWorkspace({ onAction }: { onAction: TransportActionHandler }) {
 
 function LogMaintenanceModal({ onClose }: { onClose: () => void }) {
   const [submitting, setSubmitting] = useState(false);
+  const { data: optionsData, isLoading: optionsLoading } = useSchoolQuery<TransportAssignmentOptions>("/api/admin-command/transport-manager/assignment-options");
+  const vehicleOptions = optionsData?.vehicles ?? [];
+  const setupMissing = !optionsLoading && vehicleOptions.length === 0;
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitting(true);
@@ -974,9 +1025,19 @@ function LogMaintenanceModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="Log Maintenance Issue" open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {setupMissing ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+            Add a fleet vehicle before logging maintenance.
+          </div>
+        ) : null}
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Vehicle</label>
-          <input required name="vehicle_id" type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Vehicle UUID" />
+          <select required name="vehicle_id" disabled={optionsLoading || vehicleOptions.length === 0} className="w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+            <option value="">{optionsLoading ? "Loading vehicles..." : "Select vehicle"}</option>
+            {vehicleOptions.map((option) => (
+              <option key={option.id} value={option.id}>{option.label}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Issue Description</label>
@@ -1001,7 +1062,7 @@ function LogMaintenanceModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
           <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-          <button disabled={submitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
+          <button disabled={submitting || setupMissing} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-60">
             {submitting ? "Logging..." : "Log Issue"}
           </button>
         </div>

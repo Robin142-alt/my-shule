@@ -87,6 +87,8 @@ export const DEFAULT_PERMISSION_CATALOG = [
   { resource: 'daraja', action: 'test', description: 'Test school-owned M-PESA Daraja credentials' },
   { resource: 'portal', action: 'read_own_children', description: 'View linked parent/student portal data' },
   { resource: 'portal', action: 'message_school', description: 'Send portal messages to the school' },
+  { resource: 'student-portal', action: 'read', description: 'View the authenticated learner portal workspace' },
+  { resource: 'student-portal', action: 'write', description: 'Submit authenticated learner portal actions' },
   { resource: 'admissions', action: 'read', description: 'View admissions workflows' },
   { resource: 'admissions', action: 'write', description: 'Manage admissions workflows' },
   { resource: 'documents', action: 'read', description: 'View document records' },
@@ -549,6 +551,8 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Student portal access for invited learners',
     permissions: [
       'auth:read',
+      'student-portal:read',
+      'student-portal:write',
       'support:view',
       'support:create',
       'support:reply',

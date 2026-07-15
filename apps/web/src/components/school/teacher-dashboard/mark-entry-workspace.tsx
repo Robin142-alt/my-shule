@@ -46,7 +46,7 @@ export function MarkEntryWorkspace() {
         <RecordTable
           columns={["Exam","Subject","Class","Total Marks","Entered","Status"]}
           rows={rows}
-          emptyState={isLoading ? "Loading..." : "No records found. Create the first entry to get started."}
+          emptyState={isLoading ? "Loading..." : "No mark-entry sheets yet. Exams manager must publish an exam and assign your subject before entry opens."}
         />
       )}
     </Panel>

@@ -66,6 +66,12 @@ export class AcademicsController {
     return this.academicsService.assignTeacher(dto);
   }
 
+  @Get('teachers')
+  @Permissions('academics:read')
+  listTeacherOptions() {
+    return this.academicsService.listTeacherOptions();
+  }
+
   @Post('student-class-assignments')
   @Permissions('students:write', 'academics:write')
   assignStudentToClass(@Body() dto: AssignStudentToClassDto) {

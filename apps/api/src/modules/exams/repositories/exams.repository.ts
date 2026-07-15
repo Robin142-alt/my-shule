@@ -172,6 +172,50 @@ export class ExamsRepository {
     return result.rows[0] ?? null;
   }
 
+  async findOpenMarkEntryWindow(input: {
+    tenant_id: string;
+    exam_series_id: string;
+    academic_term_id: string;
+    class_section_id: string;
+    subject_id: string;
+  }) {
+    const result = await this.executeSql(
+      `
+        SELECT
+          window.id::text,
+          window.exam_series_id::text,
+          window.subject_id::text,
+          window.class_section_id::text,
+          window.opens_at::text,
+          window.closes_at::text,
+          window.status
+        FROM exam_mark_entry_windows window
+        JOIN exam_series series
+          ON series.tenant_id = window.tenant_id
+         AND series.id = window.exam_series_id
+        WHERE window.tenant_id = $1
+          AND window.exam_series_id = $2::uuid
+          AND series.academic_term_id = $3::uuid
+          AND window.class_section_id = $4::uuid
+          AND window.subject_id = $5::uuid
+          AND window.status = 'open'
+          AND window.opens_at <= NOW()
+          AND window.closes_at >= NOW()
+        ORDER BY window.created_at DESC
+        LIMIT 1
+      `,
+      [
+        input.tenant_id,
+        input.exam_series_id,
+        input.academic_term_id,
+        input.class_section_id,
+        input.subject_id,
+      ],
+    );
+
+    return result.rows[0] ?? null;
+  }
+
   async upsertMark(input: Record<string, unknown>) {
     const result = await this.executeSql(
       `
@@ -686,6 +730,42 @@ export class ExamsRepository {
     return result.rows[0];
   }
 
+  async findGeneratedReportCardForPublication(input: {
+    tenant_id: string;
+    exam_series_id: string;
+    student_id: string;
+    report_snapshot_id: string;
+  }) {
+    const result = await this.executeSql(
+      `
+        SELECT
+          card.id::text,
+          card.exam_series_id::text,
+          card.student_id::text,
+          card.report_snapshot_id,
+          card.status,
+          card.verification_code,
+          card.metadata,
+          card.updated_at::text
+        FROM student_report_cards card
+        WHERE card.tenant_id = $1
+          AND card.exam_series_id = $2::uuid
+          AND card.student_id = $3::uuid
+          AND card.report_snapshot_id = $4
+          AND card.status = 'approved'
+        LIMIT 1
+      `,
+      [
+        input.tenant_id,
+        input.exam_series_id,
+        input.student_id,
+        input.report_snapshot_id,
+      ],
+    );
+
+    return result.rows[0] ?? null;
+  }
+
   async transitionReportCard(input: { tenant_id: string; actor_user_id: string; report_card_id: string; action: string }) {
     const result = await this.executeSql(
       `WITH transition AS (
@@ -1062,6 +1142,124 @@ export class ExamsRepository {
     return result.rows;
   }
 
+  async listGuardianReportCards(input: {
+    tenant_id: string;
+    guardian_user_id: string;
+    student_id?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const requestedLimit = Number.isFinite(input.limit) ? Math.floor(Number(input.limit)) : 25;
+    const requestedOffset = Number.isFinite(input.offset) ? Math.floor(Number(input.offset)) : 0;
+    const limit = requestedLimit > 0 ? Math.min(requestedLimit, 50) : 25;
+    const offset = Math.max(requestedOffset, 0);
+    const result = await this.executeSql(
+      `
+        SELECT
+          card.id::text,
+          card.tenant_id,
+          card.exam_series_id::text,
+          card.student_id::text,
+          card.report_snapshot_id,
+          card.status,
+          card.verification_code,
+          card.published_at::text,
+          card.metadata,
+          card.created_at::text,
+          card.updated_at::text,
+          series.name AS exam_series_name,
+          term.name AS term,
+          year.name AS academic_year,
+          concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS student_name,
+          student.admission_number
+        FROM student_report_cards card
+        INNER JOIN student_guardians guardian
+          ON guardian.tenant_id = card.tenant_id
+         AND guardian.student_id = card.student_id
+         AND guardian.user_id = $2::uuid
+         AND guardian.status = 'active'
+        INNER JOIN students student
+          ON student.tenant_id = card.tenant_id
+         AND student.id = card.student_id
+         AND student.status <> 'archived'
+        LEFT JOIN exam_series series
+          ON series.tenant_id = card.tenant_id
+         AND series.id = card.exam_series_id
+        LEFT JOIN academic_terms term
+          ON term.tenant_id = series.tenant_id
+         AND term.id = series.academic_term_id
+        LEFT JOIN academic_years year
+          ON year.tenant_id = term.tenant_id
+         AND year.id = term.academic_year_id
+        WHERE card.tenant_id = $1
+          AND card.status = 'published'
+          AND ($3::uuid IS NULL OR card.student_id = $3::uuid)
+        ORDER BY card.published_at DESC NULLS LAST, card.created_at DESC
+        LIMIT $4::integer
+        OFFSET $5::integer
+      `,
+      [input.tenant_id, input.guardian_user_id, input.student_id ?? null, limit, offset],
+    );
+
+    return result.rows;
+  }
+
+  async listStudentReportCards(input: {
+    tenant_id: string;
+    student_id: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const requestedLimit = Number.isFinite(input.limit) ? Math.floor(Number(input.limit)) : 25;
+    const requestedOffset = Number.isFinite(input.offset) ? Math.floor(Number(input.offset)) : 0;
+    const limit = requestedLimit > 0 ? Math.min(requestedLimit, 50) : 25;
+    const offset = Math.max(requestedOffset, 0);
+    const result = await this.executeSql(
+      `
+        SELECT
+          card.id::text,
+          card.tenant_id,
+          card.exam_series_id::text,
+          card.student_id::text,
+          card.report_snapshot_id,
+          card.status,
+          card.verification_code,
+          card.published_at::text,
+          card.metadata,
+          card.created_at::text,
+          card.updated_at::text,
+          series.name AS exam_series_name,
+          term.name AS term,
+          year.name AS academic_year,
+          concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS student_name,
+          student.admission_number
+        FROM student_report_cards card
+        INNER JOIN students student
+          ON student.tenant_id = card.tenant_id
+         AND student.id = card.student_id
+         AND student.status <> 'archived'
+        LEFT JOIN exam_series series
+          ON series.tenant_id = card.tenant_id
+         AND series.id = card.exam_series_id
+        LEFT JOIN academic_terms term
+          ON term.tenant_id = series.tenant_id
+         AND term.id = series.academic_term_id
+        LEFT JOIN academic_years year
+          ON year.tenant_id = term.tenant_id
+         AND year.id = term.academic_year_id
+        WHERE card.tenant_id = $1
+          AND card.student_id = $2::uuid
+          AND card.status = 'published'
+        ORDER BY card.published_at DESC NULLS LAST, card.created_at DESC
+        LIMIT $3::integer
+        OFFSET $4::integer
+      `,
+      [input.tenant_id, input.student_id, limit, offset],
+    );
+
+    return result.rows;
+  }
+
   async findReportCardForGuardian(input: {
     tenant_id: string;
     report_card_id: string;
@@ -1084,6 +1282,34 @@ export class ExamsRepository {
         input.tenant_id,
         input.report_card_id,
         input.guardian_user_id,
+      ],
+    );
+
+    return result.rows[0] ?? null;
+  }
+
+  async findReportCardForStudent(input: {
+    tenant_id: string;
+    report_card_id: string;
+    student_id: string;
+  }) {
+    const result = await this.executeSql(
+      `
+        SELECT card.*
+        FROM student_report_cards card
+        INNER JOIN students student
+          ON student.tenant_id = card.tenant_id
+         AND student.id = card.student_id
+         AND student.status <> 'archived'
+        WHERE card.tenant_id = $1
+          AND card.id = $2::uuid
+          AND card.student_id = $3::uuid
+        LIMIT 1
+      `,
+      [
+        input.tenant_id,
+        input.report_card_id,
+        input.student_id,
       ],
     );
 
@@ -1273,18 +1499,20 @@ export class ExamsRepository {
     return result.rows[0] ?? null;
   }
 
-  async submitMarks(input: { tenant_id: string; actor_user_id: string; mark_ids: string[] }) {
+  async submitMarks(input: { tenant_id: string; actor_user_id: string; mark_ids: string[]; restrict_to_actor?: boolean }) {
     const result = await this.executeSql(
       `
         UPDATE exam_marks
         SET status = 'submitted',
+            updated_by_user_id = $3::uuid,
             updated_at = NOW()
         WHERE tenant_id = $1
-          AND id = ANY($2::uuid[])
+          AND mark.id = ANY($2::uuid[])
           AND status IN ('draft', 'submitted')
+          AND ($4::boolean = FALSE OR entered_by_user_id = $3::uuid)
         RETURNING id::text
       `,
-      [input.tenant_id, input.mark_ids],
+      [input.tenant_id, input.mark_ids, input.actor_user_id, Boolean(input.restrict_to_actor)],
     );
 
     return {
@@ -1720,11 +1948,15 @@ export class ExamsRepository {
     tenant_id: string;
     status_in?: string[];
     department_id?: string;
+    department_ids?: string[];
     limit?: number;
     offset?: number;
   }) {
     const limit = this.normalizeLimit(input.limit);
     const offset = this.normalizeOffset(input.offset);
+    const departmentIds = Array.isArray(input.department_ids)
+      ? input.department_ids.filter((departmentId) => typeof departmentId === 'string' && departmentId.trim()).map((departmentId) => departmentId.trim())
+      : [];
     
     let query = `
       SELECT m.*
@@ -1733,12 +1965,16 @@ export class ExamsRepository {
     const params: any[] = [input.tenant_id];
     let paramIndex = 2;
     
-    if (input.department_id) {
+    if (input.department_id || departmentIds.length > 0) {
       query += ` JOIN subjects s ON s.id = m.subject_id AND s.tenant_id = m.tenant_id `;
     }
     query += ` WHERE m.tenant_id = $1 `;
     
-    if (input.department_id) {
+    if (departmentIds.length > 0) {
+      query += ` AND s.department_id = ANY($${paramIndex}::uuid[]) `;
+      params.push(departmentIds);
+      paramIndex++;
+    } else if (input.department_id) {
       query += ` AND s.department_id = $${paramIndex}::uuid `;
       params.push(input.department_id);
       paramIndex++;
@@ -1762,22 +1998,70 @@ export class ExamsRepository {
     mark_ids: string[];
     action: 'approve' | 'return_for_correction';
     actor_user_id: string;
+    department_ids?: string[];
   }) {
     const status = input.action === 'approve' ? 'reviewed' : 'draft';
+    const departmentIds = Array.isArray(input.department_ids)
+      ? input.department_ids.filter((departmentId) => typeof departmentId === 'string' && departmentId.trim()).map((departmentId) => departmentId.trim())
+      : [];
+    const departmentJoin = departmentIds.length > 0
+      ? `
+        FROM subjects subject
+        WHERE mark.tenant_id = $1
+          AND subject.id = mark.subject_id
+          AND subject.tenant_id = mark.tenant_id
+          AND subject.department_id = ANY($6::uuid[])
+      `
+      : `
+        WHERE tenant_id = $1
+      `;
+    const statusPredicate = departmentIds.length > 0
+      ? `
+          AND mark.id = ANY($2::uuid[])
+          AND (
+            ($5::text = 'approve' AND mark.status = 'submitted')
+            OR ($5::text = 'return_for_correction' AND mark.status IN ('submitted', 'reviewed'))
+          )
+      `
+      : `
+          AND id = ANY($2::uuid[])
+          AND (
+            ($5::text = 'approve' AND status = 'submitted')
+            OR ($5::text = 'return_for_correction' AND status IN ('submitted', 'reviewed'))
+          )
+      `;
     const result = await this.executeSql(
       `
-        UPDATE exam_marks
+        UPDATE exam_marks${departmentIds.length > 0 ? ' mark' : ''}
         SET status = $3,
             updated_by_user_id = $4::uuid,
             reviewed_at = CASE WHEN $3 = 'reviewed' THEN NOW() ELSE reviewed_at END,
             updated_at = NOW()
-        WHERE tenant_id = $1
-          AND id = ANY($2::uuid[])
-        RETURNING *
+        ${departmentJoin}
+        ${statusPredicate}
+        RETURNING ${departmentIds.length > 0 ? 'mark.*' : '*'}
       `,
-      [input.tenant_id, input.mark_ids, status, input.actor_user_id]
+      departmentIds.length > 0
+        ? [input.tenant_id, input.mark_ids, status, input.actor_user_id, input.action, departmentIds]
+        : [input.tenant_id, input.mark_ids, status, input.actor_user_id, input.action]
     );
     return result.rows;
+  }
+
+  async listDepartmentsLedByUser(input: { tenant_id: string; user_id: string }) {
+    const result = await this.executeSql(
+      `
+        SELECT department.id::text
+        FROM academics_departments department
+        WHERE department.tenant_id = $1
+          AND department.head_of_department_user_id = $2::uuid
+          AND department.is_active = true
+        ORDER BY department.name ASC
+      `,
+      [input.tenant_id, input.user_id],
+    );
+
+    return result.rows.map((row: Record<string, unknown>) => String(row.id));
   }
 
   async lockMarks(input: {
@@ -2730,23 +3014,101 @@ export class ExamsRepository {
   }
 
   async getMarks(tenantId: string, filters: Record<string, any> = {}) {
-    let query = `SELECT * FROM exam_marks WHERE tenant_id = $1`;
-    const params: any[] = [tenantId];
-    let paramCount = 2;
-
-    if (filters.exam_series_id) {
-      query += ` AND exam_series_id = $${paramCount}::uuid`;
-      params.push(filters.exam_series_id);
-      paramCount++;
-    }
-
-    if (filters.student_id) {
-      query += ` AND student_id = $${paramCount}::uuid`;
-      params.push(filters.student_id);
-      paramCount++;
-    }
-    
-    query += ` ORDER BY updated_at DESC LIMIT 1000`;
+    const candidateLimit = Number(filters.limit);
+    const candidateOffset = Number(filters.offset);
+    const limit = Number.isInteger(candidateLimit) && candidateLimit > 0 ? Math.min(candidateLimit, 100) : 100;
+    const offset = Number.isInteger(candidateOffset) && candidateOffset >= 0 ? candidateOffset : 0;
+    const query = `
+      SELECT
+        mark.id::text,
+        window.id::text AS mark_entry_window_id,
+        window.exam_series_id::text,
+        series.name AS exam_series_name,
+        series.academic_term_id::text,
+        assessment.id::text AS assessment_id,
+        assessment.name AS assessment_name,
+        assessment.max_score::float AS max_score,
+        assessment.weight::float AS assessment_weight,
+        window.class_section_id::text,
+        COALESCE(class_section.name, window.class_section_id::text) AS class_name,
+        window.subject_id::text,
+        COALESCE(subject.name, window.subject_id::text) AS subject_name,
+        student.id::text AS student_id,
+        student.admission_number,
+        NULLIF(BTRIM(CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name)), '') AS student_name,
+        mark.score::float AS score,
+        mark.remarks,
+        COALESCE(mark.status, 'draft') AS status,
+        mark.entered_by_user_id::text,
+        mark.updated_at::text,
+        window.opens_at::text,
+        window.closes_at::text
+      FROM exam_mark_entry_windows window
+      JOIN exam_series series
+        ON series.tenant_id = window.tenant_id
+       AND series.id = window.exam_series_id
+      JOIN exam_assessments assessment
+        ON assessment.tenant_id = window.tenant_id
+       AND assessment.exam_series_id = window.exam_series_id
+       AND assessment.subject_id = window.subject_id
+      JOIN students student
+        ON student.tenant_id = window.tenant_id
+       AND student.status = 'active'
+       AND NULLIF(student.metadata->>'class_section_id', '')::uuid = window.class_section_id
+      LEFT JOIN class_sections class_section
+        ON class_section.tenant_id = window.tenant_id
+       AND class_section.id = window.class_section_id
+      LEFT JOIN subjects subject
+        ON subject.tenant_id = window.tenant_id
+       AND subject.id = window.subject_id
+      LEFT JOIN exam_marks mark
+        ON mark.tenant_id = window.tenant_id
+       AND mark.exam_series_id = window.exam_series_id
+       AND mark.assessment_id = assessment.id
+       AND mark.class_section_id = window.class_section_id
+       AND mark.subject_id = window.subject_id
+       AND mark.student_id = student.id
+      WHERE window.tenant_id = $1
+        AND ($2::uuid IS NULL OR window.exam_series_id = $2::uuid)
+        AND ($3::uuid IS NULL OR student.id = $3::uuid)
+        AND (
+          $4::uuid IS NULL
+          OR EXISTS (
+            SELECT 1
+            FROM teacher_subject_assignments assignment
+            WHERE assignment.tenant_id = window.tenant_id
+              AND assignment.academic_term_id = series.academic_term_id
+              AND assignment.class_section_id = window.class_section_id
+              AND assignment.subject_id = window.subject_id
+              AND assignment.teacher_user_id = $4::uuid
+              AND assignment.status = 'active'
+          )
+        )
+        AND ($5::uuid IS NULL OR window.class_section_id = $5::uuid)
+        AND ($8::uuid IS NULL OR window.subject_id = $8::uuid)
+        AND ($9::uuid IS NULL OR assessment.id = $9::uuid)
+        AND window.status = 'open'
+        AND window.opens_at <= NOW()
+        AND window.closes_at >= NOW()
+      ORDER BY
+        class_section.name NULLS LAST,
+        subject.name NULLS LAST,
+        assessment.name,
+        student.admission_number NULLS LAST,
+        student.created_at ASC
+      LIMIT $6::integer
+      OFFSET $7::integer`;
+    const params: any[] = [
+      tenantId,
+      filters.exam_series_id ?? null,
+      filters.student_id ?? null,
+      filters.teacher_user_id ?? null,
+      filters.class_section_id ?? null,
+      limit,
+      offset,
+      filters.subject_id ?? null,
+      filters.assessment_id ?? null,
+    ];
     const result = await this.executeSql(query, params);
     return result.rows;
   }

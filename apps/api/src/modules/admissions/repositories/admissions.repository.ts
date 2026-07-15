@@ -33,6 +33,18 @@ export interface AdmissionApplicationRecord {
   updated_at?: Date;
 }
 
+export interface AdmissionsClassOptionRecord {
+  id: string;
+  name: string;
+  grade_level: string | null;
+  stream: string | null;
+  capacity: number | null;
+  student_count: number;
+  available_seats: number | null;
+  label: string;
+  value: string;
+}
+
 @Injectable()
 export class AdmissionsRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -108,6 +120,41 @@ export class AdmissionsRepository {
     );
 
     return Number(result[0]?.total ?? '0');
+  }
+
+  async listClassOptions(tenantId: string): Promise<AdmissionsClassOptionRecord[]> {
+    const result = await this.executeSql<AdmissionsClassOptionRecord>(tenantId, `
+        SELECT
+          section.id::text,
+          section.name,
+          NULLIF(section.grade_level, '') AS grade_level,
+          NULLIF(section.stream, '') AS stream,
+          section.capacity,
+          COALESCE(student_counts.student_count, 0)::int AS student_count,
+          CASE
+            WHEN section.capacity IS NULL THEN NULL
+            ELSE GREATEST(section.capacity - COALESCE(student_counts.student_count, 0), 0)::int
+          END AS available_seats,
+          btrim(concat_ws(' ', section.name, NULLIF(section.stream, ''))) AS label,
+          section.name AS value
+        FROM class_sections section
+        LEFT JOIN (
+          SELECT tenant_id, class_section_id, COUNT(*)::int AS student_count
+          FROM student_class_assignments
+          WHERE tenant_id = $1
+            AND status = 'active'
+          GROUP BY tenant_id, class_section_id
+        ) student_counts
+          ON student_counts.tenant_id = section.tenant_id
+         AND student_counts.class_section_id = section.id
+        WHERE section.tenant_id = $1
+          AND section.is_active = TRUE
+          AND lower(COALESCE(section.status, 'active')) = 'active'
+        ORDER BY NULLIF(section.grade_level, '') ASC NULLS LAST, section.name ASC, NULLIF(section.stream, '') ASC NULLS LAST
+      `, [tenantId],
+    );
+
+    return result;
   }
 
   async listApplications(

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { ClipboardList, Search, Eye, CheckCircle, XCircle } from "lucide-react";
+import Link from "next/link";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { toast } from "sonner";
@@ -118,7 +119,24 @@ export function ApplicationsWorkspace() {
             {isLoading ? (
               <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">Loading applications...</td></tr>
             ) : applications.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">No applications found. Share the admissions link with prospective parents to receive applications.</td></tr>
+              <tr>
+                <td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">
+                  <div className="mx-auto flex max-w-xl flex-col items-center gap-3">
+                    <div>
+                      <p className="font-black text-[#071D49]">No applications have been started yet.</p>
+                      <p className="mt-1 text-sm leading-6">
+                        Start student admission to capture the first learner, select a school-created class, and move the application through review, interview, approval, and enrolment.
+                      </p>
+                    </div>
+                    <Link
+                      href="/school/admissions/applications?action=start-admission"
+                      className="rounded-lg bg-[#071D49] px-4 py-2 text-xs font-black text-white shadow-sm hover:bg-[#12326C]"
+                    >
+                      Start student admission
+                    </Link>
+                  </div>
+                </td>
+              </tr>
             ) : (
               applications.map((app) => (
                 <tr key={app.id} className="hover:bg-[#F8FAFC]">

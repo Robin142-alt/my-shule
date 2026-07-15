@@ -17,6 +17,7 @@ describe("SaaS identity role routing", () => {
     expect(getRoleHomePath("bursar")).toBe("/school/bursar");
     expect(getRoleHomePath("accountant")).toBe("/school/accountant");
     expect(getRoleHomePath("teacher")).toBe("/school/teacher");
+    expect(getRoleHomePath("dean")).toBe("/school/dean-academics");
     expect(getRoleHomePath("dean_academics")).toBe("/school/dean-academics");
     expect(getRoleHomePath("dean-of-academics")).toBe("/school/dean-academics");
     expect(getRoleHomePath("academic_dean")).toBe("/school/dean-academics");
@@ -128,6 +129,7 @@ describe("SaaS identity role routing", () => {
     expect(getSchoolRoleAlias("dean_of_students")).toBe("discipline-master");
     expect(getSchoolRoleAlias("discipline-master")).toBeNull();
     expect(getSchoolRoleAlias("dean_academics")).toBe("dean-academics");
+    expect(getSchoolRoleAlias("dean")).toBe("dean-academics");
     expect(getSchoolRoleAlias("dean-of-academics")).toBe("dean-academics");
     expect(getSchoolRoleAlias("academic_dean")).toBe("dean-academics");
     expect(getSchoolRoleAlias("dean-academics")).toBeNull();

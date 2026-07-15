@@ -68,7 +68,7 @@ export function CurriculumCoverageWorkspace() {
             {isLoading ? (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No curriculum coverage records yet. Teacher lesson logs will populate this review queue.</td></tr>
             ) : (
               items.map(row => (
                 <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">

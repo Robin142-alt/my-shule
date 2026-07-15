@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
 import { AdmissionsCommandRepository } from './repositories/admissions-command.repository';
@@ -61,7 +61,7 @@ export class AdmissionsCommandService {
 
   async updateApplicationStatus(id: string, body: any) {
     const tenantId = this.requireTenantId();
-    const status = typeof body === 'string' ? body : body?.status;
+    const status = this.normalizeApplicationStatus(typeof body === 'string' ? body : body?.status);
     const application = await this.admissionsRepository.updateApplicationStatus(tenantId, id, status, body?.notes ?? body?.review_notes);
     if (!application) {
       throw new NotFoundException('Admission application was not found for this school');
@@ -70,6 +70,14 @@ export class AdmissionsCommandService {
       status: application.status,
     }, this.getUserIdOrNull());
     return application;
+  }
+
+  private normalizeApplicationStatus(status: unknown) {
+    const normalized = String(status || '').trim().toLowerCase().replace(/\s+/g, '_');
+    if (['approved', 'rejected', 'pending', 'registered', 'interview', 'reviewing'].includes(normalized)) return normalized;
+    if (normalized === 'under_review') return 'reviewing';
+    if (normalized === 'interview_scheduled') return 'interview';
+    throw new BadRequestException(`Unsupported application status "${String(status ?? '').trim() || 'empty'}"`);
   }
 
   async scheduleInterview(body: any) {
@@ -209,6 +217,69 @@ export class AdmissionsCommandService {
     }
     this.logger.log(`Approving admission application ${id} for tenant ${tenantId}`);
     return this.admissionsRepository.approveApplication(tenantId, id, userId);
+  }
+
+  async admitStudent(id: string) {
+    const tenantId = this.requireTenantId();
+    const userId = this.requestContext.getStore()?.user_id;
+    if (!userId) {
+      throw new UnauthorizedException('User context is required');
+    }
+
+    let admission: any;
+    try {
+      admission = await this.admissionsRepository.admitStudent(tenantId, id, userId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Student admission could not be completed';
+      if (/must be approved|already rejected|already processed/i.test(message)) {
+        throw new BadRequestException(message);
+      }
+      throw error;
+    }
+
+    if (!admission) {
+      throw new NotFoundException('Admission application was not found for this school');
+    }
+
+    await this.operations.recordAudit(tenantId, 'admissions.student.admitted', 'student', admission.student.id, {
+      application_id: admission.application.id,
+      admission_number: admission.student.admission_number,
+      class_name: admission.allocation?.class_name ?? admission.application.class_applying,
+      stream_name: admission.allocation?.stream_name ?? 'Default',
+    }, userId);
+    await this.operations.recordWorkflowAction({
+      tenantId,
+      actorUserId: userId,
+      sourceRole: 'admissions_officer',
+      targetRoles: ['principal', 'secretary', 'accountant', 'class_teacher', 'teacher'],
+      eventType: 'admissions.student.admitted',
+      entityType: 'student',
+      entityId: admission.student.id,
+      title: 'Student admitted',
+      message: `${admission.application.full_name} was admitted with admission number ${admission.student.admission_number}.`,
+      priority: 'normal',
+      payload: {
+        application_id: admission.application.id,
+        admission_number: admission.student.admission_number,
+        class_name: admission.allocation?.class_name ?? admission.application.class_applying,
+        stream_name: admission.allocation?.stream_name ?? 'Default',
+        source_dashboard: 'admissions-command-center',
+      },
+    });
+    await this.operations.notifyRoles(tenantId, {
+      key: `admissions-student-admitted-${admission.student.id}`,
+      type: 'admissions.student.admitted',
+      title: 'Student admitted',
+      body: `${admission.application.full_name} is now active in ${admission.allocation?.class_name ?? admission.application.class_applying}.`,
+      targetRoles: ['principal', 'secretary', 'accountant', 'class_teacher'],
+      metadata: {
+        student_id: admission.student.id,
+        application_id: admission.application.id,
+        admission_number: admission.student.admission_number,
+      },
+    });
+
+    return admission;
   }
 
   async recordAction(body: any) {

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { CalendarCheck, Clock, CheckCircle, XCircle } from "lucide-react";
+import Link from "next/link";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { toast } from "sonner";
@@ -103,7 +104,16 @@ export function InterviewsWorkspace() {
             {isLoading ? (
               <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">Loading interviews...</td></tr>
             ) : interviews.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">No interviews scheduled. Approve applications first, then schedule interviews for shortlisted candidates.</td></tr>
+              <tr>
+                <td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">
+                  <div className="mx-auto flex max-w-xl flex-col items-center gap-3">
+                    <p>No interviews scheduled. Review applications first, then schedule interviews for shortlisted candidates.</p>
+                    <Link href="/school/admissions/applications?action=start-admission" className="rounded-lg bg-[#071D49] px-4 py-2 text-xs font-black text-white">
+                      Review applications
+                    </Link>
+                  </div>
+                </td>
+              </tr>
             ) : (
               interviews.map((iv) => (
                 <tr key={iv.id} className="hover:bg-[#F8FAFC]">

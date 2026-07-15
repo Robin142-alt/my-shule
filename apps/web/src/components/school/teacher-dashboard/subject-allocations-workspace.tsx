@@ -45,7 +45,7 @@ export function SubjectAllocationsWorkspace() {
         <RecordTable
           columns={["Subject","Class","Stream","Lessons/Week","Status"]}
           rows={rows}
-          emptyState={isLoading ? "Loading..." : "No records found. Create the first entry to get started."}
+          emptyState={isLoading ? "Loading..." : "No subject allocations yet. HOD or deputy allocations will appear here before teaching workflows open."}
         />
       )}
     </Panel>

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Users, Link2, Send } from "lucide-react";
+import Link from "next/link";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { toast } from "sonner";
@@ -110,7 +111,16 @@ export function ParentLinkingWorkspace() {
             {isLoading ? (
               <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">Loading parent links...</td></tr>
             ) : links.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">No students found for parent linking. Complete admissions first to link parents to their children.</td></tr>
+              <tr>
+                <td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">
+                  <div className="mx-auto flex max-w-xl flex-col items-center gap-3">
+                    <p>No students found for parent linking. Start student admission, complete enrolment, then link guardians to their children here.</p>
+                    <Link href="/school/admissions/applications?action=start-admission" className="rounded-lg bg-[#071D49] px-4 py-2 text-xs font-black text-white">
+                      Start student admission
+                    </Link>
+                  </div>
+                </td>
+              </tr>
             ) : (
               links.map((link) => (
                 <tr key={link.id} className="hover:bg-[#F8FAFC]">

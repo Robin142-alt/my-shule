@@ -55,11 +55,60 @@ export class ClassTeacherService {
     }
   }
 
+  private requireText(value: unknown, fieldName: string): string {
+    const normalized = typeof value === 'string' ? value.trim() : '';
+    if (!normalized) {
+      throw new BadRequestException(`${fieldName} is required`);
+    }
+    return normalized;
+  }
+
+  private async assertTeacherAssignedClassSubject(
+    tenantId: string,
+    userId: string,
+    classSectionId: string,
+    subjectId: string,
+  ) {
+    const { rows } = await this.executeSql(
+      `SELECT id
+       FROM teacher_subject_assignments
+       WHERE tenant_id = $1
+         AND teacher_user_id = $2
+         AND class_section_id = $3
+         AND subject_id = $4
+         AND status = 'active'
+       LIMIT 1`,
+      [tenantId, userId, classSectionId, subjectId],
+    );
+
+    if (rows.length === 0) {
+      throw new BadRequestException('Select an assigned class and subject before publishing homework.');
+    }
+  }
+
+  private async assertTeacherAssignedClass(tenantId: string, userId: string, classSectionId: string) {
+    const { rows } = await this.executeSql(
+      `SELECT id
+       FROM teacher_subject_assignments
+       WHERE tenant_id = $1
+         AND teacher_user_id = $2
+         AND class_section_id = $3
+         AND status = 'active'
+       LIMIT 1`,
+      [tenantId, userId, classSectionId],
+    );
+
+    if (rows.length === 0) {
+      throw new BadRequestException('Select one of your assigned classes before saving this lesson log.');
+    }
+  }
+
   async getMyClasses(tenantId: string, userId: string) {
     const query = `
       SELECT 
         tsa.id,
         cs.id as class_section_id,
+        s.id as subject_id,
         cs.name as class_name,
         s.name as subject_name,
         COALESCE(sc.student_count, 0) as learners_count,
@@ -115,6 +164,7 @@ export class ClassTeacherService {
       classes: result.map(r => ({
         id: r.id,
         classSectionId: r.class_section_id,
+        subjectId: r.subject_id,
         className: r.class_name,
         subjectName: r.subject_name,
         learnersCount: parseInt(r.learners_count),
@@ -1099,10 +1149,12 @@ export class ClassTeacherService {
       SELECT 
         a.id,
         a.title,
+        cs.name as "className",
         s.name as subject,
         a.due_date as "dueDate",
         a.status
       FROM academics_assignments a
+      JOIN class_sections cs ON cs.id::text = a.class_id AND cs.tenant_id = a.tenant_id
       JOIN subjects s ON s.id::text = a.subject_id AND s.tenant_id = a.tenant_id
       WHERE a.tenant_id = $1 ${streamId ? 'AND a.class_id = $2' : ''} AND a.teacher_id = ${streamId ? '$3' : '$2'}
       ORDER BY a.due_date DESC
@@ -1113,20 +1165,62 @@ export class ClassTeacherService {
   }
 
   async saveHomework(tenantId: string, userId: string, payload: any) {
+    const title = this.requireText(payload?.title, 'Assignment title');
+    const classId = this.requireText(payload?.classId, 'Assigned class');
+    const subjectId = this.requireText(payload?.subjectId, 'Assigned subject');
+    const dueDate = this.requireText(payload?.dueDate, 'Due date');
+    const description = typeof payload?.description === 'string' ? payload.description.trim() : '';
+
+    await this.assertTeacherAssignedClassSubject(tenantId, userId, classId, subjectId);
+
     const query = `
       INSERT INTO academics_assignments (tenant_id, title, description, class_id, subject_id, due_date, teacher_id, status)
       VALUES ($1, $2, $3, $4, $5, $6, $7, 'Published')
+      RETURNING id
     `;
-    await this.executeSql(query, [
+    const { rows } = await this.executeSql(query, [
       tenantId,
-      payload.title || 'Assignment',
-      payload.description || '',
-      payload.classId || '00000000-0000-0000-0000-000000000000',
-      payload.subjectId || '00000000-0000-0000-0000-000000000000',
-      payload.dueDate || new Date().toISOString(),
+      title,
+      description,
+      classId,
+      subjectId,
+      dueDate,
       userId
     ]);
-    return { success: true };
+
+    const assignmentId = rows[0]?.id ?? null;
+
+    await this.executeSql(
+      `
+        INSERT INTO workflow_events (
+          tenant_id,
+          source_user_id,
+          entity_id,
+          event_type,
+          entity_type,
+          title,
+          message,
+          payload,
+          status,
+          priority,
+          target_roles
+        )
+        VALUES ($1, $2, $3, 'class_teacher.homework_published', 'assignment', $4, $5, $6::jsonb, 'published', 'normal', $7::jsonb)
+      `,
+      [
+        tenantId,
+        userId,
+        assignmentId ?? classId,
+        'Homework assignment published',
+        `${title} was published for the selected class and subject.`,
+        JSON.stringify({ assignment_id: assignmentId, class_id: classId, subject_id: subjectId, due_date: dueDate }),
+        JSON.stringify(['class_teacher', 'student', 'parent']),
+      ],
+    ).catch((error) => {
+      this.logger.warn(`Could not record homework workflow event: ${error?.message ?? error}`);
+    });
+
+    return { success: true, assignmentId };
   }
 
   async getLessonLogs(tenantId: string, userId: string, streamId?: string) {
@@ -1148,6 +1242,10 @@ export class ClassTeacherService {
   }
 
   async saveLessonLog(tenantId: string, userId: string, payload: any) {
+    const classId = this.requireText(payload?.classId, 'Assigned class');
+    const topics = this.requireText(payload?.topics, 'Topics covered');
+    await this.assertTeacherAssignedClass(tenantId, userId, classId);
+
     const query = `
       INSERT INTO academics_lesson_logs (tenant_id, teacher_id, class_id, log_date, covered_topics, student_understanding_notes, challenges)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -1155,9 +1253,9 @@ export class ClassTeacherService {
     await this.executeSql(query, [
       tenantId,
       userId,
-      payload.classId,
+      classId,
       payload.date || new Date().toISOString().split('T')[0],
-      payload.topics || '',
+      topics,
       payload.notes || '',
       payload.challenges || ''
     ]);

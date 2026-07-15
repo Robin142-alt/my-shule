@@ -10,6 +10,7 @@ import { renderWithProviders } from "./test-utils";
 
 describe("admissions dashboard routing", () => {
   beforeEach(() => {
+    window.history.pushState({}, "", "/");
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ metrics: {}, items: [], recentActivity: [] }),
@@ -94,6 +95,44 @@ describe("admissions dashboard routing", () => {
     );
   });
 
+  it("routes legacy admissions desk URLs to the new applications workspace", async () => {
+    renderWithProviders(
+      createElement(SchoolPages, {
+        role: "admissions",
+        section: "admissions",
+        tenantSlug: "homabay-high",
+        routeMode: "public",
+        liveDataEnabled: false,
+      }),
+    );
+
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
+
+    expect(within(dashboard).getAllByRole("heading", { name: /^Applications$/i }).length).toBeGreaterThan(0);
+    expect(within(dashboard).getByRole("button", { name: /start student admission/i })).toBeVisible();
+    expect(within(dashboard).queryByText(/final admission-number generation/i)).not.toBeInTheDocument();
+  });
+
+  it("opens the student admission form from the routed start-admission action", async () => {
+    window.history.pushState({}, "", "/school/admissions/applications?action=start-admission");
+
+    renderWithProviders(
+      createElement(SchoolPages, {
+        role: "admissions",
+        section: "applications",
+        tenantSlug: "homabay-high",
+        routeMode: "public",
+        liveDataEnabled: false,
+      }),
+    );
+
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
+
+    expect(within(dashboard).getAllByRole("heading", { name: /^Applications$/i }).length).toBeGreaterThan(0);
+    expect(await within(dashboard).findByRole("heading", { name: /new student admission/i })).toBeVisible();
+    expect(within(dashboard).getByLabelText(/class applying/i)).toBeVisible();
+  });
+
   it("renders live application rows returned by the admissions backend contract", async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
@@ -129,6 +168,47 @@ describe("admissions dashboard routing", () => {
     expect(await within(dashboard).findByText("Achieng Otieno")).toBeVisible();
     expect(within(dashboard).getByRole("button", { name: /start review for Achieng Otieno/i })).toBeVisible();
     expect(within(dashboard).queryByText(/No records found/i)).not.toBeInTheDocument();
+  });
+
+  it("gives approved applications a real handoff action into enrolment", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        metrics: { total: 1, pending: 0, approved: 1, rejected: 0 },
+        applicationsList: [
+          {
+            id: "application-approved-1",
+            student_name: "Faith Anyango",
+            guardian_name: "Rose Anyango",
+            phone: "0700000000",
+            grade_applied: "Grade 9",
+            previous_school: "Lake Primary",
+            status: "Approved",
+            submitted_at: "2026-07-13",
+          },
+        ],
+      }),
+    }) as unknown as typeof fetch;
+
+    renderWithProviders(
+      createElement(SchoolPages, {
+        role: "admissions",
+        section: "applications",
+        tenantSlug: "homabay-high",
+        routeMode: "public",
+        liveDataEnabled: false,
+      }),
+    );
+
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
+
+    expect(await within(dashboard).findByText("Faith Anyango")).toBeVisible();
+    const row = within(dashboard).getByRole("row", { name: /Faith Anyango.*Approved/i });
+    expect(within(row).queryByRole("button", { name: /reject/i })).not.toBeInTheDocument();
+    expect(within(row).getByRole("link", { name: /open enrolment for Faith Anyango/i })).toHaveAttribute(
+      "href",
+      "/school/admissions/enrolment",
+    );
   });
 
   it("lets admissions officers start the first student admission from an empty workspace", async () => {
@@ -209,7 +289,7 @@ describe("admissions dashboard routing", () => {
         }),
       );
     });
-  });
+  }, 15000);
 
   it("loads class applying options from the current school's deputy-created classes", async () => {
     const user = userEvent.setup();
@@ -280,26 +360,43 @@ describe("admissions dashboard routing", () => {
         }),
       );
     });
-  });
+  }, 15000);
 
-  it("shows approved applications in enrolment for final admission-number generation", async () => {
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        metrics: { total_applicants: 1, admitted: 0, pending: 0, rejected: 0 },
-        admissionsList: [
-          {
-            id: "application-3",
-            student_name: "Faith Anyango",
-            application_date: "2026-07-13",
-            class_applied: "Grade 9",
-            parent_name: "Rose Anyango",
-            phone: "0700000000",
-            status: "Approved",
-          },
-        ],
-      }),
-    }) as unknown as typeof fetch;
+  it("enrols approved applications through the command dashboard endpoint", async () => {
+    const user = userEvent.setup();
+    const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      if (url.includes("/api/admin-command/admissions/admissions/application-3/admit") && init?.method === "POST") {
+        return {
+          ok: true,
+          json: async () => ({
+            student: { id: "student-3", admission_number: "ADM-2026-FAITH001" },
+            application: { id: "application-3", status: "registered" },
+          }),
+        };
+      }
+      if (url.includes("/api/auth/csrf")) {
+        return { ok: true, json: async () => ({ token: "csrf-token" }) };
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          metrics: { total_applicants: 1, admitted: 0, pending: 0, rejected: 0 },
+          admissionsList: [
+            {
+              id: "application-3",
+              student_name: "Faith Anyango",
+              application_date: "2026-07-13",
+              class_applied: "Grade 9",
+              parent_name: "Rose Anyango",
+              phone: "0700000000",
+              status: "Approved",
+            },
+          ],
+        }),
+      };
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
 
     renderWithProviders(
       createElement(SchoolPages, {
@@ -314,6 +411,13 @@ describe("admissions dashboard routing", () => {
     const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
 
     expect(await within(dashboard).findByText("Faith Anyango")).toBeVisible();
-    expect(within(dashboard).getByRole("button", { name: /enrol Faith Anyango/i })).toBeVisible();
+    await user.click(within(dashboard).getByRole("button", { name: /enrol Faith Anyango/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/admin-command/admissions/admissions/application-3/admit"),
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
   });
 });

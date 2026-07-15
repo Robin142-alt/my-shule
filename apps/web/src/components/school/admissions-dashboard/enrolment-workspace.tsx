@@ -5,6 +5,7 @@ import { CheckCircle2, Fingerprint } from "lucide-react";
 import { toast } from "sonner";
 
 import { useSchoolMutation, useSchoolQuery } from "@/lib/data/school-hooks";
+import { AdmissionsEmptyStateCell, APPLICATIONS_HREF } from "./empty-state-cell";
 
 type AdmissionsRecord = {
   id: string;
@@ -34,7 +35,7 @@ function normalizedStatus(status: string) {
 export function AdmissionsEnrolmentWorkspace() {
   const { data, isLoading, refetch } = useSchoolQuery<AdmissionsData>("/admin-command/admissions/admissions");
   const enrolMutation = useSchoolMutation<Record<string, unknown>, string>(
-    (id) => `/api/admissions/applications/${id}/enrol`,
+    (id) => `/admin-command/admissions/admissions/${id}/admit`,
     "POST",
   );
   const [actioningId, setActioningId] = useState<string | null>(null);
@@ -114,11 +115,13 @@ export function AdmissionsEnrolmentWorkspace() {
             {isLoading ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">Loading enrolment queue...</td></tr>
             ) : candidates.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">
-                  No approved applications are ready for enrolment. Approve an application from Applications first, then return here to generate the admission number.
-                </td>
-              </tr>
+              <AdmissionsEmptyStateCell
+                colSpan={6}
+                title="No approved applications are ready for enrolment"
+                body="Approve an application from Applications first, then return here to generate the admission number."
+                actionHref={APPLICATIONS_HREF}
+                actionLabel="Review applications"
+              />
             ) : (
               candidates.map((candidate) => {
                 const status = normalizedStatus(candidate.status);
@@ -133,6 +136,11 @@ export function AdmissionsEnrolmentWorkspace() {
                       <span className="inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
                         {candidate.status}
                       </span>
+                      {alreadyEnrolled && candidate.admission_number ? (
+                        <div className="mt-1 text-xs font-bold text-[#64748B]">
+                          Admission no. {candidate.admission_number}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3 text-right">
                       {alreadyEnrolled ? (

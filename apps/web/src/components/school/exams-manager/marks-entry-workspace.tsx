@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { PenLine, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
@@ -104,7 +105,24 @@ export function MarksEntryWorkspace() {
             {isLoading ? (
               <tr><td colSpan={9} className="px-4 py-8 text-center text-[#64748B]">Loading marks entry data...</td></tr>
             ) : entries.length === 0 ? (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-[#64748B]">No marks entries found. Set up an exam and assign subjects to teachers first.</td></tr>
+              <tr>
+                <td colSpan={9} className="px-4 py-8 text-center">
+                  <div className="mx-auto flex max-w-xl flex-col items-center gap-3 text-[#64748B]">
+                    <div>
+                      <p className="font-black text-[#071D49]">No marks entries found</p>
+                      <p className="mt-1 text-sm leading-6">
+                        Set up an exam cycle and assign subjects to teachers before monitoring marks entry.
+                      </p>
+                    </div>
+                    <Link
+                      href="/school/exams-manager/exam-setup"
+                      className="inline-flex items-center rounded-lg bg-[#071D49] px-4 py-2 text-xs font-black text-white hover:bg-blue-900"
+                    >
+                      Open exam setup
+                    </Link>
+                  </div>
+                </td>
+              </tr>
             ) : (
               entries.map((entry) => (
                 <tr key={entry.id} className="hover:bg-[#F8FAFC]">

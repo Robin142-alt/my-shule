@@ -177,7 +177,7 @@ describe("dashboard action contract safety", () => {
     expect(source).not.toMatch(/Action dispatched/);
     expect(source).not.toMatch(/console\.log/);
     expect(source).toMatch(/resolveDashboardActionHref/);
-    expect(resolveDashboardActionHref("admissions_officer", "students.admit")).toBe("/school/admissions/admissions?view=new-registration");
+    expect(resolveDashboardActionHref("admissions_officer", "students.admit")).toBe("/school/admissions/applications?action=start-admission");
     expect(resolveDashboardActionHref("accountant", "finance.record_payment")).toBe("/school/accountant/payments");
     expect(resolveDashboardActionHref("exams-manager", "exams.publish")).toBe("/school/exams-manager/publishing");
   });
@@ -1530,18 +1530,25 @@ describe("dashboard action contract safety", () => {
     expect(serviceSource).not.toMatch(/Dean of Academics action recorded/);
   });
 
-  it("keeps exams manager import export and sync actions on command endpoints with object request bodies", () => {
+  it("keeps exams manager import and export actions on real marks workflows", () => {
     const source = fs.readFileSync(path.join(process.cwd(), "src/components/school/exams-manager-command-center.tsx"), "utf8");
     const controllerSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/admin-command/exams-manager-command.controller.ts"), "utf8");
     const serviceSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/admin-command/exams-manager-command.service.ts"), "utf8");
 
-    expect(source).toMatch(/requestDashboardApi\("\/admin-command\/exams-manager\/import-marks"/);
-    expect(source).toMatch(/requestDashboardApi\("\/admin-command\/exams-manager\/export-marks"/);
-    expect(source).toMatch(/requestDashboardApi\("\/admin-command\/exams-manager\/zeraki-sync"/);
+    expect(source).toMatch(/setActiveView\("imports-templates"\)/);
+    expect(source).toMatch(/ImportsTemplatesWorkspace/);
+    expect(source).toMatch(/openExternalImportWorkspace/);
+    expect(source).toMatch(/requestDashboardApi\("\/admin-command\/exams-manager\/marks-entry"/);
+    expect(source).toMatch(/downloadCsvFile/);
+    expect(source).not.toMatch(/requestDashboardApi\("\/admin-command\/exams-manager\/zeraki-sync"/);
+    expect(source).not.toMatch(/Zeraki sync requested/);
     expect(source).not.toMatch(/requestDashboardApi\("[^"]*exams-manager[\s\S]*?body:\s*JSON\.stringify/);
     expect(controllerSource).toMatch(/@Post\('import-marks'\)/);
     expect(controllerSource).toMatch(/@Post\('export-marks'\)/);
     expect(controllerSource).toMatch(/@Post\('zeraki-sync'\)/);
+    expect(controllerSource).toMatch(/requestZerakiSync/);
+    expect(serviceSource).toMatch(/async requestZerakiSync/);
+    expect(serviceSource).toMatch(/Zeraki live sync is not configured/);
     expect(serviceSource).toMatch(/recordExamAction/);
     expect(serviceSource).toMatch(/recordWorkflowAction/);
   });

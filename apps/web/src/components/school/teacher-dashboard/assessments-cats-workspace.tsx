@@ -63,7 +63,7 @@ export function AssessmentsCatsWorkspace() {
         <RecordTable
           columns={["Assessment", "Class", "Subject", "Out Of", "Date", "Marks Entered", "Status", "Actions"]}
           rows={rows}
-          emptyState={isLoading ? "Loading assessments..." : "No assessments currently running."}
+          emptyState={isLoading ? "Loading assessments..." : "No assessments are open yet. Open Exams & Marks after the exams manager creates an assessment window for your assigned class and subject."}
         />
       )}
     </Panel>

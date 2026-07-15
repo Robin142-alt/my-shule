@@ -73,6 +73,96 @@ export class GuidanceCounsellingCommandService {
     }
   }
 
+  async getReferralOptions() {
+    const tenantId = this.requireTenantId();
+    const [students, classes, terms, years, incidents] = await Promise.all([
+      this.executeSql<{ id: string; label: string; class_id: string | null }>(
+        `
+          SELECT
+            student.id::text,
+            CONCAT_WS(
+              ' - ',
+              NULLIF(TRIM(CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name)), ''),
+              NULLIF(student.admission_number, '')
+            ) AS label,
+            student.current_class_id AS class_id
+          FROM students student
+          WHERE student.tenant_id = $1
+            AND student.deleted_at IS NULL
+            AND LOWER(COALESCE(student.status, 'active')) IN ('active', 'admitted', 'enrolled')
+          ORDER BY student.last_name ASC, student.first_name ASC, student.admission_number ASC
+          LIMIT 500
+        `,
+        [tenantId],
+      ),
+      this.executeSql<{ id: string; label: string }>(
+        `
+          SELECT
+            section.id::text,
+            COALESCE(
+              NULLIF(section.custom_label, ''),
+              NULLIF(TRIM(CONCAT_WS(' ', section.grade_level, section.stream)), ''),
+              NULLIF(section.name, ''),
+              section.id::text
+            ) AS label
+          FROM class_sections section
+          WHERE section.tenant_id = $1
+            AND COALESCE(section.is_active, true) = true
+          ORDER BY section.grade_level ASC, section.stream ASC, section.name ASC
+          LIMIT 200
+        `,
+        [tenantId],
+      ),
+      this.executeSql<{ id: string; label: string; status: string | null }>(
+        `
+          SELECT
+            term.id::text,
+            CONCAT(term.name, ' (', term.starts_on::text, ' to ', term.ends_on::text, ')') AS label,
+            term.status
+          FROM academic_terms term
+          WHERE term.tenant_id = $1
+          ORDER BY CASE WHEN term.status = 'active' THEN 0 ELSE 1 END, term.starts_on DESC
+          LIMIT 24
+        `,
+        [tenantId],
+      ),
+      this.executeSql<{ id: string; label: string; status: string | null }>(
+        `
+          SELECT
+            year.id::text,
+            year.name AS label,
+            year.status
+          FROM academic_years year
+          WHERE year.tenant_id = $1
+          ORDER BY CASE WHEN year.status = 'active' THEN 0 ELSE 1 END, year.starts_on DESC
+          LIMIT 12
+        `,
+        [tenantId],
+      ),
+      this.executeSql<{ id: string; label: string }>(
+        `
+          SELECT
+            incident.id::text,
+            CONCAT(incident.title, ' - ', incident.created_at::date::text) AS label
+          FROM admin_incidents incident
+          WHERE incident.tenant_id = $1
+            AND LOWER(COALESCE(incident.status, 'reported')) IN ('reported', 'reviewed', 'escalated')
+          ORDER BY incident.created_at DESC
+          LIMIT 100
+        `,
+        [tenantId],
+      ),
+    ]);
+
+    return {
+      students: students.rows,
+      classes: classes.rows,
+      terms: terms.rows,
+      years: years.rows,
+      incidents: incidents.rows,
+    };
+  }
+
   async getOverview() {
     const tenantId = this.requireTenantId();
     const metrics = await this.executeSql(`

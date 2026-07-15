@@ -3,6 +3,10 @@ export function resolveDashboardActionHref(role: string, action: string) {
 
   if (action === "students.admit") {
     const targetRole = normalizedRole === "admissions-officer" ? "admissions" : normalizedRole;
+    if (targetRole === "admissions") {
+      return "/school/admissions/applications?action=start-admission";
+    }
+
     return `/school/${targetRole}/admissions?view=new-registration`;
   }
 

@@ -79,6 +79,12 @@ export class TeacherCommandController {
     return this.service.getStoreRequests();
   }
 
+  @Post('store-requests')
+  @Permissions('teacher:write')
+  createStoreRequest(@Body() dto: any) {
+    return this.service.createStoreRequest(dto);
+  }
+
   @Get('resource-requests')
   getResourceRequests() {
     return this.service.getResourceRequests();

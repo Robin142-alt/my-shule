@@ -19,12 +19,39 @@ export class TeacherCommandService {
     return tenantId;
   }
 
-  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
-    try {
-      return await this.prisma.query<T>(query, params);
-    } catch (e) {
-      return { rows: [], rowCount: 0 };
+  private requireUserId(): string {
+    const userId = this.requestContext.getStore()?.user_id;
+    if (!userId) {
+      throw new UnauthorizedException('Authenticated teacher context is required');
     }
+    return userId;
+  }
+
+  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    return this.prisma.query<T>(query, params);
+  }
+
+  private titleCaseStatus(value: unknown): string {
+    return String(value || 'pending')
+      .replace(/_/g, ' ')
+      .split(' ')
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(' ');
+  }
+
+  private normalizePriority(value: unknown): 'low' | 'normal' | 'high' | 'urgent' {
+    const normalized = String(value || 'normal').trim().toLowerCase();
+    return normalized === 'low' || normalized === 'high' || normalized === 'urgent' ? normalized : 'normal';
+  }
+
+  private async nextSequenceCode(tenantId: string, table: string, prefix: string): Promise<string> {
+    const result = await this.executeSql<{ count: number }>(
+      `SELECT COUNT(*)::int AS count FROM ${table} WHERE tenant_id = $1`,
+      [tenantId],
+    );
+    const next = (result.rows[0]?.count ?? 0) + 1;
+    return `${prefix}-${new Date().getFullYear()}-${String(next).padStart(5, '0')}`;
   }
 
   async getProfile() {
@@ -84,9 +111,28 @@ export class TeacherCommandService {
 
   async getMarkEntry() {
     const tenantId = this.requireTenantId();
+    const userId = this.requireUserId();
     const res = await this.executeSql(
-      `SELECT * FROM exam_marks WHERE tenant_id = $1`,
-      [tenantId]
+      `
+        SELECT
+          mark.id::text,
+          mark.exam_series_id::text,
+          mark.assessment_id::text,
+          mark.academic_term_id::text,
+          mark.class_section_id::text,
+          mark.subject_id::text,
+          mark.student_id::text,
+          mark.score::text,
+          mark.remarks,
+          mark.status,
+          mark.created_at::text,
+          mark.updated_at::text
+        FROM exam_marks mark
+        WHERE mark.tenant_id = $1
+          AND mark.entered_by_user_id = $2::uuid
+        ORDER BY mark.updated_at DESC
+      `,
+      [tenantId, userId]
     );
     return res.rows;
   }
@@ -147,11 +193,111 @@ export class TeacherCommandService {
 
   async getStoreRequests() {
     const tenantId = this.requireTenantId();
+    const userId = this.requireUserId();
     const res = await this.executeSql(
-      `SELECT * FROM inventory_requests WHERE tenant_id = $1`,
-      [tenantId]
+      `
+        SELECT
+          id::text,
+          request_number,
+          COALESCE(lines->0->>'item_name', lines->0->>'name', 'Requested item') AS item,
+          COALESCE(NULLIF(lines->0->>'quantity', '')::int, NULLIF(lines->0->>'quantity_requested', '')::int, 1) AS quantity,
+          to_char(needed_by, 'YYYY-MM-DD') AS needed_by,
+          to_char(created_at, 'YYYY-MM-DD') AS date,
+          INITCAP(priority) AS priority,
+          INITCAP(status) AS status,
+          COALESCE(notes, '') AS notes
+        FROM inventory_requests
+        WHERE tenant_id = $1
+          AND (
+            requested_by = $2
+            OR EXISTS (
+              SELECT 1
+              FROM jsonb_array_elements(lines) AS line
+              WHERE line->>'requested_by_user_id' = $2
+            )
+          )
+        ORDER BY created_at DESC
+      `,
+      [tenantId, userId]
     );
-    return res.rows;
+    const items = res.rows.map((request: any) => ({
+      ...request,
+      status: this.titleCaseStatus(request.status),
+      priority: this.titleCaseStatus(request.priority),
+    }));
+    return {
+      metrics: {
+        pending: items.filter((item: any) => item.status === 'Pending').length,
+        approved: items.filter((item: any) => item.status === 'Approved').length,
+        fulfilled: items.filter((item: any) => item.status === 'Fulfilled').length,
+        rejected: items.filter((item: any) => item.status === 'Rejected').length,
+      },
+      items,
+    };
+  }
+
+  async createStoreRequest(dto: any = {}) {
+    const tenantId = this.requireTenantId();
+    const userId = this.requireUserId();
+    const item = this.operations.requiredText(dto?.item ?? dto?.item_name, 'Requested item');
+    const quantity = this.operations.positiveInteger(dto?.quantity, 'Quantity');
+    const priority = this.normalizePriority(dto?.priority);
+    const neededBy = String(dto?.needed_by ?? dto?.neededBy ?? '').trim() || null;
+    const notes = String(dto?.notes ?? dto?.reason ?? '').trim();
+    const requestNumber = await this.nextSequenceCode(tenantId, 'inventory_requests', 'REQ');
+    const requestLine = {
+      item_name: item,
+      quantity,
+      unit: String(dto?.unit || 'unit').trim() || 'unit',
+      requested_by_user_id: userId,
+      source_dashboard: 'teacher-store-requests',
+    };
+    const result = await this.operations.writeSql(
+      `
+        INSERT INTO inventory_requests (
+          tenant_id, request_number, department, requested_by, status, needed_by, priority, lines, notes
+        )
+        VALUES ($1, $2, $3, $4, 'pending', $5::date, $6, $7::jsonb, NULLIF($8, ''))
+        RETURNING id::text, request_number, status
+      `,
+      [
+        tenantId,
+        requestNumber,
+        String(dto?.department || 'Teaching').trim() || 'Teaching',
+        'Teacher request',
+        neededBy,
+        priority,
+        JSON.stringify([requestLine]),
+        notes,
+      ],
+    );
+    const request = result.rows[0];
+    const event = await this.operations.recordWorkflowAction({
+      tenantId,
+      actorUserId: userId,
+      sourceRole: 'teacher',
+      targetRoles: ['storekeeper', 'hod', 'principal'],
+      eventType: 'inventory.requested',
+      entityType: 'inventory_request',
+      entityId: request?.id ?? null,
+      title: `Store request: ${item}`,
+      message: `Teacher requested ${quantity} ${requestLine.unit}(s) of ${item}.`,
+      priority: priority === 'urgent' ? 'high' : priority === 'high' ? 'high' : 'normal',
+      payload: {
+        request_number: request?.request_number,
+        item,
+        quantity,
+        needed_by: neededBy,
+        source_dashboard: 'teacher-store-requests',
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Store request sent to the storekeeper queue',
+      request,
+      event,
+    };
   }
 
   async getResourceRequests() {

@@ -1,7 +1,9 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { CheckCircle, ClipboardList, FileInput, Search, XCircle } from "lucide-react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import { useSchoolMutation, useSchoolQuery } from "@/lib/data/school-hooks";
@@ -101,6 +103,8 @@ function requiredFieldsMissing(form: ApplicationFormState) {
 }
 
 export function ApplicationsWorkspace() {
+  const searchParams = useSearchParams();
+  const shouldStartAdmission = searchParams.get("action") === "start-admission";
   const { data, isLoading, refetch } = useSchoolQuery<ApplicationsData>("/admin-command/admissions/applications");
   const { data: classesData, isLoading: classesLoading } = useSchoolQuery<ClassesData>("/admin-command/deputy/classes");
   const createApplication = useSchoolMutation<Record<string, unknown>, ApplicationFormState>(
@@ -117,7 +121,7 @@ export function ApplicationsWorkspace() {
   );
 
   const [search, setSearch] = useState("");
-  const [formOpen, setFormOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(shouldStartAdmission);
   const [form, setForm] = useState<ApplicationFormState>(emptyApplicationForm);
   const [formError, setFormError] = useState<string | null>(null);
   const [actioningId, setActioningId] = useState<string | null>(null);
@@ -140,6 +144,13 @@ export function ApplicationsWorkspace() {
       .filter(Boolean)
       .some((value) => String(value).toLowerCase().includes(needle));
   });
+
+  useEffect(() => {
+    if (shouldStartAdmission) {
+      setFormError(null);
+      setFormOpen(true);
+    }
+  }, [shouldStartAdmission]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -422,7 +433,7 @@ export function ApplicationsWorkspace() {
                             Approve for enrolment
                           </button>
                         ) : null}
-                        {!["rejected", "registered", "admitted"].includes(normalized) ? (
+                        {!["approved", "rejected", "registered", "admitted"].includes(normalized) ? (
                           <button
                             type="button"
                             disabled={actioningId === row.id}
@@ -434,9 +445,13 @@ export function ApplicationsWorkspace() {
                           </button>
                         ) : null}
                         {normalized === "approved" ? (
-                          <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700">
-                            Ready in Enrolment
-                          </span>
+                          <Link
+                            href="/school/admissions/enrolment"
+                            aria-label={`Open enrolment for ${row.student_name}`}
+                            className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700 hover:bg-emerald-100"
+                          >
+                            Open enrolment
+                          </Link>
                         ) : null}
                       </div>
                     </td>

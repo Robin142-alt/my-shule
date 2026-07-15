@@ -12,25 +12,42 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type MarkRow = {
   id?: string;
+  mark_entry_window_id?: string | null;
   exam_series_id?: string | null;
+  exam_series_name?: string | null;
   assessment_id?: string | null;
+  assessment_name?: string | null;
   academic_term_id?: string | null;
   class_section_id?: string | null;
+  class_name?: string | null;
   subject_id?: string | null;
+  subject_name?: string | null;
   student_id?: string | null;
   admission_number?: string | null;
   student_name?: string | null;
   score?: number | string | null;
+  max_score?: number | string | null;
   remarks?: string | null;
   status?: string | null;
   updated_at?: string | null;
+  closes_at?: string | null;
 };
 
 type ApiResponse<T> = T | { data?: T };
+const LOCKED_MARK_STATUSES = new Set(["submitted", "reviewed", "locked", "published"]);
 
 function unwrapRows(payload: ApiResponse<MarkRow[]> | undefined): MarkRow[] {
   if (Array.isArray(payload)) return payload;
   return Array.isArray(payload?.data) ? payload.data : [];
+}
+
+function getMaxScore(row: MarkRow) {
+  const score = Number(row.max_score);
+  return Number.isFinite(score) && score > 0 ? score : 100;
+}
+
+function isEditableMark(row: MarkRow) {
+  return !LOCKED_MARK_STATUSES.has((row.status ?? "draft").toLowerCase());
 }
 
 function canPersistMark(row: MarkRow, score: string): row is MarkRow & {
@@ -41,6 +58,7 @@ function canPersistMark(row: MarkRow, score: string): row is MarkRow & {
   subject_id: string;
   student_id: string;
 } {
+  const numericScore = Number(score);
   return Boolean(
     row.exam_series_id &&
       row.assessment_id &&
@@ -49,7 +67,10 @@ function canPersistMark(row: MarkRow, score: string): row is MarkRow & {
       row.subject_id &&
       row.student_id &&
       score !== "" &&
-      Number.isFinite(Number(score)),
+      Number.isFinite(numericScore) &&
+      numericScore >= 0 &&
+      numericScore <= getMaxScore(row) &&
+      isEditableMark(row),
   );
 }
 
@@ -63,8 +84,9 @@ export function MarksEntryWorkspace() {
   const [draftScores, setDraftScores] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleMarkChange(key: string, value: string) {
-    if (value === "" || (Number(value) >= 0 && Number(value) <= 100)) {
+  function handleMarkChange(row: MarkRow, key: string, value: string) {
+    const numericScore = Number(value);
+    if (value === "" || (Number.isFinite(numericScore) && numericScore >= 0 && numericScore <= getMaxScore(row))) {
       setDraftScores((current) => ({ ...current, [key]: value }));
     }
   }
@@ -89,7 +111,7 @@ export function MarksEntryWorkspace() {
       .filter(({ row, score }) => canPersistMark(row, score));
 
     if (!changedRows.length) {
-      toast.error("No complete mark rows are available to save.");
+      toast.error("No editable complete mark rows are available to save.");
       return;
     }
 
@@ -168,7 +190,7 @@ export function MarksEntryWorkspace() {
                 <th className="w-16 px-4 py-3 text-center font-medium">#</th>
                 <th className="px-4 py-3 font-medium">Student</th>
                 <th className="px-4 py-3 font-medium">Assessment</th>
-                <th className="w-32 px-4 py-3 text-center font-medium">Score (100)</th>
+                <th className="w-32 px-4 py-3 text-center font-medium">Score</th>
                 <th className="w-24 px-4 py-3 text-center font-medium">Grade</th>
                 <th className="w-28 px-4 py-3 text-center font-medium">Status</th>
               </tr>
@@ -181,14 +203,17 @@ export function MarksEntryWorkspace() {
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
-                    No marks are assigned yet. Create an exam assessment and mark-entry window before entering scores.
+                    No open mark-entry rows are assigned to your workload. The Exams Manager must create an assessment, confirm teacher allocation, and open the mark-entry window.
                   </td>
                 </tr>
               ) : (
                 rows.map((row, index) => {
                   const key = rowKey(row, index);
                   const score = getScore(row, key);
-                  const saved = row.status && row.status !== "draft";
+                  const status = row.status ?? "draft";
+                  const saved = status !== "draft";
+                  const editable = isEditableMark(row);
+                  const maxScore = getMaxScore(row);
 
                   return (
                     <tr key={key} className="transition-colors hover:bg-slate-50/50">
@@ -197,23 +222,29 @@ export function MarksEntryWorkspace() {
                         {row.student_name || row.admission_number || row.student_id || "Student"}
                       </td>
                       <td className="px-4 py-2 text-slate-500">
-                        <div className="font-medium text-slate-700">{row.assessment_id || "Assessment"}</div>
-                        <div className="text-xs text-slate-400">{row.subject_id || "Subject"}</div>
+                        <div className="font-medium text-slate-700">{row.assessment_name || row.exam_series_name || row.assessment_id || "Assessment"}</div>
+                        <div className="text-xs text-slate-400">{row.subject_name || row.subject_id || "Subject"} {row.class_name ? `- ${row.class_name}` : ""}</div>
+                        {row.closes_at ? <div className="text-xs text-slate-400">Due {new Date(row.closes_at).toLocaleDateString()}</div> : null}
                       </td>
                       <td className="px-4 py-2">
                         <input
                           type="number"
                           min="0"
-                          max="100"
+                          max={maxScore}
                           className="h-8 w-full rounded border border-slate-200 text-center font-medium text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                           value={score}
-                          onChange={(event) => handleMarkChange(key, event.target.value)}
+                          disabled={!editable}
+                          aria-label={`Score out of ${maxScore}`}
+                          onChange={(event) => handleMarkChange(row, key, event.target.value)}
                         />
+                        <div className="mt-1 text-center text-[11px] text-slate-400">/{maxScore}</div>
                       </td>
                       <td className="px-4 py-2 text-center font-bold text-slate-700">{getGrade(score)}</td>
                       <td className="px-4 py-2 text-center">
                         {saved ? (
-                          <Check className="mx-auto h-4 w-4 text-emerald-500" />
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
+                            <Check className="h-4 w-4" /> {status}
+                          </span>
                         ) : (
                           <span className="text-xs text-slate-400">Draft</span>
                         )}

@@ -106,6 +106,7 @@ export class SeederSchemaService {
         tenant_id text NOT NULL,
         code text NOT NULL,
         name text NOT NULL,
+        department_id uuid,
         category text NOT NULL DEFAULT 'core',
         metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
         created_at timestamptz NOT NULL DEFAULT NOW(),
@@ -524,6 +525,7 @@ export class SeederSchemaService {
       CREATE INDEX IF NOT EXISTS ix_guardians_email_lookup ON guardians (tenant_id, email_lookup_key);
       CREATE INDEX IF NOT EXISTS ix_staff_members_type ON staff_members (tenant_id, staff_type, employee_number);
       CREATE INDEX IF NOT EXISTS ix_subjects_category ON subjects (tenant_id, category, name);
+      CREATE INDEX IF NOT EXISTS ix_subjects_department ON subjects (tenant_id, department_id, name);
       CREATE INDEX IF NOT EXISTS ix_class_subject_assignments_stream ON class_subject_assignments (tenant_id, stream_id, academic_term_id);
       CREATE INDEX IF NOT EXISTS ix_timetable_lessons_stream ON timetable_lessons (tenant_id, stream_id, academic_term_id, weekday, period_number);
       CREATE INDEX IF NOT EXISTS ix_fee_structures_class ON fee_structures (tenant_id, academic_term_id, school_class_id);

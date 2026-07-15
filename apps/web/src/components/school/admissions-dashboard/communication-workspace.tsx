@@ -1,6 +1,7 @@
 "use client";
 import { Mail } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { AdmissionsEmptyStateCell, APPLICATIONS_HREF } from "./empty-state-cell";
 
 type CommunicationData = {
   metrics: Record<string, number>;
@@ -49,7 +50,13 @@ export function CommunicationWorkspace() {
             {isLoading ? (
               <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+              <AdmissionsEmptyStateCell
+                colSpan={5}
+                title="No admission messages yet"
+                body="Open applications to capture or review applicants before sending school-scoped admission updates."
+                actionHref={APPLICATIONS_HREF}
+                actionLabel="Open applications"
+              />
             ) : (
               items.map((row: any, i: number) => (
                 <tr key={row.id || i} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">

@@ -104,7 +104,7 @@ export function ClassTeacherWorkspace() {
         <RecordTable
           columns={["Adm No.", "Learner", "Attendance %", "Fee Status", "Academic", "Discipline", "Actions"]}
           rows={rows}
-          emptyState="No learners found in your class."
+          emptyState="No learners are linked to your class yet. Admissions or the deputy class setup must assign learners before class-teacher review can start."
         />
       )}
     </Panel>

@@ -155,7 +155,7 @@ export function DisciplineWelfareWorkspace({
         <RecordTable
           columns={["Date", "Learner", "Class", "Concern Type", "Severity", "Sent To", "Status", "Actions"]}
           rows={rows}
-          emptyState="No active concerns raised by you."
+          emptyState="No active concerns raised by you. Use Raise Concern when a learner welfare or discipline issue needs follow-up."
         />
       )}
       {isModalOpen && <RaiseConcernModal onClose={() => setIsModalOpen(false)} liveSession={liveSession} />}

@@ -28,7 +28,7 @@ export function Panel({ title, description, icon: Icon, headerEnd, children }: {
 export function RecordTable({
   columns,
   rows,
-  emptyState = "No records found.",
+  emptyState = "No rows yet. Use this workspace's primary action or complete the required school setup so records can appear here.",
 }: {
   columns: string[];
   rows: ReactNode[][];

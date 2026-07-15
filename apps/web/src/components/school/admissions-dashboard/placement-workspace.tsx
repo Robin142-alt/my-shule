@@ -1,6 +1,7 @@
 "use client";
 import { LayoutGrid } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { AdmissionsEmptyStateCell, APPLICATIONS_HREF } from "./empty-state-cell";
 
 type PlacementData = {
   metrics: Record<string, number>;
@@ -49,7 +50,13 @@ export function PlacementWorkspace() {
             {isLoading ? (
               <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+              <AdmissionsEmptyStateCell
+                colSpan={5}
+                title="No placements yet"
+                body="Approve applicants from the applications desk, then assign admitted learners to deputy-created classes."
+                actionHref={APPLICATIONS_HREF}
+                actionLabel="Review applications"
+              />
             ) : (
               items.map((row: any, i: number) => (
                 <tr key={row.id || i} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">

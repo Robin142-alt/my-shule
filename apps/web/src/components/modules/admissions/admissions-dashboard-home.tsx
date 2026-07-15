@@ -30,13 +30,13 @@ export function AdmissionsDashboardHome() {
             Registration actions
           </h3>
           <div className="mt-6 space-y-3">
-            <Link href="/school/admissions/admissions" className={buttonClasses({ variant: "secondary", size: "md" })}>
+            <Link href="/school/admissions/applications" className={buttonClasses({ variant: "secondary", size: "md" })}>
               Open Admissions Desk
             </Link>
-            <Link href="/school/admissions/admissions?view=new-registration" className={buttonClasses({ variant: "primary", size: "md" })}>
-              New Registration
+            <Link href="/school/admissions/applications?action=start-admission" className={buttonClasses({ variant: "primary", size: "md" })}>
+              Start student admission
             </Link>
-            <Link href="/school/admissions/admissions?view=applications" className={buttonClasses({ variant: "secondary", size: "md" })}>
+            <Link href="/school/admissions/applications" className={buttonClasses({ variant: "secondary", size: "md" })}>
               Review Applications
             </Link>
           </div>

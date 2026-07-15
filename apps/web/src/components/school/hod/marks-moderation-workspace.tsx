@@ -71,7 +71,7 @@ export function MarksModerationWorkspace() {
             {isLoading ? (
               <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">No marks awaiting moderation yet. Teacher mark submissions for department subjects will appear here.</td></tr>
             ) : (
               items.map((row, index) => (
                 <tr key={row.id ?? `${fieldValue(row, ["exam", "exam_name"])}-${fieldValue(row, ["subject", "subject_name"])}-${index}`} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">

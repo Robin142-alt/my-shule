@@ -8,6 +8,11 @@ const portalModuleMap: Record<string, string> = {
   reports: "downloads",
 };
 
+const schoolRoleRouteMap: Partial<Record<DashboardRole, string>> = {
+  "exam-manager": "exams-manager",
+  dean: "dean-academics",
+};
+
 export function getDashboardWorkspaceHref(
   role: DashboardRole,
   moduleName: string,
@@ -25,10 +30,11 @@ export function getDashboardWorkspaceHref(
     return `${base}${suffix}`;
   }
 
+  const schoolRole = schoolRoleRouteMap[role] ?? role;
   const base =
     cleanModuleName === "dashboard"
-      ? `/school/${role}`
-      : `/school/${role}/${cleanModuleName}`;
+      ? `/school/${schoolRole}`
+      : `/school/${schoolRole}/${cleanModuleName}`;
 
   return `${base}${suffix}`;
 }

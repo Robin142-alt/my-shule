@@ -2,6 +2,7 @@ import { screen } from "@testing-library/react";
 import { createElement } from "react";
 
 import { SchoolPages } from "@/components/school/school-pages";
+import { getSchoolRoleAlias } from "@/lib/auth/school-role-normalization";
 
 import { renderWithProviders } from "./test-utils";
 
@@ -165,12 +166,12 @@ describe("school command center routing", () => {
       {
         role: "hod",
         testId: "hod-command-center",
-        expected: "HOD exams-marks-moderation",
+        expected: "HOD exams",
       },
       {
         role: "dean-academics",
         testId: "dean-academics-command-center",
-        expected: "Dean results-moderation",
+        expected: "Dean exams",
       },
     ] as const;
 
@@ -224,6 +225,18 @@ describe("school command center routing", () => {
         testId: "hod-command-center",
         expected: "HOD performance-analytics",
       },
+      {
+        role: "hod",
+        section: "timetable-builder",
+        testId: "hod-command-center",
+        expected: "HOD timetable-builder",
+      },
+      {
+        role: "dean-academics",
+        section: "approvals",
+        testId: "dean-academics-command-center",
+        expected: "Dean approvals",
+      },
     ] as const;
 
     for (const routeCase of cases) {
@@ -242,5 +255,11 @@ describe("school command center routing", () => {
 
       view.unmount();
     }
+  });
+
+  it("normalizes legacy academic role slugs before public school route rendering", () => {
+    expect(getSchoolRoleAlias("dean")).toBe("dean-academics");
+    expect(getSchoolRoleAlias("dean-of-academics")).toBe("dean-academics");
+    expect(getSchoolRoleAlias("exam-manager")).toBe("exams-manager");
   });
 });

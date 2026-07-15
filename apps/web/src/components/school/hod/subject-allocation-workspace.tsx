@@ -33,9 +33,31 @@ type SubjectAllocationData = {
   subjectallocationList: SubjectAllocationRecord[];
 };
 
+type SubjectAllocationOption = {
+  id: string;
+  label: string;
+  user_id?: string | null;
+  code?: string | null;
+  grade_level?: string | null;
+  stream?: string | null;
+  status?: string | null;
+};
+
+type SubjectAllocationOptionsData = {
+  teachers: SubjectAllocationOption[];
+  subjects: SubjectAllocationOption[];
+  classes: SubjectAllocationOption[];
+  terms: SubjectAllocationOption[];
+};
+
 export function SubjectAllocationWorkspace() {
   const { data, isLoading, refetch } = useSchoolQuery<SubjectAllocationData | SubjectAllocationRecord[]>('/admin-command/hod/subject-allocation');
+  const { data: optionsData, isLoading: optionsLoading } = useSchoolQuery<SubjectAllocationOptionsData>('/admin-command/hod/subject-allocation/options');
   const items = listFromData<SubjectAllocationRecord>(data, "subjectallocationList");
+  const teachers = optionsData?.teachers ?? [];
+  const subjects = optionsData?.subjects ?? [];
+  const classes = optionsData?.classes ?? [];
+  const terms = optionsData?.terms ?? [];
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const getStatusTone = (st: string): Tone => {
@@ -117,20 +139,48 @@ export function SubjectAllocationWorkspace() {
     <Panel title="Subject Allocation" description="Allocate subjects and classes to department teachers." icon={LayoutGrid}>
       <form onSubmit={handleSubmit} className="mb-6 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-2 xl:grid-cols-4">
         <label className="text-sm font-bold text-[#071D49]">
-          Teacher ID
-          <input name="teacher_id" className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE]" placeholder="Staff member ID" />
+          Teacher
+          <select name="teacher_id" disabled={optionsLoading} className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE] disabled:bg-white/70 disabled:text-[#94A3B8]">
+            <option value="">{optionsLoading ? "Loading teachers..." : "Leave unassigned for now"}</option>
+            {teachers.map((teacher) => (
+              <option key={teacher.id} value={teacher.id}>
+                {teacher.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="text-sm font-bold text-[#071D49]">
-          Subject ID
-          <input name="subject_id" required className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE]" placeholder="Subject ID" />
+          Subject
+          <select name="subject_id" required disabled={optionsLoading || subjects.length === 0} className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE] disabled:bg-white/70 disabled:text-[#94A3B8]">
+            <option value="">{optionsLoading ? "Loading subjects..." : "Select subject"}</option>
+            {subjects.map((subject) => (
+              <option key={subject.id} value={subject.id}>
+                {subject.code ? `${subject.label} (${subject.code})` : subject.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="text-sm font-bold text-[#071D49]">
-          Class Section ID
-          <input name="class_section_id" required className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE]" placeholder="Class section ID" />
+          Class section
+          <select name="class_section_id" required disabled={optionsLoading || classes.length === 0} className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE] disabled:bg-white/70 disabled:text-[#94A3B8]">
+            <option value="">{optionsLoading ? "Loading classes..." : "Select class section"}</option>
+            {classes.map((classSection) => (
+              <option key={classSection.id} value={classSection.id}>
+                {classSection.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="text-sm font-bold text-[#071D49]">
-          Academic Term ID
-          <input name="academic_term_id" required className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE]" placeholder="Academic term ID" />
+          Academic term
+          <select name="academic_term_id" required disabled={optionsLoading || terms.length === 0} className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE] disabled:bg-white/70 disabled:text-[#94A3B8]">
+            <option value="">{optionsLoading ? "Loading terms..." : "Select term"}</option>
+            {terms.map((term) => (
+              <option key={term.id} value={term.id}>
+                {term.status === "active" ? `${term.label} (active)` : term.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="text-sm font-bold text-[#071D49]">
           Lessons per week
@@ -145,6 +195,11 @@ export function SubjectAllocationWorkspace() {
             {isSubmitting ? "Saving..." : "Save allocation"}
           </button>
         </div>
+        {!optionsLoading && (subjects.length === 0 || classes.length === 0 || terms.length === 0) ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800 md:col-span-2 xl:col-span-4">
+            Configure at least one active subject, class section, and academic term before HOD subject allocation can be saved.
+          </div>
+        ) : null}
       </form>
       <div className="grid gap-4 md:grid-cols-3 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">

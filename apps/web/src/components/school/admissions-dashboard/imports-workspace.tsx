@@ -1,6 +1,7 @@
 "use client";
 import { Upload } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { AdmissionsEmptyStateCell, START_ADMISSION_HREF } from "./empty-state-cell";
 
 type ImportsData = {
   metrics: Record<string, number>;
@@ -45,7 +46,13 @@ export function ImportsWorkspace() {
             {isLoading ? (
               <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+              <AdmissionsEmptyStateCell
+                colSpan={5}
+                title="No import batches yet"
+                body="Use the live admission form first, then import applicant lists after confirming deputy-created class setup."
+                actionHref={START_ADMISSION_HREF}
+                actionLabel="Start student admission"
+              />
             ) : (
               items.map((row: any, i: number) => (
                 <tr key={row.id || i} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">

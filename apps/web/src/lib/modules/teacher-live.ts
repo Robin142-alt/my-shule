@@ -2,6 +2,8 @@ import { withSession, type LiveAuthSession } from "@/lib/dashboard/api-client";
 
 export interface TeacherAssignedClass {
   id: string;
+  classSectionId: string;
+  subjectId: string;
   className: string;
   subjectName: string;
   learnersCount: number;
@@ -50,6 +52,7 @@ export async function fetchTeacherDashboardOverviewLive(session: LiveAuthSession
 export interface AssignmentTask {
   id: string;
   title: string;
+  className?: string;
   subject: string;
   dueDate: string;
   status: string;
@@ -249,4 +252,3 @@ export async function saveExamMarksLive(session: LiveAuthSession, data: any): Pr
     body: data,
   });
 }
-

@@ -40,7 +40,7 @@ export function ReportsDownloadsWorkspace() {
         <RecordTable
           columns={["Title","Type","Generated","Status"]}
           rows={rows}
-          emptyState={isLoading ? "Loading..." : "No records found. Create the first entry to get started."}
+          emptyState={isLoading ? "Loading..." : "No reports ready yet. Published report cards, class summaries, and exports will appear here."}
         />
       )}
     </Panel>

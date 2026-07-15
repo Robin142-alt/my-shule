@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { BadRequestException } from '@nestjs/common';
 import 'reflect-metadata';
 import { firstValueFrom, of } from 'rxjs';
 
@@ -24,6 +25,10 @@ import { LibrarianCommandService } from './librarian-command.service';
 import { ProcurementOfficerCommandService } from './procurement-officer-command.service';
 import { TransportManagerCommandService } from './transport-manager-command.service';
 import { ExamsManagerCommandService } from './exams-manager-command.service';
+import { TeacherCommandService } from './teacher-command.service';
+import { DeanAcademicsCommandService } from './dean-academics-command.service';
+import { AdmissionsCommandService } from './admissions-command.service';
+import { AdmissionsCommandRepository } from './repositories/admissions-command.repository';
 
 test('AdminCommandSchemaService creates leadership workflow tables with tenant RLS', async () => {
   let schemaSql = '';
@@ -125,6 +130,161 @@ test('DeputyCommandRepository maps missing attendance relations to neutral label
   assert.equal(result.records[0].studentName, 'Learner not linked');
   assert.equal(result.records[0].className, 'Class not linked');
   assert.equal(result.records[0].reason, 'Unexplained');
+});
+
+test('AdmissionsCommandService rejects unsupported application statuses before persistence and audit', async () => {
+  let updateCalls = 0;
+  let auditCalls = 0;
+  const service = new AdmissionsCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {
+      recordAudit: async () => {
+        auditCalls += 1;
+      },
+    } as never,
+    {
+      updateApplicationStatus: async () => {
+        updateCalls += 1;
+        return { id: 'application-1', status: 'withdrawn' };
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    () => service.updateApplicationStatus('application-1', { status: 'withdrawn' }),
+    (error) => error instanceof BadRequestException && /Unsupported application status/i.test(error.message),
+  );
+  assert.equal(updateCalls, 0);
+  assert.equal(auditCalls, 0);
+});
+
+test('AdmissionsCommandService admits an approved application through the tenant-scoped student workflow', async () => {
+  const audits: Array<{ action: string; resourceType: string; resourceId: string | null; metadata: Record<string, unknown> }> = [];
+  const workflowEvents: Array<{ eventType: string; entityType: string; entityId?: string | null; payload?: Record<string, unknown> }> = [];
+  const repoCalls: Array<{ tenantId: string; applicationId: string; userId: string }> = [];
+  const service = new AdmissionsCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {
+      recordAudit: async (_tenantId: string, action: string, resourceType: string, resourceId: string | null, metadata: Record<string, unknown>) => {
+        audits.push({ action, resourceType, resourceId, metadata });
+      },
+      recordWorkflowAction: async (event: { eventType: string; entityType: string; entityId?: string | null; payload?: Record<string, unknown> }) => {
+        workflowEvents.push(event);
+        return { id: 'workflow-event-1' };
+      },
+      notifyRoles: async () => undefined,
+    } as never,
+    {
+      admitStudent: async (tenantId: string, applicationId: string, userId: string) => {
+        repoCalls.push({ tenantId, applicationId, userId });
+        return {
+          student: {
+            id: '22222222-2222-4222-8222-222222222222',
+            admission_number: 'ADM-2026-ABC12345',
+          },
+          application: {
+            id: applicationId,
+            full_name: 'Faith Anyango',
+            class_applying: 'Grade 9',
+            status: 'registered',
+          },
+          allocation: { id: 'allocation-1', class_name: 'Grade 9', stream_name: 'Default' },
+          academicEnrollment: { id: 'enrollment-1', academic_year: '2026' },
+        };
+      },
+    } as never,
+  );
+
+  const result = await service.admitStudent('33333333-3333-4333-8333-333333333333');
+
+  assert.equal(result.student.admission_number, 'ADM-2026-ABC12345');
+  assert.deepEqual(repoCalls, [{
+    tenantId: 'tenant-a',
+    applicationId: '33333333-3333-4333-8333-333333333333',
+    userId: '11111111-1111-4111-8111-111111111111',
+  }]);
+  assert.equal(audits[0]?.action, 'admissions.student.admitted');
+  assert.equal(audits[0]?.resourceType, 'student');
+  assert.equal(audits[0]?.resourceId, '22222222-2222-4222-8222-222222222222');
+  assert.equal(workflowEvents[0]?.eventType, 'admissions.student.admitted');
+  assert.equal(workflowEvents[0]?.entityType, 'student');
+  assert.equal(workflowEvents[0]?.entityId, '22222222-2222-4222-8222-222222222222');
+});
+
+test('AdmissionsCommandRepository admitStudent creates student allocation and enrollment inside the current tenant', async () => {
+  const statements: Array<{ sql: string; params: unknown[] }> = [];
+  const applicationId = '33333333-3333-4333-8333-333333333333';
+  const studentId = '22222222-2222-4222-8222-222222222222';
+  const repository = new AdmissionsCommandRepository({
+    executeWithTenant: async (tenantId: string, userId: string | null, callback: (tx: { $queryRawUnsafe: (sql: string, ...params: unknown[]) => Promise<unknown[]> }) => Promise<unknown>) => {
+      assert.equal(tenantId, 'tenant-a');
+      return callback({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          statements.push({ sql, params });
+          if (/FROM admission_applications/i.test(sql) && /LIMIT 1/i.test(sql)) {
+            return [{
+              id: applicationId,
+              application_number: 'APP-2026-001',
+              full_name: 'Faith Anyango',
+              date_of_birth: '2013-02-14',
+              gender: 'Female',
+              birth_certificate_number: 'BC765432',
+              nationality: 'Kenyan',
+              class_applying: 'Grade 9',
+              parent_name: 'Rose Anyango',
+              parent_phone: '0700000000',
+              parent_email: 'rose@example.com',
+              relationship: 'mother',
+              status: 'approved',
+              admitted_student_id: null,
+            }];
+          }
+          if (/INSERT INTO students/i.test(sql)) {
+            assert.equal(params[0], 'tenant-a');
+            return [{
+              id: studentId,
+              tenant_id: 'tenant-a',
+              admission_number: 'ADM-2026-56B04666',
+              first_name: 'Faith',
+              last_name: 'Anyango',
+              status: 'active',
+            }];
+          }
+          if (/INSERT INTO student_allocations/i.test(sql)) {
+            assert.equal(params[0], 'tenant-a');
+            assert.equal(params[1], studentId);
+            return [{ id: 'allocation-1', student_id: studentId, class_name: 'Grade 9', stream_name: 'Default' }];
+          }
+          if (/INSERT INTO student_academic_enrollments/i.test(sql)) {
+            assert.equal(params[0], 'tenant-a');
+            assert.equal(params[1], studentId);
+            assert.equal(params[2], applicationId);
+            return [{ id: 'enrollment-1', student_id: studentId, class_name: 'Grade 9', stream_name: 'Default', academic_year: '2026' }];
+          }
+          if (/UPDATE admission_applications/i.test(sql)) {
+            assert.equal(params[0], 'tenant-a');
+            assert.equal(params[1], applicationId);
+            assert.equal(params[2], studentId);
+            return [{ id: applicationId, status: 'registered', admitted_student_id: studentId }];
+          }
+          return [];
+        },
+      });
+    },
+  } as never);
+
+  const result = await repository.admitStudent('tenant-a', applicationId, '11111111-1111-4111-8111-111111111111');
+
+  assert.equal(result?.student.id, studentId);
+  assert.equal(result?.application.status, 'registered');
+  assert.ok(statements.some((statement) => /INSERT INTO students/i.test(statement.sql)));
+  assert.ok(statements.some((statement) => /INSERT INTO student_allocations/i.test(statement.sql)));
+  assert.ok(statements.some((statement) => /INSERT INTO student_academic_enrollments/i.test(statement.sql)));
+  assert.ok(statements.every((statement) => statement.params[0] === 'tenant-a'));
 });
 
 test('DeputyCommandRepository discipline and welfare reads do not hide tenant query failures', async () => {
@@ -382,6 +542,60 @@ test('GuidanceCounsellingCommandService creates real tenant-scoped counselling r
   assert.equal(workflowCalls[0].entityId, '99999999-9999-4999-8999-999999999999');
 });
 
+test('GuidanceCounsellingCommandService returns tenant-scoped referral options for counsellor dropdowns', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new GuidanceCounsellingCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        school_id: '22222222-2222-4222-8222-222222222222',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        if (/FROM students/.test(sql)) {
+          return { rows: [{ id: 'student-a', label: 'Amina Otieno - ADM001', class_id: 'class-a' }], rowCount: 1 };
+        }
+        if (/FROM class_sections/.test(sql)) {
+          return { rows: [{ id: 'class-a', label: 'Grade 8 North' }], rowCount: 1 };
+        }
+        if (/FROM academic_terms/.test(sql)) {
+          return { rows: [{ id: 'term-a', label: 'Term 2 2026', status: 'active' }], rowCount: 1 };
+        }
+        if (/FROM academic_years/.test(sql)) {
+          return { rows: [{ id: 'year-a', label: '2026', status: 'active' }], rowCount: 1 };
+        }
+        if (/FROM admin_incidents/.test(sql)) {
+          return { rows: [{ id: 'incident-a', label: 'Bullying report - 2026-07-13' }], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+    {
+      uuidOrNull: (value: unknown) => String(value || ''),
+      requiredText: (value: unknown, label: string) => {
+        const text = String(value ?? '').trim();
+        if (!text) throw new Error(`${label} is required`);
+        return text;
+      },
+      writeSql: async () => ({ rows: [], rowCount: 0 }),
+      recordWorkflowAction: async (input: any) => ({ id: 'workflow-1', ...input }),
+    } as never,
+  );
+
+  const result = await service.getReferralOptions();
+
+  assert.deepEqual(result.students, [{ id: 'student-a', label: 'Amina Otieno - ADM001', class_id: 'class-a' }]);
+  assert.deepEqual(result.classes, [{ id: 'class-a', label: 'Grade 8 North' }]);
+  assert.deepEqual(result.terms, [{ id: 'term-a', label: 'Term 2 2026', status: 'active' }]);
+  assert.deepEqual(result.years, [{ id: 'year-a', label: '2026', status: 'active' }]);
+  assert.deepEqual(result.incidents, [{ id: 'incident-a', label: 'Bullying report - 2026-07-13' }]);
+  assert.equal(queries.length, 5);
+  assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
+});
+
 test('GuidanceCounsellingCommandService updates counselling referral status inside the current tenant', async () => {
   const writes: Array<{ sql: string; params: unknown[] }> = [];
   const workflowCalls: any[] = [];
@@ -557,6 +771,71 @@ test('LibrarianCommandService issues department resources through staff borrower
   assert.match(String(writes[2].params[3]), /"department":"Science"/);
   assert.equal(audits[0].action, 'library.department_resource.issued');
   assert.equal(audits[0].metadata.department, 'Science');
+});
+
+test('LibrarianCommandService returns tenant-scoped circulation options for librarian selects', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new LibrarianCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        if (/FROM library_borrowers/i.test(sql)) {
+          return {
+            rows: [{
+              id: 'borrower-1',
+              label: 'Akinyi Wanjiru - ADM-001 - Form 2 East',
+              borrower_type: 'student',
+              admission_no: 'ADM-001',
+              class_name: 'Form 2 East',
+            }],
+            rowCount: 1,
+          };
+        }
+        if (/FROM library_catalog_items/i.test(sql)) {
+          return {
+            rows: [{
+              id: 'catalogue-1',
+              label: 'Chemistry Reference - CHEM-001 (3 available)',
+              title: 'Chemistry Reference',
+              isbn: 'CHEM-001',
+              copies_available: 3,
+            }],
+            rowCount: 1,
+          };
+        }
+        if (/FROM staff_profiles/i.test(sql)) {
+          return {
+            rows: [{
+              id: 'staff-1',
+              label: 'Mr. Omondi - T-001',
+              staff_number: 'T-001',
+              status: 'active',
+            }],
+            rowCount: 1,
+          };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.getCirculationOptions();
+
+  assert.equal(result.borrowers[0].id, 'borrower-1');
+  assert.equal(result.catalogItems[0].id, 'catalogue-1');
+  assert.equal(result.staff[0].id, 'staff-1');
+  assert.equal(queries.length, 3);
+  assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
+  assert.match(queries[0].sql, /WHERE borrower\.tenant_id = \$1/);
+  assert.match(queries[1].sql, /WHERE item\.tenant_id = \$1/);
+  assert.match(queries[2].sql, /WHERE tenant_id = \$1/);
 });
 
 test('LibrarianCommandService routes workflow actions to requested target roles', async () => {
@@ -1948,6 +2227,249 @@ test('HodCommandService routes subject allocation revoke requests without deleti
   assert.equal(workflowCalls[0].payload.teacher_id, '55555555-5555-4555-8555-555555555555');
 });
 
+test('HodCommandService returns tenant-scoped subject allocation options for HOD dropdowns', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new HodCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        if (/FROM staff_profiles/.test(sql)) {
+          return { rows: [{ id: 'staff-a', user_id: 'teacher-a', label: 'Teacher A' }], rowCount: 1 };
+        }
+        if (/FROM subjects/.test(sql)) {
+          return { rows: [{ id: 'subject-a', label: 'Mathematics', code: 'MATH' }], rowCount: 1 };
+        }
+        if (/FROM class_sections/.test(sql)) {
+          return { rows: [{ id: 'class-a', label: 'Form 2 East', grade_level: 'Form 2', stream: 'East' }], rowCount: 1 };
+        }
+        if (/FROM academic_terms/.test(sql)) {
+          return { rows: [{ id: 'term-a', label: 'Term 2 2026', status: 'active' }], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+    {
+      uuidOrNull: (value: unknown) => String(value || ''),
+      recordWorkflowAction: async (input: any) => ({ id: 'workflow-a', ...input }),
+    } as never,
+  );
+
+  const result = await service.getSubjectAllocationOptions();
+
+  assert.deepEqual(result.teachers, [{ id: 'staff-a', user_id: 'teacher-a', label: 'Teacher A' }]);
+  assert.deepEqual(result.subjects, [{ id: 'subject-a', label: 'Mathematics', code: 'MATH' }]);
+  assert.deepEqual(result.classes, [{ id: 'class-a', label: 'Form 2 East', grade_level: 'Form 2', stream: 'East' }]);
+  assert.deepEqual(result.terms, [{ id: 'term-a', label: 'Term 2 2026', status: 'active' }]);
+  assert.equal(queries.length, 4);
+  assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
+});
+
+test('HodCommandService does not convert tenant query failures into fake empty workspaces', async () => {
+  const service = new HodCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {
+      query: async (_sql: string, params: unknown[]) => {
+        assert.equal(params[0], 'tenant-a');
+        throw new Error('hod read failed');
+      },
+    } as never,
+    {} as never,
+  );
+
+  await assert.rejects(() => service.getCoverageReview(), /hod read failed/);
+});
+
+test('DeanAcademicsCommandService does not convert tenant query failures into fake empty workspaces', async () => {
+  const service = new DeanAcademicsCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {
+      query: async (_sql: string, params: unknown[]) => {
+        assert.equal(params[0], 'tenant-a');
+        throw new Error('dean read failed');
+      },
+    } as never,
+    {} as never,
+  );
+
+  await assert.rejects(() => service.getAssessments(), /dean read failed/);
+});
+
+test('TeacherCommandService lists only the current teacher store requests with actionable metrics', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new TeacherCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        return {
+          rows: [
+            {
+              id: 'request-a',
+              request_number: 'REQ-2026-00001',
+              item: 'Exercise books',
+              quantity: 40,
+              needed_by: '2026-07-18',
+              date: '2026-07-13',
+              priority: 'High',
+              status: 'Pending',
+            },
+          ],
+          rowCount: 1,
+        };
+      },
+    } as never,
+    {
+      requiredText: (value: unknown, label: string) => {
+        const text = String(value ?? '').trim();
+        if (!text) throw new Error(`${label} is required`);
+        return text;
+      },
+      positiveInteger: (value: unknown) => Number(value),
+      uuidOrNull: (value: unknown) => String(value || ''),
+      writeSql: async () => ({ rows: [], rowCount: 0 }),
+      recordWorkflowAction: async (input: any) => ({ id: 'event-a', ...input }),
+    } as never,
+  );
+
+  const result = await service.getStoreRequests();
+
+  assert.equal(result.metrics.pending, 1);
+  assert.equal(result.metrics.fulfilled, 0);
+  assert.equal(result.items[0].item, 'Exercise books');
+  assert.equal(queries[0].params[0], 'tenant-a');
+  assert.equal(queries[0].params[1], '11111111-1111-4111-8111-111111111111');
+  assert.match(queries[0].sql, /tenant_id = \$1/);
+  assert.match(queries[0].sql, /requested_by_user_id/);
+});
+
+test('TeacherCommandService reads mark entry only for the current teacher and does not fake empty failures', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new TeacherCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        return {
+          rows: [
+            {
+              id: 'mark-a',
+              student_name: 'Achieng Otieno',
+              exam_name: 'Term 1 Opener',
+              score: '78',
+              status: 'draft',
+            },
+          ],
+          rowCount: 1,
+        };
+      },
+    } as never,
+    {} as never,
+  );
+
+  const marks = await service.getMarkEntry();
+
+  assert.equal(marks.length, 1);
+  assert.equal(queries[0].params[0], 'tenant-a');
+  assert.equal(queries[0].params[1], '11111111-1111-4111-8111-111111111111');
+  assert.match(queries[0].sql, /FROM exam_marks mark/i);
+  assert.match(queries[0].sql, /entered_by_user_id = \$2::uuid/i);
+  assert.doesNotMatch(queries[0].sql, /SELECT \* FROM exam_marks WHERE tenant_id = \$1/i);
+
+  const failingService = new TeacherCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      query: async () => {
+        throw new Error('teacher mark query failed');
+      },
+    } as never,
+    {} as never,
+  );
+
+  await assert.rejects(() => failingService.getMarkEntry(), /teacher mark query failed/);
+});
+
+test('TeacherCommandService creates tenant-scoped store requests for the storekeeper queue', async () => {
+  const writes: Array<{ sql: string; params: unknown[] }> = [];
+  const workflowCalls: any[] = [];
+  const service = new TeacherCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    { query: async () => ({ rows: [{ count: 2 }], rowCount: 1 }) } as never,
+    {
+      requiredText: (value: unknown, label: string) => {
+        const text = String(value ?? '').trim();
+        if (!text) throw new Error(`${label} is required`);
+        return text;
+      },
+      positiveInteger: (value: unknown, label: string) => {
+        const number = Number(value);
+        if (!Number.isInteger(number) || number <= 0) throw new Error(`${label} must be positive`);
+        return number;
+      },
+      uuidOrNull: (value: unknown) => String(value || ''),
+      writeSql: async (sql: string, params: unknown[]) => {
+        writes.push({ sql, params });
+        return {
+          rows: [{ id: 'request-a', request_number: 'REQ-2026-00003', status: 'pending' }],
+          rowCount: 1,
+        };
+      },
+      recordWorkflowAction: async (input: any) => {
+        workflowCalls.push(input);
+        return { id: 'teacher-store-request-event-1', ...input };
+      },
+    } as never,
+  );
+
+  const result = await service.createStoreRequest({
+    item: 'Exercise books',
+    quantity: 40,
+    needed_by: '2026-07-18',
+    priority: 'high',
+    notes: 'For Form 1 English assignment.',
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.request.request_number, 'REQ-2026-00003');
+  assert.match(writes[0].sql, /INSERT INTO inventory_requests/);
+  assert.equal(writes[0].params[0], 'tenant-a');
+  assert.equal(writes[0].params[3], 'Teacher request');
+  assert.match(String(writes[0].params[6]), /Exercise books/);
+  assert.match(String(writes[0].params[6]), /11111111-1111-4111-8111-111111111111/);
+  assert.equal(workflowCalls.length, 1);
+  assert.equal(workflowCalls[0].tenantId, 'tenant-a');
+  assert.equal(workflowCalls[0].sourceRole, 'teacher');
+  assert.deepEqual(workflowCalls[0].targetRoles, ['storekeeper', 'hod', 'principal']);
+  assert.equal(workflowCalls[0].eventType, 'inventory.requested');
+  assert.equal(workflowCalls[0].entityType, 'inventory_request');
+});
+
 test('TransportManagerCommandService sends transport notices through tenant-scoped notifications', async () => {
   const workflowCalls: any[] = [];
   const notificationCalls: any[] = [];
@@ -1995,6 +2517,103 @@ test('TransportManagerCommandService sends transport notices through tenant-scop
   assert.equal(notificationCalls[0].input.type, 'transport.notice_sent');
 });
 
+test('TransportManagerCommandService returns tenant-scoped assignment options for transport dropdowns', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new TransportManagerCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        if (/FROM transport_routes route/.test(sql)) {
+          return { rows: [{ id: 'route-a', label: 'Town Route - T1', status: 'active' }], rowCount: 1 };
+        }
+        if (/FROM transport_manifests manifest/.test(sql)) {
+          return { rows: [{ id: 'manifest-a', route_id: 'route-a', label: 'Town Route manifest from 2026-07-15', status: 'active' }], rowCount: 1 };
+        }
+        if (/FROM students student/.test(sql)) {
+          return { rows: [{ id: 'student-a', label: 'Amina Otieno - ADM001', class_id: 'class-a', guardian_contact: '0700000000' }], rowCount: 1 };
+        }
+        if (/FROM transport_route_stops stop/.test(sql)) {
+          return { rows: [{ id: 'stop-a', route_id: 'route-a', label: 'Town Route - 1. Main Gate' }], rowCount: 1 };
+        }
+        if (/FROM transport_vehicles vehicle/.test(sql)) {
+          return { rows: [{ id: 'vehicle-a', label: 'KDA 123A - Isuzu Bus (active)', status: 'active' }], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.getAssignmentOptions();
+
+  assert.deepEqual(result.routes, [{ id: 'route-a', label: 'Town Route - T1', status: 'active' }]);
+  assert.deepEqual(result.manifests, [{ id: 'manifest-a', route_id: 'route-a', label: 'Town Route manifest from 2026-07-15', status: 'active' }]);
+  assert.deepEqual(result.students, [{ id: 'student-a', label: 'Amina Otieno - ADM001', class_id: 'class-a', guardian_contact: '0700000000' }]);
+  assert.deepEqual(result.stops, [{ id: 'stop-a', route_id: 'route-a', label: 'Town Route - 1. Main Gate' }]);
+  assert.deepEqual(result.vehicles, [{ id: 'vehicle-a', label: 'KDA 123A - Isuzu Bus (active)', status: 'active' }]);
+  assert.equal(queries.length, 5);
+  assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
+});
+
+test('TransportManagerCommandService assigns learners by route and prepares an active manifest', async () => {
+  const writes: Array<{ sql: string; params: unknown[] }> = [];
+  const audits: any[] = [];
+  const service = new TransportManagerCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      query: async () => ({ rows: [], rowCount: 0 }),
+    } as never,
+    {
+      uuidOrNull: (value: unknown) => (value ? String(value) : null),
+      requiredText: (value: unknown, label: string) => {
+        const text = String(value ?? '').trim();
+        if (!text) throw new Error(`${label} is required`);
+        return text;
+      },
+      writeSql: async (sql: string, params: unknown[]) => {
+        writes.push({ sql, params });
+        if (/INSERT INTO transport_manifests/.test(sql)) {
+          return { rows: [{ id: 'manifest-created' }], rowCount: 1 };
+        }
+        return { rows: [{ id: 'assignment-a', manifest_id: params[1], student_id: params[2] }], rowCount: 1 };
+      },
+      recordAudit: async (...args: any[]) => {
+        audits.push(args);
+      },
+    } as never,
+  );
+
+  const result = await service.assignStudentTransport({
+    route_id: 'route-a',
+    student_id: 'student-a',
+    pickup_stop_id: 'stop-a',
+    dropoff_stop_id: 'stop-b',
+    guardian_contact: '0700000000',
+  });
+
+  assert.equal(result.success, true);
+  assert.match(writes[0].sql, /INSERT INTO transport_manifests/);
+  assert.equal(writes[0].params[0], 'tenant-a');
+  assert.equal(writes[0].params[1], 'route-a');
+  assert.match(writes[1].sql, /INSERT INTO transport_manifest_students/);
+  assert.equal(writes[1].params[1], 'manifest-created');
+  assert.equal(writes[1].params[2], 'student-a');
+  assert.equal(audits.length, 1);
+  assert.equal(audits[0][0], 'tenant-a');
+  assert.equal(audits[0][1], 'transport.student_assigned');
+});
+
 test('ExamsManagerCommandService reads fresh-school overview from tenant-scoped exam series only', async () => {
   const reads: Array<{ sql: string; params: unknown[] }> = [];
   const service = new ExamsManagerCommandService(
@@ -2019,6 +2638,37 @@ test('ExamsManagerCommandService reads fresh-school overview from tenant-scoped 
   assert.equal(reads.every((read) => read.params[0] === 'tenant-a'), true);
   assert.equal(reads.some((read) => /exam_series/i.test(read.sql)), true);
   assert.equal(reads.some((read) => /exam_cycles/i.test(read.sql)), false);
+});
+
+test('ExamsManagerCommandService returns clean exam setup and marks entry for a fresh tenant', async () => {
+  const reads: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new ExamsManagerCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-fresh', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {} as never,
+    {
+      readSql: async (sql: string, params: unknown[]) => {
+        reads.push({ sql, params });
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+  );
+
+  const setup = await service.getExamSetup();
+  const marksEntry = await service.getMarksEntry();
+
+  assert.deepEqual(setup.exams, []);
+  assert.equal(setup.metrics.total_exams, 0);
+  assert.equal(setup.metrics.active_exams, 0);
+  assert.deepEqual(marksEntry.entries, []);
+  assert.equal(marksEntry.metrics.total_entries, 0);
+  assert.equal(marksEntry.metrics.completion_rate, 0);
+  assert.equal(reads.length, 2);
+  assert.equal(reads.every((read) => read.params[0] === 'tenant-fresh'), true);
+  assert.equal(reads.some((read) => /FROM exam_series series/i.test(read.sql)), true);
+  assert.equal(reads.some((read) => /FROM exam_marks mark/i.test(read.sql)), true);
+  assert.equal(reads.every((read) => /tenant_id = \$1/.test(read.sql)), true);
 });
 
 test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped exam series', async () => {
@@ -2069,9 +2719,479 @@ test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped e
   assert.match(writes[0].sql, /INSERT INTO exam_series/i);
   assert.equal(writes[0].params[0], 'tenant-a');
   assert.equal(writes[0].params[1], 'Term 1 Opener');
+  assert.equal(writes[0].params[4], 'draft');
   assert.equal(workflowCalls.length, 1);
   assert.equal(workflowCalls[0].tenantId, 'tenant-a');
   assert.equal(workflowCalls[0].eventType, 'exams.exam-setup.created');
   assert.equal(workflowCalls[0].entityType, 'exam_series');
   assert.equal(workflowCalls[0].entityId, '22222222-2222-4222-8222-222222222222');
+});
+
+test('ExamsManagerCommandService configures an existing exam setup inside the current tenant', async () => {
+  const writes: Array<{ sql: string; params: unknown[] }> = [];
+  const workflowCalls: any[] = [];
+  const service = new ExamsManagerCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {} as never,
+    {
+      writeSql: async (sql: string, params: unknown[]) => {
+        writes.push({ sql, params });
+        return {
+          rows: [{
+            id: params[1],
+            name: params[2],
+            starts_on: params[3],
+            ends_on: params[4],
+            status: params[5],
+            updated_at: '2026-07-13T00:00:00.000Z',
+          }],
+          rowCount: 1,
+        };
+      },
+      recordWorkflowAction: async (input: any) => {
+        workflowCalls.push(input);
+        return { id: 'workflow-1', ...input };
+      },
+      requiredText: (value: unknown, label: string) => {
+        const text = String(value ?? '').trim();
+        if (!text) throw new Error(`${label} is required`);
+        return text;
+      },
+    } as never,
+  );
+
+  const result = await service.configureExamSetup('22222222-2222-4222-8222-222222222222', {
+    name: 'Term 1 Midterm',
+    starts_on: '2026-02-02',
+    ends_on: '2026-02-06',
+    status: 'submitted',
+  });
+
+  assert.equal(result.success, true);
+  assert.match(writes[0].sql, /UPDATE exam_series/i);
+  assert.match(writes[0].sql, /WHERE tenant_id = \$1\s+AND id = \$2::uuid/i);
+  assert.equal(writes[0].params[0], 'tenant-a');
+  assert.equal(writes[0].params[1], '22222222-2222-4222-8222-222222222222');
+  assert.equal(writes[0].params[2], 'Term 1 Midterm');
+  assert.equal(writes[0].params[5], 'submitted');
+  assert.equal(workflowCalls.length, 1);
+  assert.equal(workflowCalls[0].eventType, 'exams.exam-setup.configured');
+  assert.equal(workflowCalls[0].entityType, 'exam_series');
+  assert.equal(workflowCalls[0].entityId, '22222222-2222-4222-8222-222222222222');
+});
+
+test('ExamsManagerCommandService returns tenant-scoped exam setup options for human dropdowns', async () => {
+  const reads: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new ExamsManagerCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {} as never,
+    {
+      readSql: async (sql: string, params: unknown[]) => {
+        reads.push({ sql, params });
+        if (/FROM academic_terms/.test(sql)) {
+          return { rows: [{ id: 'term-a', label: 'Term 2 2026', status: 'active' }], rowCount: 1 };
+        }
+        if (/FROM subjects/.test(sql)) {
+          return { rows: [{ id: 'subject-a', label: 'Mathematics', code: 'MATH' }], rowCount: 1 };
+        }
+        if (/FROM class_sections/.test(sql)) {
+          return { rows: [{ id: 'class-a', label: 'Form 2 East' }], rowCount: 1 };
+        }
+        if (/FROM staff_profiles/.test(sql)) {
+          return {
+            rows: [{
+              id: 'staff-a',
+              user_id: 'teacher-user-a',
+              label: 'Teacher A',
+              staff_number: 'T-001',
+              status: 'active',
+            }],
+            rowCount: 1,
+          };
+        }
+        if (/FROM exam_series/.test(sql)) {
+          return {
+            rows: [{
+              id: 'series-a',
+              label: 'Term 2 Opener',
+              status: 'draft',
+            }],
+            rowCount: 1,
+          };
+        }
+        if (/FROM exam_assessments/.test(sql)) {
+          return {
+            rows: [{
+              id: 'assessment-a',
+              exam_series_id: 'series-a',
+              label: 'Mathematics Paper 1',
+              subject_id: 'subject-a',
+            }],
+            rowCount: 1,
+          };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+      writeSql: async () => ({ rows: [], rowCount: 0 }),
+      recordWorkflowAction: async (input: any) => ({ id: 'workflow-1', ...input }),
+    } as never,
+  );
+
+  const result = await service.getExamSetupOptions();
+
+  assert.deepEqual(result.terms, [{ id: 'term-a', label: 'Term 2 2026', status: 'active' }]);
+  assert.deepEqual(result.subjects, [{ id: 'subject-a', label: 'Mathematics', code: 'MATH' }]);
+  assert.deepEqual(result.classes, [{ id: 'class-a', label: 'Form 2 East' }]);
+  assert.deepEqual(result.staff, [{
+    id: 'staff-a',
+    user_id: 'teacher-user-a',
+    label: 'Teacher A',
+    staff_number: 'T-001',
+    status: 'active',
+  }]);
+  assert.deepEqual((result as any).examSeries, [{ id: 'series-a', label: 'Term 2 Opener', status: 'draft' }]);
+  assert.deepEqual((result as any).assessments, [{
+    id: 'assessment-a',
+    exam_series_id: 'series-a',
+    label: 'Mathematics Paper 1',
+    subject_id: 'subject-a',
+  }]);
+  assert.equal(reads.length, 6);
+  assert.ok(reads.every((read) => read.params[0] === 'tenant-a'));
+});
+
+test('ExamsManagerCommandService creates a durable tenant-scoped timetable slot and invigilator', async () => {
+  const writes: Array<{ sql: string; params: unknown[] }> = [];
+  const workflowCalls: any[] = [];
+  const service = new ExamsManagerCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {} as never,
+    {
+      writeSql: async (sql: string, params: unknown[]) => {
+        writes.push({ sql, params });
+        if (/INSERT INTO exam_timetable_slots/i.test(sql)) {
+          return {
+            rows: [{
+              id: '44444444-4444-4444-8444-444444444444',
+              exam_series_id: params[1],
+              assessment_id: params[2],
+              date: params[3],
+              start_time: params[4],
+              end_time: params[5],
+              room_name: params[6],
+              status: 'scheduled',
+            }],
+            rowCount: 1,
+          };
+        }
+        if (/INSERT INTO exam_invigilators/i.test(sql)) {
+          return {
+            rows: [{
+              id: '55555555-5555-4555-8555-555555555555',
+              staff_user_id: params[2],
+              role: params[3],
+              status: 'assigned',
+            }],
+            rowCount: 1,
+          };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+      recordWorkflowAction: async (input: any) => {
+        workflowCalls.push(input);
+        return { id: 'workflow-1', ...input };
+      },
+      requiredText: (value: unknown, label: string) => {
+        const text = String(value ?? '').trim();
+        if (!text) throw new Error(`${label} is required`);
+        return text;
+      },
+    } as never,
+  );
+
+  const result = await (service as any).createExamTimetableSlot({
+    exam_series_id: '22222222-2222-4222-8222-222222222222',
+    assessment_id: '33333333-3333-4333-8333-333333333333',
+    date: '2026-07-20',
+    start_time: '08:00',
+    end_time: '10:00',
+    room_name: 'Main Hall',
+    staff_user_id: '66666666-6666-4666-8666-666666666666',
+    invigilator_role: 'chief invigilator',
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.slot.id, '44444444-4444-4444-8444-444444444444');
+  assert.equal(result.invigilator.staff_user_id, '66666666-6666-4666-8666-666666666666');
+  assert.match(writes[0].sql, /INSERT INTO exam_timetable_slots/i);
+  assert.match(writes[0].sql, /tenant_id,\s*exam_series_id,\s*assessment_id,\s*date,\s*start_time,\s*end_time,\s*room_name,\s*status/i);
+  assert.equal(writes[0].params[0], 'tenant-a');
+  assert.equal(writes[0].params[1], '22222222-2222-4222-8222-222222222222');
+  assert.equal(writes[0].params[2], '33333333-3333-4333-8333-333333333333');
+  assert.equal(writes[0].params[3], '2026-07-20');
+  assert.equal(writes[0].params[4], '08:00');
+  assert.equal(writes[0].params[5], '10:00');
+  assert.equal(writes[0].params[6], 'Main Hall');
+  assert.match(writes[1].sql, /INSERT INTO exam_invigilators/i);
+  assert.equal(writes[1].params[0], 'tenant-a');
+  assert.equal(writes[1].params[1], '44444444-4444-4444-8444-444444444444');
+  assert.equal(writes[1].params[2], '66666666-6666-4666-8666-666666666666');
+  assert.equal(writes[1].params[3], 'chief invigilator');
+  assert.equal(workflowCalls.length, 1);
+  assert.equal(workflowCalls[0].tenantId, 'tenant-a');
+  assert.equal(workflowCalls[0].eventType, 'exams.exam-timetable.created');
+  assert.equal(workflowCalls[0].entityType, 'exam_timetable_slot');
+  assert.equal(workflowCalls[0].entityId, '44444444-4444-4444-8444-444444444444');
+});
+
+test('ExamsManagerCommandService refuses timetable slots whose end time is not after start time', async () => {
+  const writes: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new ExamsManagerCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {} as never,
+    {
+      writeSql: async (sql: string, params: unknown[]) => {
+        writes.push({ sql, params });
+        return { rows: [], rowCount: 0 };
+      },
+      recordWorkflowAction: async (input: any) => ({ id: 'workflow-1', ...input }),
+      requiredText: (value: unknown, label: string) => {
+        const text = String(value ?? '').trim();
+        if (!text) throw new Error(`${label} is required`);
+        return text;
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    () => (service as any).createExamTimetableSlot({
+      exam_series_id: '22222222-2222-4222-8222-222222222222',
+      date: '2026-07-20',
+      start_time: '10:00',
+      end_time: '08:00',
+      room_name: 'Main Hall',
+    }),
+    /End time must be after start time/i,
+  );
+
+  assert.equal(writes.length, 0);
+});
+
+test('ExamsManagerCommandService rejects unconfigured live Zeraki sync without fake success', async () => {
+  const workflowCalls: any[] = [];
+  const service = new ExamsManagerCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {} as never,
+    {
+      recordWorkflowAction: async (input: any) => {
+        workflowCalls.push(input);
+        return { id: 'workflow-1', ...input };
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    () => (service as any).requestZerakiSync({ requested_action: 'zeraki_sync' }),
+    /Zeraki live sync is not configured/i,
+  );
+
+  assert.equal(workflowCalls.length, 1);
+  assert.equal(workflowCalls[0].tenantId, 'tenant-a');
+  assert.equal(workflowCalls[0].eventType, 'exams.zeraki-sync.unconfigured');
+  assert.equal(workflowCalls[0].entityType, 'exam_import_provider');
+  assert.equal(workflowCalls[0].payload.provider, 'zeraki');
+});
+
+test('ExamsManagerCommandService maps moderation approve to reviewed mark status', async () => {
+  const writes: Array<{ sql: string; params: unknown[] }> = [];
+  const workflowCalls: any[] = [];
+  const service = new ExamsManagerCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {} as never,
+    {
+      writeSql: async (sql: string, params: unknown[]) => {
+        writes.push({ sql, params });
+        return { rows: [{ id: params[1], status: params[2] }], rowCount: 1 };
+      },
+      recordWorkflowAction: async (input: any) => {
+        workflowCalls.push(input);
+        return { id: 'workflow-1', ...input };
+      },
+    } as never,
+  );
+
+  const result = await service.approveModeration('33333333-3333-4333-8333-333333333333', {});
+
+  assert.equal(result.success, true);
+  assert.equal(writes[0].params[0], 'tenant-a');
+  assert.equal(writes[0].params[2], 'reviewed');
+  assert.match(writes[0].sql, /UPDATE exam_marks/i);
+  assert.equal(workflowCalls[0].eventType, 'exams.moderation.approved');
+  assert.equal(workflowCalls[0].payload.status, 'reviewed');
+});
+
+test('ExamsManagerCommandService maps moderation rejection to draft and stores the return reason', async () => {
+  const writes: Array<{ sql: string; params: unknown[] }> = [];
+  const workflowCalls: any[] = [];
+  const service = new ExamsManagerCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {} as never,
+    {
+      writeSql: async (sql: string, params: unknown[]) => {
+        writes.push({ sql, params });
+        return { rows: [{ id: params[1], status: params[2] }], rowCount: 1 };
+      },
+      recordWorkflowAction: async (input: any) => {
+        workflowCalls.push(input);
+        return { id: 'workflow-1', ...input };
+      },
+    } as never,
+  );
+
+  const result = await service.rejectModeration('33333333-3333-4333-8333-333333333333', { reason: 'Missing CAT marks' });
+
+  assert.equal(result.success, true);
+  assert.equal(writes[0].params[2], 'draft');
+  assert.equal(writes[0].params[3], 'Missing CAT marks');
+  assert.match(writes[0].sql, /remarks = COALESCE/i);
+  assert.equal(workflowCalls[0].eventType, 'exams.moderation.rejected');
+  assert.equal(workflowCalls[0].payload.status, 'draft');
+});
+
+test('ExamsManagerCommandService generates durable tenant-scoped report cards from moderated marks', async () => {
+  const writes: Array<{ sql: string; params: unknown[] }> = [];
+  const workflowCalls: any[] = [];
+  const service = new ExamsManagerCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {} as never,
+    {
+      writeSql: async (sql: string, params: unknown[]) => {
+        writes.push({ sql, params });
+        if (/INSERT INTO student_report_cards/i.test(sql)) {
+          return {
+            rows: [
+              { id: 'card-1', student_id: 'student-1', status: 'approved' },
+              { id: 'card-2', student_id: 'student-2', status: 'approved' },
+            ],
+            rowCount: 2,
+          };
+        }
+        if (/UPDATE exam_series/i.test(sql)) {
+          return { rows: [{ id: params[1], status: 'locked' }], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+      recordWorkflowAction: async (input: any) => {
+        workflowCalls.push(input);
+        return { id: 'workflow-1', ...input };
+      },
+    } as never,
+  );
+
+  const result = await service.generateReportCards('22222222-2222-4222-8222-222222222222', { note: 'Term reports' });
+
+  assert.equal(result.success, true);
+  assert.equal(result.generated_count, 2);
+  assert.match(writes[0].sql, /INSERT INTO student_report_cards/i);
+  assert.match(writes[0].sql, /exam_marks/i);
+  assert.equal(writes[0].params[0], 'tenant-a');
+  assert.equal(writes[0].params[1], '22222222-2222-4222-8222-222222222222');
+  assert.match(writes[1].sql, /UPDATE exam_series/i);
+  assert.equal(workflowCalls.length, 1);
+  assert.equal(workflowCalls[0].eventType, 'exams.report-card.generated');
+  assert.equal(workflowCalls[0].entityId, '22222222-2222-4222-8222-222222222222');
+  assert.equal(workflowCalls[0].payload.generated_count, 2);
+});
+
+test('ExamsManagerCommandService publishes approved report cards and marks the exam series published', async () => {
+  const writes: Array<{ sql: string; params: unknown[] }> = [];
+  const workflowCalls: any[] = [];
+  const service = new ExamsManagerCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {} as never,
+    {
+      writeSql: async (sql: string, params: unknown[]) => {
+        writes.push({ sql, params });
+        if (/UPDATE student_report_cards/i.test(sql)) {
+          return {
+            rows: [
+              { id: 'card-1', student_id: 'student-1', status: 'published' },
+              { id: 'card-2', student_id: 'student-2', status: 'published' },
+            ],
+            rowCount: 2,
+          };
+        }
+        if (/UPDATE exam_series/i.test(sql)) {
+          return { rows: [{ id: params[1], status: 'published' }], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+      recordWorkflowAction: async (input: any) => {
+        workflowCalls.push(input);
+        return { id: 'workflow-1', ...input };
+      },
+      notifyRoles: async () => undefined,
+    } as never,
+  );
+
+  const result = await service.publishResults('22222222-2222-4222-8222-222222222222', { notes: 'Release to portals' });
+
+  assert.equal(result.success, true);
+  assert.equal(result.published_count, 2);
+  assert.match(writes[0].sql, /UPDATE student_report_cards/i);
+  assert.match(writes[0].sql, /status = 'published'/i);
+  assert.equal(writes[0].params[0], 'tenant-a');
+  assert.equal(writes[0].params[1], '22222222-2222-4222-8222-222222222222');
+  assert.match(writes[1].sql, /UPDATE exam_series/i);
+  assert.match(writes[1].sql, /status = 'published'/i);
+  assert.equal(workflowCalls.length, 1);
+  assert.equal(workflowCalls[0].eventType, 'exams.publishing.published');
+  assert.equal(workflowCalls[0].payload.published_count, 2);
+});
+
+test('ExamsManagerCommandService refuses fake publication when no report cards are ready', async () => {
+  const writes: Array<{ sql: string; params: unknown[] }> = [];
+  const workflowCalls: any[] = [];
+  const service = new ExamsManagerCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {} as never,
+    {
+      writeSql: async (sql: string, params: unknown[]) => {
+        writes.push({ sql, params });
+        return { rows: [], rowCount: 0 };
+      },
+      recordWorkflowAction: async (input: any) => {
+        workflowCalls.push(input);
+        return { id: 'workflow-1', ...input };
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    service.publishResults('22222222-2222-4222-8222-222222222222', {}),
+    /No approved report cards are ready for publication/i,
+  );
+
+  assert.equal(writes.length, 1);
+  assert.equal(workflowCalls.length, 0);
 });

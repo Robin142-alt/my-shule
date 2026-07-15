@@ -198,6 +198,7 @@ test('ClassTeacherService calculates assigned class average attendance from atte
             {
               id: 'assignment-a',
               class_section_id: 'stream-a',
+              subject_id: 'subject-a',
               class_name: 'Form 1 East',
               subject_name: 'Mathematics',
               learners_count: 40,
@@ -219,10 +220,80 @@ test('ClassTeacherService calculates assigned class average attendance from atte
   assert.equal(result.stats.assignedClasses, 1);
   assert.equal(result.stats.totalLearnersTaught, 40);
   assert.equal(result.stats.averageAttendance, '75%');
+  assert.equal(result.classes[0].subjectId, 'subject-a');
   assert.match(queries[0].sql, /academics_attendance/);
   assert.match(queries[0].sql, /teacher_subject_assignments/);
   assert.equal(queries[0].params[0], 'tenant-a');
   assert.equal(queries[0].params[1], 'teacher-a');
+});
+
+test('ClassTeacherService rejects homework for classes or subjects not assigned to the teacher', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new ClassTeacherService(
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        if (/FROM teacher_subject_assignments/.test(sql)) {
+          return { rows: [], rowCount: 0 };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+    {} as never,
+  );
+
+  await assert.rejects(
+    () => service.saveHomework('tenant-a', 'teacher-a', {
+      title: 'Algebra',
+      classId: 'stream-a',
+      subjectId: 'subject-a',
+      dueDate: '2026-07-20',
+    }),
+    /assigned class and subject/,
+  );
+
+  assert.match(queries[0].sql, /teacher_subject_assignments/);
+  assert.equal(queries[0].params[0], 'tenant-a');
+  assert.equal(queries[0].params[1], 'teacher-a');
+  assert.equal(queries[0].params[2], 'stream-a');
+  assert.equal(queries[0].params[3], 'subject-a');
+  assert.equal(queries.some((query) => /INSERT INTO academics_assignments/.test(query.sql)), false);
+});
+
+test('ClassTeacherService persists homework only for the teacher assigned class-subject pair', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new ClassTeacherService(
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        if (/FROM teacher_subject_assignments/.test(sql)) {
+          return { rows: [{ id: 'assignment-link-a' }], rowCount: 1 };
+        }
+        if (/INSERT INTO academics_assignments/.test(sql)) {
+          return { rows: [{ id: 'homework-a' }], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.saveHomework('tenant-a', 'teacher-a', {
+    title: 'Algebra Chapter 4',
+    description: 'Complete exercise 4.2',
+    classId: 'stream-a',
+    subjectId: 'subject-a',
+    dueDate: '2026-07-20',
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.assignmentId, 'homework-a');
+  const insertQuery = queries.find((query) => /INSERT INTO academics_assignments/.test(query.sql));
+  assert.ok(insertQuery);
+  assert.equal(insertQuery.params[0], 'tenant-a');
+  assert.equal(insertQuery.params[3], 'stream-a');
+  assert.equal(insertQuery.params[4], 'subject-a');
+  assert.equal(insertQuery.params[6], 'teacher-a');
 });
 
 test('ClassTeacherService dashboard overview counts teacher inventory requests from tenant data', async () => {

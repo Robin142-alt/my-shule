@@ -27,6 +27,17 @@ interface TimetableSlotRow {
   status?: string | null;
 }
 
+interface ExamManagerOption {
+  id: string;
+  label: string;
+  user_id?: string | null;
+  status?: string | null;
+}
+
+interface ExamManagerOptions {
+  staff?: ExamManagerOption[];
+}
+
 interface ApiResponse<T> {
   data?: T;
 }
@@ -165,18 +176,33 @@ function InvigilatorDialog({
   onOpenChange,
   onAssign,
   saving,
+  staffOptions,
+  staffLoading,
 }: {
   slot: TimetableSlotRow | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAssign: (slot: TimetableSlotRow, staffUserId: string, role: string) => Promise<void>;
   saving: boolean;
+  staffOptions: ExamManagerOption[];
+  staffLoading: boolean;
 }) {
   const [staffUserId, setStaffUserId] = useState("");
   const [role, setRole] = useState("invigilator");
+  const selectableStaff = staffOptions.filter((staff) => staff.user_id);
+  const staffUnavailable = !staffLoading && selectableStaff.length === 0;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen) {
+          setStaffUserId("");
+          setRole("invigilator");
+        }
+        onOpenChange(nextOpen);
+      }}
+    >
       <DialogContent>
         <form
           onSubmit={(event) => {
@@ -189,8 +215,28 @@ function InvigilatorDialog({
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Staff User ID</Label>
-              <Input required value={staffUserId} onChange={(event) => setStaffUserId(event.target.value)} placeholder="Staff user UUID" />
+              <Label htmlFor="exam-timetable-staff">Staff member</Label>
+              <select
+                id="exam-timetable-staff"
+                name="staff_user_id"
+                required
+                value={staffUserId}
+                onChange={(event) => setStaffUserId(event.target.value)}
+                disabled={staffLoading || staffUnavailable}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">{staffLoading ? "Loading active staff..." : "Select an active staff account"}</option>
+                {selectableStaff.map((staff) => (
+                  <option key={staff.id} value={staff.user_id ?? ""}>
+                    {staff.label}
+                  </option>
+                ))}
+              </select>
+              {staffUnavailable ? (
+                <p className="text-sm text-amber-700">
+                  No active staff accounts are available for invigilation. Add or activate staff before assigning this slot.
+                </p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label>Role</Label>
@@ -199,7 +245,7 @@ function InvigilatorDialog({
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving || staffUnavailable}>
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Assign
             </Button>
@@ -218,9 +264,11 @@ export function ExamTimetableWorkspace({ model }: { model: unknown }) {
   const [roomSlot, setRoomSlot] = useState<TimetableSlotRow | null>(null);
   const [invigilatorSlot, setInvigilatorSlot] = useState<TimetableSlotRow | null>(null);
   const { data: slotsResponse, isLoading, error, refetch } = useSchoolQuery<ApiResponse<TimetableSlotRow[]> | TimetableSlotRow[]>("/exams/timetable-slots");
+  const { data: setupOptions, isLoading: optionsLoading } = useSchoolQuery<ExamManagerOptions>("/admin-command/exams-manager/options");
   const slots = Array.isArray(slotsResponse) ? slotsResponse : slotsResponse?.data;
   const visibleSlots = Array.isArray(slots) ? slots : [];
   const conflicts = visibleSlots.filter((slot) => slot.status?.toLowerCase() === "conflict");
+  const staffOptions = setupOptions?.staff ?? [];
 
   function exportTimetable(rows: TimetableSlotRow[]) {
     downloadCsvFile({
@@ -482,6 +530,8 @@ export function ExamTimetableWorkspace({ model }: { model: unknown }) {
         onOpenChange={(open) => !open && setInvigilatorSlot(null)}
         onAssign={assignInvigilator}
         saving={!!savingAction}
+        staffOptions={staffOptions}
+        staffLoading={optionsLoading}
       />
     </div>
   );

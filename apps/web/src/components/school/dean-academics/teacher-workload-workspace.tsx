@@ -66,7 +66,7 @@ export function TeacherWorkloadWorkspace() {
             {isLoading ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No teacher workload records yet. Subject allocations and timetable slots will populate this table.</td></tr>
             ) : (
               items.map(row => (
                 <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">

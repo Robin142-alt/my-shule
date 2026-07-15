@@ -59,6 +59,7 @@ import { requestDashboardApi } from "@/lib/dashboard/api-client";
 type StorekeeperRouteMode = "hosted" | "public";
 type StorekeeperTheme = "dark" | "light";
 type Tone = "critical" | "warning" | "success" | "info" | "accent" | "neutral";
+type StoreItemOption = { id: string; label: string };
 
 type StorekeeperLinkSection =
   | "ai-insights"
@@ -1659,12 +1660,31 @@ export function StorekeeperCommandCenter({
   const { hasPermission } = usePermissions();
   const queryClient = useQueryClient();
   const { data: summaryData, isLoading: isLoadingSummary } = useSchoolQuery<any>("/api/inventory/summary");
+  const { data: storeItemsData, isLoading: isLoadingStoreItems } = useSchoolQuery<any>("/api/admin-command/storekeeper/items");
   const [theme, setTheme] = useState<StorekeeperTheme>("dark");
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Store desk ready for receiving, issuing, stock counts, and approvals.");
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [modalSubmitting, setModalSubmitting] = useState(false);
   const surface = useMemo(() => getSurfaceClasses(theme), [theme]);
+  const storeItemOptions = useMemo<StoreItemOption[]>(() => {
+    const rows = Array.isArray(storeItemsData)
+      ? storeItemsData
+      : Array.isArray(storeItemsData?.items)
+        ? storeItemsData.items
+        : [];
+    return rows
+      .map((item: any) => {
+        const id = String(item?.id ?? "").trim();
+        if (!id) return null;
+        const name = String(item?.name ?? item?.item_name ?? "Inventory item").trim();
+        const unit = String(item?.unit ?? "unit").trim();
+        const quantity = item?.quantity_in_stock ?? item?.quantity_on_hand ?? 0;
+        return { id, label: `${name} - ${quantity} ${unit}` };
+      })
+      .filter(Boolean) as StoreItemOption[];
+  }, [storeItemsData]);
+  const storeMovementSetupMissing = !isLoadingStoreItems && storeItemOptions.length === 0;
   
 
   const searchResults = useMemo(() => {
@@ -1709,7 +1729,7 @@ export function StorekeeperCommandCenter({
     const notes = String(formData.get("notes") || "").trim();
 
     if (!itemId) {
-      setNotice("Select or paste the inventory item ID before saving the stock movement.");
+      setNotice("Select the inventory item before saving the stock movement.");
       return;
     }
 
@@ -1839,10 +1859,20 @@ export function StorekeeperCommandCenter({
             <p className="text-sm font-semibold text-[#64748B]">
               Receive stock into an existing inventory item. The backend updates stock balance, writes a movement record, emits audit evidence, and notifies leadership.
             </p>
+            {storeMovementSetupMissing ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+                Add the first inventory item before receiving stock.
+              </div>
+            ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-1 text-sm font-bold text-[#071D49]">
-                Item ID
-                <input name="item_id" required className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Inventory item UUID" />
+                Inventory item
+                <select name="item_id" required disabled={isLoadingStoreItems || storeItemOptions.length === 0} className="rounded-xl border border-[#D8E0EC] bg-white px-3 py-2 text-sm disabled:bg-slate-100">
+                  <option value="">{isLoadingStoreItems ? "Loading items..." : "Select item"}</option>
+                  {storeItemOptions.map((option) => (
+                    <option key={option.id} value={option.id}>{option.label}</option>
+                  ))}
+                </select>
               </label>
               <label className="grid gap-1 text-sm font-bold text-[#071D49]">
                 Quantity received
@@ -1867,7 +1897,7 @@ export function StorekeeperCommandCenter({
             </div>
             <div className="flex flex-wrap justify-end gap-2">
               <button type="button" disabled={modalSubmitting} onClick={() => setActiveModal(null)} className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] disabled:opacity-50">Cancel</button>
-              <button type="submit" disabled={modalSubmitting} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+              <button type="submit" disabled={modalSubmitting || isLoadingStoreItems || storeMovementSetupMissing} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
                 {modalSubmitting ? "Receiving..." : "Receive stock"}
               </button>
             </div>
@@ -1880,10 +1910,20 @@ export function StorekeeperCommandCenter({
             <p className="text-sm font-semibold text-[#64748B]">
               Issue stock to a department or staff member. The backend checks available quantity, updates balance, records the movement, and keeps the audit trail tenant-scoped.
             </p>
+            {storeMovementSetupMissing ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+                Add the first inventory item before issuing stock.
+              </div>
+            ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-1 text-sm font-bold text-[#071D49]">
-                Item ID
-                <input name="item_id" required className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Inventory item UUID" />
+                Inventory item
+                <select name="item_id" required disabled={isLoadingStoreItems || storeItemOptions.length === 0} className="rounded-xl border border-[#D8E0EC] bg-white px-3 py-2 text-sm disabled:bg-slate-100">
+                  <option value="">{isLoadingStoreItems ? "Loading items..." : "Select item"}</option>
+                  {storeItemOptions.map((option) => (
+                    <option key={option.id} value={option.id}>{option.label}</option>
+                  ))}
+                </select>
               </label>
               <label className="grid gap-1 text-sm font-bold text-[#071D49]">
                 Quantity issued
@@ -1908,7 +1948,7 @@ export function StorekeeperCommandCenter({
             </div>
             <div className="flex flex-wrap justify-end gap-2">
               <button type="button" disabled={modalSubmitting} onClick={() => setActiveModal(null)} className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] disabled:opacity-50">Cancel</button>
-              <button type="submit" disabled={modalSubmitting} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+              <button type="submit" disabled={modalSubmitting || isLoadingStoreItems || storeMovementSetupMissing} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
                 {modalSubmitting ? "Issuing..." : "Issue item"}
               </button>
             </div>

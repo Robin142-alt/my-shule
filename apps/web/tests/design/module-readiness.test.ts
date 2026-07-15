@@ -9,6 +9,7 @@ import { buildSchoolErpModel } from "@/lib/dashboard/erp-model";
 import { getDashboardStudentHref, getDashboardWorkspaceHref } from "@/lib/dashboard/workspace-routes";
 import { getSchoolWorkspace, type SchoolExperienceRole } from "@/lib/experiences/school-data";
 import { getModuleReadiness, isProductionReadyHref, isProductionReadyModule } from "@/lib/features/module-readiness";
+import { isSchoolSection } from "@/lib/routing/experience-routes";
 import { AdmissionsDashboardHome } from "@/components/modules/admissions/admissions-dashboard-home";
 import { InventoryDashboardHome } from "@/components/modules/inventory/inventory-dashboard-home";
 import { renderWithProviders } from "./test-utils";
@@ -30,6 +31,60 @@ const moduleControlledProductionSections = new Set([
 const inactiveModules = new Set([
   "attendance",
 ]);
+
+const routedCommandCenterSections = [
+  "academic-overview",
+  "curriculum",
+  "syllabus",
+  "syllabus-coverage",
+  "academic-analytics",
+  "student-analytics",
+  "teachers",
+  "pending",
+  "results-moderation",
+  "integrity",
+  "marks",
+  "grading",
+  "validation",
+  "interventions",
+  "alerts",
+  "history",
+  "department-settings",
+  "department-overview",
+  "lesson-observation",
+  "schemes-of-work",
+  "lesson-delivery",
+  "assessments-cats",
+  "exams-marks-moderation",
+  "performance-analytics",
+  "learner-interventions",
+  "resources",
+  "resources-requests",
+  "department-meetings",
+  "reports-downloads",
+  "classes",
+  "lesson-log",
+  "exams-marks",
+  "learner-progress",
+  "teaching-resources",
+  "store-requests",
+  "profile",
+  "class-teacher",
+  "club",
+  "invigilation",
+  "builder",
+  "scheduler",
+  "marks",
+  "missing-marks",
+  "grading",
+  "drafts",
+  "report-templates",
+  "submissions",
+  "validation",
+  "exports",
+  "audit-log",
+  "archive",
+] as const;
 
 const dashboardRoles = ["admin", "teacher", "parent", "bursar", "storekeeper", "admissions"] as const;
 const schoolRoles: SchoolExperienceRole[] = [
@@ -139,6 +194,14 @@ describe("production module readiness", () => {
     expect(getSchoolWorkspace("librarian").navItems.map((item) => item.id)).toContain("books");
   });
 
+  it("keeps every routed role command-center section accepted by the school route guard", () => {
+    for (const section of routedCommandCenterSections) {
+      expect(isSchoolSection(section)).toBe(true);
+      expect(isProductionReadyModule(section)).toBe(true);
+      expect(isProductionReadyHref(`/school/teacher/${section}`)).toBe(true);
+    }
+  });
+
   it("does not generate dashboard KPI links into inactive workflows", () => {
     for (const role of dashboardRoles) {
       const model = buildSchoolErpModel({
@@ -181,10 +244,10 @@ describe("production module readiness", () => {
   it("keeps legacy dashboard home shortcuts on live role workspace routes", () => {
     const { unmount } = renderWithProviders(createElement(AdmissionsDashboardHome));
 
-    expect(screen.getByRole("link", { name: /open admissions desk/i })).toHaveAttribute("href", "/school/admissions/admissions");
-    expect(screen.getByRole("link", { name: /new registration/i })).toHaveAttribute("href", "/school/admissions/admissions?view=new-registration");
-    expect(screen.getByRole("link", { name: /review applications/i })).toHaveAttribute("href", "/school/admissions/admissions?view=applications");
-    expect(screen.queryByRole("link", { name: /new registration/i })).not.toHaveAttribute("href", "/dashboard/admissions/admissions");
+    expect(screen.getByRole("link", { name: /open admissions desk/i })).toHaveAttribute("href", "/school/admissions/applications");
+    expect(screen.getByRole("link", { name: /start student admission/i })).toHaveAttribute("href", "/school/admissions/applications?action=start-admission");
+    expect(screen.getByRole("link", { name: /review applications/i })).toHaveAttribute("href", "/school/admissions/applications");
+    expect(screen.queryByRole("link", { name: /start student admission/i })).not.toHaveAttribute("href", "/dashboard/admissions/admissions");
 
     unmount();
     renderWithProviders(createElement(InventoryDashboardHome));
@@ -201,6 +264,8 @@ describe("production module readiness", () => {
     expect(getDashboardWorkspaceHref("storekeeper", "inventory?action=adjust")).toBe("/school/storekeeper/inventory?action=adjust");
     expect(getDashboardWorkspaceHref("admissions", "admissions?view=student-directory&student=std-1")).toBe("/school/admissions/admissions?view=student-directory&student=std-1");
     expect(getDashboardStudentHref("teacher", "std-1")).toBe("/school/teacher/students/std-1");
+    expect(getDashboardWorkspaceHref("exam-manager", "exam-setup")).toBe("/school/exams-manager/exam-setup");
+    expect(getDashboardWorkspaceHref("dean", "teacher-workload")).toBe("/school/dean-academics/teacher-workload");
 
     expect(getDashboardWorkspaceHref("parent", "dashboard")).toBe("/portal/parent");
     expect(getDashboardWorkspaceHref("parent", "finance")).toBe("/portal/parent/fees");
@@ -208,5 +273,66 @@ describe("production module readiness", () => {
     expect(getDashboardWorkspaceHref("parent", "reports")).toBe("/portal/parent/downloads");
     expect(getDashboardStudentHref("parent", "std-1")).toBe("/portal/parent?student=std-1");
     expect(isProductionReadyHref(getDashboardWorkspaceHref("parent", "finance"))).toBe(true);
+  });
+
+  it("keeps legacy academic role sidebars on canonical routed command-center sections", () => {
+    const examManagerHrefs = getRoleSidebar("exam-manager").map((item) => item.href);
+    const deanHrefs = getRoleSidebar("dean").map((item) => item.href);
+    const hodHrefs = getRoleSidebar("hod").map((item) => item.href);
+
+    expect(examManagerHrefs).toEqual([
+      "overview",
+      "exam-setup",
+      "exam-timetable",
+      "marks-entry",
+      "moderation",
+      "analysis",
+      "report-cards",
+      "publishing",
+      "reports",
+    ]);
+    expect(deanHrefs).toEqual([
+      "overview",
+      "curriculum-coverage",
+      "department-performance",
+      "teacher-workload",
+      "lesson-plans",
+      "lesson-logs",
+      "assessments",
+      "academic-interventions",
+      "reports",
+    ]);
+    expect(hodHrefs).toEqual([
+      "overview",
+      "department-teachers",
+      "subject-allocation",
+      "coverage-review",
+      "lesson-plans",
+      "marks-moderation",
+      "resource-requests",
+      "reports",
+    ]);
+
+    expect(examManagerHrefs).not.toEqual(
+      expect.arrayContaining(["audit-logs", "exam-calendar", "exam-classes", "marks-monitor", "results-processing"]),
+    );
+    expect(deanHrefs).not.toEqual(
+      expect.arrayContaining(["academic-calendar", "departments", "continuous-assessment", "performance-analytics", "dean-settings"]),
+    );
+    expect(hodHrefs).not.toEqual(
+      expect.arrayContaining(["schemes-of-work", "lesson-delivery", "assessments-cats", "performance-analytics", "reports-downloads"]),
+    );
+
+    for (const href of examManagerHrefs) {
+      expect(getDashboardWorkspaceHref("exam-manager", href)).toMatch(/^\/school\/exams-manager(\/|$)/);
+    }
+
+    for (const href of deanHrefs) {
+      expect(getDashboardWorkspaceHref("dean", href)).toMatch(/^\/school\/dean-academics(\/|$)/);
+    }
+
+    for (const href of hodHrefs) {
+      expect(getDashboardWorkspaceHref("hod", href)).toMatch(/^\/school\/hod(\/|$)/);
+    }
   });
 });

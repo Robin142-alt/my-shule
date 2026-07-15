@@ -364,7 +364,9 @@ function DataTable({
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-8 text-center text-[#64748B]">No records found.</td>
+                <td colSpan={columns.length} className="px-4 py-8 text-center text-[#64748B]">
+                  This grade master workspace is empty for the current school. Use the workspace action to add the first learner, class review, intervention, or report record.
+                </td>
               </tr>
             )}
           </tbody>

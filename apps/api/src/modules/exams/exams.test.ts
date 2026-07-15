@@ -5,12 +5,14 @@ import { PATH_METADATA } from '@nestjs/common/constants';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 
 import { PERMISSIONS_KEY } from '../../auth/auth.constants';
+import { ParentPortalController } from '../../parent-portal/parent-portal.controller';
 import { ExamsController } from './exams.controller';
 import { ExamsRepository } from './repositories/exams.repository';
 import { ExamsSchemaService } from './exams-schema.service';
 import { ExamsService } from './exams.service';
 import { ReportCardGenerationService } from './services/report-card-generation.service';
 import { ReportCardTemplateService } from './services/report-card-template.service';
+import { StudentController } from '../students/student-portal.controller';
 
 test('ExamsSchemaService creates exam and report-card tables with tenant RLS', async () => {
   let schemaSql = '';
@@ -474,6 +476,7 @@ test('ExamsService transitions report-card approval state only inside the curren
   assert.equal(calls[0].actor_user_id, 'exam-manager-1');
   assert.equal(calls[0].action, 'publish');
   assert.equal(calls[1].action, 'report_card.published');
+  assert.equal((calls[1].metadata as Record<string, unknown>).grade_event, 'grade.published');
 });
 
 test('ExamsService rejects report-card transitions outside the current tenant or state', async () => {
@@ -577,7 +580,27 @@ test('ExamsService submits selected marks only inside the current tenant', async
   assert.equal(calls[0].tenant_id, 'tenant-a');
   assert.equal(calls[0].actor_user_id, 'teacher-1');
   assert.deepEqual(calls[0].mark_ids, ['mark-1', 'mark-2']);
+  assert.equal(calls[0].restrict_to_actor, true);
   assert.equal(result.data.submitted_count, 2);
+});
+
+test('ExamsService rejects teacher mark submission when no selected mark belongs to the actor', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'teacher-2', role: 'teacher', permissions: ['exams:enter-marks'] }) } as never,
+    {
+      submitMarks: async (input: Record<string, unknown>) => {
+        calls.push(input);
+        return { submitted_count: 0, mark_ids: [] };
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    () => service.submitMarks(['mark-owned-by-teacher-1']),
+    /No selected marks were available for this user to submit/i,
+  );
+  assert.equal(calls[0].restrict_to_actor, true);
 });
 
 test('ExamsService deletes subject weightings only inside the current tenant', async () => {
@@ -874,6 +897,7 @@ test('ExamsService allows an assigned teacher to enter subject-scoped marks with
     {
       findTeacherAssignment: async () => ({ id: 'assignment-1' }),
       findSeriesState: async () => ({ status: 'draft', locked_at: null, published_at: null }),
+      findOpenMarkEntryWindow: async () => ({ id: 'window-1', status: 'open' }),
       upsertMark: async (input: Record<string, unknown>) => {
         calls.push('mark');
         return { id: 'mark-1', score: input.score };
@@ -896,6 +920,34 @@ test('ExamsService allows an assigned teacher to enter subject-scoped marks with
 
   assert.equal(mark.score, 84);
   assert.deepEqual(calls, ['mark', 'audit']);
+});
+
+test('ExamsService blocks teacher mark entry until a matching mark-entry window is open', async () => {
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'teacher-1', role: 'teacher', permissions: ['exams:enter-marks'] }) } as never,
+    {
+      findTeacherAssignment: async () => ({ id: 'assignment-1' }),
+      findSeriesState: async () => ({ status: 'draft', locked_at: null, published_at: null }),
+      findOpenMarkEntryWindow: async () => null,
+      upsertMark: async () => {
+        throw new Error('marks must not be saved before the mark-entry window opens');
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    () =>
+      service.enterMark({
+        exam_series_id: 'series-1',
+        assessment_id: 'assessment-1',
+        academic_term_id: 'term-1',
+        class_section_id: 'class-1',
+        subject_id: 'subject-1',
+        student_id: 'student-1',
+        score: 84,
+      }),
+    /mark-entry window is not open/i,
+  );
 });
 
 test('ExamsService lets an assigned teacher lock a live mark sheet for approval', async () => {
@@ -942,6 +994,7 @@ test('ExamsService enforces assessment maximum score before mark entry', async (
     {
       findTeacherAssignment: async () => ({ id: 'assignment-1' }),
       findSeriesState: async () => ({ status: 'draft', locked_at: null, published_at: null }),
+      findOpenMarkEntryWindow: async () => ({ id: 'window-1', status: 'open' }),
       findAssessmentScope: async () => ({
         id: 'assessment-1',
         exam_series_id: 'series-1',
@@ -978,6 +1031,7 @@ test('ExamsService rejects marks outside configured grade boundaries before pers
     {
       findTeacherAssignment: async () => ({ id: 'assignment-1' }),
       findSeriesState: async () => ({ status: 'draft', locked_at: null, published_at: null }),
+      findOpenMarkEntryWindow: async () => ({ id: 'window-1', status: 'open' }),
       findAssessmentScope: async () => ({
         id: 'assessment-1',
         exam_series_id: 'series-1',
@@ -1019,6 +1073,7 @@ test('ExamsService rejects marks matching overlapping grade boundaries', async (
     {
       findTeacherAssignment: async () => ({ id: 'assignment-1' }),
       findSeriesState: async () => ({ status: 'draft', locked_at: null, published_at: null }),
+      findOpenMarkEntryWindow: async () => ({ id: 'window-1', status: 'open' }),
       findAssessmentScope: async () => ({
         id: 'assessment-1',
         exam_series_id: 'series-1',
@@ -1193,20 +1248,28 @@ test('ExamsService requires dual approval and marks report-card regeneration aft
 });
 
 test('ExamsService publishes report cards with snapshot linkage and audit', async () => {
-  const calls: string[] = [];
+  const calls: Array<{ name: string; input?: Record<string, unknown> }> = [];
   const service = new ExamsService(
     { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'officer-1', role: 'admin', permissions: ['exams:approve'] }) } as never,
     {
-      createReportCardSnapshot: async () => {
-        calls.push('report-card');
+      findGeneratedReportCardForPublication: async () => {
+        calls.push({ name: 'lookup' });
+        return {
+          id: 'report-card-1',
+          report_snapshot_id: 'report-snapshot:tenant-a:exams:term-2',
+          status: 'approved',
+        };
+      },
+      transitionReportCard: async () => {
+        calls.push({ name: 'transition' });
         return {
           id: 'report-card-1',
           report_snapshot_id: 'report-snapshot:tenant-a:exams:term-2',
           status: 'published',
         };
       },
-      appendReportCardAuditLog: async () => {
-        calls.push('audit');
+      appendReportCardAuditLog: async (input: Record<string, unknown>) => {
+        calls.push({ name: 'audit', input });
       },
     } as never,
   );
@@ -1219,7 +1282,37 @@ test('ExamsService publishes report cards with snapshot linkage and audit', asyn
 
   assert.equal(reportCard.status, 'published');
   assert.equal(reportCard.report_snapshot_id, 'report-snapshot:tenant-a:exams:term-2');
-  assert.deepEqual(calls, ['report-card', 'audit']);
+  assert.deepEqual(calls.map((call) => call.name), ['lookup', 'transition', 'audit']);
+  assert.equal(calls[2]?.input?.action, 'report_card.published');
+  assert.equal((calls[2]?.input?.metadata as Record<string, unknown>).grade_event, 'grade.published');
+});
+
+test('ExamsService refuses direct report-card publication without an approved generated snapshot', async () => {
+  const calls: string[] = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'officer-1', role: 'admin', permissions: ['exams:approve'] }) } as never,
+    {
+      findGeneratedReportCardForPublication: async () => null,
+      createReportCardSnapshot: async () => {
+        calls.push('report-card');
+        return { id: 'report-card-1', status: 'published' };
+      },
+      appendReportCardAuditLog: async () => {
+        calls.push('audit');
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    () =>
+      service.publishReportCard({
+        exam_series_id: 'series-1',
+        student_id: 'student-1',
+        report_snapshot_id: 'unapproved-or-missing-snapshot',
+      }),
+    /approved generated report card/i,
+  );
+  assert.deepEqual(calls, []);
 });
 
 test('ExamsRepository does not mutate already-published report cards on conflict', async () => {
@@ -1257,6 +1350,50 @@ query: async (sql: string) => {
   });
 
   assert.match(queries[0] ?? '', /WHERE student_report_cards\.status <> 'published'/);
+});
+
+test('ExamsRepository finds only approved generated report cards for publication', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new ExamsRepository({
+    executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        },
+      });
+    },
+    query: async (sql: string, params: unknown[]) => {
+      calls.push({ sql, params });
+      return {
+        rows: [
+          {
+            id: 'report-card-1',
+            report_snapshot_id: 'report-snapshot:tenant-a:exams:term-2',
+            status: 'approved',
+          },
+        ],
+      };
+    },
+  } as never);
+
+  const reportCard = await repository.findGeneratedReportCardForPublication({
+    tenant_id: 'tenant-a',
+    exam_series_id: '00000000-0000-0000-0000-000000000401',
+    student_id: '00000000-0000-0000-0000-000000000402',
+    report_snapshot_id: 'report-snapshot:tenant-a:exams:term-2',
+  });
+
+  assert.equal(reportCard?.status, 'approved');
+  assert.match(calls[0]!.sql, /FROM student_report_cards card/);
+  assert.match(calls[0]!.sql, /card\.status = 'approved'/);
+  assert.match(calls[0]!.sql, /card\.report_snapshot_id = \$4/);
+  assert.deepEqual(calls[0]!.params, [
+    'tenant-a',
+    '00000000-0000-0000-0000-000000000401',
+    '00000000-0000-0000-0000-000000000402',
+    'report-snapshot:tenant-a:exams:term-2',
+  ]);
 });
 
 test('ExamsRepository prevents mark upsert conflicts from crossing exam or subject scope', async () => {
@@ -1304,6 +1441,117 @@ query: async (sql: string) => {
   assert.match(queries[0] ?? '', /exam_marks\.academic_term_id = EXCLUDED\.academic_term_id/);
   assert.match(queries[0] ?? '', /exam_marks\.class_section_id = EXCLUDED\.class_section_id/);
   assert.match(queries[0] ?? '', /exam_marks\.subject_id = EXCLUDED\.subject_id/);
+});
+
+test('ExamsRepository restricts teacher mark submission to actor-entered marks', async () => {
+  const queries: string[] = [];
+  const paramsList: unknown[][] = [];
+  const repository = new ExamsRepository({
+    executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        },
+      });
+    },
+    query: async (sql: string, params: unknown[]) => {
+      queries.push(sql);
+      paramsList.push(params);
+      return { rows: [{ id: 'mark-1' }] };
+    },
+  } as never);
+
+  await repository.submitMarks({
+    tenant_id: 'tenant-a',
+    actor_user_id: 'teacher-1',
+    mark_ids: ['mark-1'],
+    restrict_to_actor: true,
+  });
+
+  assert.match(queries[0] ?? '', /entered_by_user_id = \$3::uuid/);
+  assert.deepEqual(paramsList[0], ['tenant-a', ['mark-1'], 'teacher-1', true]);
+});
+
+test('ExamsRepository moderates only submitted or reviewed marks and never locked or published marks', async () => {
+  const queries: string[] = [];
+  const paramsList: unknown[][] = [];
+  const repository = new ExamsRepository({
+    executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        },
+      });
+    },
+    query: async (sql: string, params: unknown[]) => {
+      queries.push(sql);
+      paramsList.push(params);
+      return { rows: [{ id: 'mark-1', status: 'reviewed', score: 84 }] };
+    },
+  } as never);
+
+  await repository.moderateMarks({
+    tenant_id: 'tenant-a',
+    actor_user_id: 'hod-1',
+    mark_ids: ['mark-1'],
+    action: 'approve',
+  });
+
+  assert.match(queries[0] ?? '', /\$5::text = 'approve' AND status = 'submitted'/);
+  assert.match(queries[0] ?? '', /\$5::text = 'return_for_correction' AND status IN \('submitted', 'reviewed'\)/);
+  assert.doesNotMatch(queries[0] ?? '', /locked', 'published/);
+  assert.deepEqual(paramsList[0], ['tenant-a', ['mark-1'], 'reviewed', 'hod-1', 'approve']);
+});
+
+test('ExamsRepository scopes mark listing and moderation to HOD departments when provided', async () => {
+  const queries: string[] = [];
+  const paramsList: unknown[][] = [];
+  const repository = new ExamsRepository({
+    executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        },
+      });
+    },
+    query: async (sql: string, params: unknown[]) => {
+      queries.push(sql);
+      paramsList.push(params);
+      return { rows: [{ id: 'mark-1', status: 'reviewed', score: 84 }] };
+    },
+  } as never);
+
+  await repository.listMarks({
+    tenant_id: 'tenant-a',
+    department_ids: ['11111111-1111-1111-1111-111111111111'],
+    status_in: ['submitted'],
+  });
+
+  await repository.moderateMarks({
+    tenant_id: 'tenant-a',
+    actor_user_id: '22222222-2222-2222-2222-222222222222',
+    mark_ids: ['33333333-3333-3333-3333-333333333333'],
+    action: 'approve',
+    department_ids: ['11111111-1111-1111-1111-111111111111'],
+  });
+
+  assert.match(queries[0] ?? '', /JOIN subjects s ON s\.id = m\.subject_id AND s\.tenant_id = m\.tenant_id/);
+  assert.match(queries[0] ?? '', /s\.department_id = ANY\(\$2::uuid\[\]\)/);
+  assert.deepEqual(paramsList[0], ['tenant-a', ['11111111-1111-1111-1111-111111111111'], ['submitted'], 25, 0]);
+  assert.match(queries[1] ?? '', /UPDATE exam_marks mark/);
+  assert.match(queries[1] ?? '', /FROM subjects subject/);
+  assert.match(queries[1] ?? '', /subject\.department_id = ANY\(\$6::uuid\[\]\)/);
+  assert.deepEqual(paramsList[1], [
+    'tenant-a',
+    ['33333333-3333-3333-3333-333333333333'],
+    'reviewed',
+    '22222222-2222-2222-2222-222222222222',
+    'approve',
+    ['11111111-1111-1111-1111-111111111111'],
+  ]);
 });
 
 test('ExamsService generates report-card payloads from marks before publishing', async () => {
@@ -1403,6 +1651,7 @@ test('ExamsService previews bulk mark uploads and commits only previewed valid r
     {
       findTeacherAssignment: async () => ({ id: 'assignment-1' }),
       findSeriesState: async () => ({ status: 'draft', locked_at: null, published_at: null }),
+      findOpenMarkEntryWindow: async () => ({ id: 'window-1', status: 'open' }),
       findAssessmentScope: async () => ({
         id: 'assessment-1',
         exam_series_id: 'series-1',
@@ -1503,6 +1752,7 @@ test('ExamsService reports duplicate and unauthorized rows during bulk mark uplo
       findTeacherAssignment: async (input: Record<string, unknown>) =>
         input.subject_id === 'subject-1' ? { id: 'assignment-1' } : null,
       findSeriesState: async () => ({ status: 'draft', locked_at: null, published_at: null }),
+      findOpenMarkEntryWindow: async () => ({ id: 'window-1', status: 'open' }),
       findAssessmentScope: async () => ({
         id: 'assessment-1',
         exam_series_id: 'series-1',
@@ -1873,6 +2123,45 @@ test('ExamsService lists tenant mark sheets with teacher and series filters', as
   assert.equal(rows[0]?.mark_count, 18);
 });
 
+test('ExamsService scopes teacher mark-entry rows to the current teacher assignments', async () => {
+  let capturedTenantId: string | null = null;
+  let capturedFilters: Record<string, unknown> | null = null;
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'teacher-1', role: 'teacher', permissions: ['exams:read', 'exams:enter-marks'] }) } as never,
+    {
+      getMarks: async (tenantId: string, filters: Record<string, unknown>) => {
+        capturedTenantId = tenantId;
+        capturedFilters = filters;
+        return [
+          {
+            student_id: 'student-1',
+            assessment_id: 'assessment-1',
+            score: null,
+            status: 'draft',
+          },
+        ];
+      },
+    } as never,
+  );
+
+  const result = await service.getMarks({
+    teacher_user_id: 'other-teacher',
+    exam_series_id: 'series-1',
+    student_id: '',
+    limit: '500',
+    offset: '-10',
+  });
+
+  assert.equal(capturedTenantId, 'tenant-a');
+  assert.deepEqual(capturedFilters, {
+    exam_series_id: 'series-1',
+    teacher_user_id: 'teacher-1',
+    limit: 100,
+    offset: 0,
+  });
+  assert.equal(result.data[0]?.student_id, 'student-1');
+});
+
 test('ExamsRepository paginates mark-sheet lists', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new ExamsRepository({
@@ -1900,6 +2189,62 @@ query: async (sql: string, params: unknown[]) => {
   assert.match(calls[0]!.sql, /LIMIT \$6::integer\s+OFFSET \$7::integer/);
   assert.equal(calls[0]!.params[5], 50);
   assert.equal(calls[0]!.params[6], 0);
+});
+
+test('ExamsRepository derives teacher mark-entry rows from open windows, assessments, and active students', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new ExamsRepository({
+    executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        },
+      });
+    },
+    query: async (sql: string, params: unknown[]) => {
+      calls.push({ sql, params });
+      return {
+        rows: [
+          {
+            mark_entry_window_id: 'window-1',
+            assessment_id: 'assessment-1',
+            student_id: 'student-1',
+            score: null,
+            status: 'draft',
+          },
+        ],
+      };
+    },
+  } as never);
+
+  const rows = await repository.getMarks('tenant-a', {
+    exam_series_id: '00000000-0000-0000-0000-000000000101',
+    teacher_user_id: '00000000-0000-0000-0000-000000000201',
+    student_id: '00000000-0000-0000-0000-000000000301',
+    limit: 500,
+    offset: -10,
+  });
+
+  assert.equal(rows[0]?.status, 'draft');
+  assert.match(calls[0]!.sql, /FROM exam_mark_entry_windows window/);
+  assert.match(calls[0]!.sql, /JOIN exam_assessments assessment/);
+  assert.match(calls[0]!.sql, /JOIN students student/);
+  assert.match(calls[0]!.sql, /LEFT JOIN exam_marks mark/);
+  assert.match(calls[0]!.sql, /window\.status = 'open'/);
+  assert.match(calls[0]!.sql, /assignment\.teacher_user_id = \$4::uuid/);
+  assert.match(calls[0]!.sql, /LIMIT \$6::integer\s+OFFSET \$7::integer/);
+  assert.deepEqual(calls[0]!.params, [
+    'tenant-a',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000301',
+    '00000000-0000-0000-0000-000000000201',
+    null,
+    100,
+    0,
+    null,
+    null,
+  ]);
 });
 
 test('ExamsService creates actor-bound signed parent report-card downloads for linked children', async () => {
@@ -2152,6 +2497,153 @@ test('ExamsService normalizes report-card list pagination before querying', asyn
   });
 });
 
+test('ExamsService lists parent report cards through active guardian scope only', async () => {
+  let capturedInput: Record<string, unknown> | null = null;
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'parent-1', role: 'parent', permissions: ['portal:read_own_children'] }) } as never,
+    {
+      listGuardianReportCards: async (input: Record<string, unknown>) => {
+        capturedInput = input;
+        return [];
+      },
+    } as never,
+  );
+
+  await service.listGuardianReportCards({
+    studentId: ' 00000000-0000-0000-0000-000000000101 ',
+    status: 'draft,published',
+    limit: '999',
+    offset: '-10',
+  });
+
+  assert.deepEqual(capturedInput, {
+    tenant_id: 'tenant-a',
+    guardian_user_id: 'parent-1',
+    student_id: '00000000-0000-0000-0000-000000000101',
+    limit: 50,
+    offset: 0,
+  });
+});
+
+test('ExamsService lists student report cards for the authenticated student only', async () => {
+  let capturedInput: Record<string, unknown> | null = null;
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: '00000000-0000-0000-0000-000000000201', role: 'student', permissions: ['student-portal:read'] }) } as never,
+    {
+      listStudentReportCards: async (input: Record<string, unknown>) => {
+        capturedInput = input;
+        return [];
+      },
+    } as never,
+  );
+
+  await service.listStudentPortalReportCards({
+    student_id: '00000000-0000-0000-0000-000000000999',
+    limit: '2',
+    offset: '4',
+  });
+
+  assert.deepEqual(capturedInput, {
+    tenant_id: 'tenant-a',
+    student_id: '00000000-0000-0000-0000-000000000201',
+    limit: 2,
+    offset: 4,
+  });
+});
+
+test('ExamsRepository lists only published report cards linked to the active guardian', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const repository = new ExamsRepository({
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
+      queries.push({ text, values });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.listGuardianReportCards({
+    tenant_id: 'tenant-a',
+    guardian_user_id: '00000000-0000-0000-0000-000000000301',
+    student_id: '00000000-0000-0000-0000-000000000101',
+    limit: 999,
+    offset: 3,
+  });
+
+  const sql = queries[0]?.text ?? '';
+  assert.match(sql, /INNER JOIN student_guardians guardian/);
+  assert.match(sql, /guardian\.user_id = \$2::uuid/);
+  assert.match(sql, /guardian\.status = 'active'/);
+  assert.match(sql, /card\.status = 'published'/);
+  assert.match(sql, /card\.tenant_id = \$1/);
+  assert.deepEqual(queries[0]?.values, [
+    'tenant-a',
+    '00000000-0000-0000-0000-000000000301',
+    '00000000-0000-0000-0000-000000000101',
+    50,
+    3,
+  ]);
+});
+
+test('ExamsRepository lists only published report cards owned by the student', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const repository = new ExamsRepository({
+        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        }
+      });
+    },
+query: async (text: string, values: unknown[]) => {
+      queries.push({ text, values });
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.listStudentReportCards({
+    tenant_id: 'tenant-a',
+    student_id: '00000000-0000-0000-0000-000000000201',
+    limit: 999,
+    offset: 8,
+  });
+
+  const sql = queries[0]?.text ?? '';
+  assert.match(sql, /INNER JOIN students student/);
+  assert.match(sql, /card\.student_id = \$2::uuid/);
+  assert.match(sql, /card\.status = 'published'/);
+  assert.match(sql, /card\.tenant_id = \$1/);
+  assert.deepEqual(queries[0]?.values, [
+    'tenant-a',
+    '00000000-0000-0000-0000-000000000201',
+    50,
+    8,
+  ]);
+});
+
+test('Parent and student portal controllers expose scoped report-card routes', () => {
+  const parentList = ParentPortalController.prototype.getReportCards as unknown as Function;
+  const parentDownload = ParentPortalController.prototype.downloadReportCard as unknown as Function;
+  const studentList = StudentController.prototype.getReportCards as unknown as Function;
+  const studentDownload = StudentController.prototype.downloadReportCard as unknown as Function;
+
+  assert.equal(Reflect.getMetadata(PATH_METADATA, parentList), 'report-cards');
+  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, parentList), ['portal:read_own_children']);
+  assert.equal(Reflect.getMetadata(PATH_METADATA, parentDownload), 'report-cards/:reportCardId/download');
+  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, parentDownload), ['portal:read_own_children']);
+  assert.equal(Reflect.getMetadata(PATH_METADATA, studentList), 'report-cards');
+  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, studentList), ['student-portal:read']);
+  assert.equal(Reflect.getMetadata(PATH_METADATA, studentDownload), 'report-cards/:reportCardId/download');
+  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, studentDownload), ['student-portal:read']);
+});
+
 test('ExamsController exposes configuration, draft, alignment, review, and lifecycle endpoints', () => {
   const configureExam = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.configureExam);
   const saveDraft = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.saveDraft);
@@ -2191,14 +2683,118 @@ test('ExamsService moderateMarks updates mark statuses and adds versions for rej
   assert.deepEqual(calls, ['moderate:return_for_correction', 'version:rejected']);
 });
 
+test('ExamsService validates moderation before mutating marks', async () => {
+  const calls: string[] = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'teacher-1', role: 'teacher', permissions: ['exams:enter-marks'] }) } as never,
+    {
+      moderateMarks: async () => {
+        calls.push('moderate');
+        return [];
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    () => service.moderateMarks({ mark_ids: ['mark-1'], action: 'approve' }),
+    /Exam review permission is required/i,
+  );
+  assert.equal(calls.length, 0);
+
+  const hodService = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'hod-1', role: 'hod', permissions: ['exams:review'] }) } as never,
+    {
+      moderateMarks: async () => {
+        calls.push('moderate');
+        return [];
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    () => hodService.moderateMarks({ mark_ids: ['mark-1'], action: 'return_for_correction' }),
+    /Reason is required/i,
+  );
+  assert.equal(calls.length, 0);
+});
+
+test('ExamsService rejects fake moderation success when no marks changed', async () => {
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'officer-1', role: 'admin', permissions: ['exams:approve'] }) } as never,
+    {
+      moderateMarks: async () => [],
+    } as never,
+  );
+
+  await assert.rejects(
+    () => service.moderateMarks({ mark_ids: ['mark-1'], action: 'approve' }),
+    /No selected marks were available for moderation/i,
+  );
+});
+
+test('ExamsService limits HOD moderation to assigned departments', async () => {
+  const calls: Array<{ method: string; input: Record<string, unknown> }> = [];
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'hod-1', role: 'hod', permissions: ['exams:review'] }) } as never,
+    {
+      listDepartmentsLedByUser: async (input: Record<string, unknown>) => {
+        calls.push({ method: 'listDepartmentsLedByUser', input });
+        return ['dept-1'];
+      },
+      listMarks: async (input: Record<string, unknown>) => {
+        calls.push({ method: 'listMarks', input });
+        return [];
+      },
+      moderateMarks: async (input: Record<string, unknown>) => {
+        calls.push({ method: 'moderateMarks', input });
+        return [{ id: 'mark-1', score: 85 }];
+      },
+    } as never,
+  );
+
+  await service.getDepartmentMarks({});
+  assert.deepEqual(calls[1], {
+    method: 'listMarks',
+    input: {
+      tenant_id: 'tenant-a',
+      department_ids: ['dept-1'],
+      status_in: ['submitted', 'reviewed'],
+      limit: 25,
+      offset: 0,
+    },
+  });
+
+  await assert.rejects(
+    () => service.getDepartmentMarks({ department_id: 'dept-2' }),
+    /not assigned to this department/i,
+  );
+
+  const result = await service.moderateMarks({ mark_ids: ['mark-1'], action: 'approve' });
+  assert.equal(result.updated_count, 1);
+  assert.deepEqual(calls.at(-1), {
+    method: 'moderateMarks',
+    input: {
+      tenant_id: 'tenant-a',
+      mark_ids: ['mark-1'],
+      action: 'approve',
+      actor_user_id: 'hod-1',
+      department_ids: ['dept-1'],
+    },
+  });
+});
+
 test('ExamsController exposes new moderation and publishing endpoints', () => {
   const getDepartmentMarks = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.getDepartmentMarks);
   const moderateMarks = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.moderateMarks);
+  const getDepartmentMarksPerms = Reflect.getMetadata(PERMISSIONS_KEY, ExamsController.prototype.getDepartmentMarks);
+  const moderateMarksPerms = Reflect.getMetadata(PERMISSIONS_KEY, ExamsController.prototype.moderateMarks);
   const lockMarks = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.lockMarks);
   const publishExamSeries = Reflect.getMetadata(PATH_METADATA, ExamsController.prototype.publishExamSeries);
 
   assert.equal(getDepartmentMarks, 'marks/department');
   assert.equal(moderateMarks, 'marks/moderate');
+  assert.deepEqual(getDepartmentMarksPerms, ['exams:review']);
+  assert.deepEqual(moderateMarksPerms, ['exams:review']);
   assert.equal(lockMarks, 'marks/lock');
   assert.equal(publishExamSeries, 'series/:id/publish');
 });
@@ -2231,6 +2827,10 @@ test('ExamsService handles HOD Review workflow for returning submitted marks', a
   const repositoryCalls: Array<{ method: string; args: any }> = [];
 
   const mockRepository = {
+    listDepartmentsLedByUser: async (args: any) => {
+      repositoryCalls.push({ method: 'listDepartmentsLedByUser', args });
+      return ['dept-1'];
+    },
     moderateMarks: async (args: any) => {
       repositoryCalls.push({ method: 'moderateMarks', args });
       return [
@@ -2248,7 +2848,7 @@ test('ExamsService handles HOD Review workflow for returning submitted marks', a
       tenant_id: 'tenant-a',
       user_id: 'hod-1',
       role: 'hod',
-      permissions: ['exams:approve']
+      permissions: ['exams:review']
     })
   };
 
@@ -2264,16 +2864,22 @@ test('ExamsService handles HOD Review workflow for returning submitted marks', a
   });
 
   assert.deepEqual(res, { success: true, updated_count: 1 });
-  assert.equal(repositoryCalls.length, 2);
-  assert.equal(repositoryCalls[0].method, 'moderateMarks');
+  assert.equal(repositoryCalls.length, 3);
+  assert.equal(repositoryCalls[0].method, 'listDepartmentsLedByUser');
   assert.deepEqual(repositoryCalls[0].args, {
+    tenant_id: 'tenant-a',
+    user_id: 'hod-1'
+  });
+  assert.equal(repositoryCalls[1].method, 'moderateMarks');
+  assert.deepEqual(repositoryCalls[1].args, {
     tenant_id: 'tenant-a',
     mark_ids: ['mark-1'],
     action: 'return_for_correction',
-    actor_user_id: 'hod-1'
+    actor_user_id: 'hod-1',
+    department_ids: ['dept-1']
   });
-  assert.equal(repositoryCalls[1].method, 'createMarkVersion');
-  assert.deepEqual(repositoryCalls[1].args, {
+  assert.equal(repositoryCalls[2].method, 'createMarkVersion');
+  assert.deepEqual(repositoryCalls[2].args, {
     tenant_id: 'tenant-a',
     mark_id: 'mark-1',
     original_score: 85,

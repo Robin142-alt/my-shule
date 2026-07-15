@@ -15,16 +15,25 @@ import { downloadCsvFile } from "@/lib/dashboard/export";
 
 interface MarkEntryRow {
   id?: string;
+  mark_entry_window_id?: string | null;
   exam_series_id?: string | null;
+  exam_series_name?: string | null;
   class_section_id?: string | null;
+  class_name?: string | null;
   subject_id?: string | null;
+  subject_name?: string | null;
   assessment_id?: string | null;
+  assessment_name?: string | null;
   academic_term_id?: string | null;
   student_id?: string | null;
+  admission_number?: string | null;
+  student_name?: string | null;
   score?: number | string | null;
+  max_score?: number | string | null;
   remarks?: string | null;
   status?: string | null;
   updated_at?: string | null;
+  closes_at?: string | null;
 }
 
 interface ApiResponse<T> {
@@ -40,9 +49,20 @@ export function MyMarksWorkspace({ model }: { model: unknown }) {
   const marks = Array.isArray(marksResponse) ? marksResponse : marksResponse?.data;
   const visibleMarks = Array.isArray(marks) ? marks : [];
   const routeTo = (workspace: string) => router.push(`/school/exams-manager/${workspace}`);
+  const savedCount = visibleMarks.filter((row) => row.score !== null && row.score !== undefined).length;
+  const submittedCount = visibleMarks.filter((row) => ["submitted", "reviewed", "locked", "published"].includes((row.status ?? "").toLowerCase())).length;
 
   function markKey(row: MarkEntryRow, index: number) {
     return row.id ?? `${row.exam_series_id ?? "series"}-${row.assessment_id ?? "assessment"}-${row.student_id ?? "student"}-${index}`;
+  }
+
+  function label(value: string | null | undefined, fallback: string) {
+    return value && value.trim() ? value : fallback;
+  }
+
+  function rowMaxScore(row: MarkEntryRow) {
+    const maxScore = Number(row.max_score);
+    return Number.isFinite(maxScore) && maxScore > 0 ? maxScore : 100;
   }
 
   function downloadTemplate(rows: MarkEntryRow[], label = "marks-template") {
@@ -146,6 +166,21 @@ export function MyMarksWorkspace({ model }: { model: unknown }) {
 
       {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
+      <section className="grid gap-3 md:grid-cols-3">
+        <Card className="p-4">
+          <p className="text-xs font-medium text-muted-foreground">Loaded mark rows</p>
+          <p className="mt-2 text-2xl font-bold">{visibleMarks.length}</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs font-medium text-muted-foreground">Saved scores</p>
+          <p className="mt-2 text-2xl font-bold">{savedCount}</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs font-medium text-muted-foreground">Submitted or reviewed</p>
+          <p className="mt-2 text-2xl font-bold">{submittedCount}</p>
+        </Card>
+      </section>
+
       <Card className="p-0 overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
@@ -182,7 +217,7 @@ export function MyMarksWorkspace({ model }: { model: unknown }) {
               {!isLoading && !error && (!marks || !Array.isArray(marks) || marks.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={10} className="text-center py-10 text-muted-foreground">
-                    No marks entry records found.
+                    No open mark-entry rows found. Create assessments, confirm active learners and teacher allocations, then open the mark-entry window.
                   </TableCell>
                 </TableRow>
               )}
@@ -191,17 +226,20 @@ export function MyMarksWorkspace({ model }: { model: unknown }) {
                 const status = row.status ?? "draft";
                 return (
                   <TableRow key={key}>
-                    <TableCell>Series: {row.exam_series_id}</TableCell>
-                    <TableCell>Class: {row.class_section_id}</TableCell>
-                    <TableCell className="font-medium">Subject: {row.subject_id}</TableCell>
-                    <TableCell>Assessment: {row.assessment_id}</TableCell>
-                    <TableCell>Student: {row.student_id}</TableCell>
-                    <TableCell>{row.score ?? "-"}</TableCell>
+                    <TableCell>{label(row.exam_series_name, row.exam_series_id ?? "Exam")}</TableCell>
+                    <TableCell>{label(row.class_name, row.class_section_id ?? "Class")}</TableCell>
+                    <TableCell className="font-medium">{label(row.subject_name, row.subject_id ?? "Subject")}</TableCell>
+                    <TableCell>{label(row.assessment_name, row.assessment_id ?? "Assessment")}</TableCell>
+                    <TableCell>
+                      <div className="font-medium">{label(row.student_name, row.student_id ?? "Student")}</div>
+                      <div className="text-xs text-muted-foreground">{row.admission_number ?? ""}</div>
+                    </TableCell>
+                    <TableCell>{row.score ?? "-"}/{rowMaxScore(row)}</TableCell>
                     <TableCell>{row.status === "submitted" ? row.score : "-"}</TableCell>
                     <TableCell>
                       <Badge variant={status === "submitted" || status === "published" ? "success" : "secondary"}>{status}</Badge>
                     </TableCell>
-                    <TableCell>{row.updated_at ? new Date(row.updated_at).toLocaleDateString() : "-"}</TableCell>
+                    <TableCell>{row.closes_at ? new Date(row.closes_at).toLocaleDateString() : row.updated_at ? new Date(row.updated_at).toLocaleDateString() : "-"}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

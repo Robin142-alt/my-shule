@@ -1,6 +1,7 @@
 import type { LiveAuthSession } from "@/lib/dashboard/api-client";
 import {
   advanceAdmissionsStudentAcademicLifecycleLive,
+  fetchAdmissionsClassOptionsLive,
   fetchAdmissionsReportExportLive,
 } from "@/lib/modules/admissions-live";
 import {
@@ -109,6 +110,52 @@ describe("admissions live API client", () => {
       row_count: 1,
       checksum_sha256: "checksum",
     });
+  });
+
+  it("fetches school class options from the admissions API instead of static form choices", async () => {
+    const session: LiveAuthSession = {
+      tenantId: "tenant-a",
+      user: {
+        user_id: "user-1",
+        tenant_id: "tenant-a",
+        role: "admissions",
+        email: "admissions@example.test",
+        display_name: "Admissions Desk",
+        permissions: [],
+        session_id: "session-1",
+      },
+    };
+    jest.mocked(global.fetch).mockResolvedValueOnce(jsonResponse([
+      {
+        id: "class-1",
+        name: "Grade 7",
+        grade_level: "Grade 7",
+        stream: "North",
+        capacity: 45,
+        student_count: 12,
+        available_seats: 33,
+        label: "Grade 7 North",
+        value: "Grade 7",
+      },
+    ]));
+
+    const classes = await fetchAdmissionsClassOptionsLive(session);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/admissions/classes",
+      expect.objectContaining({
+        method: "GET",
+        credentials: "same-origin",
+      }),
+    );
+    expect(classes).toEqual([
+      expect.objectContaining({
+        id: "class-1",
+        label: "Grade 7 North",
+        value: "Grade 7",
+      }),
+    ]);
+    expect(classes.map((item) => item.value)).not.toContain("PP2");
   });
 
   it("marks admissions report cards with server export identifiers", () => {

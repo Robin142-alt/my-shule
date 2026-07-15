@@ -85,6 +85,24 @@ type LibraryCatalogItem = {
   available?: number;
 };
 
+type LibrarianSelectOption = {
+  id: string;
+  label: string;
+  title?: string;
+  borrower_type?: string;
+  admission_no?: string;
+  class_name?: string;
+  copies_available?: number;
+  staff_number?: string;
+  status?: string;
+};
+
+type LibrarianCirculationOptions = {
+  borrowers?: LibrarianSelectOption[];
+  catalogItems?: LibrarianSelectOption[];
+  staff?: LibrarianSelectOption[];
+};
+
 type NavItem = {
   id: LibrarianView;
   label: string;
@@ -1085,7 +1103,7 @@ const libraryWorkspaceContracts: Partial<Record<LibrarianView, LibraryWorkspaceC
     columns: ["metric", "value"],
     title: "Library Settings",
     description: "Review live library operating totals before changing circulation policies.",
-    emptyText: "Library settings totals are not available yet.",
+    emptyText: "Library settings totals will appear after books, visits, circulation, or request records are saved for this school.",
   },
 };
 
@@ -1180,6 +1198,10 @@ function CreateLibraryReservationModal({
   onCreated?: () => void;
 }) {
   const [submitting, setSubmitting] = useState(false);
+  const { data: circulationOptions, isLoading: optionsLoading } = useSchoolQuery<LibrarianCirculationOptions>("/api/admin-command/librarian/circulation-options");
+  const borrowerOptions = circulationOptions?.borrowers ?? [];
+  const catalogItemOptions = circulationOptions?.catalogItems ?? [];
+  const setupMissing = !optionsLoading && (borrowerOptions.length === 0 || catalogItemOptions.length === 0);
 
   async function handleCreateReservation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1188,9 +1210,12 @@ function CreateLibraryReservationModal({
     const borrowerId = String(form.get("borrower_id") ?? "").trim();
 
     if (!catalogItemId || !borrowerId) {
-      toast.error("Borrower ID and catalogue item ID are required.");
+      toast.error("Borrower and catalogue item are required.");
       return;
     }
+
+    const selectedBorrower = borrowerOptions.find((option) => option.id === borrowerId);
+    const selectedCatalogueItem = catalogItemOptions.find((option) => option.id === catalogItemId);
 
     setSubmitting(true);
     try {
@@ -1199,6 +1224,8 @@ function CreateLibraryReservationModal({
         body: {
           catalog_item_id: catalogItemId,
           borrower_id: borrowerId,
+          book_title: selectedCatalogueItem?.title ?? selectedCatalogueItem?.label,
+          borrower_name: selectedBorrower?.label,
         },
       });
       toast.success("Library reservation created", {
@@ -1226,19 +1253,34 @@ function CreateLibraryReservationModal({
     <Modal title="Create library reservation" open={open} onClose={onClose} size="lg">
       <form onSubmit={handleCreateReservation} className="space-y-4 p-6">
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-bold text-[#071D49]">Borrower ID
-            <input name="borrower_id" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Student borrower UUID or scan record ID" />
+          <label className="text-sm font-bold text-[#071D49]">Borrower
+            <select name="borrower_id" required defaultValue="" disabled={optionsLoading || borrowerOptions.length === 0} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
+              <option value="">{optionsLoading ? "Loading borrowers..." : "Choose borrower"}</option>
+              {borrowerOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Catalogue item ID
-            <input name="catalog_item_id" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Book catalogue UUID" />
+          <label className="text-sm font-bold text-[#071D49]">Catalogue item
+            <select name="catalog_item_id" required defaultValue="" disabled={optionsLoading || catalogItemOptions.length === 0} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
+              <option value="">{optionsLoading ? "Loading catalogue..." : "Choose catalogue item"}</option>
+              {catalogItemOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
           </label>
         </div>
+        {setupMissing ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+            Add at least one library borrower and one catalogue item before creating a reservation.
+          </p>
+        ) : null}
         <p className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-3 text-sm font-semibold text-[#64748B]">
           Reservations are saved to the tenant-scoped library reservation queue and appended to the circulation ledger.
         </p>
         <div className="flex justify-end gap-2 border-t border-[#D8E0EC] pt-4">
           <button type="button" className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]" onClick={onClose} disabled={submitting}>Cancel</button>
-          <button type="submit" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting}>
+          <button type="submit" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting || optionsLoading || setupMissing}>
             {submitting ? "Creating..." : "Create Reservation"}
           </button>
         </div>
@@ -1257,6 +1299,9 @@ function IssueDepartmentResourceModal({
   onIssued?: () => void;
 }) {
   const [submitting, setSubmitting] = useState(false);
+  const { data: circulationOptions, isLoading: optionsLoading } = useSchoolQuery<LibrarianCirculationOptions>("/api/admin-command/librarian/circulation-options");
+  const staffOptions = circulationOptions?.staff ?? [];
+  const setupMissing = !optionsLoading && staffOptions.length === 0;
 
   async function handleIssueDepartmentResource(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1314,8 +1359,13 @@ function IssueDepartmentResourceModal({
           <label className="text-sm font-bold text-[#071D49]">Book ISBN, title, accession, or barcode
             <input name="book_code" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="CHEM-ADV or accession number" />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Responsible staff identifier
-            <input name="staff_identifier" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Staff UUID, user UUID, staff number, or name" />
+          <label className="text-sm font-bold text-[#071D49]">Responsible staff
+            <select name="staff_identifier" required defaultValue="" disabled={optionsLoading || staffOptions.length === 0} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
+              <option value="">{optionsLoading ? "Loading staff..." : "Choose responsible staff"}</option>
+              {staffOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
           </label>
           <label className="text-sm font-bold text-[#071D49]">Department
             <input name="department" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Science, Languages..." />
@@ -1330,12 +1380,17 @@ function IssueDepartmentResourceModal({
         <label className="block text-sm font-bold text-[#071D49]">Notes
           <textarea name="notes" rows={3} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Purpose, class set, return condition, or handover notes" />
         </label>
+        {setupMissing ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+            Invite or activate staff before issuing a department resource.
+          </p>
+        ) : null}
         <p className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-3 text-sm font-semibold text-[#64748B]">
           Department resources are issued against a responsible staff borrower and saved in the tenant-scoped circulation ledger.
         </p>
         <div className="flex justify-end gap-2 border-t border-[#D8E0EC] pt-4">
           <button type="button" className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]" onClick={onClose} disabled={submitting}>Cancel</button>
-          <button type="submit" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting}>
+          <button type="submit" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting || optionsLoading || setupMissing}>
             {submitting ? "Issuing..." : "Issue Resource"}
           </button>
         </div>

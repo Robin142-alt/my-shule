@@ -62,9 +62,9 @@ export function ExamClassesWorkspace({ model }: { model: unknown }) {
     openPrintDocument({
       eyebrow: "Exam class setup",
       title,
-      subtitle: `Subject ${row.subject_id}`,
+      subtitle: `Subject reference ${row.subject_id}`,
       rows: [
-        { label: "Subject ID", value: row.subject_id },
+        { label: "Subject reference", value: row.subject_id },
         { label: "Weight", value: `${row.weight ?? "Unset"}` },
         { label: "Compulsory", value: row.is_compulsory ? "Yes" : "No" },
         { label: "Status", value: "Configured" },
@@ -136,7 +136,7 @@ export function ExamClassesWorkspace({ model }: { model: unknown }) {
                   <TableCell className="font-medium">Class/Subject Setup</TableCell>
                   <TableCell>N/A</TableCell>
                   <TableCell>Standard</TableCell>
-                  <TableCell>Subject ID: {row.subject_id}</TableCell>
+                  <TableCell>Subject reference: {row.subject_id}</TableCell>
                   <TableCell>Weight: {row.weight}</TableCell>
                   <TableCell>Compulsory: {row.is_compulsory ? 'Yes' : 'No'}</TableCell>
                   <TableCell>

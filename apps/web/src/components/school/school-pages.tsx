@@ -484,6 +484,9 @@ const admissionsDashboardSectionIds = new Set([
 const teacherDashboardSectionIds = new Set([
   "dashboard",
   "overview",
+  "students",
+  "academics",
+  "communication",
   "timetable",
   "my-timetable",
   "classes",
@@ -509,11 +512,43 @@ const teacherDashboardSectionIds = new Set([
   "resource-requests",
   "store-requests",
   "reports",
+  "reports-downloads",
+  "reports-analytics",
   "notifications",
   "profile",
   "class-teacher",
   "club",
   "invigilation",
+]);
+
+const examsManagerDashboardSectionIds = new Set([
+  "dashboard",
+  "overview",
+  "exams",
+  "builder",
+  "exam-setup",
+  "scheduler",
+  "exam-timetable",
+  "marks",
+  "missing-marks",
+  "submissions",
+  "marks-entry",
+  "moderation",
+  "validation",
+  "grading",
+  "academic-analytics",
+  "analysis",
+  "drafts",
+  "report-templates",
+  "report-cards",
+  "publishing",
+  "imports",
+  "templates",
+  "imports-templates",
+  "exports",
+  "audit-log",
+  "archive",
+  "reports",
 ]);
 
 function canCreateSupportTickets(role: SchoolExperienceRole) {
@@ -618,6 +653,8 @@ const deanAcademicsWorkspaceSectionIds = new Set([
   "alerts",
   "academic-interventions",
   "history",
+  "approvals",
+  "universal-approvals",
   "reports",
   "reports-analytics",
 ]);
@@ -634,6 +671,7 @@ const hodWorkspaceSectionIds = new Set([
   "lesson-observation",
   "subject-allocation",
   "timetable",
+  "timetable-builder",
   "schemes-of-work",
   "syllabus",
   "syllabus-coverage",
@@ -713,6 +751,10 @@ function shouldRenderRoleOperationalWorkspace(role: SchoolExperienceRole, sectio
 
   if (role === "teacher") {
     return teacherDashboardSectionIds.has(section);
+  }
+
+  if (role === "exams-manager") {
+    return examsManagerDashboardSectionIds.has(section);
   }
 
   if (role === "admin") {
@@ -4520,12 +4562,12 @@ function SchoolPagesShell({
 
       if (role === "hod") {
         // @ts-ignore
-        return <HodCommandCenter routeMode={routeMode} activeSection="exams-marks-moderation" />;
+        return <HodCommandCenter routeMode={routeMode} activeSection={section} />;
       }
 
       if (role === "dean-academics") {
         // @ts-ignore
-        return <DeanAcademicsCommandCenter routeMode={routeMode} activeSection="results-moderation" />;
+        return <DeanAcademicsCommandCenter routeMode={routeMode} activeSection={section} />;
       }
 
       if (role === "deputy-principal") {

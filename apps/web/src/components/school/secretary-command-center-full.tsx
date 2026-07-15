@@ -241,7 +241,7 @@ function RealDataTable({
   loading, 
   error,
   emptyIcon: EmptyIcon = FileText,
-  emptyMessage = "No records found"
+  emptyMessage = "This front-office workspace is empty for the current school. Use the workspace action to create the first visitor, parent, document, or communication record."
 }: { 
   columns: string[], 
   actions: string[], 

@@ -54,7 +54,7 @@ export function StudentsWorkspace() {
             {isLoading ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No school-scoped records are loaded for this workspace yet. Use the primary action, import, or connected setup workflow to create the first record.</td></tr>
             ) : (
               items.map((row: any, i: number) => (
                 <tr key={row.id || i} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">

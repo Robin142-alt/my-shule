@@ -67,7 +67,7 @@ export function ResourceRequestsWorkspace() {
             {isLoading ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No resource requests yet. Department teachers can request resources from their teacher workspace.</td></tr>
             ) : (
               items.map((row, index) => (
                 <tr key={row.id ?? `${fieldValue(row, ["item", "title"])}-${index}`} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">

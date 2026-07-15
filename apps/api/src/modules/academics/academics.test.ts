@@ -22,6 +22,8 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS class_streams/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS student_class_assignments/);
   assert.match(schemaSql, /ALTER TABLE subjects ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active'/);
+  assert.match(schemaSql, /ALTER TABLE subjects ADD COLUMN IF NOT EXISTS department_id uuid/);
+  assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_subjects_department/);
   assert.match(schemaSql, /ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS created_by_user_id uuid/);
   assert.match(schemaSql, /CBE/);
   assert.match(schemaSql, /ALTER TABLE teacher_subject_assignments FORCE ROW LEVEL SECURITY/);
@@ -41,6 +43,7 @@ test('AcademicsService assigns teachers to deterministic subject class term scop
     { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
     {
       executeSql: async () => ({ rows: [], rowCount: 0 }),
+      findTeacherOptionByUserId: async () => ({ id: 'staff-1', user_id: 'teacher-1', label: 'Teacher One' }),
       createTeacherAssignment: async (input: Record<string, unknown>) => {
         calls.push('assign');
         return { id: 'assignment-1', ...input };
@@ -152,6 +155,65 @@ test('AcademicsService bounds teacher assignment lists', async () => {
   });
 });
 
+test('AcademicsService lists tenant-scoped teacher options for human assignment controls', async () => {
+  const observed: Record<string, unknown> = {};
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    {
+      listTeacherOptions: async (tenantId: string) => {
+        observed.tenantId = tenantId;
+        return [
+          {
+            id: 'staff-1',
+            user_id: 'teacher-user-1',
+            label: 'Amina Otieno',
+            staff_number: 'TSC-102',
+            status: 'active',
+          },
+        ];
+      },
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.listTeacherOptions();
+
+  assert.equal(observed.tenantId, 'tenant-a');
+  assert.deepEqual(result, [
+    {
+      id: 'staff-1',
+      user_id: 'teacher-user-1',
+      label: 'Amina Otieno',
+      staff_number: 'TSC-102',
+      status: 'active',
+    },
+  ]);
+});
+
+test('AcademicsService rejects subject teacher assignments outside active tenant staff', async () => {
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    {
+      executeSql: async () => ({ rows: [], rowCount: 0 }),
+      findTeacherOptionByUserId: async () => null,
+      createTeacherAssignment: async () => {
+        throw new Error('createTeacherAssignment should not run');
+      },
+    } as never,
+    {} as never,
+  );
+
+  await assert.rejects(
+    () => service.assignTeacher({
+      academic_term_id: 'term-1',
+      class_section_id: 'class-1',
+      subject_id: 'subject-1',
+      teacher_user_id: 'external-user-1',
+    }),
+    /active staff member in this school/,
+  );
+});
+
 test('AcademicsService creates lesson logs with tenant teacher and selected date', async () => {
   const observed: Record<string, unknown> = {};
   const service = new AcademicsService(
@@ -218,6 +280,143 @@ query: async (sql: string, params: unknown[]) => {
   assert.equal(tenantIdUsed, 'tenant-a');
   assert.equal(calls[0]!.params[2], 50);
   assert.equal(calls[0]!.params[3], 0);
+});
+
+test('AcademicsRepository lists active staff teacher options without cross-tenant reads', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  let tenantIdUsed: string | undefined;
+  const repository = new AcademicsRepository({
+    executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      tenantIdUsed = tenantId;
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        },
+      });
+    },
+    query: async (sql: string, params: unknown[]) => {
+      calls.push({ sql, params });
+      return {
+        rows: [
+          {
+            id: 'staff-1',
+            user_id: 'teacher-user-1',
+            label: 'Amina Otieno',
+            staff_number: 'TSC-102',
+            status: 'active',
+          },
+        ],
+      };
+    },
+  } as never);
+
+  const result = await repository.listTeacherOptions('tenant-a');
+
+  assert.equal(tenantIdUsed, 'tenant-a');
+  assert.match(calls[0]!.sql, /FROM staff_profiles/i);
+  assert.match(calls[0]!.sql, /WHERE tenant_id = \$1/i);
+  assert.match(calls[0]!.sql, /user_id IS NOT NULL/i);
+  assert.match(calls[0]!.sql, /COALESCE\(status, 'active'\) = 'active'/i);
+  assert.deepEqual(calls[0]!.params, ['tenant-a']);
+  assert.deepEqual(result, [
+    {
+      id: 'staff-1',
+      user_id: 'teacher-user-1',
+      label: 'Amina Otieno',
+      staff_number: 'TSC-102',
+      status: 'active',
+    },
+  ]);
+});
+
+test('AcademicsRepository finds active teacher options by tenant and user id', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  let tenantIdUsed: string | undefined;
+  const repository = new AcademicsRepository({
+    executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      tenantIdUsed = tenantId;
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        },
+      });
+    },
+    query: async (sql: string, params: unknown[]) => {
+      calls.push({ sql, params });
+      return {
+        rows: [
+          {
+            id: 'staff-1',
+            user_id: 'teacher-user-1',
+            label: 'Amina Otieno',
+            staff_number: 'TSC-102',
+            status: 'active',
+          },
+        ],
+      };
+    },
+  } as never);
+
+  const result = await repository.findTeacherOptionByUserId('tenant-a', 'teacher-user-1');
+
+  assert.equal(tenantIdUsed, 'tenant-a');
+  assert.match(calls[0]!.sql, /FROM staff_profiles/i);
+  assert.match(calls[0]!.sql, /WHERE tenant_id = \$1/i);
+  assert.match(calls[0]!.sql, /user_id = \$2::uuid/i);
+  assert.match(calls[0]!.sql, /COALESCE\(status, 'active'\) = 'active'/i);
+  assert.deepEqual(calls[0]!.params, ['tenant-a', 'teacher-user-1']);
+  assert.deepEqual(result, {
+    id: 'staff-1',
+    user_id: 'teacher-user-1',
+    label: 'Amina Otieno',
+    staff_number: 'TSC-102',
+    status: 'active',
+  });
+});
+
+test('AcademicsService rejects department HOD assignments outside active tenant staff', async () => {
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    {
+      findTeacherOptionByUserId: async () => null,
+      createDepartment: async () => {
+        throw new Error('createDepartment should not run');
+      },
+    } as never,
+    {} as never,
+  );
+
+  await assert.rejects(
+    () => service.createDepartment({
+      name: 'Sciences',
+      head_of_department_user_id: 'external-user-1',
+    }),
+    /active staff member in this school/,
+  );
+});
+
+test('AcademicsService rejects class teacher assignments outside active tenant staff', async () => {
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    {
+      findTeacherOptionByUserId: async () => null,
+      assignClassTeacher: async () => {
+        throw new Error('assignClassTeacher should not run');
+      },
+    } as never,
+    {} as never,
+  );
+
+  await assert.rejects(
+    () => service.assignClassTeacher({
+      academic_year_id: 'year-1',
+      class_section_id: 'class-1',
+      teacher_user_id: 'external-user-1',
+    }),
+    /active staff member in this school/,
+  );
 });
 
 test('AcademicsService delegates enterMarks to ExamsService and calls new repository methods', async () => {

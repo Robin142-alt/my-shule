@@ -19,10 +19,21 @@ export class ExamsManagerCommandController {
     return this.service.getExamSetup();
   }
 
+  @Get('options')
+  getExamSetupOptions() {
+    return this.service.getExamSetupOptions();
+  }
+
   @Post('exam-setup')
   @Permissions('exams:write')
   createExamSetup(@Body() dto: any) {
     return this.service.createExamSetup(dto);
+  }
+
+  @Post('exam-setup/:id/configure')
+  @Permissions('exams:write')
+  configureExamSetup(@Param('id') id: string, @Body() dto: any) {
+    return this.service.configureExamSetup(id, dto);
   }
 
   @Get('exam-timetable')
@@ -33,7 +44,7 @@ export class ExamsManagerCommandController {
   @Post('exam-timetable')
   @Permissions('exams:write')
   createExamTimetable(@Body() dto: any) {
-    return this.service.recordExamAction('exam-timetable.created', dto);
+    return this.service.createExamTimetableSlot(dto);
   }
 
   @Get('marks-entry')
@@ -62,7 +73,7 @@ export class ExamsManagerCommandController {
   @Post('zeraki-sync')
   @Permissions('exams:write')
   syncZeraki(@Body() dto: any) {
-    return this.service.recordExamAction('zeraki.sync_requested', dto);
+    return this.service.requestZerakiSync(dto);
   }
 
   @Post('action')
@@ -102,13 +113,13 @@ export class ExamsManagerCommandController {
   @Post('publishing/:id/publish')
   @Permissions('exams:write')
   publishResults(@Param('id') id: string, @Body() dto: any) {
-    return this.service.recordExamAction('publishing.published', dto, id);
+    return this.service.publishResults(id, dto);
   }
 
   @Post('publishing/:id/unpublish')
   @Permissions('exams:write')
   unpublishResults(@Param('id') id: string, @Body() dto: any) {
-    return this.service.recordExamAction('publishing.unpublished', dto, id);
+    return this.service.unpublishResults(id, dto);
   }
 
   @Get('report-cards')
@@ -119,7 +130,7 @@ export class ExamsManagerCommandController {
   @Post('report-cards/:id/generate')
   @Permissions('exams:write')
   generateReportCard(@Param('id') id: string, @Body() dto: any) {
-    return this.service.recordExamAction('report-card.generated', dto, id);
+    return this.service.generateReportCards(id, dto);
   }
 
   @Get('analysis')

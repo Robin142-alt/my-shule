@@ -165,6 +165,29 @@ export interface LiveAdmissionsTransferRecord {
   notes?: string | null;
 }
 
+export interface LiveAdmissionsClassOption {
+  id: string;
+  name: string;
+  grade_level?: string | null;
+  stream?: string | null;
+  capacity?: number | string | null;
+  student_count?: number | string | null;
+  available_seats?: number | string | null;
+  label?: string | null;
+  value?: string | null;
+}
+
+export interface AdmissionsClassOption {
+  id: string;
+  label: string;
+  value: string;
+  streamName: string;
+  gradeLevel: string;
+  capacity: number | null;
+  studentCount: number;
+  availableSeats: number | null;
+}
+
 export interface LiveAdmissionsStudentProfileResponse {
   student: {
     id: string;
@@ -383,6 +406,43 @@ function formatRegistrationMoney(currencyCode: string | null | undefined, amount
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+function parseOptionalNumber(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function mapAdmissionsClassOptionsFromLive(
+  options: LiveAdmissionsClassOption[],
+): AdmissionsClassOption[] {
+  return options
+    .map((option) => {
+      const value = option.value?.trim() || option.name?.trim() || "";
+      const streamName = option.stream?.trim() || "";
+      const gradeLevel = option.grade_level?.trim() || value;
+      const label =
+        option.label?.trim()
+        || [value, streamName].filter(Boolean).join(" ")
+        || "Unnamed class";
+
+      return {
+        id: option.id,
+        label,
+        value,
+        streamName,
+        gradeLevel,
+        capacity: parseOptionalNumber(option.capacity),
+        studentCount: parseOptionalNumber(option.student_count) ?? 0,
+        availableSeats: parseOptionalNumber(option.available_seats),
+      };
+    })
+    .filter((option) => option.value.length > 0)
+    .sort((left, right) => left.label.localeCompare(right.label));
 }
 
 export function buildAdmissionRegistrationSummary({
@@ -1129,6 +1189,11 @@ export async function fetchAdmissionsDatasetLive(session: LiveAuthSession) {
     allocations,
     transfers,
   });
+}
+
+export async function fetchAdmissionsClassOptionsLive(session: LiveAuthSession) {
+  const response = await withSession<LiveAdmissionsClassOption[]>(session, "/admissions/classes");
+  return mapAdmissionsClassOptionsFromLive(response);
 }
 
 export function fetchAdmissionsReportExportLive(

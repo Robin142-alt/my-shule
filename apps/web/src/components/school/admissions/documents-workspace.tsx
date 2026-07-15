@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { FileText, CheckCircle, AlertCircle, Send } from "lucide-react";
+import Link from "next/link";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { toast } from "sonner";
@@ -106,7 +107,16 @@ export function DocumentsWorkspace() {
             {isLoading ? (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading documents...</td></tr>
             ) : documents.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No documents uploaded yet. Documents will appear here once applicants upload required files.</td></tr>
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">
+                  <div className="mx-auto flex max-w-xl flex-col items-center gap-3">
+                    <p>No documents uploaded yet. Start student admission first, then request or verify birth certificates, photos, and previous report forms here.</p>
+                    <Link href="/school/admissions/applications?action=start-admission" className="rounded-lg bg-[#071D49] px-4 py-2 text-xs font-black text-white">
+                      Start student admission
+                    </Link>
+                  </div>
+                </td>
+              </tr>
             ) : (
               documents.map((doc) => (
                 <tr key={doc.id} className="hover:bg-[#F8FAFC]">

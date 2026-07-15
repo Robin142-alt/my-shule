@@ -29,6 +29,11 @@ export class HODCommandController {
     return this.service.getSubjectAllocation();
   }
 
+  @Get('subject-allocation/options')
+  getSubjectAllocationOptions() {
+    return this.service.getSubjectAllocationOptions();
+  }
+
   @Get('department-teachers')
   getDepartmentTeachers() {
     return this.service.getDepartmentTeachers();

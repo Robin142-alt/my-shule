@@ -135,6 +135,8 @@ const deanViewAliases: Record<string, DeanView> = {
   "lesson-logs": "lesson-logs",
   attendance: "lesson-logs",
   pending: "assessments",
+  approvals: "assessments",
+  "universal-approvals": "assessments",
   moderation: "assessments",
   "results-moderation": "assessments",
   integrity: "assessments",

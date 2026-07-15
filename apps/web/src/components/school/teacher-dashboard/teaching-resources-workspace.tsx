@@ -45,7 +45,7 @@ export function TeachingResourcesWorkspace() {
         <RecordTable
           columns={["Title","Subject","Type","Uploaded","Status"]}
           rows={rows}
-          emptyState={isLoading ? "Loading..." : "No records found. Create the first entry to get started."}
+          emptyState={isLoading ? "Loading..." : "No teaching resources yet. Add department resources or request materials from stores."}
         />
       )}
     </Panel>

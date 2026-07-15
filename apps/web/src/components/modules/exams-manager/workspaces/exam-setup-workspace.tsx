@@ -36,6 +36,19 @@ interface ApiResponse<T> {
   data?: T;
 }
 
+interface ExamSetupOption {
+  id: string;
+  label: string;
+  status?: string;
+  code?: string;
+}
+
+interface ExamSetupOptions {
+  terms?: ExamSetupOption[];
+  subjects?: ExamSetupOption[];
+  classes?: ExamSetupOption[];
+}
+
 function parseSetupCsvLine(line: string) {
   const values: string[] = [];
   let value = "";
@@ -51,7 +64,17 @@ function parseSetupCsvLine(line: string) {
   return values;
 }
 
-function CreateExamDialog({ children, onSuccess }: { children: React.ReactNode, onSuccess?: () => void }) {
+function CreateExamDialog({
+  children,
+  onSuccess,
+  termOptions,
+  termsLoading,
+}: {
+  children: React.ReactNode;
+  onSuccess?: () => void;
+  termOptions: ExamSetupOption[];
+  termsLoading?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState<ExamDraftPayload>({
     name: "",
@@ -61,7 +84,13 @@ function CreateExamDialog({ children, onSuccess }: { children: React.ReactNode, 
   });
   
   const createMutation = useSchoolMutation<unknown, ExamDraftPayload>("/exams/draft", "POST");
-  
+
+  useEffect(() => {
+    if (!formData.academic_term_id && termOptions.length > 0) {
+      setFormData((current) => ({ ...current, academic_term_id: termOptions[0].id }));
+    }
+  }, [formData.academic_term_id, termOptions]);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
@@ -95,13 +124,26 @@ function CreateExamDialog({ children, onSuccess }: { children: React.ReactNode, 
               />
             </div>
             <div className="space-y-2">
-              <Label>Term ID</Label>
-              <Input 
-                required 
-                value={formData.academic_term_id} 
-                onChange={e => setFormData({ ...formData, academic_term_id: e.target.value })} 
-                placeholder="Term UUID" 
-              />
+              <Label htmlFor="exam-academic-term">Academic term</Label>
+              <select
+                id="exam-academic-term"
+                name="academic_term_id"
+                required
+                disabled={termsLoading || termOptions.length === 0}
+                value={formData.academic_term_id}
+                onChange={(event) => setFormData({ ...formData, academic_term_id: event.target.value })}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="">Select academic term</option>
+                {termOptions.map((term) => (
+                  <option key={term.id} value={term.id}>
+                    {term.label}
+                  </option>
+                ))}
+              </select>
+              {termOptions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Create an academic term in Academic Setup before opening an exam series.</p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label>Start Date</Label>
@@ -124,7 +166,7 @@ function CreateExamDialog({ children, onSuccess }: { children: React.ReactNode, 
           </div>
           <DialogFooter>
             <Button variant="outline" type="button" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button type="submit" disabled={createMutation.isPending}>
+            <Button type="submit" disabled={createMutation.isPending || termOptions.length === 0}>
               {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Create Exam
             </Button>
@@ -178,8 +220,10 @@ export function ExamSetupWorkspace({ model }: { model: unknown }) {
   const [savingAction, setSavingAction] = useState<string | null>(null);
   const [editingAssessment, setEditingAssessment] = useState<ExamAssessment | null>(null);
   const { data: assessmentsResponse, isLoading, error, refetch } = useSchoolQuery<ApiResponse<ExamAssessment[]> | ExamAssessment[]>("/exams/assessments");
+  const { data: setupOptions, isLoading: optionsLoading } = useSchoolQuery<ExamSetupOptions>("/admin-command/exams-manager/options");
   const assessmentSource = Array.isArray(assessmentsResponse) ? assessmentsResponse : assessmentsResponse?.data;
   const assessments = Array.isArray(assessmentSource) ? assessmentSource : [];
+  const termOptions = setupOptions?.terms ?? [];
   const routeTo = (workspace: string) => router.push(`/school/exams-manager/${workspace}`);
 
   function examKey(exam: ExamAssessment, index: number) {
@@ -313,7 +357,7 @@ export function ExamSetupWorkspace({ model }: { model: unknown }) {
             {savingAction?.startsWith("archive:") ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Archive className="mr-2 h-4 w-4" />}
             Archive
           </Button>
-          <CreateExamDialog onSuccess={refetch}>
+          <CreateExamDialog onSuccess={refetch} termOptions={termOptions} termsLoading={optionsLoading}>
             <Button type="button"><Plus className="mr-2 h-4 w-4" /> Create Exam</Button>
           </CreateExamDialog>
         </div>

@@ -46,7 +46,7 @@ export function LearnerProgressWorkspace() {
         <RecordTable
           columns={["Learner","Class","Subject","Score","Trend","Status"]}
           rows={rows}
-          emptyState={isLoading ? "Loading..." : "No records found. Create the first entry to get started."}
+          emptyState={isLoading ? "Loading..." : "No learner progress records yet. Enter marks, lesson coverage, or CBC assessments to build this view."}
         />
       )}
     </Panel>

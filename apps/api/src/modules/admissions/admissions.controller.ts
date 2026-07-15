@@ -54,6 +54,12 @@ export class AdmissionsController {
     return this.admissionsService.getSummary();
   }
 
+  @Get('classes')
+  @Permissions('admissions:read')
+  listClassOptions() {
+    return this.admissionsService.listClassOptions();
+  }
+
   @Get('applications')
   @Permissions('admissions:read')
   listApplications(@Query() query: ListAdmissionsQueryDto) {

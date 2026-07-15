@@ -125,6 +125,74 @@ export class LibrarianCommandService {
     return res.rows;
   }
 
+  async getCirculationOptions() {
+    const tenantId = this.requireTenantId();
+    const [borrowers, catalogItems, staff] = await Promise.all([
+      this.executeSql(
+        `
+          SELECT borrower.id::text AS id,
+                 COALESCE(
+                   NULLIF(CONCAT_WS(' ', student.first_name, student.last_name), ''),
+                   borrower.scan_code,
+                   borrower.subject_id::text,
+                   borrower.id::text
+                 )
+                 || COALESCE(' - ' || NULLIF(student.admission_number, ''), '')
+                 || COALESCE(' - ' || NULLIF(allocation.class_name, ''), '') AS label,
+                 borrower.borrower_type,
+                 COALESCE(student.admission_number, borrower.scan_code, '') AS admission_no,
+                 COALESCE(allocation.class_name, '') AS class_name
+          FROM library_borrowers borrower
+          LEFT JOIN students student ON student.tenant_id = borrower.tenant_id AND student.id = borrower.subject_id
+          LEFT JOIN student_allocations allocation ON allocation.tenant_id = student.tenant_id AND allocation.student_id = student.id AND allocation.is_current = TRUE
+          WHERE borrower.tenant_id = $1
+          ORDER BY label ASC
+          LIMIT 500
+        `,
+        [tenantId],
+      ),
+      this.executeSql(
+        `
+          SELECT item.id::text AS id,
+                 item.title
+                 || COALESCE(' - ' || NULLIF(item.isbn, ''), '')
+                 || ' (' || (COUNT(copy.id) FILTER (WHERE copy.status = 'available'))::int || ' available)' AS label,
+                 item.title,
+                 COALESCE(item.isbn, '') AS isbn,
+                 (COUNT(copy.id) FILTER (WHERE copy.status = 'available'))::int AS copies_available
+          FROM library_catalog_items item
+          LEFT JOIN library_copies copy ON copy.tenant_id = item.tenant_id AND copy.catalog_item_id = item.id
+          WHERE item.tenant_id = $1
+          GROUP BY item.id, item.title, item.isbn
+          ORDER BY item.title ASC
+          LIMIT 500
+        `,
+        [tenantId],
+      ),
+      this.executeSql(
+        `
+          SELECT id::text AS id,
+                 COALESCE(NULLIF(full_name, ''), NULLIF(display_name, ''), staff_number, id::text)
+                 || COALESCE(' - ' || NULLIF(staff_number, ''), '') AS label,
+                 staff_number,
+                 COALESCE(status, 'active') AS status
+          FROM staff_profiles
+          WHERE tenant_id = $1
+            AND COALESCE(status, 'active') = 'active'
+          ORDER BY label ASC
+          LIMIT 300
+        `,
+        [tenantId],
+      ),
+    ]);
+
+    return {
+      borrowers: borrowers.rows,
+      catalogItems: catalogItems.rows,
+      staff: staff.rows,
+    };
+  }
+
   async getIssueBook() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(

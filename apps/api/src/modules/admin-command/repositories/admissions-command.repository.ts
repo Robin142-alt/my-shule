@@ -320,10 +320,20 @@ export class AdmissionsCommandRepository {
 
   async getAdmissionsList(tenantId: string) {
     const applications = await this.executeSql(tenantId, `
-      SELECT id::text, full_name, created_at, class_applying, parent_name, parent_phone, status
-      FROM admission_applications
-      WHERE tenant_id = $1
-      ORDER BY created_at DESC
+      SELECT application.id::text,
+             application.full_name,
+             application.created_at,
+             application.class_applying,
+             application.parent_name,
+             application.parent_phone,
+             application.status,
+             student.admission_number
+      FROM admission_applications application
+      LEFT JOIN students student
+        ON student.tenant_id = application.tenant_id
+       AND student.id::text = application.admitted_student_id
+      WHERE application.tenant_id = $1
+      ORDER BY application.created_at DESC
       LIMIT 100
     `, [tenantId]);
     const admitted = applications.rows.filter((row: any) => ['registered', 'admitted'].includes(String(row.status).toLowerCase())).length;
@@ -345,6 +355,7 @@ export class AdmissionsCommandRepository {
         parent_name: row.parent_name,
         phone: row.parent_phone,
         status: this.formatStatus(row.status),
+        admission_number: row.admission_number ?? '',
       })),
     };
   }
@@ -698,6 +709,290 @@ export class AdmissionsCommandRepository {
     return Number(result.rows[0]?.count ?? 0);
   }
 
+  async admitStudent(tenantId: string, applicationId: string, userId: string) {
+    return this.prisma.executeWithTenant(tenantId, userId, async (tx: any) => {
+      const query = async <T = any>(sql: string, params: any[] = []): Promise<T[]> => {
+        const result = await tx.$queryRawUnsafe(sql, ...params);
+        return Array.isArray(result) ? result : [result];
+      };
+
+      const applications = await query<any>(`
+        SELECT id::text,
+               application_number,
+               full_name,
+               date_of_birth,
+               gender,
+               birth_certificate_number,
+               nationality,
+               class_applying,
+               parent_name,
+               parent_phone,
+               parent_email,
+               relationship,
+               status,
+               admitted_student_id
+        FROM admission_applications
+        WHERE tenant_id = $1
+          AND id = $2::uuid
+        LIMIT 1
+      `, [tenantId, applicationId]);
+      const application = applications[0];
+      if (!application) {
+        return null;
+      }
+
+      const normalizedStatus = String(application.status ?? '').trim().toLowerCase();
+      if (['registered', 'admitted'].includes(normalizedStatus) && application.admitted_student_id) {
+        return this.readExistingAdmission(query, tenantId, application);
+      }
+      if (normalizedStatus !== 'approved') {
+        throw new Error('Application must be approved before enrolment');
+      }
+
+      const admissionNumberSeed = createHash('sha256')
+        .update(`${tenantId}:${application.id}`)
+        .digest('hex')
+        .slice(0, 8)
+        .toUpperCase();
+      const admissionNumber = `ADM-${new Date().getFullYear()}-${admissionNumberSeed}`;
+      const name = this.splitName(application.full_name);
+      const streamName = 'Default';
+      const academicYear = String(new Date().getFullYear());
+      const metadata = {
+        admissions: {
+          application_id: application.id,
+          application_number: application.application_number,
+          class_applying: application.class_applying,
+          guardian: {
+            parent_name: application.parent_name,
+            parent_phone: application.parent_phone,
+            parent_email: application.parent_email,
+            relationship: application.relationship,
+          },
+        },
+      };
+      const actorUserId = this.uuidOrNull(userId);
+
+      const students = await query<any>(`
+        INSERT INTO students (
+          tenant_id,
+          school_id,
+          admission_number,
+          first_name,
+          last_name,
+          middle_name,
+          status,
+          student_status,
+          date_of_birth,
+          gender,
+          birth_certificate_number,
+          nationality,
+          admission_date,
+          current_class_id,
+          current_stream_id,
+          boarding_status,
+          primary_guardian_name,
+          primary_guardian_phone,
+          metadata,
+          created_by_user_id
+        )
+        VALUES (
+          $1,
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          'active',
+          'ACTIVE',
+          $6::date,
+          $7,
+          $8,
+          COALESCE($9, 'Kenyan'),
+          CURRENT_DATE,
+          $10,
+          $11,
+          'DAY_SCHOLAR',
+          $12,
+          $13,
+          $14::jsonb,
+          $15::uuid
+        )
+        ON CONFLICT (tenant_id, admission_number)
+        DO UPDATE SET
+          first_name = EXCLUDED.first_name,
+          last_name = EXCLUDED.last_name,
+          middle_name = EXCLUDED.middle_name,
+          current_class_id = EXCLUDED.current_class_id,
+          current_stream_id = EXCLUDED.current_stream_id,
+          primary_guardian_name = EXCLUDED.primary_guardian_name,
+          primary_guardian_phone = EXCLUDED.primary_guardian_phone,
+          metadata = students.metadata || EXCLUDED.metadata,
+          updated_at = NOW()
+        RETURNING id::text, tenant_id, admission_number, first_name, last_name, middle_name, status
+      `, [
+        tenantId,
+        admissionNumber,
+        name.firstName,
+        name.lastName,
+        name.middleName,
+        application.date_of_birth,
+        this.normalizeGender(application.gender),
+        application.birth_certificate_number,
+        application.nationality ?? 'Kenyan',
+        application.class_applying,
+        streamName,
+        application.parent_name,
+        application.parent_phone,
+        JSON.stringify(metadata),
+        actorUserId,
+      ]);
+      const student = students[0];
+
+      await query(`
+        UPDATE student_allocations
+        SET is_current = FALSE,
+            updated_at = NOW()
+        WHERE tenant_id = $1
+          AND student_id = $2::uuid
+          AND is_current = TRUE
+      `, [tenantId, student.id]);
+
+      const allocations = await query<any>(`
+        INSERT INTO student_allocations (
+          tenant_id,
+          student_id,
+          class_name,
+          stream_name,
+          effective_from,
+          is_current,
+          notes
+        )
+        VALUES ($1, $2::uuid, $3, $4, CURRENT_DATE, TRUE, $5)
+        RETURNING id::text, student_id::text, class_name, stream_name, effective_from, is_current
+      `, [
+        tenantId,
+        student.id,
+        application.class_applying,
+        streamName,
+        `Admitted from application ${application.application_number}`,
+      ]);
+
+      const enrollments = await query<any>(`
+        INSERT INTO student_academic_enrollments (
+          tenant_id,
+          student_id,
+          application_id,
+          class_section_id,
+          class_name,
+          stream_name,
+          academic_year,
+          status
+        )
+        VALUES ($1, $2::uuid, $3::uuid, NULL, $4, $5, $6, 'active')
+        ON CONFLICT (tenant_id, student_id, academic_year)
+        DO UPDATE SET
+          application_id = EXCLUDED.application_id,
+          class_name = EXCLUDED.class_name,
+          stream_name = EXCLUDED.stream_name,
+          status = 'active',
+          updated_at = NOW()
+        RETURNING id::text, student_id::text, application_id::text, class_name, stream_name, academic_year, status
+      `, [tenantId, student.id, application.id, application.class_applying, streamName, academicYear]);
+
+      const guardianLink = application.parent_email
+        ? (await query<any>(`
+            INSERT INTO student_guardians (
+              tenant_id,
+              student_id,
+              display_name,
+              email,
+              phone,
+              relationship,
+              is_primary,
+              status
+            )
+            VALUES ($1, $2::uuid, $3, lower($4), $5, $6, TRUE, 'invited')
+            ON CONFLICT (tenant_id, student_id, (lower(email)))
+            DO UPDATE SET
+              display_name = EXCLUDED.display_name,
+              phone = EXCLUDED.phone,
+              relationship = EXCLUDED.relationship,
+              is_primary = TRUE,
+              status = CASE WHEN student_guardians.user_id IS NULL THEN 'invited' ELSE 'active' END,
+              updated_at = NOW()
+            RETURNING id::text, student_id::text, lower(email) AS email, status
+          `, [
+            tenantId,
+            student.id,
+            application.parent_name,
+            application.parent_email,
+            application.parent_phone,
+            application.relationship ?? 'guardian',
+          ]))[0] ?? null
+        : null;
+
+      const updatedApplications = await query<any>(`
+        UPDATE admission_applications
+        SET status = 'registered',
+            application_status = 'REGISTERED',
+            admitted_student_id = $3,
+            updated_at = NOW()
+        WHERE tenant_id = $1
+          AND id = $2::uuid
+        RETURNING id::text, application_number, full_name, class_applying, status, admitted_student_id
+      `, [tenantId, application.id, student.id]);
+
+      return {
+        student,
+        application: updatedApplications[0] ?? { ...application, status: 'registered', admitted_student_id: student.id },
+        allocation: allocations[0] ?? null,
+        academicEnrollment: enrollments[0] ?? null,
+        guardianLink,
+      };
+    });
+  }
+
+  private async readExistingAdmission(
+    query: <T = any>(sql: string, params?: any[]) => Promise<T[]>,
+    tenantId: string,
+    application: any,
+  ) {
+    const students = await query<any>(`
+      SELECT id::text, tenant_id, admission_number, first_name, last_name, middle_name, status
+      FROM students
+      WHERE tenant_id = $1
+        AND id = $2::uuid
+      LIMIT 1
+    `, [tenantId, application.admitted_student_id]);
+    const allocations = await query<any>(`
+      SELECT id::text, student_id::text, class_name, stream_name, effective_from, is_current
+      FROM student_allocations
+      WHERE tenant_id = $1
+        AND student_id = $2::uuid
+        AND is_current = TRUE
+      ORDER BY effective_from DESC, updated_at DESC
+      LIMIT 1
+    `, [tenantId, application.admitted_student_id]);
+    const enrollments = await query<any>(`
+      SELECT id::text, student_id::text, application_id::text, class_name, stream_name, academic_year, status
+      FROM student_academic_enrollments
+      WHERE tenant_id = $1
+        AND student_id = $2::uuid
+        AND status = 'active'
+      ORDER BY enrolled_at DESC
+      LIMIT 1
+    `, [tenantId, application.admitted_student_id]);
+
+    return {
+      student: students[0] ?? { id: application.admitted_student_id, admission_number: '' },
+      application,
+      allocation: allocations[0] ?? null,
+      academicEnrollment: enrollments[0] ?? null,
+      guardianLink: null,
+    };
+  }
+
   private required(value: unknown, label: string) {
     const text = String(value ?? '').trim();
     if (!text) {
@@ -732,6 +1027,30 @@ export class AdmissionsCommandRepository {
     if (!value) return '';
     const date = value instanceof Date ? value : new Date(String(value));
     return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
+  }
+
+  private splitName(fullName: unknown) {
+    const parts = String(fullName ?? '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    const firstName = parts.shift() ?? 'Learner';
+    const lastName = parts.length > 0 ? parts.pop()! : 'Student';
+    const middleName = parts.length > 0 ? parts.join(' ') : null;
+    return { firstName, middleName, lastName };
+  }
+
+  private normalizeGender(value: unknown) {
+    const gender = String(value ?? '').trim().toLowerCase();
+    if (['male', 'female', 'other'].includes(gender)) return gender;
+    return 'undisclosed';
+  }
+
+  private uuidOrNull(value: unknown) {
+    const text = String(value ?? '').trim();
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text)
+      ? text
+      : null;
   }
 
   async approveApplication(tenantId: string, applicationId: string, userId: string) {

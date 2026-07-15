@@ -120,6 +120,7 @@ const hodViewAliases: Record<string, HodView> = {
   "lesson-observation": "department-teachers",
   "subject-allocation": "subject-allocation",
   timetable: "subject-allocation",
+  "timetable-builder": "subject-allocation",
   "schemes-of-work": "coverage-review",
   syllabus: "coverage-review",
   "syllabus-coverage": "coverage-review",

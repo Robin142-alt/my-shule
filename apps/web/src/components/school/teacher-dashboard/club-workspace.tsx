@@ -45,7 +45,7 @@ export function ClubWorkspace() {
         <RecordTable
           columns={["Activity/Club","Date","Expected","Present","Status"]}
           rows={rows}
-          emptyState={isLoading ? "Loading..." : "No records found. Create the first entry to get started."}
+          emptyState={isLoading ? "Loading..." : "No club records yet. Create or join a school activity before tracking attendance or events."}
         />
       )}
     </Panel>

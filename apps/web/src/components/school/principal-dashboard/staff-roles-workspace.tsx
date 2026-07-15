@@ -21,6 +21,18 @@ type PrincipalStaffData = {
   recentOnboarding: Array<any>;
 };
 
+type TeacherOption = {
+  id?: string;
+  user_id?: string;
+  label?: string;
+  full_name?: string;
+  preferred_name?: string;
+  display_name?: string;
+  staff_number?: string;
+  email?: string;
+  status?: string;
+};
+
 export function PrincipalStaffRolesWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalStaffData>('/admin-command/principal/staff');
   const { data: termsData } = useSchoolQuery<any[]>('/academics/academic-terms');
@@ -28,6 +40,7 @@ export function PrincipalStaffRolesWorkspace() {
   const { data: classesData } = useSchoolQuery<any[]>('/academics/class-sections');
   const { data: subjectsData } = useSchoolQuery<any[]>('/academics/subjects');
   const { data: classTeachersData } = useSchoolQuery<any[]>('/academics/class-teachers');
+  const { data: teachersData } = useSchoolQuery<TeacherOption[]>('/academics/teachers');
   const { hasPermission } = usePermissions();
 
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -38,14 +51,48 @@ export function PrincipalStaffRolesWorkspace() {
   const [isSubmittingCT, setIsSubmittingCT] = useState(false);
   const [ctFormError, setCtFormError] = useState("");
 
-  const hasPrerequisites = 
+  const teacherOptions = (teachersData ?? [])
+    .map((teacher) => {
+      const value = teacher.user_id || teacher.id || "";
+      const label = teacher.label || teacher.full_name || teacher.preferred_name || teacher.display_name || teacher.staff_number || teacher.email || "Unnamed teacher";
+
+      return { value, label };
+    })
+    .filter((teacher) => teacher.value);
+
+  const teacherLabelByUserId = new Map(teacherOptions.map((teacher) => [teacher.value, teacher.label]));
+  const classLabelById = new Map((classesData ?? []).map((classSection) => [
+    String(classSection.id),
+    classSection.name || classSection.custom_label || classSection.grade_level || "Class section",
+  ]));
+  const yearLabelById = new Map((yearsData ?? []).map((year) => [
+    String(year.id),
+    year.name || year.label || "Academic year",
+  ]));
+
+  const hasTeachers = teacherOptions.length > 0;
+  const hasPrerequisites =
+    hasTeachers &&
     termsData && termsData.length > 0 &&
     classesData && classesData.length > 0 &&
     subjectsData && subjectsData.length > 0;
 
   const hasCTPrerequisites = 
+    hasTeachers &&
     yearsData && yearsData.length > 0 &&
     classesData && classesData.length > 0;
+
+  const teacherAssignmentBlockReason = !hasTeachers
+    ? "Invite and activate teaching staff before assigning subject teachers"
+    : !hasPrerequisites
+      ? "Cannot assign teachers before terms, classes, and subjects exist"
+      : "";
+
+  const classTeacherBlockReason = !hasTeachers
+    ? "Invite and activate teaching staff before assigning class teachers"
+    : !hasCTPrerequisites
+      ? "Cannot assign class teachers before academic years and classes exist"
+      : "";
 
   const handleAssignTeacher = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -134,7 +181,7 @@ export function PrincipalStaffRolesWorkspace() {
             variant="outline" 
             onClick={() => setIsAssignModalOpen(true)}
             disabled={!hasPrerequisites}
-            title={!hasPrerequisites ? "Cannot assign teachers before terms, classes, and subjects exist" : ""}
+            title={teacherAssignmentBlockReason}
           >
             <Plus className="h-4 w-4 mr-2" />
             Assign Teacher
@@ -197,12 +244,13 @@ export function PrincipalStaffRolesWorkspace() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-white">Class Teachers</h2>
             {hasPermission('academics:assign-teachers') && (
-              <Button 
-                size="sm" 
-                variant="outline" 
-                onClick={() => setIsClassTeacherModalOpen(true)}
-                disabled={!hasCTPrerequisites}
-              >
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsClassTeacherModalOpen(true)}
+                  disabled={!hasCTPrerequisites}
+                  title={classTeacherBlockReason}
+                >
                 <Plus className="h-4 w-4 mr-1" /> Assign Class Teacher
               </Button>
             )}
@@ -215,19 +263,28 @@ export function PrincipalStaffRolesWorkspace() {
             </div>
           ) : (
             <div className="space-y-3 flex-1 overflow-y-auto pr-2">
-              {classTeachersData.map((ct: any) => (
-                <div key={ct.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
-                  <div>
-                    <div className="font-medium text-white">Teacher ID: {ct.teacher_user_id}</div>
-                    <div className="text-xs text-white/50">Section ID: {ct.class_section_id}</div>
+              {classTeachersData.map((ct: any) => {
+                const teacherUserId = String(ct.teacher_user_id ?? "");
+                const classSectionId = String(ct.class_section_id ?? "");
+                const academicYearId = String(ct.academic_year_id ?? "");
+                const teacherLabel = ct.teacher_name || ct.teacher_label || teacherLabelByUserId.get(teacherUserId) || "Unlinked teacher";
+                const classLabel = ct.class_section_name || ct.class_name || classLabelById.get(classSectionId) || "Class section";
+                const yearLabel = ct.academic_year_name || ct.year_name || yearLabelById.get(academicYearId) || "Academic year";
+
+                return (
+                  <div key={ct.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
+                    <div>
+                      <div className="font-medium text-white">Teacher: {teacherLabel}</div>
+                      <div className="text-xs text-white/50">{classLabel} - {yearLabel}</div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="text-red-400 border-red-500/20 hover:bg-red-500/20" onClick={() => handleArchiveClassTeacher(ct.id)}>
+                        Remove
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" className="text-red-400 border-red-500/20 hover:bg-red-500/20" onClick={() => handleArchiveClassTeacher(ct.id)}>
-                      Remove
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </Card>
@@ -241,8 +298,16 @@ export function PrincipalStaffRolesWorkspace() {
             </div>
           )}
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-foreground">Teacher User ID (UUID)</label>
-            <input name="teacher_user_id" required className="input-base" placeholder="e.g. 123e4567-e89b-12d3-a456-426614174000" />
+            <label className="text-sm font-semibold text-foreground">Teacher</label>
+            <select name="teacher_user_id" required className="input-base">
+              <option value="">Select teacher...</option>
+              {teacherOptions.map((teacher) => (
+                <option key={teacher.value} value={teacher.value}>{teacher.label}</option>
+              ))}
+            </select>
+            {!hasTeachers && (
+              <p className="text-xs text-amber-600">Invite and activate teaching staff before assigning subjects.</p>
+            )}
           </div>
           <div className="space-y-2">
             <label className="text-sm font-semibold text-foreground">Academic Term</label>
@@ -288,8 +353,16 @@ export function PrincipalStaffRolesWorkspace() {
             </div>
           )}
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-foreground">Teacher User ID (UUID)</label>
-            <input name="teacher_user_id" required className="input-base" placeholder="e.g. 123e4567-e89b-12d3-a456-426614174000" />
+            <label className="text-sm font-semibold text-foreground">Teacher</label>
+            <select name="teacher_user_id" required className="input-base">
+              <option value="">Select teacher...</option>
+              {teacherOptions.map((teacher) => (
+                <option key={teacher.value} value={teacher.value}>{teacher.label}</option>
+              ))}
+            </select>
+            {!hasTeachers && (
+              <p className="text-xs text-amber-600">Invite and activate teaching staff before assigning class responsibility.</p>
+            )}
           </div>
           <div className="space-y-2">
             <label className="text-sm font-semibold text-foreground">Academic Year</label>

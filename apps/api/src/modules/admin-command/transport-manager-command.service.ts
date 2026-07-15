@@ -31,6 +31,149 @@ export class TransportManagerCommandService {
     }
   }
 
+  private async resolveManifestId(tenantId: string, dto: any, userId: string | null): Promise<string> {
+    const explicitManifestId = this.operations.uuidOrNull(dto?.manifest_id ?? dto?.manifestId);
+    if (explicitManifestId) {
+      return explicitManifestId;
+    }
+
+    const routeId = this.operations.uuidOrNull(dto?.route_id ?? dto?.routeId);
+    if (!routeId) {
+      throw new BadRequestException('Transport route is required for student allocation');
+    }
+
+    const existingManifest = await this.executeSql<{ id: string }>(
+      `
+        SELECT manifest.id::text
+        FROM transport_manifests manifest
+        WHERE manifest.tenant_id = $1
+          AND manifest.route_id = $2::uuid
+          AND manifest.status = 'active'
+        ORDER BY manifest.effective_from DESC, manifest.created_at DESC
+        LIMIT 1
+      `,
+      [tenantId, routeId],
+    );
+    if (existingManifest.rows[0]?.id) {
+      return existingManifest.rows[0].id;
+    }
+
+    const createdManifest = await this.operations.writeSql(
+      `
+        INSERT INTO transport_manifests (tenant_id, route_id, status, created_by_user_id)
+        VALUES ($1, $2::uuid, 'active', $3::uuid)
+        RETURNING id::text
+      `,
+      [tenantId, routeId, userId],
+    );
+    const manifestId = createdManifest.rows[0]?.id;
+    if (!manifestId) {
+      throw new BadRequestException('Transport manifest could not be prepared for this route');
+    }
+    return manifestId;
+  }
+
+  async getAssignmentOptions() {
+    const tenantId = this.requireTenantId();
+    const [routes, manifests, students, stops, vehicles] = await Promise.all([
+      this.executeSql<{ id: string; label: string; status: string | null }>(
+        `
+          SELECT
+            route.id::text,
+            CONCAT(route.name, COALESCE(' - ' || NULLIF(route.code, ''), '')) AS label,
+            route.status
+          FROM transport_routes route
+          WHERE route.tenant_id = $1
+            AND route.status = 'active'
+          ORDER BY route.name ASC
+          LIMIT 200
+        `,
+        [tenantId],
+      ),
+      this.executeSql<{ id: string; route_id: string; label: string; status: string | null }>(
+        `
+          SELECT
+            manifest.id::text,
+            manifest.route_id::text,
+            CONCAT(route.name, ' manifest from ', manifest.effective_from::text) AS label,
+            manifest.status
+          FROM transport_manifests manifest
+          INNER JOIN transport_routes route
+            ON route.tenant_id = manifest.tenant_id
+           AND route.id = manifest.route_id
+          WHERE manifest.tenant_id = $1
+            AND manifest.status = 'active'
+          ORDER BY route.name ASC, manifest.effective_from DESC
+          LIMIT 200
+        `,
+        [tenantId],
+      ),
+      this.executeSql<{ id: string; label: string; class_id: string | null; guardian_contact: string | null }>(
+        `
+          SELECT
+            student.id::text,
+            CONCAT_WS(
+              ' - ',
+              NULLIF(TRIM(CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name)), ''),
+              NULLIF(student.admission_number, '')
+            ) AS label,
+            student.current_class_id AS class_id,
+            student.primary_guardian_phone AS guardian_contact
+          FROM students student
+          WHERE student.tenant_id = $1
+            AND student.deleted_at IS NULL
+            AND LOWER(COALESCE(student.status, 'active')) IN ('active', 'admitted', 'enrolled')
+          ORDER BY student.last_name ASC, student.first_name ASC, student.admission_number ASC
+          LIMIT 500
+        `,
+        [tenantId],
+      ),
+      this.executeSql<{ id: string; route_id: string; label: string }>(
+        `
+          SELECT
+            stop.id::text,
+            stop.route_id::text,
+            CONCAT(route.name, ' - ', stop.stop_sequence::text, '. ', stop.name) AS label
+          FROM transport_route_stops stop
+          INNER JOIN transport_routes route
+            ON route.tenant_id = stop.tenant_id
+           AND route.id = stop.route_id
+          WHERE stop.tenant_id = $1
+            AND stop.is_active = true
+          ORDER BY route.name ASC, stop.stop_sequence ASC
+          LIMIT 500
+        `,
+        [tenantId],
+      ),
+      this.executeSql<{ id: string; label: string; status: string | null }>(
+        `
+          SELECT
+            vehicle.id::text,
+            CONCAT(
+              vehicle.registration_number,
+              COALESCE(' - ' || NULLIF(TRIM(CONCAT_WS(' ', vehicle.make, vehicle.model)), ''), ''),
+              ' (', vehicle.status, ')'
+            ) AS label,
+            vehicle.status
+          FROM transport_vehicles vehicle
+          WHERE vehicle.tenant_id = $1
+            AND vehicle.status IN ('active', 'maintenance')
+          ORDER BY vehicle.registration_number ASC
+          LIMIT 200
+        `,
+        [tenantId],
+      ),
+    ]);
+
+    return {
+      routes: routes.rows,
+      manifests: manifests.rows,
+      students: students.rows,
+      stops: stops.rows,
+      vehicles: vehicles.rows,
+    };
+  }
+
   async getOverview() {
     const tenantId = this.requireTenantId();
     const metrics = await this.executeSql(`
@@ -443,6 +586,7 @@ export class TransportManagerCommandService {
   async assignStudentTransport(dto: any) {
     const tenantId = this.requireTenantId();
     const userId = this.operations.uuidOrNull(this.currentUserId());
+    const manifestId = await this.resolveManifestId(tenantId, dto, userId);
     const result = await this.operations.writeSql(
       `
         INSERT INTO transport_manifest_students (tenant_id, manifest_id, student_id, pickup_stop_id, dropoff_stop_id, guardian_contact, notes)
@@ -453,7 +597,7 @@ export class TransportManagerCommandService {
       `,
       [
         tenantId,
-        this.operations.requiredText(dto?.manifest_id ?? dto?.manifestId, 'Transport manifest'),
+        manifestId,
         this.operations.requiredText(dto?.student_id ?? dto?.studentId, 'Student'),
         this.operations.uuidOrNull(dto?.pickup_stop_id ?? dto?.pickupStopId),
         this.operations.uuidOrNull(dto?.dropoff_stop_id ?? dto?.dropoffStopId),

@@ -111,7 +111,7 @@ export function ParentCommunicationWorkspace({
         <RecordTable
           columns={["Date", "Recipient", "Message", "Status"]}
           rows={rows}
-          emptyState="No messages sent recently."
+          emptyState="No messages sent yet. Use the composer above to send a class or individual parent update."
         />
       )}
     </Panel>

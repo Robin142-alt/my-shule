@@ -9,17 +9,17 @@ type RouteContext = {
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest, context: RouteContext) {
-  return proxySchoolApiRequest(request, context, "/parent-portal");
+  return proxySchoolApiRequest(request, context, "/parent-portal", { audience: "portal" });
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
-  return proxySchoolApiRequest(request, context, "/parent-portal");
+  return proxySchoolApiRequest(request, context, "/parent-portal", { audience: "portal" });
 }
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
-  return proxySchoolApiRequest(request, context, "/parent-portal");
+  return proxySchoolApiRequest(request, context, "/parent-portal", { audience: "portal" });
 }
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
-  return proxySchoolApiRequest(request, context, "/parent-portal");
+  return proxySchoolApiRequest(request, context, "/parent-portal", { audience: "portal" });
 }

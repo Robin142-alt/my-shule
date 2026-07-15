@@ -38,7 +38,7 @@ export function MyProfileWorkspace() {
         <RecordTable
           columns={["Field","Value"]}
           rows={rows}
-          emptyState={isLoading ? "Loading..." : "No records found. Create the first entry to get started."}
+          emptyState={isLoading ? "Loading..." : "No profile records yet. Your staff profile will appear after HR or the principal completes staff setup."}
         />
       )}
     </Panel>

@@ -319,6 +319,106 @@ test('AdmissionsRepository applies bounded LIMIT/OFFSET to large admissions list
   assert.equal(calls[5]!.params.at(-2), 50);
 });
 
+test('AdmissionsRepository lists active admissions class options from tenant-owned class sections', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new AdmissionsRepository({
+    executeWithTenant: async (tenantId: string, _userId: string | null, cb: any) => {
+      assert.equal(tenantId, 'tenant-a');
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          calls.push({ sql, params });
+          return [
+            {
+              id: 'class-1',
+              name: 'Grade 7',
+              grade_level: 'Grade 7',
+              stream: 'North',
+              capacity: 45,
+              student_count: 12,
+              available_seats: 33,
+              label: 'Grade 7 North',
+              value: 'Grade 7',
+            },
+          ];
+        },
+      });
+    },
+  } as never);
+
+  const classes = await repository.listClassOptions('tenant-a');
+
+  assert.match(calls[0]!.sql, /FROM class_sections section/);
+  assert.match(calls[0]!.sql, /WHERE section\.tenant_id = \$1/);
+  assert.match(calls[0]!.sql, /section\.is_active = TRUE/);
+  assert.match(calls[0]!.sql, /student_class_assignments/);
+  assert.deepEqual(calls[0]!.params, ['tenant-a']);
+  assert.doesNotMatch(calls[0]!.sql, /PP2|Kisumu Boys/i);
+  assert.deepEqual(classes, [
+    {
+      id: 'class-1',
+      name: 'Grade 7',
+      grade_level: 'Grade 7',
+      stream: 'North',
+      capacity: 45,
+      student_count: 12,
+      available_seats: 33,
+      label: 'Grade 7 North',
+      value: 'Grade 7',
+    },
+  ]);
+});
+
+test('AdmissionsService exposes class options for the current school tenant', async () => {
+  const requestContext = new RequestContextService();
+  let tenantUsed: string | null = null;
+  const service = new AdmissionsService(
+    requestContext,
+    {} as never,
+    {
+      listClassOptions: async (tenantId: string) => {
+        tenantUsed = tenantId;
+        return [
+          {
+            id: 'class-1',
+            name: 'Grade 7',
+            grade_level: 'Grade 7',
+            stream: 'North',
+            capacity: 45,
+            student_count: 12,
+            available_seats: 33,
+            label: 'Grade 7 North',
+            value: 'Grade 7',
+          },
+        ];
+      },
+    } as never,
+    {} as never,
+    {} as never,
+  );
+
+  const classes = await requestContext.run(
+    {
+      request_id: 'req-admissions-class-options',
+      tenant_id: 'tenant-a',
+      user_id: '00000000-0000-0000-0000-000000000001',
+      role: 'admissions',
+      session_id: 'session-1',
+      permissions: ['admissions:*'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'GET',
+      path: '/admissions/classes',
+      started_at: '2026-07-13T00:00:00.000Z',
+    },
+    () => service.listClassOptions(),
+  );
+
+  assert.equal(tenantUsed, 'tenant-a');
+  assert.equal(classes[0].label, 'Grade 7 North');
+  assert.equal(classes[0].value, 'Grade 7');
+});
+
 test('AdmissionsRepository creates applications using the live tenant-scoped schema', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new AdmissionsRepository({

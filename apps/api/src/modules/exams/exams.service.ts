@@ -35,6 +35,9 @@ import {
 } from './dto/exams.dto';
 import { ExamsRepository } from './repositories/exams.repository';
 import { ReportCardGenerationService } from './services/report-card-generation.service';
+import { ReportCardTemplateService } from './services/report-card-template.service';
+import { createReportCardPdfArtifact } from './services/report-card-pdf-artifact';
+import type { ReportArtifact } from '../../common/reports/report-artifact';
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import { EventPublisherService } from '../events/event-publisher.service';
 import { WorkflowRepository } from '../events/repositories/workflow.repository';
@@ -114,6 +117,7 @@ export class ExamsService {
     @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
     @Optional() private readonly eventPublisher?: EventPublisherService,
     @Optional() private readonly workflowRepository?: WorkflowRepository,
+    @Optional() private readonly reportCardTemplateService?: ReportCardTemplateService,
   ) {}
 
   async getDashboard() {
@@ -450,7 +454,12 @@ export class ExamsService {
       tenant_id: tenantId,
       actor_user_id: actorUserId,
       mark_ids: markIds,
+      restrict_to_actor: !this.isExamsOfficer(),
     });
+
+    if (Number(result.submitted_count) === 0) {
+      throw new ForbiddenException('No selected marks were available for this user to submit in this school');
+    }
 
     await this.schoolEvents?.recordSchoolOperation({ event: {
       id: `marks-submitted-${createHash('sha256').update(`${tenantId}:${actorUserId}:${markIds.join(',')}`).digest('hex').slice(0, 24)}`,
@@ -558,26 +567,41 @@ export class ExamsService {
 
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
-    const reportCard = await this.repository.createReportCardSnapshot({
+    const examSeriesId = this.requireText(dto.exam_series_id, 'Exam series');
+    const studentId = this.requireText(dto.student_id, 'Student');
+    const reportSnapshotId = this.requireText(dto.report_snapshot_id, 'Report snapshot');
+    const approvedReportCard = await this.repository.findGeneratedReportCardForPublication({
+      tenant_id: tenantId,
+      exam_series_id: examSeriesId,
+      student_id: studentId,
+      report_snapshot_id: reportSnapshotId,
+    });
+
+    if (!approvedReportCard) {
+      throw new ConflictException('An approved generated report card is required before publication');
+    }
+
+    const reportCard = await this.repository.transitionReportCard({
       tenant_id: tenantId,
       actor_user_id: actorUserId,
-      exam_series_id: this.requireText(dto.exam_series_id, 'Exam series'),
-      student_id: this.requireText(dto.student_id, 'Student'),
-      report_snapshot_id: this.requireText(dto.report_snapshot_id, 'Report snapshot'),
-      metadata: {
-        published_by: actorUserId,
-      },
+      report_card_id: String(approvedReportCard.id),
+      action: 'publish',
     });
+
+    if (!reportCard) {
+      throw new ConflictException('Report card was not found for this school or is not ready to publish');
+    }
 
     await this.repository.appendReportCardAuditLog({
       tenant_id: tenantId,
       report_card_id: reportCard.id,
-      exam_series_id: dto.exam_series_id,
-      student_id: dto.student_id,
-      action: 'grade.published',
+      exam_series_id: examSeriesId,
+      student_id: studentId,
+      action: 'report_card.published',
       actor_user_id: actorUserId,
       metadata: {
-        report_snapshot_id: dto.report_snapshot_id,
+        report_snapshot_id: reportSnapshotId,
+        grade_event: 'grade.published',
       },
     });
 
@@ -585,8 +609,8 @@ export class ExamsService {
       await this.eventPublisher?.publishReportCardPublished({
         tenant_id: tenantId,
         report_id: reportCard.id,
-        student_id: dto.student_id,
-        exam_id: dto.exam_series_id,
+        student_id: studentId,
+        exam_id: examSeriesId,
         published_by_user_id: actorUserId,
       });
     } catch (e) {
@@ -715,6 +739,25 @@ export class ExamsService {
     });
   }
 
+  listGuardianReportCards(query: Record<string, string | undefined> = {}) {
+    return this.repository.listGuardianReportCards({
+      tenant_id: this.requireTenantId(),
+      guardian_user_id: this.requireUserId(),
+      student_id: this.optionalText(query.student_id ?? query.studentId),
+      limit: this.parsePageLimit(query.limit, 25, 50),
+      offset: this.parsePageOffset(query.offset),
+    });
+  }
+
+  listStudentPortalReportCards(query: Record<string, string | undefined> = {}) {
+    return this.repository.listStudentReportCards({
+      tenant_id: this.requireTenantId(),
+      student_id: this.requireUserId(),
+      limit: this.parsePageLimit(query.limit, 25, 50),
+      offset: this.parsePageOffset(query.offset),
+    });
+  }
+
   async transitionReportCard(reportCardIdValue: string, actionValue?: string) {
     if (!this.isExamsOfficer()) {
       throw new ForbiddenException('Exam approval permission is required to change report-card state');
@@ -738,7 +781,10 @@ export class ExamsService {
       student_id: result.student_id,
       action: `report_card.${auditAction}`,
       actor_user_id: actorUserId,
-      metadata: { resulting_status: result.status },
+      metadata: {
+        resulting_status: result.status,
+        ...(action === 'publish' ? { grade_event: 'grade.published' } : {}),
+      },
     });
     if (action === 'publish') {
       await this.eventPublisher?.publishReportCardPublished({
@@ -832,10 +878,15 @@ export class ExamsService {
     return locked;
   }
 
-  getDepartmentMarks(query: Record<string, string | undefined>) {
+  async getDepartmentMarks(query: Record<string, string | undefined>) {
+    const tenantId = this.requireTenantId();
+    const departmentId = this.optionalText(query.department_id);
+    const departmentIds = await this.resolveDepartmentModerationScope(tenantId, departmentId);
+
     return this.repository.listMarks({
-      tenant_id: this.requireTenantId(),
-      department_id: this.optionalText(query.department_id),
+      tenant_id: tenantId,
+      ...(departmentIds ? { department_ids: departmentIds } : {}),
+      ...(!departmentIds && departmentId ? { department_id: departmentId } : {}),
       status_in: ['submitted', 'reviewed'],
       limit: this.parsePageLimit(query.limit, 25, 50),
       offset: this.parsePageOffset(query.offset),
@@ -843,18 +894,40 @@ export class ExamsService {
   }
 
   async moderateMarks(dto: ModerateExamMarksDto) {
+    if (!this.isExamsOfficer()) {
+      throw new ForbiddenException('Exam review permission is required to moderate marks');
+    }
+
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
+    const action = dto.action;
+    if (action !== 'approve' && action !== 'return_for_correction') {
+      throw new BadRequestException('Moderation action must be approve or return_for_correction');
+    }
+
+    const markIds = [...new Set((dto.mark_ids ?? []).filter((id) => typeof id === 'string' && id.trim()).map((id) => id.trim()))];
+    if (markIds.length === 0 || markIds.length > 500) {
+      throw new BadRequestException('Provide between 1 and 500 mark IDs');
+    }
+
+    const reason = action === 'return_for_correction'
+      ? this.requireText(dto.reason, 'Reason')
+      : undefined;
+    const departmentIds = await this.resolveDepartmentModerationScope(tenantId);
     
     const updatedMarks = await this.repository.moderateMarks({
       tenant_id: tenantId,
-      mark_ids: dto.mark_ids,
-      action: dto.action,
+      mark_ids: markIds,
+      action,
       actor_user_id: actorUserId,
+      department_ids: departmentIds,
     });
+
+    if (updatedMarks.length === 0) {
+      throw new ConflictException('No selected marks were available for moderation in this school');
+    }
     
-    if (dto.action === 'return_for_correction') {
-      const reason = this.requireText(dto.reason, 'Reason');
+    if (action === 'return_for_correction') {
       for (const mark of updatedMarks) {
         await this.createMarkVersionIfSupported({
           tenant_id: tenantId,
@@ -1096,6 +1169,18 @@ export class ExamsService {
       throw new ForbiddenException('Exam series is locked; use an audited correction workflow');
     }
 
+    const markEntryWindow = await this.repository.findOpenMarkEntryWindow({
+      tenant_id: tenantId,
+      exam_series_id: dto.exam_series_id,
+      academic_term_id: dto.academic_term_id,
+      class_section_id: dto.class_section_id,
+      subject_id: dto.subject_id,
+    });
+
+    if (!markEntryWindow) {
+      throw new ForbiddenException('Mark-entry window is not open for this exam, class section, and subject');
+    }
+
     const score = this.requireNonNegativeNumber(dto.score, 'Score');
     const assessmentScope = await this.findAssessmentScopeForMark(dto);
 
@@ -1198,6 +1283,42 @@ export class ExamsService {
     }
 
     return rows;
+  }
+
+  async createGuardianReportCardPdfArtifact(reportCardId: string): Promise<ReportArtifact> {
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    const normalizedReportCardId = this.requireText(reportCardId, 'Report card');
+    const reportCard = await this.repository.findReportCardForGuardian({
+      tenant_id: tenantId,
+      report_card_id: normalizedReportCardId,
+      guardian_user_id: actorUserId,
+    });
+
+    if (!reportCard) {
+      throw new NotFoundException('Report card was not found for this parent account');
+    }
+
+    this.assertParentReportCardDownloadable(reportCard);
+    return this.createReportCardPdfArtifact(reportCard);
+  }
+
+  async createStudentReportCardPdfArtifact(reportCardId: string): Promise<ReportArtifact> {
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    const normalizedReportCardId = this.requireText(reportCardId, 'Report card');
+    const reportCard = await this.repository.findReportCardForStudent({
+      tenant_id: tenantId,
+      report_card_id: normalizedReportCardId,
+      student_id: actorUserId,
+    });
+
+    if (!reportCard) {
+      throw new NotFoundException('Report card was not found for this student account');
+    }
+
+    this.assertParentReportCardDownloadable(reportCard);
+    return this.createReportCardPdfArtifact(reportCard);
   }
 
   async processResultBatch(batchIdValue: string, modeValue?: string) {
@@ -1354,6 +1475,58 @@ export class ExamsService {
       (context.role ? OFFICER_ROLES.has(context.role) : false)
       || context.permissions.some((permission) => OFFICER_PERMISSIONS.has(permission))
     );
+  }
+
+  private isHeadOfDepartmentReviewer(): boolean {
+    const role = this.requestContext.getStore()?.role?.toLowerCase();
+    return role === 'hod' || role === 'head_of_department';
+  }
+
+  private async resolveDepartmentModerationScope(
+    tenantId: string,
+    requestedDepartmentId?: string,
+  ): Promise<string[] | undefined> {
+    if (!this.isHeadOfDepartmentReviewer()) {
+      return undefined;
+    }
+
+    const repository = this.repository as ExamsRepository & {
+      listDepartmentsLedByUser?: (input: {
+        tenant_id: string;
+        user_id: string;
+      }) => Promise<string[]>;
+    };
+
+    if (typeof repository.listDepartmentsLedByUser !== 'function') {
+      throw new ForbiddenException('HOD department assignment is required before moderating marks');
+    }
+
+    const actorUserId = this.requireUserId();
+    const assignedDepartments = [
+      ...new Set(
+        (await repository.listDepartmentsLedByUser({ tenant_id: tenantId, user_id: actorUserId }))
+          .map((departmentId) => String(departmentId).trim())
+          .filter(Boolean),
+      ),
+    ];
+
+    if (assignedDepartments.length === 0) {
+      throw new ForbiddenException('HOD is not assigned to an active department');
+    }
+
+    if (!requestedDepartmentId) {
+      return assignedDepartments;
+    }
+
+    const matchedDepartment = assignedDepartments.find(
+      (departmentId) => departmentId.toLowerCase() === requestedDepartmentId.toLowerCase(),
+    );
+
+    if (!matchedDepartment) {
+      throw new ForbiddenException('HOD is not assigned to this department');
+    }
+
+    return [matchedDepartment];
   }
 
   private requireTenantId(): string {
@@ -1692,6 +1865,22 @@ export class ExamsService {
       room_name: dto.room_name,
     });
     return { success: true, message: 'Timetable slot created', data: result };
+  }
+
+  private async createReportCardPdfArtifact(reportCard: Record<string, unknown>): Promise<ReportArtifact> {
+    const data = await this.repository.loadReportCardData({
+      tenant_id: this.requireTenantId(),
+      exam_series_id: this.requireText(String(reportCard.exam_series_id ?? ''), 'Exam series'),
+      student_id: this.requireText(String(reportCard.student_id ?? ''), 'Student'),
+    });
+    const metadata = isRecord(reportCard.metadata) ? reportCard.metadata : {};
+    const generatedAt = String(metadata.generated_at ?? reportCard.published_at ?? new Date().toISOString());
+    const templateService = this.reportCardTemplateService ?? new ReportCardTemplateService();
+    const payload = templateService.buildPayload(data, generatedAt);
+    const verificationCode = String(reportCard.verification_code ?? '').trim()
+      || createHash('sha256').update(String(reportCard.id ?? '')).digest('hex').slice(0, 12).toUpperCase();
+
+    return createReportCardPdfArtifact(payload, verificationCode);
   }
 
   async updateTimetableSlot(slotIdValue: string, dto: Partial<CreateTimetableSlotDto> & { status?: string }) {
@@ -2933,7 +3122,30 @@ export class ExamsService {
 
   async getMarks(filters: Record<string, string | undefined>) {
     const tenantId = this.requireTenantId();
-    const data = await this.repository.getMarks(tenantId, filters);
+    const normalizedFilters: Record<string, string | number> = {};
+    const examSeriesId = this.optionalText(filters.exam_series_id);
+    const assessmentId = this.optionalText(filters.assessment_id);
+    const studentId = this.optionalText(filters.student_id);
+    const classSectionId = this.optionalText(filters.class_section_id);
+    const subjectId = this.optionalText(filters.subject_id);
+    const teacherUserId = this.optionalText(filters.teacher_user_id);
+
+    if (examSeriesId) normalizedFilters.exam_series_id = examSeriesId;
+    if (assessmentId) normalizedFilters.assessment_id = assessmentId;
+    if (studentId) normalizedFilters.student_id = studentId;
+    if (classSectionId) normalizedFilters.class_section_id = classSectionId;
+    if (subjectId) normalizedFilters.subject_id = subjectId;
+
+    if (this.isExamsOfficer()) {
+      if (teacherUserId) normalizedFilters.teacher_user_id = teacherUserId;
+    } else {
+      normalizedFilters.teacher_user_id = this.requireUserId();
+    }
+
+    normalizedFilters.limit = this.parsePageLimit(filters.limit, 100, 100);
+    normalizedFilters.offset = this.parsePageOffset(filters.offset);
+
+    const data = await this.repository.getMarks(tenantId, normalizedFilters);
     return { success: true, data };
   }
 

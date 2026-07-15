@@ -122,6 +122,11 @@ export class TransportManagerCommandController {
     return this.service.getStudentTransportList();
   }
 
+  @Get('assignment-options')
+  getAssignmentOptions() {
+    return this.service.getAssignmentOptions();
+  }
+
   @Post('student-transport-list')
   @Permissions('transport:write')
   assignStudentTransport(@Body() dto: any) {

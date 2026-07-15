@@ -44,7 +44,7 @@ export function NotificationsWorkspace() {
         <RecordTable
           columns={["Date","Title","Category","Status"]}
           rows={rows}
-          emptyState={isLoading ? "Loading..." : "No records found. Create the first entry to get started."}
+          emptyState={isLoading ? "Loading..." : "No notifications yet. School messages, approvals, and workflow alerts will appear here."}
         />
       )}
     </Panel>

@@ -14,6 +14,7 @@ import { openPrintDocument } from "@/lib/dashboard/export";
 import { toast } from "sonner";
 
 type ProcurementView = "overview" | "pos" | "suppliers" | "requisitions" | "budget";
+type ProcurementSelectOption = { id: string; label: string; status?: string | null };
 
 function procurementActionSlug(message: string) {
   return message
@@ -216,6 +217,23 @@ function NewPurchaseOrderModal({
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { data: suppliersData, isLoading: suppliersLoading } = useSchoolQuery<any>("/api/admin-command/procurement-officer/suppliers");
+  const { data: requestsData, isLoading: requestsLoading } = useSchoolQuery<any>("/api/admin-command/procurement-officer/purchase-requests");
+  const supplierOptions: ProcurementSelectOption[] = (Array.isArray(suppliersData?.suppliersList) ? suppliersData.suppliersList : [])
+    .map((supplier: any) => ({
+      id: String(supplier?.id ?? "").trim(),
+      label: String(supplier?.company_name ?? supplier?.name ?? "Supplier").trim(),
+      status: supplier?.status ?? null,
+    }))
+    .filter((supplier: ProcurementSelectOption) => supplier.id);
+  const approvedRequestOptions: ProcurementSelectOption[] = (Array.isArray(requestsData?.purchaserequestsList) ? requestsData.purchaserequestsList : [])
+    .filter((request: any) => String(request?.status ?? "").toLowerCase().includes("approved"))
+    .map((request: any) => ({
+      id: String(request?.id ?? "").trim(),
+      label: `${request?.request_number ?? request?.id ?? "Request"} - ${request?.department ?? request?.requested_by ?? "School request"} (${request?.estimated_cost ?? "cost not set"})`,
+      status: request?.status ?? null,
+    }))
+    .filter((request: ProcurementSelectOption) => request.id);
 
   async function handleCreatePurchaseOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -230,7 +248,7 @@ function NewPurchaseOrderModal({
     const notes = String(form.get("notes") ?? "").trim();
 
     if (!supplierId && !supplierName) {
-      setError("Choose an existing supplier ID or enter a supplier name.");
+      setError("Choose an existing supplier or enter a supplier name.");
       return;
     }
     if (!requestId && (!itemName || quantity <= 0)) {
@@ -279,14 +297,24 @@ function NewPurchaseOrderModal({
           </div>
         ) : null}
         <div className="grid gap-3 md:grid-cols-2">
-          <label className="text-sm font-bold text-[#071D49]">Supplier ID
-            <input name="supplier_id" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Existing supplier UUID" />
+          <label className="text-sm font-bold text-[#071D49]">Existing supplier
+            <select name="supplier_id" disabled={suppliersLoading} className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+              <option value="">{suppliersLoading ? "Loading suppliers..." : "Select supplier or type a new name"}</option>
+              {supplierOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
           </label>
           <label className="text-sm font-bold text-[#071D49]">Supplier name
             <input name="supplier_name" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Or create/find by supplier name" />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Approved request ID
-            <input name="request_id" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Optional procurement request UUID" />
+          <label className="text-sm font-bold text-[#071D49]">Approved purchase request
+            <select name="request_id" disabled={requestsLoading} className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+              <option value="">{requestsLoading ? "Loading requests..." : "No linked approved request"}</option>
+              {approvedRequestOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
           </label>
           <label className="text-sm font-bold text-[#071D49]">Expected delivery date
             <input name="expected_delivery_date" type="date" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />

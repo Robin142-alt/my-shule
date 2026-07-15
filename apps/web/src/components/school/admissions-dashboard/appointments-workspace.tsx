@@ -1,6 +1,7 @@
 "use client";
 import { Calendar } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { AdmissionsEmptyStateCell, APPLICATIONS_HREF } from "./empty-state-cell";
 
 type AppointmentsData = {
   metrics: Record<string, number>;
@@ -50,7 +51,13 @@ export function AppointmentsWorkspace() {
             {isLoading ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+              <AdmissionsEmptyStateCell
+                colSpan={6}
+                title="No admission appointments yet"
+                body="Review applications first, then schedule interviews or follow-ups when an applicant is ready."
+                actionHref={APPLICATIONS_HREF}
+                actionLabel="Review applications"
+              />
             ) : (
               items.map((row: any, i: number) => (
                 <tr key={row.id || i} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">

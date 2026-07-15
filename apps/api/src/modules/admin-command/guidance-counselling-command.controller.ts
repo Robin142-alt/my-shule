@@ -36,6 +36,11 @@ export class GuidanceCounsellingCommandController {
     return this.service.getReferrals();
   }
 
+  @Get('referral-options')
+  getReferralOptions() {
+    return this.service.getReferralOptions();
+  }
+
   @Post('referrals')
   @Permissions('counselling:write')
   createReferral(@Body() dto: any) {

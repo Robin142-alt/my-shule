@@ -29,10 +29,23 @@ export class ExamsManagerCommandService {
     return this.operations.readSql<T>(query, params);
   }
 
-  private normalizeStatus(value: unknown, fallback = 'scheduled') {
+  private normalizeStatus(value: unknown, fallback = 'draft') {
     const status = String(value || fallback).trim().toLowerCase().replace(/\s+/g, '_');
-    const allowed = new Set(['draft', 'scheduled', 'active', 'completed', 'published', 'cancelled']);
-    return allowed.has(status) ? status : fallback;
+    const aliases = new Map<string, string>([
+      ['scheduled', 'draft'],
+      ['active', 'submitted'],
+      ['entry_open', 'submitted'],
+      ['in_progress', 'submitted'],
+      ['completed', 'locked'],
+      ['ready_to_publish', 'locked'],
+      ['final_approved', 'locked'],
+      ['cancelled', 'archived'],
+      ['canceled', 'archived'],
+    ]);
+    const normalized = aliases.get(status) ?? status;
+    const allowed = new Set(['draft', 'submitted', 'reviewed', 'locked', 'published', 'archived']);
+    const normalizedFallback = aliases.get(fallback) ?? fallback;
+    return allowed.has(normalized) ? normalized : normalizedFallback;
   }
 
   private requireDate(value: unknown, label: string) {
@@ -47,6 +60,36 @@ export class ExamsManagerCommandService {
     }
 
     return text.slice(0, 10);
+  }
+
+  private requireTime(value: unknown, label: string) {
+    const text = String(value ?? '').trim();
+    if (!text) {
+      throw new BadRequestException(`${label} is required`);
+    }
+
+    if (!/^\d{1,2}:\d{2}(:\d{2})?$/.test(text)) {
+      throw new BadRequestException(`${label} must be a valid time`);
+    }
+
+    const [rawHours, rawMinutes] = text.split(':');
+    const hours = Number(rawHours);
+    const minutes = Number(rawMinutes);
+    if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+      throw new BadRequestException(`${label} must be a valid time`);
+    }
+
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  }
+
+  private timeToMinutes(value: string) {
+    const [hours, minutes] = value.split(':').map(Number);
+    return (hours * 60) + minutes;
+  }
+
+  private optionalText(value: unknown) {
+    const text = String(value ?? '').trim();
+    return text.length > 0 ? text : null;
   }
 
   private async examSeriesColumns() {
@@ -83,6 +126,105 @@ export class ExamsManagerCommandService {
     return result.rows[0]?.id ?? null;
   }
 
+  async getExamSetupOptions() {
+    const tenantId = this.requireTenantId();
+    const [terms, subjects, classes, staff, examSeries, assessments] = await Promise.all([
+      this.readSql(
+        `
+          SELECT
+            id::text,
+            CONCAT(name, ' (', to_char(starts_on, 'YYYY-MM-DD'), ' to ', to_char(ends_on, 'YYYY-MM-DD'), ')') AS label,
+            status
+          FROM academic_terms
+          WHERE tenant_id = $1
+          ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, starts_on DESC
+          LIMIT 24
+        `,
+        [tenantId],
+      ),
+      this.readSql(
+        `
+          SELECT id::text, COALESCE(NULLIF(code, ''), name) AS code, name AS label
+          FROM subjects
+          WHERE tenant_id = $1
+          ORDER BY name ASC
+          LIMIT 200
+        `,
+        [tenantId],
+      ),
+      this.readSql(
+        `
+          SELECT
+            id::text,
+            COALESCE(NULLIF(CONCAT_WS(' ', grade_level, stream), ''), name) AS label
+          FROM class_sections
+          WHERE tenant_id = $1
+            AND LOWER(COALESCE(status, 'active')) = 'active'
+          ORDER BY grade_level ASC, stream ASC, name ASC
+          LIMIT 200
+        `,
+        [tenantId],
+      ),
+      this.readSql(
+        `
+          SELECT
+            id::text,
+            user_id::text,
+            COALESCE(full_name, preferred_name, staff_number, email, id::text) AS label,
+            staff_number,
+            COALESCE(status, 'active') AS status
+          FROM staff_profiles
+          WHERE tenant_id = $1
+            AND user_id IS NOT NULL
+            AND COALESCE(status, 'active') = 'active'
+          ORDER BY label ASC
+          LIMIT 300
+        `,
+        [tenantId],
+      ),
+      this.readSql(
+        `
+          SELECT
+            id::text,
+            name AS label,
+            COALESCE(status, 'draft') AS status
+          FROM exam_series
+          WHERE tenant_id = $1
+            AND LOWER(COALESCE(status, 'draft')) NOT IN ('archived')
+          ORDER BY starts_on DESC NULLS LAST, created_at DESC
+          LIMIT 80
+        `,
+        [tenantId],
+      ),
+      this.readSql(
+        `
+          SELECT
+            assessment.id::text,
+            assessment.exam_series_id::text,
+            assessment.subject_id::text,
+            CONCAT(COALESCE(subject.name, 'Assessment'), ' - ', assessment.name) AS label
+          FROM exam_assessments assessment
+          LEFT JOIN subjects subject
+            ON subject.tenant_id = assessment.tenant_id
+           AND subject.id = assessment.subject_id
+          WHERE assessment.tenant_id = $1
+          ORDER BY label ASC
+          LIMIT 300
+        `,
+        [tenantId],
+      ),
+    ]);
+
+    return {
+      terms: terms.rows,
+      subjects: subjects.rows,
+      classes: classes.rows,
+      staff: staff.rows,
+      examSeries: examSeries.rows,
+      assessments: assessments.rows,
+    };
+  }
+
   async getOverview() {
     const tenantId = this.requireTenantId();
     const metricsResult = await this.readSql<{
@@ -96,7 +238,7 @@ export class ExamsManagerCommandService {
     }>(
       `
         SELECT
-          (SELECT COUNT(*)::int FROM exam_series WHERE tenant_id = $1 AND LOWER(COALESCE(status, 'scheduled')) NOT IN ('archived', 'cancelled')) AS active_exams,
+          (SELECT COUNT(*)::int FROM exam_series WHERE tenant_id = $1 AND LOWER(COALESCE(status, 'draft')) NOT IN ('archived')) AS active_exams,
           (SELECT COUNT(*)::int FROM exam_marks WHERE tenant_id = $1 AND LOWER(COALESCE(status, '')) IN ('submitted', 'needs_moderation', 'pending_review')) AS pending_moderation,
           (SELECT COUNT(*)::int FROM student_report_cards WHERE tenant_id = $1 AND LOWER(COALESCE(status, '')) = 'published') AS published_results,
           (SELECT COUNT(*)::int FROM student_report_cards WHERE tenant_id = $1) AS total_report_cards,
@@ -134,7 +276,7 @@ export class ExamsManagerCommandService {
           series.id::text,
           series.name,
           CONCAT(series.starts_on::text, ' - ', series.ends_on::text) AS term,
-          COALESCE(series.status, 'scheduled') AS status,
+          COALESCE(series.status, 'draft') AS status,
           COUNT(DISTINCT mark.subject_id)::int AS total_subjects,
           CASE
             WHEN COUNT(mark.id) = 0 THEN 0
@@ -217,9 +359,9 @@ export class ExamsManagerCommandService {
     return {
       metrics: {
         total_exams: exams.length,
-        active_exams: exams.filter((exam) => ['active', 'scheduled'].includes(String(exam.status).toLowerCase())).length,
+        active_exams: exams.filter((exam) => ['submitted', 'reviewed', 'locked'].includes(String(exam.status).toLowerCase())).length,
         draft_exams: exams.filter((exam) => String(exam.status).toLowerCase() === 'draft').length,
-        completed_exams: exams.filter((exam) => ['completed', 'published'].includes(String(exam.status).toLowerCase())).length,
+        completed_exams: exams.filter((exam) => ['published', 'archived'].includes(String(exam.status).toLowerCase())).length,
       },
       exams,
     };
@@ -277,7 +419,7 @@ export class ExamsManagerCommandService {
       `
         INSERT INTO exam_series (${insertColumns.join(', ')})
         VALUES (${placeholders.join(', ')})
-        RETURNING id::text, name, starts_on::text, ends_on::text, COALESCE(status, 'scheduled') AS status, created_at::text
+        RETURNING id::text, name, starts_on::text, ends_on::text, COALESCE(status, 'draft') AS status, created_at::text
       `,
       params,
     );
@@ -300,6 +442,65 @@ export class ExamsManagerCommandService {
     return {
       success: true,
       message: 'Exam created successfully',
+      exam,
+    };
+  }
+
+  async configureExamSetup(id: string, dto: any) {
+    const tenantId = this.requireTenantId();
+    const name = this.operations.requiredText(dto?.name, 'Exam name');
+    const startsOn = this.requireDate(dto?.starts_on ?? dto?.startsOn, 'Start date');
+    const endsOn = this.requireDate(dto?.ends_on ?? dto?.endsOn, 'End date');
+    const status = this.normalizeStatus(dto?.status);
+
+    if (new Date(endsOn) < new Date(startsOn)) {
+      throw new BadRequestException('End date cannot be before start date');
+    }
+
+    const updated = await this.operations.writeSql<{
+      id: string;
+      name: string;
+      starts_on: string;
+      ends_on: string;
+      status: string;
+      updated_at: string;
+    }>(
+      `
+        UPDATE exam_series
+        SET name = $3,
+            starts_on = $4::date,
+            ends_on = $5::date,
+            status = $6,
+            updated_at = NOW()
+        WHERE tenant_id = $1
+          AND id = $2::uuid
+        RETURNING id::text, name, starts_on::text, ends_on::text, COALESCE(status, 'draft') AS status, updated_at::text
+      `,
+      [tenantId, id, name, startsOn, endsOn, status],
+    );
+
+    if (updated.rowCount === 0) {
+      throw new BadRequestException('Exam cycle was not found for this school.');
+    }
+
+    const exam = updated.rows[0];
+    await this.operations.recordWorkflowAction({
+      tenantId,
+      actorUserId: this.actorUserId(),
+      sourceRole: 'exams_manager',
+      targetRoles: ['principal', 'dean_academics', 'hod', 'teacher'],
+      eventType: 'exams.exam-setup.configured',
+      entityType: 'exam_series',
+      entityId: id,
+      title: 'Exams: Exam Setup Configured',
+      message: `${name} configured for ${startsOn} to ${endsOn}`,
+      priority: 'normal',
+      payload: { name, starts_on: startsOn, ends_on: endsOn, status },
+    });
+
+    return {
+      success: true,
+      message: 'Exam configured successfully',
       exam,
     };
   }
@@ -328,8 +529,17 @@ export class ExamsManagerCommandService {
           slot.start_time::text,
           slot.end_time::text,
           COALESCE(slot.room_name, 'Not assigned') AS venue,
-          'Not assigned' AS invigilator,
-          'Scheduled' AS status
+          COALESCE(
+            NULLIF(
+              STRING_AGG(
+                DISTINCT COALESCE(staff.full_name, staff.preferred_name, staff.staff_number, staff.email, invigilator.staff_user_id::text),
+                ', '
+              ) FILTER (WHERE invigilator.id IS NOT NULL),
+              ''
+            ),
+            'Not assigned'
+          ) AS invigilator,
+          INITCAP(REPLACE(COALESCE(slot.status, 'scheduled'), '_', ' ')) AS status
         FROM exam_timetable_slots slot
         LEFT JOIN exam_series series
           ON series.tenant_id = slot.tenant_id
@@ -337,7 +547,15 @@ export class ExamsManagerCommandService {
         LEFT JOIN exam_assessments assessment
           ON assessment.tenant_id = slot.tenant_id
          AND assessment.id = slot.assessment_id
+        LEFT JOIN exam_invigilators invigilator
+          ON invigilator.tenant_id = slot.tenant_id
+         AND invigilator.timetable_slot_id = slot.id
+         AND LOWER(COALESCE(invigilator.status, 'assigned')) = 'assigned'
+        LEFT JOIN staff_profiles staff
+          ON staff.tenant_id = slot.tenant_id
+         AND staff.user_id = invigilator.staff_user_id
         WHERE slot.tenant_id = $1
+        GROUP BY slot.id, series.name, assessment.name, slot.assessment_id, slot.date, slot.start_time, slot.end_time, slot.room_name, slot.status
         ORDER BY slot.date ASC, slot.start_time ASC
       `,
       [tenantId],
@@ -352,6 +570,108 @@ export class ExamsManagerCommandService {
         completed: slots.filter((slot) => String(slot.status).toLowerCase() === 'completed').length,
       },
       slots,
+    };
+  }
+
+  async createExamTimetableSlot(dto: any) {
+    const tenantId = this.requireTenantId();
+    const examSeriesId = this.operations.requiredText(dto?.exam_series_id ?? dto?.examSeriesId, 'Exam cycle');
+    const assessmentId = this.optionalText(dto?.assessment_id ?? dto?.assessmentId);
+    const date = this.requireDate(dto?.date, 'Exam date');
+    const startTime = this.requireTime(dto?.start_time ?? dto?.startTime, 'Start time');
+    const endTime = this.requireTime(dto?.end_time ?? dto?.endTime, 'End time');
+    const roomName = this.operations.requiredText(dto?.room_name ?? dto?.roomName, 'Room or venue');
+    const staffUserId = this.optionalText(dto?.staff_user_id ?? dto?.staffUserId);
+    const invigilatorRole = this.optionalText(dto?.invigilator_role ?? dto?.invigilatorRole) ?? 'invigilator';
+
+    if (this.timeToMinutes(endTime) <= this.timeToMinutes(startTime)) {
+      throw new BadRequestException('End time must be after start time');
+    }
+
+    const created = await this.operations.writeSql<{
+      id: string;
+      exam_series_id: string;
+      assessment_id: string | null;
+      date: string;
+      start_time: string;
+      end_time: string;
+      room_name: string;
+      status: string;
+    }>(
+      `
+        INSERT INTO exam_timetable_slots (tenant_id, exam_series_id, assessment_id, date, start_time, end_time, room_name, status)
+        VALUES ($1, $2::uuid, $3::uuid, $4::date, $5::time, $6::time, $7, 'scheduled')
+        RETURNING
+          id::text,
+          exam_series_id::text,
+          assessment_id::text,
+          date::text,
+          start_time::text,
+          end_time::text,
+          COALESCE(room_name, 'Not assigned') AS room_name,
+          COALESCE(status, 'scheduled') AS status
+      `,
+      [tenantId, examSeriesId, assessmentId, date, startTime, endTime, roomName],
+    );
+
+    if (created.rowCount === 0 || !created.rows[0]?.id) {
+      throw new BadRequestException('Timetable slot could not be scheduled.');
+    }
+
+    const slot = created.rows[0];
+    let invigilator: any = null;
+
+    if (staffUserId) {
+      const assigned = await this.operations.writeSql<{
+        id: string;
+        staff_user_id: string;
+        role: string;
+        status: string;
+      }>(
+        `
+          INSERT INTO exam_invigilators (tenant_id, timetable_slot_id, staff_user_id, role, status)
+          VALUES ($1, $2::uuid, $3::uuid, $4, 'assigned')
+          ON CONFLICT (tenant_id, timetable_slot_id, staff_user_id)
+          DO UPDATE SET
+            role = EXCLUDED.role,
+            status = 'assigned',
+            updated_at = NOW()
+          RETURNING id::text, staff_user_id::text, role, status
+        `,
+        [tenantId, slot.id, staffUserId, invigilatorRole],
+      );
+
+      invigilator = assigned.rows[0] ?? null;
+    }
+
+    await this.operations.recordWorkflowAction({
+      tenantId,
+      actorUserId: this.actorUserId(),
+      sourceRole: 'exams_manager',
+      targetRoles: ['principal', 'dean_academics', 'hod', 'teacher'],
+      eventType: 'exams.exam-timetable.created',
+      entityType: 'exam_timetable_slot',
+      entityId: slot.id,
+      title: 'Exams: Timetable Slot Created',
+      message: `${date} ${startTime}-${endTime} in ${roomName}`,
+      priority: 'normal',
+      payload: {
+        exam_series_id: examSeriesId,
+        assessment_id: assessmentId,
+        date,
+        start_time: startTime,
+        end_time: endTime,
+        room_name: roomName,
+        staff_user_id: staffUserId,
+        invigilator_role: invigilatorRole,
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Timetable slot scheduled successfully',
+      slot,
+      invigilator,
     };
   }
 
@@ -487,30 +807,42 @@ export class ExamsManagerCommandService {
   }
 
   async approveModeration(id: string, dto: any = {}) {
-    return this.updateMarkStatus(id, 'approved', 'moderation.approved', dto);
+    return this.updateMarkStatus(id, 'reviewed', 'moderation.approved', dto);
   }
 
   async rejectModeration(id: string, dto: any = {}) {
-    return this.updateMarkStatus(id, 'rejected', 'moderation.rejected', dto);
+    return this.updateMarkStatus(id, 'draft', 'moderation.rejected', dto);
   }
 
   private async updateMarkStatus(id: string, status: string, action: string, dto: any = {}) {
     const tenantId = this.requireTenantId();
+    const reason = String(dto?.reason ?? dto?.notes ?? '').trim();
     const result = await this.operations.writeSql(
       `
         UPDATE exam_marks
-        SET status = $3, reviewed_at = COALESCE(reviewed_at, NOW()), updated_at = NOW()
+        SET status = $3,
+            reviewed_at = CASE
+              WHEN $3 = 'reviewed' THEN COALESCE(reviewed_at, NOW())
+              ELSE reviewed_at
+            END,
+            remarks = COALESCE(NULLIF($4, ''), remarks),
+            updated_at = NOW()
         WHERE tenant_id = $1
           AND id = $2::uuid
+          AND LOWER(COALESCE(status, '')) IN ('submitted', 'reviewed', 'pending_review', 'needs_moderation')
         RETURNING id::text, status
       `,
-      [tenantId, id, status],
+      [tenantId, id, status, reason],
     );
+
+    if (result.rowCount === 0) {
+      throw new BadRequestException('No matching marks entry was found in this school moderation queue.');
+    }
 
     await this.recordExamAction(action, { ...dto, status }, id);
     return {
       success: true,
-      message: result.rowCount > 0 ? `Marks ${status}` : 'No matching marks entry found for this tenant',
+      message: status === 'reviewed' ? 'Marks approved for report-card generation' : 'Marks returned to draft for teacher correction',
       entry: result.rows[0] ?? null,
     };
   }
@@ -532,12 +864,19 @@ export class ExamsManagerCommandService {
           series.name AS exam_name,
           'All classes' AS class,
           CONCAT(series.starts_on::text, ' - ', series.ends_on::text) AS term,
-          0::int AS students,
-          '' AS published_at,
+          COUNT(card.id)::int AS students,
+          COALESCE(series.published_at::text, MAX(card.published_at)::text, '') AS published_at,
           COALESCE(series.status, 'draft') AS status
         FROM exam_series series
+        LEFT JOIN student_report_cards card
+          ON card.tenant_id = series.tenant_id
+         AND card.exam_series_id = series.id
         WHERE series.tenant_id = $1
-          AND LOWER(COALESCE(series.status, '')) IN ('ready_to_publish', 'published')
+          AND (
+            LOWER(COALESCE(series.status, '')) IN ('locked', 'published')
+            OR LOWER(COALESCE(card.status, '')) IN ('approved', 'published')
+          )
+        GROUP BY series.id, series.name, series.starts_on, series.ends_on, series.status, series.published_at
         ORDER BY series.updated_at DESC
       `,
       [tenantId],
@@ -546,7 +885,7 @@ export class ExamsManagerCommandService {
     const publishingList = result.rows;
     return {
       metrics: {
-        pending_publish: publishingList.filter((row) => String(row.status).toLowerCase() === 'ready_to_publish').length,
+        pending_publish: publishingList.filter((row) => ['locked', 'reviewed'].includes(String(row.status).toLowerCase())).length,
         published: publishingList.filter((row) => String(row.status).toLowerCase() === 'published').length,
         draft: publishingList.filter((row) => String(row.status).toLowerCase() === 'draft').length,
       },
@@ -594,6 +933,219 @@ export class ExamsManagerCommandService {
         downloaded: reportcardsList.filter((card) => String(card.status).toLowerCase() === 'downloaded').length,
       },
       reportcardsList,
+    };
+  }
+
+  async generateReportCards(id: string, dto: any = {}) {
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.actorUserId();
+    const generated = await this.operations.writeSql<{
+      id: string;
+      student_id: string;
+      status: string;
+    }>(
+      `
+        WITH eligible_students AS (
+          SELECT
+            mark.student_id,
+            COUNT(mark.id)::int AS marks_count,
+            COALESCE(SUM(mark.score), 0)::numeric AS total_marks,
+            MAX(mark.updated_at) AS latest_mark_at
+          FROM exam_marks mark
+          WHERE mark.tenant_id = $1
+            AND mark.exam_series_id = $2::uuid
+            AND LOWER(COALESCE(mark.status, '')) IN ('reviewed', 'locked', 'published', 'approved')
+          GROUP BY mark.student_id
+        )
+        INSERT INTO student_report_cards (
+          tenant_id,
+          exam_series_id,
+          student_id,
+          report_snapshot_id,
+          status,
+          metadata
+        )
+        SELECT
+          $1,
+          $2::uuid,
+          student_id,
+          CONCAT('exam-', $2::text, '-student-', student_id::text),
+          'approved',
+          jsonb_build_object(
+            'source', 'exams-manager-command',
+            'generated_by_user_id', $3::text,
+            'generated_at', NOW(),
+            'marks_count', marks_count,
+            'total_marks', total_marks,
+            'latest_mark_at', latest_mark_at
+          )
+        FROM eligible_students
+        ON CONFLICT (tenant_id, exam_series_id, student_id)
+        DO UPDATE SET
+          report_snapshot_id = EXCLUDED.report_snapshot_id,
+          status = CASE
+            WHEN LOWER(COALESCE(student_report_cards.status, '')) = 'published' THEN student_report_cards.status
+            ELSE EXCLUDED.status
+          END,
+          metadata = COALESCE(student_report_cards.metadata, '{}'::jsonb) || EXCLUDED.metadata,
+          updated_at = NOW()
+        RETURNING id::text, student_id::text, status
+      `,
+      [tenantId, id, actorUserId],
+    );
+
+    if (generated.rowCount === 0) {
+      throw new BadRequestException('No moderated marks are ready for report-card generation.');
+    }
+
+    await this.operations.writeSql(
+      `
+        UPDATE exam_series
+        SET status = CASE
+              WHEN LOWER(COALESCE(status, '')) = 'published' THEN status
+              ELSE 'locked'
+            END,
+            locked_at = COALESCE(locked_at, NOW()),
+            updated_at = NOW()
+        WHERE tenant_id = $1
+          AND id = $2::uuid
+        RETURNING id::text, status
+      `,
+      [tenantId, id],
+    );
+
+    await this.recordExamAction('report-card.generated', { ...dto, generated_count: generated.rowCount }, id);
+    return {
+      success: true,
+      message: `${generated.rowCount} report card${generated.rowCount === 1 ? '' : 's'} generated`,
+      generated_count: generated.rowCount,
+      reportCards: generated.rows,
+    };
+  }
+
+  async publishResults(id: string, dto: any = {}) {
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.actorUserId();
+    const published = await this.operations.writeSql<{
+      id: string;
+      student_id: string;
+      status: string;
+    }>(
+      `
+        UPDATE student_report_cards
+        SET status = 'published',
+            published_by_user_id = $3::uuid,
+            published_at = COALESCE(published_at, NOW()),
+            metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+              'source', 'exams-manager-command',
+              'published_by_user_id', $3::text,
+              'published_at', NOW(),
+              'publication_notes', NULLIF($4, '')
+            ),
+            updated_at = NOW()
+        WHERE tenant_id = $1
+          AND exam_series_id = $2::uuid
+          AND LOWER(COALESCE(status, '')) IN ('approved', 'draft_generated', 'under_review')
+        RETURNING id::text, student_id::text, status
+      `,
+      [tenantId, id, actorUserId, String(dto?.notes ?? dto?.reason ?? '').trim()],
+    );
+
+    if (published.rowCount === 0) {
+      throw new BadRequestException('No approved report cards are ready for publication.');
+    }
+
+    await this.operations.writeSql(
+      `
+        UPDATE exam_series
+        SET status = 'published',
+            published_at = COALESCE(published_at, NOW()),
+            updated_at = NOW()
+        WHERE tenant_id = $1
+          AND id = $2::uuid
+        RETURNING id::text, status, published_at::text
+      `,
+      [tenantId, id],
+    );
+
+    await this.recordExamAction('publishing.published', { ...dto, published_count: published.rowCount }, id);
+    await this.operations.notifyRoles(tenantId, {
+      key: `exams-results-published-${id}`,
+      type: 'exams.results_published',
+      title: 'Exam results published',
+      body: `${published.rowCount} report card${published.rowCount === 1 ? '' : 's'} have been published to the school portals.`,
+      targetRoles: ['principal', 'dean_academics', 'hod', 'class_teacher', 'teacher', 'parent', 'student'],
+      metadata: { exam_series_id: id, published_count: published.rowCount },
+    });
+
+    return {
+      success: true,
+      message: `${published.rowCount} report card${published.rowCount === 1 ? '' : 's'} published`,
+      published_count: published.rowCount,
+      reportCards: published.rows,
+    };
+  }
+
+  async unpublishResults(id: string, dto: any = {}) {
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.actorUserId();
+    const reason = this.operations.requiredText(dto?.reason ?? dto?.notes, 'Unpublish reason');
+    const unpublished = await this.operations.writeSql<{
+      id: string;
+      student_id: string;
+      status: string;
+    }>(
+      `
+        UPDATE student_report_cards
+        SET status = 'withdrawn',
+            published_at = NULL,
+            metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+              'source', 'exams-manager-command',
+              'withdrawn_by_user_id', $3::text,
+              'withdrawn_at', NOW(),
+              'withdrawn_reason', $4
+            ),
+            updated_at = NOW()
+        WHERE tenant_id = $1
+          AND exam_series_id = $2::uuid
+          AND LOWER(COALESCE(status, '')) = 'published'
+        RETURNING id::text, student_id::text, status
+      `,
+      [tenantId, id, actorUserId, reason],
+    );
+
+    if (unpublished.rowCount === 0) {
+      throw new BadRequestException('No published report cards were found for this exam.');
+    }
+
+    await this.operations.writeSql(
+      `
+        UPDATE exam_series
+        SET status = 'locked',
+            published_at = NULL,
+            updated_at = NOW()
+        WHERE tenant_id = $1
+          AND id = $2::uuid
+        RETURNING id::text, status
+      `,
+      [tenantId, id],
+    );
+
+    await this.recordExamAction('publishing.unpublished', { ...dto, reason, unpublished_count: unpublished.rowCount }, id);
+    await this.operations.notifyRoles(tenantId, {
+      key: `exams-results-unpublished-${id}`,
+      type: 'exams.results_unpublished',
+      title: 'Exam results withdrawn',
+      body: `${unpublished.rowCount} report card${unpublished.rowCount === 1 ? '' : 's'} were withdrawn. Reason: ${reason}`,
+      targetRoles: ['principal', 'dean_academics', 'hod', 'class_teacher', 'teacher'],
+      metadata: { exam_series_id: id, unpublished_count: unpublished.rowCount, reason },
+    });
+
+    return {
+      success: true,
+      message: `${unpublished.rowCount} report card${unpublished.rowCount === 1 ? '' : 's'} withdrawn`,
+      unpublished_count: unpublished.rowCount,
+      reportCards: unpublished.rows,
     };
   }
 
@@ -690,6 +1242,30 @@ export class ExamsManagerCommandService {
       filters: { requested_from: 'exams-manager-dashboard' },
       targetRoles: ['principal', 'dean_academics', 'exams_manager'],
     });
+  }
+
+  async requestZerakiSync(dto: any = {}) {
+    const tenantId = this.requireTenantId();
+    await this.operations.recordWorkflowAction({
+      tenantId,
+      actorUserId: this.actorUserId(),
+      sourceRole: 'exams_manager',
+      targetRoles: ['principal', 'dean_academics', 'system_monitor'],
+      eventType: 'exams.zeraki-sync.unconfigured',
+      entityType: 'exam_import_provider',
+      entityId: null,
+      title: 'Exams: Zeraki Live Sync Not Configured',
+      message: 'Use Imports & Templates to download CSV templates, preview rows, and commit validated mark imports.',
+      priority: 'normal',
+      payload: {
+        provider: 'zeraki',
+        status: 'not_configured',
+        requested_action: dto?.requested_action ?? 'zeraki_sync',
+        source_dashboard: dto?.source_dashboard ?? 'exams-manager',
+      },
+    });
+
+    throw new BadRequestException('Zeraki live sync is not configured for this school. Use Imports & Templates to download a CSV template, preview rows, and commit a tenant-scoped marks import.');
   }
 
   async recordExamAction(action: string, dto: any = {}, entityId?: string | null) {

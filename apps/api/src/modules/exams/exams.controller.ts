@@ -253,13 +253,13 @@ export class ExamsController {
   }
 
   @Get('marks/department')
-  @Permissions('exams:approve')
+  @Permissions('exams:review')
   getDepartmentMarks(@Query() query: Record<string, string | undefined>) {
     return this.examsService.getDepartmentMarks(query);
   }
 
   @Post('marks/moderate')
-  @Permissions('exams:approve')
+  @Permissions('exams:review')
   moderateMarks(@Body() dto: ModerateExamMarksDto) {
     return this.examsService.moderateMarks(dto);
   }

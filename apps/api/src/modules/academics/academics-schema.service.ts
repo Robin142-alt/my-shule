@@ -261,6 +261,7 @@ export class AcademicsSchemaService implements OnModuleInit {
         tenant_id text NOT NULL,
         code text NOT NULL,
         name text NOT NULL,
+        department_id uuid,
         status text NOT NULL DEFAULT 'active',
         created_by_user_id uuid,
         created_at timestamptz NOT NULL DEFAULT NOW(),
@@ -556,7 +557,10 @@ export class AcademicsSchemaService implements OnModuleInit {
         ON teacher_subject_assignments (tenant_id, teacher_user_id, academic_term_id);
 
       ALTER TABLE subjects ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+      ALTER TABLE subjects ADD COLUMN IF NOT EXISTS department_id uuid;
       ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
+      CREATE INDEX IF NOT EXISTS ix_subjects_department
+        ON subjects (tenant_id, department_id, name);
 
 
       ALTER TABLE report_card_comments ENABLE ROW LEVEL SECURITY;

@@ -65,6 +65,7 @@ import {
   createManualAdmissionLive,
   createAdmissionsAllocationLive,
   createAdmissionsTransferLive,
+  fetchAdmissionsClassOptionsLive,
   fetchAdmissionsDatasetLive,
   fetchAdmissionsReportExportLive,
   fetchAdmissionsStudentProfileLive,
@@ -73,6 +74,7 @@ import {
   updateAdmissionApplicationLive,
   updateAdmissionDocumentVerificationLive,
   uploadAdmissionDocumentLive,
+  type AdmissionsClassOption,
   type AdmissionRegistrationSummary,
 } from "@/lib/modules/admissions-live";
 
@@ -347,6 +349,58 @@ function buildNextClassName(className: string) {
   return className;
 }
 
+function buildClassOptionsFromDataset(dataset: AdmissionsDataset): AdmissionsClassOption[] {
+  const classMap = new Map<string, AdmissionsClassOption>();
+
+  function addClassOption(className?: string, streamName?: string) {
+    const value = className?.trim();
+    if (!value || /^(pending|not assigned|not recorded)$/i.test(value)) {
+      return;
+    }
+
+    const stream = streamName?.trim() ?? "";
+    const id = `${value.toLowerCase()}::${stream.toLowerCase()}`;
+
+    if (classMap.has(id)) {
+      return;
+    }
+
+    classMap.set(id, {
+      id,
+      value,
+      label: [value, stream].filter(Boolean).join(" "),
+      streamName: stream,
+      gradeLevel: value,
+      capacity: null,
+      studentCount: 0,
+      availableSeats: null,
+    });
+  }
+
+  dataset.applications.forEach((application) => addClassOption(application.classApplying));
+  dataset.students.forEach((student) => addClassOption(student.className, student.streamName));
+  dataset.allocations.forEach((allocation) => addClassOption(allocation.className, allocation.streamName));
+  dataset.studentProfiles.forEach((profile) => addClassOption(profile.className, profile.streamName));
+
+  return Array.from(classMap.values()).sort((left, right) => left.label.localeCompare(right.label));
+}
+
+function buildRegistrationClassOptions(options: AdmissionsClassOption[]) {
+  const classMap = new Map<string, AdmissionsClassOption>();
+
+  options.forEach((option) => {
+    if (!classMap.has(option.value)) {
+      classMap.set(option.value, {
+        ...option,
+        label: option.value,
+        streamName: "",
+      });
+    }
+  });
+
+  return Array.from(classMap.values()).sort((left, right) => left.label.localeCompare(right.label));
+}
+
 export function AdmissionsModuleScreen({
   role: _role,
   snapshot,
@@ -414,6 +468,12 @@ export function AdmissionsModuleScreen({
     enabled: Boolean(liveSession.session),
     placeholderData: (previous) => previous,
   });
+  const liveClassOptionsQuery = useQuery({
+    queryKey: ["admissions-class-options", liveSession.session?.tenantId],
+    queryFn: () => fetchAdmissionsClassOptionsLive(liveSession.session!),
+    enabled: Boolean(liveSession.session),
+    placeholderData: (previous) => previous,
+  });
   const dataset = liveAdmissionsQuery.data
     ? {
         applications: [...localDataset.applications, ...liveAdmissionsQuery.data.applications],
@@ -426,6 +486,25 @@ export function AdmissionsModuleScreen({
       }
     : localDataset;
   const isDatasetLoading = liveAdmissionsQuery.isLoading;
+  const classOptions = useMemo(() => {
+    const liveOptions = liveClassOptionsQuery.data ?? [];
+    return liveOptions.length > 0 ? liveOptions : buildClassOptionsFromDataset(dataset);
+  }, [dataset, liveClassOptionsQuery.data]);
+  const registrationClassOptions = useMemo(
+    () => buildRegistrationClassOptions(classOptions),
+    [classOptions],
+  );
+  const hasConfiguredClasses = classOptions.length > 0;
+  const isClassOptionsLoading = Boolean(
+    liveSession.session && liveClassOptionsQuery.isLoading && !liveClassOptionsQuery.data,
+  );
+  const selectedAllocationClassOptionId = useMemo(() => {
+    return classOptions.find(
+      (option) =>
+        option.value === allocationForm.className
+        && option.streamName === allocationForm.streamName,
+    )?.id ?? "";
+  }, [allocationForm.className, allocationForm.streamName, classOptions]);
 
   const deferredApplicationSearch = useDeferredValue(applicationSearch);
   const filteredApplications = useMemo(() => {
@@ -556,7 +635,7 @@ export function AdmissionsModuleScreen({
 
   async function refreshLiveAdmissionsData() {
     await queryClient.invalidateQueries({
-      queryKey: ["admissions-module", liveSession.session?.tenantId],
+      queryKey: ["admissions-live-dataset", liveSession.session?.tenantId],
     });
     await queryClient.invalidateQueries({
       queryKey: ["admissions-student-profile", liveSession.session?.tenantId, selectedStudentKey],
@@ -1022,6 +1101,18 @@ export function AdmissionsModuleScreen({
     if (!allocationForm.className.trim()) errors.className = "Class is required.";
     if (!allocationForm.streamName.trim()) errors.streamName = "Stream is required.";
     if (!allocationForm.dormitoryName.trim()) errors.dormitoryName = "Dormitory is required.";
+    if (liveSession.session && !isClassOptionsLoading) {
+      const selectedClass = classOptions.find(
+        (option) =>
+          option.value === allocationForm.className.trim()
+          && (!option.streamName || option.streamName === allocationForm.streamName.trim()),
+      );
+      if (!hasConfiguredClasses) {
+        errors.className = "No active classes are configured for this school yet.";
+      } else if (!selectedClass) {
+        errors.className = "Select a configured class from the school setup.";
+      }
+    }
     if (transportEnabled && !allocationForm.transportRoute.trim()) {
       errors.transportRoute = "Transport route is required.";
     }
@@ -1205,6 +1296,16 @@ export function AdmissionsModuleScreen({
       errors.birthCertificateNumber = "Birth certificate number is required.";
     }
     if (!registrationForm.className.trim()) errors.className = "Class is required.";
+    if (liveSession.session && !isClassOptionsLoading) {
+      const selectedClass = registrationClassOptions.find(
+        (option) => option.value === registrationForm.className.trim(),
+      );
+      if (!hasConfiguredClasses) {
+        errors.className = "No active classes are configured for this school yet.";
+      } else if (!selectedClass) {
+        errors.className = "Select a configured class from the school setup.";
+      }
+    }
     if (!registrationForm.parentName.trim()) errors.parentName = "Parent or guardian name is required.";
     if (!registrationForm.parentPhone.trim()) errors.parentPhone = "Parent phone is required.";
     if (!registrationForm.relationship.trim()) errors.relationship = "Relationship is required.";
@@ -2214,16 +2315,26 @@ export function AdmissionsModuleScreen({
                     onChange={(event) =>
                       setRegistrationForm((current) => ({ ...current, className: event.target.value }))
                     }
+                    disabled={isClassOptionsLoading || (Boolean(liveSession.session) && !hasConfiguredClasses)}
                   >
-                    <option value="">Select class</option>
-                    <option value="PP2">PP2</option>
-                    <option value="Grade 4">Grade 4</option>
-                    <option value="Grade 5">Grade 5</option>
-                    <option value="Grade 6">Grade 6</option>
-                    <option value="Grade 7">Grade 7</option>
-                    <option value="Grade 8">Grade 8</option>
-                    <option value="Grade 9">Grade 9</option>
+                    <option value="">
+                      {isClassOptionsLoading
+                        ? "Loading classes..."
+                        : hasConfiguredClasses
+                          ? "Select class"
+                          : "No classes configured"}
+                    </option>
+                    {registrationClassOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
+                  <p className="text-xs leading-5 text-muted">
+                    {hasConfiguredClasses
+                      ? "Classes come from this school's Deputy/Academics setup."
+                      : "Ask the Deputy Principal to create active classes before admitting learners."}
+                  </p>
                 </FieldWrapper>
               </div>
             </FormSection>
@@ -2374,8 +2485,20 @@ export function AdmissionsModuleScreen({
             </FormSection>
 
             <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-              <Button onClick={submitRegistration} disabled={isSavingRegistration} className="justify-center">
-                {isSavingRegistration ? "Registering learner..." : "Register learner"}
+              <Button
+                onClick={submitRegistration}
+                disabled={
+                  isSavingRegistration
+                  || isClassOptionsLoading
+                  || (Boolean(liveSession.session) && !hasConfiguredClasses)
+                }
+                className="justify-center"
+              >
+                {isSavingRegistration
+                  ? "Registering learner..."
+                  : isClassOptionsLoading
+                    ? "Loading classes..."
+                    : "Register learner"}
               </Button>
 
               <WorkflowCard
@@ -3000,8 +3123,15 @@ export function AdmissionsModuleScreen({
             <Button variant="secondary" onClick={() => setAllocationModalOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={submitAllocation} disabled={isSavingAllocation}>
-              {isSavingAllocation ? "Saving..." : "Save allocation"}
+            <Button
+              onClick={submitAllocation}
+              disabled={
+                isSavingAllocation
+                || isClassOptionsLoading
+                || (Boolean(liveSession.session) && !hasConfiguredClasses)
+              }
+            >
+              {isSavingAllocation ? "Saving..." : isClassOptionsLoading ? "Loading classes..." : "Save allocation"}
             </Button>
           </>
         }
@@ -3024,14 +3154,38 @@ export function AdmissionsModuleScreen({
             </select>
           </FieldWrapper>
           <FieldWrapper label="Class" error={allocationErrors.className}>
-            <input
+            <select
               className={fieldClassName}
-              value={allocationForm.className}
-              onChange={(event) =>
-                setAllocationForm((current) => ({ ...current, className: event.target.value }))
-              }
-              placeholder="Class name"
-            />
+              value={selectedAllocationClassOptionId}
+              onChange={(event) => {
+                const selected = classOptions.find((option) => option.id === event.target.value);
+                setAllocationForm((current) => ({
+                  ...current,
+                  className: selected?.value ?? "",
+                  streamName: selected?.streamName ?? "",
+                }));
+              }}
+              disabled={isClassOptionsLoading || (Boolean(liveSession.session) && !hasConfiguredClasses)}
+            >
+              <option value="">
+                {isClassOptionsLoading
+                  ? "Loading classes..."
+                  : hasConfiguredClasses
+                    ? "Select class"
+                    : "No classes configured"}
+              </option>
+              {classOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                  {option.availableSeats !== null ? ` (${option.availableSeats} seats open)` : ""}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs leading-5 text-muted">
+              {hasConfiguredClasses
+                ? "Allocations use active classes and streams from school setup."
+                : "Ask the Deputy Principal to create classes before allocating learners."}
+            </p>
           </FieldWrapper>
           <FieldWrapper label="Stream" error={allocationErrors.streamName}>
             <input

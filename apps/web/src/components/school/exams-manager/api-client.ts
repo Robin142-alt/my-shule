@@ -42,6 +42,10 @@ export async function createExam(data: any) {
   return requestDashboardApi('/admin-command/exams-manager/exam-setup', { method: 'POST', body: data });
 }
 
+export async function configureExam(examId: string, data: any) {
+  return requestDashboardApi(`/admin-command/exams-manager/exam-setup/${examId}/configure`, { method: 'POST', body: data });
+}
+
 export async function createTimetableSlot(data: any) {
   return requestDashboardApi('/admin-command/exams-manager/exam-timetable', { method: 'POST', body: data });
 }

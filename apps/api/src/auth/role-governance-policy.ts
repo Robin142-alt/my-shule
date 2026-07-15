@@ -137,7 +137,7 @@ const ROLE_PERMISSIONS: Partial<Record<BlueprintUserRole, readonly string[]>> = 
   class_teacher: ['students:read', 'academics:read', 'exams:enter-marks', 'discipline:write', 'portal:message_school'],
   grade_master: ['students:read', 'academics:read', 'exams:review', 'discipline:read', 'discipline:reports', 'reports:read'],
   parent: ['auth:read', 'portal:read_own_children', 'portal:message_school'],
-  student: ['auth:read', 'academics:read', 'lms:read'],
+  student: ['auth:read', 'student-portal:read', 'student-portal:write', 'academics:read', 'lms:read'],
   librarian: ['library:read', 'library:write'],
   nurse: ['clinic:read', 'clinic:write', 'clinic:dispense'],
   storekeeper: ['inventory:read', 'inventory:write'],

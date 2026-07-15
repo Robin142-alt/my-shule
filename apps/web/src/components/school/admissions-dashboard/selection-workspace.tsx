@@ -1,6 +1,7 @@
 "use client";
 import { CheckCircle } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { AdmissionsEmptyStateCell, APPLICATIONS_HREF } from "./empty-state-cell";
 
 type SelectionData = {
   metrics: Record<string, number>;
@@ -54,7 +55,13 @@ export function SelectionWorkspace() {
             {isLoading ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+              <AdmissionsEmptyStateCell
+                colSpan={6}
+                title="No applicants in selection yet"
+                body="Review applications and move qualified learners into selection before recording decisions."
+                actionHref={APPLICATIONS_HREF}
+                actionLabel="Review applications"
+              />
             ) : (
               items.map((row: any, i: number) => (
                 <tr key={row.id || i} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">

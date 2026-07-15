@@ -32,6 +32,7 @@ test('buildRoleGovernancePolicy enables module-bound roles only when their modul
   assert.equal(policy.roles.find((role) => role.code === 'nurse')?.enabled, true);
   assert.equal(policy.roles.find((role) => role.code === 'driver')?.enabled, true);
   assert.equal(policy.roles.find((role) => role.code === 'parent')?.enabled, true);
+  assert.equal(policy.roles.find((role) => role.code === 'student')?.permissions.includes('student-portal:read'), true);
   assert.equal(policy.roles.find((role) => role.code === 'librarian')?.enabled, false);
   assert.equal(policy.roles.find((role) => role.code === 'exams_manager')?.enabled, false);
   assert.equal(policy.roles.find((role) => role.code === 'boarding_master')?.enabled, false);

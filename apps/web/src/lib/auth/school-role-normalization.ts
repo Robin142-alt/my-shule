@@ -61,6 +61,7 @@ const schoolRoleAliases: Record<string, SchoolExperienceRole> = {
   procurement: "procurement-officer",
   "procurement-manager": "procurement-officer",
   "procurement-officer": "procurement-officer",
+  dean: "dean-academics",
   "dean-academics": "dean-academics",
   "dean-of-academics": "dean-academics",
   "academic-dean": "dean-academics",

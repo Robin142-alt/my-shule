@@ -2790,7 +2790,7 @@ function AnalyticsPanel({
                 </div>
               ))
             ) : (
-              <p className="text-muted text-xs py-4 text-center">No records found</p>
+              <p className="text-muted text-xs py-4 text-center">Top performers appear after marks are submitted and results are processed.</p>
             )}
           </div>
         </Card>
@@ -2818,7 +2818,7 @@ function AnalyticsPanel({
                 </div>
               ))
             ) : (
-              <p className="text-muted text-xs py-4 text-center">No records found</p>
+              <p className="text-muted text-xs py-4 text-center">Improvers appear after learners have at least two processed assessment results.</p>
             )}
           </div>
         </Card>
@@ -2844,7 +2844,7 @@ function AnalyticsPanel({
                 </div>
               ))
             ) : (
-              <p className="text-muted text-xs py-4 text-center">No records found (Average &lt; 50%)</p>
+              <p className="text-muted text-xs py-4 text-center">At-risk learners appear after processed marks identify an average below 50%.</p>
             )}
           </div>
         </Card>

@@ -103,6 +103,10 @@ describe("implementation 70 SEO architecture", () => {
     expect(isReservedSchoolRouteSlug("principal")).toBe(true);
     expect(isReservedSchoolRouteSlug("bursar")).toBe(true);
     expect(isReservedSchoolRouteSlug("owner")).toBe(true);
+    expect(isReservedSchoolRouteSlug("dean")).toBe(true);
+    expect(isReservedSchoolRouteSlug("academic-dean")).toBe(true);
+    expect(isReservedSchoolRouteSlug("admissions-officer")).toBe(true);
+    expect(isReservedSchoolRouteSlug("procurement-manager")).toBe(true);
     expect(isReservedSchoolRouteSlug("green-valley-academy")).toBe(false);
     expect(normalizeTenantSlug(" Green Valley Academy ")).toBe("green-valley-academy");
   });

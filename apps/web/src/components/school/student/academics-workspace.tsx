@@ -9,10 +9,23 @@ import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { openPrintDocument } from "@/lib/dashboard/export";
 import { toast } from "sonner";
 
+interface ReportCardSummary {
+  id?: string;
+  term?: string;
+  academic_year?: string;
+  exam_series_name?: string;
+  student_name?: string;
+  average_score?: string | number;
+  mean_score?: string | number;
+  grade?: string;
+  overall_grade?: string;
+  status?: string;
+}
+
 export function AcademicsWorkspace() {
   // Fetch real data from the backend
   const { data: assignments, isLoading: assignLoading, refetch: refetchAssign } = useSchoolQuery('/api/academics/my-assignments');
-  const { data: reportCards, isLoading: reportsLoading } = useSchoolQuery('/api/exams/report-cards');
+  const { data: reportCards, isLoading: reportsLoading } = useSchoolQuery<ReportCardSummary[]>('/api/student/report-cards');
 
   const activeAssignments = Array.isArray(assignments) ? assignments : [];
   const publishedReports = Array.isArray(reportCards) ? reportCards.slice(0, 3) : [];
@@ -39,20 +52,31 @@ export function AcademicsWorkspace() {
     }
   };
 
-  const downloadReportCard = (report: any) => {
+  const downloadReportCard = (report: ReportCardSummary) => {
+    if (!report.id) {
+      toast.error("This report card cannot be downloaded because it has no report identifier.");
+      return;
+    }
+
+    const title = report.term || report.exam_series_name || "Published report card";
+    const downloadUrl = `/api/student/report-cards/${encodeURIComponent(report.id)}/download`;
+
     openPrintDocument({
-      eyebrow: "Student report card",
-      title: report.title || report.term || "Published Report Card",
-      subtitle: report.academic_year || report.exam_series_name || "Published academic record",
+      eyebrow: "Student report card preview",
+      title,
+      subtitle: report.student_name
+        ? `Report card for ${report.student_name}`
+        : "Published report card from your school records",
       rows: [
-        { label: "Term", value: report.term || report.academic_term_name || "-" },
-        { label: "Academic year", value: report.academic_year || report.academic_year_name || "-" },
-        { label: "Average score", value: report.average_score ?? report.mean_score ?? "-" },
-        { label: "Grade", value: report.grade ?? report.overall_grade ?? "-" },
-        { label: "Status", value: report.status || "published" },
+        { label: "Academic year", value: String(report.academic_year || "Not recorded") },
+        { label: "Average score", value: String(report.average_score ?? report.mean_score ?? "Not recorded") },
+        { label: "Grade", value: String(report.grade ?? report.overall_grade ?? "Not recorded") },
+        { label: "Status", value: String(report.status || "Published") },
+        { label: "Download URL", value: downloadUrl },
       ],
-      footer: "student-report-card generated from published MyShule academic records.",
+      footer: "Use Print or Download PDF from this preview, or keep the opened official PDF for your records.",
     });
+    window.open(downloadUrl, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -131,8 +155,8 @@ export function AcademicsWorkspace() {
                         <FileText className="w-5 h-5" />
                       </div>
                       <div>
-                        <h4 className="text-sm font-medium text-slate-900">{report.term || 'Term'}</h4>
-                        <p className="text-xs text-slate-500">{report.academic_year || 'Year'}</p>
+                        <h4 className="text-sm font-medium text-slate-900">{report.term || report.exam_series_name || 'Published report'}</h4>
+                        <p className="text-xs text-slate-500">{report.academic_year || report.status || 'Published result'}</p>
                       </div>
                     </div>
                     <Button

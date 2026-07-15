@@ -39,6 +39,14 @@ import { Modal } from "@/components/ui/modal";
 type RouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
 type CounsellorView = "overview" | "referrals" | "cases" | "appointments" | "sessions" | "followups" | "welfare" | "group" | "parents" | "teachers" | "discipline" | "health" | "escalations" | "reports" | "templates" | "settings";
+type CounsellorSelectOption = { id: string; label: string; class_id?: string | null; status?: string | null };
+type CounsellorReferralOptions = {
+  students?: CounsellorSelectOption[];
+  classes?: CounsellorSelectOption[];
+  terms?: CounsellorSelectOption[];
+  years?: CounsellorSelectOption[];
+  incidents?: CounsellorSelectOption[];
+};
 
 const navItems = [
   { id: "overview", label: "Overview", icon: LayoutDashboard, group: "Command" },
@@ -153,7 +161,11 @@ function DataTable({ title, columns, rows }: { title?: string; columns: string[]
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={columns.length} className="px-4 py-8 text-center text-sm font-bold text-slate-500">No records found.</td></tr>
+              <tr>
+                <td colSpan={columns.length} className="px-4 py-8 text-center text-sm font-bold text-slate-500">
+                  This counselling workspace is empty for the current school. Use the workspace action to log the first case, session, referral, or follow-up.
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
@@ -165,16 +177,26 @@ function DataTable({ title, columns, rows }: { title?: string; columns: string[]
 function NewCounsellingCaseModal({
   open,
   schoolId,
+  referralOptions,
+  optionsLoading,
   onClose,
   onCreated,
 }: {
   open: boolean;
   schoolId: string | null;
+  referralOptions: CounsellorReferralOptions;
+  optionsLoading: boolean;
   onClose: () => void;
   onCreated?: () => void;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const studentOptions = referralOptions.students ?? [];
+  const classOptions = referralOptions.classes ?? [];
+  const termOptions = referralOptions.terms ?? [];
+  const yearOptions = referralOptions.years ?? [];
+  const incidentOptions = referralOptions.incidents ?? [];
+  const setupMissing = !optionsLoading && (!studentOptions.length || !classOptions.length || !termOptions.length || !yearOptions.length);
 
   async function handleCreateCounsellingReferral(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -188,7 +210,7 @@ function NewCounsellingCaseModal({
     const riskLevel = String(formData.get("risk_level") ?? "medium").trim();
 
     if (!studentId || !classId || !academicTermId || !academicYearId || !reason) {
-      setError("Student, class, academic term, academic year, and reason are required.");
+      setError("Learner, current class, academic term, academic year, and reason are required.");
       return;
     }
 
@@ -226,21 +248,51 @@ function NewCounsellingCaseModal({
             {error}
           </div>
         ) : null}
+        {setupMissing ? (
+          <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+            Add active learners, classes, terms, and academic years before creating a counselling case.
+          </div>
+        ) : null}
         <div className="grid gap-3 md:grid-cols-2">
-          <label className="text-sm font-bold text-[#071D49]">Student ID
-            <input name="student_id" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Student UUID" />
+          <label className="text-sm font-bold text-[#071D49]">Learner
+            <select name="student_id" required disabled={optionsLoading || studentOptions.length === 0} className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+              <option value="">{optionsLoading ? "Loading learners..." : "Select learner"}</option>
+              {studentOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Class ID
-            <input name="class_id" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Class UUID" />
+          <label className="text-sm font-bold text-[#071D49]">Current class
+            <select name="class_id" required disabled={optionsLoading || classOptions.length === 0} className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+              <option value="">{optionsLoading ? "Loading classes..." : "Select class"}</option>
+              {classOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Academic term ID
-            <input name="academic_term_id" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Term UUID" />
+          <label className="text-sm font-bold text-[#071D49]">Academic term
+            <select name="academic_term_id" required disabled={optionsLoading || termOptions.length === 0} className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+              <option value="">{optionsLoading ? "Loading terms..." : "Select term"}</option>
+              {termOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Academic year ID
-            <input name="academic_year_id" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Academic year UUID" />
+          <label className="text-sm font-bold text-[#071D49]">Academic year
+            <select name="academic_year_id" required disabled={optionsLoading || yearOptions.length === 0} className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+              <option value="">{optionsLoading ? "Loading years..." : "Select year"}</option>
+              {yearOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Linked incident ID
-            <input name="incident_id" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Optional incident UUID" />
+          <label className="text-sm font-bold text-[#071D49]">Linked incident
+            <select name="incident_id" disabled={optionsLoading} className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+              <option value="">{optionsLoading ? "Loading incidents..." : "No linked incident"}</option>
+              {incidentOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
           </label>
           <label className="text-sm font-bold text-[#071D49]">Risk level
             <select name="risk_level" defaultValue="medium" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
@@ -256,7 +308,7 @@ function NewCounsellingCaseModal({
         </label>
         <div className="flex justify-end gap-3 border-t border-[#D8E0EC] pt-4">
           <button type="button" onClick={onClose} disabled={submitting} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-          <button type="submit" disabled={submitting} className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-60">
+          <button type="submit" disabled={submitting || setupMissing} className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-60">
             {submitting ? "Creating..." : "Create Case"}
           </button>
         </div>
@@ -306,6 +358,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
   const { data: escalationsData } = useSchoolQuery<any>("/api/counselling/escalations");
   const { data: reportsData } = useSchoolQuery<any>("/api/counselling/reports");
   const { data: templatesData } = useSchoolQuery<any>("/api/counselling/templates");
+  const { data: referralOptionsData, isLoading: isLoadingReferralOptions } = useSchoolQuery<CounsellorReferralOptions>("/admin-command/guidance-counselling/referral-options");
   const counsellingMetrics = dashboardData?.metrics ?? dashboardData?.overview ?? dashboardData ?? {};
 
   const asRows = <T,>(value: unknown): T[] => {
@@ -877,6 +930,8 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
       <NewCounsellingCaseModal
         open={newCaseOpen}
         schoolId={schoolId}
+        referralOptions={referralOptionsData ?? {}}
+        optionsLoading={isLoadingReferralOptions}
         onClose={() => setNewCaseOpen(false)}
         onCreated={() => {
           void refetchReferrals?.();

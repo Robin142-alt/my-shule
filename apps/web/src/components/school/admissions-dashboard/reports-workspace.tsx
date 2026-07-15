@@ -1,6 +1,7 @@
 "use client";
 import { BarChart3 } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { AdmissionsEmptyStateCell, APPLICATIONS_HREF } from "./empty-state-cell";
 
 type ReportsData = {
   metrics: Record<string, number>;
@@ -44,7 +45,13 @@ export function ReportsWorkspace() {
             {isLoading ? (
               <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+              <AdmissionsEmptyStateCell
+                colSpan={4}
+                title="No admissions reports yet"
+                body="Reports appear after applications, interviews, fee clearance, or enrolment activity starts."
+                actionHref={APPLICATIONS_HREF}
+                actionLabel="Open applications"
+              />
             ) : (
               items.map((row: any, i: number) => (
                 <tr key={row.id || i} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">

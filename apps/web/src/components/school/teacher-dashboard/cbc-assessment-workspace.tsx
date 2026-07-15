@@ -46,7 +46,7 @@ export function CbcAssessmentWorkspace() {
         <RecordTable
           columns={["Learner","Class","Subject","Strand","Score","Status"]}
           rows={rows}
-          emptyState={isLoading ? "Loading..." : "No records found. Create the first entry to get started."}
+          emptyState={isLoading ? "Loading..." : "No CBC assessment records yet. Start from assigned learners once your class and subject allocation is active."}
         />
       )}
     </Panel>

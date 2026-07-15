@@ -1,6 +1,7 @@
 "use client";
 import { Users } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { AdmissionsEmptyStateCell, START_ADMISSION_HREF } from "./empty-state-cell";
 
 type ApplicantProfilesData = {
   metrics: Record<string, number>;
@@ -45,7 +46,13 @@ export function ApplicantProfilesWorkspace() {
             {isLoading ? (
               <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No records found. Create the first entry to get started.</td></tr>
+              <AdmissionsEmptyStateCell
+                colSpan={5}
+                title="No applicant profiles yet"
+                body="Start the first student admission to create a school-scoped applicant profile."
+                actionHref={START_ADMISSION_HREF}
+                actionLabel="Start student admission"
+              />
             ) : (
               items.map((row: any, i: number) => (
                 <tr key={row.id || i} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">

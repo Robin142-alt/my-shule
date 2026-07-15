@@ -112,6 +112,8 @@ export class AcademicsService {
 
   async assignTeacher(dto: AssignTeacherDto) {
     const tenantId = this.requireTenantId();
+    const teacherUserId = this.requireText(dto.teacher_user_id, 'Teacher');
+    await this.requireActiveStaffUserInTenant(tenantId, teacherUserId);
     
     // Check for overlap
     const existing = await this.repository.executeSql(
@@ -135,7 +137,7 @@ export class AcademicsService {
       academic_term_id: this.requireText(dto.academic_term_id, 'Academic term'),
       class_section_id: this.requireText(dto.class_section_id, 'Class section'),
       subject_id: this.requireText(dto.subject_id, 'Subject'),
-      teacher_user_id: this.requireText(dto.teacher_user_id, 'Teacher'),
+      teacher_user_id: teacherUserId,
     });
 
     await this.repository.appendAuditLog({
@@ -148,7 +150,7 @@ export class AcademicsService {
         academic_term_id: dto.academic_term_id,
         class_section_id: dto.class_section_id,
         subject_id: dto.subject_id,
-        teacher_user_id: dto.teacher_user_id,
+        teacher_user_id: teacherUserId,
       },
     });
 
@@ -195,6 +197,10 @@ export class AcademicsService {
       limit: this.resolveLimit(limit, 25, 1, 50),
       offset: this.resolveOffset(offset),
     });
+  }
+
+  listTeacherOptions() {
+    return this.repository.listTeacherOptions(this.requireTenantId());
   }
 
   private requireTenantId(): string {
@@ -330,6 +336,16 @@ export class AcademicsService {
     });
   }
 
+  private async requireActiveStaffUserInTenant(tenantId: string, userId: string) {
+    const teacher = await this.repository.findTeacherOptionByUserId(tenantId, userId);
+
+    if (!teacher) {
+      throw new BadRequestException('Selected staff member must be an active staff member in this school');
+    }
+
+    return teacher;
+  }
+
   getMyLessonLogs() {
     return this.repository.listMyLessonLogs(this.requireTenantId(), this.currentUserId() ?? 'unknown');
   }
@@ -405,11 +421,18 @@ export class AcademicsService {
     return this.repository.getDepartments(this.requireTenantId());
   }
 
-  createDepartment(dto: any) {
+  async createDepartment(dto: any) {
+    const tenantId = this.requireTenantId();
+    const hodUserId = dto.head_of_department_user_id?.trim() || null;
+
+    if (hodUserId) {
+      await this.requireActiveStaffUserInTenant(tenantId, hodUserId);
+    }
+
     return this.repository.createDepartment(
-      this.requireTenantId(),
+      tenantId,
       this.requireText(dto.name, 'Department name'),
-      dto.head_of_department_user_id || null
+      hodUserId
     );
   }
 
@@ -422,12 +445,16 @@ export class AcademicsService {
     return this.repository.getClassTeachers(this.requireTenantId());
   }
 
-  assignClassTeacher(dto: any) {
+  async assignClassTeacher(dto: any) {
+    const tenantId = this.requireTenantId();
+    const teacherUserId = this.requireText(dto.teacher_user_id, 'Teacher user ID');
+    await this.requireActiveStaffUserInTenant(tenantId, teacherUserId);
+
     return this.repository.assignClassTeacher(
-      this.requireTenantId(),
+      tenantId,
       this.requireText(dto.academic_year_id, 'Academic year ID'),
       this.requireText(dto.class_section_id, 'Class section ID'),
-      this.requireText(dto.teacher_user_id, 'Teacher user ID')
+      teacherUserId
     );
   }
 

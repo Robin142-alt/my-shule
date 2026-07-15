@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { GraduationCap, ArrowRight } from "lucide-react";
+import Link from "next/link";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { toast } from "sonner";
@@ -80,7 +81,16 @@ export function ClassPlacementWorkspace() {
             {isLoading ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">Loading placements...</td></tr>
             ) : placements.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No students pending placement. Admit students first, then assign them to classes here.</td></tr>
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">
+                  <div className="mx-auto flex max-w-xl flex-col items-center gap-3">
+                    <p>No students pending placement. Start student admission first, approve the application, then assign the learner to a class here.</p>
+                    <Link href="/school/admissions/applications?action=start-admission" className="rounded-lg bg-[#071D49] px-4 py-2 text-xs font-black text-white">
+                      Start student admission
+                    </Link>
+                  </div>
+                </td>
+              </tr>
             ) : (
               placements.map((p) => (
                 <tr key={p.id} className="hover:bg-[#F8FAFC]">

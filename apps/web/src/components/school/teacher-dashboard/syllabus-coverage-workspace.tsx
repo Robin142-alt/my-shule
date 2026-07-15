@@ -46,7 +46,7 @@ export function SyllabusCoverageWorkspace() {
         <RecordTable
           columns={["Subject","Class","Topic","Coverage %","Target %","Status"]}
           rows={rows}
-          emptyState={isLoading ? "Loading..." : "No records found. Create the first entry to get started."}
+          emptyState={isLoading ? "Loading..." : "No syllabus coverage records yet. Save lesson logs to start tracking coverage."}
         />
       )}
     </Panel>

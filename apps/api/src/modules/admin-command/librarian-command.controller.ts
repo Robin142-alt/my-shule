@@ -36,6 +36,11 @@ export class LibrarianCommandController {
     return this.service.getBorrowers();
   }
 
+  @Get('circulation-options')
+  getCirculationOptions() {
+    return this.service.getCirculationOptions();
+  }
+
   @Get('issue-book')
   getIssueBook() {
     return this.service.getIssueBook();

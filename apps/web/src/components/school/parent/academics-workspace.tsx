@@ -17,6 +17,9 @@ interface ReportCardSummary {
   id?: string;
   term?: string;
   academic_year?: string;
+  exam_series_name?: string;
+  student_name?: string;
+  status?: string;
 }
 
 interface MarkSummary {
@@ -32,7 +35,7 @@ export function AcademicsWorkspace() {
   const [notice, setNotice] = useState<string | null>(null);
   // Fetch real data from the backend
   const { data: assignments, isLoading: assignLoading } = useSchoolQuery<Assignment[]>('/api/academics/my-assignments');
-  const { data: reportCards, isLoading: reportsLoading } = useSchoolQuery<ReportCardSummary[]>('/api/exams/report-cards');
+  const { data: reportCards, isLoading: reportsLoading } = useSchoolQuery<ReportCardSummary[]>('/api/parent/report-cards');
   const { data: marks, isLoading: marksLoading } = useSchoolQuery<MarkSummary[]>('/api/exams/marks');
 
   const allAssignments = Array.isArray(assignments) ? assignments : [];
@@ -45,8 +48,8 @@ export function AcademicsWorkspace() {
       return;
     }
 
-    window.open(`/api/exams/report-cards/${encodeURIComponent(report.id)}/parent-download`, "_blank", "noopener,noreferrer");
-    setNotice(`Report card download requested for ${report.term || "selected term"}.`);
+    window.open(`/api/parent/report-cards/${encodeURIComponent(report.id)}/download`, "_blank", "noopener,noreferrer");
+    setNotice(`Report card download requested for ${report.term || report.exam_series_name || "selected term"}.`);
   }
 
   return (
@@ -142,8 +145,10 @@ export function AcademicsWorkspace() {
                     <FileText className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-medium text-slate-900">{report.term || 'Term'}</h4>
-                    <p className="text-xs text-slate-500">{report.academic_year || 'Year'}</p>
+                    <h4 className="text-sm font-medium text-slate-900">{report.term || report.exam_series_name || 'Published report'}</h4>
+                    <p className="text-xs text-slate-500">
+                      {[report.student_name, report.academic_year].filter(Boolean).join(" - ") || "Published result"}
+                    </p>
                   </div>
                 </div>
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600" onClick={() => openReportCard(report)} aria-label={`Download ${report.term || "term"} report card`}>
