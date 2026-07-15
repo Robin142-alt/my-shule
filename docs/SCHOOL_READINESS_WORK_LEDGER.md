@@ -174,6 +174,9 @@ Core roles confirmed from routing/tests and `AGENTS.md`: Super Admin, System Mon
 | `npm run web:build` | PASS | Current-source Next production build completed; 84 static pages generated |
 | `npm run test` | PASS | Root API gate passed: 1,096 API tests plus 9 production-auth smoke tests |
 | `npm run ci:full` | PASS | Full gate passed: build, web lint, web build, API tests, implementation gates, tenant isolation audit, security/PII/dependency scans, certifications, production scorecard, and release readiness |
+| `npm run smoke:providers` | PASS | Provider smoke passed: 8 checks, 6 passed, 0 failed, 2 optional checks skipped; Resend, support email, Redis, retry worker, and object storage settings were validated without exposing secrets |
+| `npm run smoke:production-auth` | PASS | Production auth smoke passed against `https://www.myshule.online` and `https://my-shule-erp-api.vercel.app`: 6 checks passed, 0 failed |
+| `SYNTHETIC_API_BASE_URL=https://my-shule-erp-api.vercel.app SYNTHETIC_WEB_BASE_URL=https://www.myshule.online SYNTHETIC_ALLOW_REMOTE=true npm run monitor:synthetic` | PASS | Remote synthetic monitor passed: 5 journeys, 7 steps, 0 failed; checked public readiness, support status, login, teacher exams route, principal discipline route, and parent discipline route |
 
 ## New Inventory Evidence Added 2026-07-15
 
