@@ -2727,6 +2727,98 @@ test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped e
   assert.equal(workflowCalls[0].entityId, '22222222-2222-4222-8222-222222222222');
 });
 
+test('ExamsManagerCommandService persists selected exam subjects and class mark-entry windows', async () => {
+  const writes: Array<{ sql: string; params: unknown[] }> = [];
+  const workflowCalls: any[] = [];
+  const service = new ExamsManagerCommandService(
+    {
+      getStore: () => ({ tenant_id: '11111111-1111-4111-8111-111111111111', user_id: '22222222-2222-4222-8222-222222222222' }),
+    } as never,
+    {} as never,
+    {
+      writeSql: async (sql: string, params: unknown[]) => {
+        writes.push({ sql, params });
+        if (/INSERT INTO exam_series/i.test(sql)) {
+          return {
+            rows: [{
+              id: '33333333-3333-4333-8333-333333333333',
+              name: params[1],
+              starts_on: params[2],
+              ends_on: params[3],
+              status: params[4],
+              created_at: '2026-07-13T00:00:00.000Z',
+            }],
+            rowCount: 1,
+          };
+        }
+        if (/INSERT INTO exam_assessments/i.test(sql)) {
+          return {
+            rows: [
+              { id: 'assessment-1', subject_id: '44444444-4444-4444-8444-444444444444' },
+              { id: 'assessment-2', subject_id: '55555555-5555-4555-8555-555555555555' },
+            ],
+            rowCount: 2,
+          };
+        }
+        if (/INSERT INTO exam_mark_entry_windows/i.test(sql)) {
+          return {
+            rows: [
+              { id: 'window-1', subject_id: '44444444-4444-4444-8444-444444444444', class_section_id: '66666666-6666-4666-8666-666666666666' },
+              { id: 'window-2', subject_id: '55555555-5555-4555-8555-555555555555', class_section_id: '77777777-7777-4777-8777-777777777777' },
+            ],
+            rowCount: 4,
+          };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+      readSql: async () => ({ rows: [], rowCount: 0 }),
+      recordWorkflowAction: async (input: any) => {
+        workflowCalls.push(input);
+        return { id: 'workflow-1', ...input };
+      },
+      requiredText: (value: unknown, label: string) => {
+        const text = String(value ?? '').trim();
+        if (!text) throw new Error(`${label} is required`);
+        return text;
+      },
+    } as never,
+  );
+
+  const result = await service.createExamSetup({
+    name: 'Term 1 Opener',
+    starts_on: '2026-01-12',
+    ends_on: '2026-01-16',
+    status: 'submitted',
+    max_marks: 80,
+    subject_ids: [
+      '44444444-4444-4444-8444-444444444444',
+      '55555555-5555-4555-8555-555555555555',
+    ],
+    class_section_ids: [
+      '66666666-6666-4666-8666-666666666666',
+      '77777777-7777-4777-8777-777777777777',
+    ],
+  });
+
+  assert.equal(result.success, true);
+  assert.equal((result as any).scope.subjectsConfigured, 2);
+  assert.equal((result as any).scope.markEntryWindowsConfigured, 4);
+  assert.match(writes[1].sql, /INSERT INTO exam_assessments/i);
+  assert.equal(writes[1].params[0], '11111111-1111-4111-8111-111111111111');
+  assert.equal(writes[1].params[1], '33333333-3333-4333-8333-333333333333');
+  assert.deepEqual(writes[1].params[2], [
+    '44444444-4444-4444-8444-444444444444',
+    '55555555-5555-4555-8555-555555555555',
+  ]);
+  assert.match(writes[2].sql, /INSERT INTO exam_mark_entry_windows/i);
+  assert.deepEqual(writes[2].params[3], [
+    '66666666-6666-4666-8666-666666666666',
+    '77777777-7777-4777-8777-777777777777',
+  ]);
+  assert.equal(workflowCalls[0].payload.subjectsConfigured, 2);
+  assert.equal(workflowCalls[0].payload.markEntryWindowsConfigured, 4);
+});
+
 test('ExamsManagerCommandService configures an existing exam setup inside the current tenant', async () => {
   const writes: Array<{ sql: string; params: unknown[] }> = [];
   const workflowCalls: any[] = [];

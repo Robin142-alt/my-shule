@@ -82,18 +82,66 @@ export async function createTerm(data: any) {
 
 // Classes & Streams
 export async function createClass(data: any) {
-  return requestDashboardApi('/admin-command/principal/classes-streams', { method: 'POST', body: data });
+  const level = String(data?.level ?? data?.grade_level ?? '').trim();
+  const name = String(data?.name ?? data?.class_name ?? '').trim();
+  const capacity = Number(data?.capacity ?? 45);
+  const streamName = String(data?.stream_name ?? '').trim();
+  const systemType = /^Form\s/i.test(level) ? '8-4-4' : 'CBC';
+
+  return requestDashboardApi('/academics/class-structure', {
+    method: 'POST',
+    body: {
+      system_type: systemType,
+      levels: [
+        {
+          name: level || name,
+          order_index: Number(data?.order_index ?? 0),
+          classes: [
+            {
+              name,
+              custom_label: data?.custom_label || undefined,
+              capacity: Number.isFinite(capacity) && capacity > 0 ? capacity : 45,
+              streams: streamName
+                ? [{ name: streamName, capacity: Number.isFinite(capacity) && capacity > 0 ? capacity : 45 }]
+                : [],
+            },
+          ],
+        },
+      ],
+    },
+  });
 }
 export async function createStream(classId: string, data: any) {
-  return requestDashboardApi(`/admin-command/principal/classes-streams/${classId}/streams`, { method: 'POST', body: data });
+  return requestDashboardApi('/academics/class-streams', {
+    method: 'POST',
+    body: {
+      class_section_id: classId,
+      name: data?.name ?? data?.stream_name,
+      capacity: data?.capacity,
+    },
+  });
 }
 
 // Subjects & Departments
 export async function createSubject(data: any) {
-  return requestDashboardApi('/admin-command/principal/subjects-departments/subject', { method: 'POST', body: data });
+  const name = String(data?.name ?? data?.subject_name ?? '').trim();
+  const code = String(data?.code ?? name.slice(0, 4).toUpperCase()).trim();
+  return requestDashboardApi('/academics/subjects', {
+    method: 'POST',
+    body: {
+      name,
+      code,
+    },
+  });
 }
 export async function createDepartment(data: any) {
-  return requestDashboardApi('/admin-command/principal/subjects-departments/department', { method: 'POST', body: data });
+  return requestDashboardApi('/academics/departments', {
+    method: 'POST',
+    body: {
+      name: data?.name ?? data?.department_name,
+      head_of_department_user_id: data?.head_of_department_user_id || undefined,
+    },
+  });
 }
 
 // Staff

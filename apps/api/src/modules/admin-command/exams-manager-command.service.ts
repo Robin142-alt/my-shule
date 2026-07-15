@@ -126,6 +126,137 @@ export class ExamsManagerCommandService {
     return result.rows[0]?.id ?? null;
   }
 
+  private uniqueUuidArray(value: unknown, label: string) {
+    const values = Array.isArray(value) ? value : [];
+    const unique = Array.from(new Set(values.map((item) => String(item ?? '').trim()).filter(Boolean)));
+    for (const item of unique) {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item)) {
+        throw new BadRequestException(`${label} contains an invalid identifier`);
+      }
+    }
+    return unique;
+  }
+
+  private positiveNumber(value: unknown, fallback: number, label: string) {
+    const numberValue = Number(value ?? fallback);
+    if (!Number.isFinite(numberValue) || numberValue <= 0) {
+      throw new BadRequestException(`${label} must be a positive number`);
+    }
+    return numberValue;
+  }
+
+  private async syncExamScope(
+    tenantId: string,
+    examSeriesId: string,
+    dto: any,
+    startsOn: string,
+    endsOn: string,
+  ) {
+    const subjectIds = this.uniqueUuidArray(dto?.subject_ids ?? dto?.subjectIds, 'Subjects');
+    const classSectionIds = this.uniqueUuidArray(dto?.class_section_ids ?? dto?.classSectionIds ?? dto?.class_ids ?? dto?.classIds, 'Classes');
+    if (subjectIds.length === 0 && classSectionIds.length === 0) {
+      return { subjectsConfigured: 0, markEntryWindowsConfigured: 0 };
+    }
+    if (subjectIds.length === 0 || classSectionIds.length === 0) {
+      throw new BadRequestException('Choose both subjects and classes before configuring exam mark-entry readiness.');
+    }
+
+    const actorUserId = this.actorUserId();
+    if (!actorUserId) {
+      throw new BadRequestException('User context is required to configure exam subjects and classes.');
+    }
+
+    const maxMarks = this.positiveNumber(dto?.max_marks ?? dto?.maxMarks, 100, 'Max marks');
+    const status = this.normalizeStatus(dto?.status);
+    const windowStatus = status === 'submitted' ? 'open' : 'draft';
+
+    const assessments = await this.operations.writeSql<{
+      id: string;
+      subject_id: string;
+    }>(
+      `
+        INSERT INTO exam_assessments (
+          tenant_id,
+          exam_series_id,
+          subject_id,
+          name,
+          max_score,
+          weight,
+          created_by_user_id
+        )
+        SELECT
+          $1::uuid,
+          $2::uuid,
+          subject.id,
+          CONCAT(subject.name, ' Main Paper'),
+          $4::numeric,
+          100,
+          $5::uuid
+        FROM subjects subject
+        WHERE subject.tenant_id = $1
+          AND subject.id = ANY($3::uuid[])
+          AND NOT EXISTS (
+            SELECT 1
+            FROM exam_assessments existing
+            WHERE existing.tenant_id = $1
+              AND existing.exam_series_id = $2::uuid
+              AND existing.subject_id = subject.id
+          )
+        RETURNING id::text, subject_id::text
+      `,
+      [tenantId, examSeriesId, subjectIds, maxMarks, actorUserId],
+    );
+
+    const windows = await this.operations.writeSql<{
+      id: string;
+      subject_id: string;
+      class_section_id: string;
+    }>(
+      `
+        INSERT INTO exam_mark_entry_windows (
+          tenant_id,
+          exam_series_id,
+          subject_id,
+          class_section_id,
+          opens_at,
+          closes_at,
+          status
+        )
+        SELECT
+          $1::uuid,
+          $2::uuid,
+          subject.id,
+          section.id,
+          $5::date,
+          ($6::date + INTERVAL '1 day' - INTERVAL '1 second'),
+          $7
+        FROM subjects subject
+        CROSS JOIN class_sections section
+        WHERE subject.tenant_id = $1
+          AND section.tenant_id = $1
+          AND subject.id = ANY($3::uuid[])
+          AND section.id = ANY($4::uuid[])
+          AND LOWER(COALESCE(section.status, 'active')) = 'active'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM exam_mark_entry_windows existing
+            WHERE existing.tenant_id = $1
+              AND existing.exam_series_id = $2::uuid
+              AND existing.subject_id = subject.id
+              AND existing.class_section_id = section.id
+          )
+        RETURNING id::text, subject_id::text, class_section_id::text
+      `,
+      [tenantId, examSeriesId, subjectIds, classSectionIds, startsOn, endsOn, windowStatus],
+    );
+
+    return {
+      subjectsConfigured: subjectIds.length,
+      markEntryWindowsConfigured: windows.rowCount,
+      assessmentsInserted: assessments.rowCount,
+    };
+  }
+
   async getExamSetupOptions() {
     const tenantId = this.requireTenantId();
     const [terms, subjects, classes, staff, examSeries, assessments] = await Promise.all([
@@ -340,11 +471,11 @@ export class ExamsManagerCommandService {
           CONCAT(series.starts_on::text, ' - ', series.ends_on::text) AS term,
           EXTRACT(YEAR FROM series.starts_on)::int AS year,
           'Exam cycle' AS type,
-          100 AS max_marks,
+          COALESCE((SELECT MAX(assessment.max_score)::int FROM exam_assessments assessment WHERE assessment.tenant_id = series.tenant_id AND assessment.exam_series_id = series.id), 100) AS max_marks,
           'School grading' AS grading_system,
           COALESCE(series.status, 'scheduled') AS status,
-          (SELECT COUNT(DISTINCT mark.subject_id)::int FROM exam_marks mark WHERE mark.tenant_id = series.tenant_id AND mark.exam_series_id = series.id) AS subjects_count,
-          (SELECT COUNT(DISTINCT mark.class_section_id)::int FROM exam_marks mark WHERE mark.tenant_id = series.tenant_id AND mark.exam_series_id = series.id) AS classes_count,
+          (SELECT COUNT(DISTINCT assessment.subject_id)::int FROM exam_assessments assessment WHERE assessment.tenant_id = series.tenant_id AND assessment.exam_series_id = series.id) AS subjects_count,
+          (SELECT COUNT(DISTINCT entry_window.class_section_id)::int FROM exam_mark_entry_windows entry_window WHERE entry_window.tenant_id = series.tenant_id AND entry_window.exam_series_id = series.id) AS classes_count,
           series.created_at::text,
           series.starts_on::text,
           series.ends_on::text
@@ -425,6 +556,9 @@ export class ExamsManagerCommandService {
     );
 
     const exam = created.rows[0];
+    const scope = exam?.id
+      ? await this.syncExamScope(tenantId, exam.id, dto, startsOn, endsOn)
+      : { subjectsConfigured: 0, markEntryWindowsConfigured: 0 };
     await this.operations.recordWorkflowAction({
       tenantId,
       actorUserId: this.actorUserId(),
@@ -436,13 +570,14 @@ export class ExamsManagerCommandService {
       title: 'Exams: Exam Setup Created',
       message: `${name} created for ${startsOn} to ${endsOn}`,
       priority: 'normal',
-      payload: { name, starts_on: startsOn, ends_on: endsOn, status },
+      payload: { name, starts_on: startsOn, ends_on: endsOn, status, ...scope },
     });
 
     return {
       success: true,
       message: 'Exam created successfully',
       exam,
+      scope,
     };
   }
 
@@ -484,6 +619,7 @@ export class ExamsManagerCommandService {
     }
 
     const exam = updated.rows[0];
+    const scope = await this.syncExamScope(tenantId, id, dto, startsOn, endsOn);
     await this.operations.recordWorkflowAction({
       tenantId,
       actorUserId: this.actorUserId(),
@@ -495,13 +631,14 @@ export class ExamsManagerCommandService {
       title: 'Exams: Exam Setup Configured',
       message: `${name} configured for ${startsOn} to ${endsOn}`,
       priority: 'normal',
-      payload: { name, starts_on: startsOn, ends_on: endsOn, status },
+      payload: { name, starts_on: startsOn, ends_on: endsOn, status, ...scope },
     });
 
     return {
       success: true,
       message: 'Exam configured successfully',
       exam,
+      scope,
     };
   }
 
