@@ -30,6 +30,10 @@ import {
   type SchoolOperationalRequest,
   subscribeToSchoolDataUpdates,
 } from "@/lib/school/school-operational-store";
+import {
+  downloadCsvFile,
+  openPrintDocument,
+} from "@/lib/dashboard/export";
 
 import { DashboardCommunicationProvider } from "@/lib/dashboard-communication/dashboard-communication-provider";
 import { tenantSlugToName } from "@/lib/seo/tenant-routes";
@@ -37,6 +41,7 @@ import { buildSchoolSectionHref } from "./school-pages";
 
 type PrincipalSection =
   | "overview"
+  | "setup-checklist"
   | "fees"
   | "attendance"
   | "discipline"
@@ -142,6 +147,17 @@ type PrincipalWorkspaceRow = {
   value: string;
 };
 
+type PrincipalActivationStep = {
+  id: string;
+  title: string;
+  owner: string;
+  dependency: string;
+  unlocks: string;
+  complete: boolean;
+  actionLabel?: string;
+  target?: PrincipalSection;
+};
+
 type PrincipalNavItem = {
   id: PrincipalSection;
   label: string;
@@ -193,6 +209,11 @@ function normalizePrincipalSection(section?: string): PrincipalSection {
     case undefined:
     case null:
       return "overview";
+    case "setup":
+    case "checklist":
+    case "school-setup":
+    case "setup-checklist":
+      return "setup-checklist";
     case "finance":
     case "finance-overview":
       return "fees";
@@ -215,6 +236,7 @@ function normalizePrincipalSection(section?: string): PrincipalSection {
 
 function sectionRoute(section: PrincipalSection) {
   if (section === "overview") return "dashboard";
+  if (section === "setup-checklist") return "setup-checklist";
   if (section === "fees") return "finance";
   if (section === "sick-bay") return "clinic";
   if (section === "exams-reports") return "exams";
@@ -388,10 +410,106 @@ export function PrincipalCommandCenter({
   ].length;
   const pendingFeeItems = schoolRecords.feeBalances.filter((balance) => Number(balance.balance) > 0).length;
   const attendanceFollowUps = absentStudents + lateStudents + missingRegisters;
+  const activationSteps = useMemo<PrincipalActivationStep[]>(
+    () => [
+      {
+        id: "modules-enabled",
+        title: "Confirm enabled modules",
+        owner: "Super Admin",
+        dependency: "The platform owner must enable the school modules this tenant is allowed to use.",
+        unlocks: "Only enabled modules appear in sidebars and APIs.",
+        complete: enabledPrincipalModules.length > 0,
+      },
+      {
+        id: "academic-foundation",
+        title: "Create academic foundation",
+        owner: "Principal / Deputy",
+        dependency: "Set classes, streams, subjects, departments, academic year, and current term before admissions, timetable, and exams.",
+        unlocks: "Admissions placement, teacher allocation, timetable, attendance, exam setup, and report cards.",
+        complete: schoolRecords.academicRecords.length > 0,
+        actionLabel: "Open Academics",
+        target: "academics",
+      },
+      {
+        id: "staff-invitations",
+        title: "Invite and assign staff",
+        owner: "Principal",
+        dependency: "Invite operational staff and assign roles before daily departments can work.",
+        unlocks: "Teacher workloads, HOD/dean review, finance, admissions, library, health, stores, boarding, and transport workflows.",
+        complete: schoolRecords.staffRecords.length > 0,
+        actionLabel: "Open Users & Invitations",
+        target: "users-invitations",
+      },
+      {
+        id: "students-admitted",
+        title: "Admit and place learners",
+        owner: "Admissions / Secretary",
+        dependency: "Learners need admission, class placement, and guardian links before portals, billing, attendance, and exams can operate.",
+        unlocks: "Parent/student portals, fee billing, class registers, attendance, assignments, marks, and reports.",
+        complete: schoolRecords.inquiries.length > 0 || presentStudents > 0,
+        actionLabel: "Open Parents & Visitors",
+        target: "visitors",
+      },
+      {
+        id: "finance-started",
+        title: "Configure fees and first billing",
+        owner: "Accountant / Bursar",
+        dependency: "Fee structures and billable learners must exist before invoices, receipts, balances, and parent statements.",
+        unlocks: "Invoices, payments, receipts, statements, arrears, waivers, and principal finance summary.",
+        complete: schoolRecords.feePayments.length > 0 || schoolRecords.feeBalances.length > 0,
+        actionLabel: "Open Fees",
+        target: "fees",
+      },
+      {
+        id: "attendance-started",
+        title: "Start registers and daily operations",
+        owner: "Teachers / Class Teachers",
+        dependency: "Class registers require admitted learners, class ownership, and teacher allocation.",
+        unlocks: "Principal attendance monitoring, parent absence notifications, and daily school health signals.",
+        complete: schoolRecords.attendanceRegisters.length > 0,
+        actionLabel: "Open Attendance",
+        target: "attendance",
+      },
+      {
+        id: "exams-ready",
+        title: "Configure exams and report cards",
+        owner: "Exams Manager / Dean / HOD / Teachers",
+        dependency: "Subjects, classes, teachers, grading policy, and active term must exist before marks entry and publishing.",
+        unlocks: "Marks entry, moderation, approval, parent visibility, analytics, and downloadable report cards.",
+        complete: schoolRecords.reportRecords.some((record) => /report|exam|card|result/i.test(`${record.title ?? ""} ${record.type ?? ""}`)),
+        actionLabel: "Open Exams",
+        target: "exams-reports",
+      },
+      {
+        id: "reports-audit",
+        title: "Generate first operational reports",
+        owner: "Principal / Department leads",
+        dependency: "Reports need source records and must produce preview, download, print, or observable queued jobs.",
+        unlocks: "Board reports, compliance evidence, audit-safe exports, and go-live confidence.",
+        complete: schoolRecords.reportRecords.length > 0,
+        actionLabel: "Open Reports",
+        target: "reports",
+      },
+    ],
+    [
+      enabledPrincipalModules.length,
+      presentStudents,
+      schoolRecords.academicRecords.length,
+      schoolRecords.attendanceRegisters.length,
+      schoolRecords.feeBalances.length,
+      schoolRecords.feePayments.length,
+      schoolRecords.inquiries.length,
+      schoolRecords.reportRecords,
+      schoolRecords.staffRecords.length,
+    ],
+  );
+  const completedActivationSteps = activationSteps.filter((step) => step.complete).length;
+  const activationProgress = Math.round((completedActivationSteps / activationSteps.length) * 100);
   const navCount = (value: number) => (value > 0 ? String(value) : undefined);
   const navItems = useMemo<PrincipalNavItem[]>(
     () => [
       { id: "overview", label: "Overview", icon: Home },
+      { id: "setup-checklist", label: "School Setup", count: activationProgress < 100 ? `${activationProgress}%` : undefined, icon: CheckCircle2 },
       { id: "fees", label: "Fees", count: navCount(pendingFeeItems), icon: Wallet },
       { id: "attendance", label: "Attendance", count: navCount(attendanceFollowUps), icon: Activity },
       { id: "discipline", label: "Discipline", count: navCount(schoolRecords.disciplineCases.length), icon: ShieldAlert },
@@ -411,6 +529,7 @@ export function PrincipalCommandCenter({
     ],
     [
       attendanceFollowUps,
+      activationProgress,
       libraryFollowUps,
       medicineAlerts,
       pendingApprovals,
@@ -434,7 +553,91 @@ export function PrincipalCommandCenter({
     window.history.replaceState(null, "", buildSchoolSectionHref("principal", sectionRoute(section), routeMode ?? "hosted"));
   }
 
+  function exportPrincipalWorkspaceSummary(section: PrincipalSection, title: string, rows: PrincipalWorkspaceRow[], metrics: Array<[string, number]>) {
+    downloadCsvFile({
+      filename: `${schoolId}-${section}-summary-${new Date().toISOString().slice(0, 10)}.csv`,
+      headers: ["type", "title", "detail", "value"],
+      rows: [
+        ...metrics.map(([label, value]) => ["metric", label, "", String(value)]),
+        ...rows.map((row) => ["record", row.title, row.detail, row.value]),
+      ],
+    });
+  }
+
+  function printPrincipalWorkspaceSummary(title: string, rows: PrincipalWorkspaceRow[], metrics: Array<[string, number]>) {
+    openPrintDocument({
+      eyebrow: "Principal workspace report",
+      title: `${schoolName} - ${title}`,
+      subtitle: `Generated by the Principal workspace on ${new Date().toLocaleString("en-KE")}.`,
+      rows: [
+        ...metrics.map(([label, value]) => ({ label, value: String(value) })),
+        ...(rows.length
+          ? rows.map((row) => ({ label: row.title, value: `${row.detail} - ${row.value}` }))
+          : [{ label: "Records", value: "No records available yet. Complete the listed setup dependencies before rerunning this report." }]),
+      ],
+      footer: "This report is generated from the current tenant-scoped Principal workspace state.",
+    });
+  }
+
   function renderWorkspace() {
+    if (activeWorkspace === "setup-checklist") {
+      return (
+        <section aria-label="Principal school setup workspace" className="space-y-5">
+          <WorkspaceHeading
+            title="School Setup Checklist"
+            subtitle="Activation path from clean tenant to daily operations. Each incomplete item names the missing dependency and the workspace that unlocks the next workflow."
+          />
+          <Card className="border-white/10 bg-white/5 p-4 text-white">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-black">Activation readiness</p>
+                <p className="mt-1 text-xs font-semibold text-white/65">
+                  {completedActivationSteps} of {activationSteps.length} activation gates complete for {schoolName}.
+                </p>
+              </div>
+              <span className="rounded-full border border-cyan-200/30 bg-cyan-200/10 px-3 py-1 text-sm font-black text-cyan-100">
+                {activationProgress}% ready
+              </span>
+            </div>
+            <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full rounded-full bg-cyan-300" style={{ width: `${activationProgress}%` }} />
+            </div>
+          </Card>
+          <div className="space-y-3">
+            {activationSteps.map((step, index) => (
+              <Card key={step.id} className="border-white/10 bg-white/5 p-4 text-white">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-cyan-100">Step {index + 1} - {step.owner}</p>
+                    <h3 className="mt-1 text-lg font-black">{step.title}</h3>
+                    <p className="mt-2 text-sm font-semibold text-white/70">Dependency: {step.dependency}</p>
+                    <p className="mt-1 text-sm font-semibold text-white/70">Unlocks: {step.unlocks}</p>
+                  </div>
+                  <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col">
+                    <span className={cn(
+                      "rounded-full border px-3 py-1 text-xs font-black",
+                      step.complete ? "border-emerald-200/30 bg-emerald-200/10 text-emerald-100" : "border-amber-200/30 bg-amber-200/10 text-amber-100",
+                    )}>
+                      {step.complete ? "Complete" : "Setup required"}
+                    </span>
+                    {step.target && step.actionLabel ? (
+                      <button
+                        type="button"
+                        onClick={() => setActiveWorkspace(step.target as PrincipalSection)}
+                        className="rounded-lg border border-cyan-200/30 bg-cyan-200/10 px-3 py-2 text-sm font-black text-cyan-100"
+                      >
+                        {step.actionLabel}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+      );
+    }
+
     if (activeWorkspace === "fees") {
       return (
         <section aria-label="Principal fees workspace" className="space-y-4">
@@ -541,6 +744,9 @@ export function PrincipalCommandCenter({
             ["Serious cases", schoolRecords.disciplineCases.filter((record) => /serious|critical/i.test(`${record.severity ?? ""} ${record.status ?? ""}`)).length],
             ["Pending approvals", pendingApprovals],
           ]}
+          onNavigate={setActiveWorkspace}
+          onExport={exportPrincipalWorkspaceSummary}
+          onPrint={printPrincipalWorkspaceSummary}
         />
       );
     }
@@ -584,6 +790,9 @@ export function PrincipalCommandCenter({
             ["Pending exeats", schoolRecords.boardingRecords.filter((record) => /pending/i.test(record.status ?? "")).length],
             ["Welfare alerts", schoolRecords.notifications.filter((notification) => /boarding|hostel|dorm/i.test(notification.sourceModule)).length],
           ]}
+          onNavigate={setActiveWorkspace}
+          onExport={exportPrincipalWorkspaceSummary}
+          onPrint={printPrincipalWorkspaceSummary}
         />
       );
     }
@@ -608,6 +817,9 @@ export function PrincipalCommandCenter({
             ["Teacher allocations", schoolRecords.academicRecords.filter((record) => /teacher|allocation/i.test(`${record.type ?? ""} ${record.title ?? ""}`)).length],
             ["Lesson coverage", schoolRecords.academicRecords.filter((record) => /lesson|coverage/i.test(`${record.type ?? ""} ${record.title ?? ""}`)).length],
           ]}
+          onNavigate={setActiveWorkspace}
+          onExport={exportPrincipalWorkspaceSummary}
+          onPrint={printPrincipalWorkspaceSummary}
         />
       );
     }
@@ -632,6 +844,9 @@ export function PrincipalCommandCenter({
             ["Pending invitations", schoolRecords.staffRecords.filter((record) => /invited|pending/i.test(record.status ?? "")).length],
             ["Active staff", schoolRecords.staffRecords.filter((record) => /active/i.test(record.status ?? "")).length],
           ]}
+          onNavigate={setActiveWorkspace}
+          onExport={exportPrincipalWorkspaceSummary}
+          onPrint={printPrincipalWorkspaceSummary}
         />
       );
     }
@@ -656,6 +871,9 @@ export function PrincipalCommandCenter({
             ["Routes", schoolRecords.transportRecords.filter((record) => Boolean(record.route)).length],
             ["Trips today", schoolRecords.transportRecords.filter((record) => /trip|picked|dropped/i.test(`${record.type ?? ""} ${record.status ?? ""}`)).length],
           ]}
+          onNavigate={setActiveWorkspace}
+          onExport={exportPrincipalWorkspaceSummary}
+          onPrint={printPrincipalWorkspaceSummary}
         />
       );
     }
@@ -704,6 +922,9 @@ export function PrincipalCommandCenter({
             ["Action required", schoolRecords.notifications.filter((notification) => notification.requiresAction).length],
             ["System alerts", unresolvedSystemAlerts],
           ]}
+          onNavigate={setActiveWorkspace}
+          onExport={exportPrincipalWorkspaceSummary}
+          onPrint={printPrincipalWorkspaceSummary}
         />
       );
     }
@@ -745,6 +966,9 @@ export function PrincipalCommandCenter({
             ["Approved", approvalRows.filter((request) => request.status === "Approved").length],
             ["Rejected or failed", approvalRows.filter((request) => request.status === "Rejected" || request.status === "Failed").length],
           ]}
+          onNavigate={setActiveWorkspace}
+          onExport={exportPrincipalWorkspaceSummary}
+          onPrint={printPrincipalWorkspaceSummary}
         />
       );
     }
@@ -769,6 +993,9 @@ export function PrincipalCommandCenter({
             ["Printed documents", schoolRecords.reportRecords.filter((record) => /print|document/i.test(record.type ?? "")).length],
             ["Exports needing approval", pendingApprovals],
           ]}
+          onNavigate={setActiveWorkspace}
+          onExport={exportPrincipalWorkspaceSummary}
+          onPrint={printPrincipalWorkspaceSummary}
         />
       );
     }
@@ -862,6 +1089,23 @@ export function PrincipalCommandCenter({
                 </p>
               </div>
             ))}
+          </div>
+        </Card>
+        <Card className="border-white/10 bg-white/5 p-4 text-white">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-black">School activation path</p>
+              <p className="mt-1 text-xs font-semibold text-white/65">
+                {completedActivationSteps} of {activationSteps.length} setup gates complete. Open the checklist to see the dependency order.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveWorkspace("setup-checklist")}
+              className="rounded-lg border border-cyan-200/30 bg-cyan-200/10 px-3 py-2 text-sm font-black text-cyan-100"
+            >
+              Open School Setup
+            </button>
           </div>
         </Card>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -1035,6 +1279,9 @@ function PrincipalListWorkspace({
   primaryAction,
   rows,
   metrics,
+  onNavigate,
+  onExport,
+  onPrint,
 }: {
   section: PrincipalSection;
   title: string;
@@ -1044,7 +1291,21 @@ function PrincipalListWorkspace({
   primaryAction: string;
   rows: PrincipalWorkspaceRow[];
   metrics: Array<[string, number]>;
+  onNavigate: (section: PrincipalSection) => void;
+  onExport: (section: PrincipalSection, title: string, rows: PrincipalWorkspaceRow[], metrics: Array<[string, number]>) => void;
+  onPrint: (title: string, rows: PrincipalWorkspaceRow[], metrics: Array<[string, number]>) => void;
 }) {
+  const primaryTargets: Partial<Record<PrincipalSection, PrincipalSection>> = {
+    discipline: "discipline",
+    boarding: "boarding",
+    academics: "academics",
+    staff: "users-invitations",
+    transport: "transport",
+    communication: "communication",
+    approvals: "approvals",
+    reports: "reports",
+  };
+
   return (
     <section aria-label={`Principal ${section} workspace`} className="space-y-4">
       <WorkspaceHeading title={title} subtitle={subtitle} />
@@ -1053,7 +1314,18 @@ function PrincipalListWorkspace({
           <MetricCard key={label} label={label} value={String(value)} />
         ))}
       </div>
-      <ActionRow labels={[primaryAction, "Export Summary", "Print Workspace Report"]} />
+      <ActionRow
+        labels={[primaryAction, "Export Summary", "Print Workspace Report"]}
+        onAction={(label) => {
+          if (label === primaryAction) {
+            onNavigate(primaryTargets[section] ?? section);
+          } else if (label === "Export Summary") {
+            onExport(section, title, rows, metrics);
+          } else if (label === "Print Workspace Report") {
+            onPrint(title, rows, metrics);
+          }
+        }}
+      />
       {rows.length ? (
         <div className="space-y-3">
           {rows.map((row) => (
@@ -1076,6 +1348,7 @@ function PrincipalListWorkspace({
           <p className="mt-2 text-sm font-semibold text-white/70">{emptyBody}</p>
           <button
             type="button"
+            onClick={() => onNavigate(primaryTargets[section] ?? section)}
             className="mt-4 rounded-lg border border-cyan-200/30 bg-cyan-200/10 px-3 py-2 text-sm font-black text-cyan-100"
           >
             {primaryAction}

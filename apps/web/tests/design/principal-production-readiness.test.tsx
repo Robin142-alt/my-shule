@@ -40,6 +40,31 @@ describe("principal production readiness", () => {
     expect(within(commandCenter).queryByRole("button", { name: /^Attendance 7$/i })).not.toBeInTheDocument();
   });
 
+  it("renders a school activation checklist with dependency guidance for a fresh principal tenant", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <SchoolPages
+        role="principal"
+        section="setup-checklist"
+        tenantSlug="homabay-high"
+        userLabel="Principal Robini"
+      />,
+    );
+
+    const commandCenter = await screen.findByTestId("principal-practical-command-center");
+    const setupWorkspace = within(commandCenter).getByRole("region", { name: /Principal school setup workspace/i });
+
+    expect(within(setupWorkspace).getByRole("heading", { name: /School Setup Checklist/i })).toBeVisible();
+    expect(within(setupWorkspace).getByText(/Set classes, streams, subjects, departments, academic year, and current term/i)).toBeVisible();
+    expect(within(setupWorkspace).getByText(/Fee structures and billable learners must exist/i)).toBeVisible();
+    expect(within(setupWorkspace).getAllByText(/Setup required/i).length).toBeGreaterThan(0);
+
+    await user.click(within(setupWorkspace).getByRole("button", { name: /Open Academics/i }));
+
+    expect(within(commandCenter).getByRole("region", { name: /Principal academics workspace/i })).toBeVisible();
+  });
+
   it.each([
     ["discipline", /Principal discipline workspace/i, /^Discipline$/i],
     ["boarding", /Principal boarding workspace/i, /^Boarding$/i],
@@ -89,5 +114,19 @@ describe("principal production readiness", () => {
 
     expect(within(commandCenter).getByText(/absence sms confirmation ready with \d+ guardian recipients? for review before queueing/i)).toBeVisible();
     expect(within(commandCenter).queryByText(/confirmation opened/i)).not.toBeInTheDocument();
+  });
+
+  it("wires principal list workspace primary actions to real workspaces", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<SchoolPages role="principal" section="staff" tenantSlug="homabay-high" userLabel="Principal Robini" />);
+
+    const commandCenter = await screen.findByTestId("principal-practical-command-center");
+    const staffWorkspace = within(commandCenter).getByRole("region", { name: /Principal staff workspace/i });
+
+    await user.click(within(staffWorkspace).getAllByRole("button", { name: /Invite Staff/i })[0]);
+
+    expect(within(commandCenter).getByRole("heading", { name: /Users & Invitations/i })).toBeVisible();
+    expect(within(commandCenter).queryByText(/Action completed/i)).not.toBeInTheDocument();
   });
 });

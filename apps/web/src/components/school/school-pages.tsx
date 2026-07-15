@@ -557,6 +557,8 @@ function canCreateSupportTickets(role: SchoolExperienceRole) {
 
 const roleOperationalWorkspaceSectionIds = new Set([
   "dashboard",
+  "setup-checklist",
+  "school-setup",
   "executive-analytics",
   "alerts-risks",
   "approvals",
@@ -697,6 +699,9 @@ const hodWorkspaceSectionIds = new Set([
   "inventory",
   "approvals",
   "communication",
+  "users-invitations",
+  "sick-bay",
+  "exams-reports",
   "department-meetings",
   "reports",
   "reports-downloads",
