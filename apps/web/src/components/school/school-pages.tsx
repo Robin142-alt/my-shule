@@ -719,6 +719,29 @@ const financeRoleDedicatedSectionIds = new Set([
   "expenses",
   "reports",
 ]);
+const principalCommandCenterSectionIds = new Set([
+  "dashboard",
+  "setup-checklist",
+  "finance",
+  "fees",
+  "attendance",
+  "discipline",
+  "visitors",
+  "sick-bay",
+  "boarding",
+  "academics",
+  "staff",
+  "transport",
+  "library",
+  "exams",
+  "exams-reports",
+  "communication",
+  "users-invitations",
+  "approvals",
+  "reports",
+  "audit-logs",
+  "settings",
+]);
 const unifiedOperationalRoleIds = new Set<SchoolExperienceRole>([
   "deputy-principal",
   "secretary",
@@ -766,8 +789,8 @@ function shouldRenderRoleOperationalWorkspace(role: SchoolExperienceRole, sectio
     return section === "dashboard";
   }
 
-  if (role === "principal" && section === "finance") {
-    return true;
+  if (role === "principal") {
+    return principalCommandCenterSectionIds.has(section);
   }
 
   if ((role === "accountant" || role === "bursar") && section === "finance") {
@@ -4581,7 +4604,7 @@ function SchoolPagesShell({
 
       if (role === "deputy-principal") {
         // @ts-ignore
-        return <DeputyPrincipalCommandCenter routeMode={routeMode} activeSection={section} />;
+        return <DeputyPrincipalCommandCenter routeMode={routeMode} activeSection={section} tenantSlug={tenantSlug} userLabel={userLabel} />;
       }
 
       if (role === "exams-manager") {
@@ -4661,7 +4684,7 @@ function SchoolPagesShell({
 
     if (role === "deputy-principal") {
       // @ts-ignore
-      return <DeputyPrincipalCommandCenter routeMode={routeMode} activeSection={section} />;
+      return <DeputyPrincipalCommandCenter routeMode={routeMode} activeSection={section} tenantSlug={tenantSlug} userLabel={userLabel} />;
     }
 
     if (role === "exams-manager") {

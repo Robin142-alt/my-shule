@@ -107,6 +107,25 @@ query: async (text: string, values: unknown[]) => {
   assert.equal(response.invitation_status, 'sent');
   assert.match(response.invitation_message, /Invitation sent/i);
   assert.equal(JSON.stringify(response).includes('token='), false);
+  const forbiddenSeedTables = [
+    'students',
+    'parents',
+    'invoices',
+    'exams',
+    'student_report_cards',
+    'library_books',
+    'clinic_visits',
+    'health_visits',
+    'staff',
+    'tenant_memberships',
+  ];
+  for (const tableName of forbiddenSeedTables) {
+    assert.equal(
+      queries.some((query) => new RegExp(`INSERT\\s+INTO\\s+${tableName}\\b`, 'i').test(query.text)),
+      false,
+      `new real school onboarding must not seed ${tableName}`,
+    );
+  }
   const tokenInsert = queries.find((query) => query.text.includes('INSERT INTO auth_action_tokens'));
   assert.match(String(tokenInsert?.values[3]), /^[a-f0-9]{64}$/);
   assert.equal(String(tokenInsert?.values[2]), 'principal@example.test');

@@ -126,8 +126,24 @@ export function ExamClassesWorkspace({ model }: { model: unknown }) {
               )}
               {!isLoading && !error && (!weightings || weightings.length === 0) && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
-                    No classes or subjects configured yet.
+                  <TableCell colSpan={8} className="py-10">
+                    <div className="mx-auto max-w-2xl rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
+                      <p className="text-base font-bold text-slate-900">No exam classes have been configured yet.</p>
+                      <p className="mt-2 text-sm text-slate-600">
+                        Create class and subject setup before opening marks entry. Exams use the school academic
+                        foundation, so subjects and class sections must come from this tenant&apos;s setup.
+                      </p>
+                      <div className="mt-4 flex flex-wrap justify-center gap-2">
+                        <Button type="button" onClick={() => routeTo("exam-setup")}>
+                          <Plus className="mr-2 h-4 w-4" />
+                          Create class and subject setup
+                        </Button>
+                        <Button type="button" variant="outline" onClick={() => routeTo("exam-settings")}>
+                          <BookOpen className="mr-2 h-4 w-4" />
+                          Open exam settings
+                        </Button>
+                      </div>
+                    </div>
                   </TableCell>
                 </TableRow>
               )}

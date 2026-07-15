@@ -1994,7 +1994,12 @@ function Topbar({ activeView, onViewChange }: { activeView: LibrarianView; onVie
             <NotificationBell />
           </div>
           <div className="relative group">
-            <button type="button" aria-haspopup="menu" className="flex h-10 items-center justify-center rounded-xl bg-[#071D49] px-4 text-sm font-black text-white gap-2">
+            <button
+              type="button"
+              aria-haspopup="menu"
+              onClick={() => onViewChange("issue")}
+              className="flex h-10 items-center justify-center rounded-xl bg-[#071D49] px-4 text-sm font-black text-white gap-2"
+            >
               Quick Action <ChevronDown className="h-4 w-4" />
             </button>
             <div role="menu" className="absolute right-0 mt-2 w-48 rounded-xl border border-[#D8E0EC] bg-white p-2 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all">

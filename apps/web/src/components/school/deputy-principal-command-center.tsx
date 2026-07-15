@@ -35,7 +35,9 @@ import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
+import { tenantSlugToName } from "@/lib/seo/tenant-routes";
 import { buildSchoolSectionHref } from "./school-pages";
+import { UserManagementWorkspace } from "./user-management-workspace";
 
 import { DeputyOverviewWorkspace } from "./deputy-principal/overview-workspace";
 import { DeputyDailyOperationsWorkspace } from "./deputy-principal/daily-operations-workspace";
@@ -78,12 +80,34 @@ const BASE_NAV_ITEMS: NavItem[] = [
   { id: "classes", label: "Classes & Streams", icon: Layers, group: "Academics" },
   { id: "approvals", label: "Approvals & Escalations", icon: CheckCircle2, group: "Administration" },
   { id: "communication", label: "Communication", icon: MessageSquareText, group: "Administration" },
+  { id: "users-invitations", label: "Users & Invitations", icon: UsersRound, group: "Administration" },
   { id: "reports", label: "Reports & Downloads", icon: FileBarChart2, group: "Administration" },
   { id: "staff-roles", label: "Staff & Roles", icon: ShieldCheck, group: "Administration" },
   { id: "settings", label: "Settings", icon: Settings, group: "Administration" },
 ];
 
-export function DeputyPrincipalCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: "hosted" | "public" }) {
+function getDeputySchoolId(tenantSlug?: string | null) {
+  return tenantSlug?.trim() || "school-workspace";
+}
+
+function getDeputySchoolName(schoolId: string) {
+  return schoolId === "school-workspace" ? "School workspace" : tenantSlugToName(schoolId);
+}
+
+export function DeputyPrincipalCommandCenter({
+  activeSection,
+  routeMode,
+  tenantSlug,
+  userLabel,
+}: {
+  activeSection?: string;
+  routeMode?: "hosted" | "public";
+  tenantSlug?: string | null;
+  userLabel?: string | null;
+}) {
+  const schoolId = getDeputySchoolId(tenantSlug);
+  const schoolName = getDeputySchoolName(schoolId);
+  const deputyName = userLabel?.trim() || "Deputy Principal";
   const [activeWorkspace, setActiveWorkspaceState] = useState(activeSection && activeSection !== "dashboard" ? activeSection : "overview");
 
   const setActiveWorkspace = (view: string) => {
@@ -143,8 +167,17 @@ export function DeputyPrincipalCommandCenter({ activeSection, routeMode }: { act
               <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200">Deputy principal command center</p>
               <h2 className="mt-2 text-2xl font-black">Academic Review</h2>
               <div className="mt-4 flex flex-wrap gap-2">
-                {["Academic Review", "Results Moderation", "Academic Analytics"].map((label) => (
-                  <button key={label} type="button" className="rounded-lg border border-cyan-200/30 bg-cyan-200/10 px-3 py-2 text-sm font-black text-cyan-100">
+                {[
+                  { label: "Academic Review", target: "academics" },
+                  { label: "Results Moderation", target: "approvals" },
+                  { label: "Academic Analytics", target: "reports" },
+                ].map(({ label, target }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => setActiveWorkspace(target)}
+                    className="rounded-lg border border-cyan-200/30 bg-cyan-200/10 px-3 py-2 text-sm font-black text-cyan-100"
+                  >
                     {label}
                   </button>
                 ))}
@@ -156,6 +189,17 @@ export function DeputyPrincipalCommandCenter({ activeSection, routeMode }: { act
       case "classes": return <DeputyClassesStreamsWorkspace />;
       case "approvals": return <DeputyApprovalsWorkspace />;
       case "communication": return <DeputyCommunicationWorkspace />;
+      case "users-invitations":
+        return (
+          <UserManagementWorkspace
+            schoolId={schoolId}
+            schoolName={schoolName}
+            actorRole="Deputy Principal"
+            actorName={deputyName}
+            canInviteUsers={true}
+            canManageUsers={true}
+          />
+        );
       case "reports": return <DeputyReportsDownloadsWorkspace />;
       case "staff-roles": return <DeputyStaffRolesWorkspace />;
       case "settings": return <DeputySettingsWorkspace />;
@@ -164,7 +208,7 @@ export function DeputyPrincipalCommandCenter({ activeSection, routeMode }: { act
   };
 
   return (
-    <div data-route-mode={routeMode} className="min-h-screen bg-[#F3F4F6] pb-24 lg:pb-6">
+    <div data-route-mode={routeMode} data-testid="deputy-principal-command-center" className="min-h-screen bg-[#F3F4F6] pb-24 lg:pb-6">
       <div className="grid gap-5 p-3 md:p-5 xl:grid-cols-[300px_minmax(0,1fr)]">
         {/* Sidebar */}
         <aside className="hidden h-[calc(100vh-40px)] rounded-[var(--radius-xl)] border border-[#C8D5EA]/50 bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.22)] xl:sticky xl:top-5 xl:flex xl:flex-col">

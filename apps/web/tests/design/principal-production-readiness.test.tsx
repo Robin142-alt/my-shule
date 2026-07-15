@@ -92,6 +92,16 @@ describe("principal production readiness", () => {
 
   it("opens Fees workspace actions without fake success", async () => {
     const user = userEvent.setup();
+    const createObjectUrl = jest.fn(() => "blob:principal-fees-export");
+    const revokeObjectUrl = jest.fn();
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectUrl,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectUrl,
+    });
 
     renderWithProviders(<SchoolPages role="principal" section="finance" tenantSlug="kisumu-boys" />);
 
@@ -102,6 +112,13 @@ describe("principal production readiness", () => {
     expect(within(commandCenter).getByText(/fees workspace ready with \d+ operational records and \d+ metrics/i)).toBeVisible();
     expect(within(commandCenter).queryByText(/Action completed/i)).not.toBeInTheDocument();
     expect(within(commandCenter).queryByText(/export generated/i)).not.toBeInTheDocument();
+
+    await user.click(within(commandCenter).getByRole("button", { name: /Print Defaulters List/i }));
+    expect(screen.getByRole("dialog", { name: /Kisumu Boys - Fees print preview/i })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /^Close$/i }));
+
+    await user.click(within(commandCenter).getByRole("button", { name: /Export Fee Summary/i }));
+    expect(createObjectUrl).toHaveBeenCalled();
   });
 
   it("opens attendance SMS confirmation with recipient evidence", async () => {
@@ -114,6 +131,40 @@ describe("principal production readiness", () => {
 
     expect(within(commandCenter).getByText(/absence sms confirmation ready with \d+ guardian recipients? for review before queueing/i)).toBeVisible();
     expect(within(commandCenter).queryByText(/confirmation opened/i)).not.toBeInTheDocument();
+  });
+
+  it("prints the attendance preview through the browser print path", async () => {
+    const user = userEvent.setup();
+    const print = jest.fn();
+    Object.defineProperty(window, "print", {
+      configurable: true,
+      value: print,
+    });
+
+    renderWithProviders(<SchoolPages role="principal" section="attendance" tenantSlug="kisumu-boys" />);
+
+    const commandCenter = await screen.findByTestId("principal-practical-command-center");
+    await user.click(within(commandCenter).getByRole("button", { name: /Print Attendance Report/i }));
+    await user.click(screen.getByRole("button", { name: /^Print$/i }));
+
+    expect(print).toHaveBeenCalled();
+  });
+
+  it.each([
+    ["Academic oversight", /Principal academics workspace/i, /^Academics$/i],
+    ["Results approval", /Principal approvals workspace/i, /^Approvals$/i],
+    ["Report publishing", /Principal reports workspace/i, /^Reports$/i],
+  ])("routes exams command action %s to the right workspace", async (label, regionName, heading) => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<SchoolPages role="principal" section="exams-reports" tenantSlug="kisumu-boys" />);
+
+    const commandCenter = await screen.findByTestId("principal-practical-command-center");
+    await user.click(within(commandCenter).getByRole("button", { name: label }));
+
+    const workspace = within(commandCenter).getByRole("region", { name: regionName });
+    expect(workspace).toBeVisible();
+    expect(within(workspace).getByRole("heading", { name: heading })).toBeVisible();
   });
 
   it("wires principal list workspace primary actions to real workspaces", async () => {

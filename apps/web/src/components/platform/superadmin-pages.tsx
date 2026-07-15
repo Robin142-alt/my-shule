@@ -1382,12 +1382,19 @@ function SchoolsWorkspace() {
         </div>
       ) : null}
       {billingMessage ? (
-        <div className="mb-4 rounded-[var(--radius-sm)] border border-success/20 bg-success/10 px-4 py-3 text-sm text-foreground">
+        <div
+          role="status"
+          aria-live="polite"
+          className="mb-4 rounded-[var(--radius-sm)] border border-success/20 bg-success/10 px-4 py-3 text-sm text-foreground"
+        >
           {billingMessage}
         </div>
       ) : null}
       {billingError ? (
-        <div className="mb-4 rounded-[var(--radius-sm)] border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-foreground">
+        <div
+          role="alert"
+          className="mb-4 rounded-[var(--radius-sm)] border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-foreground"
+        >
           {billingError}
         </div>
       ) : null}
