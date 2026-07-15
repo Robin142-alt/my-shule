@@ -113,6 +113,24 @@ describe("admissions dashboard routing", () => {
     expect(within(dashboard).queryByText(/final admission-number generation/i)).not.toBeInTheDocument();
   });
 
+  it("opens the new admissions command center when another school role enters the admissions module", async () => {
+    renderWithProviders(
+      createElement(SchoolPages, {
+        role: "principal",
+        section: "admissions",
+        tenantSlug: "homabay-high",
+        routeMode: "public",
+        liveDataEnabled: false,
+      }),
+    );
+
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
+
+    expect(within(dashboard).getAllByRole("heading", { name: /^Applications$/i }).length).toBeGreaterThan(0);
+    expect(within(dashboard).getByRole("button", { name: /start student admission/i })).toBeVisible();
+    expect(within(dashboard).queryByText(/Admissions Module/i)).not.toBeInTheDocument();
+  });
+
   it("opens the student admission form from the routed start-admission action", async () => {
     window.history.pushState({}, "", "/school/admissions/applications?action=start-admission");
 

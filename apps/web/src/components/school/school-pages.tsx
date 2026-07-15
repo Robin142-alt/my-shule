@@ -4545,6 +4545,10 @@ function SchoolPagesShell({
   const renderRoleOperationalWorkspace =
     !studentId && shouldRenderRoleOperationalWorkspace(role, section);
 
+  if (!studentId && section === "admissions") {
+    return <AdmissionsDashboardCommandCenter routeMode={routeMode} activeSection="applications" />;
+  }
+
   if (renderRoleOperationalWorkspace) {
     if (role === "principal") {
       return <PrincipalCommandCenter routeMode={routeMode} tenantSlug={tenantSlug} activeSection={section} userLabel={userLabel} />;
