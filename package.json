@@ -36,6 +36,7 @@
     "web:test:design:e2e:list": "npm --prefix apps/web run test:design:e2e:list",
     "web:e2e": "npm run web:test:design:e2e",
     "readiness:modules": "npm --prefix apps/web run test:design -- module-readiness attendance-retirement role-routing experience-routing production-copy",
+    "readiness:school-inventory": "node scripts/generate-school-readiness-inventory.mjs",
     "docker:compose:up": "docker compose up --build",
     "docker:compose:down": "docker compose down -v",
     "deploy:railway:prepare:api": "node scripts/prepare-railway-config.mjs deploy/railway/api.railway.json",

@@ -28,6 +28,8 @@ Generated: 2026-07-15
 - Principal readiness tests: `apps/web/tests/design/principal-production-readiness.test.tsx`
 - Existing readiness/security artifacts: `docs/scorecards/*`, `docs/security/*`, `docs/validation/*`
 - Build/test scripts: root `package.json`, `apps/web/package.json`
+- School readiness inventory generator: `scripts/generate-school-readiness-inventory.mjs`
+- Generated capability matrix and Gmail manual verification scripts: `docs/SCHOOL_CAPABILITY_MATRIX.md`, `docs/MANUAL_GMAIL_VERIFICATION_SCRIPTS.md`
 
 ## Areas Not Yet Fully Inspected
 
@@ -73,12 +75,15 @@ Core roles confirmed from routing/tests and `AGENTS.md`: Super Admin, System Mon
 | SR-001 | P1 | VERIFIED_AUTOMATICALLY | Principal had no direct school-activation checklist in the actual production route; setup dependencies were not surfaced where a new Principal lands. | `PrincipalCommandCenter` was the live route from `school-pages.tsx`; newer setup component existed under `principal-dashboard/` but was not used by production Principal routing. | Added `setup-checklist` section, activation progress, dependency steps, and real navigation actions in `apps/web/src/components/school/principal-command-center.tsx`. |
 | SR-002 | P1 | VERIFIED_AUTOMATICALLY | `/school/principal/setup-checklist` fell through to the generic shell instead of the Principal command center. | Focused test initially rendered generic `enterprise-shell` and could not find `principal-practical-command-center`. | Added Principal setup/user/sick-bay/exams-report route sections to `roleOperationalWorkspaceSectionIds` in `apps/web/src/components/school/school-pages.tsx`. |
 | SR-003 | P2 | VERIFIED_AUTOMATICALLY | Reusable Principal list workspace actions included no-op buttons for primary action, export, and print. | `PrincipalListWorkspace` rendered `ActionRow` without `onAction`. | Wired primary navigation, CSV export via `downloadCsvFile`, and print preview via `openPrintDocument`. |
+| SR-004 | P1 | VERIFIED_AUTOMATICALLY | Remaining production-readiness gaps were being tracked manually in chat/ledger instead of a repeatable source-derived inventory. | No generated role/route/controller/model capability matrix or Gmail verification scripts existed. | Added `readiness:school-inventory`, a source scanner, generated capability matrix, and manual Gmail verification scripts. |
 
 ## Tests Added Or Updated
 
 - Updated `apps/web/tests/design/principal-production-readiness.test.tsx`
   - New test: Principal School Setup renders activation dependency guidance and routes to Academics.
   - New test: Principal Staff primary action opens Users & Invitations instead of doing nothing.
+- Added `scripts/generate-school-readiness-inventory.test.mjs`
+  - Verifies the inventory generator creates the capability matrix and Gmail verification scripts with required role, route, API, model, dependency, and manual-verification sections.
 
 ## Tests Executed In This Slice
 
@@ -87,6 +92,8 @@ Core roles confirmed from routing/tests and `AGENTS.md`: Super Admin, System Mon
 | `npm --prefix apps/web run test:design -- --runTestsByPath tests/design/principal-production-readiness.test.tsx` | PASS | 12 tests passed |
 | `npm --prefix apps/web run test:design -- --runTestsByPath tests/design/dashboard-production-readiness.test.tsx tests/design/principal-production-readiness.test.tsx` | PASS | 15 tests passed |
 | `npm run typecheck` | PASS | Prisma generated; TypeScript passed |
+| `node --test scripts/generate-school-readiness-inventory.test.mjs` | PASS | Scanner generated both readiness docs and passed assertions |
+| `npm run readiness:school-inventory` | PASS | Generated `docs/SCHOOL_CAPABILITY_MATRIX.md` and `docs/MANUAL_GMAIL_VERIFICATION_SCRIPTS.md` |
 | `npm --prefix apps/web run build` | PASS | Next production build completed; 84 static pages generated |
 | `npm run ci:full` | PASS | Full build, lint, web build, API tests, implementation gates, tenant isolation audit, security scans, dependency audit, certifications, production scorecard, and release readiness passed after this slice |
 
@@ -101,6 +108,7 @@ Core roles confirmed from routing/tests and `AGENTS.md`: Super Admin, System Mon
 ## External Blockers And Manual Verification Required
 
 - Manual Gmail verification remains `NOT_YET_MANUALLY_VERIFIED`.
+- Generated manual scripts now exist in `docs/MANUAL_GMAIL_VERIFICATION_SCRIPTS.md`; they still need real Gmail/provider execution.
 - Real provider delivery states must be verified after deploy: Resend email, SMS relay/provider, M-Pesa sandbox/live callbacks if enabled.
 - Do not mark SMS as delivered from a queued state.
 - Do not mark invitation delivery accepted until the user confirms Gmail receipt and token acceptance in production.
@@ -114,7 +122,7 @@ Core roles confirmed from routing/tests and `AGENTS.md`: Super Admin, System Mon
 
 ### P1
 
-- Complete capability inventory for every role/sidebar/API/model/event/report, not only Principal, Admissions, Exams Manager, and Super Admin slices.
+- Enrich the generated capability inventory with per-button, per-permission, per-event, per-report, and per-test-coverage status, then fix the next discovered P1 gap.
 - Run post-deployment browser smoke tests against production URLs for school creation, principal invite acceptance, staff invite acceptance, billing update, admissions first learner, and exams setup.
 - Add an automated school-activation golden path test that crosses Super Admin -> Principal -> Staff -> Admissions -> Finance -> Exams with tenant isolation assertions.
 
@@ -126,15 +134,15 @@ Core roles confirmed from routing/tests and `AGENTS.md`: Super Admin, System Mon
 
 ### P3
 
-- Expand this ledger into a machine-generated capability matrix after the route/component/API scanner is added.
-- Add screenshot checkpoints for manual Gmail scripts.
+- Add screenshot checkpoints and evidence attachment fields to the manual Gmail scripts after live verification starts.
 
 ## Decisions Made
 
 - The actual production Principal route is `PrincipalCommandCenter`, so activation guidance was added there instead of only improving the unused `principal-dashboard/` setup component.
 - Principal School Setup actions navigate to existing real workspaces instead of creating new disconnected setup pages.
 - CSV export and print preview use existing shared dashboard helpers.
+- The capability matrix is an inventory, not a production-ready claim; it explicitly marks manual flows as `NOT_YET_MANUALLY_VERIFIED`.
 
 ## Next Recommended Action
 
-Run a repository-wide capability scanner and produce a complete matrix of role, sidebar item, component, route, API endpoint, permission/module requirement, status, and test coverage. Then fix the next P1 gap discovered by that matrix.
+Use `npm run readiness:school-inventory` after each dashboard/workflow slice, then fix the next P1 gap discovered by `docs/SCHOOL_CAPABILITY_MATRIX.md` and the manual Gmail scripts.

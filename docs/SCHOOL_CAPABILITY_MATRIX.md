@@ -1,0 +1,511 @@
+# MyShule School Capability Matrix
+
+Generated: 2026-07-15T14:15:35.951Z
+
+Status: NOT_YET_MANUALLY_VERIFIED
+
+This matrix is generated from source code so production-readiness gaps can be reviewed repeatably instead of guessed from screenshots. It is an inventory, not a claim that every listed workflow is complete.
+
+## Apps And Packages
+- @myshule/malware-scanner (apps/malware-scanner/package.json) - scripts: build, test, start
+- @myshule/sms-relay (apps/sms-relay/package.json) - scripts: build, test, start
+- web (apps/web/package.json) - scripts: dev, build, start, lint, test:design, test:design:watch, test:design:e2e, test:e2e:production-pilot, test:contract, test:design:e2e:list
+
+## Role Dashboard Inventory
+- Accountant: apps/web/src/components/school/accountant-command-center.tsx
+- Admissions Dashboard: apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx
+- Boarding Master: apps/web/src/components/school/boarding-master-command-center.tsx
+- Class Teacher: apps/web/src/components/school/class-teacher-command-center.tsx
+- Counsellor: apps/web/src/components/school/counsellor-command-center.tsx
+- Dean Academics: apps/web/src/components/school/dean-academics-command-center.tsx
+- Deputy Principal: apps/web/src/components/school/deputy-principal-command-center.tsx
+- Discipline Master: apps/web/src/components/school/discipline-master-command-center.tsx
+- Exams Manager: apps/web/src/components/school/exams-manager-command-center.tsx
+- Grade Master: apps/web/src/components/school/grade-master-command-center.tsx
+- Guidance Counselling: apps/web/src/components/school/guidance-counselling-command-center.tsx
+- Hod: apps/web/src/components/school/hod-command-center.tsx
+- Ict Manager: apps/web/src/components/school/ict-manager-command-center.tsx
+- Laboratory Technician: apps/web/src/components/school/laboratory-technician-command-center.tsx
+- Librarian: apps/web/src/components/school/librarian-command-center.tsx
+- Nurse: apps/web/src/components/school/nurse-command-center.tsx
+- Principal: apps/web/src/components/school/principal-command-center.tsx
+- Procurement Officer: apps/web/src/components/school/procurement-officer-command-center.tsx
+- Registrar: apps/web/src/components/school/registrar-command-center.tsx
+- Role Operational: apps/web/src/components/school/role-operational-command-center.tsx
+- Secretary: apps/web/src/components/school/secretary-command-center.tsx
+- Security: apps/web/src/components/school/security-command-center.tsx
+- Storekeeper: apps/web/src/components/school/storekeeper-command-center.tsx
+- Student: apps/web/src/components/school/student-command-center.tsx
+- Teacher: apps/web/src/components/school/teacher-command-center.tsx
+- Transport Manager: apps/web/src/components/school/transport-manager-command-center.tsx
+
+## Frontend Route Section Inventory
+- supportWorkspaceSectionIds: 4 sections - support-new-ticket, support-my-tickets, support-knowledge-base, support-system-status
+- admissionsDashboardSectionIds: 22 sections - dashboard, overview, enquiries, applications, applicant-profiles, documents, interviews, appointments, selection, fee-clearance, placement, enrolment, parents, transfers, imports, templates, tasks, communication, reports, admissions, class-placement, parent-linking
+- teacherDashboardSectionIds: 37 sections - dashboard, overview, students, academics, communication, timetable, my-timetable, classes, subjects-classes, attendance, teacher-attendance, lesson-log, lesson-logs, lesson-plans, syllabus-coverage, assignments, assignments-homework, assessments-cats, exams, exams-marks, marks-entry, learner-progress, student-notes, discipline-welfare, parent-communication, messages, teaching-resources, resource-requests, store-requests, reports, reports-downloads, reports-analytics, notifications, profile, class-teacher, club, invigilation
+- examsManagerDashboardSectionIds: 27 sections - dashboard, overview, exams, builder, exam-setup, scheduler, exam-timetable, marks, missing-marks, submissions, marks-entry, moderation, validation, grading, academic-analytics, analysis, drafts, report-templates, report-cards, publishing, imports, templates, imports-templates, exports, audit-log, archive, reports
+- roleOperationalWorkspaceSectionIds: 67 sections - dashboard, setup-checklist, school-setup, executive-analytics, alerts-risks, approvals, universal-approvals, users-staff, reports, reports-analytics, school-calendar, communication-center, document-printing, data-security, ai-insights, audit-logs, settings, students, school-admin, mpesa, academics, academic-interventions, syllabus, curriculum-coverage, department-performance, teacher-workload, lesson-plans, lesson-logs, assessments, attendance, resources, department-teachers, subject-allocation, coverage-review, marks-moderation, resource-requests, student-analytics, marks, grading, validation, communication, transport, procurement, hostel, boarding, cbt, lms, visitors, assets, iot, exams, discipline, labs, teacher-attendance, clinic, leadership, timetable, staff, admissions, inventory, library, hr-payroll, timetable-builder, canteen-meals, co-curricular, setup-wizard, ict-assets
+- deanAcademicsWorkspaceSectionIds: 33 sections - dashboard, overview, academic-overview, academics, curriculum, syllabus, curriculum-coverage, academic-analytics, department-performance, student-analytics, teachers, staff, teacher-workload, lesson-plans, lesson-logs, attendance, pending, moderation, results-moderation, integrity, exams, marks, grading, validation, assessments, interventions, alerts, academic-interventions, history, approvals, universal-approvals, reports, reports-analytics
+- hodWorkspaceSectionIds: 43 sections - dashboard, overview, my-teaching, department-settings, department-overview, department-teachers, staff, teacher-attendance, lesson-observation, subject-allocation, timetable, timetable-builder, schemes-of-work, syllabus, syllabus-coverage, attendance, academics, lesson-delivery, coverage-review, lesson-plans, assessments-cats, exams, exams-marks-moderation, marks, grading, validation, performance-analytics, student-analytics, learner-interventions, marks-moderation, resources, resources-requests, resource-requests, procurement, inventory, approvals, communication, users-invitations, sick-bay, exams-reports, department-meetings, reports, reports-downloads
+- financeRoleDedicatedSectionIds: 10 sections - fee-structures, invoices, payments, receipts, mpesa, m-pesa-reconciliation, arrears, waivers-discounts, expenses, reports
+
+## API Controller Inventory
+- AuthController (apps/api/src/auth/auth.controller.ts) - @Controller(auth) - 19 route handlers
+- AutoRepairController (apps/api/src/common/auto-repair/auto-repair.controller.ts) - @Controller(auto-repair) - 2 route handlers
+- ArchitectureRuntimeService (apps/api/src/common/platform-governance/architecture-runtime.controller.ts) - @Controller(platform-governance) - 1 route handlers
+- ReportExportJobsController (apps/api/src/common/reports/report-export-jobs.controller.ts) - @Controller(reports) - 1 route handlers
+- AcademicController (apps/api/src/modules/academics/academic.controller.ts) - @Controller(academic) - 12 route handlers
+- AcademicsController (apps/api/src/modules/academics/academics.controller.ts) - @Controller(academics) - 54 route handlers
+- AttendanceController (apps/api/src/modules/academics/attendance-mark.controller.ts) - @Controller(attendance) - 1 route handlers
+- AccountantCommandController (apps/api/src/modules/admin-command/accountant-command.controller.ts) - @Controller(admin-command/accountant) - 2 route handlers
+- AdminCommandController (apps/api/src/modules/admin-command/admin-command.controller.ts) - @Controller(admin-command) - 94 route handlers
+- AdmissionsCommandController (apps/api/src/modules/admin-command/admissions-command.controller.ts) - @Controller(admin-command/admissions) - 35 route handlers
+- BoardingMasterCommandController (apps/api/src/modules/admin-command/boarding-master-command.controller.ts) - @Controller(admin-command/boarding-master) - 24 route handlers
+- ClassTeacherCommandController (apps/api/src/modules/admin-command/class-teacher-command.controller.ts) - @Controller(admin-command/class-teacher) - 27 route handlers
+- DeanAcademicsCommandController (apps/api/src/modules/admin-command/dean-academics-command.controller.ts) - @Controller(admin-command/dean-academics) - 12 route handlers
+- DeputyCommandController (apps/api/src/modules/admin-command/deputy-command.controller.ts) - @Controller(admin-command/deputy) - 37 route handlers
+- ExamsManagerCommandController (apps/api/src/modules/admin-command/exams-manager-command.controller.ts) - @Controller(admin-command/exams-manager) - 25 route handlers
+- GuidanceCounsellingCommandController (apps/api/src/modules/admin-command/guidance-counselling-command.controller.ts) - @Controller(admin-command/guidance-counselling) - 21 route handlers
+- HODCommandController (apps/api/src/modules/admin-command/hod-command.controller.ts) - @Controller(admin-command/hod) - 20 route handlers
+- ICTManagerCommandController (apps/api/src/modules/admin-command/ict-manager-command.controller.ts) - @Controller(admin-command/ict-manager) - 19 route handlers
+- LaboratoryTechnicianCommandController (apps/api/src/modules/admin-command/laboratory-technician-command.controller.ts) - @Controller(admin-command/laboratory-technician) - 17 route handlers
+- LibrarianCommandController (apps/api/src/modules/admin-command/librarian-command.controller.ts) - @Controller(admin-command/librarian) - 24 route handlers
+- NurseCommandController (apps/api/src/modules/admin-command/nurse-command.controller.ts) - @Controller(admin-command/nurse) - 18 route handlers
+- ParentCommandController (apps/api/src/modules/admin-command/parent-command.controller.ts) - @Controller(admin-command/parent) - 5 route handlers
+- ProcurementOfficerCommandController (apps/api/src/modules/admin-command/procurement-officer-command.controller.ts) - @Controller(admin-command/procurement-officer) - 21 route handlers
+- SecretaryCommandController (apps/api/src/modules/admin-command/secretary-command.controller.ts) - @Controller(admin-command/secretary) - 39 route handlers
+- SecurityOfficerCommandController (apps/api/src/modules/admin-command/security-officer-command.controller.ts) - @Controller(admin-command/security-officer) - 56 route handlers
+- StorekeeperCommandController (apps/api/src/modules/admin-command/storekeeper-command.controller.ts) - @Controller(admin-command/storekeeper) - 24 route handlers
+- StudentCommandController (apps/api/src/modules/admin-command/student-command.controller.ts) - @Controller(admin-command/student) - 4 route handlers
+- TeacherCommandController (apps/api/src/modules/admin-command/teacher-command.controller.ts) - @Controller(admin-command/teacher) - 21 route handlers
+- TransportManagerCommandController (apps/api/src/modules/admin-command/transport-manager-command.controller.ts) - @Controller(admin-command/transport-manager) - 27 route handlers
+- AdmissionsController (apps/api/src/modules/admissions/admissions.controller.ts) - @Controller(admissions) - 32 route handlers
+- AiInsightsController (apps/api/src/modules/ai-insights/ai-insights.controller.ts) - @Controller(ai-insights) - 3 route handlers
+- ApprovalsController (apps/api/src/modules/approvals/approvals.controller.ts) - @Controller(api/approvals) - 6 route handlers
+- AssetsController (apps/api/src/modules/assets/assets.controller.ts) - @Controller(assets) - 3 route handlers
+- BillingController (apps/api/src/modules/billing/billing.controller.ts) - @Controller(billing) - 35 route handlers
+- BiometricAttendanceController (apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts) - @Controller(biometric-attendance) - 7 route handlers
+- BoardingController (apps/api/src/modules/boarding/boarding.controller.ts) - @Controller(boarding) - 7 route handlers
+- CbtController (apps/api/src/modules/cbt/cbt.controller.ts) - @Controller(cbt) - 3 route handlers
+- ClassTeacherController (apps/api/src/modules/class-teacher/class-teacher.controller.ts) - @Controller(class-teacher) - 38 route handlers
+- ClinicController (apps/api/src/modules/clinic/clinic.controller.ts) - @Controller(clinic) - 19 route handlers
+- SendSmsDto (apps/api/src/modules/communication/communication.controller.ts) - @Controller(communication) - 5 route handlers
+- SmsController (apps/api/src/modules/communication/sms.controller.ts) - @Controller(sms) - 1 route handlers
+- ComplianceController (apps/api/src/modules/compliance/compliance.controller.ts) - @Controller(compliance) - 9 route handlers
+- CounsellingController (apps/api/src/modules/counselling/counselling.controller.ts) - @Controller(counselling) - 16 route handlers
+- DashboardController (apps/api/src/modules/dashboard/dashboard.controller.ts) - @Controller(dashboard) - 9 route handlers
+- CounsellingController (apps/api/src/modules/discipline/counselling.controller.ts) - @Controller(counselling) - 11 route handlers
+- DisciplineController (apps/api/src/modules/discipline/discipline.controller.ts) - @Controller(discipline) - 27 route handlers
+- AuditTrailController (apps/api/src/modules/events/audit-trail.controller.ts) - @Controller(workflow/audit) - 2 route handlers
+- DashboardRealtimeController (apps/api/src/modules/events/dashboard-realtime.controller.ts) - @Controller(events/dashboard) - 1 route handlers
+- NotificationRouterController (apps/api/src/modules/events/notification-router.controller.ts) - @Controller(workflow/inbox) - 5 route handlers
+- OperationalWorkflowDispatcherController (apps/api/src/modules/events/operational-workflow-dispatcher.controller.ts) - @Controller(operational-workflows) - 6 route handlers
+- SchoolOperationalEventsController (apps/api/src/modules/events/school-operational-events.controller.ts) - @Controller(events) - 3 route handlers
+- ExamsController (apps/api/src/modules/exams/exams.controller.ts) - @Controller(exams) - 92 route handlers
+- ReportCardDownloadController (apps/api/src/modules/exams/report-card-download.controller.ts) - @Controller(exams) - 1 route handlers
+- FeesController (apps/api/src/modules/finance/fees.controller.ts) - @Controller(fees) - 2 route handlers
+- CreatePaymentDto (apps/api/src/modules/finance/finance.controller.ts) - @Controller(finance) - 21 route handlers
+- GradeMasterController (apps/api/src/modules/grade-master/grade-master.controller.ts) - @Controller(grade-master) - 18 route handlers
+- HealthController (apps/api/src/modules/health/health.controller.ts) - @Controller(health) - 2 route handlers
+- SystemController (apps/api/src/modules/health/system.controller.ts) - @Controller(root) - 4 route handlers
+- HostelController (apps/api/src/modules/hostel/hostel.controller.ts) - @Controller(hostel) - 3 route handlers
+- HrController (apps/api/src/modules/hr/hr.controller.ts) - @Controller(hr) - 31 route handlers
+- StaffController (apps/api/src/modules/hr/staff-dashboard.controller.ts) - @Controller(staff) - 1 route handlers
+- DarajaIntegrationController (apps/api/src/modules/integrations/daraja-integration.controller.ts) - @Controller(integrations/daraja) - 5 route handlers
+- ParentPortalAuthController (apps/api/src/modules/integrations/parent-portal-auth.controller.ts) - @Controller(auth/parent) - 2 route handlers
+- PlatformSmsController (apps/api/src/modules/integrations/platform-sms.controller.ts) - @Controller(platform) - 6 route handlers
+- SchoolSmsController (apps/api/src/modules/integrations/school-sms.controller.ts) - @Controller(root) - 6 route handlers
+- InventoryController (apps/api/src/modules/inventory/inventory.controller.ts) - @Controller(inventory) - 38 route handlers
+- IotGatewayController (apps/api/src/modules/iot/iot-gateway.controller.ts) - @Controller(iot/gateway) - 3 route handlers
+- IotController (apps/api/src/modules/iot/iot.controller.ts) - @Controller(iot) - 6 route handlers
+- LabsController (apps/api/src/modules/labs/labs.controller.ts) - @Controller(labs) - 16 route handlers
+- LibraryController (apps/api/src/modules/library/library.controller.ts) - @Controller(library) - 21 route handlers
+- LmsController (apps/api/src/modules/lms/lms.controller.ts) - @Controller(lms) - 4 route handlers
+- PlatformModuleAccessController (apps/api/src/modules/module-access/module-access.controller.ts) - @Controller(platform) - 9 route handlers
+- NotificationsController (apps/api/src/modules/notifications/notifications.controller.ts) - @Controller(v1/notifications) - 6 route handlers
+- ObservabilityController (apps/api/src/modules/observability/observability.controller.ts) - @Controller(observability) - 6 route handlers
+- OperationsController (apps/api/src/modules/operations/operations.controller.ts) - @Controller(operations) - 3 route handlers
+- SchoolController (apps/api/src/modules/operations/school-settings.controller.ts) - @Controller(school) - 4 route handlers
+- ParentPortalActionsController (apps/api/src/modules/parent-portal/parent-portal-actions.controller.ts) - @Controller(parent-portal) - 2 route handlers
+- MpesaC2bController (apps/api/src/modules/payments/controllers/mpesa-c2b.controller.ts) - @Controller([payments/mpesa/c2b, mpesa/c2b]) - 6 route handlers
+- MpesaCallbackController (apps/api/src/modules/payments/controllers/mpesa-callback.controller.ts) - @Controller([payments/mpesa, mpesa]) - 3 route handlers
+- PaymentsController (apps/api/src/modules/payments/controllers/payments.controller.ts) - @Controller(payments/mpesa) - 7 route handlers
+- UnknownController (apps/api/src/modules/payments/mpesa-callback.controller.ts) - @Controller(root) - 0 route handlers
+- UnknownController (apps/api/src/modules/payments/payments.controller.ts) - @Controller(root) - 0 route handlers
+- PlatformOnboardingController (apps/api/src/modules/platform/platform-onboarding.controller.ts) - @Controller(platform) - 32 route handlers
+- ProcurementController (apps/api/src/modules/procurement/procurement.controller.ts) - @Controller(procurement) - 7 route handlers
+- SecretaryController (apps/api/src/modules/secretary/secretary.controller.ts) - @Controller(api/secretary) - 5 route handlers
+- SecurityOperationsController (apps/api/src/modules/security/security-operations.controller.ts) - @Controller(security) - 3 route handlers
+- StudentLifecycleController (apps/api/src/modules/students/student-lifecycle.controller.ts) - @Controller(students/lifecycle) - 7 route handlers
+- StudentPortalActionsController (apps/api/src/modules/students/student-portal-actions.controller.ts) - @Controller(student-portal) - 1 route handlers
+- StudentController (apps/api/src/modules/students/student-portal.controller.ts) - @Controller(student) - 6 route handlers
+- StudentsController (apps/api/src/modules/students/students.controller.ts) - @Controller(students) - 8 route handlers
+- SupportController (apps/api/src/modules/support/support.controller.ts) - @Controller(support) - 23 route handlers
+- SyncController (apps/api/src/modules/sync/sync.controller.ts) - @Controller(sync) - 6 route handlers
+- TenantFinanceController (apps/api/src/modules/tenant-finance/tenant-finance.controller.ts) - @Controller(tenant-finance) - 6 route handlers
+- TimetableController (apps/api/src/modules/timetable/timetable.controller.ts) - @Controller(timetable) - 5 route handlers
+- TransportController (apps/api/src/modules/transport/transport.controller.ts) - @Controller(transport) - 12 route handlers
+- VisitorsController (apps/api/src/modules/visitors/visitors.controller.ts) - @Controller(visitors) - 9 route handlers
+- ApprovalController (apps/api/src/modules/workflow/controllers/approval.controller.ts) - @Controller(approvals) - 4 route handlers
+- DashboardController (apps/api/src/modules/workflow/controllers/dashboard.controller.ts) - @Controller(dashboard) - 2 route handlers
+- NotificationController (apps/api/src/modules/workflow/controllers/notification.controller.ts) - @Controller(notifications) - 2 route handlers
+- PermissionController (apps/api/src/modules/workflow/controllers/permission.controller.ts) - @Controller(permissions) - 1 route handlers
+- TaskController (apps/api/src/modules/workflow/controllers/task.controller.ts) - @Controller(tasks) - 4 route handlers
+- WorkflowController (apps/api/src/modules/workflow/controllers/workflow.controller.ts) - @Controller(workflow/events) - 4 route handlers
+- ParentPortalController (apps/api/src/parent-portal/parent-portal.controller.ts) - @Controller(parent) - 8 route handlers
+
+## Database Model Tenant-Scope Inventory
+- AcademicAssignment: school_id
+- AcademicAttendanceSetting: school_id
+- AcademicAuditLog: school_id
+- AcademicGradingSystem: school_id
+- AcademicLevel: school_id
+- AcademicResource: school_id
+- AcademicsAttendance: tenant_id
+- AcademicYear: school_id
+- AdminIncidents: tenant_id
+- AdmissionApplication: school_id
+- AdmissionDocument: school_id
+- AdmissionInterview: school_id
+- AdmissionsApplications: school_id + tenant_id
+- Announcements: tenant_id
+- Appointment: school_id
+- ApprovalAuditLog: school_id
+- ApprovalRequest: school_id
+- ApprovalRule: school_id
+- Asset: school_id
+- AssetMovement: school_id
+- AttendanceRecord: school_id
+- AttendanceRules: tenant_id
+- AttendanceSession: school_id
+- AuditLog: school_id
+- AuthActionTokens: tenant_id
+- AuthEmailOutbox: tenant_id
+- Bed: school_id
+- BehaviorImprovementPlan: school_id + tenant_id
+- BehaviorImprovementPlanStep: school_id + tenant_id
+- BehaviorPoint: school_id + tenant_id
+- BillingNotifications: tenant_id
+- BiometricDevices: tenant_id
+- BiometricEvents: tenant_id
+- BiometricIdentities: tenant_id
+- BoardingAllocation: school_id
+- BoardingAttendance: school_id
+- BoardingHouse: school_id
+- BoardingReferrals: school_id + tenant_id
+- CallbackLogs: tenant_id
+- CBCAssessmentEntry: school_id
+- ChemicalDisposalRequests: tenant_id
+- ChemicalItems: tenant_id
+- Class: school_id
+- ClassRequest: school_id
+- ClassSubject: school_id
+- ClassTeacherAssignment: school_id
+- ClassTimetableEntry: school_id
+- ClinicAlerts: tenant_id
+- ClinicAuditLogs: tenant_id
+- ClinicMedicineBatches: tenant_id
+- ClinicMedicineDispenses: tenant_id
+- ClinicMedicines: tenant_id
+- ClinicProcurementRecommendations: tenant_id
+- ClinicStockMovements: tenant_id
+- ClinicVisits: tenant_id
+- CommunicationBroadcast: school_id
+- CommunicationSmsOutbox: tenant_id
+- ComputerLabPc: school_id
+- ComputerLabSession: school_id
+- ComputerLabUsageLog: school_id
+- ConsentRecords: tenant_id
+- CounsellingCase: school_id
+- CounsellingEscalation: school_id
+- CounsellingNote: school_id + tenant_id
+- CounsellingReferral: school_id + tenant_id
+- CounsellingSession: school_id
+- DashboardTasks: tenant_id
+- DataSubjectRequests: tenant_id
+- Department: school_id
+- DisciplineAction: school_id
+- DisciplineAttachment: school_id + tenant_id
+- DisciplineAuditLog: school_id + tenant_id
+- DisciplineCase: school_id
+- DisciplineComment: school_id + tenant_id
+- DisciplineIncident: school_id + tenant_id
+- DisciplineNotification: school_id + tenant_id
+- DocumentGenerated: school_id
+- Dormitory: school_id
+- EventConsumerRuns: tenant_id
+- ExamAssessmentComponents: tenant_id
+- ExamAssessments: tenant_id
+- ExamAttendanceRecords: tenant_id
+- ExamCycle: school_id
+- ExamGradeBoundaries: tenant_id
+- ExamGradingPolicies: tenant_id
+- ExamInvigilators: tenant_id
+- ExamMarkAuditLogs: tenant_id
+- ExamMarkEntryWindows: tenant_id
+- ExamMarks: tenant_id
+- ExamMarkVersions: tenant_id
+- ExamReadinessCheck: school_id
+- ExamSeries: tenant_id
+- ExamStudentCases: tenant_id
+- ExamSubject: school_id
+- ExamSubjectWeightings: tenant_id
+- ExamTimetableSlots: tenant_id
+- FeeItem: school_id
+- FeeStructure: school_id
+- FeeWaiver: school_id
+- FileUpload: school_id
+- FinanceApprovalRequests: tenant_id
+- FinanceFeeCategories: tenant_id
+- FinanceTasks: tenant_id
+- FrontOfficeTicket: school_id
+- GateIncident: school_id
+- GradingScale: school_id
+- GradingScaleRange: school_id
+- GroupGuidanceSession: school_id
+- HODAssignment: school_id
+- HODReview: school_id
+- IdempotencyKey: school_id + tenant_id
+- ImportBatch: school_id
+- ImportRow: school_id
+- IntegrationLogs: tenant_id
+- InventoryCategory: school_id
+- InventoryIncidents: tenant_id
+- InventoryItem: school_id
+- InventoryItemBalances: tenant_id
+- InventoryLocations: tenant_id
+- InventoryPurchaseOrders: tenant_id
+- InventoryRequest: school_id
+- InventoryRequestBackorders: tenant_id
+- InventoryRequestItem: school_id
+- InventoryRequisitions: tenant_id
+- InventoryReservations: tenant_id
+- InventoryStockCountSnapshots: tenant_id
+- InventoryStockMovement: school_id
+- InventorySuppliers: tenant_id
+- InventoryTransfers: tenant_id
+- Invoice: school_id
+- InvoiceItem: school_id
+- IotAlerts: tenant_id
+- IotAuditLogs: tenant_id
+- IotDeviceCommands: tenant_id
+- IotDeviceCredentials: tenant_id
+- IotDevices: tenant_id
+- IotGatewayIngestions: tenant_id
+- IotTelemetryReadings: tenant_id
+- LabAttendance: tenant_id
+- LabDepartments: tenant_id
+- LabEquipment: tenant_id
+- Labs: tenant_id
+- LabSessionChemicalUsage: tenant_id
+- LabSessionEquipmentUsage: tenant_id
+- LabSessions: tenant_id
+- LearningArea: school_id
+- LedgerAccount: school_id + tenant_id
+- LedgerEntry: school_id + tenant_id
+- LedgerTransaction: school_id + tenant_id
+- LegacyCounsellingSession: school_id + tenant_id
+- LegacyDisciplineAction: school_id + tenant_id
+- LessonLog: school_id
+- LibraryBook: school_id
+- LibraryBookCopy: school_id
+- LibraryCirculationLedger: tenant_id
+- LibraryFine: school_id
+- LibraryLoan: school_id
+- LibraryReservations: tenant_id
+- LmsSubmissions: tenant_id
+- MaintenanceTicket: school_id
+- ManualFeePaymentAllocations: tenant_id
+- ManualFeePayments: tenant_id
+- MarksEntry: school_id
+- MarkSubmission: school_id
+- MedicalVisit: school_id
+- MedicineDispensingLog: school_id
+- MedicineInventory: school_id
+- MeetingMinutes: tenant_id
+- ModulePackageItems: tenant_id
+- ModulePackages: tenant_id
+- ModulePermission: global-or-needs-review
+- ModuleRegistry: tenant_id
+- ModuleUsageEvents: tenant_id
+- MpesaC2bPayments: tenant_id
+- MpesaCallbackChannels: tenant_id
+- MpesaConfigAuditLogs: tenant_id
+- MpesaPayloadSupportAccessLogs: tenant_id
+- MpesaPayloadVault: tenant_id
+- MpesaReconciliationBatches: tenant_id
+- MpesaReconciliationDiscrepancies: tenant_id
+- MpesaTransaction: school_id
+- MpesaVerificationJobs: tenant_id
+- Notification: school_id
+- NotificationDelivery: school_id
+- NotificationPreference: school_id
+- NotificationRule: school_id
+- NotificationTemplate: school_id
+- OffenseCategory: school_id + tenant_id
+- OfflineSyncEvent: school_id
+- OperationsAlerts: tenant_id
+- OperationsEmergencies: tenant_id
+- OperationsReports: tenant_id
+- OutboxEvents: school_id + tenant_id
+- ParentAcknowledgement: school_id + tenant_id
+- ParentGuardian: school_id
+- ParentMeeting: school_id
+- ParentOtpChallenges: tenant_id
+- Payment: school_id
+- PaymentIntents: tenant_id
+- Permission: school_id + tenant_id
+- PlatformBackups: global-or-needs-review
+- PlatformBroadcasts: global-or-needs-review
+- PlatformSecurityPolicies: global-or-needs-review
+- PlatformSettings: global-or-needs-review
+- PlatformSmsProviders: tenant_id
+- PlatformTemplates: global-or-needs-review
+- PrincipalDashboardSnapshots: tenant_id
+- ProcurementApprovals: tenant_id
+- ProcurementAuditLogs: tenant_id
+- ProcurementBudgetLinks: tenant_id
+- ProcurementRequestItems: tenant_id
+- ProcurementRequests: tenant_id
+- ProcurementSuppliers: tenant_id
+- PurchaseOrder: school_id
+- PurchaseOrderItems: tenant_id
+- PurchaseRequest: school_id
+- Receipt: school_id
+- ReportCard: school_id
+- ReportCardArtifacts: tenant_id
+- ReportCardComment: school_id
+- ReportCardGenerationBatches: tenant_id
+- ReportCardSetting: school_id
+- Role: school_id
+- RolePermission: school_id + tenant_id
+- School: global-or-needs-review
+- SchoolIntegrations: tenant_id
+- SchoolMembership: school_id
+- SchoolModule: school_id
+- SchoolModuleAccess: tenant_id
+- SchoolSetting: school_id
+- SchoolSmsWallets: tenant_id
+- SchoolSubscription: school_id
+- SecretaryQueueTickets: tenant_id
+- SecurityIncidents: tenant_id
+- SecurityPanicAlerts: tenant_id
+- SetupChecklistItem: school_id
+- SmsCreditTransaction: school_id
+- SmsCreditWallet: school_id
+- SmsLog: school_id
+- SmsPurchaseRequests: tenant_id
+- SmsWalletTransactions: tenant_id
+- StaffAuditLogs: tenant_id
+- StaffContracts: tenant_id
+- StaffLeaveRequests: tenant_id
+- Strand: school_id
+- Stream: school_id
+- Student: school_id
+- StudentAuditLog: school_id
+- StudentClassAssignment: school_id
+- StudentClearance: school_id
+- StudentCommunication: school_id
+- StudentEnrollment: school_id
+- StudentExitRecord: school_id
+- StudentFeeAccount: school_id
+- StudentFeeCredits: tenant_id
+- StudentFeePaymentAllocations: tenant_id
+- StudentGuardian: school_id
+- StudentInvoices: tenant_id
+- StudentNote: school_id
+- StudentReportCardAuditLogs: tenant_id
+- StudentReportCards: tenant_id
+- StudentTransportAssignment: school_id
+- Subject: school_id
+- SubscriptionPlan: global-or-needs-review
+- Subscriptions: tenant_id
+- SubStrand: school_id
+- Supplier: school_id
+- SupplierInvoices: tenant_id
+- SupportAttachments: tenant_id
+- SupportCategories: tenant_id
+- SupportInternalNotes: tenant_id
+- SupportKbArticles: tenant_id
+- SupportMessages: tenant_id
+- SupportNotifications: tenant_id
+- SupportStatusLogs: tenant_id
+- SupportStatusNotificationAttempts: tenant_id
+- SupportStatusSubscriptions: tenant_id
+- SupportStatusUnsubscribeTokens: tenant_id
+- SupportSystemComponents: tenant_id
+- SupportTickets: tenant_id
+- SyncConflict: school_id
+- SyncCursors: tenant_id
+- SyncDevices: tenant_id
+- SyncOperationLogs: tenant_id
+- SystemHealthLog: school_id
+- SystemJob: school_id
+- Tasks: tenant_id
+- TeacherAttendanceLogs: tenant_id
+- TeacherSubjectAssignment: school_id
+- TenantBankAccounts: tenant_id
+- TenantDomains: tenant_id
+- TenantFinanceSummary: tenant_id
+- TenantFinancialAccounts: tenant_id
+- TenantMpesaConfigs: tenant_id
+- TenantPaymentChannels: tenant_id
+- TenantPendingWaivers: tenant_id
+- Tenants: tenant_id
+- Term: school_id
+- TimetableAuditLogs: tenant_id
+- TimetablePeriod: school_id
+- TimetableSlots: tenant_id
+- TimetableVersions: tenant_id
+- TransportAuditLogs: tenant_id
+- TransportDrivers: tenant_id
+- TransportManifests: tenant_id
+- TransportManifestStudents: tenant_id
+- TransportRoute: school_id
+- TransportRouteStops: tenant_id
+- TransportTripEvents: tenant_id
+- TransportTrips: tenant_id
+- TransportVehicle: school_id
+- UsageRecords: tenant_id
+- User: global-or-needs-review
+- UserPermissionOverride: school_id
+- UserRoleAssignment: school_id
+- VehicleFuelLog: school_id
+- VehicleServiceLogs: tenant_id
+- Visitor: school_id
+- VisitorLog: school_id
+- VisitorsAppointments: tenant_id
+- VisitorsLogs: tenant_id
+- WelfareConcern: school_id
+- WorkflowEvents: tenant_id
+- WorkflowTask: school_id
+
+## Tenant-Scope Review Queue
+- ModulePermission: confirm this is truly global or add school/tenant scoping before school-owned use.
+- PlatformBackups: confirm this is truly global or add school/tenant scoping before school-owned use.
+- PlatformBroadcasts: confirm this is truly global or add school/tenant scoping before school-owned use.
+- PlatformSecurityPolicies: confirm this is truly global or add school/tenant scoping before school-owned use.
+- PlatformSettings: confirm this is truly global or add school/tenant scoping before school-owned use.
+- PlatformTemplates: confirm this is truly global or add school/tenant scoping before school-owned use.
+- School: confirm this is truly global or add school/tenant scoping before school-owned use.
+- SubscriptionPlan: confirm this is truly global or add school/tenant scoping before school-owned use.
+- User: confirm this is truly global or add school/tenant scoping before school-owned use.
+
+
+## Activation Dependency Graph
+- 1. Super Admin creates school and invites first Principal.
+- 2. Principal accepts invitation and sees a clean school activation checklist.
+- 3. Principal confirms enabled modules and basic school profile.
+- 4. Deputy/Principal create academic years, terms, classes, streams, departments, subjects, and grading policies.
+- 5. Principal invites staff and assigns roles, departments, classes, subjects, dorms, routes, or work areas.
+- 6. Admissions Officer creates applicants and admits learners into the school-specific class structure.
+- 7. Accountant configures fee structures before invoicing or accepting payments.
+- 8. Teachers mark attendance, enter lessons, and later submit marks only for assigned classes/subjects.
+- 9. HOD/Dean/Exams Manager moderate marks, generate report cards, and publish only approved results.
+- 10. Parent and student portals expose only linked, published, school-scoped records.
+
+## Go-Live Evidence Still Required
+- Manual Gmail verification scripts in docs/MANUAL_GMAIL_VERIFICATION_SCRIPTS.md must be executed against production accounts.
+- Provider delivery must be verified with real Resend/SMS/M-Pesa credentials and logs.
+- Every global-or-review Prisma model above must be confirmed as truly global or hardened with school/tenant scope before being used for school-owned data.
+- Every role dashboard listed above still needs route-by-route manual smoke verification after each deployment.
