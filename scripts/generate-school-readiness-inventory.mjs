@@ -222,6 +222,125 @@ function roleSidebarWorkspaceInventory(commandCenters) {
   );
 }
 
+function extractStringArrayValues(value) {
+  return Array.from(value.matchAll(/"([^"]+)"/g), (match) => match[1].trim()).filter(Boolean);
+}
+
+function summarizeActionLabel(label) {
+  if (label === "primaryAction") {
+    return "Primary action";
+  }
+
+  return label.trim();
+}
+
+function extractActionRowCandidates(source, sourcePath) {
+  const actions = [];
+  const actionRowPattern = /<ActionRow\b([\s\S]*?)(?:\/>|>\s*<\/ActionRow>)/g;
+
+  for (const match of source.matchAll(actionRowPattern)) {
+    const props = match[1];
+    const labelsProp = props.match(/labels=\{([\s\S]*?)\}/)?.[1] ?? "";
+    const labels = labelsProp.includes("primaryAction")
+      ? ["Primary action", ...extractStringArrayValues(labelsProp)]
+      : extractStringArrayValues(labelsProp);
+
+    const handler = /\bonAction=/.test(props) ? "onAction" : "missing-handler";
+
+    for (const label of labels) {
+      actions.push({
+        component: "ActionRow",
+        label: summarizeActionLabel(label),
+        handler,
+        source: sourcePath,
+        status: handler === "missing-handler" ? "DISCOVERED_NEEDS_HANDLER_REVIEW" : "DISCOVERED_NOT_MANUALLY_VERIFIED",
+      });
+    }
+  }
+
+  return actions;
+}
+
+function extractButtonCandidates(source, sourcePath) {
+  const actions = [];
+  const buttonPattern = /<button\b([\s\S]*?)>([\s\S]*?)<\/button>/g;
+
+  for (const match of source.matchAll(buttonPattern)) {
+    const props = match[1];
+    const body = match[2]
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\{[^}]+\}/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const label = body || props.match(/aria-label="([^"]+)"/)?.[1] || "Unlabeled button";
+    const handler = /\bonClick=/.test(props)
+      ? "onClick"
+      : /\btype=(?:"submit"|'submit'|\{["']submit["']\})/.test(props)
+        ? "form-submit"
+        : /\bdisabled\b/.test(props)
+          ? "disabled"
+          : "missing-handler";
+
+    actions.push({
+      component: "button",
+      label,
+      handler,
+      source: sourcePath,
+      status: handler === "missing-handler" ? "DISCOVERED_NEEDS_HANDLER_REVIEW" : handler === "disabled" ? "DISCOVERED_DISABLED_REVIEW" : "DISCOVERED_NOT_MANUALLY_VERIFIED",
+    });
+  }
+
+  return actions;
+}
+
+function extractFormCandidates(source, sourcePath) {
+  const actions = [];
+  const formPattern = /<form\b([\s\S]*?)>/g;
+
+  for (const match of source.matchAll(formPattern)) {
+    const props = match[1];
+    const handler = /\bonSubmit=/.test(props) ? "onSubmit" : "missing-handler";
+    actions.push({
+      component: "form",
+      label: "Form submission",
+      handler,
+      source: sourcePath,
+      status: handler === "missing-handler" ? "DISCOVERED_NEEDS_HANDLER_REVIEW" : "DISCOVERED_NOT_MANUALLY_VERIFIED",
+    });
+  }
+
+  return actions;
+}
+
+function buttonActionInventory(commandCenters) {
+  const actions = [];
+
+  for (const center of commandCenters) {
+    const sourcePath = join(rootDir, center.file);
+    if (!existsSync(sourcePath)) {
+      continue;
+    }
+
+    const source = readFileSync(sourcePath, "utf8");
+    const discovered = [
+      ...extractActionRowCandidates(source, center.file),
+      ...extractButtonCandidates(source, center.file),
+      ...extractFormCandidates(source, center.file),
+    ];
+
+    for (const action of discovered) {
+      actions.push({
+        role: center.role,
+        ...action,
+      });
+    }
+  }
+
+  return actions.sort((a, b) =>
+    `${a.role}:${a.source}:${a.component}:${a.label}:${a.handler}`.localeCompare(`${b.role}:${b.source}:${b.component}:${b.label}:${b.handler}`),
+  );
+}
+
 function routeSectionInventory() {
   const routeSource = readText("apps/web/src/components/school/school-pages.tsx");
   return routeSetNames.map((name) => ({
@@ -247,6 +366,74 @@ function apiControllerInventory() {
       methods,
     };
   });
+}
+
+function moduleBackendContractInventory() {
+  const modulesRoot = join(rootDir, "apps", "api", "src", "modules");
+  if (!existsSync(modulesRoot)) {
+    return [];
+  }
+
+  return readdirSync(modulesRoot)
+    .map((name) => {
+      const modulePath = join(modulesRoot, name);
+      if (!statSync(modulePath).isDirectory()) {
+        return null;
+      }
+
+      const moduleFiles = walkFiles(modulePath, () => true);
+      return {
+        module: name,
+        controllers: moduleFiles.filter((file) => file.endsWith(".controller.ts")).length,
+        services: moduleFiles.filter((file) => file.endsWith(".service.ts")).length,
+        tests: moduleFiles.filter((file) => file.endsWith(".test.ts") || file.endsWith(".spec.ts")).length,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.module.localeCompare(b.module));
+}
+
+function automatedTestCoverageInventory() {
+  const testRoots = [
+    join(rootDir, "apps", "web", "tests"),
+    join(rootDir, "apps", "api", "src", "modules"),
+    join(rootDir, "scripts"),
+  ];
+
+  return testRoots
+    .flatMap((testRoot) => walkFiles(testRoot, (file) => file.endsWith(".test.ts") || file.endsWith(".test.tsx") || file.endsWith(".spec.ts") || file.endsWith(".spec.tsx") || file.endsWith(".test.mjs")))
+    .map((file) => relative(rootDir, file).replace(/\\/g, "/"))
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function reportPrintInventory() {
+  const sourceRoot = join(rootDir, "apps", "web", "src");
+  return walkFiles(sourceRoot, (file) => file.endsWith(".tsx") || file.endsWith(".ts"))
+    .flatMap((file) => {
+      const source = readFileSync(file, "utf8");
+      const relativePath = relative(rootDir, file).replace(/\\/g, "/");
+      const capabilities = [];
+
+      if (/openPrintDocument/.test(source)) {
+        capabilities.push("print-preview");
+      }
+      if (/downloadCsvFile/.test(source)) {
+        capabilities.push("csv-download");
+      }
+      if (/download|Download|export|Export/.test(source)) {
+        capabilities.push("download-or-export-copy");
+      }
+      if (/report|Report|receipt|Receipt|statement|Statement/.test(source)) {
+        capabilities.push("report-document-copy");
+      }
+
+      return Array.from(new Set(capabilities)).map((capability) => ({
+        file: relativePath,
+        capability,
+        status: "DISCOVERED_NOT_MANUALLY_VERIFIED",
+      }));
+    })
+    .sort((a, b) => `${a.file}:${a.capability}`.localeCompare(`${b.file}:${b.capability}`));
 }
 
 function prismaModelInventory() {
@@ -298,8 +485,12 @@ function renderList(items, renderItem) {
 function renderMatrix() {
   const commandCenters = commandCenterInventory();
   const sidebarWorkspaces = roleSidebarWorkspaceInventory(commandCenters);
+  const buttonActions = buttonActionInventory(commandCenters);
   const routeSections = routeSectionInventory();
   const controllers = apiControllerInventory();
+  const backendContracts = moduleBackendContractInventory();
+  const testCoverage = automatedTestCoverageInventory();
+  const reportPrintCoverage = reportPrintInventory();
   const models = prismaModelInventory();
   const packages = packageInventory();
   const globallyScopedModels = models.filter((model) => model.scope === "global-or-needs-review");
@@ -321,10 +512,21 @@ ${renderList(commandCenters, (center) => `- ${center.role}: ${center.file}`)}
 | --- | --- | --- | --- | --- |
 ${sidebarWorkspaces.length ? sidebarWorkspaces.map((item) => `| ${item.role} | ${item.label} | ${item.workspaceId} | ${item.source} | ${item.status} |`).join("\n") : "| None discovered | - | - | - | - |"}
 
+## Button And Action Inventory
+| Role | Component | Label | Source | Handler | Status |
+| --- | --- | --- | --- | --- | --- |
+${buttonActions.length ? buttonActions.map((item) => `| ${item.role} | ${item.component} | ${item.label} | ${item.source} | ${item.handler} | ${item.status} |`).join("\n") : "| None discovered | - | - | - | - | - |"}
+
 ## Frontend Route Section Inventory
 ${renderList(routeSections, (set) => `- ${set.name}: ${set.sections.length} sections${set.sections.length ? ` - ${set.sections.join(", ")}` : ""}`)}
 ## API Controller Inventory
 ${renderList(controllers, (controller) => `- ${controller.className} (${controller.file}) - @Controller(${controller.controllerPath || "root"}) - ${controller.methods.length} route handlers`)}
+## Workflow Backend Contract Inventory
+${renderList(backendContracts, (contract) => `- ${contract.module} | controllers=${contract.controllers} | services=${contract.services} | tests=${contract.tests}`)}
+## Automated Test Coverage Inventory
+${renderList(testCoverage, (testFile) => `- ${testFile}`)}
+## Report And Print Inventory
+${renderList(reportPrintCoverage, (item) => `- ${item.file} | ${item.capability} | ${item.status}`)}
 ## Database Model Tenant-Scope Inventory
 ${renderList(models, (model) => `- ${model.model}: ${model.scope}`)}
 ## Tenant-Scope Review Queue

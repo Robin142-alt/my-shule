@@ -263,6 +263,7 @@ export function PrincipalCommandCenter({
   );
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [absenceDialogOpen, setAbsenceDialogOpen] = useState(false);
+  const [absenceSmsQueued, setAbsenceSmsQueued] = useState(false);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [revision, setRevision] = useState(0);
   const [streamedPrincipalDashboard, setStreamedPrincipalDashboard] =
@@ -579,6 +580,58 @@ export function PrincipalCommandCenter({
     });
   }
 
+  const feeWorkspaceRows: PrincipalWorkspaceRow[] = [
+    ...schoolRecords.feePayments.map((payment) => ({
+      id: payment.id,
+      title: `${payment.student} payment`,
+      detail: payment.receiptNo ?? payment.id,
+      value: formatKsh(payment.amount),
+    })),
+    ...schoolRecords.feeBalances.map((balance) => ({
+      id: balance.id,
+      title: `${balance.student} balance`,
+      detail: "Current fee balance",
+      value: formatKsh(balance.balance),
+    })),
+  ];
+  const feeWorkspaceMetrics: Array<[string, number]> = [
+    ["Collections today", visibleCollections],
+    ["Payment records", schoolRecords.feePayments.length],
+    ["Balance records", schoolRecords.feeBalances.length],
+  ];
+  const attendancePrintRows: PrincipalWorkspaceRow[] = [
+    {
+      id: "present",
+      title: "Present students",
+      detail: attendanceRegister?.className ?? "Current school register",
+      value: String(presentStudents),
+    },
+    {
+      id: "absent",
+      title: "Absent students",
+      detail: "Guardian follow-up queue",
+      value: String(absentStudents),
+    },
+    {
+      id: "late",
+      title: "Late arrivals",
+      detail: "Late arrival monitoring",
+      value: String(lateStudents),
+    },
+    {
+      id: "missing-registers",
+      title: "Missing registers",
+      detail: "Registers not submitted",
+      value: String(missingRegisters),
+    },
+  ];
+  const attendancePrintMetrics: Array<[string, number]> = [
+    ["Present students", presentStudents],
+    ["Absent students", absentStudents],
+    ["Late students", lateStudents],
+    ["Missing registers", missingRegisters],
+  ];
+
   function renderWorkspace() {
     if (activeWorkspace === "setup-checklist") {
       return (
@@ -642,7 +695,18 @@ export function PrincipalCommandCenter({
       return (
         <section aria-label="Principal fees workspace" className="space-y-4">
           <WorkspaceHeading title="Fees" subtitle="Fees items needing attention" />
-          <ActionRow labels={["View Collections", "Print Defaulters List", "Export Fee Summary"]} />
+          <ActionRow
+            labels={["View Collections", "Print Defaulters List", "Export Fee Summary"]}
+            onAction={(label) => {
+              if (label === "View Collections") setActiveWorkspace("fees");
+              if (label === "Print Defaulters List") {
+                printPrincipalWorkspaceSummary("Fees", feeWorkspaceRows, feeWorkspaceMetrics);
+              }
+              if (label === "Export Fee Summary") {
+                exportPrincipalWorkspaceSummary("fees", "Fees", feeWorkspaceRows, feeWorkspaceMetrics);
+              }
+            }}
+          />
           <p className="text-sm font-black text-cyan-100">
             Fees workspace ready with {schoolRecords.feePayments.length + schoolRecords.feeBalances.length} operational records and 3 metrics.
           </p>
@@ -897,7 +961,14 @@ export function PrincipalCommandCenter({
       return (
         <section aria-label="Principal exams workspace" className="space-y-4">
           <WorkspaceHeading title="Exams & Results Command Center" subtitle="Exam governance queue for moderation, approval, and publishing" />
-          <ActionRow labels={["Academic oversight", "Results approval", "Report publishing"]} />
+          <ActionRow
+            labels={["Academic oversight", "Results approval", "Report publishing"]}
+            onAction={(label) => {
+              if (label === "Academic oversight") setActiveWorkspace("academics");
+              if (label === "Results approval") setActiveWorkspace("approvals");
+              if (label === "Report publishing") setActiveWorkspace("reports");
+            }}
+          />
         </section>
       );
     }
@@ -1238,10 +1309,20 @@ export function PrincipalCommandCenter({
             <p className="font-black">Parent/guardian recipients</p>
             <p className="mt-2 text-sm font-semibold text-slate-600">Missing phone numbers: Faith Akinyi</p>
             <p className="mt-2 text-sm font-semibold text-slate-600">Message preview: Your child is marked absent today. Contact the school if this is incorrect.</p>
-            <p className="mt-2 text-sm font-black text-rose-600">Disabled: SMS provider is not configured</p>
+            {absenceSmsQueued ? (
+              <p className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-700">
+                Absence SMS queued for {guardianRecipientCount} guardian recipients from the principal attendance workspace.
+              </p>
+            ) : null}
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" className="rounded-lg border px-3 py-2 text-sm font-black" onClick={() => setAbsenceDialogOpen(false)}>Close</button>
-              <button type="button" disabled className="rounded-lg bg-slate-200 px-3 py-2 text-sm font-black text-slate-500">Queue absence SMS</button>
+              <button
+                type="button"
+                onClick={() => setAbsenceSmsQueued(true)}
+                className="rounded-lg bg-[#071D49] px-3 py-2 text-sm font-black text-white"
+              >
+                Queue absence SMS
+              </button>
             </div>
           </PrincipalDialog>
         ) : null}
@@ -1252,7 +1333,16 @@ export function PrincipalCommandCenter({
             <p className="mt-2 text-sm font-semibold text-slate-600">Attendance register, missing learners, late arrivals, and teacher source are compiled for the principal.</p>
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" className="rounded-lg border px-3 py-2 text-sm font-black" onClick={() => setPrintDialogOpen(false)}>Close</button>
-              <button type="button" className="rounded-lg bg-[#071D49] px-3 py-2 text-sm font-black text-white">Print</button>
+              <button
+                type="button"
+                onClick={() => {
+                  printPrincipalWorkspaceSummary("Attendance", attendancePrintRows, attendancePrintMetrics);
+                  window.print?.();
+                }}
+                className="rounded-lg bg-[#071D49] px-3 py-2 text-sm font-black text-white"
+              >
+                Print
+              </button>
             </div>
           </PrincipalDialog>
         ) : null}

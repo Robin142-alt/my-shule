@@ -59,7 +59,7 @@ describe("school-scoped user management and invitations", () => {
 
     await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
 
-    expect(within(commandCenter).getByRole("heading", { name: /Users & Invitations/i })).toBeVisible();
+    expect(within(commandCenter).getAllByRole("heading", { name: /Users & Invitations/i }).length).toBeGreaterThan(0);
     expect(within(commandCenter).getByRole("button", { name: /^All Users$/i })).toBeVisible();
     expect(within(commandCenter).getByRole("button", { name: /Pending Invitations/i })).toBeVisible();
     expect(within(commandCenter).getByRole("button", { name: /Invite New User/i })).toBeVisible();
@@ -415,14 +415,14 @@ describe("school-scoped user management and invitations", () => {
 
     renderWithProviders(<SchoolPages role="deputy-principal" tenantSlug="kisumu-boys" />);
 
-    const commandCenter = await screen.findByTestId("role-operational-command-center");
+    const commandCenter = await screen.findByTestId("deputy-principal-command-center");
 
-    expect(within(commandCenter).getByRole("heading", { name: /Deputy Principal Operations/i })).toBeVisible();
+    expect(within(commandCenter).getByText(/Deputy Principal Dashboard/i)).toBeVisible();
     expect(within(commandCenter).getByRole("button", { name: /Users & Invitations/i })).toBeVisible();
 
     await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
 
-    expect(within(commandCenter).getByRole("heading", { name: /Users & Invitations/i })).toBeVisible();
+    expect(within(commandCenter).getAllByRole("heading", { name: /Users & Invitations/i }).length).toBeGreaterThan(0);
     expect(within(commandCenter).getByText(/Deputy Principal can invite school users in Kisumu Boys/i)).toBeVisible();
     expect(within(commandCenter).queryByRole("option", { name: /Super Admin/i })).not.toBeInTheDocument();
 

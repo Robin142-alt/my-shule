@@ -342,6 +342,107 @@ describe("experience actions", () => {
     }
   });
 
+  it("updates the visible Super Admin school billing status after manual billing changes", async () => {
+    const user = userEvent.setup();
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+
+      if (url.includes("/api/platform/schools/homabay-high/billing")) {
+        expect(init?.method).toBe("PATCH");
+        expect(JSON.parse(String(init?.body))).toEqual(
+          expect.objectContaining({
+            state: "active",
+            note: "Manual Superadmin billing state: Active",
+          }),
+        );
+
+        return Promise.resolve(jsonResponse({
+          tenant_id: "homabay-high",
+          school_name: "Homabay High",
+          subdomain: "homabay-high",
+          status: "active",
+          invitation_sent: true,
+          invitation_status: "sent",
+          invitation_message: "Invitation sent.",
+          can_resend_invite: false,
+          invite_expires_at: "2026-07-13T00:00:00.000Z",
+          admin_email: "principal@homabay.ac.ke",
+          created_at: "2026-07-06T00:00:00.000Z",
+          enabled_modules: ["students", "finance"],
+          billing: {
+            state: "active",
+            label: "Active",
+            access_mode: "full",
+            plan_code: "manual",
+            configured_at: "2026-07-15T00:00:00.000Z",
+            note: "Manual Superadmin billing state: Active",
+          },
+        }));
+      }
+
+      if (url.includes("/api/platform/schools")) {
+        return Promise.resolve(jsonResponse([
+          {
+            tenant_id: "homabay-high",
+            school_name: "Homabay High",
+            subdomain: "homabay-high",
+            status: "active",
+            invitation_sent: true,
+            invitation_status: "sent",
+            invitation_message: "Invitation sent.",
+            can_resend_invite: false,
+            invite_expires_at: "2026-07-13T00:00:00.000Z",
+            admin_email: "principal@homabay.ac.ke",
+            created_at: "2026-07-06T00:00:00.000Z",
+            enabled_modules: ["students", "finance"],
+            billing: {
+              state: "not_configured",
+              label: "Not configured",
+              access_mode: null,
+              plan_code: null,
+            },
+          },
+        ]));
+      }
+
+      if (url.includes("/api/platform/modules")) {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      if (url.includes("/api/workflow/events")) {
+        return Promise.resolve(jsonResponse({ id: "evt-billing-updated" }));
+      }
+
+      return Promise.resolve(jsonResponse({ token: "csrf-token" }));
+    });
+
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      renderWithProviders(createElement(SuperadminPages, { section: "schools" }));
+
+      await waitFor(() => expect(screen.getAllByText("Homabay High").length).toBeGreaterThan(0));
+      expect(screen.getAllByText("Not configured").length).toBeGreaterThan(0);
+
+      await user.selectOptions(
+        screen.getAllByRole("combobox", { name: /set billing state for homabay high/i })[0],
+        "active",
+      );
+
+      await waitFor(() =>
+        expect(fetchMock).toHaveBeenCalledWith(
+          "/api/platform/schools/homabay-high/billing",
+          expect.objectContaining({ method: "PATCH" }),
+        ),
+      );
+      await waitFor(() => expect(screen.getAllByText("Active").length).toBeGreaterThan(0));
+      expect(screen.getByRole("status")).toHaveTextContent("Homabay High billing set to Active.");
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
   it("keeps a visible logout button on the superadmin dashboard", () => {
     renderWithProviders(createElement(SuperadminPages, { section: "overview" }));
 

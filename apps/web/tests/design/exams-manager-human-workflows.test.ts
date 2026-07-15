@@ -43,6 +43,20 @@ describe("exams manager human workflow contracts", () => {
     expect(activeMarksSource).not.toMatch(/No records found/);
   });
 
+  it("gives exams class and subject setup an actionable fresh-school empty state", () => {
+    const classesSource = fs.readFileSync(
+      path.join(process.cwd(), "src/components/modules/exams-manager/workspaces/exam-classes-workspace.tsx"),
+      "utf8",
+    );
+
+    expect(classesSource).toMatch(/No exam classes have been configured yet/);
+    expect(classesSource).toMatch(/Create class and subject setup/);
+    expect(classesSource).toMatch(/Open exam settings/);
+    expect(classesSource).toMatch(/routeTo\("exam-setup"\)/);
+    expect(classesSource).toMatch(/routeTo\("exam-settings"\)/);
+    expect(classesSource).not.toMatch(/No classes or subjects configured yet\./);
+  });
+
   it("wires active exam setup configuration to backend persistence", () => {
     const activeSetupSource = fs.readFileSync(
       path.join(process.cwd(), "src/components/school/exams-manager/exam-setup-workspace.tsx"),
@@ -95,7 +109,7 @@ describe("exams manager human workflow contracts", () => {
     expect(commandCenterSource).toMatch(/ImportsTemplatesWorkspace/);
     expect(commandCenterSource).toMatch(/setActiveView\("imports-templates"\)/);
     expect(commandCenterSource).toMatch(/openExternalImportWorkspace/);
-    expect(commandCenterSource).toMatch(/requestDashboardApi\("\/admin-command\/exams-manager\/marks-entry"/);
+    expect(commandCenterSource).toMatch(/requestDashboardApi(?:<[^>]+>)?\("\/admin-command\/exams-manager\/marks-entry"/);
     expect(commandCenterSource).toMatch(/downloadCsvFile/);
     expect(commandCenterSource).not.toMatch(/requestDashboardApi\("\/admin-command\/exams-manager\/import-marks"/);
     expect(commandCenterSource).not.toMatch(/requestDashboardApi\("\/admin-command\/exams-manager\/export-marks"/);

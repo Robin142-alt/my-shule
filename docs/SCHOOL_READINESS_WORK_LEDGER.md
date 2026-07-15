@@ -4,8 +4,8 @@ Generated: 2026-07-15
 
 ## Branch And Baseline
 
-- Branch: `main`
-- Working tree at start of this mandate slice: clean, aligned with `origin/main`
+- Branch: `codex/school-operational-readiness`
+- Working tree at start of this execution slice: `main` was aligned with `origin/main`; implementation moved to `codex/school-operational-readiness` before file changes.
 - Last full-suite baseline before this slice: `npm run ci:full` passed on 2026-07-15 after commit `351c204b`
 - Baseline production scorecard: `docs/scorecards/production-readiness-scorecard.md`, overall `97/95`
 - Release gate: `npm run release:readiness` returned `ok: true`
@@ -33,12 +33,48 @@ Generated: 2026-07-15
 
 ## Areas Not Yet Fully Inspected
 
-- Full database migration history and seed data implications
-- Every role command center and every sidebar item across all roles
-- Every controller/service pair for all operational modules
+- Full database migration history and seed data implications. Partial update 2026-07-15: `prisma/schema.prisma` and `prisma/seed.ts` exist, `prisma/migrations` is absent in this checkout, and demo seed scripts exist under `apps/api/src/scripts`.
+- Every role command center and every sidebar item across all roles. Partial update 2026-07-15: 26 command-center files and 317 generated matrix rows were counted, but per-button/backend/audit status is still the next scanner gap.
+- Every controller/service pair for all operational modules. Partial update 2026-07-15: suffix-based module scan found 98 controllers, 185 services, and 72 module test files; module-level parity still needs generated matrix review against user-facing workflows.
 - Full E2E browser/Gmail/manual provider flows
 - Production hosted logs after the next Vercel/Railway deployments
 - Mobile viewport screenshots for each critical workflow
+
+## Expanded Inspection Findings 2026-07-15
+
+### Migration And Seed Surface
+
+- Prisma files present: `exams_schema.prisma`, `schema.prisma`, `seed.ts`.
+- Migration count from this checkout: `0`; `prisma/migrations` is absent.
+- Demo/onboarding seed code exists in `apps/api/src/scripts/base-onboarding-seed.ts`, `apps/api/src/scripts/kisumu-boys-demo-seed.ts`, and `apps/api/src/scripts/ensure-contract-demo-users.ts`.
+- Demo seed safeguards found:
+  - `ensure-contract-demo-users.ts` requires `--confirm-contract-demo-users`.
+  - `kisumu-boys-demo-seed.ts` requires the safe package script flag `--confirm-kisumu-boys-only`.
+  - `kisumu-boys-demo-seed.test.ts` verifies the safe seed command and tenant selection behavior.
+- Remaining risk: schema drift cannot be proven from repository migrations alone; production migration evidence must come from deployment/database migration logs or a committed migration history.
+
+### Role Command Centers And Sidebar Inventory
+
+- Command-center files counted: 26.
+- Generated capability matrix rows counted: 317.
+- Generated matrix role buckets: Admissions Dashboard, Boarding Master, Class Teacher, Counsellor, Dean Academics, Deputy Principal, Discipline Master, Exams Manager, Grade Master, Guidance Counselling, Hod, Laboratory Technician, Librarian, Nurse, Principal, Role Operational, Security, Storekeeper, Teacher, Transport Manager.
+- Source command-center files include additional direct role surfaces not yet represented as separate generated buckets: Accountant, ICT Manager, Procurement Officer, Registrar, Secretary, Student.
+- Remaining risk: current inventory proves discovery, not daily-operational completeness; next scanner expansion must add action/button, backend route, event/audit, report/print, and test coverage status.
+
+### Backend Controller, Service, And Test Counts
+
+- API modules scanned under `apps/api/src/modules`.
+- Totals from suffix-based scan: 98 controllers, 185 services, 72 module test files.
+- Modules with tests but no controllers/services include `analytics`, `automation`, `implementation100`, `implementation300`, and `mobile`; these may be policy/certification modules but must be classified explicitly.
+- Modules with controllers but no service file include `health` and `parent-portal`; these require manual contract review before claiming workflow completeness.
+
+### Provider, Hosted Smoke, And Mobile Evidence
+
+- Manual Gmail scripts exist in `docs/MANUAL_GMAIL_VERIFICATION_SCRIPTS.md`, but remain `NOT_YET_MANUALLY_VERIFIED`.
+- Provider and production commands exist in `package.json`: `smoke:providers`, `smoke:production-auth`, `monitor:synthetic`, `scorecard:production`, and `ci:full`.
+- `docs/validation/go-live-blockers.md` previously recorded live/provider blockers and must be refreshed after deployment before a final go-live claim.
+- Railway descriptors exist under `deploy/railway/*`; hosted Vercel/Railway logs were not collected in this local execution slice.
+- Mobile design coverage exists in `mobile-low-bandwidth.test.tsx`, role-dashboard structure tests, and sidebar drawer assertions; screenshot/browser evidence is still needed for Principal setup, Users & Invitations, Admissions, Finance, Exams Manager, Teacher marks, and Parent/Student portal flows.
 
 ## Roles Discovered
 
@@ -100,6 +136,29 @@ Core roles confirmed from routing/tests and `AGENTS.md`: Super Admin, System Mon
 | `node --test scripts/generate-school-readiness-inventory.test.mjs` | PASS | Re-run after sidebar/manual-field scanner expansion |
 | `npm --prefix apps/web run build` | PASS | Next production build completed; 84 static pages generated |
 | `npm run ci:full` | PASS | Full build, lint, web build, API tests, implementation gates, tenant isolation audit, security scans, dependency audit, certifications, production scorecard, and release readiness passed after this slice |
+| `node --test scripts/generate-school-readiness-inventory.test.mjs` | FAIL then PASS | First failed because `## Button And Action Inventory` did not exist; after TDD scanner work it passed |
+| `npm run readiness:school-inventory` | PASS | Regenerated capability matrix and manual Gmail scripts with action/backend/test/report inventories |
+| `npm run typecheck` | PASS | Prisma generated; TypeScript completed with no emit |
+| `npm --prefix apps/web run test:design -- --runTestsByPath tests/design/principal-production-readiness.test.tsx tests/design/admissions-dashboard-routing.test.tsx tests/design/admissions-empty-state-workflows.test.ts tests/design/admissions-live-api.test.ts tests/design/teacher-dashboard-routing.test.tsx tests/design/dean-hod-command-center-contract.test.ts tests/design/academic-office-production-readiness.test.tsx tests/design/exams-manager-routing.test.tsx tests/design/exams-manager-command-center.test.ts tests/design/exams-manager-human-workflows.test.ts tests/design/experience-actions.test.tsx tests/design/user-management-invitations.test.tsx tests/design/user-management-panel.test.tsx` | PASS | 13 suites, 85 tests passed for the touched school dashboards, admissions, exams, user management, and billing UI surfaces |
+| `node --test dist/apps/api/src/modules/platform/platform-onboarding.service.test.js` | PASS | 31 tests passed after adding the real-school clean onboarding regression |
+| `npm run ci:full` | PASS | Full build, web lint, web build, API tests, implementation gates, tenant isolation audit, security scans, dependency audit, certifications, production scorecard, and release readiness passed |
+| `npm --prefix apps/web run test:design -- --runTestsByPath tests/design/exams-manager-human-workflows.test.ts` | PASS | 6 tests passed after replacing generic exams class/subject empty-state copy with real next actions |
+| `npm run build` | PASS | Current-source API build passed after the clean-school onboarding regression |
+| `npm run typecheck` | PASS | Current-source no-emit TypeScript passed |
+| `npm --prefix apps/web run test:design -- --runTestsByPath tests/design/principal-production-readiness.test.tsx tests/design/admissions-dashboard-routing.test.tsx tests/design/admissions-empty-state-workflows.test.ts tests/design/admissions-live-api.test.ts tests/design/teacher-dashboard-routing.test.tsx tests/design/dean-hod-command-center-contract.test.ts tests/design/academic-office-production-readiness.test.tsx tests/design/exams-manager-routing.test.tsx tests/design/exams-manager-command-center.test.ts tests/design/exams-manager-human-workflows.test.ts tests/design/experience-actions.test.tsx tests/design/user-management-invitations.test.tsx tests/design/user-management-panel.test.tsx` | PASS | Current-source focused school dashboard suite passed: 13 suites, 86 tests |
+| `npm exec eslint -- <changed web files>` from `apps/web` | PASS | Current-source targeted lint on changed web files exited 0 with existing warnings |
+| `npm run web:build` | PASS | Current-source Next production build completed; 84 static pages generated |
+| `npm run ci:full` | TIMEOUT on rerun | Earlier current-slice `ci:full` passed; rerun after later small patches exceeded the 30-minute tool timeout, so current-source evidence is recorded through smaller gates above |
+
+## New Inventory Evidence Added 2026-07-15
+
+- `docs/SCHOOL_CAPABILITY_MATRIX.md` now includes `## Button And Action Inventory`.
+- Discovered action rows: 429.
+- Explicit missing-handler/degraded-control matches in scanned surfaces: 0 for `NEEDS_HANDLER`, `DISABLED_REVIEW`, `DISCOVERED_NEEDS_HANDLER_REVIEW`, `COMING_SOON`, and `No records found`.
+- Backend contract rows: 54.
+- Automated test coverage rows: 183.
+- Report and print inventory rows: 1,273.
+- The scanner marks discovered items as review or manual-verification states; it does not claim the actions are production-complete.
 
 ## Full-Suite Evidence From Immediately Before This Slice
 
@@ -126,7 +185,7 @@ Core roles confirmed from routing/tests and `AGENTS.md`: Super Admin, System Mon
 
 ### P1
 
-- Enrich the generated capability inventory with per-button, per-permission, per-event, per-report, and per-test-coverage status, then fix the next discovered P1 gap.
+- Continue converting discovered-but-not-manually-verified inventory rows into end-to-end workflow evidence, starting with hosted browser smoke and provider-backed invite acceptance.
 - Run post-deployment browser smoke tests against production URLs for school creation, principal invite acceptance, staff invite acceptance, billing update, admissions first learner, and exams setup.
 - Add an automated school-activation golden path test that crosses Super Admin -> Principal -> Staff -> Admissions -> Finance -> Exams with tenant isolation assertions.
 

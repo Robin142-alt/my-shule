@@ -31,6 +31,17 @@ test("generates school readiness capability matrix and manual verification scrip
   assert.match(matrix, /teacherDashboardSectionIds/);
   assert.match(matrix, /examsManagerDashboardSectionIds/);
   assert.match(matrix, /## API Controller Inventory/);
+  assert.match(matrix, /## Button And Action Inventory/);
+  assert.match(matrix, /Principal \| ActionRow \| Primary action \| apps\/web\/src\/components\/school\/principal-command-center\.tsx \| onAction/);
+  assert.doesNotMatch(matrix, /Role Operational \| button \| Record Payment \| apps\/web\/src\/components\/school\/role-operational-command-center\.tsx \| missing-handler/);
+  assert.match(matrix, /Role Operational \| button \| Record Payment \| apps\/web\/src\/components\/school\/role-operational-command-center\.tsx \| form-submit/);
+  assert.doesNotMatch(matrix, /DISCOVERED_NEEDS_HANDLER_REVIEW/);
+  assert.match(matrix, /## Workflow Backend Contract Inventory/);
+  assert.match(matrix, /admissions \| controllers=1 \| services=3 \| tests=2/);
+  assert.match(matrix, /## Automated Test Coverage Inventory/);
+  assert.match(matrix, /apps\/web\/tests\/design\/admissions-dashboard-routing\.test\.tsx/);
+  assert.match(matrix, /## Report And Print Inventory/);
+  assert.match(matrix, /principal-command-center\.tsx \| print-preview/);
   assert.match(matrix, /## Database Model Tenant-Scope Inventory/);
   assert.match(matrix, /## Activation Dependency Graph/);
   assert.match(matrix, /NOT_YET_MANUALLY_VERIFIED/);

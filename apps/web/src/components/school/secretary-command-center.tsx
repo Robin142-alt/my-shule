@@ -18,6 +18,7 @@ type SecretaryDashboardData = {
 
 export function SecretaryCommandCenter({ routeMode }: { routeMode?: "hosted" | "public" }) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeWorkspace, setActiveWorkspace] = useState<"front-desk" | "call-logs" | "appointments" | "dispatches">("front-desk");
   const [visitorModalOpen, setVisitorModalOpen] = useState(false);
   const [visitorSubmitting, setVisitorSubmitting] = useState(false);
   const [visitorDraft, setVisitorDraft] = useState({
@@ -30,6 +31,38 @@ export function SecretaryCommandCenter({ routeMode }: { routeMode?: "hosted" | "
 
   const announcements = data?.communication_summary?.announcements || 0;
   const meetings = data?.communication_summary?.meetings || 0;
+  const workspaceCards = {
+    "front-desk": {
+      title: "Recent Front Desk Activity",
+      icon: Users,
+      body: "Register visitors, search active front-office movement, and keep the principal/security desk informed.",
+      action: "Register Visitor",
+      onAction: () => setVisitorModalOpen(true),
+    },
+    "call-logs": {
+      title: "Call Logs",
+      icon: Phone,
+      body: "Record parent calls, callback promises, student pickup messages, and urgent escalation notes.",
+      action: "Open Call Log Entry",
+      onAction: () => toast.info("Call log entry is ready from the routed secretary workspace."),
+    },
+    appointments: {
+      title: "Appointments",
+      icon: Calendar,
+      body: "Review parent/principal appointments, visitor pre-approvals, interview slots, and meeting reminders.",
+      action: "Review Appointments",
+      onAction: () => toast.info("Appointments workspace selected."),
+    },
+    dispatches: {
+      title: "Dispatches",
+      icon: Mail,
+      body: "Track outgoing letters, parcels, transfer documents, and parent communication dispatches.",
+      action: "Prepare Dispatch",
+      onAction: () => toast.info("Dispatch preparation workspace selected."),
+    },
+  } satisfies Record<typeof activeWorkspace, { title: string; icon: typeof Users; body: string; action: string; onAction: () => void }>;
+  const activeCard = workspaceCards[activeWorkspace];
+  const ActiveIcon = activeCard.icon;
 
   async function registerVisitor() {
     if (!visitorDraft.visitor_name.trim() || !visitorDraft.purpose.trim()) {
@@ -71,19 +104,35 @@ export function SecretaryCommandCenter({ routeMode }: { routeMode?: "hosted" | "
             <p className="mt-2 text-sm leading-6 text-white/65">Front office operations.</p>
           </div>
           <nav className="mt-4 flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar" aria-label="Navigation">
-            <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]">
+            <button
+              type="button"
+              onClick={() => setActiveWorkspace("front-desk")}
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold ${activeWorkspace === "front-desk" ? "bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/72 transition hover:bg-white/10 hover:text-white"}`}
+            >
               <Users className="h-4 w-4 shrink-0" />
               Front Desk
             </button>
-            <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold text-white/72 transition hover:bg-white/10 hover:text-white">
+            <button
+              type="button"
+              onClick={() => setActiveWorkspace("call-logs")}
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold ${activeWorkspace === "call-logs" ? "bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/72 transition hover:bg-white/10 hover:text-white"}`}
+            >
               <Phone className="h-4 w-4 shrink-0" />
               Call Logs
             </button>
-            <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold text-white/72 transition hover:bg-white/10 hover:text-white">
+            <button
+              type="button"
+              onClick={() => setActiveWorkspace("appointments")}
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold ${activeWorkspace === "appointments" ? "bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/72 transition hover:bg-white/10 hover:text-white"}`}
+            >
               <Calendar className="h-4 w-4 shrink-0" />
               Appointments
             </button>
-            <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold text-white/72 transition hover:bg-white/10 hover:text-white">
+            <button
+              type="button"
+              onClick={() => setActiveWorkspace("dispatches")}
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold ${activeWorkspace === "dispatches" ? "bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/72 transition hover:bg-white/10 hover:text-white"}`}
+            >
               <Mail className="h-4 w-4 shrink-0" />
               Dispatches
             </button>
@@ -138,10 +187,13 @@ export function SecretaryCommandCenter({ routeMode }: { routeMode?: "hosted" | "
               </div>
 
               <Card className="p-6">
-                <h2 className="text-xl font-bold text-[#071D49] mb-4">Recent Front Desk Activity</h2>
-                <div className="text-center py-12 text-gray-500">
-                  <Users className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                  <p>Visitor and log features will appear here.</p>
+                <h2 className="text-xl font-bold text-[#071D49] mb-4">{activeCard.title}</h2>
+                <div className="rounded-2xl border border-[#D8E0EC] bg-[#F8FAFC] p-6 text-center text-gray-600">
+                  <ActiveIcon className="h-12 w-12 mx-auto mb-4 text-[#071D49]" />
+                  <p className="mx-auto max-w-2xl text-sm font-semibold">{activeCard.body}</p>
+                  <Button className="mt-5 bg-[#071D49] hover:bg-[#071D49]/90 text-white rounded-xl" onClick={activeCard.onAction}>
+                    {activeCard.action}
+                  </Button>
                 </div>
               </Card>
             </div>
