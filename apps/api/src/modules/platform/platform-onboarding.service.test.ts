@@ -1006,6 +1006,96 @@ query: async (text: string, values: unknown[]) => {
   assert.equal(response.billing?.access_mode, 'billing_only');
 });
 
+test('PlatformOnboardingService keeps manual billing writes in the tenant-scoped transaction for slug tenants', async () => {
+  const rootExecutions: string[] = [];
+  const transactionExecutions: string[] = [];
+  const transactionQueries: string[] = [];
+
+  const tenantRow = {
+    tenant_id: 'homabay-high',
+    name: 'Homabay High',
+    subdomain: 'homabay-high',
+    status: 'active',
+    created_at: new Date('2026-07-01T00:00:00.000Z'),
+    admin_email: 'principal@homabay.test',
+    invitation_status: 'sent',
+    invite_expires_at: new Date('2026-07-08T00:00:00.000Z'),
+    subscription_status: 'active',
+    subscription_plan_code: 'enterprise',
+    subscription_metadata: {
+      manual_billing_state: 'active',
+      manual_billing_configured_at: '2026-07-07T10:00:00.000Z',
+    },
+  };
+
+  const service = new PlatformOnboardingService(
+    {
+      withRequestTransaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+        callback({
+          $executeRawUnsafe: async (text: string) => {
+            transactionExecutions.push(text);
+            return 1;
+          },
+          $queryRawUnsafe: async (text: string) => {
+            transactionQueries.push(text);
+
+            if (text.includes('FROM tenants') && text.includes('WHERE tenants.tenant_id = $1')) {
+              return [tenantRow];
+            }
+
+            if (text.includes('COUNT(*) FROM tenant_memberships')) {
+              return [
+                {
+                  memberships: 1,
+                  students: 0,
+                  invoices: 0,
+                  support_tickets: 0,
+                  mpesa_transactions: 0,
+                },
+              ];
+            }
+
+            return [{ locked: true }];
+          },
+        }),
+      $executeRawUnsafe: async (text: string) => {
+        rootExecutions.push(text);
+        throw new Error('manual billing write escaped tenant transaction');
+      },
+      $queryRawUnsafe: async (text: string) => {
+        throw new Error(`manual billing query escaped tenant transaction: ${text}`);
+      },
+    } as never,
+    { ensureTenantAuthorizationBaseline: async () => undefined } as never,
+    { getTransactionalEmailStatus: () => ({ provider: 'resend', status: 'configured' }) } as never,
+    { get: () => undefined } as never,
+    { getStore: () => ({ user_id: 'platform-owner' }) } as never,
+    {
+      listEnabledModulesForTenant: async () => ['students', 'finance'],
+    } as never,
+  );
+
+  const response = await service.updateSchoolBilling('homabay-high', {
+    state: 'active',
+    note: 'Paid through Super Admin billing control',
+  });
+
+  assert.equal(response.billing?.state, 'active');
+  assert.deepEqual(rootExecutions, []);
+  assert.equal(
+    transactionQueries.some((text) => text.includes("set_config('app.tenant_id'")),
+    true,
+  );
+  assert.equal(
+    transactionExecutions.some((text) => text.includes('UPDATE subscriptions')),
+    true,
+  );
+  assert.equal(
+    transactionExecutions.some((text) => text.includes('INSERT INTO audit_logs')),
+    true,
+  );
+});
+
 test('PlatformOnboardingService hard deletes an empty failed-invite school after slug confirmation', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
 

@@ -109,6 +109,11 @@ type AuditAction =
   | 'platform.school.legal_offboarding_anonymized'
   | 'platform.school.billing_state_updated';
 
+type RawSqlExecutor = {
+  $executeRawUnsafe: (query: string, ...params: any[]) => Promise<number>;
+  $queryRawUnsafe: <T = unknown>(query: string, ...params: any[]) => Promise<T>;
+};
+
 const manualBillingLabels: Record<PlatformManualBillingState, string> = {
   not_configured: 'Not configured',
   active: 'Active',
@@ -122,9 +127,24 @@ const manualBillingLabels: Record<PlatformManualBillingState, string> = {
 export class PlatformOnboardingService {
   private readonly logger = new Logger(PlatformOnboardingService.name);
 
-  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+  private async executeSql<T = any>(
+    query: string,
+    params: any[] = [],
+    executor?: RawSqlExecutor,
+  ): Promise<{ rows: T[], rowCount: number }> {
     const firstParam = params[0];
     const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+
+    if (executor) {
+      if (!this.rawSqlReturnsRows(query)) {
+        const rowCount = await executor.$executeRawUnsafe(query, ...params);
+        return { rows: [], rowCount };
+      }
+
+      const result = await executor.$queryRawUnsafe(query, ...params);
+      const arr = Array.isArray(result) ? result : [result];
+      return { rows: arr as T[], rowCount: arr.length };
+    }
 
     if ((this.prisma as any).query) {
       return (this.prisma as any).query(query, params);
@@ -533,24 +553,25 @@ export class PlatformOnboardingService {
     const effectiveUntil = this.parseEffectiveUntil(dto.effective_until);
     const actorUserId = this.requestContext.getStore()?.user_id ?? null;
 
-    const tenant = await this.prisma.withRequestTransaction(async () => {
-      await this.scopeTenantForLifecycleMutation(tenantId);
-      const existingTenant = await this.findPlatformSchoolRow(tenantId);
+    const tenant = await this.prisma.withRequestTransaction(async (tx: RawSqlExecutor) => {
+      await this.scopeTenantForLifecycleMutation(tenantId, tx);
+      const existingTenant = await this.findPlatformSchoolRow(tenantId, tx);
       await this.upsertManualBillingState({
         tenantId,
         state,
         note,
         effectiveUntil,
         actorUserId,
-      });
+      }, tx);
       await this.writeSchoolLifecycleAudit(
         'platform.school.billing_state_updated',
         existingTenant,
-        await this.getTenantUsageSummary(tenantId),
+        await this.getTenantUsageSummary(tenantId, tx),
         `Billing state set to ${manualBillingLabels[state]}`,
+        tx,
       );
 
-      return this.findPlatformSchoolRow(tenantId);
+      return this.findPlatformSchoolRow(tenantId, tx);
     });
     const enabledModules = await this.getEnabledModulesForTenant(tenantId);
 
@@ -848,7 +869,10 @@ export class PlatformOnboardingService {
     return context;
   }
 
-  private async findPlatformSchoolRow(tenantId: string): Promise<TenantRow> {
+  private async findPlatformSchoolRow(
+    tenantId: string,
+    executor?: RawSqlExecutor,
+  ): Promise<TenantRow> {
     const result = await this.executeSql<TenantRow>(
       `
         SELECT
@@ -918,6 +942,7 @@ export class PlatformOnboardingService {
         LIMIT 1
       `,
       [tenantId],
+      executor,
     );
     const tenant = result.rows[0];
 
@@ -947,15 +972,20 @@ export class PlatformOnboardingService {
     return tenant;
   }
 
-  private async scopeTenantForLifecycleMutation(tenantId: string): Promise<void> {
+  private async scopeTenantForLifecycleMutation(
+    tenantId: string,
+    executor?: RawSqlExecutor,
+  ): Promise<void> {
     await this.executeSql(
       "SELECT set_config('app.tenant_id', $1, true)",
       [tenantId],
+      executor,
     );
   }
 
   private async getTenantUsageSummary(
     tenantId: string,
+    executor?: RawSqlExecutor,
   ): Promise<PlatformSchoolUsageSummaryDto> {
     const result = await this.executeSql<{
       memberships: string | number;
@@ -973,6 +1003,7 @@ export class PlatformOnboardingService {
           (SELECT COUNT(*) FROM mpesa_transactions WHERE tenant_id = $1) AS mpesa_transactions
       `,
       [tenantId],
+      executor,
     );
     const row = result.rows[0];
 
@@ -991,7 +1022,7 @@ export class PlatformOnboardingService {
     note: string | null;
     effectiveUntil: Date | null;
     actorUserId: string | null;
-  }): Promise<void> {
+  }, executor?: RawSqlExecutor): Promise<void> {
     const now = new Date();
     const subscriptionStatus = this.subscriptionStatusForManualBillingState(input.state);
     const lifecycleDates = this.lifecycleDatesForManualBillingState(input.state, now, input.effectiveUntil);
@@ -1031,6 +1062,7 @@ export class PlatformOnboardingService {
         SELECT TRUE AS locked
       `,
       [input.tenantId],
+      executor,
     );
 
     const updateResult = await this.executeSql(
@@ -1059,6 +1091,7 @@ export class PlatformOnboardingService {
           AND status IN ('trialing', 'active', 'past_due', 'restricted', 'suspended')
       `,
       subscriptionValues,
+      executor,
     );
 
     if ((updateResult.rowCount ?? 0) > 0) {
@@ -1109,6 +1142,7 @@ export class PlatformOnboardingService {
         )
       `,
       subscriptionValues,
+      executor,
     );
   }
 
@@ -1300,6 +1334,7 @@ export class PlatformOnboardingService {
     tenant: TenantRow,
     usageSummary: PlatformSchoolUsageSummaryDto,
     reason: string,
+    executor?: RawSqlExecutor,
   ): Promise<void> {
     const context = this.requestContext.getStore();
 
@@ -1339,6 +1374,7 @@ export class PlatformOnboardingService {
           usage_summary: usageSummary,
         }),
       ],
+      executor,
     );
   }
 
