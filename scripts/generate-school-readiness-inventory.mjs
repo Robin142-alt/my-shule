@@ -156,6 +156,72 @@ function commandCenterInventory() {
   });
 }
 
+function extractNavItemCandidates(source) {
+  const seen = new Set();
+  const candidates = [];
+  const navItemPattern = /\{\s*id:\s*"([^"]+)"\s*,\s*label:\s*"([^"]+)"/g;
+
+  for (const match of source.matchAll(navItemPattern)) {
+    const id = match[1].trim();
+    const label = match[2].trim();
+    const key = `${id}:${label}`;
+
+    if (!id || !label || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    candidates.push({ id, label });
+  }
+
+  return candidates;
+}
+
+function roleSidebarWorkspaceInventory(commandCenters) {
+  const inventories = [];
+
+  for (const center of commandCenters) {
+    const primarySourcePath = join(rootDir, center.file);
+    const sourcePaths = [primarySourcePath];
+
+    if (center.file.endsWith("teacher-command-center.tsx")) {
+      sourcePaths.push(join(rootDir, "apps/web/src/components/school/teacher-dashboard/nav-config.ts"));
+    }
+
+    const candidates = sourcePaths.flatMap((sourcePath) => {
+      if (!existsSync(sourcePath)) {
+        return [];
+      }
+
+      return extractNavItemCandidates(readFileSync(sourcePath, "utf8")).map((item) => ({
+        ...item,
+        source: relative(rootDir, sourcePath).replace(/\\/g, "/"),
+      }));
+    });
+
+    const seen = new Set();
+    for (const item of candidates) {
+      const key = `${center.role}:${item.id}:${item.label}`;
+      if (seen.has(key)) {
+        continue;
+      }
+
+      seen.add(key);
+      inventories.push({
+        role: center.role,
+        label: item.label,
+        workspaceId: item.id,
+        source: item.source,
+        status: "DISCOVERED_NOT_MANUALLY_VERIFIED",
+      });
+    }
+  }
+
+  return inventories.sort((a, b) =>
+    `${a.role}:${a.workspaceId}:${a.label}`.localeCompare(`${b.role}:${b.workspaceId}:${b.label}`),
+  );
+}
+
 function routeSectionInventory() {
   const routeSource = readText("apps/web/src/components/school/school-pages.tsx");
   return routeSetNames.map((name) => ({
@@ -231,6 +297,7 @@ function renderList(items, renderItem) {
 
 function renderMatrix() {
   const commandCenters = commandCenterInventory();
+  const sidebarWorkspaces = roleSidebarWorkspaceInventory(commandCenters);
   const routeSections = routeSectionInventory();
   const controllers = apiControllerInventory();
   const models = prismaModelInventory();
@@ -249,6 +316,11 @@ This matrix is generated from source code so production-readiness gaps can be re
 ${renderList(packages, (pkg) => `- ${pkg.name} (${pkg.path}) - scripts: ${pkg.scripts.length ? pkg.scripts.join(", ") : "none"}`)}
 ## Role Dashboard Inventory
 ${renderList(commandCenters, (center) => `- ${center.role}: ${center.file}`)}
+## Role Sidebar And Workspace Inventory
+| Role | Sidebar label | Workspace id | Source | Status |
+| --- | --- | --- | --- | --- |
+${sidebarWorkspaces.length ? sidebarWorkspaces.map((item) => `| ${item.role} | ${item.label} | ${item.workspaceId} | ${item.source} | ${item.status} |`).join("\n") : "| None discovered | - | - | - | - |"}
+
 ## Frontend Route Section Inventory
 ${renderList(routeSections, (set) => `- ${set.name}: ${set.sections.length} sections${set.sections.length ? ` - ${set.sections.join(", ")}` : ""}`)}
 ## API Controller Inventory
@@ -292,8 +364,28 @@ ${manualVerificationJourneys
     (journey, index) => `## ${journey.title}
 
 - Script ID: MGV-${String(index + 1).padStart(2, "0")}
+- Account: manual Gmail account to be supplied by the tester
 - Primary actor: ${journey.actor}
+- Role: ${journey.actor}
+- Invitation sender: ${index === 0 ? "Super Admin" : "Role owner for the workflow"}
+- Expected email: recipient-specific MyShule workflow email where the journey sends mail; otherwise not applicable
+- Expected email subject: MyShule workflow subject containing the school or action name
+- Expected invitation link: must point to the configured PUBLIC_APP_URL or WEB_APP_URL and preserve token, school, role, and expiry where applicable
+- Login route: role-specific MyShule login or invitation acceptance route
+- Dashboard: role-specific dashboard for ${journey.actor}
+- Navigation: open the relevant sidebar workspace for this journey
+- Data to enter: realistic Kenyan school test data only; no real student data
+- Receiving role: intended downstream role or portal recipient for this journey
+- Expected notification: truthful in-app/email/SMS queued, sent, delivered, failed, or not applicable state
+- Expected report: preview, download, print, generated artifact, queued job, or not applicable
+- Expected audit event: school-scoped event or audit entry for successful mutation; failure event where the workflow fails
 - Expected outcome: ${journey.outcome}
+- Expected result: completed workflow is visible only in the intended school and relevant receiving dashboards
+- Failure symptoms: internal server error, invalid token, wrong school data, fake success, missing audit, missing email, missing report, or cross-tenant visibility
+- Screenshot checkpoints: before submit, after submit, received email, accepted link, resulting dashboard record, audit/notification/report evidence
+- Pass/fail: NOT_YET_MANUALLY_VERIFIED
+- Notes: 
+- Defect: 
 - Preconditions:
   - Use a non-demo school unless the script explicitly tests the demo tenant.
   - Confirm the actor is logged into the intended role and school.

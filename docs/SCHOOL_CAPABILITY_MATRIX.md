@@ -1,6 +1,6 @@
 # MyShule School Capability Matrix
 
-Generated: 2026-07-15T14:15:35.951Z
+Generated: 2026-07-15T14:35:23.430Z
 
 Status: NOT_YET_MANUALLY_VERIFIED
 
@@ -38,6 +38,327 @@ This matrix is generated from source code so production-readiness gaps can be re
 - Student: apps/web/src/components/school/student-command-center.tsx
 - Teacher: apps/web/src/components/school/teacher-command-center.tsx
 - Transport Manager: apps/web/src/components/school/transport-manager-command-center.tsx
+
+## Role Sidebar And Workspace Inventory
+| Role | Sidebar label | Workspace id | Source | Status |
+| --- | --- | --- | --- | --- |
+| Admissions Dashboard | Applicant Profiles | applicant-profiles | apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Admissions Dashboard | Applications | applications | apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Admissions Dashboard | Appointments | appointments | apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Admissions Dashboard | Communication | communication | apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Admissions Dashboard | Documents | documents | apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Admissions Dashboard | Enquiries | enquiries | apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Admissions Dashboard | Enrolment | enrolment | apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Admissions Dashboard | Fee Clearance | fee-clearance | apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Admissions Dashboard | Imports | imports | apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Admissions Dashboard | Interviews | interviews | apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Admissions Dashboard | Overview | overview | apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Admissions Dashboard | Parents | parents | apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Admissions Dashboard | Class Placement | placement | apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Admissions Dashboard | Reports | reports | apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Admissions Dashboard | Selection & Offers | selection | apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Admissions Dashboard | Tasks | tasks | apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Admissions Dashboard | Templates | templates | apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Admissions Dashboard | Transfers | transfers | apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Boarding Master | Approvals | approvals | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Boarding Master | Bed Allocation | beds | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Boarding Master | Parent Communication | communication | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Boarding Master | Dormitories & Rooms | dorms | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Boarding Master | Duty Roster | duty | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Boarding Master | Dorm Incidents | incidents | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Boarding Master | Dorm Inspections | inspections | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Boarding Master | Boarding Inventory | inventory | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Boarding Master | Late Returns & Absences | late-returns | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Boarding Master | Leave / Exeat Requests | leave | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Boarding Master | Maintenance Requests | maintenance | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Boarding Master | Meals & Dining | meals | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Boarding Master | Overview | overview | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Boarding Master | Boarder Register | register | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Boarding Master | Reports & Downloads | reports | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Boarding Master | Daily Roll Call | roll-call | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Boarding Master | Boarding Settings | settings | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Boarding Master | Visitors & Gate Passes | visitors | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Boarding Master | Health & Welfare | welfare | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Assessments / CATs | assessments-cats | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Assignments & Homework | assignments | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Attendance | attendance | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Class Teacher Workspace | class-teacher | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | My Classes | classes | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Club / Co-curricular | club | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Report Card Comments | comments | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Parent Communication | communication | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Discipline & Welfare | discipline-welfare | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Discipline & Behaviour | discipline | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Documents & Letters | documents | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Exams & Marks | exams-marks | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Fees Follow-up | fees | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Health Notes | health | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Overview | home | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Homework & Class Tasks | homework | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Invigilation Duties | invigilation | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Learner Progress | learner-progress | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Lesson Log | lesson-log | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Meetings & Appointments | meetings | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Notifications | notifications | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Overview | overview | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Parent Communication | parent-communication | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | My Profile | profile | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Academic Progress | progress | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | My Class Register | register | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Reports & Downloads | reports | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Requests & Approvals | requests | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Settings | settings | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Store Requests | store-requests | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Syllabus Coverage | syllabus-coverage | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Teaching Resources | teaching-resources | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | My Timetable | timetable | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Timetable | timetable | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Welfare & Counselling | welfare | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Counsellor | Appointments | appointments | apps/web/src/components/school/counsellor-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Counsellor | Student Cases | cases | apps/web/src/components/school/counsellor-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Counsellor | Discipline Referrals | discipline | apps/web/src/components/school/counsellor-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Counsellor | Safeguarding / Escalations | escalations | apps/web/src/components/school/counsellor-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Counsellor | Follow-ups | followups | apps/web/src/components/school/counsellor-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Counsellor | Group Guidance | group | apps/web/src/components/school/counsellor-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Counsellor | Health Referrals | health | apps/web/src/components/school/counsellor-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Counsellor | Overview | overview | apps/web/src/components/school/counsellor-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Counsellor | Parent Engagement | parents | apps/web/src/components/school/counsellor-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Counsellor | Referral Inbox | referrals | apps/web/src/components/school/counsellor-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Counsellor | Reports | reports | apps/web/src/components/school/counsellor-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Counsellor | Session Notes | sessions | apps/web/src/components/school/counsellor-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Counsellor | Settings | settings | apps/web/src/components/school/counsellor-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Counsellor | Teacher Collaboration | teachers | apps/web/src/components/school/counsellor-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Counsellor | Resources & Templates | templates | apps/web/src/components/school/counsellor-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Counsellor | Welfare Concerns | welfare | apps/web/src/components/school/counsellor-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Dean Academics | Academic Interventions | academic-interventions | apps/web/src/components/school/dean-academics-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Dean Academics | Assessments | assessments | apps/web/src/components/school/dean-academics-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Dean Academics | Curriculum Coverage | curriculum-coverage | apps/web/src/components/school/dean-academics-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Dean Academics | Department Performance | department-performance | apps/web/src/components/school/dean-academics-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Dean Academics | Lesson Logs | lesson-logs | apps/web/src/components/school/dean-academics-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Dean Academics | Lesson Plans | lesson-plans | apps/web/src/components/school/dean-academics-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Dean Academics | Academic Overview | overview | apps/web/src/components/school/dean-academics-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Dean Academics | Academic Reports | reports | apps/web/src/components/school/dean-academics-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Dean Academics | Teacher Workload | teacher-workload | apps/web/src/components/school/dean-academics-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Deputy Principal | Academics Monitoring | academics | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Deputy Principal | Approvals & Escalations | approvals | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Deputy Principal | Attendance & Punctuality | attendance | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Deputy Principal | Classes & Streams | classes | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Deputy Principal | Communication | communication | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Deputy Principal | Daily Operations | daily-operations | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Deputy Principal | Discipline & Behaviour | discipline | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Deputy Principal | Exams & Marks | exams | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Deputy Principal | Overview | overview | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Deputy Principal | Reports & Downloads | reports | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Deputy Principal | Settings | settings | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Deputy Principal | Staff Duty | staff-duty | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Deputy Principal | Staff & Roles | staff-roles | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Deputy Principal | Teaching Workspace | teaching | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Deputy Principal | Timetable & Relief | timetable | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Deputy Principal | Student Welfare | welfare | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Discipline Master | Interventions | actions | apps/web/src/components/school/discipline-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Discipline Master | Approvals | approvals | apps/web/src/components/school/discipline-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Discipline Master | Audit Trail | audit | apps/web/src/components/school/discipline-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Discipline Master | Counselling | counselling | apps/web/src/components/school/discipline-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Discipline Master | Detention | detention | apps/web/src/components/school/discipline-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Discipline Master | Incident Register | incident-register | apps/web/src/components/school/discipline-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Discipline Master | Investigations | investigations | apps/web/src/components/school/discipline-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Discipline Master | Log Incident | log-incident | apps/web/src/components/school/discipline-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Discipline Master | Monitoring | monitoring | apps/web/src/components/school/discipline-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Discipline Master | Overview | overview | apps/web/src/components/school/discipline-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Discipline Master | Parent Comm | parent-comm | apps/web/src/components/school/discipline-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Discipline Master | Report Intake | report-intake | apps/web/src/components/school/discipline-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Discipline Master | Reports | reports | apps/web/src/components/school/discipline-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Discipline Master | Settings | settings | apps/web/src/components/school/discipline-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Discipline Master | Conduct Profiles | student-conduct | apps/web/src/components/school/discipline-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Discipline Master | Templates | templates | apps/web/src/components/school/discipline-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Discipline Master | Triage Queue | triage-queue | apps/web/src/components/school/discipline-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Exams Manager | Grade Processing | analysis | apps/web/src/components/school/exams-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Exams Manager | Exam Setup / Exam Builder | exam-setup | apps/web/src/components/school/exams-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Exams Manager | Exam Timetable | exam-timetable | apps/web/src/components/school/exams-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Exams Manager | Imports & Templates | imports-templates | apps/web/src/components/school/exams-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Exams Manager | Marks Entry Hub | marks-entry | apps/web/src/components/school/exams-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Exams Manager | Data Validation | moderation | apps/web/src/components/school/exams-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Exams Manager | Exam Command Center | overview | apps/web/src/components/school/exams-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Exams Manager | Publishing | publishing | apps/web/src/components/school/exams-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Exams Manager | Report Cards | report-cards | apps/web/src/components/school/exams-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Exams Manager | Reports & Audit | reports | apps/web/src/components/school/exams-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Grade Master | Academic Progress | academics | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Grade Master | Assignments & Homework | assignments | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Grade Master | Attendance Monitor | attendance | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Grade Master | Parent Communication | communication | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Grade Master | Discipline & Behaviour | discipline | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Grade Master | Exams & Report Readiness | exams | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Grade Master | Fees Watchlist | fees | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Grade Master | Learners | learners | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Grade Master | Meetings & Follow-ups | meetings | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Grade Master | Notifications | notifications | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Grade Master | Overview | overview | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Grade Master | Reports & Downloads | reports | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Grade Master | Requests & Approvals | requests | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Grade Master | Settings | settings | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Grade Master | Streams & Class Teachers | streams | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Grade Master | My Teaching Workspace | teaching | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Grade Master | Timetable & Lessons | timetable | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Grade Master | Welfare & Counselling | welfare | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Guidance Counselling | Emergency alert | abuse-alert | apps/web/src/components/school/guidance-counselling-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Guidance Counselling | Faith Akinyi referral | faith-referral | apps/web/src/components/school/guidance-counselling-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Guidance Counselling | Parent meeting | parent-meeting | apps/web/src/components/school/guidance-counselling-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Guidance Counselling | Wellbeing summary | wellness-report | apps/web/src/components/school/guidance-counselling-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Hod | Coverage Review | coverage-review | apps/web/src/components/school/hod-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Hod | Department Teachers | department-teachers | apps/web/src/components/school/hod-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Hod | Lesson Plans Review | lesson-plans | apps/web/src/components/school/hod-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Hod | Marks Moderation | marks-moderation | apps/web/src/components/school/hod-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Hod | Department Overview | overview | apps/web/src/components/school/hod-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Hod | Department Reports | reports | apps/web/src/components/school/hod-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Hod | Resource Requests | resource-requests | apps/web/src/components/school/hod-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Hod | Subject Allocation | subject-allocation | apps/web/src/components/school/hod-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Laboratory Technician | Apparatus & Equipment | apparatus | apps/web/src/components/school/laboratory-technician-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Laboratory Technician | Chemicals & Reagents | chemicals | apps/web/src/components/school/laboratory-technician-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Laboratory Technician | Consumables & Specimens | consumables | apps/web/src/components/school/laboratory-technician-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Laboratory Technician | Waste & Disposal | disposal | apps/web/src/components/school/laboratory-technician-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Laboratory Technician | Faults & Maintenance | faults | apps/web/src/components/school/laboratory-technician-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Laboratory Technician | Safety Incidents | incidents | apps/web/src/components/school/laboratory-technician-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Laboratory Technician | Stock Intake | intake | apps/web/src/components/school/laboratory-technician-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Laboratory Technician | Issue / Return Desk | issue_return | apps/web/src/components/school/laboratory-technician-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Laboratory Technician | Messages & Alerts | messages | apps/web/src/components/school/laboratory-technician-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Laboratory Technician | Overview | overview | apps/web/src/components/school/laboratory-technician-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Laboratory Technician | Preparation Bench | preparation | apps/web/src/components/school/laboratory-technician-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Laboratory Technician | Procurement Requests | procurement | apps/web/src/components/school/laboratory-technician-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Laboratory Technician | Reports & Downloads | reports | apps/web/src/components/school/laboratory-technician-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Laboratory Technician | Teacher Requests | requests | apps/web/src/components/school/laboratory-technician-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Laboratory Technician | Practical Schedule | schedule | apps/web/src/components/school/laboratory-technician-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Laboratory Technician | Lab Settings | settings | apps/web/src/components/school/laboratory-technician-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Laboratory Technician | Stocktake & Audit | stocktake | apps/web/src/components/school/laboratory-technician-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Librarian | Add / Accession Books | add_books | apps/web/src/components/school/librarian-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Librarian | Students & Borrowers | borrowers | apps/web/src/components/school/librarian-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Librarian | Book Catalogue | catalogue | apps/web/src/components/school/librarian-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Librarian | Class Textbook Distribution | class_textbooks | apps/web/src/components/school/librarian-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Librarian | Departments & Subject Resources | departments | apps/web/src/components/school/librarian-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Librarian | Fines & Payments | fines | apps/web/src/components/school/librarian-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Librarian | Issue Books | issue | apps/web/src/components/school/librarian-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Librarian | Loans & Overdues | loans | apps/web/src/components/school/librarian-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Librarian | Lost / Damaged Books | lost_damaged | apps/web/src/components/school/librarian-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Librarian | Notices & Communication | notices | apps/web/src/components/school/librarian-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Librarian | Overview | overview | apps/web/src/components/school/librarian-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Librarian | Reports & Downloads | reports | apps/web/src/components/school/librarian-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Librarian | Requests & Approvals | requests | apps/web/src/components/school/librarian-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Librarian | Reservations | reservations | apps/web/src/components/school/librarian-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Librarian | Return Books | return | apps/web/src/components/school/librarian-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Librarian | Library Settings | settings | apps/web/src/components/school/librarian-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Librarian | Library Stocktake | stocktake | apps/web/src/components/school/librarian-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Librarian | Library Visits & Reading Logs | visits | apps/web/src/components/school/librarian-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Nurse | Dispensing Log | dispensing-log | apps/web/src/components/school/nurse-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Nurse | Health Reports | health-reports | apps/web/src/components/school/nurse-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Nurse | Medicine Inventory | medicine-inventory | apps/web/src/components/school/nurse-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Nurse | Overview | overview | apps/web/src/components/school/nurse-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Nurse | Parent Notifications | parent-notifications | apps/web/src/components/school/nurse-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Nurse | Sick Bay Queue | sick-bay-queue | apps/web/src/components/school/nurse-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Nurse | Visits | visits | apps/web/src/components/school/nurse-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Academics | academics | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Approvals | approvals | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Attendance | attendance | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Audit Logs | audit-logs | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Boarding | boarding | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Communication | communication | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Discipline | discipline | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Exams & Report Cards | exams-reports | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Fees | fees | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Library | library | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Overview | overview | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Reports | reports | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | School Setup | setup-checklist | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Sick Bay | sick-bay | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Staff | staff | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Transport | transport | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Users & Invitations | users-invitations | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Parents & Visitors | visitors | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Role Operational | Form | form | apps/web/src/components/school/role-operational-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Role Operational | Today's Work | queue | apps/web/src/components/school/role-operational-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Role Operational | Records | records | apps/web/src/components/school/role-operational-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Security | Boarding Gate Movement | boarding-movement | apps/web/src/components/school/security-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Security | Fast Visitor Check-In | check-in | apps/web/src/components/school/security-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Security | Deliveries & Parcels | deliveries | apps/web/src/components/school/security-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Security | Early Departures | early-departures | apps/web/src/components/school/security-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Security | Expected Visitors | expected-visitors | apps/web/src/components/school/security-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Security | Frequent Visitors | frequent-visitors | apps/web/src/components/school/security-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Security | Student Gate Passes | gate-passes | apps/web/src/components/school/security-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Security | Incidents & Emergencies | incidents | apps/web/src/components/school/security-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Security | Late Arrivals | late-arrivals | apps/web/src/components/school/security-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Security | Lost & Found | lost-found | apps/web/src/components/school/security-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Security | Notifications | notifications | apps/web/src/components/school/security-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Security | Overview | overview | apps/web/src/components/school/security-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Security | Reports & Downloads | reports | apps/web/src/components/school/security-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Security | Security Settings | settings | apps/web/src/components/school/security-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Security | My Shift & Handover | shift | apps/web/src/components/school/security-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Security | Staff Movement | staff-movement | apps/web/src/components/school/security-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Security | Transport Gate Clearance | transport-clearance | apps/web/src/components/school/security-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Security | Vehicle Log | vehicle-log | apps/web/src/components/school/security-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Security | Visitor Register | visitor-register | apps/web/src/components/school/security-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Security | Watchlist | watchlist | apps/web/src/components/school/security-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | AI Insights | ai | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Pending Requests | approvals | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Audit Logs | audit | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Scan Barcode | barcode | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Chemistry acid movement | chem-acid | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Kitchen count | count-kitchen | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Stock Count | count | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Damaged Goods | damaged | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Dashboard | dashboard | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Departments | departments | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Emergency Request | emergency | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Expiry Tracking | expiry | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Lake Lab Supplies GRN | grn-lab | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Inventory | inventory | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Issue Item | issue | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Purchase Orders | purchase-orders | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Recent Purchases | purchases | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Receive Stock | receive | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Goods Received | received | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Reports | reports | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Kitchen requisition | req-kitchen | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Requisitions | requisitions | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Rice stock | rice-low | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Low Stock Items | risk | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Settings | settings | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Stock Counts | stock-counts | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Suppliers | suppliers | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Transfers | transfers | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Storekeeper | Total Inventory Value | value | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Assessments / CATs | assessments-cats | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Assignments & Homework | assignments | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Attendance | attendance | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Class Teacher Workspace | class-teacher | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | My Classes | classes | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Club / Co-curricular | club | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Discipline & Welfare | discipline-welfare | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Exams & Marks | exams-marks | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Invigilation Duties | invigilation | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Learner Progress | learner-progress | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Lesson Log | lesson-log | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Notifications | notifications | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Overview | overview | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Parent Communication | parent-communication | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | My Profile | profile | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Reports & Downloads | reports | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Store Requests | store-requests | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Syllabus Coverage | syllabus-coverage | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Teaching Resources | teaching-resources | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | My Timetable | timetable | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Transport Manager | Student Transport Allocation | allocation | apps/web/src/components/school/transport-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Transport Manager | Transport Attendance | attendance | apps/web/src/components/school/transport-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Transport Manager | Compliance & Insurance | compliance | apps/web/src/components/school/transport-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Transport Manager | Driver Management | drivers | apps/web/src/components/school/transport-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Transport Manager | Fleet Management | fleet | apps/web/src/components/school/transport-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Transport Manager | Fuel Management | fuel | apps/web/src/components/school/transport-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Transport Manager | GPS Tracking | gps | apps/web/src/components/school/transport-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Transport Manager | Incident Reports | incidents | apps/web/src/components/school/transport-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Transport Manager | Maintenance & Repairs | maintenance | apps/web/src/components/school/transport-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Transport Manager | Parent Notifications | notifications | apps/web/src/components/school/transport-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Transport Manager | Dashboard Overview | overview | apps/web/src/components/school/transport-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Transport Manager | Reports & Analytics | reports | apps/web/src/components/school/transport-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Transport Manager | Routes & Stops | routes | apps/web/src/components/school/transport-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Transport Manager | Settings | settings | apps/web/src/components/school/transport-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Transport Manager | Trip Monitoring | trips | apps/web/src/components/school/transport-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 
 ## Frontend Route Section Inventory
 - supportWorkspaceSectionIds: 4 sections - support-new-ticket, support-my-tickets, support-knowledge-base, support-system-status

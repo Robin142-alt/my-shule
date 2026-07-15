@@ -76,6 +76,7 @@ Core roles confirmed from routing/tests and `AGENTS.md`: Super Admin, System Mon
 | SR-002 | P1 | VERIFIED_AUTOMATICALLY | `/school/principal/setup-checklist` fell through to the generic shell instead of the Principal command center. | Focused test initially rendered generic `enterprise-shell` and could not find `principal-practical-command-center`. | Added Principal setup/user/sick-bay/exams-report route sections to `roleOperationalWorkspaceSectionIds` in `apps/web/src/components/school/school-pages.tsx`. |
 | SR-003 | P2 | VERIFIED_AUTOMATICALLY | Reusable Principal list workspace actions included no-op buttons for primary action, export, and print. | `PrincipalListWorkspace` rendered `ActionRow` without `onAction`. | Wired primary navigation, CSV export via `downloadCsvFile`, and print preview via `openPrintDocument`. |
 | SR-004 | P1 | VERIFIED_AUTOMATICALLY | Remaining production-readiness gaps were being tracked manually in chat/ledger instead of a repeatable source-derived inventory. | No generated role/route/controller/model capability matrix or Gmail verification scripts existed. | Added `readiness:school-inventory`, a source scanner, generated capability matrix, and manual Gmail verification scripts. |
+| SR-005 | P1 | VERIFIED_AUTOMATICALLY | The generated capability matrix did not yet list discovered sidebar/workspace items per role, and manual Gmail scripts did not include every required evidence field from the mandate. | `docs/SCHOOL_CAPABILITY_MATRIX.md` only listed route sets; `docs/MANUAL_GMAIL_VERIFICATION_SCRIPTS.md` lacked explicit account, expected subject/link, receiving role, audit event, screenshot checkpoint, pass/fail, notes, and defect fields. | Expanded `scripts/generate-school-readiness-inventory.mjs` to parse role dashboard nav items and generate complete Gmail verification fields. |
 
 ## Tests Added Or Updated
 
@@ -84,6 +85,8 @@ Core roles confirmed from routing/tests and `AGENTS.md`: Super Admin, System Mon
   - New test: Principal Staff primary action opens Users & Invitations instead of doing nothing.
 - Added `scripts/generate-school-readiness-inventory.test.mjs`
   - Verifies the inventory generator creates the capability matrix and Gmail verification scripts with required role, route, API, model, dependency, and manual-verification sections.
+  - Verifies sidebar/workspace rows for Principal, Teacher, Exams Manager, and Admissions dashboards.
+  - Verifies manual Gmail scripts include account, invitation sender, expected subject/link, login route, dashboard, receiving role, notification/report/audit expectations, screenshot checkpoints, pass/fail, notes, and defect fields.
 
 ## Tests Executed In This Slice
 
@@ -94,6 +97,7 @@ Core roles confirmed from routing/tests and `AGENTS.md`: Super Admin, System Mon
 | `npm run typecheck` | PASS | Prisma generated; TypeScript passed |
 | `node --test scripts/generate-school-readiness-inventory.test.mjs` | PASS | Scanner generated both readiness docs and passed assertions |
 | `npm run readiness:school-inventory` | PASS | Generated `docs/SCHOOL_CAPABILITY_MATRIX.md` and `docs/MANUAL_GMAIL_VERIFICATION_SCRIPTS.md` |
+| `node --test scripts/generate-school-readiness-inventory.test.mjs` | PASS | Re-run after sidebar/manual-field scanner expansion |
 | `npm --prefix apps/web run build` | PASS | Next production build completed; 84 static pages generated |
 | `npm run ci:full` | PASS | Full build, lint, web build, API tests, implementation gates, tenant isolation audit, security scans, dependency audit, certifications, production scorecard, and release readiness passed after this slice |
 
