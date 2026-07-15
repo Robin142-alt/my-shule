@@ -235,16 +235,13 @@ describe("admissions dashboard routing", () => {
           json: async () => ({ metrics: { total: 0, pending: 0, approved: 0, rejected: 0 }, applicationsList: [] }),
         };
       }
-      if (url.includes("/api/admin-command/deputy/classes")) {
+      if (url.includes("/api/academics/class-sections")) {
         return {
           ok: true,
-          json: async () => ({
-            metrics: { active_classes: 2 },
-            classesList: [
-              { id: "class-1", name: "Grade 7 North", classTeacher: "Ms Achieng", studentCount: 24, status: "Active" },
-              { id: "class-2", name: "Grade 8 South", classTeacher: "Mr Otieno", studentCount: 21, status: "Active" },
-            ],
-          }),
+          json: async () => [
+            { id: "class-1", name: "Grade 7 North", grade_level: "Grade 7", stream: "North", capacity: 45 },
+            { id: "class-2", name: "Grade 8 South", grade_level: "Grade 8", stream: "South", capacity: 45 },
+          ],
         };
       }
       return { ok: true, json: async () => ({}) };
@@ -291,21 +288,18 @@ describe("admissions dashboard routing", () => {
     });
   }, 15000);
 
-  it("loads class applying options from the current school's deputy-created classes", async () => {
+  it("loads class applying options from the current school's academic class sections", async () => {
     const user = userEvent.setup();
     const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url.includes("/api/admin-command/deputy/classes")) {
+      if (url.includes("/api/academics/class-sections")) {
         return {
           ok: true,
-          json: async () => ({
-            metrics: { active_classes: 2 },
-            classesList: [
-              { id: "class-10", name: "Form 1 East", classTeacher: "Jane Moraa", studentCount: 32, status: "Active" },
-              { id: "class-11", name: "Form 2 West", classTeacher: "Ali Hassan", studentCount: 29, status: "Active" },
-              { id: "class-12", name: "Archived Form 4", classTeacher: "Old Teacher", studentCount: 0, status: "Inactive" },
-            ],
-          }),
+          json: async () => [
+            { id: "class-10", name: "Form 1", grade_level: "Form 1", stream: "East", capacity: 45 },
+            { id: "class-11", name: "Form 2 West", grade_level: "Form 2", stream: "West", capacity: 45 },
+            { id: "class-12", name: "Archived Form 4", grade_level: "Form 4", stream: "Archived", capacity: 0, is_active: false },
+          ],
         };
       }
       if (url.includes("/api/admin-command/admissions/applications") && init?.method === "POST") {
@@ -338,6 +332,8 @@ describe("admissions dashboard routing", () => {
     await user.click(within(dashboard).getByRole("button", { name: /start student admission/i }));
 
     const classSelect = await within(dashboard).findByLabelText(/class applying/i);
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/academics/class-sections"), expect.anything());
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/api/admin-command/deputy/classes"), expect.anything());
     expect(within(classSelect).getByRole("option", { name: "Form 1 East" })).toBeVisible();
     expect(within(classSelect).getByRole("option", { name: "Form 2 West" })).toBeVisible();
     expect(within(classSelect).queryByRole("option", { name: "Archived Form 4" })).not.toBeInTheDocument();

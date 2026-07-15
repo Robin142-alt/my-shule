@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { CheckCircle, ClipboardList, FileInput, Search, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -33,11 +33,10 @@ type ApplicationsData = {
 type SchoolClassRecord = {
   id: string;
   name: string;
+  grade_level?: string | null;
+  stream?: string | null;
+  is_active?: boolean | null;
   status?: string;
-};
-
-type ClassesData = {
-  classesList?: SchoolClassRecord[];
 };
 
 type ApplicationFormState = {
@@ -88,6 +87,31 @@ function statusTone(status: string) {
   return "border-amber-200 bg-amber-50 text-amber-700";
 }
 
+function classOptionLabel(schoolClass: SchoolClassRecord) {
+  const name = String(schoolClass.name ?? "").trim();
+  const stream = String(schoolClass.stream ?? "").trim();
+  if (!stream || name.toLowerCase().includes(stream.toLowerCase())) {
+    return name;
+  }
+  return `${name} ${stream}`.trim();
+}
+
+function isActiveClassSection(schoolClass: SchoolClassRecord) {
+  if (schoolClass.is_active === false) return false;
+  return normalizeStatus(schoolClass.status ?? "Active") === "active";
+}
+
+function normalizeClassSections(data: unknown): SchoolClassRecord[] {
+  if (Array.isArray(data)) return data as SchoolClassRecord[];
+  if (data && typeof data === "object" && Array.isArray((data as { items?: unknown[] }).items)) {
+    return (data as { items: SchoolClassRecord[] }).items;
+  }
+  if (data && typeof data === "object" && Array.isArray((data as { classesList?: unknown[] }).classesList)) {
+    return (data as { classesList: SchoolClassRecord[] }).classesList;
+  }
+  return [];
+}
+
 function requiredFieldsMissing(form: ApplicationFormState) {
   return [
     ["Student full name", form.full_name],
@@ -106,7 +130,7 @@ export function ApplicationsWorkspace() {
   const searchParams = useSearchParams();
   const shouldStartAdmission = searchParams.get("action") === "start-admission";
   const { data, isLoading, refetch } = useSchoolQuery<ApplicationsData>("/admin-command/admissions/applications");
-  const { data: classesData, isLoading: classesLoading } = useSchoolQuery<ClassesData>("/admin-command/deputy/classes");
+  const { data: classesData, isLoading: classesLoading } = useSchoolQuery<SchoolClassRecord[]>("/academics/class-sections");
   const createApplication = useSchoolMutation<Record<string, unknown>, ApplicationFormState>(
     "/admin-command/admissions/applications",
     "POST",
@@ -126,9 +150,11 @@ export function ApplicationsWorkspace() {
   const [formError, setFormError] = useState<string | null>(null);
   const [actioningId, setActioningId] = useState<string | null>(null);
 
-  const classOptions = (classesData?.classesList ?? [])
-    .filter((schoolClass) => normalizeStatus(schoolClass.status ?? "Active") === "active")
-    .sort((left, right) => left.name.localeCompare(right.name));
+  const classOptions = normalizeClassSections(classesData)
+    .filter(isActiveClassSection)
+    .map((schoolClass) => ({ ...schoolClass, label: classOptionLabel(schoolClass) }))
+    .filter((schoolClass) => schoolClass.label)
+    .sort((left, right) => left.label.localeCompare(right.label));
   const hasConfiguredClasses = classOptions.length > 0;
 
   const applications = (data?.applicationsList ?? data?.items ?? []).filter((application) => {
@@ -144,13 +170,6 @@ export function ApplicationsWorkspace() {
       .filter(Boolean)
       .some((value) => String(value).toLowerCase().includes(needle));
   });
-
-  useEffect(() => {
-    if (shouldStartAdmission) {
-      setFormError(null);
-      setFormOpen(true);
-    }
-  }, [shouldStartAdmission]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -322,8 +341,8 @@ export function ApplicationsWorkspace() {
                       : "No classes configured"}
                 </option>
                 {classOptions.map((schoolClass) => (
-                  <option key={schoolClass.id} value={schoolClass.name}>
-                    {schoolClass.name}
+                  <option key={schoolClass.id} value={schoolClass.label}>
+                    {schoolClass.label}
                   </option>
                 ))}
               </select>
