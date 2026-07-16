@@ -31,8 +31,8 @@ This file is a full implementation roadmap, not a claim that every milestone is 
   - `npm run readiness:school-inventory`
   - `node --test scripts/generate-school-readiness-inventory.test.mjs`
   - `npm run typecheck`
-- Current major remaining status: discovered workspaces are still mostly `DISCOVERED_NOT_MANUALLY_VERIFIED`, not proven operational.
-- Current manual status: Gmail/provider flows remain `NOT_YET_MANUALLY_VERIFIED`.
+- Current major remaining status: the main operational workflows now have automated source, API, web-design, provider-smoke, production-auth, and synthetic-monitor evidence recorded in `docs/SCHOOL_READINESS_WORK_LEDGER.md`; manual human Gmail journeys still require recipient-account execution before they can be marked `VERIFIED_MANUALLY`.
+- Current manual status: connected Gmail evidence confirms recent production verification/reset delivery and historical invite-template/link shape, but MGV-01 through MGV-16 remain manual workflow scripts unless a tester executes each journey end to end.
 
 ## Expanded Inspection Findings From Previously Uninspected Areas
 
@@ -385,7 +385,7 @@ npm --prefix apps/web run build
 - Inspect/modify: `apps/web/src/components/school/teacher-command-center.tsx`
 - Tests: `apps/api/src/modules/academics/academics.test.ts`, web design tests for deputy/HOD/teacher.
 
-- [ ] Step 1: Write failing tests for school-specific academic setup.
+- [x] Step 1: Write failing tests for school-specific academic setup.
 
 Acceptance:
 - Create academic year.
@@ -397,21 +397,21 @@ Acceptance:
 - Assign HOD/class teacher/subject teacher.
 - All records are school-scoped.
 
-- [ ] Step 2: Repair backend validations.
+- [x] Step 2: Repair backend validations.
 
 Acceptance:
 - Subject dropdowns in admissions/exams/teacher screens come from current school setup.
 - No hardcoded Kisumu/demo classes or subjects in real schools.
 - Disabled module routes are blocked in frontend and API.
 
-- [ ] Step 3: Repair UI flows.
+- [x] Step 3: Repair UI flows.
 
 Acceptance:
 - Deputy/Principal can create the academic foundation.
 - HOD can review department teacher allocations.
 - Teacher sees only assigned classes/subjects unless leadership teaching duty grants teacher capability.
 
-- [ ] Step 4: Verify.
+- [x] Step 4: Verify.
 
 ```powershell
 npm run typecheck
@@ -476,26 +476,26 @@ Manual follow-up:
 - Inspect/modify: `apps/api/src/modules/students/**`
 - Tests: `apps/api/src/modules/admissions/*.test.ts`, web admissions design tests.
 
-- [ ] Step 1: Add tests for the stage sequence.
+- [x] Step 1: Add tests for the stage sequence.
 
 Acceptance:
 - Enquiry -> application -> document check -> interview/selection -> fee clearance -> class placement -> enrolment -> parent link -> active student.
 - Each stage blocks missing dependencies with a clear error.
 - Class applying dropdown is school-specific from academic setup.
 
-- [ ] Step 2: Implement missing first-action empty states.
+- [x] Step 2: Implement missing first-action empty states.
 
 Acceptance:
 - Each empty workspace has a primary action.
 - No “No records found” without start action.
 
-- [ ] Step 3: Wire persistence and refresh.
+- [x] Step 3: Wire persistence and refresh.
 
 Acceptance:
 - Submitting each stage persists and refreshes the next workspace.
 - Parent linking creates only school-scoped guardian relationships.
 
-- [ ] Step 4: Verify.
+- [x] Step 4: Verify.
 
 ```powershell
 npm run typecheck
@@ -527,7 +527,7 @@ Acceptance:
 - UI reflects the changed billing status after mutation.
 - Mutation is tenant/school-scoped and audited.
 
-- [ ] Step 2: Add failing tests for fee setup to receipt.
+- [x] Step 2: Add failing tests for fee setup to receipt.
 
 Acceptance:
 - Fee structure exists before invoice.
@@ -536,13 +536,13 @@ Acceptance:
 - Receipt preview/download exists.
 - Parent balance sees only linked child.
 
-- [ ] Step 3: Repair UI and API.
+- [x] Step 3: Repair UI and API.
 
 Acceptance:
 - No internal server error on billing status changes.
 - No fake success if provider/payment state is only queued.
 
-- [ ] Step 4: Verify.
+- [x] Step 4: Verify.
 
 ```powershell
 npm run typecheck
@@ -568,13 +568,13 @@ Manual follow-up:
 - Inspect/modify: `apps/api/src/modules/exams/**`
 - Tests: teacher dashboard design tests, exams API tests.
 
-- [ ] Step 1: Add failing tests for teacher dashboard route rendering.
+- [x] Step 1: Add failing tests for teacher dashboard route rendering.
 
 Acceptance:
 - `/school/teacher` renders the new teacher command center.
 - Sidebar items open unique workable workspaces.
 
-- [ ] Step 2: Add failing tests for teacher marks workflow.
+- [x] Step 2: Add failing tests for teacher marks workflow.
 
 Acceptance:
 - Teacher sees assigned exam/subject/class only.
@@ -582,7 +582,7 @@ Acceptance:
 - Marks entry validates score range, absent status, comments, and duplicate submit.
 - Save draft and submit are distinct.
 
-- [ ] Step 3: Improve marks UI.
+- [x] Step 3: Improve marks UI.
 
 Acceptance:
 - Dense mark grid.
@@ -591,7 +591,7 @@ Acceptance:
 - Import/template path where supported.
 - Submission summary and errors per learner.
 
-- [ ] Step 4: Verify.
+- [x] Step 4: Verify.
 
 ```powershell
 npm --prefix apps/web run test:design -- teacher
@@ -612,13 +612,13 @@ npm run typecheck
 - Inspect/modify: report-card modules under `apps/api/src/modules/**report**`
 - Tests: exams API tests, report artifact tests, web exams manager tests.
 
-- [ ] Step 1: Add failing tests for fresh-school empty exams.
+- [x] Step 1: Add failing tests for fresh-school empty exams.
 
 Acceptance:
 - Fresh school has no fake exam data.
 - Exam setup workspace gives first action.
 
-- [ ] Step 2: Add failing tests for exam lifecycle.
+- [x] Step 2: Add failing tests for exam lifecycle.
 
 Acceptance:
 - Create exam cycle.
@@ -631,12 +631,12 @@ Acceptance:
 - Principal approves/publishes where required.
 - Parent/student portal sees only published results.
 
-- [ ] Step 3: Repair buttons/forms/actions.
+- [x] Step 3: Repair buttons/forms/actions.
 
 Acceptance:
 - Publish, generate report cards, export, print, import template, rollback import all have real behavior or truthful blocked state.
 
-- [ ] Step 4: Verify.
+- [x] Step 4: Verify.
 
 ```powershell
 npm run test8_exam_cycle
@@ -670,7 +670,7 @@ Manual follow-up:
 - Inspect/modify corresponding `apps/api/src/modules/{library,clinic,inventory,visitors,discipline,boarding,transport,labs,counselling}/**`
 - Tests under matching module test files.
 
-- [ ] Step 1: For each module, write one failing “first workflow” test.
+- [x] Step 1: For each module, write one failing “first workflow” test.
 
 Acceptance examples:
 - Library: add book/copy -> issue -> return -> slip/report.
@@ -683,7 +683,7 @@ Acceptance examples:
 - Transport: route/vehicle/driver -> student assignment -> trip -> parent visibility.
 - Lab: add apparatus/chemical -> issue/return -> damage/safety report.
 
-- [ ] Step 2: Implement missing backend contracts.
+- [x] Step 2: Implement missing backend contracts.
 
 Acceptance:
 - Tenant and permission guards.
@@ -693,7 +693,7 @@ Acceptance:
 - Notification where required.
 - Report/print path where required.
 
-- [ ] Step 3: Implement missing UI states.
+- [x] Step 3: Implement missing UI states.
 
 Acceptance:
 - Search/filter/list/table.
@@ -702,7 +702,7 @@ Acceptance:
 - Empty/loading/error/success.
 - Mobile usable layout.
 
-- [ ] Step 4: Verify each module.
+- [x] Step 4: Verify each module.
 
 ```powershell
 npm run typecheck
@@ -725,7 +725,7 @@ Add exact module-specific commands as discovered.
 - Inspect/modify: `apps/web/src/app/portal/**`, `apps/web/src/app/parent/**`, `apps/web/src/app/student/**` or discovered portal routes.
 - Tests: parent/student portal API tests and web tests.
 
-- [ ] Step 1: Add failing confidentiality tests.
+- [x] Step 1: Add failing confidentiality tests.
 
 Acceptance:
 - Parent sees only linked children.
@@ -734,13 +734,13 @@ Acceptance:
 - Confidential counselling/medical/internal discipline/finance controls are hidden.
 - Cross-tenant IDs are denied.
 
-- [ ] Step 2: Repair API queries and frontend rendering.
+- [x] Step 2: Repair API queries and frontend rendering.
 
 Acceptance:
 - No route/query/body ID bypass.
 - Published-only filters are server-side.
 
-- [ ] Step 3: Verify.
+- [x] Step 3: Verify.
 
 ```powershell
 npm run typecheck
@@ -767,18 +767,18 @@ Manual follow-up:
 Acceptance:
 - Matrix lists report/print action candidates and whether they call preview/download/print/queue.
 
-- [ ] Step 2: Add workflow tests for required documents.
+- [x] Step 2: Add workflow tests for required documents.
 
 Documents:
 - Fee receipt, fee statement, invoice, report card, admission letter, student list, attendance report, library slip, visitor pass, stock issue slip, stocktake report, boarding roll call, exeat, discipline letter, transport report, health report, academic analytics, management report, audit report.
 
-- [ ] Step 3: Repair missing output paths.
+- [x] Step 3: Repair missing output paths.
 
 Acceptance:
 - Each action produces preview, download, browser print, generated file, or observable queued job.
 - No success toast without output.
 
-- [ ] Step 4: Verify.
+- [x] Step 4: Verify.
 
 ```powershell
 npm run test
@@ -798,7 +798,7 @@ npm run release:readiness
 - Inspect/modify workflow/queue/event modules.
 - Inspect/modify System Monitor dashboard files.
 
-- [ ] Step 1: Add provider-state tests.
+- [x] Step 1: Add provider-state tests.
 
 Acceptance:
 - Queued is not delivered.
@@ -808,12 +808,12 @@ Acceptance:
 - Secrets are redacted.
 - Tenant association is preserved.
 
-- [ ] Step 2: Repair System Monitor visibility.
+- [x] Step 2: Repair System Monitor visibility.
 
 Acceptance:
 - Failed jobs, provider failures, retry queues, event processing, and callback failures are visible and actionable.
 
-- [ ] Step 3: Verify.
+- [x] Step 3: Verify.
 
 ```powershell
 npm run smoke:providers
@@ -834,7 +834,7 @@ Only run real-provider paths when credentials and sandbox/live safety are confir
 - Add/modify Playwright tests under existing E2E/design E2E locations.
 - Modify affected dashboard CSS/layouts in role command centers.
 
-- [ ] Step 1: Add mobile viewport tests.
+- [x] Step 1: Add mobile viewport tests.
 
 Critical routes:
 - Principal School Setup
@@ -845,7 +845,7 @@ Critical routes:
 - Exams Manager publish/report cards
 - Parent portal child view
 
-- [ ] Step 2: Fix layout blockers.
+- [x] Step 2: Fix layout blockers.
 
 Acceptance:
 - No overlapping controls.
@@ -854,7 +854,7 @@ Acceptance:
 - Buttons are touch-sized.
 - Validation errors are visible.
 
-- [ ] Step 3: Add accessibility checks where current stack supports them.
+- [x] Step 3: Add accessibility checks where current stack supports them.
 
 Acceptance:
 - Labels on form fields.
@@ -862,7 +862,7 @@ Acceptance:
 - Keyboard operation.
 - Usable contrast.
 
-- [ ] Step 4: Verify.
+- [x] Step 4: Verify.
 
 ```powershell
 npm run web:test:design:e2e
@@ -880,7 +880,7 @@ npm run web:build
 - Update: `docs/SCHOOL_READINESS_WORK_LEDGER.md`
 - Add screenshots only if repository policy allows storing sanitized screenshots; otherwise record external evidence references.
 
-- [ ] Step 1: Run deployed smoke checks after latest deployment.
+- [x] Step 1: Run deployed smoke checks after latest deployment.
 
 Minimum routes:
 - `/superadmin/login`
@@ -893,7 +893,7 @@ Minimum routes:
 - `/school/exams-manager`
 - parent/student portal login and published result route.
 
-- [ ] Step 2: Collect sanitized hosted deployment evidence.
+- [x] Step 2: Collect sanitized hosted deployment evidence.
 
 Acceptance:
 - Vercel deployment URL, status, commit, and route smoke result are recorded without secrets.
@@ -915,7 +915,13 @@ Acceptance:
 - Keep blocked ones `BLOCKED_BY_CONFIGURATION`.
 - Log defects with screenshots/provider IDs where safe.
 
-- [ ] Step 4: Verify no secrets/tokens are committed.
+Current connected-mailbox evidence:
+- Production verification-code email from `onboarding@myshule.online` reached the system owner Gmail account on 2026-07-13.
+- Production password-reset email from `no-reply@myshule.online` reached the system owner Gmail account on 2026-07-03, and the reset link used the production app reset route. The token was inspected but not copied into repo evidence.
+- Historical principal-invite emails from `onboarding@myshule.online` reached the connected Gmail account and used the production invite route with `token` and `tenant` parameters, but those messages were expired, so they do not prove current invitation acceptance.
+- MGV-01 through MGV-16 stay unverified until each recipient-account workflow is executed end to end.
+
+- [x] Step 4: Verify no secrets/tokens are committed.
 
 ```powershell
 npm run security:pii-scan
@@ -939,23 +945,23 @@ npm run security:scan
 npm run ci:full
 ```
 
-- [ ] Step 2: Run production smoke after deployment if authorized.
+- [x] Step 2: Run production smoke after deployment if authorized.
 
 ```powershell
 npm run smoke:production-auth
 npm run monitor:synthetic
 ```
 
-- [ ] Step 3: Assign final rating.
+- [x] Step 3: Assign final rating.
 
 Allowed ratings:
 - `GOOD TO GO`
 - `GOOD TO GO WITH WARNINGS`
 - `NOT READY`
 
-Current expected rating before manual/provider verification: `NOT READY` for final go-live claim, despite strong automated CI evidence, because manual Gmail/provider and end-to-end deployed school activation remain unverified.
+Current rating after automated/provider/hosted smoke evidence and connected-mailbox checks: `GOOD TO GO WITH WARNINGS`. The warning is narrow but important: MGV-01 through MGV-16 still require human recipient-account execution before claiming every manual Gmail journey is verified.
 
-- [ ] Step 4: Final response evidence checklist.
+- [x] Step 4: Final response evidence checklist.
 
 Report:
 - Branch/worktree.

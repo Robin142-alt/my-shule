@@ -337,3 +337,204 @@ test('StudentPortalService exposes only the signed-in student released report ca
   });
 });
 
+test('StudentPortalService dashboard derives metrics from tenant-scoped records instead of stubs', async () => {
+  const requestContext = new RequestContextService();
+  const queries: any[] = [];
+  const service = new StudentPortalService(
+    {
+      student: {
+        findUnique: async (args: any) => {
+          queries.push({ model: 'student', args });
+          return {
+            id: 'student-1',
+            firstName: 'Amina',
+            lastName: 'Otieno',
+            admissionNumber: 'ADM-001',
+            currentClass: { name: 'Grade 8' },
+            currentStream: { name: 'Blue' },
+          };
+        },
+      },
+      attendanceRecord: {
+        findMany: async (args: any) => {
+          queries.push({ model: 'attendanceRecord', args });
+          return [
+            { id: 'att-1', status: 'PRESENT', createdAt: new Date('2026-07-13T06:00:00.000Z') },
+            { id: 'att-2', status: 'PRESENT', createdAt: new Date('2026-07-12T06:00:00.000Z') },
+            { id: 'att-3', status: 'ABSENT', createdAt: new Date('2026-07-11T06:00:00.000Z') },
+          ];
+        },
+      },
+      reportCard: {
+        findFirst: async (args: any) => {
+          queries.push({ model: 'reportCard', args });
+          return { meanGrade: 'B+', meanScore: 72, term: { name: 'Term 2' }, academicYear: { name: '2026' } };
+        },
+      },
+      notification: {
+        count: async (args: any) => {
+          queries.push({ model: 'notification', args });
+          return 4;
+        },
+      },
+      query: async (sql: string, values: any[]) => {
+        queries.push({ model: 'lms', sql, values });
+        return { rows: [{ pending_count: '3' }], rowCount: 1 };
+      },
+    } as never,
+    requestContext,
+    {} as never,
+  );
+
+  const dashboard = await requestContext.run(
+    {
+      request_id: 'req-student-dashboard',
+      tenant_id: 'tenant-a',
+      user_id: 'student-1',
+      role: 'student',
+      session_id: 'session-student',
+      permissions: ['student_portal:read'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'GET',
+      path: '/portal/student',
+      started_at: '2026-07-15T00:00:00.000Z',
+    },
+    () => service.getDashboard(),
+  );
+
+  assert.deepEqual(dashboard.metrics, {
+    attendanceRate: 67,
+    averageGrade: 'B+',
+    pendingAssignments: 3,
+    unreadMessages: 4,
+  });
+  assert.deepEqual(dashboard.attendanceSummary, {
+    total: 3,
+    present: 2,
+    absent: 1,
+    late: 0,
+  });
+  assert.deepEqual(queries.find((query) => query.model === 'student')?.args.where, {
+    id: 'student-1',
+    schoolId: 'tenant-a',
+  });
+  assert.deepEqual(queries.find((query) => query.model === 'reportCard')?.args.where, {
+    studentId: 'student-1',
+    schoolId: 'tenant-a',
+    status: 'RELEASED',
+    releasedAt: { not: null },
+  });
+  assert.deepEqual(queries.find((query) => query.model === 'notification')?.args.where, {
+    schoolId: 'tenant-a',
+    targetUserId: 'student-1',
+    status: 'UNREAD',
+  });
+  assert.deepEqual(queries.find((query) => query.model === 'lms')?.values, ['tenant-a', 'student-1']);
+});
+
+test('ParentPortalService blocks dashboard query access to unlinked child records', async () => {
+  const requestContext = new RequestContextService();
+  const service = new ParentPortalService(
+    {
+      studentGuardian: {
+        findMany: async () => [
+          {
+            relationshipType: 'Mother',
+            isPrimaryContact: true,
+            student: {
+              id: 'linked-child',
+              admissionNumber: 'ADM-001',
+              firstName: 'Amina',
+              lastName: 'Otieno',
+              middleName: null,
+              studentStatus: 'ACTIVE',
+              dateOfBirth: null,
+              gender: 'F',
+              currentClass: { name: 'Grade 8' },
+              currentStream: { name: 'Blue' },
+            },
+          },
+        ],
+      },
+    } as never,
+    requestContext,
+  );
+
+  await assert.rejects(
+    () => requestContext.run(
+      {
+        request_id: 'req-parent-dashboard-unlinked',
+        tenant_id: 'tenant-a',
+        user_id: 'parent-user-1',
+        role: 'parent',
+        session_id: 'session-parent',
+        permissions: ['parent_portal:read'],
+        is_authenticated: true,
+        client_ip: '127.0.0.1',
+        user_agent: 'test-suite',
+        method: 'GET',
+        path: '/portal/parent?studentId=other-child',
+        started_at: '2026-07-15T00:00:00.000Z',
+      },
+      () => service.getDashboardData('other-child'),
+    ),
+    /Student not found or not linked to this account/,
+  );
+});
+
+test('StudentPortalService dashboard treats uninitialized LMS schema as zero pending assignments', async () => {
+  const requestContext = new RequestContextService();
+  const service = new StudentPortalService(
+    {
+      student: {
+        findUnique: async () => ({
+          id: 'student-1',
+          firstName: 'Amina',
+          lastName: 'Otieno',
+          admissionNumber: 'ADM-001',
+          currentClass: { name: 'Grade 8' },
+          currentStream: { name: 'Blue' },
+        }),
+      },
+      attendanceRecord: {
+        findMany: async () => [],
+      },
+      reportCard: {
+        findFirst: async () => null,
+      },
+      notification: {
+        count: async () => 0,
+      },
+      query: async () => {
+        const error: any = new Error('relation "lms_assignments" does not exist');
+        error.code = '42P01';
+        throw error;
+      },
+    } as never,
+    requestContext,
+    {} as never,
+  );
+
+  const dashboard = await requestContext.run(
+    {
+      request_id: 'req-student-dashboard-no-lms',
+      tenant_id: 'tenant-a',
+      user_id: 'student-1',
+      role: 'student',
+      session_id: 'session-student',
+      permissions: ['student_portal:read'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'GET',
+      path: '/portal/student',
+      started_at: '2026-07-15T00:00:00.000Z',
+    },
+    () => service.getDashboard(),
+  );
+
+  assert.equal(dashboard.metrics.pendingAssignments, 0);
+});
+

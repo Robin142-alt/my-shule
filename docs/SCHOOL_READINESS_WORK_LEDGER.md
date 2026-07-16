@@ -236,6 +236,48 @@ Core roles confirmed from routing/tests and `AGENTS.md`: Super Admin, System Mon
 - CSV export and print preview use existing shared dashboard helpers.
 - The capability matrix is an inventory, not a production-ready claim; it explicitly marks manual flows as `NOT_YET_MANUALLY_VERIFIED`.
 
+## Milestone Closure Evidence Added 2026-07-16
+
+### Student And Parent Portal Confidentiality
+
+- Repaired `StudentPortalService.getDashboard()` so student dashboard metrics are derived from tenant-scoped records instead of hardcoded placeholder values.
+- Student dashboard now reads attendance records, the latest released report card, unread notifications, and pending LMS assignments for the signed-in student and school.
+- Pending LMS assignments degrade safely to zero only when LMS schema tables are not initialized; unrelated database errors still fail normally.
+- Added a parent portal regression proving a parent cannot request an unlinked child dashboard by passing a query/body ID.
+
+### Mobile Critical Route Gate
+
+- Expanded `mobile-low-bandwidth.test.tsx` to render critical workflows at a 390px phone viewport:
+  Principal School Setup, Users & Invitations, Admissions first learner, Finance payments, Teacher marks, Exams Manager report cards, and Parent portal academics.
+- The test asserts the routed workspace renders a heading, exposes a usable action, and does not fall through to `Workspace Not Found` or `School section not available`.
+
+### Connected Gmail Evidence
+
+- Connected Gmail search/read confirmed a recent production verification-code email from `onboarding@myshule.online` to the system owner Gmail account on 2026-07-13.
+- Connected Gmail search/read confirmed a production password-reset email from `no-reply@myshule.online` to the system owner Gmail account on 2026-07-03, with a production app reset route. The token was not copied into repository evidence.
+- Connected Gmail search/read found historical principal-invite messages from `onboarding@myshule.online` with production invite links containing `token` and `tenant` parameters. Those messages were expired, so they remain template/link-shape evidence only.
+- MGV-01 through MGV-16 remain manual recipient-account workflows and must not be marked `VERIFIED_MANUALLY` until each journey is executed end to end.
+
+### Tests Executed 2026-07-16
+
+| Command | Result | Notes |
+| --- | --- | --- |
+| `npm run build` | PASS | API TypeScript build passed after student portal dashboard repair |
+| `node --test dist/apps/api/src/modules/students/students.test.js` | PASS | 10 tests passed, including tenant-scoped student dashboard metrics, unlinked child denial, and missing LMS schema fallback |
+| `npm --prefix apps/web run test:design -- --runTestsByPath tests/design/mobile-low-bandwidth.test.tsx` | PASS | 10 tests passed, including seven critical phone-width route gates |
+| `npm run typecheck` | PASS | Prisma generated; no-emit TypeScript gate passed |
+| `npm run security:pii-scan` | PASS | PII leak CI scan regenerated and passed |
+| `npm run security:scan` | PASS | Security and tenant-isolation scan regenerated and passed |
+| `npm run ci:full` | PASS | Full build, web lint, web build, API tests, implementation gates, tenant isolation audit, security/PII/dependency scans, certifications, production scorecard, and release readiness passed |
+| `npm run smoke:providers` | PASS | 8 provider checks: 6 passed, 0 failed, 2 optional skipped |
+| `npm run smoke:production-auth` | PASS | Hosted web/API smoke passed: 6 checks, 0 failed |
+| `SYNTHETIC_API_BASE_URL=https://my-shule-erp-api.vercel.app SYNTHETIC_WEB_BASE_URL=https://www.myshule.online SYNTHETIC_ALLOW_REMOTE=true npm run monitor:synthetic` | PASS | Remote synthetic monitor passed: 5 journeys, 7 steps, 0 failed |
+
+### Current Manual Status
+
+- Automated/source/provider/hosted smoke evidence supports `GOOD TO GO WITH WARNINGS`.
+- Remaining warning: manual Gmail scripts MGV-01 through MGV-16 are not fully human-executed across recipient inboxes in this repository evidence.
+
 ## Next Recommended Action
 
 Use `npm run readiness:school-inventory` after each dashboard/workflow slice, then fix the next P1 gap discovered by `docs/SCHOOL_CAPABILITY_MATRIX.md` and the manual Gmail scripts.
