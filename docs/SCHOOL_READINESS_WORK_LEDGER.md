@@ -272,6 +272,9 @@ Core roles confirmed from routing/tests and `AGENTS.md`: Super Admin, System Mon
 | `npm run smoke:providers` | PASS | 8 provider checks: 6 passed, 0 failed, 2 optional skipped |
 | `npm run smoke:production-auth` | PASS | Hosted web/API smoke passed: 6 checks, 0 failed |
 | `SYNTHETIC_API_BASE_URL=https://my-shule-erp-api.vercel.app SYNTHETIC_WEB_BASE_URL=https://www.myshule.online SYNTHETIC_ALLOW_REMOTE=true npm run monitor:synthetic` | PASS | Remote synthetic monitor passed: 5 journeys, 7 steps, 0 failed |
+| post-push `npm run smoke:production-auth` | PASS | Hosted smoke passed after `a0378822` push: 6 checks, 0 failed |
+| first post-push remote synthetic monitor | FAIL then RETRIED | One `/health/ready` step returned 503 `api_bootstrap_failed` during deployment/warm-up while other routes were healthy |
+| second post-push remote synthetic monitor | PASS | Retry after 60 seconds passed: 5 journeys, 7 steps, 0 failed; `/health/ready` returned 200 |
 
 ### Current Manual Status
 
