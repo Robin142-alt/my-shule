@@ -1116,32 +1116,94 @@ export class AdminCommandRepository {
 
   async getSchoolProfile(tenantId: string) {
     const tenantResult = await this.executeSql(
-      `SELECT name, subdomain, region, logo_url FROM tenants WHERE tenant_id = $1`,
-      [tenantId]
-    ).catch(() => ({ rows: [] }));
-    
-    const tenant = tenantResult.rows[0] || { name: "School profile not configured", subdomain: tenantId, region: "Not configured", logo_url: null };
+      `
+        SELECT name, subdomain, status, settings, metadata
+        FROM tenants
+        WHERE tenant_id = $1
+        LIMIT 1
+      `,
+      [tenantId],
+    );
+
+    const tenant = tenantResult.rows[0];
+    if (!tenant) {
+      return null;
+    }
+    const settings = tenant.settings && typeof tenant.settings === 'object'
+      ? tenant.settings as Record<string, unknown>
+      : {};
+    const metadata = tenant.metadata && typeof tenant.metadata === 'object'
+      ? tenant.metadata as Record<string, unknown>
+      : {};
+    const email = String(settings.email ?? '');
+    const phone = String(settings.phone ?? '');
+    const county = String(settings.county ?? settings.region ?? '');
+    const address = String(settings.address ?? '');
 
     return {
-      status: "active",
+      status: email && phone && county && address ? "active" : "setup_required",
       schoolName: tenant.name,
       subdomain: tenant.subdomain,
-      region: tenant.region,
-      logoUrl: tenant.logo_url,
-      registrationStatus: "Fully Registered",
-      curriculum: "CBC & 8-4-4",
-      schoolType: "Mixed Day & Boarding",
+      motto: String(settings.motto ?? ''),
+      county,
+      subCounty: String(settings.sub_county ?? ''),
+      ward: String(settings.ward ?? ''),
+      address,
+      website: String(settings.website ?? ''),
+      logoUrl: String(settings.logo_url ?? '') || null,
+      registrationStatus: String(metadata.registration_status ?? tenant.status ?? 'active'),
+      curriculum: String(settings.curriculum ?? ''),
+      schoolType: String(settings.school_type ?? ''),
       contactInfo: {
-        email: `admin@${tenant.subdomain}.myshule.com`,
-        phone: "+254 700 000000"
-      }
+        email,
+        phone,
+      },
     };
+  }
+
+  async updateSchoolProfile(tenantId: string, input: Record<string, string>) {
+    const result = await this.executeSql(
+      `
+        UPDATE tenants
+        SET
+          name = $2,
+          settings = COALESCE(settings, '{}'::jsonb) || $3::jsonb,
+          updated_at = NOW()
+        WHERE tenant_id = $1
+        RETURNING tenant_id
+      `,
+      [
+        tenantId,
+        input.schoolName,
+        JSON.stringify({
+          motto: input.motto,
+          curriculum: input.curriculum,
+          school_type: input.schoolType,
+          email: input.email,
+          phone: input.phone,
+          county: input.county,
+          region: input.county,
+          sub_county: input.subCounty,
+          ward: input.ward,
+          address: input.address,
+          website: input.website,
+        }),
+      ],
+    );
+    if (!result.rows[0]) {
+      return null;
+    }
+    return this.getSchoolProfile(tenantId);
   }
 
   async updateSchoolLogoUrl(tenantId: string, logoUrl: string) {
     await this.executeSql(
-      `UPDATE tenants SET logo_url = $1, updated_at = NOW() WHERE tenant_id = $2`,
-      [logoUrl, tenantId]
+      `
+        UPDATE tenants
+        SET settings = COALESCE(settings, '{}'::jsonb) || jsonb_build_object('logo_url', $2::text), updated_at = NOW()
+        WHERE tenant_id = $1
+      `,
+      [tenantId, logoUrl],
     );
   }
 
@@ -1168,9 +1230,18 @@ export class AdminCommandRepository {
 
   async getSetupChecklist(tenantId: string) {
     const profileComplete = await this.executeSql(
-      `SELECT count(*)::int as count FROM tenants WHERE id = $1 AND (name != 'New School' OR subdomain != 'new-school')`,
+      `
+        SELECT count(*)::int as count
+        FROM tenants
+        WHERE tenant_id = $1
+          AND btrim(name) <> ''
+          AND btrim(COALESCE(settings->>'email', '')) <> ''
+          AND btrim(COALESCE(settings->>'phone', '')) <> ''
+          AND btrim(COALESCE(settings->>'county', settings->>'region', '')) <> ''
+          AND btrim(COALESCE(settings->>'address', '')) <> ''
+      `,
       [tenantId]
-    ).catch(() => ({ rows: [{ count: 1 }] }));
+    );
     
     const staffComplete = await this.executeSql(
       `SELECT count(*)::int as count FROM tenant_memberships WHERE tenant_id = $1 AND role IN ('principal', 'deputy_principal', 'school_admin')`,

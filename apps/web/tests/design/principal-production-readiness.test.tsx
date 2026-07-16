@@ -62,13 +62,13 @@ describe("principal production readiness", () => {
 
     await user.click(within(setupWorkspace).getByRole("button", { name: /Open Academics/i }));
 
-    expect(within(commandCenter).getByRole("region", { name: /Principal academics workspace/i })).toBeVisible();
+    expect(within(commandCenter).getByRole("region", { name: /Academic foundation setup/i })).toBeVisible();
   });
 
   it.each([
     ["discipline", /Principal discipline workspace/i, /^Discipline$/i],
     ["boarding", /Principal boarding workspace/i, /^Boarding$/i],
-    ["academics", /Principal academics workspace/i, /^Academics$/i],
+    ["academics", /Academic foundation setup/i, /^Academic Foundation$/i],
     ["staff", /Principal staff workspace/i, /^Staff$/i],
     ["transport", /Principal transport workspace/i, /^Transport$/i],
     ["approvals", /Principal approvals workspace/i, /^Approvals$/i],
@@ -151,7 +151,7 @@ describe("principal production readiness", () => {
   });
 
   it.each([
-    ["Academic oversight", /Principal academics workspace/i, /^Academics$/i],
+    ["Academic oversight", /Academic foundation setup/i, /^Academic Foundation$/i],
     ["Results approval", /Principal approvals workspace/i, /^Approvals$/i],
     ["Report publishing", /Principal reports workspace/i, /^Reports$/i],
   ])("routes exams command action %s to the right workspace", async (label, regionName, heading) => {

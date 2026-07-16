@@ -91,6 +91,61 @@ test('AdminCommandRepository builds principal teaching schedule from tenant time
   assert.equal(result.pendingGrading, 2);
 });
 
+test('AdminCommandRepository persists and reads school profile settings inside the current tenant', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new AdminCommandRepository({
+    query: async (sql: string, params: unknown[] = []) => {
+      queries.push({ sql, params });
+      if (/UPDATE tenants/i.test(sql)) {
+        return { rows: [{ tenant_id: 'tenant-a' }], rowCount: 1 };
+      }
+      return {
+        rows: [{
+          name: 'Maranda High',
+          subdomain: 'maranda-high',
+          status: 'active',
+          settings: {
+            email: 'office@maranda.test',
+            phone: '+254700000001',
+            county: 'Siaya',
+            address: 'Box 1, Bondo',
+            curriculum: 'CBC & 8-4-4',
+            school_type: 'Boys Boarding',
+          },
+          metadata: { registration_status: 'registered' },
+        }],
+        rowCount: 1,
+      };
+    },
+  } as never);
+
+  const profile = await repository.updateSchoolProfile('tenant-a', {
+    schoolName: 'Maranda High',
+    motto: 'For excellence',
+    curriculum: 'CBC & 8-4-4',
+    schoolType: 'Boys Boarding',
+    email: 'office@maranda.test',
+    phone: '+254700000001',
+    county: 'Siaya',
+    subCounty: 'Bondo',
+    ward: 'Central',
+    address: 'Box 1, Bondo',
+    website: 'https://maranda.test',
+  });
+
+  assert.equal(queries.length, 2);
+  assert.match(queries[0].sql, /WHERE tenant_id = \$1/);
+  assert.doesNotMatch(queries[0].sql, /id::text/);
+  assert.equal(queries[0].params[0], 'tenant-a');
+  assert.equal(queries[0].params[1], 'Maranda High');
+  assert.match(String(queries[0].params[2]), /"county":"Siaya"/);
+  assert.match(queries[1].sql, /WHERE tenant_id = \$1/);
+  assert.doesNotMatch(queries[1].sql, /id::text/);
+  assert.equal(profile?.status, 'active');
+  assert.equal(profile?.contactInfo.email, 'office@maranda.test');
+  assert.equal(profile?.county, 'Siaya');
+});
+
 test('DeputyCommandRepository attendance reads use tenant joins and do not hide query failures', async () => {
   const repository = new DeputyCommandRepository({
     query: async (sql: string, params: unknown[]) => {
@@ -2120,6 +2175,53 @@ test('AdminCommandService creates incidents with audit trail', async () => {
 
   assert.equal(result.id, 'incident-1');
   assert.deepEqual(calls, ['incident', 'audit:admin_command.incident_created']);
+});
+
+test('AdminCommandService persists a principal school profile and records the completed workflow', async () => {
+  const calls: string[] = [];
+  const service = new AdminCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      updateSchoolProfile: async (tenantId: string, input: Record<string, string>) => {
+        calls.push(`update:${tenantId}:${input.schoolName}`);
+        return {
+          status: 'active',
+          schoolName: input.schoolName,
+          county: input.county,
+          contactInfo: { email: input.email, phone: input.phone },
+        };
+      },
+      createPrincipalWorkflowAction: async (input: Record<string, unknown>) => {
+        calls.push(`event:${input.event_type}:${input.status}`);
+        return { id: '22222222-2222-4222-8222-222222222222' };
+      },
+      appendAuditLog: async (input: Record<string, unknown>) => {
+        calls.push(`audit:${input.action}`);
+      },
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.updatePrincipalSchoolProfile({
+    schoolName: 'Maranda High',
+    email: 'OFFICE@MARANDA.TEST',
+    phone: '+254700000001',
+    county: 'Siaya',
+    address: 'Box 1, Bondo',
+  });
+
+  assert.equal(result.success, true);
+  assert.deepEqual(calls, [
+    'update:tenant-a:Maranda High',
+    'event:principal.school_profile_updated:completed',
+    'audit:principal.school_profile_updated',
+  ]);
+  assert.equal(result.profile.contactInfo.email, 'office@maranda.test');
 });
 
 test('IctManagerCommandService records asset management requests as tenant-scoped workflow events', async () => {

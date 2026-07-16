@@ -722,6 +722,7 @@ const financeRoleDedicatedSectionIds = new Set([
 const principalCommandCenterSectionIds = new Set([
   "dashboard",
   "setup-checklist",
+  "school-profile",
   "finance",
   "fees",
   "attendance",

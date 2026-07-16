@@ -7,6 +7,41 @@ import { createDashboardSnapshot, renderWithProviders } from "./test-utils";
 
 jest.setTimeout(90_000);
 
+jest.mock("@/lib/modules/admissions-data", () => {
+  const actual = jest.requireActual("@/lib/modules/admissions-data");
+  return {
+    ...actual,
+    createAdmissionsDataset: () => ({
+      ...actual.createAdmissionsDataset(),
+      applications: [{
+        id: "class-source-grade-7",
+        applicationNumber: "APP-CLASS-001",
+        applicantName: "Configured class source",
+        admissionNumber: "",
+        classApplying: "Grade 7",
+        parentName: "",
+        parentPhone: "",
+        status: "pending",
+        dateApplied: "2026-01-01",
+        gender: "",
+        dateOfBirth: "",
+        birthCertificateNumber: "",
+        nationality: "Kenyan",
+        previousSchool: "",
+        kcpeResults: "",
+        cbcLevel: "",
+        parentEmail: "",
+        occupation: "",
+        relationship: "",
+        allergies: "",
+        conditions: "",
+        emergencyContact: "",
+        reviewNote: "",
+      }],
+    }),
+  };
+});
+
 describe("admissions workspace", () => {
   beforeEach(() => {
     window.history.pushState({}, "", "/dashboard/admissions?view=new-registration");
@@ -38,6 +73,7 @@ describe("admissions workspace", () => {
   }
 
   async function completeDirectRegistration(user: ReturnType<typeof userEvent.setup>) {
+    await screen.findByRole("option", { name: "Grade 7" });
     await user.type(screen.getByPlaceholderText(/learner full name/i), "Amina Njeri");
     await user.type(document.querySelector('input[type="date"]')!, "2015-03-14");
     await user.selectOptions(screen.getAllByRole("combobox")[0], "Female");

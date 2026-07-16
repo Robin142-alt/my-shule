@@ -4,6 +4,7 @@ import {
   Activity,
   Bell,
   BookOpen,
+  Building2,
   BusFront,
   CheckCircle2,
   ClipboardCheck,
@@ -39,10 +40,12 @@ import { DashboardCommunicationProvider } from "@/lib/dashboard-communication/da
 import { tenantSlugToName } from "@/lib/seo/tenant-routes";
 import { buildSchoolSectionHref } from "./school-pages";
 import { AcademicFoundationWorkspace } from "./academic-foundation-workspace";
+import { PrincipalSchoolProfileWorkspace } from "./principal-dashboard/school-profile-workspace";
 
 type PrincipalSection =
   | "overview"
   | "setup-checklist"
+  | "school-profile"
   | "fees"
   | "attendance"
   | "discipline"
@@ -184,6 +187,14 @@ type PrincipalExecutiveDashboard = {
   realtime_channels: string[];
 };
 
+type PrincipalSchoolProfileSummary = {
+  status: "active" | "degraded" | "setup_required";
+  schoolName: string;
+  county: string;
+  address: string;
+  contactInfo: { email: string; phone: string };
+};
+
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -215,6 +226,9 @@ function normalizePrincipalSection(section?: string): PrincipalSection {
     case "school-setup":
     case "setup-checklist":
       return "setup-checklist";
+    case "profile":
+    case "school-profile":
+      return "school-profile";
     case "finance":
     case "finance-overview":
       return "fees";
@@ -238,6 +252,7 @@ function normalizePrincipalSection(section?: string): PrincipalSection {
 function sectionRoute(section: PrincipalSection) {
   if (section === "overview") return "dashboard";
   if (section === "setup-checklist") return "setup-checklist";
+  if (section === "school-profile") return "school-profile";
   if (section === "fees") return "finance";
   if (section === "sick-bay") return "clinic";
   if (section === "exams-reports") return "exams";
@@ -273,6 +288,10 @@ export function PrincipalCommandCenter({
     useSchoolQuery<PrincipalExecutiveDashboard>("/admin-command/principal/dashboard", {
       tenantId: schoolId,
     });
+  const { data: principalSchoolProfile } = useSchoolQuery<PrincipalSchoolProfileSummary>(
+    "/admin-command/principal/school-profile",
+    { tenantId: schoolId },
+  );
 
   useEffect(() => {
     setActiveWorkspaceState(normalizePrincipalSection(activeSection));
@@ -423,6 +442,16 @@ export function PrincipalCommandCenter({
         complete: enabledPrincipalModules.length > 0,
       },
       {
+        id: "school-profile",
+        title: "Confirm school identity and contacts",
+        owner: "Principal",
+        dependency: "Confirm the school name, logo, curriculum, school type, contacts, county, and address before admitting learners.",
+        unlocks: "Correct branding and school details on portals, communication, reports, receipts, and printable documents.",
+        complete: principalSchoolProfile?.status === "active",
+        actionLabel: "Open School Profile",
+        target: "school-profile",
+      },
+      {
         id: "academic-foundation",
         title: "Create academic foundation",
         owner: "Principal / Deputy",
@@ -495,6 +524,7 @@ export function PrincipalCommandCenter({
     ],
     [
       enabledPrincipalModules.length,
+      principalSchoolProfile?.status,
       presentStudents,
       schoolRecords.academicRecords.length,
       schoolRecords.attendanceRegisters.length,
@@ -512,6 +542,7 @@ export function PrincipalCommandCenter({
     () => [
       { id: "overview", label: "Overview", icon: Home },
       { id: "setup-checklist", label: "School Setup", count: activationProgress < 100 ? `${activationProgress}%` : undefined, icon: CheckCircle2 },
+      { id: "school-profile", label: "School Profile", icon: Building2 },
       { id: "fees", label: "Fees", count: navCount(pendingFeeItems), icon: Wallet },
       { id: "attendance", label: "Attendance", count: navCount(attendanceFollowUps), icon: Activity },
       { id: "discipline", label: "Discipline", count: navCount(schoolRecords.disciplineCases.length), icon: ShieldAlert },
@@ -634,6 +665,18 @@ export function PrincipalCommandCenter({
   ];
 
   function renderWorkspace() {
+    if (activeWorkspace === "school-profile") {
+      return (
+        <section aria-label="Principal school profile workspace" className="space-y-5">
+          <WorkspaceHeading
+            title="School Profile"
+            subtitle="Maintain the tenant-scoped school identity, contacts, location, branding, and curriculum details used across MyShule."
+          />
+          <PrincipalSchoolProfileWorkspace />
+        </section>
+      );
+    }
+
     if (activeWorkspace === "setup-checklist") {
       return (
         <section aria-label="Principal school setup workspace" className="space-y-5">

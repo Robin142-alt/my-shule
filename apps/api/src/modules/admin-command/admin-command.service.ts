@@ -19,6 +19,7 @@ import {
   CreateAnnouncementDto,
   CreateMeetingMinutesDto,
 } from './dto/admin-command.dto';
+import { UpdatePrincipalSchoolProfileDto } from './dto/update-principal-school-profile.dto';
 import { PrincipalInsightsService } from './principal-insights.service';
 import { AdminCommandRepository } from './repositories/admin-command.repository';
 import { PrismaService } from '../../database/prisma.service';
@@ -324,6 +325,41 @@ export class AdminCommandService {
     }
     await this.audit(input.action, input.entityType, event.id, { event, payload: input.payload ?? {} });
     return { success: true, message: 'Command workflow saved and routed', event };
+  }
+
+  async updatePrincipalSchoolProfile(dto: UpdatePrincipalSchoolProfileDto) {
+    const tenantId = this.requireTenantId();
+    const profile = await this.repository.updateSchoolProfile(tenantId, {
+      schoolName: this.requireText(dto.schoolName, 'School name'),
+      motto: dto.motto?.trim() ?? '',
+      curriculum: dto.curriculum?.trim() ?? '',
+      schoolType: dto.schoolType?.trim() ?? '',
+      email: dto.email?.trim().toLowerCase() ?? '',
+      phone: dto.phone?.trim() ?? '',
+      county: dto.county?.trim() ?? '',
+      subCounty: dto.subCounty?.trim() ?? '',
+      ward: dto.ward?.trim() ?? '',
+      address: dto.address?.trim() ?? '',
+      website: dto.website?.trim() ?? '',
+    });
+    if (!profile) {
+      throw new ServiceUnavailableException('School profile could not be updated');
+    }
+
+    await this.recordPrincipalWorkflowAction({
+      action: 'principal.school_profile_updated',
+      entityType: 'school_profile',
+      title: 'School profile updated',
+      message: 'Principal updated the school identity and contact profile.',
+      payload: {
+        school_name: profile.schoolName,
+        county: profile.county,
+        email: profile.contactInfo.email,
+      },
+      status: 'completed',
+    });
+
+    return { success: true, message: 'School profile updated', profile };
   }
 
   async reportIncident(dto: any) {

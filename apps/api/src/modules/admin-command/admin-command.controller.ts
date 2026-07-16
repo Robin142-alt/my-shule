@@ -9,6 +9,7 @@ import {
   CreateAnnouncementDto,
   CreateMeetingMinutesDto,
 } from './dto/admin-command.dto';
+import { UpdatePrincipalSchoolProfileDto } from './dto/update-principal-school-profile.dto';
 import { AdminCommandService } from './admin-command.service';
 
 @Controller('admin-command')
@@ -226,15 +227,8 @@ export class AdminCommandController {
   @Post('principal/school-profile')
   @RequiresModule('admin_command_centers', 'principal_dashboard')
   @Permissions('principal:write')
-  updatePrincipalSchoolProfile(@Body() dto: any) {
-    return this.adminCommandService.recordPrincipalWorkflowAction({
-      action: 'principal.school_profile_update_requested',
-      entityType: 'school_profile',
-      title: 'School profile update requested',
-      message: 'Principal submitted school profile changes.',
-      payload: dto,
-      status: 'submitted',
-    });
+  updatePrincipalSchoolProfile(@Body() dto: UpdatePrincipalSchoolProfileDto) {
+    return this.adminCommandService.updatePrincipalSchoolProfile(dto);
   }
 
   @Post('principal/academic-setup/year')
