@@ -29,30 +29,40 @@ export class AcademicsService {
     private readonly examsService: ExamsService,
   ) {}
 
-  createAcademicYear(dto: CreateAcademicYearDto) {
-    return this.repository.createAcademicYear({
-      tenant_id: this.requireTenantId(),
+  async createAcademicYear(dto: CreateAcademicYearDto) {
+    const tenantId = this.requireTenantId();
+    const year = await this.repository.createAcademicYear({
+      tenant_id: tenantId,
       created_by_user_id: this.currentUserId(),
       name: this.requireText(dto.name, 'Academic year name'),
       starts_on: dto.starts_on,
       ends_on: dto.ends_on,
     });
+    await this.auditMutation(tenantId, 'academic_year', year?.id, 'academics.academic_year_created', { name: dto.name });
+    return year;
   }
 
-  createAcademicTerm(dto: CreateAcademicTermDto) {
-    return this.repository.createAcademicTerm({
-      tenant_id: this.requireTenantId(),
+  async createAcademicTerm(dto: CreateAcademicTermDto) {
+    const tenantId = this.requireTenantId();
+    const term = await this.repository.createAcademicTerm({
+      tenant_id: tenantId,
       created_by_user_id: this.currentUserId(),
       academic_year_id: this.requireText(dto.academic_year_id, 'Academic year'),
       name: this.requireText(dto.name, 'Academic term name'),
       starts_on: dto.starts_on,
       ends_on: dto.ends_on,
     });
+    await this.auditMutation(tenantId, 'academic_term', term?.id, 'academics.academic_term_created', {
+      academic_year_id: dto.academic_year_id,
+      name: dto.name,
+    });
+    return term;
   }
 
-  createClassSection(dto: CreateClassSectionDto) {
-    return this.repository.createClassSection({
-      tenant_id: this.requireTenantId(),
+  async createClassSection(dto: CreateClassSectionDto) {
+    const tenantId = this.requireTenantId();
+    const classSection = await this.repository.createClassSection({
+      tenant_id: tenantId,
       created_by_user_id: this.currentUserId(),
       academic_year_id: this.requireText(dto.academic_year_id, 'Academic year'),
       academic_level_id: dto.academic_level_id?.trim() || null,
@@ -62,6 +72,11 @@ export class AcademicsService {
       custom_label: dto.custom_label?.trim() || null,
       capacity: dto.capacity ?? null,
     });
+    await this.auditMutation(tenantId, 'class_section', classSection?.id, 'academics.class_section_created', {
+      academic_year_id: dto.academic_year_id,
+      name: dto.name,
+    });
+    return classSection;
   }
 
   async createClassStructure(dto: CreateClassStructureDto) {
@@ -101,13 +116,20 @@ export class AcademicsService {
     return structure;
   }
 
-  createSubject(dto: CreateSubjectDto) {
-    return this.repository.createSubject({
-      tenant_id: this.requireTenantId(),
+  async createSubject(dto: CreateSubjectDto) {
+    const tenantId = this.requireTenantId();
+    const subject = await this.repository.createSubject({
+      tenant_id: tenantId,
       created_by_user_id: this.currentUserId(),
       code: this.requireText(dto.code, 'Subject code'),
       name: this.requireText(dto.name, 'Subject name'),
+      department_id: dto.department_id?.trim() || null,
     });
+    await this.auditMutation(tenantId, 'subject', subject?.id, 'academics.subject_created', {
+      code: dto.code,
+      department_id: dto.department_id ?? null,
+    });
+    return subject;
   }
 
   async assignTeacher(dto: AssignTeacherDto) {
@@ -154,6 +176,16 @@ export class AcademicsService {
       },
     });
 
+    return assignment;
+  }
+
+  async archiveTeacherAssignment(id: string) {
+    const tenantId = this.requireTenantId();
+    const assignment = await this.repository.archiveTeacherAssignment(tenantId, this.requireText(id, 'Teacher assignment ID'));
+    if (!assignment) {
+      throw new BadRequestException('Teacher assignment was not found in this school');
+    }
+    await this.auditMutation(tenantId, 'teacher_subject_assignment', assignment.id, 'academics.teacher_subject_unassigned', {});
     return assignment;
   }
 
@@ -407,13 +439,23 @@ export class AcademicsService {
     return this.repository.archiveSubject(this.requireTenantId(), id);
   }
 
-  createClassStream(dto: any) {
-    return this.repository.createClassStream(
-      this.requireTenantId(),
+  async createClassStream(dto: any) {
+    const tenantId = this.requireTenantId();
+    const stream = await this.repository.createClassStream(
+      tenantId,
       this.requireText(dto.class_section_id, 'Class Section ID'),
       this.requireText(dto.name, 'Stream Name'),
       dto.capacity
     );
+    await this.auditMutation(tenantId, 'class_stream', stream?.id, 'academics.class_stream_created', {
+      class_section_id: dto.class_section_id,
+      name: dto.name,
+    });
+    return stream;
+  }
+
+  listClassStreams() {
+    return this.repository.listClassStreams(this.requireTenantId());
   }
 
   // --- Departments ---
@@ -429,11 +471,37 @@ export class AcademicsService {
       await this.requireActiveStaffUserInTenant(tenantId, hodUserId);
     }
 
-    return this.repository.createDepartment(
+    const department = await this.repository.createDepartment(
       tenantId,
       this.requireText(dto.name, 'Department name'),
       hodUserId
     );
+    await this.auditMutation(tenantId, 'academic_department', department?.id, 'academics.department_created', {
+      name: dto.name,
+      head_of_department_user_id: hodUserId,
+    });
+    return department;
+  }
+
+  async updateDepartment(id: string, dto: any) {
+    const tenantId = this.requireTenantId();
+    const hodUserId = dto.head_of_department_user_id?.trim() || null;
+    if (hodUserId) {
+      await this.requireActiveStaffUserInTenant(tenantId, hodUserId);
+    }
+    const department = await this.repository.updateDepartment(
+      tenantId,
+      this.requireText(id, 'Department ID'),
+      dto.name?.trim() || null,
+      hodUserId,
+    );
+    if (!department) {
+      throw new BadRequestException('Department was not found in this school');
+    }
+    await this.auditMutation(tenantId, 'academic_department', department.id, 'academics.department_updated', {
+      head_of_department_user_id: hodUserId,
+    });
+    return department;
   }
 
   archiveDepartment(id: string) {
@@ -450,12 +518,18 @@ export class AcademicsService {
     const teacherUserId = this.requireText(dto.teacher_user_id, 'Teacher user ID');
     await this.requireActiveStaffUserInTenant(tenantId, teacherUserId);
 
-    return this.repository.assignClassTeacher(
+    const assignment = await this.repository.assignClassTeacher(
       tenantId,
       this.requireText(dto.academic_year_id, 'Academic year ID'),
       this.requireText(dto.class_section_id, 'Class section ID'),
       teacherUserId
     );
+    await this.auditMutation(tenantId, 'class_teacher_assignment', assignment?.id, 'academics.class_teacher_assigned', {
+      academic_year_id: dto.academic_year_id,
+      class_section_id: dto.class_section_id,
+      teacher_user_id: teacherUserId,
+    });
+    return assignment;
   }
 
   archiveClassTeacher(id: string) {
@@ -479,5 +553,22 @@ export class AcademicsService {
 
   archiveReportCardSetting(id: string) {
     return this.repository.archiveReportCardSetting(this.requireTenantId(), id);
+  }
+
+  private auditMutation(
+    tenantId: string,
+    entityType: string,
+    entityId: string | null | undefined,
+    action: string,
+    metadata: Record<string, unknown>,
+  ) {
+    return this.repository.appendAuditLog({
+      tenant_id: tenantId,
+      entity_type: entityType,
+      entity_id: entityId ?? null,
+      action,
+      actor_user_id: this.currentUserId(),
+      metadata,
+    });
   }
 }

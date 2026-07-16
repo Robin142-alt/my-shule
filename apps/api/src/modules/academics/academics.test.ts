@@ -419,6 +419,82 @@ test('AcademicsService rejects class teacher assignments outside active tenant s
   );
 });
 
+test('AcademicsService lists class streams only through the active tenant repository scope', async () => {
+  let observedTenantId = '';
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    {
+      listClassStreams: async (tenantId: string) => {
+        observedTenantId = tenantId;
+        return [{ id: 'stream-1', name: 'North' }];
+      },
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.listClassStreams();
+
+  assert.equal(observedTenantId, 'tenant-a');
+  assert.deepEqual(result, [{ id: 'stream-1', name: 'North' }]);
+});
+
+test('AcademicsService validates and audits HOD reassignment in the active school', async () => {
+  const calls: string[] = [];
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    {
+      findTeacherOptionByUserId: async (tenantId: string, userId: string) => {
+        calls.push(`teacher:${tenantId}:${userId}`);
+        return { user_id: userId };
+      },
+      updateDepartment: async (tenantId: string, id: string, name: string | null, hodUserId: string | null) => {
+        calls.push(`department:${tenantId}:${id}:${name}:${hodUserId}`);
+        return { id, head_of_department_user_id: hodUserId };
+      },
+      appendAuditLog: async (input: Record<string, unknown>) => {
+        calls.push(`audit:${input.action}`);
+      },
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.updateDepartment('department-1', {
+    head_of_department_user_id: 'teacher-1',
+  });
+
+  assert.equal(result.head_of_department_user_id, 'teacher-1');
+  assert.deepEqual(calls, [
+    'teacher:tenant-a:teacher-1',
+    'department:tenant-a:department-1:null:teacher-1',
+    'audit:academics.department_updated',
+  ]);
+});
+
+test('AcademicsService archives and audits subject teacher allocations in the active school', async () => {
+  const calls: string[] = [];
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    {
+      archiveTeacherAssignment: async (tenantId: string, id: string) => {
+        calls.push(`archive:${tenantId}:${id}`);
+        return { id };
+      },
+      appendAuditLog: async (input: Record<string, unknown>) => {
+        calls.push(`audit:${input.action}`);
+      },
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.archiveTeacherAssignment('assignment-1');
+
+  assert.equal(result.id, 'assignment-1');
+  assert.deepEqual(calls, [
+    'archive:tenant-a:assignment-1',
+    'audit:academics.teacher_subject_unassigned',
+  ]);
+});
+
 test('AcademicsService delegates enterMarks to ExamsService and calls new repository methods', async () => {
   const calls: string[] = [];
   const service = new AcademicsService(

@@ -48,6 +48,12 @@ export class AcademicsController {
     return this.academicsService.createClassStream(dto);
   }
 
+  @Get('class-streams')
+  @Permissions('academics:read')
+  listClassStreams() {
+    return this.academicsService.listClassStreams();
+  }
+
   @Post('class-structure')
   @Permissions('academics:write')
   createClassStructure(@Body() dto: CreateClassStructureDto) {
@@ -64,6 +70,12 @@ export class AcademicsController {
   @Permissions('academics:assign-teachers')
   assignTeacher(@Body() dto: AssignTeacherDto) {
     return this.academicsService.assignTeacher(dto);
+  }
+
+  @Delete('teacher-assignments/:id')
+  @Permissions('academics:assign-teachers')
+  archiveTeacherAssignment(@Param('id') id: string) {
+    return this.academicsService.archiveTeacherAssignment(id);
   }
 
   @Get('teachers')
@@ -326,6 +338,12 @@ export class AcademicsController {
   @Permissions('academics:write')
   createDepartment(@Body() dto: any) {
     return this.academicsService.createDepartment(dto);
+  }
+
+  @Patch('departments/:id')
+  @Permissions('academics:write')
+  updateDepartment(@Param('id') id: string, @Body() dto: any) {
+    return this.academicsService.updateDepartment(id, dto);
   }
 
   @Delete('departments/:id')

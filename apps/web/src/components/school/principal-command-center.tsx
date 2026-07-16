@@ -38,6 +38,7 @@ import {
 import { DashboardCommunicationProvider } from "@/lib/dashboard-communication/dashboard-communication-provider";
 import { tenantSlugToName } from "@/lib/seo/tenant-routes";
 import { buildSchoolSectionHref } from "./school-pages";
+import { AcademicFoundationWorkspace } from "./academic-foundation-workspace";
 
 type PrincipalSection =
   | "overview"
@@ -863,28 +864,7 @@ export function PrincipalCommandCenter({
 
     if (activeWorkspace === "academics") {
       return (
-        <PrincipalListWorkspace
-          section="academics"
-          title="Academics"
-          subtitle="Subjects, teacher allocation, lesson coverage, syllabus progress, and curriculum setup"
-          emptyTitle="No academic setup records yet"
-          emptyBody="Academic records will appear after subjects, streams, teacher allocations, lesson coverage, or syllabus plans are configured."
-          primaryAction="Open Academic Setup"
-          rows={schoolRecords.academicRecords.map((record) => ({
-            id: record.id,
-            title: record.title ?? record.subject ?? "Academic record",
-            detail: record.subject ?? record.type ?? "Academic setup item",
-            value: record.status ?? "Recorded",
-          }))}
-          metrics={[
-            ["Academic records", schoolRecords.academicRecords.length],
-            ["Teacher allocations", schoolRecords.academicRecords.filter((record) => /teacher|allocation/i.test(`${record.type ?? ""} ${record.title ?? ""}`)).length],
-            ["Lesson coverage", schoolRecords.academicRecords.filter((record) => /lesson|coverage/i.test(`${record.type ?? ""} ${record.title ?? ""}`)).length],
-          ]}
-          onNavigate={setActiveWorkspace}
-          onExport={exportPrincipalWorkspaceSummary}
-          onPrint={printPrincipalWorkspaceSummary}
-        />
+        <AcademicFoundationWorkspace actorRole="Principal" schoolName={schoolName} />
       );
     }
 

@@ -59,6 +59,10 @@ export class CreateSubjectDto {
 
   @IsString()
   name!: string;
+
+  @IsOptional()
+  @IsString()
+  department_id?: string;
 }
 
 export class AssignTeacherDto {

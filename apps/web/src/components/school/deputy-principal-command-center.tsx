@@ -46,7 +46,6 @@ import { DeputyDisciplineWorkspace } from "./deputy-principal/discipline-workspa
 import { DeputyWelfareWorkspace } from "./deputy-principal/welfare-workspace";
 import { DeputyStaffDutyWorkspace } from "./deputy-principal/staff-duty-workspace";
 import { DeputyTimetableReliefWorkspace } from "./deputy-principal/timetable-relief-workspace";
-import { DeputyAcademicsMonitoringWorkspace } from "./deputy-principal/academics-monitoring-workspace";
 import { DeputyTeachingWorkspace } from "./deputy-principal/teaching-workspace";
 import { DeputyExamsMarksWorkspace } from "./deputy-principal/exams-marks-workspace";
 import { DeputyClassesStreamsWorkspace } from "./deputy-principal/classes-streams-workspace";
@@ -55,6 +54,7 @@ import { DeputyCommunicationWorkspace } from "./deputy-principal/communication-w
 import { DeputyReportsDownloadsWorkspace } from "./deputy-principal/reports-workspace";
 import { DeputyStaffRolesWorkspace } from "./deputy-principal/staff-roles-workspace";
 import { DeputySettingsWorkspace } from "./deputy-principal/settings-workspace";
+import { AcademicFoundationWorkspace } from "./academic-foundation-workspace";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -75,7 +75,7 @@ const BASE_NAV_ITEMS: NavItem[] = [
   { id: "welfare", label: "Student Welfare", icon: Stethoscope, group: "Student Management" },
   { id: "staff-duty", label: "Staff Duty", icon: UsersRound, group: "Staff Management" },
   { id: "timetable", label: "Timetable & Relief", icon: CalendarClock, group: "Staff Management" },
-  { id: "academics", label: "Academics Monitoring", icon: GraduationCap, group: "Academics" },
+  { id: "academics", label: "Academic Foundation", icon: GraduationCap, group: "Academics" },
   { id: "exams", label: "Exams & Marks", icon: ClipboardCheck, group: "Academics" },
   { id: "classes", label: "Classes & Streams", icon: Layers, group: "Academics" },
   { id: "approvals", label: "Approvals & Escalations", icon: CheckCircle2, group: "Administration" },
@@ -158,7 +158,7 @@ export function DeputyPrincipalCommandCenter({
       case "welfare": return <DeputyWelfareWorkspace />;
       case "staff-duty": return <DeputyStaffDutyWorkspace />;
       case "timetable": return <DeputyTimetableReliefWorkspace />;
-      case "academics": return <DeputyAcademicsMonitoringWorkspace />;
+      case "academics": return <AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName={schoolName} />;
       case "teaching": return <DeputyTeachingWorkspace />;
       case "exams":
         return (

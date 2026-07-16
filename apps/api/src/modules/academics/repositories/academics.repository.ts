@@ -353,20 +353,20 @@ export class AcademicsRepository {
 
   async createSubject(input: Record<string, unknown>) {
     const result = await this.executeSql(this.getTenantId([`
-        INSERT INTO subjects (tenant_id, code, name, created_by_user_id)
-        VALUES ($1, $2, $3, $4::uuid)
+        INSERT INTO subjects (tenant_id, code, name, created_by_user_id, department_id)
+        VALUES ($1, $2, $3, $4::uuid, $5::uuid)
         ON CONFLICT (tenant_id, code)
-        DO UPDATE SET name = EXCLUDED.name, updated_at = NOW()
+        DO UPDATE SET name = EXCLUDED.name, department_id = EXCLUDED.department_id, updated_at = NOW()
         RETURNING *
       `,
-      [input.tenant_id, input.code, input.name, input.created_by_user_id],]), `
-        INSERT INTO subjects (tenant_id, code, name, created_by_user_id)
-        VALUES ($1, $2, $3, $4::uuid)
+      [input.tenant_id, input.code, input.name, input.created_by_user_id, input.department_id],]), `
+        INSERT INTO subjects (tenant_id, code, name, created_by_user_id, department_id)
+        VALUES ($1, $2, $3, $4::uuid, $5::uuid)
         ON CONFLICT (tenant_id, code)
-        DO UPDATE SET name = EXCLUDED.name, updated_at = NOW()
+        DO UPDATE SET name = EXCLUDED.name, department_id = EXCLUDED.department_id, updated_at = NOW()
         RETURNING *
       `,
-      [input.tenant_id, input.code, input.name, input.created_by_user_id],);
+      [input.tenant_id, input.code, input.name, input.created_by_user_id, input.department_id],);
 
     return result.rows[0];
   }
@@ -430,47 +430,66 @@ export class AcademicsRepository {
     const values: unknown[] = [input.tenantId, input.teacherUserId ?? null, limit, offset];
     const result = await this.executeSql(this.getTenantId([`
         SELECT
-          id::text,
-          tenant_id,
-          academic_term_id::text,
-          class_section_id::text,
-          subject_id::text,
-          teacher_user_id::text,
-          status,
-          created_by_user_id::text,
-          created_at::text,
-          updated_at::text
-        FROM teacher_subject_assignments
-        WHERE tenant_id = $1
-          AND ($2::text IS NULL OR teacher_user_id = $2::text)
-          AND status = 'active'
-        ORDER BY created_at DESC
+          assignment.id::text,
+          assignment.tenant_id,
+          assignment.academic_term_id::text,
+          term.name AS academic_term_name,
+          assignment.class_section_id::text,
+          class_section.name AS class_section_name,
+          assignment.subject_id::text,
+          subject.name AS subject_name,
+          assignment.teacher_user_id::text,
+          COALESCE(staff.full_name, staff.preferred_name, staff.staff_number, staff.email, 'Unlinked teacher') AS teacher_name,
+          assignment.status,
+          assignment.created_by_user_id::text,
+          assignment.created_at::text,
+          assignment.updated_at::text
+        FROM teacher_subject_assignments assignment
+        LEFT JOIN academic_terms term ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
+        LEFT JOIN class_sections class_section ON class_section.tenant_id = assignment.tenant_id AND class_section.id = assignment.class_section_id
+        LEFT JOIN subjects subject ON subject.tenant_id = assignment.tenant_id AND subject.id = assignment.subject_id
+        LEFT JOIN staff_profiles staff ON staff.tenant_id = assignment.tenant_id AND staff.user_id = assignment.teacher_user_id
+        WHERE assignment.tenant_id = $1
+          AND ($2::text IS NULL OR assignment.teacher_user_id = $2::text)
+          AND assignment.status = 'active'
+        ORDER BY assignment.created_at DESC
         LIMIT $3::integer
         OFFSET $4::integer
       `,
       values,]), `
-        SELECT
-          id::text,
-          tenant_id,
-          academic_term_id::text,
-          class_section_id::text,
-          subject_id::text,
-          teacher_user_id::text,
-          status,
-          created_by_user_id::text,
-          created_at::text,
-          updated_at::text
-        FROM teacher_subject_assignments
-        WHERE tenant_id = $1
-          AND ($2::text IS NULL OR teacher_user_id = $2::text)
-          AND status = 'active'
-        ORDER BY created_at DESC
+        SELECT assignment.id::text, assignment.tenant_id, assignment.academic_term_id::text,
+          term.name AS academic_term_name, assignment.class_section_id::text,
+          class_section.name AS class_section_name, assignment.subject_id::text,
+          subject.name AS subject_name, assignment.teacher_user_id::text,
+          COALESCE(staff.full_name, staff.preferred_name, staff.staff_number, staff.email, 'Unlinked teacher') AS teacher_name,
+          assignment.status, assignment.created_by_user_id::text, assignment.created_at::text, assignment.updated_at::text
+        FROM teacher_subject_assignments assignment
+        LEFT JOIN academic_terms term ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
+        LEFT JOIN class_sections class_section ON class_section.tenant_id = assignment.tenant_id AND class_section.id = assignment.class_section_id
+        LEFT JOIN subjects subject ON subject.tenant_id = assignment.tenant_id AND subject.id = assignment.subject_id
+        LEFT JOIN staff_profiles staff ON staff.tenant_id = assignment.tenant_id AND staff.user_id = assignment.teacher_user_id
+        WHERE assignment.tenant_id = $1
+          AND ($2::text IS NULL OR assignment.teacher_user_id = $2::text)
+          AND assignment.status = 'active'
+        ORDER BY assignment.created_at DESC
         LIMIT $3::integer
         OFFSET $4::integer
       `,
       values,);
 
     return result.rows;
+  }
+
+  async archiveTeacherAssignment(tenantId: string, id: string) {
+    const result = await this.executeSql(
+      tenantId,
+      `UPDATE teacher_subject_assignments
+       SET status = 'archived', updated_at = NOW()
+       WHERE tenant_id = $1 AND id = $2::uuid AND status = 'active'
+       RETURNING *`,
+      [tenantId, id],
+    );
+    return result.rows[0] ?? null;
   }
 
   async listTeacherOptions(tenantId: string) {
@@ -1053,6 +1072,22 @@ export class AcademicsRepository {
     return streamResult.rows[0];
   }
 
+  async listClassStreams(tenantId: string) {
+    const result = await this.executeSql(
+      tenantId,
+      `SELECT stream.id::text, stream.tenant_id, stream.class_section_id::text,
+              class_section.name AS class_section_name, stream.name, stream.capacity,
+              stream.created_at::text, stream.updated_at::text
+       FROM class_streams stream
+       JOIN class_sections class_section
+         ON class_section.tenant_id = stream.tenant_id AND class_section.id = stream.class_section_id
+       WHERE stream.tenant_id = $1
+       ORDER BY class_section.name ASC, stream.name ASC`,
+      [tenantId],
+    );
+    return result.rows;
+  }
+
   // --- Departments ---
   async getDepartments(tenantId: string) {
     const result = await this.executeSql(this.getTenantId([`
@@ -1104,6 +1139,18 @@ export class AcademicsRepository {
        VALUES ($1, $2, $3::uuid) RETURNING *`,
       [tenantId, name, headUserId]);
     return result.rows[0];
+  }
+
+  async updateDepartment(tenantId: string, id: string, name: string | null, headUserId: string | null) {
+    const result = await this.executeSql(
+      tenantId,
+      `UPDATE academics_departments
+       SET name = COALESCE($3, name), head_of_department_user_id = $4::uuid, updated_at = NOW()
+       WHERE tenant_id = $1 AND id = $2::uuid AND is_active = true
+       RETURNING *`,
+      [tenantId, id, name, headUserId],
+    );
+    return result.rows[0] ?? null;
   }
 
   async archiveDepartment(tenantId: string, id: string) {
