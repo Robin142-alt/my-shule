@@ -115,24 +115,27 @@ jest.mock("@/components/school/discipline-master-command-center", () => ({
 }));
 
 const dedicatedRoleCases = [
-  ["deputy-principal", "deputy-principal-command-center"],
-  ["secretary", "secretary-command-center"],
-  ["accountant", "accountant-command-center"],
-  ["bursar", "accountant-command-center"],
   ["dean-academics", "dean-academics-command-center"],
   ["exams-manager", "exams-manager-command-center"],
   ["hod", "hod-command-center"],
   ["grade-master", "grade-master-command-center"],
-  ["class-teacher", "class-teacher-command-center"],
-  ["storekeeper", "storekeeper-command-center"],
-  ["librarian", "librarian-command-center"],
-  ["nurse", "nurse-command-center"],
-  ["boarding-master", "boarding-master-command-center"],
-  ["security-officer", "security-command-center"],
-  ["transport-manager", "transport-manager-command-center"],
-  ["laboratory-technician", "laboratory-technician-command-center"],
-  ["guidance-counselling", "counsellor-command-center"],
-  ["discipline-master", "discipline-master-command-center"],
+] as const;
+
+const standardOperationalRoleCases = [
+  "deputy-principal",
+  "secretary",
+  "accountant",
+  "bursar",
+  "class-teacher",
+  "storekeeper",
+  "librarian",
+  "nurse",
+  "boarding-master",
+  "security-officer",
+  "transport-manager",
+  "laboratory-technician",
+  "guidance-counselling",
+  "discipline-master",
 ] as const;
 
 describe("school command center routing", () => {
@@ -158,6 +161,23 @@ describe("school command center routing", () => {
 
       expect(await screen.findByTestId(testId)).toBeVisible();
       expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
+    },
+  );
+
+  it.each(standardOperationalRoleCases)(
+    "routes %s through the tenant-clean standard operational center",
+    async (role) => {
+      renderWithProviders(
+        createElement(SchoolPages, {
+          role,
+          section: "dashboard",
+          tenantSlug: "homabay-high",
+          routeMode: "public",
+          liveDataEnabled: false,
+        }),
+      );
+
+      expect(await screen.findByTestId("role-operational-command-center")).toHaveTextContent(`Generic ${role}`);
     },
   );
 

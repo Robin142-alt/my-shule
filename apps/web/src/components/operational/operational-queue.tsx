@@ -185,16 +185,18 @@ export function OperationalQueue({
         <StatusPill label={`${items.length} queued`} tone={items.length > 0 ? "warning" : "ok"} />
       </div>
 
-      <div className="mt-4 shrink-0 flex flex-wrap gap-2 rounded-[var(--radius-sm)] border border-border bg-primary-soft/35 p-3">
-        {contract.bulkActions.map((action) => (
-          <OperationalActionButton
-            key={action.actionId}
-            action={action}
-            onExecute={(executedAction) => executeAction(executedAction)}
-            compact
-          />
-        ))}
-      </div>
+      {items.length > 0 && contract.bulkActions.length > 0 ? (
+        <div className="mt-4 shrink-0 flex flex-wrap gap-2 rounded-[var(--radius-sm)] border border-border bg-primary-soft/35 p-3">
+          {contract.bulkActions.map((action) => (
+            <OperationalActionButton
+              key={action.actionId}
+              action={action}
+              onExecute={(executedAction) => executeAction(executedAction)}
+              compact
+            />
+          ))}
+        </div>
+      ) : null}
 
       {notice ? (
         <div className={`mt-3 rounded-[var(--radius-sm)] border px-3 py-2 text-xs font-bold ${
@@ -211,7 +213,7 @@ export function OperationalQueue({
       <div className="mt-4 space-y-3">
         {items.length === 0 ? (
           <div className="rounded-[var(--radius-sm)] border border-dashed border-border bg-surface-muted/70 p-5 text-sm font-semibold text-muted">
-            No pending work in this queue right now.
+            No pending work in this queue. Create the first record from the Form tab, or refresh after another school desk submits work.
           </div>
         ) : null}
         {items.map((item) => (

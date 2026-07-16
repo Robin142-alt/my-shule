@@ -60,9 +60,33 @@ describe("principal production readiness", () => {
     expect(within(setupWorkspace).getByText(/Fee structures and billable learners must exist/i)).toBeVisible();
     expect(within(setupWorkspace).getAllByText(/Setup required/i).length).toBeGreaterThan(0);
 
-    await user.click(within(setupWorkspace).getByRole("button", { name: /Open Academics/i }));
+    await user.click(within(setupWorkspace).getByRole("button", { name: /Open Academic Setup/i }));
 
     expect(within(commandCenter).getByRole("region", { name: /Academic foundation setup/i })).toBeVisible();
+  });
+
+  it.each([
+    ["academic-setup", /^Academic Calendar$/i],
+    ["classes-streams", /^Classes & streams$/i],
+    ["subjects-departments", /^Subjects & departments$/i],
+    ["academics", /^Teacher allocations$/i],
+  ])("opens the principal %s route on its exact academic setup workspace", async (section, tabName) => {
+    renderWithProviders(
+      <SchoolPages role="principal" section={section} tenantSlug="fresh-academy" userLabel="Principal Amina" />,
+    );
+
+    const commandCenter = await screen.findByTestId("principal-practical-command-center");
+    expect(within(commandCenter).getByRole("tab", { name: tabName })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("routes the principal staff-roles alias to school-scoped user management", async () => {
+    renderWithProviders(
+      <SchoolPages role="principal" section="staff-roles" tenantSlug="fresh-academy" userLabel="Principal Amina" />,
+    );
+
+    const commandCenter = await screen.findByTestId("principal-practical-command-center");
+    expect(within(commandCenter).getByRole("heading", { name: /Users & Invitations/i })).toBeVisible();
+    expect(within(commandCenter).queryByText(/Practical Kenyan school command center/i)).not.toBeInTheDocument();
   });
 
   it.each([

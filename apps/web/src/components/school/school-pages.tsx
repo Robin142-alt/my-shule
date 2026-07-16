@@ -723,12 +723,19 @@ const principalCommandCenterSectionIds = new Set([
   "dashboard",
   "setup-checklist",
   "school-profile",
+  "academic-setup",
+  "classes-streams",
+  "subjects-departments",
+  "staff-roles",
   "finance",
+  "finance-overview",
   "fees",
   "attendance",
+  "attendance-monitoring",
   "discipline",
   "visitors",
   "sick-bay",
+  "clinic",
   "boarding",
   "academics",
   "staff",
@@ -736,12 +743,12 @@ const principalCommandCenterSectionIds = new Set([
   "library",
   "exams",
   "exams-reports",
+  "exams-report-cards",
   "communication",
   "users-invitations",
   "approvals",
   "reports",
   "audit-logs",
-  "settings",
 ]);
 
 const nurseCommandCenterSectionIds = new Set([
@@ -880,16 +887,12 @@ const disciplineMasterCommandCenterSectionIds = new Set([
   "audit",
   "settings",
 ]);
-const unifiedOperationalRoleIds = new Set<SchoolExperienceRole>([
+const standardOperationalRoleIds = new Set<SchoolExperienceRole>([
   "deputy-principal",
   "secretary",
   "bursar",
   "accountant",
-  "dean-academics",
-  "exams-manager",
-  "hod",
   "class-teacher",
-  "grade-master",
   "admin",
   "storekeeper",
   "librarian",
@@ -903,6 +906,14 @@ const unifiedOperationalRoleIds = new Set<SchoolExperienceRole>([
 ]);
 
 function shouldRenderRoleOperationalWorkspace(role: SchoolExperienceRole, section: string) {
+  if (
+    standardOperationalRoleIds.has(role)
+    && roleOperationalWorkspaceSectionIds.has(section)
+    && !supportWorkspaceSectionIds.has(section)
+  ) {
+    return true;
+  }
+
   if (role === "dean-academics") {
     return deanAcademicsWorkspaceSectionIds.has(section);
   }
@@ -4779,6 +4790,19 @@ function SchoolPagesShell({
       }
     }
 
+    if (standardOperationalRoleIds.has(role)) {
+      return (
+        <RoleOperationalCommandCenter
+          key={`${role}:${section}`}
+          role={role}
+          initialSection={section}
+          initialWorkspace={schoolSectionLabels[section]}
+          tenantSlug={tenantSlug}
+          routeMode={routeMode}
+        />
+      );
+    }
+
     if (role === "dean-academics") {
       // @ts-ignore
       return <DeanAcademicsCommandCenter routeMode={routeMode} activeSection={section} />;
@@ -4882,20 +4906,9 @@ function SchoolPagesShell({
       return <TransportManagerCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
-    if (unifiedOperationalRoleIds.has(role)) {
-      return (
-        <RoleOperationalCommandCenter
-          role={role}
-          initialSection={section}
-          initialWorkspace={schoolSectionLabels[section]}
-          tenantSlug={tenantSlug}
-          routeMode={routeMode}
-        />
-      );
-    }
-
     return (
       <RoleOperationalCommandCenter
+        key={`${role}:${section}`}
         role={role}
         initialSection={section}
         initialWorkspace={schoolSectionLabels[section]}

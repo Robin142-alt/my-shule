@@ -62,9 +62,7 @@ function resolveOperationalSchoolId() {
 
 export function OperationalTable({
   contract,
-  loadingMessage = "Loading school records.",
   emptyMessage = "No records require action.",
-  errorMessage = "This table is degraded. Retry sync.",
   onAction,
   showStatePanels = true,
 }: {
@@ -590,7 +588,11 @@ export function OperationalTable({
         </table>
         {visibleRows.length === 0 ? (
           <div className="border-t border-border bg-surface px-4 py-8 text-center text-sm font-semibold text-muted">
-            No records matched {search}. Clear the search or try an admission number, learner name, phone number, class, or receipt reference.
+            {rows.length === 0
+              ? emptyMessage
+              : search.trim()
+                ? `No records matched ${search}. Clear the search or try another school reference.`
+                : "No records match the active filters. Clear the filters to review all records."}
           </div>
         ) : null}
       </div>
@@ -615,16 +617,9 @@ export function OperationalTable({
         </div>
       ) : null}
 
-      {showStatePanels ? (
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
-          <OperationalStatePanel state="LOADING" message={loadingMessage} />
+      {showStatePanels && rows.length === 0 ? (
+        <div className="mt-4">
           <OperationalStatePanel state="EMPTY" message={emptyMessage} />
-          <OperationalStatePanel
-            state="DEGRADED"
-            message={errorMessage}
-            actionLabel="Retry sync"
-            onAction={() => void runAction("Retry sync", { scope: "filter" })}
-          />
         </div>
       ) : null}
       <Modal

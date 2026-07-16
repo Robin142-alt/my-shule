@@ -62,7 +62,9 @@ describe("principal and deputy academic foundation workspace", () => {
   });
 
   it("renders the shared operational workspace for both leadership routes", () => {
-    expect(principalSource).toContain('<AcademicFoundationWorkspace actorRole="Principal" schoolName={schoolName} />');
+    for (const tab of ["calendar", "classes", "subjects", "allocations"]) {
+      expect(principalSource).toContain(`initialTab="${tab}"`);
+    }
     expect(deputySource).toContain('<AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName={schoolName} />');
     expect(deputySource).toContain('label: "Academic Foundation"');
   });

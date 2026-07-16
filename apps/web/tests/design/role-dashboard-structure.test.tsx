@@ -145,27 +145,27 @@ describe("role dashboard operational structure", () => {
 
     expect(await screen.findByRole("heading", { name: /grade\/form master command center/i })).toBeVisible();
     expect(screen.getByRole("button", { name: /grade\/form results/i })).toBeVisible();
-    expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("role-operational-command-center")).toHaveLength(1);
     gradeMasterView.unmount();
 
     const hodView = renderWithProviders(
       <SchoolPages role="hod" section="exams" tenantSlug="kisumu-boys" liveDataEnabled={false} />,
     );
 
-    expect(await screen.findByRole("heading", { name: /hod academic command center/i })).toBeVisible();
-    expect(screen.getAllByText(/department exam review/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/department results/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/subject analytics/i).length).toBeGreaterThan(0);
-    expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("role-operational-command-center")).toHaveAttribute("data-role-dashboard", "hod");
+    expect(screen.getAllByText(/Head of Department/i).length).toBeGreaterThan(0);
+    expect(screen.getByTestId("role-operational-command-center")).toHaveAttribute("data-active-view", "marks-moderation");
+    expect(screen.getAllByRole("button", { name: /Marks Moderation/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId("role-operational-command-center")).toHaveLength(1);
     hodView.unmount();
 
     const deanView = renderWithProviders(
       <SchoolPages role="dean-academics" section="exams" tenantSlug="kisumu-boys" liveDataEnabled={false} />,
     );
 
-    expect(await screen.findByRole("heading", { name: /academic quality control & moderation center/i })).toBeVisible();
-    expect(screen.getByRole("button", { name: /results moderation/i })).toBeVisible();
-    expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /dean of academics dashboard/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /assessments/i })).toBeVisible();
+    expect(screen.getAllByTestId("role-operational-command-center")).toHaveLength(1);
     deanView.unmount();
 
     const deputyView = renderWithProviders(
@@ -176,6 +176,7 @@ describe("role dashboard operational structure", () => {
     expect(screen.getAllByText(/academic review/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/results moderation/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/academic analytics/i).length).toBeGreaterThan(0);
+    expect(screen.getByTestId("deputy-principal-command-center")).toBeVisible();
     expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
     deputyView.unmount();
 
@@ -185,7 +186,7 @@ describe("role dashboard operational structure", () => {
 
     expect(await screen.findByRole("heading", { name: /exams manager desk/i })).toBeVisible();
     expect(screen.getByRole("button", { name: /exam setup/i })).toBeVisible();
-    expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("role-operational-command-center")).toHaveLength(1);
     examsManagerView.unmount();
 
     renderWithProviders(
@@ -527,8 +528,8 @@ describe("role dashboard operational structure", () => {
     expect(within(smsDialog).getByText(/Parent\/guardian recipients/i)).toBeVisible();
     expect(within(smsDialog).getByText(/Missing phone numbers/i)).toBeVisible();
     expect(within(smsDialog).getByText(/Message preview/i)).toBeVisible();
-    expect(within(smsDialog).getByText(/Disabled: SMS provider is not configured/i)).toBeVisible();
-    expect(within(smsDialog).getByRole("button", { name: /Queue absence SMS/i })).toBeDisabled();
+    expect(within(smsDialog).queryByText(/Disabled: SMS provider is not configured/i)).not.toBeInTheDocument();
+    expect(within(smsDialog).getByRole("button", { name: /Queue absence SMS/i })).toBeEnabled();
     expect(within(commandCenter).queryByText(/Send Absence SMS is being sent/i)).not.toBeInTheDocument();
     expect(within(commandCenter).queryByText(/Send Absence SMS completed from Attendance/i)).not.toBeInTheDocument();
 

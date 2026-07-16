@@ -675,6 +675,7 @@ function workspaceKind(role: SchoolExperienceRole, workspace: string): Workspace
   if (/report|analytics|export|board report/.test(value)) return "reports";
   if (/command|overview|dashboard|morning operations|daily operations|front office|teaching queue|system monitor/.test(value)) return "command";
   if (dominantRoleKinds[role]) return dominantRoleKinds[role];
+  if (/attendance/.test(value)) return "attendance";
   if (/escalation|escalations/.test(value)) return "approval";
   if (/approval|review|pending|moderation|dean|principal|waiver/.test(value)) return "approval";
   if (/finance|fee|payment|invoice|receipt|arrears|mpesa|m-pesa|payroll|bank|budget/.test(value)) return "finance";
@@ -1256,7 +1257,17 @@ function fieldType(field: string): OperationalFormContract["fields"][number]["ty
   return "text";
 }
 
-function formFieldDefaultValue(kind: WorkspaceKind, activeWorkspace: string, field: string, index: number) {
+function formFieldDefaultValue(
+  kind: WorkspaceKind,
+  activeWorkspace: string,
+  field: string,
+  index: number,
+  useDemoDefaults: boolean,
+) {
+  if (!useDemoDefaults) {
+    return "";
+  }
+
   const normalized = field.toLowerCase();
 
   if (fieldType(field) === "select") {
@@ -1358,12 +1369,13 @@ function toQueueContract(
   activeWorkspace: string,
   activeWorkspaceIndex: number,
   runtimeEntries: RuntimeWorkspaceEntry[],
+  includeDemoRows: boolean,
 ): OperationalQueueContract {
   const kind = workspaceKind(role, activeWorkspace);
   const workflowBinding = workspaceWorkflow(kind, activeWorkspace);
   const auditEvent = workspaceAuditEvent(activeWorkspace);
   const queueActions = workspaceActionLabels(kind, activeWorkspace, blueprint, activeWorkspaceIndex);
-  const rowTitles = workspaceRowTitles(kind, activeWorkspace);
+  const rowTitles = includeDemoRows ? workspaceRowTitles(kind, activeWorkspace) : [];
 
   return {
     title: `${schoolFriendlyText(activeWorkspace)} today's work`,
@@ -1518,13 +1530,14 @@ function toTableContract(
   tableIndex: number,
   activeWorkspace: string,
   runtimeEntries: RuntimeWorkspaceEntry[],
+  includeDemoRows: boolean,
 ): OperationalTableContract {
   const kind = workspaceKind(role, activeWorkspace);
   const blueprintTable = blueprint.tables[tableIndex % blueprint.tables.length];
   const generatedColumns = uniqueStrings([...workspaceColumns(kind), ...(blueprintTable?.columns ?? [])])
     .map(schoolFriendlyText)
     .slice(0, 10);
-  const rowTitles = workspaceRowTitles(kind, activeWorkspace);
+  const rowTitles = includeDemoRows ? workspaceRowTitles(kind, activeWorkspace) : [];
   const rowActions = uniqueStrings([
     ...workspaceActionLabels(kind, activeWorkspace, blueprint, tableIndex),
     ...(blueprintTable?.rowActions ?? []),
@@ -1573,6 +1586,7 @@ function toFormContract(
   blueprint: OperationalRoleBlueprint,
   formIndex: number,
   activeWorkspace: string,
+  useDemoDefaults: boolean,
 ): OperationalFormContract {
   const kind = workspaceKind(role, activeWorkspace);
   const blueprintForm = blueprint.forms[formIndex % blueprint.forms.length];
@@ -1588,7 +1602,7 @@ function toFormContract(
       id: `${role}-${slug(activeWorkspace)}-${slug(field)}`,
       label: field,
       type: fieldType(field),
-      value: formFieldDefaultValue(kind, activeWorkspace, field, index),
+      value: formFieldDefaultValue(kind, activeWorkspace, field, index, useDemoDefaults),
       options: fieldType(field) === "select" ? [`${titleize(field)} option`, "Needs review", "Approved", "Return for correction"] : undefined,
     })),
     footerActions: workspaceFooterActions(kind),
@@ -5375,14 +5389,14 @@ function GenericRoleOperationalCommandCenter({
   ];
   const queueContract = lightweightCommandRoot
     ? lightweightRootQueueContract(resolvedWorkspace)
-    : toQueueContract(role, resolvedBlueprint, healthById, resolvedWorkspace, activeWorkspaceIndex, workspaceRuntimeEntries);
+    : toQueueContract(role, resolvedBlueprint, healthById, resolvedWorkspace, activeWorkspaceIndex, workspaceRuntimeEntries, useKisumuBoysDemo);
   const visibleQueueContract = limitQueueContract(queueContract, commandWorkspace ? 5 : 8);
   const tableContract = lightweightCommandRoot
     ? lightweightRootTableContract(resolvedWorkspace)
-    : toTableContract(role, resolvedBlueprint, activeWorkspaceIndex, resolvedWorkspace, workspaceRuntimeEntries);
+    : toTableContract(role, resolvedBlueprint, activeWorkspaceIndex, resolvedWorkspace, workspaceRuntimeEntries, useKisumuBoysDemo);
   const formContract = lightweightCommandRoot
     ? lightweightRootFormContract(role, resolvedWorkspace)
-    : toFormContract(role, resolvedBlueprint, activeWorkspaceIndex, resolvedWorkspace);
+    : toFormContract(role, resolvedBlueprint, activeWorkspaceIndex, resolvedWorkspace, useKisumuBoysDemo);
   const actions = workspaceActions(role, resolvedBlueprint, resolvedWorkspace, activeWorkspaceIndex, healthById);
   const baseDisciplineRecordIncidentAction = actionContract({
     role,
@@ -8140,14 +8154,14 @@ function GenericRoleOperationalCommandCenter({
     }
 
     if (activePanel === "records") {
-      return <OperationalTable contract={tableContract} onAction={executeTableAction} showStatePanels={false} />;
+      return <OperationalTable key={tableContract.title} contract={tableContract} onAction={executeTableAction} showStatePanels={false} />;
     }
 
     if (activePanel === "form") {
-      return <OperationalFormShell contract={formContract} onAction={executeFormAction} showExecutionContract={false} />;
+      return <OperationalFormShell key={formContract.auditAction} contract={formContract} onAction={executeFormAction} showExecutionContract={false} />;
     }
 
-    return <OperationalQueue contract={visibleQueueContract} onExecute={(action) => void executeAction(action)} />;
+    return <OperationalQueue key={visibleQueueContract.title} contract={visibleQueueContract} onExecute={(action) => void executeAction(action)} />;
   }
 
   return (

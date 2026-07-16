@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   BookOpen,
   CalendarDays,
@@ -17,7 +17,7 @@ import { Card } from "@/components/ui/card";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
-type WorkspaceTab = "calendar" | "classes" | "subjects" | "allocations";
+export type AcademicFoundationTab = "calendar" | "classes" | "subjects" | "allocations";
 
 type AcademicYear = { id: string; name: string; starts_on?: string; ends_on?: string; status?: string };
 type AcademicTerm = { id: string; academic_year_id: string; name: string; starts_on?: string; ends_on?: string; status?: string };
@@ -86,10 +86,22 @@ function LoadingRows() {
   return <div className="rounded-xl border border-white/10 bg-white/5 p-5 text-sm font-bold text-white/65">Loading school academic setup...</div>;
 }
 
-export function AcademicFoundationWorkspace({ actorRole, schoolName }: { actorRole: "Principal" | "Deputy Principal"; schoolName: string }) {
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>("calendar");
+export function AcademicFoundationWorkspace({
+  actorRole,
+  schoolName,
+  initialTab = "calendar",
+}: {
+  actorRole: "Principal" | "Deputy Principal";
+  schoolName: string;
+  initialTab?: AcademicFoundationTab;
+}) {
+  const [activeTab, setActiveTab] = useState<AcademicFoundationTab>(initialTab);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   const yearsQuery = useSchoolQuery<AcademicYear[]>("/academics/academic-years");
   const termsQuery = useSchoolQuery<AcademicTerm[]>("/academics/academic-terms");
@@ -283,7 +295,7 @@ export function AcademicFoundationWorkspace({ actorRole, schoolName }: { actorRo
   ] as const;
   const completedChecks = setupChecks.filter(([, complete]) => complete).length;
 
-  const tabs: Array<{ id: WorkspaceTab; label: string; icon: typeof CalendarDays }> = [
+  const tabs: Array<{ id: AcademicFoundationTab; label: string; icon: typeof CalendarDays }> = [
     { id: "calendar", label: "Academic Calendar", icon: CalendarDays },
     { id: "classes", label: "Classes & Streams", icon: Layers3 },
     { id: "subjects", label: "Subjects & Departments", icon: BookOpen },

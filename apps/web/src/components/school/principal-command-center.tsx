@@ -46,6 +46,9 @@ type PrincipalSection =
   | "overview"
   | "setup-checklist"
   | "school-profile"
+  | "academic-setup"
+  | "classes-streams"
+  | "subjects-departments"
   | "fees"
   | "attendance"
   | "discipline"
@@ -229,6 +232,21 @@ function normalizePrincipalSection(section?: string): PrincipalSection {
     case "profile":
     case "school-profile":
       return "school-profile";
+    case "academic-calendar":
+    case "academic-setup":
+      return "academic-setup";
+    case "classes":
+    case "classes-streams":
+      return "classes-streams";
+    case "subjects":
+    case "subjects-departments":
+      return "subjects-departments";
+    case "staff-roles":
+      return "users-invitations";
+    case "attendance-monitoring":
+      return "attendance";
+    case "clinic":
+      return "sick-bay";
     case "finance":
     case "finance-overview":
       return "fees";
@@ -458,8 +476,8 @@ export function PrincipalCommandCenter({
         dependency: "Set classes, streams, subjects, departments, academic year, and current term before admissions, timetable, and exams.",
         unlocks: "Admissions placement, teacher allocation, timetable, attendance, exam setup, and report cards.",
         complete: schoolRecords.academicRecords.length > 0,
-        actionLabel: "Open Academics",
-        target: "academics",
+        actionLabel: "Open Academic Setup",
+        target: "academic-setup",
       },
       {
         id: "staff-invitations",
@@ -543,13 +561,16 @@ export function PrincipalCommandCenter({
       { id: "overview", label: "Overview", icon: Home },
       { id: "setup-checklist", label: "School Setup", count: activationProgress < 100 ? `${activationProgress}%` : undefined, icon: CheckCircle2 },
       { id: "school-profile", label: "School Profile", icon: Building2 },
+      { id: "academic-setup", label: "Academic Calendar", icon: ClipboardCheck },
+      { id: "classes-streams", label: "Classes & Streams", icon: BookOpen },
+      { id: "subjects-departments", label: "Subjects & Departments", icon: Library },
+      { id: "academics", label: "Teacher Allocations", count: navCount(schoolRecords.academicRecords.length), icon: UsersRound },
       { id: "fees", label: "Fees", count: navCount(pendingFeeItems), icon: Wallet },
       { id: "attendance", label: "Attendance", count: navCount(attendanceFollowUps), icon: Activity },
       { id: "discipline", label: "Discipline", count: navCount(schoolRecords.disciplineCases.length), icon: ShieldAlert },
       { id: "visitors", label: "Parents & Visitors", count: navCount(visitorsInside + waitingInquiries), icon: UsersRound },
       { id: "sick-bay", label: "Sick Bay", count: navCount(schoolRecords.clinicVisits.length + medicineAlerts), icon: HeartPulse },
       { id: "boarding", label: "Boarding", count: navCount(schoolRecords.boardingRecords.length), icon: BookOpen },
-      { id: "academics", label: "Academics", count: navCount(schoolRecords.academicRecords.length), icon: ClipboardCheck },
       { id: "staff", label: "Staff", count: navCount(schoolRecords.staffRecords.length), icon: UsersRound },
       { id: "transport", label: "Transport", count: navCount(schoolRecords.transportRecords.length), icon: BusFront },
       { id: "library", label: "Library", count: navCount(libraryFollowUps), icon: Library },
@@ -905,9 +926,27 @@ export function PrincipalCommandCenter({
       );
     }
 
+    if (activeWorkspace === "academic-setup") {
+      return (
+        <AcademicFoundationWorkspace actorRole="Principal" schoolName={schoolName} initialTab="calendar" />
+      );
+    }
+
+    if (activeWorkspace === "classes-streams") {
+      return (
+        <AcademicFoundationWorkspace actorRole="Principal" schoolName={schoolName} initialTab="classes" />
+      );
+    }
+
+    if (activeWorkspace === "subjects-departments") {
+      return (
+        <AcademicFoundationWorkspace actorRole="Principal" schoolName={schoolName} initialTab="subjects" />
+      );
+    }
+
     if (activeWorkspace === "academics") {
       return (
-        <AcademicFoundationWorkspace actorRole="Principal" schoolName={schoolName} />
+        <AcademicFoundationWorkspace actorRole="Principal" schoolName={schoolName} initialTab="allocations" />
       );
     }
 

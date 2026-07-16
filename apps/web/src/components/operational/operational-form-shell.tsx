@@ -301,11 +301,12 @@ export function OperationalFormShell({
         <select
           id={field.id}
           name={name}
-          value={value || options[0] || ""}
+          value={value}
           onChange={(event) => setFieldValue(field, event.currentTarget.value)}
           className={className}
         >
-          {options.map((option) => (
+          <option value="">Select {field.label.toLowerCase()}</option>
+          {options.filter(Boolean).map((option) => (
             <option key={option} value={option}>
               {option}
             </option>

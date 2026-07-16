@@ -140,6 +140,9 @@ describe("STEP 4: Role tests", () => {
         expect(await screen.findByTestId("admissions-dashboard-command-center")).toBeVisible();
         expect(screen.getAllByTestId("admissions-dashboard-command-center")).toHaveLength(1);
         expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
+      } else if (role === "teacher") {
+        expect(await screen.findByTestId("teacher-command-center")).toBeVisible();
+        expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
       } else {
         expect(await screen.findByTestId("role-operational-command-center")).toBeVisible();
         expect(screen.getAllByTestId("role-operational-command-center")).toHaveLength(1);
@@ -152,6 +155,10 @@ describe("STEP 4: Role tests", () => {
         expect(screen.getByText(/School activity today/i)).toBeVisible();
       } else if (role === "admissions") {
         expect(screen.getByText(/Enquiries, applications, verification, placement, enrolment, and parent handoff/i)).toBeVisible();
+      } else if (role === "teacher") {
+        expect(screen.getByRole("heading", { name: /Teacher Workspace/i })).toBeVisible();
+      } else if (["dean-academics", "exams-manager", "hod", "grade-master"].includes(role)) {
+        expect(screen.queryByText(/Workspace Not Found/i)).not.toBeInTheDocument();
       } else {
         expect(screen.getByText(/Use the role menu to switch sections/i)).toBeVisible();
       }
@@ -161,10 +168,10 @@ describe("STEP 4: Role tests", () => {
   }, 30000);
 
   it("does not wrap operational command centers in the legacy ERP shell", async () => {
-    const routeCases: Array<{ role: SchoolExperienceRole; section?: string }> = [
+    const routeCases: Array<{ role: SchoolExperienceRole; section?: string; testId?: string }> = [
       { role: "principal" },
       { role: "deputy-principal", section: "discipline" },
-      { role: "secretary", section: "admissions" },
+      { role: "secretary", section: "admissions", testId: "admissions-dashboard-command-center" },
       { role: "hod", section: "syllabus" },
       { role: "grade-master", section: "attendance" },
       { role: "transport-manager", section: "transport" },
@@ -179,7 +186,7 @@ describe("STEP 4: Role tests", () => {
         }),
       );
 
-      expect(await screen.findByTestId("role-operational-command-center")).toBeVisible();
+      expect(await screen.findByTestId(routeCase.testId ?? "role-operational-command-center")).toBeVisible();
       expect(view.container.querySelector(".enterprise-shell")).not.toBeInTheDocument();
 
       view.unmount();
