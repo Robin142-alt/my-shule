@@ -235,6 +235,10 @@ export class AcademicsService {
     return this.repository.listTeacherOptions(this.requireTenantId());
   }
 
+  getAcademicFoundation() {
+    return this.repository.getAcademicFoundation(this.requireTenantId());
+  }
+
   private requireTenantId(): string {
     const tenantId = this.requestContext.getStore()?.tenant_id;
 

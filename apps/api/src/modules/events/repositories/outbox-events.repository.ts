@@ -54,7 +54,13 @@ const UUID_PATTERN =
 export class OutboxEventsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+  private async executeSql<T = any>(query: string, params: any[] = [], tx?: any): Promise<{ rows: T[], rowCount: number }> {
+    if (tx) {
+      const result = await tx.$queryRawUnsafe(query, ...params);
+      const rows = Array.isArray(result) ? result : [result];
+      return { rows, rowCount: rows.length };
+    }
+
     const firstParam = params[0];
     const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
 
@@ -150,6 +156,7 @@ export class OutboxEventsRepository {
   async lockPendingBatch(
     batchSize: number,
     staleProcessingAfterMs: number,
+    tx?: any,
   ): Promise<ClaimedOutboxEvent[]> {
     const result = await this.executeSql<ClaimedOutboxEventRow>(
       `
@@ -165,6 +172,7 @@ export class OutboxEventsRepository {
         FROM app.claim_outbox_events($1::integer, $2::integer)
       `,
       [batchSize, staleProcessingAfterMs],
+      tx,
     );
 
     return result.rows.map((row) => ({
@@ -283,6 +291,7 @@ export class OutboxEventsRepository {
     errorMessage: string,
     retryDelayMs: number,
     maxAttempts: number,
+    tx?: any,
   ): Promise<void> {
     await this.executeSql(
       `
@@ -302,6 +311,7 @@ export class OutboxEventsRepository {
           AND id = $2::uuid
       `,
       [tenantId, outboxEventId, retryDelayMs, maxAttempts, errorMessage],
+      tx,
     );
   }
 

@@ -339,6 +339,44 @@ test('AcademicsRepository lists active staff teacher options without cross-tenan
   ]);
 });
 
+test('AcademicsRepository loads the complete academic foundation in one tenant transaction', async () => {
+  let transactionCount = 0;
+  let observedSql = '';
+  let observedTenantId = '';
+  const repository = new AcademicsRepository({
+    executeWithTenant: async (tenantId: string, _userId: string | null, callback: (tx: unknown) => Promise<unknown>) => {
+      transactionCount += 1;
+      observedTenantId = tenantId;
+      return callback({
+        $queryRawUnsafe: async (sql: string) => {
+          observedSql = sql;
+          return [{
+            years: [{ id: 'year-1', name: '2026' }],
+            terms: [],
+            classes: [],
+            streams: [],
+            subjects: [],
+            departments: [],
+            teachers: [],
+            class_teachers: [],
+            teacher_assignments: [],
+          }];
+        },
+      });
+    },
+  } as never);
+
+  const result = await repository.getAcademicFoundation('kibabi-high');
+
+  assert.equal(transactionCount, 1);
+  assert.equal(observedTenantId, 'kibabi-high');
+  assert.match(observedSql, /FROM academic_years/);
+  assert.match(observedSql, /FROM academic_terms/);
+  assert.match(observedSql, /FROM class_streams/);
+  assert.match(observedSql, /FROM teacher_subject_assignments/);
+  assert.deepEqual(result.years, [{ id: 'year-1', name: '2026' }]);
+});
+
 test('AcademicsRepository finds active teacher options by tenant and user id', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   let tenantIdUsed: string | undefined;

@@ -230,6 +230,30 @@ test('ModuleAccessRepository reads enabled modules inside the tenant transaction
   assert.equal(tenantScope, 'kibabi-high');
 });
 
+test('ModuleAccessRepository deduplicates concurrent enabled-module guard reads', async () => {
+  let transactionCount = 0;
+  const repository = new ModuleAccessRepository({
+    executeWithTenant: async (_tenantId: string, _userId: string | null, callback: (tx: unknown) => Promise<unknown>) => {
+      transactionCount += 1;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return callback({
+        $queryRawUnsafe: async () => [{ code: 'academics' }],
+      });
+    },
+  } as never);
+
+  const results = await Promise.all([
+    repository.listEnabledModuleCodes('kibabi-high'),
+    repository.listEnabledModuleCodes('kibabi-high'),
+    repository.listEnabledModuleCodes('kibabi-high'),
+  ]);
+  const cached = await repository.listEnabledModuleCodes('kibabi-high');
+
+  assert.equal(transactionCount, 1);
+  assert.deepEqual(results, [['academics'], ['academics'], ['academics']]);
+  assert.deepEqual(cached, ['academics']);
+});
+
 test('production school controllers declare module access metadata', () => {
   assert.deepEqual(Reflect.getMetadata(MODULE_ACCESS_KEY, AcademicsController), ['academics']);
   assert.deepEqual(Reflect.getMetadata(MODULE_ACCESS_KEY, ExamsController), ['exams']);

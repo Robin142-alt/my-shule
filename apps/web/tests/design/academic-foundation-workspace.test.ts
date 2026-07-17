@@ -42,6 +42,9 @@ describe("principal and deputy academic foundation workspace", () => {
   });
 
   it("wires forms to tenant-scoped academic API contracts and refreshes saved state", () => {
+    expect(workspaceSource).toContain('useSchoolQuery<AcademicFoundationResponse>("/academics/foundation")');
+    expect(workspaceSource).not.toContain('useSchoolQuery<AcademicYear[]>("/academics/academic-years")');
+
     for (const endpoint of [
       "/academics/years",
       "/academics/terms",

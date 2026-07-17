@@ -37,6 +37,9 @@ type ModuleRegistryRow = {
 
 @Injectable()
 export class ModuleAccessRepository {
+  private readonly enabledModulesCache = new Map<string, { expiresAt: number; codes: string[] }>();
+  private readonly enabledModulesLoads = new Map<string, Promise<string[]>>();
+  private readonly enabledModulesCacheTtlMs = 15_000;
 
   private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
     const firstParam = params[0];
@@ -230,6 +233,32 @@ export class ModuleAccessRepository {
   }
 
   async listEnabledModuleCodes(tenantId: string): Promise<string[]> {
+    const cached = this.enabledModulesCache.get(tenantId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return [...cached.codes];
+    }
+
+    const existingLoad = this.enabledModulesLoads.get(tenantId);
+    if (existingLoad) {
+      return [...(await existingLoad)];
+    }
+
+    const load = this.loadEnabledModuleCodes(tenantId);
+    this.enabledModulesLoads.set(tenantId, load);
+
+    try {
+      const codes = await load;
+      this.enabledModulesCache.set(tenantId, {
+        expiresAt: Date.now() + this.enabledModulesCacheTtlMs,
+        codes,
+      });
+      return [...codes];
+    } finally {
+      this.enabledModulesLoads.delete(tenantId);
+    }
+  }
+
+  private async loadEnabledModuleCodes(tenantId: string): Promise<string[]> {
     const rows = await this.prisma.executeWithTenant(tenantId, null, async (tx) => {
       const result = await tx.$queryRawUnsafe<Array<{ code: string }>>(
         `
@@ -246,10 +275,14 @@ export class ModuleAccessRepository {
         tenantId,
       );
 
-      return Array.isArray(result) ? result : [];
+      return (Array.isArray(result) ? result : []).map((row) => row.code);
     });
 
-    return rows.map((row) => row.code);
+    return rows;
+  }
+
+  private invalidateEnabledModules(tenantId: string): void {
+    this.enabledModulesCache.delete(tenantId);
   }
 
   async findFirstMissingModule(
@@ -371,6 +404,8 @@ export class ModuleAccessRepository {
         metadata: { module_codes: input.moduleCodes },
       });
 
+      this.invalidateEnabledModules(input.tenantId);
+
       return this.listSchoolModules(input.tenantId);
     });
   }
@@ -458,6 +493,8 @@ export class ModuleAccessRepository {
           : 'module_access.school_module_disabled',
         metadata: { module_code: input.moduleCode, enabled: input.enabled },
       });
+
+      this.invalidateEnabledModules(input.tenantId);
 
       return this.listSchoolModules(input.tenantId);
     });

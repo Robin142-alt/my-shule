@@ -58,6 +58,138 @@ export class AcademicsRepository {
     throw new Error('Tenant ID missing for raw query');
   }
 
+  async getAcademicFoundation(tenantId: string) {
+    return this.prisma.executeWithTenant(tenantId, null, async (tx: any) => {
+      const rows = await tx.$queryRawUnsafe(
+        `
+          SELECT
+            COALESCE((
+              SELECT jsonb_agg(to_jsonb(item) ORDER BY item.starts_on DESC)
+              FROM (
+                SELECT id::text, name, starts_on, ends_on, status
+                FROM academic_years
+                WHERE tenant_id = $1 AND COALESCE(status, 'active') <> 'archived'
+              ) item
+            ), '[]'::jsonb) AS years,
+            COALESCE((
+              SELECT jsonb_agg(to_jsonb(item) ORDER BY item.starts_on DESC)
+              FROM (
+                SELECT id::text, academic_year_id::text, name, starts_on, ends_on, status
+                FROM academic_terms
+                WHERE tenant_id = $1 AND COALESCE(status, 'active') <> 'archived'
+              ) item
+            ), '[]'::jsonb) AS terms,
+            COALESCE((
+              SELECT jsonb_agg(to_jsonb(item) ORDER BY item.grade_level ASC, item.name ASC)
+              FROM (
+                SELECT id::text, academic_year_id::text, name, grade_level, stream, capacity
+                FROM class_sections
+                WHERE tenant_id = $1
+              ) item
+            ), '[]'::jsonb) AS classes,
+            COALESCE((
+              SELECT jsonb_agg(to_jsonb(item) ORDER BY item.class_section_name ASC, item.name ASC)
+              FROM (
+                SELECT stream.id::text, stream.class_section_id::text, section.name AS class_section_name,
+                       stream.name, stream.capacity
+                FROM class_streams stream
+                JOIN class_sections section
+                  ON section.tenant_id = stream.tenant_id AND section.id = stream.class_section_id
+                WHERE stream.tenant_id = $1
+              ) item
+            ), '[]'::jsonb) AS streams,
+            COALESCE((
+              SELECT jsonb_agg(to_jsonb(item) ORDER BY item.name ASC)
+              FROM (
+                SELECT id::text, code, name, department_id::text
+                FROM subjects
+                WHERE tenant_id = $1 AND COALESCE(status, 'active') <> 'archived'
+              ) item
+            ), '[]'::jsonb) AS subjects,
+            COALESCE((
+              SELECT jsonb_agg(to_jsonb(item) ORDER BY item.name ASC)
+              FROM (
+                SELECT department.id::text, department.name,
+                       department.head_of_department_user_id::text,
+                       COALESCE(staff.display_name, staff.staff_number) AS head_of_department_name
+                FROM academics_departments department
+                LEFT JOIN staff_profiles staff
+                  ON staff.tenant_id = department.tenant_id
+                 AND staff.user_id = department.head_of_department_user_id
+                WHERE department.tenant_id = $1 AND department.is_active = true
+              ) item
+            ), '[]'::jsonb) AS departments,
+            COALESCE((
+              SELECT jsonb_agg(to_jsonb(item) ORDER BY item.label ASC)
+              FROM (
+                SELECT id::text, user_id::text,
+                       COALESCE(display_name, staff_number, id::text) AS label,
+                       staff_number, COALESCE(status, 'active') AS status
+                FROM staff_profiles
+                WHERE tenant_id = $1 AND user_id IS NOT NULL
+                  AND COALESCE(status, 'active') = 'active'
+                LIMIT 300
+              ) item
+            ), '[]'::jsonb) AS teachers,
+            COALESCE((
+              SELECT jsonb_agg(to_jsonb(item) ORDER BY item.class_section_name ASC, item.teacher_name ASC)
+              FROM (
+                SELECT class_teacher.id::text, class_teacher.academic_year_id::text,
+                       year.name AS academic_year_name, class_teacher.class_section_id::text,
+                       section.name AS class_section_name, class_teacher.teacher_user_id::text,
+                       COALESCE(staff.display_name, staff.staff_number, 'Unlinked teacher') AS teacher_name
+                FROM academics_class_teachers class_teacher
+                LEFT JOIN academic_years year
+                  ON year.tenant_id = class_teacher.tenant_id AND year.id::text = class_teacher.academic_year_id::text
+                LEFT JOIN class_sections section
+                  ON section.tenant_id = class_teacher.tenant_id AND section.id::text = class_teacher.class_section_id::text
+                LEFT JOIN staff_profiles staff
+                  ON staff.tenant_id = class_teacher.tenant_id AND staff.user_id = class_teacher.teacher_user_id
+                WHERE class_teacher.tenant_id = $1 AND class_teacher.is_active = true
+              ) item
+            ), '[]'::jsonb) AS class_teachers,
+            COALESCE((
+              SELECT jsonb_agg(to_jsonb(item) ORDER BY item.created_at DESC)
+              FROM (
+                SELECT assignment.id::text, assignment.academic_term_id::text,
+                       term.name AS academic_term_name, assignment.class_section_id::text,
+                       section.name AS class_section_name, assignment.subject_id::text,
+                       subject.name AS subject_name, assignment.teacher_user_id::text,
+                       COALESCE(staff.display_name, staff.staff_number, 'Unlinked teacher') AS teacher_name,
+                       assignment.created_at
+                FROM teacher_subject_assignments assignment
+                LEFT JOIN academic_terms term
+                  ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
+                LEFT JOIN class_sections section
+                  ON section.tenant_id = assignment.tenant_id AND section.id = assignment.class_section_id
+                LEFT JOIN subjects subject
+                  ON subject.tenant_id = assignment.tenant_id AND subject.id = assignment.subject_id
+                LEFT JOIN staff_profiles staff
+                  ON staff.tenant_id = assignment.tenant_id AND staff.user_id::text = assignment.teacher_user_id
+                WHERE assignment.tenant_id = $1 AND assignment.status = 'active'
+                ORDER BY assignment.created_at DESC
+                LIMIT 300
+              ) item
+            ), '[]'::jsonb) AS teacher_assignments
+        `,
+        tenantId,
+      );
+      const result = (Array.isArray(rows) ? rows[0] : null) ?? {};
+
+      return {
+        years: Array.isArray(result.years) ? result.years : [],
+        terms: Array.isArray(result.terms) ? result.terms : [],
+        classes: Array.isArray(result.classes) ? result.classes : [],
+        streams: Array.isArray(result.streams) ? result.streams : [],
+        subjects: Array.isArray(result.subjects) ? result.subjects : [],
+        departments: Array.isArray(result.departments) ? result.departments : [],
+        teachers: Array.isArray(result.teachers) ? result.teachers : [],
+        classTeachers: Array.isArray(result.class_teachers) ? result.class_teachers : [],
+        teacherAssignments: Array.isArray(result.teacher_assignments) ? result.teacher_assignments : [],
+      };
+    });
+  }
+
 
   async createAcademicYear(input: Record<string, unknown>) {
     const result = await this.executeSql(this.getTenantId([`

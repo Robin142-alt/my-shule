@@ -46,6 +46,17 @@ type SubjectTeacherAssignment = {
   teacher_user_id: string;
   teacher_name?: string;
 };
+type AcademicFoundationResponse = {
+  years: AcademicYear[];
+  terms: AcademicTerm[];
+  classes: ClassSection[];
+  streams: ClassStream[];
+  subjects: Subject[];
+  departments: Department[];
+  teachers: TeacherOption[];
+  classTeachers: ClassTeacherAssignment[];
+  teacherAssignments: SubjectTeacherAssignment[];
+};
 
 const fieldClass =
   "mt-1 w-full rounded-lg border border-white/15 bg-[#0D2A5B] px-3 py-2.5 text-sm font-semibold text-white outline-none placeholder:text-white/40 focus:border-cyan-300";
@@ -103,30 +114,22 @@ export function AcademicFoundationWorkspace({
     setActiveTab(initialTab);
   }, [initialTab]);
 
-  const yearsQuery = useSchoolQuery<AcademicYear[]>("/academics/academic-years");
-  const termsQuery = useSchoolQuery<AcademicTerm[]>("/academics/academic-terms");
-  const classesQuery = useSchoolQuery<ClassSection[]>("/academics/class-sections");
-  const streamsQuery = useSchoolQuery<ClassStream[]>("/academics/class-streams");
-  const subjectsQuery = useSchoolQuery<Subject[]>("/academics/subjects");
-  const departmentsQuery = useSchoolQuery<Department[]>("/academics/departments");
-  const teachersQuery = useSchoolQuery<TeacherOption[]>("/academics/teachers");
-  const classTeachersQuery = useSchoolQuery<ClassTeacherAssignment[]>("/academics/class-teachers");
-  const subjectTeachersQuery = useSchoolQuery<SubjectTeacherAssignment[]>("/academics/teacher-assignments");
+  const foundationQuery = useSchoolQuery<AcademicFoundationResponse>("/academics/foundation");
 
-  const years = yearsQuery.data ?? [];
-  const terms = termsQuery.data ?? [];
-  const classes = classesQuery.data ?? [];
-  const streams = streamsQuery.data ?? [];
-  const subjects = subjectsQuery.data ?? [];
-  const departments = departmentsQuery.data ?? [];
-  const classTeachers = classTeachersQuery.data ?? [];
-  const subjectTeachers = subjectTeachersQuery.data ?? [];
+  const years = foundationQuery.data?.years ?? [];
+  const terms = foundationQuery.data?.terms ?? [];
+  const classes = foundationQuery.data?.classes ?? [];
+  const streams = foundationQuery.data?.streams ?? [];
+  const subjects = foundationQuery.data?.subjects ?? [];
+  const departments = foundationQuery.data?.departments ?? [];
+  const classTeachers = foundationQuery.data?.classTeachers ?? [];
+  const subjectTeachers = foundationQuery.data?.teacherAssignments ?? [];
   const teachers = useMemo(
-    () => (teachersQuery.data ?? []).map((teacher) => ({
+    () => (foundationQuery.data?.teachers ?? []).map((teacher) => ({
       id: teacher.user_id || teacher.id || "",
       label: teacher.label || teacher.full_name || teacher.staff_number || teacher.email || "Unnamed staff member",
     })).filter((teacher) => teacher.id),
-    [teachersQuery.data],
+    [foundationQuery.data?.teachers],
   );
 
   const labels = useMemo(() => ({
@@ -138,22 +141,11 @@ export function AcademicFoundationWorkspace({
     teachers: new Map(teachers.map((item) => [item.id, item.label])),
   }), [classes, departments, subjects, teachers, terms, years]);
 
-  const allQueries = [
-    yearsQuery,
-    termsQuery,
-    classesQuery,
-    streamsQuery,
-    subjectsQuery,
-    departmentsQuery,
-    teachersQuery,
-    classTeachersQuery,
-    subjectTeachersQuery,
-  ];
-  const isLoading = allQueries.some((query) => query.isLoading);
-  const loadError = allQueries.find((query) => query.error)?.error;
+  const isLoading = foundationQuery.isLoading;
+  const loadError = foundationQuery.error;
 
   const refreshAll = async () => {
-    await Promise.all(allQueries.map((query) => query.refetch()));
+    await foundationQuery.refetch();
   };
 
   const runAction = async (action: string, request: () => Promise<unknown>, successMessage: string, form?: HTMLFormElement) => {
@@ -330,7 +322,7 @@ export function AcademicFoundationWorkspace({
 
       {loadError ? (
         <div role="alert" className="rounded-xl border border-red-300/30 bg-red-400/10 p-4 text-sm font-bold text-red-100">
-          Academic setup could not be loaded: {loadError.message}. Retry after confirming the Academics module and your school permissions are enabled.
+          Academic setup could not be loaded: {loadError.message}. Retry the live school setup request. If it fails again, the error has been recorded for platform support.
         </div>
       ) : null}
       {actionError ? (

@@ -24,6 +24,12 @@ import { AcademicsWidgetDataDto } from '../dashboard/dashboard.dto';
 export class AcademicsController {
   constructor(private readonly academicsService: AcademicsService) {}
 
+  @Get('foundation')
+  @Permissions('academics:read')
+  getAcademicFoundation() {
+    return this.academicsService.getAcademicFoundation();
+  }
+
   @Post('years')
   @Permissions('academics:write')
   createAcademicYear(@Body() dto: CreateAcademicYearDto) {

@@ -111,6 +111,8 @@ test('EventsSchemaService shares schema bootstrap across instances', async () =>
 
 test('OutboxDispatcherService waits for event schema bootstrap before polling outbox events', async () => {
   const order: string[] = [];
+  const transaction = { id: 'outbox-transaction' };
+  let observedTransaction: unknown;
   const dispatcher = new OutboxDispatcherService(
     {
       get: <T>(key: string) =>
@@ -125,7 +127,7 @@ test('OutboxDispatcherService waits for event schema bootstrap before polling ou
       run: async (_context: unknown, callback: () => Promise<unknown>) => callback(),
     } as never,
     {
-      withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
+      withRequestTransaction: async (callback: (tx: unknown) => Promise<unknown>) => callback(transaction),
     } as never,
     {
       isDegraded: () => false,
@@ -139,7 +141,8 @@ test('OutboxDispatcherService waits for event schema bootstrap before polling ou
       },
     } as never,
     {
-      lockPendingBatch: async () => {
+      lockPendingBatch: async (_batchSize: number, _staleAfterMs: number, tx: unknown) => {
+        observedTransaction = tx;
         order.push('lock-pending');
         return [];
       },
@@ -151,6 +154,7 @@ test('OutboxDispatcherService waits for event schema bootstrap before polling ou
   await dispatcher.onModuleDestroy();
 
   assert.deepEqual(order, ['schema-start', 'schema-done', 'lock-pending']);
+  assert.equal(observedTransaction, transaction);
 });
 
 test('OutboxDispatcherService leaves outbox events pending when the queue is degraded', async () => {

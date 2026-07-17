@@ -95,10 +95,11 @@ export class OutboxDispatcherService implements OnModuleInit, OnModuleDestroy {
           started_at: new Date().toISOString(),
         },
         async () =>
-          this.prisma.withRequestTransaction(async () =>
+          this.prisma.withRequestTransaction(async (tx) =>
             this.outboxEventsRepository.lockPendingBatch(
               Number(this.configService.get<number>('events.dispatcherBatchSize') ?? 100),
               Number(this.configService.get<number>('events.staleProcessingAfterMs') ?? 30000),
+              tx,
             ),
           ),
       );
@@ -228,13 +229,14 @@ export class OutboxDispatcherService implements OnModuleInit, OnModuleDestroy {
               error instanceof Error ? error.stack : undefined,
             );
 
-            await this.prisma.withRequestTransaction(async () => {
+            await this.prisma.withRequestTransaction(async (tx) => {
               await this.outboxEventsRepository.markFailed(
                 event.tenant_id,
                 event.id,
                 message,
                 Number(this.configService.get<number>('events.retryDelayMs') ?? 5000),
                 Number(this.configService.get<number>('events.maxAttempts') ?? 25),
+                tx,
               );
             });
           },

@@ -8,6 +8,7 @@ import {
   BookOpen,
   BrainCircuit,
   Bus,
+  Building2,
   CalendarClock,
   CheckCircle2,
   ClipboardCheck,
@@ -32,10 +33,12 @@ import {
 } from "lucide-react";
 
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
+import { DashboardGreeting } from "@/components/common/dashboard-greeting";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { tenantSlugToName } from "@/lib/seo/tenant-routes";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { buildSchoolSectionHref } from "./school-pages";
 import { UserManagementWorkspace } from "./user-management-workspace";
 
@@ -114,6 +117,11 @@ function getDeputySchoolName(schoolId: string) {
   return schoolId === "school-workspace" ? "School workspace" : tenantSlugToName(schoolId);
 }
 
+type DeputySchoolIdentity = {
+  schoolName: string;
+  logoUrl?: string | null;
+};
+
 export function DeputyPrincipalCommandCenter({
   activeSection,
   routeMode,
@@ -126,9 +134,14 @@ export function DeputyPrincipalCommandCenter({
   userLabel?: string | null;
 }) {
   const schoolId = getDeputySchoolId(tenantSlug);
-  const schoolName = getDeputySchoolName(schoolId);
+  const fallbackSchoolName = getDeputySchoolName(schoolId);
+  const { data: schoolIdentity } = useSchoolQuery<DeputySchoolIdentity>("/school/identity", {
+    tenantId: schoolId,
+  });
+  const schoolName = schoolIdentity?.schoolName?.trim() || fallbackSchoolName;
   const deputyName = userLabel?.trim() || "Deputy Principal";
   const [activeWorkspace, setActiveWorkspaceState] = useState(resolveDeputyWorkspace(activeSection));
+  const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
 
   const setActiveWorkspace = (view: string) => {
     setActiveWorkspaceState(view);
@@ -233,8 +246,25 @@ export function DeputyPrincipalCommandCenter({
         {/* Sidebar */}
         <aside className="hidden h-[calc(100vh-40px)] rounded-[var(--radius-xl)] border border-[#C8D5EA]/50 bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.22)] xl:sticky xl:top-5 xl:flex xl:flex-col">
           <div className="rounded-[var(--radius-lg)] border border-white/10 bg-white/[0.06] p-4">
-            <p className="text-xs font-black uppercase text-cyan-200">Deputy Command</p>
-            <h2 className="mt-2 text-2xl font-black">Operations Control</h2>
+            <div className="flex items-center gap-3">
+              {schoolIdentity?.logoUrl && failedLogoUrl !== schoolIdentity.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={schoolIdentity.logoUrl}
+                  alt={`${schoolName} logo`}
+                  className="h-14 w-14 shrink-0 rounded-lg border border-white/15 bg-white object-contain p-1"
+                  onError={() => setFailedLogoUrl(schoolIdentity.logoUrl ?? null)}
+                />
+              ) : (
+                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10">
+                  <Building2 className="h-7 w-7 text-cyan-200" aria-hidden="true" />
+                </span>
+              )}
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase text-cyan-200">Deputy Command</p>
+                <h2 className="mt-1 truncate text-2xl font-black">{schoolName}</h2>
+              </div>
+            </div>
           </div>
           <nav className="mt-5 flex-1 space-y-5 overflow-auto pr-1 pb-10 custom-scrollbar">
             {Object.entries(groups).map(([group, items]) => (
@@ -269,13 +299,10 @@ export function DeputyPrincipalCommandCenter({
         {/* Main Content */}
         <main className="min-w-0 space-y-5">
           <header className="rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-4 text-[#071D49] shadow-[0_18px_50px_rgba(7,29,73,0.12)] md:p-5">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex items-center gap-4">
-                <div className="grid h-12 w-12 place-items-center rounded-[var(--radius-lg)] bg-[#071D49] text-sm font-black text-white shadow-[0_16px_34px_rgba(7,29,73,0.18)]">MS</div>
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">MyShule operations intelligence</p>
-                  <p className="mt-1 text-lg font-black md:text-2xl">Deputy Principal Dashboard</p>
-                </div>
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+              <div>
+                <DashboardGreeting name={deputyName} context={`${schoolName} command center`} />
+                <h1 className="mt-1 text-2xl font-black">Deputy Principal Dashboard</h1>
               </div>
               <div className="grid gap-3 lg:min-w-[640px]">
                 <div className="relative">
