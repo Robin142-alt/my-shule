@@ -26,6 +26,8 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /ALTER TABLE subjects ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active'/);
   assert.match(schemaSql, /ALTER TABLE subjects ADD COLUMN IF NOT EXISTS department_id uuid/);
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_subjects_department/);
+  assert.match(schemaSql, /ALTER TABLE %I ALTER COLUMN id SET DEFAULT gen_random_uuid\(\)/);
+  assert.match(schemaSql, /ALTER TABLE %I ALTER COLUMN id SET DEFAULT gen_random_uuid\(\)::text/);
   assert.match(schemaSql, /ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS created_by_user_id uuid/);
   assert.match(schemaSql, /CBE/);
   assert.match(schemaSql, /ALTER TABLE teacher_subject_assignments FORCE ROW LEVEL SECURITY/);
@@ -39,6 +41,51 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /uq_teacher_subject_assignments_scope/);
   assert.match(schemaSql, /NULLIF\(current_setting\('app\.role', true\), ''\) = 'system'/);
   assert.doesNotMatch(schemaSql, /CREATE TABLE IF NOT EXISTS attendance_/i);
+});
+
+test('AcademicsRepository supplies durable IDs when creating academic years and terms', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new AcademicsRepository({
+    executeWithTenant: async (
+      tenantId: string,
+      _userId: string | null,
+      callback: (tx: { $queryRawUnsafe: (sql: string, ...params: unknown[]) => Promise<unknown[]> }) => Promise<unknown>,
+    ) => {
+      assert.equal(tenantId, 'kibabi-high');
+      return callback({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          calls.push({ sql, params });
+          return [{ id: params[1], tenant_id: params[0] }];
+        },
+      });
+    },
+  } as never);
+
+  const actorUserId = '11111111-1111-4111-8111-111111111111';
+  const year = await repository.createAcademicYear({
+    tenant_id: 'kibabi-high',
+    name: '2026 Academic Year',
+    starts_on: '2026-01-05',
+    ends_on: '2026-10-30',
+    created_by_user_id: actorUserId,
+  });
+  const term = await repository.createAcademicTerm({
+    tenant_id: 'kibabi-high',
+    academic_year_id: year.id,
+    name: 'Term 1',
+    starts_on: '2026-01-05',
+    ends_on: '2026-04-02',
+    created_by_user_id: actorUserId,
+  });
+
+  assert.equal(calls.length, 2);
+  assert.match(calls[0]!.sql, /INSERT INTO academic_years\s*\(\s*tenant_id, id,/);
+  assert.match(calls[1]!.sql, /INSERT INTO academic_terms\s*\(\s*tenant_id, id,/);
+  assert.match(String(calls[0]!.params[1]), /^[0-9a-f-]{36}$/i);
+  assert.match(String(calls[1]!.params[1]), /^[0-9a-f-]{36}$/i);
+  assert.equal(calls[0]!.params[0], 'kibabi-high');
+  assert.equal(calls[1]!.params[0], 'kibabi-high');
+  assert.equal(term.id, calls[1]!.params[1]);
 });
 
 test('AcademicsService assigns teachers to deterministic subject class term scopes', async () => {

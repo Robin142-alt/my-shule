@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 
 import { PrismaService } from '../../../database/prisma.service';
 
@@ -192,28 +193,31 @@ export class AcademicsRepository {
 
 
   async createAcademicYear(input: Record<string, unknown>) {
+    const academicYearId = randomUUID();
     const result = await this.executeSql(this.getTenantId([`
         INSERT INTO academic_years (
-          tenant_id, name, starts_on, ends_on, created_by_user_id
+          tenant_id, id, name, starts_on, ends_on, created_by_user_id
         )
-        VALUES ($1, $2, $3::date, $4::date, $5::uuid)
+        VALUES ($1, $2, $3, $4::date, $5::date, $6::uuid)
         RETURNING *
       `,
       [
         input.tenant_id,
+        academicYearId,
         input.name,
         input.starts_on,
         input.ends_on,
         input.created_by_user_id,
       ],]), `
         INSERT INTO academic_years (
-          tenant_id, name, starts_on, ends_on, created_by_user_id
+          tenant_id, id, name, starts_on, ends_on, created_by_user_id
         )
-        VALUES ($1, $2, $3::date, $4::date, $5::uuid)
+        VALUES ($1, $2, $3, $4::date, $5::date, $6::uuid)
         RETURNING *
       `,
       [
         input.tenant_id,
+        academicYearId,
         input.name,
         input.starts_on,
         input.ends_on,
@@ -224,15 +228,17 @@ export class AcademicsRepository {
   }
 
   async createAcademicTerm(input: Record<string, unknown>) {
+    const academicTermId = randomUUID();
     const result = await this.executeSql(this.getTenantId([`
         INSERT INTO academic_terms (
-          tenant_id, academic_year_id, name, starts_on, ends_on, created_by_user_id
+          tenant_id, id, academic_year_id, name, starts_on, ends_on, created_by_user_id
         )
-        VALUES ($1, $2::uuid, $3, $4::date, $5::date, $6::uuid)
+        VALUES ($1, $2, $3, $4, $5::date, $6::date, $7::uuid)
         RETURNING *
       `,
       [
         input.tenant_id,
+        academicTermId,
         input.academic_year_id,
         input.name,
         input.starts_on,
@@ -240,13 +246,14 @@ export class AcademicsRepository {
         input.created_by_user_id,
       ],]), `
         INSERT INTO academic_terms (
-          tenant_id, academic_year_id, name, starts_on, ends_on, created_by_user_id
+          tenant_id, id, academic_year_id, name, starts_on, ends_on, created_by_user_id
         )
-        VALUES ($1, $2::uuid, $3, $4::date, $5::date, $6::uuid)
+        VALUES ($1, $2, $3, $4, $5::date, $6::date, $7::uuid)
         RETURNING *
       `,
       [
         input.tenant_id,
+        academicTermId,
         input.academic_year_id,
         input.name,
         input.starts_on,

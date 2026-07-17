@@ -618,6 +618,54 @@ export class AcademicsSchemaService implements OnModuleInit {
       CREATE INDEX IF NOT EXISTS ix_academics_departments_tenant_active
         ON academics_departments (tenant_id, is_active, name);
 
+      DO $$
+      DECLARE
+        target_table text;
+        id_data_type text;
+      BEGIN
+        FOREACH target_table IN ARRAY ARRAY[
+          'academic_years',
+          'academic_terms',
+          'academic_levels',
+          'class_sections',
+          'class_streams',
+          'student_class_assignments',
+          'subjects',
+          'academics_departments',
+          'academics_class_teachers',
+          'class_subject_assignments',
+          'teacher_subject_assignments',
+          'report_card_comments',
+          'student_notes',
+          'parent_meetings',
+          'class_requests',
+          'academic_audit_logs',
+          'academics_grading_systems',
+          'academics_attendance_settings'
+        ] LOOP
+          IF to_regclass(format('public.%I', target_table)) IS NOT NULL THEN
+            SELECT data_type
+            INTO id_data_type
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = target_table
+              AND column_name = 'id';
+
+            IF id_data_type = 'uuid' THEN
+              EXECUTE format(
+                'ALTER TABLE %I ALTER COLUMN id SET DEFAULT gen_random_uuid()',
+                target_table
+              );
+            ELSIF id_data_type IN ('text', 'character varying', 'character') THEN
+              EXECUTE format(
+                'ALTER TABLE %I ALTER COLUMN id SET DEFAULT gen_random_uuid()::text',
+                target_table
+              );
+            END IF;
+          END IF;
+        END LOOP;
+      END $$;
+
 
       ALTER TABLE report_card_comments ENABLE ROW LEVEL SECURITY;
       ALTER TABLE report_card_comments FORCE ROW LEVEL SECURITY;
