@@ -79,6 +79,13 @@ export class TimetableSchemaService implements OnModuleInit {
         created_at timestamptz NOT NULL DEFAULT NOW()
       );
 
+      ALTER TABLE timetable_versions
+        DROP CONSTRAINT IF EXISTS uq_timetable_versions_tenant_term;
+      DROP INDEX IF EXISTS uq_timetable_versions_active_status;
+      CREATE UNIQUE INDEX uq_timetable_versions_active_status
+        ON timetable_versions (tenant_id, academic_year, term_name, status)
+        WHERE status IN ('draft', 'published');
+
       DO $$
       DECLARE
         target_table text;

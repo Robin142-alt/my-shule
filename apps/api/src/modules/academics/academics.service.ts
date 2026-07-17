@@ -226,7 +226,7 @@ export class AcademicsService {
     return this.repository.listTeacherAssignments({
       tenantId: this.requireTenantId(),
       teacherUserId: teacherUserId?.trim() || undefined,
-      limit: this.resolveLimit(limit, 25, 1, 50),
+      limit: this.resolveLimit(limit, 25, 1, 300),
       offset: this.resolveOffset(offset),
     });
   }

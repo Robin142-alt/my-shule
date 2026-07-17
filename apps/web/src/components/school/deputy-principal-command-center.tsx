@@ -45,7 +45,7 @@ import { DeputyAttendanceWorkspace } from "./deputy-principal/attendance-workspa
 import { DeputyDisciplineWorkspace } from "./deputy-principal/discipline-workspace";
 import { DeputyWelfareWorkspace } from "./deputy-principal/welfare-workspace";
 import { DeputyStaffDutyWorkspace } from "./deputy-principal/staff-duty-workspace";
-import { DeputyTimetableReliefWorkspace } from "./deputy-principal/timetable-relief-workspace";
+import { DeputyTimetableManagementWorkspace } from "./deputy-principal/timetable-management-workspace";
 import { DeputyTeachingWorkspace } from "./deputy-principal/teaching-workspace";
 import { DeputyExamsMarksWorkspace } from "./deputy-principal/exams-marks-workspace";
 import { DeputyClassesStreamsWorkspace } from "./deputy-principal/classes-streams-workspace";
@@ -177,7 +177,7 @@ export function DeputyPrincipalCommandCenter({
       case "discipline": return <DeputyDisciplineWorkspace />;
       case "welfare": return <DeputyWelfareWorkspace />;
       case "staff-duty": return <DeputyStaffDutyWorkspace />;
-      case "timetable": return <DeputyTimetableReliefWorkspace />;
+      case "timetable": return <DeputyTimetableManagementWorkspace />;
       case "academics": return <AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName={schoolName} />;
       case "teaching": return <DeputyTeachingWorkspace />;
       case "exams":

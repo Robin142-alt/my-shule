@@ -45,3 +45,7 @@ export class PublishTimetableVersionDto {
   @IsString()
   notes?: string;
 }
+
+export class UpdateTimetableSlotDto extends CreateTimetableSlotDto {}
+
+export class ReviseTimetableVersionDto extends PublishTimetableVersionDto {}

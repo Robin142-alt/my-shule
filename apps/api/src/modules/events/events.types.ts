@@ -37,7 +37,12 @@ export type SupportedDomainEventName =
   | 'counselling.referral.accepted'
   | 'counselling.referral.declined'
   | 'counselling.note.created'
-  | 'counselling.plan.created';
+  | 'counselling.plan.created'
+  | 'timetable.slot.created'
+  | 'timetable.slot.updated'
+  | 'timetable.slot.cancelled'
+  | 'timetable.version.revision_created'
+  | 'timetable.version.published';
 
 export type OutboxEventStatus =
   | 'pending'
@@ -345,6 +350,16 @@ export interface ReportCardPublishedPayload {
   published_by_user_id: string;
 }
 
+export interface TimetableLifecyclePayload {
+  tenant_id: string;
+  entity_id: string;
+  academic_year: string;
+  term_name: string;
+  action: 'created' | 'updated' | 'cancelled' | 'revision_created' | 'published';
+  occurred_at: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface DomainEventPayloadMap {
   'student.created': StudentCreatedPayload;
   'student.lifecycle.enrolled': StudentLifecycleEnrolledPayload;
@@ -385,6 +400,11 @@ export interface DomainEventPayloadMap {
   'counselling.referral.declined': CounsellingReferralDeclinedPayload;
   'counselling.note.created': CounsellingNoteCreatedPayload;
   'counselling.plan.created': CounsellingPlanCreatedPayload;
+  'timetable.slot.created': TimetableLifecyclePayload;
+  'timetable.slot.updated': TimetableLifecyclePayload;
+  'timetable.slot.cancelled': TimetableLifecyclePayload;
+  'timetable.version.revision_created': TimetableLifecyclePayload;
+  'timetable.version.published': TimetableLifecyclePayload;
 }
 
 export interface DomainEvent<

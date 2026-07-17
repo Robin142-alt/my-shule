@@ -150,7 +150,7 @@ test('AcademicsService bounds teacher assignment lists', async () => {
   assert.deepEqual(observed.input, {
     tenantId: 'tenant-a',
     teacherUserId: 'teacher-1',
-    limit: 50,
+    limit: 300,
     offset: 0,
   });
 });
