@@ -51,6 +51,19 @@ test('buildRoleGovernancePolicy enables exams manager only with exams module and
   assert.equal(examsManager?.permissions.includes('exams:approve'), false);
 });
 
+test('buildRoleGovernancePolicy lets principal and deputy manage the academic foundation', () => {
+  const policy = buildRoleGovernancePolicy({
+    activeModules: ['academics'],
+  });
+
+  for (const roleCode of ['principal', 'deputy_principal']) {
+    const role = policy.roles.find((candidate) => candidate.code === roleCode);
+    assert.equal(role?.permissions.includes('academics:read'), true);
+    assert.equal(role?.permissions.includes('academics:write'), true);
+    assert.equal(role?.permissions.includes('academics:assign-teachers'), true);
+  }
+});
+
 test('evaluateRoleAssignment rejects cross-tenant global roles and unsafe school assignments', () => {
   const policy = buildRoleGovernancePolicy({
     activeModules: ['finance'],

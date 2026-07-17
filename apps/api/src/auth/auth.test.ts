@@ -146,6 +146,14 @@ test('Default school invite catalog exposes the required school operating roles'
   assert.ok(principalPermissions.includes('tenant_memberships:read'));
   assert.ok(principalPermissions.includes('tenant_memberships:write'));
   assert.ok(principalPermissions.includes('roles:read'));
+  assert.ok(principalPermissions.includes('academics:write'));
+  assert.ok(principalPermissions.includes('academics:assign-teachers'));
+
+  const deputyPrincipal = catalogByCode.get('deputy_principal');
+  assert.ok(deputyPrincipal, 'deputy principal role should be present');
+  const deputyPermissions = deputyPrincipal.permissions as readonly string[];
+  assert.ok(deputyPermissions.includes('academics:write'));
+  assert.ok(deputyPermissions.includes('academics:assign-teachers'));
 });
 
 test('AuthService authenticateAccessToken rejects access tokens when the audience does not match the session audience', async () => {
@@ -416,6 +424,7 @@ test('AuthService authenticateAccessToken lets default-domain requests use the s
 test('AuthService refresh lets default-domain requests use the signed refresh tenant', async () => {
   const requestContext = new RequestContextService();
   let membershipTenantId: string | null = null;
+  let authorizationBaselineTenantId: string | null = null;
   let synchronizedTenantId: string | null = null;
   const sessionRecord = {
     user_id: 'user-principal',
@@ -467,6 +476,9 @@ test('AuthService refresh lets default-domain requests use the signed refresh te
       },
     } as never,
     {
+      ensureTenantAuthorizationBaseline: async (tenantId: string) => {
+        authorizationBaselineTenantId = tenantId;
+      },
       getPermissionsByRoleId: async () => ['users:write'],
     } as never,
     {} as never,
@@ -544,6 +556,7 @@ test('AuthService refresh lets default-domain requests use the signed refresh te
 
   assert.equal(response.user.tenant_id, 'greenhill-academy');
   assert.equal(membershipTenantId, 'greenhill-academy');
+  assert.equal(authorizationBaselineTenantId, 'greenhill-academy');
   assert.equal(synchronizedTenantId, 'greenhill-academy');
 });
 

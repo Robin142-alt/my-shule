@@ -205,6 +205,8 @@ export class AuthService {
       throw new UnauthorizedException('User no longer has access to this tenant');
     }
 
+    await this.authorizationRepository.ensureTenantAuthorizationBaseline(tenantId);
+
     const permissions = this.resolveEmailVerificationPermissions(
       user,
       await this.authorizationRepository.getPermissionsByRoleId(tenantId, membership.role_id),

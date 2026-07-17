@@ -25,17 +25,17 @@ function readMessage(responseBody: string) {
 }
 
 export function isRefreshableSessionFailure(status: number, responseBody: string) {
-  if (status !== 401) {
-    return false;
-  }
-
   const message = readMessage(responseBody).toLowerCase();
 
-  return (
-    message.includes("token validation failed") ||
-    message.includes("access token") ||
-    message.includes("session is no longer valid")
-  );
+  if (status === 401) {
+    return (
+      message.includes("token validation failed") ||
+      message.includes("access token") ||
+      message.includes("session is no longer valid")
+    );
+  }
+
+  return status === 403 && message.includes("permission-based access denied");
 }
 
 export async function fetchWithSessionRefresh<TSession extends RefreshableSession>(
@@ -44,7 +44,9 @@ export async function fetchWithSessionRefresh<TSession extends RefreshableSessio
   const firstResponse = await input.send(input.accessToken);
   const firstBody = await firstResponse.arrayBuffer();
   const firstResponseText =
-    firstResponse.status === 401 ? new TextDecoder().decode(firstBody) : "";
+    firstResponse.status === 401 || firstResponse.status === 403
+      ? new TextDecoder().decode(firstBody)
+      : "";
 
   if (!isRefreshableSessionFailure(firstResponse.status, firstResponseText)) {
     return {
@@ -67,7 +69,7 @@ export async function fetchWithSessionRefresh<TSession extends RefreshableSessio
     return {
       response: firstResponse,
       body: firstBody,
-      sessionExpired: true,
+      sessionExpired: firstResponse.status === 401 ? true : undefined,
     };
   }
 }
