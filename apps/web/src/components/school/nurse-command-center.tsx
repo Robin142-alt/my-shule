@@ -19,6 +19,7 @@ import { OverviewWorkspace } from "@/components/school/nurse/overview-workspace"
 import { ParentNotificationsWorkspace } from "@/components/school/nurse/parent-notifications-workspace";
 import { SickBayQueueWorkspace } from "@/components/school/nurse/sick-bay-queue-workspace";
 import { VisitsWorkspace } from "@/components/school/nurse/visits-workspace";
+import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 
 type NurseSection =
   | "overview"
@@ -80,11 +81,7 @@ export function NurseCommandCenter({ activeSection }: { activeSection?: string }
   return (
     <div className="flex min-h-screen bg-[#F3F6FA]">
       <aside className="hidden h-screen w-[280px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
-        <div className="mb-6 rounded-2xl border border-white/10 bg-white/5 p-4">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-100/70">MyShule</p>
-          <h2 className="mt-2 text-xl font-black">School Nurse</h2>
-          <p className="mt-2 text-sm leading-6 text-white/65">Health command centre</p>
-        </div>
+        <SchoolCommandSidebarIdentity eyebrow="Health command" title="School Nurse" subtitle="Visits, medicine, incidents, and referrals" />
         <nav className="space-y-1" aria-label="Nurse workspace navigation">
           <p className="px-3 pb-2 pt-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Health Centre</p>
           {nurseNavItems.map((item) => {
@@ -122,7 +119,8 @@ export function NurseCommandCenter({ activeSection }: { activeSection?: string }
             </div>
           </div>
         </header>
-        <div className="flex-1 overflow-y-auto p-4 lg:p-6">
+        <div className="flex-1 space-y-6 overflow-y-auto p-4 lg:p-6">
+          <IntegratedSchoolCommandHeader roleTitle="Nurse Dashboard" fallbackUserLabel="School Nurse" />
           {renderWorkspace(section)}
         </div>
       </main>

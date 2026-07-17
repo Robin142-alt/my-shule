@@ -1,5 +1,7 @@
 "use client";
 
+import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
+
 import { useState, type FormEvent } from "react";
 import { Search, Monitor, ShieldAlert, Server, Smartphone, CheckCircle2, LayoutDashboard, Plus, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -619,11 +621,7 @@ export function IctManagerCommandCenter({ activeSection, routeMode }: { activeSe
         
         {/* Sidebar */}
         <aside className="hidden h-[calc(100vh-1.5rem)] overflow-hidden rounded-2xl bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:flex lg:flex-col lg:w-72 shrink-0">
-          <div className="rounded-2xl border border-white/10 bg-white/8 p-4 shrink-0">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-100/70">MyShule</p>
-            <h2 className="mt-2 text-xl font-black">ICT Hub</h2>
-            <p className="mt-2 text-sm leading-6 text-white/65">Systems & Devices.</p>
-          </div>
+          <SchoolCommandSidebarIdentity eyebrow="ICT command" title="ICT Manager" subtitle="Systems, devices, access, and support" />
           <nav className="mt-4 flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar" aria-label="Navigation">
               <button onClick={() => handleSetView("overview")} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold ${activeView === "overview" ? "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/70 hover:bg-white/10 hover:text-white"}`}>
                 <LayoutDashboard className="h-4 w-4" /> Overview
@@ -673,6 +671,7 @@ export function IctManagerCommandCenter({ activeSection, routeMode }: { activeSe
             </header>
 
             <div className="p-4 sm:p-6 lg:p-8">
+              <IntegratedSchoolCommandHeader roleTitle="ICT Manager Dashboard" fallbackUserLabel="ICT Manager" className="mb-6" />
               {activeView === "overview" && <OverviewWorkspace />}
               {activeView === "helpdesk" && <ItHelpdeskWorkspace ticketModalOpen={ticketModalOpen} onTicketModalOpenChange={setTicketModalOpen} />}
               {activeView === "inventory" && <DeviceInventoryWorkspace />}

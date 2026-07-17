@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
+import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { navItems } from "./teacher-dashboard/nav-config";
 import { TeacherView, TeacherAction } from "./teacher-dashboard/types";
@@ -87,6 +88,7 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
       <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
         <Topbar activeView={activeView} onViewChange={setActiveView} />
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+          <IntegratedSchoolCommandHeader roleTitle="Teacher Dashboard" fallbackUserLabel="Teacher" />
           {notice && (
             <div className="rounded-xl bg-blue-50 border border-blue-200 p-3 text-sm font-semibold text-blue-800">
               {notice}
@@ -134,11 +136,7 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
 function Sidebar({ activeView, onViewChange }: { activeView: TeacherView; onViewChange: (v: TeacherView) => void; }) {
   return (
     <aside className="hidden h-screen w-[260px] overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-6">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-100/70">MyShule</p>
-        <h2 className="mt-2 text-xl font-black">Teacher Dash</h2>
-        <p className="mt-2 text-sm leading-6 text-white/65">Personal Workspace</p>
-      </div>
+      <SchoolCommandSidebarIdentity eyebrow="Teacher command" title="Teacher Dashboard" subtitle="Personal teaching workspace" />
       <nav className="space-y-1">
         {navItems.map((item, index) => {
           const showGroup = item.group !== navItems[index - 1]?.group;
@@ -167,10 +165,7 @@ function Topbar({ activeView, onViewChange }: { activeView: TeacherView; onViewC
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white">TR</div>
-          <div>
-            <h1 className="text-lg font-black text-[#071D49]">Teacher Workspace</h1>
-            <p className="text-xs font-bold text-[#64748B]">Term 2, 2026</p>
-          </div>
+          <p className="text-sm font-black text-[#071D49]">Teacher workspace controls</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative w-64 hidden md:block">

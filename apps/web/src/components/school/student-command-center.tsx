@@ -1,5 +1,7 @@
 "use client";
 
+import { IntegratedSchoolCommandHeader } from "@/components/school/integrated-school-command-header";
+
 import { Calendar, BookOpen, GraduationCap, Award } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
@@ -21,7 +23,7 @@ export function StudentCommandCenter({ routeMode, activeSection }: { routeMode?:
                 <div className="flex items-center gap-4">
                   <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#071D49] text-sm font-black text-white">MS</div>
                   <div>
-                    <h1 className="text-2xl font-black text-[#071D49]">{isLoading ? "My Learner Portal" : `Welcome, ${dashboard?.profile?.name || "Student"}`}</h1>
+                    <h1 className="text-lg font-black text-[#071D49]">Student workspace controls</h1>
                     <p className="text-sm font-semibold text-[#64748B]">
                       {isLoading ? "Loading..." : `${dashboard?.profile?.className || "Grade 10"} ${dashboard?.profile?.streamName || "West"} • Admission No: ${dashboard?.profile?.admissionNumber || "N/A"}`}
                     </p>
@@ -31,6 +33,12 @@ export function StudentCommandCenter({ routeMode, activeSection }: { routeMode?:
             </header>
 
             <div className="p-4 sm:p-8">
+              <IntegratedSchoolCommandHeader
+                roleTitle="Student Dashboard"
+                fallbackUserLabel={dashboard?.profile?.name || "Student"}
+                contextLabel="student portal"
+                className="mb-6"
+              />
               <div className="grid gap-6 md:grid-cols-4 mb-8">
                 <Card className="p-6 border-l-4 border-l-blue-500">
                   <div className="flex items-center gap-3 text-blue-600 mb-2">

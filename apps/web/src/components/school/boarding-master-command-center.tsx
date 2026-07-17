@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
+import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
 import { buildSchoolSectionHref } from "./school-pages";
 import { LeaveExitWorkspace as RoutedLeaveExitWorkspace } from "./boarding-master/leave-exit-workspace";
@@ -1463,11 +1464,7 @@ export function BoardingMasterCommandCenter({ routeMode, activeSection }: { rout
     <div className="flex min-h-screen bg-[#F3F6FA]">
       {/* Sidebar */}
       <aside className="hidden h-screen w-[260px] overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-6">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-100/70">MyShule</p>
-          <h2 className="mt-2 text-xl font-black">Boarding Master</h2>
-          <p className="mt-2 text-sm leading-6 text-white/65">All Dormitories oversight.</p>
-        </div>
+        <SchoolCommandSidebarIdentity eyebrow="Boarding command" title="Boarding Master" subtitle="Dormitory and resident oversight" />
         <nav className="space-y-1" aria-label="Boarding master navigation">
           {navItems.map((item, index) => {
             const showGroup = item.group !== navItems[index - 1]?.group;
@@ -1500,7 +1497,7 @@ export function BoardingMasterCommandCenter({ routeMode, activeSection }: { rout
             <div className="flex items-center gap-3">
               <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white">BM</div>
               <div>
-                <h1 className="text-lg font-black text-[#071D49]">Good Evening, Mr. Otieno</h1>
+                <h1 className="text-sm font-black text-[#071D49]">Boarding operations controls</h1>
                 <p className="text-xs font-bold text-[#64748B]">Boarding Master Ã¢â‚¬Â¢ Term 2, 2026 Ã¢â‚¬Â¢ Week 6 Ã¢â‚¬Â¢ All Dormitories</p>
               </div>
             </div>
@@ -1548,7 +1545,8 @@ export function BoardingMasterCommandCenter({ routeMode, activeSection }: { rout
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-4 lg:p-6">
+        <div className="flex-1 space-y-6 overflow-y-auto p-4 lg:p-6">
+          <IntegratedSchoolCommandHeader roleTitle="Boarding Master Dashboard" fallbackUserLabel="Boarding Master" />
           {activeView === "overview" && <OverviewWorkspace onNavigate={openView} />}
           {activeView === "register" && <RegisterWorkspace />}
           {activeView === "dorms" && <DormsWorkspace />}

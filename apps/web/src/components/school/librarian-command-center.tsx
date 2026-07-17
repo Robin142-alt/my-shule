@@ -41,6 +41,7 @@ import {
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
+import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Modal } from "@/components/ui/modal";
@@ -1914,6 +1915,7 @@ export function LibrarianCommandCenter({ activeSection, routeMode }: { activeSec
       <main className="flex-1 min-w-0 flex flex-col h-screen">
         <Topbar activeView={activeViewState} onViewChange={setActiveView} />
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+          <IntegratedSchoolCommandHeader roleTitle="Librarian Dashboard" fallbackUserLabel="Librarian" />
           {activeViewState === "overview" && <OverviewWorkspace onNavigate={setActiveView} />}
           {activeViewState === "issue" && <IssueBooksWorkspace />}
           {activeViewState === "return" && <ReturnBooksWorkspace />}
@@ -1943,11 +1945,7 @@ export function LibrarianCommandCenter({ activeSection, routeMode }: { activeSec
 function Sidebar({ activeView, onViewChange }: { activeView: LibrarianView; onViewChange: (view: LibrarianView) => void }) {
   return (
     <aside className="hidden h-screen w-[260px] overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-6">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-100/70">MyShule</p>
-        <h2 className="mt-2 text-xl font-black">Librarian</h2>
-        <p className="mt-2 text-sm leading-6 text-white/65">Main Library Operations</p>
-      </div>
+      <SchoolCommandSidebarIdentity eyebrow="Library command" title="Librarian Dashboard" subtitle="Catalogue, circulation, fines, and stock" />
       <nav className="space-y-1" aria-label="Librarian navigation">
         {navItems.map((item, index) => {
           const showGroup = item.group !== navItems[index - 1]?.group;

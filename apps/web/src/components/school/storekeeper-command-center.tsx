@@ -41,6 +41,7 @@ import {
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
+import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Modal } from "@/components/ui/modal";
@@ -882,6 +883,12 @@ function CommandRail({ theme }: { theme: StorekeeperTheme }) {
 
   return (
     <aside className={cn("hidden lg:block rounded-3xl border p-3 lg:sticky lg:top-6", surface.card)}>
+      <SchoolCommandSidebarIdentity
+        eyebrow="Stores command"
+        title="Storekeeper Dashboard"
+        subtitle="Stock receipt, issue, reconciliation, and audit"
+        tone={theme === "dark" ? "dark" : "light"}
+      />
       <div className="px-3 py-2">
         <p className="text-xs font-black uppercase tracking-[0.22em] text-[#FFB06C]">Store map</p>
         <p className={cn("mt-2 text-sm leading-5", surface.muted)}>Audit-ready navigation for every stock movement.</p>
@@ -1789,6 +1796,7 @@ export function StorekeeperCommandCenter({
           <CommandRail theme={theme} />
         </div>
         <main className="min-w-0 space-y-5">
+          <IntegratedSchoolCommandHeader roleTitle="Storekeeper Dashboard" fallbackUserLabel="Storekeeper" />
           <Header
             theme={theme}
             routeMode={routeMode}

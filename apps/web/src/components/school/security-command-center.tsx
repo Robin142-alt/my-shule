@@ -30,6 +30,7 @@ import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
+import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { Modal } from "@/components/ui/modal";
 import { toast } from "sonner";
@@ -2329,11 +2330,7 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: RouteMode }) {
   return (
     <div className="flex min-h-screen bg-[#F3F6FA] font-sans">
       <aside className="hidden h-screen w-[260px] overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-6">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-100/70">MyShule</p>
-          <h2 className="mt-2 text-xl font-black">Security</h2>
-          <p className="mt-2 text-sm leading-6 text-white/65">Gate & Safety HQ</p>
-        </div>
+        <SchoolCommandSidebarIdentity eyebrow="Security command" title="Security Officer" subtitle="Gate, visitor, and safety operations" />
         <nav className="space-y-1" aria-label="Security navigation">
           {navItems.map((item, index) => {
             const showGroup = item.group !== navItems[index - 1]?.group;
@@ -2403,6 +2400,7 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: RouteMode }) {
           </div>
             </header>
             <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+              <IntegratedSchoolCommandHeader roleTitle="Security Officer Dashboard" fallbackUserLabel="Security Officer" />
               {searchOpen ? (
                 <section className="rounded-xl border border-[#D8E0EC] bg-white p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">

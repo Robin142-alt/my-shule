@@ -17,6 +17,7 @@ import {
 
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
+import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 import { TaskQueue } from "@/components/shared/task-queue";
 
 import { buildSchoolSectionHref } from "./school-pages";
@@ -174,13 +175,7 @@ function Sidebar({
 }) {
   return (
     <aside className="hidden h-full w-[292px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
-      <div className="rounded-2xl border border-white/10 bg-white/8 p-4">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-sky-100/70">MyShule</p>
-        <h2 className="mt-2 text-xl font-black">Dean of Academics</h2>
-        <p className="mt-2 text-sm leading-6 text-white/65">
-          Academic quality, moderation, interventions, and reporting.
-        </p>
-      </div>
+      <SchoolCommandSidebarIdentity eyebrow="Academic command" title="Dean of Academics" subtitle="Quality, moderation, interventions, and reporting" />
 
       <nav className="mt-4 space-y-1" aria-label="Dean of Academics navigation">
         {deanNavItems.map((item, index) => {
@@ -232,15 +227,7 @@ function Topbar({
   return (
     <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/95 px-4 py-3 backdrop-blur">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-[#64748B]">
-            Academic leadership desk
-          </p>
-          <h1 className="text-xl font-black text-[#071D49]">Dean of Academics Dashboard</h1>
-          <p className="mt-1 text-sm font-semibold text-[#64748B]">
-            Use the role menu to switch sections. Each section reads from school-scoped live academic records.
-          </p>
-        </div>
+        <p className="text-sm font-black text-[#071D49]">Academic leadership controls</p>
 
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[260px]">
@@ -405,6 +392,7 @@ export function DeanAcademicsCommandCenter({
             onViewChange={openView}
           />
           <div className="space-y-4 p-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:p-6">
+            <IntegratedSchoolCommandHeader roleTitle="Dean of Academics Dashboard" fallbackUserLabel="Dean of Academics" />
             <WorkspaceFrame activeView={activeView}>
               <DeanWorkspace activeView={activeView} />
             </WorkspaceFrame>

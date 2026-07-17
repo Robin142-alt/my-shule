@@ -30,6 +30,7 @@ import {
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
+import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
@@ -1607,11 +1608,7 @@ export function GradeMasterCommandCenter({ activeSection, routeMode }: { activeS
     <div data-testid="role-operational-command-center" className="flex min-h-screen bg-[#F3F6FA]">
       {/* Sidebar */}
       <aside className="hidden h-screen w-[260px] overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-6">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-100/70">MyShule</p>
-          <h2 className="mt-2 text-xl font-black">Grade/Form Master</h2>
-          <p className="mt-2 text-sm leading-6 text-white/65">Assigned grade/form and stream oversight.</p>
-        </div>
+        <SchoolCommandSidebarIdentity eyebrow="Grade command" title="Grade/Form Master" subtitle="Assigned grade, form, and stream oversight" />
         <nav className="space-y-1" aria-label="Grade form master navigation">
           {navItems.map((item, index) => {
             const showGroup = item.group !== navItems[index - 1]?.group;
@@ -1691,7 +1688,8 @@ export function GradeMasterCommandCenter({ activeSection, routeMode }: { activeS
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-4 lg:p-6">
+        <div className="flex-1 space-y-6 overflow-y-auto p-4 lg:p-6">
+          <IntegratedSchoolCommandHeader roleTitle="Grade/Form Master Dashboard" fallbackUserLabel="Grade/Form Master" />
           {activeView === "overview" && <OverviewWorkspace onNavigate={openView} />}
           {activeView === "learners" && <LearnersWorkspace onSelectLearner={setSelectedLearner} />}
           {activeView === "streams" && <StreamsWorkspace />}

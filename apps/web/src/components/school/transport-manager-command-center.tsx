@@ -30,6 +30,7 @@ import {
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
+import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { usePermissions } from "@/components/providers/permission-context";
@@ -268,11 +269,7 @@ function Sidebar({
 }) {
   return (
     <aside className="hidden h-[calc(100vh-1.5rem)] overflow-hidden rounded-2xl bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
-      <div className="rounded-2xl border border-white/10 bg-white/8 p-4">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-100/70">MyShule ERP</p>
-        <h2 className="mt-2 text-xl font-black">Transport Module</h2>
-        <p className="mt-2 text-sm leading-6 text-white/65">Fleet, routes, safety, and parent communication.</p>
-      </div>
+      <SchoolCommandSidebarIdentity eyebrow="Transport command" title="Transport Manager" subtitle="Fleet, routes, safety, and parent communication" />
       <nav className="mt-4 h-[calc(100%-8.5rem)] space-y-1 overflow-y-auto pr-1" aria-label="Transport manager navigation">
         {navItems.map((item, index) => {
           const showGroup = item.group !== navItems[index - 1]?.group;
@@ -1569,6 +1566,7 @@ export function TransportManagerCommandCenter({ routeMode, activeSection }: { ro
           />
           <main className="h-[calc(100%-84px)] overflow-y-auto p-4">
             <div className="space-y-4">
+              <IntegratedSchoolCommandHeader roleTitle="Transport Manager Dashboard" fallbackUserLabel="Transport Manager" />
               <div role="status" className="rounded-xl border border-[#BFDBFE] bg-[#EEF5FF] px-4 py-3 text-sm font-bold text-[#071D49]">
                 {notice}
               </div>

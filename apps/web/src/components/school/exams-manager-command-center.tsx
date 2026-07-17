@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { ImportsTemplatesWorkspace } from "@/components/modules/exams-manager/workspaces/imports-templates-workspace";
 import { NotificationBell } from "@/components/shared/notification-bell";
+import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { downloadCsvFile } from "@/lib/dashboard/export";
@@ -367,15 +368,7 @@ export function ExamsManagerCommandCenter({
     >
       <div className="flex min-h-screen">
         <aside className="hidden w-[296px] shrink-0 border-r border-white/15 bg-[#071D49] p-5 text-white shadow-2xl lg:flex lg:flex-col">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.24em] text-[#8BB9FF]">
-              MyShule Exams
-            </p>
-            <h2 className="mt-3 text-2xl font-black">Exams Manager</h2>
-            <p className="mt-2 text-sm leading-6 text-blue-100">
-              Tenant-scoped exam setup, marks, moderation, reports, and publishing.
-            </p>
-          </div>
+          <SchoolCommandSidebarIdentity eyebrow="Exams command" title="Exams Manager" subtitle="Setup, marks, moderation, reports, and publishing" />
 
           <nav aria-label="Exams Manager navigation" className="mt-8 flex-1 space-y-2 overflow-y-auto pr-1">
             {navItems.map((item) => {
@@ -407,17 +400,7 @@ export function ExamsManagerCommandCenter({
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-20 border-b border-[#D9E2EF] bg-white/90 px-4 py-4 backdrop-blur md:px-8">
             <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-[#64748B]">
-                  Exam setup and report cards
-                </p>
-                <h1 className="mt-1 text-2xl font-black tracking-tight md:text-3xl">
-                  Exams Manager Desk
-                </h1>
-                <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-[#64748B]">
-                  {activeItem.summary}
-                </p>
-              </div>
+              <p className="text-sm font-black text-[#071D49]">Exam operations controls</p>
 
               <div className="flex flex-wrap items-center gap-3">
                 <div className="relative hidden items-center gap-2 rounded-2xl border border-[#D9E2EF] bg-[#F8FAFC] px-3 py-2 text-sm font-bold text-[#64748B] md:flex">
@@ -520,6 +503,7 @@ export function ExamsManagerCommandCenter({
           </header>
 
           <main className="flex-1 px-4 py-6 md:px-8">
+            <IntegratedSchoolCommandHeader roleTitle="Exams Manager Dashboard" fallbackUserLabel="Exams Manager" className="mb-5" />
             <div className="mb-5 grid gap-3">
               <StatusNotice>
                 {lockedReason

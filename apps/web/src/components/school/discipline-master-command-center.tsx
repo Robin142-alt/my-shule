@@ -30,6 +30,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
+import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { buildSchoolSectionHref } from "./school-pages";
 
@@ -102,10 +103,8 @@ export function DisciplineMasterCommandCenter({ activeSection, routeMode }: { ac
         "fixed inset-y-0 left-0 z-50 w-72 transform bg-white shadow-xl transition-transform duration-300 lg:static lg:translate-x-0 lg:shadow-none lg:border-r lg:border-[#D8E0EC]",
         isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className="flex h-16 items-center justify-between border-b border-[#D8E0EC] px-6">
-          <span className="text-lg font-black tracking-[-0.01em] text-[#071D49]">
-            Discipline Office
-          </span>
+        <div className="flex items-start justify-between gap-2 border-b border-[#D8E0EC] p-4">
+          <SchoolCommandSidebarIdentity eyebrow="Discipline command" title="Discipline Master" subtitle="Behaviour, incidents, and interventions" tone="light" className="mb-0 flex-1" />
           <button 
             className="lg:hidden text-[#64748B] hover:text-[#071D49]"
             onClick={() => setIsMobileMenuOpen(false)}
@@ -153,7 +152,7 @@ export function DisciplineMasterCommandCenter({ activeSection, routeMode }: { ac
               <Menu className="h-5 w-5" />
             </button>
             <div>
-              <h1 className="text-sm sm:text-lg font-black text-[#071D49]">Good Morning, Discipline Master</h1>
+              <h1 className="text-sm font-black text-[#071D49]">Discipline workspace controls</h1>
               <p className="hidden sm:block text-xs font-semibold text-[#64748B]">
                 Current school &middot; Discipline workspace
               </p>
@@ -183,6 +182,7 @@ export function DisciplineMasterCommandCenter({ activeSection, routeMode }: { ac
         {/* Workspace Area */}
         <div className="flex-1 overflow-x-hidden p-4 sm:p-6 lg:p-8">
           <div className="mx-auto max-w-7xl">
+            <IntegratedSchoolCommandHeader roleTitle="Discipline Master Dashboard" fallbackUserLabel="Discipline Master" className="mb-6" />
             {renderWorkspace()}
           </div>
         </div>

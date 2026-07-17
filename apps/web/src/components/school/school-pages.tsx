@@ -50,6 +50,7 @@ import { ClassTeacherCommandCenter } from "@/components/school/class-teacher-com
 import { AdmissionsDashboardCommandCenter } from "@/components/school/admissions-dashboard/admissions-dashboard-command-center";
 import { StorekeeperCommandCenter } from "@/components/school/storekeeper-command-center";
 import { TransportManagerCommandCenter } from "@/components/school/transport-manager-command-center";
+import { SchoolCommandIdentityProvider } from "@/components/school/integrated-school-command-header";
 import { UserManagementPanel } from "@/components/school/user-management-panel";
 import { SupportCenterWorkspace } from "@/components/support/support-center-workspace";
 import { LearnerPicker } from "@/components/common/learner-picker";
@@ -4440,7 +4441,11 @@ function formatSchoolNotificationTime(value: unknown) {
 }
 
 export function SchoolPages(props: SchoolPagesProps) {
-  return <SchoolPagesShell {...props} />;
+  return (
+    <SchoolCommandIdentityProvider tenantSlug={props.tenantSlug} userLabel={props.userLabel}>
+      <SchoolPagesShell {...props} />
+    </SchoolCommandIdentityProvider>
+  );
 }
 
 function SchoolPagesShell({

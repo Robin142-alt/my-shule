@@ -11,6 +11,7 @@ import {
 
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
+import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { Modal } from "@/components/ui/modal";
 import { toast } from "sonner";
@@ -179,6 +180,7 @@ export function ClassTeacherCommandCenter({ activeSection, routeMode }: { active
       <main className="flex-1 min-w-0 flex flex-col">
         <Topbar />
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+          <IntegratedSchoolCommandHeader roleTitle="Class Teacher Dashboard" fallbackUserLabel="Class Teacher" />
           {activeView === "home" && <OverviewWorkspace />}
           {activeView === "register" && <ClassRegisterWorkspace onSelectLearner={setSelectedLearner} />}
           {activeView === "attendance" && <AttendanceWorkspace />}
@@ -208,11 +210,7 @@ export function ClassTeacherCommandCenter({ activeSection, routeMode }: { active
 function Sidebar({ activeView, onViewChange }: { activeView: TeacherView; onViewChange: (v: TeacherView) => void; }) {
   return (
     <aside className="hidden h-screen w-[260px] overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-6">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-100/70">MyShule</p>
-        <h2 className="mt-2 text-xl font-black">Class Teacher</h2>
-        <p className="mt-2 text-sm leading-6 text-white/65">Assigned class stream</p>
-      </div>
+      <SchoolCommandSidebarIdentity eyebrow="Class command" title="Class Teacher Dashboard" subtitle="Assigned class and stream" />
       <nav className="space-y-1">
         {navItems.map((item, index) => {
           const showGroup = item.group !== navItems[index - 1]?.group;
@@ -242,7 +240,7 @@ function Topbar() {
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white">CT</div>
-          <h1 className="text-lg font-black text-[#071D49]">Class Teacher Workspace</h1>
+          <p className="text-sm font-black text-[#071D49]">Class teacher controls</p>
         </div>
         <div className="flex items-center gap-2">
           <TaskQueue />

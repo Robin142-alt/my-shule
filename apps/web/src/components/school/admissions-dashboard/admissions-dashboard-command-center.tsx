@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import type { ComponentType } from "react";
+import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 
 import { ApplicantProfilesWorkspace } from "./applicant-profiles-workspace";
 import { ApplicationsWorkspace } from "./applications-workspace";
@@ -163,15 +164,7 @@ export function AdmissionsDashboardCommandCenter({
     >
       <div className="grid min-h-[calc(100vh-3rem)] gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="rounded-3xl bg-[#071D49] p-5 text-white shadow-[0_24px_60px_rgba(7,29,73,0.18)]">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
-              Admissions Officer
-            </p>
-            <h1 className="mt-3 text-3xl font-black tracking-[-0.02em]">Admissions</h1>
-            <p className="mt-2 text-sm font-semibold text-white/70">
-              Enquiries, applications, verification, placement, enrolment, and parent handoff.
-            </p>
-          </div>
+          <SchoolCommandSidebarIdentity eyebrow="Admissions command" title="Admissions Officer" subtitle="Enquiries, applications, placement, enrolment, and parent handoff" />
 
           <nav className="mt-5 max-h-[calc(100vh-15rem)] space-y-5 overflow-y-auto pr-1">
             {Object.entries(groupedNav).map(([group, items]) => (
@@ -206,24 +199,11 @@ export function AdmissionsDashboardCommandCenter({
         </aside>
 
         <section className="min-w-0 space-y-5">
-          <header className="rounded-3xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#64748B]">
-              Admissions workspace
-            </p>
-            <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-              <div>
-                <h2 className="text-3xl font-black tracking-[-0.03em] text-[#071D49]">
-                  {activeItem.label}
-                </h2>
-                <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#64748B]">
-                  Route-specific admissions workspace using live admissions endpoints and school-scoped empty states.
-                </p>
-              </div>
-              <span className="inline-flex w-fit items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
-                Live school scoped
-              </span>
-            </div>
-          </header>
+          <IntegratedSchoolCommandHeader
+            roleTitle="Admissions Officer Dashboard"
+            fallbackUserLabel="Admissions Officer"
+            actions={<span className="inline-flex w-fit items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{activeItem.label} - live school scoped</span>}
+          />
 
           <div className="rounded-3xl bg-[#071D49] p-4 shadow-[0_24px_60px_rgba(7,29,73,0.14)] md:p-5">
             <Workspace />

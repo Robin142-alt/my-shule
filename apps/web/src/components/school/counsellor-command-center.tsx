@@ -33,6 +33,7 @@ import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
+import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { Modal } from "@/components/ui/modal";
 
@@ -510,7 +511,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
           <div className="flex items-center gap-4">
             <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#071D49] text-white font-black">MS</div>
             <div>
-              <h1 className="text-lg font-black tracking-[-0.01em] text-[#071D49]">Good Morning, Counsellor</h1>
+              <h1 className="text-sm font-black text-[#071D49]">Counselling workspace controls</h1>
               <p className="text-xs font-bold text-[#64748B]">MyShule Ã¢â‚¬Â¢ Term 2, 2026</p>
             </div>
           </div>
@@ -538,6 +539,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
       <div className="mx-auto flex w-full max-w-7xl flex-1 overflow-hidden">
         {/* Sidebar */}
         <aside className="hidden w-64 flex-col border-r border-[#D8E0EC] bg-white p-4 md:flex overflow-y-auto">
+          <SchoolCommandSidebarIdentity eyebrow="Counselling command" title="School Counsellor" subtitle="Confidential student support" tone="light" />
           <div className="mb-4 rounded-xl bg-indigo-50 p-3 border border-indigo-100 flex items-start gap-2">
             <LockKeyhole className="h-5 w-5 text-indigo-600 shrink-0 mt-0.5" />
             <div>
@@ -573,6 +575,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <IntegratedSchoolCommandHeader roleTitle="School Counsellor Dashboard" fallbackUserLabel="School Counsellor" className="mb-6" />
           {toast && (
             <div className={cn("fixed top-20 left-1/2 -translate-x-1/2 z-50 rounded-full px-6 py-3 font-bold shadow-lg transition-all flex items-center gap-2", toast.type === "error" ? "bg-red-600 text-white" : "bg-emerald-600 text-white")}>
               {toast.message}

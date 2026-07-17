@@ -28,6 +28,7 @@ import { buildSchoolSectionHref } from "./school-pages";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
+import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 import { Modal } from "@/components/ui/modal";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
@@ -702,11 +703,7 @@ export function LaboratoryTechnicianCommandCenter({ activeSection, routeMode }: 
   return (
     <div className="flex min-h-screen bg-[#F3F6FA] font-sans">
       <aside className="hidden h-screen w-[260px] overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-6">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-100/70">MyShule</p>
-          <h2 className="mt-2 text-xl font-black">Lab Technician</h2>
-          <p className="mt-2 text-sm leading-6 text-white/65">Laboratory Command</p>
-        </div>
+        <SchoolCommandSidebarIdentity eyebrow="Laboratory command" title="Laboratory Technician" subtitle="Laboratory inventory, safety, and issue control" />
         <nav className="space-y-1" aria-label="Lab navigation">
           {navItems.map((item, index) => {
             const showGroup = item.group !== navItems[index - 1]?.group;
@@ -770,6 +767,7 @@ export function LaboratoryTechnicianCommandCenter({ activeSection, routeMode }: 
           </div>
         </header>
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+          <IntegratedSchoolCommandHeader roleTitle="Laboratory Technician Dashboard" fallbackUserLabel="Laboratory Technician" />
           {activeViewState === "overview" && <OverviewWorkspace onNavigate={setActiveView} openLabWorkflow={setLabWorkflowDraft} />}
           {activeViewState === "requests" && <TeacherRequestsWorkspace openLabWorkflow={setLabWorkflowDraft} />}
           {activeViewState === "issue_return" && <IssueReturnWorkspace openLabWorkflow={setLabWorkflowDraft} />}

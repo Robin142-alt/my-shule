@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { DashboardGreeting } from "@/components/common/dashboard-greeting";
+import { IntegratedSchoolCommandHeader } from "@/components/school/integrated-school-command-header";
 import {
   OperationalActionButton,
   type OperationalActionContract,
@@ -571,22 +571,6 @@ function titleize(value: string) {
 
 function titleizeRole(role: SchoolExperienceRole) {
   return titleize(role);
-}
-
-function commandCenterTitle(role: SchoolExperienceRole) {
-  if (role === "librarian") {
-    return "Library Operations";
-  }
-
-  if (role === "storekeeper") {
-    return "Inventory Operations";
-  }
-
-  if (role === "nurse") {
-    return "Clinic Operations";
-  }
-
-  return titleizeRole(role);
 }
 
 function actionCapability(label: string) {
@@ -5074,7 +5058,6 @@ function GenericRoleOperationalCommandCenter({
   const blueprint = blueprintId ? getOperationalRoleBlueprint(blueprintId) : null;
   const roleTitle = titleizeRole(role);
   const roleProfile = getPracticalRoleProfile(role);
-  const commandTitle = roleProfile.title || commandCenterTitle(role);
   const greetingName = getSchoolRoleGreetingName(role);
   const [schoolId] = useState(() => {
     const resolvedSchoolId = getCurrentSchoolId(tenantSlug);
@@ -8265,52 +8248,38 @@ function GenericRoleOperationalCommandCenter({
         </aside>
 
         <main className="flex min-h-dvh min-w-0 flex-col lg:h-full lg:min-h-0 lg:overflow-hidden">
-          <header className="shrink-0 border-b border-[#D7E0EF] bg-[linear-gradient(135deg,#071D49_0%,#123A7A_58%,#0F172A_100%)] px-4 py-2.5 text-white shadow-[0_18px_48px_rgba(7,29,73,0.16)] md:px-5">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="flex min-w-0 items-start gap-2">
-                <button
-                  type="button"
-                  className="mt-0.5 rounded-xl border border-white/15 bg-white/10 p-1.5 text-white lg:hidden"
-                  onClick={() => setMobileSidebarOpen(true)}
-                  aria-label={`Open ${roleTitle} menu`}
-                >
-                  <Menu className="h-5 w-5" />
-                </button>
-                <div className="min-w-0">
-                  <DashboardGreeting
-                    name={greetingName}
-                    context={`${schoolName} - ${roleProfile.todayContext}`}
-                    tone="light"
-                    className="mb-1.5"
-                  />
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100/75">{"Today's school desk"}</p>
-                  <h1 className="sr-only">Dashboard</h1>
-                  <h2 className="mt-0.5 text-xl font-black tracking-tight">{commandTitle}</h2>
-                  <p className="mt-0.5 max-w-4xl text-xs leading-5 text-white/76">{roleProfile.subtitle}</p>
-                  <p className="mt-1 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100/75">
-                    {schoolName} workspace - signed in securely
-                  </p>
-                  <p className="mt-1 text-sm font-black text-white">{roleTitle}</p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
+          <div className="shrink-0 px-3 pt-3 md:px-5 md:pt-5">
+            <IntegratedSchoolCommandHeader
+              roleTitle={`${roleTitle} Dashboard`}
+              fallbackUserLabel={greetingName}
+              actions={(
+                <div className="flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    className="rounded-xl border border-[#C8D5EA] bg-[#F8FAFC] p-2 text-[#071D49] lg:hidden"
+                    onClick={() => setMobileSidebarOpen(true)}
+                    aria-label={`Open ${roleTitle} menu`}
+                  >
+                    <Menu className="h-5 w-5" />
+                  </button>
                 <label className="relative w-full sm:w-[320px]">
                   <span className="sr-only">{searchPlaceholder(role, roleProfile, resolvedWorkspace)}</span>
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-cyan-100/75" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#5F6F89]" />
                   <input
                     type="search"
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.currentTarget.value)}
                     placeholder={searchPlaceholder(role, roleProfile, resolvedWorkspace)}
-                    className="w-full rounded-xl border border-white/15 bg-white/10 py-1.5 pl-9 pr-3 text-sm font-semibold text-white outline-none transition placeholder:text-white/58 focus:border-cyan-200/45 focus:bg-white/14"
+                    className="w-full rounded-xl border border-[#C8D5EA] bg-[#F8FAFC] py-2 pl-9 pr-3 text-sm font-semibold text-[#071D49] outline-none transition placeholder:text-[#5F6F89] focus:border-cyan-400 focus:ring-4 focus:ring-cyan-300/20"
                   />
                 </label>
                 <StatusPill label="Authorized actions" tone="ok" />
                 <StatusPill label="Live school updates" tone="ok" />
                 <StatusPill label="Private school data" tone="ok" />
-              </div>
-            </div>
-          </header>
+                </div>
+              )}
+            />
+          </div>
 
           <section className="min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-5" data-testid="role-operational-workspace">
             <div className="flex min-h-full flex-col gap-4">

@@ -1,5 +1,7 @@
 "use client";
 
+import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
+
 import { useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search, ShoppingCart, FileText, Truck, DollarSign, LayoutDashboard, Plus, Package } from "lucide-react";
@@ -849,11 +851,7 @@ export function ProcurementOfficerCommandCenter({ routeMode, activeSection }: { 
         
         {/* Sidebar */}
         <aside className="hidden h-[calc(100vh-1.5rem)] overflow-hidden rounded-2xl bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:flex lg:flex-col lg:w-72 shrink-0">
-          <div className="rounded-2xl border border-white/10 bg-white/8 p-4 shrink-0">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-100/70">MyShule</p>
-            <h2 className="mt-2 text-xl font-black">Procurement Desk</h2>
-            <p className="mt-2 text-sm leading-6 text-white/65">Orders & Suppliers.</p>
-          </div>
+          <SchoolCommandSidebarIdentity eyebrow="Procurement command" title="Procurement Officer" subtitle="Orders, suppliers, requisitions, and budgets" />
           <nav className="mt-4 flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar" aria-label="Navigation">
             <button 
               onClick={() => setActiveView("overview")}
@@ -918,6 +916,7 @@ export function ProcurementOfficerCommandCenter({ routeMode, activeSection }: { 
             </header>
 
             <div className="p-4 sm:p-6 lg:p-8">
+              <IntegratedSchoolCommandHeader roleTitle="Procurement Officer Dashboard" fallbackUserLabel="Procurement Officer" className="mb-6" />
               {notice ? <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
               {activeView === "overview" && <OverviewWorkspace />}
               {activeView === "pos" && <PurchaseOrdersWorkspace modalOpen={purchaseOrderModalOpen} onModalOpenChange={setPurchaseOrderModalOpen} />}
