@@ -1153,7 +1153,7 @@ export class AdminCommandRepository {
       address,
       website: String(settings.website ?? ''),
       logoUrl: logoStoragePath
-        ? '/api/admin-command/principal/school-profile/logo/content'
+        ? '/api/school/identity/logo'
         : rawLogoUrl || null,
       logoStoragePath: logoStoragePath || null,
       registrationStatus: String(metadata.registration_status ?? tenant.status ?? 'active'),

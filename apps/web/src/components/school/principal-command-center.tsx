@@ -196,6 +196,7 @@ type PrincipalSchoolProfileSummary = {
   county: string;
   address: string;
   contactInfo: { email: string; phone: string };
+  logoUrl?: string | null;
 };
 
 function cn(...classes: Array<string | false | null | undefined>) {
@@ -289,7 +290,7 @@ export function PrincipalCommandCenter({
   userLabel?: string | null;
 }) {
   const schoolId = getPrincipalSchoolId(tenantSlug);
-  const schoolName = getPrincipalSchoolName(schoolId);
+  const fallbackSchoolName = getPrincipalSchoolName(schoolId);
   const principalName = userLabel?.trim() || "Principal";
   const isDemoTenant = isKisumuDemoTenant(schoolId);
   const [activeWorkspace, setActiveWorkspaceState] = useState<PrincipalSection>(() =>
@@ -310,6 +311,8 @@ export function PrincipalCommandCenter({
     "/admin-command/principal/school-profile",
     { tenantId: schoolId },
   );
+  const schoolName = principalSchoolProfile?.schoolName?.trim() || fallbackSchoolName;
+  const [failedSchoolLogoUrl, setFailedSchoolLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     setActiveWorkspaceState(normalizePrincipalSection(activeSection));
@@ -1304,8 +1307,25 @@ export function PrincipalCommandCenter({
             )}
           >
             <div className="rounded-[var(--radius-lg)] border border-white/10 bg-white/[0.06] p-4">
-              <p className="text-xs font-black uppercase text-cyan-200">Principal Command</p>
-              <h2 className="mt-2 text-2xl font-black">{schoolName}</h2>
+              <div className="flex items-center gap-3">
+                {principalSchoolProfile?.logoUrl && failedSchoolLogoUrl !== principalSchoolProfile.logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={principalSchoolProfile.logoUrl}
+                    alt={`${schoolName} logo`}
+                    className="h-14 w-14 shrink-0 rounded-lg border border-white/15 bg-white object-contain p-1"
+                    onError={() => setFailedSchoolLogoUrl(principalSchoolProfile.logoUrl ?? null)}
+                  />
+                ) : (
+                  <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10">
+                    <Building2 className="h-7 w-7 text-cyan-200" aria-hidden="true" />
+                  </span>
+                )}
+                <div className="min-w-0">
+                  <p className="text-xs font-black uppercase text-cyan-200">Principal Command</p>
+                  <h2 className="mt-1 truncate text-2xl font-black">{schoolName}</h2>
+                </div>
+              </div>
             </div>
             <nav aria-label="Principal dashboard sidebar" className="mt-5 flex-1 space-y-2 overflow-auto pr-1 pb-10">
               {navItems.map((item) => {

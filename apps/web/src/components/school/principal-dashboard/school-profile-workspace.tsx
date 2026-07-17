@@ -95,7 +95,10 @@ export function PrincipalSchoolProfileWorkspace() {
     try {
       await requestDashboardApi("/admin-command/principal/school-profile", {
         method: "POST",
-        body: form,
+        body: {
+          ...form,
+          website: form.website.trim() || undefined,
+        },
       });
       isDirtyRef.current = false;
       await refetch();
@@ -116,7 +119,11 @@ export function PrincipalSchoolProfileWorkspace() {
     const body = new FormData();
     body.append("logo", file);
     try {
-      const uploaded = await requestDashboardApi<{ url: string }>("/admin-command/principal/school-profile/logo", { method: "POST", body });
+      const uploaded = await requestDashboardApi<{ url: string }>("/admin-command/principal/school-profile/logo", {
+        method: "POST",
+        body,
+        timeoutMs: 60_000,
+      });
       await refetch();
       const verification = await fetch(uploaded.url, { cache: "no-store", credentials: "include" });
       if (!verification.ok || !verification.headers.get("content-type")?.startsWith("image/")) {
@@ -195,7 +202,7 @@ export function PrincipalSchoolProfileWorkspace() {
           <label className="text-sm font-bold">County<input value={form.county} onChange={(event) => updateField("county", event.target.value)} className={fieldClass} /></label>
           <label className="text-sm font-bold">Sub-county<input value={form.subCounty} onChange={(event) => updateField("subCounty", event.target.value)} className={fieldClass} /></label>
           <label className="text-sm font-bold">Ward<input value={form.ward} onChange={(event) => updateField("ward", event.target.value)} className={fieldClass} /></label>
-          <label className="text-sm font-bold">Website<input type="url" placeholder="https://school.example" value={form.website} onChange={(event) => updateField("website", event.target.value)} className={fieldClass} /></label>
+          <label className="text-sm font-bold">Website <span className="font-semibold text-white/50">(optional)</span><input type="url" placeholder="https://school.example" value={form.website} onChange={(event) => updateField("website", event.target.value)} className={fieldClass} /></label>
           <label className="text-sm font-bold md:col-span-2">Postal/physical address<textarea required rows={3} value={form.address} onChange={(event) => updateField("address", event.target.value)} className={fieldClass} /></label>
         </div>
       </Card>

@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Patch } from '@nestjs/common';
+import { Body, Controller, Get, Patch, StreamableFile } from '@nestjs/common';
 import { SchoolSettingsService } from './school-settings.service';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
+import { SkipResponseEnvelope } from '../../common/decorators/skip-response-envelope.decorator';
 
 @Controller('school')
 export class SchoolController {
@@ -22,6 +23,25 @@ export class SchoolController {
   @Permissions('settings:read')
   async getSettings() {
     return this.schoolSettingsService.getSettings();
+  }
+
+  @Get('identity')
+  @Permissions('auth:read')
+  async getIdentity() {
+    return this.schoolSettingsService.getIdentity();
+  }
+
+  @Get('identity/logo')
+  @Permissions('auth:read')
+  @SkipResponseEnvelope()
+  async getIdentityLogo() {
+    const logo = await this.schoolSettingsService.getIdentityLogo();
+
+    return new StreamableFile(logo.content, {
+      type: logo.mime_type,
+      disposition: `inline; filename="${logo.original_file_name}"`,
+      length: logo.size_bytes,
+    });
   }
 
   @Patch('profile')

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Building2,
   CheckCircle2,
   ClipboardList,
   Clock3,
@@ -542,6 +543,13 @@ function runtimeId(prefix: string) {
 
   return `${prefix}-${Date.now()}`;
 }
+
+type CurrentSchoolIdentity = {
+  tenantId: string;
+  subdomain: string;
+  schoolName: string;
+  logoUrl?: string | null;
+};
 
 function runtimeReference(prefix: string) {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
@@ -5114,6 +5122,12 @@ function GenericRoleOperationalCommandCenter({
   const demoRole = blueprintId ?? role;
   const useKisumuBoysDemo = shouldUseKisumuBoysDemoTenant(tenantSlug);
   const liveRoleQueriesEnabled = !useKisumuBoysDemo;
+  const { data: currentSchoolIdentity } = useSchoolQuery<CurrentSchoolIdentity>("/school/identity", {
+    enabled: liveRoleQueriesEnabled,
+    tenantId: schoolId,
+  });
+  const schoolName = currentSchoolIdentity?.schoolName?.trim() || titleize(schoolId);
+  const [failedSchoolLogoUrl, setFailedSchoolLogoUrl] = useState<string | null>(null);
 
   const { data: fetchedClinicVisits } = useSchoolQuery<ClinicVisitRecord[]>("/api/clinic/visits", { enabled: liveRoleQueriesEnabled });
   const clinicVisits = Array.isArray(fetchedClinicVisits) && fetchedClinicVisits.length > 0 ? fetchedClinicVisits : useKisumuBoysDemo ? KISUMU_DEMO_CLINIC_VISITS : [];
@@ -8195,7 +8209,25 @@ function GenericRoleOperationalCommandCenter({
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <h1 className="mt-3 text-2xl font-black tracking-tight">{roleProfile.sidebarTitle}</h1>
+            <div className="mt-3 flex items-center gap-3">
+              {currentSchoolIdentity?.logoUrl && failedSchoolLogoUrl !== currentSchoolIdentity.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={currentSchoolIdentity.logoUrl}
+                  alt={`${schoolName} logo`}
+                  className="h-12 w-12 shrink-0 rounded-lg border border-white/15 bg-white object-contain p-1"
+                  onError={() => setFailedSchoolLogoUrl(currentSchoolIdentity.logoUrl ?? null)}
+                />
+              ) : (
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10">
+                  <Building2 className="h-6 w-6 text-cyan-200" aria-hidden="true" />
+                </span>
+              )}
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black text-cyan-100">{schoolName}</p>
+                <h1 className="text-xl font-black tracking-tight">{roleProfile.sidebarTitle}</h1>
+              </div>
+            </div>
             <p className="mt-2 text-xs font-semibold leading-5 text-white/62">{roleProfile.sidebarSubtitle}</p>
           </div>
 
@@ -8247,7 +8279,7 @@ function GenericRoleOperationalCommandCenter({
                 <div className="min-w-0">
                   <DashboardGreeting
                     name={greetingName}
-                    context={roleProfile.todayContext}
+                    context={`${schoolName} - ${roleProfile.todayContext}`}
                     tone="light"
                     className="mb-1.5"
                   />
@@ -8256,7 +8288,7 @@ function GenericRoleOperationalCommandCenter({
                   <h2 className="mt-0.5 text-xl font-black tracking-tight">{commandTitle}</h2>
                   <p className="mt-0.5 max-w-4xl text-xs leading-5 text-white/76">{roleProfile.subtitle}</p>
                   <p className="mt-1 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100/75">
-                    School workspace - signed in securely
+                    {schoolName} workspace - signed in securely
                   </p>
                   <p className="mt-1 text-sm font-black text-white">{roleTitle}</p>
                 </div>
@@ -8346,7 +8378,7 @@ function GenericRoleOperationalCommandCenter({
             ) : isUserManagementWorkspace ? (
               <UserManagementWorkspace
                 schoolId={schoolId}
-                schoolName={titleize(schoolId)}
+                schoolName={schoolName}
                 actorRole={role === "principal" ? "Principal" : "Deputy Principal"}
                 actorName={greetingName || (role === "principal" ? "Principal" : "Deputy Principal")}
                 canInviteUsers

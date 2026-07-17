@@ -423,7 +423,7 @@ export class AdminCommandService {
       buffer: file.buffer,
       metadata: { owner_type: 'school_logo' },
     });
-    const publicUrl = '/api/admin-command/principal/school-profile/logo/content';
+    const publicUrl = '/api/school/identity/logo';
 
     await this.repository.updateSchoolLogoUrl(tenantId, publicUrl, persistedFile.stored_path);
     await this.recordPrincipalWorkflowAction({

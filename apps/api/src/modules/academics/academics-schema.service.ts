@@ -270,6 +270,60 @@ export class AcademicsSchemaService implements OnModuleInit {
         CONSTRAINT uq_subjects_tenant_code UNIQUE (tenant_id, code)
       );
 
+      CREATE TABLE IF NOT EXISTS academics_departments (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        name text NOT NULL,
+        head_of_department_user_id uuid,
+        is_active boolean NOT NULL DEFAULT true,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_academics_departments_tenant_name UNIQUE (tenant_id, name)
+      );
+
+      CREATE TABLE IF NOT EXISTS academics_class_teachers (
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        school_id text NOT NULL,
+        tenant_id text,
+        academic_year_id text NOT NULL,
+        class_section_id text NOT NULL,
+        teacher_user_id uuid NOT NULL,
+        is_active boolean NOT NULL DEFAULT true,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+
+      ALTER TABLE academics_class_teachers ADD COLUMN IF NOT EXISTS tenant_id text;
+      ALTER TABLE academics_class_teachers ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true;
+      UPDATE academics_class_teachers assignment
+      SET tenant_id = school.slug
+      FROM schools school
+      WHERE (assignment.tenant_id IS NULL OR btrim(assignment.tenant_id) = '')
+        AND assignment.school_id::text = school.id::text;
+      UPDATE academics_class_teachers
+      SET tenant_id = 'global'
+      WHERE tenant_id IS NULL OR btrim(tenant_id) = '';
+      ALTER TABLE academics_class_teachers ALTER COLUMN tenant_id SET NOT NULL;
+
+      WITH duplicate_assignments AS (
+        SELECT id,
+          ROW_NUMBER() OVER (
+            PARTITION BY tenant_id, academic_year_id, class_section_id, teacher_user_id
+            ORDER BY updated_at DESC, created_at DESC, id DESC
+          ) AS duplicate_rank
+        FROM academics_class_teachers
+        WHERE is_active = true
+      )
+      UPDATE academics_class_teachers assignment
+      SET is_active = false, updated_at = NOW()
+      FROM duplicate_assignments duplicate
+      WHERE assignment.id = duplicate.id
+        AND duplicate.duplicate_rank > 1;
+
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_academics_class_teachers_scope
+        ON academics_class_teachers (tenant_id, academic_year_id, class_section_id, teacher_user_id)
+        WHERE is_active = true;
+
       CREATE TABLE IF NOT EXISTS class_subject_assignments (
         id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
@@ -561,6 +615,8 @@ export class AcademicsSchemaService implements OnModuleInit {
       ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
       CREATE INDEX IF NOT EXISTS ix_subjects_department
         ON subjects (tenant_id, department_id, name);
+      CREATE INDEX IF NOT EXISTS ix_academics_departments_tenant_active
+        ON academics_departments (tenant_id, is_active, name);
 
 
       ALTER TABLE report_card_comments ENABLE ROW LEVEL SECURITY;
@@ -592,6 +648,10 @@ export class AcademicsSchemaService implements OnModuleInit {
       ALTER TABLE teacher_subject_assignments FORCE ROW LEVEL SECURITY;
       ALTER TABLE academic_audit_logs ENABLE ROW LEVEL SECURITY;
       ALTER TABLE academic_audit_logs FORCE ROW LEVEL SECURITY;
+      ALTER TABLE academics_departments ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE academics_departments FORCE ROW LEVEL SECURITY;
+      ALTER TABLE academics_class_teachers ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE academics_class_teachers FORCE ROW LEVEL SECURITY;
 
       ALTER TABLE academics_grading_systems ENABLE ROW LEVEL SECURITY;
       ALTER TABLE academics_grading_systems FORCE ROW LEVEL SECURITY;
@@ -730,6 +790,28 @@ export class AcademicsSchemaService implements OnModuleInit {
 
       DROP POLICY IF EXISTS academic_audit_logs_tenant_policy ON academic_audit_logs;
       CREATE POLICY academic_audit_logs_tenant_policy ON academic_audit_logs
+      FOR ALL USING (
+        tenant_id = current_setting('app.tenant_id', true)
+        OR NULLIF(current_setting('app.role', true), '') = 'system'
+      )
+      WITH CHECK (
+        tenant_id = current_setting('app.tenant_id', true)
+        OR NULLIF(current_setting('app.role', true), '') = 'system'
+      );
+
+      DROP POLICY IF EXISTS academics_departments_tenant_policy ON academics_departments;
+      CREATE POLICY academics_departments_tenant_policy ON academics_departments
+      FOR ALL USING (
+        tenant_id = current_setting('app.tenant_id', true)
+        OR NULLIF(current_setting('app.role', true), '') = 'system'
+      )
+      WITH CHECK (
+        tenant_id = current_setting('app.tenant_id', true)
+        OR NULLIF(current_setting('app.role', true), '') = 'system'
+      );
+
+      DROP POLICY IF EXISTS academics_class_teachers_tenant_policy ON academics_class_teachers;
+      CREATE POLICY academics_class_teachers_tenant_policy ON academics_class_teachers
       FOR ALL USING (
         tenant_id = current_setting('app.tenant_id', true)
         OR NULLIF(current_setting('app.role', true), '') = 'system'

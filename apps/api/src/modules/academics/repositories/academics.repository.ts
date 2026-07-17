@@ -439,7 +439,7 @@ export class AcademicsRepository {
           assignment.subject_id::text,
           subject.name AS subject_name,
           assignment.teacher_user_id::text,
-          COALESCE(staff.full_name, staff.preferred_name, staff.staff_number, staff.email, 'Unlinked teacher') AS teacher_name,
+          COALESCE(staff.display_name, staff.staff_number, 'Unlinked teacher') AS teacher_name,
           assignment.status,
           assignment.created_by_user_id::text,
           assignment.created_at::text,
@@ -448,7 +448,7 @@ export class AcademicsRepository {
         LEFT JOIN academic_terms term ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
         LEFT JOIN class_sections class_section ON class_section.tenant_id = assignment.tenant_id AND class_section.id = assignment.class_section_id
         LEFT JOIN subjects subject ON subject.tenant_id = assignment.tenant_id AND subject.id = assignment.subject_id
-        LEFT JOIN staff_profiles staff ON staff.tenant_id = assignment.tenant_id AND staff.user_id = assignment.teacher_user_id
+        LEFT JOIN staff_profiles staff ON staff.tenant_id = assignment.tenant_id AND staff.user_id::text = assignment.teacher_user_id
         WHERE assignment.tenant_id = $1
           AND ($2::text IS NULL OR assignment.teacher_user_id = $2::text)
           AND assignment.status = 'active'
@@ -461,13 +461,13 @@ export class AcademicsRepository {
           term.name AS academic_term_name, assignment.class_section_id::text,
           class_section.name AS class_section_name, assignment.subject_id::text,
           subject.name AS subject_name, assignment.teacher_user_id::text,
-          COALESCE(staff.full_name, staff.preferred_name, staff.staff_number, staff.email, 'Unlinked teacher') AS teacher_name,
+          COALESCE(staff.display_name, staff.staff_number, 'Unlinked teacher') AS teacher_name,
           assignment.status, assignment.created_by_user_id::text, assignment.created_at::text, assignment.updated_at::text
         FROM teacher_subject_assignments assignment
         LEFT JOIN academic_terms term ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
         LEFT JOIN class_sections class_section ON class_section.tenant_id = assignment.tenant_id AND class_section.id = assignment.class_section_id
         LEFT JOIN subjects subject ON subject.tenant_id = assignment.tenant_id AND subject.id = assignment.subject_id
-        LEFT JOIN staff_profiles staff ON staff.tenant_id = assignment.tenant_id AND staff.user_id = assignment.teacher_user_id
+        LEFT JOIN staff_profiles staff ON staff.tenant_id = assignment.tenant_id AND staff.user_id::text = assignment.teacher_user_id
         WHERE assignment.tenant_id = $1
           AND ($2::text IS NULL OR assignment.teacher_user_id = $2::text)
           AND assignment.status = 'active'
@@ -497,7 +497,7 @@ export class AcademicsRepository {
         SELECT
           id::text,
           user_id::text,
-          COALESCE(full_name, preferred_name, staff_number, email, id::text) AS label,
+          COALESCE(display_name, staff_number, id::text) AS label,
           staff_number,
           COALESCE(status, 'active') AS status
         FROM staff_profiles
@@ -511,7 +511,7 @@ export class AcademicsRepository {
         SELECT
           id::text,
           user_id::text,
-          COALESCE(full_name, preferred_name, staff_number, email, id::text) AS label,
+          COALESCE(display_name, staff_number, id::text) AS label,
           staff_number,
           COALESCE(status, 'active') AS status
         FROM staff_profiles
@@ -531,7 +531,7 @@ export class AcademicsRepository {
         SELECT
           id::text,
           user_id::text,
-          COALESCE(full_name, preferred_name, staff_number, email, id::text) AS label,
+          COALESCE(display_name, staff_number, id::text) AS label,
           staff_number,
           COALESCE(status, 'active') AS status
         FROM staff_profiles
@@ -544,7 +544,7 @@ export class AcademicsRepository {
         SELECT
           id::text,
           user_id::text,
-          COALESCE(full_name, preferred_name, staff_number, email, id::text) AS label,
+          COALESCE(display_name, staff_number, id::text) AS label,
           staff_number,
           COALESCE(status, 'active') AS status
         FROM staff_profiles
@@ -1096,7 +1096,7 @@ export class AcademicsRepository {
           department.tenant_id,
           department.name,
           department.head_of_department_user_id::text,
-          COALESCE(staff.full_name, staff.preferred_name, staff.staff_number, staff.email) AS head_of_department_name,
+          COALESCE(staff.display_name, staff.staff_number) AS head_of_department_name,
           staff.staff_number AS head_of_department_staff_number,
           department.is_active,
           department.created_at::text,
@@ -1115,7 +1115,7 @@ export class AcademicsRepository {
           department.tenant_id,
           department.name,
           department.head_of_department_user_id::text,
-          COALESCE(staff.full_name, staff.preferred_name, staff.staff_number, staff.email) AS head_of_department_name,
+          COALESCE(staff.display_name, staff.staff_number) AS head_of_department_name,
           staff.staff_number AS head_of_department_staff_number,
           department.is_active,
           department.created_at::text,
@@ -1171,7 +1171,7 @@ export class AcademicsRepository {
           ct.class_section_id::text,
           cs.name AS class_section_name,
           ct.teacher_user_id::text,
-          COALESCE(sp.full_name, sp.preferred_name, sp.staff_number, sp.email, 'Unlinked teacher') AS teacher_name,
+          COALESCE(sp.display_name, sp.staff_number, 'Unlinked teacher') AS teacher_name,
           sp.staff_number,
           ct.is_active,
           ct.created_at::text,
@@ -1199,7 +1199,7 @@ export class AcademicsRepository {
           ct.class_section_id::text,
           cs.name AS class_section_name,
           ct.teacher_user_id::text,
-          COALESCE(sp.full_name, sp.preferred_name, sp.staff_number, sp.email, 'Unlinked teacher') AS teacher_name,
+          COALESCE(sp.display_name, sp.staff_number, 'Unlinked teacher') AS teacher_name,
           sp.staff_number,
           ct.is_active,
           ct.created_at::text,
@@ -1223,17 +1223,23 @@ export class AcademicsRepository {
   }
 
   async assignClassTeacher(tenantId: string, academicYearId: string, classSectionId: string, teacherUserId: string) {
-    const result = await this.executeSql(this.getTenantId([`INSERT INTO academics_class_teachers (tenant_id, academic_year_id, class_section_id, teacher_user_id)
-       VALUES ($1, $2::uuid, $3::uuid, $4::uuid) RETURNING *`,
-      [tenantId, academicYearId, classSectionId, teacherUserId]]), `INSERT INTO academics_class_teachers (tenant_id, academic_year_id, class_section_id, teacher_user_id)
-       VALUES ($1, $2::uuid, $3::uuid, $4::uuid) RETURNING *`,
+    const result = await this.executeSql(this.getTenantId([`INSERT INTO academics_class_teachers (school_id, tenant_id, academic_year_id, class_section_id, teacher_user_id)
+       SELECT school.id, $1, $2::text, $3::text, $4::uuid
+       FROM schools school
+       WHERE school.slug = $1
+       RETURNING *`,
+      [tenantId, academicYearId, classSectionId, teacherUserId]]), `INSERT INTO academics_class_teachers (school_id, tenant_id, academic_year_id, class_section_id, teacher_user_id)
+       SELECT school.id, $1, $2::text, $3::text, $4::uuid
+       FROM schools school
+       WHERE school.slug = $1
+       RETURNING *`,
       [tenantId, academicYearId, classSectionId, teacherUserId]);
     return result.rows[0];
   }
 
   async archiveClassTeacher(tenantId: string, id: string) {
-    const result = await this.executeSql(this.getTenantId([`UPDATE academics_class_teachers SET is_active = false, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
-      [tenantId, id]]), `UPDATE academics_class_teachers SET is_active = false, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+    const result = await this.executeSql(this.getTenantId([`UPDATE academics_class_teachers SET is_active = false, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::text RETURNING *`,
+      [tenantId, id]]), `UPDATE academics_class_teachers SET is_active = false, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::text RETURNING *`,
       [tenantId, id]);
     return result.rows[0];
   }

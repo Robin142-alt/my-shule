@@ -23,6 +23,7 @@ test('SchoolSettingsService updates only the current tenant school profile', asy
     {
       getStore: () => ({ tenant_id: 'school-a' }),
     } as never,
+    {} as never,
   );
 
   const result = await service.updateProfile({
@@ -66,7 +67,50 @@ test('SchoolSettingsService rejects empty school profile updates', async () => {
     {
       getStore: () => ({ tenant_id: 'school-a' }),
     } as never,
+    {} as never,
   );
 
   await assert.rejects(() => service.updateProfile({}), /At least one school profile field is required/);
+});
+
+test('SchoolSettingsService exposes tenant branding and serves its stored logo', async () => {
+  let logoRead: Record<string, unknown> | undefined;
+  const service = new SchoolSettingsService(
+    {
+      $queryRawUnsafe: async () => [{
+        name: 'Kibabi High',
+        subdomain: 'kibabi-high',
+        settings: {
+          logo_url: '/legacy/logo.png',
+          logo_storage_path: 'tenant/kibabi-high/school_logo/logo.png',
+        },
+      }],
+    } as never,
+    {
+      getStore: () => ({ tenant_id: 'kibabi-high' }),
+    } as never,
+    {
+      readForTenant: async (input: Record<string, unknown>) => {
+        logoRead = input;
+        return {
+          content: Buffer.from('logo'),
+          mime_type: 'image/png',
+          original_file_name: 'logo.png',
+          size_bytes: 4,
+        };
+      },
+    } as never,
+  );
+
+  assert.deepEqual(await service.getIdentity(), {
+    tenantId: 'kibabi-high',
+    subdomain: 'kibabi-high',
+    schoolName: 'Kibabi High',
+    logoUrl: '/api/school/identity/logo',
+  });
+  assert.equal((await service.getIdentityLogo()).mime_type, 'image/png');
+  assert.deepEqual(logoRead, {
+    tenantId: 'kibabi-high',
+    storagePath: 'tenant/kibabi-high/school_logo/logo.png',
+  });
 });

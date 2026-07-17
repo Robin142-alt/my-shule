@@ -230,8 +230,8 @@ export class ModuleAccessRepository {
   }
 
   async listEnabledModuleCodes(tenantId: string): Promise<string[]> {
-    return this.withTenantScope(tenantId, async () => {
-      const result = await this.executeSql<{ code: string }>(
+    const rows = await this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+      const result = await tx.$queryRawUnsafe<Array<{ code: string }>>(
         `
           SELECT mr.code
           FROM school_module_access sma
@@ -243,11 +243,13 @@ export class ModuleAccessRepository {
             AND (sma.trial_ends_at IS NULL OR sma.trial_ends_at > NOW() OR sma.access_level <> 'trial')
           ORDER BY mr.code ASC
         `,
-        [tenantId],
+        tenantId,
       );
 
-      return result.rows.map((row) => row.code);
+      return Array.isArray(result) ? result : [];
     });
+
+    return rows.map((row) => row.code);
   }
 
   async findFirstMissingModule(

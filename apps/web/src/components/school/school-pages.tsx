@@ -72,6 +72,7 @@ import { SchoolStudentsPage } from "./student-directory-workspace";
 import { SchoolAcademicsPage } from "./academics-workspace-admin";
 import { SchoolReportsPage } from "./reports-workspace";
 import { SchoolPageHeader } from "./school-page-header";
+import { DashboardGreeting } from "@/components/common/dashboard-greeting";
 
 import { getSchoolWorkspace, schoolSectionLabels, type SchoolExperienceRole, type SchoolSubscriptionView } from "@/lib/experiences/school-data";
 import { getExtremeErpBlueprint, isExtremeErpWorkspaceId } from "@/lib/operational/extreme-erp-blueprints";
@@ -88,7 +89,8 @@ import {
 import { toSchoolPath, toSchoolStudentPath } from "@/lib/routing/experience-routes";
 import { startSchoolOperationalEventSyncRetryWorker } from "@/lib/school/school-operational-store";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { GraduationCap, Loader2 } from "lucide-react";
+import { getSchoolRoleGreetingName } from "@/lib/greetings/time-aware-greeting";
+import { Building2, GraduationCap, Loader2 } from "lucide-react";
 import type { LearnerLookupItem } from "@/lib/students/student-lookup";
 import { PermissionProvider } from "@/components/providers/permission-context";
 
@@ -4440,7 +4442,67 @@ function formatSchoolNotificationTime(value: unknown) {
 }
 
 export function SchoolPages(props: SchoolPagesProps) {
-  return <SchoolPagesShell {...props} />;
+  return (
+    <div className="min-h-dvh bg-[#F3F6FA]">
+      {props.role !== "principal" ? <SchoolRoleIdentityHeader {...props} /> : null}
+      <SchoolPagesShell {...props} />
+    </div>
+  );
+}
+
+type SchoolRoleIdentity = {
+  tenantId: string;
+  subdomain: string;
+  schoolName: string;
+  logoUrl?: string | null;
+};
+
+function SchoolRoleIdentityHeader({
+  role,
+  tenantSlug,
+  userLabel,
+  liveDataEnabled = true,
+}: Pick<SchoolPagesProps, "role" | "tenantSlug" | "userLabel" | "liveDataEnabled">) {
+  const tenantId = tenantSlug?.trim() || "school-workspace";
+  const { data: identity } = useSchoolQuery<SchoolRoleIdentity>("/school/identity", {
+    enabled: liveDataEnabled,
+    tenantId,
+  });
+  const fallbackSchoolName = tenantId === "school-workspace"
+    ? "School workspace"
+    : tenantId.split(/[-_]+/).filter(Boolean).map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`).join(" ");
+  const schoolName = identity?.schoolName?.trim() || fallbackSchoolName;
+  const greetingName = userLabel?.trim() || getSchoolRoleGreetingName(role);
+  const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
+
+  return (
+    <header className="relative z-50 flex min-h-16 items-center justify-between gap-4 border-b border-[#C8D5EA] bg-white px-4 py-2 text-[#071D49] shadow-sm md:px-6">
+      <div className="flex min-w-0 items-center gap-3">
+        {identity?.logoUrl && failedLogoUrl !== identity.logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={identity.logoUrl}
+            alt={`${schoolName} logo`}
+            className="h-11 w-11 shrink-0 rounded-lg border border-[#C8D5EA] bg-white object-contain p-1"
+            onError={() => setFailedLogoUrl(identity.logoUrl ?? null)}
+          />
+        ) : (
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#071D49] text-cyan-200">
+            <Building2 className="h-6 w-6" aria-hidden="true" />
+          </span>
+        )}
+        <div className="min-w-0">
+          <p className="truncate text-sm font-black">{schoolName}</p>
+          <p className="truncate text-xs font-semibold text-[#5F6F89]">Secure school workspace</p>
+        </div>
+      </div>
+      <DashboardGreeting
+        name={greetingName}
+        context={`${schoolName} - ${getSchoolRoleGreetingName(role)} dashboard`}
+        className="min-w-0 text-right"
+      />
+    </header>
+  );
 }
 
 function SchoolPagesShell({

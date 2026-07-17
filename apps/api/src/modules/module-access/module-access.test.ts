@@ -212,6 +212,24 @@ query: async (sql: string, values: unknown[] = []) => {
   assert.match(upsertQuery?.sql ?? '', /expires_at = EXCLUDED\.expires_at/);
 });
 
+test('ModuleAccessRepository reads enabled modules inside the tenant transaction', async () => {
+  let tenantScope: string | undefined;
+  const repository = new ModuleAccessRepository({
+    executeWithTenant: async (tenantId: string, _userId: string | null, callback: (tx: unknown) => Promise<unknown>) => {
+      tenantScope = tenantId;
+      return callback({
+        $queryRawUnsafe: async () => [{ code: 'academics' }, { code: 'principal_dashboard' }],
+      });
+    },
+  } as never);
+
+  assert.deepEqual(await repository.listEnabledModuleCodes('kibabi-high'), [
+    'academics',
+    'principal_dashboard',
+  ]);
+  assert.equal(tenantScope, 'kibabi-high');
+});
+
 test('production school controllers declare module access metadata', () => {
   assert.deepEqual(Reflect.getMetadata(MODULE_ACCESS_KEY, AcademicsController), ['academics']);
   assert.deepEqual(Reflect.getMetadata(MODULE_ACCESS_KEY, ExamsController), ['exams']);

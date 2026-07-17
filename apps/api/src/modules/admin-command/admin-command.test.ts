@@ -2242,7 +2242,7 @@ test('AdminCommandRepository repairs legacy database logo URLs with the authenti
   const profile = await repository.getSchoolProfile('tenant-a');
 
   assert.equal(profile?.logoStoragePath, 'tenant/tenant-a/school_logo/kibabi.png');
-  assert.equal(profile?.logoUrl, '/api/admin-command/principal/school-profile/logo/content');
+  assert.equal(profile?.logoUrl, '/api/school/identity/logo');
 });
 
 test('AdminCommandService stores, audits, and serves school logos inside the current tenant', async () => {
@@ -2302,7 +2302,7 @@ test('AdminCommandService stores, audits, and serves school logos inside the cur
   });
   const served = await service.getSchoolLogoContent();
 
-  assert.equal(uploaded.url, '/api/admin-command/principal/school-profile/logo/content');
+  assert.equal(uploaded.url, '/api/school/identity/logo');
   assert.deepEqual(served.content, content);
   assert.equal(calls[0].kind, 'logo');
   assert.equal(calls[1].event_type, 'principal.school_logo_uploaded');

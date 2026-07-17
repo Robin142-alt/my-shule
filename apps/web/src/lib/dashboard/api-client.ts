@@ -165,7 +165,7 @@ export interface ObservabilityHealthResponse {
   }>;
 }
 
-const API_TIMEOUT_MS = 4_500;
+const API_TIMEOUT_MS = 15_000;
 
 function normalizeApiPath(path: string) {
   const normalized = path.startsWith("/") ? path : `/${path}`;
@@ -264,6 +264,7 @@ export async function requestDashboardApi<T>(
     tenantId?: string;
     accessToken?: string | null;
     body?: BodyInit | Record<string, unknown> | null;
+    timeoutMs?: number;
   },
 ): Promise<T> {
   const baseUrl = getDashboardApiBaseUrl(options?.tenantId);
@@ -274,7 +275,8 @@ export async function requestDashboardApi<T>(
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const timeoutMs = options?.timeoutMs ?? API_TIMEOUT_MS;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const method = options?.method ?? "GET";
   const csrfToken =
     typeof window !== "undefined" && method !== "GET"
@@ -326,6 +328,11 @@ export async function requestDashboardApi<T>(
     }
 
     return isEnvelope<T>(json) ? json.data : (json as T);
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error(`Request timed out after ${Math.ceil(timeoutMs / 1000)} seconds. Please retry.`);
+    }
+    throw error;
   } finally {
     clearTimeout(timeout);
   }

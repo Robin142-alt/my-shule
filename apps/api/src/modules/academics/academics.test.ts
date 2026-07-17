@@ -18,6 +18,8 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academic_years/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academic_terms/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS teacher_subject_assignments/);
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academics_departments/);
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academics_class_teachers/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academic_levels/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS class_streams/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS student_class_assignments/);
@@ -28,6 +30,8 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /CBE/);
   assert.match(schemaSql, /ALTER TABLE teacher_subject_assignments FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /ALTER TABLE student_class_assignments FORCE ROW LEVEL SECURITY/);
+  assert.match(schemaSql, /ALTER TABLE academics_departments FORCE ROW LEVEL SECURITY/);
+  assert.match(schemaSql, /ALTER TABLE academics_class_teachers FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /uq_teacher_subject_assignments_scope/);
   assert.match(schemaSql, /NULLIF\(current_setting\('app\.role', true\), ''\) = 'system'/);
   assert.match(schemaSql, /ALTER TABLE teacher_subject_assignments FORCE ROW LEVEL SECURITY/);
@@ -276,6 +280,9 @@ query: async (sql: string, params: unknown[]) => {
   assert.doesNotMatch(calls[0]!.sql, /SELECT\s+\*/i);
   assert.match(calls[0]!.sql, /LIMIT \$3::integer\s+OFFSET \$4::integer/);
   assert.match(calls[0]!.sql, /teacher_user_id = \$2::text/);
+  assert.match(calls[0]!.sql, /staff\.user_id::text = assignment\.teacher_user_id/);
+  assert.match(calls[0]!.sql, /staff\.display_name/);
+  assert.doesNotMatch(calls[0]!.sql, /staff\.full_name/);
   assert.doesNotMatch(calls[0]!.sql, /teacher_user_id = \$2::uuid/);
   assert.equal(tenantIdUsed, 'tenant-a');
   assert.equal(calls[0]!.params[2], 50);
@@ -318,6 +325,8 @@ test('AcademicsRepository lists active staff teacher options without cross-tenan
   assert.match(calls[0]!.sql, /WHERE tenant_id = \$1/i);
   assert.match(calls[0]!.sql, /user_id IS NOT NULL/i);
   assert.match(calls[0]!.sql, /COALESCE\(status, 'active'\) = 'active'/i);
+  assert.match(calls[0]!.sql, /display_name/i);
+  assert.doesNotMatch(calls[0]!.sql, /full_name/i);
   assert.deepEqual(calls[0]!.params, ['tenant-a']);
   assert.deepEqual(result, [
     {
