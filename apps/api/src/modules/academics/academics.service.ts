@@ -118,16 +118,33 @@ export class AcademicsService {
 
   async createSubject(dto: CreateSubjectDto) {
     const tenantId = this.requireTenantId();
+    const departmentId = dto.department_id?.trim() || null;
+    if (departmentId) {
+      const department = await this.repository.executeSql(
+        tenantId,
+        `SELECT id
+         FROM academics_departments
+         WHERE tenant_id = $1
+           AND id::text = $2
+           AND is_active = true
+         LIMIT 1`,
+        [tenantId, departmentId],
+      );
+      if (!department.rows[0]) {
+        throw new BadRequestException('Select an active academic department from this school.');
+      }
+    }
+
     const subject = await this.repository.createSubject({
       tenant_id: tenantId,
       created_by_user_id: this.currentUserId(),
       code: this.requireText(dto.code, 'Subject code'),
       name: this.requireText(dto.name, 'Subject name'),
-      department_id: dto.department_id?.trim() || null,
+      department_id: departmentId,
     });
     await this.auditMutation(tenantId, 'subject', subject?.id, 'academics.subject_created', {
       code: dto.code,
-      department_id: dto.department_id ?? null,
+      department_id: departmentId,
     });
     return subject;
   }
@@ -142,10 +159,10 @@ export class AcademicsService {
       tenantId,
       `SELECT id FROM teacher_subject_assignments 
        WHERE tenant_id = $1 
-         AND academic_term_id = $2::uuid 
-         AND class_section_id = $3::uuid 
-         AND subject_id = $4::uuid
-         AND is_active = true`,
+         AND academic_term_id = $2
+         AND class_section_id = $3
+         AND subject_id = $4
+         AND status = 'active'`,
       [tenantId, dto.academic_term_id, dto.class_section_id, dto.subject_id]
     );
 

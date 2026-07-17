@@ -196,9 +196,18 @@ export class AcademicsRepository {
     const academicYearId = randomUUID();
     const result = await this.executeSql(this.getTenantId([`
         INSERT INTO academic_years (
-          tenant_id, id, name, starts_on, ends_on, created_by_user_id
+          tenant_id,
+          id,
+          name,
+          start_date,
+          end_date,
+          starts_on,
+          ends_on,
+          status,
+          created_by_user_id,
+          updated_at
         )
-        VALUES ($1, $2, $3, $4::date, $5::date, $6::uuid)
+        VALUES ($1, $2, $3, $4::date, $5::date, $4::date, $5::date, 'draft', $6::uuid, NOW())
         RETURNING *
       `,
       [
@@ -210,9 +219,18 @@ export class AcademicsRepository {
         input.created_by_user_id,
       ],]), `
         INSERT INTO academic_years (
-          tenant_id, id, name, starts_on, ends_on, created_by_user_id
+          tenant_id,
+          id,
+          name,
+          start_date,
+          end_date,
+          starts_on,
+          ends_on,
+          status,
+          created_by_user_id,
+          updated_at
         )
-        VALUES ($1, $2, $3, $4::date, $5::date, $6::uuid)
+        VALUES ($1, $2, $3, $4::date, $5::date, $4::date, $5::date, 'draft', $6::uuid, NOW())
         RETURNING *
       `,
       [
@@ -277,7 +295,7 @@ export class AcademicsRepository {
           capacity,
           created_by_user_id
         )
-        VALUES ($1, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9::uuid)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::uuid)
         RETURNING *
       `,
       [
@@ -302,7 +320,7 @@ export class AcademicsRepository {
           capacity,
           created_by_user_id
         )
-        VALUES ($1, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9::uuid)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::uuid)
         RETURNING *
       `,
       [
@@ -374,7 +392,7 @@ export class AcademicsRepository {
                 capacity,
                 created_by_user_id
               )
-              SELECT $1, ay.id, $2::uuid, $3, $4, $5, $6, $7::uuid
+              SELECT $1, ay.id, $2, $3, $4, $5, $6, $7::uuid
               FROM academic_years ay
               WHERE ay.tenant_id = $1
               ORDER BY ay.starts_on DESC
@@ -408,7 +426,7 @@ export class AcademicsRepository {
                 capacity,
                 created_by_user_id
               )
-              SELECT $1, ay.id, $2::uuid, $3, $4, $5, $6, $7::uuid
+              SELECT $1, ay.id, $2, $3, $4, $5, $6, $7::uuid
               FROM academic_years ay
               WHERE ay.tenant_id = $1
               ORDER BY ay.starts_on DESC
@@ -440,7 +458,7 @@ export class AcademicsRepository {
                 INSERT INTO class_streams (
                   tenant_id, class_section_id, name, capacity, class_teacher_id
                 )
-                VALUES ($1, $2::uuid, $3, $4, $5::uuid)
+                VALUES ($1, $2, $3, $4, $5::uuid)
                 ON CONFLICT (tenant_id, class_section_id, name)
                 DO UPDATE SET
                   capacity = EXCLUDED.capacity,
@@ -459,7 +477,7 @@ export class AcademicsRepository {
                 INSERT INTO class_streams (
                   tenant_id, class_section_id, name, capacity, class_teacher_id
                 )
-                VALUES ($1, $2::uuid, $3, $4, $5::uuid)
+                VALUES ($1, $2, $3, $4, $5::uuid)
                 ON CONFLICT (tenant_id, class_section_id, name)
                 DO UPDATE SET
                   capacity = EXCLUDED.capacity,
@@ -493,14 +511,14 @@ export class AcademicsRepository {
   async createSubject(input: Record<string, unknown>) {
     const result = await this.executeSql(this.getTenantId([`
         INSERT INTO subjects (tenant_id, code, name, created_by_user_id, department_id)
-        VALUES ($1, $2, $3, $4::uuid, $5::uuid)
+        VALUES ($1, $2, $3, $4::uuid, $5)
         ON CONFLICT (tenant_id, code)
         DO UPDATE SET name = EXCLUDED.name, department_id = EXCLUDED.department_id, updated_at = NOW()
         RETURNING *
       `,
       [input.tenant_id, input.code, input.name, input.created_by_user_id, input.department_id],]), `
         INSERT INTO subjects (tenant_id, code, name, created_by_user_id, department_id)
-        VALUES ($1, $2, $3, $4::uuid, $5::uuid)
+        VALUES ($1, $2, $3, $4::uuid, $5)
         ON CONFLICT (tenant_id, code)
         DO UPDATE SET name = EXCLUDED.name, department_id = EXCLUDED.department_id, updated_at = NOW()
         RETURNING *
@@ -520,7 +538,7 @@ export class AcademicsRepository {
           teacher_user_id,
           created_by_user_id
         )
-        VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5::uuid, $6::uuid)
+        VALUES ($1, $2, $3, $4, $5, $6::uuid)
         ON CONFLICT (tenant_id, academic_term_id, class_section_id, subject_id, teacher_user_id)
         DO UPDATE SET status = 'active', updated_at = NOW()
         RETURNING *
@@ -541,7 +559,7 @@ export class AcademicsRepository {
           teacher_user_id,
           created_by_user_id
         )
-        VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5::uuid, $6::uuid)
+        VALUES ($1, $2, $3, $4, $5, $6::uuid)
         ON CONFLICT (tenant_id, academic_term_id, class_section_id, subject_id, teacher_user_id)
         DO UPDATE SET status = 'active', updated_at = NOW()
         RETURNING *
@@ -624,7 +642,7 @@ export class AcademicsRepository {
       tenantId,
       `UPDATE teacher_subject_assignments
        SET status = 'archived', updated_at = NOW()
-       WHERE tenant_id = $1 AND id = $2::uuid AND status = 'active'
+       WHERE tenant_id = $1 AND id = $2::text AND status = 'active'
        RETURNING *`,
       [tenantId, id],
     );
@@ -1109,15 +1127,15 @@ export class AcademicsRepository {
     if (fields.length === 0) return null;
     fields.push(`updated_at = NOW()`);
 
-    const result = await this.executeSql(this.getTenantId([`UPDATE academic_years SET ${fields.join(', ')} WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
-      values]), `UPDATE academic_years SET ${fields.join(', ')} WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+    const result = await this.executeSql(this.getTenantId([`UPDATE academic_years SET ${fields.join(', ')} WHERE tenant_id = $1 AND id = $2::text RETURNING *`,
+      values]), `UPDATE academic_years SET ${fields.join(', ')} WHERE tenant_id = $1 AND id = $2::text RETURNING *`,
       values);
     return result.rows[0];
   }
 
   async archiveAcademicYear(tenantId: string, id: string) {
-    const result = await this.executeSql(this.getTenantId([`UPDATE academic_years SET status = 'archived', updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
-      [tenantId, id]]), `UPDATE academic_years SET status = 'archived', updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+    const result = await this.executeSql(this.getTenantId([`UPDATE academic_years SET status = 'archived', updated_at = NOW() WHERE tenant_id = $1 AND id = $2::text RETURNING *`,
+      [tenantId, id]]), `UPDATE academic_years SET status = 'archived', updated_at = NOW() WHERE tenant_id = $1 AND id = $2::text RETURNING *`,
       [tenantId, id]);
     return result.rows[0];
   }
@@ -1132,15 +1150,15 @@ export class AcademicsRepository {
     if (fields.length === 0) return null;
     fields.push(`updated_at = NOW()`);
 
-    const result = await this.executeSql(this.getTenantId([`UPDATE academic_terms SET ${fields.join(', ')} WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
-      values]), `UPDATE academic_terms SET ${fields.join(', ')} WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+    const result = await this.executeSql(this.getTenantId([`UPDATE academic_terms SET ${fields.join(', ')} WHERE tenant_id = $1 AND id = $2::text RETURNING *`,
+      values]), `UPDATE academic_terms SET ${fields.join(', ')} WHERE tenant_id = $1 AND id = $2::text RETURNING *`,
       values);
     return result.rows[0];
   }
 
   async archiveAcademicTerm(tenantId: string, id: string) {
-    const result = await this.executeSql(this.getTenantId([`UPDATE academic_terms SET status = 'archived', updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
-      [tenantId, id]]), `UPDATE academic_terms SET status = 'archived', updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+    const result = await this.executeSql(this.getTenantId([`UPDATE academic_terms SET status = 'archived', updated_at = NOW() WHERE tenant_id = $1 AND id = $2::text RETURNING *`,
+      [tenantId, id]]), `UPDATE academic_terms SET status = 'archived', updated_at = NOW() WHERE tenant_id = $1 AND id = $2::text RETURNING *`,
       [tenantId, id]);
     return result.rows[0];
   }
@@ -1157,15 +1175,15 @@ export class AcademicsRepository {
     if (fields.length === 0) return null;
     fields.push(`updated_at = NOW()`);
 
-    const result = await this.executeSql(this.getTenantId([`UPDATE class_sections SET ${fields.join(', ')} WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
-      values]), `UPDATE class_sections SET ${fields.join(', ')} WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+    const result = await this.executeSql(this.getTenantId([`UPDATE class_sections SET ${fields.join(', ')} WHERE tenant_id = $1 AND id = $2::text RETURNING *`,
+      values]), `UPDATE class_sections SET ${fields.join(', ')} WHERE tenant_id = $1 AND id = $2::text RETURNING *`,
       values);
     return result.rows[0];
   }
 
   async archiveClassSection(tenantId: string, id: string) {
-    const result = await this.executeSql(this.getTenantId([`UPDATE class_sections SET is_active = false, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
-      [tenantId, id]]), `UPDATE class_sections SET is_active = false, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+    const result = await this.executeSql(this.getTenantId([`UPDATE class_sections SET is_active = false, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::text RETURNING *`,
+      [tenantId, id]]), `UPDATE class_sections SET is_active = false, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::text RETURNING *`,
       [tenantId, id]);
     return result.rows[0];
   }
@@ -1179,15 +1197,15 @@ export class AcademicsRepository {
     if (fields.length === 0) return null;
     fields.push(`updated_at = NOW()`);
 
-    const result = await this.executeSql(this.getTenantId([`UPDATE subjects SET ${fields.join(', ')} WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
-      values]), `UPDATE subjects SET ${fields.join(', ')} WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+    const result = await this.executeSql(this.getTenantId([`UPDATE subjects SET ${fields.join(', ')} WHERE tenant_id = $1 AND id = $2::text RETURNING *`,
+      values]), `UPDATE subjects SET ${fields.join(', ')} WHERE tenant_id = $1 AND id = $2::text RETURNING *`,
       values);
     return result.rows[0];
   }
 
   async archiveSubject(tenantId: string, id: string) {
-    const result = await this.executeSql(this.getTenantId([`UPDATE subjects SET status = 'archived', updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
-      [tenantId, id]]), `UPDATE subjects SET status = 'archived', updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+    const result = await this.executeSql(this.getTenantId([`UPDATE subjects SET status = 'archived', updated_at = NOW() WHERE tenant_id = $1 AND id = $2::text RETURNING *`,
+      [tenantId, id]]), `UPDATE subjects SET status = 'archived', updated_at = NOW() WHERE tenant_id = $1 AND id = $2::text RETURNING *`,
       [tenantId, id]);
     return result.rows[0];
   }
@@ -1197,14 +1215,14 @@ export class AcademicsRepository {
         INSERT INTO class_streams (
           tenant_id, class_section_id, name, capacity
         )
-        VALUES ($1, $2::uuid, $3, $4)
+        VALUES ($1, $2, $3, $4)
         RETURNING *
       `,
       [tenantId, classSectionId, name, capacity ?? null]]), `
         INSERT INTO class_streams (
           tenant_id, class_section_id, name, capacity
         )
-        VALUES ($1, $2::uuid, $3, $4)
+        VALUES ($1, $2, $3, $4)
         RETURNING *
       `,
       [tenantId, classSectionId, name, capacity ?? null]);
@@ -1362,15 +1380,11 @@ export class AcademicsRepository {
   }
 
   async assignClassTeacher(tenantId: string, academicYearId: string, classSectionId: string, teacherUserId: string) {
-    const result = await this.executeSql(this.getTenantId([`INSERT INTO academics_class_teachers (school_id, tenant_id, academic_year_id, class_section_id, teacher_user_id)
-       SELECT school.id, $1, $2::text, $3::text, $4::uuid
-       FROM schools school
-       WHERE school.slug = $1
+    const result = await this.executeSql(this.getTenantId([`INSERT INTO academics_class_teachers (school_id, tenant_id, academic_year_id, class_section_id, teacher_user_id, updated_at)
+       VALUES (NULL, $1, $2::text, $3::text, $4::uuid, NOW())
        RETURNING *`,
-      [tenantId, academicYearId, classSectionId, teacherUserId]]), `INSERT INTO academics_class_teachers (school_id, tenant_id, academic_year_id, class_section_id, teacher_user_id)
-       SELECT school.id, $1, $2::text, $3::text, $4::uuid
-       FROM schools school
-       WHERE school.slug = $1
+      [tenantId, academicYearId, classSectionId, teacherUserId]]), `INSERT INTO academics_class_teachers (school_id, tenant_id, academic_year_id, class_section_id, teacher_user_id, updated_at)
+       VALUES (NULL, $1, $2::text, $3::text, $4::uuid, NOW())
        RETURNING *`,
       [tenantId, academicYearId, classSectionId, teacherUserId]);
     return result.rows[0];

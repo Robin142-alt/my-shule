@@ -70,6 +70,9 @@ export class AcademicsSchemaService implements OnModuleInit {
       ALTER TABLE academic_years ALTER COLUMN ends_on SET NOT NULL;
       ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
       ALTER TABLE academic_years ALTER COLUMN status TYPE text USING status::text;
+      ALTER TABLE academic_years ALTER COLUMN status SET DEFAULT 'draft';
+      ALTER TABLE academic_years ALTER COLUMN updated_at SET DEFAULT NOW();
+      ALTER TABLE academic_years ALTER COLUMN school_id DROP NOT NULL;
       DO $$
       BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_academic_years_tenant_id_id') THEN
@@ -612,11 +615,55 @@ export class AcademicsSchemaService implements OnModuleInit {
 
       ALTER TABLE subjects ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
       ALTER TABLE subjects ADD COLUMN IF NOT EXISTS department_id uuid;
+      ALTER TABLE subjects ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
       ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
       CREATE INDEX IF NOT EXISTS ix_subjects_department
         ON subjects (tenant_id, department_id, name);
       CREATE INDEX IF NOT EXISTS ix_academics_departments_tenant_active
         ON academics_departments (tenant_id, is_active, name);
+
+      ALTER TABLE academic_levels ALTER COLUMN school_id DROP NOT NULL;
+      ALTER TABLE academic_levels ALTER COLUMN updated_at SET DEFAULT NOW();
+      ALTER TABLE subjects ALTER COLUMN school_id DROP NOT NULL;
+      ALTER TABLE subjects ALTER COLUMN status SET DEFAULT 'active';
+      ALTER TABLE subjects ALTER COLUMN updated_at SET DEFAULT NOW();
+      ALTER TABLE subjects DROP CONSTRAINT IF EXISTS subjects_department_id_fkey;
+      ALTER TABLE teacher_subject_assignments ALTER COLUMN school_id DROP NOT NULL;
+      ALTER TABLE teacher_subject_assignments ALTER COLUMN status SET DEFAULT 'active';
+      ALTER TABLE teacher_subject_assignments ALTER COLUMN updated_at SET DEFAULT NOW();
+      ALTER TABLE academics_class_teachers ALTER COLUMN school_id DROP NOT NULL;
+      ALTER TABLE academics_class_teachers ALTER COLUMN updated_at SET DEFAULT NOW();
+
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'subjects' AND column_name = 'curriculum_type'
+        ) THEN
+          ALTER TABLE subjects ALTER COLUMN curriculum_type DROP NOT NULL;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'teacher_subject_assignments' AND column_name = 'academic_year_id'
+        ) THEN
+          ALTER TABLE teacher_subject_assignments ALTER COLUMN academic_year_id DROP NOT NULL;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'teacher_subject_assignments' AND column_name = 'class_id'
+        ) THEN
+          ALTER TABLE teacher_subject_assignments ALTER COLUMN class_id DROP NOT NULL;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'teacher_subject_assignments' AND column_name = 'assigned_by_user_id'
+        ) THEN
+          ALTER TABLE teacher_subject_assignments ALTER COLUMN assigned_by_user_id DROP NOT NULL;
+        END IF;
+      END $$;
 
       DO $$
       DECLARE

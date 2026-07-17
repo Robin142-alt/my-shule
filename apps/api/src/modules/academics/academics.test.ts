@@ -25,9 +25,13 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS student_class_assignments/);
   assert.match(schemaSql, /ALTER TABLE subjects ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active'/);
   assert.match(schemaSql, /ALTER TABLE subjects ADD COLUMN IF NOT EXISTS department_id uuid/);
+  assert.match(schemaSql, /ALTER TABLE subjects ADD COLUMN IF NOT EXISTS created_by_user_id uuid/);
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_subjects_department/);
   assert.match(schemaSql, /ALTER TABLE %I ALTER COLUMN id SET DEFAULT gen_random_uuid\(\)/);
   assert.match(schemaSql, /ALTER TABLE %I ALTER COLUMN id SET DEFAULT gen_random_uuid\(\)::text/);
+  assert.match(schemaSql, /ALTER TABLE academic_years ALTER COLUMN school_id DROP NOT NULL/);
+  assert.match(schemaSql, /ALTER TABLE subjects DROP CONSTRAINT IF EXISTS subjects_department_id_fkey/);
+  assert.match(schemaSql, /ALTER TABLE teacher_subject_assignments ALTER COLUMN assigned_by_user_id DROP NOT NULL/);
   assert.match(schemaSql, /ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS created_by_user_id uuid/);
   assert.match(schemaSql, /CBE/);
   assert.match(schemaSql, /ALTER TABLE teacher_subject_assignments FORCE ROW LEVEL SECURITY/);
@@ -79,7 +83,9 @@ test('AcademicsRepository supplies durable IDs when creating academic years and 
   });
 
   assert.equal(calls.length, 2);
-  assert.match(calls[0]!.sql, /INSERT INTO academic_years\s*\(\s*tenant_id, id,/);
+  assert.match(calls[0]!.sql, /INSERT INTO academic_years\s*\(\s*tenant_id,\s*id,/);
+  assert.match(calls[0]!.sql, /name,\s*start_date,\s*end_date,\s*starts_on,\s*ends_on/);
+  assert.match(calls[0]!.sql, /VALUES \(\$1, \$2, \$3,/);
   assert.match(calls[1]!.sql, /INSERT INTO academic_terms\s*\(\s*tenant_id, id,/);
   assert.match(String(calls[0]!.params[1]), /^[0-9a-f-]{36}$/i);
   assert.match(String(calls[1]!.params[1]), /^[0-9a-f-]{36}$/i);
@@ -262,6 +268,28 @@ test('AcademicsService rejects subject teacher assignments outside active tenant
       teacher_user_id: 'external-user-1',
     }),
     /active staff member in this school/,
+  );
+});
+
+test('AcademicsService rejects subject departments outside the active tenant', async () => {
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    {
+      executeSql: async () => ({ rows: [] }),
+      createSubject: async () => {
+        throw new Error('createSubject should not run');
+      },
+    } as never,
+    {} as never,
+  );
+
+  await assert.rejects(
+    () => service.createSubject({
+      code: 'MAT',
+      name: 'Mathematics',
+      department_id: 'external-department',
+    }),
+    /active academic department from this school/,
   );
 });
 
