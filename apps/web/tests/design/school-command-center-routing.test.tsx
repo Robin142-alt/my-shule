@@ -115,18 +115,19 @@ jest.mock("@/components/school/discipline-master-command-center", () => ({
 }));
 
 const dedicatedRoleCases = [
+  ["deputy-principal", "deputy-principal-command-center"],
   ["dean-academics", "dean-academics-command-center"],
   ["exams-manager", "exams-manager-command-center"],
   ["hod", "hod-command-center"],
   ["grade-master", "grade-master-command-center"],
 ] as const;
 
-const standardOperationalRoleCases = [
-  "deputy-principal",
+const sharedFallbackRoleCases = [
   "secretary",
   "accountant",
   "bursar",
   "class-teacher",
+  "admin",
   "storekeeper",
   "librarian",
   "nurse",
@@ -164,8 +165,8 @@ describe("school command center routing", () => {
     },
   );
 
-  it.each(standardOperationalRoleCases)(
-    "routes %s through the tenant-clean standard operational center",
+  it.each(sharedFallbackRoleCases)(
+    "routes %s through the tenant-clean shared fallback center",
     async (role) => {
       renderWithProviders(
         createElement(SchoolPages, {

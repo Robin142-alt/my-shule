@@ -9,6 +9,7 @@ import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import {
   getCurrentSchoolId,
   publishSchoolOperationalEvent,
+  readSchoolData,
 } from "@/lib/school/school-operational-store";
 
 type DeputyOverviewData = {
@@ -30,9 +31,19 @@ type DeputyOverviewData = {
   }>;
 };
 
-export function DeputyOverviewWorkspace() {
+type CounsellingFollowUp = {
+  id: string;
+  student: string;
+  riskLevel: string;
+  sessionType: string;
+  status: string;
+};
+
+export function DeputyOverviewWorkspace({ schoolId }: { schoolId?: string }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const currentSchoolId = schoolId?.trim() || getCurrentSchoolId();
   const { data, isLoading } = useSchoolQuery<DeputyOverviewData>('/admin-command/deputy/overview');
+  const { data: fetchedCounsellingSessions } = useSchoolQuery<CounsellingFollowUp[]>('/api/support/counselling');
 
   const handleStartMorningReview = async () => {
     setIsSubmitting(true);
@@ -48,7 +59,7 @@ export function DeputyOverviewWorkspace() {
         },
       });
       publishSchoolOperationalEvent({
-        schoolId: getCurrentSchoolId(),
+        schoolId: currentSchoolId,
         type: "deputy.morning_review.started",
         module: "deputy-principal",
         actorRole: "deputy-principal",
@@ -75,6 +86,23 @@ export function DeputyOverviewWorkspace() {
   const presentToday = data?.metrics?.present_today || 0;
   const absentToday = data?.metrics?.absent_today || 0;
   const recentIncidents = data?.recent_incidents || [];
+  const storedCounsellingSessions = readSchoolData<CounsellingFollowUp>(
+    "counselling-sessions",
+    currentSchoolId,
+  );
+  const counsellingSessions = Array.from(
+    new Map(
+      [
+        ...(Array.isArray(fetchedCounsellingSessions) ? fetchedCounsellingSessions : []),
+        ...storedCounsellingSessions,
+      ].map((session) => [session.id, session]),
+    ).values(),
+  );
+  const counsellingFollowUps = counsellingSessions.filter(
+    (session) =>
+      session.status !== "Closed"
+      && ["high", "critical"].includes(session.riskLevel.toLowerCase()),
+  );
 
   const getToneForSeverity = (severity: string): Tone => {
     switch (severity?.toLowerCase()) {
@@ -108,6 +136,25 @@ export function DeputyOverviewWorkspace() {
           <div className="mt-2 text-3xl font-black text-[#071D49]">{isLoading ? "..." : escalatedIncidents}</div>
         </div>
       </div>
+
+      {counsellingFollowUps.length > 0 ? (
+        <section className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4" aria-labelledby="deputy-counselling-follow-ups">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <h2 id="deputy-counselling-follow-ups" className="font-black text-amber-950">Counselling support requiring follow-up</h2>
+              <div className="mt-3 grid gap-2">
+                {counsellingFollowUps.slice(0, 5).map((session) => (
+                  <div key={session.id} className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-[#071D49]">
+                    <p className="font-black">{session.student} high-risk counselling follow-up</p>
+                    <p className="mt-1 text-[#64748B]">{session.sessionType} - {session.status}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
         <table className="w-full text-sm text-left whitespace-nowrap">

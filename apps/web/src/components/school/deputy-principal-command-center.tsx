@@ -86,6 +86,26 @@ const BASE_NAV_ITEMS: NavItem[] = [
   { id: "settings", label: "Settings", icon: Settings, group: "Administration" },
 ];
 
+const DEPUTY_WORKSPACE_ALIASES: Record<string, string> = {
+  dashboard: "overview",
+  "attendance-escalations": "attendance",
+  "attendance-monitoring": "attendance",
+  "discipline-cases": "discipline",
+  "incident-routing": "discipline",
+  "staff-coordination": "staff-duty",
+  "duty-roster": "staff-duty",
+  "timetable-conflicts": "timetable",
+  "academic-review": "academics",
+  "academic-setup": "academics",
+  "classes-streams": "classes",
+  "reports-downloads": "reports",
+};
+
+function resolveDeputyWorkspace(section?: string) {
+  if (!section) return "overview";
+  return DEPUTY_WORKSPACE_ALIASES[section] ?? section;
+}
+
 function getDeputySchoolId(tenantSlug?: string | null) {
   return tenantSlug?.trim() || "school-workspace";
 }
@@ -108,7 +128,7 @@ export function DeputyPrincipalCommandCenter({
   const schoolId = getDeputySchoolId(tenantSlug);
   const schoolName = getDeputySchoolName(schoolId);
   const deputyName = userLabel?.trim() || "Deputy Principal";
-  const [activeWorkspace, setActiveWorkspaceState] = useState(activeSection && activeSection !== "dashboard" ? activeSection : "overview");
+  const [activeWorkspace, setActiveWorkspaceState] = useState(resolveDeputyWorkspace(activeSection));
 
   const setActiveWorkspace = (view: string) => {
     setActiveWorkspaceState(view);
@@ -151,7 +171,7 @@ export function DeputyPrincipalCommandCenter({
 
   const renderWorkspace = () => {
     switch (activeWorkspace) {
-      case "overview": return <DeputyOverviewWorkspace />;
+      case "overview": return <DeputyOverviewWorkspace schoolId={schoolId} />;
       case "daily-operations": return <DeputyDailyOperationsWorkspace />;
       case "attendance": return <DeputyAttendanceWorkspace />;
       case "discipline": return <DeputyDisciplineWorkspace />;
@@ -203,7 +223,7 @@ export function DeputyPrincipalCommandCenter({
       case "reports": return <DeputyReportsDownloadsWorkspace />;
       case "staff-roles": return <DeputyStaffRolesWorkspace />;
       case "settings": return <DeputySettingsWorkspace />;
-      default: return <DeputyOverviewWorkspace />;
+      default: return <DeputyOverviewWorkspace schoolId={schoolId} />;
     }
   };
 
@@ -274,9 +294,26 @@ export function DeputyPrincipalCommandCenter({
             </div>
           </header>
 
+          <div className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-white p-3 shadow-sm xl:hidden">
+            <label htmlFor="deputy-mobile-workspace" className="mb-2 block text-xs font-black uppercase tracking-[0.14em] text-[#5F6F89]">
+              Deputy workspace
+            </label>
+            <select
+              id="deputy-mobile-workspace"
+              aria-label="Deputy workspace navigation"
+              value={navItems.some((item) => item.id === activeWorkspace) ? activeWorkspace : "overview"}
+              onChange={(event) => setActiveWorkspace(event.currentTarget.value)}
+              className="h-11 w-full rounded-[var(--radius)] border border-[#C8D5EA] bg-[#F8FAFC] px-3 text-sm font-bold text-[#071D49] outline-none focus:border-cyan-400 focus:ring-4 focus:ring-cyan-300/20"
+            >
+              {navItems.map((item) => (
+                <option key={item.id} value={item.id}>{item.label}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="rounded-[var(--radius-xl)] bg-[#071D49] p-5 shadow-[0_24px_70px_rgba(7,29,73,0.22)]">
             <h1 className="mb-6 text-3xl font-black text-white">
-              {navItems.find((n) => n.id === activeWorkspace)?.label}
+              {navItems.find((n) => n.id === activeWorkspace)?.label ?? "Overview"}
             </h1>
             {renderWorkspace()}
           </div>

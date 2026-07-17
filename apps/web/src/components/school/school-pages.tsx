@@ -887,8 +887,7 @@ const disciplineMasterCommandCenterSectionIds = new Set([
   "audit",
   "settings",
 ]);
-const standardOperationalRoleIds = new Set<SchoolExperienceRole>([
-  "deputy-principal",
+const sharedOperationalFallbackRoleIds = new Set<SchoolExperienceRole>([
   "secretary",
   "bursar",
   "accountant",
@@ -907,7 +906,7 @@ const standardOperationalRoleIds = new Set<SchoolExperienceRole>([
 
 function shouldRenderRoleOperationalWorkspace(role: SchoolExperienceRole, section: string) {
   if (
-    standardOperationalRoleIds.has(role)
+    sharedOperationalFallbackRoleIds.has(role)
     && roleOperationalWorkspaceSectionIds.has(section)
     && !supportWorkspaceSectionIds.has(section)
   ) {
@@ -4790,7 +4789,7 @@ function SchoolPagesShell({
       }
     }
 
-    if (standardOperationalRoleIds.has(role)) {
+    if (sharedOperationalFallbackRoleIds.has(role)) {
       return (
         <RoleOperationalCommandCenter
           key={`${role}:${section}`}

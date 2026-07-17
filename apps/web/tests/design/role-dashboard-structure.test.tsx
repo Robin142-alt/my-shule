@@ -220,9 +220,10 @@ describe("role dashboard operational structure", () => {
 
     const deputyDiscipline = renderWithProviders(<SchoolPages role="deputy-principal" section="discipline" tenantSlug="kisumu-boys" />);
 
-    expect(await screen.findByTestId("role-operational-command-center")).toBeVisible();
-    expect(screen.getByRole("heading", { name: /deputy principal operations/i })).toBeVisible();
-    expect(screen.getAllByText(/Discipline/i).length).toBeGreaterThan(0);
+    expect(await screen.findByTestId("deputy-principal-command-center")).toBeVisible();
+    expect(screen.getByText(/Deputy Principal Dashboard/i)).toBeVisible();
+    expect(screen.getAllByRole("heading", { name: /Discipline & Behaviour/i }).length).toBeGreaterThan(0);
+    expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
     deputyDiscipline.unmount();
   }, 30000);
 
@@ -583,32 +584,26 @@ describe("role dashboard operational structure", () => {
     expect(sidebar?.className ?? "").toMatch(/-translate-x-full/);
   }, 30000);
 
-  it("keeps non-principal role dashboards on one main scroll area with a mobile drawer sidebar", async () => {
+  it("keeps the dedicated deputy dashboard page-scrolled with complete mobile workspace navigation", async () => {
     const user = userEvent.setup();
 
     renderWithProviders(<SchoolPages role="deputy-principal" tenantSlug="kisumu-boys" />);
 
-    const commandCenter = await screen.findByTestId("role-operational-command-center");
-    const contentScrollArea = commandCenter.querySelector("main section");
+    const commandCenter = await screen.findByTestId("deputy-principal-command-center");
     const sidebar = commandCenter.querySelector("aside");
+    const mobileWorkspace = within(commandCenter).getByRole("combobox", { name: /Deputy workspace navigation/i });
 
-    expect(commandCenter.className).toMatch(/min-h-dvh/);
-    expect(commandCenter.className).not.toMatch(/h-screen/);
-    expect(contentScrollArea?.className ?? "").toMatch(/overflow-y-auto/);
-    expect(sidebar?.className ?? "").toMatch(/fixed/);
-    expect(sidebar?.className ?? "").toMatch(/-translate-x-full/);
+    expect(commandCenter.className.split(/\s+/)).toContain("min-h-screen");
+    expect(commandCenter.className.split(/\s+/)).not.toContain("h-screen");
+    expect(sidebar?.className ?? "").toMatch(/xl:sticky/);
+    expect(sidebar?.className ?? "").toMatch(/hidden/);
     expect(commandCenter.innerHTML).not.toContain("max-h-[calc(100vh");
     expect(commandCenter.innerHTML).not.toContain("grid h-full min-h-0");
+    expect(mobileWorkspace).toHaveValue("overview");
 
-    await user.click(within(commandCenter).getByRole("button", { name: /Open Deputy Principal menu/i }));
-
-    expect(within(commandCenter).getByRole("button", { name: /Close Deputy Principal menu overlay/i })).toBeInTheDocument();
-    expect(sidebar?.className ?? "").toMatch(/translate-x-0/);
-
-    await user.click(within(commandCenter).getAllByRole("button", { name: /Attendance/i })[0]);
-
-    expect(within(commandCenter).queryByRole("button", { name: /Close Deputy Principal menu overlay/i })).not.toBeInTheDocument();
-    expect(sidebar?.className ?? "").toMatch(/-translate-x-full/);
+    await user.selectOptions(mobileWorkspace, "attendance");
+    expect(mobileWorkspace).toHaveValue("attendance");
+    expect(within(commandCenter).getAllByRole("heading", { name: /Attendance & Punctuality/i }).length).toBeGreaterThan(0);
   }, 30000);
 
   it("does not repeat the same specialized workspace for different role sidebar items", async () => {
