@@ -69,6 +69,58 @@ test('DatabaseFileStorageService stores tenant-scoped objects with a checksum', 
   });
 });
 
+test('DatabaseFileStorageService reads a tenant-scoped database object for an authenticated workflow', async () => {
+  const content = Buffer.from('school-logo');
+  const queries: Array<{ sql: string; values: unknown[] }> = [];
+  const storage = new DatabaseFileStorageService({
+    query: async (sql: string, values: unknown[]) => {
+      queries.push({ sql, values });
+      return {
+        rows: [{
+          storage_path: values[1],
+          original_file_name: 'logo.png',
+          mime_type: 'image/png',
+          size_bytes: content.length,
+          sha256: createHash('sha256').update(content).digest('hex'),
+          content,
+          storage_backend: 'database',
+          retention_policy: 'operational',
+          retention_expires_at: null,
+        }],
+      };
+    },
+  } as never);
+
+  const file = await storage.readForTenant({
+    tenantId: 'tenant-a',
+    storagePath: 'tenant/tenant-a/school_logo/logo.png',
+  });
+
+  assert.equal(file.original_file_name, 'logo.png');
+  assert.equal(file.mime_type, 'image/png');
+  assert.deepEqual(file.content, content);
+  assert.deepEqual(queries[0].values, ['tenant-a', 'tenant/tenant-a/school_logo/logo.png']);
+});
+
+test('DatabaseFileStorageService rejects cross-tenant direct reads before querying storage', async () => {
+  let queryCount = 0;
+  const storage = new DatabaseFileStorageService({
+    query: async () => {
+      queryCount += 1;
+      return { rows: [] };
+    },
+  } as never);
+
+  await assert.rejects(
+    storage.readForTenant({
+      tenantId: 'tenant-a',
+      storagePath: 'tenant/tenant-b/school_logo/logo.png',
+    }),
+    /tenant-scoped storage path/,
+  );
+  assert.equal(queryCount, 0);
+});
+
 test('DatabaseFileStorageService writes enabled uploads to object storage and stores external metadata', async () => {
   const buffer = Buffer.from('%PDF-1.7\nexternal object storage upload');
   const queries: Array<{ sql: string; values: unknown[] }> = [];

@@ -2224,6 +2224,91 @@ test('AdminCommandService persists a principal school profile and records the co
   assert.equal(result.profile.contactInfo.email, 'office@maranda.test');
 });
 
+test('AdminCommandRepository repairs legacy database logo URLs with the authenticated content route', async () => {
+  const repository = new AdminCommandRepository({
+    query: async () => ({
+      rows: [{
+        name: 'Kibabi High',
+        subdomain: 'kibabi-high',
+        status: 'active',
+        settings: {
+          logo_url: '/api/v1/files/tenant%2Ftenant-a%2Fschool_logo%2Fkibabi.png/download',
+        },
+        metadata: {},
+      }],
+    }),
+  } as never);
+
+  const profile = await repository.getSchoolProfile('tenant-a');
+
+  assert.equal(profile?.logoStoragePath, 'tenant/tenant-a/school_logo/kibabi.png');
+  assert.equal(profile?.logoUrl, '/api/admin-command/principal/school-profile/logo/content');
+});
+
+test('AdminCommandService stores, audits, and serves school logos inside the current tenant', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const content = Buffer.from('png-content');
+  const storagePath = 'tenant/tenant-a/school_logo/kibabi.png';
+  const service = new AdminCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      updateSchoolLogoUrl: async (tenantId: string, url: string, path: string) => {
+        calls.push({ kind: 'logo', tenantId, url, path });
+      },
+      createPrincipalWorkflowAction: async (input: Record<string, unknown>) => {
+        calls.push({ kind: 'event', ...input });
+        return { id: '22222222-2222-4222-8222-222222222222' };
+      },
+      appendAuditLog: async (input: Record<string, unknown>) => {
+        calls.push({ kind: 'audit', ...input });
+      },
+      getSchoolProfile: async () => ({ logoStoragePath: storagePath }),
+    } as never,
+    {
+      save: async () => ({
+        stored_path: storagePath,
+        original_file_name: 'kibabi.png',
+        mime_type: 'image/png',
+        size_bytes: content.length,
+        sha256: 'checksum',
+        storage_backend: 'database',
+        retention_policy: 'operational',
+        retention_expires_at: null,
+      }),
+      readForTenant: async (input: Record<string, unknown>) => ({
+        stored_path: input.storagePath,
+        original_file_name: 'kibabi.png',
+        mime_type: 'image/png',
+        size_bytes: content.length,
+        sha256: 'checksum',
+        storage_backend: 'database',
+        retention_policy: 'operational',
+        retention_expires_at: null,
+        content,
+      }),
+    } as never,
+  );
+
+  const uploaded = await service.uploadSchoolLogo({
+    originalname: 'kibabi.png',
+    mimetype: 'image/png',
+    size: content.length,
+    buffer: content,
+  });
+  const served = await service.getSchoolLogoContent();
+
+  assert.equal(uploaded.url, '/api/admin-command/principal/school-profile/logo/content');
+  assert.deepEqual(served.content, content);
+  assert.equal(calls[0].kind, 'logo');
+  assert.equal(calls[1].event_type, 'principal.school_logo_uploaded');
+  assert.equal(calls[2].action, 'principal.school_logo_uploaded');
+});
+
 test('IctManagerCommandService records asset management requests as tenant-scoped workflow events', async () => {
   const workflowCalls: any[] = [];
   const service = new IctManagerCommandService(

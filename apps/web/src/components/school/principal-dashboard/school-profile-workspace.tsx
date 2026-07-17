@@ -61,6 +61,7 @@ export function PrincipalSchoolProfileWorkspace() {
   const [isUploading, setIsUploading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isDirtyRef = useRef(false);
 
@@ -115,8 +116,13 @@ export function PrincipalSchoolProfileWorkspace() {
     const body = new FormData();
     body.append("logo", file);
     try {
-      await requestDashboardApi("/admin-command/principal/school-profile/logo", { method: "POST", body });
+      const uploaded = await requestDashboardApi<{ url: string }>("/admin-command/principal/school-profile/logo", { method: "POST", body });
       await refetch();
+      const verification = await fetch(uploaded.url, { cache: "no-store", credentials: "include" });
+      if (!verification.ok || !verification.headers.get("content-type")?.startsWith("image/")) {
+        throw new Error("The logo was saved but could not be displayed. Try uploading it again.");
+      }
+      setFailedLogoUrl(null);
       setSuccessMessage("School logo uploaded.");
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : "School logo could not be uploaded.");
@@ -144,9 +150,9 @@ export function PrincipalSchoolProfileWorkspace() {
       <Card className="border border-white/10 bg-white/5 p-5 text-white">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-4">
-            {data.logoUrl ? (
+            {data.logoUrl && failedLogoUrl !== data.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={data.logoUrl} alt={`${data.schoolName} logo`} className="h-20 w-20 shrink-0 rounded-lg border border-white/15 bg-white object-contain" />
+              <img src={data.logoUrl} alt={`${data.schoolName} logo`} onError={() => setFailedLogoUrl(data.logoUrl ?? null)} className="h-20 w-20 shrink-0 rounded-lg border border-white/15 bg-white object-contain" />
             ) : (
               <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/5"><Building2 className="h-10 w-10 text-cyan-200" /></div>
             )}
@@ -168,6 +174,7 @@ export function PrincipalSchoolProfileWorkspace() {
       </Card>
 
       {actionError ? <div role="alert" className="rounded-lg border border-red-300/30 bg-red-300/10 px-4 py-3 text-sm font-bold text-red-100">{actionError}</div> : null}
+      {data.logoUrl && failedLogoUrl === data.logoUrl ? <div role="alert" className="rounded-lg border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-sm font-bold text-amber-100">The saved logo could not be displayed. Upload the logo again to repair the school branding.</div> : null}
       {successMessage ? <div role="status" className="rounded-lg border border-emerald-300/30 bg-emerald-300/10 px-4 py-3 text-sm font-bold text-emerald-100">{successMessage}</div> : null}
 
       <Card className="border border-white/10 bg-white/5 p-5 text-white">

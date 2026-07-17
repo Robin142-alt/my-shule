@@ -163,6 +163,52 @@ export class DatabaseFileStorageService {
     return mapStoredFileObjectRow(row);
   }
 
+  async readForTenant(input: {
+    tenantId: string;
+    storagePath: string;
+  }): Promise<StoredFileObjectRead> {
+    const tenantId = input.tenantId.trim();
+    const storagePath = input.storagePath.trim();
+
+    this.assertTenantScopedStoragePath(tenantId, storagePath);
+
+    const result = await this.databaseService.query<StoredFileObjectReadRow>(
+      `
+        SELECT
+          storage_path,
+          original_file_name,
+          mime_type,
+          size_bytes,
+          sha256,
+          content,
+          storage_backend,
+          object_storage_provider,
+          object_storage_bucket,
+          object_storage_key,
+          object_storage_etag,
+          retention_policy,
+          retention_expires_at::text
+        FROM file_objects
+        WHERE tenant_id = $1
+          AND storage_path = $2
+        LIMIT 1
+      `,
+      [tenantId, storagePath],
+    );
+    const row = result.rows[0];
+
+    if (!row) {
+      throw new BadRequestException('File object was not found');
+    }
+
+    const content = await this.readFileContent(row, tenantId, storagePath);
+
+    return {
+      ...mapStoredFileObjectRow(row),
+      content,
+    };
+  }
+
   createSignedReadToken(input: {
     tenantId: string;
     storagePath: string;

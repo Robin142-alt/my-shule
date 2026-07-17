@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Post, Sse, UploadedFile, UseInterceptors, Param, Patch, Delete, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Sse, StreamableFile, UploadedFile, UseInterceptors, Param, Patch, Delete, Query } from '@nestjs/common';
+import { SkipResponseEnvelope } from '../../common/decorators/skip-response-envelope.decorator';
 import { StreamingUploadInterceptor } from '../../common/uploads/streaming-upload.interceptor';
 import { UploadFileMetadata } from '../../common/uploads/upload-policy';
 
@@ -786,6 +787,20 @@ export class AdminCommandController {
     @UploadedFile() file: UploadFileMetadata,
   ) {
     return this.adminCommandService.uploadSchoolLogo(file);
+  }
+
+  @Get('principal/school-profile/logo/content')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read')
+  @SkipResponseEnvelope()
+  async getSchoolLogoContent() {
+    const logo = await this.adminCommandService.getSchoolLogoContent();
+
+    return new StreamableFile(logo.content, {
+      type: logo.mime_type,
+      disposition: `inline; filename="${logo.original_file_name}"`,
+      length: logo.size_bytes,
+    });
   }
 
   @Post('boarding/assign-bed')

@@ -4,6 +4,7 @@ import {
   BadRequestException,
   Injectable,
   MessageEvent,
+  NotFoundException,
   Optional,
   ServiceUnavailableException,
   UnauthorizedException,
@@ -56,8 +57,8 @@ export class AdminCommandService {
     private readonly requestContext: RequestContextService,
     private readonly repository: AdminCommandRepository,
     private readonly fileStorage: DatabaseFileStorageService,
-    @Optional() private readonly objectStorage?: S3CompatibleObjectStorageService,
-    private readonly configService?: ConfigService,
+    @Optional() private readonly _objectStorage?: S3CompatibleObjectStorageService,
+    private readonly _configService?: ConfigService,
     @Optional()
     private readonly principalInsights?: PrincipalInsightsService,
     @Optional()
@@ -413,39 +414,51 @@ export class AdminCommandService {
     }
 
     const tenantId = this.requireTenantId();
-    let publicUrl: string;
+    const persistedFile = await this.fileStorage.save({
+      tenantId,
+      storagePath: `tenant/${tenantId}/school_logo/${Date.now()}-${file.originalname}`,
+      originalFileName: file.originalname,
+      mimeType: file.mimetype,
+      sizeBytes: file.size,
+      buffer: file.buffer,
+      metadata: { owner_type: 'school_logo' },
+    });
+    const publicUrl = '/api/admin-command/principal/school-profile/logo/content';
 
-    const useObjectStorage = this.configService?.get<string>('UPLOAD_OBJECT_STORAGE_ENABLED') === 'true';
-
-    if (useObjectStorage && this.objectStorage) {
-      const storagePath = `tenant/${tenantId}/school_logo/${Date.now()}-${file.originalname}`;
-      const result = await this.objectStorage.putObject({
-        tenantId,
-        storagePath,
-        mimeType: file.mimetype,
-        buffer: file.buffer,
-      });
-
-      const endpoint = this.configService?.get<string>('UPLOAD_OBJECT_STORAGE_ENDPOINT')?.replace(/\/$/, '') ?? '';
-      const bucket = this.configService?.get<string>('UPLOAD_OBJECT_STORAGE_BUCKET') ?? '';
-      publicUrl = `${endpoint}/${bucket}/${result.key}`;
-    } else {
-      // Fallback to database file storage if S3 is not enabled
-      const persistedFile = await this.fileStorage.save({
-        tenantId,
-        storagePath: `tenant/${tenantId}/school_logo/${Date.now()}-${file.originalname}`,
-        originalFileName: file.originalname,
-        mimeType: file.mimetype,
-        sizeBytes: file.size,
-        buffer: file.buffer,
-        metadata: { owner_type: 'school_logo' },
-      });
-      publicUrl = `/api/v1/files/${encodeURIComponent(persistedFile.stored_path)}/download`;
-    }
-
-    await this.repository.updateSchoolLogoUrl(tenantId, publicUrl);
+    await this.repository.updateSchoolLogoUrl(tenantId, publicUrl, persistedFile.stored_path);
+    await this.recordPrincipalWorkflowAction({
+      action: 'principal.school_logo_uploaded',
+      entityType: 'school_profile',
+      title: 'School logo uploaded',
+      message: 'Principal updated the school logo used across MyShule.',
+      payload: {
+        storage_path: persistedFile.stored_path,
+        mime_type: persistedFile.mime_type,
+        size_bytes: persistedFile.size_bytes,
+      },
+      status: 'completed',
+    });
 
     return { url: publicUrl };
+  }
+
+  async getSchoolLogoContent() {
+    const tenantId = this.requireTenantId();
+    const profile = await this.repository.getSchoolProfile(tenantId);
+    const storagePath = String(profile?.logoStoragePath ?? '').trim();
+
+    if (!storagePath) {
+      throw new NotFoundException('This school has not uploaded a logo');
+    }
+
+    try {
+      return await this.fileStorage.readForTenant({ tenantId, storagePath });
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw new NotFoundException('The uploaded school logo could not be found');
+      }
+      throw error;
+    }
   }
 
   private async audit(

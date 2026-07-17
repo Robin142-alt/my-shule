@@ -1139,6 +1139,8 @@ export class AdminCommandRepository {
     const phone = String(settings.phone ?? '');
     const county = String(settings.county ?? settings.region ?? '');
     const address = String(settings.address ?? '');
+    const rawLogoUrl = String(settings.logo_url ?? '');
+    const logoStoragePath = String(settings.logo_storage_path ?? '') || extractLogoStoragePath(rawLogoUrl);
 
     return {
       status: email && phone && county && address ? "active" : "setup_required",
@@ -1150,7 +1152,10 @@ export class AdminCommandRepository {
       ward: String(settings.ward ?? ''),
       address,
       website: String(settings.website ?? ''),
-      logoUrl: String(settings.logo_url ?? '') || null,
+      logoUrl: logoStoragePath
+        ? '/api/admin-command/principal/school-profile/logo/content'
+        : rawLogoUrl || null,
+      logoStoragePath: logoStoragePath || null,
       registrationStatus: String(metadata.registration_status ?? tenant.status ?? 'active'),
       curriculum: String(settings.curriculum ?? ''),
       schoolType: String(settings.school_type ?? ''),
@@ -1196,14 +1201,17 @@ export class AdminCommandRepository {
     return this.getSchoolProfile(tenantId);
   }
 
-  async updateSchoolLogoUrl(tenantId: string, logoUrl: string) {
+  async updateSchoolLogoUrl(tenantId: string, logoUrl: string, storagePath: string) {
     await this.executeSql(
       `
         UPDATE tenants
-        SET settings = COALESCE(settings, '{}'::jsonb) || jsonb_build_object('logo_url', $2::text), updated_at = NOW()
+        SET settings = COALESCE(settings, '{}'::jsonb) || jsonb_build_object(
+          'logo_url', $2::text,
+          'logo_storage_path', $3::text
+        ), updated_at = NOW()
         WHERE tenant_id = $1
       `,
-      [tenantId, logoUrl],
+      [tenantId, logoUrl, storagePath],
     );
   }
 
@@ -1847,5 +1855,22 @@ export class AdminCommandRepository {
       ],
     );
     return result.rows[0];
+  }
+}
+
+function extractLogoStoragePath(logoUrl: string): string {
+  if (!logoUrl) {
+    return '';
+  }
+
+  try {
+    const pathname = /^https?:\/\//i.test(logoUrl)
+      ? new URL(logoUrl).pathname
+      : logoUrl.split('?')[0];
+    const match = pathname.match(/^\/api\/v1\/files\/(.+)\/download$/);
+
+    return match?.[1] ? decodeURIComponent(match[1]) : '';
+  } catch {
+    return '';
   }
 }
