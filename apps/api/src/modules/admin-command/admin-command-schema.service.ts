@@ -281,6 +281,12 @@ export class AdminCommandSchemaService implements OnModuleInit {
       ALTER TABLE principal_alerts ADD COLUMN IF NOT EXISTS severity text NOT NULL DEFAULT 'info';
       ALTER TABLE report_schedule_requests ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'scheduled';
 
+      ALTER TABLE workflow_events ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'pending';
+      ALTER TABLE workflow_events ADD COLUMN IF NOT EXISTS handled_by_user_id uuid;
+      ALTER TABLE workflow_events ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
+      CREATE INDEX IF NOT EXISTS idx_workflow_events_status
+        ON workflow_events (tenant_id, status);
+
       ALTER TABLE boarding_allocations ALTER COLUMN status TYPE text USING status::text;
       ALTER TABLE boarding_allocations ALTER COLUMN student_id TYPE text USING student_id::text;
       ALTER TABLE boarding_allocations ALTER COLUMN bed_id TYPE text USING bed_id::text;

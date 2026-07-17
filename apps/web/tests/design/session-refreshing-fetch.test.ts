@@ -1,10 +1,14 @@
 import { fetchWithSessionRefresh } from "@/lib/dashboard/session-refreshing-fetch";
 
 function jsonResponse(body: unknown, init?: ResponseInit) {
-  return {
-    status: init?.status ?? 200,
-    text: async () => JSON.stringify(body),
-  } as Response;
+  return new Response(JSON.stringify(body), {
+    ...init,
+    headers: { "content-type": "application/json", ...init?.headers },
+  });
+}
+
+function decodeBody(body: ArrayBuffer) {
+  return new TextDecoder().decode(body);
 }
 
 describe("session refreshing fetch", () => {
@@ -27,7 +31,7 @@ describe("session refreshing fetch", () => {
     });
 
     expect(result.response.status).toBe(200);
-    expect(result.body).toBe(JSON.stringify({ data: [{ tenant_id: "kaimosi-high" }] }));
+    expect(decodeBody(result.body)).toBe(JSON.stringify({ data: [{ tenant_id: "kaimosi-high" }] }));
     expect(refreshSession).toHaveBeenCalledTimes(1);
     expect(send).toHaveBeenNthCalledWith(1, "expired-access-token");
     expect(send).toHaveBeenNthCalledWith(2, "fresh-access-token");
@@ -47,7 +51,7 @@ describe("session refreshing fetch", () => {
     });
 
     expect(result.response.status).toBe(409);
-    expect(result.body).toBe(JSON.stringify({ message: "Tenant already exists" }));
+    expect(decodeBody(result.body)).toBe(JSON.stringify({ message: "Tenant already exists" }));
     expect(refreshSession).not.toHaveBeenCalled();
     expect(send).toHaveBeenCalledTimes(1);
   });
@@ -68,5 +72,26 @@ describe("session refreshing fetch", () => {
     expect(result.sessionExpired).toBe(true);
     expect(refreshSession).toHaveBeenCalledTimes(1);
     expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves binary upstream response bytes for authenticated image routes", async () => {
+    const imageBytes = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 255, 17]);
+    const send = jest.fn().mockResolvedValue(
+      new Response(imageBytes, {
+        status: 200,
+        headers: { "content-type": "image/png" },
+      }),
+    );
+    const refreshSession = jest.fn();
+
+    const result = await fetchWithSessionRefresh({
+      accessToken: "valid-access-token",
+      refreshSession,
+      send,
+    });
+
+    expect(Array.from(new Uint8Array(result.body))).toEqual(Array.from(imageBytes));
+    expect(result.response.headers.get("content-type")).toBe("image/png");
+    expect(refreshSession).not.toHaveBeenCalled();
   });
 });

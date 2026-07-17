@@ -10,7 +10,7 @@ type FetchWithSessionRefreshInput<TSession extends RefreshableSession> = {
 
 type FetchWithSessionRefreshResult<TSession extends RefreshableSession> = {
   response: Response;
-  body: string;
+  body: ArrayBuffer;
   refreshedSession?: TSession;
   sessionExpired?: boolean;
 };
@@ -42,9 +42,11 @@ export async function fetchWithSessionRefresh<TSession extends RefreshableSessio
   input: FetchWithSessionRefreshInput<TSession>,
 ): Promise<FetchWithSessionRefreshResult<TSession>> {
   const firstResponse = await input.send(input.accessToken);
-  const firstBody = await firstResponse.text();
+  const firstBody = await firstResponse.arrayBuffer();
+  const firstResponseText =
+    firstResponse.status === 401 ? new TextDecoder().decode(firstBody) : "";
 
-  if (!isRefreshableSessionFailure(firstResponse.status, firstBody)) {
+  if (!isRefreshableSessionFailure(firstResponse.status, firstResponseText)) {
     return {
       response: firstResponse,
       body: firstBody,
@@ -54,7 +56,7 @@ export async function fetchWithSessionRefresh<TSession extends RefreshableSessio
   try {
     const refreshedSession = await input.refreshSession();
     const retryResponse = await input.send(refreshedSession.accessToken);
-    const retryBody = await retryResponse.text();
+    const retryBody = await retryResponse.arrayBuffer();
 
     return {
       response: retryResponse,

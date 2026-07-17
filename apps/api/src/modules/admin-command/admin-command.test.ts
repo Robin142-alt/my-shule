@@ -52,6 +52,15 @@ test('AdminCommandSchemaService creates leadership workflow tables with tenant R
     assert.match(schemaSql, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
     assert.match(schemaSql, new RegExp(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`));
   }
+
+  assert.match(
+    schemaSql,
+    /ALTER TABLE workflow_events ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'pending'/,
+  );
+  assert.match(
+    schemaSql,
+    /CREATE INDEX IF NOT EXISTS idx_workflow_events_status\s+ON workflow_events \(tenant_id, status\)/,
+  );
 });
 
 test('AdminCommandRepository builds principal teaching schedule from tenant timetable records', async () => {
