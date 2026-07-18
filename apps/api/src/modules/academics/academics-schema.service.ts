@@ -686,6 +686,23 @@ export class AcademicsSchemaService implements OnModuleInit {
       ALTER TABLE subjects ADD COLUMN IF NOT EXISTS department_id uuid;
       ALTER TABLE subjects ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
       ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
+      WITH ranked_subject_codes AS (
+        SELECT id,
+          ROW_NUMBER() OVER (
+            PARTITION BY tenant_id, code
+            ORDER BY (status = 'active') DESC, updated_at DESC, created_at DESC, id DESC
+          ) AS duplicate_rank
+        FROM subjects
+      )
+      UPDATE subjects subject
+      SET code = subject.code || '-archived-' || left(subject.id::text, 8),
+          status = 'archived',
+          updated_at = NOW()
+      FROM ranked_subject_codes ranked
+      WHERE subject.id = ranked.id
+        AND ranked.duplicate_rank > 1;
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_subjects_tenant_code
+        ON subjects (tenant_id, code);
       CREATE INDEX IF NOT EXISTS ix_subjects_department
         ON subjects (tenant_id, department_id, name);
       CREATE INDEX IF NOT EXISTS ix_academics_departments_tenant_active

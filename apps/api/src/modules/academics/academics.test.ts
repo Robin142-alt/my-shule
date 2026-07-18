@@ -43,6 +43,8 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /uq_teacher_subject_assignments_scope/);
   assert.match(schemaSql, /uq_academic_years_tenant_name/);
   assert.match(schemaSql, /uq_academics_report_card_settings_tenant_name/);
+  assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS uq_subjects_tenant_code/);
+  assert.match(schemaSql, /PARTITION BY tenant_id, code/);
   assert.match(schemaSql, /academic_audit_logs DROP CONSTRAINT IF EXISTS academic_audit_logs_school_id_fkey/);
   assert.match(schemaSql, /UPDATE academic_audit_logs SET school_id = tenant_id/);
   assert.match(schemaSql, /CREATE UNIQUE INDEX ux_academics_class_teachers_scope/);
