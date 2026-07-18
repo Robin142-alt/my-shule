@@ -102,6 +102,11 @@ export function AcademicRecordManager({
   const [reason, setReason] = useState("");
   const [dependencies, setDependencies] = useState<DependencyResponse | null>(null);
   const [history, setHistory] = useState<HistoryRecord[]>([]);
+  const [dependenciesLoading, setDependenciesLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [dependencyError, setDependencyError] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [contextReload, setContextReload] = useState(0);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [mergeTarget, setMergeTarget] = useState("");
   const [mergePreview, setMergePreview] = useState<Record<string, any> | null>(null);
@@ -111,18 +116,40 @@ export function AcademicRecordManager({
     if (!open) return;
     let active = true;
     setDetailError(null);
+    setDependencyError(null);
+    setHistoryError(null);
+    setDependenciesLoading(true);
+    setHistoryLoading(true);
     Promise.all([
       requestDashboardApi<DependencyResponse>(`/academics/setup/${entityType}/${record.id}/dependencies`),
       requestDashboardApi<HistoryRecord[]>(`/academics/setup/${entityType}/${record.id}/history`),
-    ]).then(([dependencyResult, historyResult]) => {
+    ].map((request) => request.then(
+      (value) => ({ status: "fulfilled" as const, value }),
+      (reason) => ({ status: "rejected" as const, reason }),
+    ))).then(([dependencyResult, historyResult]) => {
       if (!active) return;
-      setDependencies(dependencyResult);
-      setHistory(Array.isArray(historyResult) ? historyResult : []);
-    }).catch((error) => {
-      if (active) setDetailError(error instanceof Error ? error.message : "Record details could not be loaded.");
+      if (dependencyResult.status === "fulfilled") {
+        setDependencies(dependencyResult.value as DependencyResponse);
+      } else {
+        setDependencies(null);
+        setDependencyError(dependencyResult.reason instanceof Error
+          ? dependencyResult.reason.message
+          : "Dependency safety could not be checked.");
+      }
+      if (historyResult.status === "fulfilled") {
+        const records = historyResult.value as HistoryRecord[];
+        setHistory(Array.isArray(records) ? records : []);
+      } else {
+        setHistory([]);
+        setHistoryError(historyResult.reason instanceof Error
+          ? historyResult.reason.message
+          : "Change history could not be loaded.");
+      }
+      setDependenciesLoading(false);
+      setHistoryLoading(false);
     });
     return () => { active = false; };
-  }, [entityType, open, record.id, record.version]);
+  }, [contextReload, entityType, open, record.id, record.version]);
 
   const lifecycleActions = useMemo(() => {
     if (status === "archived") return ["restore", "delete"] as const;
@@ -269,7 +296,12 @@ export function AcademicRecordManager({
 
           <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
             <h4 className="font-bold text-slate-900">Lifecycle and dependency safety</h4>
-            {!dependencies ? <p className="mt-2 text-sm text-slate-500">Loading dependencies...</p> : (
+            {dependenciesLoading ? <p className="mt-2 text-sm text-slate-500">Loading dependencies...</p> : dependencyError ? (
+              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <p className="font-semibold">Dependency safety could not be loaded. Editing remains available, but destructive actions are blocked until the check succeeds.</p>
+                <button type="button" onClick={() => setContextReload((value) => value + 1)} className="mt-2 min-h-9 rounded-lg border border-amber-300 bg-white px-3 text-xs font-bold">Retry dependency check</button>
+              </div>
+            ) : dependencies ? (
               <>
                 <p className="mt-1 text-sm text-slate-600">{dependencies.recommendation}</p>
                 {dependencies.dependencies.length ? (
@@ -282,13 +314,13 @@ export function AcademicRecordManager({
                   </ul>
                 ) : <p className="mt-3 text-sm font-semibold text-emerald-700">No linked operational records were found.</p>}
               </>
-            )}
+            ) : null}
             <div className="mt-4 flex flex-wrap gap-2">
               {lifecycleActions.map((action) => (
                 <button
                   key={action}
                   type="button"
-                  disabled={busy !== null || (action === "delete" && dependencies?.can_permanently_delete === false)}
+                  disabled={busy !== null || (action === "delete" && dependencies?.can_permanently_delete !== true)}
                   onClick={() => changeLifecycle(action)}
                   className={`inline-flex min-h-9 items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40 ${
                     action === "delete" ? "bg-red-700 text-white" : "border border-slate-300 bg-white text-slate-700"
@@ -331,7 +363,12 @@ export function AcademicRecordManager({
 
           <section className="rounded-xl border border-slate-200 p-4">
             <h4 className="flex items-center gap-2 font-bold text-slate-900"><History className="h-4 w-4" /> Change history</h4>
-            {history.length === 0 ? <p className="mt-2 text-sm text-slate-500">No previous changes have been recorded.</p> : (
+            {historyLoading ? <p className="mt-2 text-sm text-slate-500">Loading change history...</p> : historyError ? (
+              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <p className="font-semibold">Change history could not be loaded. No saved history was removed.</p>
+                <button type="button" onClick={() => setContextReload((value) => value + 1)} className="mt-2 min-h-9 rounded-lg border border-amber-300 bg-white px-3 text-xs font-bold">Retry history</button>
+              </div>
+            ) : history.length === 0 ? <p className="mt-2 text-sm text-slate-500">No previous changes have been recorded.</p> : (
               <div className="mt-3 max-h-52 space-y-2 overflow-y-auto">
                 {history.map((entry) => (
                   <div key={entry.id} className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">

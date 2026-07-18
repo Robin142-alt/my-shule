@@ -112,6 +112,37 @@ test('AcademicsRepository writes settings across legacy UUID and current text sc
   }
 });
 
+test('AcademicsRepository checks setup dependencies with contiguous PostgreSQL parameters', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new AcademicsRepository({
+    executeWithTenant: async (
+      tenantId: string,
+      _userId: string | null,
+      callback: (tx: { $queryRawUnsafe: (sql: string, ...params: unknown[]) => Promise<unknown[]> }) => Promise<unknown>,
+    ) => {
+      assert.equal(tenantId, 'tenant-a');
+      return callback({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          calls.push({ sql, params });
+          return [{ present: false }];
+        },
+      });
+    },
+  } as never);
+
+  const result = await repository.getSetupDependencies('tenant-a', 'academic-year', 'year-1');
+
+  assert.equal(result.total, 0);
+  assert.equal(result.can_permanently_delete, true);
+  assert.ok(calls.length > 0);
+  for (const call of calls) {
+    assert.match(call.sql, /table_name = \$1/);
+    assert.match(call.sql, /column_name IN \('tenant_id', \$2\)/);
+    assert.doesNotMatch(call.sql, /\$3/);
+    assert.equal(call.params.length, 2);
+  }
+});
+
 test('AcademicsRepository supplies durable IDs when creating academic years and terms', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new AcademicsRepository({

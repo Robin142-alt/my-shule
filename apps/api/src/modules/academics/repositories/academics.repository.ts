@@ -2446,9 +2446,9 @@ export class AcademicsRepository {
       const exists = await this.executeSql(tenantId, `
         SELECT COUNT(DISTINCT column_name)::integer = 2 AS present
         FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = $2
-          AND column_name IN ('tenant_id', $3)
-      `, [tenantId, dependency.table, dependency.column]);
+        WHERE table_schema = 'public' AND table_name = $1
+          AND column_name IN ('tenant_id', $2)
+      `, [dependency.table, dependency.column]);
       if (!exists.rows[0]?.present) continue;
       const counted = await this.executeSql(tenantId,
         `SELECT COUNT(*)::integer AS count FROM ${dependency.table}
