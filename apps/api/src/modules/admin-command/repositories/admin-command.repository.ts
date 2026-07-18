@@ -104,7 +104,7 @@ export class AdminCommandRepository {
             )
             FROM teacher_attendance_logs
             WHERE tenant_id = $1
-              AND attendance_date = CURRENT_DATE
+              AND attendance_date::text = CURRENT_DATE::text
           ), 0)::numeric AS teacher_attendance_today,
           COALESCE((
             SELECT ROUND(
@@ -234,9 +234,9 @@ export class AdminCommandRepository {
         return this.safeMetricQuery(
           `
             SELECT
-              (SELECT COUNT(DISTINCT teacher_user_id)::int FROM teacher_attendance_logs WHERE tenant_id = $1 AND attendance_date = CURRENT_DATE AND status IN ('present', 'late', 'half_day')) AS teacher_present_today,
-              (SELECT COUNT(*)::int FROM teacher_attendance_logs WHERE tenant_id = $1 AND attendance_date = CURRENT_DATE AND status = 'late') AS teacher_late_today,
-              (SELECT COUNT(*)::int FROM teacher_attendance_logs WHERE tenant_id = $1 AND attendance_date = CURRENT_DATE AND status = 'absent') AS teacher_absent_today,
+              (SELECT COUNT(DISTINCT teacher_user_id)::int FROM teacher_attendance_logs WHERE tenant_id = $1 AND attendance_date::text = CURRENT_DATE::text AND status IN ('present', 'late', 'half_day')) AS teacher_present_today,
+              (SELECT COUNT(*)::int FROM teacher_attendance_logs WHERE tenant_id = $1 AND attendance_date::text = CURRENT_DATE::text AND status = 'late') AS teacher_late_today,
+              (SELECT COUNT(*)::int FROM teacher_attendance_logs WHERE tenant_id = $1 AND attendance_date::text = CURRENT_DATE::text AND status = 'absent') AS teacher_absent_today,
               (SELECT COUNT(*)::int FROM biometric_devices WHERE tenant_id = $1 AND status <> 'active') AS offline_biometric_devices
           `,
           [tenantId],
@@ -386,7 +386,7 @@ export class AdminCommandRepository {
                   SELECT COUNT(*)::int
                   FROM teacher_attendance_logs
                   WHERE tenant_id = $1
-                    AND attendance_date >= CURRENT_DATE - INTERVAL '7 days'
+                    AND attendance_date::text >= (CURRENT_DATE - INTERVAL '7 days')::date::text
                     AND status IN ('late', 'absent', 'half_day')
                 ) AS attendance_irregularities,
                 (
@@ -739,7 +739,7 @@ export class AdminCommandRepository {
           COUNT(*) FILTER (WHERE status = 'Late')::int AS late_today
         FROM academics_attendance
         WHERE tenant_id = $1
-          AND attendance_date = CURRENT_DATE
+          AND attendance_date::text = CURRENT_DATE::text
       `,
       [tenantId],
     ).catch(() => ({ rows: [] }));
@@ -789,7 +789,7 @@ export class AdminCommandRepository {
          to_char(attendance_date, 'Dy') as label,
          ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'Present') / NULLIF(COUNT(*), 0), 0)::int as value
        FROM academics_attendance
-       WHERE tenant_id = $1 AND attendance_date >= CURRENT_DATE - INTERVAL '5 days'
+       WHERE tenant_id = $1 AND attendance_date::text >= (CURRENT_DATE - INTERVAL '5 days')::date::text
        GROUP BY attendance_date
        ORDER BY attendance_date ASC
        LIMIT 5`,

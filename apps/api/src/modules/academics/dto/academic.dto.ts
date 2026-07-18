@@ -1,14 +1,14 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsEnum, IsInt, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsArray, IsDateString, IsEnum, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 
 export class CreateAcademicYearDto {
   @IsString()
   name!: string;
 
-  @IsString()
+  @IsDateString()
   starts_on!: string;
 
-  @IsString()
+  @IsDateString()
   ends_on!: string;
 }
 
@@ -19,10 +19,10 @@ export class CreateAcademicTermDto {
   @IsString()
   name!: string;
 
-  @IsString()
+  @IsDateString()
   starts_on!: string;
 
-  @IsString()
+  @IsDateString()
   ends_on!: string;
 }
 
@@ -50,6 +50,7 @@ export class CreateClassSectionDto {
 
   @IsOptional()
   @IsInt()
+  @Min(1)
   capacity?: number;
 }
 
@@ -87,6 +88,7 @@ class StreamDto {
 
   @IsOptional()
   @IsInt()
+  @Min(1)
   capacity?: number;
 
   @IsOptional()
@@ -104,6 +106,7 @@ class ClassDto {
 
   @IsOptional()
   @IsInt()
+  @Min(1)
   capacity?: number;
 
   @IsOptional()

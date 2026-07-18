@@ -419,7 +419,6 @@ export class AcademicsSchemaService implements OnModuleInit {
         END LOOP;
       END $$;
 
-
       CREATE TABLE IF NOT EXISTS report_card_comments (
         id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
@@ -567,6 +566,21 @@ export class AcademicsSchemaService implements OnModuleInit {
         CONSTRAINT uq_academics_attendance_settings_tenant_name UNIQUE (tenant_id, name)
       );
 
+      CREATE TABLE IF NOT EXISTS academics_report_card_settings (
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        tenant_id text NOT NULL,
+        school_id text NOT NULL,
+        name text NOT NULL,
+        grading_system_id uuid,
+        show_rank boolean NOT NULL DEFAULT TRUE,
+        show_attendance boolean NOT NULL DEFAULT TRUE,
+        is_active boolean NOT NULL DEFAULT TRUE,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+      ALTER TABLE academics_report_card_settings ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT TRUE;
+      ALTER TABLE academics_report_card_settings ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
+
       DO $$
       DECLARE
         target_table text;
@@ -575,7 +589,8 @@ export class AcademicsSchemaService implements OnModuleInit {
         FOREACH target_table IN ARRAY ARRAY[
           'academic_audit_logs',
           'academics_grading_systems',
-          'academics_attendance_settings'
+          'academics_attendance_settings',
+          'academics_report_card_settings'
         ] LOOP
           IF to_regclass(format('public.%I', target_table)) IS NOT NULL THEN
             EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', target_table);
@@ -599,6 +614,60 @@ export class AcademicsSchemaService implements OnModuleInit {
           END IF;
         END LOOP;
       END $$;
+
+      -- Active schools live in tenants; these foreign keys still reference the
+      -- retired schools registry and reject otherwise valid tenant-scoped writes.
+      ALTER TABLE academic_audit_logs DROP CONSTRAINT IF EXISTS academic_audit_logs_school_id_fkey;
+      ALTER TABLE academics_grading_systems DROP CONSTRAINT IF EXISTS academics_grading_systems_school_id_fkey;
+      ALTER TABLE academics_attendance_settings DROP CONSTRAINT IF EXISTS academics_attendance_settings_school_id_fkey;
+      ALTER TABLE academics_report_card_settings DROP CONSTRAINT IF EXISTS academics_report_card_settings_school_id_fkey;
+
+      UPDATE academic_audit_logs SET school_id = tenant_id
+      WHERE school_id IS NULL OR btrim(school_id) = '';
+      UPDATE academics_grading_systems SET school_id = tenant_id
+      WHERE school_id IS NULL OR btrim(school_id) = '';
+      UPDATE academics_attendance_settings SET school_id = tenant_id
+      WHERE school_id IS NULL OR btrim(school_id) = '';
+      UPDATE academics_report_card_settings SET school_id = tenant_id
+      WHERE school_id IS NULL OR btrim(school_id) = '';
+      ALTER TABLE academic_audit_logs ALTER COLUMN school_id SET NOT NULL;
+      ALTER TABLE academics_grading_systems ALTER COLUMN school_id SET NOT NULL;
+      ALTER TABLE academics_attendance_settings ALTER COLUMN school_id SET NOT NULL;
+      ALTER TABLE academics_report_card_settings ALTER COLUMN school_id SET NOT NULL;
+
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_academic_years_tenant_name
+        ON academic_years (tenant_id, name);
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_academics_grading_systems_tenant_name
+        ON academics_grading_systems (tenant_id, name);
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_academics_attendance_settings_tenant_name
+        ON academics_attendance_settings (tenant_id, name);
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_academics_report_card_settings_tenant_name
+        ON academics_report_card_settings (tenant_id, name);
+
+      ALTER TABLE academics_class_teachers DROP CONSTRAINT IF EXISTS academics_class_teachers_class_section_id_fkey;
+      ALTER TABLE academics_class_teachers DROP CONSTRAINT IF EXISTS academics_class_teachers_school_id_fkey;
+      WITH ranked_class_teachers AS (
+        SELECT id,
+          ROW_NUMBER() OVER (
+            PARTITION BY tenant_id, academic_year_id, class_section_id
+            ORDER BY updated_at DESC, created_at DESC, id DESC
+          ) AS assignment_rank
+        FROM academics_class_teachers
+        WHERE is_active = true
+      )
+      UPDATE academics_class_teachers assignment
+      SET is_active = false, updated_at = NOW()
+      FROM ranked_class_teachers ranked
+      WHERE assignment.id = ranked.id AND ranked.assignment_rank > 1;
+      DROP INDEX IF EXISTS ux_academics_class_teachers_scope;
+      CREATE UNIQUE INDEX ux_academics_class_teachers_scope
+        ON academics_class_teachers (tenant_id, academic_year_id, class_section_id)
+        WHERE is_active = true;
+
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_teacher_subject_assignments_scope
+        ON teacher_subject_assignments (
+          tenant_id, academic_term_id, class_section_id, subject_id, teacher_user_id
+        );
 
       CREATE INDEX IF NOT EXISTS ix_academic_terms_year
         ON academic_terms (tenant_id, academic_year_id, starts_on);
@@ -688,7 +757,8 @@ export class AcademicsSchemaService implements OnModuleInit {
           'class_requests',
           'academic_audit_logs',
           'academics_grading_systems',
-          'academics_attendance_settings'
+          'academics_attendance_settings',
+          'academics_report_card_settings'
         ] LOOP
           IF to_regclass(format('public.%I', target_table)) IS NOT NULL THEN
             SELECT data_type
@@ -754,6 +824,9 @@ export class AcademicsSchemaService implements OnModuleInit {
       ALTER TABLE academics_attendance_settings ENABLE ROW LEVEL SECURITY;
       ALTER TABLE academics_attendance_settings FORCE ROW LEVEL SECURITY;
 
+      ALTER TABLE academics_report_card_settings ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE academics_report_card_settings FORCE ROW LEVEL SECURITY;
+
       DROP POLICY IF EXISTS academics_grading_systems_rls_policy ON academics_grading_systems;
       CREATE POLICY academics_grading_systems_rls_policy ON academics_grading_systems
       FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
@@ -763,6 +836,17 @@ export class AcademicsSchemaService implements OnModuleInit {
       CREATE POLICY academics_attendance_settings_rls_policy ON academics_attendance_settings
       FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
       WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+      DROP POLICY IF EXISTS academics_report_card_settings_rls_policy ON academics_report_card_settings;
+      CREATE POLICY academics_report_card_settings_rls_policy ON academics_report_card_settings
+      FOR ALL USING (
+        tenant_id = current_setting('app.tenant_id', true)
+        OR NULLIF(current_setting('app.role', true), '') = 'system'
+      )
+      WITH CHECK (
+        tenant_id = current_setting('app.tenant_id', true)
+        OR NULLIF(current_setting('app.role', true), '') = 'system'
+      );
 
       DROP POLICY IF EXISTS report_card_comments_rls_policy ON report_card_comments;
       CREATE POLICY report_card_comments_rls_policy ON report_card_comments

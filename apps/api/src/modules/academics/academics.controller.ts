@@ -241,96 +241,50 @@ export class AcademicsController {
 
   @Get('grading-systems')
   @Permissions('academics:read')
-  async listGradingSystems() {
-    const tenantId = (this.academicsService as any).requestContext.getStore()?.tenant_id;
-    const result = await (this.academicsService as any).repository.databaseService.query(
-      `SELECT * FROM academics_grading_systems WHERE tenant_id = $1 AND is_active = true ORDER BY name ASC`,
-      [tenantId]
-    );
-    return result.rows;
+  listGradingSystems() {
+    return this.academicsService.listGradingSystems();
   }
 
   @Post('grading-systems')
   @Permissions('academics:write')
-  async createGradingSystem(@Body() dto: { name: string; description?: string }) {
-    const tenantId = (this.academicsService as any).requestContext.getStore()?.tenant_id;
-    const result = await (this.academicsService as any).repository.databaseService.query(
-      `INSERT INTO academics_grading_systems (tenant_id, name, description)
-       VALUES ($1, $2, $3) RETURNING *`,
-      [tenantId, dto.name, dto.description || null]
-    );
-    return result.rows[0];
+  createGradingSystem(@Body() dto: { name: string; description?: string }) {
+    return this.academicsService.createGradingSystem(dto);
   }
 
   @Patch('grading-systems/:id')
   @Permissions('academics:write')
-  async updateGradingSystem(@Body() dto: { name?: string; description?: string }, @Param('id') id: string) {
-    const tenantId = (this.academicsService as any).requestContext.getStore()?.tenant_id;
-    const result = await (this.academicsService as any).repository.databaseService.query(
-      `UPDATE academics_grading_systems 
-       SET name = COALESCE($1, name), description = COALESCE($2, description), updated_at = NOW()
-       WHERE tenant_id = $3 AND id = $4::uuid RETURNING *`,
-      [dto.name, dto.description, tenantId, id]
-    );
-    return result.rows[0];
+  updateGradingSystem(@Body() dto: { name?: string; description?: string }, @Param('id') id: string) {
+    return this.academicsService.updateGradingSystem(id, dto);
   }
 
   @Delete('grading-systems/:id')
   @Permissions('academics:write')
-  async deleteGradingSystem(@Param('id') id: string) {
-    const tenantId = (this.academicsService as any).requestContext.getStore()?.tenant_id;
-    const result = await (this.academicsService as any).repository.databaseService.query(
-      `UPDATE academics_grading_systems SET is_active = false, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
-      [tenantId, id]
-    );
-    return result.rows[0];
+  deleteGradingSystem(@Param('id') id: string) {
+    return this.academicsService.archiveGradingSystem(id);
   }
 
   @Get('attendance-settings')
   @Permissions('academics:read')
-  async listAttendanceSettings() {
-    const tenantId = (this.academicsService as any).requestContext.getStore()?.tenant_id;
-    const result = await (this.academicsService as any).repository.databaseService.query(
-      `SELECT * FROM academics_attendance_settings WHERE tenant_id = $1 AND is_active = true ORDER BY name ASC`,
-      [tenantId]
-    );
-    return result.rows;
+  listAttendanceSettings() {
+    return this.academicsService.listAttendanceSettings();
   }
 
   @Post('attendance-settings')
   @Permissions('academics:write')
-  async createAttendanceSetting(@Body() dto: { name: string; description?: string }) {
-    const tenantId = (this.academicsService as any).requestContext.getStore()?.tenant_id;
-    const result = await (this.academicsService as any).repository.databaseService.query(
-      `INSERT INTO academics_attendance_settings (tenant_id, name, description)
-       VALUES ($1, $2, $3) RETURNING *`,
-      [tenantId, dto.name, dto.description || null]
-    );
-    return result.rows[0];
+  createAttendanceSetting(@Body() dto: { name: string; description?: string }) {
+    return this.academicsService.createAttendanceSetting(dto);
   }
 
   @Patch('attendance-settings/:id')
   @Permissions('academics:write')
-  async updateAttendanceSetting(@Body() dto: { name?: string; description?: string }, @Param('id') id: string) {
-    const tenantId = (this.academicsService as any).requestContext.getStore()?.tenant_id;
-    const result = await (this.academicsService as any).repository.databaseService.query(
-      `UPDATE academics_attendance_settings 
-       SET name = COALESCE($1, name), description = COALESCE($2, description), updated_at = NOW()
-       WHERE tenant_id = $3 AND id = $4::uuid RETURNING *`,
-      [dto.name, dto.description, tenantId, id]
-    );
-    return result.rows[0];
+  updateAttendanceSetting(@Body() dto: { name?: string; description?: string }, @Param('id') id: string) {
+    return this.academicsService.updateAttendanceSetting(id, dto);
   }
 
   @Delete('attendance-settings/:id')
   @Permissions('academics:write')
-  async deleteAttendanceSetting(@Param('id') id: string) {
-    const tenantId = (this.academicsService as any).requestContext.getStore()?.tenant_id;
-    const result = await (this.academicsService as any).repository.databaseService.query(
-      `UPDATE academics_attendance_settings SET is_active = false, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
-      [tenantId, id]
-    );
-    return result.rows[0];
+  deleteAttendanceSetting(@Param('id') id: string) {
+    return this.academicsService.archiveAttendanceSetting(id);
   }
 
   // --- Departments ---

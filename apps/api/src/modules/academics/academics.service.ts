@@ -31,6 +31,7 @@ export class AcademicsService {
 
   async createAcademicYear(dto: CreateAcademicYearDto) {
     const tenantId = this.requireTenantId();
+    this.requireDateRange(dto.starts_on, dto.ends_on, 'Academic year');
     const year = await this.repository.createAcademicYear({
       tenant_id: tenantId,
       created_by_user_id: this.currentUserId(),
@@ -44,10 +45,43 @@ export class AcademicsService {
 
   async createAcademicTerm(dto: CreateAcademicTermDto) {
     const tenantId = this.requireTenantId();
+    this.requireDateRange(dto.starts_on, dto.ends_on, 'Academic term');
+    const academicYearId = this.requireText(dto.academic_year_id, 'Academic year');
+    const yearResult = await this.repository.executeSql(
+      tenantId,
+      `SELECT id::text, starts_on::text, ends_on::text
+       FROM academic_years
+       WHERE tenant_id = $1 AND id = $2::text AND COALESCE(status, 'draft') <> 'archived'
+       LIMIT 1`,
+      [tenantId, academicYearId],
+    );
+    const year = yearResult.rows[0];
+    if (!year) {
+      throw new BadRequestException('Select an academic year from this school.');
+    }
+    if (dto.starts_on < year.starts_on || dto.ends_on > year.ends_on) {
+      throw new BadRequestException('Academic term dates must fall within the selected academic year.');
+    }
+    const overlapResult = await this.repository.executeSql(
+      tenantId,
+      `SELECT name
+       FROM academic_terms
+       WHERE tenant_id = $1
+         AND academic_year_id = $2::text
+         AND name <> $3
+         AND COALESCE(status, 'draft') <> 'archived'
+         AND starts_on <= $5::date
+         AND ends_on >= $4::date
+       LIMIT 1`,
+      [tenantId, academicYearId, this.requireText(dto.name, 'Academic term name'), dto.starts_on, dto.ends_on],
+    );
+    if (overlapResult.rows[0]) {
+      throw new BadRequestException(`Academic term dates overlap ${overlapResult.rows[0].name}.`);
+    }
     const term = await this.repository.createAcademicTerm({
       tenant_id: tenantId,
       created_by_user_id: this.currentUserId(),
-      academic_year_id: this.requireText(dto.academic_year_id, 'Academic year'),
+      academic_year_id: academicYearId,
       name: this.requireText(dto.name, 'Academic term name'),
       starts_on: dto.starts_on,
       ends_on: dto.ends_on,
@@ -61,10 +95,17 @@ export class AcademicsService {
 
   async createClassSection(dto: CreateClassSectionDto) {
     const tenantId = this.requireTenantId();
+    const academicYearId = this.requireText(dto.academic_year_id, 'Academic year');
+    await this.requireTenantRecord(
+      tenantId,
+      'academic_years',
+      academicYearId,
+      'Select an academic year from this school.',
+    );
     const classSection = await this.repository.createClassSection({
       tenant_id: tenantId,
       created_by_user_id: this.currentUserId(),
-      academic_year_id: this.requireText(dto.academic_year_id, 'Academic year'),
+      academic_year_id: academicYearId,
       academic_level_id: dto.academic_level_id?.trim() || null,
       name: this.requireText(dto.name, 'Class section name'),
       grade_level: this.requireText(dto.grade_level, 'Grade level'),
@@ -153,29 +194,50 @@ export class AcademicsService {
     const tenantId = this.requireTenantId();
     const teacherUserId = this.requireText(dto.teacher_user_id, 'Teacher');
     await this.requireActiveStaffUserInTenant(tenantId, teacherUserId);
-    
-    // Check for overlap
+    const termId = this.requireText(dto.academic_term_id, 'Academic term');
+    const classSectionId = this.requireText(dto.class_section_id, 'Class section');
+    const subjectId = this.requireText(dto.subject_id, 'Subject');
+    const scope = await this.repository.executeSql(
+      tenantId,
+      `SELECT term.id
+       FROM academic_terms term
+       JOIN class_sections section
+         ON section.tenant_id = term.tenant_id
+        AND section.academic_year_id = term.academic_year_id
+        AND section.id = $3::text
+       JOIN subjects subject
+         ON subject.tenant_id = term.tenant_id
+        AND subject.id = $4::text
+        AND COALESCE(subject.status, 'active') = 'active'
+       WHERE term.tenant_id = $1 AND term.id = $2::text
+       LIMIT 1`,
+      [tenantId, termId, classSectionId, subjectId],
+    );
+    if (!scope.rows[0]) {
+      throw new BadRequestException('Select a term, class, and subject that belong to the same school and academic year.');
+    }
+
     const existing = await this.repository.executeSql(
       tenantId,
-      `SELECT id FROM teacher_subject_assignments 
+      `SELECT id, teacher_user_id FROM teacher_subject_assignments
        WHERE tenant_id = $1 
          AND academic_term_id = $2
          AND class_section_id = $3
          AND subject_id = $4
          AND status = 'active'`,
-      [tenantId, dto.academic_term_id, dto.class_section_id, dto.subject_id]
+      [tenantId, termId, classSectionId, subjectId]
     );
 
-    if (existing.rows.length > 0) {
+    if (existing.rows[0] && String(existing.rows[0].teacher_user_id) !== teacherUserId) {
       throw new BadRequestException('A teacher is already assigned to this subject for this class in this term.');
     }
 
     const assignment = await this.repository.createTeacherAssignment({
       tenant_id: tenantId,
       created_by_user_id: this.currentUserId(),
-      academic_term_id: this.requireText(dto.academic_term_id, 'Academic term'),
-      class_section_id: this.requireText(dto.class_section_id, 'Class section'),
-      subject_id: this.requireText(dto.subject_id, 'Subject'),
+      academic_term_id: termId,
+      class_section_id: classSectionId,
+      subject_id: subjectId,
       teacher_user_id: teacherUserId,
     });
 
@@ -462,9 +524,16 @@ export class AcademicsService {
 
   async createClassStream(dto: any) {
     const tenantId = this.requireTenantId();
+    const classSectionId = this.requireText(dto.class_section_id, 'Class Section ID');
+    await this.requireTenantRecord(
+      tenantId,
+      'class_sections',
+      classSectionId,
+      'Select a class from this school before creating a stream.',
+    );
     const stream = await this.repository.createClassStream(
       tenantId,
-      this.requireText(dto.class_section_id, 'Class Section ID'),
+      classSectionId,
       this.requireText(dto.name, 'Stream Name'),
       dto.capacity
     );
@@ -538,11 +607,24 @@ export class AcademicsService {
     const tenantId = this.requireTenantId();
     const teacherUserId = this.requireText(dto.teacher_user_id, 'Teacher user ID');
     await this.requireActiveStaffUserInTenant(tenantId, teacherUserId);
+    const academicYearId = this.requireText(dto.academic_year_id, 'Academic year ID');
+    const classSectionId = this.requireText(dto.class_section_id, 'Class section ID');
+    const classResult = await this.repository.executeSql(
+      tenantId,
+      `SELECT id
+       FROM class_sections
+       WHERE tenant_id = $1 AND id = $2::text AND academic_year_id = $3::text
+       LIMIT 1`,
+      [tenantId, classSectionId, academicYearId],
+    );
+    if (!classResult.rows[0]) {
+      throw new BadRequestException('Select a class and academic year that belong to this school.');
+    }
 
     const assignment = await this.repository.assignClassTeacher(
       tenantId,
-      this.requireText(dto.academic_year_id, 'Academic year ID'),
-      this.requireText(dto.class_section_id, 'Class section ID'),
+      academicYearId,
+      classSectionId,
       teacherUserId
     );
     await this.auditMutation(tenantId, 'class_teacher_assignment', assignment?.id, 'academics.class_teacher_assigned', {
@@ -557,23 +639,111 @@ export class AcademicsService {
     return this.repository.archiveClassTeacher(this.requireTenantId(), id);
   }
 
+  listGradingSystems() {
+    return this.repository.listGradingSystems(this.requireTenantId());
+  }
+
+  async createGradingSystem(dto: { name: string; description?: string }) {
+    const tenantId = this.requireTenantId();
+    const setting = await this.repository.createGradingSystem(
+      tenantId,
+      this.requireText(dto.name, 'Grading system name'),
+      dto.description?.trim() || null,
+    );
+    await this.auditMutation(tenantId, 'grading_system', setting?.id, 'academics.grading_system_saved', {
+      name: dto.name,
+    });
+    return setting;
+  }
+
+  async updateGradingSystem(id: string, dto: { name?: string; description?: string }) {
+    const tenantId = this.requireTenantId();
+    const setting = await this.repository.updateGradingSystem(
+      tenantId,
+      this.requireText(id, 'Grading system ID'),
+      dto.name?.trim() || null,
+      dto.description?.trim() || null,
+    );
+    if (!setting) throw new BadRequestException('Grading system was not found in this school.');
+    await this.auditMutation(tenantId, 'grading_system', setting.id, 'academics.grading_system_updated', {});
+    return setting;
+  }
+
+  async archiveGradingSystem(id: string) {
+    const tenantId = this.requireTenantId();
+    const setting = await this.repository.archiveGradingSystem(tenantId, this.requireText(id, 'Grading system ID'));
+    if (!setting) throw new BadRequestException('Grading system was not found in this school.');
+    await this.auditMutation(tenantId, 'grading_system', setting.id, 'academics.grading_system_archived', {});
+    return setting;
+  }
+
+  listAttendanceSettings() {
+    return this.repository.listAttendanceSettings(this.requireTenantId());
+  }
+
+  async createAttendanceSetting(dto: { name: string; description?: string }) {
+    const tenantId = this.requireTenantId();
+    const setting = await this.repository.createAttendanceSetting(
+      tenantId,
+      this.requireText(dto.name, 'Attendance setting name'),
+      dto.description?.trim() || null,
+    );
+    await this.auditMutation(tenantId, 'attendance_setting', setting?.id, 'academics.attendance_setting_saved', {
+      name: dto.name,
+    });
+    return setting;
+  }
+
+  async updateAttendanceSetting(id: string, dto: { name?: string; description?: string }) {
+    const tenantId = this.requireTenantId();
+    const setting = await this.repository.updateAttendanceSetting(
+      tenantId,
+      this.requireText(id, 'Attendance setting ID'),
+      dto.name?.trim() || null,
+      dto.description?.trim() || null,
+    );
+    if (!setting) throw new BadRequestException('Attendance setting was not found in this school.');
+    await this.auditMutation(tenantId, 'attendance_setting', setting.id, 'academics.attendance_setting_updated', {});
+    return setting;
+  }
+
+  async archiveAttendanceSetting(id: string) {
+    const tenantId = this.requireTenantId();
+    const setting = await this.repository.archiveAttendanceSetting(tenantId, this.requireText(id, 'Attendance setting ID'));
+    if (!setting) throw new BadRequestException('Attendance setting was not found in this school.');
+    await this.auditMutation(tenantId, 'attendance_setting', setting.id, 'academics.attendance_setting_archived', {});
+    return setting;
+  }
+
   // --- Report Card Settings ---
   getReportCardSettings() {
     return this.repository.getReportCardSettings(this.requireTenantId());
   }
 
-  createReportCardSetting(dto: any) {
-    return this.repository.createReportCardSetting(
-      this.requireTenantId(),
+  async createReportCardSetting(dto: any) {
+    const tenantId = this.requireTenantId();
+    const setting = await this.repository.createReportCardSetting(
+      tenantId,
       this.requireText(dto.name, 'Setting name'),
       dto.grading_system_id || null,
       dto.show_rank ?? true,
       dto.show_attendance ?? true
     );
+    await this.auditMutation(tenantId, 'report_card_setting', setting?.id, 'academics.report_card_setting_saved', {
+      name: dto.name,
+    });
+    return setting;
   }
 
-  archiveReportCardSetting(id: string) {
-    return this.repository.archiveReportCardSetting(this.requireTenantId(), id);
+  async archiveReportCardSetting(id: string) {
+    const tenantId = this.requireTenantId();
+    const setting = await this.repository.archiveReportCardSetting(
+      tenantId,
+      this.requireText(id, 'Report card setting ID'),
+    );
+    if (!setting) throw new BadRequestException('Report card setting was not found in this school.');
+    await this.auditMutation(tenantId, 'report_card_setting', setting.id, 'academics.report_card_setting_archived', {});
+    return setting;
   }
 
   private auditMutation(
@@ -591,5 +761,28 @@ export class AcademicsService {
       actor_user_id: this.currentUserId(),
       metadata,
     });
+  }
+
+  private requireDateRange(startsOn: string, endsOn: string, label: string) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startsOn) || !/^\d{4}-\d{2}-\d{2}$/.test(endsOn)) {
+      throw new BadRequestException(`${label} dates must use YYYY-MM-DD format.`);
+    }
+    if (startsOn > endsOn) {
+      throw new BadRequestException(`${label} end date must be on or after its start date.`);
+    }
+  }
+
+  private async requireTenantRecord(
+    tenantId: string,
+    table: 'academic_years' | 'class_sections',
+    id: string,
+    message: string,
+  ) {
+    const result = await this.repository.executeSql(
+      tenantId,
+      `SELECT id FROM ${table} WHERE tenant_id = $1 AND id = $2::text LIMIT 1`,
+      [tenantId, id],
+    );
+    if (!result.rows[0]) throw new BadRequestException(message);
   }
 }

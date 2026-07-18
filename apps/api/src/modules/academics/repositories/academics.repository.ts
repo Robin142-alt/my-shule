@@ -194,7 +194,8 @@ export class AcademicsRepository {
 
   async createAcademicYear(input: Record<string, unknown>) {
     const academicYearId = randomUUID();
-    const result = await this.executeSql(this.getTenantId([`
+    const tenantId = String(input.tenant_id);
+    const result = await this.executeSql(tenantId, `
         INSERT INTO academic_years (
           tenant_id,
           id,
@@ -208,82 +209,58 @@ export class AcademicsRepository {
           updated_at
         )
         VALUES ($1, $2, $3, $4::date, $5::date, $4::date, $5::date, 'draft', $6::uuid, NOW())
+        ON CONFLICT (tenant_id, name)
+        DO UPDATE SET
+          start_date = EXCLUDED.start_date,
+          end_date = EXCLUDED.end_date,
+          starts_on = EXCLUDED.starts_on,
+          ends_on = EXCLUDED.ends_on,
+          updated_at = NOW()
         RETURNING *
       `,
       [
-        input.tenant_id,
+        tenantId,
         academicYearId,
         input.name,
         input.starts_on,
         input.ends_on,
         input.created_by_user_id,
-      ],]), `
-        INSERT INTO academic_years (
-          tenant_id,
-          id,
-          name,
-          start_date,
-          end_date,
-          starts_on,
-          ends_on,
-          status,
-          created_by_user_id,
-          updated_at
-        )
-        VALUES ($1, $2, $3, $4::date, $5::date, $4::date, $5::date, 'draft', $6::uuid, NOW())
-        RETURNING *
-      `,
-      [
-        input.tenant_id,
-        academicYearId,
-        input.name,
-        input.starts_on,
-        input.ends_on,
-        input.created_by_user_id,
-      ],);
+      ]);
 
     return result.rows[0];
   }
 
   async createAcademicTerm(input: Record<string, unknown>) {
     const academicTermId = randomUUID();
-    const result = await this.executeSql(this.getTenantId([`
+    const tenantId = String(input.tenant_id);
+    const result = await this.executeSql(tenantId, `
         INSERT INTO academic_terms (
           tenant_id, id, academic_year_id, name, starts_on, ends_on, created_by_user_id
         )
         VALUES ($1, $2, $3, $4, $5::date, $6::date, $7::uuid)
+        ON CONFLICT (tenant_id, academic_year_id, name)
+        DO UPDATE SET
+          starts_on = EXCLUDED.starts_on,
+          ends_on = EXCLUDED.ends_on,
+          updated_at = NOW()
         RETURNING *
       `,
       [
-        input.tenant_id,
+        tenantId,
         academicTermId,
         input.academic_year_id,
         input.name,
         input.starts_on,
         input.ends_on,
         input.created_by_user_id,
-      ],]), `
-        INSERT INTO academic_terms (
-          tenant_id, id, academic_year_id, name, starts_on, ends_on, created_by_user_id
-        )
-        VALUES ($1, $2, $3, $4, $5::date, $6::date, $7::uuid)
-        RETURNING *
-      `,
-      [
-        input.tenant_id,
-        academicTermId,
-        input.academic_year_id,
-        input.name,
-        input.starts_on,
-        input.ends_on,
-        input.created_by_user_id,
-      ],);
+      ]);
 
     return result.rows[0];
   }
 
   async createClassSection(input: Record<string, unknown>) {
-    const result = await this.executeSql(this.getTenantId([`
+    const tenantId = String(input.tenant_id);
+    const result = await this.executeSql(tenantId, `
         INSERT INTO class_sections (
           tenant_id,
           academic_year_id,
@@ -296,10 +273,20 @@ export class AcademicsRepository {
           created_by_user_id
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::uuid)
+        ON CONFLICT (tenant_id, academic_year_id, name)
+        DO UPDATE SET
+          academic_level_id = EXCLUDED.academic_level_id,
+          grade_level = EXCLUDED.grade_level,
+          stream = EXCLUDED.stream,
+          custom_label = EXCLUDED.custom_label,
+          capacity = EXCLUDED.capacity,
+          is_active = true,
+          status = 'active',
+          updated_at = NOW()
         RETURNING *
       `,
       [
-        input.tenant_id,
+        tenantId,
         input.academic_year_id,
         input.academic_level_id ?? null,
         input.name,
@@ -308,32 +295,7 @@ export class AcademicsRepository {
         input.custom_label ?? null,
         input.capacity ?? null,
         input.created_by_user_id,
-      ],]), `
-        INSERT INTO class_sections (
-          tenant_id,
-          academic_year_id,
-          academic_level_id,
-          name,
-          grade_level,
-          stream,
-          custom_label,
-          capacity,
-          created_by_user_id
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::uuid)
-        RETURNING *
-      `,
-      [
-        input.tenant_id,
-        input.academic_year_id,
-        input.academic_level_id ?? null,
-        input.name,
-        input.grade_level,
-        input.stream ?? null,
-        input.custom_label ?? null,
-        input.capacity ?? null,
-        input.created_by_user_id,
-      ],);
+      ]);
 
     return result.rows[0];
   }
@@ -800,33 +762,21 @@ export class AcademicsRepository {
   }
 
   async appendAuditLog(input: Record<string, unknown>) {
-    await this.executeSql(this.getTenantId([`
+    const tenantId = String(input.tenant_id);
+    await this.executeSql(tenantId, `
         INSERT INTO academic_audit_logs (
-          tenant_id, entity_type, entity_id, action, actor_user_id, metadata
+          school_id, tenant_id, entity_type, entity_id, action, actor_user_id, metadata
         )
-        VALUES ($1, $2, $3::uuid, $4, $5::uuid, $6::jsonb)
+        VALUES ($1, $1, $2, $3::uuid, $4, $5::uuid, $6::jsonb)
       `,
       [
-        input.tenant_id,
+        tenantId,
         input.entity_type,
         input.entity_id ?? null,
         input.action,
         input.actor_user_id ?? null,
         JSON.stringify(input.metadata ?? {}),
-      ],]), `
-        INSERT INTO academic_audit_logs (
-          tenant_id, entity_type, entity_id, action, actor_user_id, metadata
-        )
-        VALUES ($1, $2, $3::uuid, $4, $5::uuid, $6::jsonb)
-      `,
-      [
-        input.tenant_id,
-        input.entity_type,
-        input.entity_id ?? null,
-        input.action,
-        input.actor_user_id ?? null,
-        JSON.stringify(input.metadata ?? {}),
-      ],);
+      ]);
   }
 
   private normalizeLimit(value: number | undefined): number {
@@ -1211,18 +1161,13 @@ export class AcademicsRepository {
   }
 
   async createClassStream(tenantId: string, classSectionId: string, name: string, capacity?: number) {
-    const streamResult = await this.executeSql(this.getTenantId([`
+    const streamResult = await this.executeSql(tenantId, `
         INSERT INTO class_streams (
           tenant_id, class_section_id, name, capacity
         )
         VALUES ($1, $2, $3, $4)
-        RETURNING *
-      `,
-      [tenantId, classSectionId, name, capacity ?? null]]), `
-        INSERT INTO class_streams (
-          tenant_id, class_section_id, name, capacity
-        )
-        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (tenant_id, class_section_id, name)
+        DO UPDATE SET capacity = EXCLUDED.capacity, is_active = true, updated_at = NOW()
         RETURNING *
       `,
       [tenantId, classSectionId, name, capacity ?? null]);
@@ -1290,11 +1235,16 @@ export class AcademicsRepository {
   }
 
   async createDepartment(tenantId: string, name: string, headUserId: string | null) {
-    const result = await this.executeSql(this.getTenantId([`INSERT INTO academics_departments (tenant_id, name, head_of_department_user_id)
-       VALUES ($1, $2, $3::uuid) RETURNING *`,
-      [tenantId, name, headUserId]]), `INSERT INTO academics_departments (tenant_id, name, head_of_department_user_id)
-       VALUES ($1, $2, $3::uuid) RETURNING *`,
-      [tenantId, name, headUserId]);
+    const result = await this.executeSql(tenantId, `
+      INSERT INTO academics_departments (tenant_id, name, head_of_department_user_id)
+      VALUES ($1, $2, $3::uuid)
+      ON CONFLICT (tenant_id, name)
+      DO UPDATE SET
+        head_of_department_user_id = COALESCE(EXCLUDED.head_of_department_user_id, academics_departments.head_of_department_user_id),
+        is_active = true,
+        updated_at = NOW()
+      RETURNING *
+    `, [tenantId, name, headUserId]);
     return result.rows[0];
   }
 
@@ -1380,13 +1330,15 @@ export class AcademicsRepository {
   }
 
   async assignClassTeacher(tenantId: string, academicYearId: string, classSectionId: string, teacherUserId: string) {
-    const result = await this.executeSql(this.getTenantId([`INSERT INTO academics_class_teachers (school_id, tenant_id, academic_year_id, class_section_id, teacher_user_id, updated_at)
-       VALUES (NULL, $1, $2::text, $3::text, $4::uuid, NOW())
-       RETURNING *`,
-      [tenantId, academicYearId, classSectionId, teacherUserId]]), `INSERT INTO academics_class_teachers (school_id, tenant_id, academic_year_id, class_section_id, teacher_user_id, updated_at)
-       VALUES (NULL, $1, $2::text, $3::text, $4::uuid, NOW())
-       RETURNING *`,
-      [tenantId, academicYearId, classSectionId, teacherUserId]);
+    const result = await this.executeSql(tenantId, `
+      INSERT INTO academics_class_teachers (
+        school_id, tenant_id, academic_year_id, class_section_id, teacher_user_id, updated_at
+      )
+      VALUES ($1, $1, $2::text, $3::text, $4::uuid, NOW())
+      ON CONFLICT (tenant_id, academic_year_id, class_section_id) WHERE is_active = true
+      DO UPDATE SET teacher_user_id = EXCLUDED.teacher_user_id, updated_at = NOW()
+      RETURNING *
+    `, [tenantId, academicYearId, classSectionId, teacherUserId]);
     return result.rows[0];
   }
 
@@ -1397,27 +1349,136 @@ export class AcademicsRepository {
     return result.rows[0];
   }
 
+  async listGradingSystems(tenantId: string) {
+    const result = await this.executeSql(
+      tenantId,
+      `SELECT * FROM academics_grading_systems
+       WHERE tenant_id = $1 AND is_active = true
+       ORDER BY name ASC`,
+      [tenantId],
+    );
+    return result.rows;
+  }
+
+  async createGradingSystem(tenantId: string, name: string, description: string | null) {
+    const result = await this.executeSql(
+      tenantId,
+      `INSERT INTO academics_grading_systems (school_id, tenant_id, name, description)
+       VALUES ($1, $1, $2, $3)
+       ON CONFLICT (tenant_id, name)
+       DO UPDATE SET description = EXCLUDED.description, is_active = true, updated_at = NOW()
+       RETURNING *`,
+      [tenantId, name, description],
+    );
+    return result.rows[0];
+  }
+
+  async updateGradingSystem(tenantId: string, id: string, name: string | null, description: string | null) {
+    const result = await this.executeSql(
+      tenantId,
+      `UPDATE academics_grading_systems
+       SET name = COALESCE($3, name), description = COALESCE($4, description), updated_at = NOW()
+       WHERE tenant_id = $1 AND id = $2::text AND is_active = true
+       RETURNING *`,
+      [tenantId, id, name, description],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async archiveGradingSystem(tenantId: string, id: string) {
+    const result = await this.executeSql(
+      tenantId,
+      `UPDATE academics_grading_systems
+       SET is_active = false, updated_at = NOW()
+       WHERE tenant_id = $1 AND id = $2::text AND is_active = true
+       RETURNING *`,
+      [tenantId, id],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async listAttendanceSettings(tenantId: string) {
+    const result = await this.executeSql(
+      tenantId,
+      `SELECT * FROM academics_attendance_settings
+       WHERE tenant_id = $1 AND is_active = true
+       ORDER BY name ASC`,
+      [tenantId],
+    );
+    return result.rows;
+  }
+
+  async createAttendanceSetting(tenantId: string, name: string, description: string | null) {
+    const result = await this.executeSql(
+      tenantId,
+      `INSERT INTO academics_attendance_settings (school_id, tenant_id, name, description)
+       VALUES ($1, $1, $2, $3)
+       ON CONFLICT (tenant_id, name)
+       DO UPDATE SET description = EXCLUDED.description, is_active = true, updated_at = NOW()
+       RETURNING *`,
+      [tenantId, name, description],
+    );
+    return result.rows[0];
+  }
+
+  async updateAttendanceSetting(tenantId: string, id: string, name: string | null, description: string | null) {
+    const result = await this.executeSql(
+      tenantId,
+      `UPDATE academics_attendance_settings
+       SET name = COALESCE($3, name), description = COALESCE($4, description), updated_at = NOW()
+       WHERE tenant_id = $1 AND id = $2::text AND is_active = true
+       RETURNING *`,
+      [tenantId, id, name, description],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async archiveAttendanceSetting(tenantId: string, id: string) {
+    const result = await this.executeSql(
+      tenantId,
+      `UPDATE academics_attendance_settings
+       SET is_active = false, updated_at = NOW()
+       WHERE tenant_id = $1 AND id = $2::text AND is_active = true
+       RETURNING *`,
+      [tenantId, id],
+    );
+    return result.rows[0] ?? null;
+  }
+
   // --- Report Card Settings ---
   async getReportCardSettings(tenantId: string) {
-    const result = await this.executeSql(this.getTenantId([`SELECT * FROM academics_report_card_settings WHERE tenant_id = $1 AND is_active = true ORDER BY name ASC`,
-      [tenantId]]), `SELECT * FROM academics_report_card_settings WHERE tenant_id = $1 AND is_active = true ORDER BY name ASC`,
+    const result = await this.executeSql(
+      tenantId,
+      `SELECT * FROM academics_report_card_settings WHERE tenant_id = $1 AND is_active = true ORDER BY name ASC`,
       [tenantId]);
     return result.rows;
   }
 
   async createReportCardSetting(tenantId: string, name: string, gradingSystemId: string | null, showRank: boolean, showAttendance: boolean) {
-    const result = await this.executeSql(this.getTenantId([`INSERT INTO academics_report_card_settings (tenant_id, name, grading_system_id, show_rank, show_attendance)
-       VALUES ($1, $2, $3::uuid, $4, $5) RETURNING *`,
-      [tenantId, name, gradingSystemId, showRank, showAttendance]]), `INSERT INTO academics_report_card_settings (tenant_id, name, grading_system_id, show_rank, show_attendance)
-       VALUES ($1, $2, $3::uuid, $4, $5) RETURNING *`,
-      [tenantId, name, gradingSystemId, showRank, showAttendance]);
+    const result = await this.executeSql(tenantId, `
+      INSERT INTO academics_report_card_settings (
+        school_id, tenant_id, name, grading_system_id, show_rank, show_attendance
+      )
+      VALUES ($1, $1, $2, $3::uuid, $4, $5)
+      ON CONFLICT (tenant_id, name)
+      DO UPDATE SET
+        grading_system_id = EXCLUDED.grading_system_id,
+        show_rank = EXCLUDED.show_rank,
+        show_attendance = EXCLUDED.show_attendance,
+        is_active = true,
+        updated_at = NOW()
+      RETURNING *
+    `, [tenantId, name, gradingSystemId, showRank, showAttendance]);
     return result.rows[0];
   }
 
   async archiveReportCardSetting(tenantId: string, id: string) {
-    const result = await this.executeSql(this.getTenantId([`UPDATE academics_report_card_settings SET is_active = false, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
-      [tenantId, id]]), `UPDATE academics_report_card_settings SET is_active = false, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
-      [tenantId, id]);
+    const result = await this.executeSql(tenantId, `
+      UPDATE academics_report_card_settings
+      SET is_active = false, updated_at = NOW()
+      WHERE tenant_id = $1 AND id = $2::text
+      RETURNING *
+    `, [tenantId, id]);
     return result.rows[0];
   }
 }

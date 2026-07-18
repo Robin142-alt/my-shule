@@ -20,6 +20,7 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS teacher_subject_assignments/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academics_departments/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academics_class_teachers/);
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academics_report_card_settings/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academic_levels/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS class_streams/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS student_class_assignments/);
@@ -38,7 +39,13 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /ALTER TABLE student_class_assignments FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /ALTER TABLE academics_departments FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /ALTER TABLE academics_class_teachers FORCE ROW LEVEL SECURITY/);
+  assert.match(schemaSql, /ALTER TABLE academics_report_card_settings FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /uq_teacher_subject_assignments_scope/);
+  assert.match(schemaSql, /uq_academic_years_tenant_name/);
+  assert.match(schemaSql, /uq_academics_report_card_settings_tenant_name/);
+  assert.match(schemaSql, /academic_audit_logs DROP CONSTRAINT IF EXISTS academic_audit_logs_school_id_fkey/);
+  assert.match(schemaSql, /UPDATE academic_audit_logs SET school_id = tenant_id/);
+  assert.match(schemaSql, /CREATE UNIQUE INDEX ux_academics_class_teachers_scope/);
   assert.match(schemaSql, /NULLIF\(current_setting\('app\.role', true\), ''\) = 'system'/);
   assert.match(schemaSql, /ALTER TABLE teacher_subject_assignments FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /ALTER TABLE student_class_assignments FORCE ROW LEVEL SECURITY/);
@@ -87,6 +94,8 @@ test('AcademicsRepository supplies durable IDs when creating academic years and 
   assert.match(calls[0]!.sql, /name,\s*start_date,\s*end_date,\s*starts_on,\s*ends_on/);
   assert.match(calls[0]!.sql, /VALUES \(\$1, \$2, \$3,/);
   assert.match(calls[1]!.sql, /INSERT INTO academic_terms\s*\(\s*tenant_id, id,/);
+  assert.match(calls[0]!.sql, /ON CONFLICT \(tenant_id, name\)/);
+  assert.match(calls[1]!.sql, /ON CONFLICT \(tenant_id, academic_year_id, name\)/);
   assert.match(String(calls[0]!.params[1]), /^[0-9a-f-]{36}$/i);
   assert.match(String(calls[1]!.params[1]), /^[0-9a-f-]{36}$/i);
   assert.equal(calls[0]!.params[0], 'kibabi-high');
@@ -94,12 +103,51 @@ test('AcademicsRepository supplies durable IDs when creating academic years and 
   assert.equal(term.id, calls[1]!.params[1]);
 });
 
+test('AcademicsRepository dual-writes tenant ownership for legacy audit compatibility', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new AcademicsRepository({
+    executeWithTenant: async (
+      tenantId: string,
+      _userId: string | null,
+      callback: (tx: { $queryRawUnsafe: (sql: string, ...params: unknown[]) => Promise<unknown[]> }) => Promise<unknown>,
+    ) => {
+      assert.equal(tenantId, 'maranda-high');
+      return callback({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          calls.push({ sql, params });
+          return [{ id: 'audit-1' }];
+        },
+      });
+    },
+  } as never);
+
+  await repository.appendAuditLog({
+    tenant_id: 'maranda-high',
+    entity_type: 'academic_year',
+    entity_id: '11111111-1111-4111-8111-111111111111',
+    action: 'academics.academic_year_created',
+    actor_user_id: '22222222-2222-4222-8222-222222222222',
+    metadata: { name: '2026 Academic Year' },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.match(calls[0]!.sql, /INSERT INTO academic_audit_logs\s*\(\s*school_id, tenant_id,/);
+  assert.match(calls[0]!.sql, /VALUES \(\$1, \$1,/);
+  assert.equal(calls[0]!.params[0], 'maranda-high');
+});
+
 test('AcademicsService assigns teachers to deterministic subject class term scopes', async () => {
   const calls: string[] = [];
+  let scopeRead = 0;
   const service = new AcademicsService(
     { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
     {
-      executeSql: async () => ({ rows: [], rowCount: 0 }),
+      executeSql: async () => {
+        scopeRead += 1;
+        return scopeRead === 1
+          ? { rows: [{ id: 'term-1' }], rowCount: 1 }
+          : { rows: [], rowCount: 0 };
+      },
       findTeacherOptionByUserId: async () => ({ id: 'staff-1', user_id: 'teacher-1', label: 'Teacher One' }),
       createTeacherAssignment: async (input: Record<string, unknown>) => {
         calls.push('assign');
@@ -121,6 +169,32 @@ test('AcademicsService assigns teachers to deterministic subject class term scop
 
   assert.equal(assignment.id, 'assignment-1');
   assert.deepEqual(calls, ['assign', 'audit']);
+});
+
+test('AcademicsService rejects academic terms outside their selected year dates', async () => {
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    {
+      executeSql: async () => ({
+        rows: [{ id: 'year-1', starts_on: '2026-01-05', ends_on: '2026-10-30' }],
+        rowCount: 1,
+      }),
+      createAcademicTerm: async () => {
+        throw new Error('createAcademicTerm should not run');
+      },
+    } as never,
+    {} as never,
+  );
+
+  await assert.rejects(
+    () => service.createAcademicTerm({
+      academic_year_id: 'year-1',
+      name: 'Term 3',
+      starts_on: '2026-10-01',
+      ends_on: '2026-11-15',
+    }),
+    /must fall within the selected academic year/,
+  );
 });
 
 test('AcademicsService creates structured levels, classes, and streams in one tenant transaction', async () => {

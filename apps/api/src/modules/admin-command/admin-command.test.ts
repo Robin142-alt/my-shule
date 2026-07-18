@@ -100,6 +100,30 @@ test('AdminCommandRepository builds principal teaching schedule from tenant time
   assert.equal(result.pendingGrading, 2);
 });
 
+test('Leadership attendance summaries tolerate legacy text and date column variants', async () => {
+  const principalQueries: string[] = [];
+  const principalRepository = new AdminCommandRepository({
+    query: async (sql: string) => {
+      principalQueries.push(sql);
+      return { rows: [{}], rowCount: 1 };
+    },
+  } as never);
+
+  await principalRepository.getPrincipalOverviewSnapshot('tenant-a');
+  assert.match(principalQueries[0]!, /attendance_date::text = CURRENT_DATE::text/);
+
+  const deputyQueries: string[] = [];
+  const deputyRepository = new DeputyCommandRepository({
+    query: async (sql: string) => {
+      deputyQueries.push(sql);
+      return { rows: [{}], rowCount: 1 };
+    },
+  } as never);
+
+  await deputyRepository.getDailyOperations('tenant-a');
+  assert.match(deputyQueries[0]!, /attendance_date::text = CURRENT_DATE::text/);
+});
+
 test('AdminCommandRepository persists and reads school profile settings inside the current tenant', async () => {
   const queries: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new AdminCommandRepository({

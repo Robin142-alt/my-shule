@@ -65,10 +65,10 @@ export class DeputyCommandRepository {
     const metrics = await this.safeQuery(
       `
         SELECT
-          (SELECT COUNT(*)::int FROM teacher_attendance_logs WHERE tenant_id = $1 AND attendance_date = CURRENT_DATE AND status = 'absent') AS absent_teachers,
-          (SELECT COUNT(*)::int FROM teacher_attendance_logs WHERE tenant_id = $1 AND attendance_date = CURRENT_DATE AND status = 'late') AS late_teachers,
+          (SELECT COUNT(*)::int FROM teacher_attendance_logs WHERE tenant_id = $1 AND attendance_date::text = CURRENT_DATE::text AND status = 'absent') AS absent_teachers,
+          (SELECT COUNT(*)::int FROM teacher_attendance_logs WHERE tenant_id = $1 AND attendance_date::text = CURRENT_DATE::text AND status = 'late') AS late_teachers,
           (SELECT COUNT(*)::int FROM staff_profiles WHERE tenant_id = $1 AND status = 'active') AS total_staff,
-          (SELECT COUNT(*)::int FROM teacher_attendance_logs WHERE tenant_id = $1 AND attendance_date = CURRENT_DATE AND status = 'present') AS present_staff
+          (SELECT COUNT(*)::int FROM teacher_attendance_logs WHERE tenant_id = $1 AND attendance_date::text = CURRENT_DATE::text AND status = 'present') AS present_staff
       `,
       [tenantId],
       { absent_teachers: 0, late_teachers: 0, total_staff: 0, present_staff: 0 }
