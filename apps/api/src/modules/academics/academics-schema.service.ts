@@ -634,6 +634,9 @@ export class AcademicsSchemaService implements OnModuleInit {
       ALTER TABLE academics_grading_systems ALTER COLUMN school_id SET NOT NULL;
       ALTER TABLE academics_attendance_settings ALTER COLUMN school_id SET NOT NULL;
       ALTER TABLE academics_report_card_settings ALTER COLUMN school_id SET NOT NULL;
+      ALTER TABLE academics_grading_systems ALTER COLUMN updated_at SET DEFAULT NOW();
+      ALTER TABLE academics_attendance_settings ALTER COLUMN updated_at SET DEFAULT NOW();
+      ALTER TABLE academics_report_card_settings ALTER COLUMN updated_at SET DEFAULT NOW();
 
       CREATE UNIQUE INDEX IF NOT EXISTS uq_academic_years_tenant_name
         ON academic_years (tenant_id, name);

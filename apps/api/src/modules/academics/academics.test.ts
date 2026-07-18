@@ -47,6 +47,9 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /PARTITION BY tenant_id, code/);
   assert.match(schemaSql, /academic_audit_logs DROP CONSTRAINT IF EXISTS academic_audit_logs_school_id_fkey/);
   assert.match(schemaSql, /UPDATE academic_audit_logs SET school_id = tenant_id/);
+  assert.match(schemaSql, /academics_grading_systems ALTER COLUMN updated_at SET DEFAULT NOW\(\)/);
+  assert.match(schemaSql, /academics_attendance_settings ALTER COLUMN updated_at SET DEFAULT NOW\(\)/);
+  assert.match(schemaSql, /academics_report_card_settings ALTER COLUMN updated_at SET DEFAULT NOW\(\)/);
   assert.match(schemaSql, /CREATE UNIQUE INDEX ux_academics_class_teachers_scope/);
   assert.match(schemaSql, /NULLIF\(current_setting\('app\.role', true\), ''\) = 'system'/);
   assert.match(schemaSql, /ALTER TABLE teacher_subject_assignments FORCE ROW LEVEL SECURITY/);
@@ -54,6 +57,47 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /uq_teacher_subject_assignments_scope/);
   assert.match(schemaSql, /NULLIF\(current_setting\('app\.role', true\), ''\) = 'system'/);
   assert.doesNotMatch(schemaSql, /CREATE TABLE IF NOT EXISTS attendance_/i);
+});
+
+test('AcademicsRepository writes settings across legacy UUID and current text schemas', async () => {
+  const calls: string[] = [];
+  const repository = new AcademicsRepository({
+    executeWithTenant: async (
+      tenantId: string,
+      _userId: string | null,
+      callback: (tx: { $queryRawUnsafe: (sql: string, ...params: unknown[]) => Promise<unknown[]> }) => Promise<unknown>,
+    ) => {
+      assert.equal(tenantId, 'maranda-high');
+      return callback({
+        $queryRawUnsafe: async (sql: string) => {
+          calls.push(sql);
+          return [{ id: '11111111-1111-4111-8111-111111111111' }];
+        },
+      });
+    },
+  } as never);
+
+  await repository.createGradingSystem('maranda-high', 'CBC', null);
+  await repository.createAttendanceSetting('maranda-high', 'Daily register', null);
+  await repository.createReportCardSetting(
+    'maranda-high',
+    'Term report',
+    '11111111-1111-4111-8111-111111111111',
+    true,
+    true,
+  );
+  await repository.updateGradingSystem('maranda-high', 'grading-1', 'CBC revised', null);
+  await repository.updateAttendanceSetting('maranda-high', 'attendance-1', 'AM register', null);
+  await repository.archiveReportCardSetting('maranda-high', 'report-1');
+
+  assert.equal(calls.length, 6);
+  for (const sql of calls.slice(0, 3)) {
+    assert.match(sql, /updated_at/);
+    assert.match(sql, /NOW\(\)/);
+  }
+  for (const sql of calls.slice(3)) {
+    assert.match(sql, /id::text = \$2/);
+  }
 });
 
 test('AcademicsRepository supplies durable IDs when creating academic years and terms', async () => {

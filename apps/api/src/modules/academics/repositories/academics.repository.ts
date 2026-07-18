@@ -1363,8 +1363,8 @@ export class AcademicsRepository {
   async createGradingSystem(tenantId: string, name: string, description: string | null) {
     const result = await this.executeSql(
       tenantId,
-      `INSERT INTO academics_grading_systems (school_id, tenant_id, name, description)
-       VALUES ($1, $1, $2, $3)
+      `INSERT INTO academics_grading_systems (school_id, tenant_id, name, description, updated_at)
+       VALUES ($1, $1, $2, $3, NOW())
        ON CONFLICT (tenant_id, name)
        DO UPDATE SET description = EXCLUDED.description, is_active = true, updated_at = NOW()
        RETURNING *`,
@@ -1378,7 +1378,7 @@ export class AcademicsRepository {
       tenantId,
       `UPDATE academics_grading_systems
        SET name = COALESCE($3, name), description = COALESCE($4, description), updated_at = NOW()
-       WHERE tenant_id = $1 AND id = $2::text AND is_active = true
+       WHERE tenant_id = $1 AND id::text = $2 AND is_active = true
        RETURNING *`,
       [tenantId, id, name, description],
     );
@@ -1390,7 +1390,7 @@ export class AcademicsRepository {
       tenantId,
       `UPDATE academics_grading_systems
        SET is_active = false, updated_at = NOW()
-       WHERE tenant_id = $1 AND id = $2::text AND is_active = true
+       WHERE tenant_id = $1 AND id::text = $2 AND is_active = true
        RETURNING *`,
       [tenantId, id],
     );
@@ -1411,8 +1411,8 @@ export class AcademicsRepository {
   async createAttendanceSetting(tenantId: string, name: string, description: string | null) {
     const result = await this.executeSql(
       tenantId,
-      `INSERT INTO academics_attendance_settings (school_id, tenant_id, name, description)
-       VALUES ($1, $1, $2, $3)
+      `INSERT INTO academics_attendance_settings (school_id, tenant_id, name, description, updated_at)
+       VALUES ($1, $1, $2, $3, NOW())
        ON CONFLICT (tenant_id, name)
        DO UPDATE SET description = EXCLUDED.description, is_active = true, updated_at = NOW()
        RETURNING *`,
@@ -1426,7 +1426,7 @@ export class AcademicsRepository {
       tenantId,
       `UPDATE academics_attendance_settings
        SET name = COALESCE($3, name), description = COALESCE($4, description), updated_at = NOW()
-       WHERE tenant_id = $1 AND id = $2::text AND is_active = true
+       WHERE tenant_id = $1 AND id::text = $2 AND is_active = true
        RETURNING *`,
       [tenantId, id, name, description],
     );
@@ -1438,7 +1438,7 @@ export class AcademicsRepository {
       tenantId,
       `UPDATE academics_attendance_settings
        SET is_active = false, updated_at = NOW()
-       WHERE tenant_id = $1 AND id = $2::text AND is_active = true
+       WHERE tenant_id = $1 AND id::text = $2 AND is_active = true
        RETURNING *`,
       [tenantId, id],
     );
@@ -1457,9 +1457,9 @@ export class AcademicsRepository {
   async createReportCardSetting(tenantId: string, name: string, gradingSystemId: string | null, showRank: boolean, showAttendance: boolean) {
     const result = await this.executeSql(tenantId, `
       INSERT INTO academics_report_card_settings (
-        school_id, tenant_id, name, grading_system_id, show_rank, show_attendance
+        school_id, tenant_id, name, grading_system_id, show_rank, show_attendance, updated_at
       )
-      VALUES ($1, $1, $2, $3::uuid, $4, $5)
+      VALUES ($1, $1, $2, $3::uuid, $4, $5, NOW())
       ON CONFLICT (tenant_id, name)
       DO UPDATE SET
         grading_system_id = EXCLUDED.grading_system_id,
@@ -1476,7 +1476,7 @@ export class AcademicsRepository {
     const result = await this.executeSql(tenantId, `
       UPDATE academics_report_card_settings
       SET is_active = false, updated_at = NOW()
-      WHERE tenant_id = $1 AND id = $2::text
+      WHERE tenant_id = $1 AND id::text = $2
       RETURNING *
     `, [tenantId, id]);
     return result.rows[0];
