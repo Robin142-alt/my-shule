@@ -17,10 +17,15 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
 
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academic_years/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academic_terms/);
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academics_calendar_periods/);
+  assert.match(schemaSql, /ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS is_compulsory/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS teacher_subject_assignments/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academics_departments/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academics_class_teachers/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academics_report_card_settings/);
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academics_department_hod_appointments/);
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academics_role_appointments/);
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academics_curriculum_configurations/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academic_levels/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS class_streams/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS student_class_assignments/);
@@ -40,6 +45,10 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /ALTER TABLE academics_departments FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /ALTER TABLE academics_class_teachers FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /ALTER TABLE academics_report_card_settings FORCE ROW LEVEL SECURITY/);
+  assert.match(schemaSql, /ALTER TABLE academics_department_hod_appointments FORCE ROW LEVEL SECURITY/);
+  assert.match(schemaSql, /ALTER TABLE academics_role_appointments FORCE ROW LEVEL SECURITY/);
+  assert.match(schemaSql, /ALTER TABLE academics_curriculum_configurations FORCE ROW LEVEL SECURITY/);
+  assert.match(schemaSql, /ALTER TABLE academics_calendar_periods FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /uq_teacher_subject_assignments_scope/);
   assert.match(schemaSql, /uq_academic_years_tenant_name/);
   assert.match(schemaSql, /uq_academics_report_card_settings_tenant_name/);
@@ -51,6 +60,9 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /academics_attendance_settings ALTER COLUMN updated_at SET DEFAULT NOW\(\)/);
   assert.match(schemaSql, /academics_report_card_settings ALTER COLUMN updated_at SET DEFAULT NOW\(\)/);
   assert.match(schemaSql, /CREATE UNIQUE INDEX ux_academics_class_teachers_scope/);
+  assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_academics_department_hod_active/);
+  assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_academics_role_appointments_active/);
+  assert.match(schemaSql, /uq_academics_curriculum_name_start/);
   assert.match(schemaSql, /NULLIF\(current_setting\('app\.role', true\), ''\) = 'system'/);
   assert.match(schemaSql, /ALTER TABLE teacher_subject_assignments FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /ALTER TABLE student_class_assignments FORCE ROW LEVEL SECURITY/);
@@ -178,7 +190,7 @@ test('AcademicsRepository dual-writes tenant ownership for legacy audit compatib
 
   assert.equal(calls.length, 1);
   assert.match(calls[0]!.sql, /INSERT INTO academic_audit_logs\s*\(\s*school_id, tenant_id,/);
-  assert.match(calls[0]!.sql, /VALUES \(\$1, \$1,/);
+  assert.match(calls[0]!.sql, /VALUES\s*\(\s*\$1,\s*\$1,/);
   assert.equal(calls[0]!.params[0], 'maranda-high');
 });
 
@@ -567,6 +579,8 @@ test('AcademicsRepository loads the complete academic foundation in one tenant t
   assert.equal(observedTenantId, 'kibabi-high');
   assert.match(observedSql, /FROM academic_years/);
   assert.match(observedSql, /FROM academic_terms/);
+  assert.match(observedSql, /FROM academics_calendar_periods/);
+  assert.match(observedSql, /FROM class_subject_assignments/);
   assert.match(observedSql, /FROM class_streams/);
   assert.match(observedSql, /FROM teacher_subject_assignments/);
   assert.deepEqual(result.years, [{ id: 'year-1', name: '2026' }]);
@@ -685,13 +699,17 @@ test('AcademicsService validates and audits HOD reassignment in the active schoo
   const service = new AcademicsService(
     { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
     {
+      getSetupRecord: async (tenantId: string, entityType: string, id: string) => {
+        calls.push(`record:${tenantId}:${entityType}:${id}`);
+        return { id, name: 'Science', head_of_department_user_id: null, version: 1 };
+      },
       findTeacherOptionByUserId: async (tenantId: string, userId: string) => {
         calls.push(`teacher:${tenantId}:${userId}`);
         return { user_id: userId };
       },
-      updateDepartment: async (tenantId: string, id: string, name: string | null, hodUserId: string | null) => {
-        calls.push(`department:${tenantId}:${id}:${name}:${hodUserId}`);
-        return { id, head_of_department_user_id: hodUserId };
+      assignDepartmentHead: async (tenantId: string, id: string, hodUserId: string | null) => {
+        calls.push(`department:${tenantId}:${id}:${hodUserId}`);
+        return { department: { id, name: 'Science', head_of_department_user_id: hodUserId, version: 2 } };
       },
       appendAuditLog: async (input: Record<string, unknown>) => {
         calls.push(`audit:${input.action}`);
@@ -706,9 +724,10 @@ test('AcademicsService validates and audits HOD reassignment in the active schoo
 
   assert.equal(result.head_of_department_user_id, 'teacher-1');
   assert.deepEqual(calls, [
+    'record:tenant-a:department:department-1',
     'teacher:tenant-a:teacher-1',
-    'department:tenant-a:department-1:null:teacher-1',
-    'audit:academics.department_updated',
+    'department:tenant-a:department-1:teacher-1',
+    'audit:academics.academic_department_hod_reassigned',
   ]);
 });
 
@@ -717,9 +736,13 @@ test('AcademicsService archives and audits subject teacher allocations in the ac
   const service = new AcademicsService(
     { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
     {
+      getSetupRecord: async (tenantId: string, entityType: string, id: string) => {
+        calls.push(`record:${tenantId}:${entityType}:${id}`);
+        return { id, teacher_user_id: null, version: 1 };
+      },
       archiveTeacherAssignment: async (tenantId: string, id: string) => {
         calls.push(`archive:${tenantId}:${id}`);
-        return { id };
+        return { id, teacher_user_id: null, version: 2 };
       },
       appendAuditLog: async (input: Record<string, unknown>) => {
         calls.push(`audit:${input.action}`);
@@ -732,6 +755,7 @@ test('AcademicsService archives and audits subject teacher allocations in the ac
 
   assert.equal(result.id, 'assignment-1');
   assert.deepEqual(calls, [
+    'record:tenant-a:teacher-assignment:assignment-1',
     'archive:tenant-a:assignment-1',
     'audit:academics.teacher_subject_unassigned',
   ]);
@@ -773,4 +797,184 @@ test('AcademicsService delegates enterMarks to ExamsService and calls new reposi
   });
 
   assert.deepEqual(calls, ['create-attendance', 'enter-mark-exams']);
+});
+
+test('AcademicsService blocks class capacity reductions below active enrolment', async () => {
+  let updateAttempted = false;
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    {
+      getSetupRecord: async () => ({ id: 'class-1', academic_year_id: 'year-1', name: 'Form 1' }),
+      executeSql: async () => ({ rows: [{ count: 42 }], rowCount: 1 }),
+      updateClassSection: async () => {
+        updateAttempted = true;
+        return null;
+      },
+    } as never,
+    {} as never,
+  );
+
+  await assert.rejects(() => service.updateClassSection('class-1', { capacity: 40 }), /cannot be below 42/);
+  assert.equal(updateAttempted, false);
+});
+
+test('AcademicsService blocks term closure while marks and publishing work remain open', async () => {
+  let lifecycleAttempted = false;
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    {
+      getSetupRecord: async () => ({ id: 'term-1', name: 'Term 1', status: 'active' }),
+      getSetupDependencies: async () => ({ dependencies: [], total: 0, can_permanently_delete: true }),
+      getTermClosureBlockers: async () => ({
+        blockers: [{ key: 'exam_marks', label: 'draft or submitted marks', count: 16 }],
+        total: 16,
+        can_close: false,
+      }),
+      applySetupLifecycle: async () => {
+        lifecycleAttempted = true;
+        return null;
+      },
+    } as never,
+    {} as never,
+  );
+
+  await assert.rejects(
+    () => service.manageSetupLifecycle('academic-term', 'term-1', { action: 'close', reason: 'End of term' }),
+    /cannot be closed while academic workflows remain incomplete/,
+  );
+  assert.equal(lifecycleAttempted, false);
+});
+
+test('AcademicsRepository preserves HOD appointment history in the tenant transaction', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new AcademicsRepository({
+    executeWithTenant: async (
+      tenantId: string,
+      _userId: string | null,
+      callback: (tx: { $queryRawUnsafe: (sql: string, ...params: unknown[]) => Promise<unknown[]> }) => Promise<unknown>,
+    ) => {
+      assert.equal(tenantId, 'tenant-a');
+      return callback({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          calls.push({ sql, params });
+          if (/INSERT INTO academics_department_hod_appointments/.test(sql)) return [{ id: 'hod-2', status: 'active' }];
+          if (/UPDATE academics_departments/.test(sql)) return [{ id: 'department-1', head_of_department_user_id: 'teacher-2' }];
+          return [];
+        },
+      });
+    },
+  } as never);
+
+  const result = await repository.assignDepartmentHead('tenant-a', 'department-1', 'teacher-2', {
+    actor_user_id: '11111111-1111-4111-8111-111111111111',
+    effective_from: '2026-09-01',
+    appointment_type: 'acting',
+    reason: 'Acting appointment',
+  });
+
+  assert.equal(calls.length, 3);
+  assert.match(calls[0]!.sql, /status = 'ended'/);
+  assert.match(calls[1]!.sql, /ON CONFLICT \(tenant_id, department_id\) WHERE status = 'active'/);
+  assert.match(calls[2]!.sql, /WHERE tenant_id = \$1 AND id::text = \$2/);
+  assert.equal(result.appointment.id, 'hod-2');
+  assert.equal(result.department.head_of_department_user_id, 'teacher-2');
+});
+
+test('AcademicsService creates a term-scoped calendar period inside the selected school dates', async () => {
+  const calls: string[] = [];
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111', role: 'principal' }) } as never,
+    {
+      getSetupRecord: async (_tenantId: string, entityType: string) => entityType === 'academic-year'
+        ? { id: 'year-1', starts_on: '2026-01-01', ends_on: '2026-12-31' }
+        : { id: 'term-1', academic_year_id: 'year-1', starts_on: '2026-05-01', ends_on: '2026-08-31' },
+      createAcademicCalendarPeriod: async (tenantId: string, input: Record<string, unknown>) => {
+        assert.equal(tenantId, 'tenant-a');
+        calls.push('create');
+        return { id: 'period-1', version: 1, ...input };
+      },
+      appendAuditLog: async (input: Record<string, unknown>) => {
+        assert.equal(input.tenant_id, 'tenant-a');
+        calls.push('audit');
+      },
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.createAcademicCalendarPeriod({
+    academic_year_id: 'year-1',
+    academic_term_id: 'term-1',
+    name: 'End-term examination',
+    period_type: 'exam',
+    starts_on: '2026-07-20',
+    ends_on: '2026-08-07',
+    reason: 'Publish the school examination calendar',
+  });
+
+  assert.equal(result.id, 'period-1');
+  assert.deepEqual(calls, ['create', 'audit']);
+});
+
+test('AcademicsService rejects class subject offerings across different academic years', async () => {
+  let createAttempted = false;
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }) } as never,
+    {
+      getSetupRecord: async (_tenantId: string, entityType: string) => {
+        if (entityType === 'academic-term') return { id: 'term-1', academic_year_id: 'year-1' };
+        if (entityType === 'class-section') return { id: 'class-1', academic_year_id: 'year-2' };
+        return { id: 'subject-1' };
+      },
+      createClassSubjectAssignment: async () => {
+        createAttempted = true;
+        return { id: 'offering-1' };
+      },
+    } as never,
+    {} as never,
+  );
+
+  await assert.rejects(
+    () => service.createClassSubjectAssignment({
+      academic_term_id: 'term-1',
+      class_section_id: 'class-1',
+      subject_id: 'subject-1',
+      is_compulsory: true,
+      is_examinable: true,
+    }),
+    /same academic year/,
+  );
+  assert.equal(createAttempted, false);
+});
+
+test('AcademicsService returns truthful partial success for teacher responsibility transfer', async () => {
+  const calls: string[] = [];
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1', role: 'deputy_principal' }) } as never,
+    {
+      findTeacherOptionByUserId: async () => ({ user_id: 'teacher-2' }),
+      getSetupRecord: async () => ({ id: 'assignment-1', teacher_user_id: 'teacher-1' }),
+      reassignTeacherAssignment: async () => ({
+        previous: { id: 'assignment-1' },
+        assignment: { id: 'assignment-2', version: 1 },
+        transferred: { timetable_slots: 4 },
+        manual_review: ['Pending approvals require review.'],
+      }),
+      appendAuditLog: async () => { calls.push('audit'); },
+    } as never,
+    {} as never,
+    undefined,
+    { createNotification: async () => { calls.push('notification'); } } as never,
+  );
+
+  const result = await service.reassignTeacher('assignment-1', {
+    teacher_user_id: 'teacher-2',
+    effective_from: '2026-09-01',
+    reason: 'Teacher transfer',
+    transfer_future_timetable: true,
+    transfer_pending_approvals: true,
+  });
+
+  assert.equal(result.status, 'partial_success');
+  assert.deepEqual(result.transferred, { timetable_slots: 4 });
+  assert.deepEqual(calls, ['audit', 'notification']);
 });

@@ -116,6 +116,33 @@ export class AcademicsSchemaService implements OnModuleInit {
         CONSTRAINT ck_academic_levels_system CHECK (system_type IN ('CBC', 'CBE', '8-4-4', 'International', 'Custom'))
       );
 
+      CREATE TABLE IF NOT EXISTS academics_calendar_periods (
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        tenant_id text NOT NULL,
+        academic_year_id text NOT NULL,
+        academic_term_id text,
+        name text NOT NULL,
+        period_type text NOT NULL,
+        starts_on date NOT NULL,
+        ends_on date NOT NULL,
+        description text,
+        status text NOT NULL DEFAULT 'active',
+        version integer NOT NULL DEFAULT 1,
+        created_by_user_id uuid,
+        updated_by_user_id uuid,
+        archived_at timestamptz,
+        archived_by_user_id uuid,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_academics_calendar_periods_tenant_id_id UNIQUE (tenant_id, id),
+        CONSTRAINT uq_academics_calendar_periods_scope UNIQUE (tenant_id, academic_year_id, name, starts_on),
+        CONSTRAINT ck_academics_calendar_periods_range CHECK (ends_on >= starts_on),
+        CONSTRAINT ck_academics_calendar_periods_type CHECK (
+          period_type IN ('reporting', 'exam', 'holiday', 'activity', 'boarding', 'transport', 'other')
+        ),
+        CONSTRAINT ck_academics_calendar_periods_status CHECK (status IN ('active', 'inactive', 'closed', 'archived'))
+      );
+
       ALTER TABLE academic_levels ADD COLUMN IF NOT EXISTS tenant_id text;
       ALTER TABLE academic_levels ADD COLUMN IF NOT EXISTS school_id text;
       UPDATE academic_levels
@@ -360,6 +387,17 @@ export class AcademicsSchemaService implements OnModuleInit {
         ),
         CONSTRAINT ck_teacher_subject_assignments_status CHECK (status IN ('active', 'inactive'))
       );
+      ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS is_compulsory boolean NOT NULL DEFAULT true;
+      ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS is_examinable boolean NOT NULL DEFAULT true;
+      ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS effective_from date;
+      ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS effective_to date;
+      ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+      ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS reason text;
+      ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
+      ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS updated_by_user_id uuid;
+      ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+      ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS archived_by_user_id uuid;
+      ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
 
       DO $$
       DECLARE
@@ -537,7 +575,7 @@ export class AcademicsSchemaService implements OnModuleInit {
         id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
         entity_type text NOT NULL,
-        entity_id uuid,
+        entity_id text,
         action text NOT NULL,
         actor_user_id uuid,
         metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -581,6 +619,187 @@ export class AcademicsSchemaService implements OnModuleInit {
       ALTER TABLE academics_report_card_settings ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT TRUE;
       ALTER TABLE academics_report_card_settings ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
 
+      -- Academic setup records remain editable after activation. Versions prevent
+      -- stale browser tabs from overwriting newer changes and archive metadata
+      -- preserves an operational trail without destroying dependent records.
+      ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
+      ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS is_current boolean NOT NULL DEFAULT false;
+      ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS display_order integer NOT NULL DEFAULT 0;
+      ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+      ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS archived_by_user_id uuid;
+      ALTER TABLE academic_terms ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
+      ALTER TABLE academic_terms ADD COLUMN IF NOT EXISTS is_current boolean NOT NULL DEFAULT false;
+      ALTER TABLE academic_terms ADD COLUMN IF NOT EXISTS display_order integer NOT NULL DEFAULT 0;
+      ALTER TABLE academic_terms ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+      ALTER TABLE academic_terms ADD COLUMN IF NOT EXISTS archived_by_user_id uuid;
+      ALTER TABLE class_sections ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
+      ALTER TABLE class_sections ADD COLUMN IF NOT EXISTS code text;
+      ALTER TABLE class_sections ADD COLUMN IF NOT EXISTS curriculum_model text NOT NULL DEFAULT 'Custom';
+      ALTER TABLE class_sections ADD COLUMN IF NOT EXISTS enrolment_open boolean NOT NULL DEFAULT true;
+      ALTER TABLE class_sections ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+      ALTER TABLE class_sections ADD COLUMN IF NOT EXISTS archived_by_user_id uuid;
+      ALTER TABLE class_streams ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
+      ALTER TABLE class_streams ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+      ALTER TABLE class_streams ADD COLUMN IF NOT EXISTS code text;
+      ALTER TABLE class_streams ADD COLUMN IF NOT EXISTS stream_teacher_user_id uuid;
+      ALTER TABLE class_streams ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+      ALTER TABLE class_streams ADD COLUMN IF NOT EXISTS archived_by_user_id uuid;
+      ALTER TABLE subjects ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
+      ALTER TABLE subjects ADD COLUMN IF NOT EXISTS abbreviation text;
+      ALTER TABLE subjects ADD COLUMN IF NOT EXISTS curriculum_model text NOT NULL DEFAULT 'Custom';
+      ALTER TABLE subjects ADD COLUMN IF NOT EXISTS subject_type text NOT NULL DEFAULT 'academic';
+      ALTER TABLE subjects ADD COLUMN IF NOT EXISTS is_compulsory boolean NOT NULL DEFAULT true;
+      ALTER TABLE subjects ADD COLUMN IF NOT EXISTS is_examinable boolean NOT NULL DEFAULT true;
+      ALTER TABLE subjects ADD COLUMN IF NOT EXISTS is_practical boolean NOT NULL DEFAULT false;
+      ALTER TABLE subjects ADD COLUMN IF NOT EXISTS is_co_curricular boolean NOT NULL DEFAULT false;
+      ALTER TABLE subjects ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+      ALTER TABLE subjects ADD COLUMN IF NOT EXISTS archived_by_user_id uuid;
+      ALTER TABLE academics_departments ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
+      ALTER TABLE academics_departments ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+      ALTER TABLE academics_departments ADD COLUMN IF NOT EXISTS code text;
+      ALTER TABLE academics_departments ADD COLUMN IF NOT EXISTS description text;
+      ALTER TABLE academics_departments ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+      ALTER TABLE academics_departments ADD COLUMN IF NOT EXISTS archived_by_user_id uuid;
+      ALTER TABLE academics_grading_systems ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
+      ALTER TABLE academics_grading_systems ADD COLUMN IF NOT EXISTS rules jsonb NOT NULL DEFAULT '[]'::jsonb;
+      ALTER TABLE academics_grading_systems ADD COLUMN IF NOT EXISTS effective_from date;
+      ALTER TABLE academics_grading_systems ADD COLUMN IF NOT EXISTS effective_to date;
+      ALTER TABLE academics_grading_systems ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'draft';
+      ALTER TABLE academics_grading_systems ADD COLUMN IF NOT EXISTS based_on_id text;
+      ALTER TABLE academics_grading_systems ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+      ALTER TABLE academics_grading_systems ADD COLUMN IF NOT EXISTS archived_by_user_id uuid;
+      ALTER TABLE academics_attendance_settings ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
+      ALTER TABLE academics_attendance_settings ADD COLUMN IF NOT EXISTS configuration jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE academics_attendance_settings ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+      ALTER TABLE academics_attendance_settings ADD COLUMN IF NOT EXISTS archived_by_user_id uuid;
+      ALTER TABLE academics_report_card_settings ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
+      ALTER TABLE academics_report_card_settings ADD COLUMN IF NOT EXISTS configuration jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE academics_report_card_settings ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+      ALTER TABLE academics_report_card_settings ADD COLUMN IF NOT EXISTS archived_by_user_id uuid;
+
+      ALTER TABLE academics_class_teachers ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+      ALTER TABLE academics_class_teachers ADD COLUMN IF NOT EXISTS assignment_type text NOT NULL DEFAULT 'permanent';
+      ALTER TABLE academics_class_teachers ADD COLUMN IF NOT EXISTS effective_from date NOT NULL DEFAULT CURRENT_DATE;
+      ALTER TABLE academics_class_teachers ADD COLUMN IF NOT EXISTS effective_to date;
+      ALTER TABLE academics_class_teachers ADD COLUMN IF NOT EXISTS reason text;
+      ALTER TABLE academics_class_teachers ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
+      ALTER TABLE academics_class_teachers ADD COLUMN IF NOT EXISTS ended_by_user_id uuid;
+      ALTER TABLE academics_class_teachers ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
+      UPDATE academics_class_teachers
+      SET status = CASE WHEN is_active THEN 'active' ELSE 'ended' END
+      WHERE status IS NULL OR status NOT IN ('active', 'ended', 'archived');
+
+      ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS assignment_type text NOT NULL DEFAULT 'primary';
+      ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS stream_id text;
+      ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS department_id uuid;
+      ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS curriculum_model text;
+      ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS is_primary boolean NOT NULL DEFAULT true;
+      ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS mark_entry_allowed boolean NOT NULL DEFAULT true;
+      ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS lesson_record_allowed boolean NOT NULL DEFAULT true;
+      ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS report_comment_allowed boolean NOT NULL DEFAULT true;
+      ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS effective_from date NOT NULL DEFAULT CURRENT_DATE;
+      ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS effective_to date;
+      ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS reason text;
+      ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS ended_by_user_id uuid;
+      ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
+
+      CREATE TABLE IF NOT EXISTS academics_department_hod_appointments (
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        tenant_id text NOT NULL,
+        school_id text NOT NULL,
+        department_id uuid NOT NULL,
+        teacher_user_id uuid NOT NULL,
+        appointment_type text NOT NULL DEFAULT 'permanent',
+        effective_from date NOT NULL DEFAULT CURRENT_DATE,
+        effective_to date,
+        status text NOT NULL DEFAULT 'active',
+        reason text,
+        appointed_by_user_id uuid,
+        ended_by_user_id uuid,
+        version integer NOT NULL DEFAULT 1,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_academics_department_hod_active
+        ON academics_department_hod_appointments (tenant_id, department_id)
+        WHERE status = 'active';
+      CREATE INDEX IF NOT EXISTS ix_academics_department_hod_history
+        ON academics_department_hod_appointments (tenant_id, department_id, effective_from DESC);
+
+      CREATE TABLE IF NOT EXISTS academics_role_appointments (
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        tenant_id text NOT NULL,
+        school_id text NOT NULL,
+        role_type text NOT NULL,
+        teacher_user_id uuid NOT NULL,
+        department_id uuid,
+        academic_year_id text,
+        class_section_id text,
+        stream_id text,
+        appointment_type text NOT NULL DEFAULT 'permanent',
+        effective_from date NOT NULL DEFAULT CURRENT_DATE,
+        effective_to date,
+        status text NOT NULL DEFAULT 'active',
+        reason text,
+        appointed_by_user_id uuid,
+        approved_by_user_id uuid,
+        ended_by_user_id uuid,
+        version integer NOT NULL DEFAULT 1,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_academics_role_appointments_active
+        ON academics_role_appointments (
+          tenant_id, role_type,
+          COALESCE(department_id::text, ''), COALESCE(academic_year_id, ''),
+          COALESCE(class_section_id, ''), COALESCE(stream_id, '')
+        ) WHERE status = 'active';
+      CREATE INDEX IF NOT EXISTS ix_academics_role_appointments_history
+        ON academics_role_appointments (tenant_id, role_type, teacher_user_id, effective_from DESC);
+
+      CREATE TABLE IF NOT EXISTS academics_curriculum_configurations (
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        tenant_id text NOT NULL,
+        school_id text NOT NULL,
+        name text NOT NULL,
+        curriculum_model text NOT NULL,
+        configuration jsonb NOT NULL DEFAULT '{}'::jsonb,
+        effective_from date NOT NULL,
+        effective_to date,
+        status text NOT NULL DEFAULT 'draft',
+        based_on_id text,
+        version integer NOT NULL DEFAULT 1,
+        archived_at timestamptz,
+        archived_by_user_id uuid,
+        created_by_user_id uuid,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_academics_curriculum_name_start UNIQUE (tenant_id, name, effective_from)
+      );
+
+      ALTER TABLE academic_audit_logs ADD COLUMN IF NOT EXISTS actor_role text;
+      ALTER TABLE academic_audit_logs ALTER COLUMN entity_id TYPE text USING entity_id::text;
+      ALTER TABLE academic_audit_logs ADD COLUMN IF NOT EXISTS previous_values jsonb;
+      ALTER TABLE academic_audit_logs ADD COLUMN IF NOT EXISTS new_values jsonb;
+      ALTER TABLE academic_audit_logs ADD COLUMN IF NOT EXISTS reason text;
+      ALTER TABLE academic_audit_logs ADD COLUMN IF NOT EXISTS effective_at timestamptz;
+      ALTER TABLE academic_audit_logs ADD COLUMN IF NOT EXISTS correlation_id text;
+      CREATE INDEX IF NOT EXISTS ix_academic_audit_entity_history
+        ON academic_audit_logs (tenant_id, entity_type, entity_id, created_at DESC);
+
+      ALTER TABLE academic_years DROP CONSTRAINT IF EXISTS ck_academic_years_status;
+      ALTER TABLE academic_years ADD CONSTRAINT ck_academic_years_status
+        CHECK (status IN ('draft', 'active', 'closed', 'inactive', 'archived'));
+      ALTER TABLE academic_terms DROP CONSTRAINT IF EXISTS ck_academic_terms_status;
+      ALTER TABLE academic_terms ADD CONSTRAINT ck_academic_terms_status
+        CHECK (status IN ('draft', 'active', 'closed', 'inactive', 'archived'));
+      ALTER TABLE academic_levels DROP CONSTRAINT IF EXISTS ck_academic_levels_system;
+      ALTER TABLE academic_levels ADD CONSTRAINT ck_academic_levels_system
+        CHECK (system_type IN ('CBC', 'CBE', '8-4-4', 'International', 'Hybrid', 'Custom'));
+      ALTER TABLE teacher_subject_assignments DROP CONSTRAINT IF EXISTS ck_teacher_subject_assignments_status;
+      ALTER TABLE teacher_subject_assignments ADD CONSTRAINT ck_teacher_subject_assignments_status
+        CHECK (status IN ('active', 'inactive', 'ended', 'archived'));
+
       DO $$
       DECLARE
         target_table text;
@@ -591,6 +810,9 @@ export class AcademicsSchemaService implements OnModuleInit {
           'academics_grading_systems',
           'academics_attendance_settings',
           'academics_report_card_settings'
+          ,'academics_role_appointments'
+          ,'academics_curriculum_configurations'
+          ,'academics_calendar_periods'
         ] LOOP
           IF to_regclass(format('public.%I', target_table)) IS NOT NULL THEN
             EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', target_table);
@@ -817,6 +1039,8 @@ export class AcademicsSchemaService implements OnModuleInit {
       ALTER TABLE academic_years FORCE ROW LEVEL SECURITY;
       ALTER TABLE academic_terms ENABLE ROW LEVEL SECURITY;
       ALTER TABLE academic_terms FORCE ROW LEVEL SECURITY;
+      ALTER TABLE academics_calendar_periods ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE academics_calendar_periods FORCE ROW LEVEL SECURITY;
       ALTER TABLE academic_levels ENABLE ROW LEVEL SECURITY;
       ALTER TABLE academic_levels FORCE ROW LEVEL SECURITY;
       ALTER TABLE class_sections ENABLE ROW LEVEL SECURITY;
@@ -837,6 +1061,12 @@ export class AcademicsSchemaService implements OnModuleInit {
       ALTER TABLE academics_departments FORCE ROW LEVEL SECURITY;
       ALTER TABLE academics_class_teachers ENABLE ROW LEVEL SECURITY;
       ALTER TABLE academics_class_teachers FORCE ROW LEVEL SECURITY;
+      ALTER TABLE academics_department_hod_appointments ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE academics_department_hod_appointments FORCE ROW LEVEL SECURITY;
+      ALTER TABLE academics_role_appointments ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE academics_role_appointments FORCE ROW LEVEL SECURITY;
+      ALTER TABLE academics_curriculum_configurations ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE academics_curriculum_configurations FORCE ROW LEVEL SECURITY;
 
       ALTER TABLE academics_grading_systems ENABLE ROW LEVEL SECURITY;
       ALTER TABLE academics_grading_systems FORCE ROW LEVEL SECURITY;
@@ -859,6 +1089,39 @@ export class AcademicsSchemaService implements OnModuleInit {
 
       DROP POLICY IF EXISTS academics_report_card_settings_rls_policy ON academics_report_card_settings;
       CREATE POLICY academics_report_card_settings_rls_policy ON academics_report_card_settings
+      FOR ALL USING (
+        tenant_id = current_setting('app.tenant_id', true)
+        OR NULLIF(current_setting('app.role', true), '') = 'system'
+      )
+      WITH CHECK (
+        tenant_id = current_setting('app.tenant_id', true)
+        OR NULLIF(current_setting('app.role', true), '') = 'system'
+      );
+
+      DROP POLICY IF EXISTS academics_department_hod_appointments_tenant_policy ON academics_department_hod_appointments;
+      CREATE POLICY academics_department_hod_appointments_tenant_policy ON academics_department_hod_appointments
+      FOR ALL USING (
+        tenant_id = current_setting('app.tenant_id', true)
+        OR NULLIF(current_setting('app.role', true), '') = 'system'
+      )
+      WITH CHECK (
+        tenant_id = current_setting('app.tenant_id', true)
+        OR NULLIF(current_setting('app.role', true), '') = 'system'
+      );
+
+      DROP POLICY IF EXISTS academics_role_appointments_tenant_policy ON academics_role_appointments;
+      CREATE POLICY academics_role_appointments_tenant_policy ON academics_role_appointments
+      FOR ALL USING (
+        tenant_id = current_setting('app.tenant_id', true)
+        OR NULLIF(current_setting('app.role', true), '') = 'system'
+      )
+      WITH CHECK (
+        tenant_id = current_setting('app.tenant_id', true)
+        OR NULLIF(current_setting('app.role', true), '') = 'system'
+      );
+
+      DROP POLICY IF EXISTS academics_curriculum_configurations_tenant_policy ON academics_curriculum_configurations;
+      CREATE POLICY academics_curriculum_configurations_tenant_policy ON academics_curriculum_configurations
       FOR ALL USING (
         tenant_id = current_setting('app.tenant_id', true)
         OR NULLIF(current_setting('app.role', true), '') = 'system'

@@ -12,9 +12,32 @@ import {
   CreateClassStructureDto,
   CreateSubjectDto,
   CreateAttendanceDto,
+  AcademicPolicyDto,
+  CreateAcademicPolicyDto,
+  CreateDepartmentDto,
+  AcademicRoleAppointmentDto,
+  AcademicMergeDto,
+  AcademicBulkLifecycleDto,
+  AcademicCurriculumConfigurationDto,
+  CreateAcademicCurriculumConfigurationDto,
+  ReassignTeacherDto,
   CreateAssignmentDto,
   CreateResourceDto,
   CreateLessonLogDto,
+  AcademicLifecycleDto,
+  AssignClassTeacherDto,
+  CreateClassStreamDto,
+  CreateClassSubjectAssignmentDto,
+  UpdateClassSubjectAssignmentDto,
+  CreateAcademicCalendarPeriodDto,
+  UpdateAcademicCalendarPeriodDto,
+  EndAssignmentDto,
+  UpdateAcademicTermDto,
+  UpdateAcademicYearDto,
+  UpdateClassSectionDto,
+  UpdateClassStreamDto,
+  UpdateDepartmentDto,
+  UpdateSubjectDto,
 } from './dto/academic.dto';
 import { EnterExamMarkDto } from '../exams/dto/exams.dto';
 import { AcademicsWidgetDataDto } from '../dashboard/dashboard.dto';
@@ -42,6 +65,18 @@ export class AcademicsController {
     return this.academicsService.createAcademicTerm(dto);
   }
 
+  @Post('calendar-periods')
+  @Permissions('academics:write')
+  createAcademicCalendarPeriod(@Body() dto: CreateAcademicCalendarPeriodDto) {
+    return this.academicsService.createAcademicCalendarPeriod(dto);
+  }
+
+  @Patch('calendar-periods/:id')
+  @Permissions('academics:write')
+  updateAcademicCalendarPeriod(@Param('id') id: string, @Body() dto: UpdateAcademicCalendarPeriodDto) {
+    return this.academicsService.updateAcademicCalendarPeriod(id, dto);
+  }
+
   @Post('class-sections')
   @Permissions('academics:write')
   createClassSection(@Body() dto: CreateClassSectionDto) {
@@ -50,7 +85,7 @@ export class AcademicsController {
 
   @Post('class-streams')
   @Permissions('academics:write')
-  createClassStream(@Body() dto: any) {
+  createClassStream(@Body() dto: CreateClassStreamDto) {
     return this.academicsService.createClassStream(dto);
   }
 
@@ -72,6 +107,18 @@ export class AcademicsController {
     return this.academicsService.createSubject(dto);
   }
 
+  @Post('class-subjects')
+  @Permissions('academics:write')
+  createClassSubjectAssignment(@Body() dto: CreateClassSubjectAssignmentDto) {
+    return this.academicsService.createClassSubjectAssignment(dto);
+  }
+
+  @Patch('class-subjects/:id')
+  @Permissions('academics:write')
+  updateClassSubjectAssignment(@Param('id') id: string, @Body() dto: UpdateClassSubjectAssignmentDto) {
+    return this.academicsService.updateClassSubjectAssignment(id, dto);
+  }
+
   @Post('teacher-assignments')
   @Permissions('academics:assign-teachers')
   assignTeacher(@Body() dto: AssignTeacherDto) {
@@ -82,6 +129,12 @@ export class AcademicsController {
   @Permissions('academics:assign-teachers')
   archiveTeacherAssignment(@Param('id') id: string) {
     return this.academicsService.archiveTeacherAssignment(id);
+  }
+
+  @Post('teacher-assignments/:id/end')
+  @Permissions('academics:assign-teachers')
+  endTeacherAssignment(@Param('id') id: string, @Body() dto: EndAssignmentDto) {
+    return this.academicsService.archiveTeacherAssignment(id, dto);
   }
 
   @Get('teachers')
@@ -193,7 +246,7 @@ export class AcademicsController {
 
   @Patch('years/:id')
   @Permissions('academics:write')
-  updateAcademicYear(@Param('id') id: string, @Body() dto: import('./dto/academic.dto').UpdateAcademicYearDto) {
+  updateAcademicYear(@Param('id') id: string, @Body() dto: UpdateAcademicYearDto) {
     return this.academicsService.updateAcademicYear(id, dto);
   }
 
@@ -205,7 +258,7 @@ export class AcademicsController {
 
   @Patch('terms/:id')
   @Permissions('academics:write')
-  updateAcademicTerm(@Param('id') id: string, @Body() dto: import('./dto/academic.dto').UpdateAcademicTermDto) {
+  updateAcademicTerm(@Param('id') id: string, @Body() dto: UpdateAcademicTermDto) {
     return this.academicsService.updateAcademicTerm(id, dto);
   }
 
@@ -217,7 +270,7 @@ export class AcademicsController {
 
   @Patch('class-sections/:id')
   @Permissions('academics:write')
-  updateClassSection(@Param('id') id: string, @Body() dto: import('./dto/academic.dto').UpdateClassSectionDto) {
+  updateClassSection(@Param('id') id: string, @Body() dto: UpdateClassSectionDto) {
     return this.academicsService.updateClassSection(id, dto);
   }
 
@@ -229,7 +282,7 @@ export class AcademicsController {
 
   @Patch('subjects/:id')
   @Permissions('academics:write')
-  updateSubject(@Param('id') id: string, @Body() dto: import('./dto/academic.dto').UpdateSubjectDto) {
+  updateSubject(@Param('id') id: string, @Body() dto: UpdateSubjectDto) {
     return this.academicsService.updateSubject(id, dto);
   }
 
@@ -237,6 +290,20 @@ export class AcademicsController {
   @Permissions('academics:write')
   archiveSubject(@Param('id') id: string) {
     return this.academicsService.archiveSubject(id);
+  }
+
+  @Patch('class-streams/:id')
+  @Permissions('academics:write')
+  updateClassStream(@Param('id') id: string, @Body() dto: UpdateClassStreamDto) {
+    return this.academicsService.updateClassStream(id, dto);
+  }
+
+  @Delete('class-streams/:id')
+  @Permissions('academics:write')
+  archiveClassStream(@Param('id') id: string) {
+    return this.academicsService.manageSetupLifecycle('class-stream', id, {
+      action: 'archive', reason: 'Archived from academic setup',
+    });
   }
 
   @Get('grading-systems')
@@ -247,13 +314,13 @@ export class AcademicsController {
 
   @Post('grading-systems')
   @Permissions('academics:write')
-  createGradingSystem(@Body() dto: { name: string; description?: string }) {
+  createGradingSystem(@Body() dto: CreateAcademicPolicyDto) {
     return this.academicsService.createGradingSystem(dto);
   }
 
   @Patch('grading-systems/:id')
   @Permissions('academics:write')
-  updateGradingSystem(@Body() dto: { name?: string; description?: string }, @Param('id') id: string) {
+  updateGradingSystem(@Body() dto: AcademicPolicyDto, @Param('id') id: string) {
     return this.academicsService.updateGradingSystem(id, dto);
   }
 
@@ -271,13 +338,13 @@ export class AcademicsController {
 
   @Post('attendance-settings')
   @Permissions('academics:write')
-  createAttendanceSetting(@Body() dto: { name: string; description?: string }) {
+  createAttendanceSetting(@Body() dto: CreateAcademicPolicyDto) {
     return this.academicsService.createAttendanceSetting(dto);
   }
 
   @Patch('attendance-settings/:id')
   @Permissions('academics:write')
-  updateAttendanceSetting(@Body() dto: { name?: string; description?: string }, @Param('id') id: string) {
+  updateAttendanceSetting(@Body() dto: AcademicPolicyDto, @Param('id') id: string) {
     return this.academicsService.updateAttendanceSetting(id, dto);
   }
 
@@ -296,13 +363,13 @@ export class AcademicsController {
 
   @Post('departments')
   @Permissions('academics:write')
-  createDepartment(@Body() dto: any) {
+  createDepartment(@Body() dto: CreateDepartmentDto) {
     return this.academicsService.createDepartment(dto);
   }
 
   @Patch('departments/:id')
   @Permissions('academics:write')
-  updateDepartment(@Param('id') id: string, @Body() dto: any) {
+  updateDepartment(@Param('id') id: string, @Body() dto: UpdateDepartmentDto) {
     return this.academicsService.updateDepartment(id, dto);
   }
 
@@ -320,15 +387,21 @@ export class AcademicsController {
   }
 
   @Post('class-teachers')
-  @Permissions('academics:write')
-  assignClassTeacher(@Body() dto: any) {
+  @Permissions('academics:assign-teachers')
+  assignClassTeacher(@Body() dto: AssignClassTeacherDto) {
     return this.academicsService.assignClassTeacher(dto);
   }
 
   @Delete('class-teachers/:id')
-  @Permissions('academics:write')
+  @Permissions('academics:assign-teachers')
   archiveClassTeacher(@Param('id') id: string) {
     return this.academicsService.archiveClassTeacher(id);
+  }
+
+  @Post('class-teachers/:id/end')
+  @Permissions('academics:assign-teachers')
+  endClassTeacher(@Param('id') id: string, @Body() dto: EndAssignmentDto) {
+    return this.academicsService.archiveClassTeacher(id, dto);
   }
 
   // --- Report Card Settings ---
@@ -340,14 +413,96 @@ export class AcademicsController {
 
   @Post('report-card-settings')
   @Permissions('academics:write')
-  createReportCardSetting(@Body() dto: any) {
+  createReportCardSetting(@Body() dto: CreateAcademicPolicyDto) {
     return this.academicsService.createReportCardSetting(dto);
+  }
+
+  @Patch('report-card-settings/:id')
+  @Permissions('academics:write')
+  updateReportCardSetting(@Param('id') id: string, @Body() dto: AcademicPolicyDto) {
+    return this.academicsService.updateReportCardSetting(id, dto);
   }
 
   @Delete('report-card-settings/:id')
   @Permissions('academics:write')
   archiveReportCardSetting(@Param('id') id: string) {
     return this.academicsService.archiveReportCardSetting(id);
+  }
+
+  @Get('setup/:entityType/:id/dependencies')
+  @Permissions('academics:read')
+  getSetupDependencies(@Param('entityType') entityType: string, @Param('id') id: string) {
+    return this.academicsService.getSetupDependencies(entityType, id);
+  }
+
+  @Get('setup/:entityType/:id/history')
+  @Permissions('academics:read')
+  getSetupHistory(@Param('entityType') entityType: string, @Param('id') id: string) {
+    return this.academicsService.getSetupHistory(entityType, id);
+  }
+
+  @Post('setup/:entityType/:id/lifecycle')
+  @Permissions('academics:manage-lifecycle')
+  manageSetupLifecycle(
+    @Param('entityType') entityType: string,
+    @Param('id') id: string,
+    @Body() dto: AcademicLifecycleDto,
+  ) {
+    return this.academicsService.manageSetupLifecycle(entityType, id, dto);
+  }
+
+  @Post('academic-roles')
+  @Permissions('academics:assign-teachers')
+  assignAcademicRole(@Body() dto: AcademicRoleAppointmentDto) {
+    return this.academicsService.assignAcademicRole(dto);
+  }
+
+  @Post('academic-roles/:id/end')
+  @Permissions('academics:assign-teachers')
+  endAcademicRole(@Param('id') id: string, @Body() dto: EndAssignmentDto) {
+    return this.academicsService.endAcademicRole(id, dto);
+  }
+
+  @Post('curriculum-configurations')
+  @Permissions('academics:write')
+  createCurriculumConfiguration(@Body() dto: CreateAcademicCurriculumConfigurationDto) {
+    return this.academicsService.createCurriculumConfiguration(dto);
+  }
+
+  @Patch('curriculum-configurations/:id')
+  @Permissions('academics:write')
+  updateCurriculumConfiguration(@Param('id') id: string, @Body() dto: AcademicCurriculumConfigurationDto) {
+    return this.academicsService.updateCurriculumConfiguration(id, dto);
+  }
+
+  @Get('teacher-assignments/:id/reassignment-preview')
+  @Permissions('academics:assign-teachers')
+  previewTeacherReassignment(@Param('id') id: string) {
+    return this.academicsService.previewTeacherReassignment(id);
+  }
+
+  @Post('teacher-assignments/:id/reassign')
+  @Permissions('academics:assign-teachers')
+  reassignTeacher(@Param('id') id: string, @Body() dto: ReassignTeacherDto) {
+    return this.academicsService.reassignTeacher(id, dto);
+  }
+
+  @Get('setup/:entityType/:id/merge-preview')
+  @Permissions('academics:merge')
+  previewSetupMerge(@Param('entityType') entityType: string, @Param('id') id: string, @Query('target_id') targetId: string) {
+    return this.academicsService.previewSetupMerge(entityType, id, targetId);
+  }
+
+  @Post('setup/:entityType/:id/merge')
+  @Permissions('academics:merge')
+  mergeSetup(@Param('entityType') entityType: string, @Param('id') id: string, @Body() dto: AcademicMergeDto) {
+    return this.academicsService.mergeSetupRecords(entityType, id, dto);
+  }
+
+  @Post('setup/:entityType/bulk-lifecycle')
+  @Permissions('academics:manage-lifecycle')
+  bulkManageSetup(@Param('entityType') entityType: string, @Body() dto: AcademicBulkLifecycleDto) {
+    return this.academicsService.bulkManageSetup(entityType, dto);
   }
 
   @Get('years')

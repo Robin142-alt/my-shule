@@ -42,7 +42,18 @@ export type SupportedDomainEventName =
   | 'timetable.slot.updated'
   | 'timetable.slot.cancelled'
   | 'timetable.version.revision_created'
-  | 'timetable.version.published';
+  | 'timetable.version.published'
+  | 'academic.calendar.updated'
+  | 'academic.class.updated'
+  | 'academic.stream.updated'
+  | 'academic.department.updated'
+  | 'academic.hod.reassigned'
+  | 'academic.subject.updated'
+  | 'academic.teacher_assignment.changed'
+  | 'academic.policy.updated'
+  | 'academic.role_assignment.changed'
+  | 'academic.curriculum.updated'
+  | 'academic.setup.merged';
 
 export type OutboxEventStatus =
   | 'pending'
@@ -360,6 +371,19 @@ export interface TimetableLifecyclePayload {
   metadata?: Record<string, unknown>;
 }
 
+export interface AcademicSetupChangedPayload {
+  tenant_id: string;
+  entity_type: string;
+  entity_id: string;
+  action: string;
+  version: number;
+  occurred_at: string;
+  previous_values?: Record<string, unknown> | null;
+  new_values?: Record<string, unknown> | null;
+  reason?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
 export interface DomainEventPayloadMap {
   'student.created': StudentCreatedPayload;
   'student.lifecycle.enrolled': StudentLifecycleEnrolledPayload;
@@ -405,6 +429,17 @@ export interface DomainEventPayloadMap {
   'timetable.slot.cancelled': TimetableLifecyclePayload;
   'timetable.version.revision_created': TimetableLifecyclePayload;
   'timetable.version.published': TimetableLifecyclePayload;
+  'academic.calendar.updated': AcademicSetupChangedPayload;
+  'academic.class.updated': AcademicSetupChangedPayload;
+  'academic.stream.updated': AcademicSetupChangedPayload;
+  'academic.department.updated': AcademicSetupChangedPayload;
+  'academic.hod.reassigned': AcademicSetupChangedPayload;
+  'academic.subject.updated': AcademicSetupChangedPayload;
+  'academic.teacher_assignment.changed': AcademicSetupChangedPayload;
+  'academic.policy.updated': AcademicSetupChangedPayload;
+  'academic.role_assignment.changed': AcademicSetupChangedPayload;
+  'academic.curriculum.updated': AcademicSetupChangedPayload;
+  'academic.setup.merged': AcademicSetupChangedPayload;
 }
 
 export interface DomainEvent<
