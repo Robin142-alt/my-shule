@@ -180,15 +180,21 @@ function BulkLifecyclePanel({ groups, onUpdated }: { groups: BulkGroup[]; onUpda
     setBusy("preview");
     setError(null);
     try {
-      const impacts = await Promise.all(selected.map(async (id) => {
-        const dependency = await requestDashboardApi<Record<string, unknown>>(`/academics/setup/${entityType}/${id}/dependencies`);
+      const dependencies = await requestDashboardApi<Array<Record<string, unknown>>>(`/academics/setup/${entityType}/bulk-dependencies`, {
+        method: "POST",
+        body: { ids: selected },
+        timeoutMs: 30_000,
+      });
+      const dependencyById = new Map(dependencies.map((dependency) => [String(dependency.entity_id), dependency]));
+      const impacts = selected.map((id) => {
+        const dependency = dependencyById.get(id);
         return {
           id,
           label: recordLabel(activeGroup.records.find((record) => record.id === id) ?? { id }),
-          total: Number(dependency.total ?? 0),
-          recommendation: String(dependency.recommendation ?? "Review linked records before continuing."),
+          total: Number(dependency?.total ?? 0),
+          recommendation: String(dependency?.recommendation ?? "Review linked records before continuing."),
         };
-      }));
+      });
       setPreview(impacts);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Bulk impact could not be loaded.";
@@ -206,6 +212,7 @@ function BulkLifecyclePanel({ groups, onUpdated }: { groups: BulkGroup[]; onUpda
       const result = await requestDashboardApi<Record<string, unknown>>(`/academics/setup/${entityType}/bulk-lifecycle`, {
         method: "POST",
         body: { ids: selected, action, reason: reason.trim() },
+        timeoutMs: 60_000,
       });
       await onUpdated();
       const completed = Number(result.completed ?? 0);

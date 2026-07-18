@@ -42,7 +42,7 @@ import {
   UpdateDepartmentDto,
   UpdateSubjectDto,
 } from './dto/academic.dto';
-import { AcademicsRepository } from './repositories/academics.repository';
+import { AcademicsRepository, type SetupDependencyResult } from './repositories/academics.repository';
 
 @Injectable()
 export class AcademicsService {
@@ -1378,16 +1378,26 @@ export class AcademicsService {
   }
 
   async bulkManageSetup(entityType: string, dto: AcademicBulkLifecycleDto) {
+    const tenantId = this.requireTenantId();
+    const reason = this.requireText(dto.reason, 'Bulk lifecycle reason');
+    const ids = [...new Set(dto.ids.map((id) => this.requireText(id, 'Academic setup record ID')))];
+    const dependencyPreviews = await this.repository.getBulkSetupDependencies(tenantId, entityType, ids);
+    const dependencyById = new Map(dependencyPreviews.map((preview) => [preview.entity_id, preview]));
     const results: Array<Record<string, unknown>> = [];
-    for (const id of [...new Set(dto.ids)]) {
-      try {
-        const result = await this.manageSetupLifecycle(entityType, id, {
-          action: dto.action, reason: dto.reason,
-        });
-        results.push({ id, status: 'completed', result });
-      } catch (error) {
-        results.push({ id, status: 'failed', message: error instanceof Error ? error.message : 'Action failed' });
-      }
+    const batchSize = 5;
+    for (let offset = 0; offset < ids.length; offset += batchSize) {
+      const batch = ids.slice(offset, offset + batchSize);
+      const batchResults = await Promise.all(batch.map(async (id) => {
+        try {
+          const result = await this.manageSetupLifecycle(entityType, id, {
+            action: dto.action, reason,
+          }, dependencyById.get(id));
+          return { id, status: 'completed', result };
+        } catch (error) {
+          return { id, status: 'failed', message: error instanceof Error ? error.message : 'Action failed' };
+        }
+      }));
+      results.push(...batchResults);
     }
     const completed = results.filter((item) => item.status === 'completed').length;
     return {
@@ -1400,11 +1410,21 @@ export class AcademicsService {
     return this.repository.getSetupDependencies(this.requireTenantId(), entityType, id);
   }
 
+  getBulkSetupDependencies(entityType: string, ids: string[]) {
+    const normalizedIds = [...new Set(ids.map((id) => this.requireText(id, 'Academic setup record ID')))];
+    return this.repository.getBulkSetupDependencies(this.requireTenantId(), entityType, normalizedIds);
+  }
+
   getSetupHistory(entityType: string, id: string) {
     return this.repository.getSetupHistory(this.requireTenantId(), entityType, id);
   }
 
-  async manageSetupLifecycle(entityType: string, id: string, dto: AcademicLifecycleDto) {
+  async manageSetupLifecycle(
+    entityType: string,
+    id: string,
+    dto: AcademicLifecycleDto,
+    dependencyPreview?: SetupDependencyResult,
+  ) {
     const tenantId = this.requireTenantId();
     const normalizedId = this.requireText(id, 'Academic setup record ID');
     const previous = await this.requireSetupRecord(tenantId, entityType, normalizedId);
@@ -1412,7 +1432,8 @@ export class AcademicsService {
     if (['archive', 'delete'].includes(dto.action) && !reason) {
       throw new BadRequestException('A reason is required to archive or permanently delete an academic setup record.');
     }
-    const dependencies = await this.repository.getSetupDependencies(tenantId, entityType, normalizedId);
+    const dependencies = dependencyPreview
+      ?? await this.repository.getSetupDependencies(tenantId, entityType, normalizedId);
     let closure: { blockers: Array<{ key: string; label: string; count: number }>; total: number; can_close: boolean } | null = null;
     if (entityType === 'academic-term' && dto.action === 'close') {
       closure = await this.repository.getTermClosureBlockers(tenantId, normalizedId);

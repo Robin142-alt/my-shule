@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
 
 export class CreateAcademicYearDto {
   @IsString()
@@ -668,6 +668,7 @@ export class AcademicMergeDto {
 
 export class AcademicBulkLifecycleDto {
   @IsArray()
+  @ArrayMinSize(1)
   @ArrayMaxSize(100)
   @IsString({ each: true })
   ids!: string[];
@@ -678,6 +679,14 @@ export class AcademicBulkLifecycleDto {
   @IsString()
   @MaxLength(500)
   reason!: string;
+}
+
+export class AcademicBulkDependencyPreviewDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  ids!: string[];
 }
 
 export class AcademicCurriculumConfigurationDto {

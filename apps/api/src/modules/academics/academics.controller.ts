@@ -18,6 +18,7 @@ import {
   AcademicRoleAppointmentDto,
   AcademicMergeDto,
   AcademicBulkLifecycleDto,
+  AcademicBulkDependencyPreviewDto,
   AcademicCurriculumConfigurationDto,
   CreateAcademicCurriculumConfigurationDto,
   ReassignTeacherDto,
@@ -503,6 +504,12 @@ export class AcademicsController {
   @Permissions('academics:manage-lifecycle')
   bulkManageSetup(@Param('entityType') entityType: string, @Body() dto: AcademicBulkLifecycleDto) {
     return this.academicsService.bulkManageSetup(entityType, dto);
+  }
+
+  @Post('setup/:entityType/bulk-dependencies')
+  @Permissions('academics:read')
+  getBulkSetupDependencies(@Param('entityType') entityType: string, @Body() dto: AcademicBulkDependencyPreviewDto) {
+    return this.academicsService.getBulkSetupDependencies(entityType, dto.ids);
   }
 
   @Get('years')

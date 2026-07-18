@@ -112,7 +112,49 @@ test('AcademicsRepository writes settings across legacy UUID and current text sc
   }
 });
 
-test('AcademicsRepository checks setup dependencies with contiguous PostgreSQL parameters', async () => {
+test('AcademicsRepository previews dependencies for many records in one tenant transaction', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  let transactionCount = 0;
+  const repository = new AcademicsRepository({
+    executeWithTenant: async (
+      tenantId: string,
+      _userId: string | null,
+      callback: (tx: { $queryRawUnsafe: (sql: string, ...params: unknown[]) => Promise<unknown[]> }) => Promise<unknown>,
+    ) => {
+      assert.equal(tenantId, 'tenant-a');
+      transactionCount += 1;
+      return callback({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          calls.push({ sql, params });
+          if (/information_schema\.columns/.test(sql)) {
+            return [
+              { table_name: 'student_class_assignments', column_name: 'tenant_id' },
+              { table_name: 'student_class_assignments', column_name: 'class_section_id' },
+            ];
+          }
+          if (/FROM student_class_assignments/.test(sql)) {
+            return [{ entity_id: 'class-1', count: 2 }];
+          }
+          return [];
+        },
+      });
+    },
+  } as never);
+
+  const result = await repository.getBulkSetupDependencies('tenant-a', 'class-section', ['class-1', 'class-2']);
+
+  assert.equal(transactionCount, 1);
+  assert.equal(calls.length, 2);
+  assert.match(calls[0]!.sql, /table_name = ANY\(\$1::text\[\]\)/);
+  assert.match(calls[1]!.sql, /class_section_id::text = ANY\(\$2::text\[\]\)/);
+  assert.deepEqual(calls[1]!.params, ['tenant-a', ['class-1', 'class-2']]);
+  assert.equal(result[0]!.total, 2);
+  assert.equal(result[0]!.can_permanently_delete, false);
+  assert.equal(result[1]!.total, 0);
+  assert.equal(result[1]!.can_permanently_delete, true);
+});
+
+test('AcademicsRepository types every lifecycle parameter for status-only records', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new AcademicsRepository({
     executeWithTenant: async (
@@ -124,23 +166,39 @@ test('AcademicsRepository checks setup dependencies with contiguous PostgreSQL p
       return callback({
         $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
           calls.push({ sql, params });
-          return [{ present: false }];
+          return [{ id: 'year-1', status: 'inactive', version: 2 }];
         },
       });
     },
   } as never);
 
-  const result = await repository.getSetupDependencies('tenant-a', 'academic-year', 'year-1');
+  const result = await repository.applySetupLifecycle(
+    'tenant-a',
+    'academic-year',
+    'year-1',
+    'deactivate',
+    '11111111-1111-4111-8111-111111111111',
+    1,
+  );
 
-  assert.equal(result.total, 0);
-  assert.equal(result.can_permanently_delete, true);
-  assert.ok(calls.length > 0);
-  for (const call of calls) {
-    assert.match(call.sql, /table_name = \$1/);
-    assert.match(call.sql, /column_name IN \('tenant_id', \$2\)/);
-    assert.doesNotMatch(call.sql, /\$3/);
-    assert.equal(call.params.length, 2);
-  }
+  assert.equal(result.status, 'inactive');
+  assert.equal(calls.length, 1);
+  const captured = calls[0]!;
+  assert.match(captured.sql, /WITH lifecycle_input AS/);
+  assert.match(captured.sql, /\$3::text AS status/);
+  assert.match(captured.sql, /\$4::boolean AS active/);
+  assert.match(captured.sql, /\$5::uuid AS actor_user_id/);
+  assert.match(captured.sql, /\$6::integer AS expected_version/);
+  assert.match(captured.sql, /status = lifecycle\.status/);
+  assert.doesNotMatch(captured.sql, /is_active = lifecycle\.active/);
+  assert.deepEqual(captured.params, [
+    'tenant-a',
+    'year-1',
+    'inactive',
+    false,
+    '11111111-1111-4111-8111-111111111111',
+    1,
+  ]);
 });
 
 test('AcademicsRepository supplies durable IDs when creating academic years and terms', async () => {
@@ -874,6 +932,61 @@ test('AcademicsService blocks term closure while marks and publishing work remai
     /cannot be closed while academic workflows remain incomplete/,
   );
   assert.equal(lifecycleAttempted, false);
+});
+
+test('AcademicsService preloads bulk dependencies and preserves per-record audit actions', async () => {
+  let dependencyLoads = 0;
+  let lifecycleUpdates = 0;
+  let auditWrites = 0;
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1', role: 'principal' }) } as never,
+    {
+      getBulkSetupDependencies: async (_tenantId: string, entityType: string, ids: string[]) => {
+        dependencyLoads += 1;
+        return ids.map((id) => ({
+          entity_type: entityType,
+          entity_id: id,
+          dependencies: [],
+          total: 0,
+          can_permanently_delete: true,
+          recommendation: 'Safe to proceed.',
+          outcome: 'safe_to_proceed',
+          reversible: false,
+        }));
+      },
+      getSetupDependencies: async () => {
+        throw new Error('Bulk lifecycle must reuse the dependency preload.');
+      },
+      getSetupRecord: async (_tenantId: string, _entityType: string, id: string) => ({
+        id,
+        name: id,
+        status: 'active',
+        version: 1,
+      }),
+      applySetupLifecycle: async (_tenantId: string, _entityType: string, id: string) => {
+        lifecycleUpdates += 1;
+        return { id, status: 'inactive', version: 2 };
+      },
+      appendAuditLog: async () => {
+        auditWrites += 1;
+        return {};
+      },
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.bulkManageSetup('class-section', {
+    ids: ['class-1', 'class-2'],
+    action: 'deactivate',
+    reason: 'Close unused classes',
+  });
+
+  assert.equal(dependencyLoads, 1);
+  assert.equal(lifecycleUpdates, 2);
+  assert.equal(auditWrites, 2);
+  assert.equal(result.completed, 2);
+  assert.equal(result.failed, 0);
+  assert.equal(result.status, 'completed');
 });
 
 test('AcademicsRepository preserves HOD appointment history in the tenant transaction', async () => {

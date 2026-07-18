@@ -79,7 +79,10 @@ describe("principal and deputy academic foundation workspace", () => {
     expect(managerSource).toContain("/history");
     expect(managerSource).toContain("/merge-preview");
     expect(managerSource).toContain("/reassignment-preview");
+    expect(workspaceSource).toContain("bulk-dependencies");
     expect(workspaceSource).toContain("bulk-lifecycle");
+    expect(workspaceSource).toContain("timeoutMs: 30_000");
+    expect(workspaceSource).toContain("timeoutMs: 60_000");
     expect(workspaceSource).toContain("Review impact");
     expect(workspaceSource).toContain("Most recently changed");
     expect(workspaceSource).not.toMatch(/Kisumu Boys|demo data/i);

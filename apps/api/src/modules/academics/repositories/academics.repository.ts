@@ -3,6 +3,19 @@ import { randomUUID } from 'node:crypto';
 
 import { PrismaService } from '../../../database/prisma.service';
 
+type SetupDependencyDefinition = { table: string; column: string; label: string };
+
+export type SetupDependencyResult = {
+  entity_type: string;
+  entity_id: string;
+  dependencies: Array<{ table: string; label: string; count: number }>;
+  total: number;
+  can_permanently_delete: boolean;
+  recommendation: string;
+  outcome: 'safe_to_proceed' | 'proceed_with_warnings';
+  reversible: boolean;
+};
+
 @Injectable()
 export class AcademicsRepository {
 
@@ -2369,8 +2382,8 @@ export class AcademicsRepository {
     return result.rows;
   }
 
-  async getSetupDependencies(tenantId: string, entityType: string, id: string) {
-    const dependencyMap: Record<string, Array<{ table: string; column: string; label: string }>> = {
+  private setupDependencyDefinitions(entityType: string): SetupDependencyDefinition[] {
+    const dependencyMap: Record<string, SetupDependencyDefinition[]> = {
       'academic-year': [
         { table: 'academic_terms', column: 'academic_year_id', label: 'terms' },
         { table: 'class_sections', column: 'academic_year_id', label: 'classes' },
@@ -2441,48 +2454,117 @@ export class AcademicsRepository {
         { table: 'academics_curriculum_configurations', column: 'based_on_id', label: 'later curriculum versions' },
       ],
     };
-    const dependencies: Array<{ table: string; label: string; count: number }> = [];
-    for (const dependency of dependencyMap[entityType] ?? []) {
-      const exists = await this.executeSql(tenantId, `
-        SELECT COUNT(DISTINCT column_name)::integer = 2 AS present
-        FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = $1
-          AND column_name IN ('tenant_id', $2)
-      `, [dependency.table, dependency.column]);
-      if (!exists.rows[0]?.present) continue;
-      const counted = await this.executeSql(tenantId,
-        `SELECT COUNT(*)::integer AS count FROM ${dependency.table}
-         WHERE tenant_id = $1 AND ${dependency.column}::text = $2`, [tenantId, id]);
-      const count = Number(counted.rows[0]?.count ?? 0);
-      if (count > 0) dependencies.push({ table: dependency.table, label: dependency.label, count });
-    }
-    if (entityType === 'class-subject') {
-      const linkedTeachers = await this.executeSql(tenantId, `
-        SELECT COUNT(*)::integer AS count
-        FROM teacher_subject_assignments teacher
-        JOIN class_subject_assignments offering
-          ON offering.tenant_id = teacher.tenant_id
-         AND offering.academic_term_id::text = teacher.academic_term_id::text
-         AND offering.class_section_id::text = teacher.class_section_id::text
-         AND offering.subject_id::text = teacher.subject_id::text
-        WHERE offering.tenant_id = $1 AND offering.id::text = $2
-      `, [tenantId, id]);
-      const count = Number(linkedTeachers.rows[0]?.count ?? 0);
-      if (count > 0) dependencies.push({ table: 'teacher_subject_assignments', label: 'teacher assignments', count });
-    }
-    const total = dependencies.reduce((sum, dependency) => sum + dependency.count, 0);
-    return {
-      entity_type: entityType,
-      entity_id: id,
-      dependencies,
-      total,
-      can_permanently_delete: total === 0,
-      recommendation: total === 0
-        ? 'This unused record can be permanently deleted after confirmation.'
-        : 'Archive or deactivate this record to preserve linked school history.',
-      outcome: total === 0 ? 'safe_to_proceed' : 'proceed_with_warnings',
-      reversible: total > 0,
-    };
+    return dependencyMap[entityType] ?? [];
+  }
+
+  async getBulkSetupDependencies(
+    tenantId: string,
+    entityType: string,
+    ids: string[],
+  ): Promise<SetupDependencyResult[]> {
+    const normalizedIds = [...new Set(ids.map((id) => String(id).trim()).filter(Boolean))];
+    if (normalizedIds.length === 0) return [];
+
+    const definitions = this.setupDependencyDefinitions(entityType);
+    return this.prisma.executeWithTenant(tenantId, null, async (tx: any) => {
+      const dependenciesById = new Map<string, Array<{ table: string; label: string; count: number }>>(
+        normalizedIds.map((id) => [id, []]),
+      );
+      const metadataTables = [...new Set([
+        ...definitions.map((dependency) => dependency.table),
+        ...(entityType === 'class-subject' ? ['teacher_subject_assignments', 'class_subject_assignments'] : []),
+      ])];
+      const availableColumns = new Map<string, Set<string>>();
+
+      if (metadataTables.length > 0) {
+        const metadata = await this.executeSqlTx(tx, `
+          SELECT table_name, column_name
+          FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = ANY($1::text[])
+        `, [metadataTables]);
+        for (const row of metadata.rows) {
+          const table = String(row.table_name);
+          if (!availableColumns.has(table)) availableColumns.set(table, new Set());
+          availableColumns.get(table)!.add(String(row.column_name));
+        }
+      }
+
+      for (const dependency of definitions) {
+        const columns = availableColumns.get(dependency.table);
+        if (!columns?.has('tenant_id') || !columns.has(dependency.column)) continue;
+        const counted = await this.executeSqlTx(tx, `
+          SELECT ${dependency.column}::text AS entity_id, COUNT(*)::integer AS count
+          FROM ${dependency.table}
+          WHERE tenant_id::text = $1 AND ${dependency.column}::text = ANY($2::text[])
+          GROUP BY ${dependency.column}::text
+        `, [tenantId, normalizedIds]);
+        for (const row of counted.rows) {
+          const entityId = String(row.entity_id);
+          const count = Number(row.count ?? 0);
+          if (count > 0 && dependenciesById.has(entityId)) {
+            dependenciesById.get(entityId)!.push({
+              table: dependency.table,
+              label: dependency.label,
+              count,
+            });
+          }
+        }
+      }
+
+      if (entityType === 'class-subject') {
+        const teacherColumns = availableColumns.get('teacher_subject_assignments');
+        const offeringColumns = availableColumns.get('class_subject_assignments');
+        const joinColumns = ['tenant_id', 'academic_term_id', 'class_section_id', 'subject_id'];
+        const canCount = joinColumns.every((column) => teacherColumns?.has(column))
+          && [...joinColumns, 'id'].every((column) => offeringColumns?.has(column));
+        if (canCount) {
+          const linkedTeachers = await this.executeSqlTx(tx, `
+            SELECT offering.id::text AS entity_id, COUNT(*)::integer AS count
+            FROM teacher_subject_assignments teacher
+            JOIN class_subject_assignments offering
+              ON offering.tenant_id = teacher.tenant_id
+             AND offering.academic_term_id::text = teacher.academic_term_id::text
+             AND offering.class_section_id::text = teacher.class_section_id::text
+             AND offering.subject_id::text = teacher.subject_id::text
+            WHERE offering.tenant_id::text = $1 AND offering.id::text = ANY($2::text[])
+            GROUP BY offering.id::text
+          `, [tenantId, normalizedIds]);
+          for (const row of linkedTeachers.rows) {
+            const entityId = String(row.entity_id);
+            const count = Number(row.count ?? 0);
+            if (count > 0 && dependenciesById.has(entityId)) {
+              dependenciesById.get(entityId)!.push({
+                table: 'teacher_subject_assignments',
+                label: 'teacher assignments',
+                count,
+              });
+            }
+          }
+        }
+      }
+
+      return normalizedIds.map((id) => {
+        const dependencies = dependenciesById.get(id) ?? [];
+        const total = dependencies.reduce((sum, dependency) => sum + dependency.count, 0);
+        return {
+          entity_type: entityType,
+          entity_id: id,
+          dependencies,
+          total,
+          can_permanently_delete: total === 0,
+          recommendation: total === 0
+            ? 'This unused record can be permanently deleted after confirmation.'
+            : 'Archive or deactivate this record to preserve linked school history.',
+          outcome: total === 0 ? 'safe_to_proceed' : 'proceed_with_warnings',
+          reversible: total > 0,
+        } satisfies SetupDependencyResult;
+      });
+    });
+  }
+
+  async getSetupDependencies(tenantId: string, entityType: string, id: string): Promise<SetupDependencyResult> {
+    const [result] = await this.getBulkSetupDependencies(tenantId, entityType, [id]);
+    return result!;
   }
 
   async getTermClosureBlockers(tenantId: string, termId: string) {
@@ -2556,20 +2638,27 @@ export class AcademicsRepository {
       : action === 'deactivate' ? 'inactive'
       : 'active';
     const active = action === 'activate' || action === 'restore';
-    const statusSet = config.mode === 'active' ? '' : 'status = $3,';
-    const activeSet = config.mode === 'status' ? '' : 'is_active = $4,';
+    const statusSet = config.mode === 'active' ? '' : 'status = lifecycle.status,';
+    const activeSet = config.mode === 'status' ? '' : 'is_active = lifecycle.active,';
     const currentSet = entityType === 'academic-year' || entityType === 'academic-term'
-      ? `is_current = CASE WHEN $3 IN ('closed', 'inactive', 'archived') THEN false ELSE is_current END,`
+      ? `is_current = CASE WHEN lifecycle.status IN ('closed', 'inactive', 'archived') THEN false ELSE record.is_current END,`
       : '';
     const result = await this.executeSql(tenantId, `
-      UPDATE ${config.table}
+      WITH lifecycle_input AS (
+        SELECT $3::text AS status,
+               $4::boolean AS active,
+               $5::uuid AS actor_user_id,
+               $6::integer AS expected_version
+      )
+      UPDATE ${config.table} AS record
       SET ${statusSet} ${activeSet} ${currentSet}
-          archived_at = CASE WHEN $3 = 'archived' THEN NOW() ELSE NULL END,
-          archived_by_user_id = CASE WHEN $3 = 'archived' THEN $5::uuid ELSE NULL END,
-          version = version + 1, updated_at = NOW()
-      WHERE tenant_id = $1 AND id::text = $2
-        AND ($6::integer IS NULL OR version = $6::integer)
-      RETURNING *
+          archived_at = CASE WHEN lifecycle.status = 'archived' THEN NOW() ELSE NULL END,
+          archived_by_user_id = CASE WHEN lifecycle.status = 'archived' THEN lifecycle.actor_user_id ELSE NULL END,
+          version = record.version + 1, updated_at = NOW()
+      FROM lifecycle_input AS lifecycle
+      WHERE record.tenant_id = $1 AND record.id::text = $2
+        AND (lifecycle.expected_version IS NULL OR record.version = lifecycle.expected_version)
+      RETURNING record.*
     `, [tenantId, id, status, active, actorUserId, expectedVersion ?? null]);
     return result.rows[0] ?? null;
   }
