@@ -29,8 +29,8 @@ describe("admissions dashboard routing", () => {
 
     const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
 
-    expect(within(dashboard).getByRole("heading", { name: /^Admissions$/i })).toBeVisible();
-    expect(within(dashboard).getByRole("heading", { name: /Overview/i })).toBeVisible();
+    expect(within(dashboard).getByRole("heading", { name: /Admissions Officer Dashboard/i })).toBeVisible();
+    expect(within(dashboard).getByRole("link", { name: /Overview/i })).toBeVisible();
     expect(within(dashboard).getByRole("link", { name: /Fee Clearance/i })).toHaveAttribute(
       "href",
       "/school/admissions/fee-clearance",
@@ -253,12 +253,12 @@ describe("admissions dashboard routing", () => {
           json: async () => ({ metrics: { total: 0, pending: 0, approved: 0, rejected: 0 }, applicationsList: [] }),
         };
       }
-      if (url.includes("/api/academics/class-sections")) {
+      if (url.includes("/api/admissions/classes")) {
         return {
           ok: true,
           json: async () => [
-            { id: "class-1", name: "Grade 7 North", grade_level: "Grade 7", stream: "North", capacity: 45 },
-            { id: "class-2", name: "Grade 8 South", grade_level: "Grade 8", stream: "South", capacity: 45 },
+            { id: "class-1", name: "Grade 7", grade_level: "Grade 7", stream: "North", capacity: 45, available_seats: 45, label: "Grade 7 North", value: "Grade 7" },
+            { id: "class-2", name: "Grade 8", grade_level: "Grade 8", stream: "South", capacity: 45, available_seats: 45, label: "Grade 8 South", value: "Grade 8" },
           ],
         };
       }
@@ -310,13 +310,12 @@ describe("admissions dashboard routing", () => {
     const user = userEvent.setup();
     const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url.includes("/api/academics/class-sections")) {
+      if (url.includes("/api/admissions/classes")) {
         return {
           ok: true,
           json: async () => [
-            { id: "class-10", name: "Form 1", grade_level: "Form 1", stream: "East", capacity: 45 },
-            { id: "class-11", name: "Form 2 West", grade_level: "Form 2", stream: "West", capacity: 45 },
-            { id: "class-12", name: "Archived Form 4", grade_level: "Form 4", stream: "Archived", capacity: 0, is_active: false },
+            { id: "class-10", name: "Form 1", grade_level: "Form 1", stream: "East", capacity: 45, available_seats: 45, label: "Form 1 East", value: "Form 1" },
+            { id: "class-11", name: "Form 2", grade_level: "Form 2", stream: "West", capacity: 45, available_seats: 44, label: "Form 2 West", value: "Form 2" },
           ],
         };
       }
@@ -350,10 +349,11 @@ describe("admissions dashboard routing", () => {
     await user.click(within(dashboard).getByRole("button", { name: /start student admission/i }));
 
     const classSelect = await within(dashboard).findByLabelText(/class applying/i);
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/academics/class-sections"), expect.anything());
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/admissions/classes"), expect.anything());
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/api/academics/class-sections"), expect.anything());
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/api/admin-command/deputy/classes"), expect.anything());
-    expect(within(classSelect).getByRole("option", { name: "Form 1 East" })).toBeVisible();
-    expect(within(classSelect).getByRole("option", { name: "Form 2 West" })).toBeVisible();
+    expect(within(classSelect).getByRole("option", { name: "Form 1 East (45 seats open)" })).toBeVisible();
+    expect(within(classSelect).getByRole("option", { name: "Form 2 West (44 seats open)" })).toBeVisible();
     expect(within(classSelect).queryByRole("option", { name: "Archived Form 4" })).not.toBeInTheDocument();
 
     await user.type(within(dashboard).getByLabelText(/student full name/i), "Linet Wanjala");
@@ -375,6 +375,52 @@ describe("admissions dashboard routing", () => {
       );
     });
   }, 15000);
+
+  it("shows a retry action instead of claiming the school has no classes when the shared class read fails", async () => {
+    const user = userEvent.setup();
+    let classAttempts = 0;
+    const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/admissions/classes")) {
+        classAttempts += 1;
+        if (classAttempts <= 2) {
+          return { ok: false, status: 500, json: async () => ({ message: "Class read failed" }) };
+        }
+        return {
+          ok: true,
+          json: async () => [
+            { id: "class-20", name: "Grade 9", grade_level: "Grade 9", stream: "Blue", label: "Grade 9 Blue", value: "Grade 9" },
+          ],
+        };
+      }
+      if (url.includes("/api/admin-command/admissions/applications")) {
+        return {
+          ok: true,
+          json: async () => ({ metrics: { total: 0, pending: 0, approved: 0, rejected: 0 }, applicationsList: [] }),
+        };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    renderWithProviders(
+      createElement(SchoolPages, {
+        role: "admissions",
+        section: "applications",
+        tenantSlug: "homabay-high",
+        routeMode: "public",
+        liveDataEnabled: false,
+      }),
+    );
+
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
+    await user.click(within(dashboard).getByRole("button", { name: /start student admission/i }));
+    expect(await within(dashboard).findByText(/active classes could not be loaded/i)).toBeVisible();
+    expect(within(dashboard).queryByText(/ask the deputy principal to create active classes/i)).not.toBeInTheDocument();
+
+    await user.click(within(dashboard).getByRole("button", { name: /retry classes/i }));
+    expect(await within(dashboard).findByRole("option", { name: "Grade 9 Blue" })).toBeVisible();
+  });
 
   it("enrols approved applications through the command dashboard endpoint", async () => {
     const user = userEvent.setup();

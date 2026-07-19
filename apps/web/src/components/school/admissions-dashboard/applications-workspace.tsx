@@ -7,6 +7,10 @@ import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import { useSchoolMutation, useSchoolQuery } from "@/lib/data/school-hooks";
+import {
+  mapAdmissionsClassOptionsFromLive,
+  type LiveAdmissionsClassOption,
+} from "@/lib/modules/admissions-live";
 
 type ApplicationRecord = {
   id: string;
@@ -28,15 +32,6 @@ type ApplicationsData = {
   };
   applicationsList?: ApplicationRecord[];
   items?: ApplicationRecord[];
-};
-
-type SchoolClassRecord = {
-  id: string;
-  name: string;
-  grade_level?: string | null;
-  stream?: string | null;
-  is_active?: boolean | null;
-  status?: string;
 };
 
 type ApplicationFormState = {
@@ -87,27 +82,13 @@ function statusTone(status: string) {
   return "border-amber-200 bg-amber-50 text-amber-700";
 }
 
-function classOptionLabel(schoolClass: SchoolClassRecord) {
-  const name = String(schoolClass.name ?? "").trim();
-  const stream = String(schoolClass.stream ?? "").trim();
-  if (!stream || name.toLowerCase().includes(stream.toLowerCase())) {
-    return name;
-  }
-  return `${name} ${stream}`.trim();
-}
-
-function isActiveClassSection(schoolClass: SchoolClassRecord) {
-  if (schoolClass.is_active === false) return false;
-  return normalizeStatus(schoolClass.status ?? "Active") === "active";
-}
-
-function normalizeClassSections(data: unknown): SchoolClassRecord[] {
-  if (Array.isArray(data)) return data as SchoolClassRecord[];
+function normalizeClassOptions(data: unknown): LiveAdmissionsClassOption[] {
+  if (Array.isArray(data)) return data as LiveAdmissionsClassOption[];
   if (data && typeof data === "object" && Array.isArray((data as { items?: unknown[] }).items)) {
-    return (data as { items: SchoolClassRecord[] }).items;
+    return (data as { items: LiveAdmissionsClassOption[] }).items;
   }
   if (data && typeof data === "object" && Array.isArray((data as { classesList?: unknown[] }).classesList)) {
-    return (data as { classesList: SchoolClassRecord[] }).classesList;
+    return (data as { classesList: LiveAdmissionsClassOption[] }).classesList;
   }
   return [];
 }
@@ -130,7 +111,14 @@ export function ApplicationsWorkspace() {
   const searchParams = useSearchParams();
   const shouldStartAdmission = searchParams.get("action") === "start-admission";
   const { data, isLoading, refetch } = useSchoolQuery<ApplicationsData>("/admin-command/admissions/applications");
-  const { data: classesData, isLoading: classesLoading } = useSchoolQuery<SchoolClassRecord[]>("/academics/class-sections");
+  const {
+    data: classesData,
+    error: classesError,
+    isError: classesFailed,
+    isFetching: classesFetching,
+    isLoading: classesLoading,
+    refetch: refetchClasses,
+  } = useSchoolQuery<LiveAdmissionsClassOption[]>("/admissions/classes", { retry: 1 });
   const createApplication = useSchoolMutation<Record<string, unknown>, ApplicationFormState>(
     "/admin-command/admissions/applications",
     "POST",
@@ -150,11 +138,7 @@ export function ApplicationsWorkspace() {
   const [formError, setFormError] = useState<string | null>(null);
   const [actioningId, setActioningId] = useState<string | null>(null);
 
-  const classOptions = normalizeClassSections(classesData)
-    .filter(isActiveClassSection)
-    .map((schoolClass) => ({ ...schoolClass, label: classOptionLabel(schoolClass) }))
-    .filter((schoolClass) => schoolClass.label)
-    .sort((left, right) => left.label.localeCompare(right.label));
+  const classOptions = mapAdmissionsClassOptionsFromLive(normalizeClassOptions(classesData));
   const hasConfiguredClasses = classOptions.length > 0;
 
   const applications = (data?.applicationsList ?? data?.items ?? []).filter((application) => {
@@ -331,11 +315,13 @@ export function ApplicationsWorkspace() {
                 className="rounded-xl border border-[#D8E0EC] bg-white px-3 py-2 disabled:bg-[#F1F5F9] disabled:text-[#64748B]"
                 value={form.class_applying}
                 onChange={(event) => setForm({ ...form, class_applying: event.target.value })}
-                disabled={classesLoading || !hasConfiguredClasses}
+                disabled={classesLoading || classesFailed || !hasConfiguredClasses}
               >
                 <option value="">
                   {classesLoading
                     ? "Loading classes..."
+                    : classesFailed
+                      ? "Classes could not be loaded"
                     : hasConfiguredClasses
                       ? "Select class"
                       : "No classes configured"}
@@ -343,10 +329,24 @@ export function ApplicationsWorkspace() {
                 {classOptions.map((schoolClass) => (
                   <option key={schoolClass.id} value={schoolClass.label}>
                     {schoolClass.label}
+                    {schoolClass.availableSeats !== null ? ` (${schoolClass.availableSeats} seats open)` : ""}
                   </option>
                 ))}
               </select>
-              {!classesLoading && !hasConfiguredClasses ? (
+              {classesFailed ? (
+                <span className="flex flex-wrap items-center gap-2 text-xs font-semibold text-rose-700">
+                  Active classes could not be loaded from this school.
+                  <button
+                    type="button"
+                    onClick={() => void refetchClasses()}
+                    disabled={classesFetching}
+                    className="rounded-lg border border-rose-300 bg-white px-2 py-1 font-black disabled:opacity-60"
+                  >
+                    {classesFetching ? "Retrying..." : "Retry classes"}
+                  </button>
+                  <span className="sr-only">{classesError?.message}</span>
+                </span>
+              ) : !classesLoading && !hasConfiguredClasses ? (
                 <span className="text-xs font-semibold text-amber-700">
                   Ask the Deputy Principal to create active classes before admissions can receive applicants.
                 </span>
@@ -373,7 +373,7 @@ export function ApplicationsWorkspace() {
             <button type="button" onClick={() => setFormOpen(false)} className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49]">
               Cancel
             </button>
-            <button type="submit" disabled={createApplication.isPending || classesLoading || !hasConfiguredClasses} className="rounded-xl bg-[#FF6B1A] px-4 py-2 text-sm font-black text-white disabled:opacity-60">
+            <button type="submit" disabled={createApplication.isPending || classesLoading || classesFailed || !hasConfiguredClasses} className="rounded-xl bg-[#FF6B1A] px-4 py-2 text-sm font-black text-white disabled:opacity-60">
               {createApplication.isPending ? "Saving..." : "Save application"}
             </button>
           </div>
