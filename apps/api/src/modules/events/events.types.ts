@@ -531,6 +531,7 @@ export interface DispatchOutboxEventJobPayload {
 }
 
 export type DashboardRealtimeEventType =
+  | 'SCHOOL_DATA_CHANGED'
   | 'EXAM_SUBMITTED'
   | 'DEAN_APPROVAL_GRANTED'
   | 'FEE_PAYMENT_COMPLETED'

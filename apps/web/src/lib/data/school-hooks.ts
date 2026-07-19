@@ -3,13 +3,13 @@
 
 import {
   useQuery,
-  useMutation,
   type UseQueryOptions,
   type UseMutationOptions,
 } from "@tanstack/react-query";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { getCurrentSchoolId } from "@/lib/school/school-operational-store";
 import { useOfflineMutation } from "@/lib/offline/use-offline-mutation";
+import { useOptionalSchoolTenantId } from "./school-tenant-scope";
 
 export class PermissionDeniedError extends Error {
   constructor(message = "Permission denied") {
@@ -35,7 +35,8 @@ interface SchoolQueryOptions<T>
  * Enforces `tenantId` in the queryKey.
  */
 export function useSchoolQuery<T>(path: string | null, options?: SchoolQueryOptions<T>) {
-  const activeTenantId = options?.tenantId || getCurrentSchoolId();
+  const scopedTenantId = useOptionalSchoolTenantId();
+  const activeTenantId = options?.tenantId || scopedTenantId || getCurrentSchoolId();
   const queryTenantId = activeTenantId || "session";
 
   return useQuery<T, Error>({
@@ -66,7 +67,8 @@ export function useSchoolMutation<TData, TVariables>(
     tenantId?: string;
   }
 ) {
-  const activeTenantId = options?.tenantId || getCurrentSchoolId();
+  const scopedTenantId = useOptionalSchoolTenantId();
+  const activeTenantId = options?.tenantId || scopedTenantId || getCurrentSchoolId();
 
   // Helper to safely extract a module name from the path for the sync queue
   const getModuleAndAction = (resolvedPath: string) => {
@@ -101,5 +103,6 @@ export function useSchoolMutation<TData, TVariables>(
       }
     },
     ...options,
+    queryKeysToInvalidate: [["school", activeTenantId || "session"]],
   });
 }

@@ -3,6 +3,8 @@ import test, { beforeEach } from 'node:test';
 import { PATH_METADATA } from '@nestjs/common/constants';
 import { firstValueFrom, take, toArray } from 'rxjs';
 
+import '../../interceptors/school-mutation-event.interceptor.test';
+
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PERMISSIONS_KEY } from '../../auth/auth.constants';
 import { DashboardRealtimeController } from './dashboard-realtime.controller';
@@ -305,6 +307,51 @@ test('EventPublisherService writes student.created events with request headers',
   assert.equal(typeof headers.span_id, 'string');
   assert.equal(headers.parent_span_id, null);
   assert.equal(writtenEvent.available_at, undefined);
+});
+
+test('EventPublisherService keeps attendance aggregate IDs valid for the UUID outbox contract', async () => {
+  const requestContext = new RequestContextService();
+  let publishedEvent: Record<string, unknown> | null = null;
+  const service = new EventPublisherService(requestContext, {
+    createEvent: async (input: Record<string, unknown>) => {
+      publishedEvent = input;
+      return input;
+    },
+  } as never);
+  const streamId = '00000000-0000-4000-8000-000000000611';
+
+  await requestContext.run(
+    {
+      request_id: 'req-attendance-event',
+      tenant_id: 'tenant-a',
+      user_id: '00000000-0000-0000-0000-000000000001',
+      role: 'class-teacher',
+      session_id: 'session-attendance-event',
+      permissions: ['attendance:write'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'POST',
+      path: '/class-teacher/attendance',
+      started_at: '2026-07-19T08:00:00.000Z',
+    },
+    () => service.publishAttendanceRegisterMarked({
+      tenant_id: 'tenant-a',
+      stream_id: streamId,
+      marked_by_user_id: '00000000-0000-0000-0000-000000000001',
+      date: '2026-07-19',
+      present_count: 42,
+      absent_count: 3,
+    }),
+  );
+
+  assert.ok(publishedEvent);
+  const writtenEvent = publishedEvent as Record<string, unknown>;
+  assert.equal(writtenEvent.aggregate_id, streamId);
+  assert.equal(
+    writtenEvent.event_key,
+    `attendance.register.marked:${streamId}:2026-07-19`,
+  );
 });
 
 test('SchoolOperationalEventsService records frontend school operations inside the current tenant only', async () => {
@@ -843,6 +890,17 @@ test('DashboardRealtimeService maps outbox domain events into dashboard envelope
       createdAt: '2026-05-25T08:30:00.000Z',
     },
   });
+
+  assert.equal(service.toDashboardEvent(event, {
+    enabledModules: ['finance'],
+    permissions: ['finance:read'],
+    role: 'teacher',
+  }), null);
+  assert.equal(service.toDashboardEvent(event, {
+    enabledModules: ['finance'],
+    permissions: ['finance:read'],
+    role: 'Accountant',
+  })?.type, 'FEE_PAYMENT_COMPLETED');
 });
 
 test('DashboardRealtimeService maps operational workflow dispatches into command-center notifications', () => {
@@ -1020,6 +1078,57 @@ test('DashboardRealtimeService maps frontend school operations into role-specifi
     'Receipt KBI-RCPT-400 needs approval.',
   );
   assert.equal(dashboardEvent?.notification.tone, 'warning');
+});
+
+test('DashboardRealtimeService exposes system refresh events to authenticated tenant roles', () => {
+  const service = new DashboardRealtimeService(
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+  const event: DomainEvent<'school.operation.recorded'> = {
+    id: 'event-school-refresh-1',
+    tenant_id: 'tenant-a',
+    event_key: 'school.operation.recorded:tenant-a:refresh-1',
+    event_name: 'school.operation.recorded',
+    aggregate_type: 'school_mutation',
+    aggregate_id: '00000000-0000-4000-8000-000000000779',
+    payload: {
+      tenant_id: 'tenant-a',
+      school_id: 'tenant-a',
+      operation_id: 'refresh-1',
+      operation_type: 'POST /students',
+      module: 'platform',
+      actor_role: 'admissions-officer',
+      title: 'School data updated',
+      body: 'A school workspace saved new data.',
+      entity_id: null,
+      severity: 'info',
+      target_roles: [],
+      notifications: [],
+      sms: [],
+      payload: { method: 'POST', path: '/students', system_refresh_only: true },
+      occurred_at: '2026-07-19T10:00:00.000Z',
+    },
+    headers: {},
+    status: 'published',
+    attempt_count: 0,
+    available_at: '2026-07-19T10:00:00.000Z',
+    published_at: '2026-07-19T10:00:01.000Z',
+    last_error: null,
+    created_at: '2026-07-19T10:00:00.000Z',
+    updated_at: '2026-07-19T10:00:01.000Z',
+  };
+
+  const dashboardEvent = service.toDashboardEvent(event, {
+    enabledModules: [],
+    permissions: ['auth:read'],
+    role: 'teacher',
+  });
+
+  assert.equal(dashboardEvent?.type, 'SCHOOL_OPERATION_RECORDED');
+  assert.equal(dashboardEvent?.tenantId, 'tenant-a');
+  assert.equal(dashboardEvent?.notification.title, 'School data updated');
 });
 
 test('DashboardRealtimeService suppresses disabled modules and permission mismatches', () => {

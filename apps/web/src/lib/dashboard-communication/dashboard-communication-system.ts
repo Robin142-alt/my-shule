@@ -8,6 +8,7 @@ import {
 } from "@/lib/capability-engine/school-capability-engine";
 
 export type DashboardEventType =
+  | "SCHOOL_DATA_CHANGED"
   | "EXAM_SUBMITTED"
   | "EXAM_VALIDATION_FAILED"
   | "DEAN_APPROVAL_GRANTED"
@@ -59,7 +60,19 @@ export type DashboardEventType =
   | "STUDENT_UPDATED"
   | "STUDENT_CLASS_PLACED"
   | "STUDENT_PROMOTED"
-  | "STUDENT_STATUS_CHANGED";
+  | "STUDENT_STATUS_CHANGED"
+  | "SCHOOL_OPERATION_RECORDED"
+  | "WORKFLOW_ACTION_DISPATCHED"
+  | "WORKFLOW_ACTION_COMPLETED"
+  | "BOARDING_REQUEST_SUBMITTED"
+  | "TRANSPORT_REQUEST_SUBMITTED"
+  | "COUNSELLING_REFERRAL_SUBMITTED"
+  | "PROCUREMENT_REQUEST_SUBMITTED"
+  | "LAB_REQUEST_SUBMITTED"
+  | "ASSET_REQUEST_SUBMITTED"
+  | "ATTENDANCE_REGISTER_MARKED"
+  | "DISCIPLINE_INCIDENT_REPORTED"
+  | "WELFARE_CASE_REFERRED";
 
 export interface DashboardEvent<TPayload extends Record<string, unknown> = Record<string, unknown>> {
   id: string;
@@ -69,6 +82,8 @@ export interface DashboardEvent<TPayload extends Record<string, unknown> = Recor
   entityId: string;
   occurredAt: string;
   payload: TPayload;
+  channels?: readonly string[];
+  notification?: DashboardNotification;
 }
 
 export type DashboardEventHandler = (event: DashboardEvent) => void;
@@ -109,6 +124,7 @@ export interface RegisterWidgetSubscriberInput {
 }
 
 export interface DashboardCommunicationSystemOptions {
+  tenantId?: string;
   moduleEntitlements?: ModuleEntitlementInput;
   rolePermissions?: RolePermissionInput;
   enforcement?: CapabilityEnforcementSnapshot;
@@ -116,6 +132,8 @@ export interface DashboardCommunicationSystemOptions {
 
 export class DashboardEventBus {
   private readonly subscribers = new Map<DashboardEventType, Set<DashboardEventHandler>>();
+
+  constructor(private readonly tenantId?: string) {}
 
   subscribe(eventType: DashboardEventType, handler: DashboardEventHandler) {
     const handlers = this.subscribers.get(eventType) ?? new Set<DashboardEventHandler>();
@@ -131,11 +149,17 @@ export class DashboardEventBus {
   }
 
   emit(event: DashboardEvent) {
+    if (this.tenantId && event.tenantId !== this.tenantId) {
+      return false;
+    }
+
     const handlers = this.subscribers.get(event.type) ?? new Set<DashboardEventHandler>();
 
     for (const handler of handlers) {
       handler(event);
     }
+
+    return true;
   }
 }
 
@@ -223,11 +247,12 @@ export class NotificationChannelLayer {
 }
 
 export function createDashboardCommunicationSystem({
+  tenantId,
   moduleEntitlements,
   rolePermissions,
   enforcement,
 }: DashboardCommunicationSystemOptions = {}) {
-  const eventBus = new DashboardEventBus();
+  const eventBus = new DashboardEventBus(tenantId);
   const widgetStateStore = new WidgetStateStore();
   const moduleOutputRegistry = new ModuleOutputRegistry();
   const notificationChannel = new NotificationChannelLayer();

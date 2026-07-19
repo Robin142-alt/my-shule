@@ -36,7 +36,7 @@ import {
   openPrintDocument,
 } from "@/lib/dashboard/export";
 
-import { DashboardCommunicationProvider } from "@/lib/dashboard-communication/dashboard-communication-provider";
+import { DashboardCommunicationBoundary } from "@/lib/dashboard-communication/dashboard-communication-provider";
 import { tenantSlugToName } from "@/lib/seo/tenant-routes";
 import { buildSchoolSectionHref } from "./school-pages";
 import { AcademicFoundationWorkspace } from "./academic-foundation-workspace";
@@ -1282,7 +1282,7 @@ export function PrincipalCommandCenter({
   }
 
   return (
-    <DashboardCommunicationProvider>
+    <DashboardCommunicationBoundary tenantId={schoolId}>
       <div
         data-testid={activeWorkspace === "exams-reports" ? undefined : "role-operational-command-center"}
         data-route-mode={routeMode ?? "hosted"}
@@ -1429,7 +1429,7 @@ export function PrincipalCommandCenter({
           </PrincipalDialog>
         ) : null}
       </div>
-    </DashboardCommunicationProvider>
+    </DashboardCommunicationBoundary>
   );
 }
 

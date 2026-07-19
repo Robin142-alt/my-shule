@@ -27,6 +27,7 @@ import { RequestContextMiddleware } from './middleware/request-context.middlewar
 import { RequestLoggingMiddleware } from './middleware/request-logging.middleware';
 import { TenantMiddleware } from './middleware/tenant.middleware';
 import { RequestIdInterceptor } from './interceptors/request-id.interceptor';
+import { SchoolMutationEventInterceptor } from './interceptors/school-mutation-event.interceptor';
 import { TenantModule } from './tenant/tenant.module';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { MaintenanceModeGuard } from './guards/maintenance-mode.guard';
@@ -150,6 +151,10 @@ const ENV_FILE_PATHS = [
     {
       provide: APP_INTERCEPTOR,
       useClass: RequestIdInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: SchoolMutationEventInterceptor,
     },
     {
       provide: APP_GUARD,

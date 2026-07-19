@@ -89,6 +89,11 @@ import {
 import { toSchoolPath, toSchoolStudentPath } from "@/lib/routing/experience-routes";
 import { startSchoolOperationalEventSyncRetryWorker } from "@/lib/school/school-operational-store";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { SchoolTenantScopeProvider } from "@/lib/data/school-tenant-scope";
+import {
+  DashboardCommunicationProvider,
+  useDashboardRefreshVersion,
+} from "@/lib/dashboard-communication/dashboard-communication-provider";
 import { GraduationCap, Loader2 } from "lucide-react";
 import type { LearnerLookupItem } from "@/lib/students/student-lookup";
 import { PermissionProvider } from "@/components/providers/permission-context";
@@ -4441,10 +4446,16 @@ function formatSchoolNotificationTime(value: unknown) {
 }
 
 export function SchoolPages(props: SchoolPagesProps) {
+  const tenantId = props.tenantSlug?.trim() || "school-workspace";
+
   return (
-    <SchoolCommandIdentityProvider tenantSlug={props.tenantSlug} userLabel={props.userLabel}>
-      <SchoolPagesShell {...props} />
-    </SchoolCommandIdentityProvider>
+    <SchoolTenantScopeProvider tenantId={tenantId}>
+      <DashboardCommunicationProvider tenantId={tenantId}>
+        <SchoolCommandIdentityProvider tenantSlug={props.tenantSlug} userLabel={props.userLabel}>
+          <SchoolPagesShell {...props} />
+        </SchoolCommandIdentityProvider>
+      </DashboardCommunicationProvider>
+    </SchoolTenantScopeProvider>
   );
 }
 
@@ -4458,6 +4469,7 @@ function SchoolPagesShell({
   liveDataEnabled = true,
 }: SchoolPagesProps) {
   const router = useRouter();
+  const dashboardRefreshVersion = useDashboardRefreshVersion();
   const replaceRoute = router.replace;
   const workspace = getSchoolWorkspace(role, tenantSlug);
   const [moduleAccessState, setModuleAccessState] = useState<{
@@ -4559,7 +4571,7 @@ function SchoolPagesShell({
     return () => {
       cancelled = true;
     };
-  }, [liveDataEnabled, replaceRoute, role, tenantSlug]);
+  }, [dashboardRefreshVersion, liveDataEnabled, replaceRoute, role, tenantSlug]);
   useEffect(() => {
     if (!liveDataEnabled) {
       return () => undefined;
@@ -4636,7 +4648,7 @@ function SchoolPagesShell({
       window.removeEventListener("focus", refreshWhenUserReturns);
       document.removeEventListener("visibilitychange", refreshWhenUserReturns);
     };
-  }, [liveDataEnabled, replaceRoute, role, tenantSlug]);
+  }, [dashboardRefreshVersion, liveDataEnabled, replaceRoute, role, tenantSlug]);
 
   const accessLoading = !moduleAccessState.verified;
   const visibleModuleCodes = moduleAccessState.codes ?? new Set<string>();

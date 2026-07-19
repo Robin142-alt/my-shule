@@ -21,7 +21,7 @@ import { OutboxEventsRepository } from './repositories/outbox-events.repository'
 interface DashboardEventConfig {
   type: DashboardRealtimeEventType;
   sourceModule: string | ((event: DomainEvent) => string);
-  requiredPermission: string | ((event: DomainEvent) => string);
+  requiredPermission: string | string[] | ((event: DomainEvent) => string | string[]);
   roleChannels: string[] | ((event: DomainEvent) => string[]);
   title: string | ((event: DomainEvent) => string);
   tone:
@@ -33,6 +33,7 @@ interface DashboardEventConfig {
 interface DashboardRealtimeFilter {
   enabledModules: string[];
   permissions: string[];
+  role?: string | null;
 }
 
 interface DashboardSnapshotOptions {
@@ -41,6 +42,58 @@ interface DashboardSnapshotOptions {
 }
 
 const eventConfigs: Partial<Record<SupportedDomainEventName, DashboardEventConfig>> = {
+  'student.created': schoolDataChangedConfig(
+    'Student record created',
+    'admissions',
+    ['students:read', 'admissions:read'],
+    ['principal', 'deputy-principal', 'admissions-officer', 'secretary', 'teacher', 'class-teacher', 'grade-master'],
+  ),
+  'student.lifecycle.enrolled': schoolDataChangedConfig(
+    'Student enrolled',
+    'admissions',
+    ['students:read', 'admissions:read'],
+    ['principal', 'deputy-principal', 'admissions-officer', 'secretary', 'class-teacher', 'grade-master'],
+    'ok',
+  ),
+  'student.lifecycle.class_assigned': schoolDataChangedConfig(
+    'Student class placement updated',
+    'academics',
+    ['students:read', 'admissions:read', 'academics:read'],
+    ['principal', 'deputy-principal', 'admissions-officer', 'secretary', 'teacher', 'class-teacher', 'grade-master'],
+  ),
+  'student.lifecycle.suspended': schoolDataChangedConfig(
+    'Student suspension recorded',
+    'discipline',
+    ['students:read', 'discipline:read', 'discipline:manage'],
+    ['principal', 'deputy-principal', 'discipline-master', 'class-teacher', 'grade-master'],
+    'warning',
+  ),
+  'student.lifecycle.exited': schoolDataChangedConfig(
+    'Student exit recorded',
+    'admissions',
+    ['students:read', 'admissions:read'],
+    ['principal', 'deputy-principal', 'admissions-officer', 'secretary', 'class-teacher', 'grade-master'],
+    'warning',
+  ),
+  'student.lifecycle.archived': schoolDataChangedConfig(
+    'Student record archived',
+    'admissions',
+    ['students:read', 'admissions:read'],
+    ['principal', 'deputy-principal', 'admissions-officer', 'secretary'],
+  ),
+  'student.academic_enrollment.created': schoolDataChangedConfig(
+    'Academic enrollment created',
+    'academics',
+    ['students:read', 'admissions:read', 'academics:read'],
+    ['principal', 'deputy-principal', 'admissions-officer', 'secretary', 'teacher', 'class-teacher', 'grade-master', 'exams-manager'],
+    'ok',
+  ),
+  'student.academic_lifecycle.changed': schoolDataChangedConfig(
+    'Student academic lifecycle updated',
+    'academics',
+    ['students:read', 'academics:read'],
+    ['principal', 'deputy-principal', 'admissions-officer', 'teacher', 'class-teacher', 'grade-master', 'dean-academics', 'exams-manager'],
+  ),
   'payment.completed': {
     type: 'FEE_PAYMENT_COMPLETED',
     sourceModule: 'finance',
@@ -120,7 +173,7 @@ const eventConfigs: Partial<Record<SupportedDomainEventName, DashboardEventConfi
         ? payload.module.trim()
         : 'platform';
 
-      return `${moduleName}:read`;
+      return moduleName === 'platform' ? 'auth:read' : `${moduleName}:read`;
     },
     roleChannels: (event) => {
       const payload = payloadRecord(event);
@@ -302,6 +355,58 @@ const eventConfigs: Partial<Record<SupportedDomainEventName, DashboardEventConfi
       return `Welfare case referred for student ${payload.student_id}.`;
     },
   },
+  'grading.system.created': schoolDataChangedConfig(
+    'Grading system created',
+    'exams',
+    ['exams:read', 'academics:read'],
+    ['principal', 'deputy-principal', 'dean-academics', 'exams-manager', 'hod', 'teacher', 'class-teacher', 'grade-master'],
+    'ok',
+  ),
+  'report.card.published': schoolDataChangedConfig(
+    'Report card published',
+    'exams',
+    ['reports:read', 'exams:read', 'auth:read'],
+    ['principal', 'deputy-principal', 'dean-academics', 'exams-manager', 'hod', 'class-teacher', 'parent', 'student'],
+    'ok',
+  ),
+  'communication.sms.queued': schoolDataChangedConfig(
+    'School message queued',
+    'communication',
+    ['school_sms:send', 'principal:read', 'deputy:read'],
+    ['principal', 'deputy-principal', 'secretary', 'system-monitor'],
+  ),
+  'admissions.cleared': schoolDataChangedConfig(
+    'Admission cleared',
+    'admissions',
+    ['admissions:read', 'students:read'],
+    ['principal', 'deputy-principal', 'admissions-officer', 'secretary', 'class-teacher', 'grade-master'],
+    'ok',
+  ),
+  'staff.updated': staffDataChangedConfig('Staff record updated'),
+  'staff.invited': staffDataChangedConfig('Staff invitation created'),
+  'staff.activated': staffDataChangedConfig('Staff account activated', 'ok'),
+  'staff.role_updated': staffDataChangedConfig('Staff role updated'),
+  'counselling.session.created': counsellingDataChangedConfig('Counselling session created'),
+  'counselling.referral.accepted': counsellingDataChangedConfig('Counselling referral accepted', 'ok'),
+  'counselling.referral.declined': counsellingDataChangedConfig('Counselling referral declined', 'warning'),
+  'counselling.note.created': counsellingDataChangedConfig('Counselling note recorded'),
+  'counselling.plan.created': counsellingDataChangedConfig('Counselling plan created'),
+  'timetable.slot.created': timetableDataChangedConfig('Timetable slot created'),
+  'timetable.slot.updated': timetableDataChangedConfig('Timetable slot updated'),
+  'timetable.slot.cancelled': timetableDataChangedConfig('Timetable slot cancelled', 'warning'),
+  'timetable.version.revision_created': timetableDataChangedConfig('Timetable revision created'),
+  'timetable.version.published': timetableDataChangedConfig('Timetable published', 'ok'),
+  'academic.calendar.updated': academicDataChangedConfig('Academic calendar updated'),
+  'academic.class.updated': academicDataChangedConfig('Class setup updated'),
+  'academic.stream.updated': academicDataChangedConfig('Stream setup updated'),
+  'academic.department.updated': academicDataChangedConfig('Department setup updated'),
+  'academic.hod.reassigned': academicDataChangedConfig('Head of department reassigned'),
+  'academic.subject.updated': academicDataChangedConfig('Subject setup updated'),
+  'academic.teacher_assignment.changed': academicDataChangedConfig('Teacher allocation updated'),
+  'academic.policy.updated': academicDataChangedConfig('Academic policy updated'),
+  'academic.role_assignment.changed': academicDataChangedConfig('Academic duty assignment updated'),
+  'academic.curriculum.updated': academicDataChangedConfig('Curriculum setup updated'),
+  'academic.setup.merged': academicDataChangedConfig('Academic setup merged', 'ok'),
 };
 
 @Injectable()
@@ -340,11 +445,17 @@ export class DashboardRealtimeService {
       return null;
     }
 
+    if (!this.isRoleTargeted(filter.role, roleChannels)) {
+      return null;
+    }
+
     const channels = [
       `tenant:${event.tenant_id}`,
       `module:${sourceModule}`,
       ...roleChannels,
     ];
+
+    const eventPayload = payloadRecord(event);
 
     return {
       id: event.id,
@@ -353,7 +464,7 @@ export class DashboardRealtimeService {
       sourceModule,
       entityId: this.entityIdForDashboard(event),
       occurredAt: event.created_at,
-      payload: payloadRecord(event),
+      payload: eventPayload,
       channels,
       notification: {
         id: `notification:${event.id}`,
@@ -379,6 +490,7 @@ export class DashboardRealtimeService {
       .map((event) => this.toDashboardEvent(event, {
         enabledModules,
         permissions: store.permissions,
+        role: store.role,
       }))
       .filter((event): event is DashboardRealtimeEvent => Boolean(event));
 
@@ -426,18 +538,30 @@ export class DashboardRealtimeService {
     return tenantId;
   }
 
-  private hasPermission(permissions: string[], requiredPermission: string): boolean {
-    const [moduleName] = requiredPermission.split(':');
+  private hasPermission(permissions: string[], requiredPermission: string | string[]): boolean {
+    const requiredPermissions = Array.isArray(requiredPermission)
+      ? requiredPermission
+      : [requiredPermission];
 
-    return (
-      permissions.includes('*:*')
-      || permissions.includes(requiredPermission)
-      || permissions.includes(`${moduleName}:*`)
-    );
+    return permissions.includes('*:*') || requiredPermissions.some((permission) => {
+      const [moduleName] = permission.split(':');
+      return permissions.includes(permission) || permissions.includes(`${moduleName}:*`);
+    });
   }
 
   private isCoreSource(sourceModule: string): boolean {
     return sourceModule === 'platform';
+  }
+
+  private isRoleTargeted(role: string | null | undefined, roleChannels: string[]): boolean {
+    if (!role || roleChannels.length === 0) {
+      return true;
+    }
+
+    const normalizedRoleChannel = `role:${role.trim().toLowerCase().replace(/[ _]+/g, '-')}`;
+    return roleChannels.some(
+      (channel) => channel.trim().toLowerCase().replace(/[ _]+/g, '-') === normalizedRoleChannel,
+    );
   }
 
   private entityIdForDashboard(event: DomainEvent): string {
@@ -480,4 +604,74 @@ export class DashboardRealtimeService {
 
 function payloadRecord(event: DomainEvent): Record<string, unknown> {
   return event.payload as unknown as Record<string, unknown>;
+}
+
+function schoolDataChangedConfig(
+  title: string,
+  sourceModule: string,
+  requiredPermission: string | string[],
+  roles: string[],
+  tone: DashboardRealtimeNotification['tone'] = 'info',
+): DashboardEventConfig {
+  return {
+    type: 'SCHOOL_DATA_CHANGED',
+    sourceModule,
+    requiredPermission,
+    roleChannels: roles.map((role) => `role:${role}`),
+    title,
+    tone,
+    body: () => `${title}. School workspaces will refresh with the latest saved data.`,
+  };
+}
+
+function staffDataChangedConfig(
+  title: string,
+  tone: DashboardRealtimeNotification['tone'] = 'info',
+) {
+  return schoolDataChangedConfig(
+    title,
+    'staff-management',
+    ['users:read', 'principal:read', 'deputy:read'],
+    ['principal', 'deputy-principal', 'school-admin', 'secretary', 'dean-academics', 'hod'],
+    tone,
+  );
+}
+
+function counsellingDataChangedConfig(
+  title: string,
+  tone: DashboardRealtimeNotification['tone'] = 'info',
+) {
+  return schoolDataChangedConfig(
+    title,
+    'counselling',
+    ['counselling:read', 'principal:read', 'deputy:read'],
+    ['principal', 'deputy-principal', 'counsellor'],
+    tone,
+  );
+}
+
+function timetableDataChangedConfig(
+  title: string,
+  tone: DashboardRealtimeNotification['tone'] = 'info',
+) {
+  return schoolDataChangedConfig(
+    title,
+    'timetable',
+    ['timetable:read', 'academics:read'],
+    ['principal', 'deputy-principal', 'dean-academics', 'exams-manager', 'hod', 'teacher', 'class-teacher', 'grade-master'],
+    tone,
+  );
+}
+
+function academicDataChangedConfig(
+  title: string,
+  tone: DashboardRealtimeNotification['tone'] = 'info',
+) {
+  return schoolDataChangedConfig(
+    title,
+    'academics',
+    'academics:read',
+    ['principal', 'deputy-principal', 'dean-academics', 'exams-manager', 'hod', 'teacher', 'class-teacher', 'grade-master', 'admissions-officer'],
+    tone,
+  );
 }

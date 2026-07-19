@@ -222,12 +222,16 @@ export function getSchoolScopedStorageKey(schoolId: string, moduleName: string) 
   return `myshule:${schoolId}:${moduleName}`;
 }
 
-function emitSchoolDataUpdated(schoolId: string, moduleName: string) {
+export function publishSchoolDataUpdate(schoolId: string, moduleName: string) {
+  const scopedSchoolId = requireCurrentSchoolId(schoolId);
+
   if (typeof window === "undefined") {
     return;
   }
 
-  window.dispatchEvent(new CustomEvent(UPDATE_EVENT_NAME, { detail: { schoolId, moduleName } }));
+  window.dispatchEvent(new CustomEvent(UPDATE_EVENT_NAME, {
+    detail: { schoolId: scopedSchoolId, moduleName },
+  }));
 }
 
 export function subscribeToSchoolDataUpdates(
@@ -284,7 +288,7 @@ export function writeSchoolData<T extends object>(
   const scopedSchoolId = requireCurrentSchoolId(schoolId);
   const scopedRecords = records.map((record) => ({ ...record, schoolId: scopedSchoolId }));
   window.localStorage.setItem(getSchoolScopedStorageKey(scopedSchoolId, moduleName), JSON.stringify(scopedRecords));
-  emitSchoolDataUpdated(scopedSchoolId, moduleName);
+  publishSchoolDataUpdate(scopedSchoolId, moduleName);
   return scopedRecords;
 }
 

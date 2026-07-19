@@ -150,7 +150,7 @@ export class EventPublisherService {
       event_key: `attendance.register.marked:${payload.stream_id}:${payload.date}`,
       event_name: 'attendance.register.marked',
       aggregate_type: 'attendance_register',
-      aggregate_id: `${payload.stream_id}:${payload.date}`,
+      aggregate_id: payload.stream_id,
       payload,
     });
   }
