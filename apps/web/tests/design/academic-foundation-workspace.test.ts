@@ -53,7 +53,11 @@ describe("principal and deputy academic foundation workspace", () => {
   });
 
   it("wires forms to tenant-scoped academic API contracts and refreshes saved state", () => {
-    expect(workspaceSource).toContain('useSchoolQuery<AcademicFoundationResponse>("/academics/foundation")');
+    expect(workspaceSource).toContain('useSchoolQuery<AcademicFoundationResponse>("/academics/foundation", {');
+    expect(workspaceSource).toContain("tenantId,");
+    expect(workspaceSource).toContain('refetchOnMount: "always"');
+    expect(workspaceSource).toContain("refetchOnWindowFocus: true");
+    expect(workspaceSource).toContain("if (result.error) throw result.error");
     expect(workspaceSource).not.toContain('useSchoolQuery<AcademicYear[]>("/academics/academic-years")');
 
     for (const endpoint of [
@@ -92,7 +96,8 @@ describe("principal and deputy academic foundation workspace", () => {
     for (const tab of ["calendar", "classes", "subjects", "allocations"]) {
       expect(principalSource).toContain(`initialTab="${tab}"`);
     }
-    expect(deputySource).toContain('<AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName={schoolName} />');
+    expect(deputySource).toContain('<AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName={schoolName} tenantId={schoolId} />');
+    expect(principalSource).toContain('tenantId={schoolId}');
     expect(deputySource).toContain('label: "Academic Foundation"');
   });
 });

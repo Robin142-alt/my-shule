@@ -191,7 +191,7 @@ export function DeputyPrincipalCommandCenter({
       case "welfare": return <DeputyWelfareWorkspace />;
       case "staff-duty": return <DeputyStaffDutyWorkspace />;
       case "timetable": return <DeputyTimetableManagementWorkspace />;
-      case "academics": return <AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName={schoolName} />;
+      case "academics": return <AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName={schoolName} tenantId={schoolId} />;
       case "teaching": return <DeputyTeachingWorkspace />;
       case "exams":
         return (

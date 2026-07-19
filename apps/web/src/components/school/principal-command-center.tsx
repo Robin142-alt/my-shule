@@ -931,25 +931,25 @@ export function PrincipalCommandCenter({
 
     if (activeWorkspace === "academic-setup") {
       return (
-        <AcademicFoundationWorkspace actorRole="Principal" schoolName={schoolName} initialTab="calendar" />
+        <AcademicFoundationWorkspace actorRole="Principal" schoolName={schoolName} tenantId={schoolId} initialTab="calendar" />
       );
     }
 
     if (activeWorkspace === "classes-streams") {
       return (
-        <AcademicFoundationWorkspace actorRole="Principal" schoolName={schoolName} initialTab="classes" />
+        <AcademicFoundationWorkspace actorRole="Principal" schoolName={schoolName} tenantId={schoolId} initialTab="classes" />
       );
     }
 
     if (activeWorkspace === "subjects-departments") {
       return (
-        <AcademicFoundationWorkspace actorRole="Principal" schoolName={schoolName} initialTab="subjects" />
+        <AcademicFoundationWorkspace actorRole="Principal" schoolName={schoolName} tenantId={schoolId} initialTab="subjects" />
       );
     }
 
     if (activeWorkspace === "academics") {
       return (
-        <AcademicFoundationWorkspace actorRole="Principal" schoolName={schoolName} initialTab="allocations" />
+        <AcademicFoundationWorkspace actorRole="Principal" schoolName={schoolName} tenantId={schoolId} initialTab="allocations" />
       );
     }
 

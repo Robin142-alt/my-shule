@@ -152,7 +152,15 @@ function recordLabel(record: BulkRecord) {
   return record.name || record.code || record.id;
 }
 
-function BulkLifecyclePanel({ groups, onUpdated }: { groups: BulkGroup[]; onUpdated: () => Promise<unknown> | unknown }) {
+function BulkLifecyclePanel({
+  groups,
+  tenantId,
+  onUpdated,
+}: {
+  groups: BulkGroup[];
+  tenantId: string;
+  onUpdated: () => Promise<unknown> | unknown;
+}) {
   const [entityType, setEntityType] = useState<BulkEntityType | "">(groups[0]?.entityType ?? "");
   const [selected, setSelected] = useState<string[]>([]);
   const [action, setAction] = useState<"activate" | "deactivate" | "archive" | "restore">("archive");
@@ -182,6 +190,7 @@ function BulkLifecyclePanel({ groups, onUpdated }: { groups: BulkGroup[]; onUpda
     try {
       const dependencies = await requestDashboardApi<Array<Record<string, unknown>>>(`/academics/setup/${entityType}/bulk-dependencies`, {
         method: "POST",
+        tenantId,
         body: { ids: selected },
         timeoutMs: 30_000,
       });
@@ -211,6 +220,7 @@ function BulkLifecyclePanel({ groups, onUpdated }: { groups: BulkGroup[]; onUpda
     try {
       const result = await requestDashboardApi<Record<string, unknown>>(`/academics/setup/${entityType}/bulk-lifecycle`, {
         method: "POST",
+        tenantId,
         body: { ids: selected, action, reason: reason.trim() },
         timeoutMs: 60_000,
       });
@@ -266,10 +276,12 @@ function statusLabel(record: LifecycleRecord | { status?: string }) {
 export function AcademicFoundationWorkspace({
   actorRole,
   schoolName,
+  tenantId,
   initialTab = "calendar",
 }: {
   actorRole: "Principal" | "Deputy Principal";
   schoolName: string;
+  tenantId: string;
   initialTab?: AcademicFoundationTab;
 }) {
   const [activeTab, setActiveTab] = useState<AcademicFoundationTab>(initialTab);
@@ -283,7 +295,12 @@ export function AcademicFoundationWorkspace({
     setActiveTab(initialTab);
   }, [initialTab]);
 
-  const foundationQuery = useSchoolQuery<AcademicFoundationResponse>("/academics/foundation");
+  const foundationQuery = useSchoolQuery<AcademicFoundationResponse>("/academics/foundation", {
+    tenantId,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+  });
 
   const years = foundationQuery.data?.years ?? [];
   const terms = foundationQuery.data?.terms ?? [];
@@ -334,7 +351,9 @@ export function AcademicFoundationWorkspace({
   const loadError = foundationQuery.error;
 
   const refreshAll = async () => {
-    await foundationQuery.refetch();
+    const result = await foundationQuery.refetch();
+    if (result.error) throw result.error;
+    return result.data;
   };
 
   const runAction = async (action: string, request: () => Promise<unknown>, successMessage: string, form?: HTMLFormElement) => {
@@ -355,7 +374,7 @@ export function AcademicFoundationWorkspace({
   };
 
   const submit = (action: string, path: string, body: Record<string, unknown>, successMessage: string, form: HTMLFormElement) =>
-    runAction(action, () => requestDashboardApi(path, { method: "POST", body }), successMessage, form);
+    runAction(action, () => requestDashboardApi(path, { method: "POST", tenantId, body }), successMessage, form);
 
   const visible = <T extends LifecycleRecord & Record<string, unknown>>(records: T[]) => records.filter((record) => {
     if (!showArchived && !isActive(record)) return false;
@@ -459,6 +478,7 @@ export function AcademicFoundationWorkspace({
       "hod",
       () => requestDashboardApi(`/academics/departments/${departmentId}`, {
         method: "PATCH",
+        tenantId,
         body: {
           head_of_department_user_id: value(data, "head_of_department_user_id") || null,
           appointment_type: value(data, "appointment_type") || "permanent",
@@ -732,7 +752,7 @@ export function AcademicFoundationWorkspace({
         <label className="min-w-44 text-sm font-bold text-white/75"><span className="sr-only">Sort records</span><select value={recordSort} onChange={(event) => setRecordSort(event.target.value as typeof recordSort)} className={`${fieldClass} mt-0`}><option value="name-asc">Name A-Z</option><option value="name-desc">Name Z-A</option><option value="recent">Most recently changed</option></select></label>
       </div>
 
-      <BulkLifecyclePanel groups={bulkGroups} onUpdated={refreshAll} />
+      <BulkLifecyclePanel groups={bulkGroups} tenantId={tenantId} onUpdated={refreshAll} />
 
       {isLoading ? <LoadingRows /> : null}
 
