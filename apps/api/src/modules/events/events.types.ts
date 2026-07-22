@@ -7,6 +7,12 @@ export type SupportedDomainEventName =
   | 'student.lifecycle.archived'
   | 'student.academic_enrollment.created'
   | 'student.academic_lifecycle.changed'
+  | 'student.admission_number.assigned'
+  | 'student.admission_number.changed'
+  | 'student.subjects.assigned'
+  | 'student.guardian.linked'
+  | 'student.guardian_phone.changed'
+  | 'student.credentials.created'
   | 'payment.completed'
   | 'exam.submitted'
   | 'dean.approval.granted'
@@ -105,6 +111,59 @@ export interface StudentCreatedPayload {
   first_name?: string | null;
   last_name?: string | null;
   metadata?: Record<string, unknown>;
+}
+
+export interface StudentAdmissionNumberAssignedPayload {
+  tenant_id: string;
+  student_id: string;
+  admission_number: string;
+  assigned_by_user_id: string | null;
+}
+
+export interface StudentAdmissionNumberChangedPayload {
+  tenant_id: string;
+  student_id: string;
+  previous_admission_number: string;
+  admission_number: string;
+  changed_by_user_id: string;
+  reason: string;
+  pending_otps_invalidated: boolean;
+}
+
+export interface StudentSubjectsAssignedPayload {
+  tenant_id: string;
+  student_id: string;
+  academic_year_id: string;
+  class_section_id: string;
+  stream_id: string | null;
+  subject_ids: string[];
+}
+
+export interface StudentGuardianLinkedPayload {
+  tenant_id: string;
+  student_id: string;
+  guardian_profile_id: string;
+  is_primary: boolean;
+}
+
+export interface StudentGuardianPhoneChangedPayload {
+  tenant_id: string;
+  student_id: string;
+  guardian_profile_id: string;
+  affected_student_ids: string[];
+  previous_phone_last4: string;
+  phone_last4: string;
+  changed_by_user_id: string;
+  reason: string;
+  pending_otps_invalidated: boolean;
+}
+
+export interface StudentCredentialsCreatedPayload {
+  tenant_id: string;
+  student_id: string;
+  username: string;
+  force_password_change: boolean;
+  recovery_phone_last4: string;
 }
 
 export interface PaymentCompletedPayload {
@@ -393,6 +452,12 @@ export interface DomainEventPayloadMap {
   'student.lifecycle.archived': StudentLifecycleArchivedPayload;
   'student.academic_enrollment.created': StudentAcademicEnrollmentCreatedPayload;
   'student.academic_lifecycle.changed': StudentAcademicLifecycleChangedPayload;
+  'student.admission_number.assigned': StudentAdmissionNumberAssignedPayload;
+  'student.admission_number.changed': StudentAdmissionNumberChangedPayload;
+  'student.subjects.assigned': StudentSubjectsAssignedPayload;
+  'student.guardian.linked': StudentGuardianLinkedPayload;
+  'student.guardian_phone.changed': StudentGuardianPhoneChangedPayload;
+  'student.credentials.created': StudentCredentialsCreatedPayload;
   'payment.completed': PaymentCompletedPayload;
   'exam.submitted': ExamSubmittedPayload;
   'dean.approval.granted': DeanApprovalGrantedPayload;

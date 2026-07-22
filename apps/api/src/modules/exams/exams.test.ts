@@ -2230,9 +2230,11 @@ test('ExamsRepository derives teacher mark-entry rows from open windows, assessm
   assert.match(calls[0]!.sql, /FROM exam_mark_entry_windows window/);
   assert.match(calls[0]!.sql, /JOIN exam_assessments assessment/);
   assert.match(calls[0]!.sql, /JOIN students student/);
+  assert.match(calls[0]!.sql, /FROM student_class_assignments class_assignment/);
+  assert.match(calls[0]!.sql, /FROM student_subject_enrollments subject_enrollment/);
   assert.match(calls[0]!.sql, /LEFT JOIN exam_marks mark/);
   assert.match(calls[0]!.sql, /window\.status = 'open'/);
-  assert.match(calls[0]!.sql, /assignment\.teacher_user_id = \$4::uuid/);
+  assert.match(calls[0]!.sql, /assignment\.teacher_user_id = \$4::text/);
   assert.match(calls[0]!.sql, /LIMIT \$6::integer\s+OFFSET \$7::integer/);
   assert.deepEqual(calls[0]!.params, [
     'tenant-a',

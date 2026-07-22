@@ -212,6 +212,34 @@ export class RequestParentOtpDto {
   @MinLength(5)
   @MaxLength(120)
   identifier!: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(9)
+  @MaxLength(20)
+  guardian_phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  tenant_id?: string;
+}
+
+export class RequestStudentOtpDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(50)
+  username!: string;
+
+  @IsString()
+  @MinLength(9)
+  @MaxLength(20)
+  guardian_phone!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  tenant_id?: string;
 }
 
 export class VerifyParentOtpDto {
@@ -224,4 +252,44 @@ export class VerifyParentOtpDto {
   @MinLength(4)
   @MaxLength(12)
   otp_code!: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(10)
+  @MaxLength(128)
+  new_password?: string;
+}
+
+export class StudentPortalPasswordLoginDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(50)
+  username!: string;
+
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  password!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  tenant_id?: string;
+}
+
+export class ParentPortalPasswordLoginDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(50)
+  admission_number!: string;
+
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  password!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  tenant_id?: string;
 }

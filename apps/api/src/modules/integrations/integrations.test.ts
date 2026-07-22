@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 
-import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PATH_METADATA } from '@nestjs/common/constants';
 import 'reflect-metadata';
 
@@ -484,6 +488,7 @@ test('ParentPortalAuthService creates a generic OTP challenge without exposing t
         phone_number_hash: 'hash-phone',
         phone_number_last4: '0001',
       }),
+      getOtpIssuanceState: async () => ({ recent_count: 0, latest_created_at: null }),
       createOtpChallenge: async () => ({
         id: 'challenge-1',
         tenant_id: 'tenant-a',
@@ -511,6 +516,315 @@ test('ParentPortalAuthService creates a generic OTP challenge without exposing t
   assert.equal(response.challenge_id, 'challenge-1');
   assert.equal(JSON.stringify(response).includes('000000'), false);
   assert.equal(JSON.stringify(response).includes('123456'), false);
+});
+
+test('ParentPortalAuthService enforces tenant-bound OTP resend cooldown before creating a challenge', async () => {
+  let challengeCreated = false;
+  const service = new ParentPortalAuthService(
+    {
+      getStore: () => ({ request_id: 'req-parent-rate', tenant_id: null }),
+      setTenantId: () => undefined,
+      requireStore: () => ({ tenant_id: 'tenant-a' }),
+    } as never,
+    {
+      findParentAuthSubject: async () => ({
+        user_id: 'parent-1', tenant_id: 'tenant-a', role_id: 'role-parent', role_code: 'parent',
+        email: 'parent@example.test', display_name: 'Parent User',
+        phone_number_hash: 'phone-hash', phone_number_last4: '0001',
+      }),
+      getOtpIssuanceState: async () => ({
+        recent_count: 1,
+        latest_created_at: new Date().toISOString(),
+      }),
+      createOtpChallenge: async () => {
+        challengeCreated = true;
+        return {};
+      },
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    { get: (key: string) => key === 'security.piiEncryptionKey'
+      ? '0123456789abcdef0123456789abcdef'
+      : undefined } as never,
+    { synchronizeRequestSession: async () => undefined } as never,
+  );
+
+  await assert.rejects(
+    () => service.requestOtp({ identifier: '+254700000001' }),
+    (error: unknown) => error instanceof HttpException && error.getStatus() === 429,
+  );
+  assert.equal(challengeCreated, false);
+});
+
+test('ParentPortalAuthService creates a tenant-bound student OTP challenge from admission number and guardian phone', async () => {
+  let challengeInput: Record<string, unknown> | null = null;
+  let smsInput: Record<string, unknown> | null = null;
+  let synchronizedTenant: string | null = null;
+  const service = new ParentPortalAuthService(
+    {
+      getStore: () => ({
+        request_id: 'req-student-otp',
+        tenant_id: 'tenant-a',
+        client_ip: '127.0.0.1',
+        user_agent: 'test-suite',
+      }),
+      setTenantId: (tenantId: string) => {
+        synchronizedTenant = tenantId;
+      },
+      requireStore: () => ({ tenant_id: synchronizedTenant ?? 'tenant-a' }),
+    } as never,
+    {
+      findStudentAuthSubject: async (input: any) => {
+        assert.equal(input.tenant_id, 'tenant-a');
+        assert.equal(input.username, 'ADM-001');
+        assert.match(input.phone_hash, /^[a-f0-9]{64}$/);
+        return {
+          user_id: 'student-user-1',
+          tenant_id: 'tenant-a',
+          role_id: 'role-student',
+          role_code: 'student',
+          email: 'ADM-001',
+          display_name: 'Amina Student',
+          phone_number_hash: input.phone_hash,
+          phone_number_last4: '0001',
+        };
+      },
+      getOtpIssuanceState: async () => ({ recent_count: 0, latest_created_at: null }),
+      createOtpChallenge: async (input: any) => {
+        challengeInput = input;
+        return { id: 'student-challenge-1', ...input, consumed_at: null, attempts: 0 };
+      },
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    { get: () => '0123456789abcdef0123456789abcdef' } as never,
+    {
+      synchronizeRequestSession: async (store: any) => {
+        assert.equal(store.tenant_id, 'tenant-a');
+      },
+    } as never,
+    {
+      sendSms: async (input: any) => {
+        smsInput = input;
+        return { status: 'sent' };
+      },
+    } as never,
+  );
+
+  const response = await service.requestStudentOtp({
+    tenant_id: 'tenant-a',
+    username: ' adm-001 ',
+    guardian_phone: '0700000001',
+  });
+
+  assert.equal(response.sent, true);
+  assert.equal(response.challenge_id, 'student-challenge-1');
+  assert.equal((challengeInput as any).purpose, 'student_login');
+  assert.equal((challengeInput as any).email, 'ADM-001');
+  assert.equal((smsInput as any).recipient, '0700000001');
+  assert.equal(JSON.stringify(response).includes('000000'), false);
+  assert.equal(response.password_setup_required, true);
+});
+
+test('ParentPortalAuthService resolves parent recovery through a linked child and guardian phone', async () => {
+  let linkedLookup: Record<string, unknown> | null = null;
+  let challengeInput: Record<string, unknown> | null = null;
+  const service = new ParentPortalAuthService(
+    {
+      getStore: () => ({ request_id: 'req-parent-linked', tenant_id: null }),
+      setTenantId: () => undefined,
+      requireStore: () => ({ tenant_id: 'tenant-a' }),
+    } as never,
+    {
+      findLinkedParentAuthSubject: async (input: any) => {
+        linkedLookup = input;
+        return {
+          user_id: 'parent-1',
+          tenant_id: 'tenant-a',
+          role_id: 'role-parent',
+          role_code: 'parent',
+          email: 'guardian-internal@example.test',
+          display_name: 'Guardian User',
+          phone_number_hash: input.phone_hash,
+          phone_number_last4: '0001',
+          force_password_change: true,
+        };
+      },
+      getOtpIssuanceState: async () => ({ recent_count: 0, latest_created_at: null }),
+      createOtpChallenge: async (input: any) => {
+        challengeInput = input;
+        return { id: 'parent-linked-challenge', ...input };
+      },
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    { get: () => '0123456789abcdef0123456789abcdef' } as never,
+    { synchronizeRequestSession: async () => undefined } as never,
+    { sendSms: async () => ({ status: 'sent' }) } as never,
+  );
+
+  const response = await service.requestOtp({
+    identifier: ' adm-001 ',
+    guardian_phone: '0700000001',
+    tenant_id: 'tenant-a',
+  });
+
+  assert.equal((linkedLookup as any).tenant_id, 'tenant-a');
+  assert.equal((linkedLookup as any).admission_number, 'ADM-001');
+  assert.match((linkedLookup as any).phone_hash, /^[a-f0-9]{64}$/);
+  assert.equal((challengeInput as any).email, 'ADM-001');
+  assert.equal((challengeInput as any).purpose, 'parent_login');
+  assert.equal(response.password_setup_required, true);
+});
+
+test('ParentPortalAuthService requires a new password for guardian-verified student recovery', async () => {
+  const pepper = '0123456789abcdef0123456789abcdef';
+  const otpHash = createHash('sha256').update(`123456:${pepper}`).digest('hex');
+  let completed = false;
+  const service = new ParentPortalAuthService(
+    {
+      getStore: () => ({ request_id: 'req-student-reset', tenant_id: null }),
+      setTenantId: () => undefined,
+      requireStore: () => ({ tenant_id: 'tenant-a' }),
+    } as never,
+    {
+      findChallengeForVerify: async () => ({
+        id: 'student-challenge',
+        tenant_id: 'tenant-a',
+        user_id: 'student-1',
+        email: 'ADM-001',
+        phone_hash: 'phone-hash',
+        phone_last4: '0001',
+        otp_hash: otpHash,
+        purpose: 'student_login',
+        expires_at: '2999-05-16T00:10:00.000Z',
+        consumed_at: null,
+        attempts: 0,
+      }),
+      findStudentAuthSubject: async () => ({
+        user_id: 'student-1',
+        tenant_id: 'tenant-a',
+        role_id: 'role-student',
+        role_code: 'student',
+        email: 'student@example.test',
+        display_name: 'Student User',
+        phone_number_hash: 'phone-hash',
+        phone_number_last4: '0001',
+        force_password_change: false,
+      }),
+      completeStudentPasswordSetup: async () => {
+        completed = true;
+        return true;
+      },
+      incrementAttempts: async () => undefined,
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    { get: () => pepper } as never,
+    { synchronizeRequestSession: async () => undefined } as never,
+    undefined,
+    { hash: async () => 'hashed-password' } as never,
+  );
+
+  await assert.rejects(
+    () => service.verifyStudentOtp({ challenge_id: 'student-challenge', otp_code: '123456' }),
+    (error: unknown) => error instanceof BadRequestException
+      && error.message === 'Create a new password to complete guardian-verified access',
+  );
+  assert.equal(completed, false);
+});
+
+test('ParentPortalAuthService atomically resets student password before issuing a session', async () => {
+  const pepper = '0123456789abcdef0123456789abcdef';
+  const otpHash = createHash('sha256').update(`123456:${pepper}`).digest('hex');
+  let completedInput: Record<string, unknown> | null = null;
+  let invalidatedUser: string | null = null;
+  let createdSession = false;
+  const service = new ParentPortalAuthService(
+    {
+      getStore: () => ({ request_id: 'req-student-reset', tenant_id: null }),
+      setTenantId: () => undefined,
+      requireStore: () => ({ tenant_id: 'tenant-a' }),
+    } as never,
+    {
+      findChallengeForVerify: async () => ({
+        id: 'student-challenge', tenant_id: 'tenant-a', user_id: 'student-1',
+        email: 'ADM-001', phone_hash: 'phone-hash', phone_last4: '0001', otp_hash: otpHash,
+        purpose: 'student_login', expires_at: '2999-05-16T00:10:00.000Z', consumed_at: null, attempts: 0,
+      }),
+      findStudentAuthSubject: async () => ({
+        user_id: 'student-1', tenant_id: 'tenant-a', role_id: 'role-student', role_code: 'student',
+        email: 'student@example.test', display_name: 'Student User',
+        phone_number_hash: 'phone-hash', phone_number_last4: '0001', force_password_change: false,
+      }),
+      completeStudentPasswordSetup: async (input: any) => {
+        completedInput = input;
+        return true;
+      },
+      incrementAttempts: async () => undefined,
+    } as never,
+    { ensureTenantAuthorizationBaseline: async () => undefined, getPermissionsByRoleId: async () => ['portal:read'] } as never,
+    {
+      issueTokenPair: async () => ({
+        access_token: 'access', refresh_token: 'refresh', token_type: 'Bearer',
+        access_expires_in: 900, refresh_expires_in: 2592000,
+        access_expires_at: '2999-01-01T00:00:00.000Z', refresh_expires_at: '2999-02-01T00:00:00.000Z',
+        refresh_token_id: 'refresh-id', session_id: 'session-id',
+      }),
+    } as never,
+    {
+      invalidateUserSessions: async (userId: string) => { invalidatedUser = userId; },
+      createSession: async () => { createdSession = true; },
+    } as never,
+    { get: () => pepper } as never,
+    { synchronizeRequestSession: async () => undefined } as never,
+    undefined,
+    { hash: async (value: string) => `hashed:${value}` } as never,
+  );
+
+  const response = await service.verifyStudentOtp({
+    challenge_id: 'student-challenge',
+    otp_code: '123456',
+    new_password: 'SecurePass1',
+  });
+
+  assert.equal((completedInput as any).password_hash, 'hashed:SecurePass1');
+  assert.equal(invalidatedUser, 'student-1');
+  assert.equal(createdSession, true);
+  assert.equal(response.user.role, 'student');
+});
+
+test('ParentPortalAuthService blocks initial parent password until guardian verification', async () => {
+  let tokenIssued = false;
+  const service = new ParentPortalAuthService(
+    { getStore: () => null } as never,
+    {
+      findLinkedParentPasswordAuthSubject: async () => ({
+        user_id: 'parent-1', tenant_id: 'tenant-a', role_id: 'role-parent', role_code: 'parent',
+        email: 'parent@example.test', display_name: 'Parent User',
+        phone_number_hash: 'phone-hash', phone_number_last4: '0001',
+        password_hash: 'stored-hash', force_password_change: true,
+      }),
+    } as never,
+    {} as never,
+    { issueTokenPair: async () => { tokenIssued = true; return {}; } } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    undefined,
+    { compare: async () => true } as never,
+  );
+
+  await assert.rejects(
+    () => service.loginParentWithPassword({ admission_number: 'ADM-001', password: 'ADM-001' }),
+    (error: unknown) => error instanceof UnauthorizedException
+      && error.message === 'Guardian verification and password setup are required before first login',
+  );
+  assert.equal(tokenIssued, false);
 });
 
 test('ParentPortalAuthService rejects OTP verification if the challenge subject changes', async () => {

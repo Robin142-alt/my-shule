@@ -12,6 +12,7 @@ import {
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { FormSection } from "@/components/modules/shared/form-section";
+import { StudentAdmissionWizard } from "@/components/school/admissions-dashboard/student-admission-wizard";
 import { ModuleShell } from "@/components/modules/shared/module-shell";
 import { OpsTable, type OpsTableColumn } from "@/components/modules/shared/ops-table";
 import { StatStrip } from "@/components/modules/shared/stat-strip";
@@ -77,6 +78,8 @@ import {
   type AdmissionsClassOption,
   type AdmissionRegistrationSummary,
 } from "@/lib/modules/admissions-live";
+
+const LEGACY_REGISTRATION_ENABLED: boolean = false;
 
 const admissionsSectionIds: AdmissionsSectionId[] = [
   "overview",
@@ -2195,6 +2198,13 @@ export function AdmissionsModuleScreen({
         ) : null}
 
         {activeSection === "new-registration" ? (
+          <StudentAdmissionWizard
+            onCancel={() => updateSection("applications", { student: null })}
+            onAdmitted={refreshLiveAdmissionsData}
+          />
+        ) : null}
+
+        {LEGACY_REGISTRATION_ENABLED && activeSection === "new-registration" ? (
           <div className="space-y-6">
             <FormSection
               title="Personal information"

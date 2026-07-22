@@ -2,6 +2,7 @@ import { Body, Controller, Post } from '@nestjs/common';
 
 import { Public } from '../../auth/decorators/public.decorator';
 import {
+  ParentPortalPasswordLoginDto,
   RequestParentOtpDto,
   VerifyParentOtpDto,
 } from './dto/integrations.dto';
@@ -15,6 +16,11 @@ export class ParentPortalAuthController {
   @Post('otp/request')
   requestOtp(@Body() dto: RequestParentOtpDto) {
     return this.parentPortalAuthService.requestOtp(dto);
+  }
+
+  @Post('login')
+  login(@Body() dto: ParentPortalPasswordLoginDto) {
+    return this.parentPortalAuthService.loginParentWithPassword(dto);
   }
 
   @Post('otp/verify')

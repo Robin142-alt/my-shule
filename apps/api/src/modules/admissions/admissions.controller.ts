@@ -10,11 +10,13 @@ import { RequestContextService } from '../../common/request-context/request-cont
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   UploadedFile,
   UseInterceptors,
@@ -38,6 +40,13 @@ import {
   UploadApplicationDocumentDto,
 } from './dto/register-application.dto';
 import { CreateManualAdmissionDto } from './dto/create-manual-admission.dto';
+import { BulkAdmissionCommitDto } from './dto/bulk-admission.dto';
+import {
+  ChangeGuardianPhoneDto,
+  ChangeStudentAdmissionNumberDto,
+  SaveAdmissionDraftDto,
+  UpdateAdmissionSettingsDto,
+} from './dto/admission-workflow.dto';
 import { AdmissionsService } from './admissions.service';
 import type { UploadedBinaryFile } from './storage/local-document-storage.service';
 
@@ -58,6 +67,36 @@ export class AdmissionsController {
   @Permissions('admissions:read')
   listClassOptions() {
     return this.admissionsService.listClassOptions();
+  }
+
+  @Get('foundation')
+  @Permissions('admissions:read')
+  getAdmissionFoundation() {
+    return this.admissionsService.getAdmissionFoundation();
+  }
+
+  @Put('settings')
+  @Permissions('admissions:write')
+  updateAdmissionSettings(@Body() dto: UpdateAdmissionSettingsDto) {
+    return this.admissionsService.updateAdmissionSettings(dto);
+  }
+
+  @Get('drafts/current')
+  @Permissions('admissions:write')
+  getAdmissionDraft() {
+    return this.admissionsService.getAdmissionDraft();
+  }
+
+  @Put('drafts/current')
+  @Permissions('admissions:write')
+  saveAdmissionDraft(@Body() dto: SaveAdmissionDraftDto) {
+    return this.admissionsService.saveAdmissionDraft(dto);
+  }
+
+  @Delete('drafts/current')
+  @Permissions('admissions:write')
+  discardAdmissionDraft() {
+    return this.admissionsService.discardAdmissionDraft();
   }
 
   @Get('applications')
@@ -112,6 +151,12 @@ export class AdmissionsController {
   @Permissions('admissions:write', 'students:write')
   createManualAdmission(@Body() dto: CreateManualAdmissionDto) {
     return this.admissionsService.createManualAdmission(dto);
+  }
+
+  @Post('manual/preflight')
+  @Permissions('admissions:write', 'students:write')
+  preflightManualAdmission(@Body() dto: CreateManualAdmissionDto) {
+    return this.admissionsService.preflightManualAdmission(dto);
   }
 
   @Get('students')
@@ -219,9 +264,32 @@ export class AdmissionsController {
 
   @Post('imports/commit')
   @Permissions('admissions:write')
-  async commitImports(@Body() body: any) {
-    const store = this.requestContext.requireStore();
-    return this.admissionsService.commitImports(store.tenant_id as string, body);
+  commitImports(@Body() dto: BulkAdmissionCommitDto) {
+    return this.admissionsService.commitImports(dto);
+  }
+
+  @Patch('students/:studentId/admission-number')
+  @Permissions('admissions:write', 'students:write')
+  changeStudentAdmissionNumber(
+    @Param('studentId', new ParseUUIDPipe()) studentId: string,
+    @Body() dto: ChangeStudentAdmissionNumberDto,
+  ) {
+    return this.admissionsService.changeStudentAdmissionNumber(studentId, dto);
+  }
+
+  @Patch('students/:studentId/guardian-phone')
+  @Permissions('admissions:write', 'students:write')
+  changePrimaryGuardianPhone(
+    @Param('studentId', new ParseUUIDPipe()) studentId: string,
+    @Body() dto: ChangeGuardianPhoneDto,
+  ) {
+    return this.admissionsService.changePrimaryGuardianPhone(studentId, dto);
+  }
+
+  @Get('imports/template')
+  @Permissions('admissions:write')
+  getImportTemplate() {
+    return this.admissionsService.getImportTemplate();
   }
 
   @Post('imports')

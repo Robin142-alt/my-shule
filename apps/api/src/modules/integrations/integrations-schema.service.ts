@@ -611,6 +611,7 @@ export class IntegrationsSchemaService implements OnModuleInit {
         phone_hash text,
         phone_last4 text,
         otp_hash text,
+        purpose text,
         expires_at timestamptz,
         consumed_at timestamptz,
         attempts integer
@@ -631,8 +632,8 @@ export class IntegrationsSchemaService implements OnModuleInit {
             USING ERRCODE = '42501';
         END IF;
 
-        IF request_path <> '/auth/parent/otp/verify' THEN
-          RAISE EXCEPTION 'Parent OTP verification is only available on parent OTP verify routes'
+        IF request_path NOT IN ('/auth/parent/otp/verify', '/auth/student/otp/verify') THEN
+          RAISE EXCEPTION 'OTP verification is only available on portal OTP verify routes'
             USING ERRCODE = '42501';
         END IF;
 
@@ -645,6 +646,7 @@ export class IntegrationsSchemaService implements OnModuleInit {
           c.phone_hash,
           c.phone_last4,
           c.otp_hash,
+          c.purpose,
           c.expires_at,
           c.consumed_at,
           c.attempts

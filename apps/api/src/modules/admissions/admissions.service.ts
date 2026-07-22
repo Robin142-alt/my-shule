@@ -7,14 +7,17 @@ import { CreateTemplateDto } from './dto/create-template.dto';
 
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
   Optional,
   UnauthorizedException,
 } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import * as bcrypt from 'bcrypt';
 
 import { TenantInvitationsService } from '../../auth/tenant-invitations.service';
+import { AuthorizationRepository } from '../../auth/repositories/authorization.repository';
 import { StudentsService } from '../students/students.service';
 import {
   createCsvReportArtifact,
@@ -38,6 +41,22 @@ import {
   UploadApplicationDocumentDto,
 } from './dto/register-application.dto';
 import { CreateManualAdmissionDto } from './dto/create-manual-admission.dto';
+import {
+  BulkAdmissionCommitDto,
+  BulkAdmissionRowDto,
+} from './dto/bulk-admission.dto';
+import {
+  ChangeGuardianPhoneDto,
+  ChangeStudentAdmissionNumberDto,
+  SaveAdmissionDraftDto,
+  UpdateAdmissionSettingsDto,
+} from './dto/admission-workflow.dto';
+import {
+  normalizeAdmissionNumber,
+  normalizeKenyanPhone,
+  normalizePersonName,
+  parseAdmissionDate,
+} from './admission-input';
 import { AdmissionsRepository } from './repositories/admissions.repository';
 import {
   AdmissionDocumentStorageService,
@@ -75,6 +94,85 @@ type AdmissionsReportExportDefinition = {
 };
 
 const ADMISSIONS_REPORT_EXPORT_LIMIT = 500;
+const ADMISSIONS_IMPORT_LIMIT = 500;
+const ADMISSIONS_IMPORT_HEADERS = [
+  'admission_number',
+  'first_name',
+  'middle_name',
+  'last_name',
+  'gender',
+  'date_of_birth',
+  'admission_date',
+  'academic_year',
+  'curriculum',
+  'grade_or_form',
+  'class',
+  'stream',
+  'guardian_name',
+  'guardian_relationship',
+  'guardian_phone',
+] as const;
+
+const ADMISSIONS_IMPORT_REQUIRED_HEADERS = ADMISSIONS_IMPORT_HEADERS.filter(
+  (header) => header !== 'middle_name' && header !== 'stream',
+);
+
+const ADMISSIONS_IMPORT_HEADER_ALIASES: Record<string, string> = {
+  dob: 'date_of_birth',
+  date_of_birth: 'date_of_birth',
+  academic_year_name: 'academic_year',
+  year: 'academic_year',
+  grade: 'grade_or_form',
+  form: 'grade_or_form',
+  grade_form: 'grade_or_form',
+  grade_level: 'grade_or_form',
+  class_name: 'class',
+  class_section: 'class',
+  stream_name: 'stream',
+  parent_name: 'guardian_name',
+  relationship: 'guardian_relationship',
+  parent_relationship: 'guardian_relationship',
+  parent_phone: 'guardian_phone',
+};
+
+type AdmissionFoundationYear = {
+  id: string;
+  name: string;
+  starts_on?: string;
+  ends_on?: string;
+};
+
+type AdmissionFoundationClass = {
+  id: string;
+  academic_year_id: string;
+  name: string;
+  grade_level: string;
+  curriculum: string;
+  capacity?: number | null;
+  enrolment_open?: boolean;
+  student_count?: number;
+};
+
+type AdmissionFoundationStream = {
+  id: string;
+  class_section_id: string;
+  name: string;
+  capacity?: number | null;
+  student_count?: number;
+};
+
+type AdmissionFoundationSubjectAssignment = {
+  academic_year_id: string;
+  class_section_id: string;
+  subject_id: string;
+};
+
+type AdmissionFoundation = {
+  academic_years: AdmissionFoundationYear[];
+  classes: AdmissionFoundationClass[];
+  streams: AdmissionFoundationStream[];
+  class_subject_assignments: AdmissionFoundationSubjectAssignment[];
+};
 
 function formatReportValue(value: ReportCsvValue) {
   if (value instanceof Date) {
@@ -213,6 +311,7 @@ export class AdmissionsService {
     @Optional() private readonly agp?: AgpExecutionService,
     @Optional() private readonly schoolOperationalEventsService?: SchoolOperationalEventsService,
     @Optional() private readonly uploadMalwareScan?: UploadMalwareScanService,
+    @Optional() private readonly authorizationRepository?: AuthorizationRepository,
   ) {}
 
   async getSummary() {
@@ -221,6 +320,178 @@ export class AdmissionsService {
 
   async listClassOptions() {
     return this.admissionsRepository.listClassOptions(this.requireTenantId());
+  }
+
+  async getAdmissionFoundation() {
+    return this.admissionsRepository.getAdmissionFoundation(this.requireTenantId());
+  }
+
+  async updateAdmissionSettings(dto: UpdateAdmissionSettingsDto) {
+    if (
+      dto.minimum_age != null &&
+      dto.maximum_age != null &&
+      dto.minimum_age > dto.maximum_age
+    ) {
+      throw new BadRequestException('Minimum age cannot exceed maximum age');
+    }
+    if (
+      dto.minimum_subjects != null &&
+      dto.maximum_subjects != null &&
+      dto.minimum_subjects > dto.maximum_subjects
+    ) {
+      throw new BadRequestException('Minimum subjects cannot exceed maximum subjects');
+    }
+
+    const context = this.requestContext.requireStore();
+    return this.admissionsRepository.updateAdmissionSettings(
+      this.requireTenantId(),
+      context.user_id || null,
+      {
+        admission_number_mode: dto.admission_number_mode,
+        admission_number_prefix: dto.admission_number_prefix.toUpperCase(),
+        admission_number_separator: dto.admission_number_separator,
+        admission_number_padding: dto.admission_number_padding,
+        include_academic_year: dto.include_academic_year,
+        strict_capacity: dto.strict_capacity,
+        strict_age_rules: dto.strict_age_rules,
+        minimum_age: dto.minimum_age ?? null,
+        maximum_age: dto.maximum_age ?? null,
+        minimum_subjects: dto.minimum_subjects ?? null,
+        maximum_subjects: dto.maximum_subjects ?? null,
+      },
+    );
+  }
+
+  async getAdmissionDraft() {
+    const context = this.requestContext.requireStore();
+    if (!context.user_id) throw new UnauthorizedException('Signed-in user is required');
+    return this.admissionsRepository.getAdmissionDraft(this.requireTenantId(), context.user_id);
+  }
+
+  async saveAdmissionDraft(dto: SaveAdmissionDraftDto) {
+    const context = this.requestContext.requireStore();
+    if (!context.user_id) throw new UnauthorizedException('Signed-in user is required');
+    const allowed = new Set([
+      'admission_number', 'first_name', 'middle_name', 'last_name', 'gender',
+      'date_of_birth', 'admission_date', 'academic_year_id', 'curriculum',
+      'grade_level', 'class_section_id', 'stream_id', 'subject_ids',
+      'guardian_name', 'guardian_relationship', 'guardian_phone', 'step',
+    ]);
+    const payload = Object.fromEntries(
+      Object.entries(dto.payload)
+        .filter(([key]) => allowed.has(key))
+        .map(([key, value]) => [key, Array.isArray(value) ? value.slice(0, 40) : value]),
+    );
+    return this.admissionsRepository.saveAdmissionDraft(
+      this.requireTenantId(),
+      context.user_id,
+      payload,
+    );
+  }
+
+  async discardAdmissionDraft() {
+    const context = this.requestContext.requireStore();
+    if (!context.user_id) throw new UnauthorizedException('Signed-in user is required');
+    return this.admissionsRepository.discardAdmissionDraft(this.requireTenantId(), context.user_id);
+  }
+
+  async preflightManualAdmission(dto: CreateManualAdmissionDto) {
+    const tenantId = this.requireTenantId();
+    const admissionNumber = normalizeAdmissionNumber(dto.admission_number);
+    const dateOfBirth = parseAdmissionDate(dto.date_of_birth, 'Date of birth');
+    const admissionDate = parseAdmissionDate(dto.admission_date, 'Admission date');
+    const guardianPhone = normalizeKenyanPhone(dto.guardian_phone);
+    const fullName = [dto.first_name, dto.middle_name, dto.last_name]
+      .filter(Boolean)
+      .map((value) => normalizePersonName(String(value), 'Student name'))
+      .join(' ');
+    const [preflight, settings] = await Promise.all([
+      this.admissionsRepository.findAdmissionPreflight(tenantId, {
+        admission_number: admissionNumber,
+        full_name: fullName,
+        date_of_birth: dateOfBirth,
+        guardian_phone: guardianPhone,
+        class_section_id: dto.class_section_id.trim(),
+        stream_id: dto.stream_id?.trim() || null,
+      }),
+      this.admissionsRepository.getAdmissionSettings(tenantId),
+    ]);
+    const warnings: Array<{ code: string; message: string; blocking: boolean }> = [];
+    for (const duplicate of preflight.possible_duplicates) {
+      const exact = duplicate.match_reason === 'admission_number';
+      warnings.push({
+        code: exact ? 'ADMISSION_NUMBER_EXISTS' : 'POSSIBLE_DUPLICATE_STUDENT',
+        message: exact
+          ? `Admission number ${duplicate.admission_number} already belongs to ${duplicate.full_name}.`
+          : `${duplicate.full_name} has the same date of birth. Review the existing student before creating another record.`,
+        blocking: exact,
+      });
+    }
+
+    const placement = preflight.placement;
+    const classAtCapacity = placement?.capacity != null
+      && Number(placement.class_student_count ?? 0) >= Number(placement.capacity);
+    const streamAtCapacity = placement?.stream_capacity != null
+      && Number(placement.stream_student_count ?? 0) >= Number(placement.stream_capacity);
+    if (classAtCapacity || streamAtCapacity) {
+      warnings.push({
+        code: 'PLACEMENT_CAPACITY_REACHED',
+        message: streamAtCapacity
+          ? 'The selected stream has reached its configured capacity.'
+          : 'The selected class has reached its configured capacity.',
+        blocking: settings.strict_capacity,
+      });
+    }
+
+    const birth = new Date(`${dateOfBirth}T00:00:00.000Z`);
+    const admitted = new Date(`${admissionDate}T00:00:00.000Z`);
+    let age = admitted.getUTCFullYear() - birth.getUTCFullYear();
+    if (
+      admitted.getUTCMonth() < birth.getUTCMonth() ||
+      (admitted.getUTCMonth() === birth.getUTCMonth() && admitted.getUTCDate() < birth.getUTCDate())
+    ) age -= 1;
+    const gradeNumber = Number(dto.grade_level.match(/\d+/)?.[0] ?? NaN);
+    const inferredAge = /form/i.test(dto.grade_level)
+      ? (Number.isFinite(gradeNumber) ? 13 + gradeNumber : null)
+      : (Number.isFinite(gradeNumber) ? 5 + gradeNumber : null);
+    const ageOutsideConfigured =
+      (settings.minimum_age != null && age < settings.minimum_age) ||
+      (settings.maximum_age != null && age > settings.maximum_age);
+    const ageOutsideExpected = inferredAge != null && Math.abs(age - inferredAge) > 3;
+    if (ageOutsideConfigured || ageOutsideExpected) {
+      warnings.push({
+        code: 'UNUSUAL_GRADE_AGE',
+        message: `The learner will be ${age} on admission, which is unusual for ${dto.grade_level}. Confirm the date and placement.`,
+        blocking: settings.strict_age_rules && ageOutsideConfigured,
+      });
+    }
+
+    if (
+      preflight.guardian &&
+      String(preflight.guardian.display_name).toLowerCase() !== dto.guardian_name.trim().toLowerCase()
+    ) {
+      warnings.push({
+        code: 'GUARDIAN_NAME_MISMATCH',
+        message: `This phone is already linked to ${preflight.guardian.display_name}. Confirm that this is the same guardian.`,
+        blocking: false,
+      });
+    }
+
+    return {
+      valid: !warnings.some((warning) => warning.blocking),
+      warnings,
+      possible_duplicates: preflight.possible_duplicates,
+      guardian: preflight.guardian
+        ? {
+            guardian_profile_id: preflight.guardian.guardian_profile_id,
+            display_name: preflight.guardian.display_name,
+            masked_phone: `+254******${guardianPhone.slice(-3)}`,
+            children: preflight.guardian.children,
+          }
+        : null,
+      placement: preflight.placement,
+      age_at_admission: age,
+    };
   }
 
   async listApplications(query: ListAdmissionsQueryDto) {
@@ -554,21 +825,458 @@ export class AdmissionsService {
   }
 
   async createManualAdmission(dto: CreateManualAdmissionDto) {
-    return this.prisma.withRequestTransaction(async () => {
-      // 1. Create the application
-      const application = await this.createApplication(dto);
+    const context = this.requestContext.requireStore();
+    const tenantId = this.requireTenantId();
+    const dateOfBirth = parseAdmissionDate(dto.date_of_birth, 'Date of birth');
+    const admissionDate = parseAdmissionDate(dto.admission_date, 'Admission date');
+    const admissionNumber = normalizeAdmissionNumber(dto.admission_number);
+    if (dateOfBirth > new Date().toISOString().slice(0, 10)) {
+      throw new BadRequestException('Date of birth cannot be in the future');
+    }
 
-      // 2. Automatically approve it since it's a manual admission
-      await this.updateApplication(application.id, { status: 'approved' });
+    const guardianPhone = normalizeKenyanPhone(dto.guardian_phone);
+    const securityPepper = process.env.SECURITY_PII_ENCRYPTION_KEY ?? '';
+    if (!securityPepper && process.env.NODE_ENV === 'production') {
+      throw new BadRequestException('Parent portal security key is not configured');
+    }
+    const effectivePepper = securityPepper || 'myshule-test-parent-portal-pepper';
+    const phoneHash = createHash('sha256')
+      .update(`${guardianPhone.replace(/\D/g, '')}:${effectivePepper}`)
+      .digest('hex');
+    const internalIdentityHash = createHash('sha256')
+      .update(`${tenantId}:${guardianPhone}`)
+      .digest('hex')
+      .slice(0, 32);
+    const configuredSaltRounds = Number(process.env.BCRYPT_SALT_ROUNDS ?? 12);
+    const saltRounds = Number.isInteger(configuredSaltRounds) && configuredSaltRounds >= 10
+      ? configuredSaltRounds
+      : 12;
+    const initialPortalPasswordHash = await bcrypt.hash(admissionNumber, saltRounds);
 
-      // 3. Register it using the existing robust logic
-      return this.registerApprovedApplication(application.id, {
-        admission_number: dto.admission_number,
-        class_name: dto.class_applying,
-        stream_name: dto.stream_name,
-        dormitory_name: dto.dormitory_name,
-        transport_route: dto.transport_route,
-      });
+    const command = async () => {
+      let result: any;
+      try {
+        await this.authorizationRepository?.ensureTenantAuthorizationBaseline(tenantId);
+        result = await this.admissionsRepository.admitCanonicalStudent({
+          tenant_id: tenantId,
+          actor_user_id: context.user_id || null,
+          admission_number: admissionNumber,
+          first_name: normalizePersonName(dto.first_name, 'First name'),
+          middle_name: dto.middle_name
+            ? normalizePersonName(dto.middle_name, 'Middle name')
+            : null,
+          last_name: normalizePersonName(dto.last_name, 'Last name'),
+          gender: dto.gender,
+          date_of_birth: dateOfBirth,
+          admission_date: admissionDate,
+          academic_year_id: dto.academic_year_id.trim(),
+          curriculum: dto.curriculum.trim(),
+          grade_level: dto.grade_level.trim(),
+          class_section_id: dto.class_section_id.trim(),
+          stream_id: dto.stream_id?.trim() || null,
+          subject_ids: dto.subject_ids.map((subjectId) => subjectId.trim()).filter(Boolean),
+          guardian_name: normalizePersonName(dto.guardian_name, 'Guardian name'),
+          guardian_relationship: normalizePersonName(
+            dto.guardian_relationship,
+            'Guardian relationship',
+          ),
+          guardian_phone: guardianPhone,
+          guardian_phone_hash: phoneHash,
+          guardian_phone_last4: guardianPhone.slice(-4),
+          guardian_internal_email: `guardian-${internalIdentityHash}@access.myshule.internal`,
+          guardian_password_hash: initialPortalPasswordHash,
+          student_password_hash: initialPortalPasswordHash,
+          dormitory_name: dto.dormitory_name?.trim() || null,
+          transport_route: dto.transport_route?.trim() || null,
+        });
+      } catch (error) {
+        this.rethrowCanonicalAdmissionError(error);
+      }
+
+      const student = result.student;
+      if (this.eventPublisher) {
+        await this.eventPublisher.publishStudentCreated({
+          tenant_id: tenantId,
+          student_id: student.id,
+          created_at: new Date().toISOString(),
+          created_by_user_id: context.user_id || null,
+          admission_number: student.admission_number,
+          first_name: student.first_name,
+          last_name: student.last_name,
+          metadata: {
+            source: 'ordinary_admission',
+            class_section_id: result.placement.class_section_id,
+            stream_id: result.placement.stream_id,
+          },
+        });
+        await this.eventPublisher.publish({
+          event_key: `student.lifecycle.enrolled:${student.id}:${result.placement.academic_year_id}`,
+          event_name: 'student.lifecycle.enrolled',
+          aggregate_type: 'student',
+          aggregate_id: student.id,
+          payload: { tenant_id: tenantId, student_id: student.id, status: 'active' },
+        });
+        await this.eventPublisher.publish({
+          event_key: `student.lifecycle.class_assigned:${student.id}:${result.placement.academic_year_id}`,
+          event_name: 'student.lifecycle.class_assigned',
+          aggregate_type: 'student',
+          aggregate_id: student.id,
+          payload: {
+            tenant_id: tenantId,
+            student_id: student.id,
+            class_id: result.placement.class_section_id,
+          },
+        });
+        await this.eventPublisher.publish({
+          event_key: `student.academic_enrollment.created:${result.placement.academic_enrollment_id}`,
+          event_name: 'student.academic_enrollment.created',
+          aggregate_type: 'student_academic_enrollment',
+          aggregate_id: result.placement.academic_enrollment_id,
+          payload: {
+            tenant_id: tenantId,
+            student_id: student.id,
+            academic_enrollment_id: result.placement.academic_enrollment_id,
+            application_id: result.application_id,
+            class_section_id: result.placement.class_section_id,
+            class_name: result.placement.class_name,
+            stream_name: result.placement.stream_name ?? 'Unstreamed',
+            academic_year: result.placement.academic_year_name,
+            status: 'active',
+            occurred_at: new Date().toISOString(),
+          },
+        });
+        await this.eventPublisher.publish({
+          event_key: `student.admission_number.assigned:${student.id}:${student.admission_number}`,
+          event_name: 'student.admission_number.assigned',
+          aggregate_type: 'student',
+          aggregate_id: student.id,
+          payload: {
+            tenant_id: tenantId,
+            student_id: student.id,
+            admission_number: student.admission_number,
+            assigned_by_user_id: context.user_id || null,
+          },
+        });
+        await this.eventPublisher.publish({
+          event_key: `student.subjects.assigned:${student.id}:${result.placement.academic_year_id}`,
+          event_name: 'student.subjects.assigned',
+          aggregate_type: 'student',
+          aggregate_id: student.id,
+          payload: {
+            tenant_id: tenantId,
+            student_id: student.id,
+            academic_year_id: result.placement.academic_year_id,
+            class_section_id: result.placement.class_section_id,
+            stream_id: result.placement.stream_id,
+            subject_ids: result.subjects.map((subject: any) => subject.id),
+          },
+        });
+        await this.eventPublisher.publish({
+          event_key: `student.guardian.linked:${student.id}:${result.guardian.profile_id}`,
+          event_name: 'student.guardian.linked',
+          aggregate_type: 'student_guardian',
+          aggregate_id: result.guardian.profile_id,
+          payload: {
+            tenant_id: tenantId,
+            student_id: student.id,
+            guardian_profile_id: result.guardian.profile_id,
+            is_primary: true,
+          },
+        });
+        await this.eventPublisher.publish({
+          event_key: `student.credentials.created:${student.id}`,
+          event_name: 'student.credentials.created',
+          aggregate_type: 'student_portal_access',
+          aggregate_id: student.id,
+          payload: {
+            tenant_id: tenantId,
+            student_id: student.id,
+            username: result.student_portal.username,
+            force_password_change: true,
+            recovery_phone_last4: guardianPhone.slice(-4),
+          },
+        });
+      }
+
+      if (this.schoolOperationalEventsService) {
+        const fullName = [student.first_name, student.middle_name, student.last_name]
+          .filter(Boolean)
+          .join(' ');
+        await this.schoolOperationalEventsService.recordSchoolOperation({
+          schoolId: tenantId,
+          event: {
+            id: randomUUID(),
+            type: 'student.admitted',
+            module: 'admissions',
+            actorRole: context.role ?? 'admissions',
+            title: 'Student admitted',
+            body: `${fullName} was admitted to ${result.placement.class_name}.`,
+            entityId: student.id,
+            severity: 'success',
+            payload: {
+              application_id: result.application_id,
+              student_id: student.id,
+              admission_number: student.admission_number,
+              class_section_id: result.placement.class_section_id,
+              stream_id: result.placement.stream_id,
+            },
+          },
+          notifications: [
+            {
+              id: `student-admitted-finance-${student.id}`,
+              school_id: tenantId,
+              audienceRoles: ['accountant', 'bursar', 'principal'],
+              title: 'New student admitted',
+              body: `${fullName} is ready for fee processing.`,
+              sourceModule: 'admissions',
+              relatedModule: 'finance',
+              relatedRecordId: student.id,
+              priority: 'normal',
+              read: false,
+              created_at: new Date().toISOString(),
+            },
+            {
+              id: `student-admitted-class-${student.id}`,
+              school_id: tenantId,
+              audienceRoles: ['teacher', 'class-teacher', 'deputy-principal'],
+              title: 'Learner added to class',
+              body: `${fullName} was placed in ${result.placement.class_name}.`,
+              sourceModule: 'admissions',
+              relatedModule: 'academics',
+              relatedRecordId: student.id,
+              priority: 'normal',
+              read: false,
+              created_at: new Date().toISOString(),
+            },
+          ],
+        });
+      }
+
+      if (context.user_id) {
+        await this.admissionsRepository.discardAdmissionDraft(tenantId, context.user_id);
+      }
+
+      return result;
+    };
+
+    if (!this.agp) return command();
+    return this.agp.execute({
+      actionName: 'STUDENT_ADMITTED',
+      requiredCapability: 'admissions:write',
+      aggregateType: 'student',
+      aggregateId: normalizeAdmissionNumber(dto.admission_number),
+      handler: command,
+    });
+  }
+
+  async changeStudentAdmissionNumber(
+    studentId: string,
+    dto: ChangeStudentAdmissionNumberDto,
+  ) {
+    const context = this.requestContext.requireStore();
+    if (!context.user_id) throw new UnauthorizedException('Signed-in user is required');
+    const tenantId = this.requireTenantId();
+    const admissionNumber = normalizeAdmissionNumber(dto.admission_number);
+    const configuredSaltRounds = Number(process.env.BCRYPT_SALT_ROUNDS ?? 12);
+    const saltRounds = Number.isInteger(configuredSaltRounds) && configuredSaltRounds >= 10
+      ? configuredSaltRounds
+      : 12;
+    const temporaryPasswordHash = await bcrypt.hash(admissionNumber, saltRounds);
+    const command = async () => {
+      let result: any;
+      try {
+        result = await this.admissionsRepository.changeStudentAdmissionNumber({
+          tenant_id: tenantId,
+          actor_user_id: context.user_id!,
+          student_id: studentId,
+          admission_number: admissionNumber,
+          temporary_password_hash: temporaryPasswordHash,
+          reason: dto.reason.trim(),
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes('ADMISSION_STUDENT_NOT_FOUND')) {
+          throw new NotFoundException('Student was not found in this school');
+        }
+        this.rethrowCanonicalAdmissionError(error);
+      }
+      if (result.changed && this.eventPublisher) {
+        await this.eventPublisher.publish({
+          event_key: `student.admission_number.changed:${studentId}:${admissionNumber}`,
+          event_name: 'student.admission_number.changed',
+          aggregate_type: 'student',
+          aggregate_id: studentId,
+          payload: {
+            tenant_id: tenantId,
+            student_id: studentId,
+            previous_admission_number: result.previous_admission_number,
+            admission_number: admissionNumber,
+            changed_by_user_id: context.user_id,
+            reason: dto.reason.trim(),
+            pending_otps_invalidated: result.pending_otps_invalidated,
+          },
+        });
+      }
+      if (result.changed && this.schoolOperationalEventsService) {
+        await this.schoolOperationalEventsService.recordSchoolOperation({
+          schoolId: tenantId,
+          event: {
+            id: randomUUID(),
+            type: 'student.admission_number.changed',
+            module: 'admissions',
+            actorRole: context.role ?? 'admissions',
+            title: 'Admission number changed',
+            body: `A student admission number changed from ${result.previous_admission_number} to ${admissionNumber}.`,
+            entityId: studentId,
+            severity: 'warning',
+            payload: {
+              student_id: studentId,
+              previous_admission_number: result.previous_admission_number,
+              admission_number: admissionNumber,
+            },
+          },
+          notifications: [{
+            id: `student-admission-number-changed-${studentId}-${Date.now()}`,
+            school_id: tenantId,
+            audienceRoles: ['principal', 'deputy-principal', 'admissions'],
+            title: 'Student admission number changed',
+            body: `${result.previous_admission_number} is now ${admissionNumber}. Pending portal codes were invalidated.`,
+            sourceModule: 'admissions',
+            relatedModule: 'students',
+            relatedRecordId: studentId,
+            priority: 'high',
+            read: false,
+            created_at: new Date().toISOString(),
+          }],
+        });
+      }
+      return result;
+    };
+    if (!this.agp) return command();
+    return this.agp.execute({
+      actionName: 'STUDENT_ADMISSION_NUMBER_CHANGED',
+      requiredCapability: 'admissions:write',
+      aggregateType: 'student',
+      aggregateId: studentId,
+      handler: command,
+    });
+  }
+
+  async changePrimaryGuardianPhone(studentId: string, dto: ChangeGuardianPhoneDto) {
+    const context = this.requestContext.requireStore();
+    if (!context.user_id) throw new UnauthorizedException('Signed-in user is required');
+    const tenantId = this.requireTenantId();
+    const guardianPhone = normalizeKenyanPhone(dto.guardian_phone);
+    const securityPepper = process.env.SECURITY_PII_ENCRYPTION_KEY ?? '';
+    if (!securityPepper && process.env.NODE_ENV === 'production') {
+      throw new BadRequestException('Parent portal security key is not configured');
+    }
+    const phoneHash = createHash('sha256')
+      .update(`${guardianPhone.replace(/\D/g, '')}:${securityPepper || 'myshule-test-parent-portal-pepper'}`)
+      .digest('hex');
+    const command = async () => {
+      let result: any;
+      try {
+        result = await this.admissionsRepository.changePrimaryGuardianPhone({
+          tenant_id: tenantId,
+          actor_user_id: context.user_id!,
+          student_id: studentId,
+          guardian_phone: guardianPhone,
+          guardian_phone_hash: phoneHash,
+          guardian_phone_last4: guardianPhone.slice(-4),
+          reason: dto.reason.trim(),
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes('ADMISSION_STUDENT_NOT_FOUND')) {
+          throw new NotFoundException('Student was not found in this school');
+        }
+        if (message.includes('PRIMARY_GUARDIAN_NOT_FOUND')) {
+          throw new BadRequestException('The student does not have an active primary guardian');
+        }
+        if (message.includes('GUARDIAN_PHONE_BELONGS_TO_ANOTHER_PROFILE')) {
+          throw new ConflictException(
+            'That phone belongs to another guardian in this school. Use the guardian-link workflow instead.',
+          );
+        }
+        throw error;
+      }
+      if (result.changed && this.eventPublisher) {
+        await this.eventPublisher.publish({
+          event_key: `student.guardian_phone.changed:${result.guardian_profile_id}:${Date.now()}`,
+          event_name: 'student.guardian_phone.changed',
+          aggregate_type: 'guardian_profile',
+          aggregate_id: result.guardian_profile_id,
+          payload: {
+            tenant_id: tenantId,
+            student_id: studentId,
+            guardian_profile_id: result.guardian_profile_id,
+            affected_student_ids: result.affected_student_ids,
+            previous_phone_last4: result.previous_phone_last4,
+            phone_last4: result.phone_last4,
+            changed_by_user_id: context.user_id,
+            reason: dto.reason.trim(),
+            pending_otps_invalidated: result.pending_otps_invalidated,
+          },
+        });
+      }
+      if (result.changed && this.schoolOperationalEventsService) {
+        const sms = [
+          this.isNormalizedKenyanPhone(result.previous_phone)
+            ? {
+                phone: result.previous_phone,
+                message: 'Your MyShule recovery phone was changed by authorized school staff. Contact the school immediately if this was unexpected.',
+              }
+            : null,
+          {
+            phone: guardianPhone,
+            message: 'This number is now the verified MyShule recovery contact. Existing verification codes were invalidated.',
+          },
+        ].filter((item): item is { phone: string; message: string } => Boolean(item));
+        await this.schoolOperationalEventsService.recordSchoolOperation({
+          schoolId: tenantId,
+          event: {
+            id: randomUUID(),
+            type: 'student.guardian_phone.changed',
+            module: 'admissions',
+            actorRole: context.role ?? 'admissions',
+            title: 'Guardian recovery phone changed',
+            body: `Recovery contact updated for ${result.affected_student_ids.length} linked student account(s).`,
+            entityId: result.guardian_profile_id,
+            severity: 'warning',
+            payload: {
+              guardian_profile_id: result.guardian_profile_id,
+              affected_student_ids: result.affected_student_ids,
+              previous_phone_last4: result.previous_phone_last4,
+              phone_last4: result.phone_last4,
+            },
+          },
+          notifications: [{
+            id: `guardian-phone-changed-${result.guardian_profile_id}-${Date.now()}`,
+            school_id: tenantId,
+            audienceRoles: ['principal', 'deputy-principal', 'admissions'],
+            title: 'Guardian recovery phone changed',
+            body: `Recovery contact ending ${result.previous_phone_last4 || 'unknown'} changed to ending ${result.phone_last4}.`,
+            sourceModule: 'admissions',
+            relatedModule: 'students',
+            relatedRecordId: studentId,
+            priority: 'high',
+            read: false,
+            created_at: new Date().toISOString(),
+          }],
+          sms,
+        });
+      }
+      const { previous_phone: _privatePreviousPhone, ...safeResult } = result;
+      return safeResult;
+    };
+    if (!this.agp) return command();
+    return this.agp.execute({
+      actionName: 'STUDENT_GUARDIAN_PHONE_CHANGED',
+      requiredCapability: 'admissions:write',
+      aggregateType: 'guardian_profile',
+      aggregateId: studentId,
+      handler: command,
     });
   }
 
@@ -735,8 +1443,57 @@ export class AdmissionsService {
     return { success: true, message: `Report ${type} generated successfully` };
   }
 
-  async commitImports(tenantId: string, data: any) {
-    return { success: true, count: data?.rows?.length || 0 };
+  getImportTemplate() {
+    return createCsvReportArtifact({
+      reportId: 'admissions-import-template',
+      title: 'Student admission import template',
+      filename: 'myshule-student-admission-template.csv',
+      headers: [...ADMISSIONS_IMPORT_HEADERS],
+      rows: [],
+    });
+  }
+
+  async commitImports(dto: BulkAdmissionCommitDto) {
+    const tenantId = this.requireTenantId();
+    const results: Array<Record<string, unknown>> = [];
+
+    for (const row of dto.rows) {
+      try {
+        const admitted = await this.createManualAdmission(row);
+        results.push({
+          row_number: row.row_number,
+          admission_number: row.admission_number,
+          status: 'admitted',
+          student_id: admitted.student.id,
+          class_name: admitted.placement.class_name,
+        });
+      } catch (error) {
+        results.push({
+          row_number: row.row_number,
+          admission_number: row.admission_number,
+          status: 'failed',
+          error: this.importErrorMessage(error),
+        });
+      }
+    }
+
+    const admittedRows = results.filter((row) => row.status === 'admitted').length;
+    const failedRows = results.length - admittedRows;
+    const importId = randomUUID();
+    await this.publishAdmissionEvent('admissions.bulk_import.completed', tenantId, importId, {
+      total_rows: results.length,
+      admitted_rows: admittedRows,
+      failed_rows: failedRows,
+    });
+
+    return {
+      success: failedRows === 0,
+      import_id: importId,
+      total_rows: results.length,
+      admitted_rows: admittedRows,
+      failed_rows: failedRows,
+      results,
+    };
   }
 
   async exportReportCsv(reportId: string) {
@@ -1231,6 +1988,10 @@ export class AdmissionsService {
     return candidate;
   }
 
+  private isNormalizedKenyanPhone(value: unknown): value is string {
+    return typeof value === 'string' && /^\+254\d{9}$/.test(value);
+  }
+
   async createEnquiry(tenantId: string, dto: CreateEnquiryDto, userId: string) {
     const enquiry = await this.admissionsRepository.createEnquiry({
       tenant_id: tenantId,
@@ -1392,7 +2153,7 @@ export class AdmissionsService {
     });
   }
 
-  previewApplicationImport(file: UploadedBinaryFile) {
+  async previewApplicationImport(file: UploadedBinaryFile) {
     if (!file?.buffer?.length) {
       throw new BadRequestException('An admissions import file is required');
     }
@@ -1404,38 +2165,69 @@ export class AdmissionsService {
       throw new BadRequestException('Admissions import must include a header row and at least one applicant row');
     }
 
-    const headers = rows[0].map((header) => header.trim().toLowerCase().replace(/[\s-]+/g, '_'));
-    const requiredHeaders = [
-      'full_name',
-      'date_of_birth',
-      'gender',
-      'birth_certificate_number',
-      'nationality',
-      'class_applying',
-      'parent_name',
-      'parent_phone',
-      'relationship',
-    ];
-    const missingHeaders = requiredHeaders.filter((header) => !headers.includes(header));
+    if (rows.length - 1 > ADMISSIONS_IMPORT_LIMIT) {
+      throw new BadRequestException(
+        `Admissions import cannot contain more than ${ADMISSIONS_IMPORT_LIMIT} student rows`,
+      );
+    }
+
+    const headers = rows[0].map((header) => {
+      const normalized = header.trim().toLowerCase().replace(/[\s-]+/g, '_');
+      return ADMISSIONS_IMPORT_HEADER_ALIASES[normalized] ?? normalized;
+    });
+    const duplicateHeaders = headers.filter((header, index) => headers.indexOf(header) !== index);
+    if (duplicateHeaders.length > 0) {
+      throw new BadRequestException(
+        `Admissions import contains duplicate columns: ${[...new Set(duplicateHeaders)].join(', ')}`,
+      );
+    }
+
+    const missingHeaders = ADMISSIONS_IMPORT_REQUIRED_HEADERS.filter(
+      (header) => !headers.includes(header),
+    );
 
     if (missingHeaders.length > 0) {
       throw new BadRequestException(`Admissions import is missing required columns: ${missingHeaders.join(', ')}`);
     }
 
-    const previewRows = rows.slice(1, 101).map((row, index) => {
-      const record = Object.fromEntries(headers.map((header, headerIndex) => [header, row[headerIndex]?.trim() ?? '']));
-      const missing = requiredHeaders.filter((header) => !record[header]);
-
-      return {
-        row_number: index + 2,
-        full_name: record.full_name,
-        class_applying: record.class_applying,
-        parent_phone: record.parent_phone,
-        status: missing.length === 0 ? 'valid' : 'invalid',
-        errors: missing.map((header) => `${header} is required`),
-        record,
-      };
+    const foundation = await this.admissionsRepository.getAdmissionFoundation(
+      this.requireTenantId(),
+    ) as unknown as AdmissionFoundation;
+    const rawRows = rows.slice(1).map((row, index) => ({
+      row_number: index + 2,
+      values: Object.fromEntries(
+        headers.map((header, headerIndex) => [header, row[headerIndex]?.trim() ?? '']),
+      ),
+    }));
+    const normalizedAdmissionNumbers = rawRows.map((row) => {
+      try {
+        return normalizeAdmissionNumber(row.values.admission_number ?? '');
+      } catch {
+        return '';
+      }
     });
+    const duplicateNumbers = new Set(
+      normalizedAdmissionNumbers.filter(
+        (value, index) => value && normalizedAdmissionNumbers.indexOf(value) !== index,
+      ),
+    );
+    const existingNumbers = new Set(
+      await this.admissionsRepository.findExistingAdmissionNumbers(
+        this.requireTenantId(),
+        normalizedAdmissionNumbers.filter(Boolean),
+      ),
+    );
+
+    const previewRows = rawRows.map(({ row_number, values }, index) =>
+      this.previewCanonicalImportRow({
+        rowNumber: row_number,
+        values,
+        admissionNumber: normalizedAdmissionNumbers[index],
+        duplicateNumbers,
+        existingNumbers,
+        foundation,
+      }),
+    );
 
     return {
       success: previewRows.every((row) => row.status === 'valid'),
@@ -1445,6 +2237,222 @@ export class AdmissionsService {
       invalid_rows: previewRows.filter((row) => row.status === 'invalid').length,
       rows: previewRows,
     };
+  }
+
+  private previewCanonicalImportRow(input: {
+    rowNumber: number;
+    values: Record<string, string>;
+    admissionNumber: string;
+    duplicateNumbers: Set<string>;
+    existingNumbers: Set<string>;
+    foundation: AdmissionFoundation;
+  }) {
+    const { values, foundation } = input;
+    const errors: string[] = [];
+    const requiredMissing = ADMISSIONS_IMPORT_REQUIRED_HEADERS.filter(
+      (header) => !values[header]?.trim(),
+    );
+    errors.push(...requiredMissing.map((header) => `${header} is required`));
+
+    let admissionNumber = input.admissionNumber;
+    let firstName = values.first_name ?? '';
+    let middleName = values.middle_name ?? '';
+    let lastName = values.last_name ?? '';
+    let guardianName = values.guardian_name ?? '';
+    let guardianRelationship = values.guardian_relationship ?? '';
+    let guardianPhone = values.guardian_phone ?? '';
+    let dateOfBirth = values.date_of_birth ?? '';
+    let admissionDate = values.admission_date ?? '';
+
+    const capture = (field: string, action: () => string, fallback: string) => {
+      try {
+        return action();
+      } catch (error) {
+        errors.push(this.importErrorMessage(error, field));
+        return fallback;
+      }
+    };
+
+    if (values.admission_number) {
+      admissionNumber = capture(
+        'admission_number',
+        () => normalizeAdmissionNumber(values.admission_number),
+        admissionNumber,
+      );
+    }
+    if (values.first_name) {
+      firstName = capture('first_name', () => normalizePersonName(values.first_name, 'First name'), firstName);
+    }
+    if (values.middle_name) {
+      middleName = capture('middle_name', () => normalizePersonName(values.middle_name, 'Middle name'), middleName);
+    }
+    if (values.last_name) {
+      lastName = capture('last_name', () => normalizePersonName(values.last_name, 'Last name'), lastName);
+    }
+    if (values.guardian_name) {
+      guardianName = capture(
+        'guardian_name',
+        () => normalizePersonName(values.guardian_name, 'Guardian name'),
+        guardianName,
+      );
+    }
+    if (values.guardian_relationship) {
+      guardianRelationship = capture(
+        'guardian_relationship',
+        () => normalizePersonName(values.guardian_relationship, 'Guardian relationship'),
+        guardianRelationship,
+      );
+    }
+    if (values.guardian_phone) {
+      guardianPhone = capture(
+        'guardian_phone',
+        () => normalizeKenyanPhone(values.guardian_phone),
+        guardianPhone,
+      );
+    }
+    if (values.date_of_birth) {
+      dateOfBirth = capture(
+        'date_of_birth',
+        () => parseAdmissionDate(values.date_of_birth, 'Date of birth'),
+        dateOfBirth,
+      );
+    }
+    if (values.admission_date) {
+      admissionDate = capture(
+        'admission_date',
+        () => parseAdmissionDate(values.admission_date, 'Admission date'),
+        admissionDate,
+      );
+    }
+
+    if (dateOfBirth && dateOfBirth > new Date().toISOString().slice(0, 10)) {
+      errors.push('Date of birth cannot be in the future');
+    }
+    if (admissionNumber && input.duplicateNumbers.has(admissionNumber)) {
+      errors.push('Admission number is duplicated in this file');
+    }
+    if (admissionNumber && input.existingNumbers.has(admissionNumber)) {
+      errors.push('Admission number already exists in this school');
+    }
+
+    const academicYear = foundation.academic_years.find(
+      (year) => this.sameImportValue(year.name, values.academic_year),
+    );
+    if (values.academic_year && !academicYear) {
+      errors.push(`Academic year "${values.academic_year}" is not configured in this school`);
+    }
+
+    const classSection = foundation.classes.find(
+      (item) =>
+        (!academicYear || String(item.academic_year_id) === String(academicYear.id))
+        && this.sameImportValue(item.name, values.class)
+        && this.sameImportValue(item.grade_level, values.grade_or_form)
+        && this.sameImportValue(item.curriculum, values.curriculum),
+    );
+    if (values.class && values.grade_or_form && values.curriculum && !classSection) {
+      errors.push(
+        `Class "${values.class}" does not match the selected academic year, curriculum, and grade/form`,
+      );
+    }
+    if (classSection?.enrolment_open === false) {
+      errors.push(`Class "${classSection.name}" is closed for enrolment`);
+    }
+    if (
+      classSection?.capacity != null
+      && Number(classSection.student_count ?? 0) >= Number(classSection.capacity)
+    ) {
+      errors.push(`Class "${classSection.name}" has reached its configured capacity`);
+    }
+
+    const stream = values.stream
+      ? foundation.streams.find(
+          (item) =>
+            String(item.class_section_id) === String(classSection?.id)
+            && this.sameImportValue(item.name, values.stream),
+        )
+      : undefined;
+    if (values.stream && !stream) {
+      errors.push(`Stream "${values.stream}" does not belong to class "${values.class}"`);
+    }
+    if (stream?.capacity != null && Number(stream.student_count ?? 0) >= Number(stream.capacity)) {
+      errors.push(`Stream "${stream.name}" has reached its configured capacity`);
+    }
+
+    const subjectIds = classSection && academicYear
+      ? [...new Set(
+          foundation.class_subject_assignments
+            .filter(
+              (assignment) =>
+                String(assignment.class_section_id) === String(classSection.id)
+                && String(assignment.academic_year_id) === String(academicYear.id),
+            )
+            .map((assignment) => String(assignment.subject_id)),
+        )]
+      : [];
+    if (classSection && subjectIds.length === 0) {
+      errors.push(`No subjects are assigned to class "${classSection.name}" for this academic year`);
+    }
+
+    if (
+      academicYear?.starts_on
+      && academicYear?.ends_on
+      && admissionDate
+      && (admissionDate < String(academicYear.starts_on).slice(0, 10)
+        || admissionDate > String(academicYear.ends_on).slice(0, 10))
+    ) {
+      errors.push(`Admission date must fall within academic year "${academicYear.name}"`);
+    }
+
+    const record: BulkAdmissionRowDto | null = errors.length === 0 && academicYear && classSection
+      ? {
+          row_number: input.rowNumber,
+          admission_number: admissionNumber,
+          first_name: firstName,
+          ...(middleName ? { middle_name: middleName } : {}),
+          last_name: lastName,
+          gender: values.gender.trim().toLowerCase() as BulkAdmissionRowDto['gender'],
+          date_of_birth: dateOfBirth,
+          admission_date: admissionDate,
+          academic_year_id: String(academicYear.id),
+          curriculum: classSection.curriculum,
+          grade_level: classSection.grade_level,
+          class_section_id: String(classSection.id),
+          ...(stream ? { stream_id: String(stream.id) } : {}),
+          subject_ids: subjectIds,
+          guardian_name: guardianName,
+          guardian_relationship: guardianRelationship,
+          guardian_phone: guardianPhone,
+        }
+      : null;
+
+    const normalizedGender = values.gender.trim().toLowerCase();
+    if (values.gender && !['male', 'female', 'other', 'undisclosed'].includes(normalizedGender)) {
+      errors.push('Gender must be male, female, other, or undisclosed');
+    }
+
+    return {
+      row_number: input.rowNumber,
+      admission_number: admissionNumber || values.admission_number,
+      learner_name: [firstName, middleName, lastName].filter(Boolean).join(' '),
+      academic_year: values.academic_year,
+      class_name: values.class,
+      stream_name: values.stream || null,
+      guardian_phone: guardianPhone || values.guardian_phone,
+      status: errors.length === 0 ? 'valid' : 'invalid',
+      errors,
+      record: errors.length === 0 ? record : null,
+    };
+  }
+
+  private sameImportValue(left: unknown, right: unknown) {
+    return String(left ?? '').trim().toLowerCase() === String(right ?? '').trim().toLowerCase();
+  }
+
+  private importErrorMessage(error: unknown, field?: string) {
+    const message = error instanceof Error ? error.message : String(error);
+    return field && !message.toLowerCase().includes(field.replace(/_/g, ' '))
+      ? `${field}: ${message}`
+      : message;
   }
 
   private async requireApplicationInTenant(tenantId: string, applicationId: string) {
@@ -1508,6 +2516,60 @@ export class AdmissionsService {
     }
 
     return normalized;
+  }
+
+  private rethrowCanonicalAdmissionError(error: unknown): never {
+    const message = error instanceof Error ? error.message : String(error);
+    const errors: Record<string, string> = {
+      ADMISSION_PLACEMENT_NOT_FOUND:
+        'The selected academic year and class are not available in this school',
+      ADMISSION_CLASS_CLOSED: 'The selected class is closed for enrolment',
+      ADMISSION_STREAM_NOT_FOUND: 'The selected stream does not belong to the selected class',
+      ADMISSION_GRADE_MISMATCH: 'The selected grade does not match the selected class',
+      ADMISSION_CURRICULUM_MISMATCH:
+        'The selected curriculum does not match the selected class',
+      ADMISSION_DATE_OUTSIDE_YEAR:
+        'Admission date must fall within the selected academic year',
+      ADMISSION_SUBJECTS_NOT_CONFIGURED:
+        'No subjects are assigned to this class for the selected academic year',
+      ADMISSION_SUBJECT_INVALID: 'One or more selected subjects are not assigned to this class',
+      ADMISSION_COMPULSORY_SUBJECT_MISSING:
+        'All compulsory class subjects must be included',
+      ADMISSION_SUBJECT_REQUIRED: 'Select at least one subject for the learner',
+      ADMISSION_CLASS_CAPACITY_REACHED: 'The selected class has reached its configured capacity',
+      ADMISSION_STREAM_CAPACITY_REACHED: 'The selected stream has reached its configured capacity',
+      ADMISSION_AGE_RULE_FAILED: 'The learner does not meet this school\'s configured admission age rules',
+      PARENT_ROLE_NOT_CONFIGURED: 'Parent portal access is not configured for this school',
+      STUDENT_ROLE_NOT_CONFIGURED: 'Student portal access is not configured for this school',
+    };
+
+    const staleNumber = message.match(/ADMISSION_NUMBER_STALE:([^\s]+)/)?.[1];
+    if (staleNumber) {
+      throw new ConflictException(
+        `The automatic admission number was just used. Refresh and use ${staleNumber}.`,
+      );
+    }
+
+    const minimumSubjects = message.match(/ADMISSION_MINIMUM_SUBJECTS:(\d+)/)?.[1];
+    if (minimumSubjects) {
+      throw new BadRequestException(`Select at least ${minimumSubjects} subjects for this learner`);
+    }
+    const maximumSubjects = message.match(/ADMISSION_MAXIMUM_SUBJECTS:(\d+)/)?.[1];
+    if (maximumSubjects) {
+      throw new BadRequestException(`Select no more than ${maximumSubjects} subjects for this learner`);
+    }
+
+    if (
+      message.includes('ADMISSION_NUMBER_EXISTS') ||
+      message.includes('uq_students_tenant_admission_number') ||
+      message.includes('uq_admission_applications_number')
+    ) {
+      throw new ConflictException('Admission number already exists in this school');
+    }
+
+    const knownError = Object.entries(errors).find(([code]) => message.includes(code));
+    if (knownError) throw new BadRequestException(knownError[1]);
+    throw error;
   }
 
   private parseDelimitedRows(text: string) {

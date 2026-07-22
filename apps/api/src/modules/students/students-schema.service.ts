@@ -134,6 +134,14 @@ export class StudentsSchemaService implements OnModuleInit {
           ON DELETE SET NULL
       );
 
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS phone_number_ciphertext text,
+        ADD COLUMN IF NOT EXISTS phone_number_hash text,
+        ADD COLUMN IF NOT EXISTS phone_number_last4 text;
+      CREATE INDEX IF NOT EXISTS ix_users_phone_number_hash
+        ON users (phone_number_hash)
+        WHERE phone_number_hash IS NOT NULL;
+
       CREATE TABLE IF NOT EXISTS student_guardians (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
@@ -349,8 +357,63 @@ export class StudentsSchemaService implements OnModuleInit {
       ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS display_name text;
       ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS email text;
       ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS phone text;
+      ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS normalized_phone text;
+      ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS guardian_profile_id uuid;
       ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'invited';
       ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS accepted_at timestamptz;
+      ALTER TABLE student_guardians ALTER COLUMN email DROP NOT NULL;
+      ALTER TABLE student_guardians DROP CONSTRAINT IF EXISTS ck_student_guardians_email_not_blank;
+      CREATE TABLE IF NOT EXISTS guardian_profiles (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        display_name text NOT NULL,
+        normalized_phone text NOT NULL,
+        email text,
+        user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+        status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'revoked')),
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_guardian_profiles_tenant_phone UNIQUE (tenant_id, normalized_phone),
+        CONSTRAINT uq_guardian_profiles_tenant_id_id UNIQUE (tenant_id, id),
+        CONSTRAINT ck_guardian_profiles_name_not_blank CHECK (btrim(display_name) <> ''),
+        CONSTRAINT ck_guardian_profiles_phone_not_blank CHECK (btrim(normalized_phone) <> '')
+      );
+      CREATE TABLE IF NOT EXISTS student_portal_access (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        student_id uuid NOT NULL,
+        user_id uuid NOT NULL,
+        username text NOT NULL,
+        guardian_phone_hash text NOT NULL,
+        force_password_change boolean NOT NULL DEFAULT TRUE,
+        status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'revoked')),
+        last_login_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_student_portal_access_tenant_student UNIQUE (tenant_id, student_id),
+        CONSTRAINT uq_student_portal_access_tenant_user UNIQUE (tenant_id, user_id),
+        CONSTRAINT ck_student_portal_access_username_not_blank CHECK (btrim(username) <> ''),
+        CONSTRAINT ck_student_portal_access_phone_hash_not_blank CHECK (btrim(guardian_phone_hash) <> ''),
+        CONSTRAINT fk_student_portal_access_student
+          FOREIGN KEY (tenant_id, student_id)
+          REFERENCES students (tenant_id, id)
+          ON DELETE CASCADE,
+        CONSTRAINT fk_student_portal_access_user
+          FOREIGN KEY (user_id)
+          REFERENCES users (id)
+          ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS ix_guardian_profiles_user
+        ON guardian_profiles (tenant_id, user_id)
+        WHERE user_id IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_student_portal_access_username
+        ON student_portal_access (tenant_id, lower(username));
+      CREATE INDEX IF NOT EXISTS ix_student_portal_access_lookup
+        ON student_portal_access (lower(username), guardian_phone_hash)
+        WHERE status = 'active';
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_student_guardians_student_phone
+        ON student_guardians (tenant_id, student_id, normalized_phone)
+        WHERE normalized_phone IS NOT NULL;
       CREATE UNIQUE INDEX IF NOT EXISTS ux_student_guardians_student_email
         ON student_guardians (tenant_id, student_id, lower(email));
       CREATE INDEX IF NOT EXISTS ix_student_guardians_user_status
@@ -364,6 +427,10 @@ export class StudentsSchemaService implements OnModuleInit {
       ALTER TABLE students FORCE ROW LEVEL SECURITY;
       ALTER TABLE student_guardians ENABLE ROW LEVEL SECURITY;
       ALTER TABLE student_guardians FORCE ROW LEVEL SECURITY;
+      ALTER TABLE guardian_profiles ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE guardian_profiles FORCE ROW LEVEL SECURITY;
+      ALTER TABLE student_portal_access ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE student_portal_access FORCE ROW LEVEL SECURITY;
       ALTER TABLE attendance_records ENABLE ROW LEVEL SECURITY;
       ALTER TABLE attendance_records FORCE ROW LEVEL SECURITY;
 
@@ -384,6 +451,18 @@ export class StudentsSchemaService implements OnModuleInit {
         tenant_id = current_setting('app.tenant_id', true)
         OR COALESCE(NULLIF(current_setting('app.path', true), ''), '') LIKE '%/auth/invitations/accept%'
       );
+
+      DROP POLICY IF EXISTS guardian_profiles_rls_policy ON guardian_profiles;
+      CREATE POLICY guardian_profiles_rls_policy ON guardian_profiles
+      FOR ALL
+      USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+      DROP POLICY IF EXISTS student_portal_access_rls_policy ON student_portal_access;
+      CREATE POLICY student_portal_access_rls_policy ON student_portal_access
+      FOR ALL
+      USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
 
       DROP POLICY IF EXISTS attendance_records_rls_policy ON attendance_records;
       CREATE POLICY attendance_records_rls_policy ON attendance_records
@@ -408,6 +487,359 @@ export class StudentsSchemaService implements OnModuleInit {
       BEFORE UPDATE ON student_guardians
       FOR EACH ROW
       EXECUTE FUNCTION set_updated_at();
+
+      DROP TRIGGER IF EXISTS trg_guardian_profiles_set_updated_at ON guardian_profiles;
+      CREATE TRIGGER trg_guardian_profiles_set_updated_at
+      BEFORE UPDATE ON guardian_profiles
+      FOR EACH ROW
+      EXECUTE FUNCTION set_updated_at();
+
+      DROP TRIGGER IF EXISTS trg_student_portal_access_set_updated_at ON student_portal_access;
+      CREATE TRIGGER trg_student_portal_access_set_updated_at
+      BEFORE UPDATE ON student_portal_access
+      FOR EACH ROW
+      EXECUTE FUNCTION set_updated_at();
+
+      CREATE SCHEMA IF NOT EXISTS app;
+      DROP FUNCTION IF EXISTS app.find_student_auth_subject_for_otp(text, text, text);
+      CREATE OR REPLACE FUNCTION app.find_student_auth_subject_for_otp(
+        input_tenant_id text,
+        input_username text,
+        input_phone_hash text
+      )
+      RETURNS TABLE (
+        user_id uuid,
+        tenant_id text,
+        role_id uuid,
+        role_code text,
+        email text,
+        display_name text,
+        phone_number_hash text,
+        phone_number_last4 text,
+        force_password_change boolean
+      )
+      LANGUAGE plpgsql
+      SECURITY DEFINER
+      SET search_path = public, app, pg_temp
+      AS $$
+      DECLARE
+        request_user_id text;
+        request_path text;
+      BEGIN
+        request_user_id := COALESCE(NULLIF(current_setting('app.user_id', true), ''), 'anonymous');
+        request_path := COALESCE(NULLIF(current_setting('app.path', true), ''), '');
+
+        IF request_user_id <> 'anonymous' THEN
+          RAISE EXCEPTION 'Student OTP lookup is only available before authentication'
+            USING ERRCODE = '42501';
+        END IF;
+
+        IF request_path NOT IN ('/auth/student/otp/request', '/auth/student/otp/verify') THEN
+          RAISE EXCEPTION 'Student OTP lookup is only available on student OTP routes'
+            USING ERRCODE = '42501';
+        END IF;
+
+        RETURN QUERY
+        WITH matches AS (
+          SELECT
+            u.id AS user_id,
+            access.tenant_id,
+            membership.role_id,
+            role.code AS role_code,
+            u.email::text,
+            u.display_name,
+            u.phone_number_hash,
+            u.phone_number_last4,
+            access.force_password_change,
+            access.created_at
+          FROM student_portal_access access
+          INNER JOIN users u
+            ON u.id = access.user_id
+           AND u.status = 'active'
+          INNER JOIN tenant_memberships membership
+            ON membership.tenant_id = access.tenant_id
+           AND membership.user_id = access.user_id
+           AND membership.status = 'active'
+          INNER JOIN roles role
+            ON role.tenant_id = membership.tenant_id
+           AND role.id = membership.role_id
+           AND role.code = 'student'
+          WHERE access.status = 'active'
+            AND lower(access.username) = lower(btrim(input_username))
+            AND access.guardian_phone_hash = input_phone_hash
+            AND (input_tenant_id IS NULL OR access.tenant_id = input_tenant_id)
+        )
+        SELECT
+          match.user_id,
+          match.tenant_id,
+          match.role_id,
+          match.role_code,
+          match.email,
+          match.display_name,
+          match.phone_number_hash,
+          match.phone_number_last4,
+          match.force_password_change
+        FROM matches match
+        WHERE input_tenant_id IS NOT NULL
+           OR (SELECT COUNT(*) FROM matches) = 1
+        ORDER BY match.created_at DESC
+        LIMIT 1;
+      END;
+      $$;
+
+      DROP FUNCTION IF EXISTS app.find_student_auth_subject_for_password(text, text);
+      CREATE FUNCTION app.find_student_auth_subject_for_password(
+        input_tenant_id text,
+        input_username text
+      )
+      RETURNS TABLE (
+        user_id uuid,
+        tenant_id text,
+        role_id uuid,
+        role_code text,
+        email text,
+        display_name text,
+        phone_number_hash text,
+        phone_number_last4 text,
+        password_hash text,
+        force_password_change boolean
+      )
+      LANGUAGE plpgsql
+      SECURITY DEFINER
+      SET search_path = public, app, pg_temp
+      AS $$
+      DECLARE
+        request_user_id text;
+        request_path text;
+      BEGIN
+        request_user_id := COALESCE(NULLIF(current_setting('app.user_id', true), ''), 'anonymous');
+        request_path := COALESCE(NULLIF(current_setting('app.path', true), ''), '');
+
+        IF request_user_id <> 'anonymous' OR request_path <> '/auth/student/login' THEN
+          RAISE EXCEPTION 'Student password lookup is only available on the student login route'
+            USING ERRCODE = '42501';
+        END IF;
+
+        RETURN QUERY
+        WITH matches AS (
+          SELECT
+            u.id AS user_id,
+            access.tenant_id,
+            membership.role_id,
+            role.code AS role_code,
+            u.email::text,
+            u.display_name,
+            u.phone_number_hash,
+            u.phone_number_last4,
+            u.password_hash,
+            access.force_password_change,
+            access.created_at
+          FROM student_portal_access access
+          INNER JOIN users u
+            ON u.id = access.user_id
+           AND u.status = 'active'
+          INNER JOIN tenant_memberships membership
+            ON membership.tenant_id = access.tenant_id
+           AND membership.user_id = access.user_id
+           AND membership.status = 'active'
+          INNER JOIN roles role
+            ON role.tenant_id = membership.tenant_id
+           AND role.id = membership.role_id
+           AND role.code = 'student'
+          WHERE access.status = 'active'
+            AND lower(access.username) = lower(btrim(input_username))
+            AND (input_tenant_id IS NULL OR access.tenant_id = input_tenant_id)
+        )
+        SELECT
+          match.user_id,
+          match.tenant_id,
+          match.role_id,
+          match.role_code,
+          match.email,
+          match.display_name,
+          match.phone_number_hash,
+          match.phone_number_last4,
+          match.password_hash,
+          match.force_password_change
+        FROM matches match
+        WHERE input_tenant_id IS NOT NULL
+           OR (SELECT COUNT(*) FROM matches) = 1
+        ORDER BY match.created_at DESC
+        LIMIT 1;
+      END;
+      $$;
+
+      DROP FUNCTION IF EXISTS app.find_linked_parent_auth_subject(text, text, text);
+      CREATE FUNCTION app.find_linked_parent_auth_subject(
+        input_tenant_id text,
+        input_admission_number text,
+        input_phone_hash text
+      )
+      RETURNS TABLE (
+        user_id uuid,
+        tenant_id text,
+        role_id uuid,
+        role_code text,
+        email text,
+        display_name text,
+        phone_number_hash text,
+        phone_number_last4 text,
+        force_password_change boolean
+      )
+      LANGUAGE plpgsql
+      SECURITY DEFINER
+      SET search_path = public, app, pg_temp
+      AS $$
+      DECLARE
+        request_user_id text;
+        request_path text;
+      BEGIN
+        request_user_id := COALESCE(NULLIF(current_setting('app.user_id', true), ''), 'anonymous');
+        request_path := COALESCE(NULLIF(current_setting('app.path', true), ''), '');
+
+        IF request_user_id <> 'anonymous'
+           OR request_path NOT IN ('/auth/parent/otp/request', '/auth/parent/otp/verify') THEN
+          RAISE EXCEPTION 'Linked parent lookup is only available on parent OTP routes'
+            USING ERRCODE = '42501';
+        END IF;
+
+        RETURN QUERY
+        WITH matches AS (
+          SELECT
+            parent_user.id AS user_id,
+            student.tenant_id,
+            membership.role_id,
+            role.code AS role_code,
+            parent_user.email::text,
+            parent_user.display_name,
+            parent_user.phone_number_hash,
+            parent_user.phone_number_last4,
+            (parent_user.password_changed_at IS NULL) AS force_password_change,
+            link.created_at
+          FROM students student
+          INNER JOIN student_guardians link
+            ON link.tenant_id = student.tenant_id
+           AND link.student_id = student.id
+           AND link.status = 'active'
+          INNER JOIN users parent_user
+            ON parent_user.id = link.user_id
+           AND parent_user.status = 'active'
+          INNER JOIN tenant_memberships membership
+            ON membership.tenant_id = student.tenant_id
+           AND membership.user_id = parent_user.id
+           AND membership.status = 'active'
+          INNER JOIN roles role
+            ON role.tenant_id = membership.tenant_id
+           AND role.id = membership.role_id
+           AND role.code = 'parent'
+          WHERE student.status = 'active'
+            AND lower(student.admission_number) = lower(btrim(input_admission_number))
+            AND parent_user.phone_number_hash = input_phone_hash
+            AND (input_tenant_id IS NULL OR student.tenant_id = input_tenant_id)
+        )
+        SELECT
+          match.user_id,
+          match.tenant_id,
+          match.role_id,
+          match.role_code,
+          match.email,
+          match.display_name,
+          match.phone_number_hash,
+          match.phone_number_last4,
+          match.force_password_change
+        FROM matches match
+        WHERE input_tenant_id IS NOT NULL
+           OR (SELECT COUNT(*) FROM matches) = 1
+        ORDER BY match.created_at DESC
+        LIMIT 1;
+      END;
+      $$;
+
+      DROP FUNCTION IF EXISTS app.find_linked_parent_password_auth_subject(text, text);
+      CREATE FUNCTION app.find_linked_parent_password_auth_subject(
+        input_tenant_id text,
+        input_admission_number text
+      )
+      RETURNS TABLE (
+        user_id uuid,
+        tenant_id text,
+        role_id uuid,
+        role_code text,
+        email text,
+        display_name text,
+        phone_number_hash text,
+        phone_number_last4 text,
+        password_hash text,
+        force_password_change boolean
+      )
+      LANGUAGE plpgsql
+      SECURITY DEFINER
+      SET search_path = public, app, pg_temp
+      AS $$
+      DECLARE
+        request_user_id text;
+        request_path text;
+      BEGIN
+        request_user_id := COALESCE(NULLIF(current_setting('app.user_id', true), ''), 'anonymous');
+        request_path := COALESCE(NULLIF(current_setting('app.path', true), ''), '');
+
+        IF request_user_id <> 'anonymous' OR request_path <> '/auth/parent/login' THEN
+          RAISE EXCEPTION 'Linked parent password lookup is only available on the parent login route'
+            USING ERRCODE = '42501';
+        END IF;
+
+        RETURN QUERY
+        WITH matches AS (
+          SELECT
+            parent_user.id AS user_id,
+            student.tenant_id,
+            membership.role_id,
+            role.code AS role_code,
+            parent_user.email::text,
+            parent_user.display_name,
+            parent_user.phone_number_hash,
+            parent_user.phone_number_last4,
+            parent_user.password_hash,
+            (parent_user.password_changed_at IS NULL) AS force_password_change,
+            link.created_at
+          FROM students student
+          INNER JOIN student_guardians link
+            ON link.tenant_id = student.tenant_id
+           AND link.student_id = student.id
+           AND link.status = 'active'
+          INNER JOIN users parent_user
+            ON parent_user.id = link.user_id
+           AND parent_user.status = 'active'
+          INNER JOIN tenant_memberships membership
+            ON membership.tenant_id = student.tenant_id
+           AND membership.user_id = parent_user.id
+           AND membership.status = 'active'
+          INNER JOIN roles role
+            ON role.tenant_id = membership.tenant_id
+           AND role.id = membership.role_id
+           AND role.code = 'parent'
+          WHERE student.status = 'active'
+            AND lower(student.admission_number) = lower(btrim(input_admission_number))
+            AND (input_tenant_id IS NULL OR student.tenant_id = input_tenant_id)
+        )
+        SELECT
+          match.user_id,
+          match.tenant_id,
+          match.role_id,
+          match.role_code,
+          match.email,
+          match.display_name,
+          match.phone_number_hash,
+          match.phone_number_last4,
+          match.password_hash,
+          match.force_password_change
+        FROM matches match
+        WHERE input_tenant_id IS NOT NULL
+           OR (SELECT COUNT(*) FROM matches) = 1
+        ORDER BY match.created_at DESC
+        LIMIT 1;
+      END;
+      $$;
 
       DROP TRIGGER IF EXISTS trg_attendance_records_set_updated_at ON attendance_records;
       CREATE TRIGGER trg_attendance_records_set_updated_at

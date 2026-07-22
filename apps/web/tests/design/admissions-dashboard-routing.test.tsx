@@ -8,6 +8,48 @@ import { isSchoolSection } from "@/lib/routing/experience-routes";
 
 import { renderWithProviders } from "./test-utils";
 
+function admissionFoundation(classes = [
+  {
+    id: "class-grade-7",
+    academic_year_id: "year-2026",
+    academic_level_id: "level-grade-7",
+    name: "Grade 7 North",
+    grade_level: "Grade 7",
+    curriculum: "CBC",
+    capacity: 45,
+    enrolment_open: true,
+    student_count: 0,
+  },
+]) {
+  return {
+    academic_years: [{ id: "year-2026", name: "2026", status: "active", is_current: true }],
+    classes,
+    streams: classes.map((item, index) => ({
+      id: `stream-${index + 1}`,
+      class_section_id: item.id,
+      name: index === 0 ? "North" : "West",
+      capacity: item.capacity,
+      student_count: item.student_count,
+    })),
+    subjects: [{ id: "subject-mat", code: "MAT", name: "Mathematics", curriculum: "CBC", subject_type: "core", is_compulsory: true, is_examinable: true }],
+    class_subject_assignments: classes.map((item) => ({ academic_year_id: "year-2026", class_section_id: item.id, subject_id: "subject-mat", is_compulsory: true, is_examinable: true })),
+    admission_settings: {
+      admission_number_mode: "suggested",
+      admission_number_prefix: "MS",
+      admission_number_separator: "-",
+      admission_number_padding: 4,
+      include_academic_year: true,
+      strict_capacity: true,
+      strict_age_rules: false,
+      minimum_age: null,
+      maximum_age: null,
+      minimum_subjects: 1,
+      maximum_subjects: 12,
+      suggested_admission_number: "MS-2026-0001",
+    },
+  };
+}
+
 describe("admissions dashboard routing", () => {
   beforeEach(() => {
     window.history.pushState({}, "", "/");
@@ -133,6 +175,16 @@ describe("admissions dashboard routing", () => {
 
   it("opens the student admission form from the routed start-admission action", async () => {
     window.history.pushState({}, "", "/school/admissions/applications?action=start-admission");
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/admissions/foundation")) {
+        return { ok: true, json: async () => admissionFoundation() };
+      }
+      if (url.includes("/api/admissions/drafts/current")) {
+        return { ok: true, json: async () => null };
+      }
+      return { ok: true, json: async () => ({ metrics: {}, items: [], recentActivity: [] }) };
+    }) as unknown as typeof fetch;
 
     renderWithProviders(
       createElement(SchoolPages, {
@@ -148,7 +200,9 @@ describe("admissions dashboard routing", () => {
 
     expect(within(dashboard).getAllByRole("heading", { name: /^Applications$/i }).length).toBeGreaterThan(0);
     expect(await within(dashboard).findByRole("heading", { name: /new student admission/i })).toBeVisible();
-    expect(within(dashboard).getByLabelText(/class applying/i)).toBeVisible();
+    expect(await within(dashboard).findByLabelText(/^Admission number(?! mode)/i)).toBeVisible();
+    expect(within(dashboard).getByLabelText(/^Date of birth/i)).toHaveAttribute("placeholder", "DD/MM/YYYY");
+    expect(within(dashboard).queryByText(/birth certificate|NEMIS|passport photo/i)).not.toBeInTheDocument();
   });
 
   it("renders live application rows returned by the admissions backend contract", async () => {
@@ -229,170 +283,95 @@ describe("admissions dashboard routing", () => {
     );
   });
 
-  it("lets admissions officers start the first student admission from an empty workspace", async () => {
+  it("lets admissions officers start the canonical guided admission from an empty workspace", async () => {
     const user = userEvent.setup();
-    const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url.includes("/api/auth/csrf")) {
-        return { ok: true, json: async () => ({ token: "csrf-token" }) };
-      }
-      if (url.includes("/api/admin-command/admissions/applications") && init?.method === "POST") {
-        return {
-          ok: true,
-          json: async () => ({
-            id: "application-2",
-            full_name: "Brian Ouma",
-            class_applying: "Grade 8",
-            status: "pending",
-          }),
-        };
-      }
-      if (url.includes("/api/admin-command/admissions/applications")) {
-        return {
-          ok: true,
-          json: async () => ({ metrics: { total: 0, pending: 0, approved: 0, rejected: 0 }, applicationsList: [] }),
-        };
-      }
-      if (url.includes("/api/admissions/classes")) {
-        return {
-          ok: true,
-          json: async () => [
-            { id: "class-1", name: "Grade 7", grade_level: "Grade 7", stream: "North", capacity: 45, available_seats: 45, label: "Grade 7 North", value: "Grade 7" },
-            { id: "class-2", name: "Grade 8", grade_level: "Grade 8", stream: "South", capacity: 45, available_seats: 45, label: "Grade 8 South", value: "Grade 8" },
-          ],
-        };
-      }
-      return { ok: true, json: async () => ({}) };
-    });
-    global.fetch = fetchMock as unknown as typeof fetch;
-
-    renderWithProviders(
-      createElement(SchoolPages, {
-        role: "admissions",
-        section: "applications",
-        tenantSlug: "homabay-high",
-        routeMode: "public",
-        liveDataEnabled: false,
-      }),
-    );
-
-    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
-    await user.click(within(dashboard).getByRole("button", { name: /start student admission/i }));
-
-    await user.type(within(dashboard).getByLabelText(/student full name/i), "Brian Ouma");
-    await user.type(within(dashboard).getByLabelText(/date of birth/i), "2012-01-12");
-    await user.selectOptions(within(dashboard).getByLabelText(/gender/i), "Male");
-    await user.type(within(dashboard).getByLabelText(/birth certificate number/i), "BC123456");
-    await user.selectOptions(within(dashboard).getByLabelText(/class applying/i), "Grade 8 South");
-    await user.type(within(dashboard).getByLabelText(/guardian name/i), "Peter Ouma");
-    await user.type(within(dashboard).getByLabelText(/guardian phone/i), "0799999999");
-    await user.click(within(dashboard).getByRole("button", { name: /save application/i }));
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/api/admin-command/admissions/applications"),
-        expect.objectContaining({
-          method: "POST",
-          body: expect.stringContaining('"full_name":"Brian Ouma"'),
-        }),
-      );
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/api/admin-command/admissions/applications"),
-        expect.objectContaining({
-          method: "POST",
-          body: expect.stringContaining('"class_applying":"Grade 8 South"'),
-        }),
-      );
-    });
-  }, 15000);
-
-  it("loads class applying options from the current school's academic class sections", async () => {
-    const user = userEvent.setup();
-    const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url.includes("/api/admissions/classes")) {
-        return {
-          ok: true,
-          json: async () => [
-            { id: "class-10", name: "Form 1", grade_level: "Form 1", stream: "East", capacity: 45, available_seats: 45, label: "Form 1 East", value: "Form 1" },
-            { id: "class-11", name: "Form 2", grade_level: "Form 2", stream: "West", capacity: 45, available_seats: 44, label: "Form 2 West", value: "Form 2" },
-          ],
-        };
-      }
-      if (url.includes("/api/admin-command/admissions/applications") && init?.method === "POST") {
-        return { ok: true, json: async () => ({ id: "application-4" }) };
-      }
-      if (url.includes("/api/admin-command/admissions/applications")) {
-        return {
-          ok: true,
-          json: async () => ({ metrics: { total: 0, pending: 0, approved: 0, rejected: 0 }, applicationsList: [] }),
-        };
-      }
-      if (url.includes("/api/auth/csrf")) {
-        return { ok: true, json: async () => ({ token: "csrf-token" }) };
-      }
-      return { ok: true, json: async () => ({}) };
-    });
-    global.fetch = fetchMock as unknown as typeof fetch;
-
-    renderWithProviders(
-      createElement(SchoolPages, {
-        role: "admissions",
-        section: "applications",
-        tenantSlug: "homabay-high",
-        routeMode: "public",
-        liveDataEnabled: false,
-      }),
-    );
-
-    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
-    await user.click(within(dashboard).getByRole("button", { name: /start student admission/i }));
-
-    const classSelect = await within(dashboard).findByLabelText(/class applying/i);
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/admissions/classes"), expect.anything());
-    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/api/academics/class-sections"), expect.anything());
-    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/api/admin-command/deputy/classes"), expect.anything());
-    expect(within(classSelect).getByRole("option", { name: "Form 1 East (45 seats open)" })).toBeVisible();
-    expect(within(classSelect).getByRole("option", { name: "Form 2 West (44 seats open)" })).toBeVisible();
-    expect(within(classSelect).queryByRole("option", { name: "Archived Form 4" })).not.toBeInTheDocument();
-
-    await user.type(within(dashboard).getByLabelText(/student full name/i), "Linet Wanjala");
-    await user.type(within(dashboard).getByLabelText(/date of birth/i), "2013-02-14");
-    await user.selectOptions(within(dashboard).getByLabelText(/gender/i), "Female");
-    await user.type(within(dashboard).getByLabelText(/birth certificate number/i), "BC765432");
-    await user.selectOptions(classSelect, "Form 2 West");
-    await user.type(within(dashboard).getByLabelText(/guardian name/i), "Martha Wanjala");
-    await user.type(within(dashboard).getByLabelText(/guardian phone/i), "0711111111");
-    await user.click(within(dashboard).getByRole("button", { name: /save application/i }));
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/api/admin-command/admissions/applications"),
-        expect.objectContaining({
-          method: "POST",
-          body: expect.stringContaining('"class_applying":"Form 2 West"'),
-        }),
-      );
-    });
-  }, 15000);
-
-  it("shows a retry action instead of claiming the school has no classes when the shared class read fails", async () => {
-    const user = userEvent.setup();
-    let classAttempts = 0;
     const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.includes("/api/admissions/classes")) {
-        classAttempts += 1;
-        if (classAttempts <= 2) {
-          return { ok: false, status: 500, json: async () => ({ message: "Class read failed" }) };
+      if (url.includes("/api/admissions/foundation")) return { ok: true, json: async () => admissionFoundation() };
+      if (url.includes("/api/admissions/drafts/current")) return { ok: true, json: async () => null };
+      return { ok: true, json: async () => ({ metrics: { total: 0, pending: 0, approved: 0, rejected: 0 }, applicationsList: [] }) };
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    renderWithProviders(
+      createElement(SchoolPages, {
+        role: "admissions",
+        section: "applications",
+        tenantSlug: "homabay-high",
+        routeMode: "public",
+        liveDataEnabled: false,
+      }),
+    );
+
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
+    await user.click(within(dashboard).getByRole("button", { name: /start student admission/i }));
+
+    expect(await within(dashboard).findByLabelText(/^First name/i)).toBeVisible();
+    expect(within(dashboard).getByText("Student Details")).toBeVisible();
+    expect(within(dashboard).getByText("Class & Stream")).toBeVisible();
+    expect(within(dashboard).getByText("Subjects")).toBeVisible();
+    expect(within(dashboard).getAllByText("Guardian").length).toBeGreaterThan(0);
+    expect(within(dashboard).getByText("Review & Admit")).toBeVisible();
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/admissions/foundation"), expect.anything());
+  }, 15000);
+
+  it("loads placement options from the current school's academic foundation", async () => {
+    const user = userEvent.setup();
+    const classes = [
+      { id: "class-10", academic_year_id: "year-2026", academic_level_id: "level-form-1", name: "Form 1 East", grade_level: "Form 1", curriculum: "CBC", capacity: 45, enrolment_open: true, student_count: 0 },
+      { id: "class-11", academic_year_id: "year-2026", academic_level_id: "level-form-2", name: "Form 2 West", grade_level: "Form 2", curriculum: "CBC", capacity: 45, enrolment_open: true, student_count: 1 },
+    ];
+    const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/admissions/foundation")) return { ok: true, json: async () => admissionFoundation(classes) };
+      if (url.includes("/api/admissions/drafts/current")) return { ok: true, json: async () => null };
+      return { ok: true, json: async () => ({ metrics: { total: 0, pending: 0, approved: 0, rejected: 0 }, applicationsList: [] }) };
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    renderWithProviders(
+      createElement(SchoolPages, {
+        role: "admissions",
+        section: "applications",
+        tenantSlug: "homabay-high",
+        routeMode: "public",
+        liveDataEnabled: false,
+      }),
+    );
+
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
+    await user.click(within(dashboard).getByRole("button", { name: /start student admission/i }));
+
+    await user.type(await within(dashboard).findByLabelText(/^First name/i), "Linet");
+    await user.type(within(dashboard).getByLabelText(/^Last name/i), "Wanjala");
+    await user.selectOptions(within(dashboard).getByLabelText(/^Gender/i), "female");
+    await user.type(within(dashboard).getByLabelText(/^Date of birth/i), "14/02/2013");
+    await user.click(within(dashboard).getByRole("button", { name: /continue/i }));
+    await user.selectOptions(within(dashboard).getByLabelText(/^Academic year/i), "year-2026");
+    await user.selectOptions(within(dashboard).getByLabelText(/^Curriculum/i), "CBC");
+    await user.selectOptions(within(dashboard).getByLabelText(/^Grade \/ form/i), "Form 2");
+    const classSelect = within(dashboard).getByLabelText(/^Class/i);
+
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/admissions/foundation"), expect.anything());
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/api/academics/class-sections"), expect.anything());
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/api/admin-command/deputy/classes"), expect.anything());
+    expect(within(classSelect).getByRole("option", { name: "Form 2 West (1/45 learners)" })).toBeVisible();
+    expect(within(classSelect).queryByRole("option", { name: "Archived Form 4" })).not.toBeInTheDocument();
+  }, 15000);
+
+  it("shows a retry action instead of claiming the school has no foundation when the shared read fails", async () => {
+    const user = userEvent.setup();
+    let foundationAttempts = 0;
+    const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/admissions/foundation")) {
+        foundationAttempts += 1;
+        if (foundationAttempts <= 2) {
+          return { ok: false, status: 500, json: async () => ({ message: "Foundation read failed" }) };
         }
-        return {
-          ok: true,
-          json: async () => [
-            { id: "class-20", name: "Grade 9", grade_level: "Grade 9", stream: "Blue", label: "Grade 9 Blue", value: "Grade 9" },
-          ],
-        };
+        return { ok: true, json: async () => admissionFoundation() };
       }
+      if (url.includes("/api/admissions/drafts/current")) return { ok: true, json: async () => null };
       if (url.includes("/api/admin-command/admissions/applications")) {
         return {
           ok: true,
@@ -415,11 +394,11 @@ describe("admissions dashboard routing", () => {
 
     const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
     await user.click(within(dashboard).getByRole("button", { name: /start student admission/i }));
-    expect(await within(dashboard).findByText(/active classes could not be loaded/i)).toBeVisible();
-    expect(within(dashboard).queryByText(/ask the deputy principal to create active classes/i)).not.toBeInTheDocument();
+    expect(await within(dashboard).findByText(/academic foundation could not be loaded/i, {}, { timeout: 8_000 })).toBeVisible();
+    expect(within(dashboard).queryByText(/no academic year is configured/i)).not.toBeInTheDocument();
 
-    await user.click(within(dashboard).getByRole("button", { name: /retry classes/i }));
-    expect(await within(dashboard).findByRole("option", { name: "Grade 9 Blue" })).toBeVisible();
+    await user.click(within(dashboard).getByRole("button", { name: /^retry$/i }));
+    expect(await within(dashboard).findByLabelText(/^Admission number(?! mode)/i)).toBeVisible();
   });
 
   it("enrols approved applications through the command dashboard endpoint", async () => {

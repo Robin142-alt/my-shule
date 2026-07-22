@@ -54,6 +54,17 @@ test('StudentsSchemaService adds a full-text index for active student directory 
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS attendance_records/);
   assert.match(schemaSql, /source_device_id/);
   assert.match(schemaSql, /sync_version/);
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS student_portal_access/);
+  assert.match(schemaSql, /ux_student_portal_access_username/);
+  assert.match(schemaSql, /ALTER TABLE student_portal_access ENABLE ROW LEVEL SECURITY/);
+  assert.match(schemaSql, /ALTER TABLE student_portal_access FORCE ROW LEVEL SECURITY/);
+  assert.match(schemaSql, /find_student_auth_subject_for_otp/);
+  assert.match(schemaSql, /find_student_auth_subject_for_password/);
+  assert.match(schemaSql, /find_linked_parent_auth_subject/);
+  assert.match(schemaSql, /find_linked_parent_password_auth_subject/);
+  assert.match(schemaSql, /parent_user\.password_changed_at IS NULL/);
+  assert.match(schemaSql, /role\.code = 'parent'/);
+  assert.match(schemaSql, /lower\(student\.admission_number\)/);
 });
 
 test('StudentsService creates a student and publishes student.created', async () => {

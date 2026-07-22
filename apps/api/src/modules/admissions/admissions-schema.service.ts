@@ -52,6 +52,55 @@ export class AdmissionsSchemaService implements OnModuleInit {
 
       ${FILE_OBJECT_STORAGE_SCHEMA_SQL}
 
+      CREATE TABLE IF NOT EXISTS admission_settings (
+        tenant_id text PRIMARY KEY,
+        admission_number_mode text NOT NULL DEFAULT 'suggested',
+        admission_number_prefix text NOT NULL DEFAULT 'ADM',
+        admission_number_separator text NOT NULL DEFAULT '-',
+        admission_number_padding integer NOT NULL DEFAULT 5,
+        include_academic_year boolean NOT NULL DEFAULT FALSE,
+        next_sequence bigint NOT NULL DEFAULT 1,
+        strict_capacity boolean NOT NULL DEFAULT FALSE,
+        strict_age_rules boolean NOT NULL DEFAULT FALSE,
+        minimum_age integer,
+        maximum_age integer,
+        minimum_subjects integer,
+        maximum_subjects integer,
+        updated_by_user_id uuid,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT ck_admission_settings_mode CHECK (admission_number_mode IN ('manual', 'automatic', 'suggested')),
+        CONSTRAINT ck_admission_settings_prefix CHECK (admission_number_prefix ~ '^[A-Za-z0-9]*$'),
+        CONSTRAINT ck_admission_settings_separator CHECK (admission_number_separator IN ('-', '/', '.', '_')),
+        CONSTRAINT ck_admission_settings_padding CHECK (admission_number_padding BETWEEN 3 AND 12),
+        CONSTRAINT ck_admission_settings_sequence CHECK (next_sequence > 0),
+        CONSTRAINT ck_admission_settings_age CHECK (
+          (minimum_age IS NULL OR minimum_age BETWEEN 2 AND 30)
+          AND (maximum_age IS NULL OR maximum_age BETWEEN 2 AND 30)
+          AND (minimum_age IS NULL OR maximum_age IS NULL OR minimum_age <= maximum_age)
+        ),
+        CONSTRAINT ck_admission_settings_subjects CHECK (
+          (minimum_subjects IS NULL OR minimum_subjects BETWEEN 1 AND 40)
+          AND (maximum_subjects IS NULL OR maximum_subjects BETWEEN 1 AND 40)
+          AND (minimum_subjects IS NULL OR maximum_subjects IS NULL OR minimum_subjects <= maximum_subjects)
+        )
+      );
+
+      CREATE TABLE IF NOT EXISTS admission_drafts (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        created_by_user_id uuid NOT NULL,
+        payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+        status text NOT NULL DEFAULT 'draft',
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_admission_drafts_owner UNIQUE (tenant_id, created_by_user_id),
+        CONSTRAINT ck_admission_drafts_status CHECK (status IN ('draft', 'completed', 'discarded'))
+      );
+
+      CREATE INDEX IF NOT EXISTS ix_admission_drafts_owner_status
+        ON admission_drafts (tenant_id, created_by_user_id, status, updated_at DESC);
+
       CREATE TABLE IF NOT EXISTS admission_applications (
         id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
@@ -138,7 +187,7 @@ export class AdmissionsSchemaService implements OnModuleInit {
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS conditions text;
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS emergency_contact text;
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS birth_certificate_number text;
-      UPDATE admission_applications SET birth_certificate_number = id WHERE birth_certificate_number IS NULL OR btrim(birth_certificate_number) = '';
+      ALTER TABLE admission_applications ALTER COLUMN birth_certificate_number DROP NOT NULL;
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS interview_date date;
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS review_notes text;
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS approved_at timestamptz;
@@ -523,6 +572,25 @@ export class AdmissionsSchemaService implements OnModuleInit {
           REFERENCES students (tenant_id, id)
           ON DELETE CASCADE
       );
+
+      ALTER TABLE student_subject_enrollments ALTER COLUMN subject_offering_id DROP NOT NULL;
+      ALTER TABLE student_subject_enrollments ADD COLUMN IF NOT EXISTS academic_year_id text;
+      ALTER TABLE student_subject_enrollments ADD COLUMN IF NOT EXISTS academic_term_id text;
+      ALTER TABLE student_subject_enrollments ADD COLUMN IF NOT EXISTS class_section_id text;
+      ALTER TABLE student_subject_enrollments ADD COLUMN IF NOT EXISTS stream_id text;
+      ALTER TABLE student_subject_enrollments ADD COLUMN IF NOT EXISTS subject_id text;
+      ALTER TABLE student_subject_enrollments ADD COLUMN IF NOT EXISTS curriculum_model text;
+      ALTER TABLE student_subject_enrollments ADD COLUMN IF NOT EXISTS subject_type text;
+      ALTER TABLE student_subject_enrollments ADD COLUMN IF NOT EXISTS is_compulsory boolean NOT NULL DEFAULT FALSE;
+      ALTER TABLE student_subject_enrollments ADD COLUMN IF NOT EXISTS selected_by_user_id uuid;
+      ALTER TABLE student_subject_enrollments ADD COLUMN IF NOT EXISTS effective_from date;
+      ALTER TABLE student_subject_enrollments ADD COLUMN IF NOT EXISTS effective_to date;
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_student_subject_enrollments_canonical_active
+        ON student_subject_enrollments (tenant_id, student_id, academic_year_id, subject_id)
+        WHERE status = 'active' AND academic_year_id IS NOT NULL AND subject_id IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS ix_student_subject_enrollments_class_subject
+        ON student_subject_enrollments (tenant_id, class_section_id, subject_id, status)
+        WHERE class_section_id IS NOT NULL AND subject_id IS NOT NULL;
 
       DO $$
       DECLARE
@@ -993,6 +1061,10 @@ export class AdmissionsSchemaService implements OnModuleInit {
       ALTER TABLE admission_tasks FORCE ROW LEVEL SECURITY;
       ALTER TABLE admission_templates ENABLE ROW LEVEL SECURITY;
       ALTER TABLE admission_templates FORCE ROW LEVEL SECURITY;
+      ALTER TABLE admission_settings ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE admission_settings FORCE ROW LEVEL SECURITY;
+      ALTER TABLE admission_drafts ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE admission_drafts FORCE ROW LEVEL SECURITY;
       
       ALTER TABLE admission_applications ENABLE ROW LEVEL SECURITY;
       ALTER TABLE admission_applications FORCE ROW LEVEL SECURITY;
@@ -1022,6 +1094,18 @@ export class AdmissionsSchemaService implements OnModuleInit {
       ALTER TABLE student_fee_assignments FORCE ROW LEVEL SECURITY;
       ALTER TABLE student_fee_invoices ENABLE ROW LEVEL SECURITY;
       ALTER TABLE student_fee_invoices FORCE ROW LEVEL SECURITY;
+
+      DROP POLICY IF EXISTS admission_settings_rls_policy ON admission_settings;
+      CREATE POLICY admission_settings_rls_policy ON admission_settings
+      FOR ALL
+      USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+      DROP POLICY IF EXISTS admission_drafts_rls_policy ON admission_drafts;
+      CREATE POLICY admission_drafts_rls_policy ON admission_drafts
+      FOR ALL
+      USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
 
       DROP POLICY IF EXISTS admission_applications_rls_policy ON admission_applications;
       CREATE POLICY admission_applications_rls_policy ON admission_applications
@@ -1176,6 +1260,16 @@ export class AdmissionsSchemaService implements OnModuleInit {
       DROP TRIGGER IF EXISTS trg_student_subject_enrollments_set_updated_at ON student_subject_enrollments;
       CREATE TRIGGER trg_student_subject_enrollments_set_updated_at
       BEFORE UPDATE ON student_subject_enrollments
+      FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+      DROP TRIGGER IF EXISTS trg_admission_settings_set_updated_at ON admission_settings;
+      CREATE TRIGGER trg_admission_settings_set_updated_at
+      BEFORE UPDATE ON admission_settings
+      FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+      DROP TRIGGER IF EXISTS trg_admission_drafts_set_updated_at ON admission_drafts;
+      CREATE TRIGGER trg_admission_drafts_set_updated_at
+      BEFORE UPDATE ON admission_drafts
       FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
       DROP TRIGGER IF EXISTS trg_academic_timetable_slots_set_updated_at ON academic_timetable_slots;

@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
+
+import './admission-input.test';
 import { validate } from 'class-validator';
+import { BadRequestException } from '@nestjs/common';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
@@ -791,32 +794,142 @@ test('AdmissionsService persists enquiries with tenant context and records an op
   assert.equal(recordedEvents[0].event.type, 'admissions.enquiry.created');
 });
 
-test('AdmissionsService previews import files from uploaded content instead of demo rows', () => {
+test('AdmissionsService previews canonical school-scoped admission imports', async () => {
+  const requestContext = new RequestContextService();
   const service = new AdmissionsService(
-    new RequestContextService(),
+    requestContext,
     {} as never,
-    {} as never,
+    {
+      getAdmissionFoundation: async () => ({
+        academic_years: [
+          {
+            id: 'year-2026',
+            name: '2026 Academic Year',
+            starts_on: '2026-01-01',
+            ends_on: '2026-12-31',
+          },
+        ],
+        classes: [
+          {
+            id: 'class-grade-4',
+            academic_year_id: 'year-2026',
+            name: 'Grade 4',
+            grade_level: 'Grade 4',
+            curriculum: 'CBC',
+            capacity: 50,
+            enrolment_open: true,
+            student_count: 4,
+          },
+        ],
+        streams: [],
+        subjects: [{ id: 'subject-math', name: 'Mathematics' }],
+        class_subject_assignments: [
+          {
+            academic_year_id: 'year-2026',
+            class_section_id: 'class-grade-4',
+            subject_id: 'subject-math',
+          },
+        ],
+      }),
+      findExistingAdmissionNumbers: async () => [],
+    } as never,
     {} as never,
     {} as never,
   );
 
-  const preview = service.previewApplicationImport({
-    originalname: 'admissions.csv',
-    mimetype: 'text/csv',
-    size: 320,
-    buffer: Buffer.from([
-      'full_name,date_of_birth,gender,birth_certificate_number,nationality,class_applying,parent_name,parent_phone,relationship',
-      'Achieng Otieno,2016-09-12,Female,BC-001,Kenyan,Grade 4,Janet Otieno,+254700000001,Mother',
-      'Missing Fields,,,,,,,,',
-    ].join('\n')),
-  });
+  const preview = await requestContext.run(
+    {
+      request_id: 'req-admissions-import-preview',
+      tenant_id: 'tenant-a',
+      user_id: '00000000-0000-0000-0000-000000000001',
+      role: 'admissions',
+      session_id: 'session-1',
+      permissions: ['admissions:*'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'POST',
+      path: '/admissions/imports',
+      started_at: '2026-05-14T00:00:00.000Z',
+    },
+    () => service.previewApplicationImport({
+      originalname: 'admissions.csv',
+      mimetype: 'text/csv',
+      size: 480,
+      buffer: Buffer.from([
+        'admission_number,first_name,middle_name,last_name,gender,date_of_birth,admission_date,academic_year,curriculum,grade_or_form,class,stream,guardian_name,guardian_relationship,guardian_phone',
+        'G4-001,Achieng,,Otieno,Female,12/09/2016,05/01/2026,2026 Academic Year,CBC,Grade 4,Grade 4,,Janet Otieno,Mother,0700000001',
+        'G4-002,Missing,,,,,,,,,,,,,',
+      ].join('\n')),
+    }),
+  );
 
   assert.equal(preview.total_rows, 2);
   assert.equal(preview.valid_rows, 1);
   assert.equal(preview.invalid_rows, 1);
-  assert.equal(preview.rows[0].full_name, 'Achieng Otieno');
-  assert.ok(!preview.rows.some((row) => row.full_name === 'Joy Kemboi'));
+  assert.equal(preview.rows[0].learner_name, 'Achieng Otieno');
+  assert.equal(preview.rows[0].record?.class_section_id, 'class-grade-4');
+  assert.deepEqual(preview.rows[0].record?.subject_ids, ['subject-math']);
+  assert.ok(!preview.rows.some((row) => row.learner_name === 'Joy Kemboi'));
   assert.ok(preview.rows[1].errors.includes('date_of_birth is required'));
+});
+
+test('AdmissionsService bulk commit persists valid rows and reports failed rows truthfully', async () => {
+  const requestContext = new RequestContextService();
+  const recordedEvents: any[] = [];
+  const service = new AdmissionsService(
+    requestContext,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    undefined,
+    undefined,
+    undefined,
+    {
+      recordSchoolOperation: async (input: any) => {
+        recordedEvents.push(input);
+        return { status: 'accepted' };
+      },
+    } as never,
+  );
+  const admittedNumbers: string[] = [];
+  service.createManualAdmission = async (row: any) => {
+    if (row.admission_number === 'BAD-001') throw new BadRequestException('Class is full');
+    admittedNumbers.push(row.admission_number);
+    return {
+      student: { id: `student-${row.admission_number}` },
+      placement: { class_name: 'Grade 4' },
+    } as any;
+  };
+
+  const result = await requestContext.run(
+    {
+      request_id: 'req-admissions-import-commit',
+      tenant_id: 'tenant-a',
+      user_id: '00000000-0000-0000-0000-000000000001',
+      role: 'admissions',
+      session_id: 'session-1',
+      permissions: ['admissions:*'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'POST',
+      path: '/admissions/imports/commit',
+      started_at: '2026-05-14T00:00:00.000Z',
+    },
+    () => service.commitImports({ rows: [
+      { row_number: 2, admission_number: 'GOOD-001' },
+      { row_number: 3, admission_number: 'BAD-001' },
+    ] as any }),
+  );
+
+  assert.equal(result.success, false);
+  assert.equal(result.admitted_rows, 1);
+  assert.equal(result.failed_rows, 1);
+  assert.deepEqual(admittedNumbers, ['GOOD-001']);
+  assert.equal(result.results[1].error, 'Class is full');
+  assert.equal(recordedEvents.at(-1).event.type, 'admissions.bulk_import.completed');
 });
 
 test('AdmissionsService rejects unknown server-side report exports', async () => {
@@ -2257,43 +2370,173 @@ test('AdmissionsService scans uploaded documents before tenant file persistence 
 });
 
 test('AdmissionsService creates and registers a manual admission application automatically', async () => {
+  let capturedAdmission: Record<string, unknown> | undefined;
   const service = new AdmissionsService(
-    { requireStore: () => ({ tenant_id: 'tenant-123', user_id: 'user-123' }), getStore: () => ({ tenant_id: 'tenant-123', user_id: 'user-123' }) } as any,
+    {
+      requireStore: () => ({
+        tenant_id: '00000000-0000-0000-0000-000000000123',
+        user_id: '00000000-0000-0000-0000-000000000456',
+        role: 'admissions-officer',
+      }),
+      getStore: () => ({
+        tenant_id: '00000000-0000-0000-0000-000000000123',
+        user_id: '00000000-0000-0000-0000-000000000456',
+        role: 'admissions-officer',
+      }),
+    } as any,
     { withRequestTransaction: async <T>(cb: () => Promise<T>) => cb() } as any,
-    {} as any,
+    {
+      admitCanonicalStudent: async (input: Record<string, unknown>) => {
+        capturedAdmission = input;
+        return {
+          application_status: 'registered',
+          student: {
+            id: '00000000-0000-0000-0000-000000000999',
+            admission_number: 'ADM/MANUAL/001',
+            first_name: 'Manual',
+            last_name: 'Student',
+          },
+          placement: {
+            academic_year_id: '00000000-0000-0000-0000-000000000111',
+            class_section_id: '00000000-0000-0000-0000-000000000222',
+            stream_id: '00000000-0000-0000-0000-000000000333',
+            class_name: 'Form 1',
+            stream_name: 'North',
+            academic_enrollment_id: '00000000-0000-0000-0000-000000000444',
+          },
+          subject_enrollments: [{ subject_id: '00000000-0000-0000-0000-000000000555' }],
+          guardian_portal: { status: 'otp_ready' },
+          student_portal: { status: 'pending_first_access' },
+          fee_assignment: null,
+          fee_invoice: null,
+        };
+      },
+      discardAdmissionDraft: async () => ({ discarded: true }),
+    } as any,
     {} as any,
     {} as any,
   );
-  service.createApplication = async () => ({ id: 'app-999', application_number: 'MANUAL-999' } as any);
-  service.updateApplication = async () => ({} as any);
-  service.registerApprovedApplication = async () => ({
-    application_status: 'registered',
-    student: { id: 'std-999', admission_number: 'ADM-MANUAL-001', first_name: 'Manual' },
-    allocation: { class_name: 'Form 1' },
-    fee_invoice: {},
-    academic_enrollment: {}
-  } as any);
   const manualResult = await service.createManualAdmission({
-    full_name: 'Manual Test Student',
-    date_of_birth: '2016-01-01',
+    admission_number: ' adm/manual/001 ',
+    first_name: 'Manual',
+    last_name: 'Student',
     gender: 'male',
-    birth_certificate_number: 'BC-MANUAL-123',
-    nationality: 'Kenyan',
-    class_applying: 'Form 1',
-    stream_name: 'North',
-    parent_name: 'Manual Parent',
-    parent_phone: '0799999999',
-    relationship: 'Mother',
-    admission_number: 'ADM-MANUAL-001'
+    date_of_birth: '01/01/2016',
+    admission_date: '2026-01-06',
+    academic_year_id: '00000000-0000-0000-0000-000000000111',
+    curriculum: '8-4-4',
+    grade_level: 'Form 1',
+    class_section_id: '00000000-0000-0000-0000-000000000222',
+    stream_id: '00000000-0000-0000-0000-000000000333',
+    subject_ids: ['00000000-0000-0000-0000-000000000555'],
+    guardian_name: 'Manual Parent',
+    guardian_phone: '0799999999',
+    guardian_relationship: 'Mother',
   });
 
   assert.equal(manualResult.application_status, 'registered');
   assert.ok(manualResult.student.id);
-  assert.equal(manualResult.student.admission_number, 'ADM-MANUAL-001');
+  assert.equal(manualResult.student.admission_number, 'ADM/MANUAL/001');
   assert.equal(manualResult.student.first_name, 'Manual');
-  assert.equal(manualResult.allocation?.class_name, 'Form 1');
-  assert.ok(manualResult.fee_invoice);
-  assert.ok(manualResult.academic_enrollment);
+  assert.equal(manualResult.placement.class_name, 'Form 1');
+  assert.equal(capturedAdmission?.admission_number, 'ADM/MANUAL/001');
+  assert.equal(capturedAdmission?.date_of_birth, '2016-01-01');
+  assert.equal(capturedAdmission?.guardian_phone, '+254799999999');
+});
+
+test('AdmissionsService normalizes and governs admission-number changes', async () => {
+  let captured: Record<string, unknown> | undefined;
+  const service = new AdmissionsService(
+    {
+      requireStore: () => ({
+        tenant_id: '00000000-0000-0000-0000-000000000123',
+        user_id: '00000000-0000-0000-0000-000000000456',
+        role: 'principal',
+      }),
+      getStore: () => ({
+        tenant_id: '00000000-0000-0000-0000-000000000123',
+        user_id: '00000000-0000-0000-0000-000000000456',
+        role: 'principal',
+      }),
+    } as any,
+    {} as any,
+    {
+      changeStudentAdmissionNumber: async (input: Record<string, unknown>) => {
+        captured = input;
+        return {
+          student_id: input.student_id,
+          previous_admission_number: 'OLD/001',
+          admission_number: input.admission_number,
+          changed: false,
+        };
+      },
+    } as any,
+    {} as any,
+    {} as any,
+  );
+
+  const result = await service.changeStudentAdmissionNumber(
+    '00000000-0000-0000-0000-000000000999',
+    {
+      admission_number: ' new/2026/001 ',
+      reason: 'Correcting the school register identifier',
+      confirmed: true,
+    },
+  );
+
+  assert.equal(captured?.tenant_id, '00000000-0000-0000-0000-000000000123');
+  assert.equal(captured?.actor_user_id, '00000000-0000-0000-0000-000000000456');
+  assert.equal(captured?.admission_number, 'NEW/2026/001');
+  assert.equal(result.admission_number, 'NEW/2026/001');
+});
+
+test('AdmissionsService normalizes guardian recovery phone changes without exposing the old phone', async () => {
+  let captured: Record<string, unknown> | undefined;
+  const service = new AdmissionsService(
+    {
+      requireStore: () => ({
+        tenant_id: '00000000-0000-0000-0000-000000000123',
+        user_id: '00000000-0000-0000-0000-000000000456',
+        role: 'principal',
+      }),
+      getStore: () => ({
+        tenant_id: '00000000-0000-0000-0000-000000000123',
+        user_id: '00000000-0000-0000-0000-000000000456',
+        role: 'principal',
+      }),
+    } as any,
+    {} as any,
+    {
+      changePrimaryGuardianPhone: async (input: Record<string, unknown>) => {
+        captured = input;
+        return {
+          student_id: input.student_id,
+          guardian_profile_id: '00000000-0000-0000-0000-000000000777',
+          previous_phone: '+254700000001',
+          previous_phone_last4: '0001',
+          phone_last4: '9999',
+          affected_student_ids: [input.student_id],
+          pending_otps_invalidated: true,
+          changed: false,
+        };
+      },
+    } as any,
+    {} as any,
+    {} as any,
+  );
+
+  const result = await service.changePrimaryGuardianPhone(
+    '00000000-0000-0000-0000-000000000999',
+    {
+      guardian_phone: '0799 999 999',
+      reason: 'Guardian supplied a replacement recovery number',
+      confirmed: true,
+    },
+  );
+
+  assert.equal(captured?.guardian_phone, '+254799999999');
+  assert.equal(captured?.guardian_phone_last4, '9999');
+  assert.equal('previous_phone' in result, false);
 });
 
 test('AdmissionsService updates document verification status', async () => {

@@ -138,10 +138,10 @@ export class ExamsRepository {
         SELECT *
         FROM teacher_subject_assignments
         WHERE tenant_id = $1
-          AND teacher_user_id = $2::uuid
-          AND academic_term_id = $3::uuid
-          AND class_section_id = $4::uuid
-          AND subject_id = $5::uuid
+          AND teacher_user_id = $2::text
+          AND academic_term_id = $3::text
+          AND class_section_id = $4::text
+          AND subject_id = $5::text
           AND status = 'active'
         LIMIT 1
       `,
@@ -406,7 +406,21 @@ export class ExamsRepository {
          LEFT JOIN students student
            ON student.tenant_id = $1
           AND student.status = 'active'
-          AND NULLIF(student.metadata->>'class_section_id', '')::uuid = window.class_section_id
+          AND EXISTS (
+            SELECT 1 FROM student_class_assignments class_assignment
+            WHERE class_assignment.tenant_id = student.tenant_id
+              AND class_assignment.student_id = student.id::text
+              AND class_assignment.class_section_id = window.class_section_id::text
+              AND class_assignment.status = 'active'
+          )
+          AND EXISTS (
+            SELECT 1 FROM student_subject_enrollments subject_enrollment
+            WHERE subject_enrollment.tenant_id = student.tenant_id
+              AND subject_enrollment.student_id = student.id::text
+              AND subject_enrollment.class_section_id = window.class_section_id::text
+              AND subject_enrollment.subject_id = window.subject_id::text
+              AND subject_enrollment.status = 'active'
+          )
          GROUP BY window.class_section_id, window.subject_id
        ), saved AS (
          SELECT class_section_id, subject_id, COUNT(DISTINCT student_id)::integer AS saved_count
@@ -964,12 +978,20 @@ export class ExamsRepository {
 
     const result = await this.executeSql<{ id: string }>(
       `
-        SELECT id::text
-        FROM students
-        WHERE tenant_id = $1
-          AND ($2::uuid IS NULL OR NULLIF(metadata->>'class_section_id', '')::uuid = $2::uuid)
-          AND ($3::text IS NULL OR metadata->>'stream_name' = $3::text)
-        ORDER BY admission_number ASC, created_at ASC
+        SELECT DISTINCT student.id::text, student.admission_number, student.created_at
+        FROM students student
+        LEFT JOIN student_class_assignments assignment
+          ON assignment.tenant_id = student.tenant_id
+         AND assignment.student_id = student.id::text
+         AND assignment.status = 'active'
+        LEFT JOIN class_streams stream
+          ON stream.tenant_id = assignment.tenant_id
+         AND stream.id = assignment.stream_id
+        WHERE student.tenant_id = $1
+          AND student.status = 'active'
+          AND ($2::uuid IS NULL OR assignment.class_section_id = $2::text)
+          AND ($3::text IS NULL OR stream.name = $3::text)
+        ORDER BY student.admission_number ASC, student.created_at ASC
         LIMIT $4::integer
         OFFSET $5::integer
       `,
@@ -1051,11 +1073,18 @@ export class ExamsRepository {
           concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS full_name,
           student.admission_number,
           class_section.name AS class_name,
-          class_section.custom_label AS stream_name
+          stream.name AS stream_name
         FROM students student
+        LEFT JOIN student_class_assignments assignment
+          ON assignment.tenant_id = student.tenant_id
+         AND assignment.student_id = student.id::text
+         AND assignment.status = 'active'
         LEFT JOIN class_sections class_section
-          ON class_section.tenant_id = student.tenant_id
-         AND class_section.id = NULLIF(student.metadata->>'class_section_id', '')::uuid
+          ON class_section.tenant_id = assignment.tenant_id
+         AND class_section.id = assignment.class_section_id
+        LEFT JOIN class_streams stream
+          ON stream.tenant_id = assignment.tenant_id
+         AND stream.id = assignment.stream_id
         WHERE student.tenant_id = $1
           AND student.id = $2::uuid
         LIMIT 1
@@ -1077,7 +1106,7 @@ export class ExamsRepository {
          AND assessment.id = mark.assessment_id
         LEFT JOIN subjects subject
           ON subject.tenant_id = mark.tenant_id
-         AND subject.id = mark.subject_id
+         AND subject.id = mark.subject_id::text
         LEFT JOIN exam_grade_boundaries boundary
           ON boundary.tenant_id = mark.tenant_id
          AND boundary.exam_series_id = mark.exam_series_id
@@ -1438,10 +1467,10 @@ export class ExamsRepository {
               FROM exam_series series
               JOIN teacher_subject_assignments assignment
                 ON assignment.tenant_id = series.tenant_id
-               AND assignment.academic_term_id = series.academic_term_id
-               AND assignment.class_section_id = window.class_section_id
-               AND assignment.subject_id = window.subject_id
-               AND assignment.teacher_user_id = $5::uuid
+               AND assignment.academic_term_id = series.academic_term_id::text
+               AND assignment.class_section_id = window.class_section_id::text
+               AND assignment.subject_id = window.subject_id::text
+               AND assignment.teacher_user_id = $5::text
                AND assignment.status = 'active'
               WHERE series.tenant_id = window.tenant_id
                 AND series.id = window.exam_series_id
@@ -1677,14 +1706,14 @@ export class ExamsRepository {
          ON series.tenant_id = window.tenant_id AND series.id = window.exam_series_id
        LEFT JOIN teacher_subject_assignments assignment
          ON assignment.tenant_id = window.tenant_id
-        AND assignment.academic_term_id = series.academic_term_id
-        AND assignment.class_section_id = window.class_section_id
-        AND assignment.subject_id = window.subject_id
+        AND assignment.academic_term_id = series.academic_term_id::text
+        AND assignment.class_section_id = window.class_section_id::text
+        AND assignment.subject_id = window.subject_id::text
         AND assignment.status = 'active'
        LEFT JOIN class_sections class_section
-         ON class_section.tenant_id = window.tenant_id AND class_section.id = window.class_section_id
+         ON class_section.tenant_id = window.tenant_id AND class_section.id = window.class_section_id::text
        LEFT JOIN subjects subject
-         ON subject.tenant_id = window.tenant_id AND subject.id = window.subject_id
+         ON subject.tenant_id = window.tenant_id AND subject.id = window.subject_id::text
        WHERE window.tenant_id = $1 AND window.id = $2::uuid
        GROUP BY window.id, class_section.name, subject.name
        LIMIT 1`,
@@ -2008,7 +2037,7 @@ export class ExamsRepository {
       ? `
         FROM subjects subject
         WHERE mark.tenant_id = $1
-          AND subject.id = mark.subject_id
+          AND subject.id = mark.subject_id::text
           AND subject.tenant_id = mark.tenant_id
           AND subject.department_id = ANY($6::uuid[])
       `
@@ -2969,14 +2998,28 @@ export class ExamsRepository {
       COALESCE(teacher_assignments.teacher_user_ids, ARRAY[]::text[]) AS teacher_user_ids
       FROM exam_mark_entry_windows window
       LEFT JOIN class_sections class_section
-        ON class_section.tenant_id = window.tenant_id AND class_section.id = window.class_section_id
+        ON class_section.tenant_id = window.tenant_id AND class_section.id = window.class_section_id::text
       LEFT JOIN subjects subject
-        ON subject.tenant_id = window.tenant_id AND subject.id = window.subject_id
+        ON subject.tenant_id = window.tenant_id AND subject.id = window.subject_id::text
       LEFT JOIN LATERAL (
         SELECT COUNT(*)::integer AS expected_count FROM students student
         WHERE student.tenant_id = window.tenant_id
           AND student.status = 'active'
-          AND NULLIF(student.metadata->>'class_section_id', '')::uuid = window.class_section_id
+          AND EXISTS (
+            SELECT 1 FROM student_class_assignments class_assignment
+            WHERE class_assignment.tenant_id = student.tenant_id
+              AND class_assignment.student_id = student.id::text
+              AND class_assignment.class_section_id = window.class_section_id::text
+              AND class_assignment.status = 'active'
+          )
+          AND EXISTS (
+            SELECT 1 FROM student_subject_enrollments subject_enrollment
+            WHERE subject_enrollment.tenant_id = student.tenant_id
+              AND subject_enrollment.student_id = student.id::text
+              AND subject_enrollment.class_section_id = window.class_section_id::text
+              AND subject_enrollment.subject_id = window.subject_id::text
+              AND subject_enrollment.status = 'active'
+          )
       ) student_counts ON TRUE
       LEFT JOIN LATERAL (
         SELECT COUNT(DISTINCT mark.student_id)::integer AS saved_count,
@@ -2992,9 +3035,9 @@ export class ExamsRepository {
         FROM exam_series series
         JOIN teacher_subject_assignments assignment
           ON assignment.tenant_id = series.tenant_id
-         AND assignment.academic_term_id = series.academic_term_id
-         AND assignment.class_section_id = window.class_section_id
-         AND assignment.subject_id = window.subject_id
+         AND assignment.academic_term_id = series.academic_term_id::text
+         AND assignment.class_section_id = window.class_section_id::text
+         AND assignment.subject_id = window.subject_id::text
          AND assignment.status = 'active'
         WHERE series.tenant_id = window.tenant_id AND series.id = window.exam_series_id
       ) teacher_assignments ON TRUE
@@ -3054,13 +3097,27 @@ export class ExamsRepository {
       JOIN students student
         ON student.tenant_id = window.tenant_id
        AND student.status = 'active'
-       AND NULLIF(student.metadata->>'class_section_id', '')::uuid = window.class_section_id
+       AND EXISTS (
+         SELECT 1 FROM student_class_assignments class_assignment
+         WHERE class_assignment.tenant_id = student.tenant_id
+           AND class_assignment.student_id = student.id::text
+           AND class_assignment.class_section_id = window.class_section_id::text
+           AND class_assignment.status = 'active'
+       )
+       AND EXISTS (
+         SELECT 1 FROM student_subject_enrollments subject_enrollment
+         WHERE subject_enrollment.tenant_id = student.tenant_id
+           AND subject_enrollment.student_id = student.id::text
+           AND subject_enrollment.class_section_id = window.class_section_id::text
+           AND subject_enrollment.subject_id = window.subject_id::text
+           AND subject_enrollment.status = 'active'
+       )
       LEFT JOIN class_sections class_section
         ON class_section.tenant_id = window.tenant_id
-       AND class_section.id = window.class_section_id
+       AND class_section.id = window.class_section_id::text
       LEFT JOIN subjects subject
         ON subject.tenant_id = window.tenant_id
-       AND subject.id = window.subject_id
+       AND subject.id = window.subject_id::text
       LEFT JOIN exam_marks mark
         ON mark.tenant_id = window.tenant_id
        AND mark.exam_series_id = window.exam_series_id
@@ -3077,10 +3134,10 @@ export class ExamsRepository {
             SELECT 1
             FROM teacher_subject_assignments assignment
             WHERE assignment.tenant_id = window.tenant_id
-              AND assignment.academic_term_id = series.academic_term_id
-              AND assignment.class_section_id = window.class_section_id
-              AND assignment.subject_id = window.subject_id
-              AND assignment.teacher_user_id = $4::uuid
+              AND assignment.academic_term_id = series.academic_term_id::text
+              AND assignment.class_section_id = window.class_section_id::text
+              AND assignment.subject_id = window.subject_id::text
+              AND assignment.teacher_user_id = $4::text
               AND assignment.status = 'active'
           )
         )
@@ -3215,8 +3272,18 @@ export class ExamsRepository {
             FROM (
               SELECT s.id AS student_id, ew.exam_series_id, ea.id AS assessment_id
               FROM students s
-              JOIN exam_mark_entry_windows ew ON ew.tenant_id = s.tenant_id 
-                AND NULLIF(s.metadata->>'class_section_id', '')::uuid = ew.class_section_id
+              JOIN student_class_assignments class_assignment
+                ON class_assignment.tenant_id = s.tenant_id
+               AND class_assignment.student_id = s.id
+               AND class_assignment.status = 'active'
+              JOIN exam_mark_entry_windows ew ON ew.tenant_id = s.tenant_id
+                AND class_assignment.class_section_id = ew.class_section_id
+              JOIN student_subject_enrollments subject_enrollment
+                ON subject_enrollment.tenant_id = s.tenant_id
+               AND subject_enrollment.student_id = s.id::text
+               AND subject_enrollment.class_section_id = ew.class_section_id::text
+               AND subject_enrollment.subject_id = ew.subject_id::text
+               AND subject_enrollment.status = 'active'
               JOIN exam_assessments ea ON ea.tenant_id = ew.tenant_id 
                 AND ea.exam_series_id = ew.exam_series_id 
                 AND ea.subject_id = ew.subject_id

@@ -163,7 +163,6 @@ export class StudentsService {
       );
 
       const updatePayload = {
-        admission_number: dto.admission_number?.trim(),
         first_name: dto.first_name?.trim(),
         last_name: dto.last_name?.trim(),
         middle_name: dto.middle_name?.trim(),
@@ -171,7 +170,6 @@ export class StudentsService {
         date_of_birth: dto.date_of_birth,
         gender: dto.gender,
         primary_guardian_name: dto.primary_guardian_name?.trim(),
-        primary_guardian_phone: dto.primary_guardian_phone?.trim(),
         metadata: dto.metadata,
       };
 

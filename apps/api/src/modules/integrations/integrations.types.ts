@@ -104,6 +104,17 @@ export interface ParentAuthSubject {
   display_name: string;
   phone_number_hash: string | null;
   phone_number_last4: string | null;
+  force_password_change?: boolean;
+}
+
+export interface StudentPasswordAuthSubject extends ParentAuthSubject {
+  password_hash: string;
+  force_password_change: boolean;
+}
+
+export interface ParentPasswordAuthSubject extends ParentAuthSubject {
+  password_hash: string;
+  force_password_change: boolean;
 }
 
 export interface ParentOtpChallengeRecord {
@@ -114,7 +125,13 @@ export interface ParentOtpChallengeRecord {
   phone_hash: string | null;
   phone_last4: string | null;
   otp_hash: string;
+  purpose: 'parent_login' | 'student_login';
   expires_at: string | Date;
   consumed_at: string | Date | null;
   attempts: number;
+}
+
+export interface OtpIssuanceState {
+  recent_count: number;
+  latest_created_at: string | Date | null;
 }

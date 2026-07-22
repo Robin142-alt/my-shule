@@ -238,6 +238,19 @@ export default () => ({
       process.env.SECURITY_AUTH_RECOVERY_RATE_LIMIT_MAX_REQUESTS,
       5,
     ),
+    portalOtpTtlSeconds: parseNumber(process.env.SECURITY_PORTAL_OTP_TTL_SECONDS, 600),
+    portalOtpResendCooldownSeconds: parseNumber(
+      process.env.SECURITY_PORTAL_OTP_RESEND_COOLDOWN_SECONDS,
+      60,
+    ),
+    portalOtpRateWindowSeconds: parseNumber(
+      process.env.SECURITY_PORTAL_OTP_RATE_WINDOW_SECONDS,
+      3600,
+    ),
+    portalOtpRateMaxRequests: parseNumber(
+      process.env.SECURITY_PORTAL_OTP_RATE_MAX_REQUESTS,
+      5,
+    ),
     parentOtpRateLimitMaxRequests: parseNumber(
       process.env.SECURITY_PARENT_OTP_RATE_LIMIT_MAX_REQUESTS,
       5,

@@ -23,9 +23,10 @@ describe("admissions dependent workspace empty states", () => {
 
     expect(applications).toMatch(/\/school\/admissions\/applications\?action=start-admission/);
     expect(applications).toMatch(/Start student admission/);
-    expect(dashboardApplications).toMatch(/\/admissions\/classes/);
+    expect(dashboardApplications).toMatch(/StudentAdmissionWizard/);
     expect(dashboardApplications).not.toMatch(/\/academics\/class-sections/);
-    expect(dashboardApplications).toMatch(/Retry classes/);
+    expect(readDashboard("student-admission-wizard.tsx")).toMatch(/\/admissions\/foundation/);
+    expect(readDashboard("student-admission-wizard.tsx")).toMatch(/Academic foundation could not be loaded/);
     expect(applications).not.toMatch(/No applications found/);
     expect(reports).toMatch(/No admissions reports yet/);
     expect(reports).not.toMatch(/No school-scoped records are loaded for this workspace yet/);

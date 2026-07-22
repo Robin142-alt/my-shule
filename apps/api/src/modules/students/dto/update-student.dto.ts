@@ -15,12 +15,6 @@ export class UpdateStudentDto {
   @Transform(trim)
   @IsOptional()
   @IsString()
-  @MaxLength(32)
-  admission_number?: string;
-
-  @Transform(trim)
-  @IsOptional()
-  @IsString()
   @MaxLength(80)
   first_name?: string;
 
@@ -59,12 +53,6 @@ export class UpdateStudentDto {
   @IsString()
   @MaxLength(160)
   primary_guardian_name?: string;
-
-  @Transform(trim)
-  @IsOptional()
-  @IsString()
-  @MaxLength(32)
-  primary_guardian_phone?: string;
 
   @IsOptional()
   @IsObject()

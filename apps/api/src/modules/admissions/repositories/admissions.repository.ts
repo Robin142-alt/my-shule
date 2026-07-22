@@ -9,7 +9,7 @@ export interface AdmissionApplicationRecord {
   full_name: string;
   date_of_birth: string;
   gender: string;
-  birth_certificate_number: string;
+  birth_certificate_number: string | null;
   nationality: string;
   previous_school: string | null;
   kcpe_results: string | null;
@@ -43,6 +43,79 @@ export interface AdmissionsClassOptionRecord {
   available_seats: number | null;
   label: string;
   value: string;
+}
+
+export interface CanonicalAdmissionInput {
+  tenant_id: string;
+  actor_user_id: string | null;
+  admission_number: string;
+  first_name: string;
+  middle_name: string | null;
+  last_name: string;
+  gender: string;
+  date_of_birth: string;
+  admission_date: string;
+  academic_year_id: string;
+  curriculum: string;
+  grade_level: string;
+  class_section_id: string;
+  stream_id: string | null;
+  subject_ids: string[];
+  guardian_name: string;
+  guardian_relationship: string;
+  guardian_phone: string;
+  guardian_phone_hash: string;
+  guardian_phone_last4: string;
+  guardian_internal_email: string;
+  guardian_password_hash: string;
+  student_password_hash: string;
+  dormitory_name: string | null;
+  transport_route: string | null;
+}
+
+export interface AdmissionSettingsRecord {
+  admission_number_mode: 'manual' | 'automatic' | 'suggested';
+  admission_number_prefix: string;
+  admission_number_separator: '-' | '/' | '.' | '_';
+  admission_number_padding: number;
+  include_academic_year: boolean;
+  next_sequence: number;
+  strict_capacity: boolean;
+  strict_age_rules: boolean;
+  minimum_age: number | null;
+  maximum_age: number | null;
+  minimum_subjects: number | null;
+  maximum_subjects: number | null;
+}
+
+const DEFAULT_ADMISSION_SETTINGS: AdmissionSettingsRecord = {
+  admission_number_mode: 'suggested',
+  admission_number_prefix: 'ADM',
+  admission_number_separator: '-',
+  admission_number_padding: 5,
+  include_academic_year: false,
+  next_sequence: 1,
+  strict_capacity: false,
+  strict_age_rules: false,
+  minimum_age: null,
+  maximum_age: null,
+  minimum_subjects: null,
+  maximum_subjects: null,
+};
+
+function configuredAdmissionNumber(
+  settings: AdmissionSettingsRecord,
+  sequence: number,
+  academicYearName?: string | null,
+) {
+  const year = settings.include_academic_year
+    ? academicYearName?.match(/\b(?:19|20)\d{2}\b/)?.[0] ?? String(new Date().getUTCFullYear())
+    : null;
+  const serial = String(sequence).padStart(settings.admission_number_padding, '0');
+  return [settings.admission_number_prefix || null, year, serial]
+    .filter(Boolean)
+    .join(settings.admission_number_separator)
+    .toUpperCase();
 }
 
 @Injectable()
@@ -155,6 +228,1212 @@ export class AdmissionsRepository {
     );
 
     return result;
+  }
+
+  async getAdmissionFoundation(tenantId: string) {
+    const result = await this.executeSql<{ foundation: Record<string, unknown> }>(tenantId, `
+      SELECT jsonb_build_object(
+        'academic_years', COALESCE((
+          SELECT jsonb_agg(jsonb_build_object(
+            'id', year.id,
+            'name', year.name,
+            'starts_on', year.starts_on,
+            'ends_on', year.ends_on,
+            'status', year.status,
+            'is_current', year.is_current
+          ) ORDER BY year.is_current DESC, year.starts_on DESC)
+          FROM academic_years year
+          WHERE year.tenant_id = $1
+            AND lower(COALESCE(year.status, 'active')) IN ('active', 'draft')
+            AND year.archived_at IS NULL
+        ), '[]'::jsonb),
+        'classes', COALESCE((
+          SELECT jsonb_agg(jsonb_build_object(
+            'id', section.id,
+            'academic_year_id', section.academic_year_id,
+            'academic_level_id', section.academic_level_id,
+            'name', section.name,
+            'grade_level', section.grade_level,
+            'curriculum', section.curriculum_model,
+            'capacity', section.capacity,
+            'enrolment_open', section.enrolment_open,
+            'student_count', COALESCE(counts.student_count, 0)
+          ) ORDER BY section.grade_level, section.name)
+          FROM class_sections section
+          LEFT JOIN (
+            SELECT class_section_id, COUNT(*)::int AS student_count
+            FROM student_class_assignments
+            WHERE tenant_id = $1 AND status = 'active'
+            GROUP BY class_section_id
+          ) counts ON counts.class_section_id = section.id
+          WHERE section.tenant_id = $1
+            AND section.is_active = TRUE
+            AND lower(COALESCE(section.status, 'active')) = 'active'
+            AND section.archived_at IS NULL
+        ), '[]'::jsonb),
+        'streams', COALESCE((
+          SELECT jsonb_agg(jsonb_build_object(
+            'id', stream.id,
+            'class_section_id', stream.class_section_id,
+            'name', stream.name,
+            'capacity', stream.capacity,
+            'student_count', COALESCE(counts.student_count, 0)
+          ) ORDER BY stream.name)
+          FROM class_streams stream
+          LEFT JOIN (
+            SELECT stream_id, COUNT(*)::int AS student_count
+            FROM student_class_assignments
+            WHERE tenant_id = $1 AND status = 'active' AND stream_id IS NOT NULL
+            GROUP BY stream_id
+          ) counts ON counts.stream_id = stream.id
+          WHERE stream.tenant_id = $1
+            AND stream.is_active = TRUE
+            AND lower(COALESCE(stream.status, 'active')) = 'active'
+            AND stream.archived_at IS NULL
+        ), '[]'::jsonb),
+        'subjects', COALESCE((
+          SELECT jsonb_agg(jsonb_build_object(
+            'id', subject.id,
+            'code', subject.code,
+            'name', subject.name,
+            'curriculum', subject.curriculum_model,
+            'subject_type', subject.subject_type,
+            'is_compulsory', subject.is_compulsory,
+            'is_examinable', subject.is_examinable
+          ) ORDER BY subject.name)
+          FROM subjects subject
+          WHERE subject.tenant_id = $1
+            AND subject.is_active = TRUE
+            AND subject.archived_at IS NULL
+        ), '[]'::jsonb),
+        'class_subject_assignments', COALESCE((
+          SELECT jsonb_agg(jsonb_build_object(
+            'academic_term_id', assignment.academic_term_id,
+            'academic_year_id', term.academic_year_id,
+            'class_section_id', assignment.class_section_id,
+            'subject_id', assignment.subject_id,
+            'is_compulsory', assignment.is_compulsory,
+            'is_examinable', assignment.is_examinable
+          ))
+          FROM class_subject_assignments assignment
+          JOIN academic_terms term
+            ON term.tenant_id = assignment.tenant_id
+           AND term.id = assignment.academic_term_id
+          WHERE assignment.tenant_id = $1
+            AND lower(COALESCE(assignment.status, 'active')) = 'active'
+        ), '[]'::jsonb)
+      ) AS foundation
+    `, [tenantId]);
+
+    const foundation = result[0]?.foundation ?? {
+      academic_years: [],
+      classes: [],
+      streams: [],
+      subjects: [],
+      class_subject_assignments: [],
+    };
+    const settings = await this.getAdmissionSettings(tenantId);
+    const years = Array.isArray((foundation as any).academic_years)
+      ? (foundation as any).academic_years
+      : [];
+    const currentYear = years.find((year: any) => year?.is_current) ?? years[0] ?? null;
+
+    return {
+      ...foundation,
+      admission_settings: {
+        ...settings,
+        suggested_admission_number: configuredAdmissionNumber(
+          settings,
+          settings.next_sequence,
+          currentYear?.name,
+        ),
+      },
+    };
+  }
+
+  async getAdmissionSettings(tenantId: string): Promise<AdmissionSettingsRecord> {
+    const rows = await this.executeSql<any>(tenantId, `
+      SELECT
+        admission_number_mode,
+        admission_number_prefix,
+        admission_number_separator,
+        admission_number_padding,
+        include_academic_year,
+        next_sequence::int,
+        strict_capacity,
+        strict_age_rules,
+        minimum_age,
+        maximum_age,
+        minimum_subjects,
+        maximum_subjects
+      FROM admission_settings
+      WHERE tenant_id = $1
+      LIMIT 1
+    `, [tenantId]);
+
+    return rows[0] ?? { ...DEFAULT_ADMISSION_SETTINGS };
+  }
+
+  async updateAdmissionSettings(
+    tenantId: string,
+    actorUserId: string | null,
+    input: Omit<AdmissionSettingsRecord, 'next_sequence'>,
+  ) {
+    const rows = await this.executeSql<any>(tenantId, `
+      INSERT INTO admission_settings (
+        tenant_id, admission_number_mode, admission_number_prefix,
+        admission_number_separator, admission_number_padding, include_academic_year,
+        strict_capacity, strict_age_rules, minimum_age, maximum_age,
+        minimum_subjects, maximum_subjects, updated_by_user_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::uuid)
+      ON CONFLICT (tenant_id) DO UPDATE SET
+        admission_number_mode = EXCLUDED.admission_number_mode,
+        admission_number_prefix = EXCLUDED.admission_number_prefix,
+        admission_number_separator = EXCLUDED.admission_number_separator,
+        admission_number_padding = EXCLUDED.admission_number_padding,
+        include_academic_year = EXCLUDED.include_academic_year,
+        strict_capacity = EXCLUDED.strict_capacity,
+        strict_age_rules = EXCLUDED.strict_age_rules,
+        minimum_age = EXCLUDED.minimum_age,
+        maximum_age = EXCLUDED.maximum_age,
+        minimum_subjects = EXCLUDED.minimum_subjects,
+        maximum_subjects = EXCLUDED.maximum_subjects,
+        updated_by_user_id = EXCLUDED.updated_by_user_id,
+        updated_at = NOW()
+      RETURNING *
+    `, [
+      tenantId,
+      input.admission_number_mode,
+      input.admission_number_prefix,
+      input.admission_number_separator,
+      input.admission_number_padding,
+      input.include_academic_year,
+      input.strict_capacity,
+      input.strict_age_rules,
+      input.minimum_age,
+      input.maximum_age,
+      input.minimum_subjects,
+      input.maximum_subjects,
+      actorUserId,
+    ]);
+    return rows[0];
+  }
+
+  async getAdmissionDraft(tenantId: string, actorUserId: string) {
+    const rows = await this.executeSql<any>(tenantId, `
+      SELECT id::text, payload, status, updated_at
+      FROM admission_drafts
+      WHERE tenant_id = $1 AND created_by_user_id = $2::uuid AND status = 'draft'
+      LIMIT 1
+    `, [tenantId, actorUserId]);
+    return rows[0] ?? null;
+  }
+
+  async saveAdmissionDraft(
+    tenantId: string,
+    actorUserId: string,
+    payload: Record<string, unknown>,
+  ) {
+    const rows = await this.executeSql<any>(tenantId, `
+      INSERT INTO admission_drafts (tenant_id, created_by_user_id, payload, status)
+      VALUES ($1, $2::uuid, $3::jsonb, 'draft')
+      ON CONFLICT (tenant_id, created_by_user_id) DO UPDATE SET
+        payload = EXCLUDED.payload,
+        status = 'draft',
+        updated_at = NOW()
+      RETURNING id::text, payload, status, updated_at
+    `, [tenantId, actorUserId, JSON.stringify(payload)]);
+    return rows[0];
+  }
+
+  async discardAdmissionDraft(tenantId: string, actorUserId: string) {
+    const rows = await this.executeSql<any>(tenantId, `
+      UPDATE admission_drafts
+      SET status = 'discarded', updated_at = NOW()
+      WHERE tenant_id = $1 AND created_by_user_id = $2::uuid AND status = 'draft'
+      RETURNING id::text
+    `, [tenantId, actorUserId]);
+    return { discarded: rows.length > 0 };
+  }
+
+  async findAdmissionPreflight(
+    tenantId: string,
+    input: {
+      admission_number: string;
+      full_name: string;
+      date_of_birth: string;
+      guardian_phone: string;
+      class_section_id: string;
+      stream_id: string | null;
+    },
+  ) {
+    const [duplicates, guardians, placement] = await Promise.all([
+      this.executeSql<any>(tenantId, `
+        SELECT
+          student.id::text,
+          student.admission_number,
+          btrim(concat_ws(' ', student.first_name, student.middle_name, student.last_name)) AS full_name,
+          student.date_of_birth::text,
+          student.status,
+          CASE
+            WHEN upper(student.admission_number) = upper($2) THEN 'admission_number'
+            ELSE 'identity_match'
+          END AS match_reason
+        FROM students student
+        WHERE student.tenant_id = $1
+          AND (
+            upper(student.admission_number) = upper($2)
+            OR (
+              lower(btrim(concat_ws(' ', student.first_name, student.middle_name, student.last_name))) = lower($3)
+              AND student.date_of_birth = $4::date
+            )
+          )
+        ORDER BY CASE WHEN upper(student.admission_number) = upper($2) THEN 0 ELSE 1 END
+        LIMIT 10
+      `, [tenantId, input.admission_number, input.full_name, input.date_of_birth]),
+      this.executeSql<any>(tenantId, `
+        SELECT
+          profile.id::text AS guardian_profile_id,
+          profile.display_name,
+          profile.normalized_phone,
+          COALESCE(jsonb_agg(jsonb_build_object(
+            'student_id', student.id,
+            'admission_number', student.admission_number,
+            'full_name', btrim(concat_ws(' ', student.first_name, student.middle_name, student.last_name)),
+            'relationship', link.relationship,
+            'status', student.status
+          ) ORDER BY student.first_name, student.last_name)
+            FILTER (WHERE student.id IS NOT NULL), '[]'::jsonb) AS children
+        FROM guardian_profiles profile
+        LEFT JOIN student_guardians link
+          ON link.tenant_id = profile.tenant_id
+         AND link.guardian_profile_id = profile.id
+         AND link.status = 'active'
+        LEFT JOIN students student
+          ON student.tenant_id = link.tenant_id
+         AND student.id::text = link.student_id::text
+        WHERE profile.tenant_id = $1 AND profile.normalized_phone = $2
+        GROUP BY profile.id, profile.display_name, profile.normalized_phone
+        LIMIT 1
+      `, [tenantId, input.guardian_phone]),
+      this.executeSql<any>(tenantId, `
+        SELECT
+          section.capacity,
+          (SELECT COUNT(*)::int FROM student_class_assignments assignment
+            WHERE assignment.tenant_id = section.tenant_id
+              AND assignment.class_section_id = section.id
+              AND assignment.status = 'active') AS class_student_count,
+          stream.capacity AS stream_capacity,
+          (SELECT COUNT(*)::int FROM student_class_assignments assignment
+            WHERE assignment.tenant_id = section.tenant_id
+              AND assignment.stream_id = stream.id
+              AND assignment.status = 'active') AS stream_student_count
+        FROM class_sections section
+        LEFT JOIN class_streams stream
+          ON stream.tenant_id = section.tenant_id
+         AND stream.id = $3
+         AND stream.class_section_id = section.id
+        WHERE section.tenant_id = $1 AND section.id = $2
+        LIMIT 1
+      `, [tenantId, input.class_section_id, input.stream_id]),
+    ]);
+
+    return {
+      possible_duplicates: duplicates,
+      guardian: guardians[0] ?? null,
+      placement: placement[0] ?? null,
+    };
+  }
+
+  async findExistingAdmissionNumbers(tenantId: string, admissionNumbers: string[]) {
+    if (admissionNumbers.length === 0) return [];
+
+    const rows = await this.executeSql<{ admission_number: string }>(tenantId, `
+      SELECT upper(admission_number) AS admission_number
+      FROM students
+      WHERE tenant_id = $1
+        AND upper(admission_number) = ANY($2::text[])
+    `, [tenantId, admissionNumbers.map((value) => value.toUpperCase())]);
+
+    return rows.map((row) => row.admission_number);
+  }
+
+  async admitCanonicalStudent(input: CanonicalAdmissionInput) {
+    return this.prisma.executeWithTenant(input.tenant_id, input.actor_user_id, async (tx: any) => {
+      const query = async <T = any>(sql: string, values: unknown[] = []): Promise<T[]> => {
+        const rows = await tx.$queryRawUnsafe(sql, ...values);
+        return Array.isArray(rows) ? rows : [rows];
+      };
+
+      const placementRows = await query<any>(`
+        SELECT
+          section.id,
+          section.name,
+          section.grade_level,
+          section.curriculum_model,
+          section.capacity,
+          section.enrolment_open,
+          section.academic_level_id,
+          year.id AS academic_year_id,
+          year.name AS academic_year_name,
+          year.starts_on::text AS academic_year_starts_on,
+          year.ends_on::text AS academic_year_ends_on,
+          stream.id AS stream_id,
+          stream.name AS stream_name,
+          stream.capacity AS stream_capacity,
+          (SELECT COUNT(*)::int FROM student_class_assignments assignment
+            WHERE assignment.tenant_id = section.tenant_id
+              AND assignment.class_section_id = section.id
+              AND assignment.status = 'active') AS class_student_count,
+          (SELECT COUNT(*)::int FROM student_class_assignments assignment
+            WHERE assignment.tenant_id = section.tenant_id
+              AND assignment.stream_id = stream.id
+              AND assignment.status = 'active') AS stream_student_count
+        FROM class_sections section
+        JOIN academic_years year
+          ON year.tenant_id = section.tenant_id
+         AND year.id = section.academic_year_id
+        LEFT JOIN class_streams stream
+          ON stream.tenant_id = section.tenant_id
+         AND stream.class_section_id = section.id
+         AND stream.id = $4
+         AND stream.is_active = TRUE
+         AND lower(COALESCE(stream.status, 'active')) = 'active'
+        WHERE section.tenant_id = $1
+          AND section.id = $2
+          AND year.id = $3
+          AND section.is_active = TRUE
+          AND lower(COALESCE(section.status, 'active')) = 'active'
+          AND section.archived_at IS NULL
+        FOR UPDATE OF section
+      `, [input.tenant_id, input.class_section_id, input.academic_year_id, input.stream_id]);
+      const placement = placementRows[0];
+      if (!placement) throw new Error('ADMISSION_PLACEMENT_NOT_FOUND');
+      if (!placement.enrolment_open) throw new Error('ADMISSION_CLASS_CLOSED');
+      if (input.stream_id && !placement.stream_id) throw new Error('ADMISSION_STREAM_NOT_FOUND');
+      if (
+        input.admission_date < placement.academic_year_starts_on ||
+        input.admission_date > placement.academic_year_ends_on
+      ) {
+        throw new Error('ADMISSION_DATE_OUTSIDE_YEAR');
+      }
+      if (String(placement.grade_level ?? '').toLowerCase() !== input.grade_level.toLowerCase()) {
+        throw new Error('ADMISSION_GRADE_MISMATCH');
+      }
+      if (String(placement.curriculum_model ?? '').toLowerCase() !== input.curriculum.toLowerCase()) {
+        throw new Error('ADMISSION_CURRICULUM_MISMATCH');
+      }
+
+      await query(`
+        INSERT INTO admission_settings (tenant_id)
+        VALUES ($1)
+        ON CONFLICT (tenant_id) DO NOTHING
+      `, [input.tenant_id]);
+      const settingsRows = await query<any>(`
+        SELECT
+          admission_number_mode,
+          admission_number_prefix,
+          admission_number_separator,
+          admission_number_padding,
+          include_academic_year,
+          next_sequence::int,
+          strict_capacity,
+          strict_age_rules,
+          minimum_age,
+          maximum_age,
+          minimum_subjects,
+          maximum_subjects
+        FROM admission_settings
+        WHERE tenant_id = $1
+        FOR UPDATE
+      `, [input.tenant_id]);
+      const settings = settingsRows[0] as AdmissionSettingsRecord;
+      const suggestedAdmissionNumber = configuredAdmissionNumber(
+        settings,
+        settings.next_sequence,
+        placement.academic_year_name,
+      );
+      if (
+        settings.admission_number_mode === 'automatic' &&
+        input.admission_number !== suggestedAdmissionNumber
+      ) {
+        throw new Error(`ADMISSION_NUMBER_STALE:${suggestedAdmissionNumber}`);
+      }
+      if (input.admission_number === suggestedAdmissionNumber) {
+        await query(`
+          UPDATE admission_settings
+          SET next_sequence = next_sequence + 1, updated_by_user_id = $2::uuid, updated_at = NOW()
+          WHERE tenant_id = $1
+        `, [input.tenant_id, input.actor_user_id]);
+      }
+
+      const classAtCapacity =
+        placement.capacity != null && placement.class_student_count >= placement.capacity;
+      const streamAtCapacity =
+        placement.stream_capacity != null && placement.stream_student_count >= placement.stream_capacity;
+      if (settings.strict_capacity && (classAtCapacity || streamAtCapacity)) {
+        throw new Error(streamAtCapacity ? 'ADMISSION_STREAM_CAPACITY_REACHED' : 'ADMISSION_CLASS_CAPACITY_REACHED');
+      }
+
+      const birthDate = new Date(`${input.date_of_birth}T00:00:00.000Z`);
+      const admittedOn = new Date(`${input.admission_date}T00:00:00.000Z`);
+      let age = admittedOn.getUTCFullYear() - birthDate.getUTCFullYear();
+      if (
+        admittedOn.getUTCMonth() < birthDate.getUTCMonth() ||
+        (admittedOn.getUTCMonth() === birthDate.getUTCMonth() && admittedOn.getUTCDate() < birthDate.getUTCDate())
+      ) {
+        age -= 1;
+      }
+      const ageOutsideRule =
+        (settings.minimum_age != null && age < settings.minimum_age) ||
+        (settings.maximum_age != null && age > settings.maximum_age);
+      if (settings.strict_age_rules && ageOutsideRule) throw new Error('ADMISSION_AGE_RULE_FAILED');
+
+      const availableSubjects = await query<any>(`
+        SELECT DISTINCT ON (subject.id)
+          subject.id,
+          subject.code,
+          subject.name,
+          subject.curriculum_model,
+          subject.subject_type,
+          COALESCE(assignment.is_compulsory, subject.is_compulsory, FALSE) AS is_compulsory,
+          assignment.academic_term_id
+        FROM class_subject_assignments assignment
+        JOIN academic_terms term
+          ON term.tenant_id = assignment.tenant_id
+         AND term.id = assignment.academic_term_id
+        JOIN subjects subject
+          ON subject.tenant_id = assignment.tenant_id
+         AND subject.id = assignment.subject_id
+        WHERE assignment.tenant_id = $1
+          AND assignment.class_section_id = $2
+          AND term.academic_year_id = $3
+          AND lower(COALESCE(assignment.status, 'active')) = 'active'
+          AND subject.is_active = TRUE
+          AND subject.archived_at IS NULL
+        ORDER BY subject.id, term.is_current DESC, term.starts_on DESC
+      `, [input.tenant_id, input.class_section_id, input.academic_year_id]);
+      if (availableSubjects.length === 0) throw new Error('ADMISSION_SUBJECTS_NOT_CONFIGURED');
+
+      const selected = new Set(input.subject_ids);
+      const availableIds = new Set(availableSubjects.map((subject) => String(subject.id)));
+      if ([...selected].some((subjectId) => !availableIds.has(subjectId))) {
+        throw new Error('ADMISSION_SUBJECT_INVALID');
+      }
+      if (availableSubjects.some((subject) => subject.is_compulsory && !selected.has(String(subject.id)))) {
+        throw new Error('ADMISSION_COMPULSORY_SUBJECT_MISSING');
+      }
+      if (selected.size === 0) throw new Error('ADMISSION_SUBJECT_REQUIRED');
+      if (settings.minimum_subjects != null && selected.size < settings.minimum_subjects) {
+        throw new Error(`ADMISSION_MINIMUM_SUBJECTS:${settings.minimum_subjects}`);
+      }
+      if (settings.maximum_subjects != null && selected.size > settings.maximum_subjects) {
+        throw new Error(`ADMISSION_MAXIMUM_SUBJECTS:${settings.maximum_subjects}`);
+      }
+
+      const duplicate = await query(`
+        SELECT id FROM students
+        WHERE tenant_id = $1 AND upper(admission_number) = upper($2)
+        LIMIT 1
+      `, [input.tenant_id, input.admission_number]);
+      if (duplicate.length > 0) throw new Error('ADMISSION_NUMBER_EXISTS');
+
+      const applicationRows = await query<any>(`
+        INSERT INTO admission_applications (
+          tenant_id, application_number, full_name, first_name, middle_name, last_name,
+          date_of_birth, gender, birth_certificate_number, nationality, class_applying,
+          applying_for_class_id, parent_name, parent_phone, guardian_name, guardian_phone,
+          relationship, guardian_relationship, status, application_status, approved_at
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7::date, $8, NULL, 'Kenyan', $9, $10,
+          $11, $12, $11, $12, $13, $13, 'approved', 'approved', NOW()
+        )
+        RETURNING id
+      `, [
+        input.tenant_id,
+        `DIRECT-${input.admission_number}`,
+        [input.first_name, input.middle_name, input.last_name].filter(Boolean).join(' '),
+        input.first_name,
+        input.middle_name,
+        input.last_name,
+        input.date_of_birth,
+        input.gender,
+        placement.name,
+        placement.id,
+        input.guardian_name,
+        input.guardian_phone,
+        input.guardian_relationship,
+      ]);
+      const applicationId = String(applicationRows[0].id);
+
+      const studentRows = await query<any>(`
+        INSERT INTO students (
+          tenant_id, school_id, admission_number, first_name, middle_name, last_name,
+          status, student_status, date_of_birth, gender, nationality, admission_date,
+          current_class_id, current_stream_id, boarding_status, primary_guardian_name,
+          primary_guardian_phone, metadata, created_by_user_id, updated_by_user_id
+        ) VALUES (
+          $1, $1, $2, $3, $4, $5, 'active', 'ACTIVE', $6::date, $7, 'Kenyan', $8::date,
+          $9, $10, 'DAY_SCHOLAR', $11, $12,
+          jsonb_build_object(
+            'academic_year_id', $13,
+            'curriculum', $14,
+            'grade_level', $15,
+            'class_section_id', $9,
+            'stream_id', $10
+          ),
+          $16::uuid, $16::uuid
+        )
+        RETURNING id::text, admission_number, first_name, middle_name, last_name, admission_date
+      `, [
+        input.tenant_id,
+        input.admission_number,
+        input.first_name,
+        input.middle_name,
+        input.last_name,
+        input.date_of_birth,
+        input.gender,
+        input.admission_date,
+        input.class_section_id,
+        input.stream_id,
+        input.guardian_name,
+        input.guardian_phone,
+        input.academic_year_id,
+        input.curriculum,
+        input.grade_level,
+        input.actor_user_id,
+      ]);
+      const student = studentRows[0];
+
+      await query(`
+        UPDATE admission_applications
+        SET status = 'registered', application_status = 'registered', admitted_student_id = $3, updated_at = NOW()
+        WHERE tenant_id = $1 AND id = $2
+      `, [input.tenant_id, applicationId, student.id]);
+
+      const legacyEnrollmentRows = await query<any>(`
+        INSERT INTO student_academic_enrollments (
+          tenant_id, student_id, application_id, class_section_id,
+          class_name, stream_name, academic_year, status
+        ) VALUES ($1, $2, $3, NULL, $4, $5, $6, 'active')
+        RETURNING id
+      `, [
+        input.tenant_id,
+        student.id,
+        applicationId,
+        placement.name,
+        placement.stream_name ?? 'Unstreamed',
+        placement.academic_year_name,
+      ]);
+      const academicEnrollmentId = String(legacyEnrollmentRows[0].id);
+
+      await query(`
+        INSERT INTO student_class_assignments (
+          tenant_id, student_id, class_section_id, stream_id, academic_level_id,
+          academic_year_id, status, assigned_by_user_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'active', $7::uuid)
+      `, [
+        input.tenant_id,
+        student.id,
+        input.class_section_id,
+        input.stream_id,
+        placement.academic_level_id,
+        input.academic_year_id,
+        input.actor_user_id,
+      ]);
+
+      await query(`
+        INSERT INTO student_allocations (
+          tenant_id, student_id, class_name, stream_name, dormitory_name,
+          transport_route, effective_from, is_current, notes
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7::date, TRUE, 'Created by direct admission')
+      `, [
+        input.tenant_id,
+        student.id,
+        placement.name,
+        placement.stream_name ?? 'Unstreamed',
+        input.dormitory_name,
+        input.transport_route,
+        input.admission_date,
+      ]);
+
+      for (const subject of availableSubjects.filter((item) => selected.has(String(item.id)))) {
+        await query(`
+          INSERT INTO student_subject_enrollments (
+            tenant_id, student_id, academic_enrollment_id, subject_offering_id,
+            subject_code, subject_name, academic_year_id, academic_term_id,
+            class_section_id, stream_id, subject_id, curriculum_model, subject_type,
+            is_compulsory, selected_by_user_id, effective_from, status
+          ) VALUES (
+            $1, $2, $3, NULL, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::uuid, $15::date, 'active'
+          )
+        `, [
+          input.tenant_id,
+          student.id,
+          academicEnrollmentId,
+          subject.code,
+          subject.name,
+          input.academic_year_id,
+          subject.academic_term_id,
+          input.class_section_id,
+          input.stream_id,
+          subject.id,
+          subject.curriculum_model,
+          subject.subject_type,
+          subject.is_compulsory,
+          input.actor_user_id,
+          input.admission_date,
+        ]);
+      }
+
+      const parentRoleRows = await query<any>(`
+        SELECT id FROM roles
+        WHERE tenant_id = $1 AND lower(code) = 'parent'
+        ORDER BY is_system DESC
+        LIMIT 1
+      `, [input.tenant_id]);
+      const parentRoleId = parentRoleRows[0]?.id ?? null;
+      if (!parentRoleId) throw new Error('PARENT_ROLE_NOT_CONFIGURED');
+      let parentUserId: string | null = null;
+      if (parentRoleId) {
+        const parentRows = await query<any>(`
+          INSERT INTO users (
+            tenant_id, email, password_hash, full_name, display_name, user_type,
+            status, phone_number_hash, phone_number_last4
+          ) VALUES ($1, $2, $3, $4, $4, 'member', 'active', $5, $6)
+          ON CONFLICT (lower(email)) DO UPDATE SET
+            display_name = EXCLUDED.display_name,
+            full_name = EXCLUDED.full_name,
+            phone_number_hash = EXCLUDED.phone_number_hash,
+            phone_number_last4 = EXCLUDED.phone_number_last4,
+            status = 'active',
+            updated_at = NOW()
+          RETURNING id::text
+        `, [
+          input.tenant_id,
+          input.guardian_internal_email,
+          input.guardian_password_hash,
+          input.guardian_name,
+          input.guardian_phone_hash,
+          input.guardian_phone_last4,
+        ]);
+        parentUserId = parentRows[0]?.id ?? null;
+        await query(`
+          INSERT INTO tenant_memberships (tenant_id, user_id, role_id, status)
+          VALUES ($1, $2::uuid, $3::uuid, 'active')
+          ON CONFLICT (tenant_id, user_id) DO UPDATE SET
+            role_id = EXCLUDED.role_id,
+            status = 'active',
+            updated_at = NOW()
+        `, [input.tenant_id, parentUserId, parentRoleId]);
+      }
+
+      const studentRoleRows = await query<any>(`
+        SELECT id FROM roles
+        WHERE tenant_id = $1 AND lower(code) = 'student'
+        ORDER BY is_system DESC
+        LIMIT 1
+      `, [input.tenant_id]);
+      const studentRoleId = studentRoleRows[0]?.id ?? null;
+      if (!studentRoleId) throw new Error('STUDENT_ROLE_NOT_CONFIGURED');
+
+      const studentDisplayName = [student.first_name, student.middle_name, student.last_name]
+        .filter(Boolean)
+        .join(' ');
+      const studentInternalEmail = `student-${student.id}@access.myshule.internal`;
+      await query(`
+        INSERT INTO users (
+          id, tenant_id, email, password_hash, full_name, display_name, user_type,
+          status, phone_number_hash, phone_number_last4, email_verified_at
+        ) VALUES (
+          $1::uuid, $2, $3, $4, $5, $5, 'member', 'active', $6, $7, NOW()
+        )
+      `, [
+        student.id,
+        input.tenant_id,
+        studentInternalEmail,
+        input.student_password_hash,
+        studentDisplayName,
+        input.guardian_phone_hash,
+        input.guardian_phone_last4,
+      ]);
+      await query(`
+        INSERT INTO tenant_memberships (tenant_id, user_id, role_id, status)
+        VALUES ($1, $2::uuid, $3::uuid, 'active')
+        ON CONFLICT (tenant_id, user_id) DO UPDATE SET
+          role_id = EXCLUDED.role_id,
+          status = 'active',
+          updated_at = NOW()
+      `, [input.tenant_id, student.id, studentRoleId]);
+      await query(`
+        INSERT INTO student_portal_access (
+          tenant_id, student_id, user_id, username, guardian_phone_hash,
+          force_password_change, status
+        ) VALUES ($1, $2::uuid, $2::uuid, $3, $4, TRUE, 'active')
+        ON CONFLICT (tenant_id, student_id) DO UPDATE SET
+          user_id = EXCLUDED.user_id,
+          username = EXCLUDED.username,
+          guardian_phone_hash = EXCLUDED.guardian_phone_hash,
+          force_password_change = TRUE,
+          status = 'active',
+          updated_at = NOW()
+      `, [
+        input.tenant_id,
+        student.id,
+        input.admission_number,
+        input.guardian_phone_hash,
+      ]);
+
+      const existingGuardianRows = await query<any>(`
+        SELECT
+          profile.id::text,
+          EXISTS (
+            SELECT 1
+            FROM student_guardians link
+            WHERE link.tenant_id = profile.tenant_id
+              AND link.guardian_profile_id = profile.id
+              AND link.status = 'active'
+          ) AS has_linked_student
+        FROM guardian_profiles profile
+        WHERE profile.tenant_id = $1
+          AND profile.normalized_phone = $2
+        LIMIT 1
+      `, [input.tenant_id, input.guardian_phone]);
+      const existingSiblingGuardian = Boolean(existingGuardianRows[0]?.has_linked_student);
+
+      const guardianRows = await query<any>(`
+        INSERT INTO guardian_profiles (
+          tenant_id, display_name, normalized_phone, user_id, status
+        ) VALUES ($1, $2, $3, $4::uuid, 'active')
+        ON CONFLICT (tenant_id, normalized_phone) DO UPDATE SET
+          display_name = EXCLUDED.display_name,
+          user_id = COALESCE(guardian_profiles.user_id, EXCLUDED.user_id),
+          status = 'active',
+          updated_at = NOW()
+        RETURNING id::text, user_id::text
+      `, [input.tenant_id, input.guardian_name, input.guardian_phone, parentUserId]);
+      const guardian = guardianRows[0];
+
+      await query(`
+        INSERT INTO student_guardians (
+          tenant_id, student_id, user_id, guardian_profile_id, display_name,
+          email, phone, normalized_phone, relationship, is_primary, status, accepted_at
+        ) VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5, NULL, $6, $6, $7, TRUE, 'active', NOW())
+        ON CONFLICT (tenant_id, student_id, normalized_phone) WHERE normalized_phone IS NOT NULL
+        DO UPDATE SET
+          user_id = EXCLUDED.user_id,
+          guardian_profile_id = EXCLUDED.guardian_profile_id,
+          display_name = EXCLUDED.display_name,
+          relationship = EXCLUDED.relationship,
+          is_primary = TRUE,
+          status = 'active',
+          accepted_at = NOW(),
+          updated_at = NOW()
+      `, [
+        input.tenant_id,
+        student.id,
+        guardian.user_id ?? parentUserId,
+        guardian.id,
+        input.guardian_name,
+        input.guardian_phone,
+        input.guardian_relationship,
+      ]);
+
+      const feeRows = await query<any>(`
+        SELECT
+          id::text,
+          name AS description,
+          currency_code,
+          total_amount_minor::text AS amount_minor,
+          due_days,
+          term,
+          academic_year
+        FROM fee_structures
+        WHERE tenant_id = $1
+          AND status = 'active'
+          AND (
+            lower(COALESCE(class_name, '')) = lower($2)
+            OR lower(grade_level) = lower($3)
+          )
+          AND lower(academic_year) = lower($4)
+        ORDER BY
+          CASE WHEN lower(COALESCE(class_name, '')) = lower($2) THEN 0 ELSE 1 END,
+          created_at DESC
+        LIMIT 1
+      `, [input.tenant_id, placement.name, placement.grade_level, placement.academic_year_name]);
+      let feeStatus: Record<string, unknown> = { status: 'not_configured' };
+      const fee = feeRows[0];
+      if (fee) {
+        const invoiceNumber = `INV-${input.admission_number}-${input.academic_year_id.slice(0, 8)}`;
+        const invoiceRows = await query<any>(`
+          INSERT INTO student_invoices (
+            tenant_id, student_id, invoice_number, fee_structure_id, term,
+            academic_year, amount_minor, balance_minor, status
+          ) VALUES (
+            $1, $2::uuid, $3, $4::uuid, $5, $6, $7::bigint, $7::bigint, 'open'
+          )
+          RETURNING id::text, invoice_number, amount_minor::text, balance_minor::text
+        `, [
+          input.tenant_id,
+          student.id,
+          invoiceNumber,
+          fee.id,
+          fee.term,
+          fee.academic_year,
+          fee.amount_minor,
+        ]);
+        feeStatus = {
+          status: 'invoiced',
+          currency_code: fee.currency_code,
+          description: fee.description,
+          due_days: fee.due_days,
+          ...invoiceRows[0],
+        };
+      }
+
+      return {
+        application_id: applicationId,
+        student,
+        placement: {
+          academic_enrollment_id: academicEnrollmentId,
+          academic_year_id: input.academic_year_id,
+          academic_year_name: placement.academic_year_name,
+          class_section_id: input.class_section_id,
+          class_name: placement.name,
+          stream_id: input.stream_id,
+          stream_name: placement.stream_name ?? null,
+          capacity_warning:
+            classAtCapacity || streamAtCapacity,
+          age_warning: ageOutsideRule,
+          age_at_admission: age,
+        },
+        subjects: availableSubjects
+          .filter((subject) => selected.has(String(subject.id)))
+          .map((subject) => ({ id: subject.id, code: subject.code, name: subject.name })),
+        guardian: {
+          profile_id: guardian.id,
+          existing_sibling_guardian: existingSiblingGuardian,
+          portal_access: parentRoleId ? 'otp_ready' : 'parent_role_not_configured',
+          phone: input.guardian_phone,
+        },
+        student_portal: {
+          username: input.admission_number,
+          status: 'otp_ready',
+          force_password_change: true,
+        },
+        fees: feeStatus,
+      };
+    });
+  }
+
+  async changeStudentAdmissionNumber(input: {
+    tenant_id: string;
+    actor_user_id: string;
+    student_id: string;
+    admission_number: string;
+    temporary_password_hash: string;
+    reason: string;
+  }) {
+    return this.prisma.executeWithTenant<any>(
+      input.tenant_id,
+      input.actor_user_id,
+      async (tx: any) => {
+        const query = async <T = any>(sql: string, params: unknown[] = []): Promise<T[]> => {
+          const rows = await tx.$queryRawUnsafe(sql, ...params);
+          return Array.isArray(rows) ? rows : [rows];
+        };
+        const studentRows = await query<any>(`
+          SELECT
+            student.id::text,
+            student.admission_number,
+            access.user_id::text AS student_user_id,
+            COALESCE(access.force_password_change, FALSE) AS force_password_change,
+            guardian.user_id::text AS guardian_user_id
+          FROM students student
+          LEFT JOIN student_portal_access access
+            ON access.tenant_id = student.tenant_id
+           AND access.student_id = student.id
+          LEFT JOIN LATERAL (
+            SELECT link.user_id
+            FROM student_guardians link
+            WHERE link.tenant_id = student.tenant_id
+              AND link.student_id = student.id
+              AND link.is_primary = TRUE
+              AND link.status = 'active'
+            ORDER BY link.created_at
+            LIMIT 1
+          ) guardian ON TRUE
+          WHERE student.tenant_id = $1
+            AND student.id = $2::uuid
+          FOR UPDATE OF student
+        `, [input.tenant_id, input.student_id]);
+        const student = studentRows[0];
+        if (!student) throw new Error('ADMISSION_STUDENT_NOT_FOUND');
+        if (student.admission_number === input.admission_number) {
+          return {
+            student_id: input.student_id,
+            previous_admission_number: student.admission_number,
+            admission_number: input.admission_number,
+            changed: false,
+          };
+        }
+
+        const duplicate = await query(`
+          SELECT id
+          FROM students
+          WHERE tenant_id = $1
+            AND id <> $2::uuid
+            AND upper(admission_number) = upper($3)
+          LIMIT 1
+        `, [input.tenant_id, input.student_id, input.admission_number]);
+        if (duplicate.length > 0) throw new Error('ADMISSION_NUMBER_EXISTS');
+
+        await query(`
+          UPDATE students
+          SET admission_number = $3,
+              updated_by_user_id = $4::uuid,
+              updated_at = NOW()
+          WHERE tenant_id = $1 AND id = $2::uuid
+        `, [input.tenant_id, input.student_id, input.admission_number, input.actor_user_id]);
+        await query(`
+          UPDATE student_portal_access
+          SET username = $3, updated_at = NOW()
+          WHERE tenant_id = $1 AND student_id = $2::uuid
+        `, [input.tenant_id, input.student_id, input.admission_number]);
+        if (student.student_user_id && student.force_password_change) {
+          await query(`
+            UPDATE users
+            SET password_hash = $3, updated_at = NOW()
+            WHERE tenant_id = $1 AND id = $2::uuid
+          `, [input.tenant_id, student.student_user_id, input.temporary_password_hash]);
+        }
+        await query(`
+          UPDATE admission_applications
+          SET application_number = $3, updated_at = NOW()
+          WHERE tenant_id = $1
+            AND admitted_student_id = $2::uuid
+            AND application_number = $4
+        `, [
+          input.tenant_id,
+          input.student_id,
+          `DIRECT-${input.admission_number}`,
+          `DIRECT-${student.admission_number}`,
+        ]);
+        const credentialUserIds = [student.student_user_id, student.guardian_user_id]
+          .filter(Boolean);
+        if (credentialUserIds.length > 0) {
+          await query(`
+            UPDATE parent_otp_challenges
+            SET consumed_at = NOW()
+            WHERE tenant_id = $1
+              AND user_id = ANY($2::uuid[])
+              AND consumed_at IS NULL
+          `, [input.tenant_id, credentialUserIds]);
+        }
+        await query(`
+          INSERT INTO audit_logs (
+            tenant_id, actor_user_id, action, resource_type, resource_id, metadata
+          ) VALUES (
+            $1, $2::uuid, 'student.admission_number.changed', 'student', $3,
+            jsonb_build_object(
+              'previous_admission_number', $4,
+              'admission_number', $5,
+              'reason', $6,
+              'pending_otps_invalidated', $7::boolean
+            )
+          )
+        `, [
+          input.tenant_id,
+          input.actor_user_id,
+          input.student_id,
+          student.admission_number,
+          input.admission_number,
+          input.reason,
+          credentialUserIds.length > 0,
+        ]);
+
+        return {
+          student_id: input.student_id,
+          previous_admission_number: student.admission_number,
+          admission_number: input.admission_number,
+          force_password_change: Boolean(student.force_password_change),
+          pending_otps_invalidated: credentialUserIds.length > 0,
+          changed: true,
+        };
+      },
+    );
+  }
+
+  async changePrimaryGuardianPhone(input: {
+    tenant_id: string;
+    actor_user_id: string;
+    student_id: string;
+    guardian_phone: string;
+    guardian_phone_hash: string;
+    guardian_phone_last4: string;
+    reason: string;
+  }) {
+    return this.prisma.executeWithTenant<any>(
+      input.tenant_id,
+      input.actor_user_id,
+      async (tx: any) => {
+        const query = async <T = any>(sql: string, params: unknown[] = []): Promise<T[]> => {
+          const rows = await tx.$queryRawUnsafe(sql, ...params);
+          return Array.isArray(rows) ? rows : [rows];
+        };
+        const guardianRows = await query<any>(`
+          SELECT
+            student.id::text AS student_id,
+            student.primary_guardian_phone,
+            link.guardian_profile_id::text,
+            link.user_id::text AS guardian_user_id
+          FROM students student
+          LEFT JOIN LATERAL (
+            SELECT guardian_profile_id, user_id
+            FROM student_guardians guardian_link
+            WHERE guardian_link.tenant_id = student.tenant_id
+              AND guardian_link.student_id = student.id
+              AND guardian_link.is_primary = TRUE
+              AND guardian_link.status = 'active'
+            ORDER BY guardian_link.created_at
+            LIMIT 1
+          ) link ON TRUE
+          WHERE student.tenant_id = $1
+            AND student.id = $2::uuid
+          FOR UPDATE OF student
+        `, [input.tenant_id, input.student_id]);
+        const guardian = guardianRows[0];
+        if (!guardian) throw new Error('ADMISSION_STUDENT_NOT_FOUND');
+        if (!guardian.guardian_profile_id) throw new Error('PRIMARY_GUARDIAN_NOT_FOUND');
+        if (guardian.primary_guardian_phone === input.guardian_phone) {
+          return {
+            student_id: input.student_id,
+            guardian_profile_id: guardian.guardian_profile_id,
+            previous_phone_last4: input.guardian_phone_last4,
+            phone_last4: input.guardian_phone_last4,
+            affected_student_ids: [input.student_id],
+            changed: false,
+          };
+        }
+
+        const conflict = await query(`
+          SELECT id
+          FROM guardian_profiles
+          WHERE tenant_id = $1
+            AND normalized_phone = $2
+            AND id <> $3::uuid
+          LIMIT 1
+        `, [input.tenant_id, input.guardian_phone, guardian.guardian_profile_id]);
+        if (conflict.length > 0) throw new Error('GUARDIAN_PHONE_BELONGS_TO_ANOTHER_PROFILE');
+
+        const linkedStudents = await query<any>(`
+          SELECT DISTINCT link.student_id::text, access.user_id::text AS student_user_id
+          FROM student_guardians link
+          LEFT JOIN student_portal_access access
+            ON access.tenant_id = link.tenant_id
+           AND access.student_id = link.student_id
+          WHERE link.tenant_id = $1
+            AND link.guardian_profile_id = $2::uuid
+            AND link.status = 'active'
+        `, [input.tenant_id, guardian.guardian_profile_id]);
+        const affectedStudentIds = linkedStudents.map((row) => row.student_id);
+        const studentUserIds = linkedStudents
+          .map((row) => row.student_user_id)
+          .filter(Boolean);
+
+        await query(`
+          UPDATE guardian_profiles
+          SET normalized_phone = $3,
+              updated_at = NOW()
+          WHERE tenant_id = $1 AND id = $2::uuid
+        `, [input.tenant_id, guardian.guardian_profile_id, input.guardian_phone]);
+        await query(`
+          UPDATE student_guardians
+          SET phone = $3,
+              normalized_phone = $3,
+              updated_at = NOW()
+          WHERE tenant_id = $1 AND guardian_profile_id = $2::uuid
+        `, [input.tenant_id, guardian.guardian_profile_id, input.guardian_phone]);
+        if (affectedStudentIds.length > 0) {
+          await query(`
+            UPDATE students
+            SET primary_guardian_phone = $3,
+                updated_by_user_id = $4::uuid,
+                updated_at = NOW()
+            WHERE tenant_id = $1 AND id = ANY($2::uuid[])
+          `, [
+            input.tenant_id,
+            affectedStudentIds,
+            input.guardian_phone,
+            input.actor_user_id,
+          ]);
+          await query(`
+            UPDATE student_portal_access
+            SET guardian_phone_hash = $3, updated_at = NOW()
+            WHERE tenant_id = $1 AND student_id = ANY($2::uuid[])
+          `, [input.tenant_id, affectedStudentIds, input.guardian_phone_hash]);
+        }
+        const credentialUserIds = [guardian.guardian_user_id, ...studentUserIds].filter(Boolean);
+        if (credentialUserIds.length > 0) {
+          await query(`
+            UPDATE users
+            SET phone_number_hash = $3,
+                phone_number_last4 = $4,
+                updated_at = NOW()
+            WHERE tenant_id = $1 AND id = ANY($2::uuid[])
+          `, [
+            input.tenant_id,
+            credentialUserIds,
+            input.guardian_phone_hash,
+            input.guardian_phone_last4,
+          ]);
+          await query(`
+            UPDATE parent_otp_challenges
+            SET consumed_at = NOW()
+            WHERE tenant_id = $1
+              AND user_id = ANY($2::uuid[])
+              AND consumed_at IS NULL
+          `, [input.tenant_id, credentialUserIds]);
+        }
+        const previousPhoneLast4 = String(guardian.primary_guardian_phone ?? '').slice(-4);
+        await query(`
+          INSERT INTO audit_logs (
+            tenant_id, actor_user_id, action, resource_type, resource_id, metadata
+          ) VALUES (
+            $1, $2::uuid, 'student.guardian_phone.changed', 'guardian_profile', $3,
+            jsonb_build_object(
+              'student_id', $4,
+              'affected_student_ids', $5::jsonb,
+              'previous_phone_last4', $6,
+              'phone_last4', $7,
+              'reason', $8,
+              'pending_otps_invalidated', $9::boolean
+            )
+          )
+        `, [
+          input.tenant_id,
+          input.actor_user_id,
+          guardian.guardian_profile_id,
+          input.student_id,
+          JSON.stringify(affectedStudentIds),
+          previousPhoneLast4,
+          input.guardian_phone_last4,
+          input.reason,
+          credentialUserIds.length > 0,
+        ]);
+
+        return {
+          student_id: input.student_id,
+          guardian_profile_id: guardian.guardian_profile_id,
+          previous_phone: guardian.primary_guardian_phone,
+          previous_phone_last4: previousPhoneLast4,
+          phone_last4: input.guardian_phone_last4,
+          affected_student_ids: affectedStudentIds,
+          pending_otps_invalidated: credentialUserIds.length > 0,
+          changed: true,
+        };
+      },
+    );
   }
 
   async listApplications(

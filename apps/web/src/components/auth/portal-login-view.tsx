@@ -18,8 +18,11 @@ import { getCsrfToken } from "@/lib/auth/csrf-client";
 import { useExperienceSession } from "@/lib/auth/use-experience-session";
 
 const portalSchema = z.object({
-  identifier: z.string().trim().min(5, "Enter your phone number or email address."),
+  identifier: z.string().trim().min(2, "Enter your portal identifier."),
+  guardianPhone: z.string(),
   secret: z.string(),
+  newPassword: z.string(),
+  confirmPassword: z.string(),
 });
 
 type PortalForm = z.infer<typeof portalSchema>;
@@ -54,7 +57,7 @@ const portalCopy: Record<
     title: "Follow progress with confidence.",
     description:
       "A secure parent login for fee balances, attendance snapshots, clinic records, transport status, and learner progress.",
-    identifierLabel: "Parent email address",
+    identifierLabel: "Child admission number",
     secretLabel: "Password",
     submitLabel: "Continue as parent",
     message:
@@ -65,7 +68,7 @@ const portalCopy: Record<
     title: "Open your learning command space.",
     description:
       "A focused student login for assignments, results, timetable, notices, and academic downloads.",
-    identifierLabel: "Student email address",
+    identifierLabel: "Admission number",
     secretLabel: "Password",
     submitLabel: "Continue as student",
     message:
@@ -90,8 +93,10 @@ export function PortalLoginView({
   });
   const [loginMode, setLoginMode] = useState<"password" | "otp">("password");
   const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [passwordSetupRequired, setPasswordSetupRequired] = useState(false);
   const [otpMessage, setOtpMessage] = useState<string | null>(null);
   const [otpError, setOtpError] = useState<string | null>(null);
+  const usesLinkedAccess = mode === "parent" || mode === "student";
   const copy = portalCopy[mode];
   const {
     register,
@@ -101,7 +106,10 @@ export function PortalLoginView({
     resolver: zodResolver(portalSchema),
     defaultValues: {
       identifier: initialEmail.trim().toLowerCase(),
+      guardianPhone: "",
       secret: "",
+      newPassword: "",
+      confirmPassword: "",
     },
   });
 
@@ -111,17 +119,35 @@ export function PortalLoginView({
         setOtpError(null);
 
         if (!challengeId) {
-          const response = await fetch("/api/auth/parent/otp/request", {
+          if (usesLinkedAccess && values.guardianPhone.replace(/\D/g, "").length < 9) {
+            throw new Error("Enter the guardian phone number registered during admission.");
+          }
+          const portalType = mode === "student" ? "student" : "parent";
+          const response = await fetch(`/api/auth/${portalType}/otp/request`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "x-myshule-csrf": await getCsrfToken(),
             },
             credentials: "same-origin",
-            body: JSON.stringify({ identifier: values.identifier.trim() }),
+            body: JSON.stringify(
+              mode === "student"
+                ? {
+                    username: values.identifier.trim(),
+                    guardian_phone: values.guardianPhone.trim(),
+                    tenant_id: initialTenantSlug?.trim() || undefined,
+                  }
+                : mode === "parent"
+                  ? {
+                      identifier: values.identifier.trim(),
+                      guardian_phone: values.guardianPhone.trim(),
+                      tenant_id: initialTenantSlug?.trim() || undefined,
+                    }
+                  : { identifier: values.identifier.trim() },
+            ),
           });
           const payload = (await response.json().catch(() => null)) as
-            | { challenge_id?: string; message?: string }
+            | { challenge_id?: string; message?: string; password_setup_required?: boolean }
             | null;
 
           if (!response.ok) {
@@ -129,11 +155,27 @@ export function PortalLoginView({
           }
 
           setChallengeId(payload?.challenge_id ?? null);
+          setPasswordSetupRequired(Boolean(payload?.password_setup_required));
           setOtpMessage(payload?.message ?? "If a parent account exists, a code has been sent.");
           return;
         }
 
-        const response = await fetch("/api/auth/parent/otp/verify", {
+        const portalType = mode === "student" ? "student" : "parent";
+        if (passwordSetupRequired) {
+          if (
+            values.newPassword.length < 10 ||
+            !/[A-Z]/.test(values.newPassword) ||
+            !/[a-z]/.test(values.newPassword) ||
+            !/\d/.test(values.newPassword)
+          ) {
+            throw new Error("Use at least 10 characters with uppercase, lowercase, and a number.");
+          }
+          if (values.newPassword !== values.confirmPassword) {
+            throw new Error("The password confirmation does not match.");
+          }
+        }
+
+        const response = await fetch(`/api/auth/${portalType}/otp/verify`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -143,6 +185,7 @@ export function PortalLoginView({
           body: JSON.stringify({
             challenge_id: challengeId,
             otp_code: values.secret.trim(),
+            new_password: passwordSetupRequired ? values.newPassword : undefined,
           }),
         });
         const payload = (await response.json().catch(() => null)) as
@@ -153,7 +196,34 @@ export function PortalLoginView({
           throw new Error(payload?.message ?? "Unable to verify that code.");
         }
 
-        void router.push(payload?.redirectTo ?? "/portal/parent");
+        void router.push(payload?.redirectTo ?? (mode === "student" ? "/portal/student" : "/portal/parent"));
+        return;
+      }
+
+      if (usesLinkedAccess) {
+        const portalType = mode === "student" ? "student" : "parent";
+        const response = await fetch(`/api/auth/${portalType}/login`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-myshule-csrf": await getCsrfToken(),
+          },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            ...(mode === "student"
+              ? { username: values.identifier.trim() }
+              : { admission_number: values.identifier.trim() }),
+            password: values.secret,
+            tenant_id: initialTenantSlug?.trim() || undefined,
+          }),
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | { redirectTo?: string; message?: string }
+          | null;
+        if (!response.ok) {
+          throw new Error(payload?.message ?? `Unable to sign in to the ${portalType} portal.`);
+        }
+        void router.push(payload?.redirectTo ?? (mode === "student" ? "/portal/student" : "/portal/parent"));
         return;
       }
 
@@ -211,6 +281,7 @@ export function PortalLoginView({
               setChallengeId(null);
               setOtpError(null);
               setOtpMessage(null);
+              setPasswordSetupRequired(false);
             }}
           >
             Password
@@ -223,25 +294,65 @@ export function PortalLoginView({
               setChallengeId(null);
               setOtpError(null);
               setOtpMessage(null);
+              setPasswordSetupRequired(false);
             }}
           >
             SMS code
           </button>
         </div>
+        {mode === "student" ? (
+          <AuthMessage
+            tone="info"
+            title="Student first access"
+            description="Your initial password is your admission number. For first access or recovery, choose SMS code, verify through the registered guardian phone, then create a private password."
+          />
+        ) : null}
+        {mode === "parent" ? (
+          <AuthMessage
+            tone="info"
+            title="Verified family access"
+            description="Use any linked child admission number. For first access or recovery, choose SMS code, verify the guardian phone registered by the school, then create a private parent password."
+          />
+        ) : null}
 
         <div className="space-y-4">
           <AuthField
-            label={loginMode === "otp" ? "Phone number or email" : copy.identifierLabel}
+            label={usesLinkedAccess ? (mode === "student" ? "Admission number" : "Child admission number") : loginMode === "otp" ? "Phone number or email" : copy.identifierLabel}
             autoComplete={loginMode === "otp" ? "username" : "email"}
             {...register("identifier")}
             error={errors.identifier?.message}
           />
+          {usesLinkedAccess && loginMode === "otp" && !challengeId ? (
+            <AuthField
+              label="Registered guardian phone"
+              autoComplete="tel"
+              {...register("guardianPhone")}
+              error={errors.guardianPhone?.message}
+            />
+          ) : null}
+          {loginMode === "password" || challengeId ? (
           <AuthPasswordField
             label={loginMode === "otp" && challengeId ? "Verification code" : copy.secretLabel}
             autoComplete={loginMode === "otp" ? "one-time-code" : acceptedInvite ? "new-password" : "current-password"}
             {...register("secret")}
             error={errors.secret?.message}
           />
+          ) : null}
+          {loginMode === "otp" && challengeId && passwordSetupRequired ? (
+            <>
+              <AuthPasswordField
+                label="Create new password"
+                autoComplete="new-password"
+                {...register("newPassword")}
+                hint="At least 10 characters with uppercase, lowercase, and a number."
+              />
+              <AuthPasswordField
+                label="Confirm new password"
+                autoComplete="new-password"
+                {...register("confirmPassword")}
+              />
+            </>
+          ) : null}
         </div>
 
         {otpMessage ? (
@@ -257,7 +368,13 @@ export function PortalLoginView({
         ) : null}
 
         <AuthSubmitButton busy={isSubmitting || authSession.isSubmitting} type="submit">
-          {loginMode === "otp" ? (challengeId ? "Verify code" : "Send code") : copy.submitLabel}
+          {loginMode === "otp"
+            ? challengeId
+              ? passwordSetupRequired
+                ? "Verify and set password"
+                : "Verify code"
+              : "Send code"
+            : copy.submitLabel}
         </AuthSubmitButton>
 
         <div className="flex items-center justify-between gap-3 text-sm">
