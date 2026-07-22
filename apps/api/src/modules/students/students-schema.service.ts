@@ -90,7 +90,7 @@ export class StudentsSchemaService implements OnModuleInit {
       $$ LANGUAGE plpgsql;
 
       CREATE TABLE IF NOT EXISTS students (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
         school_id text,
         admission_number text NOT NULL,
@@ -145,7 +145,7 @@ export class StudentsSchemaService implements OnModuleInit {
       CREATE TABLE IF NOT EXISTS student_guardians (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
-        student_id uuid NOT NULL,
+        student_id text NOT NULL,
         user_id uuid,
         invitation_id uuid,
         display_name text NOT NULL,
@@ -179,7 +179,7 @@ export class StudentsSchemaService implements OnModuleInit {
       CREATE TABLE IF NOT EXISTS attendance_records (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
-        student_id uuid NOT NULL,
+        student_id text NOT NULL,
         attendance_date date NOT NULL,
         status text NOT NULL,
         notes text,
@@ -381,7 +381,7 @@ export class StudentsSchemaService implements OnModuleInit {
       CREATE TABLE IF NOT EXISTS student_portal_access (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
-        student_id uuid NOT NULL,
+        student_id text NOT NULL,
         user_id uuid NOT NULL,
         username text NOT NULL,
         guardian_phone_hash text NOT NULL,

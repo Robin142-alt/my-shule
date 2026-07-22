@@ -44,6 +44,7 @@ test('StudentsSchemaService adds a full-text index for active student directory 
   await service.onModuleInit();
 
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_students_search_vector/);
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS students \([\s\S]*id text PRIMARY KEY DEFAULT gen_random_uuid\(\)::text/);
   assert.match(schemaSql, /ON students\s+USING GIN/);
   assert.match(schemaSql, /to_tsvector\(\s*'simple'/);
   assert.match(schemaSql, /admission_number/);
@@ -55,6 +56,7 @@ test('StudentsSchemaService adds a full-text index for active student directory 
   assert.match(schemaSql, /source_device_id/);
   assert.match(schemaSql, /sync_version/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS student_portal_access/);
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS student_portal_access \([\s\S]*student_id text NOT NULL/);
   assert.match(schemaSql, /ux_student_portal_access_username/);
   assert.match(schemaSql, /ALTER TABLE student_portal_access ENABLE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /ALTER TABLE student_portal_access FORCE ROW LEVEL SECURITY/);
