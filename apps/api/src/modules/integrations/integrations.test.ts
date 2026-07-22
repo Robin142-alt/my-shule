@@ -39,6 +39,14 @@ test('IntegrationsSchemaService creates tenant-scoped SMS, Daraja, parent OTP, a
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS school_integrations/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS parent_otp_challenges/);
   assert.match(schemaSql, /request_path NOT IN \('\/auth\/parent\/otp\/request', '\/auth\/parent\/otp\/verify'\)/);
+  const dropOtpVerifyFunction = schemaSql.indexOf(
+    'DROP FUNCTION IF EXISTS app.find_parent_otp_challenge_for_verify(uuid)',
+  );
+  const createOtpVerifyFunction = schemaSql.indexOf(
+    'CREATE FUNCTION app.find_parent_otp_challenge_for_verify(input_challenge_id uuid)',
+  );
+  assert.ok(dropOtpVerifyFunction >= 0);
+  assert.ok(createOtpVerifyFunction > dropOtpVerifyFunction);
   assert.match(schemaSql, /ALTER TABLE school_sms_wallets FORCE ROW LEVEL SECURITY/);
 });
 

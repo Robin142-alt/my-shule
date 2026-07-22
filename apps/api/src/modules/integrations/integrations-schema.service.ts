@@ -602,7 +602,12 @@ export class IntegrationsSchemaService implements OnModuleInit {
       END;
       $$;
 
-      CREATE OR REPLACE FUNCTION app.find_parent_otp_challenge_for_verify(input_challenge_id uuid)
+      -- PostgreSQL cannot replace a table-returning function when its OUT
+      -- columns change. Recreate this internal lookup so rolling schema
+      -- bootstraps remain compatible with existing production databases.
+      DROP FUNCTION IF EXISTS app.find_parent_otp_challenge_for_verify(uuid);
+
+      CREATE FUNCTION app.find_parent_otp_challenge_for_verify(input_challenge_id uuid)
       RETURNS TABLE (
         id uuid,
         tenant_id text,
