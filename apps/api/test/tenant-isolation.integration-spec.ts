@@ -480,7 +480,7 @@ describe('Multi-tenant isolation hardening', () => {
           `
             UPDATE students
             SET last_name = 'Compromised'
-            WHERE id = $1::uuid
+            WHERE id = $1
           `,
           [tenantBStudent.id],
         );
@@ -503,7 +503,7 @@ describe('Multi-tenant isolation hardening', () => {
           `
             SELECT last_name
             FROM students
-            WHERE id = $1::uuid
+            WHERE id = $1
           `,
           [tenantBStudent.id],
         );

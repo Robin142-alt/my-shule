@@ -33,6 +33,52 @@ test('AdmissionsRepository summary treats three uploads as the complete admissio
   assert.match(missingDocumentsQuery, /HAVING COUNT\(document\.id\) < 3/);
 });
 
+test('AdmissionsRepository uses the supported subject lifecycle contract', async () => {
+  const queries: string[] = [];
+  const repository = new AdmissionsRepository({
+    executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        },
+      });
+    },
+    query: async (sql: string) => {
+      queries.push(sql);
+
+      if (sql.includes('AS foundation')) {
+        return {
+          rows: [{
+            foundation: {
+              academic_years: [],
+              classes: [],
+              streams: [],
+              subjects: [],
+              class_subject_assignments: [],
+            },
+          }],
+        };
+      }
+
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.getAdmissionFoundation('tenant-a');
+
+  const foundationQuery = queries.find((sql) => sql.includes('FROM subjects subject'));
+  assert.ok(foundationQuery);
+  assert.doesNotMatch(foundationQuery, /subject\.is_active/);
+  assert.match(foundationQuery, /lower\(COALESCE\(subject\.status, 'active'\)\) = 'active'/);
+  assert.match(foundationQuery, /subject\.deleted_at IS NULL/);
+  assert.match(foundationQuery, /subject\.archived_at IS NULL/);
+
+  const registrationMethod = String(repository.admitCanonicalStudent);
+  assert.doesNotMatch(registrationMethod, /subject\.is_active/);
+  assert.match(registrationMethod, /subject\.deleted_at IS NULL/);
+});
+
 test('AdmissionsSchemaService creates tenant-scoped student fee assignment and invoice tables', async () => {
   let bootstrapSql = '';
   const service = new AdmissionsSchemaService(

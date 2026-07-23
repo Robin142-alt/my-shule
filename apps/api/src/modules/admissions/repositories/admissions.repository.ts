@@ -303,7 +303,8 @@ export class AdmissionsRepository {
           ) ORDER BY subject.name)
           FROM subjects subject
           WHERE subject.tenant_id = $1
-            AND subject.is_active = TRUE
+            AND lower(COALESCE(subject.status, 'active')) = 'active'
+            AND subject.deleted_at IS NULL
             AND subject.archived_at IS NULL
         ), '[]'::jsonb),
         'class_subject_assignments', COALESCE((
@@ -709,7 +710,8 @@ export class AdmissionsRepository {
           AND assignment.class_section_id = $2
           AND term.academic_year_id = $3
           AND lower(COALESCE(assignment.status, 'active')) = 'active'
-          AND subject.is_active = TRUE
+          AND lower(COALESCE(subject.status, 'active')) = 'active'
+          AND subject.deleted_at IS NULL
           AND subject.archived_at IS NULL
         ORDER BY subject.id, term.is_current DESC, term.starts_on DESC
       `, [input.tenant_id, input.class_section_id, input.academic_year_id]);
