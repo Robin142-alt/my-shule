@@ -5,6 +5,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { RequestContextService } from '../common/request-context/request-context.service';
 import { DatabaseService } from '../database/database.service';
 import { AuditLogService } from '../modules/observability/audit-log.service';
+import { SCHOOL_STAFF_ROLE_CODES } from './auth.constants';
 import { AuthEmailService, EmailDeliveryError } from './auth-email.service';
 import {
   CreateTenantInvitationDto,
@@ -575,51 +576,95 @@ export class TenantInvitationsService {
     }
 
     const tenantId = this.requireTenantId();
-    const result = await this.databaseService.query<TenantManagedUserRow>(
-      `
-        UPDATE tenant_memberships tm
-        SET
-          status = $3,
-          updated_at = NOW()
-        FROM users u, roles r
-        WHERE tm.id = $1
-          AND tm.tenant_id = $2
-          AND u.id = tm.user_id
-          AND r.id = tm.role_id
-          AND r.tenant_id = tm.tenant_id
-        RETURNING
-          tm.id::text AS id,
-          'member'::text AS kind,
-          u.display_name,
-          lower(u.email) AS email,
-          r.code AS role_code,
-          r.name AS role_name,
-          tm.status,
-          NULL::text AS phone,
-          NULL::text AS department,
-          NULL::text AS assignment,
-          NULL::text AS identifier,
-          NULL::text AS delivery_method,
-          NULL::text AS note,
-          NULL::timestamptz AS expires_at,
-          tm.created_at
-      `,
-      [membershipId, tenantId, status],
-    );
+    return this.databaseService.withRequestTransaction(async () => {
+      const result = await this.databaseService.query<TenantManagedUserRow>(
+        `
+          UPDATE tenant_memberships tm
+          SET
+            status = $3,
+            updated_at = NOW()
+          FROM users u, roles r
+          WHERE tm.id = $1
+            AND tm.tenant_id = $2
+            AND u.id = tm.user_id
+            AND r.id = tm.role_id
+            AND r.tenant_id = tm.tenant_id
+          RETURNING
+            tm.id::text AS id,
+            'member'::text AS kind,
+            u.display_name,
+            lower(u.email) AS email,
+            r.code AS role_code,
+            r.name AS role_name,
+            tm.status,
+            NULL::text AS phone,
+            NULL::text AS department,
+            NULL::text AS assignment,
+            NULL::text AS identifier,
+            NULL::text AS delivery_method,
+            NULL::text AS note,
+            NULL::timestamptz AS expires_at,
+            tm.created_at
+        `,
+        [membershipId, tenantId, status],
+      );
 
-    if (!result.rows[0]) {
-      throw new NotFoundException('Tenant membership was not found.');
-    }
+      if (!result.rows[0]) {
+        throw new NotFoundException('Tenant membership was not found.');
+      }
 
-    const membership = this.mapManagedUser(result.rows[0]);
-    await this.recordAudit('tenant.membership.status_changed', 'tenant_membership', membership.id, {
-      email: membership.email,
-      display_name: membership.display_name,
-      status,
-      role_code: membership.role_code,
+      const membership = this.mapManagedUser(result.rows[0]);
+
+      await this.databaseService.query(
+        `
+          INSERT INTO staff_profiles (
+            tenant_id,
+            user_id,
+            display_name,
+            status,
+            created_at,
+            updated_at
+          )
+          SELECT
+            tm.tenant_id,
+            tm.user_id,
+            COALESCE(
+              NULLIF(u.display_name, ''),
+              NULLIF(u.full_name, ''),
+              u.email,
+              tm.user_id::text
+            ),
+            $3,
+            NOW(),
+            NOW()
+          FROM tenant_memberships tm
+          JOIN users u
+            ON u.id = tm.user_id
+          JOIN roles r
+            ON r.id = tm.role_id
+           AND r.tenant_id = tm.tenant_id
+          WHERE tm.id = $1
+            AND tm.tenant_id = $2
+            AND r.code = ANY($4::text[])
+          ON CONFLICT (tenant_id, user_id)
+            WHERE user_id IS NOT NULL
+          DO UPDATE SET
+            display_name = EXCLUDED.display_name,
+            status = EXCLUDED.status,
+            updated_at = NOW()
+        `,
+        [membershipId, tenantId, status, [...SCHOOL_STAFF_ROLE_CODES]],
+      );
+
+      await this.recordAudit('tenant.membership.status_changed', 'tenant_membership', membership.id, {
+        email: membership.email,
+        display_name: membership.display_name,
+        status,
+        role_code: membership.role_code,
+      });
+
+      return membership;
     });
-
-    return membership;
   }
 
   async updateTenantMembershipRole(

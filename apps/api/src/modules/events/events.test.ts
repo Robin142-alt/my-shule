@@ -75,6 +75,10 @@ test('EventsSchemaService preserves outbox claim function identity across bootst
 
   assert.doesNotMatch(bootstrapSql, /DROP FUNCTION IF EXISTS app\.claim_outbox_events/);
   assert.match(bootstrapSql, /CREATE OR REPLACE FUNCTION app\.claim_outbox_events/);
+  assert.match(
+    bootstrapSql,
+    /ALTER FUNCTION app\.claim_outbox_events\(integer, integer\) OWNER TO CURRENT_USER/,
+  );
 });
 
 test('EventsSchemaService uses a single bootstrap promise for concurrent startup callers', async () => {

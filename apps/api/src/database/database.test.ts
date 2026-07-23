@@ -4,6 +4,7 @@ import type { PoolClient, QueryResult, QueryResultRow } from 'pg';
 
 import { RequestContextService } from '../common/request-context/request-context.service';
 import { buildDatabasePoolOptions } from './database.module';
+import { DatabaseSecurityService } from './database-security.service';
 import { DatabaseService } from './database.service';
 import { buildTenantSessionSettingsQuery, PrismaService } from './prisma.service';
 
@@ -435,6 +436,56 @@ test('DatabaseService.query uses the raw pool when no request context exists', a
 
   assert.equal(pool.connectCalls, 0);
   assert.deepEqual(pool.queryCalls, [{ text: 'SELECT 1', values: [] }]);
+});
+
+test('DatabaseSecurityService repairs migrated managed function owners before runtime use', async () => {
+  const queries: RecordedQuery[] = [];
+  const pool = {
+    query: async (text: string, values?: unknown[]) => {
+      queries.push({ text, values });
+
+      if (
+        text.includes('to_regprocedure($1)')
+        && values?.[0] === 'app.claim_outbox_events(integer,integer)'
+      ) {
+        return {
+          rows: [
+            {
+              signature: 'app.claim_outbox_events(integer,integer)',
+              owner_name: 'neondb_owner',
+              security_definer: true,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+
+      return { rows: [], rowCount: 0 };
+    },
+  };
+  const service = new DatabaseSecurityService(
+    pool as never,
+    { get: () => undefined } as never,
+  );
+
+  (service as unknown as { currentUserName: string }).currentUserName = 'postgres';
+  await service.onApplicationBootstrap();
+
+  assert.equal(
+    queries.some(
+      (query) =>
+        normalizeSql(query.text)
+        === 'ALTER FUNCTION app.claim_outbox_events(integer,integer) OWNER TO postgres',
+    ),
+    true,
+  );
+  assert.equal(
+    queries.some(
+      (query) =>
+        normalizeSql(query.text).includes('ALTER FUNCTION app.find_user_by_email_for_auth'),
+    ),
+    false,
+  );
 });
 
 test('DatabaseService.withIndependentRequestTransaction commits outside the request client', async () => {

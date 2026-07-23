@@ -98,8 +98,11 @@ test('AuthSchemaService projects accepted school staff into the tenant staff dir
   assert.match(consumeInviteFunction, /set_config\('app\.tenant_id', invite_tenant_id, true\)/);
   assert.match(consumeInviteFunction, /to_regclass\('public\.staff_profiles'\) IS NOT NULL/);
   assert.match(consumeInviteFunction, /invite_role_code = ANY \(ARRAY\[[\s\S]+'teacher'[\s\S]+'admissions_officer'/);
-  assert.match(consumeInviteFunction, /UPDATE staff_profiles[\s\S]+tenant_id = \$1[\s\S]+user_id = \$2/);
   assert.match(consumeInviteFunction, /INSERT INTO staff_profiles[\s\S]+tenant_id,[\s\S]+user_id,[\s\S]+display_name/);
+  assert.match(
+    consumeInviteFunction,
+    /ON CONFLICT \(tenant_id, user_id\)[\s\S]+status = 'active'/,
+  );
   assert.doesNotMatch(
     consumeInviteFunction,
     /invite_role_code = ANY \(ARRAY\[[^\]]*'(?:parent|student)'/,

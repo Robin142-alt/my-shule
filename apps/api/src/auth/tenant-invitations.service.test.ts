@@ -780,6 +780,41 @@ test('TenantInvitationsService updates tenant membership status for the current 
   assert.equal(response.display_name, 'Mary Wanjiku');
   assert.match(queries[0]?.text ?? '', /UPDATE tenant_memberships/);
   assert.deepEqual(queries[0]?.values, ['membership-1', 'green-valley', 'suspended']);
+  assert.match(queries[1]?.text ?? '', /INSERT INTO staff_profiles/);
+  assert.match(queries[1]?.text ?? '', /ON CONFLICT \(tenant_id, user_id\)/);
+  assert.deepEqual(queries[1]?.values, [
+    'membership-1',
+    'green-valley',
+    'suspended',
+    [
+      'owner',
+      'admin',
+      'staff',
+      'principal',
+      'deputy_principal',
+      'secretary',
+      'bursar',
+      'accountant',
+      'teacher',
+      'class_teacher',
+      'grade_master',
+      'hod',
+      'dean_academics',
+      'exams_manager',
+      'nurse',
+      'clinic_staff',
+      'school_counsellor',
+      'discipline_master',
+      'librarian',
+      'storekeeper',
+      'boarding_master',
+      'security_officer',
+      'transport_manager',
+      'lab_technician',
+      'admissions_officer',
+      'ict_manager',
+    ],
+  ]);
 });
 
 test('TenantInvitationsService updates tenant membership role after validating role code', async () => {

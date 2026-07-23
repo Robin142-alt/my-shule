@@ -589,6 +589,7 @@ export class EventsSchemaService implements OnModuleInit {
       END;
       $$;
 
+      ALTER FUNCTION app.claim_outbox_events(integer, integer) OWNER TO CURRENT_USER;
       REVOKE ALL ON FUNCTION app.claim_outbox_events(integer, integer) FROM PUBLIC;
 
       CREATE INDEX IF NOT EXISTS ix_audit_logs_tenant_occurred_at

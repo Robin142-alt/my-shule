@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap, OnModuleInit } from '@nestjs/common';
 
 import { SCHOOL_STAFF_ROLE_CODES } from '../../auth/auth.constants';
 import { PrismaService } from '../../database/prisma.service';
@@ -26,7 +26,7 @@ const HR_TABLES = [
 ] as const;
 
 @Injectable()
-export class HrSchemaService implements OnModuleInit {
+export class HrSchemaService implements OnModuleInit, OnApplicationBootstrap {
 
   private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
     const firstParam = params[0];
@@ -162,6 +162,9 @@ export class HrSchemaService implements OnModuleInit {
 
       CREATE UNIQUE INDEX IF NOT EXISTS ux_staff_departments_tenant_lower_name
         ON staff_departments (tenant_id, lower(name));
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_staff_profiles_tenant_user
+        ON staff_profiles (tenant_id, user_id)
+        WHERE user_id IS NOT NULL;
       CREATE INDEX IF NOT EXISTS ix_staff_profiles_tenant_status_display_name
         ON staff_profiles (tenant_id, status, display_name, staff_number);
       CREATE INDEX IF NOT EXISTS ix_staff_profiles_display_name_trgm
@@ -296,12 +299,20 @@ export class HrSchemaService implements OnModuleInit {
           WHERE membership.status = 'active'
             AND user_account.status = 'active'
             AND role.code = ANY (ARRAY[${SCHOOL_STAFF_ROLE_SQL}]::text[])
-            AND NOT EXISTS (
-              SELECT 1
-              FROM staff_profiles existing
-              WHERE existing.tenant_id = membership.tenant_id
-                AND existing.user_id = membership.user_id
-            );
+          ON CONFLICT (tenant_id, user_id)
+            WHERE user_id IS NOT NULL
+          DO UPDATE SET
+            display_name = EXCLUDED.display_name,
+            status = CASE
+              WHEN staff_profiles.status IN (
+                'on_leave',
+                'exiting',
+                'exited',
+                'archived'
+              ) THEN staff_profiles.status
+              ELSE 'active'
+            END,
+            updated_at = NOW();
         END IF;
       END;
       $$;
@@ -318,5 +329,58 @@ export class HrSchemaService implements OnModuleInit {
     `);
 
     this.logger.log('HR staff management schema verified');
+  }
+
+  async onApplicationBootstrap(): Promise<void> {
+    const result = await this.executeSql<{ tenant_id: string; user_id: string }>(`
+      INSERT INTO staff_profiles (
+        tenant_id,
+        user_id,
+        display_name,
+        status,
+        created_at,
+        updated_at
+      )
+      SELECT
+        membership.tenant_id,
+        membership.user_id,
+        COALESCE(
+          NULLIF(user_account.display_name, ''),
+          NULLIF(user_account.full_name, ''),
+          user_account.email,
+          membership.user_id::text
+        ),
+        'active',
+        NOW(),
+        NOW()
+      FROM tenant_memberships membership
+      JOIN users user_account
+        ON user_account.id = membership.user_id
+      JOIN roles role
+        ON role.id = membership.role_id
+       AND role.tenant_id = membership.tenant_id
+      WHERE membership.status = 'active'
+        AND user_account.status = 'active'
+        AND role.code = ANY (ARRAY[${SCHOOL_STAFF_ROLE_SQL}]::text[])
+      ON CONFLICT (tenant_id, user_id)
+        WHERE user_id IS NOT NULL
+      DO UPDATE SET
+        display_name = EXCLUDED.display_name,
+        status = CASE
+          WHEN staff_profiles.status IN (
+            'on_leave',
+            'exiting',
+            'exited',
+            'archived'
+          ) THEN staff_profiles.status
+          ELSE 'active'
+        END,
+        updated_at = NOW()
+      RETURNING tenant_id, user_id
+    `);
+
+    this.logger.log(
+      `HR staff directory projection reconciled for ${result.rowCount} active school membership(s)`,
+    );
   }
 }

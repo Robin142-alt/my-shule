@@ -1436,16 +1436,6 @@ export class AuthSchemaService implements OnModuleInit {
         IF invite_role_code = ANY (ARRAY[${SCHOOL_STAFF_ROLE_SQL}]::text[])
           AND to_regclass('public.staff_profiles') IS NOT NULL THEN
           EXECUTE $staff_projection$
-            WITH updated_profile AS (
-              UPDATE staff_profiles
-              SET
-                display_name = COALESCE(NULLIF($3, ''), display_name),
-                status = 'active',
-                updated_at = NOW()
-              WHERE tenant_id = $1
-                AND user_id = $2
-              RETURNING id
-            )
             INSERT INTO staff_profiles (
               tenant_id,
               user_id,
@@ -1454,14 +1444,20 @@ export class AuthSchemaService implements OnModuleInit {
               created_at,
               updated_at
             )
-            SELECT
+            VALUES (
               $1,
               $2,
               $3,
               'active',
               NOW(),
               NOW()
-            WHERE NOT EXISTS (SELECT 1 FROM updated_profile)
+            )
+            ON CONFLICT (tenant_id, user_id)
+              WHERE user_id IS NOT NULL
+            DO UPDATE SET
+              display_name = COALESCE(NULLIF(EXCLUDED.display_name, ''), staff_profiles.display_name),
+              status = 'active',
+              updated_at = NOW()
           $staff_projection$
           USING invite_tenant_id, invited_user_id, invite_display_name;
         END IF;

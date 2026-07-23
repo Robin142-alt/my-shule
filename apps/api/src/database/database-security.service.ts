@@ -13,6 +13,30 @@ interface CurrentRoleState {
   rolbypassrls: boolean;
 }
 
+interface ManagedFunctionState {
+  signature: string;
+  owner_name: string;
+  security_definer: boolean;
+}
+
+const MANAGED_SECURITY_DEFINER_FUNCTIONS = [
+  'app.claim_outbox_events(integer,integer)',
+  'app.find_user_by_email_for_auth(text)',
+  'app.find_active_memberships_by_user_for_auth(uuid)',
+  'app.find_platform_owner_by_email_for_auth(text)',
+  'app.find_platform_owner_by_id_for_auth(uuid)',
+  'app.create_global_user_from_invitation(text,text,text)',
+  'app.find_user_for_password_recovery(text,text,text,text)',
+  'app.create_password_recovery_action(text,uuid,text,text,timestamptz,text,jsonb)',
+  'app.create_email_verification_action(text,uuid,text,text,timestamptz,text,jsonb)',
+  'app.mark_auth_email_outbox_delivery(uuid,text,text,text,integer)',
+  'app.consume_password_recovery_action(text,text)',
+  'app.consume_email_verification_action(text)',
+  'app.consume_invite_acceptance_action(text,text,text,text)',
+  'app.find_daraja_integration_by_id_for_callback(uuid)',
+  'app.find_parent_auth_subject_for_otp(text,text)',
+] as const;
+
 @Injectable()
 export class DatabaseSecurityService implements OnModuleInit, OnApplicationBootstrap {
   private readonly logger = new Logger(DatabaseSecurityService.name);
@@ -58,11 +82,11 @@ export class DatabaseSecurityService implements OnModuleInit, OnApplicationBoots
   }
 
   async onApplicationBootstrap(): Promise<void> {
-    if (!this.runtimeRoleName) {
-      return;
-    }
+    await this.repairManagedFunctionOwnership();
 
-    await this.grantRuntimeRolePrivileges(this.runtimeRoleName);
+    if (this.runtimeRoleName) {
+      await this.grantRuntimeRolePrivileges(this.runtimeRoleName);
+    }
   }
 
   getRuntimeRoleName(): string | null {
@@ -135,6 +159,45 @@ export class DatabaseSecurityService implements OnModuleInit, OnApplicationBoots
         runtimeRoleName,
       ),
     );
+  }
+
+  private async repairManagedFunctionOwnership(): Promise<void> {
+    if (!this.currentUserName) {
+      return;
+    }
+
+    let repairedCount = 0;
+
+    for (const functionSignature of MANAGED_SECURITY_DEFINER_FUNCTIONS) {
+      const result = await this.pool.query<ManagedFunctionState>(
+        `
+          SELECT
+            p.oid::regprocedure::text AS signature,
+            pg_get_userbyid(p.proowner) AS owner_name,
+            p.prosecdef AS security_definer
+          FROM pg_proc p
+          WHERE p.oid = to_regprocedure($1)
+          LIMIT 1
+        `,
+        [functionSignature],
+      );
+      const state = result.rows[0];
+
+      if (!state || !state.security_definer || state.owner_name === this.currentUserName) {
+        continue;
+      }
+
+      await this.pool.query(
+        format('ALTER FUNCTION %s OWNER TO %I', functionSignature, this.currentUserName),
+      );
+      repairedCount += 1;
+    }
+
+    if (repairedCount > 0) {
+      this.logger.warn(
+        `Repaired ownership for ${repairedCount} managed SECURITY DEFINER function(s) after database migration`,
+      );
+    }
   }
 
   private async getCurrentRoleState(): Promise<CurrentRoleState> {

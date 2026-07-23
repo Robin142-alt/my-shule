@@ -40,6 +40,7 @@ test('HrSchemaService creates staff management tables with forced RLS', async ()
   assert.match(schemaSql, /status text NOT NULL DEFAULT 'invited'/);
   assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_staff_departments_tenant_lower_name/);
   assert.match(schemaSql, /CREATE EXTENSION IF NOT EXISTS pg_trgm/);
+  assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_staff_profiles_tenant_user/);
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_staff_profiles_tenant_status_display_name/);
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_staff_profiles_display_name_trgm/);
   assert.doesNotMatch(schemaSql, /UNIQUE \(tenant_id, lower\(name\)\)/);
@@ -47,9 +48,37 @@ test('HrSchemaService creates staff management tables with forced RLS', async ()
   assert.match(schemaSql, /JOIN users user_account[\s\S]+membership\.user_id/);
   assert.match(schemaSql, /JOIN roles role[\s\S]+role\.tenant_id = membership\.tenant_id/);
   assert.match(schemaSql, /role\.code = ANY \(ARRAY\[[\s\S]+'teacher'[\s\S]+'admissions_officer'/);
-  assert.match(schemaSql, /NOT EXISTS \([\s\S]+existing\.tenant_id = membership\.tenant_id[\s\S]+existing\.user_id = membership\.user_id/);
+  assert.match(schemaSql, /ON CONFLICT \(tenant_id, user_id\)[\s\S]+DO UPDATE SET/);
   assert.doesNotMatch(schemaSql, /role\.code = ANY \(ARRAY\[[^\]]*'(?:parent|student)'/);
   assert.match(schemaSql, /ALTER TABLE staff_profiles FORCE ROW LEVEL SECURITY/);
+});
+
+test('HrSchemaService reconciles accepted memberships into the shared staff directory', async () => {
+  let reconciliationSql = '';
+  const service = new HrSchemaService({
+    query: async (sql: string) => {
+      reconciliationSql = sql;
+      return {
+        rows: [
+          { tenant_id: 'school-a', user_id: 'user-a' },
+          { tenant_id: 'school-a', user_id: 'user-b' },
+        ],
+        rowCount: 2,
+      };
+    },
+  } as never);
+
+  await service.onApplicationBootstrap();
+
+  assert.match(reconciliationSql, /INSERT INTO staff_profiles/);
+  assert.match(reconciliationSql, /FROM tenant_memberships membership/);
+  assert.match(reconciliationSql, /membership\.status = 'active'/);
+  assert.match(reconciliationSql, /user_account\.status = 'active'/);
+  assert.match(reconciliationSql, /ON CONFLICT \(tenant_id, user_id\)/);
+  assert.doesNotMatch(
+    reconciliationSql,
+    /role\.code = ANY \(ARRAY\[[^\]]*'(?:parent|student)'/,
+  );
 });
 
 test('HrService prevents overlapping active contracts for the same staff member', async () => {
