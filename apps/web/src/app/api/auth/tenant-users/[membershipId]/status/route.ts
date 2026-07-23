@@ -31,5 +31,6 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     method: "PATCH",
     body,
     unavailableMessage,
+    unwrapResponseEnvelope: true,
   });
 }

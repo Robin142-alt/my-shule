@@ -1,6 +1,11 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 
+import { SCHOOL_STAFF_ROLE_CODES } from '../../auth/auth.constants';
 import { PrismaService } from '../../database/prisma.service';
+
+const SCHOOL_STAFF_ROLE_SQL = SCHOOL_STAFF_ROLE_CODES
+  .map((roleCode) => `'${roleCode}'`)
+  .join(', ');
 
 const HR_TABLES = [
   'staff_departments',
@@ -256,6 +261,50 @@ export class HrSchemaService implements OnModuleInit {
         ALTER TABLE ${table} ALTER COLUMN tenant_id SET DEFAULT 'global';
         ALTER TABLE ${table} ALTER COLUMN tenant_id SET NOT NULL;
       `).join('\n')}
+
+      DO $$
+      BEGIN
+        IF to_regclass('public.tenant_memberships') IS NOT NULL
+          AND to_regclass('public.users') IS NOT NULL
+          AND to_regclass('public.roles') IS NOT NULL THEN
+          INSERT INTO staff_profiles (
+            tenant_id,
+            user_id,
+            display_name,
+            status,
+            created_at,
+            updated_at
+          )
+          SELECT
+            membership.tenant_id,
+            membership.user_id,
+            COALESCE(
+              NULLIF(user_account.display_name, ''),
+              NULLIF(user_account.full_name, ''),
+              user_account.email,
+              membership.user_id::text
+            ),
+            'active',
+            NOW(),
+            NOW()
+          FROM tenant_memberships membership
+          JOIN users user_account
+            ON user_account.id = membership.user_id
+          JOIN roles role
+            ON role.id = membership.role_id
+           AND role.tenant_id = membership.tenant_id
+          WHERE membership.status = 'active'
+            AND user_account.status = 'active'
+            AND role.code = ANY (ARRAY[${SCHOOL_STAFF_ROLE_SQL}]::text[])
+            AND NOT EXISTS (
+              SELECT 1
+              FROM staff_profiles existing
+              WHERE existing.tenant_id = membership.tenant_id
+                AND existing.user_id = membership.user_id
+            );
+        END IF;
+      END;
+      $$;
 
       ${HR_TABLES.map((table) => `
         ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;

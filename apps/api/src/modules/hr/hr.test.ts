@@ -43,6 +43,12 @@ test('HrSchemaService creates staff management tables with forced RLS', async ()
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_staff_profiles_tenant_status_display_name/);
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_staff_profiles_display_name_trgm/);
   assert.doesNotMatch(schemaSql, /UNIQUE \(tenant_id, lower\(name\)\)/);
+  assert.match(schemaSql, /INSERT INTO staff_profiles[\s\S]+FROM tenant_memberships membership/);
+  assert.match(schemaSql, /JOIN users user_account[\s\S]+membership\.user_id/);
+  assert.match(schemaSql, /JOIN roles role[\s\S]+role\.tenant_id = membership\.tenant_id/);
+  assert.match(schemaSql, /role\.code = ANY \(ARRAY\[[\s\S]+'teacher'[\s\S]+'admissions_officer'/);
+  assert.match(schemaSql, /NOT EXISTS \([\s\S]+existing\.tenant_id = membership\.tenant_id[\s\S]+existing\.user_id = membership\.user_id/);
+  assert.doesNotMatch(schemaSql, /role\.code = ANY \(ARRAY\[[^\]]*'(?:parent|student)'/);
   assert.match(schemaSql, /ALTER TABLE staff_profiles FORCE ROW LEVEL SECURITY/);
 });
 

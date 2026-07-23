@@ -1,6 +1,11 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 
 import { DatabaseService } from '../database/database.service';
+import { SCHOOL_STAFF_ROLE_CODES } from './auth.constants';
+
+const SCHOOL_STAFF_ROLE_SQL = SCHOOL_STAFF_ROLE_CODES
+  .map((roleCode) => `'${roleCode}'`)
+  .join(', ');
 
 @Injectable()
 export class AuthSchemaService implements OnModuleInit {
@@ -1353,6 +1358,8 @@ export class AuthSchemaService implements OnModuleInit {
             USING ERRCODE = '28000';
         END IF;
 
+        PERFORM set_config('app.tenant_id', invite_tenant_id, true);
+
         invite_role_code := COALESCE(NULLIF(invite_metadata ->> 'role_code', ''), 'member');
         invite_display_name := COALESCE(
           NULLIF(input_display_name, ''),
@@ -1425,6 +1432,39 @@ export class AuthSchemaService implements OnModuleInit {
           role_id = EXCLUDED.role_id,
           status = 'active',
           updated_at = NOW();
+
+        IF invite_role_code = ANY (ARRAY[${SCHOOL_STAFF_ROLE_SQL}]::text[])
+          AND to_regclass('public.staff_profiles') IS NOT NULL THEN
+          EXECUTE $staff_projection$
+            WITH updated_profile AS (
+              UPDATE staff_profiles
+              SET
+                display_name = COALESCE(NULLIF($3, ''), display_name),
+                status = 'active',
+                updated_at = NOW()
+              WHERE tenant_id = $1
+                AND user_id = $2
+              RETURNING id
+            )
+            INSERT INTO staff_profiles (
+              tenant_id,
+              user_id,
+              display_name,
+              status,
+              created_at,
+              updated_at
+            )
+            SELECT
+              $1,
+              $2,
+              $3,
+              'active',
+              NOW(),
+              NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM updated_profile)
+          $staff_projection$
+          USING invite_tenant_id, invited_user_id, invite_display_name;
+        END IF;
 
         IF invite_role_code = 'parent' THEN
           UPDATE student_guardians

@@ -81,6 +81,31 @@ test('AuthSchemaService marks accepted invitations and active school memberships
   assert.match(consumeInviteFunction, /consumed_at = NOW\(\)/);
 });
 
+test('AuthSchemaService projects accepted school staff into the tenant staff directory', async () => {
+  let bootstrapSql = '';
+  const service = new AuthSchemaService({
+    runSchemaBootstrap: async (sql: string) => {
+      bootstrapSql = sql;
+    },
+  } as never);
+
+  await service.onModuleInit();
+
+  const consumeInviteFunction = bootstrapSql.match(
+    /CREATE OR REPLACE FUNCTION app\.consume_invite_acceptance_action[\s\S]+?\$\$;/,
+  )?.[0] ?? '';
+
+  assert.match(consumeInviteFunction, /set_config\('app\.tenant_id', invite_tenant_id, true\)/);
+  assert.match(consumeInviteFunction, /to_regclass\('public\.staff_profiles'\) IS NOT NULL/);
+  assert.match(consumeInviteFunction, /invite_role_code = ANY \(ARRAY\[[\s\S]+'teacher'[\s\S]+'admissions_officer'/);
+  assert.match(consumeInviteFunction, /UPDATE staff_profiles[\s\S]+tenant_id = \$1[\s\S]+user_id = \$2/);
+  assert.match(consumeInviteFunction, /INSERT INTO staff_profiles[\s\S]+tenant_id,[\s\S]+user_id,[\s\S]+display_name/);
+  assert.doesNotMatch(
+    consumeInviteFunction,
+    /invite_role_code = ANY \(ARRAY\[[^\]]*'(?:parent|student)'/,
+  );
+});
+
 test('AuthSchemaService resolves invite acceptance column-name conflicts', async () => {
   let bootstrapSql = '';
   const service = new AuthSchemaService({

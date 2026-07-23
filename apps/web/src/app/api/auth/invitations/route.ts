@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
       path: "/auth/invitations",
       method: "GET",
       unavailableMessage,
-      fallbackPayload: { users: [] },
+      unwrapResponseEnvelope: true,
     });
   } catch (error) {
     return NextResponse.json(
@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
       method: "POST",
       body,
       unavailableMessage,
+      unwrapResponseEnvelope: true,
     });
   } catch (error) {
     return NextResponse.json(

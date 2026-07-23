@@ -22,7 +22,7 @@ type SchoolProxyRequest = {
   method: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
   unavailableMessage: string;
-  fallbackPayload?: unknown;
+  unwrapResponseEnvelope?: boolean;
 };
 
 export async function proxySchoolApiRequest(input: SchoolProxyRequest) {
@@ -39,9 +39,7 @@ export async function proxySchoolApiRequest(input: SchoolProxyRequest) {
   let payload = await response.json().catch(() => null);
 
   if (response.status !== 401) {
-    return NextResponse.json(payload ?? input.fallbackPayload ?? {}, {
-      status: response.status,
-    });
+    return createSchoolApiResponse(response, payload, input);
   }
 
   const refreshedSession = await refreshSchoolApiSession(input.request, session.tenantSlug);
@@ -62,12 +60,45 @@ export async function proxySchoolApiRequest(input: SchoolProxyRequest) {
   );
   payload = await response.json().catch(() => null);
 
-  const nextResponse = NextResponse.json(payload ?? input.fallbackPayload ?? {}, {
-    status: response.status,
-  });
+  const nextResponse = createSchoolApiResponse(response, payload, input);
   setExperienceSessionCookies(nextResponse, refreshedSession.session);
 
   return nextResponse;
+}
+
+export function unwrapSchoolApiResponseEnvelope(payload: unknown) {
+  if (
+    !payload
+    || typeof payload !== "object"
+    || Array.isArray(payload)
+    || !Object.prototype.hasOwnProperty.call(payload, "data")
+  ) {
+    return payload;
+  }
+
+  return (payload as { data?: unknown }).data;
+}
+
+function createSchoolApiResponse(
+  response: Response,
+  payload: unknown,
+  input: SchoolProxyRequest,
+) {
+  const shouldUnwrap = input.unwrapResponseEnvelope && response.ok;
+  const normalizedPayload = shouldUnwrap
+    ? unwrapSchoolApiResponseEnvelope(payload)
+    : payload;
+
+  if (shouldUnwrap && normalizedPayload == null) {
+    return NextResponse.json(
+      { message: input.unavailableMessage },
+      { status: 502 },
+    );
+  }
+
+  return NextResponse.json(normalizedPayload ?? {}, {
+    status: response.status,
+  });
 }
 
 async function getSchoolApiSession(): Promise<SchoolApiSession | null> {

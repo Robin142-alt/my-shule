@@ -608,6 +608,7 @@ test('AcademicsRepository lists active staff teacher options without cross-tenan
             label: 'Amina Otieno',
             staff_number: 'TSC-102',
             status: 'active',
+            role_code: 'teacher',
           },
         ],
       };
@@ -617,12 +618,16 @@ test('AcademicsRepository lists active staff teacher options without cross-tenan
   const result = await repository.listTeacherOptions('tenant-a');
 
   assert.equal(tenantIdUsed, 'tenant-a');
-  assert.match(calls[0]!.sql, /FROM staff_profiles/i);
-  assert.match(calls[0]!.sql, /WHERE tenant_id = \$1/i);
-  assert.match(calls[0]!.sql, /user_id IS NOT NULL/i);
-  assert.match(calls[0]!.sql, /COALESCE\(status, 'active'\) = 'active'/i);
+  assert.match(calls[0]!.sql, /FROM tenant_memberships membership/i);
+  assert.match(calls[0]!.sql, /JOIN users user_account/i);
+  assert.match(calls[0]!.sql, /JOIN roles role/i);
+  assert.match(calls[0]!.sql, /LEFT JOIN staff_profiles staff/i);
+  assert.match(calls[0]!.sql, /WHERE membership\.tenant_id = \$1/i);
+  assert.match(calls[0]!.sql, /membership\.status = 'active'/i);
+  assert.match(calls[0]!.sql, /user_account\.status = 'active'/i);
+  assert.match(calls[0]!.sql, /role\.code = ANY/i);
   assert.match(calls[0]!.sql, /display_name/i);
-  assert.doesNotMatch(calls[0]!.sql, /full_name/i);
+  assert.match(calls[0]!.sql, /full_name/i);
   assert.deepEqual(calls[0]!.params, ['tenant-a']);
   assert.deepEqual(result, [
     {
@@ -631,6 +636,7 @@ test('AcademicsRepository lists active staff teacher options without cross-tenan
       label: 'Amina Otieno',
       staff_number: 'TSC-102',
       status: 'active',
+      role_code: 'teacher',
     },
   ]);
 });
@@ -672,6 +678,9 @@ test('AcademicsRepository loads the complete academic foundation in one tenant t
   assert.match(observedSql, /FROM class_subject_assignments/);
   assert.match(observedSql, /FROM class_streams/);
   assert.match(observedSql, /FROM teacher_subject_assignments/);
+  assert.match(observedSql, /FROM tenant_memberships membership/);
+  assert.match(observedSql, /JOIN roles role/);
+  assert.match(observedSql, /role\.code = ANY/);
   assert.deepEqual(result.years, [{ id: 'year-1', name: '2026' }]);
 });
 
@@ -698,6 +707,7 @@ test('AcademicsRepository finds active teacher options by tenant and user id', a
             label: 'Amina Otieno',
             staff_number: 'TSC-102',
             status: 'active',
+            role_code: 'teacher',
           },
         ],
       };
@@ -707,10 +717,13 @@ test('AcademicsRepository finds active teacher options by tenant and user id', a
   const result = await repository.findTeacherOptionByUserId('tenant-a', 'teacher-user-1');
 
   assert.equal(tenantIdUsed, 'tenant-a');
-  assert.match(calls[0]!.sql, /FROM staff_profiles/i);
-  assert.match(calls[0]!.sql, /WHERE tenant_id = \$1/i);
-  assert.match(calls[0]!.sql, /user_id = \$2::uuid/i);
-  assert.match(calls[0]!.sql, /COALESCE\(status, 'active'\) = 'active'/i);
+  assert.match(calls[0]!.sql, /FROM tenant_memberships membership/i);
+  assert.match(calls[0]!.sql, /JOIN users user_account/i);
+  assert.match(calls[0]!.sql, /JOIN roles role/i);
+  assert.match(calls[0]!.sql, /LEFT JOIN staff_profiles staff/i);
+  assert.match(calls[0]!.sql, /WHERE membership\.tenant_id = \$1/i);
+  assert.match(calls[0]!.sql, /membership\.user_id = \$2::uuid/i);
+  assert.match(calls[0]!.sql, /role\.code = ANY/i);
   assert.deepEqual(calls[0]!.params, ['tenant-a', 'teacher-user-1']);
   assert.deepEqual(result, {
     id: 'staff-1',
@@ -718,6 +731,7 @@ test('AcademicsRepository finds active teacher options by tenant and user id', a
     label: 'Amina Otieno',
     staff_number: 'TSC-102',
     status: 'active',
+    role_code: 'teacher',
   });
 });
 

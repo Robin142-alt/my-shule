@@ -29,5 +29,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
     path: `/auth/invitations/${invitationId}/resend`,
     method: "POST",
     unavailableMessage,
+    unwrapResponseEnvelope: true,
   });
 }

@@ -151,15 +151,20 @@ describe("school-scoped user management and invitations", () => {
 
       if (url === "/api/auth/invitations" && method === "POST") {
         return Promise.resolve(jsonResponse({
-          id: "invite-grace",
-          kind: "invitation",
-          display_name: "Grace Njeri",
-          email: "grace.njeri@kisumuboys.ac.ke",
-          role_code: "teacher",
-          role_name: "Teacher",
-          status: "invited",
-          invitation_sent: true,
-          expires_at: "2026-06-08T09:00:00.000Z",
+          data: {
+            id: "invite-grace",
+            kind: "invitation",
+            display_name: "Grace Njeri",
+            email: "grace.njeri@kisumuboys.ac.ke",
+            role_code: "teacher",
+            role_name: "Teacher",
+            status: "invited",
+            invitation_sent: true,
+            expires_at: "2026-06-08T09:00:00.000Z",
+          },
+          meta: {
+            request_id: "req-invite-grace",
+          },
         }));
       }
 
@@ -305,6 +310,64 @@ describe("school-scoped user management and invitations", () => {
     );
     expect(readSchoolData("user-invitations", "kisumu-boys")).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ invitedName: "Brian Otieno" })]),
+    );
+  }, 30000);
+
+  it("loads accepted school members from the API response envelope", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+
+      if (url.startsWith("/api/auth/invitations") && method === "GET") {
+        return Promise.resolve(jsonResponse({
+          data: {
+            users: [
+              {
+                id: "membership-kibabi-teacher",
+                kind: "member",
+                display_name: "Accepted Kibabi Teacher",
+                email: "accepted.teacher@example.test",
+                role_code: "teacher",
+                role_name: "Teacher",
+                status: "active",
+                joined_at: "2026-07-23T08:00:00.000Z",
+              },
+            ],
+            pagination: {
+              limit: 50,
+              offset: 0,
+              total: 1,
+            },
+          },
+          meta: {
+            request_id: "request-kibabi-users",
+            limit: 50,
+          },
+        }));
+      }
+
+      return Promise.resolve(jsonResponse({}));
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    renderWithProviders(<SchoolPages role="principal" tenantSlug="kibabi-high" />);
+
+    const commandCenter = await screen.findByTestId("role-operational-command-center");
+    await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
+
+    expect(await within(commandCenter).findByText("Accepted Kibabi Teacher")).toBeVisible();
+    expect(within(commandCenter).getByText("1 active users")).toBeVisible();
+    expect(within(commandCenter).getByText("accepted.teacher@example.test")).toBeVisible();
+    expect(readSchoolData("school-users", "kibabi-high")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "membership-kibabi-teacher",
+          schoolId: "kibabi-high",
+          role: "Teacher",
+          status: "Active",
+        }),
+      ]),
     );
   }, 30000);
 

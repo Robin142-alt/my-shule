@@ -305,11 +305,11 @@ function apiUserToInvitation(user: ManagedUserApi, schoolId: string, actorRole: 
   };
 }
 
-function splitLiveUsers(payloadUsers: ManagedUserApi[] | undefined, schoolId: string, actorRole: string) {
+function splitLiveUsers(payloadUsers: ManagedUserApi[], schoolId: string, actorRole: string) {
   const users: SchoolUserRecord[] = [];
   const invitations: UserInvitationRecord[] = [];
 
-  (payloadUsers ?? []).forEach((apiUser) => {
+  payloadUsers.forEach((apiUser) => {
     const isInvitation =
       apiUser.kind === "invitation"
       || apiUser.status === "invited"
@@ -335,16 +335,74 @@ function isManagedUserApi(payload: unknown): payload is ManagedUserApi {
   );
 }
 
-function readManagedUserPayload(payload: { user?: ManagedUserApi; message?: string } | ManagedUserApi | null) {
-  if (!payload) return null;
-  if ("user" in payload) return payload.user ?? null;
-  return isManagedUserApi(payload) ? payload : null;
+function unwrapApiEnvelope(payload: unknown) {
+  if (
+    payload
+    && typeof payload === "object"
+    && !Array.isArray(payload)
+    && Object.prototype.hasOwnProperty.call(payload, "data")
+  ) {
+    return (payload as { data?: unknown }).data;
+  }
+
+  return payload;
 }
 
-function readManagedInvitationPayload(payload: { invitation?: ManagedUserApi; message?: string } | ManagedUserApi | null) {
-  if (!payload) return null;
-  if ("invitation" in payload) return payload.invitation ?? null;
-  return isManagedUserApi(payload) ? payload : null;
+function readManagedUsersPayload(payload: unknown) {
+  const candidate = unwrapApiEnvelope(payload);
+
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+    return null;
+  }
+
+  const users = (candidate as { users?: unknown }).users;
+
+  if (!Array.isArray(users) || !users.every(isManagedUserApi)) {
+    return null;
+  }
+
+  return { users };
+}
+
+function readApiMessage(payload: unknown) {
+  const candidate = unwrapApiEnvelope(payload);
+
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+    return null;
+  }
+
+  const message = (candidate as { message?: unknown }).message;
+  return typeof message === "string" ? message : null;
+}
+
+function readManagedUserPayload(payload: unknown) {
+  const candidate = unwrapApiEnvelope(payload);
+
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+    return null;
+  }
+
+  if ("user" in candidate) {
+    const user = (candidate as { user?: unknown }).user;
+    return isManagedUserApi(user) ? user : null;
+  }
+
+  return isManagedUserApi(candidate) ? candidate : null;
+}
+
+function readManagedInvitationPayload(payload: unknown) {
+  const candidate = unwrapApiEnvelope(payload);
+
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+    return null;
+  }
+
+  if ("invitation" in candidate) {
+    const invitation = (candidate as { invitation?: unknown }).invitation;
+    return isManagedUserApi(invitation) ? invitation : null;
+  }
+
+  return isManagedUserApi(candidate) ? candidate : null;
 }
 
 function statusTone(status: SchoolUserStatus | InvitationStatus) {
@@ -438,13 +496,19 @@ export function UserManagementWorkspace({
           credentials: "same-origin",
           cache: "no-store",
         });
-        const payload = (await response.json().catch(() => null)) as { users?: ManagedUserApi[]; message?: string } | null;
+        const rawPayload = await response.json().catch(() => null);
 
         if (!response.ok) {
-          throw new Error(payload?.message ?? "Unable to load live school users.");
+          throw new Error(readApiMessage(rawPayload) ?? "Unable to load live school users.");
         }
 
-        const live = splitLiveUsers(payload?.users, schoolId, actorRole);
+        const payload = readManagedUsersPayload(rawPayload);
+
+        if (!payload) {
+          throw new Error("The live school user response was incomplete.");
+        }
+
+        const live = splitLiveUsers(payload.users, schoolId, actorRole);
 
         if (!mounted) {
           return;
@@ -554,10 +618,10 @@ export function UserManagementWorkspace({
           },
           body: JSON.stringify({ status: status === "Active" ? "active" : "suspended" }),
         });
-        const payload = (await response.json().catch(() => null)) as { user?: ManagedUserApi; message?: string } | ManagedUserApi | null;
+        const payload = await response.json().catch(() => null);
 
         if (!response.ok) {
-          throw new Error((payload && "message" in payload ? payload.message : undefined) ?? "Unable to update user status.");
+          throw new Error(readApiMessage(payload) ?? "Unable to update user status.");
         }
 
         const apiUser = readManagedUserPayload(payload);
@@ -637,10 +701,10 @@ export function UserManagementWorkspace({
           "x-myshule-csrf": csrfToken,
         },
       });
-      const payload = (await response.json().catch(() => null)) as { invitation?: ManagedUserApi; message?: string } | ManagedUserApi | null;
+      const payload = await response.json().catch(() => null);
 
       if (!response.ok) {
-        throw new Error((payload && "message" in payload ? payload.message : undefined) ?? "Unable to resend invitation email.");
+        throw new Error(readApiMessage(payload) ?? "Unable to resend invitation email.");
       }
 
       const apiInvite = readManagedInvitationPayload(payload);
@@ -921,10 +985,10 @@ export function UserManagementWorkspace({
           note,
         }),
       });
-      const payload = (await response.json().catch(() => null)) as { invitation?: ManagedUserApi; message?: string } | ManagedUserApi | null;
+      const payload = await response.json().catch(() => null);
 
       if (!response.ok) {
-        throw new Error((payload && "message" in payload ? payload.message : undefined) ?? "Unable to send invitation email.");
+        throw new Error(readApiMessage(payload) ?? "Unable to send invitation email.");
       }
 
       const apiInvite = readManagedInvitationPayload(payload);

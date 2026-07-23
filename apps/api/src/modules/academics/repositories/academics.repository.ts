@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
+import { ACADEMIC_TEACHING_ROLE_CODES } from '../../../auth/auth.constants';
 import { PrismaService } from '../../../database/prisma.service';
+
+const ACADEMIC_TEACHING_ROLE_SQL = ACADEMIC_TEACHING_ROLE_CODES
+  .map((roleCode) => `'${roleCode}'`)
+  .join(', ');
 
 type SetupDependencyDefinition = { table: string; column: string; label: string };
 
@@ -195,12 +200,33 @@ export class AcademicsRepository {
             COALESCE((
               SELECT jsonb_agg(to_jsonb(item) ORDER BY item.label ASC)
               FROM (
-                SELECT id::text, user_id::text,
-                       COALESCE(display_name, staff_number, id::text) AS label,
-                       staff_number, COALESCE(status, 'active') AS status
-                FROM staff_profiles
-                WHERE tenant_id = $1 AND user_id IS NOT NULL
-                  AND COALESCE(status, 'active') = 'active'
+                SELECT
+                       COALESCE(staff.id, membership.user_id)::text AS id,
+                       membership.user_id::text,
+                       COALESCE(
+                         NULLIF(staff.display_name, ''),
+                         NULLIF(user_account.display_name, ''),
+                         NULLIF(user_account.full_name, ''),
+                         user_account.email,
+                         membership.user_id::text
+                       ) AS label,
+                       staff.staff_number,
+                       COALESCE(staff.status, 'active') AS status,
+                       role.code AS role_code
+                FROM tenant_memberships membership
+                JOIN users user_account
+                  ON user_account.id = membership.user_id
+                JOIN roles role
+                  ON role.id = membership.role_id
+                 AND role.tenant_id = membership.tenant_id
+                LEFT JOIN staff_profiles staff
+                  ON staff.tenant_id = membership.tenant_id
+                 AND staff.user_id = membership.user_id
+                WHERE membership.tenant_id = $1
+                  AND membership.status = 'active'
+                  AND user_account.status = 'active'
+                  AND COALESCE(staff.status, 'active') IN ('active', 'reactivated')
+                  AND role.code = ANY (ARRAY[${ACADEMIC_TEACHING_ROLE_SQL}]::text[])
                 LIMIT 300
               ) item
             ), '[]'::jsonb) AS teachers,
@@ -846,67 +872,75 @@ export class AcademicsRepository {
   }
 
   async listTeacherOptions(tenantId: string) {
-    const result = await this.executeSql(this.getTenantId([`
+    const result = await this.executeSql(tenantId, `
         SELECT
-          id::text,
-          user_id::text,
-          COALESCE(display_name, staff_number, id::text) AS label,
-          staff_number,
-          COALESCE(status, 'active') AS status
-        FROM staff_profiles
-        WHERE tenant_id = $1
-          AND user_id IS NOT NULL
-          AND COALESCE(status, 'active') = 'active'
+          COALESCE(staff.id, membership.user_id)::text AS id,
+          membership.user_id::text,
+          COALESCE(
+            NULLIF(staff.display_name, ''),
+            NULLIF(user_account.display_name, ''),
+            NULLIF(user_account.full_name, ''),
+            user_account.email,
+            membership.user_id::text
+          ) AS label,
+          staff.staff_number,
+          COALESCE(staff.status, 'active') AS status,
+          role.code AS role_code
+        FROM tenant_memberships membership
+        JOIN users user_account
+          ON user_account.id = membership.user_id
+        JOIN roles role
+          ON role.id = membership.role_id
+         AND role.tenant_id = membership.tenant_id
+        LEFT JOIN staff_profiles staff
+          ON staff.tenant_id = membership.tenant_id
+         AND staff.user_id = membership.user_id
+        WHERE membership.tenant_id = $1
+          AND membership.status = 'active'
+          AND user_account.status = 'active'
+          AND COALESCE(staff.status, 'active') IN ('active', 'reactivated')
+          AND role.code = ANY (ARRAY[${ACADEMIC_TEACHING_ROLE_SQL}]::text[])
         ORDER BY label ASC
         LIMIT 300
       `,
-      [tenantId],]), `
-        SELECT
-          id::text,
-          user_id::text,
-          COALESCE(display_name, staff_number, id::text) AS label,
-          staff_number,
-          COALESCE(status, 'active') AS status
-        FROM staff_profiles
-        WHERE tenant_id = $1
-          AND user_id IS NOT NULL
-          AND COALESCE(status, 'active') = 'active'
-        ORDER BY label ASC
-        LIMIT 300
-      `,
-      [tenantId],);
+      [tenantId]);
 
     return result.rows;
   }
 
   async findTeacherOptionByUserId(tenantId: string, teacherUserId: string) {
-    const result = await this.executeSql(this.getTenantId([`
+    const result = await this.executeSql(tenantId, `
         SELECT
-          id::text,
-          user_id::text,
-          COALESCE(display_name, staff_number, id::text) AS label,
-          staff_number,
-          COALESCE(status, 'active') AS status
-        FROM staff_profiles
-        WHERE tenant_id = $1
-          AND user_id = $2::uuid
-          AND COALESCE(status, 'active') = 'active'
+          COALESCE(staff.id, membership.user_id)::text AS id,
+          membership.user_id::text,
+          COALESCE(
+            NULLIF(staff.display_name, ''),
+            NULLIF(user_account.display_name, ''),
+            NULLIF(user_account.full_name, ''),
+            user_account.email,
+            membership.user_id::text
+          ) AS label,
+          staff.staff_number,
+          COALESCE(staff.status, 'active') AS status,
+          role.code AS role_code
+        FROM tenant_memberships membership
+        JOIN users user_account
+          ON user_account.id = membership.user_id
+        JOIN roles role
+          ON role.id = membership.role_id
+         AND role.tenant_id = membership.tenant_id
+        LEFT JOIN staff_profiles staff
+          ON staff.tenant_id = membership.tenant_id
+         AND staff.user_id = membership.user_id
+        WHERE membership.tenant_id = $1
+          AND membership.user_id = $2::uuid
+          AND membership.status = 'active'
+          AND user_account.status = 'active'
+          AND COALESCE(staff.status, 'active') IN ('active', 'reactivated')
+          AND role.code = ANY (ARRAY[${ACADEMIC_TEACHING_ROLE_SQL}]::text[])
         LIMIT 1
       `,
-      [tenantId, teacherUserId],]), `
-        SELECT
-          id::text,
-          user_id::text,
-          COALESCE(display_name, staff_number, id::text) AS label,
-          staff_number,
-          COALESCE(status, 'active') AS status
-        FROM staff_profiles
-        WHERE tenant_id = $1
-          AND user_id = $2::uuid
-          AND COALESCE(status, 'active') = 'active'
-        LIMIT 1
-      `,
-      [tenantId, teacherUserId],);
+      [tenantId, teacherUserId]);
 
     return result.rows[0] ?? null;
   }

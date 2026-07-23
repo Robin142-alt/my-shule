@@ -29,5 +29,6 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     path: `/auth/invitations/${invitationId}`,
     method: "DELETE",
     unavailableMessage,
+    unwrapResponseEnvelope: true,
   });
 }
