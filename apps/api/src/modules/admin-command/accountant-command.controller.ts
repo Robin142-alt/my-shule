@@ -9,6 +9,11 @@ import { AccountantCommandService } from './accountant-command.service';
 export class AccountantCommandController {
   constructor(private readonly service: AccountantCommandService) {}
 
+  @Get('overview')
+  getOverview() {
+    return this.service.getOverview();
+  }
+
   @Get('expenses')
   getExpenses() {
     return this.service.getExpenses();

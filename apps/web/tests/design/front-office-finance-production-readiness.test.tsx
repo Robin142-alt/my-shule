@@ -1,5 +1,4 @@
 import { screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 
 import { SchoolPages } from "@/components/school/school-pages";
 
@@ -8,17 +7,22 @@ import { renderWithProviders } from "./test-utils";
 jest.setTimeout(20000);
 
 describe("front office and finance production readiness", () => {
-  it("accountant payment desk has real receipt and export evidence", async () => {
-    const user = userEvent.setup();
+  it("accountant opens the dedicated live finance command center", async () => {
+    renderWithProviders(
+      <SchoolPages
+        role="accountant"
+        tenantSlug="fresh-school"
+        routeMode="public"
+        liveDataEnabled={false}
+      />,
+    );
+    const commandCenter = await screen.findByTestId("accountant-command-center");
 
-    renderWithProviders(<SchoolPages role="accountant" tenantSlug="kisumu-boys" />);
-    const commandCenter = await screen.findByTestId("role-operational-command-center");
-
-    expect(within(commandCenter).getByText(/Record payment and print receipt/i)).toBeVisible();
-    await user.click(within(commandCenter).getByRole("button", { name: /Export/i }));
-
-    expect(document.body.textContent).not.toMatch(/export generated/i);
-    expect(document.body.textContent).toMatch(/download|export downloaded|CSV/i);
+    expect(within(commandCenter).getByText(/Accountant Dashboard/i)).toBeVisible();
+    expect(within(commandCenter).getAllByText(/Finance Overview/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getByRole("button", { name: /Record payment/i })).toBeVisible();
+    expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
+    expect(commandCenter.textContent).not.toMatch(/248,500|M-Pesa Confirmed|Balances Above KSh 10k|Receipts Printed/i);
   });
 
   it("admissions officer opens the newly built school-scoped dashboard", async () => {
@@ -32,7 +36,9 @@ describe("front office and finance production readiness", () => {
     );
     const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
 
-    expect(within(dashboard).getByText(/Admissions Officer/i)).toBeVisible();
+    expect(
+      within(dashboard).getByRole("heading", { name: /Admissions Officer Dashboard/i }),
+    ).toBeVisible();
     expect(within(dashboard).getByRole("link", { name: /Enquiries/i })).toHaveAttribute(
       "href",
       "/school/admissions/enquiries",

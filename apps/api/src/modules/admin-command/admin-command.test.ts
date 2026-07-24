@@ -567,6 +567,70 @@ test('AccountantCommandService records arrears reminders and queues tenant-scope
   assert.equal(notificationCalls[0].input.metadata.recipient_scope, 'linked_guardians');
 });
 
+test('AccountantCommandService builds a live tenant-scoped overview without demo defaults', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const tenantExecutions: Array<{ tenantId: string; userId: string | null | undefined }> = [];
+  const service = new AccountantCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+        role: 'accountant',
+      }),
+    } as never,
+    {
+      executeWithTenant: async (
+        tenantId: string,
+        userId: string | null | undefined,
+        callback: (tx: { $queryRawUnsafe: (sql: string, ...params: unknown[]) => Promise<unknown[]> }) => Promise<unknown>,
+      ) => {
+        tenantExecutions.push({ tenantId, userId });
+        return callback({
+          $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+            queries.push({ sql, params });
+            if (sql.includes('WITH payment_metrics')) {
+              return [{
+                collected_today_minor: '0',
+                receipts_today_count: '0',
+                outstanding_balance_minor: '0',
+                balances_above_threshold_count: '0',
+                open_invoice_count: '0',
+                mpesa_review_count: '0',
+                active_fee_structure_count: '0',
+              }];
+            }
+            return [];
+          },
+        });
+      },
+    } as never,
+    {} as never,
+  );
+
+  const overview = await service.getOverview();
+
+  assert.deepEqual(tenantExecutions, [{
+    tenantId: 'tenant-a',
+    userId: '11111111-1111-4111-8111-111111111111',
+  }]);
+  assert.deepEqual(overview.metrics, {
+    collected_today_minor: '0',
+    receipts_today_count: 0,
+    outstanding_balance_minor: '0',
+    balances_above_threshold_count: 0,
+    open_invoice_count: 0,
+    mpesa_review_count: 0,
+    active_fee_structure_count: 0,
+  });
+  assert.deepEqual(overview.recent_activity, []);
+  assert.equal(queries.length, 2);
+  for (const query of queries) {
+    assert.deepEqual(query.params, ['tenant-a']);
+    assert.match(query.sql, /tenant_id = \$1/);
+    assert.doesNotMatch(query.sql, /248[,_]?500|Kisumu Boys/);
+  }
+});
+
 test('GuidanceCounsellingCommandService creates real tenant-scoped counselling referrals before workflow events', async () => {
   const writes: Array<{ sql: string; params: unknown[] }> = [];
   const workflowCalls: any[] = [];

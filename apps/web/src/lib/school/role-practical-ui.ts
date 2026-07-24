@@ -28,14 +28,9 @@ const accountantProfile: PracticalRoleProfile = {
   sidebarSubtitle: "Payments and balances",
   todayContext: "Fees, receipts, confirmations, reversals, and parent fee reminders needing attention today.",
   sectionNoun: "fee desk",
-  summaryCards: [
-    { label: "Collected Today", value: "KSh 248,500", helper: "Cash, bank, and M-Pesa", source: "From fee records", tone: "ok" },
-    { label: "M-Pesa Confirmed", value: "37", helper: "1 callback needs retry", source: "From M-Pesa confirmations", tone: "warning" },
-    { label: "Balances Above KSh 10k", value: "42", helper: "Parent reminders ready", source: "From student ledgers", tone: "warning" },
-    { label: "Receipts Printed", value: "29", helper: "8 SMS receipts queued", source: "From receipt records", tone: "ok" },
-  ],
-  urgentAlerts: ["1 failed M-Pesa confirmation", "3 payment reversal requests", "42 fee reminders pending"],
-  emptyState: "No fee exceptions waiting right now.",
+  summaryCards: [],
+  urgentAlerts: [],
+  emptyState: "No finance records exist for this school yet. Create a fee structure, generate student invoices, then record or reconcile the first payment.",
 };
 
 const teacherProfile: PracticalRoleProfile = {

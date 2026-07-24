@@ -120,12 +120,12 @@ const dedicatedRoleCases = [
   ["exams-manager", "exams-manager-command-center"],
   ["hod", "hod-command-center"],
   ["grade-master", "grade-master-command-center"],
+  ["accountant", "accountant-command-center"],
+  ["bursar", "accountant-command-center"],
 ] as const;
 
 const sharedFallbackRoleCases = [
   "secretary",
-  "accountant",
-  "bursar",
   "class-teacher",
   "admin",
   "storekeeper",

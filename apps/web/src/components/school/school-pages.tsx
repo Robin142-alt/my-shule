@@ -714,6 +714,9 @@ const hodWorkspaceSectionIds = new Set([
 ]);
 
 const financeRoleDedicatedSectionIds = new Set([
+  "dashboard",
+  "overview",
+  "finance",
   "fee-structures",
   "invoices",
   "payments",
@@ -895,8 +898,6 @@ const disciplineMasterCommandCenterSectionIds = new Set([
 ]);
 const sharedOperationalFallbackRoleIds = new Set<SchoolExperienceRole>([
   "secretary",
-  "bursar",
-  "accountant",
   "class-teacher",
   "admin",
   "storekeeper",
@@ -973,10 +974,6 @@ function shouldRenderRoleOperationalWorkspace(role: SchoolExperienceRole, sectio
 
   if (role === "discipline-master") {
     return disciplineMasterCommandCenterSectionIds.has(section);
-  }
-
-  if ((role === "accountant" || role === "bursar") && section === "finance") {
-    return false;
   }
 
   if ((role === "accountant" || role === "bursar") && financeRoleDedicatedSectionIds.has(section)) {
@@ -4827,7 +4824,14 @@ function SchoolPagesShell({
     if (role === "accountant" || role === "bursar") {
       return (
         <PermissionProvider schoolId={tenantSlug ?? undefined}>
-          <AccountantCommandCenter routeMode={routeMode} role={role} activeSection={section} tenantSlug={tenantSlug} />
+          <AccountantCommandCenter
+            key={section ?? "overview"}
+            routeMode={routeMode}
+            role={role}
+            activeSection={section}
+            tenantSlug={tenantSlug}
+            userLabel={userLabel}
+          />
         </PermissionProvider>
       );
     }
