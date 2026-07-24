@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
+import { writeArtifactFileSync } from './artifact-writer';
 import {
   renderTenantIsolationAuditMarkdown,
   runTenantIsolationAudit,
@@ -120,7 +121,7 @@ export function renderSecurityScanMarkdown(result: SecurityScanResult): string {
 
 export function writeSecurityScanArtifact(result: SecurityScanResult, outputPath: string): void {
   mkdirSync(dirname(outputPath), { recursive: true });
-  writeFileSync(outputPath, renderSecurityScanMarkdown(result), 'utf8');
+  writeArtifactFileSync(outputPath, renderSecurityScanMarkdown(result));
 }
 
 function readSource(

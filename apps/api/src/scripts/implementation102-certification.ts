@@ -1,5 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+
+import { writeArtifactFileSync } from './artifact-writer';
 
 export type Implementation102CertificationStatus = 'pass' | 'fail';
 
@@ -117,7 +119,7 @@ export function writeImplementation102CertificationArtifact(
   outputPath: string,
 ): void {
   mkdirSync(dirname(outputPath), { recursive: true });
-  writeFileSync(outputPath, renderImplementation102CertificationMarkdown(result), 'utf8');
+  writeArtifactFileSync(outputPath, renderImplementation102CertificationMarkdown(result));
 }
 
 export function runAndWriteImplementation102Certification(

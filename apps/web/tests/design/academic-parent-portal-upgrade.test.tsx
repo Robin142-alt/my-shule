@@ -1,114 +1,222 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { PortalPages } from "@/components/portal/portal-pages";
 
 import { renderWithProviders } from "./test-utils";
 
-jest.setTimeout(20000);
+type FetchPayload = {
+  data: unknown;
+  meta?: Record<string, unknown>;
+};
 
-describe("academic parent portal upgrade", () => {
-  it("shows published child reports, results, comments, targets, and child switching in the parent academics page", () => {
-    renderWithProviders(<PortalPages viewer="parent" section="academics" routeMode="public" />);
+function jsonResponse(payload: FetchPayload, status = 200) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => payload,
+  } as Response;
+}
 
-    expect(screen.getAllByRole("heading", { name: /^Academics$/i }).length).toBeGreaterThan(0);
-    expect(screen.getByRole("heading", { name: /Published report cards/i })).toBeVisible();
-    expect(screen.getByText(/Published exam results/i)).toBeVisible();
-    expect(screen.getByText(/Academic targets/i)).toBeVisible();
-    expect(screen.getByRole("heading", { name: /Child Overview/i })).toBeVisible();
-    expect(screen.getByRole("heading", { name: /Academic Progress/i })).toBeVisible();
-    expect(screen.getByRole("heading", { name: /Parent Acknowledgement/i })).toBeVisible();
-    expect(screen.getByText(/School Messages/i)).toBeVisible();
-    expect(screen.getByText(/Teacher and school comments/i)).toBeVisible();
-    expect(screen.getByText(/Latest Exam/i)).toBeVisible();
-    expect(screen.getByText(/Overall Performance/i)).toBeVisible();
-    expect(screen.getByText(/Report Acknowledgement Status/i)).toBeVisible();
-    expect(screen.getByText(/Performance trend/i)).toBeVisible();
-    expect(screen.getAllByText(/Improvement areas/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Report published/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Brian Otieno/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Aisha Wanjiku/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/CBC\/CBE Competency Report/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Hybrid CBC Academic Report/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Legacy 8-4-4\/KCSE Report/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Term 2 Mid-term CAT/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Mathematics/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Strengthen algebra accuracy/i).length).toBeGreaterThan(0);
-    expect(screen.queryByText(/unpublished/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/draft marks/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/internal moderation/i)).not.toBeInTheDocument();
+const parentAcademics = {
+  metrics: {
+    subjects: 1,
+    mean_score: 78,
+    report_cards: 1,
+  },
+  assignments: [
+    {
+      id: "assignment-1",
+      title: "Algebra practice",
+      subject: "Mathematics",
+      due_date: "2026-07-30T00:00:00.000Z",
+    },
+  ],
+  marks: [
+    {
+      id: "mark-1",
+      student_name: "Learner One",
+      subject: "Mathematics",
+      exam: "Term assessment",
+      score: 78,
+    },
+  ],
+  report_cards: [
+    {
+      id: "report-1",
+      student_name: "Learner One",
+      term: "Term 1",
+      academic_year: "2026",
+      status: "published",
+    },
+  ],
+};
+
+function installPortalFetch(options?: {
+  parentAcademics?: typeof parentAcademics;
+  parentAcademicsStatus?: number;
+}) {
+  const fetchMock = jest.fn((input: RequestInfo | URL) => {
+    const url = typeof input === "string" ? input : input.toString();
+
+    if (url.includes("/api/permissions/me")) {
+      return Promise.resolve(jsonResponse({ data: [] }));
+    }
+    if (url.includes("/api/school/identity")) {
+      return Promise.resolve(jsonResponse({
+        data: { schoolName: "Lakeview School", logoUrl: null },
+        meta: {},
+      }));
+    }
+    if (url.includes("/api/admin-command/parent/academics")) {
+      const status = options?.parentAcademicsStatus ?? 200;
+      return Promise.resolve(jsonResponse({
+        data: options?.parentAcademics ?? parentAcademics,
+        meta: {},
+      }, status));
+    }
+    if (url.includes("/api/admin-command/student/academics")) {
+      return Promise.resolve(jsonResponse({
+        data: {
+          metrics: { subjects: 1, mean_score: 81, report_cards: 0 },
+          assignments: [],
+          marks: [{
+            id: "student-mark-1",
+            subject: "Integrated Science",
+            exam: "Term assessment",
+            teacher: "Teacher One",
+            score: 81,
+            status: "published",
+          }],
+          report_cards: [],
+        },
+        meta: {},
+      }));
+    }
+
+    return Promise.resolve(jsonResponse({ data: {}, meta: {} }));
   });
 
-  it("lets a parent acknowledge an existing published report without claiming a fake backend send", async () => {
+  global.fetch = fetchMock as unknown as typeof fetch;
+  return fetchMock;
+}
+
+describe("live parent and student academics portals", () => {
+  beforeEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("renders only published school-scoped academic data returned by the API", async () => {
+    installPortalFetch();
+
+    renderWithProviders(
+      <PortalPages
+        viewer="parent"
+        section="academics"
+        routeMode="public"
+        tenantSlug="lakeview-school"
+        userLabel="Grace Parent"
+      />,
+    );
+
+    expect(screen.getByTestId("live-role-command-center")).toHaveAttribute("data-role", "parent");
+    expect(await screen.findByText("Lakeview School command center")).toBeVisible();
+    expect((await screen.findAllByText("Mathematics")).length).toBeGreaterThan(0);
+    expect(screen.getByText("Algebra practice")).toBeVisible();
+    expect(screen.getByText("Term 1")).toBeVisible();
+    expect(screen.queryByText(/Brian Otieno|Aisha Wanjiku|Kisumu Boys/i)).not.toBeInTheDocument();
+  });
+
+  it("downloads a real report-card identifier instead of fabricating a success state", async () => {
+    installPortalFetch();
+    const openSpy = jest.spyOn(window, "open").mockImplementation(() => null);
     const user = userEvent.setup();
 
-    renderWithProviders(<PortalPages viewer="parent" section="academics" routeMode="public" />);
+    renderWithProviders(
+      <PortalPages
+        viewer="parent"
+        section="academics"
+        routeMode="public"
+        tenantSlug="lakeview-school"
+        userLabel="Grace Parent"
+      />,
+    );
 
-    await user.click(screen.getAllByRole("button", { name: /acknowledge report/i })[0]);
+    await user.click(await screen.findByRole("button", { name: /download term 1 report card/i }));
 
-    expect(await screen.findByText(/Report acknowledged for Brian Otieno/i)).toBeVisible();
-    expect(screen.getAllByText(/Acknowledged just now/i).length).toBeGreaterThan(0);
-    expect(screen.queryByText(/sent successfully/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/completed/i)).not.toBeInTheDocument();
+    expect(openSpy).toHaveBeenCalledWith(
+      "/api/parent/report-cards/report-1/download",
+      "_blank",
+      "noopener,noreferrer",
+    );
+    expect(screen.getByText(/report card download requested for term 1/i)).toBeVisible();
+    expect(screen.queryByText(/sent successfully|acknowledged just now/i)).not.toBeInTheDocument();
   });
 
-  it("does not create or enhance a separate student dashboard for the exam/report-card flow", () => {
-    renderWithProviders(<PortalPages viewer="student" section="academics" routeMode="public" />);
+  it("shows truthful empty states for a school with no published academics", async () => {
+    installPortalFetch({
+      parentAcademics: {
+        metrics: { subjects: 0, mean_score: 0, report_cards: 0 },
+        assignments: [],
+        marks: [],
+        report_cards: [],
+      },
+    });
 
-    expect(screen.queryByRole("heading", { name: /Published report cards/i })).not.toBeInTheDocument();
-    expect(screen.queryByText(/CBC\/CBE Competency Report/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Hybrid CBC Academic Report/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Legacy 8-4-4\/KCSE Report/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /acknowledge report/i })).not.toBeInTheDocument();
+    renderWithProviders(
+      <PortalPages
+        viewer="parent"
+        section="academics"
+        tenantSlug="fresh-school"
+        userLabel="Fresh Parent"
+      />,
+    );
+
+    expect(await screen.findByText(/no recent grades published/i)).toBeVisible();
+    expect(screen.getByText(/no pending homework/i)).toBeVisible();
+    expect(screen.getByText(/no official report cards have been published/i)).toBeVisible();
   });
 
-  it("opens parent report viewers for CBC and legacy reports with child-scoped academic details", async () => {
-    const user = userEvent.setup();
+  it("keeps API failures visible with the actual status", async () => {
+    installPortalFetch({ parentAcademicsStatus: 500 });
 
-    renderWithProviders(<PortalPages viewer="parent" section="academics" routeMode="public" />);
+    renderWithProviders(
+      <PortalPages
+        viewer="parent"
+        section="academics"
+        tenantSlug="lakeview-school"
+        userLabel="Grace Parent"
+      />,
+    );
 
-    await user.click(screen.getAllByRole("button", { name: /view report/i })[0]);
-
-    let reportViewer = within(screen.getByTestId("parent-report-viewer"));
-    expect(reportViewer.getByRole("heading", { name: /Parent report viewer/i })).toBeVisible();
-    expect(reportViewer.getByText(/CBC\/CBE Competency Report/i)).toBeVisible();
-    expect(reportViewer.getByText(/Learner bio/i)).toBeVisible();
-    expect(reportViewer.getByText(/CBC competency summary/i)).toBeVisible();
-    expect(reportViewer.getByText(/Teacher comments/i)).toBeVisible();
-    expect(reportViewer.getByText(/Academic targets/i)).toBeVisible();
-    expect(reportViewer.queryByText(/internal moderation/i)).not.toBeInTheDocument();
-
-    await user.click(screen.getAllByRole("button", { name: /view report/i })[2]);
-
-    reportViewer = within(screen.getByTestId("parent-report-viewer"));
-    expect(reportViewer.getByText(/Legacy 8-4-4\/KCSE Report/i)).toBeVisible();
-    expect(reportViewer.getByText(/Student bio/i)).toBeVisible();
-    expect(reportViewer.getByText(/Legacy marks and grade summary/i)).toBeVisible();
-    expect(reportViewer.queryByText(/CBC competency summary/i)).not.toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        /academic records could not be loaded: request failed: 500/i,
+        {},
+        { timeout: 8_000 },
+      ),
+    ).toBeVisible();
   });
 
-  it("uses proof-based parent report print, download, and child-switching feedback", async () => {
-    const user = userEvent.setup();
+  it("uses the authenticated student contract without reading parent records", async () => {
+    const fetchMock = installPortalFetch();
 
-    renderWithProviders(<PortalPages viewer="parent" section="academics" routeMode="public" />);
+    renderWithProviders(
+      <PortalPages
+        viewer="student"
+        section="academics"
+        routeMode="public"
+        tenantSlug="lakeview-school"
+        userLabel="Learner One"
+      />,
+    );
 
-    await user.click(screen.getAllByRole("button", { name: /view report/i })[0]);
-    await user.click(within(screen.getByTestId("parent-report-viewer")).getByRole("button", { name: /^print$/i }));
-
-    expect(screen.getByText(/print preview ready for brian otieno/i)).toBeVisible();
-    expect(screen.getByText(/published subject rows loaded/i)).toBeVisible();
-    expect(document.body.textContent).not.toMatch(/Print preview opened for|Download prepared for|academic record opened/i);
-
-    await user.click(within(screen.getByTestId("parent-report-viewer")).getByRole("button", { name: /download pdf/i }));
-
-    expect(screen.getByText(/report download created for brian otieno/i)).toBeVisible();
-    expect(screen.getByText(/brian-otieno-report-brian-cbc\.txt/i)).toBeVisible();
-    expect(document.body.textContent).not.toMatch(/Print preview opened for|Download prepared for|academic record opened/i);
-
-    await user.click(screen.getByRole("button", { name: /Aisha Wanjiku/i }));
-
-    expect(screen.getByText(/Aisha Wanjiku academic record selected/i)).toBeVisible();
-    expect(screen.getByText(/1 published report, 1 result row loaded/i)).toBeVisible();
-    expect(document.body.textContent).not.toMatch(/Print preview opened for|Download prepared for|academic record opened/i);
+    expect(await screen.findByText("Integrated Science")).toBeVisible();
+    expect(screen.getByRole("heading", { name: /academics & report cards/i })).toBeVisible();
+    await waitFor(() => {
+      const urls = fetchMock.mock.calls.map(([input]) => String(input));
+      expect(urls.some((url) => url.includes("/admin-command/student/academics"))).toBe(true);
+      expect(urls.some((url) => url.includes("/admin-command/parent/academics"))).toBe(false);
+    });
   });
 });

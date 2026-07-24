@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 
+import { writeArtifactFileSync } from './artifact-writer';
 import { DataClassificationRegistryService } from '../modules/security/data-classification-registry.service';
 import {
   PiiLeakFinding,
@@ -99,7 +100,7 @@ export function renderPiiLeakCiScanMarkdown(result: PiiLeakCiScanResult): string
 
 export function writePiiLeakCiScanArtifact(result: PiiLeakCiScanResult, outputPath: string): void {
   mkdirSync(dirname(outputPath), { recursive: true });
-  writeFileSync(outputPath, renderPiiLeakCiScanMarkdown(result), 'utf8');
+  writeArtifactFileSync(outputPath, renderPiiLeakCiScanMarkdown(result));
 }
 
 function loadArtifacts(

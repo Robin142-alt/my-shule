@@ -142,7 +142,7 @@ describe("mobile and low-bandwidth operational behavior", () => {
         routeMode: "public",
         liveDataEnabled: false,
       }),
-      heading: /Teacher Workspace/i,
+      heading: /Teacher Dashboard/i,
       action: /Exams & Marks|Save Draft|Submit/i,
     },
     {
@@ -154,7 +154,7 @@ describe("mobile and low-bandwidth operational behavior", () => {
         routeMode: "public",
         liveDataEnabled: false,
       }),
-      heading: /Exams Manager Desk/i,
+      heading: /Exams Manager Dashboard/i,
       action: /Report Cards|Publish|Generate/i,
     },
     {
@@ -163,9 +163,11 @@ describe("mobile and low-bandwidth operational behavior", () => {
         viewer: "parent",
         section: "academics",
         routeMode: "public",
+        tenantSlug: "homabay-high",
+        userLabel: "Parent User",
       }),
-      heading: /Academics/i,
-      action: /Mobile parent quick actions|View report|Child Overview/i,
+      heading: /Academics Overview/i,
+      action: /No recent grades published|Term Report Cards/i,
     },
   ])("renders %s at phone width with usable actions", async ({ ui, heading, action }) => {
     const view = renderWithProviders(ui);

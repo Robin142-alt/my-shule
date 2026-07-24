@@ -1,6 +1,8 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { Client } from 'pg';
+
+import { writeArtifactFileSync } from './artifact-writer';
 
 export interface QueryPlanReview {
   id: string;
@@ -376,7 +378,7 @@ export function writeQueryPlanReviewArtifact(
   const workspaceRoot = options.workspaceRoot ?? process.cwd();
   const outputPath = join(workspaceRoot, 'docs', 'validation', 'query-plan-review.md');
   mkdirSync(dirname(outputPath), { recursive: true });
-  writeFileSync(outputPath, renderQueryPlanReviewMarkdown(result, options.generatedAt), 'utf8');
+  writeArtifactFileSync(outputPath, renderQueryPlanReviewMarkdown(result, options.generatedAt));
   return outputPath;
 }
 

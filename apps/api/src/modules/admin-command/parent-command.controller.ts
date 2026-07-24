@@ -12,6 +12,21 @@ export class ParentCommandController {
     return this.service.getDashboard();
   }
 
+  @Get('fees')
+  getFees() {
+    return this.service.getFees();
+  }
+
+  @Get('academics')
+  getAcademics() {
+    return this.service.getAcademics();
+  }
+
+  @Get('behavior')
+  getBehavior() {
+    return this.service.getBehavior();
+  }
+
   @Get('downloads')
   getDownloads() {
     return this.service.getDownloads();

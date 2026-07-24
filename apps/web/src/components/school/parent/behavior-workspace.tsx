@@ -8,19 +8,40 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
-export function BehaviorWorkspace() {
-  // Use the parent incidents endpoint 
-  const { data: incidentsData, isLoading: incidentsLoading, refetch } = useSchoolQuery<{ data?: any[] }>('/api/discipline/parent/incidents');
-  
-  // Example call to fetch behavior score (hardcoding student ID or getting it from a selector)
-  const { data: scoreData, isLoading: scoreLoading } = useSchoolQuery<{ score?: number }>('/api/discipline/students/me/behavior-score');
+type BehaviorRecord = {
+  id: string;
+  student_name?: string;
+  title: string;
+  description?: string | null;
+  severity?: string;
+  status?: string;
+  created_at?: string;
+  occurred_at?: string;
+  awarded_at?: string;
+  points_delta?: number;
+};
 
-  const incidents = incidentsData?.data || [];
-  const score = scoreData?.score;
-  
-  // We can filter by severity
-  const commendations = incidents.filter((i: any) => i.severity === 'commendation' || i.title?.toLowerCase().includes('commendation'));
-  const infractions = incidents.filter((i: any) => i.severity !== 'commendation' && !i.title?.toLowerCase().includes('commendation'));
+type ParentBehaviorData = {
+  metrics: {
+    open_incidents: number;
+    behavior_points: number;
+    commendations: number;
+  };
+  incidents: BehaviorRecord[];
+  commendations: BehaviorRecord[];
+};
+
+export function BehaviorWorkspace() {
+  const {
+    data,
+    isLoading,
+    error,
+    refetch,
+  } = useSchoolQuery<ParentBehaviorData>("/admin-command/parent/behavior");
+
+  const commendations = data?.commendations ?? [];
+  const infractions = data?.incidents ?? [];
+  const behaviorPoints = data?.metrics.behavior_points ?? 0;
 
   const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
 
@@ -49,23 +70,30 @@ export function BehaviorWorkspace() {
         </div>
       </div>
 
+      {error ? (
+        <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-800">
+          Conduct records could not be loaded: {error.message}
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="p-6 border border-slate-200 col-span-1 lg:col-span-2 bg-gradient-to-r from-emerald-50 to-white flex flex-col justify-center">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-emerald-100 rounded text-emerald-600">
               <TrendingUp className="w-5 h-5" />
             </div>
-            <h3 className="font-semibold text-slate-900">Current Behavior Score</h3>
+            <h3 className="font-semibold text-slate-900">Recorded Behavior Points</h3>
           </div>
           <div className="flex items-baseline gap-2 mt-2">
-            {scoreLoading ? (
+            {isLoading ? (
                <div className="h-12 w-24 bg-slate-200 animate-pulse rounded"></div>
             ) : (
-               <span className="text-5xl font-bold text-slate-900">{score ?? '--'}</span>
+               <span className="text-5xl font-bold text-slate-900">{behaviorPoints}</span>
             )}
-            <span className="text-slate-500 font-medium">/ 100</span>
           </div>
-          <p className="text-sm text-emerald-600 font-medium mt-2">Excellent standing</p>
+          <p className="text-sm text-slate-500 font-medium mt-2">
+            Net total from school-recorded behavior point entries.
+          </p>
         </Card>
 
         <Card className="p-6 border border-slate-200 flex flex-col justify-center">
@@ -73,7 +101,7 @@ export function BehaviorWorkspace() {
             <Award className="w-5 h-5 text-amber-500" /> Commendations
           </h3>
           <p className="text-3xl font-bold text-slate-900 mb-1">{commendations.length}</p>
-          <p className="text-sm text-slate-500">Earned this term</p>
+          <p className="text-sm text-slate-500">Recorded for linked learners</p>
         </Card>
       </div>
 
@@ -85,16 +113,19 @@ export function BehaviorWorkspace() {
             </h3>
           </div>
           <div className="p-4 space-y-4">
-            {incidentsLoading ? (
+            {isLoading ? (
                <div className="animate-pulse h-16 bg-slate-100 rounded"></div>
             ) : infractions.length > 0 ? (
-               infractions.map((item: any, idx: number) => (
-                  <div key={idx} className="flex flex-col gap-3 pb-4 border-b border-slate-100 last:border-0 last:pb-0">
+               infractions.map((item) => (
+                  <div key={item.id} className="flex flex-col gap-3 pb-4 border-b border-slate-100 last:border-0 last:pb-0">
                     <div>
                       <h4 className="font-medium text-slate-900 text-sm">{item.title}</h4>
                       <p className="text-xs text-slate-500 mt-1">{item.description}</p>
+                      {item.student_name ? (
+                        <p className="mt-1 text-xs font-semibold text-slate-600">{item.student_name}</p>
+                      ) : null}
                       <p className="text-xs text-rose-600 font-medium mt-2 flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" /> Reported {new Date(item.created_at).toLocaleDateString()}
+                        <AlertTriangle className="w-3 h-3" /> Reported {formatDate(item.occurred_at || item.created_at)}
                       </p>
                     </div>
                     <Button 
@@ -124,18 +155,20 @@ export function BehaviorWorkspace() {
             <h3 className="font-medium text-slate-900">Recent Commendations</h3>
           </div>
           <div className="p-4 space-y-4">
-            {incidentsLoading ? (
+            {isLoading ? (
                <div className="animate-pulse h-16 bg-slate-100 rounded"></div>
             ) : commendations.length > 0 ? (
-               commendations.map((item: any, idx: number) => (
-                 <div key={idx} className="flex gap-4 items-start pb-4 border-b border-slate-100 last:border-0 last:pb-0">
+               commendations.map((item) => (
+                 <div key={item.id} className="flex gap-4 items-start pb-4 border-b border-slate-100 last:border-0 last:pb-0">
                     <div className="w-8 h-8 rounded bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
                       <Award className="w-4 h-4" />
                     </div>
                     <div>
                       <h4 className="font-medium text-slate-900 text-sm">{item.title}</h4>
                       <p className="text-xs text-slate-500 mt-0.5">{item.description}</p>
-                      <p className="text-xs text-amber-600 font-medium mt-1">{new Date(item.created_at).toLocaleDateString()}</p>
+                      <p className="text-xs text-amber-600 font-medium mt-1">
+                        {[item.student_name, formatDate(item.awarded_at || item.created_at)].filter(Boolean).join(" - ")}
+                      </p>
                     </div>
                  </div>
                ))
@@ -151,3 +184,8 @@ export function BehaviorWorkspace() {
   );
 }
 
+function formatDate(value?: string | null) {
+  if (!value) return "date not recorded";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "date not recorded" : date.toLocaleDateString("en-KE");
+}

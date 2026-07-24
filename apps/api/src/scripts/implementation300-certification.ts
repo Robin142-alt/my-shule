@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
+import { writeArtifactFileSync } from './artifact-writer';
 import {
   BLUEPRINT_SECTIONS,
   IMPLEMENTATION300_MODULES,
@@ -138,7 +139,7 @@ export function writeImplementation300CertificationArtifact(
   outputPath: string,
 ): void {
   mkdirSync(dirname(outputPath), { recursive: true });
-  writeFileSync(outputPath, renderImplementation300CertificationMarkdown(result), 'utf8');
+  writeArtifactFileSync(outputPath, renderImplementation300CertificationMarkdown(result));
 }
 
 export function runAndWriteImplementation300Certification(

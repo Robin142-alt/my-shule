@@ -41,6 +41,22 @@ function emptyReconciliationReport() {
   };
 }
 
+function emptyAccountantOverview() {
+  return {
+    generated_at: "2026-07-24T08:00:00.000Z",
+    metrics: {
+      collected_today_minor: "0",
+      receipts_today_count: 0,
+      outstanding_balance_minor: "0",
+      balances_above_threshold_count: 0,
+      open_invoice_count: 0,
+      mpesa_review_count: 0,
+      active_fee_structure_count: 0,
+    },
+    recent_activity: [],
+  };
+}
+
 const enabledSchoolModules = [
   "students",
   "admissions",
@@ -66,6 +82,13 @@ describe("experience actions", () => {
 
       if (url.includes("/api/billing/reconciliation")) {
         return Promise.resolve(jsonResponse(emptyReconciliationReport()));
+      }
+
+      if (url.includes("admin-command/accountant/overview")) {
+        return Promise.resolve(jsonResponse({
+          data: emptyAccountantOverview(),
+          meta: {},
+        }));
       }
 
       if (
@@ -109,36 +132,28 @@ describe("experience actions", () => {
     expect(screen.queryByText(/module not enabled for your school/i)).not.toBeInTheDocument();
   });
 
-  it("supports shell search and notifications inside live module workspaces", async () => {
+  it("navigates the integrated finance command center to a real workspace", async () => {
     const user = userEvent.setup();
     renderWithProviders(
-      createElement(SchoolPages, { role: "bursar", section: "finance", tenantSlug: "barakaacademy" }),
+      createElement(SchoolPages, {
+        role: "bursar",
+        section: "finance",
+        tenantSlug: "barakaacademy",
+        routeMode: "public",
+      }),
     );
 
-    await waitFor(() =>
-      expect(screen.getByRole("link", { name: /fees \/ payments/i })).toBeVisible(),
-    );
-    const searchInput = screen.getByLabelText("Search");
-    await user.click(searchInput);
-    await user.type(searchInput, "fees");
+    expect(await screen.findByTestId("accountant-command-center")).toBeVisible();
+    expect(screen.getByRole("heading", { name: /bursar dashboard/i })).toBeVisible();
+    expect(await screen.findByText(/no school finance records yet/i)).toBeVisible();
 
-    const searchPanel = await screen.findByTestId("workspace-search-panel");
-    const financeResult = within(searchPanel).getByRole("button", {
-      name: /fees/i,
-    });
-    await user.click(financeResult);
+    await user.click(screen.getByRole("button", { name: /fee structures configure school-owned charges/i }));
 
-    expect(routerPushMock).toHaveBeenCalledWith("/finance");
-
-    await user.click(screen.getByRole("button", { name: "Notifications" }));
-    const notificationsPanel = await screen.findByTestId("workspace-notifications-panel");
-    expect(
-      within(notificationsPanel).getByText(/no notifications are open/i),
-    ).toBeVisible();
+    expect(screen.getAllByRole("heading", { name: /fee structures/i }).length).toBeGreaterThan(0);
+    expect(window.location.pathname).toBe("/school/bursar/fee-structures");
   });
 
-  it("loads backend school notifications into the shell and marks them read when opened", async () => {
-    const user = userEvent.setup();
+  it("loads the tenant-scoped finance read model without fabricated metrics", async () => {
     const fetchMock = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString();
 
@@ -146,64 +161,19 @@ describe("experience actions", () => {
         return Promise.resolve(jsonResponse({ data: enabledSchoolModules }));
       }
 
-      if (url === "/api/events/notifications?limit=8") {
-        return Promise.resolve(
-          jsonResponse({
-            data: [
-              {
-                id: "00000000-0000-4000-8000-000000000401",
-                title: "Fee reversal requested",
-                detail: "Receipt KBI-RCPT-400 needs approval.",
-                status: "unread",
-                tone: "warning",
-                href: "/finance?record=approval-400",
-                sourceModule: "finance",
-                relatedModule: "finance",
-                relatedRecordId: "approval-400",
-                createdAt: "2026-05-31T06:30:00.000Z",
-                readAt: null,
-              },
-            ],
-          }),
-        );
-      }
-
-      if (url === "/api/auth/csrf") {
-        return Promise.resolve(jsonResponse({ token: "csrf-token" }));
-      }
-
-      if (url === "/api/events/notifications/00000000-0000-4000-8000-000000000401/read") {
+      if (url.includes("admin-command/accountant/overview")) {
         expect(init).toEqual(
           expect.objectContaining({
-            method: "POST",
-            credentials: "same-origin",
+            credentials: "include",
+            headers: expect.objectContaining({
+              "x-tenant-id": "barakaacademy",
+            }),
           }),
         );
-        expect((init?.headers as Record<string, string>)["x-myshule-csrf"]).toBe("csrf-token");
-
-        return Promise.resolve(
-          jsonResponse({
-            data: {
-              id: "00000000-0000-4000-8000-000000000401",
-              status: "read",
-            },
-          }),
-        );
-      }
-
-      if (url.includes("/api/billing/reconciliation")) {
-        return Promise.resolve(jsonResponse(emptyReconciliationReport()));
-      }
-
-      if (
-        url.includes("/api/billing/finance-activity")
-        || url.includes("/api/billing/student-balances")
-        || url.includes("/api/billing/fee-structures")
-        || url.includes("/api/billing/manual-fee-payments")
-        || url.includes("/api/payments/mpesa/c2b/payments")
-        || url.includes("/api/platform/schools")
-      ) {
-        return Promise.resolve(jsonResponse([]));
+        return Promise.resolve(jsonResponse({
+          data: emptyAccountantOverview(),
+          meta: {},
+        }));
       }
 
       return Promise.resolve(jsonResponse({}));
@@ -214,53 +184,90 @@ describe("experience actions", () => {
       createElement(SchoolPages, { role: "bursar", section: "finance", tenantSlug: "barakaacademy" }),
     );
 
-    await waitFor(() =>
-      expect(fetchMock.mock.calls.map(([url]) => String(url))).toContain("/api/events/notifications?limit=8"),
-    );
-
-    await user.click(screen.getByRole("button", { name: "Notifications" }));
-    const notificationsPanel = await screen.findByTestId("workspace-notifications-panel");
-    await user.click(within(notificationsPanel).getByRole("button", { name: /Fee reversal requested/i }));
-
-    await waitFor(() =>
-      expect(fetchMock.mock.calls.map(([url]) => String(url))).toContain(
-        "/api/events/notifications/00000000-0000-4000-8000-000000000401/read",
-      ),
-    );
-    expect(routerPushMock).toHaveBeenCalledWith("/finance?record=approval-400");
+    expect(await screen.findByText(/no school finance records yet/i)).toBeVisible();
+    expect(screen.getAllByText("KES 0").length).toBeGreaterThan(0);
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([url]) =>
+          String(url).includes("admin-command/accountant/overview"),
+        ),
+      ).toBe(true);
+    });
   });
 
-  it("adds a learner from the school students workspace instead of exposing a dead action", async () => {
+  it("starts learner admission from the admissions-owned workflow instead of a generic shortcut", async () => {
     const user = userEvent.setup();
+    const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes("/api/admissions/foundation")) {
+        return jsonResponse({
+          academic_years: [{ id: "year-2026", name: "2026", status: "active", is_current: true }],
+          classes: [{
+            id: "class-grade-7",
+            academic_year_id: "year-2026",
+            academic_level_id: "level-grade-7",
+            name: "Grade 7 North",
+            grade_level: "Grade 7",
+            curriculum: "CBC",
+            capacity: 45,
+            enrolment_open: true,
+            student_count: 0,
+          }],
+          streams: [{
+            id: "stream-north",
+            class_section_id: "class-grade-7",
+            name: "North",
+            capacity: 45,
+            student_count: 0,
+          }],
+          subjects: [],
+          class_subject_assignments: [],
+          admission_settings: {
+            admission_number_mode: "suggested",
+            admission_number_prefix: "MS",
+            admission_number_separator: "-",
+            admission_number_padding: 4,
+            include_academic_year: true,
+            strict_capacity: true,
+            strict_age_rules: false,
+            minimum_age: null,
+            maximum_age: null,
+            minimum_subjects: 0,
+            maximum_subjects: 12,
+            suggested_admission_number: "MS-2026-0001",
+          },
+        });
+      }
+
+      if (url.includes("/api/admissions/drafts/current")) {
+        return jsonResponse(null);
+      }
+
+      return jsonResponse({
+        metrics: { total: 0, pending: 0, approved: 0, rejected: 0 },
+        applicationsList: [],
+      });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
     renderWithProviders(
       createElement(SchoolPages, {
-        role: "admin",
+        role: "admissions",
         tenantSlug: "barakaacademy",
-        section: "students",
+        section: "applications",
       }),
     );
 
-    await user.click(await screen.findByRole("button", { name: /add student/i }));
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
+    await user.click(within(dashboard).getByRole("button", { name: /start student admission/i }));
 
-    const dialog = await screen.findByRole("dialog", { name: /add student/i });
-    fireEvent.change(within(dialog).getByLabelText(/learner name/i), {
-      target: { value: "Mercy Atieno" },
-    });
-    fireEvent.change(within(dialog).getByLabelText(/admission number/i), {
-      target: { value: "ADM-9001" },
-    });
-    fireEvent.change(within(dialog).getByLabelText(/^class$/i), {
-      target: { value: "Grade 6 Hope" },
-    });
-    fireEvent.change(within(dialog).getByLabelText(/parent contact/i), {
-      target: { value: "0722000001" },
-    });
-
-    await user.click(within(dialog).getByRole("button", { name: /save student/i }));
-
-    expect(
-      await screen.findByText(/mercy atieno added to the learner register/i),
-    ).toBeVisible();
+    expect(await within(dashboard).findByLabelText(/^First name/i)).toBeVisible();
+    expect(within(dashboard).getByText("Class & Stream")).toBeVisible();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/admissions/foundation"),
+      expect.anything(),
+    );
   });
 
   it("keeps the superadmin schools surface empty until real schools are onboarded", () => {
@@ -560,24 +567,77 @@ describe("experience actions", () => {
     }
   });
 
-  it("shares a portal fee statement through a real copy flow", async () => {
-    const user = userEvent.setup();
-    const writeText = jest.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: {
-        writeText,
-      },
+  it("loads parent fee statements from the authenticated school contract", async () => {
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+
+      if (url.includes("/api/permissions/me")) {
+        return Promise.resolve(jsonResponse({ data: [] }));
+      }
+      if (url.includes("/api/school/identity")) {
+        return Promise.resolve(jsonResponse({
+          data: { schoolName: "Lakeview School", logoUrl: null },
+          meta: {},
+        }));
+      }
+      if (url.includes("/api/admin-command/parent/fees")) {
+        return Promise.resolve(jsonResponse({
+          data: {
+            metrics: { balance_minor: 125000, open_invoices: 1, payments: 0 },
+            accounts: [{
+              student_id: "student-1",
+              admission_number: "ADM-001",
+              student_name: "Learner One",
+              class_name: "Grade 8",
+              balance_minor: 125000,
+              open_invoices: 1,
+            }],
+            invoices: [{
+              id: "invoice-1",
+              student_id: "student-1",
+              student_name: "Learner One",
+              invoice_number: "INV-001",
+              term: "Term 1",
+              academic_year: "2026",
+              amount_minor: 125000,
+              balance_minor: 125000,
+              status: "issued",
+              created_at: "2026-01-05T00:00:00.000Z",
+            }],
+            transactions: [],
+          },
+          meta: {},
+        }));
+      }
+
+      return Promise.resolve(jsonResponse({ data: {}, meta: {} }));
     });
+    global.fetch = fetchMock as unknown as typeof fetch;
 
-    renderWithProviders(
-      createElement(PortalPages, { viewer: "parent", section: "fees" }),
-    );
+    try {
+      renderWithProviders(
+        createElement(PortalPages, {
+          viewer: "parent",
+          section: "fees",
+          tenantSlug: "lakeview-school",
+          userLabel: "Grace Parent",
+        }),
+      );
 
-    await user.click(screen.getByRole("button", { name: /share statement/i }));
-
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("My Shule family statement"));
-    expect(screen.getByText(/statement copied with \d+ posted payment rows for the verified family account/i)).toBeVisible();
+      expect(await screen.findByText("Learner One's balance")).toBeVisible();
+      expect(screen.getByText("INV-001")).toBeVisible();
+      expect(screen.getByRole("button", { name: /preview statement/i })).toBeEnabled();
+      expect(screen.queryByRole("button", { name: /record payment/i })).not.toBeInTheDocument();
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/admin-command/parent/fees"),
+        expect.objectContaining({
+          headers: expect.objectContaining({ "x-tenant-id": "lakeview-school" }),
+        }),
+      );
+    } finally {
+      global.fetch = originalFetch;
+    }
   });
 
   it("records a school payment through the collections workspace", async () => {
@@ -676,9 +736,9 @@ describe("experience actions", () => {
     const user = userEvent.setup();
     renderWithProviders(
       createElement(SchoolPages, {
-        role: "admin",
+        role: "bursar",
         tenantSlug: "barakaacademy",
-        section: "mpesa",
+        section: "m-pesa-reconciliation",
       }),
     );
 

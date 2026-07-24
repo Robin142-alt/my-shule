@@ -65,41 +65,50 @@ describe("STEP 1: Layout tests", () => {
     const secondRender = renderWithProviders(
       createElement(SchoolPages, { role: "bursar" }),
     );
-    expect(await screen.findByTestId("role-operational-command-center")).toBeVisible();
-    expect(screen.getByRole("heading", { name: /accountant fee collection/i })).toBeVisible();
+    expect(await screen.findByTestId("accountant-command-center")).toBeVisible();
+    expect(screen.getByRole("heading", { name: /bursar dashboard/i })).toBeVisible();
     expect(secondRender.container.querySelector(".enterprise-shell")).not.toBeInTheDocument();
     expect(screen.queryByText(/platform owner desk/i)).not.toBeInTheDocument();
 
     secondRender.unmount();
-    renderWithProviders(createElement(PortalPages, { viewer: "parent" }));
-    expect(screen.getByText(/my shule portal/i)).toBeVisible();
-    expect(screen.getByRole("heading", { name: /family dashboard/i })).toBeVisible();
+    renderWithProviders(createElement(PortalPages, {
+      viewer: "parent",
+      tenantSlug: "lakeview-school",
+      userLabel: "Grace Parent",
+    }));
+    expect(screen.getByTestId("live-role-command-center")).toHaveAttribute("data-role", "parent");
+    expect(screen.getAllByRole("heading", { name: /parent dashboard/i }).length).toBeGreaterThan(0);
   }, 30000);
 
-  it("renders the parent portal as a MyShule family intelligence center", () => {
-    renderWithProviders(createElement(PortalPages, { viewer: "parent" }));
+  it("renders a fresh parent portal without demo learners or fabricated activity", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: {
+          metrics: {
+            children: 0,
+            pending_fees: 0,
+            notifications: 0,
+          },
+          items: [],
+        },
+        meta: {},
+      }),
+    } as Response);
 
-    expect(screen.getByRole("heading", { name: /family dashboard/i })).toBeVisible();
-    expect(screen.getByRole("heading", { name: /(good morning|good afternoon|good evening|welcome back), mrs\. wanjiku/i })).toBeVisible();
-    expect(screen.getByText(/here's everything happening with brian today/i)).toBeVisible();
-    expect(screen.getByText(/brian improved in mathematics this week/i)).toBeVisible();
-    expect(screen.getByText(/parent intelligence/i)).toBeVisible();
-    expect(screen.getAllByText(/brian otieno/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/aisha wanjiku/i).length).toBeGreaterThan(0);
-  expect(screen.getAllByRole("button", { name: /ai assistant/i }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: /emergency contacts/i }).length).toBeGreaterThan(0);
-    expect(screen.getByRole("heading", { name: /real-time alerts center/i })).toBeVisible();
-    expect(screen.getByRole("heading", { name: /academic performance overview/i })).toBeVisible();
-    expect(screen.getByRole("heading", { name: /attendance intelligence/i })).toBeVisible();
-    expect(screen.getByRole("heading", { name: /fees & finance tracking/i })).toBeVisible();
-    expect(screen.getByRole("heading", { name: /discipline & behaviour monitoring/i })).toBeVisible();
-    expect(screen.getByRole("heading", { name: /transport tracking/i })).toBeVisible();
-    expect(screen.getByRole("heading", { name: /clinic & health updates/i })).toBeVisible();
-    expect(screen.getByRole("heading", { name: /communication center/i })).toBeVisible();
-    expect(screen.getByRole("heading", { name: /homework & assignments/i })).toBeVisible();
-    expect(screen.getByRole("heading", { name: /ai insights & recommendations/i })).toBeVisible();
-    expect(screen.getByRole("heading", { name: /emergency contacts/i })).toBeVisible();
-    expect(screen.getAllByRole("link", { name: /pay with m-pesa/i }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("link", { name: /download receipt/i }).length).toBeGreaterThan(0);
+    renderWithProviders(createElement(PortalPages, {
+      viewer: "parent",
+      tenantSlug: "lakeview-school",
+      userLabel: "Grace Parent",
+    }));
+
+    expect(screen.getByTestId("integrated-school-command-header")).toBeVisible();
+    expect(screen.getByTestId("dashboard-time-greeting")).toHaveTextContent(
+      /(good morning|good afternoon|good evening|welcome back), grace parent/i,
+    );
+    expect(screen.getByText(/lakeview school command center/i)).toBeVisible();
+    expect(await screen.findByText(/no school-scoped records are loaded/i)).toBeVisible();
+    expect(screen.queryByText(/brian otieno|aisha wanjiku|kisumu boys/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /record payment/i })).not.toBeInTheDocument();
   });
 });

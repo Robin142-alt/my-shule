@@ -23,5 +23,13 @@ export default async function PortalSectionPage({
   }
 
   const session = await readPublicPortalSession(viewer as PortalViewer);
-  return <PortalPages viewer={session.viewer} section={section} routeMode="public" />;
+  return (
+    <PortalPages
+      viewer={session.viewer}
+      section={section}
+      routeMode="public"
+      tenantSlug={session.tenantSlug}
+      userLabel={session.userLabel}
+    />
+  );
 }

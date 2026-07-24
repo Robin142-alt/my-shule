@@ -125,5 +125,8 @@ export async function readPublicPortalSession(expectedViewer?: PortalViewer) {
     redirect(`/portal/${session.viewer}`);
   }
 
-  return session;
+  return {
+    ...session,
+    tenantSlug: readTenantCookie(cookieStore)?.trim() || null,
+  };
 }

@@ -1,6 +1,7 @@
 import { screen } from "@testing-library/react";
 import { createElement } from "react";
 
+import { PortalPages } from "@/components/portal/portal-pages";
 import { SchoolPages } from "@/components/school/school-pages";
 import { getSchoolRoleAlias } from "@/lib/auth/school-role-normalization";
 
@@ -9,6 +10,28 @@ import { renderWithProviders } from "./test-utils";
 jest.mock("@/components/school/role-operational-command-center", () => ({
   RoleOperationalCommandCenter: ({ role }: { role: string }) => (
     <div data-testid="role-operational-command-center">Generic {role}</div>
+  ),
+}));
+
+const mockLiveRoleIds = new Set([
+  "secretary",
+  "librarian",
+  "storekeeper",
+  "nurse",
+  "guidance-counselling",
+  "discipline-master",
+  "laboratory-technician",
+  "ict-manager",
+  "security-officer",
+  "transport-manager",
+  "boarding-master",
+  "student",
+]);
+
+jest.mock("@/components/school/live-role-command-center", () => ({
+  isLiveRoleCommandCenterRole: (role: string) => mockLiveRoleIds.has(role),
+  LiveRoleCommandCenter: ({ role, activeSection }: { role: string; activeSection?: string }) => (
+    <div data-testid="live-role-command-center" data-role={role}>{role} {activeSection}</div>
   ),
 }));
 
@@ -114,6 +137,12 @@ jest.mock("@/components/school/discipline-master-command-center", () => ({
   ),
 }));
 
+jest.mock("@/components/school/ict-manager-command-center", () => ({
+  IctManagerCommandCenter: ({ activeSection }: { activeSection?: string }) => (
+    <div data-testid="ict-manager-command-center">ICT {activeSection}</div>
+  ),
+}));
+
 const dedicatedRoleCases = [
   ["deputy-principal", "deputy-principal-command-center"],
   ["dean-academics", "dean-academics-command-center"],
@@ -122,21 +151,13 @@ const dedicatedRoleCases = [
   ["grade-master", "grade-master-command-center"],
   ["accountant", "accountant-command-center"],
   ["bursar", "accountant-command-center"],
+  ["class-teacher", "class-teacher-command-center"],
 ] as const;
 
+const liveRoleCases = Array.from(mockLiveRoleIds);
+
 const sharedFallbackRoleCases = [
-  "secretary",
-  "class-teacher",
   "admin",
-  "storekeeper",
-  "librarian",
-  "nurse",
-  "boarding-master",
-  "security-officer",
-  "transport-manager",
-  "laboratory-technician",
-  "guidance-counselling",
-  "discipline-master",
 ] as const;
 
 describe("school command center routing", () => {
@@ -179,6 +200,42 @@ describe("school command center routing", () => {
       );
 
       expect(await screen.findByTestId("role-operational-command-center")).toHaveTextContent(`Generic ${role}`);
+    },
+  );
+
+  it.each(liveRoleCases)(
+    "routes %s through the integrated live role command center",
+    async (role) => {
+      renderWithProviders(
+        createElement(SchoolPages, {
+          role,
+          section: "dashboard",
+          tenantSlug: "homabay-high",
+          routeMode: "public",
+          liveDataEnabled: false,
+        }),
+      );
+
+      expect(await screen.findByTestId("live-role-command-center")).toHaveAttribute("data-role", role);
+      expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
+    },
+  );
+
+  it.each(["parent", "student"] as const)(
+    "routes the %s portal through the integrated live command center",
+    async (viewer) => {
+      renderWithProviders(
+        createElement(PortalPages, {
+          viewer,
+          section: "dashboard",
+          tenantSlug: "homabay-high",
+          userLabel: `${viewer} user`,
+          routeMode: "public",
+        }),
+      );
+
+      expect(await screen.findByTestId("live-role-command-center")).toHaveAttribute("data-role", viewer);
+      expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
     },
   );
 

@@ -1,5 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+
+import { writeArtifactFileSync } from './artifact-writer';
 
 export type Implementation21CertificationStatus = 'pass' | 'fail';
 
@@ -83,7 +85,8 @@ const CERTIFICATION_AREAS: CertificationArea[] = [
     check('confidential-redaction', 'Parent history redacts confidential clinician notes', 'apps/api/src/modules/clinic/clinic.service.ts', /redactMedicalHistoryForParent[\s\S]+confidential_notes/),
     check('parent-dispensed-drugs', 'Repository returns medicines dispensed to the child', 'apps/api/src/modules/clinic/repositories/clinic.repository.ts', /(?=.*medicines_dispensed)(?=.*medicine_name)(?=.*dosage)/s),
     check('portal-health-nav', 'Parent portal includes health section', 'apps/web/src/lib/experiences/portal-data.ts', /id:\s+"health"[\s\S]+label:\s+"Health"/),
-    check('portal-health-ui', 'Portal UI fetches child medical history from the clinic parent endpoint', 'apps/web/src/components/portal/portal-pages.tsx', /PortalHealthPage[\s\S]+\/api\/clinic\/parent\/students\/\$\{encodeURIComponent/),
+    check('parent-command-guardian-scope', 'Parent health queries are tenant and authenticated-guardian scoped', 'apps/api/src/modules/admin-command/parent-command.service.ts', /getHealth[\s\S]+FROM student_guardians[\s\S]+guardian\.tenant_id = \$1[\s\S]+guardian\.user_id = \$2::uuid[\s\S]+guardian\.status = 'active'/),
+    check('portal-health-ui', 'Integrated parent portal fetches guarded child health records', 'apps/web/src/components/school/parent/health-workspace.tsx', /HealthWorkspace[\s\S]+\/admin-command\/parent\/health/),
   ]),
   area('security-audit-rbac', 'RBAC, audit logging, and tenant safety', [
     check('clinic-permission-catalog', 'Clinic permissions and clinic staff role exist', 'apps/api/src/auth/auth.constants.ts', /clinic_staff[\s\S]+clinic:inventory[\s\S]+clinic:confidential/),
@@ -163,7 +166,7 @@ export function writeImplementation21CertificationArtifact(
   outputPath: string,
 ): void {
   mkdirSync(dirname(outputPath), { recursive: true });
-  writeFileSync(outputPath, renderImplementation21CertificationMarkdown(result), 'utf8');
+  writeArtifactFileSync(outputPath, renderImplementation21CertificationMarkdown(result));
 }
 
 export function runAndWriteImplementation21Certification(

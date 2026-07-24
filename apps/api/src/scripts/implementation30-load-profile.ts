@@ -1,5 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+
+import { writeArtifactFileSync } from './artifact-writer';
 
 export interface Implementation30SchoolDayWorkload {
   id: string;
@@ -308,7 +310,7 @@ export function writeImplementation30LoadProfileArtifact(
   outputPath: string,
 ): void {
   mkdirSync(dirname(outputPath), { recursive: true });
-  writeFileSync(outputPath, renderImplementation30LoadProfileMarkdown(result), 'utf8');
+  writeArtifactFileSync(outputPath, renderImplementation30LoadProfileMarkdown(result));
 }
 
 function validateStaticProfile(): { id: string; label: string; status: 'pass' | 'fail' } {

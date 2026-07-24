@@ -28,28 +28,20 @@ import { DeanAcademicsCommandCenter } from "@/components/school/dean-academics-c
 import { DeanModuleScreen } from "@/components/modules/dean/dean-module-screen";
 import { DeputyPrincipalCommandCenter } from "@/components/school/deputy-principal-command-center";
 import { PrincipalCommandCenter } from "@/components/school/principal-command-center";
-import { BoardingMasterCommandCenter } from "@/components/school/boarding-master-command-center";
-import { LaboratoryTechnicianCommandCenter } from "@/components/school/laboratory-technician-command-center";
 import { AccountantCommandCenter } from "@/components/school/accountant-command-center";
-import { NurseCommandCenter } from "@/components/school/nurse-command-center";
-import { CounsellorCommandCenter } from "@/components/school/counsellor-command-center";
-import { LibrarianCommandCenter } from "@/components/school/librarian-command-center";
-import { DisciplineMasterCommandCenter } from "@/components/school/discipline-master-command-center";
-import { SecurityCommandCenter } from "@/components/school/security-command-center";
 import { ExamsManagerCommandCenter } from "@/components/school/exams-manager-command-center";
 import { GradeMasterCommandCenter } from "@/components/school/grade-master-command-center";
 import { HodCommandCenter } from "@/components/school/hod-command-center";
+import {
+  isLiveRoleCommandCenterRole,
+  LiveRoleCommandCenter,
+} from "@/components/school/live-role-command-center";
 import { OperationalBlueprintWorkspace } from "@/components/school/operational-blueprint-workspace";
 import { RoleOperationalCommandCenter } from "@/components/school/role-operational-command-center";
 import { TeacherCommandCenter } from "@/components/school/teacher-command-center";
-import { SecretaryCommandCenterFull } from "@/components/school/secretary-command-center-full";
-import { IctManagerCommandCenter } from "@/components/school/ict-manager-command-center";
 import { ProcurementOfficerCommandCenter } from "@/components/school/procurement-officer-command-center";
-import { StudentCommandCenter } from "@/components/school/student-command-center";
 import { ClassTeacherCommandCenter } from "@/components/school/class-teacher-command-center";
 import { AdmissionsDashboardCommandCenter } from "@/components/school/admissions-dashboard/admissions-dashboard-command-center";
-import { StorekeeperCommandCenter } from "@/components/school/storekeeper-command-center";
-import { TransportManagerCommandCenter } from "@/components/school/transport-manager-command-center";
 import { SchoolCommandIdentityProvider } from "@/components/school/integrated-school-command-header";
 import { UserManagementPanel } from "@/components/school/user-management-panel";
 import { SupportCenterWorkspace } from "@/components/support/support-center-workspace";
@@ -897,18 +889,7 @@ const disciplineMasterCommandCenterSectionIds = new Set([
   "settings",
 ]);
 const sharedOperationalFallbackRoleIds = new Set<SchoolExperienceRole>([
-  "secretary",
-  "class-teacher",
   "admin",
-  "storekeeper",
-  "librarian",
-  "nurse",
-  "boarding-master",
-  "security-officer",
-  "transport-manager",
-  "laboratory-technician",
-  "guidance-counselling",
-  "discipline-master",
 ]);
 
 function shouldRenderRoleOperationalWorkspace(role: SchoolExperienceRole, section: string) {
@@ -4449,7 +4430,20 @@ export function SchoolPages(props: SchoolPagesProps) {
     <SchoolTenantScopeProvider tenantId={tenantId}>
       <DashboardCommunicationProvider tenantId={tenantId}>
         <SchoolCommandIdentityProvider tenantSlug={props.tenantSlug} userLabel={props.userLabel}>
-          <SchoolPagesShell {...props} />
+          {!props.studentId && isLiveRoleCommandCenterRole(props.role) ? (
+            <PermissionProvider schoolId={props.tenantSlug ?? undefined}>
+              <LiveRoleCommandCenter
+                key={`${props.role}:${props.section ?? "dashboard"}`}
+                role={props.role}
+                routeMode={props.routeMode ?? "hosted"}
+                activeSection={props.section ?? "dashboard"}
+                tenantSlug={props.tenantSlug}
+                userLabel={props.userLabel}
+              />
+            </PermissionProvider>
+          ) : (
+            <SchoolPagesShell {...props} />
+          )}
         </SchoolCommandIdentityProvider>
       </DashboardCommunicationProvider>
     </SchoolTenantScopeProvider>
@@ -4772,10 +4766,6 @@ function SchoolPagesShell({
       return <PrincipalCommandCenter routeMode={routeMode} tenantSlug={tenantSlug} activeSection={section} userLabel={userLabel} />;
     }
 
-    if (role === "student") {
-      return <StudentCommandCenter routeMode={routeMode} activeSection={section} />;
-    }
-
     if (section === "exams") {
       if (role === "grade-master") {
         // @ts-ignore
@@ -4836,49 +4826,8 @@ function SchoolPagesShell({
       );
     }
 
-    if (role === "secretary") {
-      return <SecretaryCommandCenterFull routeMode={routeMode} activeSection={section} />;
-    }
-
-    if (role === "ict-manager") {
-      return <IctManagerCommandCenter routeMode={routeMode} activeSection={section} />;
-    }
-
     if (role === "procurement-officer") {
       return <ProcurementOfficerCommandCenter routeMode={routeMode} activeSection={section} />;
-    }
-
-    if (role === "discipline-master") {
-      return <DisciplineMasterCommandCenter activeSection={section} />;
-    }
-
-    if (role === "librarian") {
-      return <LibrarianCommandCenter activeSection={section} />;
-    }
-
-    if (role === "boarding-master") {
-      // @ts-ignore
-      return <BoardingMasterCommandCenter routeMode={routeMode} activeSection={section} />;
-    }
-
-    if (role === "nurse") {
-      // @ts-ignore
-      return <NurseCommandCenter activeSection={section} />;
-    }
-
-    if (role === "guidance-counselling") {
-      // @ts-ignore
-      return <CounsellorCommandCenter routeMode={routeMode} activeSection={section} />;
-    }
-
-    if (role === "laboratory-technician") {
-      // @ts-ignore
-      return <LaboratoryTechnicianCommandCenter routeMode={routeMode} activeSection={section} />;
-    }
-
-    if (role === "security-officer") {
-      // @ts-ignore
-      return <SecurityCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
     if (role === "grade-master") {
@@ -4914,16 +4863,6 @@ function SchoolPagesShell({
 
     if (role === "admissions") {
       return <AdmissionsDashboardCommandCenter routeMode={routeMode} activeSection={section} />;
-    }
-
-    if (role === "storekeeper") {
-      // @ts-ignore
-      return <StorekeeperCommandCenter routeMode={routeMode} activeSection={section} />;
-    }
-
-    if (role === "transport-manager") {
-      // @ts-ignore
-      return <TransportManagerCommandCenter routeMode={routeMode} activeSection={section} />;
     }
 
     return (

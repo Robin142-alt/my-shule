@@ -22,7 +22,9 @@ import { IctManagerCommandService } from './ict-manager-command.service';
 import { GuidanceCounsellingCommandService } from './guidance-counselling-command.service';
 import { HodCommandService } from './hod-command.service';
 import { LibrarianCommandService } from './librarian-command.service';
+import { ParentCommandService } from './parent-command.service';
 import { ProcurementOfficerCommandService } from './procurement-officer-command.service';
+import { StudentCommandService } from './student-command.service';
 import { TransportManagerCommandService } from './transport-manager-command.service';
 import { ExamsManagerCommandService } from './exams-manager-command.service';
 import { TeacherCommandService } from './teacher-command.service';
@@ -3587,4 +3589,122 @@ test('ExamsManagerCommandService refuses fake publication when no report cards a
 
   assert.equal(writes.length, 1);
   assert.equal(workflowCalls.length, 0);
+});
+
+test('ParentCommandService scopes finance reads to the authenticated parent and school', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new ParentCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+  );
+
+  const result = await service.getFees();
+
+  assert.deepEqual(result, {
+    metrics: {
+      balance_minor: 0,
+      open_invoices: 0,
+      payments: 0,
+    },
+    accounts: [],
+    invoices: [],
+    transactions: [],
+  });
+  assert.equal(queries.length, 3);
+  for (const query of queries) {
+    assert.deepEqual(query.params, [
+      'tenant-a',
+      '11111111-1111-4111-8111-111111111111',
+    ]);
+    assert.match(query.sql, /student_guardians/i);
+    assert.match(query.sql, /guardian\.tenant_id = \$1/i);
+    assert.match(query.sql, /guardian\.user_id = \$2::uuid/i);
+  }
+});
+
+test('ParentCommandService keeps database failures visible to the portal', async () => {
+  const service = new ParentCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      query: async () => {
+        throw new Error('parent finance read failed');
+      },
+    } as never,
+  );
+
+  await assert.rejects(service.getFees(), /parent finance read failed/i);
+});
+
+test('StudentCommandService scopes finance reads to the authenticated student and school', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new StudentCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+  );
+
+  const result = await service.getFees();
+
+  assert.deepEqual(result, {
+    metrics: {
+      balance_minor: 0,
+      open_invoices: 0,
+      payments: 0,
+    },
+    account: null,
+    invoices: [],
+    transactions: [],
+  });
+  assert.equal(queries.length, 3);
+  for (const query of queries) {
+    assert.deepEqual(query.params, [
+      'tenant-a',
+      '11111111-1111-4111-8111-111111111111',
+    ]);
+    assert.match(query.sql, /student_portal_access/i);
+    assert.match(query.sql, /access\.tenant_id = \$1/i);
+    assert.match(query.sql, /access\.user_id = \$2::uuid/i);
+  }
+});
+
+test('StudentCommandService keeps database failures visible to the portal', async () => {
+  const service = new StudentCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      query: async () => {
+        throw new Error('student finance read failed');
+      },
+    } as never,
+  );
+
+  await assert.rejects(service.getFees(), /student finance read failed/i);
 });

@@ -18,5 +18,12 @@ export default async function PortalViewerHomePage({
   }
 
   const session = await readPublicPortalSession(viewer as PortalViewer);
-  return <PortalPages viewer={session.viewer} routeMode="public" />;
+  return (
+    <PortalPages
+      viewer={session.viewer}
+      routeMode="public"
+      tenantSlug={session.tenantSlug}
+      userLabel={session.userLabel}
+    />
+  );
 }

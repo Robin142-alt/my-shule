@@ -1,5 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+
+import { writeArtifactFileSync } from './artifact-writer';
 
 export type Implementation30RolloutGateStatus = 'pass' | 'fail' | 'blocked';
 export type Implementation30MpesaMode = 'none' | 'sandbox' | 'production';
@@ -227,7 +229,7 @@ export function writeImplementation30RolloutGateArtifact(
   outputPath: string,
 ): void {
   mkdirSync(dirname(outputPath), { recursive: true });
-  writeFileSync(outputPath, renderImplementation30RolloutGateMarkdown(result), 'utf8');
+  writeArtifactFileSync(outputPath, renderImplementation30RolloutGateMarkdown(result));
 }
 
 export function loadImplementation30RolloutEvidenceFromFile(

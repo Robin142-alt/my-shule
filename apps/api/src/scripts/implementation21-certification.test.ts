@@ -29,7 +29,8 @@ const passingSources: Record<string, string> = {
   'apps/api/src/modules/clinic/clinic.controller.ts': 'clinic:inventory clinic:dispense clinic:reports portal:read_own_children',
   'apps/web/src/app/api/clinic/[...path]/route.ts': 'isParentRoute audience: isParentRoute ? "portal" : "school"',
   'apps/web/src/lib/experiences/portal-data.ts': 'id: "health" label: "Health"',
-  'apps/web/src/components/portal/portal-pages.tsx': 'PortalHealthPage /api/clinic/parent/students/${encodeURIComponent',
+  'apps/api/src/modules/admin-command/parent-command.service.ts': "getHealth FROM student_guardians guardian.tenant_id = $1 guardian.user_id = $2::uuid guardian.status = 'active'",
+  'apps/web/src/components/school/parent/health-workspace.tsx': 'HealthWorkspace /admin-command/parent/health',
   'apps/api/src/auth/auth.constants.ts': 'clinic_staff clinic:inventory clinic:confidential',
 };
 

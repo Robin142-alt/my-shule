@@ -59,6 +59,7 @@ describe("time-aware dashboard greeting", () => {
       createElement(SchoolPages, {
         role: "principal",
         tenantSlug: "kisumu-boys",
+        userLabel: "Principal Wanjiku",
       }),
     );
 
@@ -74,6 +75,7 @@ describe("time-aware dashboard greeting", () => {
         section: "finance",
         tenantSlug: "kisumu-boys",
         liveDataEnabled: false,
+        userLabel: "Bursar Achieng",
       }),
     );
 
@@ -83,9 +85,14 @@ describe("time-aware dashboard greeting", () => {
   it("greets portal users by their workspace person name", async () => {
     jest.spyOn(Date.prototype, "getHours").mockReturnValue(18);
 
-    renderWithProviders(createElement(PortalPages, { viewer: "student", section: "fees" }));
+    renderWithProviders(createElement(PortalPages, {
+      viewer: "student",
+      section: "fees",
+      tenantSlug: "lakeview-school",
+      userLabel: "Learner One",
+    }));
 
-    expect(await screen.findByText("Good Evening, Brian Otieno")).toBeVisible();
+    expect(await screen.findByText("Good Evening, Learner One")).toBeVisible();
   });
 
   it("greets platform operators in the superadmin workspace", async () => {

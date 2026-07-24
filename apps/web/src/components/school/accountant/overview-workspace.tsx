@@ -36,6 +36,26 @@ type AccountantOverviewResponse = {
   }>;
 };
 
+function isAccountantOverviewResponse(value: unknown): value is AccountantOverviewResponse {
+  if (!value || typeof value !== "object") return false;
+
+  const candidate = value as Partial<AccountantOverviewResponse>;
+  const metrics = candidate.metrics as Partial<AccountantOverviewResponse["metrics"]> | undefined;
+
+  return Boolean(
+    metrics
+      && typeof candidate.generated_at === "string"
+      && typeof metrics.collected_today_minor === "string"
+      && typeof metrics.receipts_today_count === "number"
+      && typeof metrics.outstanding_balance_minor === "string"
+      && typeof metrics.balances_above_threshold_count === "number"
+      && typeof metrics.open_invoice_count === "number"
+      && typeof metrics.mpesa_review_count === "number"
+      && typeof metrics.active_fee_structure_count === "number"
+      && Array.isArray(candidate.recent_activity),
+  );
+}
+
 function formatMinorKes(value: string) {
   try {
     const amountMinor = BigInt(value || "0");
@@ -99,7 +119,7 @@ export function AccountantOverviewWorkspace({
     );
   }
 
-  if (isError || !data) {
+  if (isError || !isAccountantOverviewResponse(data)) {
     return (
       <section className="rounded-xl border border-rose-300/30 bg-rose-400/10 p-5 text-white" role="alert">
         <div className="flex items-start gap-3">

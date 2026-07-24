@@ -1,84 +1,148 @@
 "use client";
 
-import { CreditCard, Download, FileText, CheckCircle, Clock, AlertTriangle } from "lucide-react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Modal } from "@/components/ui/modal";
-import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { AlertTriangle, CheckCircle, CreditCard, FileText } from "lucide-react";
 import { toast } from "sonner";
+
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Modal } from "@/components/ui/modal";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { openPrintDocument } from "@/lib/dashboard/export";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+
+type FeeAccount = {
+  student_id: string;
+  admission_number?: string | null;
+  student_name: string;
+  class_name?: string | null;
+  balance_minor: number;
+  open_invoices: number;
+};
+
+type FeeInvoice = {
+  id: string;
+  student_id: string;
+  student_name: string;
+  invoice_number?: string | null;
+  term?: string | null;
+  academic_year?: string | null;
+  amount_minor: number;
+  balance_minor: number;
+  status: string;
+  created_at: string;
+};
+
+type FeeTransaction = {
+  id: string;
+  student_id: string;
+  student_name: string;
+  receipt_number?: string | null;
+  payment_method?: string | null;
+  amount_minor: number;
+  status: string;
+  created_at: string;
+};
+
+type ParentFeesData = {
+  metrics: {
+    balance_minor: number;
+    open_invoices: number;
+    payments: number;
+  };
+  accounts: FeeAccount[];
+  invoices: FeeInvoice[];
+  transactions: FeeTransaction[];
+};
 
 export function FeesWorkspace() {
+  const [selectedStudentId, setSelectedStudentId] = useState("");
   const [isPaying, setIsPaying] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentPhone, setPaymentPhone] = useState("");
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
-  // Fetch real data from the finance endpoints
-  const { data: accountsOverview, isLoading: accountsLoading } = useSchoolQuery<any>('/api/finance/accounts-overview');
-  const { data: transactions, isLoading: txLoading, refetch: refetchTx } = useSchoolQuery<any>('/api/finance/collections');
-  const { data: invoices, isLoading: invLoading, refetch: refetchInv } = useSchoolQuery<any>('/api/finance/invoices');
+  const {
+    data,
+    isLoading,
+    error,
+    refetch,
+  } = useSchoolQuery<ParentFeesData>("/admin-command/parent/fees");
 
-  const account = Array.isArray(accountsOverview) ? accountsOverview[0] : accountsOverview;
-  const balanceMinor = Number(account?.balance_minor || 0);
-  const balanceStr = (balanceMinor / 100).toLocaleString('en-US', { style: 'currency', currency: 'KES' });
-  const primaryInvoice = Array.isArray(invoices) ? invoices[0] : null;
+  const accounts = data?.accounts ?? [];
+
+  useEffect(() => {
+    if (!selectedStudentId && accounts[0]?.student_id) {
+      setSelectedStudentId(accounts[0].student_id);
+    }
+  }, [accounts, selectedStudentId]);
+
+  const account = accounts.find((row) => row.student_id === selectedStudentId) ?? accounts[0];
+  const invoices = useMemo(
+    () => (data?.invoices ?? []).filter((row) => !account || row.student_id === account.student_id),
+    [account, data?.invoices],
+  );
+  const transactions = useMemo(
+    () => (data?.transactions ?? []).filter((row) => !account || row.student_id === account.student_id),
+    [account, data?.transactions],
+  );
+  const balanceMinor = Number(account?.balance_minor ?? 0);
+  const balanceLabel = formatMoney(balanceMinor);
+  const primaryInvoice = invoices.find((invoice) => !["paid", "cancelled", "waived"].includes(invoice.status));
   const accountReference = String(
-    account?.account_reference ||
-      account?.admission_number ||
-      account?.student_number ||
-      account?.student_id ||
-      primaryInvoice?.invoice_number ||
-      "school-fees",
+    account?.admission_number
+      || account?.student_id
+      || primaryInvoice?.invoice_number
+      || "school-fees",
   ).slice(0, 64);
-
-  const handlePayNow = () => {
-    setPaymentError(null);
-    setPaymentDialogOpen(true);
-  };
 
   const submitMpesaPayment = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const normalizedPhone = paymentPhone.replace(/\s+/g, "");
+
     if (!/^\+?254[17]\d{8}$|^0[17]\d{8}$/.test(normalizedPhone)) {
       setPaymentError("Enter a valid Safaricom phone number, for example 0712345678 or 254712345678.");
       return;
     }
-    if (balanceMinor <= 0) {
-      setPaymentError("There is no outstanding balance to pay.");
+    if (!account || balanceMinor <= 0) {
+      setPaymentError("This learner has no outstanding balance to pay.");
       return;
     }
 
     setIsPaying(true);
     setPaymentError(null);
     try {
-      const response = await requestDashboardApi<{ checkout_request_id?: string | null; status?: string; customer_message?: string | null }>("/api/payments/mpesa/payment-intents", {
+      const response = await requestDashboardApi<{
+        customer_message?: string | null;
+      }>("/api/payments/mpesa/payment-intents", {
         method: "POST",
         body: {
-          idempotency_key: `parent-fees-${accountReference}-${balanceMinor}-${Date.now()}`,
+          idempotency_key: `parent-fees-${account.student_id}-${balanceMinor}-${Date.now()}`,
           amount_minor: String(balanceMinor),
           phone_number: normalizedPhone,
-          student_id: isUuid(account?.student_id) ? account.student_id : undefined,
+          student_id: isUuid(account.student_id) ? account.student_id : undefined,
           account_reference: accountReference,
-          transaction_desc: "School fees payment",
-          external_reference: primaryInvoice?.id ? String(primaryInvoice.id) : undefined,
+          transaction_desc: `School fees payment for ${account.student_name}`,
+          external_reference: primaryInvoice?.id,
           metadata: {
             source: "parent-portal",
+            student_id: account.student_id,
             invoice_id: primaryInvoice?.id ?? null,
             invoice_number: primaryInvoice?.invoice_number ?? null,
           },
         },
       });
+
       toast.success("M-Pesa STK request sent.", {
-        description: response?.customer_message || "Confirm the prompt on the phone. The receipt posts after M-Pesa callback confirmation.",
+        description: response.customer_message
+          || "Confirm the prompt on the phone. The receipt appears after M-Pesa confirms payment.",
       });
       setPaymentDialogOpen(false);
-      refetchTx();
-      refetchInv();
-    } catch (error: any) {
-      const message = error?.message || "Failed to start M-Pesa payment.";
+      await refetch();
+    } catch (paymentRequestError) {
+      const message = paymentRequestError instanceof Error
+        ? paymentRequestError.message
+        : "Failed to start M-Pesa payment.";
       setPaymentError(message);
       toast.error(message);
     } finally {
@@ -86,142 +150,189 @@ export function FeesWorkspace() {
     }
   };
 
-  const downloadFeeStatement = () => {
+  const previewFeeStatement = () => {
     openPrintDocument({
       eyebrow: "Fee statement",
-      title: "Student Fee Statement",
-      subtitle: "Live parent portal balance, invoices, and payments",
+      title: account ? `${account.student_name} Fee Statement` : "Student Fee Statement",
+      subtitle: "Live school-scoped invoices and confirmed payments",
       rows: [
-        { label: "Current balance", value: balanceStr, tone: balanceMinor > 0 ? "danger" : "default" },
-        { label: "Open invoices", value: String((invoices || []).length) },
-        { label: "Recent payments", value: String((transactions || []).length) },
-        ...((invoices || []).slice(0, 4).map((invoice: any) => ({
-          label: `Invoice ${invoice.invoice_number || invoice.id || ""}`.trim(),
-          value: ((invoice.amount_minor || 0) / 100).toLocaleString("en-US", { style: "currency", currency: "KES" }),
-          tone: "danger" as const,
-        }))),
-        ...((transactions || []).slice(0, 4).map((tx: any) => ({
-          label: `Receipt ${tx.receipt_number || tx.id || ""}`.trim(),
-          value: ((tx.amount_minor || 0) / 100).toLocaleString("en-US", { style: "currency", currency: "KES" }),
-        }))),
+        { label: "Current balance", value: balanceLabel, tone: balanceMinor > 0 ? "danger" : "default" },
+        { label: "Open invoices", value: String(account?.open_invoices ?? 0) },
+        { label: "Recent payments", value: String(transactions.length) },
+        ...invoices.slice(0, 6).map((invoice) => ({
+          label: `Invoice ${invoice.invoice_number || invoice.id}`,
+          value: `${formatMoney(invoice.balance_minor)} balance (${invoice.status})`,
+          tone: invoice.balance_minor > 0 ? "danger" as const : "default" as const,
+        })),
+        ...transactions.slice(0, 6).map((transaction) => ({
+          label: `Receipt ${transaction.receipt_number || transaction.id}`,
+          value: `${formatMoney(transaction.amount_minor)} (${transaction.status})`,
+        })),
       ],
-      footer: "fee-statement generated from live MyShule parent portal records.",
+      footer: "Generated from live MyShule records for the selected learner.",
     });
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold text-slate-900 tracking-tight">Fees & Payments</h2>
-          <p className="text-sm text-slate-500 mt-1">Manage tuition fees, view invoices, and make secure payments.</p>
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Fees & Payments</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            View each linked learner&apos;s invoices, balance, and confirmed payments.
+          </p>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="p-6 border border-slate-200 col-span-1 md:col-span-2 bg-gradient-to-r from-blue-50 to-white">
-          <div className="flex items-center gap-3 mb-2">
-            <h3 className="font-semibold text-slate-900">Current Balance</h3>
-          </div>
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-            <div>
-              {accountsLoading ? (
-                <div className="h-10 w-32 bg-slate-200 animate-pulse rounded mb-1"></div>
-              ) : (
-                <div className="text-4xl font-bold text-slate-900 mb-1">{balanceStr}</div>
-              )}
-              <p className="text-sm text-slate-600">Due by June 15, 2026</p>
-            </div>
-            <Button 
-              className="gap-2 bg-blue-600 hover:bg-blue-700" 
-              onClick={handlePayNow}
-              disabled={isPaying || balanceMinor <= 0}
+        {accounts.length > 1 ? (
+          <label className="text-sm font-semibold text-slate-700">
+            Learner
+            <select
+              value={account?.student_id ?? ""}
+              onChange={(event) => setSelectedStudentId(event.currentTarget.value)}
+              className="mt-1 block min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900"
             >
-              <CreditCard className="w-4 h-4" /> Pay Now
-            </Button>
-          </div>
-        </Card>
-
-        <Card className="p-6 border border-slate-200 flex flex-col justify-center">
-          <h3 className="font-medium text-slate-900 flex items-center gap-2 mb-4">
-            <Download className="w-4 h-4 text-slate-500" /> Statement
-          </h3>
-          <p className="text-sm text-slate-500 mb-4">Download a full statement of account for tax or record purposes.</p>
-          <Button variant="outline" className="w-full gap-2" onClick={downloadFeeStatement} disabled={accountsLoading || txLoading || invLoading}>
-            <FileText className="w-4 h-4" /> Download PDF
-          </Button>
-        </Card>
+              {accounts.map((row) => (
+                <option key={row.student_id} value={row.student_id}>
+                  {row.student_name}{row.class_name ? ` - ${row.class_name}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
 
-      <Card className="border border-slate-200 overflow-hidden mt-6">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <h3 className="font-medium text-slate-900">Recent Transactions</h3>
+      {error ? (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800">
+          Fee records could not be loaded: {error.message}
         </div>
-        <table className="w-full text-sm text-left">
-          <thead className="text-xs text-slate-500 uppercase border-b border-slate-200">
-            <tr>
-              <th className="px-4 py-3 font-medium">Date</th>
-              <th className="px-4 py-3 font-medium">Description</th>
-              <th className="px-4 py-3 font-medium">Ref / Type</th>
-              <th className="px-4 py-3 font-medium text-right">Amount</th>
-              <th className="px-4 py-3 font-medium text-center">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {txLoading || invLoading ? (
-               <tr>
-                 <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
-                   <div className="animate-pulse">Loading financial records...</div>
-                 </td>
-               </tr>
-            ) : (
-              <>
-                {/* Render Invoices as Unpaid/Open */}
-                {(invoices || []).slice(0, 2).map((inv: any, idx: number) => (
-                  <tr key={`inv-${idx}`} className="hover:bg-slate-50/50 transition-colors bg-red-50/30">
-                    <td className="px-4 py-3 text-slate-500">{new Date(inv.created_at).toLocaleDateString()}</td>
-                    <td className="px-4 py-3 font-medium text-slate-900">Tuition Invoice - {inv.term}</td>
-                    <td className="px-4 py-3 text-slate-500">{inv.invoice_number}</td>
-                    <td className="px-4 py-3 text-right font-medium text-slate-900">
-                      {((inv.amount_minor || 0) / 100).toLocaleString('en-US', { style: 'currency', currency: 'KES' })}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium bg-rose-50 text-rose-700">
-                        <AlertTriangle className="w-3 h-3" /> Unpaid
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-                
-                {/* Render Collections as Completed Payments */}
-                {(transactions || []).map((tx: any, idx: number) => (
-                  <tr key={`tx-${idx}`} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-4 py-3 text-slate-500">{new Date(tx.created_at).toLocaleDateString()}</td>
-                    <td className="px-4 py-3 font-medium text-slate-900">Fee Payment ({tx.payment_method})</td>
-                    <td className="px-4 py-3 text-slate-500">{tx.receipt_number || 'N/A'}</td>
-                    <td className="px-4 py-3 text-right font-medium text-emerald-600">
-                      -{((tx.amount_minor || 0) / 100).toLocaleString('en-US', { style: 'currency', currency: 'KES' })}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium bg-emerald-50 text-emerald-700">
-                        <CheckCircle className="w-3 h-3" /> Completed
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+      ) : null}
 
-                {!transactions?.length && !invoices?.length && (
+      {!isLoading && !error && accounts.length === 0 ? (
+        <Card className="border border-dashed border-slate-300 p-8 text-center">
+          <h3 className="font-semibold text-slate-900">No linked learner fee account</h3>
+          <p className="mt-2 text-sm text-slate-500">
+            Ask the school to link your guardian account to an admitted learner before viewing fees.
+          </p>
+        </Card>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            <Card className="border border-slate-200 bg-gradient-to-r from-blue-50 to-white p-6 md:col-span-2">
+              <h3 className="font-semibold text-slate-900">
+                {account?.student_name ? `${account.student_name}'s balance` : "Current balance"}
+              </h3>
+              <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <div>
+                  {isLoading ? (
+                    <div className="h-10 w-32 animate-pulse rounded bg-slate-200" />
+                  ) : (
+                    <div className="text-4xl font-bold text-slate-900">{balanceLabel}</div>
+                  )}
+                  <p className="mt-1 text-sm text-slate-600">
+                    {account?.open_invoices ?? 0} open invoice{account?.open_invoices === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <Button
+                  className="gap-2 bg-blue-600 hover:bg-blue-700"
+                  onClick={() => {
+                    setPaymentError(null);
+                    setPaymentDialogOpen(true);
+                  }}
+                  disabled={isLoading || isPaying || balanceMinor <= 0 || !account}
+                >
+                  <CreditCard className="h-4 w-4" />
+                  Pay by M-Pesa
+                </Button>
+              </div>
+            </Card>
+
+            <Card className="flex flex-col justify-center border border-slate-200 p-6">
+              <h3 className="font-medium text-slate-900">Fee statement</h3>
+              <p className="mb-4 mt-2 text-sm text-slate-500">
+                Preview, print, or download the selected learner&apos;s live fee statement.
+              </p>
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={previewFeeStatement}
+                disabled={isLoading || !account}
+              >
+                <FileText className="h-4 w-4" />
+                Preview statement
+              </Button>
+            </Card>
+          </div>
+
+          <Card className="overflow-hidden border border-slate-200">
+            <div className="border-b border-slate-100 bg-slate-50/50 p-4">
+              <h3 className="font-medium text-slate-900">Invoices and payments</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="border-b border-slate-200 text-xs uppercase text-slate-500">
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
-                      No recent transactions found.
-                    </td>
+                    <th className="px-4 py-3 font-medium">Date</th>
+                    <th className="px-4 py-3 font-medium">Record</th>
+                    <th className="px-4 py-3 font-medium">Reference</th>
+                    <th className="px-4 py-3 text-right font-medium">Amount</th>
+                    <th className="px-4 py-3 text-center font-medium">Status</th>
                   </tr>
-                )}
-              </>
-            )}
-          </tbody>
-        </table>
-      </Card>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                        Loading financial records...
+                      </td>
+                    </tr>
+                  ) : (
+                    <>
+                      {invoices.map((invoice) => (
+                        <tr key={`invoice-${invoice.id}`} className="hover:bg-slate-50/50">
+                          <td className="px-4 py-3 text-slate-500">{formatDate(invoice.created_at)}</td>
+                          <td className="px-4 py-3 font-medium text-slate-900">
+                            {[invoice.term, invoice.academic_year].filter(Boolean).join(" - ") || "Fee invoice"}
+                          </td>
+                          <td className="px-4 py-3 text-slate-500">{invoice.invoice_number || invoice.id}</td>
+                          <td className="px-4 py-3 text-right font-medium text-slate-900">
+                            {formatMoney(invoice.amount_minor)}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <StatusBadge status={invoice.status} />
+                          </td>
+                        </tr>
+                      ))}
+                      {transactions.map((transaction) => (
+                        <tr key={`transaction-${transaction.id}`} className="hover:bg-slate-50/50">
+                          <td className="px-4 py-3 text-slate-500">{formatDate(transaction.created_at)}</td>
+                          <td className="px-4 py-3 font-medium text-slate-900">
+                            Fee payment{transaction.payment_method ? ` (${transaction.payment_method})` : ""}
+                          </td>
+                          <td className="px-4 py-3 text-slate-500">
+                            {transaction.receipt_number || transaction.id}
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium text-emerald-700">
+                            {formatMoney(transaction.amount_minor)}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <StatusBadge status={transaction.status} />
+                          </td>
+                        </tr>
+                      ))}
+                      {invoices.length === 0 && transactions.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                            No invoices or confirmed payments exist for this learner yet.
+                          </td>
+                        </tr>
+                      ) : null}
+                    </>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
 
       <Modal
         open={paymentDialogOpen}
@@ -229,8 +340,8 @@ export function FeesWorkspace() {
           if (!isPaying) setPaymentDialogOpen(false);
         }}
         title="Pay school fees by M-Pesa"
-        description="A real STK request will be created. Payment is posted only after M-Pesa confirms the callback."
-        footer={
+        description="Payment is posted only after M-Pesa confirms the callback."
+        footer={(
           <>
             <Button type="button" variant="outline" onClick={() => setPaymentDialogOpen(false)} disabled={isPaying}>
               Cancel
@@ -239,20 +350,23 @@ export function FeesWorkspace() {
               {isPaying ? "Sending STK..." : "Send STK request"}
             </Button>
           </>
-        }
+        )}
       >
         <form id="parent-mpesa-payment-form" onSubmit={submitMpesaPayment} className="space-y-4">
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
             <div className="flex justify-between gap-4">
+              <span className="text-slate-500">Learner</span>
+              <span className="font-semibold text-slate-900">{account?.student_name ?? "Not selected"}</span>
+            </div>
+            <div className="mt-2 flex justify-between gap-4">
               <span className="text-slate-500">Amount</span>
-              <span className="font-semibold text-slate-900">{balanceStr}</span>
+              <span className="font-semibold text-slate-900">{balanceLabel}</span>
             </div>
             <div className="mt-2 flex justify-between gap-4">
               <span className="text-slate-500">Account reference</span>
               <span className="font-semibold text-slate-900">{accountReference}</span>
             </div>
           </div>
-
           <label className="block text-sm font-medium text-slate-700">
             M-Pesa phone number
             <input
@@ -265,7 +379,6 @@ export function FeesWorkspace() {
               required
             />
           </label>
-
           {paymentError ? (
             <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
               {paymentError}
@@ -277,7 +390,38 @@ export function FeesWorkspace() {
   );
 }
 
-function isUuid(value: unknown): value is string {
-  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+function StatusBadge({ status }: { status: string }) {
+  const normalized = status.toLowerCase();
+  const positive = ["paid", "completed", "confirmed", "success"].includes(normalized);
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium ${
+        positive ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+      }`}
+    >
+      {positive
+        ? <CheckCircle className="h-3 w-3" />
+        : <AlertTriangle className="h-3 w-3" />}
+      {status || "Unknown"}
+    </span>
+  );
 }
 
+function formatMoney(value: number) {
+  return (Number(value || 0) / 100).toLocaleString("en-KE", {
+    style: "currency",
+    currency: "KES",
+  });
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "Date not recorded";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Date not recorded" : date.toLocaleDateString("en-KE");
+}
+
+function isUuid(value: unknown): value is string {
+  return typeof value === "string"
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}

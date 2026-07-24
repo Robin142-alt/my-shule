@@ -1,5 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+
+import { writeArtifactFileSync } from './artifact-writer';
 
 export type MaintainabilityCheckStatus = 'pass' | 'fail';
 
@@ -74,7 +76,7 @@ export function writeMaintainabilityScanArtifact(
   outputPath: string,
 ): void {
   mkdirSync(dirname(outputPath), { recursive: true });
-  writeFileSync(outputPath, renderMaintainabilityScanMarkdown(result), 'utf8');
+  writeArtifactFileSync(outputPath, renderMaintainabilityScanMarkdown(result));
 }
 
 function checkNoInternalIdCopy(

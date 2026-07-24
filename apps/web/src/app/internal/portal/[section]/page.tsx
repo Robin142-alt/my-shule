@@ -20,6 +20,8 @@ export default async function InternalPortalSectionPage({
     <PortalPages
       viewer={context.viewer}
       section={section as PortalSection}
+      tenantSlug={context.tenantSlug}
+      userLabel={context.session.userLabel}
     />
   );
 }

@@ -8,6 +8,7 @@ import {
   SUPERADMIN_SESSION_COOKIE,
 } from "@/lib/auth/experience-routing";
 import { getDefaultSchoolBranding, getSchoolBrandingBySlug } from "@/lib/auth/school-branding";
+import { readTenantCookie } from "@/lib/auth/server-session";
 
 function normalizeHeaderValue(value: string | null) {
   return value?.trim().toLowerCase() ?? null;
@@ -97,6 +98,7 @@ export async function readPortalRequestContext() {
 
   return {
     viewer: session.viewer,
+    tenantSlug: readTenantCookie(cookieStore)?.trim() || null,
     session,
   };
 }

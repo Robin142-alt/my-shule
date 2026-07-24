@@ -102,12 +102,16 @@ describe("STEP 5: Interaction tests", () => {
     expect(notificationsButton).toHaveFocus();
   });
 
-  it("keeps the portal focused on self-service sections without school admin actions", () => {
-    renderWithProviders(createElement(PortalPages, { viewer: "parent" }));
+  it("keeps the portal focused on live self-service sections without school admin actions", () => {
+    renderWithProviders(createElement(PortalPages, {
+      viewer: "parent",
+      tenantSlug: "lakeview-school",
+      userLabel: "Grace Parent",
+    }));
 
-    expect(screen.getByRole("heading", { name: /family dashboard/i })).toBeVisible();
-    expect(screen.getByRole("heading", { name: /fees & finance tracking/i })).toBeVisible();
-    expect(screen.getByRole("link", { name: /^fees$/i })).toBeVisible();
+    expect(screen.getByTestId("live-role-command-center")).toHaveAttribute("data-role", "parent");
+    expect(screen.getAllByRole("heading", { name: /parent dashboard/i }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("option", { name: /^fees$/i })).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /record payment/i }),
     ).not.toBeInTheDocument();

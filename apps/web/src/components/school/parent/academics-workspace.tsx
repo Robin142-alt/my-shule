@@ -24,23 +24,34 @@ interface ReportCardSummary {
 
 interface MarkSummary {
   id?: string;
+  student_name?: string;
   subject?: string;
   exam?: string;
   score?: string | number;
-  grade?: string;
 }
+
+type ParentAcademicsData = {
+  metrics: {
+    subjects: number;
+    mean_score: number;
+    report_cards: number;
+  };
+  assignments: Assignment[];
+  marks: MarkSummary[];
+  report_cards: ReportCardSummary[];
+};
 
 export function AcademicsWorkspace() {
   const [showAllHomework, setShowAllHomework] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  // Fetch real data from the backend
-  const { data: assignments, isLoading: assignLoading } = useSchoolQuery<Assignment[]>('/api/academics/my-assignments');
-  const { data: reportCards, isLoading: reportsLoading } = useSchoolQuery<ReportCardSummary[]>('/api/parent/report-cards');
-  const { data: marks, isLoading: marksLoading } = useSchoolQuery<MarkSummary[]>('/api/exams/marks');
+  const { data, isLoading, error } = useSchoolQuery<ParentAcademicsData>(
+    "/admin-command/parent/academics",
+  );
 
-  const allAssignments = Array.isArray(assignments) ? assignments : [];
+  const allAssignments = data?.assignments ?? [];
   const activeAssignments = showAllHomework ? allAssignments : allAssignments.slice(0, 3);
-  const publishedReports = Array.isArray(reportCards) ? reportCards.slice(0, 3) : [];
+  const publishedReports = data?.report_cards.slice(0, 3) ?? [];
+  const marks = data?.marks ?? [];
 
   function openReportCard(report: ReportCardSummary) {
     if (!report?.id) {
@@ -61,27 +72,34 @@ export function AcademicsWorkspace() {
         </div>
       </div>
 
+      {error ? (
+        <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-800">
+          Academic records could not be loaded: {error.message}
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="p-6 border border-slate-200 col-span-1 md:col-span-2 bg-white">
           <h3 className="font-medium text-slate-900 flex items-center gap-2 mb-4">
             <GraduationCap className="w-5 h-5 text-blue-500" /> Recent Grades
           </h3>
           <div className="space-y-3">
-            {marksLoading ? (
+            {isLoading ? (
                <div className="animate-pulse space-y-2">
                  <div className="h-10 bg-slate-100 rounded"></div>
                  <div className="h-10 bg-slate-100 rounded"></div>
                </div>
-            ) : Array.isArray(marks) && marks.length > 0 ? (
+            ) : marks.length > 0 ? (
                marks.slice(0, 4).map((mark, idx) => (
                  <div key={mark.id ?? idx} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100">
                     <div>
                       <p className="font-medium text-slate-900">{mark.subject || 'Subject'}</p>
-                      <p className="text-xs text-slate-500">{mark.exam || 'Assessment'}</p>
+                      <p className="text-xs text-slate-500">
+                        {[mark.student_name, mark.exam || "Assessment"].filter(Boolean).join(" - ")}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className="font-bold text-slate-900">{mark.score}%</p>
-                      <p className="text-xs text-slate-500 font-medium">Grade {mark.grade || '-'}</p>
                     </div>
                  </div>
                ))
@@ -98,7 +116,7 @@ export function AcademicsWorkspace() {
             <BookOpen className="w-5 h-5 text-emerald-500" /> Active Homework
           </h3>
           <div className="space-y-4">
-            {assignLoading ? (
+            {isLoading ? (
                <div className="animate-pulse space-y-2">
                  <div className="h-16 bg-slate-100 rounded"></div>
                  <div className="h-16 bg-slate-100 rounded"></div>
@@ -133,7 +151,7 @@ export function AcademicsWorkspace() {
           <h3 className="font-medium text-slate-900">Term Report Cards</h3>
         </div>
         <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {reportsLoading ? (
+          {isLoading ? (
              <div className="col-span-full text-center p-8 text-slate-500 animate-pulse">
                Loading report cards...
              </div>
