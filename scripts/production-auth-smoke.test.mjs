@@ -17,12 +17,12 @@ import {
 test('buildSmokeTargets normalizes configured production URLs', () => {
   const targets = buildSmokeTargets({
     webUrl: 'https://myshule.online/',
-    apiUrl: 'https://my-shule-erp-api.vercel.app/',
+    apiUrl: 'https://my-shule-api-production.up.railway.app/',
     tenant: 'kb-high',
     email: 'Teacher.Invited@Example.Test',
   });
 
-  assert.equal(targets.apiReadyUrl, 'https://my-shule-erp-api.vercel.app/health/ready');
+  assert.equal(targets.apiReadyUrl, 'https://my-shule-api-production.up.railway.app/health/ready');
   assert.equal(
     targets.schoolLoginUrl,
     'https://myshule.online/school/login?accepted=1&email=Teacher.Invited%40Example.Test&tenant=kb-high',

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const DEFAULT_WEB_URL = 'https://www.myshule.online';
-const DEFAULT_API_URL = 'https://my-shule-erp-api.vercel.app';
+const DEFAULT_API_URL = 'https://my-shule-api-production.up.railway.app';
 const DEFAULT_TENANT = 'kb-high';
 const DEFAULT_EMAIL = 'teacher.invited@example.test';
 const DEFAULT_ARTIFACT_PATH = 'docs/validation/production-auth-smoke.json';
