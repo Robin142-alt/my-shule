@@ -539,6 +539,135 @@ export class ExamsSchemaService implements OnModuleInit {
       DROP POLICY IF EXISTS academic_interventions_tenant_policy ON academic_interventions;
       DROP POLICY IF EXISTS academic_intervention_updates_tenant_policy ON academic_intervention_updates;
 
+      -- Reconcile tables first created by the legacy Prisma schema before any
+      -- evolved exam workflow reads, updates, constraints, or indexes use them.
+      ALTER TABLE exam_mark_entry_windows
+      ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
+      ALTER TABLE exam_mark_entry_windows
+      ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE exam_mark_entry_windows
+      ALTER COLUMN updated_at SET DEFAULT NOW();
+
+      ALTER TABLE exam_grade_boundaries
+      ADD COLUMN IF NOT EXISTS exam_series_id uuid;
+      ALTER TABLE exam_grade_boundaries
+      ADD COLUMN IF NOT EXISTS label text;
+      ALTER TABLE exam_grade_boundaries
+      ADD COLUMN IF NOT EXISTS remarks text;
+      ALTER TABLE exam_grade_boundaries
+      ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
+      ALTER TABLE exam_grade_boundaries
+      ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = current_schema()
+            AND table_name = 'exam_grade_boundaries'
+            AND column_name = 'grade'
+        ) THEN
+          UPDATE exam_grade_boundaries
+          SET label = COALESCE(label, NULLIF(grade, ''), 'Grade')
+          WHERE label IS NULL;
+        ELSE
+          UPDATE exam_grade_boundaries
+          SET label = COALESCE(label, 'Grade')
+          WHERE label IS NULL;
+        END IF;
+      END $$;
+      ALTER TABLE exam_grade_boundaries
+      ALTER COLUMN label SET NOT NULL;
+      ALTER TABLE exam_grade_boundaries
+      ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE exam_grade_boundaries
+      ALTER COLUMN updated_at SET DEFAULT NOW();
+
+      ALTER TABLE exam_grading_policies
+      ADD COLUMN IF NOT EXISTS exam_series_id uuid;
+      ALTER TABLE exam_grading_policies
+      ADD COLUMN IF NOT EXISTS reporting_mode text NOT NULL DEFAULT 'traditional';
+      ALTER TABLE exam_grading_policies
+      ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'draft';
+      ALTER TABLE exam_grading_policies
+      ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
+      ALTER TABLE exam_grading_policies
+      ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE exam_grading_policies
+      ALTER COLUMN updated_at SET DEFAULT NOW();
+      ALTER TABLE exam_grading_policies
+      DROP CONSTRAINT IF EXISTS ck_exam_grading_policies_mode;
+      ALTER TABLE exam_grading_policies
+      ADD CONSTRAINT ck_exam_grading_policies_mode CHECK (
+        reporting_mode IN ('traditional', 'cbc_competency', 'hybrid')
+      );
+
+      ALTER TABLE exam_subject_weightings
+      ADD COLUMN IF NOT EXISTS grading_policy_id uuid;
+      ALTER TABLE exam_subject_weightings
+      ADD COLUMN IF NOT EXISTS exam_series_id uuid;
+      ALTER TABLE exam_subject_weightings
+      ADD COLUMN IF NOT EXISTS is_compulsory boolean NOT NULL DEFAULT TRUE;
+      ALTER TABLE exam_subject_weightings
+      ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
+      ALTER TABLE exam_subject_weightings
+      ALTER COLUMN exam_series_id DROP NOT NULL;
+      ALTER TABLE exam_subject_weightings
+      ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE exam_subject_weightings
+      ALTER COLUMN updated_at SET DEFAULT NOW();
+
+      ALTER TABLE exam_assessment_components
+      ADD COLUMN IF NOT EXISTS name text;
+      ALTER TABLE exam_assessment_components
+      ADD COLUMN IF NOT EXISTS component_code text;
+      ALTER TABLE exam_assessment_components
+      ADD COLUMN IF NOT EXISTS component_name text;
+      ALTER TABLE exam_assessment_components
+      ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
+      UPDATE exam_assessment_components
+      SET component_name = COALESCE(component_name, NULLIF(name, ''), 'Assessment component'),
+          component_code = COALESCE(
+            component_code,
+            'COMP-' || UPPER(LEFT(REPLACE(id::text, '-', ''), 8))
+          )
+      WHERE component_name IS NULL
+         OR component_code IS NULL;
+      ALTER TABLE exam_assessment_components
+      ALTER COLUMN name DROP NOT NULL;
+      ALTER TABLE exam_assessment_components
+      ALTER COLUMN component_code SET NOT NULL;
+      ALTER TABLE exam_assessment_components
+      ALTER COLUMN component_name SET NOT NULL;
+      ALTER TABLE exam_assessment_components
+      ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE exam_assessment_components
+      ALTER COLUMN updated_at SET DEFAULT NOW();
+
+      ALTER TABLE exam_marks
+      ADD COLUMN IF NOT EXISTS submitted_at timestamptz;
+      ALTER TABLE exam_marks
+      ADD COLUMN IF NOT EXISTS published_at timestamptz;
+      ALTER TABLE exam_marks
+      ALTER COLUMN remarks DROP NOT NULL;
+      ALTER TABLE exam_marks
+      ALTER COLUMN updated_by_user_id DROP NOT NULL;
+      ALTER TABLE exam_marks
+      ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE exam_marks
+      ALTER COLUMN updated_at SET DEFAULT NOW();
+
+      ALTER TABLE exam_mark_versions
+      ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
+      ALTER TABLE exam_mark_versions
+      ALTER COLUMN first_approver_user_id DROP NOT NULL;
+      ALTER TABLE exam_mark_versions
+      ALTER COLUMN second_approver_user_id DROP NOT NULL;
+      ALTER TABLE exam_mark_versions
+      ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE exam_mark_versions
+      ALTER COLUMN updated_at SET DEFAULT NOW();
+
       ALTER TABLE exam_grading_policies
       ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
       ALTER TABLE exam_grading_policies
@@ -689,10 +818,32 @@ export class ExamsSchemaService implements OnModuleInit {
       ADD COLUMN IF NOT EXISTS withdrawn_at timestamptz;
       ALTER TABLE student_report_cards
       ADD COLUMN IF NOT EXISTS workflow_version integer NOT NULL DEFAULT 1;
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = current_schema()
+            AND table_name = 'student_report_cards'
+            AND column_name = 'report_snapshot_id'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE student_report_cards
+          ALTER COLUMN report_snapshot_id TYPE text USING report_snapshot_id::text;
+        END IF;
+      END $$;
       ALTER TABLE student_report_cards
       ALTER COLUMN status SET DEFAULT 'draft_requested';
       ALTER TABLE student_report_cards
       ALTER COLUMN published_at DROP NOT NULL;
+      ALTER TABLE student_report_cards
+      ALTER COLUMN verification_code DROP NOT NULL;
+      ALTER TABLE student_report_cards
+      ALTER COLUMN published_by_user_id DROP NOT NULL;
+      ALTER TABLE student_report_cards
+      ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE student_report_cards
+      ALTER COLUMN updated_at SET DEFAULT NOW();
       ALTER TABLE student_report_cards
       ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
       UPDATE student_report_cards
@@ -732,6 +883,33 @@ export class ExamsSchemaService implements OnModuleInit {
       ADD COLUMN IF NOT EXISTS generated_by_user_id uuid;
       ALTER TABLE report_card_artifacts
       ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE report_card_artifacts
+      ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = current_schema()
+            AND table_name = 'report_card_artifacts'
+            AND column_name = 'byte_size'
+            AND data_type <> 'bigint'
+        ) THEN
+          ALTER TABLE report_card_artifacts
+          ALTER COLUMN byte_size TYPE bigint USING (
+            CASE
+              WHEN TRIM(byte_size::text) ~ '^[0-9]+$' THEN TRIM(byte_size::text)::bigint
+              ELSE 0
+            END
+          );
+        END IF;
+      END $$;
+      ALTER TABLE report_card_artifacts
+      ALTER COLUMN generated_by_user_id DROP NOT NULL;
+      ALTER TABLE report_card_artifacts
+      ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE report_card_artifacts
+      ALTER COLUMN updated_at SET DEFAULT NOW();
       UPDATE report_card_artifacts
       SET metadata = COALESCE(metadata, '{}'::jsonb),
           generated_at = COALESCE(generated_at, NOW())
@@ -791,6 +969,44 @@ export class ExamsSchemaService implements OnModuleInit {
         metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
         created_at timestamptz NOT NULL DEFAULT NOW()
       );
+
+      ALTER TABLE student_report_card_audit_logs
+      ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
+      ALTER TABLE student_report_card_audit_logs
+      ALTER COLUMN report_card_id DROP NOT NULL;
+      ALTER TABLE student_report_card_audit_logs
+      ALTER COLUMN exam_series_id DROP NOT NULL;
+      ALTER TABLE student_report_card_audit_logs
+      ALTER COLUMN student_id DROP NOT NULL;
+      ALTER TABLE student_report_card_audit_logs
+      ALTER COLUMN actor_user_id DROP NOT NULL;
+      ALTER TABLE student_report_card_audit_logs
+      ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE student_report_card_audit_logs
+      ALTER COLUMN updated_at SET DEFAULT NOW();
+
+      ALTER TABLE exam_mark_audit_logs
+      ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
+      ALTER TABLE exam_mark_audit_logs
+      ALTER COLUMN mark_id DROP NOT NULL;
+      ALTER TABLE exam_mark_audit_logs
+      ALTER COLUMN exam_series_id DROP NOT NULL;
+      ALTER TABLE exam_mark_audit_logs
+      ALTER COLUMN assessment_id DROP NOT NULL;
+      ALTER TABLE exam_mark_audit_logs
+      ALTER COLUMN student_id DROP NOT NULL;
+      ALTER TABLE exam_mark_audit_logs
+      ALTER COLUMN actor_user_id DROP NOT NULL;
+      ALTER TABLE exam_mark_audit_logs
+      ALTER COLUMN previous_score DROP NOT NULL;
+      ALTER TABLE exam_mark_audit_logs
+      ALTER COLUMN new_score DROP NOT NULL;
+      ALTER TABLE exam_mark_audit_logs
+      ALTER COLUMN reason DROP NOT NULL;
+      ALTER TABLE exam_mark_audit_logs
+      ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE exam_mark_audit_logs
+      ALTER COLUMN updated_at SET DEFAULT NOW();
 
       CREATE TABLE IF NOT EXISTS exam_result_snapshots (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -896,6 +1112,80 @@ export class ExamsSchemaService implements OnModuleInit {
         updated_at timestamptz NOT NULL DEFAULT NOW()
       );
 
+      ALTER TABLE exam_timetable_slots
+      ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'scheduled';
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = current_schema()
+            AND table_name = 'exam_timetable_slots'
+            AND column_name = 'date'
+            AND data_type <> 'date'
+        ) THEN
+          ALTER TABLE exam_timetable_slots
+          ALTER COLUMN date TYPE date USING date::date;
+        END IF;
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = current_schema()
+            AND table_name = 'exam_timetable_slots'
+            AND column_name = 'start_time'
+            AND data_type <> 'time without time zone'
+        ) THEN
+          ALTER TABLE exam_timetable_slots
+          ALTER COLUMN start_time TYPE time USING start_time::time;
+        END IF;
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = current_schema()
+            AND table_name = 'exam_timetable_slots'
+            AND column_name = 'end_time'
+            AND data_type <> 'time without time zone'
+        ) THEN
+          ALTER TABLE exam_timetable_slots
+          ALTER COLUMN end_time TYPE time USING end_time::time;
+        END IF;
+      END $$;
+      ALTER TABLE exam_timetable_slots
+      ALTER COLUMN assessment_id DROP NOT NULL;
+      ALTER TABLE exam_timetable_slots
+      ALTER COLUMN room_name DROP NOT NULL;
+      ALTER TABLE exam_timetable_slots
+      ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE exam_timetable_slots
+      ALTER COLUMN updated_at SET DEFAULT NOW();
+
+      ALTER TABLE exam_invigilators
+      ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'assigned';
+      ALTER TABLE exam_invigilators
+      ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE exam_invigilators
+      ALTER COLUMN updated_at SET DEFAULT NOW();
+
+      ALTER TABLE exam_attendance_records
+      ALTER COLUMN remarks DROP NOT NULL;
+      ALTER TABLE exam_attendance_records
+      ALTER COLUMN recorded_by_user_id DROP NOT NULL;
+      ALTER TABLE exam_attendance_records
+      ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE exam_attendance_records
+      ALTER COLUMN updated_at SET DEFAULT NOW();
+
+      ALTER TABLE exam_student_cases
+      ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'pending';
+      ALTER TABLE exam_student_cases
+      ADD COLUMN IF NOT EXISTS resolution text;
+      ALTER TABLE exam_student_cases
+      ALTER COLUMN reported_by_user_id DROP NOT NULL;
+      ALTER TABLE exam_student_cases
+      ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE exam_student_cases
+      ALTER COLUMN updated_at SET DEFAULT NOW();
+
       ALTER TABLE exam_series
       ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'draft';
       ALTER TABLE exam_series
@@ -918,6 +1208,37 @@ export class ExamsSchemaService implements OnModuleInit {
       ADD COLUMN IF NOT EXISTS failed_students integer NOT NULL DEFAULT 0;
       ALTER TABLE report_card_generation_batches
       ADD COLUMN IF NOT EXISTS completed_at timestamptz;
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = current_schema()
+            AND table_name = 'report_card_generation_batches'
+            AND column_name = 'total_students'
+            AND data_type <> 'integer'
+        ) THEN
+          ALTER TABLE report_card_generation_batches
+          ALTER COLUMN total_students TYPE integer USING (
+            CASE
+              WHEN TRIM(total_students::text) ~ '^[0-9]+$' THEN TRIM(total_students::text)::integer
+              ELSE 0
+            END
+          );
+        END IF;
+      END $$;
+      ALTER TABLE report_card_generation_batches
+      ALTER COLUMN total_students SET DEFAULT 0;
+      ALTER TABLE report_card_generation_batches
+      ALTER COLUMN class_section_id DROP NOT NULL;
+      ALTER TABLE report_card_generation_batches
+      ALTER COLUMN stream_name DROP NOT NULL;
+      ALTER TABLE report_card_generation_batches
+      ALTER COLUMN started_at DROP NOT NULL;
+      ALTER TABLE report_card_generation_batches
+      ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE report_card_generation_batches
+      ALTER COLUMN updated_at SET DEFAULT NOW();
       UPDATE report_card_generation_batches
       SET completed_students = COALESCE(completed_students, 0),
           failed_students = COALESCE(failed_students, 0),

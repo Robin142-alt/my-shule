@@ -80,6 +80,35 @@ test('ExamsSchemaService creates grading policy, mark version, report-card workf
   assert.match(schemaSql, /CREATE POLICY academic_intervention_updates_tenant_policy ON academic_intervention_updates/);
 });
 
+test('ExamsSchemaService upgrades legacy Prisma exam tables before evolved columns are used', async () => {
+  let schemaSql = '';
+  const service = new ExamsSchemaService({
+    runSchemaBootstrap: async (sql: string) => {
+      schemaSql += sql;
+    },
+  } as never);
+
+  await service.onModuleInit();
+
+  const addPolicyStatus = schemaSql.indexOf(
+    "ALTER TABLE exam_grading_policies\n      ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'draft'",
+  );
+  const updatePolicyStatus = schemaSql.indexOf('UPDATE exam_grading_policies\n      SET status');
+  const addPolicySeries = schemaSql.indexOf(
+    'ALTER TABLE exam_grading_policies\n      ADD COLUMN IF NOT EXISTS exam_series_id uuid',
+  );
+  const policyEffectiveIndex = schemaSql.indexOf('CREATE INDEX IF NOT EXISTS ix_exam_grading_policies_effective');
+
+  assert.ok(addPolicyStatus >= 0 && addPolicyStatus < updatePolicyStatus);
+  assert.ok(addPolicySeries >= 0 && addPolicySeries < policyEffectiveIndex);
+  assert.match(schemaSql, /ALTER COLUMN exam_series_id DROP NOT NULL/);
+  assert.match(schemaSql, /ALTER COLUMN name DROP NOT NULL/);
+  assert.match(schemaSql, /ALTER COLUMN report_snapshot_id TYPE text USING report_snapshot_id::text/);
+  assert.match(schemaSql, /ALTER COLUMN total_students TYPE integer USING/);
+  assert.match(schemaSql, /ALTER COLUMN first_approver_user_id DROP NOT NULL/);
+  assert.match(schemaSql, /ALTER COLUMN second_approver_user_id DROP NOT NULL/);
+});
+
 test('ExamsService saves tenant-scoped settings with audit log', async () => {
   const calls: Array<{ name: string; input?: Record<string, unknown> }> = [];
   const service = new ExamsService(
