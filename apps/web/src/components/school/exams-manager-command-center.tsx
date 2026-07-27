@@ -63,6 +63,8 @@ type ExamsManagerLegacyView =
   | "academic-analytics"
   | "submissions"
   | "validation"
+  | "handoff"
+  | "dean-approval"
   | "exports"
   | "imports"
   | "templates"
@@ -116,6 +118,8 @@ const routeAliases: Record<ExamsManagerView, ExamsManagerCanonicalView> = {
   "report-templates": "report-cards",
   "report-cards": "report-cards",
   publishing: "publishing",
+  handoff: "publishing",
+  "dean-approval": "publishing",
   imports: "imports-templates",
   templates: "imports-templates",
   "imports-templates": "imports-templates",
@@ -177,10 +181,10 @@ const navItems: NavItem[] = [
   },
   {
     id: "publishing",
-    label: "Publishing",
-    summary: "Manage parent visibility for publish-ready result batches after moderation and approvals.",
+    label: "Report Card Handoff",
+    summary: "Submit generated report cards to the Dean and recall cards that need correction.",
     icon: Send,
-    aliases: ["publishing"],
+    aliases: ["publishing", "handoff", "dean-approval"],
   },
   {
     id: "imports-templates",
@@ -295,7 +299,7 @@ export function ExamsManagerCommandCenter({
   const lockedReason = !examsEnabled
     ? "The Exams module is not enabled for this school. Ask the platform owner to enable Exams before creating exam cycles or report cards."
     : !rolePermitted
-      ? "Your current role is not allowed to manage exam setup, marks, moderation, or report publishing."
+      ? "Your current role is not allowed to manage exam setup, marks, moderation, or report-card handoff."
       : null;
 
   const searchResults = useMemo(() => {
@@ -368,7 +372,7 @@ export function ExamsManagerCommandCenter({
     >
       <div className="flex min-h-screen">
         <aside className="hidden w-[296px] shrink-0 border-r border-white/15 bg-[#071D49] p-5 text-white shadow-2xl lg:flex lg:flex-col">
-          <SchoolCommandSidebarIdentity eyebrow="Exams command" title="Exams Manager" subtitle="Setup, marks, moderation, reports, and publishing" />
+          <SchoolCommandSidebarIdentity eyebrow="Exams command" title="Exams Manager" subtitle="Setup, marks, moderation, reports, and approval handoff" />
 
           <nav aria-label="Exams Manager navigation" className="mt-8 flex-1 space-y-2 overflow-y-auto pr-1">
             {navItems.map((item) => {
@@ -521,7 +525,7 @@ export function ExamsManagerCommandCenter({
               </h2>
               <p className="mt-4 max-w-4xl text-sm leading-7 text-blue-50 md:text-base">
                 Create exam cycles first, schedule sessions, monitor teacher mark entry, moderate results,
-                then prepare report cards and parent visibility publishing reports from live school records.
+                then generate report cards and submit them to the Dean. Only the Principal releases approved results.
               </p>
             </section>
 

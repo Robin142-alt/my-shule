@@ -1,4 +1,150 @@
-import { IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString } from 'class-validator';
+
+export const EXAM_SCORE_STATUSES = [
+  'entered',
+  'absent',
+  'exempt',
+  'not_assessed',
+  'incomplete',
+  'withheld',
+  'medical_exception',
+  'transfer_student',
+] as const;
+
+export type ExamScoreStatus = (typeof EXAM_SCORE_STATUSES)[number];
+
+export const ACADEMIC_INTERVENTION_SOURCES = [
+  'manual',
+  'analytics',
+  'moderation',
+  'attendance',
+  'reassessment',
+] as const;
+
+export const ACADEMIC_INTERVENTION_PRIORITIES = [
+  'low',
+  'normal',
+  'high',
+  'urgent',
+] as const;
+
+export const ACADEMIC_INTERVENTION_UPDATE_TYPES = [
+  'progress',
+  'assessment',
+  'reassessment',
+  'note',
+  'status_change',
+] as const;
+
+export const ACADEMIC_INTERVENTION_STATUSES = [
+  'planned',
+  'active',
+  'monitoring',
+  'completed',
+  'cancelled',
+] as const;
+
+export class CreateAcademicInterventionDto {
+  @IsOptional()
+  @IsString()
+  student_id?: string;
+
+  @IsOptional()
+  @IsString()
+  exam_series_id?: string;
+
+  @IsOptional()
+  @IsString()
+  subject_id?: string;
+
+  @IsOptional()
+  @IsString()
+  class_section_id?: string;
+
+  @IsOptional()
+  @IsString()
+  class_name?: string;
+
+  @IsOptional()
+  @IsString()
+  subject_name?: string;
+
+  @IsOptional()
+  @IsString()
+  owner_user_id?: string;
+
+  @IsOptional()
+  @IsString()
+  owner_name?: string;
+
+  @IsOptional()
+  @IsString()
+  hod_user_id?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(ACADEMIC_INTERVENTION_SOURCES)
+  source?: (typeof ACADEMIC_INTERVENTION_SOURCES)[number];
+
+  @IsString()
+  trigger_reason!: string;
+
+  @IsOptional()
+  @IsObject()
+  baseline?: Record<string, unknown>;
+
+  @IsString()
+  plan!: string;
+
+  @IsOptional()
+  @IsObject()
+  target?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(ACADEMIC_INTERVENTION_PRIORITIES)
+  priority?: (typeof ACADEMIC_INTERVENTION_PRIORITIES)[number];
+
+  @IsOptional()
+  @IsString()
+  starts_on?: string;
+
+  @IsOptional()
+  @IsString()
+  due_on?: string;
+}
+
+export class AddAcademicInterventionUpdateDto {
+  @IsOptional()
+  @IsString()
+  @IsIn(ACADEMIC_INTERVENTION_UPDATE_TYPES)
+  update_type?: (typeof ACADEMIC_INTERVENTION_UPDATE_TYPES)[number];
+
+  @IsString()
+  notes!: string;
+
+  @IsOptional()
+  @IsNumber()
+  score?: number | null;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(EXAM_SCORE_STATUSES)
+  score_status?: ExamScoreStatus;
+
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(ACADEMIC_INTERVENTION_STATUSES)
+  status?: (typeof ACADEMIC_INTERVENTION_STATUSES)[number];
+
+  @IsOptional()
+  @IsObject()
+  outcome?: Record<string, unknown>;
+}
 
 export class CreateExamSeriesDto {
   @IsString()
@@ -50,8 +196,14 @@ export class EnterExamMarkDto {
   @IsString()
   student_id!: string;
 
+  @IsOptional()
   @IsNumber()
-  score!: number;
+  score?: number | null;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(EXAM_SCORE_STATUSES)
+  score_status?: ExamScoreStatus;
 
   @IsOptional()
   @IsString()
@@ -81,8 +233,14 @@ export class BulkExamMarkUploadRowDto {
   @IsString()
   student_id!: string;
 
+  @IsOptional()
   @IsNumber()
-  score!: number;
+  score?: number | null;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(EXAM_SCORE_STATUSES)
+  score_status?: ExamScoreStatus;
 
   @IsOptional()
   @IsString()
@@ -111,8 +269,14 @@ export class CorrectLockedExamMarkDto {
   @IsString()
   mark_id!: string;
 
+  @IsOptional()
   @IsNumber()
-  score!: number;
+  score?: number | null;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(EXAM_SCORE_STATUSES)
+  score_status?: ExamScoreStatus;
 
   @IsString()
   reason!: string;

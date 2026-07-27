@@ -162,11 +162,19 @@ export const AUDIT_COVERAGE_REQUIREMENTS: readonly AuditCoverageRequirement[] = 
     evidence: [
       {
         file: 'apps/api/src/modules/exams/exams.service.ts',
-        patterns: ['grade.updated', 'grade.published'],
+        patterns: ['grade.updated', 'transitionReportCard'],
+      },
+      {
+        file: 'apps/api/src/modules/exams/repositories/exams.repository.ts',
+        patterns: ['report_card.published', 'grade.published', 'report_snapshot_id', 'audit_recorded'],
       },
       {
         file: 'apps/api/src/modules/exams/exams.test.ts',
-        patterns: ['subject-scoped marks with audit', 'publishes report cards with snapshot linkage and audit'],
+        patterns: [
+          'subject-scoped marks with audit',
+          'publishes approved report cards through the atomic lifecycle transition',
+          'transitions report cards with tenant scope, workflow evidence, and atomic audit',
+        ],
       },
     ],
   },

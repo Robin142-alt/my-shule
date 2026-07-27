@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 
 import "./globals.css";
 import { AppProviders } from "@/components/providers/app-providers";
@@ -11,16 +10,6 @@ import {
   SITE_TITLE,
   SITE_URL,
 } from "@/lib/seo";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -93,10 +82,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full`}
-    >
+    <html lang="en" className="h-full">
       <body className="min-h-screen text-foreground" style={{ backgroundColor: "#F3F4F6" }}>
         <AppProviders>{children}</AppProviders>
       </body>

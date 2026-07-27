@@ -17,15 +17,38 @@ import { Panel, StatusPill, cn } from "./shared-components";
 import { TeacherAction, TeacherView } from "./types";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import {
-  fetchClassRegisterLive,
   fetchPendingMarksLive,
+  fetchTeacherMarkSheetLive,
   saveExamMarksLive,
-  type ClassRegisterStudent,
+  type ExamScoreStatus,
   type PendingMarksWindow,
+  type TeacherMarkSheetRow,
 } from "@/lib/modules/teacher-live";
 import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
 
-type ScoresByStudent = Record<string, string>;
+type MarkDraft = {
+  score: string;
+  scoreStatus: ExamScoreStatus | "";
+  remarks: string;
+};
+
+type DraftsByStudent = Record<string, MarkDraft>;
+type DraftsByWindow = Record<string, DraftsByStudent>;
+
+const SCORE_STATUS_OPTIONS: Array<{ value: ExamScoreStatus; label: string }> = [
+  { value: "entered", label: "Score entered" },
+  { value: "absent", label: "Absent" },
+  { value: "exempt", label: "Exempt" },
+  { value: "not_assessed", label: "Not assessed" },
+  { value: "incomplete", label: "Incomplete" },
+  { value: "withheld", label: "Withheld" },
+  { value: "medical_exception", label: "Medical exception" },
+  { value: "transfer_student", label: "Transfer student" },
+];
+
+const SCORE_STATUS_LABELS = Object.fromEntries(
+  SCORE_STATUS_OPTIONS.map((option) => [option.value, option.label]),
+) as Record<ExamScoreStatus, string>;
 
 function toNumber(value: string) {
   if (value.trim() === "") return null;
@@ -33,20 +56,18 @@ function toNumber(value: string) {
   return Number.isFinite(numeric) ? numeric : null;
 }
 
-function getCompletion(windowTask: PendingMarksWindow, scores: ScoresByStudent) {
-  const localEntered = Object.values(scores).filter((score) => score.trim() !== "").length;
-  const entered = Math.max(windowTask.enteredCount, localEntered);
-
+function getWindowCompletion(windowTask: PendingMarksWindow) {
   if (!windowTask.totalStudents) {
     return 0;
   }
 
-  return Math.min(100, Math.round((entered / windowTask.totalStudents) * 100));
+  return Math.min(100, Math.round((windowTask.enteredCount / windowTask.totalStudents) * 100));
 }
 
-function getAverage(scores: ScoresByStudent, outOf: number) {
-  const values = Object.values(scores)
-    .map(toNumber)
+function getAverage(drafts: DraftsByStudent, outOf: number) {
+  const values = Object.values(drafts)
+    .filter((draft) => draft.scoreStatus === "entered")
+    .map((draft) => toNumber(draft.score))
     .filter((score): score is number => score !== null && score >= 0 && score <= outOf);
 
   if (values.length === 0) {
@@ -56,56 +77,69 @@ function getAverage(scores: ScoresByStudent, outOf: number) {
   return Math.round(values.reduce((total, score) => total + score, 0) / values.length).toString();
 }
 
-function getGrade(scoreValue: string, outOf: number) {
-  const score = toNumber(scoreValue);
+function draftFromRow(row: TeacherMarkSheetRow): MarkDraft {
+  return {
+    score: row.score === null ? "" : String(row.score),
+    scoreStatus: row.id ? row.score_status : "",
+    remarks: row.remarks ?? "",
+  };
+}
 
-  if (score === null || outOf <= 0) {
-    return "-";
+function getValidation(draft: MarkDraft, outOf: number) {
+  if (!draft.scoreStatus) {
+    return { label: "Missing evidence", tone: "warning" as const, resolved: false, submitReady: false };
   }
 
-  const percent = (score / outOf) * 100;
+  if (draft.scoreStatus === "not_assessed" || draft.scoreStatus === "incomplete") {
+    return { label: "Unresolved evidence", tone: "warning" as const, resolved: false, submitReady: false };
+  }
 
-  if (percent >= 80) return "A";
-  if (percent >= 70) return "B";
-  if (percent >= 60) return "C";
-  if (percent >= 50) return "D";
-  return "E";
+  if (draft.scoreStatus !== "entered") {
+    return { label: "Evidence ready", tone: "success" as const, resolved: true, submitReady: true };
+  }
+
+  const score = toNumber(draft.score);
+  if (score === null) {
+    return { label: "Score required", tone: "danger" as const, resolved: false, submitReady: false };
+  }
+  if (score < 0) {
+    return { label: "Below 0", tone: "danger" as const, resolved: false, submitReady: false };
+  }
+  if (score > outOf) {
+    return { label: `Above ${outOf}`, tone: "danger" as const, resolved: false, submitReady: false };
+  }
+
+  return { label: "Ready", tone: "success" as const, resolved: true, submitReady: true };
 }
 
-function getValidationMessage(scoreValue: string, outOf: number) {
-  if (scoreValue.trim() === "") return "Missing";
-  const score = toNumber(scoreValue);
-  if (score === null) return "Invalid";
-  if (score < 0) return "Below 0";
-  if (score > outOf) return `Above ${outOf}`;
-  return "Ready";
-}
-
-function serializeScores(scores: ScoresByStudent) {
-  return Object.fromEntries(
-    Object.entries(scores).filter(([, value]) => value.trim() !== ""),
-  );
-}
-
-function buildTemplateRows(students: ClassRegisterStudent[], scores: ScoresByStudent, windowTask: PendingMarksWindow | null) {
+function buildTemplateRows(
+  rows: TeacherMarkSheetRow[],
+  drafts: DraftsByStudent,
+  windowTask: PendingMarksWindow | null,
+) {
   if (!windowTask) {
-    return [["", "", "", "", "", "", "", ""]];
+    return [["", "", "", "", "", "", "", "", "", ""]];
   }
 
-  if (students.length === 0) {
-    return [[windowTask.examName, windowTask.className, windowTask.subjectName, windowTask.paperName, "", "", String(windowTask.outOf), ""]];
+  if (rows.length === 0) {
+    return [[windowTask.examName, windowTask.className, windowTask.subjectName, windowTask.paperName, "", "", String(windowTask.outOf), "", "", ""]];
   }
 
-  return students.map((student) => [
+  return rows.map((row) => {
+    const draft = drafts[row.student_id] ?? draftFromRow(row);
+    return [
     windowTask.examName,
     windowTask.className,
     windowTask.subjectName,
     windowTask.paperName,
-    student.admissionNo,
-    student.name,
+    row.admission_number ?? "",
+    row.student_name ?? "",
     String(windowTask.outOf),
-    scores[student.id] ?? "",
-  ]);
+      draft.scoreStatus === "entered" ? draft.score : "",
+      draft.scoreStatus,
+      draft.remarks,
+    ];
+  });
 }
 
 function WindowCard({
@@ -117,7 +151,7 @@ function WindowCard({
   isActive: boolean;
   onOpen: () => void;
 }) {
-  const completion = getCompletion(windowTask, {});
+  const completion = getWindowCompletion(windowTask);
   const statusType = windowTask.status === "Completed" ? "success" : completion > 0 ? "warning" : "info";
 
   return (
@@ -170,7 +204,7 @@ export function ExamsMarksWorkspace({
   const liveSession = useLiveTenantSession("school");
   const queryClient = useQueryClient();
   const [activeWindowId, setActiveWindowId] = useState<string | null>(null);
-  const [draftScores, setDraftScores] = useState<Record<string, ScoresByStudent>>({});
+  const [draftMarks, setDraftMarks] = useState<DraftsByWindow>({});
   const [isSaving, setIsSaving] = useState(false);
   const [actionError, setActionError] = useState("");
 
@@ -185,48 +219,80 @@ export function ExamsMarksWorkspace({
     if (!activeWindowId) return windows[0] ?? null;
     return windows.find((windowTask) => windowTask.id === activeWindowId) ?? null;
   }, [activeWindowId, windows]);
-  const activeScores = activeWindow ? draftScores[activeWindow.id] ?? {} : {};
 
-  const classRegisterQuery = useQuery({
+  const markSheetQuery = useQuery({
     queryKey: [
-      "class-register",
+      "teacher-mark-sheet",
       liveSession.session?.tenantId,
+      liveSession.session?.user.user_id,
+      activeWindow?.examSeriesId,
       activeWindow?.classSectionId,
-      activeWindow?.id,
+      activeWindow?.subjectId,
+      activeWindow?.assessmentId,
     ],
-    queryFn: () => fetchClassRegisterLive(liveSession.session!, activeWindow!.classSectionId),
-    enabled: !!liveSession.session && !!activeWindow,
+    queryFn: () => fetchTeacherMarkSheetLive(liveSession.session!, {
+      examSeriesId: activeWindow!.examSeriesId,
+      classSectionId: activeWindow!.classSectionId,
+      subjectId: activeWindow!.subjectId,
+      assessmentId: activeWindow!.assessmentId,
+    }),
+    enabled: Boolean(
+      liveSession.session
+      && activeWindow?.examSeriesId
+      && activeWindow.classSectionId
+      && activeWindow.subjectId
+      && activeWindow.assessmentId,
+    ),
   });
 
-  const students = classRegisterQuery.data ?? [];
+  const markRows = markSheetQuery.data ?? [];
+  const activeDrafts = useMemo(() => {
+    if (!activeWindow) return {};
+    const localDrafts = draftMarks[activeWindow.id] ?? {};
+
+    return Object.fromEntries(
+      markRows.map((row) => [row.student_id, localDrafts[row.student_id] ?? draftFromRow(row)]),
+    ) as DraftsByStudent;
+  }, [activeWindow, draftMarks, markRows]);
   const totalWindows = pendingMarksQuery.data?.stats.totalWindows ?? 0;
   const nearingDeadline = pendingMarksQuery.data?.stats.nearingDeadline ?? 0;
-  const activeCompletion = activeWindow ? getCompletion(activeWindow, activeScores) : 0;
-  const activeAverage = activeWindow ? getAverage(activeScores, activeWindow.outOf) : "-";
-  const missingCount = activeWindow
-    ? Math.max(0, students.filter((student) => !activeScores[student.id]?.trim()).length)
-    : 0;
-  const invalidCount = activeWindow
-    ? students.filter((student) => {
-        const message = getValidationMessage(activeScores[student.id] ?? "", activeWindow.outOf);
-        return message !== "Ready" && message !== "Missing";
-      }).length
-    : 0;
-  const canSubmit = Boolean(activeWindow && students.length > 0 && missingCount === 0 && invalidCount === 0);
+  const validations = activeWindow
+    ? markRows.map((row) => getValidation(activeDrafts[row.student_id] ?? draftFromRow(row), activeWindow.outOf))
+    : [];
+  const resolvedCount = validations.filter((validation) => validation.resolved).length;
+  const missingCount = validations.filter((validation) => validation.label === "Missing evidence").length;
+  const unresolvedCount = validations.filter((validation) => validation.label === "Unresolved evidence").length;
+  const invalidCount = validations.filter((validation) => validation.tone === "danger").length;
+  const activeCompletion = activeWindow && markRows.length > 0
+    ? Math.round((resolvedCount / markRows.length) * 100)
+    : activeWindow
+      ? getWindowCompletion(activeWindow)
+      : 0;
+  const activeAverage = activeWindow ? getAverage(activeDrafts, activeWindow.outOf) : "-";
+  const markSheetReadOnly = markRows.some((row) => Boolean(row.id) && row.status !== "draft");
+  const canSubmit = Boolean(
+    activeWindow
+    && markRows.length > 0
+    && !markSheetReadOnly
+    && validations.every((validation) => validation.submitReady),
+  );
 
   function openWindow(windowTask: PendingMarksWindow) {
     setActiveWindowId(windowTask.id);
     setActionError("");
   }
 
-  function updateScore(studentId: string, value: string) {
+  function updateDraft(studentId: string, patch: Partial<MarkDraft>) {
     if (!activeWindow) return;
     setActionError("");
-    setDraftScores((current) => ({
+    setDraftMarks((current) => ({
       ...current,
       [activeWindow.id]: {
         ...(current[activeWindow.id] ?? {}),
-        [studentId]: value,
+        [studentId]: {
+          ...(activeDrafts[studentId] ?? { score: "", scoreStatus: "", remarks: "" }),
+          ...patch,
+        },
       },
     }));
   }
@@ -237,15 +303,37 @@ export function ExamsMarksWorkspace({
       return;
     }
 
-    const scores = serializeScores(activeScores);
+    if (markSheetReadOnly) {
+      setActionError("This mark sheet has already entered moderation and is read-only. Use the governed correction workflow for changes.");
+      return;
+    }
 
-    if (Object.keys(scores).length === 0) {
-      setActionError("Enter at least one learner score before saving marks.");
+    if (invalidCount > 0) {
+      setActionError("Fix invalid numeric scores before saving this mark sheet.");
+      return;
+    }
+
+    const marks = Object.fromEntries(
+      markRows
+        .map((row) => [row.student_id, activeDrafts[row.student_id] ?? draftFromRow(row)] as const)
+        .filter(([, draft]) => Boolean(draft.scoreStatus))
+        .map(([studentId, draft]) => [
+          studentId,
+          {
+            score: draft.scoreStatus === "entered" ? toNumber(draft.score) : null,
+            score_status: draft.scoreStatus as ExamScoreStatus,
+            ...(draft.remarks.trim() ? { remarks: draft.remarks.trim() } : {}),
+          },
+        ]),
+    );
+
+    if (Object.keys(marks).length === 0) {
+      setActionError("Enter at least one learner score or select an explicit evidence status before saving marks.");
       return;
     }
 
     if (action === "submit" && !canSubmit) {
-      setActionError("Complete every learner score and fix validation errors before submitting for moderation.");
+      setActionError("Resolve every missing, not-assessed, or incomplete learner row before submitting for moderation.");
       return;
     }
 
@@ -257,9 +345,17 @@ export function ExamsMarksWorkspace({
         action,
         examId: activeWindow.id,
         classSectionId: activeWindow.classSectionId,
-        scores,
+        marks,
       });
-      await queryClient.invalidateQueries({ queryKey: ["pending-marks"] });
+      setDraftMarks((current) => {
+        const next = { ...current };
+        delete next[activeWindow.id];
+        return next;
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["pending-marks"] }),
+        queryClient.invalidateQueries({ queryKey: ["teacher-mark-sheet"] }),
+      ]);
       toast.success(action === "submit" ? "Marks submitted for moderation." : "Marks draft saved.");
       onStartAction(
         "marks",
@@ -280,8 +376,19 @@ export function ExamsMarksWorkspace({
   function downloadTemplate() {
     downloadCsvFile({
       filename: `teacher-markbook-${new Date().toISOString().slice(0, 10)}.csv`,
-      headers: ["exam", "class", "subject", "paper", "admission_number", "student_name", "out_of", "score"],
-      rows: buildTemplateRows(students, activeScores, activeWindow),
+      headers: [
+        "exam",
+        "class",
+        "subject",
+        "paper",
+        "admission_number",
+        "student_name",
+        "out_of",
+        "score",
+        "score_status",
+        "remarks",
+      ],
+      rows: buildTemplateRows(markRows, activeDrafts, activeWindow),
     });
     toast.success("Teacher markbook CSV downloaded.");
   }
@@ -296,16 +403,21 @@ export function ExamsMarksWorkspace({
       eyebrow: "Teacher markbook",
       title: `${activeWindow.examName} validation sheet`,
       subtitle: `${activeWindow.className} | ${activeWindow.subjectName} | ${activeWindow.paperName}`,
-      rows: students.map((student) => {
-        const score = activeScores[student.id] ?? "";
-        const validation = getValidationMessage(score, activeWindow.outOf);
+      rows: markRows.map((row) => {
+        const draft = activeDrafts[row.student_id] ?? draftFromRow(row);
+        const validation = getValidation(draft, activeWindow.outOf);
+        const evidence = draft.scoreStatus
+          ? SCORE_STATUS_LABELS[draft.scoreStatus]
+          : "No evidence";
         return {
-          label: `${student.admissionNo} - ${student.name}`,
-          value: score ? `${score}/${activeWindow.outOf} | ${validation}` : validation,
-          tone: validation === "Ready" ? "default" : "danger",
+          label: `${row.admission_number ?? "No admission number"} - ${row.student_name ?? "Unnamed learner"}`,
+          value: draft.scoreStatus === "entered"
+            ? `${draft.score || "-"}/${activeWindow.outOf} | ${validation.label}${draft.remarks ? ` | ${draft.remarks}` : ""}`
+            : `${evidence} | ${validation.label}${draft.remarks ? ` | ${draft.remarks}` : ""}`,
+          tone: validation.submitReady ? "default" : "danger",
         };
       }),
-      footer: "This teacher validation sheet is generated from the live school mark-entry register before HOD moderation.",
+      footer: "This validation sheet uses the live, subject-enrolled school mark register. Final grades are calculated only from the configured grading policy during governed processing.",
     });
   }
 
@@ -400,7 +512,7 @@ export function ExamsMarksWorkspace({
               <button
                 type="button"
                 onClick={printValidationSheet}
-                disabled={!activeWindow}
+                disabled={!activeWindow || markRows.length === 0}
                 className="inline-flex items-center gap-2 rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <FileText className="h-4 w-4" />
@@ -409,7 +521,7 @@ export function ExamsMarksWorkspace({
               <button
                 type="button"
                 onClick={() => persistScores("draft")}
-                disabled={!activeWindow || isSaving}
+                disabled={!activeWindow || markRows.length === 0 || markSheetReadOnly || isSaving}
                 className="inline-flex items-center gap-2 rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -418,7 +530,7 @@ export function ExamsMarksWorkspace({
               <button
                 type="button"
                 onClick={() => persistScores("submit")}
-                disabled={!activeWindow || isSaving}
+                disabled={!activeWindow || markRows.length === 0 || markSheetReadOnly || isSaving}
                 className="inline-flex items-center gap-2 rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white transition hover:bg-[#123A7A] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -428,18 +540,24 @@ export function ExamsMarksWorkspace({
           </div>
 
           {activeWindow ? (
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3">
-                <p className="text-xs font-black uppercase text-[#64748B]">Missing scores</p>
-                <p className="mt-1 text-2xl font-black text-[#071D49]">{classRegisterQuery.isLoading ? "..." : missingCount}</p>
+                <p className="text-xs font-black uppercase text-[#64748B]">Missing evidence</p>
+                <p className="mt-1 text-2xl font-black text-[#071D49]">{markSheetQuery.isLoading ? "..." : missingCount}</p>
+              </div>
+              <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3">
+                <p className="text-xs font-black uppercase text-[#64748B]">Unresolved evidence</p>
+                <p className="mt-1 text-2xl font-black text-[#071D49]">{markSheetQuery.isLoading ? "..." : unresolvedCount}</p>
               </div>
               <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3">
                 <p className="text-xs font-black uppercase text-[#64748B]">Validation errors</p>
-                <p className="mt-1 text-2xl font-black text-[#071D49]">{classRegisterQuery.isLoading ? "..." : invalidCount}</p>
+                <p className="mt-1 text-2xl font-black text-[#071D49]">{markSheetQuery.isLoading ? "..." : invalidCount}</p>
               </div>
               <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3">
                 <p className="text-xs font-black uppercase text-[#64748B]">Submit status</p>
-                <p className="mt-1 text-sm font-black text-[#071D49]">{canSubmit ? "Ready for HOD" : "Draft review"}</p>
+                <p className="mt-1 text-sm font-black text-[#071D49]">
+                  {markSheetReadOnly ? "In moderation" : canSubmit ? "Ready for HOD" : "Draft review"}
+                </p>
               </div>
             </div>
           ) : null}
@@ -456,73 +574,120 @@ export function ExamsMarksWorkspace({
               <BookOpenCheck className="h-10 w-10 text-[#1D4ED8]" />
               <p className="mt-3 text-lg font-black text-[#071D49]">Open a markbook to start entering scores.</p>
               <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-[#64748B]">
-                The teacher workspace will load the school-scoped class register, enforce score range checks, and keep draft marks separate from submitted marks.
+                The teacher workspace loads the school-scoped subject register, preserves explicit evidence, enforces score ranges, and keeps drafts separate from moderated marks.
               </p>
             </div>
-          ) : classRegisterQuery.isLoading ? (
+          ) : markSheetQuery.isLoading ? (
             <div className="mt-5 flex h-56 items-center justify-center rounded-2xl border border-dashed border-[#D8E0EC] bg-[#F8FAFC]">
               <Loader2 className="h-6 w-6 animate-spin text-[#64748B]" />
             </div>
-          ) : classRegisterQuery.isError ? (
+          ) : markSheetQuery.isError ? (
             <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-5 text-sm font-bold text-red-800">
-              Could not load the class register for this markbook. Confirm the class still belongs to your teaching allocation.
+              {markSheetQuery.error instanceof Error
+                ? markSheetQuery.error.message
+                : "Could not load this subject markbook. Confirm the exam window and your active teaching allocation."}
             </div>
-          ) : students.length === 0 ? (
+          ) : markRows.length === 0 ? (
             <div className="mt-5 rounded-2xl border border-dashed border-[#D8E0EC] bg-[#F8FAFC] p-5">
-              <p className="font-black text-[#071D49]">No active learners in this class register.</p>
+              <p className="font-black text-[#071D49]">No active subject-enrolled learners in this markbook.</p>
               <p className="mt-2 text-sm font-semibold leading-6 text-[#64748B]">
-                Admissions or Deputy Principal must assign students to {activeWindow.className} before marks can be entered.
+                Admissions must activate learners in {activeWindow.className}, then the Deputy Principal or HOD must enrol them in {activeWindow.subjectName}.
               </p>
             </div>
           ) : (
             <div className="mt-5 overflow-x-auto rounded-2xl border border-[#D8E0EC]">
-              <table className="min-w-full divide-y divide-[#E2E8F0] bg-white text-sm">
+              <table className="min-w-[1120px] divide-y divide-[#E2E8F0] bg-white text-sm">
                 <thead className="bg-[#F8FAFC] text-left text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">
                   <tr>
                     <th className="px-4 py-3">Learner</th>
                     <th className="px-4 py-3">Admission</th>
+                    <th className="px-4 py-3">Evidence</th>
                     <th className="px-4 py-3">Score</th>
-                    <th className="px-4 py-3">Grade</th>
+                    <th className="px-4 py-3">Remarks</th>
+                    <th className="px-4 py-3">Policy result</th>
                     <th className="px-4 py-3">Validation</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E2E8F0]">
-                  {students.map((student) => {
-                    const score = activeScores[student.id] ?? "";
-                    const validation = getValidationMessage(score, activeWindow.outOf);
-                    const valid = validation === "Ready";
-                    const missing = validation === "Missing";
+                  {markRows.map((row) => {
+                    const draft = activeDrafts[row.student_id] ?? draftFromRow(row);
+                    const validation = getValidation(draft, activeWindow.outOf);
+                    const rowReadOnly = Boolean(row.id) && row.status !== "draft";
 
                     return (
-                      <tr key={student.id} className="align-top">
-                        <td className="px-4 py-3 font-black text-[#071D49]">{student.name}</td>
-                        <td className="px-4 py-3 font-semibold text-[#64748B]">{student.admissionNo}</td>
+                      <tr key={row.student_id} className="align-top">
+                        <td className="px-4 py-3 font-black text-[#071D49]">{row.student_name ?? "Unnamed learner"}</td>
+                        <td className="px-4 py-3 font-semibold text-[#64748B]">{row.admission_number ?? "-"}</td>
+                        <td className="px-4 py-3">
+                          <select
+                            aria-label={`${row.student_name ?? "Learner"} evidence status`}
+                            value={draft.scoreStatus}
+                            disabled={rowReadOnly}
+                            onChange={(event) => {
+                              const scoreStatus = event.target.value as ExamScoreStatus;
+                              updateDraft(row.student_id, {
+                                scoreStatus,
+                                ...(scoreStatus === "entered" ? {} : { score: "" }),
+                              });
+                            }}
+                            className="h-10 min-w-44 rounded-xl border border-[#D8E0EC] bg-white px-3 text-sm font-bold text-[#071D49] outline-none transition focus:border-[#1D4ED8] focus:ring-2 focus:ring-blue-100 disabled:bg-[#F1F5F9]"
+                          >
+                            <option value="" disabled>Select evidence</option>
+                            {SCORE_STATUS_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                          </select>
+                        </td>
                         <td className="px-4 py-3">
                           <input
-                            aria-label={`${student.name} score`}
+                            aria-label={`${row.student_name ?? "Learner"} score`}
                             type="number"
                             min="0"
                             max={activeWindow.outOf}
-                            value={score}
-                            onChange={(event) => updateScore(student.id, event.target.value)}
+                            step="0.01"
+                            value={draft.score}
+                            disabled={rowReadOnly || draft.scoreStatus !== "entered"}
+                            onChange={(event) => updateDraft(row.student_id, {
+                              score: event.target.value,
+                              scoreStatus: "entered",
+                            })}
                             className={cn(
-                              "h-10 w-28 rounded-xl border px-3 text-center text-sm font-black text-[#071D49] outline-none transition focus:border-[#1D4ED8] focus:ring-2 focus:ring-blue-100",
-                              valid || missing ? "border-[#D8E0EC]" : "border-red-300 bg-red-50",
+                              "h-10 w-28 rounded-xl border px-3 text-center text-sm font-black text-[#071D49] outline-none transition focus:border-[#1D4ED8] focus:ring-2 focus:ring-blue-100 disabled:bg-[#F1F5F9]",
+                              validation.tone !== "danger" ? "border-[#D8E0EC]" : "border-red-300 bg-red-50",
                             )}
                           />
                         </td>
-                        <td className="px-4 py-3 font-black text-[#071D49]">{getGrade(score, activeWindow.outOf)}</td>
+                        <td className="px-4 py-3">
+                          <input
+                            aria-label={`${row.student_name ?? "Learner"} mark remarks`}
+                            value={draft.remarks}
+                            disabled={rowReadOnly}
+                            maxLength={500}
+                            onChange={(event) => updateDraft(row.student_id, { remarks: event.target.value })}
+                            placeholder="Optional evidence note"
+                            className="h-10 min-w-52 rounded-xl border border-[#D8E0EC] px-3 text-sm font-semibold text-[#071D49] outline-none transition focus:border-[#1D4ED8] focus:ring-2 focus:ring-blue-100 disabled:bg-[#F1F5F9]"
+                          />
+                        </td>
+                        <td className="px-4 py-3 font-bold text-[#475569]">
+                          {rowReadOnly
+                            ? row.status.replaceAll("_", " ")
+                            : draft.scoreStatus === "entered"
+                              ? "Calculated after grading policy"
+                              : draft.scoreStatus
+                                ? SCORE_STATUS_LABELS[draft.scoreStatus]
+                                : "-"}
+                        </td>
                         <td className="px-4 py-3">
                           <span
                             className={cn(
                               "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-black",
-                              valid && "border-emerald-200 bg-emerald-50 text-emerald-700",
-                              missing && "border-amber-200 bg-amber-50 text-amber-700",
-                              !valid && !missing && "border-red-200 bg-red-50 text-red-700",
+                              validation.tone === "success" && "border-emerald-200 bg-emerald-50 text-emerald-700",
+                              validation.tone === "warning" && "border-amber-200 bg-amber-50 text-amber-700",
+                              validation.tone === "danger" && "border-red-200 bg-red-50 text-red-700",
                             )}
                           >
-                            {valid ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
-                            {validation}
+                            {validation.tone === "success" ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
+                            {validation.label}
                           </span>
                         </td>
                       </tr>

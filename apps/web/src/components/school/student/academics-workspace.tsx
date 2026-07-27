@@ -1,20 +1,37 @@
 "use client";
 
-import { BookOpen, Download, FileText, GraduationCap } from "lucide-react";
+import { BookOpen, CheckCircle2, Clock3, Download, Eye, FileText, GraduationCap } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useSchoolMutation, useSchoolQuery } from "@/lib/data/school-hooks";
+import { openPrintDocument } from "@/lib/dashboard/export";
 
 type AcademicMark = {
   id: string;
   subject: string;
   exam: string;
   teacher?: string | null;
-  score: number;
+  score: number | null;
+  score_status: string;
   remarks?: string | null;
   status: string;
   published_at?: string | null;
+};
+
+type StudentAssignment = {
+  id: string;
+  title: string;
+  description?: string | null;
+  subject: string;
+  teacher?: string | null;
+  due_at: string;
+  status: string;
+  submission_status?: string | null;
+  submitted_at?: string | null;
+  completed_at?: string | null;
+  is_complete: boolean;
 };
 
 type ReportCard = {
@@ -33,8 +50,10 @@ type StudentAcademicsData = {
     subjects: number;
     mean_score: number;
     report_cards: number;
+    pending_assignments: number;
+    entered_scores?: number;
   };
-  assignments: [];
+  assignments: StudentAssignment[];
   marks: AcademicMark[];
   report_cards: ReportCard[];
 };
@@ -44,17 +63,54 @@ export function AcademicsWorkspace() {
     data,
     isLoading,
     error,
+    refetch,
   } = useSchoolQuery<StudentAcademicsData>("/admin-command/student/academics");
+  const markAssignmentDone = useSchoolMutation<
+    { success: boolean; alreadyCompleted?: boolean },
+    { assignmentId: string }
+  >(
+    "/api/student-portal/assignments/mark-done",
+    "POST",
+    {
+      onSuccess: async (result) => {
+        toast.success(result.alreadyCompleted ? "Assignment was already complete." : "Assignment marked complete.");
+        await refetch();
+      },
+      onError: (mutationError) => {
+        toast.error(mutationError.message || "Assignment could not be completed.");
+      },
+    },
+  );
 
+  const assignments = data?.assignments ?? [];
   const marks = data?.marks ?? [];
   const reportCards = data?.report_cards ?? [];
+
+  function downloadReportCard(report: ReportCard) {
+    window.open(report.download_url, "_blank", "noopener,noreferrer");
+  }
+
+  function previewReportCard(report: ReportCard) {
+    openPrintDocument({
+      eyebrow: "Published report card",
+      title: report.term || report.exam_series_name || "School report card",
+      subtitle: report.student_name || "Student report",
+      rows: [
+        { label: "Academic year", value: report.academic_year || "Not recorded" },
+        { label: "Assessment", value: report.exam_series_name || "Published assessment" },
+        { label: "Published", value: formatDate(report.published_at) },
+        { label: "Status", value: report.status },
+      ],
+      footer: "Open the official downloaded report card for the full approved result and school branding.",
+    });
+  }
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Academics & Report Cards</h2>
         <p className="mt-1 text-sm text-slate-500">
-          View only marks and report cards that your school has officially published.
+          Complete class assignments and view only marks and report cards that your school has officially published.
         </p>
       </div>
 
@@ -64,7 +120,12 @@ export function AcademicsWorkspace() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="Pending assignments"
+          value={isLoading ? "..." : String(data?.metrics.pending_assignments ?? 0)}
+          icon={Clock3}
+        />
         <MetricCard
           label="Published subjects"
           value={isLoading ? "..." : String(data?.metrics.subjects ?? 0)}
@@ -72,7 +133,11 @@ export function AcademicsWorkspace() {
         />
         <MetricCard
           label="Published mean score"
-          value={isLoading ? "..." : `${data?.metrics.mean_score ?? 0}%`}
+          value={isLoading
+            ? "..."
+            : (data?.metrics.entered_scores ?? marks.filter((mark) => mark.score !== null).length) > 0
+              ? `${data?.metrics.mean_score ?? 0}%`
+              : "Not available"}
           icon={GraduationCap}
         />
         <MetricCard
@@ -81,6 +146,67 @@ export function AcademicsWorkspace() {
           icon={FileText}
         />
       </div>
+
+      <Card className="overflow-hidden border border-slate-200">
+        <div className="border-b border-slate-100 bg-slate-50/50 p-4">
+          <h3 className="font-medium text-slate-900">Assignments</h3>
+          <p className="mt-1 text-sm text-slate-500">
+            Assignments published by teachers for your current class appear here.
+          </p>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {isLoading ? (
+            <div className="p-8 text-center text-sm text-slate-500">Loading assignments...</div>
+          ) : assignments.length === 0 ? (
+            <div className="p-8 text-center">
+              <p className="font-medium text-slate-900">No assignments have been published</p>
+              <p className="mt-1 text-sm text-slate-500">
+                Your teacher&apos;s next published class assignment will appear here.
+              </p>
+            </div>
+          ) : assignments.map((assignment) => (
+            <div key={assignment.id} className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h4 className="font-medium text-slate-900">{assignment.title}</h4>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    assignment.is_complete
+                      ? "bg-emerald-50 text-emerald-700"
+                      : isPastDue(assignment.due_at)
+                        ? "bg-rose-50 text-rose-700"
+                        : "bg-amber-50 text-amber-700"
+                  }`}>
+                    {assignment.is_complete ? "Completed" : isPastDue(assignment.due_at) ? "Overdue" : "Pending"}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-slate-600">
+                  {assignment.subject} - {assignment.teacher || "Teacher not recorded"}
+                </p>
+                {assignment.description ? (
+                  <p className="mt-1 text-sm text-slate-500">{assignment.description}</p>
+                ) : null}
+                <p className="mt-2 text-xs font-medium text-slate-500">
+                  Due {formatDate(assignment.due_at)}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant={assignment.is_complete ? "outline" : "default"}
+                className="shrink-0 gap-2"
+                disabled={assignment.is_complete || markAssignmentDone.isPending}
+                onClick={() => markAssignmentDone.mutate({ assignmentId: assignment.id })}
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                {assignment.is_complete
+                  ? "Completed"
+                  : markAssignmentDone.isPending && markAssignmentDone.variables?.assignmentId === assignment.id
+                    ? "Saving..."
+                    : "Mark complete"}
+              </Button>
+            </div>
+          ))}
+        </div>
+      </Card>
 
       <Card className="overflow-hidden border border-slate-200">
         <div className="border-b border-slate-100 bg-slate-50/50 p-4">
@@ -115,7 +241,9 @@ export function AcademicsWorkspace() {
                   <td className="px-4 py-3 font-medium text-slate-900">{mark.subject}</td>
                   <td className="px-4 py-3 text-slate-600">{mark.exam}</td>
                   <td className="px-4 py-3 text-slate-600">{mark.teacher || "Not recorded"}</td>
-                  <td className="px-4 py-3 text-right font-bold text-slate-900">{mark.score}%</td>
+                  <td className="px-4 py-3 text-right font-bold text-slate-900">
+                    {mark.score === null ? formatScoreStatus(mark.score_status) : `${mark.score}%`}
+                  </td>
                   <td className="px-4 py-3 text-slate-600">{mark.remarks || "No remarks"}</td>
                 </tr>
               ))}
@@ -151,15 +279,26 @@ export function AcademicsWorkspace() {
                   </p>
                 </div>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="shrink-0 gap-2"
-                onClick={() => window.open(report.download_url, "_blank", "noopener,noreferrer")}
-              >
-                <Download className="h-4 w-4" />
-                Download
-              </Button>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => previewReportCard(report)}
+                >
+                  <Eye className="h-4 w-4" />
+                  Preview
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => downloadReportCard(report)}
+                >
+                  <Download className="h-4 w-4" />
+                  Download
+                </Button>
+              </div>
             </Card>
           ))}
         </div>
@@ -190,4 +329,23 @@ function formatDate(value?: string | null) {
   if (!value) return "Date not recorded";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "Date not recorded" : date.toLocaleDateString("en-KE");
+}
+
+function isPastDue(value?: string | null) {
+  if (!value) return false;
+  const dueDate = new Date(value);
+  return !Number.isNaN(dueDate.getTime()) && dueDate.getTime() < Date.now();
+}
+
+function formatScoreStatus(value: string) {
+  const labels: Record<string, string> = {
+    absent: "Absent",
+    exempt: "Exempt",
+    not_assessed: "Not assessed",
+    incomplete: "Incomplete",
+    withheld: "Withheld",
+    medical_exception: "Medical exception",
+    transfer_student: "Transfer student",
+  };
+  return labels[value] || "Not assessed";
 }

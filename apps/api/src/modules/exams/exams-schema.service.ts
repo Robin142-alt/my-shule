@@ -115,12 +115,25 @@ export class ExamsSchemaService implements OnModuleInit {
         name text NOT NULL,
         reporting_mode text NOT NULL DEFAULT 'traditional',
         status text NOT NULL DEFAULT 'draft',
+        version integer NOT NULL DEFAULT 1,
+        effective_from timestamptz,
+        effective_to timestamptz,
+        supersedes_policy_id uuid,
+        validated_at timestamptz,
+        activated_at timestamptz,
+        scope jsonb NOT NULL DEFAULT '{}'::jsonb,
         created_by_user_id uuid,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW(),
         CONSTRAINT uq_exam_grading_policies_tenant_id_id UNIQUE (tenant_id, id),
         CONSTRAINT ck_exam_grading_policies_mode CHECK (reporting_mode IN ('traditional', 'cbc_competency', 'hybrid')),
-        CONSTRAINT ck_exam_grading_policies_status CHECK (status IN ('draft', 'active', 'retired'))
+        CONSTRAINT ck_exam_grading_policies_status CHECK (
+          status IN ('draft', 'validated', 'scheduled', 'active', 'replaced', 'archived')
+        ),
+        CONSTRAINT ck_exam_grading_policies_version CHECK (version > 0),
+        CONSTRAINT ck_exam_grading_policies_effective_range CHECK (
+          effective_to IS NULL OR effective_from IS NULL OR effective_to > effective_from
+        )
       );
 
       CREATE TABLE IF NOT EXISTS exam_grading_policy_boundaries (
@@ -132,6 +145,8 @@ export class ExamsSchemaService implements OnModuleInit {
         max_score numeric(8,2) NOT NULL,
         points numeric(8,2),
         descriptor text,
+        remark text,
+        is_pass boolean NOT NULL DEFAULT FALSE,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         CONSTRAINT uq_exam_grading_policy_boundaries_tenant_id_id UNIQUE (tenant_id, id),
         CONSTRAINT ck_exam_grading_policy_boundaries_range CHECK (max_score >= min_score)
@@ -187,7 +202,8 @@ export class ExamsSchemaService implements OnModuleInit {
         class_section_id uuid NOT NULL,
         subject_id uuid NOT NULL,
         student_id uuid NOT NULL,
-        score numeric(8,2) NOT NULL,
+        score numeric(8,2),
+        score_status text NOT NULL DEFAULT 'entered',
         remarks text,
         status text NOT NULL DEFAULT 'draft',
         entered_by_user_id uuid NOT NULL,
@@ -201,6 +217,22 @@ export class ExamsSchemaService implements OnModuleInit {
         CONSTRAINT uq_exam_marks_tenant_id_id UNIQUE (tenant_id, id),
         CONSTRAINT uq_exam_marks_scope UNIQUE (tenant_id, assessment_id, student_id),
         CONSTRAINT ck_exam_marks_score CHECK (score >= 0),
+        CONSTRAINT ck_exam_marks_score_status CHECK (
+          score_status IN (
+            'entered',
+            'absent',
+            'exempt',
+            'not_assessed',
+            'incomplete',
+            'withheld',
+            'medical_exception',
+            'transfer_student'
+          )
+        ),
+        CONSTRAINT ck_exam_marks_score_evidence CHECK (
+          (score_status = 'entered' AND score IS NOT NULL)
+          OR (score_status <> 'entered' AND score IS NULL)
+        ),
         CONSTRAINT ck_exam_marks_status CHECK (status IN ('draft', 'submitted', 'reviewed', 'locked', 'published'))
       );
 
@@ -208,8 +240,10 @@ export class ExamsSchemaService implements OnModuleInit {
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
         mark_id uuid NOT NULL,
-        original_score numeric(8,2) NOT NULL,
-        correction_score numeric(8,2) NOT NULL,
+        original_score numeric(8,2),
+        original_score_status text NOT NULL DEFAULT 'entered',
+        correction_score numeric(8,2),
+        correction_score_status text NOT NULL DEFAULT 'entered',
         corrected_by_user_id uuid NOT NULL,
         reason text NOT NULL,
         approval_state text NOT NULL DEFAULT 'pending',
@@ -256,9 +290,11 @@ export class ExamsSchemaService implements OnModuleInit {
         row_number integer NOT NULL,
         previous_exists boolean NOT NULL,
         previous_score numeric(8,2),
+        previous_score_status text,
         previous_remarks text,
         previous_status text,
-        imported_score numeric(8,2) NOT NULL,
+        imported_score numeric(8,2),
+        imported_score_status text NOT NULL DEFAULT 'entered',
         imported_remarks text,
         imported_status text NOT NULL,
         created_at timestamptz NOT NULL DEFAULT NOW(),
@@ -276,14 +312,32 @@ export class ExamsSchemaService implements OnModuleInit {
         student_id uuid NOT NULL,
         report_snapshot_id text NOT NULL,
         status text NOT NULL DEFAULT 'draft_requested',
+        revision_number integer NOT NULL DEFAULT 1,
+        is_current boolean NOT NULL DEFAULT TRUE,
+        supersedes_report_card_id uuid,
+        grading_policy_id uuid,
+        grading_policy_version integer,
+        template_version integer NOT NULL DEFAULT 1,
+        approved_result_version text,
         verification_code text,
+        submitted_by_user_id uuid,
+        submitted_at timestamptz,
+        approved_by_user_id uuid,
+        approved_at timestamptz,
+        approval_role text,
         published_by_user_id uuid,
         published_at timestamptz,
+        withdrawn_by_user_id uuid,
+        withdrawn_at timestamptz,
+        workflow_version integer NOT NULL DEFAULT 1,
         metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW(),
         CONSTRAINT uq_student_report_cards_tenant_id_id UNIQUE (tenant_id, id),
-        CONSTRAINT uq_student_report_cards_series_student UNIQUE (tenant_id, exam_series_id, student_id),
+        CONSTRAINT uq_student_report_cards_revision UNIQUE (
+          tenant_id, exam_series_id, student_id, revision_number
+        ),
+        CONSTRAINT ck_student_report_cards_revision CHECK (revision_number > 0),
         CONSTRAINT ck_student_report_cards_status CHECK (
           status IN (
             'draft_requested',
@@ -341,6 +395,122 @@ export class ExamsSchemaService implements OnModuleInit {
         CONSTRAINT ck_report_card_artifacts_size CHECK (byte_size > 0)
       );
 
+      CREATE TABLE IF NOT EXISTS academic_interventions (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        student_id text,
+        exam_series_id uuid,
+        subject_id text,
+        class_section_id text,
+        scope_type text NOT NULL DEFAULT 'student',
+        source text NOT NULL DEFAULT 'manual',
+        trigger_reason text NOT NULL,
+        baseline jsonb NOT NULL DEFAULT '{}'::jsonb,
+        plan text NOT NULL,
+        target jsonb NOT NULL DEFAULT '{}'::jsonb,
+        owner_user_id uuid,
+        hod_user_id uuid,
+        priority text NOT NULL DEFAULT 'normal',
+        status text NOT NULL DEFAULT 'planned',
+        starts_on date,
+        due_on date,
+        completed_at timestamptz,
+        outcome jsonb NOT NULL DEFAULT '{}'::jsonb,
+        created_by_user_id uuid NOT NULL,
+        updated_by_user_id uuid,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_academic_interventions_tenant_id_id UNIQUE (tenant_id, id),
+        CONSTRAINT ck_academic_interventions_source CHECK (
+          source IN ('manual', 'analytics', 'moderation', 'attendance', 'reassessment')
+        ),
+        CONSTRAINT ck_academic_interventions_priority CHECK (
+          priority IN ('low', 'normal', 'high', 'urgent')
+        ),
+        CONSTRAINT ck_academic_interventions_status CHECK (
+          status IN ('planned', 'active', 'monitoring', 'completed', 'cancelled')
+        ),
+        CONSTRAINT ck_academic_interventions_scope_type CHECK (
+          scope_type IN ('student', 'class', 'subject', 'class_subject')
+        ),
+        CONSTRAINT ck_academic_interventions_scope CHECK (
+          student_id IS NOT NULL OR class_section_id IS NOT NULL OR subject_id IS NOT NULL
+        ),
+        CONSTRAINT ck_academic_interventions_dates CHECK (
+          due_on IS NULL OR starts_on IS NULL OR due_on >= starts_on
+        )
+      );
+
+      CREATE TABLE IF NOT EXISTS academic_intervention_updates (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        intervention_id uuid NOT NULL,
+        update_type text NOT NULL DEFAULT 'progress',
+        notes text NOT NULL,
+        score numeric(8,2),
+        score_status text,
+        metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+        recorded_by_user_id uuid NOT NULL,
+        recorded_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_academic_intervention_updates_tenant_id_id UNIQUE (tenant_id, id),
+        CONSTRAINT fk_academic_intervention_updates_intervention FOREIGN KEY (tenant_id, intervention_id)
+          REFERENCES academic_interventions (tenant_id, id) ON DELETE CASCADE,
+        CONSTRAINT ck_academic_intervention_updates_type CHECK (
+          update_type IN ('progress', 'assessment', 'reassessment', 'note', 'status_change')
+        ),
+        CONSTRAINT ck_academic_intervention_updates_score CHECK (score IS NULL OR score >= 0),
+        CONSTRAINT ck_academic_intervention_updates_score_status CHECK (
+          score_status IS NULL OR score_status IN (
+            'entered',
+            'absent',
+            'exempt',
+            'not_assessed',
+            'incomplete',
+            'withheld',
+            'medical_exception',
+            'transfer_student'
+          )
+        ),
+        CONSTRAINT ck_academic_intervention_updates_score_evidence CHECK (
+          (score_status IS NULL AND score IS NULL)
+          OR (score_status = 'entered' AND score IS NOT NULL)
+          OR (score_status <> 'entered' AND score IS NULL)
+        )
+      );
+
+      ALTER TABLE academic_interventions
+        ADD COLUMN IF NOT EXISTS scope_type text NOT NULL DEFAULT 'student',
+        ADD COLUMN IF NOT EXISTS target jsonb NOT NULL DEFAULT '{}'::jsonb,
+        ADD COLUMN IF NOT EXISTS hod_user_id uuid;
+      ALTER TABLE academic_interventions
+        ALTER COLUMN student_id DROP NOT NULL,
+        ALTER COLUMN student_id TYPE text USING student_id::text,
+        ALTER COLUMN subject_id TYPE text USING subject_id::text,
+        ALTER COLUMN class_section_id TYPE text USING class_section_id::text;
+      UPDATE academic_interventions
+      SET scope_type = CASE
+        WHEN student_id IS NOT NULL THEN 'student'
+        WHEN class_section_id IS NOT NULL AND subject_id IS NOT NULL THEN 'class_subject'
+        WHEN class_section_id IS NOT NULL THEN 'class'
+        ELSE 'subject'
+      END,
+      target = COALESCE(target, '{}'::jsonb)
+      WHERE scope_type IS NULL
+         OR scope_type NOT IN ('student', 'class', 'subject', 'class_subject')
+         OR target IS NULL;
+      ALTER TABLE academic_interventions
+        DROP CONSTRAINT IF EXISTS ck_academic_interventions_scope_type;
+      ALTER TABLE academic_interventions
+        ADD CONSTRAINT ck_academic_interventions_scope_type CHECK (
+          scope_type IN ('student', 'class', 'subject', 'class_subject')
+        );
+      ALTER TABLE academic_interventions
+        DROP CONSTRAINT IF EXISTS ck_academic_interventions_scope;
+      ALTER TABLE academic_interventions
+        ADD CONSTRAINT ck_academic_interventions_scope CHECK (
+          student_id IS NOT NULL OR class_section_id IS NOT NULL OR subject_id IS NOT NULL
+        );
+
       DROP POLICY IF EXISTS exam_series_tenant_policy ON exam_series;
       DROP POLICY IF EXISTS exam_assessments_tenant_policy ON exam_assessments;
       DROP POLICY IF EXISTS exam_mark_windows_tenant_policy ON exam_mark_entry_windows;
@@ -366,11 +536,159 @@ export class ExamsSchemaService implements OnModuleInit {
       DROP POLICY IF EXISTS exam_invigilators_tenant_policy ON exam_invigilators;
       DROP POLICY IF EXISTS exam_attendance_records_tenant_policy ON exam_attendance_records;
       DROP POLICY IF EXISTS exam_student_cases_tenant_policy ON exam_student_cases;
+      DROP POLICY IF EXISTS academic_interventions_tenant_policy ON academic_interventions;
+      DROP POLICY IF EXISTS academic_intervention_updates_tenant_policy ON academic_intervention_updates;
+
+      ALTER TABLE exam_grading_policies
+      ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
+      ALTER TABLE exam_grading_policies
+      ADD COLUMN IF NOT EXISTS effective_from timestamptz;
+      ALTER TABLE exam_grading_policies
+      ADD COLUMN IF NOT EXISTS effective_to timestamptz;
+      ALTER TABLE exam_grading_policies
+      ADD COLUMN IF NOT EXISTS supersedes_policy_id uuid;
+      ALTER TABLE exam_grading_policies
+      ADD COLUMN IF NOT EXISTS validated_at timestamptz;
+      ALTER TABLE exam_grading_policies
+      ADD COLUMN IF NOT EXISTS activated_at timestamptz;
+      ALTER TABLE exam_grading_policies
+      ADD COLUMN IF NOT EXISTS scope jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE exam_grading_policies
+      DROP CONSTRAINT IF EXISTS ck_exam_grading_policies_status;
+      ALTER TABLE exam_grading_policies
+      DROP CONSTRAINT IF EXISTS ck_exam_grading_policies_version;
+      ALTER TABLE exam_grading_policies
+      DROP CONSTRAINT IF EXISTS ck_exam_grading_policies_effective_range;
+      UPDATE exam_grading_policies
+      SET status = 'archived'
+      WHERE status = 'retired';
+      UPDATE exam_grading_policies
+      SET scope = COALESCE(scope, '{}'::jsonb),
+          activated_at = CASE
+            WHEN status = 'active' THEN COALESCE(activated_at, updated_at, created_at)
+            ELSE activated_at
+          END,
+          effective_from = CASE
+            WHEN status = 'active' THEN COALESCE(effective_from, activated_at, updated_at, created_at)
+            ELSE effective_from
+          END
+      WHERE scope IS NULL
+         OR (status = 'active' AND (activated_at IS NULL OR effective_from IS NULL));
+      ALTER TABLE exam_grading_policies
+      ADD CONSTRAINT ck_exam_grading_policies_status CHECK (
+        status IN ('draft', 'validated', 'scheduled', 'active', 'replaced', 'archived')
+      );
+      ALTER TABLE exam_grading_policies
+      ADD CONSTRAINT ck_exam_grading_policies_version CHECK (version > 0);
+      ALTER TABLE exam_grading_policies
+      ADD CONSTRAINT ck_exam_grading_policies_effective_range CHECK (
+        effective_to IS NULL OR effective_from IS NULL OR effective_to > effective_from
+      );
+
+      ALTER TABLE exam_grading_policy_boundaries
+      ADD COLUMN IF NOT EXISTS remark text;
+      ALTER TABLE exam_grading_policy_boundaries
+      ADD COLUMN IF NOT EXISTS is_pass boolean NOT NULL DEFAULT FALSE;
+
+      ALTER TABLE exam_marks
+      ADD COLUMN IF NOT EXISTS score_status text NOT NULL DEFAULT 'entered';
+      ALTER TABLE exam_marks
+      ALTER COLUMN score DROP NOT NULL;
+      UPDATE exam_marks
+      SET score_status = CASE WHEN score IS NULL THEN 'not_assessed' ELSE 'entered' END
+      WHERE score_status IS NULL
+         OR (score_status = 'entered' AND score IS NULL)
+         OR (score_status <> 'entered' AND score IS NOT NULL);
+      ALTER TABLE exam_marks
+      DROP CONSTRAINT IF EXISTS ck_exam_marks_score_status;
+      ALTER TABLE exam_marks
+      DROP CONSTRAINT IF EXISTS ck_exam_marks_score_evidence;
+      ALTER TABLE exam_marks
+      ADD CONSTRAINT ck_exam_marks_score_status CHECK (
+        score_status IN (
+          'entered',
+          'absent',
+          'exempt',
+          'not_assessed',
+          'incomplete',
+          'withheld',
+          'medical_exception',
+          'transfer_student'
+        )
+      );
+      ALTER TABLE exam_marks
+      ADD CONSTRAINT ck_exam_marks_score_evidence CHECK (
+        (score_status = 'entered' AND score IS NOT NULL)
+        OR (score_status <> 'entered' AND score IS NULL)
+      );
+
+      ALTER TABLE exam_mark_versions
+      ALTER COLUMN original_score DROP NOT NULL;
+      ALTER TABLE exam_mark_versions
+      ALTER COLUMN correction_score DROP NOT NULL;
+      ALTER TABLE exam_mark_versions
+      ADD COLUMN IF NOT EXISTS original_score_status text NOT NULL DEFAULT 'entered';
+      ALTER TABLE exam_mark_versions
+      ADD COLUMN IF NOT EXISTS correction_score_status text NOT NULL DEFAULT 'entered';
+      UPDATE exam_mark_versions
+      SET original_score_status = CASE WHEN original_score IS NULL THEN 'not_assessed' ELSE 'entered' END,
+          correction_score_status = CASE WHEN correction_score IS NULL THEN 'not_assessed' ELSE 'entered' END
+      WHERE original_score_status IS NULL
+         OR correction_score_status IS NULL
+         OR (original_score_status = 'entered' AND original_score IS NULL)
+         OR (correction_score_status = 'entered' AND correction_score IS NULL);
+
+      ALTER TABLE exam_mark_import_batch_items
+      ADD COLUMN IF NOT EXISTS previous_score_status text;
+      ALTER TABLE exam_mark_import_batch_items
+      ADD COLUMN IF NOT EXISTS imported_score_status text NOT NULL DEFAULT 'entered';
+      ALTER TABLE exam_mark_import_batch_items
+      ALTER COLUMN imported_score DROP NOT NULL;
+      UPDATE exam_mark_import_batch_items
+      SET previous_score_status = CASE
+            WHEN NOT previous_exists THEN NULL
+            WHEN previous_score IS NULL THEN 'not_assessed'
+            ELSE 'entered'
+          END,
+          imported_score_status = CASE WHEN imported_score IS NULL THEN 'not_assessed' ELSE 'entered' END
+      WHERE previous_score_status IS NULL
+         OR imported_score_status IS NULL
+         OR (imported_score_status = 'entered' AND imported_score IS NULL);
 
       ALTER TABLE student_report_cards
       ADD COLUMN IF NOT EXISTS verification_code text;
       ALTER TABLE student_report_cards
       ADD COLUMN IF NOT EXISTS published_at timestamptz;
+      ALTER TABLE student_report_cards
+      ADD COLUMN IF NOT EXISTS revision_number integer NOT NULL DEFAULT 1;
+      ALTER TABLE student_report_cards
+      ADD COLUMN IF NOT EXISTS is_current boolean NOT NULL DEFAULT TRUE;
+      ALTER TABLE student_report_cards
+      ADD COLUMN IF NOT EXISTS supersedes_report_card_id uuid;
+      ALTER TABLE student_report_cards
+      ADD COLUMN IF NOT EXISTS grading_policy_id uuid;
+      ALTER TABLE student_report_cards
+      ADD COLUMN IF NOT EXISTS grading_policy_version integer;
+      ALTER TABLE student_report_cards
+      ADD COLUMN IF NOT EXISTS template_version integer NOT NULL DEFAULT 1;
+      ALTER TABLE student_report_cards
+      ADD COLUMN IF NOT EXISTS approved_result_version text;
+      ALTER TABLE student_report_cards
+      ADD COLUMN IF NOT EXISTS submitted_by_user_id uuid;
+      ALTER TABLE student_report_cards
+      ADD COLUMN IF NOT EXISTS submitted_at timestamptz;
+      ALTER TABLE student_report_cards
+      ADD COLUMN IF NOT EXISTS approved_by_user_id uuid;
+      ALTER TABLE student_report_cards
+      ADD COLUMN IF NOT EXISTS approved_at timestamptz;
+      ALTER TABLE student_report_cards
+      ADD COLUMN IF NOT EXISTS approval_role text;
+      ALTER TABLE student_report_cards
+      ADD COLUMN IF NOT EXISTS withdrawn_by_user_id uuid;
+      ALTER TABLE student_report_cards
+      ADD COLUMN IF NOT EXISTS withdrawn_at timestamptz;
+      ALTER TABLE student_report_cards
+      ADD COLUMN IF NOT EXISTS workflow_version integer NOT NULL DEFAULT 1;
       ALTER TABLE student_report_cards
       ALTER COLUMN status SET DEFAULT 'draft_requested';
       ALTER TABLE student_report_cards
@@ -379,12 +697,34 @@ export class ExamsSchemaService implements OnModuleInit {
       ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
       UPDATE student_report_cards
       SET metadata = COALESCE(metadata, '{}'::jsonb),
+          workflow_version = GREATEST(COALESCE(workflow_version, 1), 1),
           published_at = CASE
             WHEN status = 'published' THEN COALESCE(published_at, updated_at, created_at, NOW())
             ELSE published_at
           END
       WHERE metadata IS NULL
+         OR workflow_version IS NULL
+         OR workflow_version < 1
          OR (status = 'published' AND published_at IS NULL);
+      ALTER TABLE student_report_cards
+      DROP CONSTRAINT IF EXISTS uq_student_report_cards_series_student;
+      ALTER TABLE student_report_cards
+      DROP CONSTRAINT IF EXISTS uq_student_report_cards_revision;
+      ALTER TABLE student_report_cards
+      DROP CONSTRAINT IF EXISTS ck_student_report_cards_revision;
+      ALTER TABLE student_report_cards
+      ADD CONSTRAINT uq_student_report_cards_revision UNIQUE (
+        tenant_id, exam_series_id, student_id, revision_number
+      );
+      ALTER TABLE student_report_cards
+      ADD CONSTRAINT ck_student_report_cards_revision CHECK (revision_number > 0);
+      ALTER TABLE student_report_cards
+      DROP CONSTRAINT IF EXISTS ck_student_report_cards_workflow_version;
+      ALTER TABLE student_report_cards
+      ADD CONSTRAINT ck_student_report_cards_workflow_version CHECK (workflow_version > 0);
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_student_report_cards_current_revision
+        ON student_report_cards (tenant_id, exam_series_id, student_id)
+        WHERE is_current;
 
       ALTER TABLE report_card_artifacts
       ADD COLUMN IF NOT EXISTS generated_at timestamptz NOT NULL DEFAULT NOW();
@@ -649,7 +989,9 @@ export class ExamsSchemaService implements OnModuleInit {
           'exam_papers',
           'exam_invigilators',
           'exam_attendance_records',
-          'exam_student_cases'
+          'exam_student_cases',
+          'academic_interventions',
+          'academic_intervention_updates'
         ]
         LOOP
           IF to_regclass('public.' || table_name) IS NOT NULL THEN
@@ -669,6 +1011,66 @@ export class ExamsSchemaService implements OnModuleInit {
           END IF;
         END LOOP;
       END $$;
+
+      ALTER TABLE exam_mark_versions
+      DROP CONSTRAINT IF EXISTS ck_exam_mark_versions_original_score_status;
+      ALTER TABLE exam_mark_versions
+      DROP CONSTRAINT IF EXISTS ck_exam_mark_versions_correction_score_status;
+      ALTER TABLE exam_mark_versions
+      DROP CONSTRAINT IF EXISTS ck_exam_mark_versions_score_evidence;
+      ALTER TABLE exam_mark_versions
+      ADD CONSTRAINT ck_exam_mark_versions_original_score_status CHECK (
+        original_score_status IN (
+          'entered', 'absent', 'exempt', 'not_assessed', 'incomplete',
+          'withheld', 'medical_exception', 'transfer_student'
+        )
+      );
+      ALTER TABLE exam_mark_versions
+      ADD CONSTRAINT ck_exam_mark_versions_correction_score_status CHECK (
+        correction_score_status IN (
+          'entered', 'absent', 'exempt', 'not_assessed', 'incomplete',
+          'withheld', 'medical_exception', 'transfer_student'
+        )
+      );
+      ALTER TABLE exam_mark_versions
+      ADD CONSTRAINT ck_exam_mark_versions_score_evidence CHECK (
+        (
+          (original_score_status = 'entered' AND original_score IS NOT NULL)
+          OR (original_score_status <> 'entered' AND original_score IS NULL)
+        )
+        AND (
+          (correction_score_status = 'entered' AND correction_score IS NOT NULL)
+          OR (correction_score_status <> 'entered' AND correction_score IS NULL)
+        )
+      );
+
+      ALTER TABLE exam_mark_import_batch_items
+      DROP CONSTRAINT IF EXISTS ck_exam_mark_import_batch_items_score_status;
+      ALTER TABLE exam_mark_import_batch_items
+      DROP CONSTRAINT IF EXISTS ck_exam_mark_import_batch_items_score_evidence;
+      ALTER TABLE exam_mark_import_batch_items
+      ADD CONSTRAINT ck_exam_mark_import_batch_items_score_status CHECK (
+        (previous_score_status IS NULL OR previous_score_status IN (
+          'entered', 'absent', 'exempt', 'not_assessed', 'incomplete',
+          'withheld', 'medical_exception', 'transfer_student'
+        ))
+        AND imported_score_status IN (
+          'entered', 'absent', 'exempt', 'not_assessed', 'incomplete',
+          'withheld', 'medical_exception', 'transfer_student'
+        )
+      );
+      ALTER TABLE exam_mark_import_batch_items
+      ADD CONSTRAINT ck_exam_mark_import_batch_items_score_evidence CHECK (
+        (
+          NOT previous_exists
+          OR (previous_score_status = 'entered' AND previous_score IS NOT NULL)
+          OR (previous_score_status <> 'entered' AND previous_score IS NULL)
+        )
+        AND (
+          (imported_score_status = 'entered' AND imported_score IS NOT NULL)
+          OR (imported_score_status <> 'entered' AND imported_score IS NULL)
+        )
+      );
 
       CREATE INDEX IF NOT EXISTS ix_exam_marks_subject_scope
         ON exam_marks (tenant_id, exam_series_id, academic_term_id, class_section_id, subject_id);
@@ -704,6 +1106,16 @@ export class ExamsSchemaService implements OnModuleInit {
         ON exam_result_snapshots (tenant_id, batch_id, class_rank, student_id);
       CREATE INDEX IF NOT EXISTS ix_report_card_artifacts_report_card
         ON report_card_artifacts (tenant_id, report_card_id, generated_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_exam_grading_policies_effective
+        ON exam_grading_policies (
+          tenant_id, exam_series_id, status, effective_from DESC NULLS LAST, version DESC
+        );
+      CREATE INDEX IF NOT EXISTS ix_academic_interventions_student
+        ON academic_interventions (tenant_id, student_id, status, created_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_academic_interventions_owner
+        ON academic_interventions (tenant_id, owner_user_id, status, due_on);
+      CREATE INDEX IF NOT EXISTS ix_academic_intervention_updates_history
+        ON academic_intervention_updates (tenant_id, intervention_id, recorded_at DESC);
       ALTER TABLE exam_series DROP CONSTRAINT IF EXISTS ck_exam_series_status;
       ALTER TABLE exam_series ADD CONSTRAINT ck_exam_series_status CHECK (status IN ('draft', 'submitted', 'reviewed', 'locked', 'published', 'archived'));
       DROP INDEX IF EXISTS ux_report_card_artifacts_verification_code;
@@ -760,6 +1172,10 @@ export class ExamsSchemaService implements OnModuleInit {
       ALTER TABLE exam_attendance_records FORCE ROW LEVEL SECURITY;
       ALTER TABLE exam_student_cases ENABLE ROW LEVEL SECURITY;
       ALTER TABLE exam_student_cases FORCE ROW LEVEL SECURITY;
+      ALTER TABLE academic_interventions ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE academic_interventions FORCE ROW LEVEL SECURITY;
+      ALTER TABLE academic_intervention_updates ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE academic_intervention_updates FORCE ROW LEVEL SECURITY;
 
       DROP POLICY IF EXISTS exam_series_tenant_policy ON exam_series;
       CREATE POLICY exam_series_tenant_policy ON exam_series
@@ -883,6 +1299,16 @@ export class ExamsSchemaService implements OnModuleInit {
 
       DROP POLICY IF EXISTS exam_student_cases_tenant_policy ON exam_student_cases;
       CREATE POLICY exam_student_cases_tenant_policy ON exam_student_cases
+      FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+      DROP POLICY IF EXISTS academic_interventions_tenant_policy ON academic_interventions;
+      CREATE POLICY academic_interventions_tenant_policy ON academic_interventions
+      FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+      DROP POLICY IF EXISTS academic_intervention_updates_tenant_policy ON academic_intervention_updates;
+      CREATE POLICY academic_intervention_updates_tenant_policy ON academic_intervention_updates
       FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
       WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
     `);

@@ -49,6 +49,9 @@ test('buildRoleGovernancePolicy enables exams manager only with exams module and
   assert.equal(examsManager?.permissions.includes('exams:write'), true);
   assert.equal(examsManager?.permissions.includes('exams:enter-marks'), true);
   assert.equal(examsManager?.permissions.includes('exams:approve'), false);
+  const principal = policy.roles.find((role) => role.code === 'principal');
+  assert.equal(principal?.permissions.includes('exams:publish'), true);
+  assert.equal(principal?.permissions.includes('exams:approve'), false);
 });
 
 test('buildRoleGovernancePolicy lets principal and deputy manage the academic foundation', () => {

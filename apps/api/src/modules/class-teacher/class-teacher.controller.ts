@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Query, Headers } from '@nestjs/common';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { ClassTeacherService } from './class-teacher.service';
+import { SaveTeacherMarksDto } from './dto/class-teacher.dto';
 
 @Controller('class-teacher')
 @RequiresModule('academics')
@@ -154,11 +155,11 @@ export class ClassTeacherController {
   }
 
   @Post('marks')
-  @Permissions('exams:write')
+  @Permissions('exams:enter-marks')
   saveMarks(
     @Headers('x-tenant-id') tenantId: string,
     @Headers('x-user-id') userId: string,
-    @Body() body: any
+    @Body() body: SaveTeacherMarksDto
   ) {
     return this.classTeacherService.saveMarks(tenantId, userId, body);
   }

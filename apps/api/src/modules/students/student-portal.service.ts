@@ -1,23 +1,21 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { LmsService } from '../lms/lms.service';
 
 @Injectable()
 export class StudentPortalService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly requestContext: RequestContextService,
-    private readonly lmsService: LmsService,
   ) {}
 
-  private requireStudentId(): string {
-    const studentId = this.requestContext.getStore()?.user_id; // In student portal, the user ID maps to student profile ID or is linked.
-    // For now we assume user_id is the student ID.
-    if (!studentId) {
+  private requireUserId(): string {
+    const userId = this.requestContext.getStore()?.user_id;
+    if (!userId) {
       throw new UnauthorizedException('Student context is required');
     }
-    return studentId;
+    return userId;
   }
 
   private requireTenantId(): string {
@@ -46,41 +44,175 @@ export class StudentPortalService {
     return { rows, rowCount: rows.length };
   }
 
-  private async countPendingAssignments(tenantId: string, studentId: string): Promise<number> {
-    let result: { rows: { pending_count: string | number }[] };
-
-    try {
-      result = await this.executeSql<{ pending_count: string | number }>(
-        `
-          SELECT COUNT(*)::text AS pending_count
-          FROM lms_assignments assignment
-          WHERE assignment.tenant_id = $1
-            AND COALESCE(assignment.status, 'open') NOT IN ('closed', 'archived', 'locked')
-            AND NOT EXISTS (
-              SELECT 1
-              FROM lms_submissions submission
-              WHERE submission.tenant_id = assignment.tenant_id
-                AND submission.assignment_id = assignment.id
-                AND submission.student_id = $2::uuid
-                AND COALESCE(submission.status, 'submitted') IN ('submitted', 'graded', 'complete', 'completed')
-            )
-        `,
-        [tenantId, studentId],
-      );
-    } catch (error: any) {
-      if (error?.code === '42P01' || /lms_(assignments|submissions).*does not exist/i.test(String(error?.message))) {
-        return 0;
-      }
-
-      throw error;
+  private async executeTenantSql<T = any>(
+    tenantId: string,
+    userId: string,
+    query: string,
+    params: any[] = [],
+  ): Promise<{ rows: T[]; rowCount: number }> {
+    if ((this.prisma as any).executeWithTenant) {
+      return (this.prisma as any).executeWithTenant(tenantId, userId, async (tx: any) => {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const rows = Array.isArray(result) ? result : [result];
+        return { rows, rowCount: rows.length };
+      });
     }
+
+    return this.executeSql<T>(query, params);
+  }
+
+  private async resolveStudentId(tenantId: string, userId: string): Promise<string> {
+    const access = await this.executeTenantSql<{ student_id: string }>(
+      tenantId,
+      userId,
+      `
+        SELECT access.student_id
+        FROM student_portal_access access
+        JOIN students student
+          ON student.tenant_id = access.tenant_id
+         AND student.id = access.student_id
+        WHERE access.tenant_id = $1
+          AND access.user_id = $2::uuid
+          AND access.status = 'active'
+          AND student.deleted_at IS NULL
+        LIMIT 1
+      `,
+      [tenantId, userId],
+    );
+
+    if (access.rows[0]?.student_id) {
+      return access.rows[0].student_id;
+    }
+
+    // Preserve access for older student accounts created before portal links
+    // were introduced, but never allow the fallback across a school boundary.
+    const legacyStudent = await this.prisma.student.findUnique({
+      where: { id: userId, schoolId: tenantId },
+      select: { id: true },
+    });
+    if (!legacyStudent) {
+      throw new UnauthorizedException('Student portal account is not linked in this school');
+    }
+
+    return legacyStudent.id;
+  }
+
+  private async listAssignments(tenantId: string, userId: string, studentId: string) {
+    const result = await this.executeTenantSql<{
+      id: string;
+      title: string;
+      description: string | null;
+      subject: string;
+      teacher: string;
+      due_at: string;
+      status: string;
+      submission_status: string | null;
+      submitted_at: string | null;
+      completed_at: string | null;
+    }>(
+      tenantId,
+      userId,
+      `
+        SELECT
+          assignment.id::text,
+          assignment.title,
+          assignment.description,
+          COALESCE(subject.name, 'Subject not linked') AS subject,
+          COALESCE(
+            NULLIF(actor.display_name, ''),
+            NULLIF(actor.full_name, ''),
+            actor.email::text,
+            'Teacher not recorded'
+          ) AS teacher,
+          assignment.due_date::text AS due_at,
+          assignment.status,
+          submission.status AS submission_status,
+          submission.submitted_at::text,
+          submission.completed_at::text
+        FROM academics_assignments assignment
+        JOIN students student
+          ON student.tenant_id = assignment.tenant_id
+         AND student.id = $2
+         AND student.deleted_at IS NULL
+        LEFT JOIN subjects subject
+          ON subject.tenant_id = assignment.tenant_id
+         AND subject.id::text = assignment.subject_id
+        LEFT JOIN users actor
+          ON actor.id = assignment.teacher_id
+        LEFT JOIN academics_assignment_submissions submission
+          ON submission.tenant_id = assignment.tenant_id
+         AND submission.assignment_id = assignment.id
+         AND submission.student_id = student.id
+        WHERE assignment.tenant_id = $1
+          AND lower(assignment.status) IN ('published', 'open', 'active')
+          AND (
+            assignment.class_id = student.current_class_id::text
+            OR EXISTS (
+              SELECT 1
+              FROM student_class_assignments enrollment
+              WHERE enrollment.tenant_id = student.tenant_id
+                AND enrollment.student_id = student.id
+                AND enrollment.class_section_id = assignment.class_id
+                AND enrollment.status = 'active'
+            )
+          )
+        ORDER BY assignment.due_date ASC, assignment.created_at DESC
+        LIMIT 250
+      `,
+      [tenantId, studentId],
+    );
+
+    return result.rows.map((assignment) => ({
+      ...assignment,
+      is_complete: ['submitted', 'completed', 'graded'].includes(
+        String(assignment.submission_status ?? '').toLowerCase(),
+      ),
+    }));
+  }
+
+  private async countPendingAssignments(tenantId: string, userId: string, studentId: string): Promise<number> {
+    const result = await this.executeTenantSql<{ pending_count: string | number }>(
+      tenantId,
+      userId,
+      `
+        SELECT COUNT(*)::text AS pending_count
+        FROM academics_assignments assignment
+        JOIN students student
+          ON student.tenant_id = assignment.tenant_id
+         AND student.id = $2
+         AND student.deleted_at IS NULL
+        WHERE assignment.tenant_id = $1
+          AND lower(assignment.status) IN ('published', 'open', 'active')
+          AND (
+            assignment.class_id = student.current_class_id::text
+            OR EXISTS (
+              SELECT 1
+              FROM student_class_assignments enrollment
+              WHERE enrollment.tenant_id = student.tenant_id
+                AND enrollment.student_id = student.id
+                AND enrollment.class_section_id = assignment.class_id
+                AND enrollment.status = 'active'
+            )
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM academics_assignment_submissions submission
+            WHERE submission.tenant_id = assignment.tenant_id
+              AND submission.assignment_id = assignment.id
+              AND submission.student_id = student.id
+              AND lower(submission.status) IN ('submitted', 'completed', 'graded')
+          )
+      `,
+      [tenantId, studentId],
+    );
 
     return Number(result.rows[0]?.pending_count ?? 0);
   }
 
   async getDashboard() {
     const tenantId = this.requireTenantId();
-    const studentId = this.requireStudentId();
+    const userId = this.requireUserId();
+    const studentId = await this.resolveStudentId(tenantId, userId);
 
     const student = await this.prisma.student.findUnique({
       where: { id: studentId, schoolId: tenantId },
@@ -119,11 +251,11 @@ export class StudentPortalService {
       this.prisma.notification.count({
         where: {
           schoolId: tenantId,
-          targetUserId: studentId,
+          targetUserId: userId,
           status: 'UNREAD',
         },
       }),
-      this.countPendingAssignments(tenantId, studentId),
+      this.countPendingAssignments(tenantId, userId, studentId),
     ]);
 
     const attendanceSummary = attendanceRecords.reduce(
@@ -172,27 +304,37 @@ export class StudentPortalService {
 
   async getAcademics() {
     const tenantId = this.requireTenantId();
-    const studentId = this.requireStudentId();
+    const userId = this.requireUserId();
+    const studentId = await this.resolveStudentId(tenantId, userId);
 
-    const reportCards = await this.prisma.reportCard.findMany({
-      where: {
-        studentId,
-        schoolId: tenantId,
-        status: 'RELEASED',
-        releasedAt: { not: null },
-      },
-      orderBy: { term: { startDate: 'desc' } }
-    });
+    const [reportCards, assignments] = await Promise.all([
+      this.prisma.reportCard.findMany({
+        where: {
+          studentId,
+          schoolId: tenantId,
+          status: 'RELEASED',
+          releasedAt: { not: null },
+        },
+        orderBy: { term: { startDate: 'desc' } },
+      }),
+      this.listAssignments(tenantId, userId, studentId),
+    ]);
 
     return {
-      metrics: {},
-      items: reportCards
+      metrics: {
+        assignments: assignments.length,
+        pendingAssignments: assignments.filter((assignment) => !assignment.is_complete).length,
+        reportCards: reportCards.length,
+      },
+      assignments,
+      items: reportCards,
     };
   }
 
   async getAttendance() {
     const tenantId = this.requireTenantId();
-    const studentId = this.requireStudentId();
+    const userId = this.requireUserId();
+    const studentId = await this.resolveStudentId(tenantId, userId);
 
     const records = await this.prisma.attendanceRecord.findMany({
       where: { studentId, schoolId: tenantId },
@@ -218,26 +360,202 @@ export class StudentPortalService {
     }
 
     const tenantId = this.requireTenantId();
-    const studentId = this.requireStudentId();
-    const student = await this.prisma.student.findUnique({
-      where: { id: studentId, schoolId: tenantId },
-      select: { id: true },
-    });
+    const userId = this.requireUserId();
+    const studentId = await this.resolveStudentId(tenantId, userId);
+    const actorRole = this.requestContext.getStore()?.role ?? 'student';
+    const correlationId = randomUUID();
 
-    if (!student) {
-      throw new UnauthorizedException('Student not found in this school');
+    const execute = async (tx: any) => {
+      const assignments = await tx.$queryRawUnsafe(
+        `
+          SELECT
+            assignment.id::text,
+            assignment.title,
+            assignment.teacher_id::text,
+            submission.id::text AS submission_id,
+            submission.status AS submission_status
+          FROM academics_assignments assignment
+          JOIN students student
+            ON student.tenant_id = assignment.tenant_id
+           AND student.id = $3
+           AND student.deleted_at IS NULL
+          LEFT JOIN academics_assignment_submissions submission
+            ON submission.tenant_id = assignment.tenant_id
+           AND submission.assignment_id = assignment.id
+           AND submission.student_id = student.id
+          WHERE assignment.tenant_id = $1
+            AND assignment.id::text = $2
+            AND lower(assignment.status) IN ('published', 'open', 'active')
+            AND (
+              assignment.class_id = student.current_class_id::text
+              OR EXISTS (
+                SELECT 1
+                FROM student_class_assignments enrollment
+                WHERE enrollment.tenant_id = student.tenant_id
+                  AND enrollment.student_id = student.id
+                  AND enrollment.class_section_id = assignment.class_id
+                  AND enrollment.status = 'active'
+              )
+            )
+          FOR UPDATE OF assignment
+        `,
+        tenantId,
+        normalizedAssignmentId,
+        studentId,
+      );
+      const assignment = Array.isArray(assignments) ? assignments[0] : null;
+
+      if (!assignment) {
+        throw new BadRequestException('Assignment was not found for this student and school');
+      }
+
+      if (['submitted', 'completed', 'graded'].includes(String(assignment.submission_status ?? '').toLowerCase())) {
+        return {
+          success: true,
+          assignmentId: normalizedAssignmentId,
+          alreadyCompleted: true,
+          submission: {
+            id: assignment.submission_id,
+            status: assignment.submission_status,
+          },
+        };
+      }
+
+      const submissionRows = await tx.$queryRawUnsafe(
+        `
+          INSERT INTO academics_assignment_submissions (
+            tenant_id,
+            assignment_id,
+            student_id,
+            status,
+            submitted_by_user_id,
+            submitted_at,
+            completed_at,
+            metadata
+          )
+          VALUES ($1, $2::uuid, $3, 'completed', $4::uuid, NOW(), NOW(), $5::jsonb)
+          ON CONFLICT (tenant_id, assignment_id, student_id)
+          DO UPDATE SET
+            status = 'completed',
+            submitted_by_user_id = EXCLUDED.submitted_by_user_id,
+            submitted_at = COALESCE(academics_assignment_submissions.submitted_at, NOW()),
+            completed_at = NOW(),
+            metadata = academics_assignment_submissions.metadata || EXCLUDED.metadata,
+            updated_at = NOW()
+          RETURNING id::text, status, submitted_at::text, completed_at::text
+        `,
+        tenantId,
+        normalizedAssignmentId,
+        studentId,
+        userId,
+        JSON.stringify({
+          source_dashboard: 'student',
+          completion_mode: 'student_marked_done',
+          correlation_id: correlationId,
+        }),
+      );
+      const submission = Array.isArray(submissionRows) ? submissionRows[0] : submissionRows;
+
+      await tx.$queryRawUnsafe(
+        `
+          INSERT INTO academic_audit_logs (
+            school_id,
+            tenant_id,
+            entity_type,
+            entity_id,
+            action,
+            actor_user_id,
+            actor_role,
+            new_values,
+            metadata,
+            correlation_id
+          )
+          VALUES (
+            $1,
+            $1,
+            'assignment_submission',
+            $2,
+            'student.assignment_completed',
+            $3::uuid,
+            $4,
+            $5::jsonb,
+            $6::jsonb,
+            $7
+          )
+        `,
+        tenantId,
+        submission.id,
+        userId,
+        actorRole,
+        JSON.stringify({ status: 'completed', assignment_id: normalizedAssignmentId }),
+        JSON.stringify({ student_id: studentId, source_dashboard: 'student' }),
+        correlationId,
+      );
+
+      await tx.$queryRawUnsafe(
+        `
+          INSERT INTO workflow_events (
+            tenant_id,
+            source_user_id,
+            source_role,
+            target_roles,
+            event_type,
+            entity_type,
+            entity_id,
+            title,
+            message,
+            priority,
+            payload,
+            status
+          )
+          VALUES (
+            $1,
+            $2::uuid,
+            $3,
+            $4::jsonb,
+            'student.assignment_completed',
+            'assignment_submission',
+            $5,
+            $6,
+            $7,
+            'normal',
+            $8::jsonb,
+            'pending'
+          )
+        `,
+        tenantId,
+        userId,
+        actorRole,
+        JSON.stringify(['teacher', 'class_teacher']),
+        submission.id,
+        'Student completed assignment',
+        `${assignment.title} was marked complete by a student.`,
+        JSON.stringify({
+          assignment_id: normalizedAssignmentId,
+          submission_id: submission.id,
+          student_id: studentId,
+          teacher_id: assignment.teacher_id,
+          source_dashboard: 'student',
+          correlation_id: correlationId,
+        }),
+      );
+
+      return {
+        success: true,
+        assignmentId: normalizedAssignmentId,
+        alreadyCompleted: false,
+        submission,
+      };
+    };
+
+    if ((this.prisma as any).executeWithTenant) {
+      return (this.prisma as any).executeWithTenant(tenantId, userId, execute);
     }
 
-    const submission = await this.lmsService.submitAssignment(normalizedAssignmentId, {
-      student_id: studentId,
-      status: 'submitted',
-      answer_text: 'Marked complete from the student portal.',
-    });
+    if ((this.prisma as any).$transaction) {
+      return (this.prisma as any).$transaction(execute);
+    }
 
-    return {
-      success: true,
-      assignmentId: normalizedAssignmentId,
-      submission,
-    };
+    return execute(this.prisma as any);
   }
 }

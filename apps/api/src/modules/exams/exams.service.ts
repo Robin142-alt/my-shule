@@ -18,7 +18,10 @@ import { validateUploadedFile, type UploadFileMetadata } from '../../common/uplo
 import {
   BulkExamMarkUploadDto,
   BulkExamMarkUploadRowDto,
+  AddAcademicInterventionUpdateDto,
+  ACADEMIC_INTERVENTION_STATUSES,
   CorrectLockedExamMarkDto,
+  CreateAcademicInterventionDto,
   CreateExamAssessmentDto,
   CreateExamSeriesDto,
   EnterExamMarkDto,
@@ -32,6 +35,8 @@ import {
   MarkExamAttendanceDto,
   ReportStudentExamCaseDto,
   UpdateExamSettingsDto,
+  EXAM_SCORE_STATUSES,
+  type ExamScoreStatus,
 } from './dto/exams.dto';
 import { ExamsRepository } from './repositories/exams.repository';
 import { ReportCardGenerationService } from './services/report-card-generation.service';
@@ -42,8 +47,44 @@ import { SchoolOperationalEventsService } from '../events/school-operational-eve
 import { EventPublisherService } from '../events/event-publisher.service';
 import { WorkflowRepository } from '../events/repositories/workflow.repository';
 
-const OFFICER_PERMISSIONS = new Set(['exams:review', 'exams:approve', '*:*']);
-const OFFICER_ROLES = new Set(['owner', 'admin', 'platform_owner', 'superadmin', 'exams_officer']);
+const EXAM_ADMIN_ROLES = new Set([
+  'owner',
+  'admin',
+  'school_admin',
+  'school_owner',
+  'platform_owner',
+  'superadmin',
+  'super_admin',
+]);
+const EXAMS_MANAGER_ROLES = new Set([
+  'exams_manager',
+  'exams_officer',
+  'exam_officer',
+  'examination_officer',
+]);
+const EXAM_REVIEW_ROLES = new Set([
+  'dean_academics',
+  'dean_of_academics',
+  'academic_dean',
+  'hod',
+  'head_of_department',
+]);
+const DEAN_APPROVAL_ROLES = new Set([
+  'dean_academics',
+  'dean_of_academics',
+  'academic_dean',
+]);
+const PRINCIPAL_RELEASE_ROLES = new Set([
+  'principal',
+  'school_principal',
+]);
+const REPORT_CARD_TRANSITION_ACTIONS = new Set([
+  'submit',
+  'approve',
+  'recall',
+  'publish',
+  'unpublish',
+]);
 const PARENT_REPORT_CARD_DOWNLOAD_PURPOSE = 'exams.report_card.parent_download';
 const BULK_MARK_UPLOAD_MAX_ROWS = 500;
 const BULK_ATTENDANCE_IMPORT_MAX_ROWS = 500;
@@ -59,7 +100,44 @@ const EXAM_INVIGILATOR_STATUSES = new Set(['assigned', 'present', 'absent']);
 const EXAM_ATTENDANCE_STATUSES = new Set(['present', 'absent', 'late', 'excused']);
 const EXAM_TIMETABLE_SLOT_STATUSES = new Set(['scheduled', 'moved', 'conflict', 'room_assigned', 'cancelled']);
 const EXAM_GRADING_REPORTING_MODES = new Set(['traditional', 'cbc_competency', 'hybrid']);
-const EXAM_GRADING_POLICY_STATUSES = new Set(['draft', 'active', 'retired']);
+const ACADEMIC_INTERVENTION_STATUS_SET = new Set<string>(ACADEMIC_INTERVENTION_STATUSES);
+const ACADEMIC_INTERVENTION_LEADERSHIP_ROLES = new Set([
+  'principal',
+  'school_principal',
+  'deputy_principal',
+  'deputy',
+  'dean_academics',
+  'dean_of_academics',
+  'academic_dean',
+  'exams_manager',
+  'exams_officer',
+  'exam_officer',
+  'examination_officer',
+]);
+const ACADEMIC_INTERVENTION_HOD_ROLES = new Set(['hod', 'head_of_department']);
+const ACADEMIC_INTERVENTION_OWNER_ROLES = new Set([
+  'teacher',
+  'class_teacher',
+  'grade_master',
+  'form_master',
+  'grade_form_master',
+]);
+const ACADEMIC_INTERVENTION_TRANSITIONS: Record<string, Set<string>> = {
+  planned: new Set(['planned', 'active', 'cancelled']),
+  active: new Set(['active', 'monitoring', 'completed', 'cancelled']),
+  monitoring: new Set(['monitoring', 'active', 'completed', 'cancelled']),
+  completed: new Set(['completed']),
+  cancelled: new Set(['cancelled']),
+};
+const EXAM_GRADING_POLICY_STATUSES = new Set([
+  'draft',
+  'validated',
+  'scheduled',
+  'active',
+  'replaced',
+  'archived',
+]);
+const EXAM_SCORE_STATUS_SET = new Set<string>(EXAM_SCORE_STATUSES);
 const BULK_MARK_UPLOAD_HEADERS = [
   'exam_series_id',
   'assessment_id',
@@ -68,6 +146,7 @@ const BULK_MARK_UPLOAD_HEADERS = [
   'subject_id',
   'student_id',
   'score',
+  'score_status',
   'remarks',
 ] as const;
 const DEFAULT_EXAM_SETTINGS = {
@@ -93,7 +172,8 @@ interface ParentReportCardDownloadTokenPayload {
 
 interface ValidatedMarkEntry {
   dto: EnterExamMarkDto;
-  score: number;
+  score: number | null;
+  score_status: ExamScoreStatus;
   grade_boundary: Record<string, unknown> | null;
 }
 
@@ -158,6 +238,282 @@ export class ExamsService {
   async getAnalytics() {
     const tenantId = this.requireTenantId();
     return this.repository.getAnalytics(tenantId);
+  }
+
+  async listAcademicInterventions(query: Record<string, string | undefined> = {}) {
+    this.assertAcademicInterventionReadAllowed();
+    const tenantId = this.requireTenantId();
+    const role = this.currentRole();
+    const statuses = this.parseAcademicInterventionStatuses(query.status);
+    const ownerUserId = ACADEMIC_INTERVENTION_OWNER_ROLES.has(role)
+      ? this.requireUserId()
+      : this.optionalText(query.owner_user_id);
+    const hodUserId = ACADEMIC_INTERVENTION_HOD_ROLES.has(role)
+      ? this.requireUserId()
+      : this.optionalText(query.hod_user_id);
+
+    return this.repository.listAcademicInterventions({
+      tenant_id: tenantId,
+      statuses,
+      student_id: this.optionalText(query.student_id),
+      owner_user_id: ownerUserId,
+      hod_user_id: hodUserId,
+      limit: this.parsePageLimit(query.limit, 100, 250),
+    });
+  }
+
+  async createAcademicIntervention(dto: CreateAcademicInterventionDto) {
+    this.assertAcademicInterventionCreateAllowed();
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    const triggerReason = this.requireText(dto.trigger_reason, 'Intervention reason');
+    const plan = this.requireText(dto.plan, 'Intervention plan');
+    const startsOn = this.optionalDate(dto.starts_on, 'Intervention start date');
+    const dueOn = this.optionalDate(dto.due_on, 'Intervention review date');
+    if (startsOn && dueOn && dueOn < startsOn) {
+      throw new BadRequestException('Intervention review date cannot be before its start date');
+    }
+
+    const scope = await this.repository.resolveAcademicInterventionScope({
+      tenant_id: tenantId,
+      student_id: this.optionalText(dto.student_id),
+      exam_series_id: this.optionalText(dto.exam_series_id),
+      subject_id: this.optionalText(dto.subject_id),
+      subject_name: this.optionalText(dto.subject_name),
+      class_section_id: this.optionalText(dto.class_section_id),
+      class_name: this.optionalText(dto.class_name),
+      owner_user_id: this.optionalText(dto.owner_user_id),
+      owner_name: this.optionalText(dto.owner_name),
+      hod_user_id: this.optionalText(dto.hod_user_id),
+    });
+    this.assertResolvedAcademicInterventionScope(dto, scope);
+
+    const studentId = textValue(scope?.student_id);
+    const classSectionId = textValue(scope?.class_section_id);
+    const subjectId = textValue(scope?.subject_id);
+    if (!studentId && !classSectionId && !subjectId) {
+      throw new BadRequestException(
+        'Select a learner, class, or subject from this school before creating an intervention',
+      );
+    }
+    if (ACADEMIC_INTERVENTION_OWNER_ROLES.has(this.currentRole())) {
+      if (!classSectionId && !subjectId) {
+        throw new BadRequestException(
+          'Teachers must select an assigned class or subject before creating an intervention',
+        );
+      }
+      const assigned = await this.repository.canStaffManageAcademicInterventionScope({
+        tenant_id: tenantId,
+        user_id: actorUserId,
+        class_section_id: classSectionId,
+        subject_id: subjectId,
+      });
+      if (!assigned) {
+        throw new ForbiddenException(
+          'This class or subject is not assigned to the current teacher in this school',
+        );
+      }
+    }
+
+    const intervention = await this.repository.createAcademicIntervention({
+      tenant_id: tenantId,
+      student_id: studentId,
+      exam_series_id: textValue(scope?.exam_series_id),
+      subject_id: subjectId,
+      class_section_id: classSectionId,
+      scope_type: studentId
+        ? 'student'
+        : classSectionId && subjectId
+          ? 'class_subject'
+          : classSectionId
+            ? 'class'
+            : 'subject',
+      source: dto.source ?? 'manual',
+      trigger_reason: triggerReason,
+      baseline: this.recordValue(dto.baseline),
+      plan,
+      target: this.recordValue(dto.target),
+      owner_user_id: textValue(scope?.owner_user_id),
+      hod_user_id: textValue(scope?.hod_user_id),
+      priority: dto.priority ?? 'normal',
+      starts_on: startsOn,
+      due_on: dueOn,
+      actor_user_id: actorUserId,
+    });
+    if (!intervention) {
+      throw new ConflictException('Academic intervention could not be created');
+    }
+
+    await this.recordAcademicInterventionOperation({
+      tenantId,
+      actorUserId,
+      intervention,
+      eventType: 'academic_intervention.created',
+      title: 'Academic intervention created',
+      body: `${scope?.student_name ?? scope?.class_name ?? scope?.subject_name ?? 'Academic scope'} now has a governed follow-up plan.`,
+      priority: dto.priority ?? 'normal',
+      createOwnerTask: true,
+    });
+
+    return {
+      success: true,
+      message: 'Academic intervention created and assigned',
+      data: {
+        ...intervention,
+        student_name: scope?.student_name ?? null,
+        class_name: scope?.class_name ?? null,
+        subject_name: scope?.subject_name ?? null,
+        owner_name: scope?.owner_name ?? null,
+        hod_name: scope?.hod_name ?? null,
+      },
+    };
+  }
+
+  async addAcademicInterventionUpdate(
+    interventionIdValue: string,
+    dto: AddAcademicInterventionUpdateDto,
+  ) {
+    this.assertAcademicInterventionReadAllowed();
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    const interventionId = this.requireText(interventionIdValue, 'Academic intervention');
+    const existing = await this.repository.findAcademicIntervention({
+      tenant_id: tenantId,
+      intervention_id: interventionId,
+    });
+    if (!existing) {
+      throw new NotFoundException('Academic intervention was not found for this school');
+    }
+    this.assertAcademicInterventionUpdateAllowed(existing, actorUserId);
+
+    const nextStatus = this.optionalText(dto.status);
+    if (nextStatus && !ACADEMIC_INTERVENTION_STATUS_SET.has(nextStatus)) {
+      throw new BadRequestException('Unsupported academic intervention status');
+    }
+    if (
+      nextStatus
+      && !ACADEMIC_INTERVENTION_TRANSITIONS[String(existing.status)]?.has(nextStatus)
+    ) {
+      throw new ConflictException(
+        `Academic intervention cannot move from ${existing.status} to ${nextStatus}`,
+      );
+    }
+    const outcome = this.recordValue(dto.outcome);
+    if (nextStatus === 'completed' && Object.keys(outcome).length === 0) {
+      throw new BadRequestException(
+        'A measured outcome is required before completing an academic intervention',
+      );
+    }
+    const evidence = this.normalizeAcademicInterventionEvidence(dto.score, dto.score_status);
+    const notes = this.requireText(dto.notes, 'Progress notes');
+
+    const updated = await this.repository.addAcademicInterventionUpdate({
+      tenant_id: tenantId,
+      intervention_id: interventionId,
+      actor_user_id: actorUserId,
+      update_type: dto.update_type ?? (nextStatus ? 'status_change' : 'progress'),
+      notes,
+      score: evidence.score,
+      score_status: evidence.score_status,
+      metadata: this.recordValue(dto.metadata),
+      status: nextStatus,
+      outcome: Object.keys(outcome).length > 0 ? outcome : null,
+    });
+    if (!updated) {
+      throw new NotFoundException('Academic intervention was not found for this school');
+    }
+
+    const eventType = nextStatus === 'completed'
+      ? 'academic_intervention.completed'
+      : nextStatus === 'monitoring'
+        ? 'academic_intervention.reviewed'
+        : 'academic_intervention.updated';
+    await this.recordAcademicInterventionOperation({
+      tenantId,
+      actorUserId,
+      intervention: updated,
+      eventType,
+      title: nextStatus === 'completed'
+        ? 'Academic intervention completed'
+        : 'Academic intervention updated',
+      body: notes,
+      priority: updated.priority ?? 'normal',
+    });
+
+    return {
+      success: true,
+      message: nextStatus === 'completed'
+        ? 'Intervention completed with measured outcome'
+        : 'Intervention progress saved',
+      data: updated,
+    };
+  }
+
+  async notifyAcademicInterventionHod(interventionIdValue: string, messageValue?: string) {
+    this.assertAcademicInterventionCreateAllowed();
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    const interventionId = this.requireText(interventionIdValue, 'Academic intervention');
+    const intervention = await this.repository.findAcademicIntervention({
+      tenant_id: tenantId,
+      intervention_id: interventionId,
+    });
+    if (!intervention) {
+      throw new NotFoundException('Academic intervention was not found for this school');
+    }
+    if (!intervention.hod_user_id) {
+      throw new ConflictException(
+        'No active HOD is assigned to this intervention subject. Assign the department HOD first.',
+      );
+    }
+    const recipients = await this.repository.listAcademicInterventionRecipients({
+      tenant_id: tenantId,
+      intervention_id: interventionId,
+    });
+    const hod = recipients.find(
+      (recipient: any) => String(recipient.user_id) === String(intervention.hod_user_id),
+    );
+    if (!hod) {
+      throw new ConflictException('The assigned HOD is not an active staff member in this school');
+    }
+    const message = this.optionalText(messageValue)
+      ?? `Review the academic intervention: ${intervention.trigger_reason}`;
+
+    await this.repository.addAcademicInterventionUpdate({
+      tenant_id: tenantId,
+      intervention_id: interventionId,
+      actor_user_id: actorUserId,
+      update_type: 'note',
+      notes: `HOD notified: ${message}`,
+      metadata: { notification_type: 'hod_follow_up', recipient_user_id: hod.user_id },
+    });
+    await this.workflowRepository?.createNotification({
+      tenant_id: tenantId,
+      notification_key: `academic-intervention-hod:${interventionId}:${intervention.updated_at}`,
+      recipient_user_id: String(hod.user_id),
+      type: 'academic_intervention.review_due',
+      title: 'Academic intervention needs HOD follow-up',
+      body: message,
+      priority: intervention.priority ?? 'high',
+      source_module: 'exams',
+      source_record_id: interventionId,
+      metadata: { academic_intervention_id: interventionId },
+    });
+    await this.recordAcademicInterventionOperation({
+      tenantId,
+      actorUserId,
+      intervention,
+      eventType: 'academic_intervention.review_due',
+      title: 'HOD follow-up requested',
+      body: message,
+      priority: intervention.priority ?? 'high',
+    });
+
+    return {
+      success: true,
+      message: `Follow-up sent to ${hod.display_name ?? 'the assigned HOD'}`,
+      data: { intervention_id: interventionId, recipient_user_id: hod.user_id },
+    };
   }
 
   createSeries(dto: CreateExamSeriesDto) {
@@ -237,6 +593,114 @@ export class ExamsService {
     return this.persistValidatedMark(validated, tenantId, actorUserId, 'grade.updated');
   }
 
+  async saveTeacherMarkEntries(
+    rowsValue: BulkExamMarkUploadRowDto[],
+    sourceWindowIdValue: string,
+    submit = false,
+  ) {
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    const sourceWindowId = this.requireText(sourceWindowIdValue, 'Mark-entry window');
+    const rows = this.requireBulkRows(rowsValue);
+    const seenKeys = new Set<string>();
+    const validationErrors: Array<{
+      row_number: number;
+      student_id: string | null;
+      message: string;
+    }> = [];
+    const validEntries: Array<{ row_number: number; entry: ValidatedMarkEntry }> = [];
+    let expectedScope: string | null = null;
+
+    for (const [index, row] of rows.entries()) {
+      const rowNumber = Number.isInteger(row.row_number) && Number(row.row_number) > 0
+        ? Number(row.row_number)
+        : index + 1;
+
+      try {
+        const normalized = this.normalizeBulkMarkRow(row);
+        const duplicateKey = this.bulkMarkDuplicateKey(normalized);
+        if (seenKeys.has(duplicateKey)) {
+          throw new BadRequestException('Duplicate learner entry in this mark sheet');
+        }
+        seenKeys.add(duplicateKey);
+
+        const scope = [
+          normalized.exam_series_id,
+          normalized.assessment_id,
+          normalized.academic_term_id,
+          normalized.class_section_id,
+          normalized.subject_id,
+        ].join(':');
+        expectedScope ??= scope;
+        if (scope !== expectedScope) {
+          throw new BadRequestException(
+            'All rows in an interactive mark sheet must use the same exam, assessment, term, class, and subject',
+          );
+        }
+
+        const entry = await this.validateMarkEntry(normalized, tenantId, actorUserId);
+        validEntries.push({ row_number: rowNumber, entry });
+      } catch (error) {
+        validationErrors.push({
+          row_number: rowNumber,
+          student_id: typeof row.student_id === 'string' ? row.student_id : null,
+          message: errorMessage(error),
+        });
+      }
+    }
+
+    if (validationErrors.length > 0) {
+      throw new BadRequestException({
+        message: 'Mark sheet contains invalid learner entries',
+        errors: validationErrors,
+      });
+    }
+
+    const result = await this.repository.saveTeacherMarkSheet({
+      tenant_id: tenantId,
+      actor_user_id: actorUserId,
+      source_window_id: sourceWindowId,
+      submit,
+      rows: validEntries.map(({ row_number, entry }) => ({
+        row_number,
+        exam_series_id: entry.dto.exam_series_id,
+        assessment_id: entry.dto.assessment_id,
+        academic_term_id: entry.dto.academic_term_id,
+        class_section_id: entry.dto.class_section_id,
+        subject_id: entry.dto.subject_id,
+        student_id: entry.dto.student_id,
+        score: entry.score,
+        score_status: entry.score_status,
+        remarks: entry.dto.remarks?.trim() || null,
+      })),
+    });
+
+    await this.schoolEvents?.recordSchoolOperation({ event: {
+      id: `teacher-mark-sheet-${submit ? 'submitted' : 'saved'}-${sourceWindowId}-${Date.now()}`,
+      type: submit ? 'exam.marks_submitted' : 'exam.mark_sheet_saved',
+      module: 'exams',
+      actorRole: this.requestContext.getStore()?.role || 'teacher',
+      title: submit ? 'Marks Submitted' : 'Mark Sheet Draft Saved',
+      body: submit
+        ? `${result.submitted_count} learner mark entr${result.submitted_count === 1 ? 'y' : 'ies'} submitted for review.`
+        : `${result.saved_count} learner mark entr${result.saved_count === 1 ? 'y' : 'ies'} saved as a draft.`,
+      entityId: sourceWindowId,
+      severity: 'info',
+      payload: {
+        source_window_id: sourceWindowId,
+        saved_count: result.saved_count,
+        submitted_count: result.submitted_count,
+        mark_ids: result.mark_ids,
+      },
+    }});
+
+    return {
+      success: true,
+      message: submit ? 'Marks submitted for review' : 'Mark sheet draft saved',
+      data: result,
+    };
+  }
+
   getBulkMarkUploadTemplate() {
     return {
       content_type: 'text/csv',
@@ -250,6 +714,7 @@ export class ExamsService {
         subject_id: 'subject-uuid',
         student_id: 'student-uuid',
         score: 84,
+        score_status: 'entered',
         remarks: 'Optional teacher comment',
       },
     };
@@ -337,6 +802,7 @@ export class ExamsService {
           subject_id: entry.dto.subject_id,
           student_id: entry.dto.student_id,
           score: entry.score,
+          score_status: entry.score_status,
           remarks: entry.dto.remarks?.trim() || null,
         })),
       });
@@ -396,7 +862,7 @@ export class ExamsService {
   }
 
   async rollbackMarkImportBatch(batchIdValue: string, reasonValue?: string) {
-    if (!this.isExamsOfficer()) {
+    if (!this.canApproveExamCorrections()) {
       throw new ForbiddenException('Exam approval permission is required to roll back mark imports');
     }
 
@@ -476,7 +942,7 @@ export class ExamsService {
   }
 
   async correctLockedMark(dto: CorrectLockedExamMarkDto) {
-    if (!this.isExamsOfficer()) {
+    if (!this.canApproveExamCorrections()) {
       throw new ForbiddenException('Exam officer approval is required to correct locked marks');
     }
 
@@ -492,7 +958,7 @@ export class ExamsService {
       throw new NotFoundException(`Exam mark "${dto.mark_id}" was not found`);
     }
 
-    const score = this.requireNonNegativeNumber(dto.score, 'Score');
+    const scoreEvidence = this.normalizeScoreEvidence(dto.score, dto.score_status);
     const publishedReportCards = await this.findPublishedReportCardsForMark(tenantId, dto.mark_id);
     const correctionApprovals = dto as CorrectLockedExamMarkDto & {
       first_approver_user_id?: string;
@@ -513,7 +979,8 @@ export class ExamsService {
     const corrected = await this.repository.correctLockedMark({
       tenant_id: tenantId,
       mark_id: dto.mark_id,
-      score,
+      score: scoreEvidence.score,
+      score_status: scoreEvidence.score_status,
       actor_user_id: actorUserId,
     });
 
@@ -521,7 +988,9 @@ export class ExamsService {
       tenant_id: tenantId,
       mark_id: dto.mark_id,
       original_score: existing.score,
-      correction_score: score,
+      original_score_status: existing.score_status ?? 'entered',
+      correction_score: scoreEvidence.score,
+      correction_score_status: scoreEvidence.score_status,
       corrected_by_user_id: actorUserId,
       reason,
       approval_state: publishedReportCards.length > 0 ? 'dual_approved' : 'approved',
@@ -549,10 +1018,12 @@ export class ExamsService {
       action: 'grade.updated',
       actor_user_id: actorUserId,
       previous_score: existing.score,
-      new_score: score,
+      new_score: scoreEvidence.score,
       reason,
       metadata: {
         correction: true,
+        previous_score_status: existing.score_status ?? 'entered',
+        new_score_status: scoreEvidence.score_status,
         published_report_card_ids: publishedReportCards.map((card) => card.id),
       },
     });
@@ -561,12 +1032,11 @@ export class ExamsService {
   }
 
   async publishReportCard(dto: PublishReportCardDto) {
-    if (!this.isExamsOfficer()) {
-      throw new ForbiddenException('Exam approval permission is required to publish report cards');
-    }
+    this.assertReportCardTransitionAllowed('publish');
 
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
+    const actorRole = this.currentRole();
     const examSeriesId = this.requireText(dto.exam_series_id, 'Exam series');
     const studentId = this.requireText(dto.student_id, 'Student');
     const reportSnapshotId = this.requireText(dto.report_snapshot_id, 'Report snapshot');
@@ -584,6 +1054,7 @@ export class ExamsService {
     const reportCard = await this.repository.transitionReportCard({
       tenant_id: tenantId,
       actor_user_id: actorUserId,
+      actor_role: actorRole,
       report_card_id: String(approvedReportCard.id),
       action: 'publish',
     });
@@ -591,19 +1062,6 @@ export class ExamsService {
     if (!reportCard) {
       throw new ConflictException('Report card was not found for this school or is not ready to publish');
     }
-
-    await this.repository.appendReportCardAuditLog({
-      tenant_id: tenantId,
-      report_card_id: reportCard.id,
-      exam_series_id: examSeriesId,
-      student_id: studentId,
-      action: 'report_card.published',
-      actor_user_id: actorUserId,
-      metadata: {
-        report_snapshot_id: reportSnapshotId,
-        grade_event: 'grade.published',
-      },
-    });
 
     try {
       await this.eventPublisher?.publishReportCardPublished({
@@ -758,34 +1216,30 @@ export class ExamsService {
     });
   }
 
-  async transitionReportCard(reportCardIdValue: string, actionValue?: string) {
-    if (!this.isExamsOfficer()) {
-      throw new ForbiddenException('Exam approval permission is required to change report-card state');
-    }
+  async transitionReportCard(reportCardIdValue: string, actionValue?: string, reasonValue?: string) {
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
+    const actorRole = this.currentRole();
     const reportCardId = this.requireText(reportCardIdValue, 'Report card');
     const action = this.requireText(actionValue, 'Report-card action').toLowerCase();
-    if (!new Set(['submit', 'approve', 'recall', 'publish', 'unpublish']).has(action)) {
+    if (!REPORT_CARD_TRANSITION_ACTIONS.has(action)) {
       throw new BadRequestException('Unsupported report-card transition');
     }
-    const result = await this.repository.transitionReportCard({ tenant_id: tenantId, actor_user_id: actorUserId, report_card_id: reportCardId, action });
+    this.assertReportCardTransitionAllowed(action);
+    const reason = action === 'recall' || action === 'unpublish'
+      ? this.requireText(reasonValue, `${action === 'recall' ? 'Recall' : 'Withdrawal'} reason`)
+      : this.optionalText(reasonValue);
+    const result = await this.repository.transitionReportCard({
+      tenant_id: tenantId,
+      actor_user_id: actorUserId,
+      actor_role: actorRole,
+      report_card_id: reportCardId,
+      action,
+      ...(reason ? { reason } : {}),
+    });
     if (!result) {
       throw new ConflictException(`Report card was not found for this school or is not ready to ${action}`);
     }
-    const auditAction = action === 'unpublish' ? 'withdrawn' : action === 'submit' ? 'submitted' : `${action}ed`;
-    await this.repository.appendReportCardAuditLog({
-      tenant_id: tenantId,
-      report_card_id: result.id,
-      exam_series_id: result.exam_series_id,
-      student_id: result.student_id,
-      action: `report_card.${auditAction}`,
-      actor_user_id: actorUserId,
-      metadata: {
-        resulting_status: result.status,
-        ...(action === 'publish' ? { grade_event: 'grade.published' } : {}),
-      },
-    });
     if (action === 'publish') {
       await this.eventPublisher?.publishReportCardPublished({
         tenant_id: tenantId,
@@ -799,13 +1253,26 @@ export class ExamsService {
       id: `report-card-transition-${result.id}-${String(result.updated_at)}`,
       type: `report_card.${action === 'unpublish' ? 'withdrawn' : action}`,
       module: 'exams',
-      actorRole: this.requestContext.getStore()?.role || 'exams_officer',
+      actorRole,
       title: `Report Card ${action.charAt(0).toUpperCase()}${action.slice(1)}`,
       body: `Report card ${result.id} moved to ${result.status}.`,
       entityId: result.id,
       severity: action === 'unpublish' || action === 'recall' ? 'warning' : 'info',
-      payload: { report_card_id: result.id, student_id: result.student_id, exam_series_id: result.exam_series_id, status: result.status },
-    }});
+      payload: {
+        report_card_id: result.id,
+        student_id: result.student_id,
+        exam_series_id: result.exam_series_id,
+        status: result.status,
+        workflow_version: result.workflow_version,
+        reason: reason ?? null,
+      },
+    }, notifications: this.reportCardTransitionNotifications({
+      action,
+      tenant_id: tenantId,
+      report_card_id: result.id,
+      exam_series_id: result.exam_series_id,
+      student_id: result.student_id,
+    })});
     return { success: true, message: `Report card ${action} completed`, data: result };
   }
 
@@ -894,7 +1361,7 @@ export class ExamsService {
   }
 
   async moderateMarks(dto: ModerateExamMarksDto) {
-    if (!this.isExamsOfficer()) {
+    if (!this.canReviewExamMarks()) {
       throw new ForbiddenException('Exam review permission is required to moderate marks');
     }
 
@@ -986,42 +1453,62 @@ export class ExamsService {
   }
 
   async publishExamSeries(examSeriesId: string) {
+    this.assertReportCardTransitionAllowed('publish');
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
+    const actorRole = this.currentRole();
+    const normalizedExamSeriesId = this.requireText(examSeriesId, 'Exam series');
 
-    const readiness = await this.getExamReadiness(examSeriesId);
+    const readiness = await this.getExamReadiness(normalizedExamSeriesId);
     if (!readiness.ready) {
       throw new BadRequestException(`Cannot publish exam series. Issues: ${readiness.issues.join(', ')}`);
     }
 
-    const updatedMarks = await this.repository.publishExamSeries({
+    const release = await this.repository.publishExamSeries({
       tenant_id: tenantId,
-      exam_series_id: this.requireText(examSeriesId, 'Exam series'),
+      exam_series_id: normalizedExamSeriesId,
       actor_user_id: actorUserId,
+      actor_role: actorRole,
     });
+    const totalReportCards = Number(release?.total_count ?? 0);
+    const blockedReportCards = Number(release?.blocked_count ?? 0);
+    if (totalReportCards === 0) {
+      throw new ConflictException('Generate, submit, and approve report cards before publishing this exam series');
+    }
+    if (blockedReportCards > 0 || !release?.series_published) {
+      throw new ConflictException(
+        `${blockedReportCards || totalReportCards} report card(s) have not completed Dean approval`,
+      );
+    }
+    const publishedCards = Array.isArray(release.published_cards) ? release.published_cards : [];
+    const publishedMarksCount = Number(release.published_marks_count ?? 0);
 
     await this.schoolEvents?.recordSchoolOperation({
       event: {
-        id: examSeriesId,
+        id: normalizedExamSeriesId,
         type: 'exam.series_published',
         module: 'exams',
-        actorRole: this.requestContext.getStore()?.role || 'exam_officer',
+        actorRole,
         title: 'Exam Results Released',
-        body: `Results for exam series ${examSeriesId} have been published.`,
-        entityId: examSeriesId,
+        body: `${publishedCards.length} approved report card(s) for exam series ${normalizedExamSeriesId} were released.`,
+        entityId: normalizedExamSeriesId,
         severity: 'success',
-        payload: { exam_series_id: examSeriesId, published_marks_count: updatedMarks.length },
+        payload: {
+          exam_series_id: normalizedExamSeriesId,
+          published_report_cards_count: publishedCards.length,
+          published_marks_count: publishedMarksCount,
+        },
       },
       notifications: [
         {
-          id: `exam-publish-${examSeriesId}`,
+          id: `exam-publish-${normalizedExamSeriesId}`,
           schoolId: tenantId,
-          audienceRoles: ['principal', 'deputy-principal'],
+          audienceRoles: ['exams-manager', 'dean-academics', 'deputy-principal'],
           title: 'Exam Results Released',
-          body: `Exam results for series ${examSeriesId} have been successfully published.`,
+          body: `${publishedCards.length} approved report card(s) were published by the Principal.`,
           sourceModule: 'exams',
           relatedModule: 'academics',
-          relatedRecordId: examSeriesId,
+          relatedRecordId: normalizedExamSeriesId,
           priority: 'high',
           read: false,
           createdAt: new Date().toISOString(),
@@ -1029,7 +1516,89 @@ export class ExamsService {
       ]
     });
 
-    return { success: true, published_marks_count: updatedMarks.length };
+    for (const reportCard of publishedCards) {
+      await this.eventPublisher?.publishReportCardPublished({
+        tenant_id: tenantId,
+        report_id: String(reportCard.id),
+        student_id: String(reportCard.student_id),
+        exam_id: normalizedExamSeriesId,
+        published_by_user_id: actorUserId,
+      });
+    }
+
+    return {
+      success: true,
+      published_report_cards_count: publishedCards.length,
+      published_marks_count: publishedMarksCount,
+      already_published_count: Number(release.already_published_count ?? 0),
+    };
+  }
+
+  async unpublishExamSeries(examSeriesId: string, reasonValue: string) {
+    this.assertReportCardTransitionAllowed('unpublish');
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    const actorRole = this.currentRole();
+    const normalizedExamSeriesId = this.requireText(examSeriesId, 'Exam series');
+    const reason = this.requireText(reasonValue, 'Withdrawal reason');
+
+    const withdrawal = await this.repository.unpublishExamSeries({
+      tenant_id: tenantId,
+      exam_series_id: normalizedExamSeriesId,
+      actor_user_id: actorUserId,
+      actor_role: actorRole,
+      reason,
+    });
+    const withdrawnCards = Array.isArray(withdrawal?.withdrawn_cards)
+      ? withdrawal.withdrawn_cards
+      : [];
+    if (!withdrawal) {
+      throw new ConflictException('Only a currently published exam series can be withdrawn');
+    }
+    if (withdrawnCards.length === 0 || !withdrawal.series_withdrawn) {
+      throw new ConflictException('No current published report cards were available to withdraw');
+    }
+    const relockedMarksCount = Number(withdrawal.relocked_marks_count ?? 0);
+
+    await this.schoolEvents?.recordSchoolOperation({
+      event: {
+        id: normalizedExamSeriesId,
+        type: 'exam.series_withdrawn',
+        module: 'exams',
+        actorRole,
+        title: 'Exam Results Withdrawn',
+        body: `${withdrawnCards.length} published report card(s) for exam series ${normalizedExamSeriesId} were withdrawn.`,
+        entityId: normalizedExamSeriesId,
+        severity: 'warning',
+        payload: {
+          exam_series_id: normalizedExamSeriesId,
+          withdrawn_report_cards_count: withdrawnCards.length,
+          relocked_marks_count: relockedMarksCount,
+          reason,
+        },
+      },
+      notifications: [
+        {
+          id: `exam-withdraw-${normalizedExamSeriesId}-${Date.now()}`,
+          schoolId: tenantId,
+          audienceRoles: ['exams-manager', 'dean-academics', 'deputy-principal'],
+          title: 'Published exam results withdrawn',
+          body: `The Principal withdrew ${withdrawnCards.length} report card(s). Reason: ${reason}`,
+          sourceModule: 'exams',
+          relatedModule: 'academics',
+          relatedRecordId: normalizedExamSeriesId,
+          priority: 'urgent',
+          read: false,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    });
+
+    return {
+      success: true,
+      withdrawn_report_cards_count: withdrawnCards.length,
+      relocked_marks_count: relockedMarksCount,
+    };
   }
 
   async createParentReportCardDownload(reportCardId: string) {
@@ -1181,23 +1750,53 @@ export class ExamsService {
       throw new ForbiddenException('Mark-entry window is not open for this exam, class section, and subject');
     }
 
-    const score = this.requireNonNegativeNumber(dto.score, 'Score');
+    const repository = this.repository as ExamsRepository & {
+      findStudentMarkEligibility?: (input: {
+        tenant_id: string;
+        student_id: string;
+        class_section_id: string;
+        subject_id: string;
+      }) => Promise<Record<string, unknown> | null>;
+    };
+    if (
+      typeof repository.findStudentMarkEligibility === 'function'
+      && !await repository.findStudentMarkEligibility({
+        tenant_id: tenantId,
+        student_id: dto.student_id,
+        class_section_id: dto.class_section_id,
+        subject_id: dto.subject_id,
+      })
+    ) {
+      throw new ForbiddenException(
+        'Learner is not actively enrolled in this class section and subject',
+      );
+    }
+
+    const scoreEvidence = this.normalizeScoreEvidence(dto.score, dto.score_status);
+    const normalizedDto: EnterExamMarkDto = {
+      ...dto,
+      score: scoreEvidence.score,
+      score_status: scoreEvidence.score_status,
+    };
     const assessmentScope = await this.findAssessmentScopeForMark(dto);
 
-    if (assessmentScope) {
+    if (assessmentScope && scoreEvidence.score !== null) {
       this.assertAssessmentScopeMatchesMark(assessmentScope, dto);
       const maxScore = Number(assessmentScope.max_score ?? Number.POSITIVE_INFINITY);
 
-      if (Number.isFinite(maxScore) && score > maxScore) {
+      if (Number.isFinite(maxScore) && scoreEvidence.score > maxScore) {
         throw new BadRequestException(`Score exceeds assessment maximum score of ${maxScore}`);
       }
     }
 
-    const gradeBoundary = await this.assertGradeBoundaryForMark(tenantId, dto, score);
+    const gradeBoundary = scoreEvidence.score === null
+      ? null
+      : await this.assertGradeBoundaryForMark(tenantId, normalizedDto, scoreEvidence.score);
 
     return {
-      dto,
-      score,
+      dto: normalizedDto,
+      score: scoreEvidence.score,
+      score_status: scoreEvidence.score_status,
       grade_boundary: gradeBoundary,
     };
   }
@@ -1219,6 +1818,7 @@ export class ExamsService {
       subject_id: validated.dto.subject_id,
       student_id: validated.dto.student_id,
       score: validated.score,
+      score_status: validated.score_status,
       remarks: validated.dto.remarks?.trim() || null,
     });
 
@@ -1234,41 +1834,31 @@ export class ExamsService {
       metadata: {
         class_section_id: validated.dto.class_section_id,
         subject_id: validated.dto.subject_id,
+        score_status: validated.score_status,
         grade_boundary_label: textValue(validated.grade_boundary?.label),
         ...extraMetadata,
       },
     });
 
-    try {
-      if (!this.eventPublisher || typeof this.repository.executeSql !== 'function') {
-        return mark;
-      }
-      const examSeriesRes = await this.repository.executeSql(
-        `SELECT name FROM exam_series WHERE tenant_id = $1 AND id = $2::uuid LIMIT 1`,
-        [tenantId, validated.dto.exam_series_id]
-      );
-      const examName = examSeriesRes.rows[0]?.name || ('Exam Series ' + validated.dto.exam_series_id);
-
-      const classRes = await this.repository.executeSql(
-        `SELECT name FROM class_sections WHERE tenant_id = $1 AND id = $2::uuid LIMIT 1`,
-        [tenantId, validated.dto.class_section_id]
-      ).catch(() => ({ rows: [] }));
-      const className = classRes.rows[0]?.name || ('Class ' + validated.dto.class_section_id);
-
-      await this.eventPublisher.publishExamSubmitted({
-        tenant_id: tenantId,
-        exam_id: validated.dto.exam_series_id,
-        exam_name: examName,
-        class_name: className,
-        stream_name: className,
-        submitted_by_user_id: actorUserId,
-        submitted_at: new Date().toISOString(),
-        completion_status: 'SUBMITTED',
-        missing_marks_count: 0,
-      });
-    } catch (e) {
-      console.error('Failed to publish exam submission event:', e);
-    }
+    await this.schoolEvents?.recordSchoolOperation({ event: {
+      id: `mark-saved-${mark.id}-${String(mark.updated_at ?? mark.created_at ?? Date.now())}`,
+      type: 'exam.mark_saved',
+      module: 'exams',
+      actorRole: this.requestContext.getStore()?.role || 'teacher',
+      title: 'Exam Mark Saved',
+      body: validated.score_status === 'entered'
+        ? 'A numeric exam mark was saved.'
+        : `Exam evidence was recorded as ${validated.score_status.replace(/_/g, ' ')}.`,
+      entityId: mark.id,
+      severity: 'info',
+      payload: {
+        mark_id: mark.id,
+        exam_series_id: validated.dto.exam_series_id,
+        assessment_id: validated.dto.assessment_id,
+        student_id: validated.dto.student_id,
+        score_status: validated.score_status,
+      },
+    }});
 
     return mark;
   }
@@ -1417,6 +2007,7 @@ export class ExamsService {
   }
 
   private normalizeBulkMarkRow(row: BulkExamMarkUploadRowDto): EnterExamMarkDto {
+    const scoreEvidence = this.normalizeScoreEvidence(row.score, row.score_status);
     return {
       exam_series_id: this.requireText(row.exam_series_id, 'Exam series'),
       assessment_id: this.requireText(row.assessment_id, 'Assessment'),
@@ -1424,7 +2015,8 @@ export class ExamsService {
       class_section_id: this.requireText(row.class_section_id, 'Class section'),
       subject_id: this.requireText(row.subject_id, 'Subject'),
       student_id: this.requireText(row.student_id, 'Student'),
-      score: this.requireNonNegativeNumber(row.score, 'Score'),
+      score: scoreEvidence.score,
+      score_status: scoreEvidence.score_status,
       remarks: row.remarks?.trim() || undefined,
     };
   }
@@ -1458,6 +2050,7 @@ export class ExamsService {
           subject_id: entry.dto.subject_id,
           student_id: entry.dto.student_id,
           score: entry.score,
+          score_status: entry.score_status,
           remarks: entry.dto.remarks?.trim() || null,
         })),
       }))
@@ -1465,20 +2058,413 @@ export class ExamsService {
   }
 
   private isExamsOfficer(): boolean {
-    const context = this.requestContext.getStore();
+    if (this.isExamWorkflowAdmin()) return true;
+    return EXAMS_MANAGER_ROLES.has(this.currentRole()) && this.hasPermission('exams:write');
+  }
 
-    if (!context) {
-      return false;
+  private canReviewExamMarks(): boolean {
+    if (this.isExamWorkflowAdmin()) return true;
+    const role = this.currentRole();
+    return (EXAMS_MANAGER_ROLES.has(role) || EXAM_REVIEW_ROLES.has(role))
+      && (this.hasPermission('exams:review') || this.hasPermission('exams:approve'));
+  }
+
+  private canApproveExamCorrections(): boolean {
+    if (this.isExamWorkflowAdmin()) return true;
+    return DEAN_APPROVAL_ROLES.has(this.currentRole()) && this.hasPermission('exams:approve');
+  }
+
+  private canPublishExamResults(): boolean {
+    if (this.isExamWorkflowAdmin()) return true;
+    if (!PRINCIPAL_RELEASE_ROLES.has(this.currentRole())) return false;
+    return this.hasPermission('exams:publish')
+      || (this.hasPermission('principal:write') && this.hasPermission('exams:read'));
+  }
+
+  private assertReportCardTransitionAllowed(action: string): void {
+    const allowed = action === 'submit'
+      ? this.isExamsOfficer()
+      : action === 'approve'
+        ? this.canApproveExamCorrections()
+        : action === 'recall'
+          ? this.isExamsOfficer() || this.canApproveExamCorrections()
+          : action === 'publish' || action === 'unpublish'
+            ? this.canPublishExamResults()
+            : false;
+
+    if (allowed) return;
+
+    const requiredRole = action === 'submit'
+      ? 'Exams Manager'
+      : action === 'approve'
+        ? 'Dean of Academics'
+        : action === 'recall'
+          ? 'Exams Manager or Dean of Academics'
+          : 'Principal';
+    throw new ForbiddenException(`${requiredRole} authorization is required to ${action} report cards`);
+  }
+
+  private isExamWorkflowAdmin(): boolean {
+    return EXAM_ADMIN_ROLES.has(this.currentRole()) || this.hasPermission('*:*');
+  }
+
+  private hasPermission(permission: string): boolean {
+    const permissions = this.requestContext.getStore()?.permissions ?? [];
+    return permissions.includes(permission) || permissions.includes('*:*');
+  }
+
+  private currentRole(): string {
+    return String(this.requestContext.getStore()?.role ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_');
+  }
+
+  private assertAcademicInterventionReadAllowed(): void {
+    const role = this.currentRole();
+    const roleAllowed = this.isExamWorkflowAdmin()
+      || ACADEMIC_INTERVENTION_LEADERSHIP_ROLES.has(role)
+      || ACADEMIC_INTERVENTION_HOD_ROLES.has(role)
+      || ACADEMIC_INTERVENTION_OWNER_ROLES.has(role);
+    if (!roleAllowed || !this.hasPermission('academics:read')) {
+      throw new ForbiddenException(
+        'Academic intervention access requires an authorized academic role in this school',
+      );
+    }
+  }
+
+  private assertAcademicInterventionCreateAllowed(): void {
+    const role = this.currentRole();
+    if (this.isExamWorkflowAdmin()) return;
+
+    const leadershipAllowed = ACADEMIC_INTERVENTION_LEADERSHIP_ROLES.has(role)
+      && [
+        'academics:write',
+        'deputy:write',
+        'exams:write',
+        'exams:review',
+        'exams:approve',
+        'principal:write',
+      ].some((permission) => this.hasPermission(permission));
+    const hodAllowed = ACADEMIC_INTERVENTION_HOD_ROLES.has(role)
+      && (
+        this.hasPermission('academics:assign-teachers')
+        || this.hasPermission('exams:review')
+        || this.hasPermission('academics:write')
+      );
+    const teacherAllowed = ACADEMIC_INTERVENTION_OWNER_ROLES.has(role)
+      && (
+        this.hasPermission('academics:write')
+        || this.hasPermission('academics:assign-teachers')
+        || this.hasPermission('exams:review')
+      );
+
+    if (!leadershipAllowed && !hodAllowed && !teacherAllowed) {
+      throw new ForbiddenException(
+        'Academic intervention creation requires academic write or review authority',
+      );
+    }
+  }
+
+  private assertAcademicInterventionUpdateAllowed(
+    intervention: Record<string, any>,
+    actorUserId: string,
+  ): void {
+    const role = this.currentRole();
+    const leadershipAllowed = this.isExamWorkflowAdmin()
+      || (
+        ACADEMIC_INTERVENTION_LEADERSHIP_ROLES.has(role)
+        && [
+          'academics:write',
+          'deputy:write',
+          'exams:write',
+          'exams:review',
+          'exams:approve',
+          'principal:write',
+        ].some((permission) => this.hasPermission(permission))
+      );
+    const assignedOwner = String(intervention.owner_user_id ?? '') === actorUserId;
+    const assignedHod = String(intervention.hod_user_id ?? '') === actorUserId;
+    const assignedRoleAllowed = (
+      assignedOwner
+      && ACADEMIC_INTERVENTION_OWNER_ROLES.has(role)
+      && this.hasPermission('academics:read')
+    ) || (
+      assignedHod
+      && ACADEMIC_INTERVENTION_HOD_ROLES.has(role)
+      && (
+        this.hasPermission('academics:assign-teachers')
+        || this.hasPermission('exams:review')
+        || this.hasPermission('academics:write')
+      )
+    );
+
+    if (!leadershipAllowed && !assignedRoleAllowed) {
+      throw new ForbiddenException(
+        'Only assigned academic staff or authorized school leaders may update this intervention',
+      );
+    }
+  }
+
+  private parseAcademicInterventionStatuses(value?: string): string[] | undefined {
+    const statuses = [
+      ...new Set(
+        String(value ?? '')
+          .split(',')
+          .map((status) => status.trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    ];
+    const unsupported = statuses.find(
+      (status) => !ACADEMIC_INTERVENTION_STATUS_SET.has(status),
+    );
+    if (unsupported) {
+      throw new BadRequestException(`Unsupported academic intervention status: ${unsupported}`);
+    }
+    return statuses.length > 0 ? statuses : undefined;
+  }
+
+  private optionalDate(value: string | undefined, fieldName: string): string | null {
+    const normalized = this.optionalText(value);
+    if (!normalized) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+      throw new BadRequestException(`${fieldName} must use YYYY-MM-DD`);
+    }
+    const parsed = new Date(`${normalized}T00:00:00.000Z`);
+    if (
+      Number.isNaN(parsed.getTime())
+      || parsed.toISOString().slice(0, 10) !== normalized
+    ) {
+      throw new BadRequestException(`${fieldName} is not a valid calendar date`);
+    }
+    return normalized;
+  }
+
+  private recordValue(value: unknown): Record<string, unknown> {
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : {};
+  }
+
+  private assertResolvedAcademicInterventionScope(
+    dto: CreateAcademicInterventionDto,
+    scope: Record<string, any> | null,
+  ): void {
+    if (!scope) {
+      throw new NotFoundException('Academic intervention scope was not found for this school');
     }
 
-    return (
-      (context.role ? OFFICER_ROLES.has(context.role) : false)
-      || context.permissions.some((permission) => OFFICER_PERMISSIONS.has(permission))
+    const requiredMatches: Array<[unknown, unknown, string]> = [
+      [dto.student_id, scope.student_id, 'Learner'],
+      [dto.exam_series_id, scope.exam_series_id, 'Exam series'],
+      [dto.subject_id ?? dto.subject_name, scope.subject_id, 'Subject or learning area'],
+      [dto.class_section_id ?? dto.class_name, scope.class_section_id, 'Class or stream'],
+      [dto.owner_user_id ?? dto.owner_name, scope.owner_user_id, 'Intervention owner'],
+      [dto.hod_user_id, scope.hod_user_id, 'Head of Department'],
+    ];
+    const unresolved = requiredMatches.find(
+      ([requested, resolved]) => this.optionalText(
+        typeof requested === 'string' ? requested : undefined,
+      ) && !textValue(resolved),
     );
+    if (unresolved) {
+      throw new NotFoundException(
+        `${unresolved[2]} was not found as an active record in this school`,
+      );
+    }
+  }
+
+  private normalizeAcademicInterventionEvidence(
+    scoreValue: unknown,
+    scoreStatusValue: unknown,
+  ): { score: number | null; score_status: ExamScoreStatus | null } {
+    const normalizedStatus = typeof scoreStatusValue === 'string'
+      ? scoreStatusValue.trim().toLowerCase()
+      : '';
+    const hasScore = scoreValue !== undefined && scoreValue !== null && scoreValue !== '';
+    if (!hasScore && !normalizedStatus) {
+      return { score: null, score_status: null };
+    }
+    if (normalizedStatus && !EXAM_SCORE_STATUS_SET.has(normalizedStatus)) {
+      throw new BadRequestException('Unsupported intervention score status');
+    }
+
+    const score = hasScore ? Number(scoreValue) : null;
+    const status = (normalizedStatus || 'entered') as ExamScoreStatus;
+    if (status === 'entered') {
+      if (score === null || !Number.isFinite(score) || score < 0) {
+        throw new BadRequestException(
+          'Entered intervention evidence requires a valid non-negative score',
+        );
+      }
+      return { score, score_status: status };
+    }
+    if (score !== null) {
+      throw new BadRequestException(
+        `${status.replace(/_/g, ' ')} intervention evidence cannot include a numeric score`,
+      );
+    }
+    return { score: null, score_status: status };
+  }
+
+  private async recordAcademicInterventionOperation(input: {
+    tenantId: string;
+    actorUserId: string;
+    intervention: Record<string, any>;
+    eventType: string;
+    title: string;
+    body: string;
+    priority: string;
+    createOwnerTask?: boolean;
+  }): Promise<void> {
+    const interventionId = this.requireText(
+      textValue(input.intervention.id) ?? undefined,
+      'Academic intervention',
+    );
+    const eventId = [
+      input.eventType,
+      interventionId,
+      textValue(input.intervention.update_id)
+        ?? textValue(input.intervention.updated_at)
+        ?? Date.now().toString(),
+    ].join(':');
+    const metadata = {
+      academic_intervention_id: interventionId,
+      student_id: textValue(input.intervention.student_id),
+      exam_series_id: textValue(input.intervention.exam_series_id),
+      class_section_id: textValue(input.intervention.class_section_id),
+      subject_id: textValue(input.intervention.subject_id),
+      owner_user_id: textValue(input.intervention.owner_user_id),
+      hod_user_id: textValue(input.intervention.hod_user_id),
+      status: textValue(input.intervention.status),
+      actor_user_id: input.actorUserId,
+    };
+
+    await this.schoolEvents?.recordSchoolOperation({
+      schoolId: input.tenantId,
+      event: {
+        id: eventId,
+        type: input.eventType,
+        module: 'exams',
+        actorRole: this.requestContext.getStore()?.role ?? 'academic_staff',
+        title: input.title,
+        body: input.body,
+        entityId: interventionId,
+        severity: input.priority === 'urgent' ? 'critical' : input.priority === 'high' ? 'warning' : 'info',
+        payload: metadata,
+      },
+      notifications: [
+        {
+          id: `${eventId}:dean`,
+          schoolId: input.tenantId,
+          audienceRoles: ['dean-academics', 'principal'],
+          title: input.title,
+          body: input.body,
+          sourceModule: 'exams',
+          relatedModule: 'academics',
+          relatedRecordId: interventionId,
+          priority: input.priority,
+          read: false,
+          createdAt: new Date().toISOString(),
+          metadata,
+        },
+      ],
+    });
+
+    if (!this.workflowRepository) return;
+    const recipients = await this.repository.listAcademicInterventionRecipients({
+      tenant_id: input.tenantId,
+      intervention_id: interventionId,
+    });
+    await Promise.all(
+      recipients.map((recipient: any) => this.workflowRepository!.createNotification({
+        tenant_id: input.tenantId,
+        notification_key: `${eventId}:recipient:${recipient.user_id}`,
+        recipient_user_id: String(recipient.user_id),
+        type: input.eventType,
+        title: input.title,
+        body: input.body,
+        priority: input.priority,
+        source_module: 'exams',
+        source_record_id: interventionId,
+        metadata,
+      })),
+    );
+
+    const ownerUserId = textValue(input.intervention.owner_user_id);
+    if (input.createOwnerTask && ownerUserId) {
+      await this.workflowRepository.createTask({
+        tenant_id: input.tenantId,
+        task_key: `academic-intervention:${interventionId}:owner`,
+        assigned_to_user_id: ownerUserId,
+        created_by_user_id: input.actorUserId,
+        title: input.title,
+        description: input.body,
+        module: 'exams',
+        record_id: interventionId,
+        priority: input.priority,
+        metadata,
+      });
+    }
+  }
+
+  private reportCardTransitionNotifications(input: {
+    action: string;
+    tenant_id: string;
+    report_card_id: string;
+    exam_series_id: string;
+    student_id: string;
+  }): Record<string, unknown>[] {
+    const definitions: Record<string, { audienceRoles: string[]; title: string; body: string; priority: string }> = {
+      submit: {
+        audienceRoles: ['dean-academics'],
+        title: 'Report card awaiting academic approval',
+        body: 'The Exams Manager submitted a report card for Dean review.',
+        priority: 'high',
+      },
+      approve: {
+        audienceRoles: ['principal'],
+        title: 'Report card ready for publication',
+        body: 'The Dean of Academics approved a report card for Principal release.',
+        priority: 'high',
+      },
+      recall: {
+        audienceRoles: ['exams-manager'],
+        title: 'Report card returned for correction',
+        body: 'A submitted report card was returned to the Exams Manager with a required correction reason.',
+        priority: 'high',
+      },
+      unpublish: {
+        audienceRoles: ['exams-manager', 'dean-academics'],
+        title: 'Published report card withdrawn',
+        body: 'The Principal withdrew a published report card. Review the audit reason before any republication.',
+        priority: 'urgent',
+      },
+    };
+    const definition = definitions[input.action];
+    if (!definition) return [];
+    return [{
+      id: `report-card-${input.action}-${input.report_card_id}`,
+      schoolId: input.tenant_id,
+      audienceRoles: definition.audienceRoles,
+      title: definition.title,
+      body: definition.body,
+      sourceModule: 'exams',
+      relatedModule: 'academics',
+      relatedRecordId: input.report_card_id,
+      priority: definition.priority,
+      read: false,
+      createdAt: new Date().toISOString(),
+      metadata: {
+        report_card_id: input.report_card_id,
+        exam_series_id: input.exam_series_id,
+        student_id: input.student_id,
+      },
+    }];
   }
 
   private isHeadOfDepartmentReviewer(): boolean {
-    const role = this.requestContext.getStore()?.role?.toLowerCase();
+    const role = this.currentRole();
     return role === 'hod' || role === 'head_of_department';
   }
 
@@ -1592,6 +2578,40 @@ export class ExamsService {
     return Math.floor(numeric);
   }
 
+  private normalizeScoreEvidence(
+    scoreValue: unknown,
+    scoreStatusValue: unknown,
+  ): { score: number | null; score_status: ExamScoreStatus } {
+    const normalizedStatus = typeof scoreStatusValue === 'string'
+      ? scoreStatusValue.trim().toLowerCase()
+      : '';
+    const scoreStatus = (normalizedStatus || 'entered') as ExamScoreStatus;
+
+    if (!EXAM_SCORE_STATUS_SET.has(scoreStatus)) {
+      throw new BadRequestException('Unsupported score status');
+    }
+
+    const hasScore = scoreValue !== undefined && scoreValue !== null && scoreValue !== '';
+    if (scoreStatus !== 'entered') {
+      if (hasScore) {
+        throw new BadRequestException(
+          `Score must be blank when score status is ${scoreStatus.replace(/_/g, ' ')}`,
+        );
+      }
+
+      return { score: null, score_status: scoreStatus };
+    }
+
+    if (!hasScore) {
+      throw new BadRequestException('Score is required when score status is entered');
+    }
+
+    return {
+      score: this.requireNonNegativeNumber(Number(scoreValue), 'Score'),
+      score_status: scoreStatus,
+    };
+  }
+
   private requirePositiveNumber(value: number, fieldName: string): number {
     if (!Number.isFinite(value) || value <= 0) {
       throw new BadRequestException(`${fieldName} must be positive`);
@@ -1606,6 +2626,27 @@ export class ExamsService {
     }
 
     return value;
+  }
+
+  private normalizeOptionalTimestamp(
+    value: string | undefined,
+    fieldName: string,
+  ): string | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    const normalized = value.trim();
+    if (!normalized) {
+      return undefined;
+    }
+
+    const timestamp = new Date(normalized);
+    if (Number.isNaN(timestamp.getTime())) {
+      throw new BadRequestException(`${fieldName} must be a valid date and time`);
+    }
+
+    return timestamp.toISOString();
   }
 
   private async findAssessmentScopeForMark(
@@ -2589,26 +3630,76 @@ export class ExamsService {
     return { success: true, data };
   }
 
-  async createGradingPolicy(dto: { name?: string; reporting_mode?: string; exam_series_id?: string }) {
+  async getGradingPolicyImpact(policyIdValue: string) {
+    const impact = await this.repository.getGradingPolicyImpact({
+      tenant_id: this.requireTenantId(),
+      policy_id: this.requireText(policyIdValue, 'Grading policy'),
+    });
+
+    if (!impact) {
+      throw new NotFoundException('Grading policy was not found for this school');
+    }
+
+    return { success: true, data: impact };
+  }
+
+  async createGradingPolicy(dto: {
+    name?: string;
+    reporting_mode?: string;
+    exam_series_id?: string;
+    effective_from?: string;
+    effective_to?: string;
+    supersedes_policy_id?: string;
+    scope?: Record<string, unknown>;
+  }) {
     if (!this.isExamsOfficer()) {
       throw new ForbiddenException('Exam write permission is required to create grading policies');
     }
 
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
-    const reportingMode = this.requireText(dto.reporting_mode ?? 'traditional', 'Reporting mode').toLowerCase();
+    const supersedesPolicyId = this.optionalText(dto.supersedes_policy_id);
+    const sourcePolicy = supersedesPolicyId
+      ? await this.repository.getGradingPolicy({
+        tenant_id: tenantId,
+        policy_id: supersedesPolicyId,
+      })
+      : null;
+
+    if (supersedesPolicyId && !sourcePolicy) {
+      throw new NotFoundException('The grading policy to version was not found for this school');
+    }
+
+    const reportingMode = this.requireText(
+      dto.reporting_mode ?? sourcePolicy?.reporting_mode ?? 'traditional',
+      'Reporting mode',
+    ).toLowerCase();
 
     if (!EXAM_GRADING_REPORTING_MODES.has(reportingMode)) {
       throw new BadRequestException('Unsupported grading policy reporting mode');
     }
 
+    const effectiveFrom = this.normalizeOptionalTimestamp(dto.effective_from, 'Effective-from date');
+    const effectiveTo = this.normalizeOptionalTimestamp(dto.effective_to, 'Effective-to date');
+    if (effectiveFrom && effectiveTo && new Date(effectiveTo) <= new Date(effectiveFrom)) {
+      throw new BadRequestException('Effective-to date must be after the effective-from date');
+    }
+
     const result = await this.repository.createGradingPolicy({
       tenant_id: tenantId,
       actor_user_id: actorUserId,
-      name: this.requireText(dto.name, 'Grading policy name'),
+      name: this.requireText(dto.name ?? sourcePolicy?.name, 'Grading policy name'),
       reporting_mode: reportingMode,
-      exam_series_id: this.optionalText(dto.exam_series_id),
+      exam_series_id: this.optionalText(dto.exam_series_id) ?? sourcePolicy?.exam_series_id ?? null,
+      effective_from: effectiveFrom,
+      effective_to: effectiveTo,
+      supersedes_policy_id: supersedesPolicyId,
+      scope: isRecord(dto.scope) ? dto.scope : sourcePolicy?.scope ?? {},
     });
+
+    if (!result) {
+      throw new NotFoundException('The grading policy to version was not found for this school');
+    }
 
     await this.schoolEvents?.recordSchoolOperation({ event: {
       id: `grading-policy-created-${result.id}`,
@@ -2619,7 +3710,13 @@ export class ExamsService {
       body: `Grading policy ${result.name} was created.`,
       entityId: result.id,
       severity: 'info',
-      payload: { grading_policy_id: result.id, reporting_mode: result.reporting_mode, actor_user_id: actorUserId },
+      payload: {
+        grading_policy_id: result.id,
+        grading_policy_version: result.version,
+        supersedes_policy_id: result.supersedes_policy_id,
+        reporting_mode: result.reporting_mode,
+        actor_user_id: actorUserId,
+      },
     }});
 
     return { success: true, message: 'Grading policy created', data: result };
@@ -2639,6 +3736,27 @@ export class ExamsService {
       throw new BadRequestException('Unsupported grading policy status');
     }
 
+    const current = await this.repository.getGradingPolicy({
+      tenant_id: tenantId,
+      policy_id: policyId,
+    });
+
+    if (!current) {
+      throw new NotFoundException('Grading policy was not found for this school');
+    }
+
+    if (status === 'validated' || status === 'scheduled' || status === 'active') {
+      await this.validateGradingPolicyBoundaries(tenantId, policyId);
+    }
+
+    const effectiveFrom = current.effective_from ? new Date(current.effective_from) : null;
+    if (status === 'scheduled' && (!effectiveFrom || effectiveFrom <= new Date())) {
+      throw new BadRequestException('A scheduled grading policy requires a future effective-from date');
+    }
+    if (status === 'active' && effectiveFrom && effectiveFrom > new Date()) {
+      throw new BadRequestException('Use scheduled status for a grading policy that starts in the future');
+    }
+
     const result = await this.repository.transitionGradingPolicy({
       tenant_id: tenantId,
       actor_user_id: actorUserId,
@@ -2647,7 +3765,9 @@ export class ExamsService {
     });
 
     if (!result) {
-      throw new NotFoundException('Grading policy was not found for this school');
+      throw new ConflictException(
+        `Grading policy cannot move from ${current.status} to ${status}`,
+      );
     }
 
     await this.schoolEvents?.recordSchoolOperation({ event: {
@@ -2665,7 +3785,14 @@ export class ExamsService {
     return { success: true, message: 'Grading policy updated', data: result };
   }
 
-  async updateGradingPolicy(policyIdValue: string, dto: { name?: string; reporting_mode?: string }) {
+  async updateGradingPolicy(policyIdValue: string, dto: {
+    name?: string;
+    reporting_mode?: string;
+    exam_series_id?: string;
+    effective_from?: string;
+    effective_to?: string;
+    scope?: Record<string, unknown>;
+  }) {
     if (!this.isExamsOfficer()) {
       throw new ForbiddenException('Exam write permission is required to edit grading policies');
     }
@@ -2673,10 +3800,36 @@ export class ExamsService {
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
     const policyId = this.requireText(policyIdValue, 'Grading policy');
+    const existing = await this.repository.getGradingPolicy({
+      tenant_id: tenantId,
+      policy_id: policyId,
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Grading policy was not found for this school');
+    }
+    if (existing.status !== 'draft') {
+      throw new ConflictException(
+        'This grading policy is already in use. Create a new version instead of editing it.',
+      );
+    }
+
     const reportingMode = dto.reporting_mode ? this.requireText(dto.reporting_mode, 'Reporting mode').toLowerCase() : undefined;
 
     if (reportingMode && !EXAM_GRADING_REPORTING_MODES.has(reportingMode)) {
       throw new BadRequestException('Unsupported grading policy reporting mode');
+    }
+
+    const effectiveFrom = this.normalizeOptionalTimestamp(dto.effective_from, 'Effective-from date');
+    const effectiveTo = this.normalizeOptionalTimestamp(dto.effective_to, 'Effective-to date');
+    const nextEffectiveFrom = effectiveFrom ?? existing.effective_from;
+    const nextEffectiveTo = effectiveTo ?? existing.effective_to;
+    if (
+      nextEffectiveFrom
+      && nextEffectiveTo
+      && new Date(nextEffectiveTo) <= new Date(nextEffectiveFrom)
+    ) {
+      throw new BadRequestException('Effective-to date must be after the effective-from date');
     }
 
     const result = await this.repository.updateGradingPolicy({
@@ -2685,10 +3838,14 @@ export class ExamsService {
       policy_id: policyId,
       name: this.optionalText(dto.name),
       reporting_mode: reportingMode,
+      exam_series_id: this.optionalText(dto.exam_series_id),
+      effective_from: effectiveFrom,
+      effective_to: effectiveTo,
+      scope: dto.scope,
     });
 
     if (!result) {
-      throw new NotFoundException('Grading policy was not found for this school');
+      throw new ConflictException('Only a draft grading policy can be edited');
     }
 
     await this.schoolEvents?.recordSchoolOperation({ event: {
@@ -2750,6 +3907,12 @@ export class ExamsService {
   private normalizeBoundaryNumbers(dto: { min_score?: number; max_score?: number; points?: number }) {
     const minScore = dto.min_score === undefined ? undefined : this.requireNonNegativeNumber(Number(dto.min_score), 'Minimum score');
     const maxScore = dto.max_score === undefined ? undefined : this.requireNonNegativeNumber(Number(dto.max_score), 'Maximum score');
+    if (minScore !== undefined && minScore > 100) {
+      throw new BadRequestException('Minimum score cannot exceed 100');
+    }
+    if (maxScore !== undefined && maxScore > 100) {
+      throw new BadRequestException('Maximum score cannot exceed 100');
+    }
     if (minScore !== undefined && maxScore !== undefined && maxScore < minScore) {
       throw new BadRequestException('Maximum score must be greater than or equal to minimum score');
     }
@@ -2757,43 +3920,159 @@ export class ExamsService {
     return { minScore, maxScore, points };
   }
 
-  async createGradingPolicyBoundary(policyIdValue: string, dto: { label?: string; min_score?: number; max_score?: number; points?: number; descriptor?: string }) {
+  private async validateGradingPolicyBoundaries(tenantId: string, policyId: string) {
+    const boundaries = await this.repository.getGradingPolicyBoundaries({
+      tenant_id: tenantId,
+      policy_id: policyId,
+    });
+
+    if (boundaries.length === 0) {
+      throw new BadRequestException(
+        'Add grading boundaries covering 0 to 100 before validating this policy',
+      );
+    }
+
+    const normalized = boundaries
+      .map((boundary: Record<string, unknown>) => ({
+        label: this.requireText(
+          typeof boundary.label === 'string' ? boundary.label : undefined,
+          'Boundary label',
+        ),
+        minScore: Number(boundary.min_score),
+        maxScore: Number(boundary.max_score),
+      }))
+      .sort((left, right) => left.minScore - right.minScore);
+
+    const labels = new Set<string>();
+    for (const boundary of normalized) {
+      if (
+        !Number.isFinite(boundary.minScore)
+        || !Number.isFinite(boundary.maxScore)
+        || boundary.minScore < 0
+        || boundary.maxScore > 100
+        || boundary.maxScore < boundary.minScore
+      ) {
+        throw new BadRequestException(
+          `${boundary.label} must use a valid score range between 0 and 100`,
+        );
+      }
+
+      const normalizedLabel = boundary.label.toLowerCase();
+      if (labels.has(normalizedLabel)) {
+        throw new BadRequestException(`Boundary label ${boundary.label} is duplicated`);
+      }
+      labels.add(normalizedLabel);
+    }
+
+    if (normalized[0].minScore !== 0) {
+      throw new BadRequestException('The lowest grading boundary must start at 0');
+    }
+    if (normalized[normalized.length - 1].maxScore !== 100) {
+      throw new BadRequestException('The highest grading boundary must end at 100');
+    }
+
+    for (let index = 1; index < normalized.length; index += 1) {
+      const previous = normalized[index - 1];
+      const current = normalized[index];
+      if (current.minScore <= previous.maxScore) {
+        throw new BadRequestException(
+          `${previous.label} and ${current.label} have overlapping score ranges`,
+        );
+      }
+      if (current.minScore - previous.maxScore > 1) {
+        throw new BadRequestException(
+          `There is an uncovered score range between ${previous.label} and ${current.label}`,
+        );
+      }
+    }
+  }
+
+  async createGradingPolicyBoundary(policyIdValue: string, dto: {
+    label?: string;
+    min_score?: number;
+    max_score?: number;
+    points?: number;
+    descriptor?: string;
+    remark?: string;
+    is_pass?: boolean;
+  }) {
     if (!this.isExamsOfficer()) throw new ForbiddenException('Exam write permission is required to create grading boundaries');
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
+    const policyId = this.requireText(policyIdValue, 'Grading policy');
+    const policy = await this.repository.getGradingPolicy({
+      tenant_id: tenantId,
+      policy_id: policyId,
+    });
+    if (!policy) throw new NotFoundException('Grading policy was not found for this school');
+    if (policy.status !== 'draft') {
+      throw new ConflictException(
+        'This grading policy is already in use. Create a new version to change its boundaries.',
+      );
+    }
+
     const { minScore, maxScore, points } = this.normalizeBoundaryNumbers(dto);
     if (minScore === undefined || maxScore === undefined) throw new BadRequestException('Minimum and maximum scores are required');
     const result = await this.repository.createGradingPolicyBoundary({
       tenant_id: tenantId,
       actor_user_id: actorUserId,
-      policy_id: this.requireText(policyIdValue, 'Grading policy'),
+      policy_id: policyId,
       label: this.requireText(dto.label, 'Boundary label'),
       min_score: minScore,
       max_score: maxScore,
       points,
       descriptor: this.optionalText(dto.descriptor),
+      remark: this.optionalText(dto.remark),
+      is_pass: dto.is_pass,
     });
-    if (!result) throw new NotFoundException('Grading policy was not found for this school');
+    if (!result) throw new ConflictException('Only a draft grading policy can be edited');
     await this.recordGradingBoundaryEvent('created', result, actorUserId);
     return { success: true, message: 'Grading boundary created', data: result };
   }
 
-  async updateGradingPolicyBoundary(boundaryIdValue: string, dto: { label?: string; min_score?: number; max_score?: number; points?: number; descriptor?: string }) {
+  async updateGradingPolicyBoundary(boundaryIdValue: string, dto: {
+    label?: string;
+    min_score?: number;
+    max_score?: number;
+    points?: number;
+    descriptor?: string;
+    remark?: string;
+    is_pass?: boolean;
+  }) {
     if (!this.isExamsOfficer()) throw new ForbiddenException('Exam write permission is required to update grading boundaries');
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
+    const boundaryId = this.requireText(boundaryIdValue, 'Grading boundary');
+    const existing = await this.repository.getGradingPolicyBoundary({
+      tenant_id: tenantId,
+      boundary_id: boundaryId,
+    });
+    if (!existing) throw new NotFoundException('Grading boundary was not found for this school');
+    if (existing.policy_status !== 'draft') {
+      throw new ConflictException(
+        'This grading policy is already in use. Create a new version to change its boundaries.',
+      );
+    }
+
     const { minScore, maxScore, points } = this.normalizeBoundaryNumbers(dto);
+    const nextMinScore = minScore ?? Number(existing.min_score);
+    const nextMaxScore = maxScore ?? Number(existing.max_score);
+    if (nextMaxScore < nextMinScore) {
+      throw new BadRequestException('Maximum score must be greater than or equal to minimum score');
+    }
     const result = await this.repository.updateGradingPolicyBoundary({
       tenant_id: tenantId,
       actor_user_id: actorUserId,
-      boundary_id: this.requireText(boundaryIdValue, 'Grading boundary'),
+      boundary_id: boundaryId,
       label: dto.label === undefined ? undefined : this.requireText(dto.label, 'Boundary label'),
       min_score: minScore,
       max_score: maxScore,
       points,
       descriptor: dto.descriptor === undefined ? undefined : this.optionalText(dto.descriptor),
+      remark: dto.remark === undefined ? undefined : this.optionalText(dto.remark),
+      is_pass: dto.is_pass,
     });
-    if (!result) throw new NotFoundException('Grading boundary was not found for this school');
+    if (!result) throw new ConflictException('Only a draft grading policy can be edited');
     await this.recordGradingBoundaryEvent('updated', result, actorUserId);
     return { success: true, message: 'Grading boundary updated', data: result };
   }
@@ -2802,12 +4081,23 @@ export class ExamsService {
     if (!this.isExamsOfficer()) throw new ForbiddenException('Exam write permission is required to delete grading boundaries');
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
+    const boundaryId = this.requireText(boundaryIdValue, 'Grading boundary');
+    const existing = await this.repository.getGradingPolicyBoundary({
+      tenant_id: tenantId,
+      boundary_id: boundaryId,
+    });
+    if (!existing) throw new NotFoundException('Grading boundary was not found for this school');
+    if (existing.policy_status !== 'draft') {
+      throw new ConflictException(
+        'This grading policy is already in use. Create a new version to change its boundaries.',
+      );
+    }
     const result = await this.repository.deleteGradingPolicyBoundary({
       tenant_id: tenantId,
       actor_user_id: actorUserId,
-      boundary_id: this.requireText(boundaryIdValue, 'Grading boundary'),
+      boundary_id: boundaryId,
     });
-    if (!result) throw new NotFoundException('Grading boundary was not found for this school');
+    if (!result) throw new ConflictException('Only a draft grading policy can be edited');
     await this.recordGradingBoundaryEvent('deleted', result, actorUserId);
     return { success: true, message: 'Grading boundary deleted', data: result };
   }

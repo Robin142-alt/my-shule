@@ -111,13 +111,13 @@ export class ExamsManagerCommandController {
   }
 
   @Post('publishing/:id/publish')
-  @Permissions('exams:write')
+  @Permissions('exams:publish')
   publishResults(@Param('id') id: string, @Body() dto: any) {
     return this.service.publishResults(id, dto);
   }
 
   @Post('publishing/:id/unpublish')
-  @Permissions('exams:write')
+  @Permissions('exams:publish')
   unpublishResults(@Param('id') id: string, @Body() dto: any) {
     return this.service.unpublishResults(id, dto);
   }

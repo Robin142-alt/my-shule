@@ -2711,6 +2711,30 @@ CREATE TABLE IF NOT EXISTS academics_assignments (
   CONSTRAINT ck_academics_assignments_tenant CHECK (tenant_id <> 'global')
 );
 
+CREATE TABLE IF NOT EXISTS academics_assignment_submissions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id tenant_key NOT NULL,
+  assignment_id uuid NOT NULL,
+  student_id text NOT NULL,
+  status text NOT NULL DEFAULT 'submitted',
+  submitted_by_user_id uuid,
+  submitted_at timestamptz,
+  completed_at timestamptz,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_academics_assignment_submission
+    UNIQUE (tenant_id, assignment_id, student_id),
+  CONSTRAINT ck_academics_assignment_submission_status
+    CHECK (status IN ('draft', 'submitted', 'completed', 'returned', 'graded')),
+  CONSTRAINT ck_academics_assignment_submission_tenant
+    CHECK (tenant_id <> 'global')
+);
+CREATE INDEX IF NOT EXISTS ix_academics_assignment_submissions_student
+  ON academics_assignment_submissions (tenant_id, student_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS ix_academics_assignment_submissions_assignment
+  ON academics_assignment_submissions (tenant_id, assignment_id, status);
+
 CREATE TABLE IF NOT EXISTS academics_resources (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id tenant_key NOT NULL,
@@ -2964,6 +2988,10 @@ CREATE POLICY academics_attendance_tenant_policy ON academics_attendance FOR ALL
 ALTER TABLE academics_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE academics_assignments FORCE ROW LEVEL SECURITY;
 CREATE POLICY academics_assignments_tenant_policy ON academics_assignments FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE academics_assignment_submissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academics_assignment_submissions FORCE ROW LEVEL SECURITY;
+CREATE POLICY academics_assignment_submissions_tenant_policy ON academics_assignment_submissions FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
 
 ALTER TABLE academics_resources ENABLE ROW LEVEL SECURITY;
 ALTER TABLE academics_resources FORCE ROW LEVEL SECURITY;

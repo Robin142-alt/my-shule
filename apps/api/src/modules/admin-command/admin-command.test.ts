@@ -29,6 +29,7 @@ import { TransportManagerCommandService } from './transport-manager-command.serv
 import { ExamsManagerCommandService } from './exams-manager-command.service';
 import { TeacherCommandService } from './teacher-command.service';
 import { DeanAcademicsCommandService } from './dean-academics-command.service';
+import { DeputyCommandService } from './deputy-command.service';
 import { AdmissionsCommandService } from './admissions-command.service';
 import { AdmissionsCommandRepository } from './repositories/admissions-command.repository';
 
@@ -2582,9 +2583,157 @@ test('DeanAcademicsCommandService does not convert tenant query failures into fa
       },
     } as never,
     {} as never,
+    {} as never,
   );
 
   await assert.rejects(() => service.getAssessments(), /dean read failed/);
+});
+
+test('DeputyCommandService merges school academic summary with the central intervention read model', async () => {
+  const calls: Array<{ method: string; input?: unknown }> = [];
+  const service = new DeputyCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: 'deputy-a',
+        role: 'deputy_principal',
+      }),
+    } as never,
+    {
+      getAcademics: async (tenantId: string) => {
+        calls.push({ method: 'academic-summary', input: tenantId });
+        return {
+          metrics: { active_subjects: 8, active_interventions: 99 },
+          coverage: [],
+        };
+      },
+    } as never,
+    {
+      listAcademicInterventions: async () => {
+        calls.push({ method: 'central-interventions' });
+        return {
+          metrics: {
+            active_interventions: 2,
+            students_targeted: 1,
+            completed: 4,
+            overdue: 1,
+          },
+          items: [{ id: 'intervention-a', status: 'active' }],
+        };
+      },
+    } as never,
+  );
+
+  const result = await service.getAcademics();
+
+  assert.deepEqual(calls, [
+    { method: 'academic-summary', input: 'tenant-a' },
+    { method: 'central-interventions' },
+  ]);
+  assert.deepEqual(result.metrics, {
+    active_subjects: 8,
+    active_interventions: 2,
+    students_targeted: 1,
+    completed: 4,
+    overdue: 1,
+  });
+  assert.deepEqual(result.interventions, [{ id: 'intervention-a', status: 'active' }]);
+  assert.deepEqual(result.academicinterventionsList, result.interventions);
+});
+
+test('DeputyCommandService delegates intervention creation and HOD messaging to ExamsService', async () => {
+  const calls: Array<{ method: string; input: unknown }> = [];
+  const service = new DeputyCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: 'deputy-a',
+        role: 'deputy_principal',
+      }),
+    } as never,
+    {} as never,
+    {
+      createAcademicIntervention: async (input: unknown) => {
+        calls.push({ method: 'create', input });
+        return { success: true };
+      },
+      notifyAcademicInterventionHod: async (input: unknown) => {
+        calls.push({ method: 'notify-hod', input });
+        return { success: true };
+      },
+    } as never,
+  );
+
+  await service.createIntervention({
+    class_section_id: 'class-a',
+    class_name: 'Form 2 East',
+    subject_id: 'subject-a',
+    subject: 'Mathematics',
+    owner_user_id: 'teacher-a',
+    teacher: 'Mary Teacher',
+    hod_user_id: 'hod-a',
+    concern: 'The class mean is below the agreed target.',
+    notes: 'Run two remediation lessons and reassess.',
+    priority: 'high',
+    coverage: '62%',
+  });
+  await service.messageHOD('intervention-a');
+
+  assert.deepEqual(calls[0], {
+    method: 'create',
+    input: {
+      student_id: undefined,
+      exam_series_id: undefined,
+      class_section_id: 'class-a',
+      class_name: 'Form 2 East',
+      subject_id: 'subject-a',
+      subject_name: 'Mathematics',
+      owner_user_id: 'teacher-a',
+      owner_name: 'Mary Teacher',
+      hod_user_id: 'hod-a',
+      source: 'manual',
+      trigger_reason: 'The class mean is below the agreed target.',
+      baseline: { coverage: '62%' },
+      plan: 'Run two remediation lessons and reassess.',
+      target: undefined,
+      priority: 'high',
+      starts_on: undefined,
+      due_on: undefined,
+    },
+  });
+  assert.deepEqual(calls[1], {
+    method: 'notify-hod',
+    input: 'intervention-a',
+  });
+});
+
+test('DeanAcademicsCommandService reads interventions from the same central academic model', async () => {
+  const calls: string[] = [];
+  const service = new DeanAcademicsCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: 'dean-a',
+        role: 'dean_academics',
+      }),
+    } as never,
+    {} as never,
+    {} as never,
+    {
+      listAcademicInterventions: async () => {
+        calls.push('listAcademicInterventions');
+        return {
+          metrics: { active_interventions: 1 },
+          items: [{ id: 'intervention-a', tenant_id: 'tenant-a' }],
+        };
+      },
+    } as never,
+  );
+
+  const result = await service.getAcademicInterventions();
+
+  assert.deepEqual(calls, ['listAcademicInterventions']);
+  assert.deepEqual(result.items, [{ id: 'intervention-a', tenant_id: 'tenant-a' }]);
 });
 
 test('TeacherCommandService lists only the current teacher store requests with actionable metrics', async () => {
@@ -3467,34 +3616,28 @@ test('ExamsManagerCommandService maps moderation rejection to draft and stores t
   assert.equal(workflowCalls[0].payload.status, 'draft');
 });
 
-test('ExamsManagerCommandService generates durable tenant-scoped report cards from moderated marks', async () => {
-  const writes: Array<{ sql: string; params: unknown[] }> = [];
+test('ExamsManagerCommandService delegates report-card generation to the governed exams lifecycle', async () => {
   const workflowCalls: any[] = [];
+  const lifecycleCalls: Array<Record<string, unknown>> = [];
   const service = new ExamsManagerCommandService(
     {
       getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
     } as never,
     {} as never,
     {
-      writeSql: async (sql: string, params: unknown[]) => {
-        writes.push({ sql, params });
-        if (/INSERT INTO student_report_cards/i.test(sql)) {
-          return {
-            rows: [
-              { id: 'card-1', student_id: 'student-1', status: 'approved' },
-              { id: 'card-2', student_id: 'student-2', status: 'approved' },
-            ],
-            rowCount: 2,
-          };
-        }
-        if (/UPDATE exam_series/i.test(sql)) {
-          return { rows: [{ id: params[1], status: 'locked' }], rowCount: 1 };
-        }
-        return { rows: [], rowCount: 0 };
-      },
       recordWorkflowAction: async (input: any) => {
         workflowCalls.push(input);
         return { id: 'workflow-1', ...input };
+      },
+    } as never,
+    {
+      generateReportCardBatch: async (input: Record<string, unknown>) => {
+        lifecycleCalls.push(input);
+        return {
+          completed_students: 2,
+          failed_students: 0,
+          generated_report_card_ids: ['card-1', 'card-2'],
+        };
       },
     } as never,
   );
@@ -3503,47 +3646,33 @@ test('ExamsManagerCommandService generates durable tenant-scoped report cards fr
 
   assert.equal(result.success, true);
   assert.equal(result.generated_count, 2);
-  assert.match(writes[0].sql, /INSERT INTO student_report_cards/i);
-  assert.match(writes[0].sql, /exam_marks/i);
-  assert.equal(writes[0].params[0], 'tenant-a');
-  assert.equal(writes[0].params[1], '22222222-2222-4222-8222-222222222222');
-  assert.match(writes[1].sql, /UPDATE exam_series/i);
+  assert.deepEqual(lifecycleCalls[0], {
+    exam_series_id: '22222222-2222-4222-8222-222222222222',
+  });
   assert.equal(workflowCalls.length, 1);
   assert.equal(workflowCalls[0].eventType, 'exams.report-card.generated');
   assert.equal(workflowCalls[0].entityId, '22222222-2222-4222-8222-222222222222');
   assert.equal(workflowCalls[0].payload.generated_count, 2);
 });
 
-test('ExamsManagerCommandService publishes approved report cards and marks the exam series published', async () => {
-  const writes: Array<{ sql: string; params: unknown[] }> = [];
-  const workflowCalls: any[] = [];
+test('ExamsManagerCommandService delegates publication to the Principal-governed exams lifecycle', async () => {
+  const lifecycleCalls: string[] = [];
   const service = new ExamsManagerCommandService(
     {
       getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
     } as never,
     {} as never,
+    {} as never,
     {
-      writeSql: async (sql: string, params: unknown[]) => {
-        writes.push({ sql, params });
-        if (/UPDATE student_report_cards/i.test(sql)) {
-          return {
-            rows: [
-              { id: 'card-1', student_id: 'student-1', status: 'published' },
-              { id: 'card-2', student_id: 'student-2', status: 'published' },
-            ],
-            rowCount: 2,
-          };
-        }
-        if (/UPDATE exam_series/i.test(sql)) {
-          return { rows: [{ id: params[1], status: 'published' }], rowCount: 1 };
-        }
-        return { rows: [], rowCount: 0 };
+      publishExamSeries: async (examSeriesId: string) => {
+        lifecycleCalls.push(examSeriesId);
+        return {
+          success: true,
+          published_report_cards_count: 2,
+          published_marks_count: 8,
+          already_published_count: 0,
+        };
       },
-      recordWorkflowAction: async (input: any) => {
-        workflowCalls.push(input);
-        return { id: 'workflow-1', ...input };
-      },
-      notifyRoles: async () => undefined,
     } as never,
   );
 
@@ -3551,44 +3680,66 @@ test('ExamsManagerCommandService publishes approved report cards and marks the e
 
   assert.equal(result.success, true);
   assert.equal(result.published_count, 2);
-  assert.match(writes[0].sql, /UPDATE student_report_cards/i);
-  assert.match(writes[0].sql, /status = 'published'/i);
-  assert.equal(writes[0].params[0], 'tenant-a');
-  assert.equal(writes[0].params[1], '22222222-2222-4222-8222-222222222222');
-  assert.match(writes[1].sql, /UPDATE exam_series/i);
-  assert.match(writes[1].sql, /status = 'published'/i);
-  assert.equal(workflowCalls.length, 1);
-  assert.equal(workflowCalls[0].eventType, 'exams.publishing.published');
-  assert.equal(workflowCalls[0].payload.published_count, 2);
+  assert.deepEqual(lifecycleCalls, ['22222222-2222-4222-8222-222222222222']);
 });
 
-test('ExamsManagerCommandService refuses fake publication when no report cards are ready', async () => {
-  const writes: Array<{ sql: string; params: unknown[] }> = [];
-  const workflowCalls: any[] = [];
+test('ExamsManagerCommandService propagates governed publication readiness failures', async () => {
   const service = new ExamsManagerCommandService(
     {
       getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
     } as never,
     {} as never,
+    {} as never,
     {
-      writeSql: async (sql: string, params: unknown[]) => {
-        writes.push({ sql, params });
-        return { rows: [], rowCount: 0 };
-      },
-      recordWorkflowAction: async (input: any) => {
-        workflowCalls.push(input);
-        return { id: 'workflow-1', ...input };
+      publishExamSeries: async () => {
+        throw new BadRequestException('Generate, submit, and approve report cards before publishing this exam series');
       },
     } as never,
   );
 
   await assert.rejects(
     service.publishResults('22222222-2222-4222-8222-222222222222', {}),
-    /No approved report cards are ready for publication/i,
+    /Generate, submit, and approve report cards/i,
+  );
+});
+
+test('ExamsManagerCommandService delegates withdrawal with a required reason', async () => {
+  const lifecycleCalls: Array<{ id: string; reason: string }> = [];
+  const service = new ExamsManagerCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {} as never,
+    {
+      requiredText: (value: unknown, label: string) => {
+        const text = String(value ?? '').trim();
+        if (!text) throw new BadRequestException(`${label} is required`);
+        return text;
+      },
+    } as never,
+    {
+      unpublishExamSeries: async (id: string, reason: string) => {
+        lifecycleCalls.push({ id, reason });
+        return {
+          success: true,
+          withdrawn_report_cards_count: 2,
+          relocked_marks_count: 8,
+        };
+      },
+    } as never,
   );
 
-  assert.equal(writes.length, 1);
-  assert.equal(workflowCalls.length, 0);
+  const result = await service.unpublishResults(
+    '22222222-2222-4222-8222-222222222222',
+    { reason: 'Incorrect release scope' },
+  );
+
+  assert.equal(result.success, true);
+  assert.equal(result.unpublished_count, 2);
+  assert.deepEqual(lifecycleCalls, [{
+    id: '22222222-2222-4222-8222-222222222222',
+    reason: 'Incorrect release scope',
+  }]);
 });
 
 test('ParentCommandService scopes finance reads to the authenticated parent and school', async () => {
@@ -3689,6 +3840,77 @@ test('StudentCommandService scopes finance reads to the authenticated student an
     assert.match(query.sql, /access\.tenant_id = \$1/i);
     assert.match(query.sql, /access\.user_id = \$2::uuid/i);
   }
+});
+
+test('StudentCommandService shares only current-class assignments and preserves non-score evidence', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new StudentCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        if (/FROM student_portal_access access[\s\S]*JOIN academics_assignments assignment/.test(sql)) {
+          return {
+            rows: [{
+              id: 'assignment-a',
+              title: 'Algebra practice',
+              description: null,
+              subject: 'Mathematics',
+              teacher: 'Ms Wanjiku',
+              due_at: '2026-07-31T15:00:00.000Z',
+              status: 'Published',
+              submission_status: null,
+              submitted_at: null,
+              completed_at: null,
+            }],
+            rowCount: 1,
+          };
+        }
+        if (/JOIN exam_marks mark/.test(sql)) {
+          return {
+            rows: [{
+              id: 'mark-a',
+              subject: 'Mathematics',
+              exam: 'Term 2',
+              teacher: 'Ms Wanjiku',
+              score: null,
+              score_status: 'medical_exception',
+              remarks: 'Medical evidence recorded',
+              status: 'published',
+              published_at: '2026-07-25T10:00:00.000Z',
+            }],
+            rowCount: 1,
+          };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+  );
+
+  const result = await service.getAcademics();
+
+  assert.equal(result.assignments.length, 1);
+  assert.equal(result.assignments[0].is_complete, false);
+  assert.equal(result.metrics.pending_assignments, 1);
+  assert.equal(result.metrics.entered_scores, 0);
+  assert.equal(result.marks[0].score, null);
+  assert.equal(result.marks[0].score_status, 'medical_exception');
+  assert.equal(queries.length, 3);
+  for (const query of queries) {
+    assert.deepEqual(query.params, [
+      'tenant-a',
+      '11111111-1111-4111-8111-111111111111',
+    ]);
+    assert.match(query.sql, /student_portal_access/i);
+  }
+  assert.match(queries[0].sql, /student_class_assignments/);
+  assert.match(queries[0].sql, /academics_assignment_submissions/);
+  assert.match(queries[2].sql, /report_card\.is_current = TRUE/);
 });
 
 test('StudentCommandService keeps database failures visible to the portal', async () => {

@@ -14,6 +14,7 @@ import { MoreHorizontal, Download, Upload, CheckCircle, FileSpreadsheet, RotateC
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
+import { EXAM_SCORE_STATUSES, type ExamScoreStatus } from "@/lib/modules/exams-client";
 
 const MARK_HEADERS = [
   "exam_series_id",
@@ -23,6 +24,7 @@ const MARK_HEADERS = [
   "subject_id",
   "student_id",
   "score",
+  "score_status",
   "remarks",
 ] as const;
 
@@ -34,7 +36,8 @@ interface MarkUploadRow {
   class_section_id: string;
   subject_id: string;
   student_id: string;
-  score: number;
+  score: number | null;
+  score_status: ExamScoreStatus;
   remarks?: string;
 }
 
@@ -111,15 +114,40 @@ function parseMarksCsv(content: string): MarkUploadRow[] {
   return lines.slice(1).map((line, index) => {
     const values = parseCsvLine(line);
     const value = (header: typeof MARK_HEADERS[number]) => values[headers.indexOf(header)] ?? "";
+    const rowNumber = index + 2;
+    const scoreStatus = value("score_status").trim().toLowerCase();
+    if (!EXAM_SCORE_STATUSES.includes(scoreStatus as ExamScoreStatus)) {
+      throw new Error(
+        `Row ${rowNumber}: score_status must be one of ${EXAM_SCORE_STATUSES.join(", ")}.`,
+      );
+    }
+
+    const scoreText = value("score").trim();
+    let score: number | null = null;
+    if (scoreStatus === "entered") {
+      if (!scoreText) {
+        throw new Error(`Row ${rowNumber}: score is required when score_status is entered.`);
+      }
+      score = Number(scoreText);
+      if (!Number.isFinite(score) || score < 0) {
+        throw new Error(`Row ${rowNumber}: score must be a non-negative number.`);
+      }
+    } else if (scoreText) {
+      throw new Error(
+        `Row ${rowNumber}: score must be blank when score_status is ${scoreStatus.replaceAll("_", " ")}.`,
+      );
+    }
+
     return {
-      row_number: index + 2,
+      row_number: rowNumber,
       exam_series_id: value("exam_series_id"),
       assessment_id: value("assessment_id"),
       academic_term_id: value("academic_term_id"),
       class_section_id: value("class_section_id"),
       subject_id: value("subject_id"),
       student_id: value("student_id"),
-      score: Number(value("score")),
+      score,
+      score_status: scoreStatus as ExamScoreStatus,
       remarks: value("remarks") || undefined,
     };
   });

@@ -49,6 +49,15 @@ export class ReportCardGenerationService {
     });
     const payload = this.templateService.buildPayload(data, generatedAt);
     this.assertReportCardGradeBoundaries(payload);
+    const gradingPolicy = asRecord(data.grading_policy);
+    const templateVersion = 1;
+    const approvedResultVersion = buildApprovedResultVersion({
+      tenantId: input.tenant_id,
+      examSeriesId: input.exam_series_id,
+      studentId: input.student_id,
+      gradingPolicy,
+      subjects: payload.subjects,
+    });
     const verificationCode = buildVerificationCode({
       tenantId: input.tenant_id,
       examSeriesId: input.exam_series_id,
@@ -78,10 +87,17 @@ export class ReportCardGenerationService {
       report_snapshot_id: reportSnapshotId,
       verification_code: verificationCode,
       status: 'draft_generated',
+      grading_policy_id: gradingPolicy?.id ?? null,
+      grading_policy_version: gradingPolicy?.version ?? null,
+      template_version: templateVersion,
+      approved_result_version: approvedResultVersion,
       metadata: {
         generated_by: input.actor_user_id,
         generated_at: generatedAt,
         regeneration_reason: input.regeneration_reason ?? null,
+        grading_policy: gradingPolicy,
+        template_version: templateVersion,
+        approved_result_version: approvedResultVersion,
         report_card: payload,
         artifact_count: 2,
       },
@@ -220,7 +236,23 @@ export class ReportCardGenerationService {
   }
 
   private assertReportCardGradeBoundaries(payload: ReturnType<ReportCardTemplateService['buildPayload']>): void {
+    if (payload.subjects.length === 0) {
+      throw new BadRequestException(
+        'No locked or published marks are available for this learner and exam series',
+      );
+    }
+
     for (const subject of payload.subjects) {
+      if (subject.score_status !== 'entered') {
+        continue;
+      }
+
+      if (subject.score === null) {
+        throw new BadRequestException(
+          `${subject.subject_name} is marked as entered but has no numeric score`,
+        );
+      }
+
       if (subject.score > subject.max_score) {
         throw new BadRequestException(
           `${subject.subject_name} score exceeds the assessment maximum on the report card`,
@@ -237,6 +269,43 @@ export class ReportCardGenerationService {
       }
     }
   }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function buildApprovedResultVersion(input: {
+  tenantId: string;
+  examSeriesId: string;
+  studentId: string;
+  gradingPolicy: Record<string, unknown> | null;
+  subjects: Array<{
+    subject_id: string;
+    score: number | null;
+    score_status: string;
+    max_score: number;
+    grade_label: string | null;
+  }>;
+}): string {
+  const evidence = {
+    tenant_id: input.tenantId,
+    exam_series_id: input.examSeriesId,
+    student_id: input.studentId,
+    grading_policy_id: input.gradingPolicy?.id ?? null,
+    grading_policy_version: input.gradingPolicy?.version ?? null,
+    subjects: input.subjects.map((subject) => ({
+      subject_id: subject.subject_id,
+      score: subject.score,
+      score_status: subject.score_status,
+      max_score: subject.max_score,
+      grade_label: subject.grade_label,
+    })),
+  };
+
+  return createHash('sha256').update(JSON.stringify(evidence)).digest('hex');
 }
 
 function normalizeTimestamp(value: string | undefined): string {

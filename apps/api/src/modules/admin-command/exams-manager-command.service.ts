@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
+import { ExamsService } from '../exams/exams.service';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
 
 type SqlResult<T> = { rows: T[]; rowCount: number };
@@ -11,6 +12,7 @@ export class ExamsManagerCommandService {
     private readonly requestContext: RequestContextService,
     private readonly prisma: PrismaService,
     private readonly operations: AdminCommandOperationsService,
+    private readonly examsService?: ExamsService,
   ) {}
 
   private requireTenantId(): string {
@@ -1090,216 +1092,56 @@ export class ExamsManagerCommandService {
   }
 
   async generateReportCards(id: string, dto: any = {}) {
-    const tenantId = this.requireTenantId();
-    const actorUserId = this.actorUserId();
-    const generated = await this.operations.writeSql<{
-      id: string;
-      student_id: string;
-      status: string;
-    }>(
-      `
-        WITH eligible_students AS (
-          SELECT
-            mark.student_id,
-            COUNT(mark.id)::int AS marks_count,
-            COALESCE(SUM(mark.score), 0)::numeric AS total_marks,
-            MAX(mark.updated_at) AS latest_mark_at
-          FROM exam_marks mark
-          WHERE mark.tenant_id = $1
-            AND mark.exam_series_id = $2::uuid
-            AND LOWER(COALESCE(mark.status, '')) IN ('reviewed', 'locked', 'published', 'approved')
-          GROUP BY mark.student_id
-        )
-        INSERT INTO student_report_cards (
-          tenant_id,
-          exam_series_id,
-          student_id,
-          report_snapshot_id,
-          status,
-          metadata
-        )
-        SELECT
-          $1,
-          $2::uuid,
-          student_id,
-          CONCAT('exam-', $2::text, '-student-', student_id::text),
-          'approved',
-          jsonb_build_object(
-            'source', 'exams-manager-command',
-            'generated_by_user_id', $3::text,
-            'generated_at', NOW(),
-            'marks_count', marks_count,
-            'total_marks', total_marks,
-            'latest_mark_at', latest_mark_at
-          )
-        FROM eligible_students
-        ON CONFLICT (tenant_id, exam_series_id, student_id)
-        DO UPDATE SET
-          report_snapshot_id = EXCLUDED.report_snapshot_id,
-          status = CASE
-            WHEN LOWER(COALESCE(student_report_cards.status, '')) = 'published' THEN student_report_cards.status
-            ELSE EXCLUDED.status
-          END,
-          metadata = COALESCE(student_report_cards.metadata, '{}'::jsonb) || EXCLUDED.metadata,
-          updated_at = NOW()
-        RETURNING id::text, student_id::text, status
-      `,
-      [tenantId, id, actorUserId],
-    );
-
-    if (generated.rowCount === 0) {
-      throw new BadRequestException('No moderated marks are ready for report-card generation.');
+    const generated = await this.requireExamsService().generateReportCardBatch({
+      exam_series_id: id,
+      ...(dto?.class_section_id ? { class_section_id: String(dto.class_section_id) } : {}),
+      ...(dto?.stream_name ? { stream_name: String(dto.stream_name) } : {}),
+      ...(dto?.batch_size ? { batch_size: Number(dto.batch_size) } : {}),
+    });
+    const generatedCount = Number(generated.completed_students ?? 0);
+    if (generatedCount === 0) {
+      throw new BadRequestException('No eligible students with locked marks are ready for report-card generation.');
     }
 
-    await this.operations.writeSql(
-      `
-        UPDATE exam_series
-        SET status = CASE
-              WHEN LOWER(COALESCE(status, '')) = 'published' THEN status
-              ELSE 'locked'
-            END,
-            locked_at = COALESCE(locked_at, NOW()),
-            updated_at = NOW()
-        WHERE tenant_id = $1
-          AND id = $2::uuid
-        RETURNING id::text, status
-      `,
-      [tenantId, id],
-    );
-
-    await this.recordExamAction('report-card.generated', { ...dto, generated_count: generated.rowCount }, id);
+    await this.recordExamAction('report-card.generated', { ...dto, generated_count: generatedCount }, id);
     return {
       success: true,
-      message: `${generated.rowCount} report card${generated.rowCount === 1 ? '' : 's'} generated`,
-      generated_count: generated.rowCount,
-      reportCards: generated.rows,
+      message: `${generatedCount} report card${generatedCount === 1 ? '' : 's'} generated as drafts`,
+      generated_count: generatedCount,
+      batch: generated,
     };
   }
 
   async publishResults(id: string, dto: any = {}) {
-    const tenantId = this.requireTenantId();
-    const actorUserId = this.actorUserId();
-    const published = await this.operations.writeSql<{
-      id: string;
-      student_id: string;
-      status: string;
-    }>(
-      `
-        UPDATE student_report_cards
-        SET status = 'published',
-            published_by_user_id = $3::uuid,
-            published_at = COALESCE(published_at, NOW()),
-            metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
-              'source', 'exams-manager-command',
-              'published_by_user_id', $3::text,
-              'published_at', NOW(),
-              'publication_notes', NULLIF($4, '')
-            ),
-            updated_at = NOW()
-        WHERE tenant_id = $1
-          AND exam_series_id = $2::uuid
-          AND LOWER(COALESCE(status, '')) IN ('approved', 'draft_generated', 'under_review')
-        RETURNING id::text, student_id::text, status
-      `,
-      [tenantId, id, actorUserId, String(dto?.notes ?? dto?.reason ?? '').trim()],
-    );
-
-    if (published.rowCount === 0) {
-      throw new BadRequestException('No approved report cards are ready for publication.');
-    }
-
-    await this.operations.writeSql(
-      `
-        UPDATE exam_series
-        SET status = 'published',
-            published_at = COALESCE(published_at, NOW()),
-            updated_at = NOW()
-        WHERE tenant_id = $1
-          AND id = $2::uuid
-        RETURNING id::text, status, published_at::text
-      `,
-      [tenantId, id],
-    );
-
-    await this.recordExamAction('publishing.published', { ...dto, published_count: published.rowCount }, id);
-    await this.operations.notifyRoles(tenantId, {
-      key: `exams-results-published-${id}`,
-      type: 'exams.results_published',
-      title: 'Exam results published',
-      body: `${published.rowCount} report card${published.rowCount === 1 ? '' : 's'} have been published to the school portals.`,
-      targetRoles: ['principal', 'dean_academics', 'hod', 'class_teacher', 'teacher', 'parent', 'student'],
-      metadata: { exam_series_id: id, published_count: published.rowCount },
-    });
+    const published = await this.requireExamsService().publishExamSeries(id);
+    const publishedCount = Number(published.published_report_cards_count ?? 0);
 
     return {
       success: true,
-      message: `${published.rowCount} report card${published.rowCount === 1 ? '' : 's'} published`,
-      published_count: published.rowCount,
-      reportCards: published.rows,
+      message: `${publishedCount} approved report card${publishedCount === 1 ? '' : 's'} published`,
+      published_count: publishedCount,
+      release: published,
     };
   }
 
   async unpublishResults(id: string, dto: any = {}) {
-    const tenantId = this.requireTenantId();
-    const actorUserId = this.actorUserId();
     const reason = this.operations.requiredText(dto?.reason ?? dto?.notes, 'Unpublish reason');
-    const unpublished = await this.operations.writeSql<{
-      id: string;
-      student_id: string;
-      status: string;
-    }>(
-      `
-        UPDATE student_report_cards
-        SET status = 'withdrawn',
-            published_at = NULL,
-            metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
-              'source', 'exams-manager-command',
-              'withdrawn_by_user_id', $3::text,
-              'withdrawn_at', NOW(),
-              'withdrawn_reason', $4
-            ),
-            updated_at = NOW()
-        WHERE tenant_id = $1
-          AND exam_series_id = $2::uuid
-          AND LOWER(COALESCE(status, '')) = 'published'
-        RETURNING id::text, student_id::text, status
-      `,
-      [tenantId, id, actorUserId, reason],
-    );
-
-    if (unpublished.rowCount === 0) {
-      throw new BadRequestException('No published report cards were found for this exam.');
-    }
-
-    await this.operations.writeSql(
-      `
-        UPDATE exam_series
-        SET status = 'locked',
-            published_at = NULL,
-            updated_at = NOW()
-        WHERE tenant_id = $1
-          AND id = $2::uuid
-        RETURNING id::text, status
-      `,
-      [tenantId, id],
-    );
-
-    await this.recordExamAction('publishing.unpublished', { ...dto, reason, unpublished_count: unpublished.rowCount }, id);
-    await this.operations.notifyRoles(tenantId, {
-      key: `exams-results-unpublished-${id}`,
-      type: 'exams.results_unpublished',
-      title: 'Exam results withdrawn',
-      body: `${unpublished.rowCount} report card${unpublished.rowCount === 1 ? '' : 's'} were withdrawn. Reason: ${reason}`,
-      targetRoles: ['principal', 'dean_academics', 'hod', 'class_teacher', 'teacher'],
-      metadata: { exam_series_id: id, unpublished_count: unpublished.rowCount, reason },
-    });
+    const unpublished = await this.requireExamsService().unpublishExamSeries(id, reason);
+    const unpublishedCount = Number(unpublished.withdrawn_report_cards_count ?? 0);
 
     return {
       success: true,
-      message: `${unpublished.rowCount} report card${unpublished.rowCount === 1 ? '' : 's'} withdrawn`,
-      unpublished_count: unpublished.rowCount,
-      reportCards: unpublished.rows,
+      message: `${unpublishedCount} published report card${unpublishedCount === 1 ? '' : 's'} withdrawn`,
+      unpublished_count: unpublishedCount,
+      withdrawal: unpublished,
     };
+  }
+
+  private requireExamsService(): ExamsService {
+    if (!this.examsService) {
+      throw new BadRequestException('The governed exams lifecycle service is unavailable.');
+    }
+    return this.examsService;
   }
 
   async getAnalysis() {

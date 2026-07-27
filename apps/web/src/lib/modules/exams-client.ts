@@ -22,11 +22,29 @@ export interface LiveExamMarkSheet {
 export interface LiveExamReportCard {
   id: string;
   exam_series_id?: string | null;
+  exam_series_name?: string | null;
   student_id: string;
+  student_name?: string | null;
+  admission_number?: string | null;
+  term?: string | null;
+  academic_year?: string | null;
   report_snapshot_id: string;
   status: string;
+  revision_number?: number | null;
+  is_current?: boolean;
+  submitted_by_user_id?: string | null;
+  submitted_at?: string | null;
+  approved_by_user_id?: string | null;
+  approved_at?: string | null;
+  approval_role?: string | null;
+  published_by_user_id?: string | null;
   metadata?: Record<string, unknown> | null;
   published_at?: string | null;
+  withdrawn_by_user_id?: string | null;
+  withdrawn_at?: string | null;
+  workflow_version?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface LiveReportCardArtifact {
@@ -88,6 +106,19 @@ export interface ExamsLiveWorkspace {
   rawReportCards: LiveExamReportCard[];
 }
 
+export const EXAM_SCORE_STATUSES = [
+  "entered",
+  "absent",
+  "exempt",
+  "not_assessed",
+  "incomplete",
+  "withheld",
+  "medical_exception",
+  "transfer_student",
+] as const;
+
+export type ExamScoreStatus = typeof EXAM_SCORE_STATUSES[number];
+
 export interface EnterExamMarkLiveInput {
   exam_series_id: string;
   assessment_id: string;
@@ -95,7 +126,8 @@ export interface EnterExamMarkLiveInput {
   class_section_id: string;
   subject_id: string;
   student_id: string;
-  score: number;
+  score?: number | null;
+  score_status?: ExamScoreStatus;
   remarks?: string;
 }
 
@@ -107,7 +139,8 @@ export interface BulkExamMarksLiveInput {
 
 export interface CorrectLockedExamMarkLiveInput {
   mark_id: string;
-  score: number;
+  score?: number | null;
+  score_status?: ExamScoreStatus;
   reason: string;
   first_approver_user_id?: string;
   second_approver_user_id?: string;
@@ -129,6 +162,13 @@ export interface PublishReportCardLiveInput {
   student_id: string;
   report_snapshot_id: string;
 }
+
+export type ReportCardTransitionAction =
+  | "submit"
+  | "approve"
+  | "recall"
+  | "publish"
+  | "unpublish";
 
 function withSession<T>(
   session: LiveAuthSession,
@@ -346,6 +386,48 @@ export function publishReportCardLive(
   });
 }
 
+export function transitionLiveReportCard(
+  session: LiveAuthSession,
+  reportCardId: string,
+  action: ReportCardTransitionAction,
+  reason?: string,
+) {
+  return withSession<LiveExamReportCard>(
+    session,
+    `/exams/report-cards/${encodeURIComponent(reportCardId)}/transition`,
+    {
+      method: "PATCH",
+      body: {
+        action,
+        ...(reason?.trim() ? { reason: reason.trim() } : {}),
+      },
+    },
+  );
+}
+
+export function publishLiveExamSeries(session: LiveAuthSession, examSeriesId: string) {
+  return withSession(
+    session,
+    `/exams/series/${encodeURIComponent(examSeriesId)}/publish`,
+    { method: "POST" },
+  );
+}
+
+export function unpublishLiveExamSeries(
+  session: LiveAuthSession,
+  examSeriesId: string,
+  reason: string,
+) {
+  return withSession(
+    session,
+    `/exams/series/${encodeURIComponent(examSeriesId)}/unpublish`,
+    {
+      method: "POST",
+      body: { reason: reason.trim() },
+    },
+  );
+}
+
 export function buildParentReportCardDownloadPath(reportCardId: string) {
   return `/exams/report-cards/${encodeURIComponent(reportCardId)}/parent-download`;
 }
@@ -355,7 +437,7 @@ export function createParentReportCardDownloadLive(session: LiveAuthSession, rep
 }
 
 export interface LiveExamsAnalyticsKPIs {
-  school_average: number;
+  school_average: number | null;
   pending_reviews: number;
   missing_marks_alerts: number;
   active_exams: number;
@@ -414,6 +496,11 @@ export interface LiveExamsAnalyticsResponse {
     topPerformers: LiveExamsAnalyticsTopPerformer[];
     topImprovers: LiveExamsAnalyticsTopImprover[];
     atRiskStudents: LiveExamsAnalyticsAtRiskStudent[];
+  };
+  data_quality: {
+    final_mark_count: number;
+    explicit_evidence_count: number;
+    missing_or_incomplete_count: number;
   };
 }
 

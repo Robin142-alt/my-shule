@@ -4,9 +4,10 @@ import { ClassTeacherController } from './class-teacher.controller';
 import { ClassTeacherService } from './class-teacher.service';
 import { DatabaseModule } from '../../database/database.module';
 import { EventsModule } from '../events/events.module';
+import { ExamsModule } from '../exams/exams.module';
 
 @Module({
-  imports: [DatabaseModule, EventsModule],
+  imports: [DatabaseModule, EventsModule, ExamsModule],
   controllers: [ClassTeacherController],
   providers: [
     ...Object.values(moduleConsumers),ClassTeacherService],

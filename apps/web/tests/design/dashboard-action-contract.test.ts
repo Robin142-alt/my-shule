@@ -434,16 +434,23 @@ describe("dashboard action contract safety", () => {
     const reportsSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/deputy-principal/reports-workspace.tsx"), "utf8");
     const staffSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/deputy-principal/staff-roles-workspace.tsx"), "utf8");
     const repositorySource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/admin-command/repositories/deputy-command.repository.ts"), "utf8");
+    const deputyServiceSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/admin-command/deputy-command.service.ts"), "utf8");
+    const examsServiceSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/exams/exams.service.ts"), "utf8");
 
-    expect(academicsSource).toMatch(/messageHOD/);
+    expect(academicsSource).toMatch(/handleMessageHod/);
+    expect(academicsSource).toMatch(/\/exams\/interventions/);
+    expect(academicsSource).toMatch(/\/notify-hod/);
+    expect(academicsSource).toMatch(/\/api\/academics\/class-sections/);
+    expect(academicsSource).toMatch(/\/api\/academics\/subjects/);
+    expect(academicsSource).toMatch(/\/api\/academics\/teachers/);
     expect(examsSource).toMatch(/flagExamDelay/);
     expect(reportsSource).toMatch(/format:\s*"xlsx"/);
     expect(staffSource).toMatch(/staffId/);
     expect(staffSource).toMatch(/assignRole\(\{\s*staffId:/);
-    expect(repositorySource).toMatch(/deputy\.hod\.message_requested/);
+    expect(deputyServiceSource).toMatch(/this\.examsService\.createAcademicIntervention/);
+    expect(deputyServiceSource).toMatch(/this\.examsService\.notifyAcademicInterventionHod/);
+    expect(examsServiceSource).toMatch(/academic_intervention\.review_due/);
     expect(repositorySource).toMatch(/deputy\.exam_delay\.flagged/);
-    expect(repositorySource).not.toMatch(/intervention\.rows\[0\]\s*\?\?/);
-    expect(repositorySource).toMatch(/Academic intervention was not found for this school/);
     expect(repositorySource).toMatch(/Exam mark batch was not found for this school/);
     expect(repositorySource).toMatch(/INSERT INTO report_snapshots/);
     expect(repositorySource).toMatch(/INSERT INTO user_roles/);
@@ -595,7 +602,8 @@ describe("dashboard action contract safety", () => {
     expect(marksSource).not.toMatch(/\/api\/academics\/marks\/enter/);
     expect(marksSource).not.toMatch(/Mid-Term Math|End-of-Term Physics|Form 1 East|Form 2 West/);
     expect(parentFeesSource).toMatch(/openPrintDocument/);
-    expect(parentFeesSource).toMatch(/fee-statement/);
+    expect(parentFeesSource).toMatch(/previewFeeStatement/);
+    expect(parentFeesSource).toMatch(/Fee Statement/);
     expect(parentFeesSource).toMatch(/\/api\/payments\/mpesa\/payment-intents/);
     expect(parentFeesSource).toMatch(/idempotency_key/);
     expect(parentFeesSource).toMatch(/phone_number/);
@@ -1538,7 +1546,7 @@ describe("dashboard action contract safety", () => {
     expect(source).toMatch(/setActiveView\("imports-templates"\)/);
     expect(source).toMatch(/ImportsTemplatesWorkspace/);
     expect(source).toMatch(/openExternalImportWorkspace/);
-    expect(source).toMatch(/requestDashboardApi\("\/admin-command\/exams-manager\/marks-entry"/);
+    expect(source).toMatch(/requestDashboardApi<MarksEntryExportResponse>\("\/admin-command\/exams-manager\/marks-entry"/);
     expect(source).toMatch(/downloadCsvFile/);
     expect(source).not.toMatch(/requestDashboardApi\("\/admin-command\/exams-manager\/zeraki-sync"/);
     expect(source).not.toMatch(/Zeraki sync requested/);

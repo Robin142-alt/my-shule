@@ -127,7 +127,8 @@ const ROLE_PERMISSIONS: Partial<Record<BlueprintUserRole, readonly string[]>> = 
   school_admin: ['users:read', 'users:write', 'roles:read', 'roles:write', 'students:read', 'reports:read',
     'academics:read', 'academics:write', 'academics:assign-teachers', 'academics:manage-lifecycle', 'academics:merge'],
   principal: ['principal:read', 'principal:write', 'students:read', 'finance:read', 'reports:read',
-    'academics:read', 'academics:write', 'academics:assign-teachers', 'academics:manage-lifecycle', 'academics:merge'],
+    'academics:read', 'academics:write', 'academics:assign-teachers', 'academics:manage-lifecycle', 'academics:merge',
+    'exams:read', 'exams:publish'],
   deputy_principal: [
     'deputy:read',
     'deputy:write',

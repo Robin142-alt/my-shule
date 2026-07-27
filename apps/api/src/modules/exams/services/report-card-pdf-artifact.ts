@@ -97,15 +97,18 @@ function renderReportCardPdf(payload: ReportCardPayload, verificationCode: strin
     document.font('Helvetica');
     
     for (const subject of payload.subjects) {
+      const scoreLabel = subject.score_status === 'entered' && subject.score !== null
+        ? subject.score.toString()
+        : formatScoreStatus(subject.score_status);
       if (isCbc) {
         document.text(subject.subject_name, startX, currentY);
-        document.text(subject.score.toString(), startX + 150, currentY);
+        document.text(scoreLabel, startX + 150, currentY);
         document.text(subject.competency_outcome || '-', startX + 220, currentY);
         document.text(subject.descriptor || '-', startX + 320, currentY);
       } else {
         document.text(subject.subject_name, startX, currentY);
-        document.text(subject.score.toString(), startX + 150, currentY);
-        document.text(subject.max_score.toString(), startX + 220, currentY);
+        document.text(scoreLabel, startX + 150, currentY);
+        document.text(subject.score_status === 'entered' ? subject.max_score.toString() : '-', startX + 220, currentY);
         document.text(subject.grade_label || '-', startX + 290, currentY);
         document.text(subject.remarks || '-', startX + 360, currentY);
       }
@@ -138,4 +141,18 @@ function renderReportCardPdf(payload: ReportCardPayload, verificationCode: strin
 
     document.end();
   });
+}
+
+function formatScoreStatus(status: string): string {
+  const labels: Record<string, string> = {
+    absent: 'Absent',
+    exempt: 'Exempt',
+    not_assessed: 'Not assessed',
+    incomplete: 'Incomplete',
+    withheld: 'Withheld',
+    medical_exception: 'Medical exception',
+    transfer_student: 'Transfer student',
+  };
+
+  return labels[status] ?? 'Not assessed';
 }

@@ -313,6 +313,15 @@ test('StudentPortalService exposes only the signed-in student released report ca
   const reportCardCalls: any[] = [];
   const service = new StudentPortalService(
     {
+      query: async (sql: string) => {
+        if (/FROM student_portal_access access/.test(sql)) {
+          return { rows: [{ student_id: 'student-1' }], rowCount: 1 };
+        }
+        if (/FROM academics_assignments assignment/.test(sql)) {
+          return { rows: [], rowCount: 0 };
+        }
+        return { rows: [], rowCount: 0 };
+      },
       reportCard: {
         findMany: async (args: any) => {
           reportCardCalls.push(args);
@@ -321,7 +330,6 @@ test('StudentPortalService exposes only the signed-in student released report ca
       },
     } as never,
     requestContext,
-    {} as never,
   );
 
   await requestContext.run(
@@ -391,12 +399,15 @@ test('StudentPortalService dashboard derives metrics from tenant-scoped records 
         },
       },
       query: async (sql: string, values: any[]) => {
-        queries.push({ model: 'lms', sql, values });
+        if (/FROM student_portal_access access/.test(sql)) {
+          queries.push({ model: 'portal-access', sql, values });
+          return { rows: [{ student_id: 'student-1' }], rowCount: 1 };
+        }
+        queries.push({ model: 'assignments', sql, values });
         return { rows: [{ pending_count: '3' }], rowCount: 1 };
       },
     } as never,
     requestContext,
-    {} as never,
   );
 
   const dashboard = await requestContext.run(
@@ -444,7 +455,9 @@ test('StudentPortalService dashboard derives metrics from tenant-scoped records 
     targetUserId: 'student-1',
     status: 'UNREAD',
   });
-  assert.deepEqual(queries.find((query) => query.model === 'lms')?.values, ['tenant-a', 'student-1']);
+  assert.deepEqual(queries.find((query) => query.model === 'assignments')?.values, ['tenant-a', 'student-1']);
+  assert.match(queries.find((query) => query.model === 'assignments')?.sql ?? '', /academics_assignments/);
+  assert.match(queries.find((query) => query.model === 'assignments')?.sql ?? '', /academics_assignment_submissions/);
 });
 
 test('ParentPortalService blocks dashboard query access to unlinked child records', async () => {
@@ -497,57 +510,73 @@ test('ParentPortalService blocks dashboard query access to unlinked child record
   );
 });
 
-test('StudentPortalService dashboard treats uninitialized LMS schema as zero pending assignments', async () => {
+test('StudentPortalService completes a class assignment with audit and workflow events in one tenant transaction', async () => {
   const requestContext = new RequestContextService();
+  const queries: Array<{ tenantId: string; userId: string; sql: string; params: any[] }> = [];
   const service = new StudentPortalService(
     {
-      student: {
-        findUnique: async () => ({
-          id: 'student-1',
-          firstName: 'Amina',
-          lastName: 'Otieno',
-          admissionNumber: 'ADM-001',
-          currentClass: { name: 'Grade 8' },
-          currentStream: { name: 'Blue' },
-        }),
-      },
-      attendanceRecord: {
-        findMany: async () => [],
-      },
-      reportCard: {
-        findFirst: async () => null,
-      },
-      notification: {
-        count: async () => 0,
-      },
-      query: async () => {
-        const error: any = new Error('relation "lms_assignments" does not exist');
-        error.code = '42P01';
-        throw error;
-      },
+      executeWithTenant: async (
+        tenantId: string,
+        userId: string,
+        callback: (tx: any) => Promise<unknown>,
+      ) => callback({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          queries.push({ tenantId, userId, sql, params });
+          if (/FROM student_portal_access access/.test(sql)) {
+            return [{ student_id: 'student-1' }];
+          }
+          if (/FROM academics_assignments assignment/.test(sql) && /FOR UPDATE OF assignment/.test(sql)) {
+            return [{
+              id: '22222222-2222-4222-8222-222222222222',
+              title: 'Algebra practice',
+              teacher_id: '33333333-3333-4333-8333-333333333333',
+              submission_id: null,
+              submission_status: null,
+            }];
+          }
+          if (/INSERT INTO academics_assignment_submissions/.test(sql)) {
+            return [{
+              id: '44444444-4444-4444-8444-444444444444',
+              status: 'completed',
+              submitted_at: '2026-07-26T10:00:00.000Z',
+              completed_at: '2026-07-26T10:00:00.000Z',
+            }];
+          }
+          return [];
+        },
+      }),
     } as never,
     requestContext,
-    {} as never,
   );
 
-  const dashboard = await requestContext.run(
+  const result = await requestContext.run(
     {
-      request_id: 'req-student-dashboard-no-lms',
+      request_id: 'req-student-assignment-complete',
       tenant_id: 'tenant-a',
-      user_id: 'student-1',
+      user_id: '11111111-1111-4111-8111-111111111111',
       role: 'student',
       session_id: 'session-student',
-      permissions: ['student_portal:read'],
+      permissions: ['student_portal:write'],
       is_authenticated: true,
       client_ip: '127.0.0.1',
       user_agent: 'test-suite',
-      method: 'GET',
-      path: '/portal/student',
+      method: 'POST',
+      path: '/student-portal/assignments/mark-done',
       started_at: '2026-07-15T00:00:00.000Z',
     },
-    () => service.getDashboard(),
+    () => service.markAssignmentDone('22222222-2222-4222-8222-222222222222'),
   );
 
-  assert.equal(dashboard.metrics.pendingAssignments, 0);
+  assert.equal(result.success, true);
+  assert.equal(result.alreadyCompleted, false);
+  assert.equal(result.submission.status, 'completed');
+  assert.equal(queries.every((query) => query.tenantId === 'tenant-a'), true);
+  assert.equal(
+    queries.every((query) => query.userId === '11111111-1111-4111-8111-111111111111'),
+    true,
+  );
+  assert.equal(queries.some((query) => /INSERT INTO academics_assignment_submissions/.test(query.sql)), true);
+  assert.equal(queries.some((query) => /INSERT INTO academic_audit_logs/.test(query.sql)), true);
+  assert.equal(queries.some((query) => /INSERT INTO workflow_events/.test(query.sql)), true);
 });
 

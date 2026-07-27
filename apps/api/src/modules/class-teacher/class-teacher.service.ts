@@ -1,6 +1,19 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  Optional,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { EventPublisherService } from '../events/event-publisher.service';
+import {
+  EXAM_SCORE_STATUSES,
+  type BulkExamMarkUploadRowDto,
+  type ExamScoreStatus,
+} from '../exams/dto/exams.dto';
+import { ExamsService } from '../exams/exams.service';
+import type { SaveTeacherMarksDto, TeacherMarkInput } from './dto/class-teacher.dto';
 
 @Injectable()
 export class ClassTeacherService {
@@ -32,6 +45,7 @@ export class ClassTeacherService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventPublisherService: EventPublisherService,
+    @Optional() private readonly examsService?: ExamsService,
   ) {}
 
   private async assertStudentBelongsToStream(tenantId: string, streamId: string, studentId: string) {
@@ -346,39 +360,75 @@ export class ClassTeacherService {
     const query = `
       SELECT 
         w.id as window_id,
+        w.exam_series_id,
+        es.academic_term_id,
         es.name as exam_name,
         cs.name as class_name,
         w.class_section_id,
+        w.subject_id,
         s.name as subject_name,
-        'Main Paper' as paper_name,
-        100 as out_of,
+        assessment.id as assessment_id,
+        COALESCE(assessment.name, 'Main Paper') as paper_name,
+        COALESCE(assessment.max_score, 100) as out_of,
         w.closes_at as deadline,
         (
           SELECT COUNT(*) 
           FROM exam_marks em 
           WHERE em.tenant_id = w.tenant_id 
             AND em.exam_series_id = w.exam_series_id 
+            AND em.assessment_id = assessment.id
             AND em.class_section_id = w.class_section_id 
             AND em.subject_id = w.subject_id
+            AND em.score_status NOT IN ('not_assessed', 'incomplete')
         ) as entered_count,
         (
-          SELECT COUNT(*) 
-          FROM student_class_assignments sc 
-          WHERE sc.tenant_id = w.tenant_id 
-            AND sc.class_section_id = w.class_section_id 
-            AND sc.status = 'active'
+          SELECT COUNT(*)
+          FROM students student
+          WHERE student.tenant_id = w.tenant_id
+            AND student.status = 'active'
+            AND EXISTS (
+              SELECT 1
+              FROM student_class_assignments class_assignment
+              WHERE class_assignment.tenant_id = student.tenant_id
+                AND class_assignment.student_id = student.id::text
+                AND class_assignment.class_section_id = w.class_section_id::text
+                AND class_assignment.status = 'active'
+            )
+            AND EXISTS (
+              SELECT 1
+              FROM student_subject_enrollments subject_enrollment
+              WHERE subject_enrollment.tenant_id = student.tenant_id
+                AND subject_enrollment.student_id = student.id::text
+                AND subject_enrollment.class_section_id = w.class_section_id::text
+                AND subject_enrollment.subject_id = w.subject_id::text
+                AND subject_enrollment.status = 'active'
+            )
         ) as total_students,
         w.status as window_status
       FROM exam_mark_entry_windows w
       JOIN exam_series es ON es.id = w.exam_series_id AND es.tenant_id = w.tenant_id
       JOIN class_sections cs ON cs.id = w.class_section_id AND cs.tenant_id = w.tenant_id
       JOIN subjects s ON s.id = w.subject_id AND s.tenant_id = w.tenant_id
+      JOIN LATERAL (
+        SELECT ea.id, ea.name, ea.max_score
+        FROM exam_assessments ea
+        WHERE ea.tenant_id = w.tenant_id
+          AND ea.exam_series_id = w.exam_series_id
+          AND ea.subject_id = w.subject_id
+        ORDER BY ea.created_at ASC
+        LIMIT 1
+      ) assessment ON TRUE
       JOIN teacher_subject_assignments tsa ON tsa.class_section_id = w.class_section_id 
         AND tsa.subject_id = w.subject_id 
         AND tsa.tenant_id = w.tenant_id
+        AND tsa.academic_term_id = es.academic_term_id::text
+        AND tsa.status = 'active'
       WHERE w.tenant_id = $1 
         AND tsa.teacher_user_id = $2
         AND w.status = 'open'
+        AND w.opens_at <= NOW()
+        AND w.closes_at >= NOW()
+      ORDER BY w.closes_at ASC
     `;
     const { rows: result } = await this.executeSql(query, [tenantId, userId]);
     
@@ -389,10 +439,14 @@ export class ClassTeacherService {
       },
       windows: result.map(r => ({
         id: r.window_id,
+        examSeriesId: r.exam_series_id,
+        academicTermId: r.academic_term_id,
         examName: r.exam_name,
         className: r.class_name,
         classSectionId: r.class_section_id,
+        subjectId: r.subject_id,
         subjectName: r.subject_name,
+        assessmentId: r.assessment_id,
         paperName: r.paper_name,
         outOf: parseInt(r.out_of),
         deadline: new Date(r.deadline).toLocaleDateString(),
@@ -776,14 +830,24 @@ export class ClassTeacherService {
     return { success: true, incidentId: rows[0].id };
   }
 
-  async saveMarks(tenantId: string, userId: string, payload: any) {
+  async saveMarks(
+    tenantId: string,
+    userId: string,
+    payload: SaveTeacherMarksDto,
+  ) {
     this.logger.log(`Saving marks for exam window ${payload.examId}`);
 
-    const action = payload.action === 'submit' ? 'submit' : 'draft';
-    const markStatus = action === 'submit' ? 'submitted' : 'draft';
+    if (!this.examsService) {
+      throw new ServiceUnavailableException(
+        'The governed exams workflow is unavailable. Retry after the exams module is initialized.',
+      );
+    }
 
+    const action = payload.action === 'submit' ? 'submit' : 'draft';
     if (!payload.examId || !payload.classSectionId) {
-      throw new BadRequestException('Exam window and class section are required before saving marks.');
+      throw new BadRequestException(
+        'Exam window and class section are required before saving marks.',
+      );
     }
 
     const windowQuery = `
@@ -810,11 +874,12 @@ export class ClassTeacherService {
        AND subject.tenant_id = w.tenant_id
       JOIN teacher_subject_assignments tsa
         ON tsa.tenant_id = w.tenant_id
-       AND tsa.class_section_id = w.class_section_id
-       AND tsa.subject_id = w.subject_id
+       AND tsa.academic_term_id = es.academic_term_id::text
+       AND tsa.class_section_id = w.class_section_id::text
+       AND tsa.subject_id = w.subject_id::text
        AND tsa.teacher_user_id = $3
        AND tsa.status = 'active'
-      LEFT JOIN LATERAL (
+      JOIN LATERAL (
         SELECT ea.id, ea.max_score
         FROM exam_assessments ea
         WHERE ea.tenant_id = w.tenant_id
@@ -827,141 +892,93 @@ export class ClassTeacherService {
         AND w.tenant_id = $2
         AND w.class_section_id = $4
         AND w.status = 'open'
+        AND w.opens_at <= NOW()
+        AND w.closes_at >= NOW()
       LIMIT 1
     `;
-    const { rows: windows } = await this.executeSql(windowQuery, [payload.examId, tenantId, userId, payload.classSectionId]);
+    const { rows: windows } = await this.executeSql(windowQuery, [
+      payload.examId,
+      tenantId,
+      userId,
+      payload.classSectionId,
+    ]);
     if (windows.length === 0) {
-      throw new BadRequestException('Exam window is closed, invalid, or not assigned to this teacher.');
+      throw new BadRequestException(
+        'Exam window is closed, invalid, or not assigned to this teacher.',
+      );
     }
+
     const window = windows[0];
-    if (!window.assessment_id || !window.academic_term_id) {
-      throw new BadRequestException('This mark-entry window is missing exam assessment setup.');
-    }
-
-    const scores = payload.scores || {};
-    let persistedCount = 0;
-
-    for (const [studentId, score] of Object.entries(scores)) {
-      if (score === "") continue;
-      
-      const numScore = parseFloat(score as string);
-      if (isNaN(numScore)) {
-        throw new BadRequestException(`Invalid score submitted for learner ${studentId}.`);
-      }
-      if (numScore < 0 || numScore > Number(window.out_of)) {
-        throw new BadRequestException(`Score for learner ${studentId} must be between 0 and ${window.out_of}.`);
-      }
-
-      await this.assertStudentBelongsToStream(tenantId, window.class_section_id, studentId as string);
-
-      const checkQuery = `
-        SELECT id
-        FROM exam_marks
-        WHERE tenant_id = $1
-          AND class_section_id = $2
-          AND subject_id = $3
-          AND student_id = $4
-          AND exam_series_id = $5
-          AND assessment_id = $6
-        LIMIT 1
-      `;
-      const { rows: existing } = await this.executeSql(checkQuery, [
-        tenantId,
-        window.class_section_id,
-        window.subject_id,
-        studentId,
-        window.exam_series_id,
-        window.assessment_id,
-      ]);
-
-      if (existing.length > 0) {
-        await this.executeSql(
-          `UPDATE exam_marks
-           SET score = $1,
-               status = $2,
-               submitted_at = CASE WHEN $2 = 'submitted' THEN NOW() ELSE submitted_at END,
-               updated_by_user_id = $3,
-               updated_at = NOW()
-           WHERE tenant_id = $4
-             AND id = $5`,
-          [numScore, markStatus, userId, tenantId, existing[0].id]
-        );
-      } else {
-        await this.executeSql(
-          `INSERT INTO exam_marks (
-             tenant_id,
-             exam_series_id,
-             assessment_id,
-             academic_term_id,
-             class_section_id,
-             subject_id,
-             student_id,
-             score,
-             remarks,
-             status,
-             entered_by_user_id,
-             updated_by_user_id,
-             submitted_at
-           )
-           VALUES (
-             $1,
-             $2,
-             $3,
-             $4,
-             $5,
-             $6,
-             $7,
-             $8,
-             $9,
-             $10,
-             $11,
-             $11,
-             CASE WHEN $10 = 'submitted' THEN NOW() ELSE NULL END
-           )`,
-          [
-            tenantId,
-            window.exam_series_id,
-            window.assessment_id,
-            window.academic_term_id,
-            window.class_section_id,
-            window.subject_id,
+    const rawMarks: Record<string, TeacherMarkInput> = payload.marks
+      ? payload.marks
+      : Object.fromEntries(
+          Object.entries(payload.scores ?? {}).map(([studentId, score]) => [
             studentId,
-            numScore,
-            payload.remarks?.[studentId as string] ?? null,
-            markStatus,
-            userId,
-          ]
+            {
+              score,
+              score_status: score === '' || score === null ? undefined : 'entered',
+              remarks: payload.remarks?.[studentId],
+            },
+          ]),
+        );
+    const rows: BulkExamMarkUploadRowDto[] = [];
+
+    for (const [studentId, rawEntry] of Object.entries(rawMarks)) {
+      const entry = rawEntry && typeof rawEntry === 'object'
+        ? rawEntry
+        : { score: rawEntry as number | string | null };
+      const rawScore = entry.score;
+      const hasScore = rawScore !== undefined && rawScore !== null && rawScore !== '';
+      const scoreStatus = entry.score_status
+        ?? (hasScore ? 'entered' : undefined);
+
+      // Blank legacy cells stay unsaved drafts. Submission will report them as missing.
+      if (!scoreStatus && !hasScore && !entry.remarks?.trim()) {
+        continue;
+      }
+      if (!scoreStatus || !EXAM_SCORE_STATUSES.includes(scoreStatus as ExamScoreStatus)) {
+        throw new BadRequestException(
+          `Select a valid score status for learner ${studentId}.`,
         );
       }
-      persistedCount += 1;
+
+      let score: number | null = null;
+      if (scoreStatus === 'entered') {
+        score = Number(rawScore);
+        if (!Number.isFinite(score)) {
+          throw new BadRequestException(
+            `Enter a valid numeric score for learner ${studentId}.`,
+          );
+        }
+      }
+
+      rows.push({
+        row_number: rows.length + 1,
+        exam_series_id: window.exam_series_id,
+        assessment_id: window.assessment_id,
+        academic_term_id: window.academic_term_id,
+        class_section_id: window.class_section_id,
+        subject_id: window.subject_id,
+        student_id: studentId,
+        score,
+        score_status: scoreStatus,
+        remarks: entry.remarks?.trim() || undefined,
+      });
     }
 
-    if (persistedCount === 0) {
-      throw new BadRequestException('Enter at least one valid learner score before saving marks.');
+    if (rows.length === 0) {
+      throw new BadRequestException(
+        'Enter at least one learner score or explicit evidence status before saving marks.',
+      );
     }
+
+    const result = await this.examsService.saveTeacherMarkEntries(
+      rows,
+      window.id,
+      action === 'submit',
+    );
 
     if (action === 'submit') {
-      const { rows: totalLearnersRows } = await this.executeSql(
-        `SELECT COUNT(*)::int AS total
-         FROM student_class_assignments
-         WHERE tenant_id = $1
-           AND class_section_id = $2
-           AND status = 'active'`,
-        [tenantId, window.class_section_id],
-      ).catch(() => ({ rows: [{ total: 0 }], rowCount: 1 }));
-      const { rows: submittedRows } = await this.executeSql(
-        `SELECT COUNT(*)::int AS total
-         FROM exam_marks
-         WHERE tenant_id = $1
-           AND exam_series_id = $2
-           AND assessment_id = $3
-           AND class_section_id = $4
-           AND subject_id = $5
-           AND status IN ('submitted', 'reviewed', 'locked', 'published')`,
-        [tenantId, window.exam_series_id, window.assessment_id, window.class_section_id, window.subject_id],
-      ).catch(() => ({ rows: [{ total: persistedCount }], rowCount: 1 }));
-      const missingMarksCount = Math.max(0, Number(totalLearnersRows[0]?.total ?? 0) - Number(submittedRows[0]?.total ?? persistedCount));
-
       try {
         await this.eventPublisherService.publishExamSubmitted({
           tenant_id: tenantId,
@@ -971,15 +988,22 @@ export class ClassTeacherService {
           stream_name: window.class_name,
           submitted_by_user_id: userId,
           submitted_at: new Date().toISOString(),
-          completion_status: missingMarksCount === 0 ? 'SUBMITTED' : 'PARTIAL_SUBMISSION',
-          missing_marks_count: missingMarksCount,
+          completion_status: 'SUBMITTED',
+          missing_marks_count: 0,
         });
-      } catch (e) {
-        this.logger.error(`Failed to publish exam submission event: ${e}`);
+      } catch (error) {
+        this.logger.error(`Failed to publish exam submission event: ${error}`);
       }
     }
 
-    return { success: true, action, status: markStatus, savedCount: persistedCount };
+    return {
+      success: true,
+      action,
+      status: result.data.status,
+      savedCount: result.data.saved_count,
+      submittedCount: result.data.submitted_count,
+      markIds: result.data.mark_ids,
+    };
   }
 
   async referWelfareCase(tenantId: string, userId: string, streamId: string, payload: any) {

@@ -228,6 +228,7 @@ export class ExamsRepository {
           subject_id,
           student_id,
           score,
+          score_status,
           remarks,
           entered_by_user_id,
           updated_by_user_id
@@ -242,12 +243,14 @@ export class ExamsRepository {
           $7::uuid,
           $8::numeric,
           $9,
-          $10::uuid,
-          $10::uuid
+          $10,
+          $11::uuid,
+          $11::uuid
         )
         ON CONFLICT (tenant_id, assessment_id, student_id)
         DO UPDATE SET
           score = EXCLUDED.score,
+          score_status = EXCLUDED.score_status,
           remarks = EXCLUDED.remarks,
           updated_by_user_id = EXCLUDED.updated_by_user_id,
           updated_at = NOW()
@@ -266,12 +269,339 @@ export class ExamsRepository {
         input.subject_id,
         input.student_id,
         input.score,
+        input.score_status ?? 'entered',
         input.remarks ?? null,
         input.actor_user_id,
       ],
     );
 
     return result.rows[0];
+  }
+
+  async saveTeacherMarkSheet(input: {
+    tenant_id: string;
+    actor_user_id: string;
+    source_window_id: string;
+    submit: boolean;
+    rows: Array<{
+      row_number: number;
+      exam_series_id: string;
+      assessment_id: string;
+      academic_term_id: string;
+      class_section_id: string;
+      subject_id: string;
+      student_id: string;
+      score: number | null;
+      score_status: string;
+      remarks: string | null;
+    }>;
+  }) {
+    return this.prisma.executeWithTenant(
+      input.tenant_id,
+      input.actor_user_id,
+      async (tx: any) => {
+        const savedResult = await tx.$queryRawUnsafe(
+          `WITH source AS MATERIALIZED (
+             SELECT *
+             FROM jsonb_to_recordset($3::jsonb) AS row(
+               row_number integer,
+               exam_series_id uuid,
+               assessment_id uuid,
+               academic_term_id uuid,
+               class_section_id uuid,
+               subject_id uuid,
+               student_id uuid,
+               score numeric,
+               score_status text,
+               remarks text
+             )
+           ), scoped AS MATERIALIZED (
+             SELECT source.*
+             FROM source
+             JOIN exam_mark_entry_windows window
+               ON window.tenant_id = $1
+              AND window.id = $4::uuid
+              AND window.exam_series_id = source.exam_series_id
+              AND window.class_section_id = source.class_section_id
+              AND window.subject_id = source.subject_id
+              AND window.status = 'open'
+              AND window.opens_at <= NOW()
+              AND window.closes_at >= NOW()
+             JOIN exam_series series
+               ON series.tenant_id = window.tenant_id
+              AND series.id = window.exam_series_id
+              AND series.academic_term_id = source.academic_term_id
+              AND series.locked_at IS NULL
+              AND series.published_at IS NULL
+              AND series.status NOT IN ('locked', 'published')
+             JOIN exam_assessments assessment
+               ON assessment.tenant_id = window.tenant_id
+              AND assessment.id = source.assessment_id
+              AND assessment.exam_series_id = source.exam_series_id
+              AND assessment.subject_id = source.subject_id
+             JOIN students student
+               ON student.tenant_id = window.tenant_id
+              AND student.id = source.student_id
+              AND student.status = 'active'
+             WHERE EXISTS (
+               SELECT 1
+               FROM teacher_subject_assignments assignment
+               WHERE assignment.tenant_id = window.tenant_id
+                 AND assignment.teacher_user_id = $2::text
+                 AND assignment.academic_term_id = source.academic_term_id::text
+                 AND assignment.class_section_id = source.class_section_id::text
+                 AND assignment.subject_id = source.subject_id::text
+                 AND assignment.status = 'active'
+             )
+               AND EXISTS (
+                 SELECT 1
+                 FROM student_class_assignments class_assignment
+                 WHERE class_assignment.tenant_id = student.tenant_id
+                   AND class_assignment.student_id = student.id::text
+                   AND class_assignment.class_section_id = source.class_section_id::text
+                   AND class_assignment.status = 'active'
+               )
+               AND EXISTS (
+                 SELECT 1
+                 FROM student_subject_enrollments subject_enrollment
+                 WHERE subject_enrollment.tenant_id = student.tenant_id
+                   AND subject_enrollment.student_id = student.id::text
+                   AND subject_enrollment.class_section_id = source.class_section_id::text
+                   AND subject_enrollment.subject_id = source.subject_id::text
+                   AND subject_enrollment.status = 'active'
+               )
+           ), previous AS MATERIALIZED (
+             SELECT scoped.*,
+               mark.id AS previous_mark_id,
+               mark.score AS previous_score,
+               mark.score_status AS previous_score_status,
+               mark.status AS previous_status
+             FROM scoped
+             LEFT JOIN exam_marks mark
+               ON mark.tenant_id = $1
+              AND mark.assessment_id = scoped.assessment_id
+              AND mark.student_id = scoped.student_id
+           ), upserted AS (
+             INSERT INTO exam_marks (
+               tenant_id, exam_series_id, assessment_id, academic_term_id,
+               class_section_id, subject_id, student_id, score, score_status, remarks,
+               entered_by_user_id, updated_by_user_id, status
+             )
+             SELECT $1, exam_series_id, assessment_id, academic_term_id,
+               class_section_id, subject_id, student_id, score, score_status, remarks,
+               $2::uuid, $2::uuid, 'draft'
+             FROM scoped
+             ON CONFLICT (tenant_id, assessment_id, student_id)
+             DO UPDATE SET
+               score = EXCLUDED.score,
+               score_status = EXCLUDED.score_status,
+               remarks = EXCLUDED.remarks,
+               updated_by_user_id = EXCLUDED.updated_by_user_id,
+               updated_at = NOW()
+             WHERE exam_marks.exam_series_id = EXCLUDED.exam_series_id
+               AND exam_marks.academic_term_id = EXCLUDED.academic_term_id
+               AND exam_marks.class_section_id = EXCLUDED.class_section_id
+               AND exam_marks.subject_id = EXCLUDED.subject_id
+               AND exam_marks.entered_by_user_id = $2::uuid
+               AND exam_marks.status = 'draft'
+             RETURNING *
+           ), audits AS (
+             INSERT INTO exam_mark_audit_logs (
+               tenant_id, mark_id, exam_series_id, assessment_id, student_id,
+               action, actor_user_id, previous_score, new_score, metadata
+             )
+             SELECT $1, mark.id, mark.exam_series_id, mark.assessment_id, mark.student_id,
+               CASE
+                 WHEN previous.previous_mark_id IS NULL THEN 'grade.created'
+                 ELSE 'grade.updated'
+               END,
+               $2::uuid,
+               previous.previous_score,
+               mark.score,
+               jsonb_build_object(
+                 'source', 'teacher_mark_sheet',
+                 'source_window_id', $4::text,
+                 'row_number', previous.row_number,
+                 'previous_score_status', previous.previous_score_status,
+                 'new_score_status', mark.score_status
+               )
+             FROM upserted mark
+             JOIN previous
+               ON previous.assessment_id = mark.assessment_id
+              AND previous.student_id = mark.student_id
+             RETURNING id
+           )
+           SELECT
+             mark.id::text,
+             mark.student_id::text,
+             mark.score::float,
+             mark.score_status,
+             mark.status
+           FROM upserted mark
+           ORDER BY mark.student_id`,
+          input.tenant_id,
+          input.actor_user_id,
+          JSON.stringify(input.rows),
+          input.source_window_id,
+        );
+        const savedRows = Array.isArray(savedResult) ? savedResult : [savedResult];
+
+        if (savedRows.length !== input.rows.length) {
+          throw new ConflictException(
+            'The mark sheet changed, closed, or contains learners outside this teacher assignment. Refresh before retrying.',
+          );
+        }
+
+        if (!input.submit) {
+          return {
+            saved_count: savedRows.length,
+            submitted_count: 0,
+            mark_ids: savedRows.map((row: any) => row.id),
+            status: 'draft',
+          };
+        }
+
+        const firstRow = input.rows[0];
+        const stateResult = await tx.$queryRawUnsafe(
+          `SELECT
+             COUNT(student.id)::integer AS expected_count,
+             COUNT(mark.id)::integer AS evidence_count,
+             COUNT(mark.id) FILTER (
+               WHERE mark.score_status IN ('not_assessed', 'incomplete')
+             )::integer AS unresolved_count,
+             COUNT(mark.id) FILTER (
+               WHERE mark.entered_by_user_id IS DISTINCT FROM $2::uuid
+             )::integer AS foreign_owner_count,
+             COUNT(mark.id) FILTER (
+               WHERE mark.status NOT IN ('draft', 'submitted')
+             )::integer AS immutable_count,
+             COALESCE(
+               ARRAY_AGG(mark.id::text ORDER BY student.id)
+                 FILTER (WHERE mark.id IS NOT NULL),
+               ARRAY[]::text[]
+             ) AS mark_ids
+           FROM exam_mark_entry_windows window
+           JOIN students student
+             ON student.tenant_id = window.tenant_id
+            AND student.status = 'active'
+            AND EXISTS (
+              SELECT 1
+              FROM student_class_assignments class_assignment
+              WHERE class_assignment.tenant_id = student.tenant_id
+                AND class_assignment.student_id = student.id::text
+                AND class_assignment.class_section_id = window.class_section_id::text
+                AND class_assignment.status = 'active'
+            )
+            AND EXISTS (
+              SELECT 1
+              FROM student_subject_enrollments subject_enrollment
+              WHERE subject_enrollment.tenant_id = student.tenant_id
+                AND subject_enrollment.student_id = student.id::text
+                AND subject_enrollment.class_section_id = window.class_section_id::text
+                AND subject_enrollment.subject_id = window.subject_id::text
+                AND subject_enrollment.status = 'active'
+            )
+           LEFT JOIN exam_marks mark
+             ON mark.tenant_id = window.tenant_id
+            AND mark.exam_series_id = window.exam_series_id
+            AND mark.assessment_id = $5::uuid
+            AND mark.class_section_id = window.class_section_id
+            AND mark.subject_id = window.subject_id
+            AND mark.student_id = student.id
+           WHERE window.tenant_id = $1
+             AND window.id = $3::uuid
+             AND window.exam_series_id = $4::uuid
+             AND window.class_section_id = $6::uuid
+             AND window.subject_id = $7::uuid
+             AND window.status = 'open'
+             AND window.opens_at <= NOW()
+             AND window.closes_at >= NOW()`,
+          input.tenant_id,
+          input.actor_user_id,
+          input.source_window_id,
+          firstRow.exam_series_id,
+          firstRow.assessment_id,
+          firstRow.class_section_id,
+          firstRow.subject_id,
+        );
+        const sheetState = (Array.isArray(stateResult) ? stateResult[0] : stateResult) ?? {};
+        const expectedCount = Number(sheetState.expected_count ?? 0);
+        const evidenceCount = Number(sheetState.evidence_count ?? 0);
+        const unresolvedCount = Number(sheetState.unresolved_count ?? 0);
+        const foreignOwnerCount = Number(sheetState.foreign_owner_count ?? 0);
+        const immutableCount = Number(sheetState.immutable_count ?? 0);
+
+        if (expectedCount === 0) {
+          throw new ConflictException(
+            'No active learners are enrolled for this class and subject. Refresh the academic assignments before submitting.',
+          );
+        }
+        if (evidenceCount !== expectedCount) {
+          throw new ConflictException(
+            `${expectedCount - evidenceCount} learner mark entr${expectedCount - evidenceCount === 1 ? 'y is' : 'ies are'} still missing.`,
+          );
+        }
+        if (unresolvedCount > 0) {
+          throw new ConflictException(
+            `${unresolvedCount} learner entr${unresolvedCount === 1 ? 'y is' : 'ies are'} still marked not assessed or incomplete.`,
+          );
+        }
+        if (foreignOwnerCount > 0) {
+          throw new ConflictException(
+            'This sheet contains marks entered by another user. An exams officer must resolve ownership before submission.',
+          );
+        }
+        if (immutableCount > 0) {
+          throw new ConflictException(
+            'This sheet already contains reviewed or locked marks and cannot be resubmitted.',
+          );
+        }
+
+        const markIds = Array.isArray(sheetState.mark_ids) ? sheetState.mark_ids : [];
+        const submittedResult = await tx.$queryRawUnsafe(
+          `WITH submitted AS (
+             UPDATE exam_marks
+             SET status = 'submitted',
+                 submitted_at = COALESCE(submitted_at, NOW()),
+                 updated_by_user_id = $2::uuid,
+                 updated_at = NOW()
+             WHERE tenant_id = $1
+               AND id = ANY($3::uuid[])
+               AND entered_by_user_id = $2::uuid
+               AND status = 'draft'
+             RETURNING *
+           ), audits AS (
+             INSERT INTO exam_mark_audit_logs (
+               tenant_id, mark_id, exam_series_id, assessment_id, student_id,
+               action, actor_user_id, previous_score, new_score, metadata
+             )
+             SELECT $1, mark.id, mark.exam_series_id, mark.assessment_id, mark.student_id,
+               'grade.submitted', $2::uuid, mark.score, mark.score,
+               jsonb_build_object(
+                 'source', 'teacher_mark_sheet',
+                 'source_window_id', $4::text,
+                 'score_status', mark.score_status
+               )
+             FROM submitted mark
+             RETURNING id
+           )
+           SELECT id::text FROM submitted ORDER BY id`,
+          input.tenant_id,
+          input.actor_user_id,
+          markIds,
+          input.source_window_id,
+        );
+        const newlySubmittedRows = Array.isArray(submittedResult) ? submittedResult : [submittedResult];
+
+        return {
+          saved_count: savedRows.length,
+          submitted_count: expectedCount,
+          newly_submitted_count: newlySubmittedRows.length,
+          mark_ids: markIds,
+          status: 'submitted',
+        };
+      },
+    );
   }
 
   async commitBulkMarkImport(input: Record<string, unknown>) {
@@ -288,12 +618,14 @@ export class ExamsRepository {
            subject_id uuid,
            student_id uuid,
            score numeric,
+           score_status text,
            remarks text
          )
        ), previous AS MATERIALIZED (
          SELECT source.*,
            mark.id AS previous_mark_id,
            mark.score AS previous_score,
+           mark.score_status AS previous_score_status,
            mark.remarks AS previous_remarks,
            mark.status AS previous_status
          FROM source
@@ -304,15 +636,16 @@ export class ExamsRepository {
        ), upserted AS (
          INSERT INTO exam_marks (
            tenant_id, exam_series_id, assessment_id, academic_term_id,
-           class_section_id, subject_id, student_id, score, remarks,
+           class_section_id, subject_id, student_id, score, score_status, remarks,
            entered_by_user_id, updated_by_user_id
          )
          SELECT $1, exam_series_id, assessment_id, academic_term_id,
-           class_section_id, subject_id, student_id, score, remarks, $2::uuid, $2::uuid
+           class_section_id, subject_id, student_id, score, score_status, remarks, $2::uuid, $2::uuid
          FROM source
          ON CONFLICT (tenant_id, assessment_id, student_id)
          DO UPDATE SET
            score = EXCLUDED.score,
+           score_status = EXCLUDED.score_status,
            remarks = EXCLUDED.remarks,
            updated_by_user_id = EXCLUDED.updated_by_user_id,
            updated_at = NOW()
@@ -337,13 +670,13 @@ export class ExamsRepository {
        ), items AS (
          INSERT INTO exam_mark_import_batch_items (
            tenant_id, batch_id, mark_id, row_number, previous_exists,
-           previous_score, previous_remarks, previous_status,
-           imported_score, imported_remarks, imported_status
+           previous_score, previous_score_status, previous_remarks, previous_status,
+           imported_score, imported_score_status, imported_remarks, imported_status
          )
          SELECT $1, batch.id, mark.id, previous.row_number,
            previous.previous_mark_id IS NOT NULL,
-           previous.previous_score, previous.previous_remarks, previous.previous_status,
-           mark.score, mark.remarks, mark.status
+           previous.previous_score, previous.previous_score_status, previous.previous_remarks, previous.previous_status,
+           mark.score, mark.score_status, mark.remarks, mark.status
          FROM batch
          JOIN upserted mark ON TRUE
          JOIN previous
@@ -357,7 +690,13 @@ export class ExamsRepository {
          )
          SELECT $1, mark.id, mark.exam_series_id, mark.assessment_id, mark.student_id,
            'bulk_grade.updated', $2::uuid, previous.previous_score, mark.score,
-           jsonb_build_object('bulk_upload', true, 'batch_id', batch.id, 'row_number', previous.row_number)
+           jsonb_build_object(
+             'bulk_upload', true,
+             'batch_id', batch.id,
+             'row_number', previous.row_number,
+             'previous_score_status', previous.previous_score_status,
+             'new_score_status', mark.score_status
+           )
          FROM batch
          JOIN upserted mark ON TRUE
          JOIN previous
@@ -471,11 +810,13 @@ export class ExamsRepository {
            ON mark.tenant_id = item.tenant_id AND mark.id = item.mark_id
          WHERE mark.id IS NULL
             OR mark.score IS DISTINCT FROM item.imported_score
+            OR mark.score_status IS DISTINCT FROM item.imported_score_status
             OR mark.remarks IS DISTINCT FROM item.imported_remarks
             OR mark.status IS DISTINCT FROM item.imported_status
        ), restored AS (
          UPDATE exam_marks mark
          SET score = item.previous_score,
+             score_status = item.previous_score_status,
              remarks = item.previous_remarks,
              status = item.previous_status,
              updated_by_user_id = $3::uuid,
@@ -558,8 +899,9 @@ export class ExamsRepository {
       `
         UPDATE exam_marks
         SET score = $3::numeric,
-            remarks = COALESCE($4, remarks),
-            updated_by_user_id = $5::uuid,
+            score_status = $4,
+            remarks = COALESCE($5, remarks),
+            updated_by_user_id = $6::uuid,
             updated_at = NOW()
         WHERE tenant_id = $1
           AND id = $2::uuid
@@ -569,6 +911,7 @@ export class ExamsRepository {
         input.tenant_id,
         input.mark_id,
         input.score,
+        input.score_status ?? 'entered',
         input.remarks ?? null,
         input.actor_user_id,
       ],
@@ -584,7 +927,9 @@ export class ExamsRepository {
           tenant_id,
           mark_id,
           original_score,
+          original_score_status,
           correction_score,
+          correction_score_status,
           corrected_by_user_id,
           reason,
           approval_state,
@@ -592,14 +937,29 @@ export class ExamsRepository {
           second_approver_user_id,
           metadata
         )
-        VALUES ($1, $2::uuid, $3::numeric, $4::numeric, $5::uuid, $6, $7, $8::uuid, $9::uuid, $10::jsonb)
+        VALUES (
+          $1,
+          $2::uuid,
+          $3::numeric,
+          $4,
+          $5::numeric,
+          $6,
+          $7::uuid,
+          $8,
+          $9,
+          $10::uuid,
+          $11::uuid,
+          $12::jsonb
+        )
         RETURNING *
       `,
       [
         input.tenant_id,
         input.mark_id,
         input.original_score,
+        input.original_score_status ?? 'entered',
         input.correction_score,
+        input.correction_score_status ?? 'entered',
         input.corrected_by_user_id,
         input.reason,
         input.approval_state,
@@ -626,6 +986,7 @@ export class ExamsRepository {
          AND card.exam_series_id = mark.exam_series_id
          AND card.student_id = mark.student_id
          AND card.status = 'published'
+         AND card.is_current = TRUE
         WHERE mark.tenant_id = $1
           AND mark.id = $2::uuid
       `,
@@ -636,15 +997,59 @@ export class ExamsRepository {
   }
 
   async markReportCardsRegenerationRequired(input: Record<string, unknown>) {
-    await this.executeSql(
+    const result = await this.executeSql(
       `
-        UPDATE student_report_cards
-        SET
-          status = $3,
-          metadata = metadata || $4::jsonb,
-          updated_at = NOW()
-        WHERE tenant_id = $1
-          AND id = ANY($2::uuid[])
+        WITH target AS MATERIALIZED (
+          SELECT card.*
+          FROM student_report_cards card
+          WHERE card.tenant_id = $1
+            AND card.id = ANY($2::uuid[])
+            AND card.status = 'published'
+            AND card.is_current = TRUE
+          FOR UPDATE
+        ), superseded AS (
+          UPDATE student_report_cards card
+          SET is_current = FALSE,
+              updated_at = NOW()
+          FROM target
+          WHERE card.tenant_id = target.tenant_id
+            AND card.id = target.id
+          RETURNING card.id
+        ), inserted AS (
+          INSERT INTO student_report_cards (
+            tenant_id,
+            exam_series_id,
+            student_id,
+            report_snapshot_id,
+            status,
+            revision_number,
+            is_current,
+            supersedes_report_card_id,
+            grading_policy_id,
+            grading_policy_version,
+            template_version,
+            approved_result_version,
+            metadata
+          )
+          SELECT
+            target.tenant_id,
+            target.exam_series_id,
+            target.student_id,
+            target.report_snapshot_id || ':revision:' || (target.revision_number + 1)::text,
+            $3,
+            target.revision_number + 1,
+            TRUE,
+            target.id,
+            target.grading_policy_id,
+            target.grading_policy_version,
+            target.template_version,
+            target.approved_result_version,
+            target.metadata || $4::jsonb
+          FROM target
+          JOIN superseded ON superseded.id = target.id
+          RETURNING *
+        )
+        SELECT * FROM inserted
       `,
       [
         input.tenant_id,
@@ -658,30 +1063,66 @@ export class ExamsRepository {
         }),
       ],
     );
+    return result.rows;
   }
 
   async createReportCardSnapshot(input: Record<string, unknown>) {
     const result = await this.executeSql(
       `
+        WITH current_card AS MATERIALIZED (
+          SELECT card.*
+          FROM student_report_cards card
+          WHERE card.tenant_id = $1
+            AND card.exam_series_id = $2::uuid
+            AND card.student_id = $3::uuid
+            AND card.is_current = TRUE
+          LIMIT 1
+          FOR UPDATE
+        ), superseded AS (
+          UPDATE student_report_cards card
+          SET is_current = FALSE,
+              updated_at = NOW()
+          FROM current_card
+          WHERE card.tenant_id = current_card.tenant_id
+            AND card.id = current_card.id
+            AND current_card.status <> 'published'
+          RETURNING card.id
+        ), next_revision AS (
+          SELECT COALESCE(MAX(card.revision_number), 0) + 1 AS revision_number
+          FROM student_report_cards card
+          WHERE card.tenant_id = $1
+            AND card.exam_series_id = $2::uuid
+            AND card.student_id = $3::uuid
+        )
         INSERT INTO student_report_cards (
           tenant_id,
           exam_series_id,
           student_id,
           report_snapshot_id,
           status,
+          revision_number,
+          is_current,
+          supersedes_report_card_id,
           published_by_user_id,
+          published_at,
           metadata
         )
-        VALUES ($1, $2::uuid, $3::uuid, $4, 'published', $5::uuid, $6::jsonb)
-        ON CONFLICT (tenant_id, exam_series_id, student_id)
-        DO UPDATE SET
-          report_snapshot_id = EXCLUDED.report_snapshot_id,
-          status = 'published',
-          published_by_user_id = EXCLUDED.published_by_user_id,
-          published_at = NOW(),
-          metadata = EXCLUDED.metadata,
-          updated_at = NOW()
-        WHERE student_report_cards.status <> 'published'
+        SELECT
+          $1,
+          $2::uuid,
+          $3::uuid,
+          $4,
+          'published',
+          next_revision.revision_number,
+          TRUE,
+          current_card.id,
+          $5::uuid,
+          NOW(),
+          $6::jsonb
+        FROM next_revision
+        LEFT JOIN current_card ON TRUE
+        WHERE current_card.id IS NULL
+           OR EXISTS (SELECT 1 FROM superseded)
         RETURNING *
       `,
       [
@@ -695,11 +1136,7 @@ export class ExamsRepository {
     );
 
     if (!result.rows[0]) {
-      throw new ConflictException('Published report cards are immutable; generate a corrected version instead');
-    }
-
-    if (!result.rows[0]) {
-      throw new ConflictException('Existing exam mark scope does not match the submitted exam scope');
+      throw new ConflictException('Published report cards are immutable; generate a controlled revision instead');
     }
 
     return result.rows[0];
@@ -708,26 +1145,99 @@ export class ExamsRepository {
   async createGeneratedReportCardSnapshot(input: Record<string, unknown>) {
     const result = await this.executeSql(
       `
+        WITH current_card AS MATERIALIZED (
+          SELECT card.*
+          FROM student_report_cards card
+          WHERE card.tenant_id = $1
+            AND card.exam_series_id = $2::uuid
+            AND card.student_id = $3::uuid
+            AND card.is_current = TRUE
+          LIMIT 1
+          FOR UPDATE
+        ), updated AS (
+          UPDATE student_report_cards card
+          SET report_snapshot_id = $4,
+              status = $7,
+              verification_code = $8,
+              grading_policy_id = $9::uuid,
+              grading_policy_version = $10::integer,
+              template_version = $11::integer,
+              approved_result_version = $12,
+              metadata = $6::jsonb,
+              updated_at = NOW()
+          FROM current_card
+          WHERE card.tenant_id = current_card.tenant_id
+            AND card.id = current_card.id
+            AND current_card.status IN (
+              'draft_requested',
+              'draft_generated',
+              'draft',
+              'regeneration_required'
+            )
+          RETURNING card.*
+        ), superseded AS (
+          UPDATE student_report_cards card
+          SET is_current = FALSE,
+              updated_at = NOW()
+          FROM current_card
+          WHERE card.tenant_id = current_card.tenant_id
+            AND card.id = current_card.id
+            AND current_card.status IN ('published', 'withdrawn')
+            AND NOT EXISTS (SELECT 1 FROM updated)
+          RETURNING card.id
+        ), next_revision AS (
+          SELECT COALESCE(MAX(card.revision_number), 0) + 1 AS revision_number
+          FROM student_report_cards card
+          WHERE card.tenant_id = $1
+            AND card.exam_series_id = $2::uuid
+            AND card.student_id = $3::uuid
+        ), inserted AS (
         INSERT INTO student_report_cards (
           tenant_id,
           exam_series_id,
           student_id,
           report_snapshot_id,
           status,
+          revision_number,
+          is_current,
+          supersedes_report_card_id,
+          grading_policy_id,
+          grading_policy_version,
+          template_version,
+          approved_result_version,
           verification_code,
           published_by_user_id,
           metadata
         )
-        VALUES ($1, $2::uuid, $3::uuid, $4, $7, $8, $5::uuid, $6::jsonb)
-        ON CONFLICT (tenant_id, exam_series_id, student_id)
-        DO UPDATE SET
-          report_snapshot_id = EXCLUDED.report_snapshot_id,
-          status = EXCLUDED.status,
-          verification_code = EXCLUDED.verification_code,
-          metadata = EXCLUDED.metadata,
-          updated_at = NOW()
-        WHERE student_report_cards.status <> 'published'
+        SELECT
+          $1,
+          $2::uuid,
+          $3::uuid,
+          $4,
+          $7,
+          next_revision.revision_number,
+          TRUE,
+          current_card.id,
+          $9::uuid,
+          $10::integer,
+          $11::integer,
+          $12,
+          $8,
+          $5::uuid,
+          $6::jsonb
+        FROM next_revision
+        LEFT JOIN current_card ON TRUE
+        WHERE NOT EXISTS (SELECT 1 FROM updated)
+          AND (
+            current_card.id IS NULL
+            OR EXISTS (SELECT 1 FROM superseded)
+          )
         RETURNING *
+        )
+        SELECT * FROM updated
+        UNION ALL
+        SELECT * FROM inserted
+        LIMIT 1
       `,
       [
         input.tenant_id,
@@ -738,8 +1248,18 @@ export class ExamsRepository {
         JSON.stringify(input.metadata ?? {}),
         input.status ?? 'draft_generated',
         input.verification_code ?? null,
+        input.grading_policy_id ?? null,
+        input.grading_policy_version ?? null,
+        input.template_version ?? 1,
+        input.approved_result_version ?? null,
       ],
     );
+
+    if (!result.rows[0]) {
+      throw new ConflictException(
+        'Report card is already under review or approved; recall it before generating another draft',
+      );
+    }
 
     return result.rows[0];
   }
@@ -758,6 +1278,13 @@ export class ExamsRepository {
           card.student_id::text,
           card.report_snapshot_id,
           card.status,
+          card.revision_number,
+          card.is_current,
+          card.supersedes_report_card_id::text,
+          card.grading_policy_id::text,
+          card.grading_policy_version,
+          card.template_version,
+          card.approved_result_version,
           card.verification_code,
           card.metadata,
           card.updated_at::text
@@ -767,6 +1294,7 @@ export class ExamsRepository {
           AND card.student_id = $3::uuid
           AND card.report_snapshot_id = $4
           AND card.status = 'approved'
+          AND card.is_current = TRUE
         LIMIT 1
       `,
       [
@@ -780,7 +1308,14 @@ export class ExamsRepository {
     return result.rows[0] ?? null;
   }
 
-  async transitionReportCard(input: { tenant_id: string; actor_user_id: string; report_card_id: string; action: string }) {
+  async transitionReportCard(input: {
+    tenant_id: string;
+    actor_user_id: string;
+    actor_role: string;
+    report_card_id: string;
+    action: string;
+    reason?: string;
+  }) {
     const result = await this.executeSql(
       `WITH transition AS (
          SELECT
@@ -800,23 +1335,96 @@ export class ExamsRepository {
              WHEN 'unpublish' THEN 'withdrawn'
              ELSE NULL
            END AS target_status
-       )
+       ), updated AS (
        UPDATE student_report_cards card
        SET status = transition.target_status,
+           submitted_by_user_id = CASE
+             WHEN $4 = 'submit' THEN $2::uuid
+             WHEN $4 = 'recall' THEN NULL
+             ELSE card.submitted_by_user_id
+           END,
+           submitted_at = CASE
+             WHEN $4 = 'submit' THEN NOW()
+             WHEN $4 = 'recall' THEN NULL
+             ELSE card.submitted_at
+           END,
+           approved_by_user_id = CASE
+             WHEN $4 = 'approve' THEN $2::uuid
+             WHEN $4 = 'recall' THEN NULL
+             ELSE card.approved_by_user_id
+           END,
+           approved_at = CASE
+             WHEN $4 = 'approve' THEN NOW()
+             WHEN $4 = 'recall' THEN NULL
+             ELSE card.approved_at
+           END,
+           approval_role = CASE
+             WHEN $4 = 'approve' THEN $5
+             WHEN $4 = 'recall' THEN NULL
+             ELSE card.approval_role
+           END,
            published_by_user_id = CASE WHEN $4 = 'publish' THEN $2::uuid ELSE card.published_by_user_id END,
            published_at = CASE WHEN $4 = 'publish' THEN NOW() ELSE card.published_at END,
-           metadata = card.metadata || CASE
-             WHEN $4 = 'unpublish' THEN jsonb_build_object('withdrawn_at', NOW(), 'withdrawn_by', $2::text)
-             WHEN $4 = 'publish' THEN jsonb_build_object('published_by', $2::text)
-             ELSE jsonb_build_object('last_transition', $4::text, 'transitioned_by', $2::text, 'transitioned_at', NOW())
-           END,
+           withdrawn_by_user_id = CASE WHEN $4 = 'unpublish' THEN $2::uuid ELSE NULL END,
+           withdrawn_at = CASE WHEN $4 = 'unpublish' THEN NOW() ELSE NULL END,
+           workflow_version = card.workflow_version + 1,
+           metadata = card.metadata || jsonb_strip_nulls(jsonb_build_object(
+             'last_transition', $4::text,
+             'transitioned_by', $2::text,
+             'transitioned_by_role', $5::text,
+             'transitioned_at', NOW(),
+             'transition_reason', $6::text
+           )),
            updated_at = NOW()
        FROM transition
        WHERE card.tenant_id = $1
          AND card.id = $3::uuid
+         AND card.is_current = TRUE
          AND card.status = ANY(transition.source_statuses)
-       RETURNING card.*`,
-      [input.tenant_id, input.actor_user_id, input.report_card_id, input.action],
+       RETURNING card.*
+       ), audit AS (
+         INSERT INTO student_report_card_audit_logs (
+           tenant_id,
+           report_card_id,
+           exam_series_id,
+           student_id,
+           action,
+           actor_user_id,
+           metadata
+         )
+         SELECT
+           $1,
+           updated.id,
+           updated.exam_series_id,
+           updated.student_id,
+           CASE $4
+             WHEN 'unpublish' THEN 'report_card.withdrawn'
+             WHEN 'submit' THEN 'report_card.submitted'
+             WHEN 'approve' THEN 'report_card.approved'
+             WHEN 'recall' THEN 'report_card.recalled'
+             WHEN 'publish' THEN 'report_card.published'
+           END,
+           $2::uuid,
+           jsonb_strip_nulls(jsonb_build_object(
+             'resulting_status', updated.status,
+             'actor_role', $5::text,
+             'reason', $6::text,
+             'workflow_version', updated.workflow_version,
+             'grade_event', CASE WHEN $4 = 'publish' THEN 'grade.published' ELSE NULL END
+           ))
+         FROM updated
+         RETURNING id
+       )
+       SELECT updated.*, (SELECT COUNT(*)::integer FROM audit) AS audit_recorded
+       FROM updated`,
+      [
+        input.tenant_id,
+        input.actor_user_id,
+        input.report_card_id,
+        input.action,
+        input.actor_role,
+        input.reason ?? null,
+      ],
     );
     return result.rows[0] ?? null;
   }
@@ -833,6 +1441,7 @@ export class ExamsRepository {
            updated_at = NOW()
        WHERE tenant_id = $1
          AND id = $3::uuid
+         AND is_current = TRUE
          AND status NOT IN ('published', 'withdrawn')
        RETURNING *`,
       [input.tenant_id, input.actor_user_id, input.report_card_id, input.class_teacher_comment, input.principal_comment],
@@ -1032,6 +1641,7 @@ export class ExamsRepository {
          AND series.id = card.exam_series_id
         WHERE artifact.tenant_id = $1
           AND artifact.verification_code = $2
+          AND card.status = 'published'
         GROUP BY card.id, student.id, series.id
         LIMIT 1
       `,
@@ -1046,6 +1656,24 @@ export class ExamsRepository {
     exam_series_id: string;
     student_id: string;
   }): Promise<Record<string, unknown>> {
+    const schoolResult = await this.executeSql(
+      `
+        SELECT
+          tenant.name,
+          NULLIF(tenant.settings->>'address', '') AS address,
+          NULLIF(tenant.settings->>'phone', '') AS phone,
+          NULLIF(tenant.settings->>'email', '') AS email,
+          COALESCE(
+            NULLIF(tenant.settings->>'logo_storage_path', ''),
+            NULLIF(tenant.settings->>'logo_url', '')
+          ) AS logo_ref,
+          NULLIF(tenant.settings->>'motto', '') AS motto
+        FROM tenants tenant
+        WHERE tenant.tenant_id = $1
+        LIMIT 1
+      `,
+      [input.tenant_id],
+    );
     const seriesResult = await this.executeSql(
       `
         SELECT
@@ -1091,15 +1719,69 @@ export class ExamsRepository {
       `,
       [input.tenant_id, input.student_id],
     );
+    const gradingPolicyResult = await this.executeSql(
+      `
+        SELECT
+          policy.id::text,
+          policy.name,
+          policy.reporting_mode,
+          policy.version,
+          policy.effective_from::text,
+          policy.effective_to::text,
+          policy.scope
+        FROM exam_grading_policies policy
+        WHERE policy.tenant_id = $1
+          AND policy.status = 'active'
+          AND (policy.exam_series_id = $2::uuid OR policy.exam_series_id IS NULL)
+          AND (policy.effective_from IS NULL OR policy.effective_from <= NOW())
+          AND (policy.effective_to IS NULL OR policy.effective_to > NOW())
+        ORDER BY
+          (policy.exam_series_id = $2::uuid) DESC,
+          policy.version DESC,
+          policy.activated_at DESC NULLS LAST,
+          policy.created_at DESC
+        LIMIT 1
+      `,
+      [input.tenant_id, input.exam_series_id],
+    );
     const subjectsResult = await this.executeSql(
       `
+        WITH selected_policy AS (
+          SELECT policy.id, policy.version
+          FROM exam_grading_policies policy
+          WHERE policy.tenant_id = $1
+            AND policy.status = 'active'
+            AND (policy.exam_series_id = $2::uuid OR policy.exam_series_id IS NULL)
+            AND (policy.effective_from IS NULL OR policy.effective_from <= NOW())
+            AND (policy.effective_to IS NULL OR policy.effective_to > NOW())
+          ORDER BY
+            (policy.exam_series_id = $2::uuid) DESC,
+            policy.version DESC,
+            policy.activated_at DESC NULLS LAST,
+            policy.created_at DESC
+          LIMIT 1
+        )
         SELECT
           mark.subject_id::text,
           COALESCE(subject.name, assessment.name, 'Subject') AS subject_name,
           mark.score::float AS score,
+          mark.score_status,
           assessment.max_score::float AS max_score,
-          boundary.label AS grade_label,
-          COALESCE(mark.remarks, boundary.remarks) AS remarks
+          CASE
+            WHEN mark.score_status = 'entered' AND assessment.max_score > 0
+              THEN ROUND((mark.score / assessment.max_score) * 100, 2)::float
+            ELSE NULL
+          END AS percentage,
+          COALESCE(policy_boundary.label, legacy_boundary.label) AS grade_label,
+          policy_boundary.points::float AS points,
+          policy_boundary.descriptor,
+          policy_boundary.is_pass,
+          COALESCE(
+            mark.remarks,
+            policy_boundary.remark,
+            policy_boundary.descriptor,
+            legacy_boundary.remarks
+          ) AS remarks
         FROM exam_marks mark
         JOIN exam_assessments assessment
           ON assessment.tenant_id = mark.tenant_id
@@ -1107,21 +1789,40 @@ export class ExamsRepository {
         LEFT JOIN subjects subject
           ON subject.tenant_id = mark.tenant_id
          AND subject.id = mark.subject_id::text
-        LEFT JOIN exam_grade_boundaries boundary
-          ON boundary.tenant_id = mark.tenant_id
-         AND boundary.exam_series_id = mark.exam_series_id
-         AND mark.score BETWEEN boundary.min_score AND boundary.max_score
+        LEFT JOIN selected_policy policy ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT boundary.*
+          FROM exam_grading_policy_boundaries boundary
+          WHERE boundary.tenant_id = mark.tenant_id
+            AND boundary.grading_policy_id = policy.id
+            AND mark.score_status = 'entered'
+            AND assessment.max_score > 0
+            AND boundary.min_score <= ((mark.score / assessment.max_score) * 100)
+          ORDER BY boundary.min_score DESC
+          LIMIT 1
+        ) policy_boundary ON TRUE
+        LEFT JOIN exam_grade_boundaries legacy_boundary
+          ON legacy_boundary.tenant_id = mark.tenant_id
+         AND legacy_boundary.exam_series_id = mark.exam_series_id
+         AND policy.id IS NULL
+         AND mark.score_status = 'entered'
+         AND assessment.max_score > 0
+         AND ((mark.score / assessment.max_score) * 100)
+           BETWEEN legacy_boundary.min_score AND legacy_boundary.max_score
         WHERE mark.tenant_id = $1
           AND mark.exam_series_id = $2::uuid
           AND mark.student_id = $3::uuid
+          AND mark.status IN ('locked', 'published')
         ORDER BY subject.name NULLS LAST, assessment.name
       `,
       [input.tenant_id, input.exam_series_id, input.student_id],
     );
 
     return {
+      school: schoolResult.rows[0] ?? null,
       exam_series: seriesResult.rows[0] ?? null,
       student: studentResult.rows[0] ?? null,
+      grading_policy: gradingPolicyResult.rows[0] ?? null,
       subjects: subjectsResult.rows,
       attendance: null,
     };
@@ -1153,13 +1854,46 @@ export class ExamsRepository {
           card.status,
           card.verification_code,
           card.published_by_user_id::text,
+          card.revision_number,
+          card.is_current,
+          card.supersedes_report_card_id::text,
+          card.grading_policy_id::text,
+          card.grading_policy_version,
+          card.template_version,
+          card.approved_result_version,
+          card.submitted_by_user_id::text,
+          card.submitted_at::text,
+          card.approved_by_user_id::text,
+          card.approved_at::text,
+          card.approval_role,
+          card.withdrawn_by_user_id::text,
+          card.withdrawn_at::text,
+          card.workflow_version,
           card.published_at::text,
           card.metadata,
           card.created_at::text,
-          card.updated_at::text
+          card.updated_at::text,
+          series.name AS exam_series_name,
+          term.name AS term,
+          year.name AS academic_year,
+          concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS student_name,
+          student.admission_number
         FROM student_report_cards card
+        LEFT JOIN exam_series series
+          ON series.tenant_id = card.tenant_id
+         AND series.id = card.exam_series_id
+        LEFT JOIN academic_terms term
+          ON term.tenant_id = series.tenant_id
+         AND term.id = series.academic_term_id
+        LEFT JOIN academic_years year
+          ON year.tenant_id = term.tenant_id
+         AND year.id = term.academic_year_id
+        LEFT JOIN students student
+          ON student.tenant_id = card.tenant_id
+         AND student.id = card.student_id
         WHERE card.tenant_id = $1
           AND ($2::uuid IS NULL OR card.student_id = $2::uuid)
+          AND card.is_current = TRUE
           ${statusClause}
         ORDER BY card.published_at DESC NULLS LAST, card.created_at DESC
         LIMIT $3::integer
@@ -1193,6 +1927,11 @@ export class ExamsRepository {
           card.status,
           card.verification_code,
           card.published_at::text,
+          card.revision_number,
+          card.grading_policy_id::text,
+          card.grading_policy_version,
+          card.template_version,
+          card.approved_result_version,
           card.metadata,
           card.created_at::text,
           card.updated_at::text,
@@ -1222,6 +1961,7 @@ export class ExamsRepository {
          AND year.id = term.academic_year_id
         WHERE card.tenant_id = $1
           AND card.status = 'published'
+          AND card.is_current = TRUE
           AND ($3::uuid IS NULL OR card.student_id = $3::uuid)
         ORDER BY card.published_at DESC NULLS LAST, card.created_at DESC
         LIMIT $4::integer
@@ -1254,6 +1994,11 @@ export class ExamsRepository {
           card.status,
           card.verification_code,
           card.published_at::text,
+          card.revision_number,
+          card.grading_policy_id::text,
+          card.grading_policy_version,
+          card.template_version,
+          card.approved_result_version,
           card.metadata,
           card.created_at::text,
           card.updated_at::text,
@@ -1279,6 +2024,7 @@ export class ExamsRepository {
         WHERE card.tenant_id = $1
           AND card.student_id = $2::uuid
           AND card.status = 'published'
+          AND card.is_current = TRUE
         ORDER BY card.published_at DESC NULLS LAST, card.created_at DESC
         LIMIT $3::integer
         OFFSET $4::integer
@@ -1305,6 +2051,8 @@ export class ExamsRepository {
          AND guardian.status = 'active'
         WHERE card.tenant_id = $1
           AND card.id = $2::uuid
+          AND card.status = 'published'
+          AND card.is_current = TRUE
         LIMIT 1
       `,
       [
@@ -1333,6 +2081,8 @@ export class ExamsRepository {
         WHERE card.tenant_id = $1
           AND card.id = $2::uuid
           AND card.student_id = $3::uuid
+          AND card.status = 'published'
+          AND card.is_current = TRUE
         LIMIT 1
       `,
       [
@@ -1369,6 +2119,47 @@ export class ExamsRepository {
         LIMIT 1
       `,
       [input.tenant_id, input.assessment_id],
+    );
+
+    return result.rows[0] ?? null;
+  }
+
+  async findStudentMarkEligibility(input: {
+    tenant_id: string;
+    student_id: string;
+    class_section_id: string;
+    subject_id: string;
+  }) {
+    const result = await this.executeSql(
+      `SELECT student.id::text
+       FROM students student
+       WHERE student.tenant_id = $1
+         AND student.id = $2::uuid
+         AND student.status = 'active'
+         AND EXISTS (
+           SELECT 1
+           FROM student_class_assignments class_assignment
+           WHERE class_assignment.tenant_id = student.tenant_id
+             AND class_assignment.student_id = student.id::text
+             AND class_assignment.class_section_id = $3::text
+             AND class_assignment.status = 'active'
+         )
+         AND EXISTS (
+           SELECT 1
+           FROM student_subject_enrollments subject_enrollment
+           WHERE subject_enrollment.tenant_id = student.tenant_id
+             AND subject_enrollment.student_id = student.id::text
+             AND subject_enrollment.class_section_id = $3::text
+             AND subject_enrollment.subject_id = $4::text
+             AND subject_enrollment.status = 'active'
+         )
+       LIMIT 1`,
+      [
+        input.tenant_id,
+        input.student_id,
+        input.class_section_id,
+        input.subject_id,
+      ],
     );
 
     return result.rows[0] ?? null;
@@ -1533,10 +2324,11 @@ export class ExamsRepository {
       `
         UPDATE exam_marks
         SET status = 'submitted',
+            submitted_at = COALESCE(submitted_at, NOW()),
             updated_by_user_id = $3::uuid,
             updated_at = NOW()
         WHERE tenant_id = $1
-          AND mark.id = ANY($2::uuid[])
+          AND id = ANY($2::uuid[])
           AND status IN ('draft', 'submitted')
           AND ($4::boolean = FALSE OR entered_by_user_id = $3::uuid)
         RETURNING id::text
@@ -2119,30 +2911,242 @@ export class ExamsRepository {
     tenant_id: string;
     exam_series_id: string;
     actor_user_id: string;
+    actor_role: string;
   }) {
-    await this.executeSql(
-      `
-        UPDATE exam_series
-        SET status = 'published',
-            published_at = NOW(),
-            updated_at = NOW()
-        WHERE tenant_id = $1 AND id = $2::uuid
-      `,
-      [input.tenant_id, input.exam_series_id]
-    );
     const result = await this.executeSql(
       `
-        UPDATE exam_marks
-        SET status = 'published',
-            updated_by_user_id = $3::uuid,
-            published_at = NOW(),
-            updated_at = NOW()
-        WHERE tenant_id = $1 AND exam_series_id = $2::uuid AND status IN ('locked', 'reviewed')
-        RETURNING *
+        WITH readiness AS MATERIALIZED (
+          SELECT
+            COUNT(*)::integer AS total_count,
+            COUNT(*) FILTER (WHERE card.status = 'approved')::integer AS approved_count,
+            COUNT(*) FILTER (WHERE card.status = 'published')::integer AS already_published_count,
+            COUNT(*) FILTER (WHERE card.status NOT IN ('approved', 'published'))::integer AS blocked_count
+          FROM student_report_cards card
+          WHERE card.tenant_id = $1
+            AND card.exam_series_id = $2::uuid
+            AND card.is_current = TRUE
+        ), release_allowed AS (
+          SELECT 1
+          FROM readiness
+          WHERE total_count > 0
+            AND blocked_count = 0
+        ), published_cards AS (
+          UPDATE student_report_cards card
+          SET status = 'published',
+              published_by_user_id = $3::uuid,
+              published_at = NOW(),
+              withdrawn_by_user_id = NULL,
+              withdrawn_at = NULL,
+              workflow_version = card.workflow_version + 1,
+              metadata = card.metadata || jsonb_build_object(
+                'last_transition', 'publish',
+                'transitioned_by', $3::text,
+                'transitioned_by_role', $4::text,
+                'transitioned_at', NOW()
+              ),
+              updated_at = NOW()
+          WHERE card.tenant_id = $1
+            AND card.exam_series_id = $2::uuid
+            AND card.is_current = TRUE
+            AND card.status = 'approved'
+            AND EXISTS (SELECT 1 FROM release_allowed)
+          RETURNING
+            card.id::text,
+            card.exam_series_id::text,
+            card.student_id::text,
+            card.status,
+            card.workflow_version,
+            card.updated_at::text
+        ), report_card_audits AS (
+          INSERT INTO student_report_card_audit_logs (
+            tenant_id,
+            report_card_id,
+            exam_series_id,
+            student_id,
+            action,
+            actor_user_id,
+            metadata
+          )
+          SELECT
+            $1,
+            published_cards.id::uuid,
+            published_cards.exam_series_id::uuid,
+            published_cards.student_id::uuid,
+            'report_card.published',
+            $3::uuid,
+            jsonb_build_object(
+              'resulting_status', 'published',
+              'actor_role', $4::text,
+              'workflow_version', published_cards.workflow_version,
+              'grade_event', 'grade.published',
+              'release_mode', 'exam_series'
+            )
+          FROM published_cards
+          RETURNING id
+        ), published_marks AS (
+          UPDATE exam_marks mark
+          SET status = 'published',
+              updated_by_user_id = $3::uuid,
+              published_at = NOW(),
+              updated_at = NOW()
+          WHERE mark.tenant_id = $1
+            AND mark.exam_series_id = $2::uuid
+            AND mark.status IN ('locked', 'reviewed')
+            AND EXISTS (SELECT 1 FROM release_allowed)
+          RETURNING mark.id
+        ), published_series AS (
+          UPDATE exam_series series
+          SET status = 'published',
+              published_at = NOW(),
+              updated_at = NOW()
+          WHERE series.tenant_id = $1
+            AND series.id = $2::uuid
+            AND EXISTS (SELECT 1 FROM release_allowed)
+          RETURNING series.id
+        )
+        SELECT
+          readiness.total_count,
+          readiness.approved_count,
+          readiness.already_published_count,
+          readiness.blocked_count,
+          COALESCE(
+            (SELECT jsonb_agg(to_jsonb(published_cards)) FROM published_cards),
+            '[]'::jsonb
+          ) AS published_cards,
+          (SELECT COUNT(*)::integer FROM published_marks) AS published_marks_count,
+          (SELECT COUNT(*)::integer FROM report_card_audits) AS audit_count,
+          EXISTS (SELECT 1 FROM published_series) AS series_published
+        FROM readiness
       `,
-      [input.tenant_id, input.exam_series_id, input.actor_user_id]
+      [input.tenant_id, input.exam_series_id, input.actor_user_id, input.actor_role],
     );
-    return result.rows;
+    return result.rows[0] ?? null;
+  }
+
+  async unpublishExamSeries(input: {
+    tenant_id: string;
+    exam_series_id: string;
+    actor_user_id: string;
+    actor_role: string;
+    reason: string;
+  }) {
+    const result = await this.executeSql(
+      `
+        WITH target_series AS MATERIALIZED (
+          SELECT series.id
+          FROM exam_series series
+          WHERE series.tenant_id = $1
+            AND series.id = $2::uuid
+            AND series.status = 'published'
+          FOR UPDATE
+        ), readiness AS MATERIALIZED (
+          SELECT
+            COUNT(*)::integer AS total_count,
+            COUNT(*) FILTER (WHERE card.status = 'published')::integer AS published_count
+          FROM student_report_cards card
+          WHERE card.tenant_id = $1
+            AND card.exam_series_id = $2::uuid
+            AND card.is_current = TRUE
+            AND EXISTS (SELECT 1 FROM target_series)
+        ), withdrawn_cards AS (
+          UPDATE student_report_cards card
+          SET status = 'withdrawn',
+              published_at = NULL,
+              withdrawn_by_user_id = $3::uuid,
+              withdrawn_at = NOW(),
+              workflow_version = card.workflow_version + 1,
+              metadata = card.metadata || jsonb_build_object(
+                'last_transition', 'unpublish',
+                'transitioned_by', $3::text,
+                'transitioned_by_role', $4::text,
+                'transition_reason', $5::text,
+                'transitioned_at', NOW()
+              ),
+              updated_at = NOW()
+          WHERE card.tenant_id = $1
+            AND card.exam_series_id = $2::uuid
+            AND card.is_current = TRUE
+            AND card.status = 'published'
+            AND EXISTS (SELECT 1 FROM target_series)
+          RETURNING
+            card.id::text,
+            card.exam_series_id::text,
+            card.student_id::text,
+            card.status,
+            card.workflow_version,
+            card.updated_at::text
+        ), report_card_audits AS (
+          INSERT INTO student_report_card_audit_logs (
+            tenant_id,
+            report_card_id,
+            exam_series_id,
+            student_id,
+            action,
+            actor_user_id,
+            metadata
+          )
+          SELECT
+            $1,
+            withdrawn_cards.id::uuid,
+            withdrawn_cards.exam_series_id::uuid,
+            withdrawn_cards.student_id::uuid,
+            'report_card.withdrawn',
+            $3::uuid,
+            jsonb_build_object(
+              'resulting_status', 'withdrawn',
+              'actor_role', $4::text,
+              'reason', $5::text,
+              'workflow_version', withdrawn_cards.workflow_version,
+              'grade_event', 'grade.withdrawn',
+              'release_mode', 'exam_series'
+            )
+          FROM withdrawn_cards
+          RETURNING id
+        ), withdrawn_marks AS (
+          UPDATE exam_marks mark
+          SET status = 'locked',
+              updated_by_user_id = $3::uuid,
+              published_at = NULL,
+              locked_at = COALESCE(mark.locked_at, NOW()),
+              updated_at = NOW()
+          WHERE mark.tenant_id = $1
+            AND mark.exam_series_id = $2::uuid
+            AND mark.status = 'published'
+            AND EXISTS (SELECT 1 FROM target_series)
+          RETURNING mark.id
+        ), withdrawn_series AS (
+          UPDATE exam_series series
+          SET status = 'locked',
+              published_at = NULL,
+              updated_at = NOW()
+          WHERE series.tenant_id = $1
+            AND series.id = $2::uuid
+            AND series.status = 'published'
+            AND EXISTS (SELECT 1 FROM withdrawn_cards)
+          RETURNING series.id
+        )
+        SELECT
+          readiness.total_count,
+          readiness.published_count,
+          COALESCE(
+            (SELECT jsonb_agg(to_jsonb(withdrawn_cards)) FROM withdrawn_cards),
+            '[]'::jsonb
+          ) AS withdrawn_cards,
+          (SELECT COUNT(*)::integer FROM withdrawn_marks) AS relocked_marks_count,
+          (SELECT COUNT(*)::integer FROM report_card_audits) AS audit_count,
+          EXISTS (SELECT 1 FROM withdrawn_series) AS series_withdrawn
+        FROM readiness
+        WHERE EXISTS (SELECT 1 FROM target_series)
+      `,
+      [
+        input.tenant_id,
+        input.exam_series_id,
+        input.actor_user_id,
+        input.actor_role,
+        input.reason,
+      ],
+    );
+    return result.rows[0] ?? null;
   }
 
   async createTimetableSlot(input: Record<string, unknown>) {
@@ -2760,50 +3764,223 @@ export class ExamsRepository {
     return result.rows;
   }
 
+  async getGradingPolicy(input: { tenant_id: string; policy_id: string }) {
+    const result = await this.executeSql(
+      `SELECT *
+       FROM exam_grading_policies
+       WHERE tenant_id = $1
+         AND id = $2::uuid
+       LIMIT 1`,
+      [input.tenant_id, input.policy_id],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async getGradingPolicyImpact(input: { tenant_id: string; policy_id: string }) {
+    const result = await this.executeSql(
+      `SELECT
+         policy.id::text,
+         policy.exam_series_id::text,
+         policy.scope,
+         policy.version,
+         policy.status,
+         (
+           SELECT COUNT(*)::integer
+           FROM exam_series series
+           WHERE series.tenant_id = policy.tenant_id
+             AND (
+               series.id = policy.exam_series_id
+               OR policy.exam_series_id IS NULL
+             )
+             AND series.ends_on >= CURRENT_DATE
+         ) AS future_exam_count,
+         (
+           SELECT COUNT(*)::integer
+           FROM exam_series series
+           WHERE series.tenant_id = policy.tenant_id
+             AND (
+               series.id = policy.exam_series_id
+               OR policy.exam_series_id IS NULL
+             )
+             AND series.ends_on < CURRENT_DATE
+         ) AS existing_exam_count,
+         (
+           SELECT COUNT(*)::integer
+           FROM student_report_cards card
+           WHERE card.tenant_id = policy.tenant_id
+             AND card.grading_policy_id = policy.id
+         ) AS report_card_count,
+         (
+           SELECT COUNT(*)::integer
+           FROM student_report_cards card
+           WHERE card.tenant_id = policy.tenant_id
+             AND card.grading_policy_id = policy.id
+             AND card.status = 'published'
+         ) AS published_report_count
+       FROM exam_grading_policies policy
+       WHERE policy.tenant_id = $1
+         AND policy.id = $2::uuid
+       LIMIT 1`,
+      [input.tenant_id, input.policy_id],
+    );
+    return result.rows[0] ?? null;
+  }
+
   async createGradingPolicy(input: Record<string, unknown>) {
     const result = await this.executeSql(
-      `INSERT INTO exam_grading_policies (
-         tenant_id,
-         exam_series_id,
-         name,
-         reporting_mode,
-         status,
-         created_by_user_id
+      `WITH source AS (
+         SELECT id, version
+         FROM exam_grading_policies
+         WHERE tenant_id = $1
+           AND id = $9::uuid
+       ), created AS (
+         INSERT INTO exam_grading_policies (
+           tenant_id,
+           exam_series_id,
+           name,
+           reporting_mode,
+           status,
+           version,
+           effective_from,
+           effective_to,
+           supersedes_policy_id,
+           scope,
+           created_by_user_id
+         )
+         SELECT
+           $1,
+           $2::uuid,
+           $3,
+           $4,
+           'draft',
+           COALESCE(source.version + 1, 1),
+           $5::timestamptz,
+           $6::timestamptz,
+           source.id,
+           $7::jsonb,
+           $8::uuid
+         FROM (SELECT 1) seed
+         LEFT JOIN source ON TRUE
+         WHERE $9::uuid IS NULL OR source.id IS NOT NULL
+         RETURNING *
+       ), copied_boundaries AS (
+         INSERT INTO exam_grading_policy_boundaries (
+           tenant_id,
+           grading_policy_id,
+           label,
+           min_score,
+           max_score,
+           points,
+           descriptor,
+           remark,
+           is_pass
+         )
+         SELECT
+           boundary.tenant_id,
+           created.id,
+           boundary.label,
+           boundary.min_score,
+           boundary.max_score,
+           boundary.points,
+           boundary.descriptor,
+           boundary.remark,
+           boundary.is_pass
+         FROM created
+         JOIN source ON TRUE
+         JOIN exam_grading_policy_boundaries boundary
+           ON boundary.tenant_id = $1
+          AND boundary.grading_policy_id = source.id
+         RETURNING id
+       ), copied_weightings AS (
+         INSERT INTO exam_subject_weightings (
+           tenant_id,
+           grading_policy_id,
+           subject_id,
+           weight,
+           is_compulsory
+         )
+         SELECT
+           weighting.tenant_id,
+           created.id,
+           weighting.subject_id,
+           weighting.weight,
+           weighting.is_compulsory
+         FROM created
+         JOIN source ON TRUE
+         JOIN exam_subject_weightings weighting
+           ON weighting.tenant_id = $1
+          AND weighting.grading_policy_id = source.id
+         RETURNING id
        )
-       VALUES ($1, $2::uuid, $3, $4, 'draft', $5::uuid)
-       RETURNING *`,
+       SELECT created.*
+       FROM created`,
       [
         input.tenant_id,
         input.exam_series_id ?? null,
         input.name,
         input.reporting_mode,
+        input.effective_from ?? null,
+        input.effective_to ?? null,
+        JSON.stringify(input.scope ?? {}),
         input.actor_user_id,
+        input.supersedes_policy_id ?? null,
       ],
     );
-    return result.rows[0];
+    return result.rows[0] ?? null;
   }
 
   async transitionGradingPolicy(input: Record<string, unknown>) {
     const result = await this.executeSql(
       `WITH target AS (
-         SELECT id, exam_series_id
+         SELECT id, exam_series_id, status, scope, effective_from
          FROM exam_grading_policies
-         WHERE tenant_id = $1 AND id = $2::uuid
-       ), retired AS (
+         WHERE tenant_id = $1
+           AND id = $2::uuid
+         FOR UPDATE
+       ), replaced AS (
          UPDATE exam_grading_policies policy
-         SET status = 'retired', updated_at = NOW()
+         SET status = 'replaced',
+             effective_to = COALESCE(target.effective_from, NOW()),
+             updated_at = NOW()
          FROM target
          WHERE $3 = 'active'
            AND policy.tenant_id = $1
            AND policy.status = 'active'
            AND policy.id <> target.id
            AND policy.exam_series_id IS NOT DISTINCT FROM target.exam_series_id
+           AND policy.scope = target.scope
          RETURNING policy.id
        )
        UPDATE exam_grading_policies policy
-       SET status = $3, updated_at = NOW()
+       SET status = $3,
+           validated_at = CASE
+             WHEN $3 = 'validated' THEN NOW()
+             ELSE policy.validated_at
+           END,
+           activated_at = CASE
+             WHEN $3 = 'active' THEN NOW()
+             ELSE policy.activated_at
+           END,
+           effective_from = CASE
+             WHEN $3 = 'active' THEN COALESCE(policy.effective_from, NOW())
+             ELSE policy.effective_from
+           END,
+           effective_to = CASE
+             WHEN $3 = 'archived' THEN COALESCE(policy.effective_to, NOW())
+             ELSE policy.effective_to
+           END,
+           updated_at = NOW()
        FROM target
-       WHERE policy.tenant_id = $1 AND policy.id = target.id
+       WHERE policy.tenant_id = $1
+         AND policy.id = target.id
+         AND (
+           (target.status = 'draft' AND $3 IN ('validated', 'archived'))
+           OR (target.status = 'validated' AND $3 IN ('draft', 'scheduled', 'active', 'archived'))
+           OR (target.status = 'scheduled' AND $3 IN ('draft', 'active', 'archived'))
+           OR (target.status = 'active' AND $3 = 'archived')
+           OR (target.status = 'replaced' AND $3 = 'archived')
+           OR target.status = $3
+         )
        RETURNING policy.*`,
       [input.tenant_id, input.policy_id, input.status],
     );
@@ -2816,10 +3993,25 @@ export class ExamsRepository {
        SET
          name = COALESCE($3, name),
          reporting_mode = COALESCE($4, reporting_mode),
+         exam_series_id = COALESCE($5::uuid, exam_series_id),
+         effective_from = COALESCE($6::timestamptz, effective_from),
+         effective_to = COALESCE($7::timestamptz, effective_to),
+         scope = COALESCE($8::jsonb, scope),
          updated_at = NOW()
-       WHERE tenant_id = $1 AND id = $2::uuid
+       WHERE tenant_id = $1
+         AND id = $2::uuid
+         AND status = 'draft'
        RETURNING *`,
-      [input.tenant_id, input.policy_id, input.name ?? null, input.reporting_mode ?? null],
+      [
+        input.tenant_id,
+        input.policy_id,
+        input.name ?? null,
+        input.reporting_mode ?? null,
+        input.exam_series_id ?? null,
+        input.effective_from ?? null,
+        input.effective_to ?? null,
+        input.scope === undefined ? null : JSON.stringify(input.scope),
+      ],
     );
     return result.rows[0] ?? null;
   }
@@ -2845,37 +4037,110 @@ export class ExamsRepository {
     return result.rows;
   }
 
+  async getGradingPolicyBoundary(input: { tenant_id: string; boundary_id: string }) {
+    const result = await this.executeSql(
+      `SELECT
+         boundary.*,
+         policy.status AS policy_status
+       FROM exam_grading_policy_boundaries boundary
+       JOIN exam_grading_policies policy
+         ON policy.tenant_id = boundary.tenant_id
+        AND policy.id = boundary.grading_policy_id
+       WHERE boundary.tenant_id = $1
+         AND boundary.id = $2::uuid
+       LIMIT 1`,
+      [input.tenant_id, input.boundary_id],
+    );
+    return result.rows[0] ?? null;
+  }
+
   async createGradingPolicyBoundary(input: Record<string, unknown>) {
     const result = await this.executeSql(
-      `INSERT INTO exam_grading_policy_boundaries (tenant_id, grading_policy_id, label, min_score, max_score, points, descriptor)
-       SELECT $1, policy.id, $3, $4, $5, $6, $7 FROM exam_grading_policies policy
-       WHERE policy.tenant_id = $1 AND policy.id = $2::uuid RETURNING *`,
-      [input.tenant_id, input.policy_id, input.label, input.min_score, input.max_score, input.points ?? null, input.descriptor ?? null],
+      `INSERT INTO exam_grading_policy_boundaries (
+         tenant_id,
+         grading_policy_id,
+         label,
+         min_score,
+         max_score,
+         points,
+         descriptor,
+         remark,
+         is_pass
+       )
+       SELECT $1, policy.id, $3, $4, $5, $6, $7, $8, $9
+       FROM exam_grading_policies policy
+       WHERE policy.tenant_id = $1
+         AND policy.id = $2::uuid
+         AND policy.status = 'draft'
+       RETURNING *`,
+      [
+        input.tenant_id,
+        input.policy_id,
+        input.label,
+        input.min_score,
+        input.max_score,
+        input.points ?? null,
+        input.descriptor ?? null,
+        input.remark ?? null,
+        input.is_pass ?? false,
+      ],
     );
     return result.rows[0] ?? null;
   }
 
   async updateGradingPolicyBoundary(input: Record<string, unknown>) {
     const result = await this.executeSql(
-      `UPDATE exam_grading_policy_boundaries
-       SET label = COALESCE($3, label), min_score = COALESCE($4, min_score), max_score = COALESCE($5, max_score),
-           points = COALESCE($6, points), descriptor = COALESCE($7, descriptor)
-       WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
-      [input.tenant_id, input.boundary_id, input.label ?? null, input.min_score ?? null, input.max_score ?? null, input.points ?? null, input.descriptor ?? null],
+      `UPDATE exam_grading_policy_boundaries boundary
+       SET label = COALESCE($3, boundary.label),
+           min_score = COALESCE($4, boundary.min_score),
+           max_score = COALESCE($5, boundary.max_score),
+           points = CASE WHEN $6::boolean THEN $7::numeric ELSE boundary.points END,
+           descriptor = CASE WHEN $8::boolean THEN $9::text ELSE boundary.descriptor END,
+           remark = CASE WHEN $10::boolean THEN $11::text ELSE boundary.remark END,
+           is_pass = CASE WHEN $12::boolean THEN $13::boolean ELSE boundary.is_pass END
+       FROM exam_grading_policies policy
+       WHERE boundary.tenant_id = $1
+         AND boundary.id = $2::uuid
+         AND policy.tenant_id = boundary.tenant_id
+         AND policy.id = boundary.grading_policy_id
+         AND policy.status = 'draft'
+       RETURNING boundary.*`,
+      [
+        input.tenant_id,
+        input.boundary_id,
+        input.label ?? null,
+        input.min_score ?? null,
+        input.max_score ?? null,
+        input.points !== undefined,
+        input.points ?? null,
+        input.descriptor !== undefined,
+        input.descriptor ?? null,
+        input.remark !== undefined,
+        input.remark ?? null,
+        input.is_pass !== undefined,
+        input.is_pass ?? false,
+      ],
     );
     return result.rows[0] ?? null;
   }
 
   async deleteGradingPolicyBoundary(input: Record<string, unknown>) {
     const result = await this.executeSql(
-      `DELETE FROM exam_grading_policy_boundaries WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+      `DELETE FROM exam_grading_policy_boundaries boundary
+       USING exam_grading_policies policy
+       WHERE boundary.tenant_id = $1
+         AND boundary.id = $2::uuid
+         AND policy.tenant_id = boundary.tenant_id
+         AND policy.id = boundary.grading_policy_id
+         AND policy.status = 'draft'
+       RETURNING boundary.*`,
       [input.tenant_id, input.boundary_id],
     );
     return result.rows[0] ?? null;
   }
 
   async getAuditLogs(tenantId: string, filters: Record<string, any> = {}) {
-    let query = `SELECT * FROM exam_marks_audit_logs WHERE tenant_id = $1`;
+    let query = `SELECT * FROM exam_mark_audit_logs WHERE tenant_id = $1`;
     const params: any[] = [tenantId];
     let paramCount = 2;
 
@@ -3080,6 +4345,7 @@ export class ExamsRepository {
         student.admission_number,
         NULLIF(BTRIM(CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name)), '') AS student_name,
         mark.score::float AS score,
+        COALESCE(mark.score_status, 'not_assessed') AS score_status,
         mark.remarks,
         COALESCE(mark.status, 'draft') AS status,
         mark.entered_by_user_id::text,
@@ -3241,276 +4507,969 @@ export class ExamsRepository {
     return result.rows[0];
   }
 
-  async getAnalytics(tenantId: string) {
-    // 1. KPIs
-    let kpis = {
-      school_average: 0,
-      pending_reviews: 0,
-      missing_marks_alerts: 0,
-      active_exams: 0,
-    };
-    try {
-      const result = await this.executeSql(
-        `
+  async resolveAcademicInterventionScope(input: {
+    tenant_id: string;
+    student_id?: string;
+    exam_series_id?: string;
+    subject_id?: string;
+    subject_name?: string;
+    class_section_id?: string;
+    class_name?: string;
+    owner_user_id?: string;
+    owner_name?: string;
+    hod_user_id?: string;
+  }) {
+    const result = await this.executeSql(
+      `
         SELECT
-          -- School Average
+          student.id AS student_id,
+          NULLIF(BTRIM(CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name)), '') AS student_name,
+          student.admission_number,
+          series.id::text AS exam_series_id,
+          series.name AS exam_series_name,
+          subject.id AS subject_id,
+          subject.name AS subject_name,
+          section.id AS class_section_id,
+          section.name AS class_name,
+          owner.user_id::text AS owner_user_id,
+          owner.display_name AS owner_name,
+          COALESCE(explicit_hod.user_id, department_hod.user_id)::text AS hod_user_id,
+          COALESCE(explicit_hod.display_name, department_hod.display_name) AS hod_name
+        FROM (SELECT 1) seed
+        LEFT JOIN LATERAL (
+          SELECT candidate.*
+          FROM students candidate
+          WHERE candidate.tenant_id = $1
+            AND $2::text IS NOT NULL
+            AND candidate.id = $2::text
+            AND candidate.deleted_at IS NULL
+          LIMIT 1
+        ) student ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT candidate.*
+          FROM exam_series candidate
+          WHERE candidate.tenant_id = $1
+            AND $3::text IS NOT NULL
+            AND candidate.id::text = $3::text
+          LIMIT 1
+        ) series ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT candidate.*
+          FROM subjects candidate
+          WHERE candidate.tenant_id = $1
+            AND (
+              ($4::text IS NOT NULL AND candidate.id = $4::text)
+              OR (
+                $4::text IS NULL
+                AND $5::text IS NOT NULL
+                AND LOWER(BTRIM(candidate.name)) = LOWER(BTRIM($5::text))
+              )
+            )
+            AND COALESCE(candidate.status, 'active') = 'active'
+          ORDER BY candidate.updated_at DESC, candidate.id
+          LIMIT 1
+        ) subject ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT candidate.*
+          FROM class_sections candidate
+          WHERE candidate.tenant_id = $1
+            AND (
+              ($6::text IS NOT NULL AND candidate.id = $6::text)
+              OR (
+                $6::text IS NULL
+                AND $7::text IS NOT NULL
+                AND LOWER(BTRIM(candidate.name)) = LOWER(BTRIM($7::text))
+              )
+            )
+            AND COALESCE(candidate.status, 'active') = 'active'
+            AND COALESCE(candidate.is_active, TRUE) = TRUE
+          ORDER BY candidate.updated_at DESC, candidate.id
+          LIMIT 1
+        ) section ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT candidate.*
+          FROM staff_profiles candidate
+          WHERE candidate.tenant_id = $1
+            AND candidate.user_id IS NOT NULL
+            AND (
+              ($8::text IS NOT NULL AND candidate.user_id::text = $8::text)
+              OR (
+                $8::text IS NULL
+                AND $9::text IS NOT NULL
+                AND LOWER(BTRIM(candidate.display_name)) = LOWER(BTRIM($9::text))
+              )
+            )
+            AND candidate.status = 'active'
+          ORDER BY candidate.updated_at DESC, candidate.id
+          LIMIT 1
+        ) owner ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT candidate.*
+          FROM staff_profiles candidate
+          WHERE candidate.tenant_id = $1
+            AND candidate.user_id IS NOT NULL
+            AND $10::text IS NOT NULL
+            AND candidate.user_id::text = $10::text
+            AND candidate.status = 'active'
+          LIMIT 1
+        ) explicit_hod ON TRUE
+        LEFT JOIN academics_departments department
+          ON department.tenant_id = $1
+         AND department.id = subject.department_id
+         AND department.is_active = TRUE
+        LEFT JOIN staff_profiles department_hod
+          ON department_hod.tenant_id = department.tenant_id
+         AND department_hod.user_id = department.head_of_department_user_id
+         AND department_hod.status = 'active'
+      `,
+      [
+        input.tenant_id,
+        input.student_id ?? null,
+        input.exam_series_id ?? null,
+        input.subject_id ?? null,
+        input.subject_name ?? null,
+        input.class_section_id ?? null,
+        input.class_name ?? null,
+        input.owner_user_id ?? null,
+        input.owner_name ?? null,
+        input.hod_user_id ?? null,
+      ],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async canStaffManageAcademicInterventionScope(input: {
+    tenant_id: string;
+    user_id: string;
+    class_section_id?: string | null;
+    subject_id?: string | null;
+  }): Promise<boolean> {
+    const result = await this.executeSql(
+      `
+        SELECT EXISTS (
+          SELECT 1
+          FROM teacher_subject_assignments assignment
+          WHERE assignment.tenant_id = $1
+            AND assignment.teacher_user_id::text = $2
+            AND assignment.status = 'active'
+            AND ($3::text IS NULL OR assignment.class_section_id::text = $3)
+            AND ($4::text IS NULL OR assignment.subject_id::text = $4)
+          UNION ALL
+          SELECT 1
+          FROM academics_class_teachers assignment
+          WHERE assignment.tenant_id = $1
+            AND assignment.teacher_user_id::text = $2
+            AND assignment.is_active = TRUE
+            AND COALESCE(assignment.status, 'active') = 'active'
+            AND ($3::text IS NULL OR assignment.class_section_id::text = $3)
+            AND $4::text IS NULL
+        ) AS allowed
+      `,
+      [
+        input.tenant_id,
+        input.user_id,
+        input.class_section_id ?? null,
+        input.subject_id ?? null,
+      ],
+    );
+    return result.rows[0]?.allowed === true;
+  }
+
+  async createAcademicIntervention(input: {
+    tenant_id: string;
+    student_id?: string | null;
+    exam_series_id?: string | null;
+    subject_id?: string | null;
+    class_section_id?: string | null;
+    scope_type: string;
+    source: string;
+    trigger_reason: string;
+    baseline: Record<string, unknown>;
+    plan: string;
+    target: Record<string, unknown>;
+    owner_user_id?: string | null;
+    hod_user_id?: string | null;
+    priority: string;
+    starts_on?: string | null;
+    due_on?: string | null;
+    actor_user_id: string;
+  }) {
+    const result = await this.executeSql(
+      `
+        INSERT INTO academic_interventions (
+          tenant_id, student_id, exam_series_id, subject_id, class_section_id,
+          scope_type, source, trigger_reason, baseline, plan, target,
+          owner_user_id, hod_user_id, priority, status, starts_on, due_on,
+          created_by_user_id, updated_by_user_id
+        )
+        VALUES (
+          $1, $2, $3::uuid, $4, $5,
+          $6, $7, $8, $9::jsonb, $10, $11::jsonb,
+          $12::uuid, $13::uuid, $14, 'planned', $15::date, $16::date,
+          $17::uuid, $17::uuid
+        )
+        RETURNING
+          id::text, tenant_id, student_id, exam_series_id::text, subject_id,
+          class_section_id, scope_type, source, trigger_reason, baseline, plan,
+          target, owner_user_id::text, hod_user_id::text, priority, status,
+          starts_on::text, due_on::text, completed_at::text, outcome,
+          created_by_user_id::text, created_at::text, updated_at::text
+      `,
+      [
+        input.tenant_id,
+        input.student_id ?? null,
+        input.exam_series_id ?? null,
+        input.subject_id ?? null,
+        input.class_section_id ?? null,
+        input.scope_type,
+        input.source,
+        input.trigger_reason,
+        JSON.stringify(input.baseline),
+        input.plan,
+        JSON.stringify(input.target),
+        input.owner_user_id ?? null,
+        input.hod_user_id ?? null,
+        input.priority,
+        input.starts_on ?? null,
+        input.due_on ?? null,
+        input.actor_user_id,
+      ],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async findAcademicIntervention(input: { tenant_id: string; intervention_id: string }) {
+    const result = await this.executeSql(
+      `
+        SELECT
+          intervention.*,
+          intervention.id::text AS id,
+          intervention.exam_series_id::text AS exam_series_id,
+          intervention.owner_user_id::text AS owner_user_id,
+          intervention.hod_user_id::text AS hod_user_id
+        FROM academic_interventions intervention
+        WHERE intervention.tenant_id = $1
+          AND intervention.id::text = $2
+        LIMIT 1
+      `,
+      [input.tenant_id, input.intervention_id],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async listAcademicInterventions(input: {
+    tenant_id: string;
+    statuses?: string[];
+    student_id?: string;
+    owner_user_id?: string;
+    hod_user_id?: string;
+    limit?: number;
+  }) {
+    const limit = Math.min(Math.max(Math.trunc(Number(input.limit ?? 100)), 1), 250);
+    const scopeParams: unknown[] = [
+      input.tenant_id,
+      input.statuses?.length ? input.statuses : null,
+      input.student_id ?? null,
+      input.owner_user_id ?? null,
+      input.hod_user_id ?? null,
+    ];
+    const metricsResult = await this.executeSql(
+      `
+        SELECT
+          COUNT(*) FILTER (WHERE status IN ('planned', 'active', 'monitoring'))::integer AS active_interventions,
+          COUNT(DISTINCT student_id) FILTER (WHERE student_id IS NOT NULL)::integer AS students_targeted,
+          COUNT(*) FILTER (WHERE status = 'completed')::integer AS completed,
+          COUNT(*) FILTER (
+            WHERE status IN ('planned', 'active', 'monitoring')
+              AND due_on IS NOT NULL
+              AND due_on < CURRENT_DATE
+          )::integer AS overdue
+        FROM academic_interventions
+        WHERE tenant_id = $1
+          AND ($2::text[] IS NULL OR status = ANY($2::text[]))
+          AND ($3::text IS NULL OR student_id = $3::text)
+          AND ($4::text IS NULL OR owner_user_id::text = $4::text)
+          AND ($5::text IS NULL OR hod_user_id::text = $5::text)
+      `,
+      scopeParams,
+    );
+    const params: unknown[] = [
+      ...scopeParams,
+      limit,
+    ];
+    const listResult = await this.executeSql(
+      `
+        SELECT
+          intervention.id::text,
+          intervention.scope_type,
+          intervention.student_id,
+          NULLIF(BTRIM(CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name)), '') AS student_name,
+          student.admission_number,
+          intervention.exam_series_id::text,
+          series.name AS exam_series_name,
+          intervention.class_section_id,
+          section.name AS class_name,
+          intervention.subject_id,
+          subject.name AS subject_name,
+          intervention.source,
+          intervention.trigger_reason,
+          intervention.baseline,
+          intervention.plan,
+          intervention.target,
+          intervention.owner_user_id::text,
+          owner.display_name AS owner_name,
+          intervention.hod_user_id::text,
+          hod.display_name AS hod_name,
+          intervention.priority,
+          intervention.status,
+          intervention.starts_on::text,
+          intervention.due_on::text,
+          intervention.completed_at::text,
+          intervention.outcome,
+          intervention.created_by_user_id::text,
+          intervention.created_at::text,
+          intervention.updated_at::text,
+          COUNT(update.id)::integer AS update_count,
+          MAX(update.recorded_at)::text AS latest_update_at,
+          COALESCE(
+            JSONB_AGG(
+              JSONB_BUILD_OBJECT(
+                'id', update.id::text,
+                'update_type', update.update_type,
+                'notes', update.notes,
+                'score', update.score,
+                'score_status', update.score_status,
+                'metadata', update.metadata,
+                'recorded_by_user_id', update.recorded_by_user_id::text,
+                'recorded_at', update.recorded_at
+              )
+              ORDER BY update.recorded_at DESC
+            ) FILTER (WHERE update.id IS NOT NULL),
+            '[]'::jsonb
+          ) AS updates
+        FROM academic_interventions intervention
+        LEFT JOIN students student
+          ON student.tenant_id = intervention.tenant_id
+         AND student.id = intervention.student_id
+        LEFT JOIN exam_series series
+          ON series.tenant_id = intervention.tenant_id
+         AND series.id = intervention.exam_series_id
+        LEFT JOIN class_sections section
+          ON section.tenant_id = intervention.tenant_id
+         AND section.id = intervention.class_section_id
+        LEFT JOIN subjects subject
+          ON subject.tenant_id = intervention.tenant_id
+         AND subject.id = intervention.subject_id
+        LEFT JOIN staff_profiles owner
+          ON owner.tenant_id = intervention.tenant_id
+         AND owner.user_id = intervention.owner_user_id
+        LEFT JOIN staff_profiles hod
+          ON hod.tenant_id = intervention.tenant_id
+         AND hod.user_id = intervention.hod_user_id
+        LEFT JOIN academic_intervention_updates update
+          ON update.tenant_id = intervention.tenant_id
+         AND update.intervention_id = intervention.id
+        WHERE intervention.tenant_id = $1
+          AND ($2::text[] IS NULL OR intervention.status = ANY($2::text[]))
+          AND ($3::text IS NULL OR intervention.student_id = $3::text)
+          AND ($4::text IS NULL OR intervention.owner_user_id::text = $4::text)
+          AND ($5::text IS NULL OR intervention.hod_user_id::text = $5::text)
+        GROUP BY
+          intervention.id, student.id, series.id, section.id, subject.id, owner.id, hod.id
+        ORDER BY
+          CASE intervention.priority
+            WHEN 'urgent' THEN 1
+            WHEN 'high' THEN 2
+            WHEN 'normal' THEN 3
+            ELSE 4
+          END,
+          intervention.due_on ASC NULLS LAST,
+          intervention.created_at DESC
+        LIMIT $6::integer
+      `,
+      params,
+    );
+    const metrics = metricsResult.rows[0] ?? {};
+    const items = listResult.rows.map((row: any) => ({
+      ...row,
+      student_name: row.student_name ?? 'Class or subject intervention',
+      class: row.class_name ?? 'All applicable classes',
+      subject: row.subject_name ?? 'Cross-subject',
+      intervention_type: row.source,
+      teacher: row.owner_name ?? 'Owner not assigned',
+      start_date: row.starts_on ?? row.created_at,
+      status_label: String(row.status ?? '').replace(/_/g, ' '),
+    }));
+    return {
+      metrics: {
+        active_interventions: Number(metrics.active_interventions ?? 0),
+        students_targeted: Number(metrics.students_targeted ?? 0),
+        completed: Number(metrics.completed ?? 0),
+        overdue: Number(metrics.overdue ?? 0),
+      },
+      items,
+      academicinterventionsList: items,
+    };
+  }
+
+  async addAcademicInterventionUpdate(input: {
+    tenant_id: string;
+    intervention_id: string;
+    actor_user_id: string;
+    update_type: string;
+    notes: string;
+    score?: number | null;
+    score_status?: string | null;
+    metadata: Record<string, unknown>;
+    status?: string | null;
+    outcome?: Record<string, unknown> | null;
+  }) {
+    const result = await this.executeSql(
+      `
+        WITH target AS MATERIALIZED (
+          SELECT *
+          FROM academic_interventions
+          WHERE tenant_id = $1
+            AND id::text = $2
+          FOR UPDATE
+        ),
+        history AS (
+          INSERT INTO academic_intervention_updates (
+            tenant_id, intervention_id, update_type, notes, score, score_status,
+            metadata, recorded_by_user_id
+          )
+          SELECT
+            target.tenant_id, target.id, $4, $5, $6::numeric, $7,
+            $8::jsonb, $3::uuid
+          FROM target
+          RETURNING *
+        ),
+        updated AS (
+          UPDATE academic_interventions intervention
+          SET status = COALESCE($9, intervention.status),
+              outcome = CASE
+                WHEN $10::jsonb IS NULL THEN intervention.outcome
+                ELSE intervention.outcome || $10::jsonb
+              END,
+              completed_at = CASE
+                WHEN $9 = 'completed' THEN COALESCE(intervention.completed_at, NOW())
+                WHEN $9 IS NOT NULL AND $9 <> 'completed' THEN NULL
+                ELSE intervention.completed_at
+              END,
+              updated_by_user_id = $3::uuid,
+              updated_at = NOW()
+          FROM target
+          WHERE intervention.tenant_id = target.tenant_id
+            AND intervention.id = target.id
+          RETURNING intervention.*
+        )
+        SELECT
+          updated.*,
+          updated.id::text AS id,
+          updated.exam_series_id::text AS exam_series_id,
+          updated.owner_user_id::text AS owner_user_id,
+          updated.hod_user_id::text AS hod_user_id,
+          history.id::text AS update_id,
+          history.update_type,
+          history.notes,
+          history.score,
+          history.score_status,
+          history.metadata AS update_metadata,
+          history.recorded_at::text
+        FROM updated
+        CROSS JOIN history
+      `,
+      [
+        input.tenant_id,
+        input.intervention_id,
+        input.actor_user_id,
+        input.update_type,
+        input.notes,
+        input.score ?? null,
+        input.score_status ?? null,
+        JSON.stringify(input.metadata),
+        input.status ?? null,
+        input.outcome ? JSON.stringify(input.outcome) : null,
+      ],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async listAcademicInterventionRecipients(input: {
+    tenant_id: string;
+    intervention_id: string;
+  }) {
+    const result = await this.executeSql(
+      `
+        SELECT DISTINCT recipient.user_id::text AS user_id, recipient.display_name
+        FROM academic_interventions intervention
+        CROSS JOIN LATERAL (
+          VALUES (intervention.owner_user_id), (intervention.hod_user_id)
+        ) recipient_id(user_id)
+        JOIN staff_profiles recipient
+          ON recipient.tenant_id = intervention.tenant_id
+         AND recipient.user_id = recipient_id.user_id
+         AND recipient.status = 'active'
+        WHERE intervention.tenant_id = $1
+          AND intervention.id::text = $2
+          AND recipient_id.user_id IS NOT NULL
+      `,
+      [input.tenant_id, input.intervention_id],
+    );
+    return result.rows;
+  }
+
+  async getAnalytics(tenantId: string) {
+    const kpiResult = await this.executeSql(
+      `
+        WITH final_entered_marks AS (
+          SELECT
+            mark.id,
+            (mark.score / assessment.max_score) * 100.0 AS percentage
+          FROM exam_marks mark
+          JOIN exam_assessments assessment
+            ON assessment.tenant_id = mark.tenant_id
+           AND assessment.id = mark.assessment_id
+          WHERE mark.tenant_id = $1
+            AND mark.status IN ('locked', 'published')
+            AND mark.score_status = 'entered'
+            AND mark.score IS NOT NULL
+            AND assessment.max_score > 0
+            AND EXISTS (
+              SELECT 1
+              FROM student_report_cards card
+              WHERE card.tenant_id = mark.tenant_id
+                AND card.exam_series_id = mark.exam_series_id
+                AND card.student_id::text = mark.student_id::text
+                AND card.is_current = TRUE
+                AND card.status IN ('approved', 'published')
+            )
+        ),
+        expected_marks AS (
+          SELECT DISTINCT
+            student.id AS student_id,
+            window.exam_series_id,
+            assessment.id AS assessment_id
+          FROM students student
+          JOIN student_class_assignments class_assignment
+            ON class_assignment.tenant_id = student.tenant_id
+           AND class_assignment.student_id = student.id
+           AND class_assignment.status = 'active'
+          JOIN exam_mark_entry_windows window
+            ON window.tenant_id = class_assignment.tenant_id
+           AND window.class_section_id::text = class_assignment.class_section_id
+           AND window.status = 'open'
+          JOIN student_subject_enrollments subject_enrollment
+            ON subject_enrollment.tenant_id = student.tenant_id
+           AND subject_enrollment.student_id = student.id
+           AND subject_enrollment.class_section_id = window.class_section_id::text
+           AND subject_enrollment.subject_id = window.subject_id::text
+           AND subject_enrollment.status = 'active'
+          JOIN exam_assessments assessment
+            ON assessment.tenant_id = window.tenant_id
+           AND assessment.exam_series_id = window.exam_series_id
+           AND assessment.subject_id = window.subject_id
+          WHERE student.tenant_id = $1
+            AND student.status = 'active'
+        ),
+        expected_mark_evidence AS (
+          SELECT
+            expected.student_id,
+            expected.exam_series_id,
+            expected.assessment_id,
+            mark.id AS mark_id,
+            mark.score_status
+          FROM expected_marks expected
+          LEFT JOIN exam_marks mark
+            ON mark.tenant_id = $1
+           AND mark.exam_series_id = expected.exam_series_id
+           AND mark.assessment_id = expected.assessment_id
+           AND mark.student_id::text = expected.student_id
+        )
+        SELECT
+          (SELECT ROUND(AVG(percentage), 2)::numeric FROM final_entered_marks) AS school_average,
           (
-            SELECT COALESCE(ROUND(AVG(score), 2), 0)::numeric 
-            FROM exam_marks 
+            SELECT COUNT(*)::integer
+            FROM exam_marks
             WHERE tenant_id = $1
-          ) AS school_average,
-          -- Pending Reviews (Marks submitted but not reviewed/locked)
-          (
-            SELECT COUNT(*)::int 
-            FROM exam_marks 
-            WHERE tenant_id = $1 AND status = 'submitted'
+              AND status = 'submitted'
           ) AS pending_reviews,
-          -- Missing Marks Alerts
-          -- Expected mark entries derived from open mark entry windows and active students
           (
-            SELECT COUNT(*)::int
-            FROM (
-              SELECT s.id AS student_id, ew.exam_series_id, ea.id AS assessment_id
-              FROM students s
-              JOIN student_class_assignments class_assignment
-                ON class_assignment.tenant_id = s.tenant_id
-               AND class_assignment.student_id = s.id
-               AND class_assignment.status = 'active'
-              JOIN exam_mark_entry_windows ew ON ew.tenant_id = s.tenant_id
-                AND class_assignment.class_section_id = ew.class_section_id
-              JOIN student_subject_enrollments subject_enrollment
-                ON subject_enrollment.tenant_id = s.tenant_id
-               AND subject_enrollment.student_id = s.id::text
-               AND subject_enrollment.class_section_id = ew.class_section_id::text
-               AND subject_enrollment.subject_id = ew.subject_id::text
-               AND subject_enrollment.status = 'active'
-              JOIN exam_assessments ea ON ea.tenant_id = ew.tenant_id 
-                AND ea.exam_series_id = ew.exam_series_id 
-                AND ea.subject_id = ew.subject_id
-              WHERE s.tenant_id = $1 
-                AND s.status = 'active'
-                AND ew.status = 'open'
-            ) expected
-            LEFT JOIN exam_marks m ON m.tenant_id = $1
-              AND m.exam_series_id = expected.exam_series_id
-              AND m.assessment_id = expected.assessment_id
-              AND m.student_id = expected.student_id
-            WHERE m.score IS NULL
+            SELECT COUNT(*)::integer
+            FROM expected_mark_evidence
+            WHERE mark_id IS NULL
+               OR score_status IN ('not_assessed', 'incomplete')
           ) AS missing_marks_alerts,
-          -- Active Exams (Exams currently in progress and not locked/published)
           (
-            SELECT COUNT(*)::int 
-            FROM exam_series 
-            WHERE tenant_id = $1 
-              AND status NOT IN ('locked', 'published')
-          ) AS active_exams;
-        `,
-        [tenantId],
-      );
-      if (result.rows && result.rows[0]) {
-        const row = result.rows[0];
-        kpis = {
-          school_average: Number(row.school_average ?? 0),
-          pending_reviews: Number(row.pending_reviews ?? 0),
-          missing_marks_alerts: Number(row.missing_marks_alerts ?? 0),
-          active_exams: Number(row.active_exams ?? 0),
-        };
-      }
-    } catch (error) {
-      // Safe default is already set
-    }
+            SELECT COUNT(*)::integer
+            FROM exam_series
+            WHERE tenant_id = $1
+              AND status IN ('draft', 'submitted', 'reviewed')
+              AND CURRENT_DATE BETWEEN starts_on AND ends_on
+          ) AS active_exams,
+          (SELECT COUNT(*)::integer FROM final_entered_marks) AS final_mark_count,
+          (
+            SELECT COUNT(*)::integer
+            FROM exam_marks
+            WHERE tenant_id = $1
+              AND status IN ('locked', 'published')
+              AND score_status <> 'entered'
+              AND EXISTS (
+                SELECT 1
+                FROM student_report_cards card
+                WHERE card.tenant_id = exam_marks.tenant_id
+                  AND card.exam_series_id = exam_marks.exam_series_id
+                  AND card.student_id::text = exam_marks.student_id::text
+                  AND card.is_current = TRUE
+                  AND card.status IN ('approved', 'published')
+              )
+          ) AS explicit_evidence_count,
+          (
+            SELECT COUNT(*)::integer
+            FROM expected_mark_evidence
+            WHERE mark_id IS NULL
+               OR score_status IN ('not_assessed', 'incomplete')
+          ) AS missing_or_incomplete_count
+      `,
+      [tenantId],
+    );
+    const kpiRow = kpiResult.rows[0] ?? {};
+    const kpis = {
+      school_average:
+        kpiRow.school_average === null || kpiRow.school_average === undefined
+          ? null
+          : Number(kpiRow.school_average),
+      pending_reviews: Number(kpiRow.pending_reviews ?? 0),
+      missing_marks_alerts: Number(kpiRow.missing_marks_alerts ?? 0),
+      active_exams: Number(kpiRow.active_exams ?? 0),
+    };
+    const dataQuality = {
+      final_mark_count: Number(kpiRow.final_mark_count ?? 0),
+      explicit_evidence_count: Number(kpiRow.explicit_evidence_count ?? 0),
+      missing_or_incomplete_count: Number(kpiRow.missing_or_incomplete_count ?? 0),
+    };
 
-    // 2. Trends
-    let trends: any[] = [];
-    try {
-      const result = await this.executeSql(
-        `
-        SELECT 
-          es.id AS exam_series_id,
-          es.name AS exam_series_name,
-          es.starts_on AS starts_on,
-          COALESCE(ROUND(AVG(em.score), 2), 0)::numeric AS average_score
-        FROM exam_series es
-        LEFT JOIN exam_marks em ON em.tenant_id = es.tenant_id AND em.exam_series_id = es.id
-        WHERE es.tenant_id = $1
-        GROUP BY es.id, es.name, es.starts_on
-        ORDER BY es.starts_on ASC;
-        `,
-        [tenantId],
-      );
-      trends = (result.rows || []).map((row: any) => ({
-        exam_series_id: row.exam_series_id,
-        exam_series_name: row.exam_series_name,
-        starts_on: row.starts_on,
-        average_score: Number(row.average_score ?? 0),
-      }));
-    } catch (error) {
-      // Safe default is already set
-    }
+    const trendsResult = await this.executeSql(
+      `
+        SELECT
+          series.id::text AS exam_series_id,
+          series.name AS exam_series_name,
+          series.starts_on::text AS starts_on,
+          ROUND(AVG((mark.score / assessment.max_score) * 100.0), 2)::numeric AS average_score
+        FROM exam_series series
+        JOIN exam_marks mark
+          ON mark.tenant_id = series.tenant_id
+         AND mark.exam_series_id = series.id
+        JOIN exam_assessments assessment
+          ON assessment.tenant_id = mark.tenant_id
+         AND assessment.id = mark.assessment_id
+        WHERE series.tenant_id = $1
+          AND mark.status IN ('locked', 'published')
+          AND mark.score_status = 'entered'
+          AND mark.score IS NOT NULL
+          AND assessment.max_score > 0
+          AND EXISTS (
+            SELECT 1
+            FROM student_report_cards card
+            WHERE card.tenant_id = mark.tenant_id
+              AND card.exam_series_id = mark.exam_series_id
+              AND card.student_id::text = mark.student_id::text
+              AND card.is_current = TRUE
+              AND card.status IN ('approved', 'published')
+          )
+        GROUP BY series.id, series.name, series.starts_on
+        ORDER BY series.starts_on ASC, series.id ASC
+      `,
+      [tenantId],
+    );
+    const trends = trendsResult.rows.map((row: any) => ({
+      exam_series_id: row.exam_series_id,
+      exam_series_name: row.exam_series_name,
+      starts_on: row.starts_on,
+      average_score: Number(row.average_score),
+    }));
 
-    // 3. Subject Performance
-    let subjectPerformance: any[] = [];
-    try {
-      const result = await this.executeSql(
-        `
-        SELECT 
-          sub.id AS subject_id,
-          sub.name AS subject_name,
-          COALESCE(ROUND(AVG(em.score), 2), 0)::numeric AS mean_score,
-          COALESCE(ROUND(100.0 * COUNT(CASE WHEN em.score >= ea.max_score * 0.5 THEN 1 END) / NULLIF(COUNT(em.id), 0), 2), 0)::numeric AS pass_rate,
-          -- CBC Competency Distributions
-          COUNT(CASE WHEN gb.label = 'EE' OR gb.label ILIKE '%exceed%' THEN 1 END)::int AS ee_count,
-          COUNT(CASE WHEN gb.label = 'ME' OR gb.label ILIKE '%meet%' THEN 1 END)::int AS me_count,
-          COUNT(CASE WHEN gb.label = 'AE' OR gb.label ILIKE '%approach%' THEN 1 END)::int AS ae_count,
-          COUNT(CASE WHEN gb.label = 'BE' OR gb.label ILIKE '%below%' THEN 1 END)::int AS be_count
-        FROM subjects sub
-        JOIN exam_assessments ea ON ea.tenant_id = sub.tenant_id AND ea.subject_id = sub.id
-        JOIN exam_marks em ON em.tenant_id = ea.tenant_id AND em.assessment_id = ea.id
-        LEFT JOIN exam_grade_boundaries gb ON gb.tenant_id = em.tenant_id
-          AND gb.exam_series_id = em.exam_series_id
-          AND em.score BETWEEN gb.min_score AND gb.max_score
-        WHERE sub.tenant_id = $1
-        GROUP BY sub.id, sub.name
-        ORDER BY sub.name ASC;
-        `,
-        [tenantId],
-      );
-      subjectPerformance = (result.rows || []).map((row: any) => ({
-        subject_id: row.subject_id,
-        subject_name: row.subject_name,
-        mean_score: Number(row.mean_score ?? 0),
-        pass_rate: Number(row.pass_rate ?? 0),
-        ee_count: Number(row.ee_count ?? 0),
-        me_count: Number(row.me_count ?? 0),
-        ae_count: Number(row.ae_count ?? 0),
-        be_count: Number(row.be_count ?? 0),
-      }));
-    } catch (error) {
-      // Safe default is already set
-    }
+    const subjectPerformanceResult = await this.executeSql(
+      `
+        WITH final_marks AS (
+          SELECT
+            mark.tenant_id,
+            mark.exam_series_id,
+            subject.id AS subject_id,
+            subject.name AS subject_name,
+            series.ends_on,
+            (mark.score / assessment.max_score) * 100.0 AS percentage
+          FROM exam_marks mark
+          JOIN exam_assessments assessment
+            ON assessment.tenant_id = mark.tenant_id
+           AND assessment.id = mark.assessment_id
+          JOIN exam_series series
+            ON series.tenant_id = mark.tenant_id
+           AND series.id = mark.exam_series_id
+          JOIN subjects subject
+            ON subject.tenant_id = mark.tenant_id
+           AND subject.id = mark.subject_id::text
+          WHERE mark.tenant_id = $1
+            AND mark.status IN ('locked', 'published')
+            AND mark.score_status = 'entered'
+            AND mark.score IS NOT NULL
+            AND assessment.max_score > 0
+            AND EXISTS (
+              SELECT 1
+              FROM student_report_cards card
+              WHERE card.tenant_id = mark.tenant_id
+                AND card.exam_series_id = mark.exam_series_id
+                AND card.student_id::text = mark.student_id::text
+                AND card.is_current = TRUE
+                AND card.status IN ('approved', 'published')
+            )
+        ),
+        graded_marks AS (
+          SELECT
+            final_mark.*,
+            boundary.label AS grade_label,
+            COALESCE(boundary.is_pass, final_mark.percentage >= 50.0) AS is_pass
+          FROM final_marks final_mark
+          LEFT JOIN LATERAL (
+            SELECT policy.id
+            FROM exam_grading_policies policy
+            WHERE policy.tenant_id = final_mark.tenant_id
+              AND (policy.exam_series_id = final_mark.exam_series_id OR policy.exam_series_id IS NULL)
+              AND policy.status IN ('active', 'replaced', 'archived')
+              AND (policy.effective_from IS NULL OR policy.effective_from::date <= final_mark.ends_on)
+              AND (policy.effective_to IS NULL OR policy.effective_to::date >= final_mark.ends_on)
+            ORDER BY
+              (policy.exam_series_id = final_mark.exam_series_id) DESC,
+              policy.version DESC,
+              policy.activated_at DESC NULLS LAST
+            LIMIT 1
+          ) selected_policy ON TRUE
+          LEFT JOIN LATERAL (
+            SELECT policy_boundary.label, policy_boundary.is_pass
+            FROM exam_grading_policy_boundaries policy_boundary
+            WHERE policy_boundary.tenant_id = final_mark.tenant_id
+              AND policy_boundary.grading_policy_id = selected_policy.id
+              AND policy_boundary.min_score <= final_mark.percentage
+            ORDER BY policy_boundary.min_score DESC
+            LIMIT 1
+          ) boundary ON TRUE
+        )
+        SELECT
+          subject_id,
+          subject_name,
+          ROUND(AVG(percentage), 2)::numeric AS mean_score,
+          ROUND(AVG(CASE WHEN is_pass THEN 100.0 ELSE 0.0 END), 2)::numeric AS pass_rate,
+          COUNT(*) FILTER (
+            WHERE UPPER(grade_label) = 'EE' OR grade_label ILIKE '%exceed%'
+          )::integer AS ee_count,
+          COUNT(*) FILTER (
+            WHERE UPPER(grade_label) = 'ME' OR grade_label ILIKE '%meet%'
+          )::integer AS me_count,
+          COUNT(*) FILTER (
+            WHERE UPPER(grade_label) = 'AE' OR grade_label ILIKE '%approach%'
+          )::integer AS ae_count,
+          COUNT(*) FILTER (
+            WHERE UPPER(grade_label) = 'BE' OR grade_label ILIKE '%below%'
+          )::integer AS be_count
+        FROM graded_marks
+        GROUP BY subject_id, subject_name
+        ORDER BY subject_name ASC
+      `,
+      [tenantId],
+    );
+    const subjectPerformance = subjectPerformanceResult.rows.map((row: any) => ({
+      subject_id: row.subject_id,
+      subject_name: row.subject_name,
+      mean_score: Number(row.mean_score),
+      pass_rate: Number(row.pass_rate),
+      ee_count: Number(row.ee_count ?? 0),
+      me_count: Number(row.me_count ?? 0),
+      ae_count: Number(row.ae_count ?? 0),
+      be_count: Number(row.be_count ?? 0),
+    }));
 
-    // 4. Student Progress
-    let topPerformers: any[] = [];
-    try {
-      const result = await this.executeSql(
-        `
-        SELECT 
-          s.id AS student_id,
-          concat_ws(' ', s.first_name, s.middle_name, s.last_name) AS student_name,
-          s.admission_number,
-          ROUND(AVG((em.score / ea.max_score) * 100.0), 2) AS average_percentage,
-          COUNT(em.id) AS assessments_taken
-        FROM students s
-        JOIN exam_marks em ON em.tenant_id = s.tenant_id AND em.student_id = s.id
-        JOIN exam_assessments ea ON ea.tenant_id = em.tenant_id AND ea.id = em.assessment_id
-        WHERE s.tenant_id = $1 AND s.status = 'active'
-        GROUP BY s.id, s.first_name, s.middle_name, s.last_name, s.admission_number
-        ORDER BY average_percentage DESC
-        LIMIT 10;
-        `,
-        [tenantId],
-      );
-      topPerformers = (result.rows || []).map((row: any) => ({
-        student_id: row.student_id,
-        student_name: row.student_name,
-        admission_number: row.admission_number,
-        average_percentage: Number(row.average_percentage ?? 0),
-        assessments_taken: Number(row.assessments_taken ?? 0),
-      }));
-    } catch (error) {
-      // Safe default is already set
-    }
+    const topPerformersResult = await this.executeSql(
+      `
+        SELECT
+          student.id AS student_id,
+          concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS student_name,
+          student.admission_number,
+          ROUND(AVG((mark.score / assessment.max_score) * 100.0), 2)::numeric AS average_percentage,
+          COUNT(mark.id)::integer AS assessments_taken
+        FROM students student
+        JOIN exam_marks mark
+          ON mark.tenant_id = student.tenant_id
+         AND mark.student_id::text = student.id
+        JOIN exam_assessments assessment
+          ON assessment.tenant_id = mark.tenant_id
+         AND assessment.id = mark.assessment_id
+        WHERE student.tenant_id = $1
+          AND student.status = 'active'
+          AND mark.status IN ('locked', 'published')
+          AND mark.score_status = 'entered'
+          AND mark.score IS NOT NULL
+          AND assessment.max_score > 0
+          AND EXISTS (
+            SELECT 1
+            FROM student_report_cards card
+            WHERE card.tenant_id = mark.tenant_id
+              AND card.exam_series_id = mark.exam_series_id
+              AND card.student_id::text = mark.student_id::text
+              AND card.is_current = TRUE
+              AND card.status IN ('approved', 'published')
+          )
+        GROUP BY
+          student.id,
+          student.first_name,
+          student.middle_name,
+          student.last_name,
+          student.admission_number
+        ORDER BY average_percentage DESC, student_name ASC
+        LIMIT 10
+      `,
+      [tenantId],
+    );
+    const topPerformers = topPerformersResult.rows.map((row: any) => ({
+      student_id: row.student_id,
+      student_name: row.student_name,
+      admission_number: row.admission_number,
+      average_percentage: Number(row.average_percentage),
+      assessments_taken: Number(row.assessments_taken),
+    }));
 
-    let topImprovers: any[] = [];
-    try {
-      const result = await this.executeSql(
-        `
+    const topImproversResult = await this.executeSql(
+      `
         WITH student_series_averages AS (
-          SELECT 
-            em.student_id,
-            em.exam_series_id,
-            es.name AS exam_series_name,
-            es.starts_on AS exam_series_date,
-            AVG((em.score / ea.max_score) * 100.0) AS avg_percentage
-          FROM exam_marks em
-          JOIN exam_assessments ea ON ea.tenant_id = em.tenant_id AND ea.id = em.assessment_id
-          JOIN exam_series es ON es.tenant_id = em.tenant_id AND es.id = em.exam_series_id
-          WHERE em.tenant_id = $1
-          GROUP BY em.student_id, em.exam_series_id, es.name, es.starts_on
+          SELECT
+            mark.student_id::text AS student_id,
+            mark.exam_series_id,
+            series.name AS exam_series_name,
+            series.starts_on AS exam_series_date,
+            AVG((mark.score / assessment.max_score) * 100.0) AS average_percentage
+          FROM exam_marks mark
+          JOIN exam_assessments assessment
+            ON assessment.tenant_id = mark.tenant_id
+           AND assessment.id = mark.assessment_id
+          JOIN exam_series series
+            ON series.tenant_id = mark.tenant_id
+           AND series.id = mark.exam_series_id
+          WHERE mark.tenant_id = $1
+            AND mark.status IN ('locked', 'published')
+            AND mark.score_status = 'entered'
+            AND mark.score IS NOT NULL
+            AND assessment.max_score > 0
+            AND EXISTS (
+              SELECT 1
+              FROM student_report_cards card
+              WHERE card.tenant_id = mark.tenant_id
+                AND card.exam_series_id = mark.exam_series_id
+                AND card.student_id::text = mark.student_id::text
+                AND card.is_current = TRUE
+                AND card.status IN ('approved', 'published')
+            )
+          GROUP BY
+            mark.student_id,
+            mark.exam_series_id,
+            series.name,
+            series.starts_on
         ),
         ranked_student_averages AS (
-          SELECT 
+          SELECT
             student_id,
             exam_series_id,
             exam_series_name,
             exam_series_date,
-            avg_percentage,
-            ROW_NUMBER() OVER (PARTITION BY student_id ORDER BY exam_series_date DESC) AS rn
+            average_percentage,
+            ROW_NUMBER() OVER (
+              PARTITION BY student_id
+              ORDER BY exam_series_date DESC, exam_series_id DESC
+            ) AS rank
           FROM student_series_averages
         )
-        SELECT 
-          s.id AS student_id,
-          concat_ws(' ', s.first_name, s.middle_name, s.last_name) AS student_name,
-          s.admission_number,
+        SELECT
+          student.id AS student_id,
+          concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS student_name,
+          student.admission_number,
           latest.exam_series_name AS latest_exam_series,
-          ROUND(latest.avg_percentage::numeric, 2) AS latest_average,
-          prev.exam_series_name AS previous_exam_series,
-          ROUND(prev.avg_percentage::numeric, 2) AS previous_average,
-          ROUND((latest.avg_percentage - prev.avg_percentage)::numeric, 2) AS improvement
+          ROUND(latest.average_percentage::numeric, 2) AS latest_average,
+          previous.exam_series_name AS previous_exam_series,
+          ROUND(previous.average_percentage::numeric, 2) AS previous_average,
+          ROUND((latest.average_percentage - previous.average_percentage)::numeric, 2) AS improvement
         FROM ranked_student_averages latest
-        JOIN ranked_student_averages prev ON prev.student_id = latest.student_id AND prev.rn = latest.rn + 1
-        JOIN students s ON s.tenant_id = $1 AND s.id = latest.student_id
-        WHERE latest.rn = 1 AND s.status = 'active'
-        ORDER BY improvement DESC
-        LIMIT 10;
-        `,
-        [tenantId],
-      );
-      topImprovers = (result.rows || []).map((row: any) => ({
-        student_id: row.student_id,
-        student_name: row.student_name,
-        admission_number: row.admission_number,
-        latest_exam_series: row.latest_exam_series,
-        latest_average: Number(row.latest_average ?? 0),
-        previous_exam_series: row.previous_exam_series,
-        previous_average: Number(row.previous_average ?? 0),
-        improvement: Number(row.improvement ?? 0),
-      }));
-    } catch (error) {
-      // Safe default is already set
-    }
+        JOIN ranked_student_averages previous
+          ON previous.student_id = latest.student_id
+         AND previous.rank = 2
+        JOIN students student
+          ON student.tenant_id = $1
+         AND student.id = latest.student_id
+        WHERE latest.rank = 1
+          AND student.status = 'active'
+          AND latest.average_percentage > previous.average_percentage
+        ORDER BY improvement DESC, student_name ASC
+        LIMIT 10
+      `,
+      [tenantId],
+    );
+    const topImprovers = topImproversResult.rows.map((row: any) => ({
+      student_id: row.student_id,
+      student_name: row.student_name,
+      admission_number: row.admission_number,
+      latest_exam_series: row.latest_exam_series,
+      latest_average: Number(row.latest_average),
+      previous_exam_series: row.previous_exam_series,
+      previous_average: Number(row.previous_average),
+      improvement: Number(row.improvement),
+    }));
 
-    let atRiskStudents: any[] = [];
-    try {
-      const result = await this.executeSql(
-        `
-        SELECT 
-          s.id AS student_id,
-          concat_ws(' ', s.first_name, s.middle_name, s.last_name) AS student_name,
-          s.admission_number,
-          ROUND(AVG((em.score / ea.max_score) * 100.0), 2) AS average_percentage,
-          COUNT(em.id) AS assessments_taken
-        FROM students s
-        JOIN exam_marks em ON em.tenant_id = s.tenant_id AND em.student_id = s.id
-        JOIN exam_assessments ea ON ea.tenant_id = em.tenant_id AND ea.id = em.assessment_id
-        WHERE s.tenant_id = $1 AND s.status = 'active'
-        GROUP BY s.id, s.first_name, s.middle_name, s.last_name, s.admission_number
-        HAVING AVG((em.score / ea.max_score) * 100.0) < 50.0
-        ORDER BY average_percentage ASC
-        LIMIT 10;
-        `,
-        [tenantId],
-      );
-      atRiskStudents = (result.rows || []).map((row: any) => ({
-        student_id: row.student_id,
-        student_name: row.student_name,
-        admission_number: row.admission_number,
-        average_percentage: Number(row.average_percentage ?? 0),
-        assessments_taken: Number(row.assessments_taken ?? 0),
-      }));
-    } catch (error) {
-      // Safe default is already set
-    }
+    const atRiskStudentsResult = await this.executeSql(
+      `
+        SELECT
+          student.id AS student_id,
+          concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS student_name,
+          student.admission_number,
+          ROUND(AVG((mark.score / assessment.max_score) * 100.0), 2)::numeric AS average_percentage,
+          COUNT(mark.id)::integer AS assessments_taken
+        FROM students student
+        JOIN exam_marks mark
+          ON mark.tenant_id = student.tenant_id
+         AND mark.student_id::text = student.id
+        JOIN exam_assessments assessment
+          ON assessment.tenant_id = mark.tenant_id
+         AND assessment.id = mark.assessment_id
+        WHERE student.tenant_id = $1
+          AND student.status = 'active'
+          AND mark.status IN ('locked', 'published')
+          AND mark.score_status = 'entered'
+          AND mark.score IS NOT NULL
+          AND assessment.max_score > 0
+          AND EXISTS (
+            SELECT 1
+            FROM student_report_cards card
+            WHERE card.tenant_id = mark.tenant_id
+              AND card.exam_series_id = mark.exam_series_id
+              AND card.student_id::text = mark.student_id::text
+              AND card.is_current = TRUE
+              AND card.status IN ('approved', 'published')
+          )
+        GROUP BY
+          student.id,
+          student.first_name,
+          student.middle_name,
+          student.last_name,
+          student.admission_number
+        HAVING AVG((mark.score / assessment.max_score) * 100.0) < 50.0
+        ORDER BY average_percentage ASC, student_name ASC
+        LIMIT 10
+      `,
+      [tenantId],
+    );
+    const atRiskStudents = atRiskStudentsResult.rows.map((row: any) => ({
+      student_id: row.student_id,
+      student_name: row.student_name,
+      admission_number: row.admission_number,
+      average_percentage: Number(row.average_percentage),
+      assessments_taken: Number(row.assessments_taken),
+    }));
 
     return {
       kpis,
@@ -3521,6 +5480,7 @@ export class ExamsRepository {
         topImprovers,
         atRiskStudents,
       },
+      data_quality: dataQuality,
     };
   }
 

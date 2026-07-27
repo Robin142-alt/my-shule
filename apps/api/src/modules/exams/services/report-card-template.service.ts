@@ -5,8 +5,10 @@ import type { ReportArtifactInput, ReportArtifactValue } from '../../../common/r
 export interface ReportCardSubjectPayload {
   subject_id: string;
   subject_name: string;
-  score: number;
+  score: number | null;
+  score_status: string;
   max_score: number;
+  percentage?: number | null;
   grade_label: string | null;
   remarks: string | null;
   points?: number | null;
@@ -49,9 +51,12 @@ export interface ReportCardPayload {
 export class ReportCardTemplateService {
   buildPayload(data: Record<string, unknown>, generatedAt: string): ReportCardPayload {
     const subjects = this.normalizeSubjects(data.subjects);
-    const totalScore = subjects.reduce((sum, subject) => sum + subject.score, 0);
-    const totalMaxScore = subjects.reduce((sum, subject) => sum + subject.max_score, 0);
-    const meanScore = subjects.length > 0 ? Number((totalScore / subjects.length).toFixed(2)) : 0;
+    const enteredSubjects = subjects.filter(isEnteredSubject);
+    const totalScore = enteredSubjects.reduce((sum, subject) => sum + subject.score, 0);
+    const totalMaxScore = enteredSubjects.reduce((sum, subject) => sum + subject.max_score, 0);
+    const meanScore = enteredSubjects.length > 0
+      ? Number((totalScore / enteredSubjects.length).toFixed(2))
+      : 0;
     const percentage = totalMaxScore > 0
       ? Number(((totalScore / totalMaxScore) * 100).toFixed(2))
       : 0;
@@ -98,8 +103,8 @@ export class ReportCardTemplateService {
     const rows = payload.subjects.map((subject) => `
       <tr>
         <td>${escapeHtml(subject.subject_name)}</td>
-        <td>${subject.score}</td>
-        <td>${subject.max_score}</td>
+        <td>${escapeHtml(scoreEvidenceLabel(subject))}</td>
+        <td>${subject.score_status === 'entered' ? subject.max_score : ''}</td>
         <td>${escapeHtml(subject.grade_label ?? '')}</td>
         <td>${escapeHtml(subject.remarks ?? subject.descriptor ?? '')}</td>
       </tr>
@@ -164,8 +169,8 @@ export class ReportCardTemplateService {
       ['Percentage', `${payload.totals.percentage}%`],
       ...payload.subjects.map((subject) => [
         subject.subject_name,
-        subject.score,
-        subject.max_score,
+        scoreEvidenceLabel(subject),
+        subject.score_status === 'entered' ? subject.max_score : null,
         subject.grade_label,
         subject.remarks,
       ]),
@@ -196,14 +201,17 @@ export class ReportCardTemplateService {
 
     return value.map((subject) => {
       const row = asRecord(subject) ?? {};
-      const score = Number(row.score ?? 0);
+      const scoreStatus = text(row.score_status) ?? 'entered';
+      const score = numberOrNull(row.score);
       const maxScore = Number(row.max_score ?? 100);
 
       return {
         subject_id: text(row.subject_id) ?? '',
         subject_name: text(row.subject_name) ?? 'Subject',
-        score: Number.isFinite(score) ? score : 0,
+        score: scoreStatus === 'entered' ? score : null,
+        score_status: scoreStatus,
         max_score: Number.isFinite(maxScore) && maxScore > 0 ? maxScore : 100,
+        percentage: numberOrNull(row.percentage),
         grade_label: text(row.grade_label),
         remarks: text(row.remarks),
         points: numberOrNull(row.points),
@@ -212,6 +220,32 @@ export class ReportCardTemplateService {
       };
     });
   }
+}
+
+function isEnteredSubject(
+  subject: ReportCardSubjectPayload,
+): subject is ReportCardSubjectPayload & { score: number } {
+  return subject.score_status === 'entered'
+    && typeof subject.score === 'number'
+    && Number.isFinite(subject.score);
+}
+
+function scoreEvidenceLabel(subject: ReportCardSubjectPayload): string {
+  if (isEnteredSubject(subject)) {
+    return String(subject.score);
+  }
+
+  const labels: Record<string, string> = {
+    absent: 'Absent',
+    exempt: 'Exempt',
+    not_assessed: 'Not assessed',
+    incomplete: 'Incomplete',
+    withheld: 'Withheld',
+    medical_exception: 'Medical exception',
+    transfer_student: 'Transfer student',
+  };
+
+  return labels[subject.score_status] ?? 'Not assessed';
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

@@ -118,8 +118,8 @@
   --color-muted-strong: var(--muted-strong);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
-  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+  --font-sans: "Segoe UI", Arial, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: Consolas, "Courier New", ui-monospace, monospace;
 }
 
 * {

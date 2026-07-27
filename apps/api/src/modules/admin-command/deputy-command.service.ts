@@ -1,5 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
+import { ExamsService } from '../exams/exams.service';
 import { DeputyCommandRepository } from './repositories/deputy-command.repository';
 
 @Injectable()
@@ -7,6 +8,7 @@ export class DeputyCommandService {
   constructor(
     private readonly requestContext: RequestContextService,
     private readonly repository: DeputyCommandRepository,
+    private readonly examsService: ExamsService,
   ) {}
 
   private requireTenantId(): string {
@@ -54,9 +56,58 @@ export class DeputyCommandService {
   assignReliefTeacher(id: string, teacherName: string) { return this.repository.assignReliefTeacher(this.requireTenantId(), this.requestContext.getStore()?.user_id || null, id, teacherName); }
   autoAssignRelief() { return this.repository.autoAssignRelief(this.requireTenantId(), this.requestContext.getStore()?.user_id || null); }
   
-  getAcademics() { return this.repository.getAcademics(this.requireTenantId()); }
-  messageHOD(id: string) { return this.repository.messageHOD(this.requireTenantId(), id); }
-  createIntervention(dto: any) { return this.repository.createIntervention(this.requireTenantId(), this.requestContext.getStore()?.user_id || 'system', dto); }
+  async getAcademics() {
+    const [academicSummary, interventions] = await Promise.all([
+      this.repository.getAcademics(this.requireTenantId()),
+      this.examsService.listAcademicInterventions(),
+    ]);
+    return {
+      ...academicSummary,
+      metrics: {
+        ...(academicSummary.metrics ?? {}),
+        ...(interventions.metrics ?? {}),
+      },
+      interventions: interventions.items ?? [],
+      academicinterventionsList: interventions.items ?? [],
+    };
+  }
+
+  messageHOD(id: string) {
+    return this.examsService.notifyAcademicInterventionHod(id);
+  }
+
+  createIntervention(dto: any) {
+    const className = String(dto?.class_name ?? dto?.className ?? '').trim() || undefined;
+    const subjectName = String(dto?.subject_name ?? dto?.subject ?? '').trim() || undefined;
+    const ownerName = String(dto?.owner_name ?? dto?.teacher ?? '').trim() || undefined;
+    const concern = String(
+      dto?.trigger_reason ?? dto?.concern ?? dto?.title ?? '',
+    ).trim();
+    const plan = String(
+      dto?.plan ?? dto?.description ?? dto?.notes ?? '',
+    ).trim();
+
+    return this.examsService.createAcademicIntervention({
+      student_id: stringOrUndefined(dto?.student_id),
+      exam_series_id: stringOrUndefined(dto?.exam_series_id),
+      class_section_id: stringOrUndefined(dto?.class_section_id),
+      class_name: className,
+      subject_id: stringOrUndefined(dto?.subject_id),
+      subject_name: subjectName,
+      owner_user_id: stringOrUndefined(dto?.owner_user_id),
+      owner_name: ownerName,
+      hod_user_id: stringOrUndefined(dto?.hod_user_id),
+      source: dto?.source ?? 'manual',
+      trigger_reason: concern,
+      baseline: objectOrUndefined(dto?.baseline)
+        ?? (dto?.coverage ? { coverage: String(dto.coverage) } : undefined),
+      plan,
+      target: objectOrUndefined(dto?.target),
+      priority: dto?.priority ?? 'normal',
+      starts_on: stringOrUndefined(dto?.starts_on),
+      due_on: stringOrUndefined(dto?.due_on),
+    });
+  }
   
   getExams() { return this.repository.getExams(this.requireTenantId()); }
   flagExamDelay(id: string) { return this.repository.flagExamDelay(this.requireTenantId(), id); }
@@ -78,4 +129,15 @@ export class DeputyCommandService {
       assignedByUserId: this.requestContext.getStore()?.user_id,
     });
   }
+}
+
+function stringOrUndefined(value: unknown): string | undefined {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  return normalized || undefined;
+}
+
+function objectOrUndefined(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
 }

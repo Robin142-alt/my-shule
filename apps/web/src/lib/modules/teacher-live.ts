@@ -130,10 +130,14 @@ export async function fetchClassRegisterLive(session: LiveAuthSession, streamId:
 
 export interface PendingMarksWindow {
   id: string;
+  examSeriesId: string;
+  academicTermId: string;
   examName: string;
   className: string;
   classSectionId: string;
+  subjectId: string;
   subjectName: string;
+  assessmentId: string;
   paperName: string;
   outOf: number;
   deadline: string;
@@ -246,7 +250,103 @@ export async function saveReportCommentLive(session: LiveAuthSession, data: any)
   });
 }
 
-export async function saveExamMarksLive(session: LiveAuthSession, data: any): Promise<{ success: boolean }> {
+export const EXAM_SCORE_STATUSES = [
+  "entered",
+  "absent",
+  "exempt",
+  "not_assessed",
+  "incomplete",
+  "withheld",
+  "medical_exception",
+  "transfer_student",
+] as const;
+
+export type ExamScoreStatus = (typeof EXAM_SCORE_STATUSES)[number];
+
+export interface TeacherMarkSheetRow {
+  id: string | null;
+  mark_entry_window_id: string;
+  exam_series_id: string;
+  exam_series_name: string;
+  academic_term_id: string;
+  assessment_id: string;
+  assessment_name: string;
+  max_score: number;
+  assessment_weight: number;
+  class_section_id: string;
+  class_name: string;
+  subject_id: string;
+  subject_name: string;
+  student_id: string;
+  admission_number: string | null;
+  student_name: string | null;
+  score: number | null;
+  score_status: ExamScoreStatus;
+  remarks: string | null;
+  status: string;
+  entered_by_user_id: string | null;
+  updated_at: string | null;
+  opens_at: string;
+  closes_at: string;
+}
+
+interface ExamsActionResponse<T> {
+  success: boolean;
+  message?: string;
+  data: T;
+}
+
+export async function fetchTeacherMarkSheetLive(
+  session: LiveAuthSession,
+  filters: {
+    examSeriesId: string;
+    classSectionId: string;
+    subjectId: string;
+    assessmentId: string;
+  },
+): Promise<TeacherMarkSheetRow[]> {
+  const query = new URLSearchParams({
+    exam_series_id: filters.examSeriesId,
+    class_section_id: filters.classSectionId,
+    subject_id: filters.subjectId,
+    assessment_id: filters.assessmentId,
+    limit: "100",
+  });
+  const response = await withSession<ExamsActionResponse<TeacherMarkSheetRow[]>>(
+    session,
+    `/exams/marks?${query.toString()}`,
+    { method: "GET" },
+  );
+
+  return response.data;
+}
+
+export interface TeacherMarkDraftInput {
+  score?: number | null;
+  score_status: ExamScoreStatus;
+  remarks?: string;
+}
+
+export interface SaveTeacherMarksPayload extends Record<string, unknown> {
+  action: "draft" | "submit";
+  examId: string;
+  classSectionId: string;
+  marks: Record<string, TeacherMarkDraftInput>;
+}
+
+export interface SaveTeacherMarksResult {
+  success: boolean;
+  action: "draft" | "submit";
+  status: string;
+  savedCount: number;
+  submittedCount: number;
+  markIds: string[];
+}
+
+export async function saveExamMarksLive(
+  session: LiveAuthSession,
+  data: SaveTeacherMarksPayload,
+): Promise<SaveTeacherMarksResult> {
   return withSession(session, "/class-teacher/marks", {
     method: "POST",
     body: data,

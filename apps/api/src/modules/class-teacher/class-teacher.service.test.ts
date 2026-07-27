@@ -71,6 +71,7 @@ test('ClassTeacherService publishes attendance counts from submitted attendance 
 test('ClassTeacherService saves teacher mark drafts with current exam mark schema and without false submission events', async () => {
   const queries: Array<{ sql: string; params: unknown[] }> = [];
   const submissionEvents: any[] = [];
+  const savedSheets: any[] = [];
   const service = new ClassTeacherService(
     {
       query: async (sql: string, params: unknown[]) => {
@@ -103,6 +104,20 @@ test('ClassTeacherService saves teacher mark drafts with current exam mark schem
         submissionEvents.push(input);
       },
     } as never,
+    {
+      saveTeacherMarkEntries: async (rows: any[], windowId: string, submit: boolean) => {
+        savedSheets.push({ rows, windowId, submit });
+        return {
+          success: true,
+          data: {
+            status: 'draft',
+            saved_count: rows.length,
+            submitted_count: 0,
+            mark_ids: ['mark-a'],
+          },
+        };
+      },
+    } as never,
   );
 
   const result = await service.saveMarks('tenant-a', 'teacher-a', {
@@ -113,17 +128,23 @@ test('ClassTeacherService saves teacher mark drafts with current exam mark schem
   });
 
   assert.equal(result.success, true);
-  const insertQuery = queries.find((query) => /INSERT INTO exam_marks/.test(query.sql));
-  assert.ok(insertQuery);
-  assert.match(insertQuery.sql, /entered_by_user_id/);
-  assert.match(insertQuery.sql, /updated_by_user_id/);
-  assert.doesNotMatch(insertQuery.sql, /\bentered_by\b/);
+  assert.equal(savedSheets.length, 1);
+  assert.equal(savedSheets[0].windowId, 'window-a');
+  assert.equal(savedSheets[0].submit, false);
+  assert.equal(savedSheets[0].rows[0].score, 74);
+  assert.equal(savedSheets[0].rows[0].score_status, 'entered');
+  assert.equal(savedSheets[0].rows[0].student_id, 'student-a');
+  assert.equal(
+    queries.some((query) => /INSERT INTO exam_marks/.test(query.sql)),
+    false,
+  );
   assert.equal(submissionEvents.length, 0);
 });
 
 test('ClassTeacherService submits teacher marks for moderation with tenant scoped completion event', async () => {
   const queries: Array<{ sql: string; params: unknown[] }> = [];
   const submissionEvents: any[] = [];
+  const savedSheets: any[] = [];
   const service = new ClassTeacherService(
     {
       query: async (sql: string, params: unknown[]) => {
@@ -165,6 +186,20 @@ test('ClassTeacherService submits teacher marks for moderation with tenant scope
         submissionEvents.push(input);
       },
     } as never,
+    {
+      saveTeacherMarkEntries: async (rows: any[], windowId: string, submit: boolean) => {
+        savedSheets.push({ rows, windowId, submit });
+        return {
+          success: true,
+          data: {
+            status: 'submitted',
+            saved_count: rows.length,
+            submitted_count: rows.length,
+            mark_ids: ['mark-a'],
+          },
+        };
+      },
+    } as never,
   );
 
   const result = await service.saveMarks('tenant-a', 'teacher-a', {
@@ -176,10 +211,9 @@ test('ClassTeacherService submits teacher marks for moderation with tenant scope
 
   assert.equal(result.success, true);
   assert.equal(result.status, 'submitted');
-  const updateQuery = queries.find((query) => /UPDATE exam_marks/.test(query.sql));
-  assert.ok(updateQuery);
-  assert.match(updateQuery.sql, /status = \$2/);
-  assert.equal(updateQuery.params[1], 'submitted');
+  assert.equal(savedSheets.length, 1);
+  assert.equal(savedSheets[0].submit, true);
+  assert.equal(savedSheets[0].rows[0].score_status, 'entered');
   assert.equal(submissionEvents.length, 1);
   assert.equal(submissionEvents[0].tenant_id, 'tenant-a');
   assert.equal(submissionEvents[0].exam_id, 'series-a');

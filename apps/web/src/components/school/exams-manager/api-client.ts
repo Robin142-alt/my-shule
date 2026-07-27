@@ -1,4 +1,8 @@
 import { requestDashboardApi } from '@/lib/dashboard/api-client';
+import type {
+  LiveExamReportCard,
+  ReportCardTransitionAction,
+} from '@/lib/modules/exams-client';
 
 // ── Fetch functions ──
 export async function fetchExamsOverview() {
@@ -31,6 +35,10 @@ export async function fetchReportCards() {
 
 export async function fetchPublishing() {
   return requestDashboardApi('/admin-command/exams-manager/publishing');
+}
+
+export async function fetchLifecycleReportCards() {
+  return requestDashboardApi<LiveExamReportCard[]>('/exams/report-cards?limit=50');
 }
 
 export async function fetchExamsReports() {
@@ -76,6 +84,23 @@ export async function publishResults(examId: string) {
 
 export async function unpublishResults(examId: string) {
   return requestDashboardApi(`/admin-command/exams-manager/publishing/${examId}/unpublish`, { method: 'POST' });
+}
+
+export async function transitionReportCard(
+  reportCardId: string,
+  action: ReportCardTransitionAction,
+  reason?: string,
+) {
+  return requestDashboardApi<LiveExamReportCard>(
+    `/exams/report-cards/${encodeURIComponent(reportCardId)}/transition`,
+    {
+      method: 'PATCH',
+      body: {
+        action,
+        ...(reason?.trim() ? { reason: reason.trim() } : {}),
+      },
+    },
+  );
 }
 
 export async function generateExamsReport(data: any) {

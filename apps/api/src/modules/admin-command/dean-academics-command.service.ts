@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
+import { ExamsService } from '../exams/exams.service';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
 
 @Injectable()
@@ -9,6 +10,7 @@ export class DeanAcademicsCommandService {
     private readonly requestContext: RequestContextService,
     private readonly prisma: PrismaService,
     private readonly operations: AdminCommandOperationsService,
+    private readonly examsService: ExamsService,
   ) {}
 
   private requireTenantId(): string {
@@ -88,12 +90,7 @@ export class DeanAcademicsCommandService {
   }
 
   async getAcademicInterventions() {
-    const tenantId = this.requireTenantId();
-    const res = await this.executeSql(
-      `SELECT * FROM academic_interventions WHERE tenant_id = $1 ORDER BY created_at DESC`,
-      [tenantId]
-    );
-    return res.rows;
+    return this.examsService.listAcademicInterventions();
   }
 
   async getDepartmentPerformance() {

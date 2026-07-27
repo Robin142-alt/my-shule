@@ -2572,7 +2572,11 @@ function AnalyticsPanel({
   const hasData = liveData && (
     (liveData.trends && liveData.trends.length > 0) || 
     (liveData.subjectPerformance && liveData.subjectPerformance.length > 0) ||
-    (liveData.studentProgress?.topPerformers && liveData.studentProgress.topPerformers.length > 0)
+    (liveData.studentProgress?.topPerformers && liveData.studentProgress.topPerformers.length > 0) ||
+    liveData.kpis.pending_reviews > 0 ||
+    liveData.kpis.missing_marks_alerts > 0 ||
+    liveData.kpis.active_exams > 0 ||
+    liveData.data_quality.explicit_evidence_count > 0
   );
 
   if (!hasData) {
@@ -2587,16 +2591,21 @@ function AnalyticsPanel({
         <Card className="p-5">
           <div className="flex items-center justify-between gap-3">
             <BarChart3 className="h-5 w-5 text-info" />
-            <StatusPill label="Global Average" tone="ok" />
+            <StatusPill
+              label={liveData.kpis.school_average === null ? "Awaiting Results" : "Final Results"}
+              tone={liveData.kpis.school_average === null ? "warning" : "ok"}
+            />
           </div>
           <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
             School Average
           </p>
           <p className="mt-2 text-2xl font-bold text-foreground">
-            {liveData.kpis.school_average ? `${liveData.kpis.school_average}%` : "0%"}
+            {liveData.kpis.school_average === null
+              ? "No final results"
+              : `${liveData.kpis.school_average}%`}
           </p>
           <p className="mt-2 text-[13px] leading-5 text-muted">
-            Mean score across all recorded assessments.
+            Mean percentage from locked or published numeric marks only.
           </p>
         </Card>
 
@@ -2657,6 +2666,33 @@ function AnalyticsPanel({
           </p>
         </Card>
       </section>
+
+      <Card className="p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+              Result evidence quality
+            </p>
+            <p className="mt-1 text-sm text-foreground">
+              Final numeric marks and explicit learner evidence remain separate from incomplete entry work.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <StatusPill
+              label={`${liveData.data_quality.final_mark_count} final marks`}
+              tone="ok"
+            />
+            <StatusPill
+              label={`${liveData.data_quality.explicit_evidence_count} status records`}
+              tone="ok"
+            />
+            <StatusPill
+              label={`${liveData.data_quality.missing_or_incomplete_count} missing or incomplete`}
+              tone={liveData.data_quality.missing_or_incomplete_count > 0 ? "warning" : "ok"}
+            />
+          </div>
+        </div>
+      </Card>
 
       {/* Rich Analytics Dashboard via Recharts */}
       <AnalyticsDashboard liveData={liveData} />

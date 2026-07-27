@@ -290,13 +290,79 @@ export class StudentCommandService {
 
   async getAcademics() {
     const identity = this.requireIdentity();
-    const [marksResult, reportCardsResult] = await Promise.all([
+    const [assignmentsResult, marksResult, reportCardsResult] = await Promise.all([
+      this.executeSql<{
+        id: string;
+        title: string;
+        description: string | null;
+        subject: string;
+        teacher: string;
+        due_at: string;
+        status: string;
+        submission_status: string | null;
+        submitted_at: string | null;
+        completed_at: string | null;
+      }>(
+        `
+          SELECT
+            assignment.id::text,
+            assignment.title,
+            assignment.description,
+            COALESCE(subject.name, 'Subject not linked') AS subject,
+            COALESCE(
+              NULLIF(actor.display_name, ''),
+              NULLIF(actor.full_name, ''),
+              actor.email::text,
+              'Teacher not recorded'
+            ) AS teacher,
+            assignment.due_date::text AS due_at,
+            assignment.status,
+            submission.status AS submission_status,
+            submission.submitted_at::text,
+            submission.completed_at::text
+          FROM student_portal_access access
+          JOIN students student
+            ON student.tenant_id = access.tenant_id
+           AND student.id = access.student_id
+          JOIN academics_assignments assignment
+            ON assignment.tenant_id = student.tenant_id
+           AND (
+             assignment.class_id = student.current_class_id::text
+             OR EXISTS (
+               SELECT 1
+               FROM student_class_assignments enrollment
+               WHERE enrollment.tenant_id = student.tenant_id
+                 AND enrollment.student_id = student.id
+                 AND enrollment.class_section_id = assignment.class_id
+                 AND enrollment.status = 'active'
+             )
+           )
+          LEFT JOIN subjects subject
+            ON subject.tenant_id = assignment.tenant_id
+           AND subject.id::text = assignment.subject_id
+          LEFT JOIN users actor
+            ON actor.id = assignment.teacher_id
+          LEFT JOIN academics_assignment_submissions submission
+            ON submission.tenant_id = assignment.tenant_id
+           AND submission.assignment_id = assignment.id
+           AND submission.student_id = student.id
+          WHERE access.tenant_id = $1
+            AND access.user_id = $2::uuid
+            AND access.status = 'active'
+            AND student.deleted_at IS NULL
+            AND lower(assignment.status) IN ('published', 'open', 'active')
+          ORDER BY assignment.due_date ASC, assignment.created_at DESC
+          LIMIT 250
+        `,
+        [identity.tenantId, identity.userId],
+      ),
       this.executeSql<{
         id: string;
         subject: string;
         exam: string;
         teacher: string;
-        score: string | number;
+        score: string | number | null;
+        score_status: string;
         remarks: string | null;
         status: string;
         published_at: string | null;
@@ -308,6 +374,7 @@ export class StudentCommandService {
             COALESCE(series.name, 'Assessment') AS exam,
             COALESCE(NULLIF(actor.display_name, ''), NULLIF(actor.full_name, ''), actor.email::text, 'Teacher not recorded') AS teacher,
             mark.score,
+            mark.score_status,
             mark.remarks,
             mark.status,
             mark.published_at::text
@@ -368,6 +435,7 @@ export class StudentCommandService {
             AND access.user_id = $2::uuid
             AND access.status = 'active'
             AND report_card.status = 'published'
+            AND report_card.is_current = TRUE
             AND student.deleted_at IS NULL
           ORDER BY report_card.published_at DESC NULLS LAST, report_card.updated_at DESC
           LIMIT 100
@@ -377,8 +445,15 @@ export class StudentCommandService {
     ]);
 
     const scores = marksResult.rows
+      .filter((row) => row.score_status === 'entered' && row.score !== null)
       .map((row) => Number(row.score))
       .filter((score) => Number.isFinite(score));
+    const assignments = assignmentsResult.rows.map((assignment) => ({
+      ...assignment,
+      is_complete: ['submitted', 'completed', 'graded'].includes(
+        String(assignment.submission_status ?? '').toLowerCase(),
+      ),
+    }));
 
     return {
       metrics: {
@@ -386,12 +461,14 @@ export class StudentCommandService {
         mean_score: scores.length > 0
           ? Number((scores.reduce((total, score) => total + score, 0) / scores.length).toFixed(2))
           : 0,
+        entered_scores: scores.length,
         report_cards: reportCardsResult.rows.length,
+        pending_assignments: assignments.filter((assignment) => !assignment.is_complete).length,
       },
-      assignments: [],
+      assignments,
       marks: marksResult.rows.map((row) => ({
         ...row,
-        score: Number(row.score),
+        score: row.score === null ? null : Number(row.score),
       })),
       report_cards: reportCardsResult.rows.map((row) => ({
         ...row,

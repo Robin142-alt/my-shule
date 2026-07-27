@@ -1,11 +1,8 @@
 'use client';
 
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, RefreshCcw } from 'lucide-react';
-
-const inter = Inter({ subsets: ["latin"] });
 
 export default function GlobalError({
   error,
@@ -16,7 +13,7 @@ export default function GlobalError({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body>
         <div className="flex h-screen w-screen flex-col items-center justify-center bg-background p-4 text-center">
           <div className="flex max-w-md flex-col items-center space-y-6 rounded-xl border border-destructive/20 bg-card p-8 shadow-lg">
             <div className="rounded-full bg-destructive/10 p-4 text-destructive">

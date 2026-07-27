@@ -7,7 +7,9 @@ import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import {
   BulkExamMarkUploadDto,
+  AddAcademicInterventionUpdateDto,
   CorrectLockedExamMarkDto,
+  CreateAcademicInterventionDto,
   CreateExamAssessmentDto,
   CreateExamSeriesDto,
   EnterExamMarkDto,
@@ -143,7 +145,7 @@ export class ExamsController {
   }
 
   @Post('report-cards/publish')
-  @Permissions('exams:approve')
+  @Permissions('exams:read')
   publishReportCard(@Body() dto: PublishReportCardDto) {
     return this.examsService.publishReportCard(dto);
   }
@@ -154,20 +156,50 @@ export class ExamsController {
     return this.examsService.getAnalytics();
   }
 
+  @Get('interventions')
+  @Permissions('academics:read')
+  listAcademicInterventions(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.listAcademicInterventions(query);
+  }
+
+  @Post('interventions')
+  @Permissions('academics:read')
+  createAcademicIntervention(@Body() dto: CreateAcademicInterventionDto) {
+    return this.examsService.createAcademicIntervention(dto);
+  }
+
+  @Post('interventions/:interventionId/updates')
+  @Permissions('academics:read')
+  addAcademicInterventionUpdate(
+    @Param('interventionId') interventionId: string,
+    @Body() dto: AddAcademicInterventionUpdateDto,
+  ) {
+    return this.examsService.addAcademicInterventionUpdate(interventionId, dto);
+  }
+
+  @Post('interventions/:interventionId/notify-hod')
+  @Permissions('academics:read')
+  notifyAcademicInterventionHod(
+    @Param('interventionId') interventionId: string,
+    @Body() dto: { message?: string },
+  ) {
+    return this.examsService.notifyAcademicInterventionHod(interventionId, dto.message);
+  }
+
   @Post('report-cards/generate')
-  @Permissions('exams:approve')
+  @Permissions('exams:write')
   generateReportCard(@Body() dto: GenerateReportCardDto) {
     return this.examsService.generateReportCard(dto);
   }
 
   @Post('report-cards/regenerate')
-  @Permissions('exams:approve')
+  @Permissions('exams:write')
   regenerateReportCard(@Body() dto: GenerateReportCardDto & { reason?: string }) {
     return this.examsService.regenerateReportCard(dto);
   }
 
   @Post('report-cards/batches')
-  @Permissions('exams:approve')
+  @Permissions('exams:write')
   generateReportCardBatch(@Body() dto: GenerateReportCardBatchDto) {
     return this.examsService.generateReportCardBatch(dto);
   }
@@ -209,9 +241,12 @@ export class ExamsController {
   }
 
   @Patch('report-cards/:reportCardId/transition')
-  @Permissions('exams:approve')
-  transitionReportCard(@Param('reportCardId') reportCardId: string, @Body() dto: { action?: string }) {
-    return this.examsService.transitionReportCard(reportCardId, dto.action);
+  @Permissions('exams:read')
+  transitionReportCard(
+    @Param('reportCardId') reportCardId: string,
+    @Body() dto: { action?: string; reason?: string },
+  ) {
+    return this.examsService.transitionReportCard(reportCardId, dto.action, dto.reason);
   }
 
   @Patch('report-cards/:reportCardId/comments')
@@ -277,9 +312,15 @@ export class ExamsController {
   }
 
   @Post('series/:id/publish')
-  @Permissions('exams:write')
+  @Permissions('exams:read')
   publishExamSeries(@Param('id') id: string) {
     return this.examsService.publishExamSeries(id);
+  }
+
+  @Post('series/:id/unpublish')
+  @Permissions('exams:read')
+  unpublishExamSeries(@Param('id') id: string, @Body() dto: { reason?: string }) {
+    return this.examsService.unpublishExamSeries(id, dto.reason ?? '');
   }
 
   @Post('timetable-slots')
@@ -422,8 +463,22 @@ export class ExamsController {
 
   @Post('grading-policies')
   @Permissions('exams:write')
-  createGradingPolicy(@Body() dto: { name?: string; reporting_mode?: string; exam_series_id?: string }) {
+  createGradingPolicy(@Body() dto: {
+    name?: string;
+    reporting_mode?: string;
+    exam_series_id?: string;
+    effective_from?: string;
+    effective_to?: string;
+    supersedes_policy_id?: string;
+    scope?: Record<string, unknown>;
+  }) {
     return this.examsService.createGradingPolicy(dto);
+  }
+
+  @Get('grading-policies/:policyId/impact')
+  @Permissions('exams:read')
+  getGradingPolicyImpact(@Param('policyId') policyId: string) {
+    return this.examsService.getGradingPolicyImpact(policyId);
   }
 
   @Patch('grading-policies/:policyId/status')
@@ -434,7 +489,14 @@ export class ExamsController {
 
   @Patch('grading-policies/:policyId')
   @Permissions('exams:write')
-  updateGradingPolicy(@Param('policyId') policyId: string, @Body() dto: { name?: string; reporting_mode?: string }) {
+  updateGradingPolicy(@Param('policyId') policyId: string, @Body() dto: {
+    name?: string;
+    reporting_mode?: string;
+    exam_series_id?: string;
+    effective_from?: string;
+    effective_to?: string;
+    scope?: Record<string, unknown>;
+  }) {
     return this.examsService.updateGradingPolicy(policyId, dto);
   }
 
@@ -452,13 +514,29 @@ export class ExamsController {
 
   @Post('grading-policies/:policyId/boundaries')
   @Permissions('exams:write')
-  createGradingPolicyBoundary(@Param('policyId') policyId: string, @Body() dto: { label?: string; min_score?: number; max_score?: number; points?: number; descriptor?: string }) {
+  createGradingPolicyBoundary(@Param('policyId') policyId: string, @Body() dto: {
+    label?: string;
+    min_score?: number;
+    max_score?: number;
+    points?: number;
+    descriptor?: string;
+    remark?: string;
+    is_pass?: boolean;
+  }) {
     return this.examsService.createGradingPolicyBoundary(policyId, dto);
   }
 
   @Patch('grading-policy-boundaries/:boundaryId')
   @Permissions('exams:write')
-  updateGradingPolicyBoundary(@Param('boundaryId') boundaryId: string, @Body() dto: { label?: string; min_score?: number; max_score?: number; points?: number; descriptor?: string }) {
+  updateGradingPolicyBoundary(@Param('boundaryId') boundaryId: string, @Body() dto: {
+    label?: string;
+    min_score?: number;
+    max_score?: number;
+    points?: number;
+    descriptor?: string;
+    remark?: string;
+    is_pass?: boolean;
+  }) {
     return this.examsService.updateGradingPolicyBoundary(boundaryId, dto);
   }
 

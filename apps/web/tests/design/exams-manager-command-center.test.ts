@@ -6,6 +6,10 @@ describe("Exams manager command center", () => {
     path.join(process.cwd(), "src/components/school/exams-manager-command-center.tsx"),
     "utf8",
   );
+  const handoffSource = fs.readFileSync(
+    path.join(process.cwd(), "src/components/school/exams-manager/publishing-workspace.tsx"),
+    "utf8",
+  );
 
   it("does not mount the legacy DashboardEngine inside the new command center", () => {
     expect(source).not.toContain("@/components/dashboard/dashboard-engine");
@@ -38,5 +42,12 @@ describe("Exams manager command center", () => {
     expect(source).toContain('"marks-entry"');
     expect(source).toContain('"exam-setup"');
     expect(source).toContain('"exam-timetable"');
+  });
+
+  it("hands report cards to the dean without granting publication authority", () => {
+    expect(source).toContain("Report Card Handoff");
+    expect(handoffSource).toMatch(/only the Principal can publish approved results/);
+    expect(handoffSource).toMatch(/Submit to Dean/);
+    expect(handoffSource).not.toMatch(/Publish to parents|Unpublish report cards/);
   });
 });

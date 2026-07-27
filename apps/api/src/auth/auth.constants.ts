@@ -479,6 +479,7 @@ export const DEFAULT_ROLE_CATALOG = [
       'academics:manage-lifecycle',
       'academics:merge',
       'exams:read',
+      'exams:publish',
       'discipline:read',
       'discipline:approve',
       'discipline:reports',

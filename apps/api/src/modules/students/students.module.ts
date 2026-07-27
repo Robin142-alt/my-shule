@@ -4,7 +4,6 @@ import { Module } from '@nestjs/common';
 import { BillingModule } from '../billing/billing.module';
 import { EventsModule } from '../events/events.module';
 import { ExamsModule } from '../exams/exams.module';
-import { LmsModule } from '../lms/lms.module';
 import { SyncModule } from '../sync/sync.module';
 import { AttendanceService } from './attendance.service';
 import { StudentsController } from './students.controller';
@@ -16,7 +15,7 @@ import { StudentPortalService } from './student-portal.service';
 import { StudentsRepository } from './repositories/students.repository';
 
 @Module({
-  imports: [EventsModule, BillingModule, SyncModule, LmsModule, ExamsModule],
+  imports: [EventsModule, BillingModule, SyncModule, ExamsModule],
   controllers: [StudentsController, StudentController, StudentPortalActionsController],
   providers: [
     StudentsWidgetProvider,

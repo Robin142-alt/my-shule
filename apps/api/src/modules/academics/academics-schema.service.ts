@@ -582,6 +582,30 @@ export class AcademicsSchemaService implements OnModuleInit {
         created_at timestamptz NOT NULL DEFAULT NOW()
       );
 
+      CREATE TABLE IF NOT EXISTS academics_assignment_submissions (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        assignment_id uuid NOT NULL,
+        student_id text NOT NULL,
+        status text NOT NULL DEFAULT 'submitted',
+        submitted_by_user_id uuid,
+        submitted_at timestamptz,
+        completed_at timestamptz,
+        metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_academics_assignment_submission
+          UNIQUE (tenant_id, assignment_id, student_id),
+        CONSTRAINT ck_academics_assignment_submission_status
+          CHECK (status IN ('draft', 'submitted', 'completed', 'returned', 'graded')),
+        CONSTRAINT ck_academics_assignment_submission_tenant
+          CHECK (tenant_id <> 'global')
+      );
+      CREATE INDEX IF NOT EXISTS ix_academics_assignment_submissions_student
+        ON academics_assignment_submissions (tenant_id, student_id, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_academics_assignment_submissions_assignment
+        ON academics_assignment_submissions (tenant_id, assignment_id, status);
+
       CREATE TABLE IF NOT EXISTS academics_grading_systems (
         id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,
@@ -1057,6 +1081,8 @@ export class AcademicsSchemaService implements OnModuleInit {
       ALTER TABLE teacher_subject_assignments FORCE ROW LEVEL SECURITY;
       ALTER TABLE academic_audit_logs ENABLE ROW LEVEL SECURITY;
       ALTER TABLE academic_audit_logs FORCE ROW LEVEL SECURITY;
+      ALTER TABLE academics_assignment_submissions ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE academics_assignment_submissions FORCE ROW LEVEL SECURITY;
       ALTER TABLE academics_departments ENABLE ROW LEVEL SECURITY;
       ALTER TABLE academics_departments FORCE ROW LEVEL SECURITY;
       ALTER TABLE academics_class_teachers ENABLE ROW LEVEL SECURITY;
@@ -1252,6 +1278,17 @@ export class AcademicsSchemaService implements OnModuleInit {
 
       DROP POLICY IF EXISTS academic_audit_logs_tenant_policy ON academic_audit_logs;
       CREATE POLICY academic_audit_logs_tenant_policy ON academic_audit_logs
+      FOR ALL USING (
+        tenant_id = current_setting('app.tenant_id', true)
+        OR NULLIF(current_setting('app.role', true), '') = 'system'
+      )
+      WITH CHECK (
+        tenant_id = current_setting('app.tenant_id', true)
+        OR NULLIF(current_setting('app.role', true), '') = 'system'
+      );
+
+      DROP POLICY IF EXISTS academics_assignment_submissions_tenant_policy ON academics_assignment_submissions;
+      CREATE POLICY academics_assignment_submissions_tenant_policy ON academics_assignment_submissions
       FOR ALL USING (
         tenant_id = current_setting('app.tenant_id', true)
         OR NULLIF(current_setting('app.role', true), '') = 'system'

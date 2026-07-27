@@ -52,8 +52,10 @@ import { ParentCommandController } from './parent-command.controller';
 import { ParentCommandService } from './parent-command.service';
 import { AccountantCommandController } from './accountant-command.controller';
 import { AccountantCommandService } from './accountant-command.service';
+import { ExamsModule } from '../exams/exams.module';
 
 @Module({
+  imports: [ExamsModule],
   controllers: [
     AdminCommandController,
     DeputyCommandController,
