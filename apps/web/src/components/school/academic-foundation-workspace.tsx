@@ -17,6 +17,10 @@ import { toast } from "sonner";
 
 import { Card } from "@/components/ui/card";
 import {
+  AcademicCurriculumConfigurationEditor,
+  validateAcademicCurriculumConfiguration,
+} from "@/components/school/academic-curriculum-builder";
+import {
   AcademicAttendancePolicyEditor,
   AcademicGradeBandsEditor,
   AcademicReportCardPolicyEditor,
@@ -633,18 +637,25 @@ export function AcademicFoundationWorkspace({
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
+    const curriculumModel = value(data, "curriculum_model");
     let configuration: Record<string, unknown> = {};
     try {
       configuration = JSON.parse(value(data, "configuration") || "{}") as Record<string, unknown>;
     } catch {
-      const message = "Curriculum configuration must be valid JSON.";
+      const message = "Curriculum structure could not be read. Review the guided fields and try again.";
       setActionError(message);
       toast.error(message);
       return;
     }
+    const validation = validateAcademicCurriculumConfiguration(curriculumModel, configuration);
+    if (validation) {
+      setActionError(validation);
+      toast.error(validation);
+      return;
+    }
     return submit("curriculum-configuration", "/academics/curriculum-configurations", {
       name: value(data, "name"),
-      curriculum_model: value(data, "curriculum_model"),
+      curriculum_model: curriculumModel,
       configuration,
       effective_from: value(data, "effective_from"),
       effective_to: value(data, "effective_to") || undefined,
@@ -1021,14 +1032,15 @@ export function AcademicFoundationWorkspace({
                 <button className={`${primaryButtonClass} sm:col-span-2`} disabled={busyAction !== null || teachers.length === 0}>{busyAction === "academic-role" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Save role appointment</button>
               </form>
             </SetupForm>
-            <SetupForm title="Create curriculum configuration" description="Create current or future CBC, CBE, 8-4-4, international, hybrid, or custom structures without rewriting history.">
+            <SetupForm title="Create curriculum configuration" description="Choose the school curriculum, levels, pathways, assessment approach, and promotion defaults without technical configuration fields.">
               <form onSubmit={handleCreateCurriculumConfiguration} className="grid gap-3 sm:grid-cols-2">
                 <label className="sm:col-span-2 text-sm font-bold">Configuration name<input name="name" required className={fieldClass} placeholder="e.g. 2027 Senior School Pathways" /></label>
-                <label className="text-sm font-bold">Curriculum model<select name="curriculum_model" required defaultValue="" className={fieldClass}><option value="">Select model</option>{["CBC", "CBE", "8-4-4", "International", "Hybrid", "Custom"].map((model) => <option key={model} value={model}>{model}</option>)}</select></label>
                 <label className="text-sm font-bold">Status<select name="status" defaultValue="draft" className={fieldClass}><option value="draft">Draft</option><option value="active">Active</option><option value="future">Future</option></select></label>
                 <label className="text-sm font-bold">Effective from<input name="effective_from" type="date" required className={fieldClass} /></label>
                 <label className="text-sm font-bold">Effective to<input name="effective_to" type="date" className={fieldClass} /></label>
-                <label className="sm:col-span-2 text-sm font-bold">Structure (JSON)<textarea name="configuration" rows={6} defaultValue={'{\n  "pathways": [],\n  "tracks": [],\n  "promotion_rules": {}\n}'} className={fieldClass} /></label>
+                <div className="sm:col-span-2">
+                  <AcademicCurriculumConfigurationEditor configurationName="configuration" />
+                </div>
                 <label className="sm:col-span-2 text-sm font-bold">Reason / setup note<input name="reason" className={fieldClass} /></label>
                 <button className={`${primaryButtonClass} sm:col-span-2`} disabled={busyAction !== null}>{busyAction === "curriculum-configuration" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Create curriculum version</button>
               </form>
@@ -1039,7 +1051,7 @@ export function AcademicFoundationWorkspace({
               {(showArchived ? roleAppointments : activeRoleAppointments).length === 0 ? <EmptyState>No matching academic role appointments. Assign the first role above.</EmptyState> : <div className="space-y-2">{(showArchived ? roleAppointments : activeRoleAppointments).map((appointment) => <div key={appointment.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/5 p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black capitalize">{appointment.role_type.replaceAll("_", " ")} - {appointment.teacher_name || labels.teachers.get(appointment.teacher_user_id) || "Staff member"}</p><p className="text-xs font-semibold text-white/55">{appointment.department_id ? labels.departments.get(appointment.department_id) : appointment.class_section_id ? labels.classes.get(appointment.class_section_id) : appointment.stream_id ? labels.streams.get(appointment.stream_id) : "Whole-school scope"} - {appointment.appointment_type || "permanent"} - {statusLabel(appointment)}</p><p className="text-xs font-semibold text-white/45">{dateLabel(appointment.effective_from)} to {dateLabel(appointment.effective_to || undefined)}{appointment.reason ? ` - ${appointment.reason}` : ""}</p></div>{isActive(appointment) ? <AcademicAssignmentEndButton assignmentType="academic-role" assignmentId={appointment.id} label="academic role appointment" onUpdated={refreshAll} /> : null}</div>)}</div>}
             </SetupForm>
             <SetupForm title="Curriculum configurations" description="Current, future, and historical effective-dated curriculum structures.">
-              {visible(curriculumConfigurations).length === 0 ? <EmptyState>No matching curriculum configurations. Create the first version above.</EmptyState> : <div className="space-y-2">{visible(curriculumConfigurations).map((configuration) => <div key={configuration.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/5 p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black">{configuration.name} <span className="text-cyan-200">({configuration.curriculum_model})</span></p><p className="text-xs font-semibold text-white/55">{dateLabel(configuration.effective_from)} to {dateLabel(configuration.effective_to || undefined)} - {statusLabel(configuration)}{configuration.based_on_id ? " - versioned from an earlier configuration" : ""}</p></div><AcademicRecordManager entityType="curriculum-configuration" record={configuration} title={configuration.name} fields={[{ name: "name", label: "Configuration name" }, { name: "curriculum_model", label: "Curriculum model", type: "select", options: ["CBC", "CBE", "8-4-4", "International", "Hybrid", "Custom"].map((model) => ({ value: model, label: model })) }, { name: "effective_from", label: "Effective from", type: "date" }, { name: "effective_to", label: "Effective to", type: "date" }, { name: "configuration", label: "Curriculum structure (JSON)", type: "json" }]} onUpdated={refreshAll} /></div>)}</div>}
+              {visible(curriculumConfigurations).length === 0 ? <EmptyState>No matching curriculum configurations. Create the first version above.</EmptyState> : <div className="space-y-2">{visible(curriculumConfigurations).map((configuration) => <div key={configuration.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/5 p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black">{configuration.name} <span className="text-cyan-200">({configuration.curriculum_model})</span></p><p className="text-xs font-semibold text-white/55">{dateLabel(configuration.effective_from)} to {dateLabel(configuration.effective_to || undefined)} - {statusLabel(configuration)}{configuration.based_on_id ? " - versioned from an earlier configuration" : ""}</p></div><AcademicRecordManager entityType="curriculum-configuration" record={configuration} title={configuration.name} fields={[{ name: "name", label: "Configuration name" }, { name: "effective_from", label: "Effective from", type: "date" }, { name: "effective_to", label: "Effective to", type: "date" }, { name: "configuration", label: "Curriculum structure", type: "curriculum-configuration" }]} onUpdated={refreshAll} /></div>)}</div>}
             </SetupForm>
           </div>
         </div>

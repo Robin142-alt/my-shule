@@ -14,6 +14,10 @@ describe("principal and deputy academic foundation workspace", () => {
     path.join(process.cwd(), "src/components/school/academic-policy-builders.tsx"),
     "utf8",
   );
+  const curriculumBuilderSource = fs.readFileSync(
+    path.join(process.cwd(), "src/components/school/academic-curriculum-builder.tsx"),
+    "utf8",
+  );
   const principalSource = fs.readFileSync(
     path.join(process.cwd(), "src/components/school/principal-command-center.tsx"),
     "utf8",
@@ -77,6 +81,26 @@ describe("principal and deputy academic foundation workspace", () => {
     expect(workspaceSource).not.toContain("Grade bands and assessment rules (JSON array)");
     expect(workspaceSource).not.toContain("Register configuration (JSON)");
     expect(workspaceSource).not.toContain("Template, comments, and signatures (JSON)");
+  });
+
+  it("uses one guided curriculum builder for create and manage workflows", () => {
+    for (const label of [
+      "School levels and stages",
+      "Pathways and programmes",
+      "Tracks and specialisations",
+      "Curriculum and exam frameworks",
+      "Assessment and learner promotion",
+      "Load {model || \"model\"} starter",
+    ]) {
+      expect(curriculumBuilderSource).toContain(label);
+    }
+
+    expect(workspaceSource).toContain("<AcademicCurriculumConfigurationEditor");
+    expect(workspaceSource).toContain('type: "curriculum-configuration"');
+    expect(managerSource).toContain("<AcademicCurriculumConfigurationEditor");
+    expect(managerSource).toContain("validateAcademicCurriculumConfiguration");
+    expect(workspaceSource).not.toContain("Structure (JSON)");
+    expect(workspaceSource).not.toContain("Curriculum structure (JSON)");
   });
 
   it("wires forms to tenant-scoped academic API contracts and refreshes saved state", () => {

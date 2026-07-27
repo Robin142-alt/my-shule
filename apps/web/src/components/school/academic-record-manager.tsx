@@ -5,6 +5,10 @@ import { Archive, ArrowRightLeft, History, Loader2, Pencil, RotateCcw, Trash2, U
 import { toast } from "sonner";
 
 import {
+  AcademicCurriculumConfigurationEditor,
+  validateAcademicCurriculumConfiguration,
+} from "@/components/school/academic-curriculum-builder";
+import {
   AcademicAttendancePolicyEditor,
   AcademicGradeBandsEditor,
   AcademicReportCardPolicyEditor,
@@ -41,7 +45,8 @@ export type AcademicEditableField = {
     | "checkbox"
     | "grade-bands"
     | "attendance-policy"
-    | "report-card-policy";
+    | "report-card-policy"
+    | "curriculum-configuration";
   options?: Array<{ value: string; label: string }>;
   placeholder?: string;
 };
@@ -206,6 +211,7 @@ export function AcademicRecordManager({
         || field.type === "grade-bands"
         || field.type === "attendance-policy"
         || field.type === "report-card-policy"
+        || field.type === "curriculum-configuration"
       ) {
         try {
           body[field.name] = JSON.parse(String(data.get(field.name) ?? "{}"));
@@ -226,6 +232,15 @@ export function AcademicRecordManager({
             setDetailError(validation);
             return;
           }
+        }
+        if (field.type === "curriculum-configuration") {
+          const curriculumModel = String(data.get("curriculum_model") ?? "").trim();
+          const validation = validateAcademicCurriculumConfiguration(curriculumModel, body[field.name]);
+          if (validation) {
+            setDetailError(validation);
+            return;
+          }
+          body.curriculum_model = curriculumModel;
         }
       } else body[field.name] = String(data.get(field.name) ?? "").trim() || null;
     }
@@ -329,6 +344,18 @@ export function AcademicRecordManager({
                 return (
                   <div key={field.name} className="sm:col-span-2">
                     <AcademicReportCardPolicyEditor name={field.name} defaultValue={record[field.name]} theme="light" />
+                  </div>
+                );
+              }
+              if (field.type === "curriculum-configuration") {
+                return (
+                  <div key={field.name} className="sm:col-span-2">
+                    <AcademicCurriculumConfigurationEditor
+                      configurationName={field.name}
+                      defaultConfiguration={record[field.name]}
+                      defaultModel={record.curriculum_model}
+                      theme="light"
+                    />
                   </div>
                 );
               }
