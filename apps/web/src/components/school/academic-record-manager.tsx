@@ -4,6 +4,13 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Archive, ArrowRightLeft, History, Loader2, Pencil, RotateCcw, Trash2, UserMinus } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  AcademicAttendancePolicyEditor,
+  AcademicGradeBandsEditor,
+  AcademicReportCardPolicyEditor,
+  validateAcademicGradeBands,
+  validateAttendanceConfiguration,
+} from "@/components/school/academic-policy-builders";
 import { Modal } from "@/components/ui/modal";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
@@ -24,7 +31,17 @@ export type AcademicManagedEntity =
 export type AcademicEditableField = {
   name: string;
   label: string;
-  type?: "text" | "date" | "number" | "textarea" | "json" | "select" | "checkbox";
+  type?:
+    | "text"
+    | "date"
+    | "number"
+    | "textarea"
+    | "json"
+    | "select"
+    | "checkbox"
+    | "grade-bands"
+    | "attendance-policy"
+    | "report-card-policy";
   options?: Array<{ value: string; label: string }>;
   placeholder?: string;
 };
@@ -184,12 +201,31 @@ export function AcademicRecordManager({
     for (const field of fields) {
       if (field.type === "checkbox") body[field.name] = data.get(field.name) === "on";
       else if (field.type === "number") body[field.name] = Number(data.get(field.name));
-      else if (field.type === "json") {
+      else if (
+        field.type === "json"
+        || field.type === "grade-bands"
+        || field.type === "attendance-policy"
+        || field.type === "report-card-policy"
+      ) {
         try {
           body[field.name] = JSON.parse(String(data.get(field.name) ?? "{}"));
         } catch {
-          setDetailError(`${field.label} must contain valid JSON.`);
+          setDetailError(`${field.label} could not be read. Review the guided fields and try again.`);
           return;
+        }
+        if (field.type === "grade-bands") {
+          const validation = validateAcademicGradeBands(body[field.name]);
+          if (validation) {
+            setDetailError(validation);
+            return;
+          }
+        }
+        if (field.type === "attendance-policy") {
+          const validation = validateAttendanceConfiguration(body[field.name]);
+          if (validation) {
+            setDetailError(validation);
+            return;
+          }
         }
       } else body[field.name] = String(data.get(field.name) ?? "").trim() || null;
     }
@@ -268,23 +304,52 @@ export function AcademicRecordManager({
           {detailError ? <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{detailError}</div> : null}
 
           <form onSubmit={save} className="grid gap-3 sm:grid-cols-2">
-            {fields.map((field) => (
-              <label key={field.name} className={`text-sm font-bold text-slate-700 ${field.type === "textarea" || field.type === "json" ? "sm:col-span-2" : ""}`}>
-                {field.label}
-                {field.type === "select" ? (
-                  <select name={field.name} defaultValue={String(formValue(record, field))} className={inputClass}>
-                    <option value="">Not assigned</option>
-                    {(field.options ?? []).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                ) : field.type === "textarea" || field.type === "json" ? (
-                  <textarea name={field.name} defaultValue={String(formValue(record, field))} className={inputClass} rows={3} />
-                ) : field.type === "checkbox" ? (
-                  <input name={field.name} type="checkbox" defaultChecked={Boolean(formValue(record, field))} className="ml-3 h-4 w-4" />
-                ) : (
-                  <input name={field.name} type={field.type ?? "text"} defaultValue={String(formValue(record, field))} placeholder={field.placeholder} className={inputClass} />
-                )}
-              </label>
-            ))}
+            {fields.map((field) => {
+              if (field.type === "grade-bands") {
+                return (
+                  <div key={field.name} className="sm:col-span-2">
+                    <AcademicGradeBandsEditor
+                      name={field.name}
+                      label={field.label}
+                      defaultValue={record[field.name]}
+                      initialPreset="blank"
+                      theme="light"
+                    />
+                  </div>
+                );
+              }
+              if (field.type === "attendance-policy") {
+                return (
+                  <div key={field.name} className="sm:col-span-2">
+                    <AcademicAttendancePolicyEditor name={field.name} defaultValue={record[field.name]} theme="light" />
+                  </div>
+                );
+              }
+              if (field.type === "report-card-policy") {
+                return (
+                  <div key={field.name} className="sm:col-span-2">
+                    <AcademicReportCardPolicyEditor name={field.name} defaultValue={record[field.name]} theme="light" />
+                  </div>
+                );
+              }
+              return (
+                <label key={field.name} className={`text-sm font-bold text-slate-700 ${field.type === "textarea" || field.type === "json" ? "sm:col-span-2" : ""}`}>
+                  {field.label}
+                  {field.type === "select" ? (
+                    <select name={field.name} defaultValue={String(formValue(record, field))} className={inputClass}>
+                      <option value="">Not assigned</option>
+                      {(field.options ?? []).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                  ) : field.type === "textarea" || field.type === "json" ? (
+                    <textarea name={field.name} defaultValue={String(formValue(record, field))} className={inputClass} rows={3} />
+                  ) : field.type === "checkbox" ? (
+                    <input name={field.name} type="checkbox" defaultChecked={Boolean(formValue(record, field))} className="ml-3 h-4 w-4" />
+                  ) : (
+                    <input name={field.name} type={field.type ?? "text"} defaultValue={String(formValue(record, field))} placeholder={field.placeholder} className={inputClass} />
+                  )}
+                </label>
+              );
+            })}
             <label className="sm:col-span-2 text-sm font-bold text-slate-700">
               Reason or change note
               <textarea value={reason} onChange={(event) => setReason(event.target.value)} className={inputClass} rows={2} placeholder="Required for archive or permanent delete" />

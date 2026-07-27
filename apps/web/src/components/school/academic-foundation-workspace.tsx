@@ -16,6 +16,13 @@ import {
 import { toast } from "sonner";
 
 import { Card } from "@/components/ui/card";
+import {
+  AcademicAttendancePolicyEditor,
+  AcademicGradeBandsEditor,
+  AcademicReportCardPolicyEditor,
+  validateAcademicGradeBands,
+  validateAttendanceConfiguration,
+} from "@/components/school/academic-policy-builders";
 import { AcademicAssignmentEndButton, AcademicRecordManager, AcademicTeacherReassignmentButton } from "@/components/school/academic-record-manager";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
@@ -290,6 +297,7 @@ export function AcademicFoundationWorkspace({
   const [recordSearch, setRecordSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [recordSort, setRecordSort] = useState<"name-asc" | "name-desc" | "recent">("name-asc");
+  const [policySetupType, setPolicySetupType] = useState<"grading" | "attendance" | "report-card">("grading");
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -327,6 +335,9 @@ export function AcademicFoundationWorkspace({
   const activeDepartments = departments.filter(isActive);
   const activeClassTeachers = classTeachers.filter(isActive);
   const activeSubjectTeachers = subjectTeachers.filter(isActive);
+  const activeGradingSystems = gradingSystems.filter(isActive);
+  const activeAttendanceSettings = attendanceSettings.filter(isActive);
+  const activeReportCardSettings = reportCardSettings.filter(isActive);
   const activeRoleAppointments = roleAppointments.filter(isActive);
   const activeCurriculumConfigurations = curriculumConfigurations.filter(isActive);
   const teachers = useMemo(
@@ -573,17 +584,21 @@ export function AcademicFoundationWorkspace({
     try {
       if (kind === "grading") {
         const rules = JSON.parse(value(data, "rules") || "[]") as unknown;
-        if (!Array.isArray(rules)) throw new Error("Grading rules must be a JSON array.");
+        const validation = validateAcademicGradeBands(rules);
+        if (validation) throw new Error(validation);
         body.rules = rules;
         body.effective_from = value(data, "effective_from") || undefined;
         body.effective_to = value(data, "effective_to") || undefined;
       } else if (kind === "attendance") {
-        body.configuration = JSON.parse(value(data, "configuration") || "{}") as Record<string, unknown>;
+        const configuration = JSON.parse(value(data, "configuration") || "{}") as Record<string, unknown>;
+        const validation = validateAttendanceConfiguration(configuration);
+        if (validation) throw new Error(validation);
+        body.configuration = configuration;
       } else {
         body.configuration = JSON.parse(value(data, "configuration") || "{}") as Record<string, unknown>;
       }
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "Policy configuration must be valid JSON.";
+      const message = cause instanceof Error ? cause.message : "Review the policy choices and try again.";
       setActionError(message);
       toast.error(message);
       return;
@@ -661,6 +676,29 @@ export function AcademicFoundationWorkspace({
     { id: "roles-curriculum", label: "Roles & Curriculum", icon: GraduationCap },
     { id: "policies", label: "Grading & Policies", icon: Settings2 },
   ];
+  const policySteps = [
+    {
+      id: "grading",
+      step: "1",
+      title: "Grading system",
+      description: "Set grade bands, points, and report remarks.",
+      count: activeGradingSystems.length,
+    },
+    {
+      id: "attendance",
+      step: "2",
+      title: "Attendance policy",
+      description: "Choose register sessions and the late-arrival time.",
+      count: activeAttendanceSettings.length,
+    },
+    {
+      id: "report-card",
+      step: "3",
+      title: "Report-card policy",
+      description: "Choose grading, ranking, comments, and signatures.",
+      count: activeReportCardSettings.length,
+    },
+  ] as const;
 
   const bulkGroups: BulkGroup[] = activeTab === "calendar" ? [
     { entityType: "academic-year", label: "Academic years", records: visible(years) },
@@ -1009,45 +1047,110 @@ export function AcademicFoundationWorkspace({
 
       {!isLoading && activeTab === "policies" ? (
         <div role="tabpanel" className="space-y-5">
-          <div className="grid gap-5 xl:grid-cols-3">
-            <SetupForm title="Create grading system" description="Define the named grading policy that exams and report cards will use.">
-              <form onSubmit={handleCreatePolicy("grading")} className="space-y-3">
-                <label className="block text-sm font-bold">Policy name<input name="name" required className={fieldClass} placeholder="e.g. Secondary A-E grading" /></label>
-                <label className="block text-sm font-bold">Description<textarea name="description" className={fieldClass} rows={3} placeholder="Explain where this grading system applies" /></label>
-                <div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm font-bold">Effective from<input type="date" name="effective_from" className={fieldClass} /></label><label className="block text-sm font-bold">Effective to<input type="date" name="effective_to" className={fieldClass} /></label></div>
-                <label className="block text-sm font-bold">Grade bands and assessment rules (JSON array)<textarea name="rules" required className={fieldClass} rows={7} defaultValue={'[\n  { "min": 80, "max": 100, "label": "A", "points": 12, "remark": "Excellent" },\n  { "min": 70, "max": 79, "label": "B", "points": 10, "remark": "Very good" }\n]'} /></label>
-                <button className={primaryButtonClass} disabled={busyAction !== null}>{busyAction === "grading-policy" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Create grading system</button>
-              </form>
-            </SetupForm>
-            <SetupForm title="Create attendance policy" description="Record the school attendance rule or register configuration.">
-              <form onSubmit={handleCreatePolicy("attendance")} className="space-y-3">
-                <label className="block text-sm font-bold">Policy name<input name="name" required className={fieldClass} placeholder="e.g. Daily register policy" /></label>
-                <label className="block text-sm font-bold">Description<textarea name="description" className={fieldClass} rows={3} placeholder="Register times, late rules, and escalation expectations" /></label>
-                <label className="block text-sm font-bold">Register configuration (JSON)<textarea name="configuration" className={fieldClass} rows={5} defaultValue={'{\n  "sessions": ["morning", "afternoon"],\n  "late_after": "08:00"\n}'} /></label>
-                <button className={primaryButtonClass} disabled={busyAction !== null}>{busyAction === "attendance-policy" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Create attendance policy</button>
-              </form>
-            </SetupForm>
-            <SetupForm title="Create report-card policy" description="Choose the grading system and what approved reports display.">
-              <form onSubmit={handleCreatePolicy("report-card")} className="space-y-3">
-                <label className="block text-sm font-bold">Policy name<input name="name" required className={fieldClass} placeholder="e.g. End-term report card" /></label>
-                <label className="block text-sm font-bold">Grading system<select name="grading_system_id" required className={fieldClass} defaultValue=""><option value="">Select grading system</option>{gradingSystems.filter(isActive).map((policy) => <option key={policy.id} value={policy.id}>{policy.name}</option>)}</select></label>
-                <div className="flex flex-wrap gap-4"><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" name="show_rank" defaultChecked /> Show rank</label><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" name="show_attendance" defaultChecked /> Show attendance</label></div>
-                <label className="block text-sm font-bold">Template, comments, and signatures (JSON)<textarea name="configuration" className={fieldClass} rows={5} defaultValue={'{\n  "class_teacher_comment": true,\n  "principal_comment": true,\n  "signature_lines": ["Class Teacher", "Principal"]\n}'} /></label>
-                <button className={primaryButtonClass} disabled={busyAction !== null || gradingSystems.filter(isActive).length === 0}>{busyAction === "report-card-policy" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Create report-card policy</button>
-              </form>
-            </SetupForm>
-          </div>
-          <div className="grid gap-5 xl:grid-cols-3">
-            <SetupForm title="Grading systems" description="Edit, archive, restore, or safely remove grading policies.">
-              {visible(gradingSystems).length === 0 ? <EmptyState>No matching grading systems. Create the first policy above.</EmptyState> : <div className="space-y-2">{visible(gradingSystems).map((policy) => <div key={policy.id} className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/5 p-3"><div><p className="font-black">{policy.name}</p><p className="text-xs font-semibold text-white/55">{policy.description || "No description"} - {dateLabel(policy.effective_from || undefined)} to {dateLabel(policy.effective_to || undefined)} - {statusLabel(policy)}</p></div><AcademicRecordManager entityType="grading-system" record={policy} title={policy.name} fields={[{ name: "name", label: "Policy name" }, { name: "description", label: "Description", type: "textarea" }, { name: "effective_from", label: "Effective from", type: "date" }, { name: "effective_to", label: "Effective to", type: "date" }, { name: "rules", label: "Grade bands and assessment rules (JSON)", type: "json" }]} mergeCandidates={gradingSystems.filter(isActive).map((candidate) => ({ id: candidate.id, label: candidate.name }))} onUpdated={refreshAll} /></div>)}</div>}
-            </SetupForm>
-            <SetupForm title="Attendance settings" description="Manage school attendance policies without losing history.">
-              {visible(attendanceSettings).length === 0 ? <EmptyState>No matching attendance policies. Create the first policy above.</EmptyState> : <div className="space-y-2">{visible(attendanceSettings).map((policy) => <div key={policy.id} className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/5 p-3"><div><p className="font-black">{policy.name}</p><p className="text-xs font-semibold text-white/55">{policy.description || "No description"} - {statusLabel(policy)}</p></div><AcademicRecordManager entityType="attendance-setting" record={policy} title={policy.name} fields={[{ name: "name", label: "Policy name" }, { name: "description", label: "Description", type: "textarea" }, { name: "configuration", label: "Register configuration (JSON)", type: "json" }]} onUpdated={refreshAll} /></div>)}</div>}
-            </SetupForm>
-            <SetupForm title="Report-card settings" description="Control report-card grading, ranking, and attendance display.">
-              {visible(reportCardSettings).length === 0 ? <EmptyState>No matching report-card policies. Create one after a grading system.</EmptyState> : <div className="space-y-2">{visible(reportCardSettings).map((policy) => <div key={policy.id} className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/5 p-3"><div><p className="font-black">{policy.name}</p><p className="text-xs font-semibold text-white/55">Rank {policy.show_rank ? "shown" : "hidden"} - attendance {policy.show_attendance ? "shown" : "hidden"} - {statusLabel(policy)}</p></div><AcademicRecordManager entityType="report-card-setting" record={policy} title={policy.name} fields={[{ name: "name", label: "Policy name" }, { name: "grading_system_id", label: "Grading system", type: "select", options: gradingSystems.filter(isActive).map((entry) => ({ value: entry.id, label: entry.name })) }, { name: "show_rank", label: "Show rank", type: "checkbox" }, { name: "show_attendance", label: "Show attendance", type: "checkbox" }, { name: "configuration", label: "Template and comment configuration (JSON)", type: "json" }]} onUpdated={refreshAll} /></div>)}</div>}
-            </SetupForm>
-          </div>
+          <Card className="border-white/10 bg-white/5 p-4 text-white md:p-5">
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200">Guided school policy setup</p>
+                <h3 className="mt-1 text-xl font-black">Set up grading, attendance, and report cards</h3>
+                <p className="mt-1 max-w-3xl text-sm font-semibold text-white/60">
+                  Complete the three steps in order. Each saved policy remains editable and is shared with exams, attendance, marks, and report cards for this school.
+                </p>
+              </div>
+              <p className="text-xs font-bold text-white/55">
+                {policySteps.filter((step) => step.count > 0).length} of {policySteps.length} policy areas configured
+              </p>
+            </div>
+            <div role="tablist" aria-label="Academic policy setup steps" className="mt-5 grid gap-3 lg:grid-cols-3">
+              {policySteps.map((step) => {
+                const selected = policySetupType === step.id;
+                return (
+                  <button
+                    key={step.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={selected}
+                    onClick={() => setPolicySetupType(step.id)}
+                    className={`flex min-h-28 items-start gap-3 rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 ${
+                      selected
+                        ? "border-cyan-200 bg-cyan-300 text-[#071D49]"
+                        : "border-white/10 bg-white/[0.04] text-white hover:border-white/25 hover:bg-white/[0.08]"
+                    }`}
+                  >
+                    <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-black ${selected ? "bg-[#071D49] text-cyan-200" : "bg-white/10 text-cyan-200"}`}>
+                      {step.step}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="font-black">{step.title}</span>
+                        {step.count > 0 ? (
+                          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-black ${selected ? "border-[#071D49]/20 bg-white/50" : "border-emerald-200/20 bg-emerald-300/10 text-emerald-200"}`}>
+                            <CheckCircle2 className="h-3.5 w-3.5" /> {step.count} configured
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className={`mt-1 block text-xs font-semibold ${selected ? "text-[#071D49]/70" : "text-white/55"}`}>{step.description}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </Card>
+
+          {policySetupType === "grading" ? (
+            <>
+              <SetupForm title="Create grading system" description="Start from a Kenyan secondary or CBC template, then adjust each grade band using normal form controls.">
+                <form onSubmit={handleCreatePolicy("grading")} className="grid gap-4 lg:grid-cols-2">
+                  <label className="block text-sm font-bold">Policy name<input name="name" required className={fieldClass} placeholder="e.g. 2026 Secondary A-E grading" /></label>
+                  <label className="block text-sm font-bold">Description<input name="description" className={fieldClass} placeholder="Where this grading system applies" /></label>
+                  <label className="block text-sm font-bold">Effective from<input type="date" name="effective_from" className={fieldClass} /></label>
+                  <label className="block text-sm font-bold">Effective to<input type="date" name="effective_to" className={fieldClass} /></label>
+                  <div className="lg:col-span-2"><AcademicGradeBandsEditor name="rules" /></div>
+                  <button className={`${primaryButtonClass} lg:col-span-2 lg:justify-self-start`} disabled={busyAction !== null}>{busyAction === "grading-policy" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Save grading system</button>
+                </form>
+              </SetupForm>
+              <SetupForm title="Saved grading systems" description="Review or manage the grading policies available to exams and report cards.">
+                {visible(gradingSystems).length === 0 ? <EmptyState>No grading system has been saved yet. Use the guided form above to create the first one.</EmptyState> : <div className="grid gap-3 lg:grid-cols-2">{visible(gradingSystems).map((policy) => <div key={policy.id} className="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/5 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black">{policy.name}</p><p className="mt-1 text-xs font-semibold text-white/55">{policy.rules?.length ?? 0} grade bands - {dateLabel(policy.effective_from || undefined)} to {dateLabel(policy.effective_to || undefined)} - {statusLabel(policy)}</p><p className="mt-1 text-xs font-semibold text-white/45">{policy.description || "No description"}</p></div><AcademicRecordManager entityType="grading-system" record={policy} title={policy.name} fields={[{ name: "name", label: "Policy name" }, { name: "description", label: "Description", type: "textarea" }, { name: "effective_from", label: "Effective from", type: "date" }, { name: "effective_to", label: "Effective to", type: "date" }, { name: "rules", label: "Grade bands and assessment rules", type: "grade-bands" }]} mergeCandidates={activeGradingSystems.map((candidate) => ({ id: candidate.id, label: candidate.name }))} onUpdated={refreshAll} /></div>)}</div>}
+              </SetupForm>
+            </>
+          ) : null}
+
+          {policySetupType === "attendance" ? (
+            <>
+              <SetupForm title="Create attendance policy" description="Choose the school register sessions and late-arrival threshold without editing configuration code.">
+                <form onSubmit={handleCreatePolicy("attendance")} className="grid gap-4 lg:grid-cols-2">
+                  <label className="block text-sm font-bold">Policy name<input name="name" required className={fieldClass} placeholder="e.g. Daily learner register" /></label>
+                  <label className="block text-sm font-bold">Description<input name="description" className={fieldClass} placeholder="Register times, late rules, or escalation notes" /></label>
+                  <div className="lg:col-span-2"><AcademicAttendancePolicyEditor name="configuration" /></div>
+                  <button className={`${primaryButtonClass} lg:col-span-2 lg:justify-self-start`} disabled={busyAction !== null}>{busyAction === "attendance-policy" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Save attendance policy</button>
+                </form>
+              </SetupForm>
+              <SetupForm title="Saved attendance policies" description="Review or manage the register rules used by the school.">
+                {visible(attendanceSettings).length === 0 ? <EmptyState>No attendance policy has been saved yet. Use the guided form above to create the first one.</EmptyState> : <div className="grid gap-3 lg:grid-cols-2">{visible(attendanceSettings).map((policy) => {
+                  const sessions = Array.isArray(policy.configuration?.sessions) ? policy.configuration.sessions.map(String) : [];
+                  const lateAfter = typeof policy.configuration?.late_after === "string" ? policy.configuration.late_after : "Not set";
+                  return <div key={policy.id} className="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/5 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black">{policy.name}</p><p className="mt-1 text-xs font-semibold text-white/55">{sessions.length > 0 ? sessions.join(", ") : "No sessions"} - late after {lateAfter} - {statusLabel(policy)}</p><p className="mt-1 text-xs font-semibold text-white/45">{policy.description || "No description"}</p></div><AcademicRecordManager entityType="attendance-setting" record={policy} title={policy.name} fields={[{ name: "name", label: "Policy name" }, { name: "description", label: "Description", type: "textarea" }, { name: "configuration", label: "Register schedule", type: "attendance-policy" }]} onUpdated={refreshAll} /></div>;
+                })}</div>}
+              </SetupForm>
+            </>
+          ) : null}
+
+          {policySetupType === "report-card" ? (
+            <>
+              <SetupForm title="Create report-card policy" description="Choose the grading system and what approved learner reports display.">
+                <form onSubmit={handleCreatePolicy("report-card")} className="grid gap-4 lg:grid-cols-2">
+                  <label className="block text-sm font-bold">Policy name<input name="name" required className={fieldClass} placeholder="e.g. End-term report card" /></label>
+                  <label className="block text-sm font-bold">Grading system<select name="grading_system_id" required className={fieldClass} defaultValue=""><option value="">Select grading system</option>{activeGradingSystems.map((policy) => <option key={policy.id} value={policy.id}>{policy.name}</option>)}</select></label>
+                  <div className="flex flex-wrap gap-4 lg:col-span-2"><label className="flex min-h-11 items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 text-sm font-bold"><input type="checkbox" name="show_rank" defaultChecked /> Show learner rank</label><label className="flex min-h-11 items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 text-sm font-bold"><input type="checkbox" name="show_attendance" defaultChecked /> Show attendance summary</label></div>
+                  <div className="lg:col-span-2"><AcademicReportCardPolicyEditor name="configuration" /></div>
+                  {activeGradingSystems.length === 0 ? <div className="rounded-xl border border-amber-200/25 bg-amber-200/10 p-4 text-sm font-bold text-amber-100 lg:col-span-2">Create a grading system in step 1 before saving a report-card policy. <button type="button" onClick={() => setPolicySetupType("grading")} className="ml-1 underline underline-offset-4">Open grading setup</button></div> : null}
+                  <button className={`${primaryButtonClass} lg:col-span-2 lg:justify-self-start`} disabled={busyAction !== null || activeGradingSystems.length === 0}>{busyAction === "report-card-policy" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Save report-card policy</button>
+                </form>
+              </SetupForm>
+              <SetupForm title="Saved report-card policies" description="Review or manage ranking, attendance, comments, and approval lines.">
+                {visible(reportCardSettings).length === 0 ? <EmptyState>No report-card policy has been saved yet. Create a grading system first, then use the guided form above.</EmptyState> : <div className="grid gap-3 lg:grid-cols-2">{visible(reportCardSettings).map((policy) => <div key={policy.id} className="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/5 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black">{policy.name}</p><p className="mt-1 text-xs font-semibold text-white/55">Rank {policy.show_rank ? "shown" : "hidden"} - attendance {policy.show_attendance ? "shown" : "hidden"} - {statusLabel(policy)}</p></div><AcademicRecordManager entityType="report-card-setting" record={policy} title={policy.name} fields={[{ name: "name", label: "Policy name" }, { name: "grading_system_id", label: "Grading system", type: "select", options: activeGradingSystems.map((entry) => ({ value: entry.id, label: entry.name })) }, { name: "show_rank", label: "Show rank", type: "checkbox" }, { name: "show_attendance", label: "Show attendance", type: "checkbox" }, { name: "configuration", label: "Comments and approval lines", type: "report-card-policy" }]} onUpdated={refreshAll} /></div>)}</div>}
+              </SetupForm>
+            </>
+          ) : null}
         </div>
       ) : null}
 

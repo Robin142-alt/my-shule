@@ -10,6 +10,10 @@ describe("principal and deputy academic foundation workspace", () => {
     path.join(process.cwd(), "src/components/school/academic-record-manager.tsx"),
     "utf8",
   );
+  const policyBuildersSource = fs.readFileSync(
+    path.join(process.cwd(), "src/components/school/academic-policy-builders.tsx"),
+    "utf8",
+  );
   const principalSource = fs.readFileSync(
     path.join(process.cwd(), "src/components/school/principal-command-center.tsx"),
     "utf8",
@@ -50,6 +54,29 @@ describe("principal and deputy academic foundation workspace", () => {
     expect(workspaceSource).toContain("Assign academic leadership role");
     expect(workspaceSource).toContain("Create curriculum version");
     expect(workspaceSource).toContain("Grade bands and assessment rules");
+  });
+
+  it("uses guided policy builders instead of exposing JSON configuration to school staff", () => {
+    for (const label of [
+      "Guided school policy setup",
+      "Secondary A-E starter",
+      "CBC starter",
+      "Morning register",
+      "Class teacher comment",
+      "Signature lines",
+    ]) {
+      expect(`${workspaceSource}\n${policyBuildersSource}`).toContain(label);
+    }
+
+    expect(workspaceSource).toContain('type: "grade-bands"');
+    expect(workspaceSource).toContain('type: "attendance-policy"');
+    expect(workspaceSource).toContain('type: "report-card-policy"');
+    expect(managerSource).toContain("<AcademicGradeBandsEditor");
+    expect(managerSource).toContain("<AcademicAttendancePolicyEditor");
+    expect(managerSource).toContain("<AcademicReportCardPolicyEditor");
+    expect(workspaceSource).not.toContain("Grade bands and assessment rules (JSON array)");
+    expect(workspaceSource).not.toContain("Register configuration (JSON)");
+    expect(workspaceSource).not.toContain("Template, comments, and signatures (JSON)");
   });
 
   it("wires forms to tenant-scoped academic API contracts and refreshes saved state", () => {
