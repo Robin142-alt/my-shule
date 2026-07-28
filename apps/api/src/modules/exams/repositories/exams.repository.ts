@@ -2,6 +2,14 @@ import { ConflictException, Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../../database/prisma.service';
 
+export type ExamAnalyticsScopeLevel = 'school' | 'department' | 'assignment';
+
+export interface ExamAnalyticsScope {
+  level: ExamAnalyticsScopeLevel;
+  actor_user_id: string | null;
+  role: string;
+}
+
 @Injectable()
 export class ExamsRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -1432,17 +1440,31 @@ export class ExamsRepository {
   async updateReportCardComments(input: { tenant_id: string; actor_user_id: string; report_card_id: string; class_teacher_comment: string; principal_comment: string }) {
     const result = await this.executeSql(
       `UPDATE student_report_cards
-       SET metadata = metadata || jsonb_build_object(
-             'class_teacher_comment', $4::text,
-             'principal_comment', $5::text,
-             'comments_updated_by', $2::text,
-             'comments_updated_at', NOW()
-           ),
+       SET metadata =
+             COALESCE(metadata, '{}'::jsonb)
+             || jsonb_strip_nulls(jsonb_build_object(
+               'class_teacher_comment', NULLIF($4::text, ''),
+               'principal_comment', NULLIF($5::text, '')
+             ))
+             || jsonb_build_object(
+               'comments_updated_by', $2::text,
+               'comments_updated_at', NOW(),
+               'report_card',
+                 COALESCE(metadata->'report_card', '{}'::jsonb)
+                 || jsonb_build_object(
+                   'template_fields',
+                     COALESCE(metadata->'report_card'->'template_fields', '{}'::jsonb)
+                     || jsonb_strip_nulls(jsonb_build_object(
+                       'class_teacher_comment', NULLIF($4::text, ''),
+                       'principal_comment', NULLIF($5::text, '')
+                     ))
+                 )
+             ),
            updated_at = NOW()
        WHERE tenant_id = $1
          AND id = $3::uuid
          AND is_current = TRUE
-         AND status NOT IN ('published', 'withdrawn')
+         AND status IN ('draft_requested', 'draft_generated', 'draft', 'regeneration_required')
        RETURNING *`,
       [input.tenant_id, input.actor_user_id, input.report_card_id, input.class_teacher_comment, input.principal_comment],
     );
@@ -5019,7 +5041,183 @@ export class ExamsRepository {
     return result.rows;
   }
 
-  async getAnalytics(tenantId: string) {
+  private analyticsMarkScope(alias: string, scope: ExamAnalyticsScope): string {
+    if (scope.level === 'school') {
+      return 'TRUE';
+    }
+
+    if (!scope.actor_user_id) {
+      throw new ConflictException('An authenticated staff identity is required for scoped analytics');
+    }
+
+    if (scope.level === 'department') {
+      return `
+        EXISTS (
+          SELECT 1
+          FROM subjects scoped_subject
+          JOIN academics_department_hod_appointments hod_appointment
+            ON hod_appointment.tenant_id = scoped_subject.tenant_id
+           AND hod_appointment.department_id::text = scoped_subject.department_id::text
+          WHERE scoped_subject.tenant_id = ${alias}.tenant_id
+            AND scoped_subject.id::text = ${alias}.subject_id::text
+            AND hod_appointment.teacher_user_id::text = $2
+            AND hod_appointment.status = 'active'
+            AND (
+              hod_appointment.effective_from IS NULL
+              OR hod_appointment.effective_from::date <= CURRENT_DATE
+            )
+            AND (
+              hod_appointment.effective_to IS NULL
+              OR hod_appointment.effective_to::date >= CURRENT_DATE
+            )
+        )
+      `;
+    }
+
+    return `
+      (
+        EXISTS (
+          SELECT 1
+          FROM teacher_subject_assignments teacher_assignment
+          WHERE teacher_assignment.tenant_id = ${alias}.tenant_id
+            AND teacher_assignment.teacher_user_id::text = $2
+            AND teacher_assignment.class_section_id::text = ${alias}.class_section_id::text
+            AND teacher_assignment.subject_id::text = ${alias}.subject_id::text
+            AND teacher_assignment.status = 'active'
+            AND (
+              teacher_assignment.effective_from IS NULL
+              OR teacher_assignment.effective_from::date <= CURRENT_DATE
+            )
+            AND (
+              teacher_assignment.effective_to IS NULL
+              OR teacher_assignment.effective_to::date >= CURRENT_DATE
+            )
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM academics_class_teachers class_teacher
+          WHERE class_teacher.tenant_id = ${alias}.tenant_id
+            AND class_teacher.teacher_user_id::text = $2
+            AND class_teacher.class_section_id::text = ${alias}.class_section_id::text
+            AND class_teacher.is_active = TRUE
+            AND class_teacher.status = 'active'
+            AND (
+              class_teacher.effective_from IS NULL
+              OR class_teacher.effective_from::date <= CURRENT_DATE
+            )
+            AND (
+              class_teacher.effective_to IS NULL
+              OR class_teacher.effective_to::date >= CURRENT_DATE
+            )
+        )
+      )
+    `;
+  }
+
+  private analyticsWindowScope(alias: string, scope: ExamAnalyticsScope): string {
+    if (scope.level === 'school') {
+      return 'TRUE';
+    }
+
+    if (!scope.actor_user_id) {
+      throw new ConflictException('An authenticated staff identity is required for scoped analytics');
+    }
+
+    if (scope.level === 'department') {
+      return `
+        EXISTS (
+          SELECT 1
+          FROM subjects scoped_subject
+          JOIN academics_department_hod_appointments hod_appointment
+            ON hod_appointment.tenant_id = scoped_subject.tenant_id
+           AND hod_appointment.department_id::text = scoped_subject.department_id::text
+          WHERE scoped_subject.tenant_id = ${alias}.tenant_id
+            AND scoped_subject.id::text = ${alias}.subject_id::text
+            AND hod_appointment.teacher_user_id::text = $2
+            AND hod_appointment.status = 'active'
+            AND (
+              hod_appointment.effective_from IS NULL
+              OR hod_appointment.effective_from::date <= CURRENT_DATE
+            )
+            AND (
+              hod_appointment.effective_to IS NULL
+              OR hod_appointment.effective_to::date >= CURRENT_DATE
+            )
+        )
+      `;
+    }
+
+    return `
+      (
+        EXISTS (
+          SELECT 1
+          FROM teacher_subject_assignments teacher_assignment
+          WHERE teacher_assignment.tenant_id = ${alias}.tenant_id
+            AND teacher_assignment.teacher_user_id::text = $2
+            AND teacher_assignment.class_section_id::text = ${alias}.class_section_id::text
+            AND teacher_assignment.subject_id::text = ${alias}.subject_id::text
+            AND teacher_assignment.status = 'active'
+            AND (
+              teacher_assignment.effective_from IS NULL
+              OR teacher_assignment.effective_from::date <= CURRENT_DATE
+            )
+            AND (
+              teacher_assignment.effective_to IS NULL
+              OR teacher_assignment.effective_to::date >= CURRENT_DATE
+            )
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM academics_class_teachers class_teacher
+          WHERE class_teacher.tenant_id = ${alias}.tenant_id
+            AND class_teacher.teacher_user_id::text = $2
+            AND class_teacher.class_section_id::text = ${alias}.class_section_id::text
+            AND class_teacher.is_active = TRUE
+            AND class_teacher.status = 'active'
+            AND (
+              class_teacher.effective_from IS NULL
+              OR class_teacher.effective_from::date <= CURRENT_DATE
+            )
+            AND (
+              class_teacher.effective_to IS NULL
+              OR class_teacher.effective_to::date >= CURRENT_DATE
+            )
+        )
+      )
+    `;
+  }
+
+  private analyticsSeriesScope(alias: string, scope: ExamAnalyticsScope): string {
+    if (scope.level === 'school') {
+      return 'TRUE';
+    }
+
+    return `
+      EXISTS (
+        SELECT 1
+        FROM exam_mark_entry_windows scoped_window
+        WHERE scoped_window.tenant_id = ${alias}.tenant_id
+          AND scoped_window.exam_series_id = ${alias}.id
+          AND ${this.analyticsWindowScope('scoped_window', scope)}
+      )
+    `;
+  }
+
+  async getAnalytics(
+    tenantId: string,
+    scope: ExamAnalyticsScope = {
+      level: 'school',
+      actor_user_id: null,
+      role: 'system',
+    },
+  ) {
+    const queryParams = scope.level === 'school'
+      ? [tenantId]
+      : [tenantId, scope.actor_user_id];
+    const markScope = this.analyticsMarkScope('mark', scope);
+    const examMarksScope = this.analyticsMarkScope('exam_marks', scope);
+    const windowScope = this.analyticsWindowScope('window', scope);
+    const seriesScope = this.analyticsSeriesScope('exam_series', scope);
     const kpiResult = await this.executeSql(
       `
         WITH final_entered_marks AS (
@@ -5031,6 +5229,7 @@ export class ExamsRepository {
             ON assessment.tenant_id = mark.tenant_id
            AND assessment.id = mark.assessment_id
           WHERE mark.tenant_id = $1
+            AND ${markScope}
             AND mark.status IN ('locked', 'published')
             AND mark.score_status = 'entered'
             AND mark.score IS NOT NULL
@@ -5071,6 +5270,7 @@ export class ExamsRepository {
            AND assessment.subject_id = window.subject_id
           WHERE student.tenant_id = $1
             AND student.status = 'active'
+            AND ${windowScope}
         ),
         expected_mark_evidence AS (
           SELECT
@@ -5092,6 +5292,7 @@ export class ExamsRepository {
             SELECT COUNT(*)::integer
             FROM exam_marks
             WHERE tenant_id = $1
+              AND ${examMarksScope}
               AND status = 'submitted'
           ) AS pending_reviews,
           (
@@ -5104,6 +5305,7 @@ export class ExamsRepository {
             SELECT COUNT(*)::integer
             FROM exam_series
             WHERE tenant_id = $1
+              AND ${seriesScope}
               AND status IN ('draft', 'submitted', 'reviewed')
               AND CURRENT_DATE BETWEEN starts_on AND ends_on
           ) AS active_exams,
@@ -5112,6 +5314,7 @@ export class ExamsRepository {
             SELECT COUNT(*)::integer
             FROM exam_marks
             WHERE tenant_id = $1
+              AND ${examMarksScope}
               AND status IN ('locked', 'published')
               AND score_status <> 'entered'
               AND EXISTS (
@@ -5131,7 +5334,7 @@ export class ExamsRepository {
                OR score_status IN ('not_assessed', 'incomplete')
           ) AS missing_or_incomplete_count
       `,
-      [tenantId],
+      queryParams,
     );
     const kpiRow = kpiResult.rows[0] ?? {};
     const kpis = {
@@ -5164,6 +5367,7 @@ export class ExamsRepository {
           ON assessment.tenant_id = mark.tenant_id
          AND assessment.id = mark.assessment_id
         WHERE series.tenant_id = $1
+          AND ${markScope}
           AND mark.status IN ('locked', 'published')
           AND mark.score_status = 'entered'
           AND mark.score IS NOT NULL
@@ -5180,7 +5384,7 @@ export class ExamsRepository {
         GROUP BY series.id, series.name, series.starts_on
         ORDER BY series.starts_on ASC, series.id ASC
       `,
-      [tenantId],
+      queryParams,
     );
     const trends = trendsResult.rows.map((row: any) => ({
       exam_series_id: row.exam_series_id,
@@ -5210,6 +5414,7 @@ export class ExamsRepository {
             ON subject.tenant_id = mark.tenant_id
            AND subject.id = mark.subject_id::text
           WHERE mark.tenant_id = $1
+            AND ${markScope}
             AND mark.status IN ('locked', 'published')
             AND mark.score_status = 'entered'
             AND mark.score IS NOT NULL
@@ -5275,7 +5480,7 @@ export class ExamsRepository {
         GROUP BY subject_id, subject_name
         ORDER BY subject_name ASC
       `,
-      [tenantId],
+      queryParams,
     );
     const subjectPerformance = subjectPerformanceResult.rows.map((row: any) => ({
       subject_id: row.subject_id,
@@ -5305,6 +5510,7 @@ export class ExamsRepository {
          AND assessment.id = mark.assessment_id
         WHERE student.tenant_id = $1
           AND student.status = 'active'
+          AND ${markScope}
           AND mark.status IN ('locked', 'published')
           AND mark.score_status = 'entered'
           AND mark.score IS NOT NULL
@@ -5327,7 +5533,7 @@ export class ExamsRepository {
         ORDER BY average_percentage DESC, student_name ASC
         LIMIT 10
       `,
-      [tenantId],
+      queryParams,
     );
     const topPerformers = topPerformersResult.rows.map((row: any) => ({
       student_id: row.student_id,
@@ -5354,6 +5560,7 @@ export class ExamsRepository {
             ON series.tenant_id = mark.tenant_id
            AND series.id = mark.exam_series_id
           WHERE mark.tenant_id = $1
+            AND ${markScope}
             AND mark.status IN ('locked', 'published')
             AND mark.score_status = 'entered'
             AND mark.score IS NOT NULL
@@ -5408,7 +5615,7 @@ export class ExamsRepository {
         ORDER BY improvement DESC, student_name ASC
         LIMIT 10
       `,
-      [tenantId],
+      queryParams,
     );
     const topImprovers = topImproversResult.rows.map((row: any) => ({
       student_id: row.student_id,
@@ -5438,6 +5645,7 @@ export class ExamsRepository {
          AND assessment.id = mark.assessment_id
         WHERE student.tenant_id = $1
           AND student.status = 'active'
+          AND ${markScope}
           AND mark.status IN ('locked', 'published')
           AND mark.score_status = 'entered'
           AND mark.score IS NOT NULL
@@ -5461,7 +5669,7 @@ export class ExamsRepository {
         ORDER BY average_percentage ASC, student_name ASC
         LIMIT 10
       `,
-      [tenantId],
+      queryParams,
     );
     const atRiskStudents = atRiskStudentsResult.rows.map((row: any) => ({
       student_id: row.student_id,
@@ -5472,6 +5680,10 @@ export class ExamsRepository {
     }));
 
     return {
+      scope: {
+        level: scope.level,
+        role: scope.role,
+      },
       kpis,
       trends,
       subjectPerformance,

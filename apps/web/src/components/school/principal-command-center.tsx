@@ -2,6 +2,7 @@
 
 import {
   Activity,
+  BarChart3,
   Bell,
   BookOpen,
   Building2,
@@ -40,6 +41,8 @@ import { DashboardCommunicationBoundary } from "@/lib/dashboard-communication/da
 import { tenantSlugToName } from "@/lib/seo/tenant-routes";
 import { buildSchoolSectionHref } from "./school-pages";
 import { AcademicFoundationWorkspace } from "./academic-foundation-workspace";
+import { AcademicIntelligenceWorkspace } from "./academic-intelligence-workspace";
+import { LiveReportCardsWorkspace } from "./live-report-cards-workspace";
 import { PrincipalSchoolProfileWorkspace } from "./principal-dashboard/school-profile-workspace";
 
 type PrincipalSection =
@@ -60,6 +63,7 @@ type PrincipalSection =
   | "transport"
   | "library"
   | "exams-reports"
+  | "academic-intelligence"
   | "communication"
   | "users-invitations"
   | "approvals"
@@ -257,6 +261,9 @@ function normalizePrincipalSection(section?: string): PrincipalSection {
     case "exams":
     case "exams-report-cards":
       return "exams-reports";
+    case "academic-analytics":
+    case "academic-intelligence":
+      return "academic-intelligence";
     case "parents":
       return "visitors";
     case "users":
@@ -275,6 +282,7 @@ function sectionRoute(section: PrincipalSection) {
   if (section === "fees") return "finance";
   if (section === "sick-bay") return "clinic";
   if (section === "exams-reports") return "exams";
+  if (section === "academic-intelligence") return "academic-intelligence";
   return section;
 }
 
@@ -578,6 +586,7 @@ export function PrincipalCommandCenter({
       { id: "transport", label: "Transport", count: navCount(schoolRecords.transportRecords.length), icon: BusFront },
       { id: "library", label: "Library", count: navCount(libraryFollowUps), icon: Library },
       { id: "exams-reports", label: "Exams & Report Cards", icon: ClipboardCheck },
+      { id: "academic-intelligence", label: "Academic Intelligence", icon: BarChart3 },
       { id: "communication", label: "Communication", count: navCount(schoolRecords.notifications.filter((notification) => !notification.read).length), icon: MessageSquareText },
       { id: "users-invitations", label: "Users & Invitations", icon: UsersRound },
       { id: "approvals", label: "Approvals", count: navCount(pendingApprovals), icon: CheckCircle2 },
@@ -1023,18 +1032,17 @@ export function PrincipalCommandCenter({
     }
 
     if (activeWorkspace === "exams-reports") {
+      return <LiveReportCardsWorkspace audience="principal" />;
+    }
+
+    if (activeWorkspace === "academic-intelligence") {
       return (
-        <section aria-label="Principal exams workspace" className="space-y-4">
-          <WorkspaceHeading title="Exams & Results Command Center" subtitle="Exam governance queue for moderation, approval, and publishing" />
-          <ActionRow
-            labels={["Academic oversight", "Results approval", "Report publishing"]}
-            onAction={(label) => {
-              if (label === "Academic oversight") setActiveWorkspace("academics");
-              if (label === "Results approval") setActiveWorkspace("approvals");
-              if (label === "Report publishing") setActiveWorkspace("reports");
-            }}
-          />
-        </section>
+        <AcademicIntelligenceWorkspace
+          audience="principal"
+          onOpenMarks={() => setActiveWorkspace("exams-reports")}
+          onOpenInterventions={() => setActiveWorkspace("approvals")}
+          onOpenReportCards={() => setActiveWorkspace("exams-reports")}
+        />
       );
     }
 

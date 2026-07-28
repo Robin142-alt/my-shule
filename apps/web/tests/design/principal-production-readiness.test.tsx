@@ -174,21 +174,17 @@ describe("principal production readiness", () => {
     expect(print).toHaveBeenCalled();
   });
 
-  it.each([
-    ["Academic oversight", /Academic foundation setup/i, /^Academic Foundation$/i],
-    ["Results approval", /Principal approvals workspace/i, /^Approvals$/i],
-    ["Report publishing", /Principal reports workspace/i, /^Reports$/i],
-  ])("routes exams command action %s to the right workspace", async (label, regionName, heading) => {
-    const user = userEvent.setup();
-
+  it("opens the school-scoped report-card publishing lifecycle directly", async () => {
     renderWithProviders(<SchoolPages role="principal" section="exams-reports" tenantSlug="kisumu-boys" />);
 
     const commandCenter = await screen.findByTestId("principal-practical-command-center");
-    await user.click(within(commandCenter).getByRole("button", { name: label }));
-
-    const workspace = within(commandCenter).getByRole("region", { name: regionName });
+    const workspace = within(commandCenter).getByRole("region", { name: /Report Card Publishing workspace/i });
     expect(workspace).toBeVisible();
-    expect(within(workspace).getByRole("heading", { name: heading })).toBeVisible();
+    expect(within(workspace).getByRole("heading", { name: /Report Card Publishing/i })).toBeVisible();
+    expect(within(workspace).getByText(/preview approved report snapshots, publish them to authorized portals/i)).toBeVisible();
+    expect(within(commandCenter).queryByRole("button", { name: /Academic oversight/i })).not.toBeInTheDocument();
+    expect(within(commandCenter).queryByRole("button", { name: /Results approval/i })).not.toBeInTheDocument();
+    expect(within(commandCenter).queryByRole("button", { name: /Report publishing/i })).not.toBeInTheDocument();
   });
 
   it("wires principal list workspace primary actions to real workspaces", async () => {

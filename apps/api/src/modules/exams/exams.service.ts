@@ -40,7 +40,10 @@ import {
 } from './dto/exams.dto';
 import { ExamsRepository } from './repositories/exams.repository';
 import { ReportCardGenerationService } from './services/report-card-generation.service';
-import { ReportCardTemplateService } from './services/report-card-template.service';
+import {
+  extractPersistedReportCardPayload,
+  ReportCardTemplateService,
+} from './services/report-card-template.service';
 import { createReportCardPdfArtifact } from './services/report-card-pdf-artifact';
 import type { ReportArtifact } from '../../common/reports/report-artifact';
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
@@ -121,6 +124,23 @@ const ACADEMIC_INTERVENTION_OWNER_ROLES = new Set([
   'grade_master',
   'form_master',
   'grade_form_master',
+]);
+const SCHOOL_WIDE_ACADEMIC_ANALYTICS_ROLES = new Set([
+  'principal',
+  'school_principal',
+  'deputy_principal',
+  'deputy',
+  'dean_academics',
+  'dean_of_academics',
+  'academic_dean',
+  'exams_manager',
+  'exams_officer',
+  'exam_officer',
+  'examination_officer',
+]);
+const DEPARTMENT_ACADEMIC_ANALYTICS_ROLES = new Set([
+  'hod',
+  'head_of_department',
 ]);
 const ACADEMIC_INTERVENTION_TRANSITIONS: Record<string, Set<string>> = {
   planned: new Set(['planned', 'active', 'cancelled']),
@@ -237,7 +257,20 @@ export class ExamsService {
 
   async getAnalytics() {
     const tenantId = this.requireTenantId();
-    return this.repository.getAnalytics(tenantId);
+    const role = this.currentRole();
+    const hasSchoolWideScope = this.isExamWorkflowAdmin()
+      || SCHOOL_WIDE_ACADEMIC_ANALYTICS_ROLES.has(role);
+    const level = hasSchoolWideScope
+      ? 'school'
+      : DEPARTMENT_ACADEMIC_ANALYTICS_ROLES.has(role)
+        ? 'department'
+        : 'assignment';
+
+    return this.repository.getAnalytics(tenantId, {
+      level,
+      actor_user_id: level === 'school' ? null : this.requireUserId(),
+      role,
+    });
   }
 
   async listAcademicInterventions(query: Record<string, string | undefined> = {}) {
@@ -1299,7 +1332,9 @@ export class ExamsService {
       principal_comment: principalComment,
     });
     if (!result) {
-      throw new ConflictException('Report card was not found for this school or its published snapshot is immutable');
+      throw new ConflictException(
+        'Report card was not found for this school or its submitted snapshot is immutable',
+      );
     }
     await this.repository.appendReportCardAuditLog({
       tenant_id: tenantId,
@@ -2909,15 +2944,12 @@ export class ExamsService {
   }
 
   private async createReportCardPdfArtifact(reportCard: Record<string, unknown>): Promise<ReportArtifact> {
-    const data = await this.repository.loadReportCardData({
-      tenant_id: this.requireTenantId(),
-      exam_series_id: this.requireText(String(reportCard.exam_series_id ?? ''), 'Exam series'),
-      student_id: this.requireText(String(reportCard.student_id ?? ''), 'Student'),
-    });
-    const metadata = isRecord(reportCard.metadata) ? reportCard.metadata : {};
-    const generatedAt = String(metadata.generated_at ?? reportCard.published_at ?? new Date().toISOString());
-    const templateService = this.reportCardTemplateService ?? new ReportCardTemplateService();
-    const payload = templateService.buildPayload(data, generatedAt);
+    const payload = extractPersistedReportCardPayload(reportCard.metadata);
+    if (!payload) {
+      throw new ConflictException(
+        'This report card has no valid generated snapshot. Regenerate it before downloading.',
+      );
+    }
     const verificationCode = String(reportCard.verification_code ?? '').trim()
       || createHash('sha256').update(String(reportCard.id ?? '')).digest('hex').slice(0, 12).toUpperCase();
 

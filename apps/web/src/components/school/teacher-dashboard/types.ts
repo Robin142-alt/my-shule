@@ -8,6 +8,7 @@ export type TeacherView =
   | "assignments"
   | "assessments-cats"
   | "exams-marks"
+  | "academic-intelligence"
   | "learner-progress"
   | "discipline-welfare"
   | "parent-communication"

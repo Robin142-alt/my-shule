@@ -17,7 +17,8 @@ describe("academic leadership command center shell contract", () => {
     expect(source).toMatch(/from "\.\/dean-academics\/lesson-logs-workspace"/);
     expect(source).toMatch(/from "\.\/dean-academics\/assessments-workspace"/);
     expect(source).toMatch(/from "\.\/dean-academics\/academic-interventions-workspace"/);
-    expect(source).toMatch(/from "\.\/dean-academics\/reports-workspace"/);
+    expect(source).toMatch(/from "\.\/live-report-cards-workspace"/);
+    expect(source).toMatch(/<LiveReportCardsWorkspace audience="dean" \/>/);
     expect(source).toMatch(/function normalizeDeanView/);
     expect(source).toMatch(/data-testid="role-operational-command-center"/);
     expect(source).not.toMatch(/deanSearchRecords|Term 2 CAT 1|Class 7B|Pending reviews", "14|Integrity alerts", "6|Report batches", "4/);

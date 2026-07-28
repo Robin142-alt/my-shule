@@ -59,6 +59,7 @@ export interface ReportCardDocumentData {
   reportNumber: string;
   school: {
     name: string;
+    logoUrl?: string;
     motto?: string;
     address?: string;
     phone?: string;
@@ -126,6 +127,12 @@ export interface ReportCardDocumentData {
     teacherComment?: string;
     teacherName?: string;
   }>;
+  academicSummary?: {
+    totalScore?: string;
+    meanScore?: string;
+    percentage?: string;
+    overallGrade?: string;
+  };
   coreCompetencies: Array<{ competency: string; level?: string; observation?: string; evidence?: string }>;
   values: Array<{ value: string; rating?: string; comment?: string }>;
   projects: Array<{ title: string; category: string; note?: string }>;

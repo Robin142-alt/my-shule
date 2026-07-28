@@ -11,7 +11,10 @@ import { ExamsRepository } from './repositories/exams.repository';
 import { ExamsSchemaService } from './exams-schema.service';
 import { ExamsService } from './exams.service';
 import { ReportCardGenerationService } from './services/report-card-generation.service';
-import { ReportCardTemplateService } from './services/report-card-template.service';
+import {
+  extractPersistedReportCardPayload,
+  ReportCardTemplateService,
+} from './services/report-card-template.service';
 import { StudentController } from '../students/student-portal.controller';
 
 test('ExamsSchemaService creates exam and report-card tables with tenant RLS', async () => {
@@ -2005,6 +2008,56 @@ test('ExamsRepository transitions report cards with tenant scope, workflow evide
   ]);
 });
 
+test('ExamsRepository edits comments only on current tenant-scoped working drafts', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new ExamsRepository({
+    executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        },
+      });
+    },
+    query: async (sql: string, params: unknown[]) => {
+      calls.push({ sql, params });
+      return {
+        rows: [{
+          id: '00000000-0000-0000-0000-000000000413',
+          tenant_id: 'tenant-a',
+          status: 'draft_generated',
+          is_current: true,
+        }],
+      };
+    },
+  } as never);
+
+  const result = await repository.updateReportCardComments({
+    tenant_id: 'tenant-a',
+    actor_user_id: '00000000-0000-0000-0000-000000000411',
+    report_card_id: '00000000-0000-0000-0000-000000000413',
+    class_teacher_comment: 'Consistent progress.',
+    principal_comment: 'Proceed to the next term.',
+  });
+
+  assert.equal(result?.status, 'draft_generated');
+  assert.match(calls[0]!.sql, /WHERE tenant_id = \$1/);
+  assert.match(calls[0]!.sql, /AND id = \$3::uuid/);
+  assert.match(calls[0]!.sql, /AND is_current = TRUE/);
+  assert.match(
+    calls[0]!.sql,
+    /status IN \('draft_requested', 'draft_generated', 'draft', 'regeneration_required'\)/,
+  );
+  assert.match(calls[0]!.sql, /metadata->'report_card'->'template_fields'/);
+  assert.deepEqual(calls[0]!.params, [
+    'tenant-a',
+    '00000000-0000-0000-0000-000000000411',
+    '00000000-0000-0000-0000-000000000413',
+    'Consistent progress.',
+    'Proceed to the next term.',
+  ]);
+});
+
 test('ExamsRepository publishes a series only when every current report card is approved', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new ExamsRepository({
@@ -2564,6 +2617,9 @@ test('ReportCardGenerationService generates HTML and PDF artifacts with a verifi
           name: 'Shule Demo Primary',
           address: 'Nairobi',
           phone: '+254700000000',
+          email: 'office@shule.test',
+          logo_ref: 'https://cdn.example.test/logo.png',
+          motto: 'Knowledge and service',
         },
         comments: {
           class_teacher: 'Good consistency.',
@@ -2624,10 +2680,51 @@ test('ReportCardGenerationService generates HTML and PDF artifacts with a verifi
   assert.equal(
     (
       calls[0]?.input?.metadata as {
-        report_card?: { template_fields?: { school_name?: string; principal_comment?: string } };
+        report_card?: {
+          template_fields?: {
+            school_name?: string;
+            school_logo_ref?: string;
+            school_motto?: string;
+            learner_class?: string;
+            learner_stream?: string;
+            principal_comment?: string;
+          };
+        };
       }
     ).report_card?.template_fields?.school_name,
     'Shule Demo Primary',
+  );
+  assert.equal(
+    (
+      calls[0]?.input?.metadata as {
+        report_card?: { template_fields?: { school_logo_ref?: string } };
+      }
+    ).report_card?.template_fields?.school_logo_ref,
+    'https://cdn.example.test/logo.png',
+  );
+  assert.equal(
+    (
+      calls[0]?.input?.metadata as {
+        report_card?: { template_fields?: { school_motto?: string } };
+      }
+    ).report_card?.template_fields?.school_motto,
+    'Knowledge and service',
+  );
+  assert.equal(
+    (
+      calls[0]?.input?.metadata as {
+        report_card?: { template_fields?: { learner_class?: string; learner_stream?: string } };
+      }
+    ).report_card?.template_fields?.learner_class,
+    'Grade 6',
+  );
+  assert.equal(
+    (
+      calls[0]?.input?.metadata as {
+        report_card?: { template_fields?: { learner_class?: string; learner_stream?: string } };
+      }
+    ).report_card?.template_fields?.learner_stream,
+    'Blue',
   );
   assert.equal(
     (
@@ -3476,6 +3573,53 @@ test('ExamsService rejects fake moderation success when no marks changed', async
   );
 });
 
+test('extractPersistedReportCardPayload preserves entered zero and missing-mark evidence', () => {
+  const payload = extractPersistedReportCardPayload(JSON.stringify({
+    report_card: {
+      generated_at: '2026-05-20T08:00:00.000Z',
+      exam_series: { id: 'series-1', name: 'Term 2 Opener' },
+      student: { id: 'student-1', full_name: 'Amina Otieno' },
+      attendance: null,
+      template_fields: {
+        school_name: 'Shule Demo Primary',
+        learner_name: 'Amina Otieno',
+      },
+      totals: {
+        total_score: 0,
+        total_max_score: 100,
+        mean_score: 0,
+        percentage: 0,
+      },
+      subjects: [
+        {
+          subject_id: 'subject-1',
+          subject_name: 'Mathematics',
+          score: 0,
+          score_status: 'entered',
+          max_score: 100,
+          grade_label: 'E',
+          remarks: null,
+        },
+        {
+          subject_id: 'subject-2',
+          subject_name: 'English',
+          score: null,
+          score_status: 'absent',
+          max_score: 100,
+          grade_label: null,
+          remarks: null,
+        },
+      ],
+    },
+  }));
+
+  assert.equal(payload?.subjects[0]?.score, 0);
+  assert.equal(payload?.subjects[0]?.score_status, 'entered');
+  assert.equal(payload?.subjects[1]?.score, null);
+  assert.equal(payload?.subjects[1]?.score_status, 'absent');
+  assert.equal(extractPersistedReportCardPayload({ report_card: { generated_at: 'now' } }), null);
+});
+
 test('ExamsService limits HOD moderation to assigned departments', async () => {
   const calls: Array<{ method: string; input: Record<string, unknown> }> = [];
   const service = new ExamsService(
@@ -4044,11 +4188,13 @@ test('ExamsController and ExamsService support live exams analytics with isolati
 
   // Verify ExamsService calls repository with requireTenantId
   let passedTenantId = '';
+  let passedScope: Record<string, unknown> | undefined;
   const service = new ExamsService(
     { getStore: () => ({ tenant_id: 'tenant-abc', user_id: 'officer-1', role: 'admin', permissions: ['exams:read'] }) } as never,
     {
-      getAnalytics: async (tenantId: string) => {
+      getAnalytics: async (tenantId: string, scope: Record<string, unknown>) => {
         passedTenantId = tenantId;
+        passedScope = scope;
         return {
           kpis: { school_average: 75.5, pending_reviews: 0, missing_marks_alerts: 0, active_exams: 1 },
           trends: [],
@@ -4061,7 +4207,68 @@ test('ExamsController and ExamsService support live exams analytics with isolati
 
   const res = await service.getAnalytics();
   assert.equal(passedTenantId, 'tenant-abc');
+  assert.deepEqual(passedScope, {
+    level: 'school',
+    actor_user_id: null,
+    role: 'admin',
+  });
   assert.equal(res.kpis.school_average, 75.5);
+});
+
+test('ExamsService limits academic analytics to the current HOD department or teacher assignments', async () => {
+  const scopes: Record<string, unknown>[] = [];
+  const repository = {
+    getAnalytics: async (_tenantId: string, scope: Record<string, unknown>) => {
+      scopes.push(scope);
+      return {
+        scope,
+        kpis: { school_average: null, pending_reviews: 0, missing_marks_alerts: 0, active_exams: 0 },
+        trends: [],
+        subjectPerformance: [],
+        studentProgress: { topPerformers: [], topImprovers: [], atRiskStudents: [] },
+        data_quality: { final_mark_count: 0, explicit_evidence_count: 0, missing_or_incomplete_count: 0 },
+      };
+    },
+  };
+
+  const hodService = new ExamsService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: 'hod-1',
+        role: 'Head of Department',
+        permissions: ['exams:read'],
+      }),
+    } as never,
+    repository as never,
+  );
+  await hodService.getAnalytics();
+
+  const teacherService = new ExamsService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: 'teacher-1',
+        role: 'teacher',
+        permissions: ['exams:read'],
+      }),
+    } as never,
+    repository as never,
+  );
+  await teacherService.getAnalytics();
+
+  assert.deepEqual(scopes, [
+    {
+      level: 'department',
+      actor_user_id: 'hod-1',
+      role: 'head_of_department',
+    },
+    {
+      level: 'assignment',
+      actor_user_id: 'teacher-1',
+      role: 'teacher',
+    },
+  ]);
 });
 
 test('ExamsRepository correctly aggregates exam analytics data', async () => {
@@ -4181,4 +4388,56 @@ test('ExamsRepository does not disguise analytics database failures as zero resu
     () => repository.getAnalytics('tenant-xyz'),
     /analytics database unavailable/,
   );
+});
+
+test('ExamsRepository applies assignment scope to every academic analytics query', async () => {
+  const queries: string[] = [];
+  const paramsList: any[][] = [];
+  let queryIndex = 0;
+  const responses = [
+    [{
+      school_average: null,
+      pending_reviews: 0,
+      missing_marks_alerts: 0,
+      active_exams: 0,
+      final_mark_count: 0,
+      explicit_evidence_count: 0,
+      missing_or_incomplete_count: 0,
+    }],
+    [],
+    [],
+    [],
+    [],
+    [],
+  ];
+  const repository = new ExamsRepository({
+    executeWithTenant: async (_tenantId: string, _context: unknown, callback: (tx: any) => unknown) =>
+      callback({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          queries.push(sql);
+          paramsList.push(params);
+          return responses[queryIndex++] ?? [];
+        },
+      }),
+  } as never);
+
+  const analytics = await repository.getAnalytics('tenant-a', {
+    level: 'assignment',
+    actor_user_id: 'teacher-1',
+    role: 'teacher',
+  });
+
+  assert.deepEqual(analytics.scope, {
+    level: 'assignment',
+    role: 'teacher',
+  });
+  assert.equal(queries.length, 6);
+  assert.equal(paramsList.every((params) =>
+    params[0] === 'tenant-a' && params[1] === 'teacher-1'), true);
+  for (const query of queries) {
+    assert.match(query, /teacher_subject_assignments teacher_assignment/);
+    assert.match(query, /teacher_assignment\.teacher_user_id::text = \$2/);
+    assert.match(query, /academics_class_teachers class_teacher/);
+    assert.match(query, /class_teacher\.teacher_user_id::text = \$2/);
+  }
 });

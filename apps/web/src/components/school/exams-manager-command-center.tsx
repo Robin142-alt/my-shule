@@ -247,7 +247,13 @@ function LockedWorkspace({ reason }: { reason: string }) {
   );
 }
 
-function Workspace({ view }: { view: ExamsManagerCanonicalView }) {
+function Workspace({
+  view,
+  onNavigate,
+}: {
+  view: ExamsManagerCanonicalView;
+  onNavigate: (view: ExamsManagerCanonicalView) => void;
+}) {
   switch (view) {
     case "exam-setup":
       return <ExamSetupWorkspace />;
@@ -258,7 +264,12 @@ function Workspace({ view }: { view: ExamsManagerCanonicalView }) {
     case "moderation":
       return <ModerationWorkspace />;
     case "analysis":
-      return <AnalysisWorkspace />;
+      return (
+        <AnalysisWorkspace
+          onOpenMarks={() => onNavigate("marks-entry")}
+          onOpenReportCards={() => onNavigate("report-cards")}
+        />
+      );
     case "report-cards":
       return <ReportCardsWorkspace />;
     case "publishing":
@@ -529,7 +540,11 @@ export function ExamsManagerCommandCenter({
               </p>
             </section>
 
-            {lockedReason ? <LockedWorkspace reason={lockedReason} /> : <Workspace view={activeView} />}
+            {lockedReason ? (
+              <LockedWorkspace reason={lockedReason} />
+            ) : (
+              <Workspace view={activeView} onNavigate={setActiveView} />
+            )}
           </main>
         </div>
       </div>

@@ -58,6 +58,7 @@ import { DeputyReportsDownloadsWorkspace } from "./deputy-principal/reports-work
 import { DeputyStaffRolesWorkspace } from "./deputy-principal/staff-roles-workspace";
 import { DeputySettingsWorkspace } from "./deputy-principal/settings-workspace";
 import { AcademicFoundationWorkspace } from "./academic-foundation-workspace";
+import { AcademicIntelligenceWorkspace } from "./academic-intelligence-workspace";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -80,6 +81,7 @@ const BASE_NAV_ITEMS: NavItem[] = [
   { id: "timetable", label: "Timetable & Relief", icon: CalendarClock, group: "Staff Management" },
   { id: "academics", label: "Academic Foundation", icon: GraduationCap, group: "Academics" },
   { id: "exams", label: "Exams & Marks", icon: ClipboardCheck, group: "Academics" },
+  { id: "academic-intelligence", label: "Academic Intelligence", icon: BrainCircuit, group: "Academics" },
   { id: "classes", label: "Classes & Streams", icon: Layers, group: "Academics" },
   { id: "approvals", label: "Approvals & Escalations", icon: CheckCircle2, group: "Administration" },
   { id: "communication", label: "Communication", icon: MessageSquareText, group: "Administration" },
@@ -100,6 +102,8 @@ const DEPUTY_WORKSPACE_ALIASES: Record<string, string> = {
   "timetable-conflicts": "timetable",
   "academic-review": "academics",
   "academic-setup": "academics",
+  "academic-analytics": "academic-intelligence",
+  "academic-intelligence": "academic-intelligence",
   "classes-streams": "classes",
   "reports-downloads": "reports",
 };
@@ -203,7 +207,7 @@ export function DeputyPrincipalCommandCenter({
                 {[
                   { label: "Academic Review", target: "academics" },
                   { label: "Results Moderation", target: "approvals" },
-                  { label: "Academic Analytics", target: "reports" },
+                  { label: "Academic Analytics", target: "academic-intelligence" },
                 ].map(({ label, target }) => (
                   <button
                     key={label}
@@ -218,6 +222,15 @@ export function DeputyPrincipalCommandCenter({
             </section>
             <DeputyExamsMarksWorkspace />
           </div>
+        );
+      case "academic-intelligence":
+        return (
+          <AcademicIntelligenceWorkspace
+            audience="deputy"
+            onOpenMarks={() => setActiveWorkspace("exams")}
+            onOpenInterventions={() => setActiveWorkspace("welfare")}
+            onOpenReportCards={() => setActiveWorkspace("reports")}
+          />
         );
       case "classes": return <DeputyClassesStreamsWorkspace />;
       case "approvals": return <DeputyApprovalsWorkspace />;

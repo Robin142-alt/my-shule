@@ -30,6 +30,7 @@ export interface LiveExamReportCard {
   academic_year?: string | null;
   report_snapshot_id: string;
   status: string;
+  verification_code?: string | null;
   revision_number?: number | null;
   is_current?: boolean;
   submitted_by_user_id?: string | null;
@@ -62,9 +63,9 @@ export interface LiveReportCardBatchStatus {
   id: string;
   status: string;
   queue_status?: string | null;
-  total_count: number;
-  processed_count: number;
-  failed_count?: number | null;
+  total_students: number;
+  completed_students: number;
+  failed_students?: number | null;
   artifact_count?: number | null;
 }
 
@@ -254,11 +255,24 @@ export function mapExamMarkSheetFromLive(sheet: LiveExamMarkSheet): ExamMarkShee
 }
 
 export function mapLiveReportCardToPreview(card: LiveExamReportCard): ExamReportCardPreview {
-  const { reportCard, artifact } = getReportCardMetadata(card);
-  const learnerName = text(reportCard.learner_name, text(reportCard.student_name, card.student_id));
-  const className = text(reportCard.class_name, "Class on file");
-  const meanScore = text(reportCard.mean_score, "");
-  const totalScore = text(reportCard.total_score, "");
+  const { metadata, reportCard, artifact } = getReportCardMetadata(card);
+  const templateFields = metadataRecord(reportCard.template_fields);
+  const student = metadataRecord(reportCard.student);
+  const totals = metadataRecord(reportCard.totals);
+  const learnerName = text(
+    templateFields.learner_name,
+    text(student.full_name, text(card.student_name, card.student_id)),
+  );
+  const className = text(
+    templateFields.class_stream,
+    [text(student.class_name), text(student.stream_name)].filter(Boolean).join(" ") || "Class on file",
+  );
+  const meanScore = Number.isFinite(Number(totals.mean_score))
+    ? String(Number(totals.mean_score))
+    : "";
+  const totalScore = Number.isFinite(Number(totals.total_score))
+    ? String(Number(totals.total_score))
+    : "";
   const summary = [
     totalScore ? `Total ${totalScore}` : null,
     meanScore ? `Mean ${meanScore}` : null,
@@ -273,10 +287,18 @@ export function mapLiveReportCardToPreview(card: LiveExamReportCard): ExamReport
     className,
     status: card.status,
     artifactId: text(artifact.id, text(artifact.artifact_id, card.report_snapshot_id)),
-    verificationCode: text(artifact.verification_code, "Verification pending"),
-    downloadUrl: text(artifact.pdf_url, text(artifact.download_url, "")),
+    verificationCode: text(card.verification_code, text(artifact.verification_code, "Verification pending")),
+    downloadUrl: text(
+      artifact.pdf_url,
+      text(artifact.download_url, `/api/exams/report-cards/${encodeURIComponent(card.id)}/download`),
+    ),
     checksum: text(artifact.checksum_sha256, "Checksum pending"),
-    generatedAt: formatDate(text(artifact.generated_at, card.published_at ?? "")),
+    generatedAt: formatDate(
+      text(
+        artifact.generated_at,
+        text(reportCard.generated_at, text(metadata.generated_at, card.published_at ?? "")),
+      ),
+    ),
     summary,
   };
 }
@@ -489,6 +511,10 @@ export interface LiveExamsAnalyticsAtRiskStudent {
 }
 
 export interface LiveExamsAnalyticsResponse {
+  scope: {
+    level: "school" | "department" | "assignment";
+    role: string;
+  };
   kpis: LiveExamsAnalyticsKPIs;
   trends: LiveExamsAnalyticsTrend[];
   subjectPerformance: LiveExamsAnalyticsSubjectPerformance[];

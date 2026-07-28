@@ -18,6 +18,7 @@ import {
   User,
   Medal,
   PenTool,
+  BarChart3,
   type LucideIcon,
 } from "lucide-react";
 import { TeacherView } from "./types";
@@ -47,6 +48,7 @@ export const navItems: NavItem[] = [
   { id: "assignments", label: "Assignments & Homework", icon: ClipboardCheck, group: "Assessments" },
   { id: "assessments-cats", label: "Assessments / CATs", icon: PenTool, group: "Assessments" },
   { id: "exams-marks", label: "Exams & Marks", icon: BookOpenCheck, group: "Assessments" },
+  { id: "academic-intelligence", label: "Academic Intelligence", icon: BarChart3, group: "Assessments" },
   
   // Learner Management
   { id: "learner-progress", label: "Learner Progress", icon: LineChart, group: "Learner Management" },

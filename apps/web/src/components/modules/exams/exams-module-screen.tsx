@@ -3019,7 +3019,7 @@ function getBatchProgressLabel(batch: LiveReportCardBatchStatus | null) {
     return "No active batch";
   }
 
-  return `${batch.processed_count}/${batch.total_count} report cards`;
+  return `${batch.completed_students}/${batch.total_students} report cards`;
 }
 
 function ReportCardArtifactPreview({
@@ -3081,8 +3081,8 @@ function BatchProgressCard({
   batch: LiveReportCardBatchStatus | null;
   isPolling: boolean;
 }) {
-  const processed = batch?.processed_count ?? 0;
-  const total = batch?.total_count ?? 0;
+  const processed = batch?.completed_students ?? 0;
+  const total = batch?.total_students ?? 0;
   const progress = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0;
 
   return (
@@ -3100,8 +3100,8 @@ function BatchProgressCard({
       <div className="mt-4 h-2 overflow-hidden rounded-full bg-surface-strong">
         <div className="h-full rounded-full bg-info" style={{ width: `${progress}%` }} />
       </div>
-      {batch?.failed_count ? (
-        <p className="mt-3 text-sm font-semibold text-danger">{batch.failed_count} failed artifacts need review.</p>
+      {batch?.failed_students ? (
+        <p className="mt-3 text-sm font-semibold text-danger">{batch.failed_students} failed artifacts need review.</p>
       ) : null}
     </Card>
   );

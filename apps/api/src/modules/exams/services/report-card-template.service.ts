@@ -29,10 +29,16 @@ export interface ReportCardPayload {
   };
   template_fields: {
     school_name: string;
+    school_logo_ref: string | null;
+    school_motto: string | null;
     school_address: string | null;
+    school_phone: string | null;
+    school_email: string | null;
     school_contacts: string | null;
     learner_name: string;
     admission_number: string | null;
+    learner_class: string | null;
+    learner_stream: string | null;
     class_stream: string | null;
     academic_year: string | null;
     term: string | null;
@@ -80,10 +86,16 @@ export class ReportCardTemplateService {
       },
       template_fields: {
         school_name: text(school.name) ?? 'School',
+        school_logo_ref: text(school.logo_ref),
+        school_motto: text(school.motto),
         school_address: text(school.address),
+        school_phone: text(school.phone),
+        school_email: text(school.email),
         school_contacts: [text(school.phone), text(school.email)].filter(Boolean).join(' | ') || null,
         learner_name: text(student.full_name) ?? 'Learner',
         admission_number: text(student.admission_number),
+        learner_class: text(student.class_name),
+        learner_stream: text(student.stream_name),
         class_stream: [text(student.class_name), text(student.stream_name)].filter(Boolean).join(' ') || null,
         academic_year: text(series.academic_year_name),
         term: text(series.academic_term_name),
@@ -222,6 +234,25 @@ export class ReportCardTemplateService {
   }
 }
 
+export function extractPersistedReportCardPayload(metadataValue: unknown): ReportCardPayload | null {
+  const metadata = parseRecord(metadataValue);
+  const reportCard = parseRecord(metadata?.report_card);
+  const templateFields = parseRecord(reportCard?.template_fields);
+  const totals = parseRecord(reportCard?.totals);
+
+  if (
+    !reportCard
+    || !templateFields
+    || !totals
+    || !Array.isArray(reportCard.subjects)
+    || typeof reportCard.generated_at !== 'string'
+  ) {
+    return null;
+  }
+
+  return reportCard as unknown as ReportCardPayload;
+}
+
 function isEnteredSubject(
   subject: ReportCardSubjectPayload,
 ): subject is ReportCardSubjectPayload & { score: number } {
@@ -252,6 +283,18 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
     : null;
+}
+
+function parseRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== 'string') {
+    return asRecord(value);
+  }
+
+  try {
+    return asRecord(JSON.parse(value));
+  } catch {
+    return null;
+  }
 }
 
 function text(value: unknown): string | null {

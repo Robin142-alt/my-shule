@@ -28,8 +28,8 @@ import { DepartmentPerformanceWorkspace } from "./dean-academics/department-perf
 import { LessonLogsWorkspace } from "./dean-academics/lesson-logs-workspace";
 import { LessonPlansWorkspace } from "./dean-academics/lesson-plans-workspace";
 import { OverviewWorkspace } from "./dean-academics/overview-workspace";
-import { ReportsWorkspace } from "./dean-academics/reports-workspace";
 import { TeacherWorkloadWorkspace } from "./dean-academics/teacher-workload-workspace";
+import { LiveReportCardsWorkspace } from "./live-report-cards-workspace";
 import { cn } from "./dean-academics/shared";
 
 type DeanRouteMode = "hosted" | "public";
@@ -307,12 +307,24 @@ function WorkspaceFrame({ activeView, children }: { activeView: DeanView; childr
   );
 }
 
-function DeanWorkspace({ activeView }: { activeView: DeanView }) {
+function DeanWorkspace({
+  activeView,
+  onNavigate,
+}: {
+  activeView: DeanView;
+  onNavigate: (view: DeanView) => void;
+}) {
   switch (activeView) {
     case "curriculum-coverage":
       return <CurriculumCoverageWorkspace />;
     case "department-performance":
-      return <DepartmentPerformanceWorkspace />;
+      return (
+        <DepartmentPerformanceWorkspace
+          onOpenAssessments={() => onNavigate("assessments")}
+          onOpenInterventions={() => onNavigate("academic-interventions")}
+          onOpenReports={() => onNavigate("reports")}
+        />
+      );
     case "teacher-workload":
       return <TeacherWorkloadWorkspace />;
     case "lesson-plans":
@@ -324,7 +336,7 @@ function DeanWorkspace({ activeView }: { activeView: DeanView }) {
     case "academic-interventions":
       return <AcademicInterventionsWorkspace />;
     case "reports":
-      return <ReportsWorkspace />;
+      return <LiveReportCardsWorkspace audience="dean" />;
     case "overview":
     default:
       return <OverviewWorkspace />;
@@ -394,7 +406,7 @@ export function DeanAcademicsCommandCenter({
           <div className="space-y-4 p-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:p-6">
             <IntegratedSchoolCommandHeader roleTitle="Dean of Academics Dashboard" fallbackUserLabel="Dean of Academics" />
             <WorkspaceFrame activeView={activeView}>
-              <DeanWorkspace activeView={activeView} />
+              <DeanWorkspace activeView={activeView} onNavigate={openView} />
             </WorkspaceFrame>
           </div>
         </main>

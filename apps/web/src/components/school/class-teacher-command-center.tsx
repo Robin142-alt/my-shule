@@ -6,7 +6,7 @@ import {
   Bell, BookOpenCheck, Calendar, CalendarDays, CheckSquare,
   ClipboardCheck, FileSignature, FileText, FolderOpen, GraduationCap,
   HeartPulse, Home, MessageCircle, Settings, ShieldAlert,
-  Stethoscope, Banknote, Users, X
+  Stethoscope, Banknote, Users, X, BarChart3
 } from "lucide-react";
 
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { type TeacherView, cn, sendClassTeacherCommunication } from "./class-teacher/shared";
 import { buildSchoolSectionHref, type SchoolRouteMode } from "./school-pages";
+import { AcademicIntelligenceWorkspace } from "./academic-intelligence-workspace";
 import { OverviewWorkspace } from "./class-teacher/workspaces/home";
 import { ClassRegisterWorkspace } from "./class-teacher/workspaces/register";
 import { AttendanceWorkspace } from "./class-teacher/workspaces/attendance";
@@ -42,6 +43,7 @@ const navItems = [
   { id: "register", label: "My Class Register", icon: Users, group: "Class Operations" },
   { id: "attendance", label: "Attendance", icon: ClipboardCheck, group: "Class Operations" },
   { id: "progress", label: "Academic Progress", icon: GraduationCap, group: "Academics" },
+  { id: "academic-intelligence", label: "Academic Intelligence", icon: BarChart3, group: "Academics" },
   { id: "comments", label: "Report Card Comments", icon: FileSignature, group: "Academics" },
   { id: "discipline", label: "Discipline & Behaviour", icon: ShieldAlert, group: "Student Welfare" },
   { id: "welfare", label: "Welfare & Counselling", icon: HeartPulse, group: "Student Welfare" },
@@ -185,6 +187,14 @@ export function ClassTeacherCommandCenter({ activeSection, routeMode }: { active
           {activeView === "register" && <ClassRegisterWorkspace onSelectLearner={setSelectedLearner} />}
           {activeView === "attendance" && <AttendanceWorkspace />}
           {activeView === "progress" && <AcademicProgressWorkspace />}
+          {activeView === "academic-intelligence" && (
+            <AcademicIntelligenceWorkspace
+              audience="class-teacher"
+              onOpenMarks={() => setActiveView("progress")}
+              onOpenInterventions={() => setActiveView("welfare")}
+              onOpenReportCards={() => setActiveView("comments")}
+            />
+          )}
           {activeView === "comments" && <ReportCommentsWorkspace />}
           {activeView === "discipline" && <DisciplineWorkspace />}
           {activeView === "welfare" && <WelfareWorkspace />}

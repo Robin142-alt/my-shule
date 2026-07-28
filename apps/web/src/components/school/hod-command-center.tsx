@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
+  BarChart3,
   BookMarked,
   BookOpen,
   Briefcase,
@@ -19,6 +20,7 @@ import { NotificationBell } from "@/components/shared/notification-bell";
 import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 import { TaskQueue } from "@/components/shared/task-queue";
 
+import { AcademicIntelligenceWorkspace } from "./academic-intelligence-workspace";
 import { buildSchoolSectionHref } from "./school-pages";
 import { CoverageReviewWorkspace } from "./hod/coverage-review-workspace";
 import { DepartmentTeachersWorkspace } from "./hod/department-teachers-workspace";
@@ -39,6 +41,7 @@ type HodView =
   | "coverage-review"
   | "lesson-plans"
   | "marks-moderation"
+  | "academic-intelligence"
   | "resource-requests"
   | "reports";
 
@@ -94,6 +97,13 @@ const hodNavItems: HodNavItem[] = [
     group: "Exams",
   },
   {
+    id: "academic-intelligence",
+    label: "Academic Intelligence",
+    description: "Live department trends, subject evidence, learner risk, and interventions.",
+    icon: BarChart3,
+    group: "Exams",
+  },
+  {
     id: "resource-requests",
     label: "Resource Requests",
     description: "Department teaching materials, requests, and resource follow-up.",
@@ -136,8 +146,10 @@ const hodViewAliases: Record<string, HodView> = {
   marks: "marks-moderation",
   grading: "marks-moderation",
   validation: "marks-moderation",
-  "performance-analytics": "marks-moderation",
-  "student-analytics": "marks-moderation",
+  "performance-analytics": "academic-intelligence",
+  "student-analytics": "academic-intelligence",
+  "academic-analytics": "academic-intelligence",
+  "academic-intelligence": "academic-intelligence",
   "learner-interventions": "marks-moderation",
   "marks-moderation": "marks-moderation",
   resources: "resource-requests",
@@ -305,7 +317,13 @@ function WorkspaceFrame({ activeView, children }: { activeView: HodView; childre
   );
 }
 
-function HodWorkspace({ activeView }: { activeView: HodView }) {
+function HodWorkspace({
+  activeView,
+  onNavigate,
+}: {
+  activeView: HodView;
+  onNavigate: (view: HodView) => void;
+}) {
   switch (activeView) {
     case "department-teachers":
       return <DepartmentTeachersWorkspace />;
@@ -317,6 +335,15 @@ function HodWorkspace({ activeView }: { activeView: HodView }) {
       return <LessonPlansWorkspace />;
     case "marks-moderation":
       return <MarksModerationWorkspace />;
+    case "academic-intelligence":
+      return (
+        <AcademicIntelligenceWorkspace
+          audience="hod"
+          onOpenMarks={() => onNavigate("marks-moderation")}
+          onOpenInterventions={() => onNavigate("marks-moderation")}
+          onOpenReportCards={() => onNavigate("reports")}
+        />
+      );
     case "resource-requests":
       return <ResourceRequestsWorkspace />;
     case "reports":
@@ -388,7 +415,7 @@ export function HodCommandCenter({
           <div className="space-y-4 p-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:p-6">
             <IntegratedSchoolCommandHeader roleTitle="Head of Department Dashboard" fallbackUserLabel="Head of Department" />
             <WorkspaceFrame activeView={activeView}>
-              <HodWorkspace activeView={activeView} />
+              <HodWorkspace activeView={activeView} onNavigate={openView} />
             </WorkspaceFrame>
           </div>
         </main>

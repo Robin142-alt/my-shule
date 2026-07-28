@@ -54,9 +54,18 @@ function ReportCardHeader({ report }: { report: ReportCardDocumentData }) {
   return (
     <header className="border-b-2 border-slate-900 pb-3">
       <div className="flex items-start gap-4">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center border-2 border-slate-900 text-lg font-black">
-          {report.school.name.slice(0, 2).toUpperCase()}
-        </div>
+        {report.school.logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={report.school.logoUrl}
+            alt={`${report.school.name} logo`}
+            className="h-16 w-16 shrink-0 border-2 border-slate-900 bg-white object-contain p-1"
+          />
+        ) : (
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center border-2 border-slate-900 text-lg font-black">
+            {report.school.name.slice(0, 2).toUpperCase()}
+          </div>
+        )}
         <div className="min-w-0 flex-1 text-center">
           <h1 className="text-xl font-black uppercase tracking-[0.08em] text-slate-950">{report.school.name}</h1>
           {report.school.motto ? <p className="mt-1 text-[11px] font-semibold italic text-slate-700">{report.school.motto}</p> : null}
@@ -196,28 +205,38 @@ function MarksTable({ report }: { report: ReportCardDocumentData }) {
   return (
     <Section title={title}>
       {report.marksSupplement.length ? (
-        <table className="w-full border-collapse text-[10px]">
-          <thead>
-            <tr className="bg-slate-100">
-              {["Code", "Subject / Learning Area", "Component", "Score", "Grade", "Teacher Comment", "Teacher"].map((head) => (
-                <th key={head} className="border border-slate-300 px-2 py-1 text-left font-black uppercase text-slate-700">{head}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {report.marksSupplement.map((row) => (
-              <tr key={`${row.subjectName}-${row.assessmentComponent}`}>
-                <td className="border border-slate-300 px-2 py-1">{row.subjectCode || "-"}</td>
-                <td className="border border-slate-300 px-2 py-1 font-semibold">{row.subjectName}</td>
-                <td className="border border-slate-300 px-2 py-1">{row.assessmentComponent || "Assessment"}</td>
-                <td className="border border-slate-300 px-2 py-1">{row.score || "No marks entered"}</td>
-                <td className="border border-slate-300 px-2 py-1">{row.grade || "No grade"}</td>
-                <td className="border border-slate-300 px-2 py-1">{row.teacherComment || "No subject teacher comment has been entered."}</td>
-                <td className="border border-slate-300 px-2 py-1">{row.teacherName || "Teacher not recorded"}</td>
+        <div>
+          <table className="w-full border-collapse text-[10px]">
+            <thead>
+              <tr className="bg-slate-100">
+                {["Code", "Subject / Learning Area", "Component", "Score", "Grade", "Teacher Comment", "Teacher"].map((head) => (
+                  <th key={head} className="border border-slate-300 px-2 py-1 text-left font-black uppercase text-slate-700">{head}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {report.marksSupplement.map((row) => (
+                <tr key={`${row.subjectName}-${row.assessmentComponent}`}>
+                  <td className="border border-slate-300 px-2 py-1">{row.subjectCode || "-"}</td>
+                  <td className="border border-slate-300 px-2 py-1 font-semibold">{row.subjectName}</td>
+                  <td className="border border-slate-300 px-2 py-1">{row.assessmentComponent || "Assessment"}</td>
+                  <td className="border border-slate-300 px-2 py-1">{row.score || "No marks entered"}</td>
+                  <td className="border border-slate-300 px-2 py-1">{row.grade || "No grade"}</td>
+                  <td className="border border-slate-300 px-2 py-1">{row.teacherComment || "No subject teacher comment has been entered."}</td>
+                  <td className="border border-slate-300 px-2 py-1">{row.teacherName || "Teacher not recorded"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {report.academicSummary ? (
+            <div className="grid grid-cols-2 border-x border-b border-amber-300 bg-amber-50 md:grid-cols-4">
+              <Field label="Total score" value={report.academicSummary.totalScore} />
+              <Field label="Mean score" value={report.academicSummary.meanScore} />
+              <Field label="Percentage" value={report.academicSummary.percentage} />
+              <Field label="Overall grade" value={report.academicSummary.overallGrade} />
+            </div>
+          ) : null}
+        </div>
       ) : (
         <EmptyLine>No marks have been entered for this reporting period yet.</EmptyLine>
       )}
@@ -280,12 +299,17 @@ function CommentsAndSignatures({ report }: { report: ReportCardDocumentData }) {
 }
 
 function Footer({ report }: { report: ReportCardDocumentData }) {
+  const generatedAt = new Date(report.verification.generatedAt);
+  const generatedAtLabel = Number.isNaN(generatedAt.valueOf())
+    ? report.verification.generatedAt
+    : generatedAt.toLocaleString();
+
   return (
     <footer className="border-t border-slate-900 pt-2 text-[9px] text-slate-600">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span>Report No: {report.reportNumber}</span>
         <span>Generated by: {report.verification.generatedBy}</span>
-        <span>Generated: {new Date(report.verification.generatedAt).toLocaleString()}</span>
+        <span>Generated: {generatedAtLabel}</span>
         <span>{report.verification.qrValue || "QR pending"}</span>
       </div>
       <p className="mt-1 font-semibold">{report.verification.securityNote}</p>

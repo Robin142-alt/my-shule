@@ -1,17 +1,25 @@
-import { Controller, Get, Param, ParseUUIDPipe, Req, UseGuards, StreamableFile, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  ParseUUIDPipe,
+  Req,
+  StreamableFile,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { ExamsRepository } from './repositories/exams.repository';
-import { ReportCardTemplateService } from './services/report-card-template.service';
+import { extractPersistedReportCardPayload } from './services/report-card-template.service';
 import { createReportCardPdfArtifact } from './services/report-card-pdf-artifact';
 
 @Controller('exams')
 @UseGuards(JwtAuthGuard)
 export class ReportCardDownloadController {
-  constructor(
-    private readonly examsRepository: ExamsRepository,
-    private readonly templateService: ReportCardTemplateService,
-  ) {}
+  constructor(private readonly examsRepository: ExamsRepository) {}
 
   @Get('report-cards/:reportCardId/download')
   @Permissions('exams:read')
@@ -34,15 +42,16 @@ export class ReportCardDownloadController {
     }
 
     const reportCard = result.rows[0];
-    
-    const data = await this.examsRepository.loadReportCardData({
-      tenant_id: tenantId,
-      exam_series_id: reportCard.exam_series_id,
-      student_id: reportCard.student_id,
-    });
-    
-    const payload = this.templateService.buildPayload(data, reportCard.metadata?.generated_at || new Date().toISOString());
-    const pdfArtifact = await createReportCardPdfArtifact(payload, reportCard.verification_code);
+    const payload = extractPersistedReportCardPayload(reportCard.metadata);
+    const verificationCode = String(reportCard.verification_code ?? '').trim();
+
+    if (!payload || !verificationCode) {
+      throw new ConflictException(
+        'This report card has no valid generated snapshot. Regenerate it before previewing or downloading.',
+      );
+    }
+
+    const pdfArtifact = await createReportCardPdfArtifact(payload, verificationCode);
 
     return new StreamableFile(pdfArtifact.content, {
       type: 'application/pdf',
