@@ -59,8 +59,9 @@ export class CreateManualAdmissionDto {
   curriculum!: string;
 
   @Transform(trim)
+  @IsOptional()
   @IsString()
-  grade_level!: string;
+  grade_level?: string;
 
   @Transform(trim)
   @IsString()

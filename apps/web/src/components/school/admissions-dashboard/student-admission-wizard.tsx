@@ -218,19 +218,8 @@ export function StudentAdmissionWizard({
     () => [...new Set(yearClasses.map((item) => item.curriculum).filter(Boolean))],
     [yearClasses],
   );
-  const grades = useMemo(
-    () => [
-      ...new Set(
-        yearClasses
-          .filter((item) => item.curriculum === form.curriculum)
-          .map((item) => item.grade_level)
-          .filter(Boolean),
-      ),
-    ],
-    [form.curriculum, yearClasses],
-  );
   const classes = yearClasses.filter(
-    (item) => item.curriculum === form.curriculum && item.grade_level === form.grade_level,
+    (item) => item.curriculum === form.curriculum,
   );
   const streams = (foundation?.streams ?? []).filter(
     (item) => item.class_section_id === form.class_section_id,
@@ -246,6 +235,10 @@ export function StudentAdmissionWizard({
   );
   const subjects = (foundation?.subjects ?? []).filter((item) => assignedSubjectIds.has(item.id));
   const selectedClass = (foundation?.classes ?? []).find((item) => item.id === form.class_section_id);
+  const canonicalForm = useMemo(
+    () => ({ ...form, grade_level: selectedClass?.name ?? form.grade_level }),
+    [form, selectedClass?.name],
+  );
   const selectedStream = (foundation?.streams ?? []).find((item) => item.id === form.stream_id);
   const selectedYear = years.find((item) => item.id === form.academic_year_id);
   const selectedSubjects = subjects.filter((item) => form.subject_ids.includes(item.id));
@@ -279,12 +272,12 @@ export function StudentAdmissionWizard({
     if (!draftHydrated.current || result || !form.admission_number) return;
     setDraftStatus("saving");
     const timer = window.setTimeout(() => {
-      saveDraftAsync({ payload: { ...form, step } })
+      saveDraftAsync({ payload: { ...canonicalForm, step } })
         .then(() => setDraftStatus("saved"))
         .catch(() => setDraftStatus("failed"));
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [form, result, saveDraftAsync, step]);
+  }, [canonicalForm, result, saveDraftAsync, step]);
 
   async function saveAdmissionSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -335,8 +328,8 @@ export function StudentAdmissionWizard({
       if (missing.length) return `${missing.join(", ")} ${missing.length === 1 ? "is" : "are"} required.`;
     }
     if (currentStep === 1) {
-      if (!form.academic_year_id || !form.curriculum || !form.grade_level || !form.class_section_id) {
-        return "Academic year, curriculum, grade, and class are required.";
+      if (!form.academic_year_id || !form.curriculum || !form.class_section_id) {
+        return "Academic year, curriculum, and class/form/grade are required.";
       }
       if (streams.length > 0 && !form.stream_id) return "Select a stream for this class.";
     }
@@ -363,7 +356,7 @@ export function StudentAdmissionWizard({
   }
 
   async function runPreflight() {
-    const review = await preflightAdmission.mutateAsync(form);
+    const review = await preflightAdmission.mutateAsync(canonicalForm);
     setPreflight(review);
     const blocking = review.warnings.filter((warning) => warning.blocking);
     if (blocking.length) {
@@ -414,14 +407,14 @@ export function StudentAdmissionWizard({
     try {
       if (!(await runPreflight())) return;
       const admission = await admitStudent.mutateAsync({
-        ...form,
-        admission_number: form.admission_number.trim(),
-        first_name: form.first_name.trim(),
-        middle_name: form.middle_name.trim(),
-        last_name: form.last_name.trim(),
-        guardian_name: form.guardian_name.trim(),
-        guardian_relationship: form.guardian_relationship.trim(),
-        guardian_phone: form.guardian_phone.trim(),
+        ...canonicalForm,
+        admission_number: canonicalForm.admission_number.trim(),
+        first_name: canonicalForm.first_name.trim(),
+        middle_name: canonicalForm.middle_name.trim(),
+        last_name: canonicalForm.last_name.trim(),
+        guardian_name: canonicalForm.guardian_name.trim(),
+        guardian_relationship: canonicalForm.guardian_relationship.trim(),
+        guardian_phone: canonicalForm.guardian_phone.trim(),
       });
       setResult(admission);
       setDraftStatus("saved");
@@ -650,14 +643,13 @@ export function StudentAdmissionWizard({
                   <option value="">Select curriculum</option>{curricula.map((curriculum) => <option key={curriculum} value={curriculum}>{curriculum}</option>)}
                 </select>
               </Field>
-              <Field label="Grade / form">
-                <select disabled={!form.curriculum} value={form.grade_level} onChange={(event) => setForm((current) => ({ ...current, grade_level: event.target.value, class_section_id: "", stream_id: "", subject_ids: [] }))}>
-                  <option value="">Select grade or form</option>{grades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
-                </select>
-              </Field>
-              <Field label="Class">
-                <select disabled={!form.grade_level} value={form.class_section_id} onChange={(event) => setForm((current) => ({ ...current, class_section_id: event.target.value, stream_id: "", subject_ids: [] }))}>
-                  <option value="">Select class</option>{classes.map((item) => <option key={item.id} value={item.id}>{item.name} ({capacityLabel(item.capacity, item.student_count)}){!item.enrolment_open ? " - closed" : ""}</option>)}
+              <Field label="Class / form / grade">
+                <select disabled={!form.curriculum} value={form.class_section_id} onChange={(event) => {
+                  const classSectionId = event.target.value;
+                  const classSection = classes.find((item) => item.id === classSectionId);
+                  setForm((current) => ({ ...current, grade_level: classSection?.name ?? "", class_section_id: classSectionId, stream_id: "", subject_ids: [] }));
+                }}>
+                  <option value="">Select class, form, or grade</option>{classes.map((item) => <option key={item.id} value={item.id}>{item.name} ({capacityLabel(item.capacity, item.student_count)}){!item.enrolment_open ? " - closed" : ""}</option>)}
                 </select>
               </Field>
               <Field label="Stream" hint={streams.length === 0 && form.class_section_id ? "This class does not use streams." : undefined}>
@@ -717,7 +709,7 @@ export function StudentAdmissionWizard({
               ) : null}
               <div className="grid gap-4 lg:grid-cols-2">
                 <Review title="Student" rows={[["Admission number", form.admission_number], ["Name", [form.first_name, form.middle_name, form.last_name].filter(Boolean).join(" ")], ["Gender", form.gender], ["Date of birth", form.date_of_birth || "Not provided"], ["Admission date", form.admission_date], ["Age on admission", preflight ? (preflight.age_at_admission == null ? "Not available" : String(preflight.age_at_admission)) : "Checking"]]} />
-                <Review title="Placement" rows={[["Academic year", selectedYear?.name ?? ""], ["Curriculum", form.curriculum], ["Grade", form.grade_level], ["Class", selectedClass?.name ?? ""], ["Stream", selectedStream?.name ?? "Not used"], ["Capacity", selectedStream ? capacityLabel(selectedStream.capacity, selectedStream.student_count) : selectedClass ? capacityLabel(selectedClass.capacity, selectedClass.student_count) : "Not set"]]} />
+                <Review title="Placement" rows={[["Academic year", selectedYear?.name ?? ""], ["Curriculum", form.curriculum], ["Class / form / grade", selectedClass?.name ?? ""], ["Stream", selectedStream?.name ?? "Not used"], ["Capacity", selectedStream ? capacityLabel(selectedStream.capacity, selectedStream.student_count) : selectedClass ? capacityLabel(selectedClass.capacity, selectedClass.student_count) : "Not set"]]} />
                 <Review title="Subjects" rows={selectedSubjects.map((subject) => [subject.is_compulsory ? `${subject.code} (compulsory)` : subject.code, subject.name])} />
                 <Review title="Guardian" rows={[["Name", form.guardian_name], ["Relationship", form.guardian_relationship], ["Phone", preflight?.guardian?.masked_phone ?? form.guardian_phone]]} />
               </div>

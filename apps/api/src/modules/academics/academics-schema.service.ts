@@ -920,6 +920,9 @@ export class AcademicsSchemaService implements OnModuleInit {
 
       CREATE INDEX IF NOT EXISTS ix_academic_terms_year
         ON academic_terms (tenant_id, academic_year_id, starts_on);
+      UPDATE class_sections
+      SET grade_level = name
+      WHERE grade_level IS DISTINCT FROM name;
       CREATE INDEX IF NOT EXISTS ix_class_sections_year
         ON class_sections (tenant_id, academic_year_id, grade_level, name);
       CREATE INDEX IF NOT EXISTS ix_academic_levels_tenant_order

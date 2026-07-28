@@ -361,10 +361,28 @@ export class StudentsSchemaService implements OnModuleInit {
       ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS display_name text;
       ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS email text;
       ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS phone text;
+      ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS relationship text;
       ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS normalized_phone text;
       ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS guardian_profile_id uuid;
       ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'invited';
       ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS accepted_at timestamptz;
+      UPDATE student_guardians
+      SET relationship = COALESCE(NULLIF(btrim(relationship), ''), 'Guardian')
+      WHERE relationship IS NULL OR btrim(relationship) = '';
+      ALTER TABLE student_guardians ALTER COLUMN relationship SET NOT NULL;
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'ck_student_guardians_relationship_not_blank'
+            AND conrelid = 'student_guardians'::regclass
+        ) THEN
+          ALTER TABLE student_guardians
+            ADD CONSTRAINT ck_student_guardians_relationship_not_blank
+            CHECK (btrim(relationship) <> '');
+        END IF;
+      END $$;
       ALTER TABLE student_guardians ALTER COLUMN email DROP NOT NULL;
       ALTER TABLE student_guardians DROP CONSTRAINT IF EXISTS ck_student_guardians_email_not_blank;
       CREATE TABLE IF NOT EXISTS guardian_profiles (

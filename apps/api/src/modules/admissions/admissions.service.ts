@@ -106,7 +106,6 @@ const ADMISSIONS_IMPORT_HEADERS = [
   'admission_date',
   'academic_year',
   'curriculum',
-  'grade_or_form',
   'class',
   'stream',
   'guardian_name',
@@ -433,6 +432,9 @@ export class AdmissionsService {
     }
 
     const placement = preflight.placement;
+    const classFormGradeName = String(
+      placement?.name ?? dto.grade_level?.trim() ?? 'the selected class/form/grade',
+    );
     const classAtCapacity = placement?.capacity != null
       && Number(placement.class_student_count ?? 0) >= Number(placement.capacity);
     const streamAtCapacity = placement?.stream_capacity != null
@@ -456,8 +458,8 @@ export class AdmissionsService {
         admitted.getUTCMonth() < birth.getUTCMonth() ||
         (admitted.getUTCMonth() === birth.getUTCMonth() && admitted.getUTCDate() < birth.getUTCDate())
       ) age -= 1;
-      const gradeNumber = Number(dto.grade_level.match(/\d+/)?.[0] ?? NaN);
-      const inferredAge = /form/i.test(dto.grade_level)
+      const gradeNumber = Number(classFormGradeName.match(/\d+/)?.[0] ?? NaN);
+      const inferredAge = /form/i.test(classFormGradeName)
         ? (Number.isFinite(gradeNumber) ? 13 + gradeNumber : null)
         : (Number.isFinite(gradeNumber) ? 5 + gradeNumber : null);
       const ageOutsideConfigured =
@@ -467,7 +469,7 @@ export class AdmissionsService {
       if (ageOutsideConfigured || ageOutsideExpected) {
         warnings.push({
           code: 'UNUSUAL_GRADE_AGE',
-          message: `The learner will be ${age} on admission, which is unusual for ${dto.grade_level}. Confirm the date and placement.`,
+          message: `The learner will be ${age} on admission, which is unusual for ${classFormGradeName}. Confirm the date and placement.`,
           blocking: settings.strict_age_rules && ageOutsideConfigured,
         });
       }
@@ -883,7 +885,6 @@ export class AdmissionsService {
           admission_date: admissionDate,
           academic_year_id: dto.academic_year_id.trim(),
           curriculum: dto.curriculum.trim(),
-          grade_level: dto.grade_level.trim(),
           class_section_id: dto.class_section_id.trim(),
           stream_id: dto.stream_id?.trim() || null,
           subject_ids: dto.subject_ids.map((subjectId) => subjectId.trim()).filter(Boolean),
@@ -2261,8 +2262,9 @@ export class AdmissionsService {
   }) {
     const { values, foundation } = input;
     const errors: string[] = [];
+    const classFormGradeName = values.class?.trim() || values.grade_or_form?.trim() || '';
     const requiredMissing = ADMISSIONS_IMPORT_REQUIRED_HEADERS.filter(
-      (header) => !values[header]?.trim(),
+      (header) => header === 'class' ? !classFormGradeName : !values[header]?.trim(),
     );
     errors.push(...requiredMissing.map((header) => `${header} is required`));
 
@@ -2357,13 +2359,12 @@ export class AdmissionsService {
     const classSection = foundation.classes.find(
       (item) =>
         (!academicYear || String(item.academic_year_id) === String(academicYear.id))
-        && this.sameImportValue(item.name, values.class)
-        && this.sameImportValue(item.grade_level, values.grade_or_form)
+        && this.sameImportValue(item.name, classFormGradeName)
         && this.sameImportValue(item.curriculum, values.curriculum),
     );
-    if (values.class && values.grade_or_form && values.curriculum && !classSection) {
+    if (classFormGradeName && values.curriculum && !classSection) {
       errors.push(
-        `Class "${values.class}" does not match the selected academic year, curriculum, and grade/form`,
+        `Class/form/grade "${classFormGradeName}" does not match the selected academic year and curriculum`,
       );
     }
     if (classSection?.enrolment_open === false) {
@@ -2384,7 +2385,7 @@ export class AdmissionsService {
         )
       : undefined;
     if (values.stream && !stream) {
-      errors.push(`Stream "${values.stream}" does not belong to class "${values.class}"`);
+      errors.push(`Stream "${values.stream}" does not belong to class/form/grade "${classFormGradeName}"`);
     }
     if (stream?.capacity != null && Number(stream.student_count ?? 0) >= Number(stream.capacity)) {
       errors.push(`Stream "${stream.name}" has reached its configured capacity`);
@@ -2427,7 +2428,7 @@ export class AdmissionsService {
           admission_date: admissionDate,
           academic_year_id: String(academicYear.id),
           curriculum: classSection.curriculum,
-          grade_level: classSection.grade_level,
+          grade_level: classSection.name,
           class_section_id: String(classSection.id),
           ...(stream ? { stream_id: String(stream.id) } : {}),
           subject_ids: subjectIds,
@@ -2447,7 +2448,7 @@ export class AdmissionsService {
       admission_number: admissionNumber || values.admission_number,
       learner_name: [firstName, middleName, lastName].filter(Boolean).join(' '),
       academic_year: values.academic_year,
-      class_name: values.class,
+      class_name: classFormGradeName,
       stream_name: values.stream || null,
       guardian_phone: guardianPhone || values.guardian_phone,
       status: errors.length === 0 ? 'valid' : 'invalid',
@@ -2537,7 +2538,6 @@ export class AdmissionsService {
         'The selected academic year and class are not available in this school',
       ADMISSION_CLASS_CLOSED: 'The selected class is closed for enrolment',
       ADMISSION_STREAM_NOT_FOUND: 'The selected stream does not belong to the selected class',
-      ADMISSION_GRADE_MISMATCH: 'The selected grade does not match the selected class',
       ADMISSION_CURRICULUM_MISMATCH:
         'The selected curriculum does not match the selected class',
       ADMISSION_DATE_OUTSIDE_YEAR:

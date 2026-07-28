@@ -57,7 +57,6 @@ export interface CanonicalAdmissionInput {
   admission_date: string;
   academic_year_id: string;
   curriculum: string;
-  grade_level: string;
   class_section_id: string;
   stream_id: string | null;
   subject_ids: string[];
@@ -520,6 +519,8 @@ export class AdmissionsRepository {
       `, [tenantId, input.guardian_phone]),
       this.executeSql<any>(tenantId, `
         SELECT
+          section.name,
+          section.curriculum_model,
           section.capacity,
           (SELECT COUNT(*)::int FROM student_class_assignments assignment
             WHERE assignment.tenant_id = section.tenant_id
@@ -619,12 +620,10 @@ export class AdmissionsRepository {
       ) {
         throw new Error('ADMISSION_DATE_OUTSIDE_YEAR');
       }
-      if (String(placement.grade_level ?? '').toLowerCase() !== input.grade_level.toLowerCase()) {
-        throw new Error('ADMISSION_GRADE_MISMATCH');
-      }
       if (String(placement.curriculum_model ?? '').toLowerCase() !== input.curriculum.toLowerCase()) {
         throw new Error('ADMISSION_CURRICULUM_MISMATCH');
       }
+      const classFormGradeName = String(placement.name);
 
       await query(`
         INSERT INTO admission_settings (tenant_id)
@@ -807,7 +806,7 @@ export class AdmissionsRepository {
         input.guardian_phone,
         input.academic_year_id,
         input.curriculum,
-        input.grade_level,
+        classFormGradeName,
         input.actor_user_id,
       ]);
       const student = studentRows[0];

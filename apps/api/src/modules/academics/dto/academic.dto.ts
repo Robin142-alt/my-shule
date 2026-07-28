@@ -50,8 +50,9 @@ export class CreateClassSectionDto {
   @IsString()
   name!: string;
 
+  @IsOptional()
   @IsString()
-  grade_level!: string;
+  grade_level?: string;
 
   @IsOptional()
   @IsString()

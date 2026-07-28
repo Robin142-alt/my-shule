@@ -875,9 +875,9 @@ test('AdmissionsService previews canonical school-scoped admission imports', asy
       mimetype: 'text/csv',
       size: 480,
       buffer: Buffer.from([
-        'admission_number,first_name,middle_name,last_name,gender,date_of_birth,admission_date,academic_year,curriculum,grade_or_form,class,stream,guardian_name,guardian_relationship,guardian_phone',
-        'G4-001,Achieng,,Otieno,Female,12/09/2016,05/01/2026,2026 Academic Year,CBC,Grade 4,Grade 4,,Janet Otieno,Mother,0700000001',
-        'G4-002,Missing,,,,,,,,,,,,,',
+        'admission_number,first_name,middle_name,last_name,gender,date_of_birth,admission_date,academic_year,curriculum,class,stream,guardian_name,guardian_relationship,guardian_phone',
+        'G4-001,Achieng,,Otieno,Female,12/09/2016,05/01/2026,2026 Academic Year,CBC,Grade 4,,Janet Otieno,Mother,0700000001',
+        'G4-002,Missing,,,,,,,,,,,,',
       ].join('\n')),
     }),
   );

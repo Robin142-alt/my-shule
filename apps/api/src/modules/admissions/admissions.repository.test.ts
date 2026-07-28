@@ -102,6 +102,28 @@ test('AdmissionsSchemaService creates tenant-scoped student fee assignment and i
   assert.match(bootstrapSql, /CREATE TRIGGER trg_student_fee_invoices_set_updated_at/);
 });
 
+test('AdmissionsSchemaService repairs the admission draft owner upsert contract', async () => {
+  let bootstrapSql = '';
+  const service = new AdmissionsSchemaService(
+    {
+      runSchemaBootstrap: async (sql: string) => {
+        bootstrapSql = sql;
+      },
+    } as never,
+    {
+      onModuleInit: async () => undefined,
+    } as never,
+  );
+
+  await service.onModuleInit();
+
+  assert.match(bootstrapSql, /PARTITION BY tenant_id, created_by_user_id/);
+  assert.match(
+    bootstrapSql,
+    /CREATE UNIQUE INDEX IF NOT EXISTS ux_admission_drafts_owner\s+ON admission_drafts \(tenant_id, created_by_user_id\)/,
+  );
+});
+
 test('AdmissionsSchemaService creates academic enrollment and capacity tables', async () => {
   let bootstrapSql = '';
   const service = new AdmissionsSchemaService(

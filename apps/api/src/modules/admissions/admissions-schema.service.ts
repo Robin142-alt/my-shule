@@ -98,6 +98,25 @@ export class AdmissionsSchemaService implements OnModuleInit {
         CONSTRAINT ck_admission_drafts_status CHECK (status IN ('draft', 'completed', 'discarded'))
       );
 
+      DELETE FROM admission_drafts draft
+      USING (
+        SELECT id
+        FROM (
+          SELECT
+            id,
+            ROW_NUMBER() OVER (
+              PARTITION BY tenant_id, created_by_user_id
+              ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST, id DESC
+            ) AS duplicate_rank
+          FROM admission_drafts
+        ) ranked
+        WHERE ranked.duplicate_rank > 1
+      ) duplicates
+      WHERE draft.id = duplicates.id;
+
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_admission_drafts_owner
+        ON admission_drafts (tenant_id, created_by_user_id);
+
       CREATE INDEX IF NOT EXISTS ix_admission_drafts_owner_status
         ON admission_drafts (tenant_id, created_by_user_id, status, updated_at DESC);
 

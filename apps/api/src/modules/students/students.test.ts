@@ -54,6 +54,9 @@ test('StudentsSchemaService adds a full-text index for active student directory 
   assert.match(schemaSql, /ALTER TABLE students ALTER COLUMN date_of_birth DROP DEFAULT/);
   assert.match(schemaSql, /ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS email text/);
   assert.match(schemaSql, /ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS invitation_id uuid/);
+  assert.match(schemaSql, /ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS relationship text/);
+  assert.match(schemaSql, /UPDATE student_guardians[\s\S]*SET relationship/);
+  assert.match(schemaSql, /ALTER TABLE student_guardians ALTER COLUMN relationship SET NOT NULL/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS attendance_records/);
   assert.match(schemaSql, /source_device_id/);
   assert.match(schemaSql, /sync_version/);

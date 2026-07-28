@@ -246,21 +246,22 @@ export class AcademicsService {
   async createClassSection(dto: CreateClassSectionDto) {
     const tenantId = this.requireTenantId();
     const academicYearId = this.requireText(dto.academic_year_id, 'Academic year');
+    const classFormGradeName = this.requireText(dto.name, 'Class/form/grade name');
     await this.requireTenantRecord(
       tenantId,
       'academic_years',
       academicYearId,
       'Select an academic year from this school.',
     );
-    await this.requireCreateNameAvailable(tenantId, 'class_sections', dto.name, 'class', academicYearId);
+    await this.requireCreateNameAvailable(tenantId, 'class_sections', classFormGradeName, 'class', academicYearId);
     if (dto.code) await this.requireUniqueCode(tenantId, 'class_sections', dto.code, null, academicYearId);
     const classSection = await this.repository.createClassSection({
       tenant_id: tenantId,
       created_by_user_id: this.currentUserId(),
       academic_year_id: academicYearId,
       academic_level_id: dto.academic_level_id?.trim() || null,
-      name: this.requireText(dto.name, 'Class section name'),
-      grade_level: this.requireText(dto.grade_level, 'Grade level'),
+      name: classFormGradeName,
+      grade_level: classFormGradeName,
       stream: dto.stream?.trim() || null,
       custom_label: dto.custom_label?.trim() || null,
       capacity: dto.capacity ?? null,
@@ -758,6 +759,10 @@ export class AcademicsService {
     const tenantId = this.requireTenantId();
     const previous = await this.requireSetupRecord(tenantId, 'class-section', id);
     const targetAcademicYearId = dto.academic_year_id ?? String(previous.academic_year_id);
+    const classNameChanged = dto.name !== undefined || dto.grade_level !== undefined;
+    const classFormGradeName = classNameChanged
+      ? this.requireText(dto.name ?? dto.grade_level ?? String(previous.name), 'Class/form/grade name')
+      : String(previous.name);
     if (targetAcademicYearId !== String(previous.academic_year_id)) {
       await this.requireSetupRecord(tenantId, 'academic-year', targetAcademicYearId);
       const dependencies = await this.repository.getSetupDependencies(tenantId, 'class-section', id);
@@ -779,19 +784,22 @@ export class AcademicsService {
         throw new BadRequestException(`Capacity cannot be below ${activeStudents}, the current active student count.`);
       }
     }
-    if (dto.name || targetAcademicYearId !== String(previous.academic_year_id)) {
+    if (classNameChanged || targetAcademicYearId !== String(previous.academic_year_id)) {
       const duplicate = await this.repository.executeSql(tenantId, `
         SELECT id FROM class_sections WHERE tenant_id = $1 AND academic_year_id::text = $2
           AND lower(name) = lower($3) AND id::text <> $4 LIMIT 1
-      `, [tenantId, targetAcademicYearId, (dto.name ?? previous.name).trim(), id]);
+      `, [tenantId, targetAcademicYearId, classFormGradeName, id]);
       if (duplicate.rows[0]) throw new BadRequestException('Another class in this academic year already uses that name.');
     }
     const targetCode = dto.code ?? previous.code;
     if (targetCode) await this.requireUniqueCode(tenantId, 'class_sections', String(targetCode), id, targetAcademicYearId);
-    const updated = await this.repository.updateClassSection(tenantId, id, { ...dto });
+    const updated = await this.repository.updateClassSection(tenantId, id, {
+      ...dto,
+      ...(classNameChanged ? { name: classFormGradeName, grade_level: classFormGradeName } : {}),
+    });
     this.requireUpdatedRecord(updated, 'Class');
     await this.recordAcademicChange('academic.class.updated', 'class_section', updated,
-      dto.name && dto.name !== previous.name ? 'renamed' : 'updated', previous, dto.reason,
+      classNameChanged && classFormGradeName !== previous.name ? 'renamed' : 'updated', previous, dto.reason,
       { academic_year_changed: targetAcademicYearId !== String(previous.academic_year_id) });
     return updated;
   }

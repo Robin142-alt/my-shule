@@ -64,6 +64,7 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /academics_attendance_settings ALTER COLUMN updated_at SET DEFAULT NOW\(\)/);
   assert.match(schemaSql, /academics_report_card_settings ALTER COLUMN updated_at SET DEFAULT NOW\(\)/);
   assert.match(schemaSql, /CREATE UNIQUE INDEX ux_academics_class_teachers_scope/);
+  assert.match(schemaSql, /UPDATE class_sections\s+SET grade_level = name/);
   assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_academics_department_hod_active/);
   assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_academics_role_appointments_active/);
   assert.match(schemaSql, /uq_academics_curriculum_name_start/);
@@ -320,6 +321,40 @@ test('AcademicsService assigns teachers to deterministic subject class term scop
 
   assert.equal(assignment.id, 'assignment-1');
   assert.deepEqual(calls, ['assign', 'audit']);
+});
+
+test('AcademicsService stores one canonical class, form, or grade name', async () => {
+  const writes: Array<Record<string, unknown>> = [];
+  let queryCount = 0;
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    {
+      executeSql: async () => {
+        queryCount += 1;
+        return queryCount === 1
+          ? { rows: [{ id: 'year-1' }], rowCount: 1 }
+          : { rows: [], rowCount: 0 };
+      },
+      createClassSection: async (input: Record<string, unknown>) => {
+        writes.push(input);
+        return { id: 'class-1', ...input };
+      },
+      appendAuditLog: async () => ({ id: 'audit-1' }),
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.createClassSection({
+    academic_year_id: 'year-1',
+    name: 'Grade 9',
+    curriculum_model: 'CBE',
+  });
+
+  assert.equal(result.name, 'Grade 9');
+  assert.equal(result.grade_level, 'Grade 9');
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0]!.name, 'Grade 9');
+  assert.equal(writes[0]!.grade_level, 'Grade 9');
 });
 
 test('AcademicsService rejects academic terms outside their selected year dates', async () => {
