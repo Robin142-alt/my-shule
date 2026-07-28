@@ -32,6 +32,23 @@ test('CreateApplicationDto rejects blank required admissions fields', async () =
   assert.ok(properties.includes('nationality'));
 });
 
+test('CreateApplicationDto accepts an application without a date of birth', async () => {
+  const dto = Object.assign(new CreateApplicationDto(), {
+    full_name: 'Amina Njeri',
+    gender: 'Female',
+    birth_certificate_number: 'BC-REAL-002',
+    nationality: 'Kenyan',
+    class_applying: 'Grade 4',
+    parent_name: 'Guardian Two',
+    parent_phone: '+254700000002',
+    relationship: 'Guardian',
+  });
+
+  const errors = await validate(dto);
+
+  assert.equal(errors.some((error) => error.property === 'date_of_birth'), false);
+});
+
 test('AdmissionsSchemaService adds a full-text index for application search', async () => {
   let schemaSql = '';
   const service = new AdmissionsSchemaService(
@@ -52,6 +69,7 @@ test('AdmissionsSchemaService adds a full-text index for application search', as
   assert.match(schemaSql, /application_number/);
   assert.match(schemaSql, /parent_phone/);
   assert.match(schemaSql, /class_applying/);
+  assert.match(schemaSql, /ALTER TABLE admission_applications ALTER COLUMN date_of_birth DROP NOT NULL/);
   assert.doesNotMatch(schemaSql, /attendance/i);
 });
 
@@ -871,7 +889,8 @@ test('AdmissionsService previews canonical school-scoped admission imports', asy
   assert.equal(preview.rows[0].record?.class_section_id, 'class-grade-4');
   assert.deepEqual(preview.rows[0].record?.subject_ids, ['subject-math']);
   assert.ok(!preview.rows.some((row) => row.learner_name === 'Joy Kemboi'));
-  assert.ok(preview.rows[1].errors.includes('date_of_birth is required'));
+  assert.ok(preview.rows[1].errors.includes('gender is required'));
+  assert.ok(!preview.rows[1].errors.includes('date_of_birth is required'));
 });
 
 test('AdmissionsService bulk commit persists valid rows and reports failed rows truthfully', async () => {
@@ -2421,7 +2440,6 @@ test('AdmissionsService creates and registers a manual admission application aut
     first_name: 'Manual',
     last_name: 'Student',
     gender: 'male',
-    date_of_birth: '01/01/2016',
     admission_date: '2026-01-06',
     academic_year_id: '00000000-0000-0000-0000-000000000111',
     curriculum: '8-4-4',
@@ -2440,7 +2458,7 @@ test('AdmissionsService creates and registers a manual admission application aut
   assert.equal(manualResult.student.first_name, 'Manual');
   assert.equal(manualResult.placement.class_name, 'Form 1');
   assert.equal(capturedAdmission?.admission_number, 'ADM/MANUAL/001');
-  assert.equal(capturedAdmission?.date_of_birth, '2016-01-01');
+  assert.equal(capturedAdmission?.date_of_birth, null);
   assert.equal(capturedAdmission?.guardian_phone, '+254799999999');
 });
 

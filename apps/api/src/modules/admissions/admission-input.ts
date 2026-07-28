@@ -56,6 +56,14 @@ export function parseAdmissionDate(value: string, fieldName: string): string {
   return isoDate;
 }
 
+export function parseOptionalAdmissionDate(
+  value: string | null | undefined,
+  fieldName: string,
+): string | null {
+  const input = value?.trim();
+  return input ? parseAdmissionDate(input, fieldName) : null;
+}
+
 export function normalizeKenyanPhone(value: string): string {
   let digits = value.trim().replace(/[^\d+]/g, '');
   if (digits.startsWith('+')) digits = digits.slice(1);

@@ -106,7 +106,7 @@ export class AdmissionsSchemaService implements OnModuleInit {
         tenant_id text NOT NULL,
         application_number text NOT NULL,
         full_name text NOT NULL,
-        date_of_birth date NOT NULL,
+        date_of_birth date,
         gender text NOT NULL,
         birth_certificate_number text NOT NULL,
         nationality text NOT NULL,
@@ -135,6 +135,8 @@ export class AdmissionsSchemaService implements OnModuleInit {
       );
 
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS nemis_upi text;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS date_of_birth date;
+      ALTER TABLE admission_applications ALTER COLUMN date_of_birth DROP NOT NULL;
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS school_id text;
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS first_name text;
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS middle_name text;

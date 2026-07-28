@@ -71,7 +71,7 @@ export class StudentsRepository {
           lastName: input.last_name,
           middleName: input.middle_name,
           studentStatus: toPrismaStudentStatus(input.status),
-          dateOfBirth: input.date_of_birth ? new Date(input.date_of_birth) : new Date(),
+          dateOfBirth: input.date_of_birth ? new Date(input.date_of_birth) : null,
           gender: input.gender ?? 'undisclosed',
           primaryGuardianName: this.piiEncryptionService.encryptNullable(
             input.primary_guardian_name,
@@ -198,7 +198,7 @@ export class StudentsRepository {
       if (input.last_name !== undefined) data.lastName = input.last_name;
       if (input.middle_name !== undefined) data.middleName = input.middle_name;
       if (input.status !== undefined) data.studentStatus = toPrismaStudentStatus(input.status);
-      if (input.date_of_birth !== undefined) data.dateOfBirth = input.date_of_birth ? new Date(input.date_of_birth) : undefined;
+      if (input.date_of_birth !== undefined) data.dateOfBirth = input.date_of_birth ? new Date(input.date_of_birth) : null;
       if (input.gender !== undefined) data.gender = input.gender ?? 'undisclosed';
 
       if (input.primary_guardian_name !== undefined) {

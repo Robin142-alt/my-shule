@@ -42,8 +42,9 @@ export class CreateManualAdmissionDto {
   gender!: 'male' | 'female' | 'other' | 'undisclosed';
 
   @Transform(trim)
+  @IsOptional()
   @IsString()
-  date_of_birth!: string;
+  date_of_birth?: string;
 
   @Transform(trim)
   @IsString()

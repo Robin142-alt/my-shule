@@ -1293,7 +1293,6 @@ export function AdmissionsModuleScreen({
     const errors: Partial<Record<keyof RegistrationFormState, string>> = {};
 
     if (!registrationForm.fullName.trim()) errors.fullName = "Full name is required.";
-    if (!registrationForm.dateOfBirth.trim()) errors.dateOfBirth = "Date of birth is required.";
     if (!registrationForm.gender.trim()) errors.gender = "Gender is required.";
     if (!registrationForm.birthCertificateNumber.trim()) {
       errors.birthCertificateNumber = "Birth certificate number is required.";
@@ -2221,7 +2220,7 @@ export function AdmissionsModuleScreen({
                     placeholder="Learner full name"
                   />
                 </FieldWrapper>
-                <FieldWrapper label="Date of birth" error={registrationErrors.dateOfBirth}>
+                <FieldWrapper label="Date of birth (optional)" error={registrationErrors.dateOfBirth}>
                   <input
                     type="date"
                     className={fieldClassName}

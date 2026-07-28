@@ -95,7 +95,7 @@ describe("guided student admission", () => {
       warnings: [],
       possible_duplicates: [],
       guardian: null,
-      age_at_admission: 12,
+      age_at_admission: null,
     });
     admitStudent.mockResolvedValue({
       student: { id: "student-1", admission_number: "MS-2026-0001", first_name: "Amina", middle_name: "", last_name: "Njeri" },
@@ -128,7 +128,7 @@ describe("guided student admission", () => {
     await user.type(screen.getByLabelText(/^First name/i), "Amina");
     await user.type(screen.getByLabelText(/^Last name/i), "Njeri");
     await user.selectOptions(screen.getByLabelText(/^Gender/i), "female");
-    await user.type(screen.getByLabelText(/^Date of birth/i), "14/03/2014");
+    expect(screen.getByLabelText(/^Date of birth \(optional\)/i)).toHaveValue("");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
     await user.selectOptions(screen.getByLabelText(/^Academic year/i), "year-2026");
@@ -149,6 +149,8 @@ describe("guided student admission", () => {
 
     expect(await screen.findByText("MS-2026-0001")).toBeVisible();
     expect(screen.getByText("Grace Njeri")).toBeVisible();
+    expect(screen.getByText("Not provided")).toBeVisible();
+    expect(screen.getByText("Not available")).toBeVisible();
     expect(screen.queryByText(/^Portal$/i)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /admit student/i }));
 
@@ -159,6 +161,7 @@ describe("guided student admission", () => {
       stream_id: "stream-north",
       subject_ids: ["subject-mat", "subject-sci"],
       guardian_phone: "0712345678",
+      date_of_birth: "",
     })));
     expect(await screen.findByRole("heading", { name: /student admitted/i })).toBeVisible();
     expect(screen.getByText(/OTP ready/i)).toBeVisible();

@@ -103,7 +103,7 @@ type AdmissionPreflight = {
       status: string;
     }>;
   };
-  age_at_admission: number;
+  age_at_admission: number | null;
 };
 
 type AdmissionPayload = {
@@ -139,7 +139,7 @@ type AdmissionResult = {
     stream_name?: string | null;
     capacity_warning: boolean;
     age_warning?: boolean;
-    age_at_admission?: number;
+    age_at_admission?: number | null;
   };
   subjects: Array<{ id: string; code: string; name: string }>;
   guardian: {
@@ -329,7 +329,6 @@ export function StudentAdmissionWizard({
         ["First name", form.first_name],
         ["Last name", form.last_name],
         ["Gender", form.gender],
-        ["Date of birth", form.date_of_birth],
         ["Admission date", form.admission_date],
       ];
       const missing = fields.filter(([, value]) => !String(value).trim()).map(([label]) => label);
@@ -629,7 +628,10 @@ export function StudentAdmissionWizard({
                   <option value="">Select gender</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option><option value="undisclosed">Prefer not to state</option>
                 </select>
               </Field>
-              <Field label="Date of birth" hint="DD/MM/YYYY, DD-MM-YYYY, or YYYY-MM-DD">
+              <Field
+                label="Date of birth (optional)"
+                hint="Leave blank if unknown. Use DD/MM/YYYY, DD-MM-YYYY, or YYYY-MM-DD when supplied."
+              >
                 <input inputMode="numeric" placeholder="DD/MM/YYYY" value={form.date_of_birth} onChange={(event) => update("date_of_birth", event.target.value)} />
               </Field>
               <Field label="Admission date"><input type="date" value={form.admission_date} onChange={(event) => update("admission_date", event.target.value)} /></Field>
@@ -714,7 +716,7 @@ export function StudentAdmissionWizard({
                 </section>
               ) : null}
               <div className="grid gap-4 lg:grid-cols-2">
-                <Review title="Student" rows={[["Admission number", form.admission_number], ["Name", [form.first_name, form.middle_name, form.last_name].filter(Boolean).join(" ")], ["Gender", form.gender], ["Date of birth", form.date_of_birth], ["Admission date", form.admission_date], ["Age on admission", preflight ? String(preflight.age_at_admission) : "Checking"]]} />
+                <Review title="Student" rows={[["Admission number", form.admission_number], ["Name", [form.first_name, form.middle_name, form.last_name].filter(Boolean).join(" ")], ["Gender", form.gender], ["Date of birth", form.date_of_birth || "Not provided"], ["Admission date", form.admission_date], ["Age on admission", preflight ? (preflight.age_at_admission == null ? "Not available" : String(preflight.age_at_admission)) : "Checking"]]} />
                 <Review title="Placement" rows={[["Academic year", selectedYear?.name ?? ""], ["Curriculum", form.curriculum], ["Grade", form.grade_level], ["Class", selectedClass?.name ?? ""], ["Stream", selectedStream?.name ?? "Not used"], ["Capacity", selectedStream ? capacityLabel(selectedStream.capacity, selectedStream.student_count) : selectedClass ? capacityLabel(selectedClass.capacity, selectedClass.student_count) : "Not set"]]} />
                 <Review title="Subjects" rows={selectedSubjects.map((subject) => [subject.is_compulsory ? `${subject.code} (compulsory)` : subject.code, subject.name])} />
                 <Review title="Guardian" rows={[["Name", form.guardian_name], ["Relationship", form.guardian_relationship], ["Phone", preflight?.guardian?.masked_phone ?? form.guardian_phone]]} />

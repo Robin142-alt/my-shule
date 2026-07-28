@@ -1465,7 +1465,7 @@ model Student {
   middleName                  String?                      @map("middle_name")
   lastName                    String                       @map("last_name")
   gender                      String
-  dateOfBirth                 DateTime                     @map("date_of_birth") @db.Date
+  dateOfBirth                 DateTime?                    @map("date_of_birth") @db.Date
   photoUrl                    String?                      @map("photo_url")
   birthCertificateNumber      String?                      @map("birth_certificate_number")
   nationality                 String
@@ -1610,7 +1610,7 @@ model AdmissionApplication {
   middleName             String?              @map("middle_name")
   lastName               String               @map("last_name")
   gender                 String
-  dateOfBirth            DateTime             @map("date_of_birth") @db.Date
+  dateOfBirth            DateTime?            @map("date_of_birth") @db.Date
   applyingForClassId     String               @map("applying_for_class_id")
   applyingForClass       Class                @relation(fields: [applyingForClassId], references: [id])
   guardianName           String               @map("guardian_name")

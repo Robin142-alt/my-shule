@@ -30,7 +30,7 @@ export interface Student {
   last_name: string;
   email?: string;
   gender: "MALE" | "FEMALE" | "OTHER";
-  date_of_birth: string;
+  date_of_birth: string | null;
   class_id?: string;
   stream_id?: string;
   status: StudentLifecycleStatus;

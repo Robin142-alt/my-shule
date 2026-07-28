@@ -7,7 +7,7 @@ export interface AdmissionApplicationRecord {
   school_id: string;
   application_number: string;
   full_name: string;
-  date_of_birth: string;
+  date_of_birth: string | null;
   gender: string;
   birth_certificate_number: string | null;
   nationality: string;
@@ -53,7 +53,7 @@ export interface CanonicalAdmissionInput {
   middle_name: string | null;
   last_name: string;
   gender: string;
-  date_of_birth: string;
+  date_of_birth: string | null;
   admission_date: string;
   academic_year_id: string;
   curriculum: string;
@@ -462,7 +462,7 @@ export class AdmissionsRepository {
     input: {
       admission_number: string;
       full_name: string;
-      date_of_birth: string;
+      date_of_birth: string | null;
       guardian_phone: string;
       class_section_id: string;
       stream_id: string | null;
@@ -485,7 +485,8 @@ export class AdmissionsRepository {
           AND (
             upper(student.admission_number) = upper($2)
             OR (
-              lower(btrim(concat_ws(' ', student.first_name, student.middle_name, student.last_name))) = lower($3)
+              $4::date IS NOT NULL
+              AND lower(btrim(concat_ws(' ', student.first_name, student.middle_name, student.last_name))) = lower($3)
               AND student.date_of_birth = $4::date
             )
           )
@@ -676,18 +677,22 @@ export class AdmissionsRepository {
         throw new Error(streamAtCapacity ? 'ADMISSION_STREAM_CAPACITY_REACHED' : 'ADMISSION_CLASS_CAPACITY_REACHED');
       }
 
-      const birthDate = new Date(`${input.date_of_birth}T00:00:00.000Z`);
       const admittedOn = new Date(`${input.admission_date}T00:00:00.000Z`);
-      let age = admittedOn.getUTCFullYear() - birthDate.getUTCFullYear();
-      if (
-        admittedOn.getUTCMonth() < birthDate.getUTCMonth() ||
-        (admittedOn.getUTCMonth() === birthDate.getUTCMonth() && admittedOn.getUTCDate() < birthDate.getUTCDate())
-      ) {
-        age -= 1;
+      let age: number | null = null;
+      let ageOutsideRule = false;
+      if (input.date_of_birth) {
+        const birthDate = new Date(`${input.date_of_birth}T00:00:00.000Z`);
+        age = admittedOn.getUTCFullYear() - birthDate.getUTCFullYear();
+        if (
+          admittedOn.getUTCMonth() < birthDate.getUTCMonth() ||
+          (admittedOn.getUTCMonth() === birthDate.getUTCMonth() && admittedOn.getUTCDate() < birthDate.getUTCDate())
+        ) {
+          age -= 1;
+        }
+        ageOutsideRule =
+          (settings.minimum_age != null && age < settings.minimum_age) ||
+          (settings.maximum_age != null && age > settings.maximum_age);
       }
-      const ageOutsideRule =
-        (settings.minimum_age != null && age < settings.minimum_age) ||
-        (settings.maximum_age != null && age > settings.maximum_age);
       if (settings.strict_age_rules && ageOutsideRule) throw new Error('ADMISSION_AGE_RULE_FAILED');
 
       const availableSubjects = await query<any>(`

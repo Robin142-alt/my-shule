@@ -101,7 +101,7 @@ export class StudentsSchemaService implements OnModuleInit {
         middle_name text,
         status text NOT NULL DEFAULT 'active',
         student_status "StudentStatus" NOT NULL DEFAULT 'ACTIVE',
-        date_of_birth date NOT NULL DEFAULT CURRENT_DATE,
+        date_of_birth date,
         gender text NOT NULL DEFAULT 'undisclosed',
         photo_url text,
         birth_certificate_number text,
@@ -133,6 +133,10 @@ export class StudentsSchemaService implements OnModuleInit {
           REFERENCES users (id)
           ON DELETE SET NULL
       );
+
+      ALTER TABLE students ADD COLUMN IF NOT EXISTS date_of_birth date;
+      ALTER TABLE students ALTER COLUMN date_of_birth DROP NOT NULL;
+      ALTER TABLE students ALTER COLUMN date_of_birth DROP DEFAULT;
 
       ALTER TABLE users
         ADD COLUMN IF NOT EXISTS phone_number_ciphertext text,

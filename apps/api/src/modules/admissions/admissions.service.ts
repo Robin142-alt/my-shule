@@ -56,6 +56,7 @@ import {
   normalizeKenyanPhone,
   normalizePersonName,
   parseAdmissionDate,
+  parseOptionalAdmissionDate,
 } from './admission-input';
 import { AdmissionsRepository } from './repositories/admissions.repository';
 import {
@@ -114,7 +115,7 @@ const ADMISSIONS_IMPORT_HEADERS = [
 ] as const;
 
 const ADMISSIONS_IMPORT_REQUIRED_HEADERS = ADMISSIONS_IMPORT_HEADERS.filter(
-  (header) => header !== 'middle_name' && header !== 'stream',
+  (header) => header !== 'middle_name' && header !== 'stream' && header !== 'date_of_birth',
 );
 
 const ADMISSIONS_IMPORT_HEADER_ALIASES: Record<string, string> = {
@@ -398,8 +399,11 @@ export class AdmissionsService {
   async preflightManualAdmission(dto: CreateManualAdmissionDto) {
     const tenantId = this.requireTenantId();
     const admissionNumber = normalizeAdmissionNumber(dto.admission_number);
-    const dateOfBirth = parseAdmissionDate(dto.date_of_birth, 'Date of birth');
+    const dateOfBirth = parseOptionalAdmissionDate(dto.date_of_birth, 'Date of birth');
     const admissionDate = parseAdmissionDate(dto.admission_date, 'Admission date');
+    if (dateOfBirth && dateOfBirth > new Date().toISOString().slice(0, 10)) {
+      throw new BadRequestException('Date of birth cannot be in the future');
+    }
     const guardianPhone = normalizeKenyanPhone(dto.guardian_phone);
     const fullName = [dto.first_name, dto.middle_name, dto.last_name]
       .filter(Boolean)
@@ -443,27 +447,30 @@ export class AdmissionsService {
       });
     }
 
-    const birth = new Date(`${dateOfBirth}T00:00:00.000Z`);
-    const admitted = new Date(`${admissionDate}T00:00:00.000Z`);
-    let age = admitted.getUTCFullYear() - birth.getUTCFullYear();
-    if (
-      admitted.getUTCMonth() < birth.getUTCMonth() ||
-      (admitted.getUTCMonth() === birth.getUTCMonth() && admitted.getUTCDate() < birth.getUTCDate())
-    ) age -= 1;
-    const gradeNumber = Number(dto.grade_level.match(/\d+/)?.[0] ?? NaN);
-    const inferredAge = /form/i.test(dto.grade_level)
-      ? (Number.isFinite(gradeNumber) ? 13 + gradeNumber : null)
-      : (Number.isFinite(gradeNumber) ? 5 + gradeNumber : null);
-    const ageOutsideConfigured =
-      (settings.minimum_age != null && age < settings.minimum_age) ||
-      (settings.maximum_age != null && age > settings.maximum_age);
-    const ageOutsideExpected = inferredAge != null && Math.abs(age - inferredAge) > 3;
-    if (ageOutsideConfigured || ageOutsideExpected) {
-      warnings.push({
-        code: 'UNUSUAL_GRADE_AGE',
-        message: `The learner will be ${age} on admission, which is unusual for ${dto.grade_level}. Confirm the date and placement.`,
-        blocking: settings.strict_age_rules && ageOutsideConfigured,
-      });
+    let age: number | null = null;
+    if (dateOfBirth) {
+      const birth = new Date(`${dateOfBirth}T00:00:00.000Z`);
+      const admitted = new Date(`${admissionDate}T00:00:00.000Z`);
+      age = admitted.getUTCFullYear() - birth.getUTCFullYear();
+      if (
+        admitted.getUTCMonth() < birth.getUTCMonth() ||
+        (admitted.getUTCMonth() === birth.getUTCMonth() && admitted.getUTCDate() < birth.getUTCDate())
+      ) age -= 1;
+      const gradeNumber = Number(dto.grade_level.match(/\d+/)?.[0] ?? NaN);
+      const inferredAge = /form/i.test(dto.grade_level)
+        ? (Number.isFinite(gradeNumber) ? 13 + gradeNumber : null)
+        : (Number.isFinite(gradeNumber) ? 5 + gradeNumber : null);
+      const ageOutsideConfigured =
+        (settings.minimum_age != null && age < settings.minimum_age) ||
+        (settings.maximum_age != null && age > settings.maximum_age);
+      const ageOutsideExpected = inferredAge != null && Math.abs(age - inferredAge) > 3;
+      if (ageOutsideConfigured || ageOutsideExpected) {
+        warnings.push({
+          code: 'UNUSUAL_GRADE_AGE',
+          message: `The learner will be ${age} on admission, which is unusual for ${dto.grade_level}. Confirm the date and placement.`,
+          blocking: settings.strict_age_rules && ageOutsideConfigured,
+        });
+      }
     }
 
     if (
@@ -507,6 +514,10 @@ export class AdmissionsService {
 
   async createApplication(dto: CreateApplicationDto) {
     if (!this.agp) throw new Error('AGP Execution Service is required for this operation');
+    const dateOfBirth = parseOptionalAdmissionDate(dto.date_of_birth, 'Date of birth');
+    if (dateOfBirth && dateOfBirth > new Date().toISOString().slice(0, 10)) {
+      throw new BadRequestException('Date of birth cannot be in the future');
+    }
 
     return this.agp.execute({
       actionName: 'APPLICATION_CREATED',
@@ -516,6 +527,7 @@ export class AdmissionsService {
       handler: async () => {
         return this.admissionsRepository.createApplication({
           ...dto,
+          date_of_birth: dateOfBirth,
           school_id: this.requireTenantId(),
           application_number: `APP-${Date.now()}`,
           allergies: dto.allergies?.trim() || null,
@@ -681,7 +693,7 @@ export class AdmissionsService {
         last_name: nameParts.last_name,
         middle_name: nameParts.middle_name ?? undefined,
         status: 'active',
-        date_of_birth: application.date_of_birth,
+        date_of_birth: application.date_of_birth ?? undefined,
         gender: this.mapApplicationGender(application.gender),
         primary_guardian_name: application.parent_name,
         primary_guardian_phone: application.parent_phone,
@@ -827,10 +839,10 @@ export class AdmissionsService {
   async createManualAdmission(dto: CreateManualAdmissionDto) {
     const context = this.requestContext.requireStore();
     const tenantId = this.requireTenantId();
-    const dateOfBirth = parseAdmissionDate(dto.date_of_birth, 'Date of birth');
+    const dateOfBirth = parseOptionalAdmissionDate(dto.date_of_birth, 'Date of birth');
     const admissionDate = parseAdmissionDate(dto.admission_date, 'Admission date');
     const admissionNumber = normalizeAdmissionNumber(dto.admission_number);
-    if (dateOfBirth > new Date().toISOString().slice(0, 10)) {
+    if (dateOfBirth && dateOfBirth > new Date().toISOString().slice(0, 10)) {
       throw new BadRequestException('Date of birth cannot be in the future');
     }
 
@@ -2411,7 +2423,7 @@ export class AdmissionsService {
           ...(middleName ? { middle_name: middleName } : {}),
           last_name: lastName,
           gender: values.gender.trim().toLowerCase() as BulkAdmissionRowDto['gender'],
-          date_of_birth: dateOfBirth,
+          ...(dateOfBirth ? { date_of_birth: dateOfBirth } : {}),
           admission_date: admissionDate,
           academic_year_id: String(academicYear.id),
           curriculum: classSection.curriculum,

@@ -378,7 +378,7 @@ export class AdmissionsCommandRepository {
       tenantId,
       `APP-${Date.now()}`,
       fullName,
-      this.required(body.date_of_birth ?? body.dateOfBirth, 'Date of birth'),
+      String(body.date_of_birth ?? body.dateOfBirth ?? '').trim() || null,
       this.required(body.gender, 'Gender'),
       this.required(body.birth_certificate_number ?? body.birthCertificateNumber, 'Birth certificate number'),
       body.nationality ?? 'Kenyan',

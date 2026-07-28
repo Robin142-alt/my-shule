@@ -14,7 +14,7 @@ type ImportRecord = {
   middle_name?: string;
   last_name: string;
   gender: string;
-  date_of_birth: string;
+  date_of_birth?: string;
   admission_date: string;
   academic_year_id: string;
   curriculum: string;

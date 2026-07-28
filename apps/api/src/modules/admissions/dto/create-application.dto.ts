@@ -7,9 +7,9 @@ export class CreateApplicationDto {
   @Matches(NON_BLANK_TEXT)
   full_name!: string;
 
+  @IsOptional()
   @IsString()
-  @Matches(NON_BLANK_TEXT)
-  date_of_birth!: string;
+  date_of_birth?: string;
 
   @IsString()
   @Matches(NON_BLANK_TEXT)

@@ -6,6 +6,7 @@ import {
   normalizeKenyanPhone,
   normalizePersonName,
   parseAdmissionDate,
+  parseOptionalAdmissionDate,
 } from './admission-input';
 
 test('ordinary admission normalizes school admission numbers consistently', () => {
@@ -20,6 +21,16 @@ test('ordinary admission parses supported direct date formats without ambiguity'
   assert.equal(parseAdmissionDate('2015-02-03', 'Date of birth'), '2015-02-03');
   assert.throws(() => parseAdmissionDate('31/02/2015', 'Date of birth'), /valid calendar date/);
   assert.throws(() => parseAdmissionDate('02/03/15', 'Date of birth'), /DD\/MM\/YYYY/);
+});
+
+test('ordinary admission permits an omitted birth date but validates a supplied value', () => {
+  assert.equal(parseOptionalAdmissionDate(undefined, 'Date of birth'), null);
+  assert.equal(parseOptionalAdmissionDate('   ', 'Date of birth'), null);
+  assert.equal(parseOptionalAdmissionDate('03/02/2015', 'Date of birth'), '2015-02-03');
+  assert.throws(
+    () => parseOptionalAdmissionDate('31/02/2015', 'Date of birth'),
+    /valid calendar date/,
+  );
 });
 
 test('ordinary admission normalizes supported Kenyan guardian phone formats', () => {

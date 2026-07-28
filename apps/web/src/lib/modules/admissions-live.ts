@@ -79,7 +79,7 @@ export interface LiveAdmissionApplication {
   tenant_id: string;
   application_number: string;
   full_name: string;
-  date_of_birth: string;
+  date_of_birth: string | null;
   gender?: string | null;
   birth_certificate_number: string;
   nationality: string;
@@ -922,7 +922,7 @@ export function mapAdmissionsDatasetFromLive(input: {
       status: application.status,
       dateApplied: formatDate(application.created_at),
       gender: application.gender ?? "Not recorded",
-      dateOfBirth: application.date_of_birth,
+      dateOfBirth: application.date_of_birth ?? "Not recorded",
       birthCertificateNumber: application.birth_certificate_number,
       nationality: application.nationality,
       previousSchool: application.previous_school ?? "Not provided",
@@ -1225,7 +1225,7 @@ export function createManualAdmissionLive(
   input: {
     student: {
       full_name: string;
-      date_of_birth: string;
+      date_of_birth?: string;
       gender: string;
       birth_certificate_number: string;
       nationality: string;
@@ -1261,7 +1261,7 @@ export function createAdmissionApplicationLive(
   session: LiveAuthSession,
   input: {
     full_name: string;
-    date_of_birth: string;
+    date_of_birth?: string;
     gender: string;
     birth_certificate_number: string;
     nationality: string;
