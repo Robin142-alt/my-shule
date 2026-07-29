@@ -746,13 +746,15 @@ export class AdmissionsRepository {
 
       const applicationRows = await query<any>(`
         INSERT INTO admission_applications (
-          tenant_id, application_number, full_name, first_name, middle_name, last_name,
+          id, tenant_id, school_id, application_number, full_name, first_name, middle_name, last_name,
           date_of_birth, gender, birth_certificate_number, nationality, class_applying,
           applying_for_class_id, parent_name, parent_phone, guardian_name, guardian_phone,
-          relationship, guardian_relationship, status, application_status, approved_at
+          relationship, guardian_relationship, status, application_status, submitted_at,
+          approved_at, updated_at
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7::date, $8, NULL, 'Kenyan', $9, $10,
-          $11, $12, $11, $12, $13, $13, 'approved', 'approved', NOW()
+          gen_random_uuid()::text, $1, $1, $2, $3, $4, $5, $6, $7::date, $8,
+          NULL, 'Kenyan', $9, $10, $11, $12, $11, $12, $13, $13,
+          'approved', 'ACCEPTED', NOW(), NOW(), NOW()
         )
         RETURNING id
       `, [
@@ -774,21 +776,21 @@ export class AdmissionsRepository {
 
       const studentRows = await query<any>(`
         INSERT INTO students (
-          tenant_id, school_id, admission_number, first_name, middle_name, last_name,
+          id, tenant_id, school_id, admission_number, first_name, middle_name, last_name,
           status, student_status, date_of_birth, gender, nationality, admission_date,
           current_class_id, current_stream_id, boarding_status, primary_guardian_name,
-          primary_guardian_phone, metadata, created_by_user_id, updated_by_user_id
+          primary_guardian_phone, metadata, created_by_user_id, updated_by_user_id, updated_at
         ) VALUES (
-          $1, $1, $2, $3, $4, $5, 'active', 'ACTIVE', $6::date, $7, 'Kenyan', $8::date,
-          $9, $10, 'DAY_SCHOLAR', $11, $12,
+          gen_random_uuid()::text, $1, $1, $2, $3, $4, $5, 'active', 'ACTIVE', $6::date, $7, 'Kenyan', $8::date,
+          $9::text, $10::text, 'DAY_SCHOLAR', $11, $12,
           jsonb_build_object(
-            'academic_year_id', $13,
-            'curriculum', $14,
-            'grade_level', $15,
-            'class_section_id', $9,
-            'stream_id', $10
+            'academic_year_id', $13::text,
+            'curriculum', $14::text,
+            'grade_level', $15::text,
+            'class_section_id', $9::text,
+            'stream_id', $10::text
           ),
-          $16::uuid, $16::uuid
+          $16, $16, NOW()
         )
         RETURNING id::text, admission_number, first_name, middle_name, last_name, admission_date
       `, [
@@ -813,7 +815,7 @@ export class AdmissionsRepository {
 
       await query(`
         UPDATE admission_applications
-        SET status = 'registered', application_status = 'registered', admitted_student_id = $3, updated_at = NOW()
+        SET status = 'registered', application_status = 'ADMITTED', admitted_student_id = $3, updated_at = NOW()
         WHERE tenant_id = $1 AND id = $2
       `, [input.tenant_id, applicationId, student.id]);
 
@@ -835,9 +837,9 @@ export class AdmissionsRepository {
 
       await query(`
         INSERT INTO student_class_assignments (
-          tenant_id, student_id, class_section_id, stream_id, academic_level_id,
-          academic_year_id, status, assigned_by_user_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, 'active', $7::uuid)
+          tenant_id, school_id, student_id, class_section_id, stream_id, academic_level_id,
+          academic_year_id, status, assigned_by_user_id, updated_at
+        ) VALUES ($1, $1, $2, $3, $4, $5, $6, 'active', $7::uuid, NOW())
       `, [
         input.tenant_id,
         student.id,
@@ -975,7 +977,7 @@ export class AdmissionsRepository {
         INSERT INTO student_portal_access (
           tenant_id, student_id, user_id, username, guardian_phone_hash,
           force_password_change, status
-        ) VALUES ($1, $2::uuid, $2::uuid, $3, $4, TRUE, 'active')
+        ) VALUES ($1, $2, $3::uuid, $4, $5, TRUE, 'active')
         ON CONFLICT (tenant_id, student_id) DO UPDATE SET
           user_id = EXCLUDED.user_id,
           username = EXCLUDED.username,
@@ -985,6 +987,7 @@ export class AdmissionsRepository {
           updated_at = NOW()
       `, [
         input.tenant_id,
+        student.id,
         student.id,
         input.admission_number,
         input.guardian_phone_hash,
@@ -1019,14 +1022,52 @@ export class AdmissionsRepository {
         RETURNING id::text, user_id::text
       `, [input.tenant_id, input.guardian_name, input.guardian_phone, parentUserId]);
       const guardian = guardianRows[0];
+      const normalizedRelationship = input.guardian_relationship.trim().toUpperCase();
+      const guardianRelationship = ['FATHER', 'MOTHER', 'GUARDIAN', 'SPONSOR', 'OTHER']
+        .includes(normalizedRelationship)
+        ? normalizedRelationship
+        : 'OTHER';
+
+      const canonicalGuardianRows = await query<any>(`
+        INSERT INTO parent_guardians (
+          id, school_id, full_name, relationship_type, phone, status, updated_at
+        ) VALUES (
+          gen_random_uuid()::text, $1, $2, $3::"GuardianRelationship", $4, 'ACTIVE', NOW()
+        )
+        ON CONFLICT (school_id, phone) DO UPDATE SET
+          full_name = EXCLUDED.full_name,
+          relationship_type = EXCLUDED.relationship_type,
+          status = 'ACTIVE',
+          updated_at = NOW()
+        RETURNING id::text
+      `, [
+        input.tenant_id,
+        input.guardian_name,
+        guardianRelationship,
+        input.guardian_phone,
+      ]);
+      const canonicalGuardianId = String(canonicalGuardianRows[0].id);
 
       await query(`
         INSERT INTO student_guardians (
-          tenant_id, student_id, user_id, guardian_profile_id, display_name,
-          email, phone, normalized_phone, relationship, is_primary, status, accepted_at
-        ) VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5, NULL, $6, $6, $7, TRUE, 'active', NOW())
+          tenant_id, school_id, student_id, guardian_id, relationship_type,
+          is_primary_contact, can_receive_sms, can_access_parent_portal, can_pick_student,
+          user_id, guardian_profile_id, display_name, email, phone, normalized_phone,
+          relationship, is_primary, status, accepted_at, updated_at
+        ) VALUES (
+          $1, $1, $2, $3, $4::"GuardianRelationship",
+          TRUE, TRUE, TRUE, FALSE,
+          $5::uuid, $6::uuid, $7, NULL, $8, $8,
+          $9, TRUE, 'active', NOW(), NOW()
+        )
         ON CONFLICT (tenant_id, student_id, normalized_phone) WHERE normalized_phone IS NOT NULL
         DO UPDATE SET
+          school_id = EXCLUDED.school_id,
+          guardian_id = EXCLUDED.guardian_id,
+          relationship_type = EXCLUDED.relationship_type,
+          is_primary_contact = TRUE,
+          can_receive_sms = TRUE,
+          can_access_parent_portal = TRUE,
           user_id = EXCLUDED.user_id,
           guardian_profile_id = EXCLUDED.guardian_profile_id,
           display_name = EXCLUDED.display_name,
@@ -1038,6 +1079,8 @@ export class AdmissionsRepository {
       `, [
         input.tenant_id,
         student.id,
+        canonicalGuardianId,
+        guardianRelationship,
         guardian.user_id ?? parentUserId,
         guardian.id,
         input.guardian_name,
@@ -1048,22 +1091,22 @@ export class AdmissionsRepository {
       const feeRows = await query<any>(`
         SELECT
           id::text,
-          name AS description,
+          description,
           currency_code,
-          total_amount_minor::text AS amount_minor,
-          due_days,
-          term,
+          amount_minor::text,
+          due_days_after_registration,
+          term_name,
           academic_year
-        FROM fee_structures
+        FROM student_fee_structures
         WHERE tenant_id = $1
-          AND status = 'active'
+          AND is_active = TRUE
           AND (
-            lower(COALESCE(class_name, '')) = lower($2)
-            OR lower(grade_level) = lower($3)
+            lower(class_name) = lower($2)
+            OR lower(class_name) = lower($3)
           )
           AND lower(academic_year) = lower($4)
         ORDER BY
-          CASE WHEN lower(COALESCE(class_name, '')) = lower($2) THEN 0 ELSE 1 END,
+          CASE WHEN lower(class_name) = lower($2) THEN 0 ELSE 1 END,
           created_at DESC
         LIMIT 1
       `, [input.tenant_id, placement.name, placement.grade_level, placement.academic_year_name]);
@@ -1072,27 +1115,60 @@ export class AdmissionsRepository {
       if (fee) {
         const invoiceNumber = `INV-${input.admission_number}-${input.academic_year_id.slice(0, 8)}`;
         const invoiceRows = await query<any>(`
-          INSERT INTO student_invoices (
-            tenant_id, student_id, invoice_number, fee_structure_id, term,
-            academic_year, amount_minor, balance_minor, status
-          ) VALUES (
-            $1, $2::uuid, $3, $4::uuid, $5, $6, $7::bigint, $7::bigint, 'open'
+          WITH assignment AS (
+            INSERT INTO student_fee_assignments (
+              tenant_id, student_id, application_id, fee_structure_id,
+              status, amount_minor, currency_code
+            ) VALUES ($1, $2, $3, $4, 'assigned', $7::bigint, $6)
+            ON CONFLICT (tenant_id, student_id, fee_structure_id)
+            DO UPDATE SET
+              application_id = EXCLUDED.application_id,
+              amount_minor = EXCLUDED.amount_minor,
+              currency_code = EXCLUDED.currency_code,
+              status = 'assigned',
+              updated_at = NOW()
+            RETURNING id
           )
-          RETURNING id::text, invoice_number, amount_minor::text, balance_minor::text
+          INSERT INTO student_fee_invoices (
+            tenant_id, assignment_id, student_id, invoice_number, status,
+            description, currency_code, amount_due_minor, amount_paid_minor,
+            issued_date, due_date
+          )
+          SELECT
+            $1, assignment.id, $2, $5, 'open',
+            $8, $6, $7::bigint, 0,
+            $9::date, ($9::date + $10::integer)
+          FROM assignment
+          ON CONFLICT (tenant_id, assignment_id)
+          DO UPDATE SET
+            description = EXCLUDED.description,
+            currency_code = EXCLUDED.currency_code,
+            amount_due_minor = EXCLUDED.amount_due_minor,
+            due_date = EXCLUDED.due_date,
+            updated_at = NOW()
+          RETURNING
+            id::text,
+            invoice_number,
+            amount_due_minor::text,
+            amount_paid_minor::text,
+            due_date::text
         `, [
           input.tenant_id,
           student.id,
-          invoiceNumber,
+          applicationId,
           fee.id,
-          fee.term,
-          fee.academic_year,
+          invoiceNumber,
+          fee.currency_code,
           fee.amount_minor,
+          fee.description,
+          input.admission_date,
+          fee.due_days_after_registration,
         ]);
         feeStatus = {
           status: 'invoiced',
           currency_code: fee.currency_code,
           description: fee.description,
-          due_days: fee.due_days,
+          due_days: fee.due_days_after_registration,
           ...invoiceRows[0],
         };
       }
@@ -2752,7 +2828,7 @@ export class AdmissionsRepository {
             amount_minor,
             currency_code
           )
-          VALUES ($1, $2::uuid, $3::uuid, $4::uuid, 'assigned', $8::bigint, $7)
+          VALUES ($1, $2, $3, $4, 'assigned', $8::bigint, $7)
           ON CONFLICT (tenant_id, student_id, fee_structure_id)
           DO UPDATE SET
             application_id = EXCLUDED.application_id,
@@ -2792,7 +2868,7 @@ export class AdmissionsRepository {
           SELECT
             $1,
             assignment.id,
-            $2::uuid,
+            $2,
             $5,
             'open',
             $6,

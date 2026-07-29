@@ -9,6 +9,7 @@ import { RequestContextService } from '../../common/request-context/request-cont
 import { PERMISSIONS_KEY } from '../../auth/auth.constants';
 import { DashboardRealtimeController } from './dashboard-realtime.controller';
 import { DashboardRealtimeService } from './dashboard-realtime.service';
+import { AuditTrailService } from './audit-trail.service';
 import { EventConsumerRegistryService } from './event-consumer-registry.service';
 import { EventConsumerService } from './event-consumer.service';
 import { EventPublisherService } from './event-publisher.service';
@@ -27,6 +28,51 @@ import {
 
 beforeEach(() => {
   EventsSchemaService.resetBootstrapForTests();
+});
+
+test('AuditTrailService writes canonical audit rows inside the school tenant session', async () => {
+  const actorUserId = '00000000-0000-4000-8000-000000000001';
+  const studentId = '00000000-0000-4000-8000-000000000801';
+  let scopedTenantId = '';
+  let scopedUserId: string | null = null;
+  let executedSql = '';
+  let executedParams: unknown[] = [];
+  const service = new AuditTrailService({
+    executeWithTenant: async (
+      tenantId: string,
+      userId: string | null,
+      callback: (tx: unknown) => Promise<unknown>,
+    ) => {
+      scopedTenantId = tenantId;
+      scopedUserId = userId;
+      return callback({
+        $executeRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          executedSql = sql;
+          executedParams = params;
+          return 1;
+        },
+      });
+    },
+  } as never);
+
+  await service.createAuditLog(
+    'school-a',
+    actorUserId,
+    'student.admitted',
+    'student',
+    studentId,
+    { source_dashboard: 'admissions' },
+  );
+
+  assert.equal(scopedTenantId, 'school-a');
+  assert.equal(scopedUserId, actorUserId);
+  assert.match(executedSql, /actor_user_id/);
+  assert.match(executedSql, /resource_type/);
+  assert.match(executedSql, /entity_type/);
+  assert.doesNotMatch(executedSql, /\buser_id\b/);
+  assert.doesNotMatch(executedSql, /\baggregate_type\b/);
+  assert.equal(executedParams[0], 'school-a');
+  assert.equal(executedParams[5], JSON.stringify({ source_dashboard: 'admissions' }));
 });
 
 test('EventsSchemaService repairs legacy notifications table for tenant-scoped dashboard alerts', async () => {

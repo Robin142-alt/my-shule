@@ -264,11 +264,21 @@ export class AcademicsSchemaService implements OnModuleInit {
 
       ALTER TABLE student_class_assignments ADD COLUMN IF NOT EXISTS tenant_id text;
       ALTER TABLE student_class_assignments ADD COLUMN IF NOT EXISTS school_id text;
+      ALTER TABLE student_class_assignments DROP CONSTRAINT IF EXISTS student_class_assignments_school_id_fkey;
+      ALTER TABLE student_class_assignments DROP CONSTRAINT IF EXISTS student_class_assignments_class_section_id_fkey;
+      ALTER TABLE student_class_assignments DROP CONSTRAINT IF EXISTS student_class_assignments_stream_id_fkey;
       UPDATE student_class_assignments
-      SET tenant_id = COALESCE(NULLIF(tenant_id, ''), school_id::text, 'global')
-      WHERE tenant_id IS NULL OR btrim(tenant_id) = '';
+      SET
+        tenant_id = COALESCE(NULLIF(tenant_id, ''), school_id::text, 'global'),
+        school_id = COALESCE(NULLIF(school_id, ''), tenant_id, 'global')
+      WHERE tenant_id IS NULL
+         OR btrim(tenant_id) = ''
+         OR school_id IS NULL
+         OR btrim(school_id) = '';
       ALTER TABLE student_class_assignments ALTER COLUMN tenant_id SET DEFAULT 'global';
       ALTER TABLE student_class_assignments ALTER COLUMN tenant_id SET NOT NULL;
+      ALTER TABLE student_class_assignments ALTER COLUMN id SET DEFAULT gen_random_uuid()::text;
+      ALTER TABLE student_class_assignments ALTER COLUMN updated_at SET DEFAULT NOW();
       ALTER TABLE student_class_assignments ALTER COLUMN student_id TYPE text USING student_id::text;
       ALTER TABLE student_class_assignments ALTER COLUMN class_section_id TYPE text USING class_section_id::text;
       ALTER TABLE student_class_assignments ALTER COLUMN stream_id TYPE text USING stream_id::text;
@@ -676,6 +686,7 @@ export class AcademicsSchemaService implements OnModuleInit {
       ALTER TABLE subjects ADD COLUMN IF NOT EXISTS is_examinable boolean NOT NULL DEFAULT true;
       ALTER TABLE subjects ADD COLUMN IF NOT EXISTS is_practical boolean NOT NULL DEFAULT false;
       ALTER TABLE subjects ADD COLUMN IF NOT EXISTS is_co_curricular boolean NOT NULL DEFAULT false;
+      ALTER TABLE subjects ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
       ALTER TABLE subjects ADD COLUMN IF NOT EXISTS archived_at timestamptz;
       ALTER TABLE subjects ADD COLUMN IF NOT EXISTS archived_by_user_id uuid;
       ALTER TABLE academics_departments ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;

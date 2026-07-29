@@ -34,6 +34,7 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /ALTER TABLE subjects ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active'/);
   assert.match(schemaSql, /ALTER TABLE subjects ADD COLUMN IF NOT EXISTS department_id uuid/);
   assert.match(schemaSql, /ALTER TABLE subjects ADD COLUMN IF NOT EXISTS created_by_user_id uuid/);
+  assert.match(schemaSql, /ALTER TABLE subjects ADD COLUMN IF NOT EXISTS deleted_at timestamptz/);
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_subjects_department/);
   assert.match(schemaSql, /ALTER TABLE %I ALTER COLUMN id SET DEFAULT gen_random_uuid\(\)/);
   assert.match(schemaSql, /ALTER TABLE %I ALTER COLUMN id SET DEFAULT gen_random_uuid\(\)::text/);
@@ -49,6 +50,11 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /ALTER TABLE academics_departments FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /ALTER TABLE academics_class_teachers FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /ALTER TABLE academics_report_card_settings FORCE ROW LEVEL SECURITY/);
+  assert.match(schemaSql, /student_class_assignments_school_id_fkey/);
+  assert.match(schemaSql, /student_class_assignments_class_section_id_fkey/);
+  assert.match(schemaSql, /student_class_assignments_stream_id_fkey/);
+  assert.match(schemaSql, /ALTER TABLE student_class_assignments ALTER COLUMN id SET DEFAULT gen_random_uuid\(\)::text/);
+  assert.match(schemaSql, /ALTER TABLE student_class_assignments ALTER COLUMN updated_at SET DEFAULT NOW\(\)/);
   assert.match(schemaSql, /ALTER TABLE academics_department_hod_appointments FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /ALTER TABLE academics_role_appointments FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /ALTER TABLE academics_curriculum_configurations FORCE ROW LEVEL SECURITY/);

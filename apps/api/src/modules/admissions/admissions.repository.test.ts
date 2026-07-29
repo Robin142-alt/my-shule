@@ -79,6 +79,35 @@ test('AdmissionsRepository uses the supported subject lifecycle contract', async
   assert.match(registrationMethod, /subject\.deleted_at IS NULL/);
 });
 
+test('AdmissionsRepository direct admission writes the complete application lifecycle contract', () => {
+  const registrationMethod = String(AdmissionsRepository.prototype.admitCanonicalStudent);
+
+  assert.match(registrationMethod, /id,\s*tenant_id,\s*school_id,\s*application_number/);
+  assert.match(registrationMethod, /gen_random_uuid\(\)::text,\s*\$1,\s*\$1/);
+  assert.match(registrationMethod, /application_status,\s*submitted_at,\s*approved_at,\s*updated_at/);
+  assert.match(registrationMethod, /'approved',\s*'ACCEPTED',\s*NOW\(\),\s*NOW\(\),\s*NOW\(\)/);
+  assert.match(registrationMethod, /application_status = 'ADMITTED'/);
+  assert.match(registrationMethod, /INSERT INTO students \(\s*id,\s*tenant_id,\s*school_id/);
+  assert.match(
+    registrationMethod,
+    /'class_section_id',\s*\$9::text,\s*'stream_id',\s*\$10::text/,
+  );
+  assert.match(registrationMethod, /INSERT INTO student_class_assignments \(\s*tenant_id,\s*school_id/);
+  assert.match(registrationMethod, /INSERT INTO parent_guardians/);
+  assert.match(registrationMethod, /guardian_id,\s*relationship_type/);
+  assert.match(
+    registrationMethod,
+    /INSERT INTO student_portal_access[\s\S]*VALUES \(\$1,\s*\$2,\s*\$3::uuid,\s*\$4,\s*\$5/,
+  );
+  assert.match(registrationMethod, /INSERT INTO student_fee_assignments/);
+  assert.match(registrationMethod, /INSERT INTO student_fee_invoices/);
+  assert.match(registrationMethod, /FROM student_fee_structures/);
+  assert.doesNotMatch(registrationMethod, /FROM fee_structures/);
+  assert.doesNotMatch(registrationMethod, /INSERT INTO student_invoices/);
+  assert.doesNotMatch(registrationMethod, /VALUES \(\$1,\s*\$2,\s*\$2::uuid/);
+  assert.doesNotMatch(registrationMethod, /application_status = 'registered'/);
+});
+
 test('AdmissionsSchemaService creates tenant-scoped student fee assignment and invoice tables', async () => {
   let bootstrapSql = '';
   const service = new AdmissionsSchemaService(
@@ -100,6 +129,10 @@ test('AdmissionsSchemaService creates tenant-scoped student fee assignment and i
   assert.match(bootstrapSql, /ALTER TABLE student_fee_invoices FORCE ROW LEVEL SECURITY/);
   assert.match(bootstrapSql, /CREATE POLICY student_fee_assignments_rls_policy/);
   assert.match(bootstrapSql, /CREATE TRIGGER trg_student_fee_invoices_set_updated_at/);
+  assert.match(bootstrapSql, /admission_applications_school_id_fkey/);
+  assert.match(bootstrapSql, /admission_applications_applying_for_class_id_fkey/);
+  assert.match(bootstrapSql, /ALTER TABLE admission_applications ALTER COLUMN id SET DEFAULT gen_random_uuid\(\)::text/);
+  assert.match(bootstrapSql, /ALTER TABLE admission_applications ALTER COLUMN updated_at SET DEFAULT NOW\(\)/);
 });
 
 test('AdmissionsSchemaService repairs the admission draft owner upsert contract', async () => {

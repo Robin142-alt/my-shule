@@ -167,12 +167,23 @@ export class AdmissionsSchemaService implements OnModuleInit {
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS guardian_relationship text;
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS applying_for_class_id text;
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS application_status text;
+      ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS submitted_at timestamptz NOT NULL DEFAULT NOW();
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS tenant_id text;
+      ALTER TABLE admission_applications DROP CONSTRAINT IF EXISTS admission_applications_school_id_fkey;
+      ALTER TABLE admission_applications DROP CONSTRAINT IF EXISTS admission_applications_applying_for_class_id_fkey;
       UPDATE admission_applications
-      SET tenant_id = COALESCE(NULLIF(tenant_id, ''), school_id::text, 'global')
-      WHERE tenant_id IS NULL OR btrim(tenant_id) = '';
+      SET
+        tenant_id = COALESCE(NULLIF(tenant_id, ''), school_id::text, 'global'),
+        school_id = COALESCE(NULLIF(school_id, ''), tenant_id, 'global')
+      WHERE tenant_id IS NULL
+         OR btrim(tenant_id) = ''
+         OR school_id IS NULL
+         OR btrim(school_id) = '';
       ALTER TABLE admission_applications ALTER COLUMN tenant_id SET DEFAULT 'global';
       ALTER TABLE admission_applications ALTER COLUMN tenant_id SET NOT NULL;
+      ALTER TABLE admission_applications ALTER COLUMN id SET DEFAULT gen_random_uuid()::text;
+      ALTER TABLE admission_applications ALTER COLUMN submitted_at SET DEFAULT NOW();
+      ALTER TABLE admission_applications ALTER COLUMN updated_at SET DEFAULT NOW();
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS full_name text;
       UPDATE admission_applications
       SET full_name = btrim(CONCAT_WS(' ', first_name, middle_name, last_name))

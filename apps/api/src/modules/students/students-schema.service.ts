@@ -68,6 +68,23 @@ export class StudentsSchemaService implements OnModuleInit {
             'BOARDER'
           );
         END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'GuardianRelationship') THEN
+          CREATE TYPE "GuardianRelationship" AS ENUM (
+            'FATHER',
+            'MOTHER',
+            'GUARDIAN',
+            'SPONSOR',
+            'OTHER'
+          );
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'GuardianStatus') THEN
+          CREATE TYPE "GuardianStatus" AS ENUM (
+            'ACTIVE',
+            'INACTIVE'
+          );
+        END IF;
       END $$;
 
       CREATE OR REPLACE FUNCTION set_updated_at()
@@ -145,6 +162,24 @@ export class StudentsSchemaService implements OnModuleInit {
       CREATE INDEX IF NOT EXISTS ix_users_phone_number_hash
         ON users (phone_number_hash)
         WHERE phone_number_hash IS NOT NULL;
+
+      CREATE TABLE IF NOT EXISTS parent_guardians (
+        id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        school_id text NOT NULL,
+        full_name text NOT NULL,
+        relationship_type "GuardianRelationship" NOT NULL DEFAULT 'GUARDIAN',
+        phone text NOT NULL,
+        email text,
+        id_number text,
+        occupation text,
+        address text,
+        status "GuardianStatus" NOT NULL DEFAULT 'ACTIVE',
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        deleted_at timestamptz,
+        CONSTRAINT uq_parent_guardians_school_id_id UNIQUE (school_id, id),
+        CONSTRAINT uq_parent_guardians_school_phone UNIQUE (school_id, phone)
+      );
 
       CREATE TABLE IF NOT EXISTS student_guardians (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -349,6 +384,15 @@ export class StudentsSchemaService implements OnModuleInit {
       ALTER TABLE students ADD COLUMN IF NOT EXISTS medical_notes_summary text;
       ALTER TABLE students ADD COLUMN IF NOT EXISTS updated_by_user_id uuid;
       ALTER TABLE students ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+      ALTER TABLE students DROP CONSTRAINT IF EXISTS students_school_id_fkey;
+      ALTER TABLE students DROP CONSTRAINT IF EXISTS students_current_class_id_fkey;
+      ALTER TABLE students DROP CONSTRAINT IF EXISTS students_current_stream_id_fkey;
+      ALTER TABLE parent_guardians DROP CONSTRAINT IF EXISTS parent_guardians_school_id_fkey;
+      ALTER TABLE student_guardians DROP CONSTRAINT IF EXISTS student_guardians_school_id_fkey;
+      ALTER TABLE students ALTER COLUMN id SET DEFAULT gen_random_uuid()::text;
+      ALTER TABLE students ALTER COLUMN updated_at SET DEFAULT NOW();
+      ALTER TABLE parent_guardians ALTER COLUMN id SET DEFAULT gen_random_uuid()::text;
+      ALTER TABLE parent_guardians ALTER COLUMN updated_at SET DEFAULT NOW();
       UPDATE students
       SET
         school_id = COALESCE(NULLIF(school_id, ''), tenant_id),
@@ -366,6 +410,72 @@ export class StudentsSchemaService implements OnModuleInit {
       ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS guardian_profile_id uuid;
       ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'invited';
       ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS accepted_at timestamptz;
+      ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS school_id text;
+      ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS guardian_id text;
+      ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS relationship_type "GuardianRelationship";
+      ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS is_primary_contact boolean NOT NULL DEFAULT FALSE;
+      ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS can_receive_sms boolean NOT NULL DEFAULT TRUE;
+      ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS can_access_parent_portal boolean NOT NULL DEFAULT FALSE;
+      ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS can_pick_student boolean NOT NULL DEFAULT FALSE;
+      ALTER TABLE student_guardians ADD COLUMN IF NOT EXISTS is_primary boolean NOT NULL DEFAULT FALSE;
+      DO $$
+      DECLARE
+        guardian_id_type text;
+      BEGIN
+        SELECT data_type
+        INTO guardian_id_type
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'student_guardians'
+          AND column_name = 'id';
+
+        IF guardian_id_type = 'uuid' THEN
+          ALTER TABLE student_guardians ALTER COLUMN id SET DEFAULT gen_random_uuid();
+        ELSE
+          ALTER TABLE student_guardians ALTER COLUMN id SET DEFAULT gen_random_uuid()::text;
+        END IF;
+      END $$;
+      ALTER TABLE student_guardians ALTER COLUMN updated_at SET DEFAULT NOW();
+      UPDATE student_guardians
+      SET
+        school_id = COALESCE(NULLIF(school_id, ''), tenant_id),
+        relationship_type = CASE
+          WHEN upper(COALESCE(NULLIF(relationship, ''), 'GUARDIAN')) IN (
+            'FATHER', 'MOTHER', 'GUARDIAN', 'SPONSOR', 'OTHER'
+          )
+            THEN upper(COALESCE(NULLIF(relationship, ''), 'GUARDIAN'))::"GuardianRelationship"
+          ELSE 'OTHER'::"GuardianRelationship"
+        END,
+        is_primary_contact = COALESCE(is_primary_contact, is_primary, FALSE),
+        is_primary = COALESCE(is_primary, is_primary_contact, FALSE);
+      INSERT INTO parent_guardians (
+        id, school_id, full_name, relationship_type, phone, status, updated_at
+      )
+      SELECT
+        link.id::text,
+        link.school_id,
+        COALESCE(NULLIF(btrim(link.display_name), ''), 'Guardian'),
+        link.relationship_type,
+        link.phone,
+        'ACTIVE',
+        NOW()
+      FROM student_guardians link
+      WHERE link.guardian_id IS NULL
+        AND link.school_id IS NOT NULL
+        AND NULLIF(btrim(link.phone), '') IS NOT NULL
+      ON CONFLICT DO NOTHING;
+      UPDATE student_guardians link
+      SET guardian_id = guardian.id
+      FROM parent_guardians guardian
+      WHERE link.guardian_id IS NULL
+        AND guardian.school_id = link.school_id
+        AND (
+          guardian.id = link.id::text
+          OR (
+            NULLIF(btrim(link.phone), '') IS NOT NULL
+            AND guardian.phone = link.phone
+          )
+        );
       UPDATE student_guardians
       SET relationship = COALESCE(NULLIF(btrim(relationship), ''), 'Guardian')
       WHERE relationship IS NULL OR btrim(relationship) = '';
@@ -385,6 +495,11 @@ export class StudentsSchemaService implements OnModuleInit {
       END $$;
       ALTER TABLE student_guardians ALTER COLUMN email DROP NOT NULL;
       ALTER TABLE student_guardians DROP CONSTRAINT IF EXISTS ck_student_guardians_email_not_blank;
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_parent_guardians_school_phone
+        ON parent_guardians (school_id, phone);
+      CREATE INDEX IF NOT EXISTS ix_parent_guardians_school_status
+        ON parent_guardians (school_id, status)
+        WHERE deleted_at IS NULL;
       CREATE TABLE IF NOT EXISTS guardian_profiles (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
@@ -447,6 +562,8 @@ export class StudentsSchemaService implements OnModuleInit {
 
       ALTER TABLE students ENABLE ROW LEVEL SECURITY;
       ALTER TABLE students FORCE ROW LEVEL SECURITY;
+      ALTER TABLE parent_guardians ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE parent_guardians FORCE ROW LEVEL SECURITY;
       ALTER TABLE student_guardians ENABLE ROW LEVEL SECURITY;
       ALTER TABLE student_guardians FORCE ROW LEVEL SECURITY;
       ALTER TABLE guardian_profiles ENABLE ROW LEVEL SECURITY;
@@ -461,6 +578,12 @@ export class StudentsSchemaService implements OnModuleInit {
       FOR ALL
       USING (tenant_id = current_setting('app.tenant_id', true))
       WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+      DROP POLICY IF EXISTS parent_guardians_rls_policy ON parent_guardians;
+      CREATE POLICY parent_guardians_rls_policy ON parent_guardians
+      FOR ALL
+      USING (school_id = current_setting('app.tenant_id', true))
+      WITH CHECK (school_id = current_setting('app.tenant_id', true));
 
       DROP POLICY IF EXISTS student_guardians_rls_policy ON student_guardians;
       CREATE POLICY student_guardians_rls_policy ON student_guardians
@@ -503,6 +626,12 @@ export class StudentsSchemaService implements OnModuleInit {
       BEFORE INSERT OR UPDATE ON students
       FOR EACH ROW
       EXECUTE FUNCTION sync_student_tenant_columns();
+
+      DROP TRIGGER IF EXISTS trg_parent_guardians_set_updated_at ON parent_guardians;
+      CREATE TRIGGER trg_parent_guardians_set_updated_at
+      BEFORE UPDATE ON parent_guardians
+      FOR EACH ROW
+      EXECUTE FUNCTION set_updated_at();
 
       DROP TRIGGER IF EXISTS trg_student_guardians_set_updated_at ON student_guardians;
       CREATE TRIGGER trg_student_guardians_set_updated_at
