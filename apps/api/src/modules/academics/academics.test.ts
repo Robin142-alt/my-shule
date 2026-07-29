@@ -73,6 +73,7 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /UPDATE class_sections\s+SET grade_level = name/);
   assert.match(schemaSql, /WITH missing_level_names AS/);
   assert.match(schemaSql, /INSERT INTO academic_levels \(\s*tenant_id, system_type, name, order_index, is_active/);
+  assert.doesNotMatch(schemaSql, /ON CONFLICT \(tenant_id, order_index\)/);
   assert.match(schemaSql, /UPDATE class_sections section\s+SET academic_level_id =/);
   assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_academics_department_hod_active/);
   assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_academics_role_appointments_active/);

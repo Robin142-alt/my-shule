@@ -976,8 +976,7 @@ export class AcademicsSchemaService implements OnModuleInit {
         tenant_id, system_type, name, order_index, is_active
       )
       SELECT tenant_id, system_type, name, order_index, TRUE
-      FROM ranked_missing_levels
-      ON CONFLICT (tenant_id, order_index) DO NOTHING;
+      FROM ranked_missing_levels;
       UPDATE academic_levels level
       SET is_active = TRUE, updated_at = NOW()
       WHERE level.is_active = FALSE
