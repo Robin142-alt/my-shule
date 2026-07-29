@@ -253,6 +253,14 @@ export class AcademicsService {
       academicYearId,
       'Select an academic year from this school.',
     );
+    if (dto.academic_level_id?.trim()) {
+      await this.requireTenantRecord(
+        tenantId,
+        'academic_levels',
+        dto.academic_level_id.trim(),
+        'Select an academic level from this school.',
+      );
+    }
     await this.requireCreateNameAvailable(tenantId, 'class_sections', classFormGradeName, 'class', academicYearId);
     if (dto.code) await this.requireUniqueCode(tenantId, 'class_sections', dto.code, null, academicYearId);
     const classSection = await this.repository.createClassSection({
@@ -551,8 +559,10 @@ export class AcademicsService {
   private requireAcademicSystemType(value: string | undefined): string {
     const normalized = this.requireText(value, 'Academic system type');
 
-    if (!['CBC', 'CBE', '8-4-4', 'International', 'Custom'].includes(normalized)) {
-      throw new BadRequestException('Academic system type must be CBC, CBE, 8-4-4, International, or Custom');
+    if (!['CBC', 'CBE', '8-4-4', 'International', 'Hybrid', 'Custom'].includes(normalized)) {
+      throw new BadRequestException(
+        'Academic system type must be CBC, CBE, 8-4-4, International, Hybrid, or Custom',
+      );
     }
 
     return normalized;
@@ -1673,7 +1683,7 @@ export class AcademicsService {
 
   private async requireTenantRecord(
     tenantId: string,
-    table: 'academic_years' | 'class_sections',
+    table: 'academic_years' | 'academic_levels' | 'class_sections',
     id: string,
     message: string,
   ) {

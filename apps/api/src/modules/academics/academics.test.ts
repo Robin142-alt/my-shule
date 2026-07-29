@@ -71,6 +71,9 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /academics_report_card_settings ALTER COLUMN updated_at SET DEFAULT NOW\(\)/);
   assert.match(schemaSql, /CREATE UNIQUE INDEX ux_academics_class_teachers_scope/);
   assert.match(schemaSql, /UPDATE class_sections\s+SET grade_level = name/);
+  assert.match(schemaSql, /WITH missing_level_names AS/);
+  assert.match(schemaSql, /INSERT INTO academic_levels \(\s*tenant_id, system_type, name, order_index, is_active/);
+  assert.match(schemaSql, /UPDATE class_sections section\s+SET academic_level_id =/);
   assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_academics_department_hod_active/);
   assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_academics_role_appointments_active/);
   assert.match(schemaSql, /uq_academics_curriculum_name_start/);
@@ -80,6 +83,16 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /uq_teacher_subject_assignments_scope/);
   assert.match(schemaSql, /NULLIF\(current_setting\('app\.role', true\), ''\) = 'system'/);
   assert.doesNotMatch(schemaSql, /CREATE TABLE IF NOT EXISTS attendance_/i);
+});
+
+test('AcademicsRepository always binds new classes to a school-scoped academic level', () => {
+  const createClassMethod = String(AcademicsRepository.prototype.createClassSection);
+
+  assert.match(createClassMethod, /pg_advisory_xact_lock/);
+  assert.match(createClassMethod, /FROM academic_levels/);
+  assert.match(createClassMethod, /INSERT INTO academic_levels/);
+  assert.match(createClassMethod, /ACADEMIC_LEVEL_BINDING_FAILED/);
+  assert.match(createClassMethod, /academicLevelId/);
 });
 
 test('AcademicsRepository writes settings across legacy UUID and current text schemas', async () => {

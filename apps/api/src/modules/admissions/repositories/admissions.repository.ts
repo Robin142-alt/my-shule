@@ -2,6 +2,17 @@ import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../../database/prisma.service';
 
+function normalizeAcademicSystemType(value: unknown) {
+  const normalized = String(value ?? '').trim().toLowerCase();
+
+  if (normalized === 'cbc') return 'CBC';
+  if (normalized === 'cbe') return 'CBE';
+  if (normalized === '8-4-4' || normalized === '844') return '8-4-4';
+  if (normalized === 'international') return 'International';
+  if (normalized === 'hybrid') return 'Hybrid';
+  return 'Custom';
+}
+
 export interface AdmissionApplicationRecord {
   id: string;
   school_id: string;
@@ -624,6 +635,68 @@ export class AdmissionsRepository {
         throw new Error('ADMISSION_CURRICULUM_MISMATCH');
       }
       const classFormGradeName = String(placement.name);
+      let academicLevelId = placement.academic_level_id
+        ? String(placement.academic_level_id)
+        : null;
+
+      if (!academicLevelId) {
+        await query(
+          'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+          [`academic-level:${input.tenant_id}`],
+        );
+        const existingLevelRows = await query<any>(`
+          SELECT id, is_active
+          FROM academic_levels
+          WHERE tenant_id = $1
+            AND lower(btrim(name)) = lower(btrim($2))
+          ORDER BY is_active DESC, order_index ASC, id ASC
+          LIMIT 1
+          FOR UPDATE
+        `, [input.tenant_id, classFormGradeName]);
+
+        if (existingLevelRows[0]) {
+          academicLevelId = String(existingLevelRows[0].id);
+          if (!existingLevelRows[0].is_active) {
+            await query(`
+              UPDATE academic_levels
+              SET is_active = TRUE, updated_at = NOW()
+              WHERE tenant_id = $1 AND id = $2
+            `, [input.tenant_id, academicLevelId]);
+          }
+        } else {
+          const createdLevelRows = await query<any>(`
+            INSERT INTO academic_levels (
+              tenant_id, system_type, name, order_index, is_active
+            )
+            SELECT
+              $1,
+              $2,
+              $3,
+              COALESCE(MAX(order_index), 0) + 1,
+              TRUE
+            FROM academic_levels
+            WHERE tenant_id = $1
+            RETURNING id
+          `, [
+            input.tenant_id,
+            normalizeAcademicSystemType(placement.curriculum_model),
+            classFormGradeName,
+          ]);
+          academicLevelId = createdLevelRows[0]?.id
+            ? String(createdLevelRows[0].id)
+            : null;
+        }
+
+        if (!academicLevelId) {
+          throw new Error('ADMISSION_ACADEMIC_LEVEL_NOT_CONFIGURED');
+        }
+
+        await query(`
+          UPDATE class_sections
+          SET academic_level_id = $3, updated_at = NOW()
+          WHERE tenant_id = $1 AND id = $2
+        `, [input.tenant_id, input.class_section_id, academicLevelId]);
+      }
 
       await query(`
         INSERT INTO admission_settings (tenant_id)
@@ -845,7 +918,7 @@ export class AdmissionsRepository {
         student.id,
         input.class_section_id,
         input.stream_id,
-        placement.academic_level_id,
+        academicLevelId,
         input.academic_year_id,
         input.actor_user_id,
       ]);

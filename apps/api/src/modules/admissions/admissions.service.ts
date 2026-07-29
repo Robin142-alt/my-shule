@@ -2540,6 +2540,8 @@ export class AdmissionsService {
       ADMISSION_STREAM_NOT_FOUND: 'The selected stream does not belong to the selected class',
       ADMISSION_CURRICULUM_MISMATCH:
         'The selected curriculum does not match the selected class',
+      ADMISSION_ACADEMIC_LEVEL_NOT_CONFIGURED:
+        'The selected class is missing its academic level. Reopen Classes & Streams and save the class before admitting learners',
       ADMISSION_DATE_OUTSIDE_YEAR:
         'Admission date must fall within the selected academic year',
       ADMISSION_SUBJECTS_NOT_CONFIGURED:

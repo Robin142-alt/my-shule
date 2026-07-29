@@ -8,6 +8,17 @@ const ACADEMIC_TEACHING_ROLE_SQL = ACADEMIC_TEACHING_ROLE_CODES
   .map((roleCode) => `'${roleCode}'`)
   .join(', ');
 
+function normalizeAcademicSystemType(value: unknown) {
+  const normalized = String(value ?? '').trim().toLowerCase();
+
+  if (normalized === 'cbc') return 'CBC';
+  if (normalized === 'cbe') return 'CBE';
+  if (normalized === '8-4-4' || normalized === '844') return '8-4-4';
+  if (normalized === 'international') return 'International';
+  if (normalized === 'hybrid') return 'Hybrid';
+  return 'Custom';
+}
+
 type SetupDependencyDefinition = { table: string; column: string; label: string };
 
 export type SetupDependencyResult = {
@@ -501,7 +512,70 @@ export class AcademicsRepository {
 
   async createClassSection(input: Record<string, unknown>) {
     const tenantId = String(input.tenant_id);
-    const result = await this.executeSql(tenantId, `
+    const actorUserId = input.created_by_user_id ? String(input.created_by_user_id) : null;
+
+    return this.prisma.executeWithTenant<any>(tenantId, actorUserId, async (tx: any) => {
+      let academicLevelId = input.academic_level_id
+        ? String(input.academic_level_id)
+        : null;
+
+      if (!academicLevelId) {
+        await this.executeSqlTx(
+          tx,
+          'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+          [`academic-level:${tenantId}`],
+        );
+
+        const classFormGradeName = String(input.name);
+        const existingLevel = await this.executeSqlTx(tx, `
+          SELECT id, is_active
+          FROM academic_levels
+          WHERE tenant_id = $1
+            AND lower(btrim(name)) = lower(btrim($2))
+          ORDER BY is_active DESC, order_index ASC, id ASC
+          LIMIT 1
+          FOR UPDATE
+        `, [tenantId, classFormGradeName]);
+
+        if (existingLevel.rows[0]) {
+          academicLevelId = String(existingLevel.rows[0].id);
+          if (!existingLevel.rows[0].is_active) {
+            await this.executeSqlTx(tx, `
+              UPDATE academic_levels
+              SET is_active = TRUE, updated_at = NOW()
+              WHERE tenant_id = $1 AND id = $2
+            `, [tenantId, academicLevelId]);
+          }
+        } else {
+          const createdLevel = await this.executeSqlTx(tx, `
+            INSERT INTO academic_levels (
+              tenant_id, system_type, name, order_index, is_active
+            )
+            SELECT
+              $1,
+              $2,
+              $3,
+              COALESCE(MAX(order_index), 0) + 1,
+              TRUE
+            FROM academic_levels
+            WHERE tenant_id = $1
+            RETURNING id
+          `, [
+            tenantId,
+            normalizeAcademicSystemType(input.curriculum_model),
+            classFormGradeName,
+          ]);
+          academicLevelId = createdLevel.rows[0]?.id
+            ? String(createdLevel.rows[0].id)
+            : null;
+        }
+      }
+
+      if (!academicLevelId) {
+        throw new Error('ACADEMIC_LEVEL_BINDING_FAILED');
+      }
+
+      const result = await this.executeSqlTx(tx, `
         INSERT INTO class_sections (
           tenant_id,
           academic_year_id,
@@ -524,7 +598,7 @@ export class AcademicsRepository {
       [
         tenantId,
         input.academic_year_id,
-        input.academic_level_id ?? null,
+        academicLevelId,
         input.name,
         input.grade_level,
         input.stream ?? null,
@@ -536,7 +610,8 @@ export class AcademicsRepository {
         input.created_by_user_id,
       ]);
 
-    return result.rows[0];
+      return result.rows[0];
+    });
   }
 
   async createClassStructure(input: {

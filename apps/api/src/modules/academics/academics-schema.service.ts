@@ -934,6 +934,79 @@ export class AcademicsSchemaService implements OnModuleInit {
       UPDATE class_sections
       SET grade_level = name
       WHERE grade_level IS DISTINCT FROM name;
+      WITH missing_level_names AS (
+        SELECT
+          section.tenant_id,
+          MIN(section.name) AS name,
+          CASE lower(MIN(COALESCE(section.curriculum_model, 'Custom')))
+            WHEN 'cbc' THEN 'CBC'
+            WHEN 'cbe' THEN 'CBE'
+            WHEN '8-4-4' THEN '8-4-4'
+            WHEN '844' THEN '8-4-4'
+            WHEN 'international' THEN 'International'
+            WHEN 'hybrid' THEN 'Hybrid'
+            ELSE 'Custom'
+          END AS system_type
+        FROM class_sections section
+        WHERE section.academic_level_id IS NULL
+          AND NOT EXISTS (
+            SELECT 1
+            FROM academic_levels level
+            WHERE level.tenant_id = section.tenant_id
+              AND lower(btrim(level.name)) = lower(btrim(section.name))
+          )
+        GROUP BY section.tenant_id, lower(btrim(section.name))
+      ),
+      ranked_missing_levels AS (
+        SELECT
+          missing.tenant_id,
+          missing.system_type,
+          missing.name,
+          COALESCE((
+            SELECT MAX(level.order_index)
+            FROM academic_levels level
+            WHERE level.tenant_id = missing.tenant_id
+          ), 0) + ROW_NUMBER() OVER (
+            PARTITION BY missing.tenant_id
+            ORDER BY lower(missing.name), missing.name
+          ) AS order_index
+        FROM missing_level_names missing
+      )
+      INSERT INTO academic_levels (
+        tenant_id, system_type, name, order_index, is_active
+      )
+      SELECT tenant_id, system_type, name, order_index, TRUE
+      FROM ranked_missing_levels
+      ON CONFLICT (tenant_id, order_index) DO NOTHING;
+      UPDATE academic_levels level
+      SET is_active = TRUE, updated_at = NOW()
+      WHERE level.is_active = FALSE
+        AND EXISTS (
+          SELECT 1
+          FROM class_sections section
+          WHERE section.tenant_id = level.tenant_id
+            AND section.academic_level_id IS NULL
+            AND lower(btrim(section.name)) = lower(btrim(level.name))
+            AND section.is_active = TRUE
+            AND lower(COALESCE(section.status, 'active')) = 'active'
+        );
+      UPDATE class_sections section
+      SET academic_level_id = (
+        SELECT level.id
+        FROM academic_levels level
+        WHERE level.tenant_id = section.tenant_id
+          AND lower(btrim(level.name)) = lower(btrim(section.name))
+        ORDER BY level.is_active DESC, level.order_index ASC, level.id ASC
+        LIMIT 1
+      ),
+      updated_at = NOW()
+      WHERE section.academic_level_id IS NULL
+        AND EXISTS (
+          SELECT 1
+          FROM academic_levels level
+          WHERE level.tenant_id = section.tenant_id
+            AND lower(btrim(level.name)) = lower(btrim(section.name))
+        );
       CREATE INDEX IF NOT EXISTS ix_class_sections_year
         ON class_sections (tenant_id, academic_year_id, grade_level, name);
       CREATE INDEX IF NOT EXISTS ix_academic_levels_tenant_order

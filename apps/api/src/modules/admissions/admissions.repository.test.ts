@@ -88,6 +88,10 @@ test('AdmissionsRepository direct admission writes the complete application life
   assert.match(registrationMethod, /'approved',\s*'ACCEPTED',\s*NOW\(\),\s*NOW\(\),\s*NOW\(\)/);
   assert.match(registrationMethod, /application_status = 'ADMITTED'/);
   assert.match(registrationMethod, /INSERT INTO students \(\s*id,\s*tenant_id,\s*school_id/);
+  assert.match(registrationMethod, /pg_advisory_xact_lock/);
+  assert.match(registrationMethod, /INSERT INTO academic_levels/);
+  assert.match(registrationMethod, /UPDATE class_sections\s+SET academic_level_id = \$3/);
+  assert.match(registrationMethod, /ADMISSION_ACADEMIC_LEVEL_NOT_CONFIGURED/);
   assert.match(
     registrationMethod,
     /'class_section_id',\s*\$9::text,\s*'stream_id',\s*\$10::text/,
