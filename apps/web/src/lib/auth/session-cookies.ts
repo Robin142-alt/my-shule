@@ -9,6 +9,7 @@ export const ACCESS_COOKIE = "myshule_access";
 export const REFRESH_COOKIE = "myshule_refresh";
 export const AUDIENCE_COOKIE = "myshule_audience";
 export const TENANT_COOKIE = "myshule_tenant";
+export const REMEMBER_SESSION_COOKIE = "myshule_remember_session";
 
 export function getExperienceSessionCookieName(audience: ExperienceAudience) {
   switch (audience) {

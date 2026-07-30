@@ -90,6 +90,7 @@ export function SuperadminLoginView({
       const result = await authSession.login({
         identifier: nextEmail,
         password: nextPassword,
+        rememberSession,
       });
       void router.push(result.redirectTo ?? "/superadmin");
     } catch (loginError) {

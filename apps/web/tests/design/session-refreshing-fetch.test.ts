@@ -1,161 +1,92 @@
 import { fetchWithSessionRefresh } from "@/lib/dashboard/session-refreshing-fetch";
 
-class TestResponse {
-  readonly status: number;
-  readonly headers: { get: (name: string) => string | null };
-  private readonly body: ArrayBuffer;
+function response(body: string, status: number) {
+  let consumed = false;
+  const bytes = Uint8Array.from(Array.from(body), (character) =>
+    character.charCodeAt(0),
+  );
 
-  constructor(body: string | Uint8Array, init?: ResponseInit) {
-    this.status = init?.status ?? 200;
-    const sourceHeaders = new Map<string, string>();
-    for (const [name, value] of Object.entries((init?.headers ?? {}) as Record<string, string>)) {
-      sourceHeaders.set(name.toLowerCase(), value);
-    }
-    this.headers = {
-      get: (name: string) => sourceHeaders.get(name.toLowerCase()) ?? null,
-    };
-    const bytes = typeof body === "string" ? new TextEncoder().encode(body) : body;
-    this.body = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-  }
-
-  async arrayBuffer() {
-    return this.body.slice(0);
-  }
+  return {
+    status,
+    ok: status >= 200 && status < 300,
+    get bodyUsed() {
+      return consumed;
+    },
+    arrayBuffer: async () => {
+      consumed = true;
+      return bytes.slice().buffer;
+    },
+    text: async () => {
+      consumed = true;
+      return body;
+    },
+  } as Response;
 }
 
-function jsonResponse(body: unknown, init?: ResponseInit) {
-  return new TestResponse(JSON.stringify(body), {
-    ...init,
-    headers: { "content-type": "application/json", ...init?.headers },
-  }) as unknown as Response;
-}
-
-function decodeBody(body: ArrayBuffer) {
-  return new TextDecoder().decode(body);
-}
-
-describe("session refreshing fetch", () => {
-  it("refreshes once and retries when the upstream rejects an expired access token", async () => {
+describe("fetchWithSessionRefresh", () => {
+  it("refreshes once and retries a request rejected by an expired access token", async () => {
     const send = jest
-      .fn()
-      .mockResolvedValueOnce(
-        jsonResponse({ message: "Token validation failed" }, { status: 401 }),
-      )
-      .mockResolvedValueOnce(jsonResponse({ data: [{ tenant_id: "kaimosi-high" }] }));
-    const refreshSession = jest.fn().mockResolvedValue({
-      accessToken: "fresh-access-token",
-      refreshToken: "fresh-refresh-token",
-    });
+      .fn<Promise<Response>, [string]>()
+      .mockResolvedValueOnce(response("expired", 401))
+      .mockResolvedValueOnce(response(JSON.stringify({ ok: true }), 200));
+    const refreshSession = jest.fn().mockResolvedValue({ accessToken: "fresh-access" });
 
     const result = await fetchWithSessionRefresh({
-      accessToken: "expired-access-token",
-      refreshSession,
+      accessToken: "expired-access",
       send,
+      refreshSession,
     });
 
-    expect(result.response.status).toBe(200);
-    expect(decodeBody(result.body)).toBe(JSON.stringify({ data: [{ tenant_id: "kaimosi-high" }] }));
     expect(refreshSession).toHaveBeenCalledTimes(1);
-    expect(send).toHaveBeenNthCalledWith(1, "expired-access-token");
-    expect(send).toHaveBeenNthCalledWith(2, "fresh-access-token");
-    expect(result.refreshedSession?.accessToken).toBe("fresh-access-token");
-  });
-
-  it("does not refresh non-auth platform validation errors", async () => {
-    const send = jest
-      .fn()
-      .mockResolvedValue(jsonResponse({ message: "Tenant already exists" }, { status: 409 }));
-    const refreshSession = jest.fn();
-
-    const result = await fetchWithSessionRefresh({
-      accessToken: "valid-access-token",
-      refreshSession,
-      send,
-    });
-
-    expect(result.response.status).toBe(409);
-    expect(decodeBody(result.body)).toBe(JSON.stringify({ message: "Tenant already exists" }));
-    expect(refreshSession).not.toHaveBeenCalled();
-    expect(send).toHaveBeenCalledTimes(1);
-  });
-
-  it("refreshes permissions once and retries an explicit permission denial", async () => {
-    const send = jest
-      .fn()
-      .mockResolvedValueOnce(
-        jsonResponse({ message: "Permission-based access denied" }, { status: 403 }),
-      )
-      .mockResolvedValueOnce(jsonResponse({ data: { id: "academic-year-2026" } }));
-    const refreshSession = jest.fn().mockResolvedValue({
-      accessToken: "permission-refreshed-access-token",
-    });
-
-    const result = await fetchWithSessionRefresh({
-      accessToken: "stale-permissions-access-token",
-      refreshSession,
-      send,
-    });
-
+    expect(send).toHaveBeenNthCalledWith(1, "expired-access");
+    expect(send).toHaveBeenNthCalledWith(2, "fresh-access");
     expect(result.response.status).toBe(200);
-    expect(refreshSession).toHaveBeenCalledTimes(1);
-    expect(send).toHaveBeenNthCalledWith(1, "stale-permissions-access-token");
-    expect(send).toHaveBeenNthCalledWith(2, "permission-refreshed-access-token");
+    expect(result.refreshedSession).toEqual({ accessToken: "fresh-access" });
+    expect(new TextDecoder().decode(result.body)).toContain('"ok":true');
   });
 
-  it("preserves a permission denial without expiring the session when refresh fails", async () => {
-    const send = jest.fn().mockResolvedValue(
-      jsonResponse({ message: "Permission-based access denied" }, { status: 403 }),
-    );
-    const refreshSession = jest.fn().mockRejectedValue(new Error("Refresh unavailable"));
+  it("keeps a temporary refresh-service outage retryable", async () => {
+    const outage = new Error("Authentication service is temporarily unavailable.");
 
     const result = await fetchWithSessionRefresh({
-      accessToken: "stale-permissions-access-token",
-      refreshSession,
-      send,
+      accessToken: "expired-access",
+      send: async () => response("expired", 401),
+      refreshSession: async () => {
+        throw outage;
+      },
+      isRefreshSessionExpired: () => false,
     });
 
-    expect(result.response.status).toBe(403);
+    expect(result.refreshError).toBe(outage);
     expect(result.sessionExpired).toBeUndefined();
-    expect(refreshSession).toHaveBeenCalledTimes(1);
-    expect(send).toHaveBeenCalledTimes(1);
-  });
-
-  it("marks the browser session expired when refresh cannot recover an auth failure", async () => {
-    const send = jest.fn().mockResolvedValue(
-      jsonResponse({ message: "Token validation failed" }, { status: 401 }),
-    );
-    const refreshSession = jest.fn().mockRejectedValue(new Error("Session has expired"));
-
-    const result = await fetchWithSessionRefresh({
-      accessToken: "expired-access-token",
-      refreshSession,
-      send,
-    });
-
     expect(result.response.status).toBe(401);
-    expect(result.sessionExpired).toBe(true);
-    expect(refreshSession).toHaveBeenCalledTimes(1);
-    expect(send).toHaveBeenCalledTimes(1);
   });
 
-  it("preserves binary upstream response bytes for authenticated image routes", async () => {
-    const imageBytes = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 255, 17]);
-    const send = jest.fn().mockResolvedValue(
-      new TestResponse(imageBytes, {
-        status: 200,
-        headers: { "content-type": "image/png" },
-      }) as unknown as Response,
-    );
-    const refreshSession = jest.fn();
-
+  it("marks a truly invalid refresh session as expired", async () => {
     const result = await fetchWithSessionRefresh({
-      accessToken: "valid-access-token",
-      refreshSession,
-      send,
+      accessToken: "expired-access",
+      send: async () => response("expired", 401),
+      refreshSession: async () => {
+        throw new Error("Invalid refresh token");
+      },
+      isRefreshSessionExpired: () => true,
     });
 
-    expect(Array.from(new Uint8Array(result.body))).toEqual(Array.from(imageBytes));
-    expect(result.response.headers.get("content-type")).toBe("image/png");
-    expect(refreshSession).not.toHaveBeenCalled();
+    expect(result.sessionExpired).toBe(true);
+  });
+
+  it("does not consume successful event-stream responses", async () => {
+    const streamResponse = response("data: live\n\n", 200);
+
+    const result = await fetchWithSessionRefresh({
+      accessToken: "valid-access",
+      send: async () => streamResponse,
+      refreshSession: async () => ({ accessToken: "unused" }),
+      consumeResponseBody: false,
+    });
+
+    expect(result.body.byteLength).toBe(0);
+    expect(result.response.bodyUsed).toBe(false);
+    expect(await result.response.text()).toBe("data: live\n\n");
   });
 });

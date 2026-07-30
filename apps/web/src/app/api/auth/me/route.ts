@@ -2,9 +2,16 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { isExperienceAudience } from "@/lib/auth/experience-audience";
-import { createServerAuthClient } from "@/lib/auth/server-auth-client";
+import {
+  createServerAuthClient,
+  getServerAuthErrorStatus,
+  isServerAuthUnauthorized,
+} from "@/lib/auth/server-auth-client";
 import {
   clearExperienceSessionCookies,
+  readRememberSessionCookie,
+  readTenantCookie,
+  setExperienceSessionCookies,
   toPublicExperienceGatewaySession,
 } from "@/lib/auth/server-session";
 
@@ -22,12 +29,33 @@ export async function GET(request: Request) {
   try {
     const authClient = createServerAuthClient(request);
     const cookieStore = await cookies();
-    const session = await authClient.me(audience, cookieStore);
+    let session;
 
-    return NextResponse.json({
+    try {
+      session = await authClient.me(audience, cookieStore);
+    } catch (error) {
+      if (!isServerAuthUnauthorized(error)) {
+        throw error;
+      }
+
+      session = await authClient.refresh(
+        {
+          audience,
+          tenantSlug:
+            searchParams.get("tenantSlug") ?? readTenantCookie(cookieStore),
+        },
+        cookieStore,
+      );
+    }
+
+    const response = NextResponse.json({
       session: toPublicExperienceGatewaySession(session),
       user: session.user,
     });
+    setExperienceSessionCookies(response, session, {
+      rememberSession: readRememberSessionCookie(cookieStore),
+    });
+    return response;
   } catch (error) {
     const response = NextResponse.json(
       {
@@ -36,9 +64,11 @@ export async function GET(request: Request) {
             ? error.message
             : "No active session found.",
       },
-      { status: 401 },
+      { status: getServerAuthErrorStatus(error) },
     );
-    clearExperienceSessionCookies(response);
+    if (isServerAuthUnauthorized(error)) {
+      clearExperienceSessionCookies(response);
+    }
     return response;
   }
 }

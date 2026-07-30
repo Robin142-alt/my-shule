@@ -1,15 +1,6 @@
-import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
 
-import { validateCsrfRequest } from "@/lib/auth/csrf";
-import {
-  readAccessCookie,
-  readExperienceSessionCookie,
-  readTenantCookie,
-  resolveSchoolTenantSlug,
-} from "@/lib/auth/server-session";
-import { getDashboardApiBaseUrl } from "@/lib/dashboard/api-client";
+import { proxySchoolApiRequest } from "@/lib/dashboard/server-api-proxy";
 
 type RouteContext = {
   params: Promise<{ path?: string[] }> | { path?: string[] };
@@ -18,79 +9,9 @@ type RouteContext = {
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest, context: RouteContext) {
-  return proxyPaymentsRequest(request, context);
+  return proxySchoolApiRequest(request, context, "/payments");
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
-  return proxyPaymentsRequest(request, context);
-}
-
-async function proxyPaymentsRequest(request: NextRequest, context: RouteContext) {
-  if (request.method !== "GET" && !validateCsrfRequest(request)) {
-    return NextResponse.json(
-      { message: "Security check expired. Refresh the page and try again." },
-      { status: 403 },
-    );
-  }
-
-  const cookieStore = await cookies();
-  const session = readExperienceSessionCookie(cookieStore, "school");
-  const accessToken = readAccessCookie(cookieStore);
-
-  if (!session || session.experience !== "school" || !accessToken) {
-    return NextResponse.json(
-      { message: "A signed-in school finance session is required." },
-      { status: 401 },
-    );
-  }
-
-  const requestUrl = new URL(request.url);
-  const { tenantSlug, tenantMismatch } = resolveSchoolTenantSlug({
-    requestedTenantSlug: requestUrl.searchParams.get("tenantSlug"),
-    tenantCookie: readTenantCookie(cookieStore),
-    sessionTenantSlug: session.tenantSlug,
-  });
-
-  if (tenantMismatch) {
-    return NextResponse.json(
-      { message: "Requested school workspace does not match the signed-in session." },
-      { status: 403 },
-    );
-  }
-
-  const baseUrl = getDashboardApiBaseUrl();
-
-  if (!tenantSlug || !baseUrl) {
-    return NextResponse.json(
-      { message: "Live payments API is unavailable for this school workspace." },
-      { status: 503 },
-    );
-  }
-
-  const params = await context.params;
-  const paymentsPath = `/payments/${(params.path ?? []).join("/")}`;
-  const upstreamQuery = new URLSearchParams(requestUrl.searchParams);
-  upstreamQuery.delete("tenantSlug");
-  const query = upstreamQuery.toString();
-  const body = request.method === "GET" ? undefined : await request.text();
-  const upstreamResponse = await fetch(`${baseUrl}${paymentsPath}${query ? `?${query}` : ""}`, {
-    method: request.method,
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      "x-auth-audience": "school",
-      "x-tenant-id": tenantSlug,
-    },
-    body: body && body.length > 0 ? body : undefined,
-    cache: "no-store",
-  });
-  const responseBody = await upstreamResponse.text();
-
-  return new NextResponse(responseBody, {
-    status: upstreamResponse.status,
-    headers: {
-      "content-type": upstreamResponse.headers.get("content-type") ?? "application/json",
-    },
-  });
+  return proxySchoolApiRequest(request, context, "/payments");
 }

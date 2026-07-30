@@ -1,10 +1,18 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { createServerAuthClient } from "@/lib/auth/server-auth-client";
 import {
+  createServerAuthClient,
+  getServerAuthErrorStatus,
+  isServerAuthUnauthorized,
+} from "@/lib/auth/server-auth-client";
+import {
+  clearExperienceSessionCookies,
   readAccessCookie,
   readAudienceCookie,
+  readExperienceSessionCookie,
+  readRefreshCookie,
+  readRememberSessionCookie,
   readTenantCookie,
   setExperienceSessionCookies,
 } from "@/lib/auth/server-session";
@@ -19,35 +27,69 @@ type SchoolApiSession = {
 type SchoolProxyRequest = {
   request: Request;
   path: string;
-  method: "GET" | "POST" | "PATCH" | "DELETE";
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   unavailableMessage: string;
   unwrapResponseEnvelope?: boolean;
 };
 
 export async function proxySchoolApiRequest(input: SchoolProxyRequest) {
-  const session = await getSchoolApiSession();
+  let session = await getSchoolApiSession();
+  let didRefreshSession = false;
 
   if (!session) {
-    return NextResponse.json(
-      { message: input.unavailableMessage },
-      { status: 503 },
+    const response = NextResponse.json(
+      { message: "A signed-in school session is required." },
+      { status: 401 },
     );
+    clearExperienceSessionCookies(response);
+    return response;
+  }
+
+  let refreshedSession:
+    | Awaited<ReturnType<typeof refreshSchoolApiSession>>
+    | undefined;
+
+  if (!session.accessToken) {
+    try {
+      refreshedSession = await refreshSchoolApiSession(input.request, session.tenantSlug);
+      session = {
+        accessToken: refreshedSession.accessToken,
+        baseUrl: refreshedSession.baseUrl,
+        tenantSlug: refreshedSession.tenantSlug,
+      };
+      didRefreshSession = true;
+    } catch (error) {
+      return createSchoolAuthFailureResponse(error);
+    }
   }
 
   let response = await fetchSchoolApi(session, input);
   let payload = await response.json().catch(() => null);
 
   if (response.status !== 401) {
-    return createSchoolApiResponse(response, payload, input);
+    const nextResponse = createSchoolApiResponse(response, payload, input);
+
+    if (refreshedSession) {
+      setExperienceSessionCookies(nextResponse, refreshedSession.session, {
+        rememberSession: refreshedSession.rememberSession,
+      });
+    }
+
+    return nextResponse;
   }
 
-  const refreshedSession = await refreshSchoolApiSession(input.request, session.tenantSlug);
+  if (didRefreshSession) {
+    const nextResponse = createSchoolApiResponse(response, payload, input);
+    clearExperienceSessionCookies(nextResponse);
+    nextResponse.headers.set("x-myshule-session-expired", "1");
+    return nextResponse;
+  }
 
-  if (!refreshedSession) {
-    return NextResponse.json(payload ?? { message: "Session expired. Sign in again." }, {
-      status: response.status,
-    });
+  try {
+    refreshedSession = await refreshSchoolApiSession(input.request, session.tenantSlug);
+  } catch (error) {
+    return createSchoolAuthFailureResponse(error, payload);
   }
 
   response = await fetchSchoolApi(
@@ -61,7 +103,15 @@ export async function proxySchoolApiRequest(input: SchoolProxyRequest) {
   payload = await response.json().catch(() => null);
 
   const nextResponse = createSchoolApiResponse(response, payload, input);
-  setExperienceSessionCookies(nextResponse, refreshedSession.session);
+
+  if (response.status === 401) {
+    clearExperienceSessionCookies(nextResponse);
+    nextResponse.headers.set("x-myshule-session-expired", "1");
+  } else {
+    setExperienceSessionCookies(nextResponse, refreshedSession.session, {
+      rememberSession: refreshedSession.rememberSession,
+    });
+  }
 
   return nextResponse;
 }
@@ -105,10 +155,20 @@ async function getSchoolApiSession(): Promise<SchoolApiSession | null> {
   const cookieStore = await cookies();
   const tenantSlug = readTenantCookie(cookieStore);
   const audience = readAudienceCookie(cookieStore);
+  const publicSession = readExperienceSessionCookie(cookieStore, "school");
   const accessToken = readAccessCookie(cookieStore);
+  const refreshToken = readRefreshCookie(cookieStore);
   const baseUrl = tenantSlug ? getDashboardApiBaseUrl() : null;
 
-  if (!tenantSlug || !baseUrl || !accessToken || audience !== "school") {
+  if (
+    !tenantSlug
+    || !baseUrl
+    || (!accessToken && !refreshToken)
+    || audience !== "school"
+    || !publicSession
+    || publicSession.experience !== "school"
+    || publicSession.tenantSlug !== tenantSlug
+  ) {
     return null;
   }
 
@@ -116,29 +176,46 @@ async function getSchoolApiSession(): Promise<SchoolApiSession | null> {
 }
 
 async function refreshSchoolApiSession(request: Request, tenantSlug: string) {
-  try {
-    const authClient = createServerAuthClient(request);
-    const cookieStore = await cookies();
-    const session = await authClient.refresh(
-      { audience: "school", tenantSlug },
-      cookieStore,
-    );
-    const resolvedTenantSlug = session.tenantSlug ?? tenantSlug;
-    const baseUrl = getDashboardApiBaseUrl();
+  const authClient = createServerAuthClient(request);
+  const cookieStore = await cookies();
+  const session = await authClient.refresh(
+    { audience: "school", tenantSlug },
+    cookieStore,
+  );
+  const resolvedTenantSlug = session.tenantSlug ?? tenantSlug;
+  const baseUrl = getDashboardApiBaseUrl();
 
-    if (!baseUrl) {
-      return null;
-    }
-
-    return {
-      accessToken: session.accessToken,
-      baseUrl,
-      tenantSlug: resolvedTenantSlug,
-      session,
-    };
-  } catch {
-    return null;
+  if (!baseUrl) {
+    throw new Error("Live school API is unavailable.");
   }
+
+  return {
+    accessToken: session.accessToken,
+    baseUrl,
+    tenantSlug: resolvedTenantSlug,
+    session,
+    rememberSession: readRememberSessionCookie(cookieStore),
+  };
+}
+
+function createSchoolAuthFailureResponse(error: unknown, payload?: unknown) {
+  const sessionExpired = isServerAuthUnauthorized(error);
+  const status = sessionExpired ? 401 : getServerAuthErrorStatus(error);
+  const message =
+    error instanceof Error && error.message.trim()
+      ? error.message
+      : "Authentication service is temporarily unavailable. Please try again shortly.";
+  const response = NextResponse.json(
+    payload && sessionExpired ? payload : { message },
+    { status },
+  );
+
+  if (sessionExpired) {
+    clearExperienceSessionCookies(response);
+    response.headers.set("x-myshule-session-expired", "1");
+  }
+
+  return response;
 }
 
 function fetchSchoolApi(session: SchoolApiSession, input: SchoolProxyRequest) {

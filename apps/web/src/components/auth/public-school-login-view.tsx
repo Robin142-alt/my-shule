@@ -100,6 +100,7 @@ export function PublicSchoolLoginView({
       const result = await authSession.login({
         identifier: values.identifier.trim(),
         password: values.password,
+        rememberSession: rememberMe,
       });
       void router.push(result.redirectTo ?? "/school/admin");
     } catch (error) {

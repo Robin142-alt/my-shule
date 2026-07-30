@@ -103,6 +103,7 @@ export function SchoolLoginView({
         identifier: values.identifier.trim(),
         password: values.password,
         tenantSlug: effectiveTenantSlug,
+        rememberSession: rememberMe,
       });
       void router.push(result.redirectTo ?? "/dashboard");
     } catch (error) {

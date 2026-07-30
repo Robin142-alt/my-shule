@@ -8,7 +8,7 @@ import { InfoCard } from "@/components/marketing/info-card";
 import { PublicSiteShell } from "@/components/marketing/public-site-shell";
 import { SeoJsonLd } from "@/components/marketing/seo-json-ld";
 import { SchoolPages } from "@/components/school/school-pages";
-import { readAccessCookie } from "@/lib/auth/server-session";
+import { readAccessCookie, readRefreshCookie } from "@/lib/auth/server-session";
 import { getSchoolRoleAlias } from "@/lib/auth/school-role-normalization";
 import type { SchoolExperienceRole } from "@/lib/experiences/types";
 import { readPublicSchoolSession } from "@/lib/routing/public-experience-session";
@@ -159,7 +159,9 @@ export default async function SchoolRoleHomePage({
 
   const session = await readPublicSchoolSession(role);
   const cookieStore = await cookies();
-  const liveDataEnabled = Boolean(readAccessCookie(cookieStore));
+  const liveDataEnabled = Boolean(
+    readAccessCookie(cookieStore) || readRefreshCookie(cookieStore),
+  );
 
   return (
     <SchoolPages

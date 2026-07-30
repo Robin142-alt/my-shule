@@ -166,6 +166,43 @@ export interface ObservabilityHealthResponse {
 }
 
 const API_TIMEOUT_MS = 15_000;
+let browserSessionRefreshPromise: Promise<boolean> | null = null;
+
+async function refreshBrowserSession() {
+  if (browserSessionRefreshPromise) {
+    return browserSessionRefreshPromise;
+  }
+
+  const refreshAttempt = (async () => {
+    try {
+      const response = await fetch("/api/auth/refresh", {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "x-myshule-csrf": await getCsrfToken(),
+        },
+        body: "{}",
+        cache: "no-store",
+        credentials: "include",
+      });
+
+      return response.ok;
+    } catch {
+      return false;
+    }
+  })();
+
+  browserSessionRefreshPromise = refreshAttempt;
+
+  try {
+    return await refreshAttempt;
+  } finally {
+    if (browserSessionRefreshPromise === refreshAttempt) {
+      browserSessionRefreshPromise = null;
+    }
+  }
+}
 
 function normalizeApiPath(path: string) {
   const normalized = path.startsWith("/") ? path : `/${path}`;
@@ -274,9 +311,7 @@ export async function requestDashboardApi<T>(
     throw new Error("Dashboard API base URL is not configured.");
   }
 
-  const controller = new AbortController();
   const timeoutMs = options?.timeoutMs ?? API_TIMEOUT_MS;
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const method = options?.method ?? "GET";
   const csrfToken =
     typeof window !== "undefined" && method !== "GET"
@@ -296,46 +331,68 @@ export async function requestDashboardApi<T>(
         ? (options.body as FormData)
         : JSON.stringify(options.body);
 
-  try {
-    const response = await fetch(`${baseUrl}${apiPath}`, {
-      method,
-      headers: {
-        Accept: "application/json",
-        ...(options?.tenantId ? { "x-tenant-id": options.tenantId } : {}),
-        ...(csrfToken ? { "x-myshule-csrf": csrfToken } : {}),
-        ...(hasJsonBody ? { "Content-Type": "application/json" } : {}),
-        ...(options?.accessToken
-          ? {
-              Authorization: `Bearer ${options.accessToken}`,
-              "x-auth-audience": "school",
-            }
-          : {}),
-      },
-      cache: "no-store",
-      credentials: "include",
-      signal: controller.signal,
-      ...(requestBody !== undefined ? { body: requestBody } : {}),
-    });
+  const sendRequest = async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-    if (!response.ok) {
-      throw new Error(`Request failed: ${response.status}`);
+    try {
+      return await fetch(`${baseUrl}${apiPath}`, {
+        method,
+        headers: {
+          Accept: "application/json",
+          ...(options?.tenantId ? { "x-tenant-id": options.tenantId } : {}),
+          ...(csrfToken ? { "x-myshule-csrf": csrfToken } : {}),
+          ...(hasJsonBody ? { "Content-Type": "application/json" } : {}),
+          ...(options?.accessToken
+            ? {
+                Authorization: `Bearer ${options.accessToken}`,
+                "x-auth-audience": "school",
+              }
+            : {}),
+        },
+        cache: "no-store",
+        credentials: "include",
+        signal: controller.signal,
+        ...(requestBody !== undefined ? { body: requestBody } : {}),
+      });
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new Error(
+          `Request timed out after ${Math.ceil(timeoutMs / 1000)} seconds. Please retry.`,
+        );
+      }
+
+      throw error;
+    } finally {
+      clearTimeout(timeout);
     }
+  };
 
-    const json = (await response.json()) as T | ApiEnvelope<T>;
+  let response = await sendRequest();
+  const canRefreshBrowserSession =
+    typeof window !== "undefined"
+    && !options?.accessToken
+    && !apiPath.startsWith("/auth/");
 
-    if (options?.unwrapEnvelope === false) {
-      return json as T;
-    }
-
-    return isEnvelope<T>(json) ? json.data : (json as T);
-  } catch (error) {
-    if (controller.signal.aborted) {
-      throw new Error(`Request timed out after ${Math.ceil(timeoutMs / 1000)} seconds. Please retry.`);
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeout);
+  if (
+    response.status === 401
+    && canRefreshBrowserSession
+    && await refreshBrowserSession()
+  ) {
+    response = await sendRequest();
   }
+
+  if (!response.ok) {
+    throw new Error(`Request failed: ${response.status}`);
+  }
+
+  const json = (await response.json()) as T | ApiEnvelope<T>;
+
+  if (options?.unwrapEnvelope === false) {
+    return json as T;
+  }
+
+  return isEnvelope<T>(json) ? json.data : (json as T);
 }
 
 export async function loginToDashboardApi(input: {

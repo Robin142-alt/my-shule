@@ -6,70 +6,62 @@ type FetchWithSessionRefreshInput<TSession extends RefreshableSession> = {
   accessToken: string;
   send: (accessToken: string) => Promise<Response>;
   refreshSession: () => Promise<TSession>;
+  isRefreshSessionExpired?: (error: unknown) => boolean;
+  consumeResponseBody?: boolean;
 };
 
 type FetchWithSessionRefreshResult<TSession extends RefreshableSession> = {
   response: Response;
   body: ArrayBuffer;
   refreshedSession?: TSession;
+  refreshError?: unknown;
   sessionExpired?: boolean;
 };
 
-function readMessage(responseBody: string) {
-  try {
-    const payload = JSON.parse(responseBody) as { message?: unknown };
-    return typeof payload.message === "string" ? payload.message : "";
-  } catch {
-    return "";
-  }
-}
-
-export function isRefreshableSessionFailure(status: number, responseBody: string) {
-  const message = readMessage(responseBody).toLowerCase();
-
-  if (status === 401) {
-    return (
-      message.includes("token validation failed") ||
-      message.includes("access token") ||
-      message.includes("session is no longer valid")
-    );
-  }
-
-  return status === 403 && message.includes("permission-based access denied");
+export function isRefreshableSessionFailure(status: number, _responseBody: string) {
+  return status === 401;
 }
 
 export async function fetchWithSessionRefresh<TSession extends RefreshableSession>(
   input: FetchWithSessionRefreshInput<TSession>,
 ): Promise<FetchWithSessionRefreshResult<TSession>> {
   const firstResponse = await input.send(input.accessToken);
-  const firstBody = await firstResponse.arrayBuffer();
-  const firstResponseText =
-    firstResponse.status === 401 || firstResponse.status === 403
-      ? new TextDecoder().decode(firstBody)
-      : "";
 
-  if (!isRefreshableSessionFailure(firstResponse.status, firstResponseText)) {
+  if (!isRefreshableSessionFailure(firstResponse.status, "")) {
     return {
       response: firstResponse,
-      body: firstBody,
+      body: await readResponseBody(firstResponse, input.consumeResponseBody),
     };
   }
+
+  const firstBody = await readResponseBody(firstResponse, input.consumeResponseBody);
 
   try {
     const refreshedSession = await input.refreshSession();
     const retryResponse = await input.send(refreshedSession.accessToken);
-    const retryBody = await retryResponse.arrayBuffer();
 
     return {
       response: retryResponse,
-      body: retryBody,
+      body: await readResponseBody(retryResponse, input.consumeResponseBody),
       refreshedSession,
+      sessionExpired: retryResponse.status === 401 ? true : undefined,
     };
-  } catch {
+  } catch (error) {
+    const sessionExpired = input.isRefreshSessionExpired
+      ? input.isRefreshSessionExpired(error)
+      : firstResponse.status === 401;
+
     return {
       response: firstResponse,
       body: firstBody,
-      sessionExpired: firstResponse.status === 401 ? true : undefined,
+      refreshError: error,
+      sessionExpired: sessionExpired ? true : undefined,
     };
   }
+}
+
+function readResponseBody(response: Response, consumeResponseBody = true) {
+  return consumeResponseBody
+    ? response.arrayBuffer()
+    : Promise.resolve(new ArrayBuffer(0));
 }

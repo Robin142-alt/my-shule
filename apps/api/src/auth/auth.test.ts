@@ -4,9 +4,11 @@ import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 
 import { RequestContextService } from '../common/request-context/request-context.service';
 import { DEFAULT_PERMISSION_CATALOG, DEFAULT_ROLE_CATALOG } from './auth.constants';
+import type { IssuedTokenPair } from './auth.interfaces';
 import { AuthService } from './auth.service';
 import { TENANT_INVITABLE_ROLE_CODES } from './dto/tenant-invitation.dto';
 import { AuthorizationRepository } from './repositories/authorization.repository';
+import { SessionService } from './session.service';
 
 test('AuthService register rejects direct self-service account creation', async () => {
   const requestContext = new RequestContextService();
@@ -1505,6 +1507,146 @@ test('AuthService allows the contract demo MFA bypass only for kb-high demo user
     if (previousBypass === undefined) delete process.env.AUTH_CONTRACT_DEMO_MFA_BYPASS;
     else process.env.AUTH_CONTRACT_DEMO_MFA_BYPASS = previousBypass;
   }
+});
+
+const SESSION_ROTATION_ID = 'session-rotation-1';
+const SESSION_ROTATION_USER_ID = 'user-rotation-1';
+const SESSION_ROTATION_TENANT_ID = 'school-rotation-1';
+const SESSION_ROTATION_CLIENT_IP = '127.0.0.1';
+const SESSION_ROTATION_CLIENT_AGENT = 'MyShule session test';
+
+function createSessionRotationTokenPair(refreshTokenId: string): IssuedTokenPair {
+  return {
+    access_token: `access-${refreshTokenId}`,
+    refresh_token: `refresh-${refreshTokenId}`,
+    token_type: 'Bearer',
+    access_expires_in: 15 * 60,
+    refresh_expires_in: 30 * 24 * 60 * 60,
+    access_expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    refresh_expires_at: new Date(
+      Date.now() + 30 * 24 * 60 * 60 * 1000,
+    ).toISOString(),
+    access_token_id: `access-id-${refreshTokenId}`,
+    refresh_token_id: refreshTokenId,
+    session_id: SESSION_ROTATION_ID,
+  };
+}
+
+async function createDegradedSessionService() {
+  const service = new SessionService(
+    {
+      isDegraded: () => true,
+    } as never,
+    {
+      get: (key: string) =>
+        key === 'auth.refreshTokenRotationGraceSeconds' ? 30 : undefined,
+    } as never,
+  );
+
+  await service.createSession({
+    user_id: SESSION_ROTATION_USER_ID,
+    tenant_id: SESSION_ROTATION_TENANT_ID,
+    role: 'teacher',
+    audience: 'school',
+    permissions: ['academics:read'],
+    session_id: SESSION_ROTATION_ID,
+    is_authenticated: true,
+    email_verified_at: new Date().toISOString(),
+    refresh_token_id: 'refresh-0',
+    refresh_expires_at: new Date(
+      Date.now() + 30 * 24 * 60 * 60 * 1000,
+    ).toISOString(),
+    ip_address: SESSION_ROTATION_CLIENT_IP,
+    user_agent: SESSION_ROTATION_CLIENT_AGENT,
+  });
+
+  return service;
+}
+
+function createSessionRotationInput(nextTokenPair: IssuedTokenPair) {
+  return {
+    session_id: SESSION_ROTATION_ID,
+    current_refresh_token_id: 'refresh-0',
+    next_token_pair: nextTokenPair,
+    role: 'teacher',
+    permissions: ['academics:read'],
+    email_verified_at: new Date().toISOString(),
+    ip_address: SESSION_ROTATION_CLIENT_IP,
+    user_agent: SESSION_ROTATION_CLIENT_AGENT,
+  };
+}
+
+test('concurrent refresh requests return the exact same rotated token pair', async () => {
+  const service = await createDegradedSessionService();
+  const firstCandidate = createSessionRotationTokenPair('refresh-1');
+  const secondCandidate = createSessionRotationTokenPair('refresh-2');
+
+  const [first, second] = await Promise.all([
+    service.rotateRefreshToken(createSessionRotationInput(firstCandidate)),
+    service.rotateRefreshToken(createSessionRotationInput(secondCandidate)),
+  ]);
+
+  assert.equal(first.replayed, false);
+  assert.equal(second.replayed, true);
+  assert.deepEqual(second.token_pair, firstCandidate);
+  assert.equal(
+    (await service.getSession(SESSION_ROTATION_ID))?.refresh_token_id,
+    'refresh-1',
+  );
+});
+
+test('refresh replay from a different client invalidates the session', async () => {
+  const service = await createDegradedSessionService();
+
+  await service.rotateRefreshToken(
+    createSessionRotationInput(createSessionRotationTokenPair('refresh-1')),
+  );
+
+  await assert.rejects(
+    () =>
+      service.rotateRefreshToken({
+        ...createSessionRotationInput(
+          createSessionRotationTokenPair('refresh-2'),
+        ),
+        ip_address: '203.0.113.10',
+        user_agent: 'Unexpected client',
+      }),
+    (error: unknown) =>
+      error instanceof UnauthorizedException
+      && error.message === 'Refresh token reuse detected',
+  );
+  assert.equal(await service.getSession(SESSION_ROTATION_ID), null);
+});
+
+test('refresh replay outside the grace period invalidates the session', async () => {
+  const service = await createDegradedSessionService();
+
+  await service.rotateRefreshToken(
+    createSessionRotationInput(createSessionRotationTokenPair('refresh-1')),
+  );
+
+  const rotations = (
+    service as unknown as {
+      fallbackRefreshRotations: Map<string, { expires_at: number }>;
+    }
+  ).fallbackRefreshRotations;
+
+  for (const replay of rotations.values()) {
+    replay.expires_at = Date.now() - 1;
+  }
+
+  await assert.rejects(
+    () =>
+      service.rotateRefreshToken(
+        createSessionRotationInput(
+          createSessionRotationTokenPair('refresh-2'),
+        ),
+      ),
+    (error: unknown) =>
+      error instanceof UnauthorizedException
+      && error.message === 'Refresh token reuse detected',
+  );
+  assert.equal(await service.getSession(SESSION_ROTATION_ID), null);
 });
 
 test('AuthService never honors the contract demo MFA bypass in production', async () => {

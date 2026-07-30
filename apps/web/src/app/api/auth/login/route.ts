@@ -3,7 +3,10 @@ import type { NextRequest } from "next/server";
 
 import { validateCsrfRequest } from "@/lib/auth/csrf";
 import { isExperienceAudience } from "@/lib/auth/experience-audience";
-import { createServerAuthClient } from "@/lib/auth/server-auth-client";
+import {
+  createServerAuthClient,
+  getServerAuthErrorStatus,
+} from "@/lib/auth/server-auth-client";
 import {
   setExperienceSessionCookies,
   toPublicExperienceGatewaySession,
@@ -24,6 +27,7 @@ export async function POST(request: NextRequest) {
       password?: string;
       verificationCode?: string;
       tenantSlug?: string | null;
+      rememberSession?: boolean;
     };
 
     const audience = body.audience ?? null;
@@ -57,7 +61,9 @@ export async function POST(request: NextRequest) {
       user: session.user,
     });
 
-    setExperienceSessionCookies(response, session);
+    setExperienceSessionCookies(response, session, {
+      rememberSession: body.rememberSession === true,
+    });
 
     return response;
   } catch (error) {
@@ -68,7 +74,7 @@ export async function POST(request: NextRequest) {
             ? error.message
             : "Unable to sign in right now.",
       },
-      { status: 401 },
+      { status: getServerAuthErrorStatus(error) },
     );
   }
 }

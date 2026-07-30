@@ -49,15 +49,15 @@ test('Implementation 100 certification fails when a live module proxy is missing
   );
 });
 
-test('Implementation 100 certification recognizes existing proxy and schema evidence styles', () => {
+test('Implementation 100 certification recognizes shared proxy and schema evidence styles', () => {
   const result = runImplementation100Certification({
     workspaceRoot: '/',
     generatedAt: '2026-05-21T00:00:00.000Z',
     sourceOverrides: {
       ...buildPassingSources(),
       'apps/web/src/app/api/school/[...path]/route.ts': 'proxySchoolApiRequest(request, context, "/school")',
-      'apps/web/src/app/api/payments/[...path]/route.ts': 'proxyPaymentsRequest paymentsPath = `/payments/${(params.path ?? []).join("/")}` getDashboardApiBaseUrl',
-      'apps/web/src/app/api/discipline/[...path]/route.ts': 'proxyDisciplineRequest upstreamPath = `/discipline/${(params.path ?? []).join("/")}` getDashboardApiBaseUrl',
+      'apps/web/src/app/api/payments/[...path]/route.ts': 'proxySchoolApiRequest(request, context, "/payments")',
+      'apps/web/src/app/api/discipline/[...path]/route.ts': 'proxySchoolApiRequest(request, context, "/discipline")',
       'apps/api/src/modules/admissions/repositories/admissions.repository.ts': 'FROM admission_applications LEFT JOIN admission_documents FROM student_academic_enrollments',
       'apps/web/src/components/dashboard/dashboard-view.tsx': 'DashboardView DashboardHome role snapshot online',
     },

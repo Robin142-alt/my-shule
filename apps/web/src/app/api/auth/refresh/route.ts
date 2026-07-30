@@ -4,9 +4,16 @@ import type { NextRequest } from "next/server";
 
 import { validateCsrfRequest } from "@/lib/auth/csrf";
 import { isExperienceAudience } from "@/lib/auth/experience-audience";
-import { createServerAuthClient } from "@/lib/auth/server-auth-client";
+import {
+  createServerAuthClient,
+  getServerAuthErrorStatus,
+  isServerAuthUnauthorized,
+} from "@/lib/auth/server-auth-client";
 import {
   clearExperienceSessionCookies,
+  readAudienceCookie,
+  readRememberSessionCookie,
+  readTenantCookie,
   setExperienceSessionCookies,
   toPublicExperienceGatewaySession,
 } from "@/lib/auth/server-session";
@@ -25,7 +32,9 @@ export async function POST(request: NextRequest) {
       tenantSlug?: string | null;
     };
 
-    const audience = body.audience ?? null;
+    const cookieStore = await cookies();
+    const cookieAudience = readAudienceCookie(cookieStore);
+    const audience = body.audience ?? cookieAudience;
 
     if (!isExperienceAudience(audience)) {
       return NextResponse.json(
@@ -34,12 +43,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (cookieAudience && body.audience && cookieAudience !== body.audience) {
+      return NextResponse.json(
+        { message: "Refresh audience does not match the active session." },
+        { status: 400 },
+      );
+    }
+
     const authClient = createServerAuthClient(request);
-    const cookieStore = await cookies();
     const session = await authClient.refresh(
       {
         audience,
-        tenantSlug: body.tenantSlug ?? null,
+        tenantSlug: body.tenantSlug ?? readTenantCookie(cookieStore),
       },
       cookieStore,
     );
@@ -50,7 +65,9 @@ export async function POST(request: NextRequest) {
       user: session.user,
     });
 
-    setExperienceSessionCookies(response, session);
+    setExperienceSessionCookies(response, session, {
+      rememberSession: readRememberSessionCookie(cookieStore),
+    });
 
     return response;
   } catch (error) {
@@ -61,9 +78,11 @@ export async function POST(request: NextRequest) {
             ? error.message
             : "Unable to refresh the current session.",
       },
-      { status: 401 },
+      { status: getServerAuthErrorStatus(error) },
     );
-    clearExperienceSessionCookies(response);
+    if (isServerAuthUnauthorized(error)) {
+      clearExperienceSessionCookies(response);
+    }
     return response;
   }
 }

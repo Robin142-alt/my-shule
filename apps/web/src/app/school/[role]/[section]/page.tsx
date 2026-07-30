@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { cookies } from "next/headers";
 
 import { SchoolPages } from "@/components/school/school-pages";
-import { readAccessCookie } from "@/lib/auth/server-session";
+import { readAccessCookie, readRefreshCookie } from "@/lib/auth/server-session";
 import { getSchoolRoleAlias } from "@/lib/auth/school-role-normalization";
 import type { SchoolExperienceRole } from "@/lib/experiences/types";
 import { isProductionReadyModule } from "@/lib/features/module-readiness";
@@ -60,7 +60,9 @@ export default async function SchoolSectionPage({
     preserveSection: section,
   });
   const cookieStore = await cookies();
-  const liveDataEnabled = Boolean(readAccessCookie(cookieStore));
+  const liveDataEnabled = Boolean(
+    readAccessCookie(cookieStore) || readRefreshCookie(cookieStore),
+  );
 
   return (
     <SchoolPages

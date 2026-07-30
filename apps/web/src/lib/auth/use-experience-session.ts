@@ -11,6 +11,7 @@ type LoginInput = {
   password: string;
   verificationCode?: string;
   tenantSlug?: string | null;
+  rememberSession?: boolean;
 };
 
 type SessionResponse = {
@@ -75,9 +76,20 @@ export function useExperienceSession(
         });
 
         if (!response.ok) {
+          const payload = (await response.json().catch(() => null)) as
+            | { message?: string }
+            | null;
+
           if (!cancelled) {
-            setSession(null);
-            setUser(null);
+            if (response.status === 401) {
+              setSession(null);
+              setUser(null);
+            } else {
+              setError(
+                payload?.message
+                ?? "Unable to verify the current session. Please retry shortly.",
+              );
+            }
           }
           return;
         }

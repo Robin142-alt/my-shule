@@ -1,10 +1,23 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { createHash } from 'node:crypto';
+
+import {
+  ConflictException,
+  Injectable,
+  Optional,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 import { RedisService } from '../infrastructure/redis/redis.service';
 import { AUTH_SESSION_PREFIX } from './auth.constants';
-import { AuthSessionRecord, AuthenticatedPrincipal } from './auth.interfaces';
+import {
+  AuthSessionRecord,
+  AuthenticatedPrincipal,
+  IssuedTokenPair,
+} from './auth.interfaces';
 
 const AUTH_USER_SESSION_PREFIX = 'auth:user-sessions';
+const AUTH_REFRESH_ROTATION_PREFIX = 'auth:refresh-rotation';
 
 interface CreateSessionInput extends AuthenticatedPrincipal {
   email_verified_at: string | null;
@@ -31,12 +44,28 @@ export interface SafeSessionRecord {
   suspicious: boolean;
 }
 
+interface RefreshRotationReplay {
+  client_fingerprint: string;
+  expires_at: number;
+  token_pair: IssuedTokenPair;
+}
+
+export interface RefreshTokenRotationResult {
+  session: AuthSessionRecord;
+  token_pair: IssuedTokenPair;
+  replayed: boolean;
+}
+
 @Injectable()
 export class SessionService {
   private readonly fallbackSessions = new Map<string, AuthSessionRecord>();
   private readonly fallbackUserSessions = new Map<string, Set<string>>();
+  private readonly fallbackRefreshRotations = new Map<string, RefreshRotationReplay>();
 
-  constructor(private readonly redisService: RedisService) {}
+  constructor(
+    private readonly redisService: RedisService,
+    @Optional() private readonly configService?: ConfigService,
+  ) {}
 
   async createSession(input: CreateSessionInput): Promise<AuthSessionRecord> {
     const now = new Date().toISOString();
@@ -144,13 +173,24 @@ export class SessionService {
   async rotateRefreshToken(input: {
     session_id: string;
     current_refresh_token_id: string;
-    next_refresh_token_id: string;
+    next_token_pair: IssuedTokenPair;
     role: string;
     permissions: string[];
     email_verified_at: string | null;
-    refresh_expires_at: string;
-  }): Promise<AuthSessionRecord> {
+    ip_address: string | null;
+    user_agent: string | null;
+  }): Promise<RefreshTokenRotationResult> {
+    const rotationKey = this.getRefreshRotationKey(
+      input.session_id,
+      input.current_refresh_token_id,
+    );
+    const clientFingerprint = this.getClientFingerprint(
+      input.ip_address,
+      input.user_agent,
+    );
+
     if (this.redisService.isDegraded()) {
+      this.pruneFallbackRefreshRotations();
       const currentSession = this.getFallbackSession(input.session_id);
 
       if (!currentSession) {
@@ -158,22 +198,36 @@ export class SessionService {
       }
 
       if (currentSession.refresh_token_id !== input.current_refresh_token_id) {
+        const replay = this.readFallbackRotationReplay(
+          rotationKey,
+          clientFingerprint,
+          currentSession,
+        );
+
+        if (replay) {
+          return {
+            session: currentSession,
+            token_pair: replay.token_pair,
+            replayed: true,
+          };
+        }
+
         this.invalidateFallbackSession(input.session_id);
         throw new UnauthorizedException('Refresh token reuse detected');
       }
 
-      const nextSession: AuthSessionRecord = {
-        ...currentSession,
-        role: input.role,
-        permissions: input.permissions,
-        email_verified_at: input.email_verified_at,
-        refresh_token_id: input.next_refresh_token_id,
-        refresh_expires_at: input.refresh_expires_at,
-        updated_at: new Date().toISOString(),
-      };
+      const nextSession = this.buildRotatedSession(currentSession, input);
 
       this.persistFallbackSession(nextSession);
-      return nextSession;
+      this.fallbackRefreshRotations.set(
+        rotationKey,
+        this.buildRotationReplay(input.next_token_pair, clientFingerprint),
+      );
+      return {
+        session: nextSession,
+        token_pair: input.next_token_pair,
+        replayed: false,
+      };
     }
 
     const redis = this.redisService.getClient();
@@ -193,28 +247,48 @@ export class SessionService {
 
       if (currentSession.refresh_token_id !== input.current_refresh_token_id) {
         await redis.unwatch();
+        const replay = await this.readRedisRotationReplay(
+          rotationKey,
+          clientFingerprint,
+          currentSession,
+        );
+
+        if (replay) {
+          return {
+            session: currentSession,
+            token_pair: replay.token_pair,
+            replayed: true,
+          };
+        }
+
         await this.invalidateSession(input.session_id);
         throw new UnauthorizedException('Refresh token reuse detected');
       }
 
-      const nextSession: AuthSessionRecord = {
-        ...currentSession,
-        role: input.role,
-        permissions: input.permissions,
-        email_verified_at: input.email_verified_at,
-        refresh_token_id: input.next_refresh_token_id,
-        refresh_expires_at: input.refresh_expires_at,
-        updated_at: new Date().toISOString(),
-      };
+      const nextSession = this.buildRotatedSession(currentSession, input);
+      const rotationReplay = this.buildRotationReplay(
+        input.next_token_pair,
+        clientFingerprint,
+      );
 
       const ttlSeconds = this.getSessionTtlSeconds(nextSession.refresh_expires_at);
       const result = await redis
         .multi()
         .set(sessionKey, JSON.stringify(nextSession), 'EX', ttlSeconds)
+        .set(
+          rotationKey,
+          JSON.stringify(rotationReplay),
+          'EX',
+          this.getRefreshRotationGraceSeconds(),
+        )
         .exec();
 
       if (result) {
-        return nextSession;
+        return {
+          session: nextSession,
+          token_pair: input.next_token_pair,
+          replayed: false,
+        };
       }
     }
 
@@ -297,8 +371,117 @@ export class SessionService {
     return `${AUTH_SESSION_PREFIX}:${sessionId}`;
   }
 
+  private getRefreshRotationKey(sessionId: string, tokenId: string): string {
+    return `${AUTH_REFRESH_ROTATION_PREFIX}:${sessionId}:${tokenId}`;
+  }
+
   private getUserSessionKey(userId: string): string {
     return `${AUTH_USER_SESSION_PREFIX}:${userId}`;
+  }
+
+  private buildRotatedSession(
+    currentSession: AuthSessionRecord,
+    input: {
+      next_token_pair: IssuedTokenPair;
+      role: string;
+      permissions: string[];
+      email_verified_at: string | null;
+      ip_address: string | null;
+      user_agent: string | null;
+    },
+  ): AuthSessionRecord {
+    return {
+      ...currentSession,
+      role: input.role,
+      permissions: input.permissions,
+      email_verified_at: input.email_verified_at,
+      refresh_token_id: input.next_token_pair.refresh_token_id,
+      refresh_expires_at: input.next_token_pair.refresh_expires_at,
+      ip_address: input.ip_address ?? currentSession.ip_address,
+      user_agent: input.user_agent ?? currentSession.user_agent,
+      updated_at: new Date().toISOString(),
+    };
+  }
+
+  private buildRotationReplay(
+    tokenPair: IssuedTokenPair,
+    clientFingerprint: string,
+  ): RefreshRotationReplay {
+    return {
+      client_fingerprint: clientFingerprint,
+      expires_at: Date.now() + this.getRefreshRotationGraceSeconds() * 1000,
+      token_pair: tokenPair,
+    };
+  }
+
+  private async readRedisRotationReplay(
+    rotationKey: string,
+    clientFingerprint: string,
+    currentSession: AuthSessionRecord,
+  ): Promise<RefreshRotationReplay | null> {
+    const rawReplay = await this.redisService.getClient().get(rotationKey);
+
+    if (!rawReplay) {
+      return null;
+    }
+
+    const replay = JSON.parse(rawReplay) as RefreshRotationReplay;
+    return this.isValidRotationReplay(replay, clientFingerprint, currentSession)
+      ? replay
+      : null;
+  }
+
+  private readFallbackRotationReplay(
+    rotationKey: string,
+    clientFingerprint: string,
+    currentSession: AuthSessionRecord,
+  ): RefreshRotationReplay | null {
+    const replay = this.fallbackRefreshRotations.get(rotationKey);
+
+    if (!replay) {
+      return null;
+    }
+
+    if (!this.isValidRotationReplay(replay, clientFingerprint, currentSession)) {
+      this.fallbackRefreshRotations.delete(rotationKey);
+      return null;
+    }
+
+    return replay;
+  }
+
+  private isValidRotationReplay(
+    replay: RefreshRotationReplay,
+    clientFingerprint: string,
+    currentSession: AuthSessionRecord,
+  ): boolean {
+    return (
+      replay.expires_at > Date.now() &&
+      replay.client_fingerprint === clientFingerprint &&
+      replay.token_pair.session_id === currentSession.session_id &&
+      replay.token_pair.refresh_token_id === currentSession.refresh_token_id
+    );
+  }
+
+  private getClientFingerprint(
+    ipAddress: string | null,
+    userAgent: string | null,
+  ): string {
+    return createHash('sha256')
+      .update(`${ipAddress?.trim() ?? ''}\n${userAgent?.trim().toLowerCase() ?? ''}`)
+      .digest('hex');
+  }
+
+  private getRefreshRotationGraceSeconds(): number {
+    const configured = Number(
+      this.configService?.get<number>('auth.refreshTokenRotationGraceSeconds') ?? 30,
+    );
+
+    if (!Number.isFinite(configured)) {
+      return 30;
+    }
+
+    return Math.min(120, Math.max(1, Math.floor(configured)));
   }
 
   private getFallbackSession(sessionId: string): AuthSessionRecord | null {
@@ -327,6 +510,13 @@ export class SessionService {
   private invalidateFallbackSession(sessionId: string): void {
     const session = this.fallbackSessions.get(sessionId);
     this.fallbackSessions.delete(sessionId);
+    const rotationPrefix = `${AUTH_REFRESH_ROTATION_PREFIX}:${sessionId}:`;
+
+    for (const rotationKey of this.fallbackRefreshRotations.keys()) {
+      if (rotationKey.startsWith(rotationPrefix)) {
+        this.fallbackRefreshRotations.delete(rotationKey);
+      }
+    }
 
     if (!session) {
       return;
@@ -337,6 +527,16 @@ export class SessionService {
 
     if (userSessions?.size === 0) {
       this.fallbackUserSessions.delete(session.user_id);
+    }
+  }
+
+  private pruneFallbackRefreshRotations(): void {
+    const now = Date.now();
+
+    for (const [rotationKey, replay] of this.fallbackRefreshRotations) {
+      if (replay.expires_at <= now) {
+        this.fallbackRefreshRotations.delete(rotationKey);
+      }
     }
   }
 }

@@ -48,8 +48,26 @@ function inferTenantSlug(request: Request) {
   return resolution.experience === "school" ? resolution.tenantSlug : null;
 }
 
-function unauthorized(message: string) {
-  return new Error(message);
+class ServerAuthRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "ServerAuthRequestError";
+  }
+}
+
+function unauthorized(message: string, status = 401) {
+  return new ServerAuthRequestError(message, status);
+}
+
+export function isServerAuthUnauthorized(error: unknown) {
+  return error instanceof ServerAuthRequestError && error.status === 401;
+}
+
+export function getServerAuthErrorStatus(error: unknown) {
+  return error instanceof ServerAuthRequestError ? error.status : 500;
 }
 
 function getBackendErrorMessage(payload: unknown) {
@@ -219,7 +237,7 @@ async function requestBackendAuth<T>(
   const baseUrl = getServerAuthBaseUrl(tenantSlug);
 
   if (!baseUrl) {
-    throw unauthorized(AUTH_SERVICE_UNAVAILABLE);
+    throw unauthorized(AUTH_SERVICE_UNAVAILABLE, 503);
   }
 
   const controller = new AbortController();
@@ -248,10 +266,10 @@ async function requestBackendAuth<T>(
         response.status >= 500 ||
         message.toLowerCase().includes("application failed to respond")
       ) {
-        throw unauthorized(AUTH_SERVICE_UNAVAILABLE);
+        throw unauthorized(AUTH_SERVICE_UNAVAILABLE, 503);
       }
 
-      throw unauthorized(message);
+      throw unauthorized(message, response.status);
     }
 
     return (await response.json()) as T;
@@ -260,7 +278,7 @@ async function requestBackendAuth<T>(
       error instanceof TypeError ||
       (error instanceof Error && error.name === "AbortError")
     ) {
-      throw unauthorized(AUTH_SERVICE_UNAVAILABLE);
+      throw unauthorized(AUTH_SERVICE_UNAVAILABLE, 503);
     }
 
     throw error;

@@ -185,10 +185,10 @@ export class AuthService {
     if (
       session.user_id !== payload.user_id ||
       session.tenant_id !== payload.tenant_id ||
-      session.refresh_token_id !== payload.token_id
+      session.audience !== audience
     ) {
       await this.sessionService.invalidateSession(payload.session_id);
-      throw new UnauthorizedException('Refresh token reuse detected');
+      throw new UnauthorizedException('Refresh token does not match this session');
     }
 
     const user = await this.usersRepository.findById(payload.user_id);
@@ -219,17 +219,25 @@ export class AuthService {
       session_id: payload.session_id,
     });
 
-    await this.sessionService.rotateRefreshToken({
+    const rotation = await this.sessionService.rotateRefreshToken({
       session_id: payload.session_id,
       current_refresh_token_id: payload.token_id,
-      next_refresh_token_id: tokenPair.refresh_token_id,
+      next_token_pair: tokenPair,
       role: membership.role_code,
       permissions,
       email_verified_at: this.formatEmailVerifiedAt(user),
-      refresh_expires_at: tokenPair.refresh_expires_at,
+      ip_address: metadata.ip_address,
+      user_agent: metadata.user_agent,
     });
+    const activeTokenPair = rotation?.token_pair ?? tokenPair;
 
-    return this.buildAuthResponse(user, membership, permissions, tokenPair, audience);
+    return this.buildAuthResponse(
+      user,
+      membership,
+      permissions,
+      activeTokenPair,
+      audience,
+    );
   }
 
   async logout(): Promise<LogoutResponseDto> {
@@ -376,7 +384,6 @@ export class AuthService {
     refreshToken: string,
     metadata: AuthRequestMetadata,
   ): Promise<AuthResponseDto> {
-    void metadata;
     const payload = await this.tokenService.verifyRefreshToken(refreshToken);
 
     if (payload.tenant_id !== null || payload.audience !== 'superadmin') {
@@ -392,11 +399,10 @@ export class AuthService {
     if (
       session.user_id !== payload.user_id ||
       session.tenant_id !== null ||
-      session.refresh_token_id !== payload.token_id ||
       session.audience !== 'superadmin'
     ) {
       await this.sessionService.invalidateSession(payload.session_id);
-      throw new UnauthorizedException('Refresh token reuse detected');
+      throw new UnauthorizedException('Refresh token does not match this session');
     }
 
     const user = await this.usersRepository.findPlatformOwnerById(payload.user_id);
@@ -416,17 +422,19 @@ export class AuthService {
 
     const permissions = this.resolveEmailVerificationPermissions(user, ['*:*']);
 
-    await this.sessionService.rotateRefreshToken({
+    const rotation = await this.sessionService.rotateRefreshToken({
       session_id: payload.session_id,
       current_refresh_token_id: payload.token_id,
-      next_refresh_token_id: tokenPair.refresh_token_id,
+      next_token_pair: tokenPair,
       role: SUPERADMIN_ROLE_OWNER,
       permissions,
       email_verified_at: this.formatEmailVerifiedAt(user),
-      refresh_expires_at: tokenPair.refresh_expires_at,
+      ip_address: metadata.ip_address,
+      user_agent: metadata.user_agent,
     });
+    const activeTokenPair = rotation?.token_pair ?? tokenPair;
 
-    return this.buildPlatformAuthResponse(user, tokenPair, permissions);
+    return this.buildPlatformAuthResponse(user, activeTokenPair, permissions);
   }
 
   private async createPlatformAuthResponse(

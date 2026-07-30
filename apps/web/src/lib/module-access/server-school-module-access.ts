@@ -5,6 +5,7 @@ import {
 
 export type SchoolModuleAccessFailureReason =
   | "missing_session"
+  | "session_expired"
   | "module_status_unavailable"
   | "module_disabled";
 
@@ -126,14 +127,24 @@ export function getSchoolModuleAccessFailureMessage(state: SchoolModuleAccessSta
     return "";
   }
 
-  return state.reason === "module_status_unavailable"
-    ? MODULE_STATUS_UNAVAILABLE_MESSAGE
-    : MODULE_NOT_ENABLED_MESSAGE;
+  if (state.reason === "module_status_unavailable") {
+    return MODULE_STATUS_UNAVAILABLE_MESSAGE;
+  }
+
+  if (state.reason === "missing_session" || state.reason === "session_expired") {
+    return "Your school session expired. Sign in again to continue.";
+  }
+
+  return MODULE_NOT_ENABLED_MESSAGE;
 }
 
 export function getSchoolModuleAccessFailureStatus(state: SchoolModuleAccessState) {
   if (state.enabled) {
     return 200;
+  }
+
+  if (state.reason === "missing_session" || state.reason === "session_expired") {
+    return 401;
   }
 
   return state.reason === "module_status_unavailable" ? 503 : 403;
@@ -166,7 +177,14 @@ export async function checkSchoolModuleAccess(input: {
     });
 
     return resolveSchoolModuleAccessState(payload, input.moduleCode);
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === "Request failed: 401") {
+      return {
+        enabled: false,
+        reason: "session_expired",
+      };
+    }
+
     return {
       enabled: false,
       reason: "module_status_unavailable",

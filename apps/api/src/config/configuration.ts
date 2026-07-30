@@ -131,6 +131,10 @@ export default () => ({
     systemOwnerEmail: process.env.SYSTEM_OWNER_EMAIL ?? '',
     accessTokenTtlSeconds: parseNumber(process.env.JWT_ACCESS_TOKEN_TTL_SECONDS, 900),
     refreshTokenTtlSeconds: parseNumber(process.env.JWT_REFRESH_TOKEN_TTL_SECONDS, 2592000),
+    refreshTokenRotationGraceSeconds: parseNumber(
+      process.env.JWT_REFRESH_TOKEN_ROTATION_GRACE_SECONDS,
+      30,
+    ),
     bcryptSaltRounds: parseNumber(process.env.BCRYPT_SALT_ROUNDS, 12),
   },
   email: {
