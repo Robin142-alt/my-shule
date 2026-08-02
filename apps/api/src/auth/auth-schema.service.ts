@@ -475,10 +475,21 @@ export class AuthSchemaService implements OnModuleInit {
         tenant_id text NOT NULL,
         user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         role_id uuid NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
-        status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'invited', 'suspended')),
+        status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'invited', 'suspended', 'revoked')),
+        metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW()
       );
+
+      ALTER TABLE tenant_memberships
+        ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE tenant_memberships
+        DROP CONSTRAINT IF EXISTS tenant_memberships_status_check;
+      ALTER TABLE tenant_memberships
+        DROP CONSTRAINT IF EXISTS ck_tenant_memberships_status;
+      ALTER TABLE tenant_memberships
+        ADD CONSTRAINT tenant_memberships_status_check
+        CHECK (status IN ('active', 'invited', 'suspended', 'revoked'));
 
       DROP FUNCTION IF EXISTS app.find_user_by_email_for_auth(text);
       CREATE OR REPLACE FUNCTION app.find_user_by_email_for_auth(input_email text)
@@ -1907,10 +1918,21 @@ export class AuthSchemaService implements OnModuleInit {
         tenant_id text NOT NULL,
         user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         role_id uuid NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
-        status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'invited', 'suspended')),
+        status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'invited', 'suspended', 'revoked')),
+        metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW()
       );
+
+      ALTER TABLE tenant_memberships
+        ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE tenant_memberships
+        DROP CONSTRAINT IF EXISTS tenant_memberships_status_check;
+      ALTER TABLE tenant_memberships
+        DROP CONSTRAINT IF EXISTS ck_tenant_memberships_status;
+      ALTER TABLE tenant_memberships
+        ADD CONSTRAINT tenant_memberships_status_check
+        CHECK (status IN ('active', 'invited', 'suspended', 'revoked'));
 
       CREATE TABLE IF NOT EXISTS auth_action_tokens (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

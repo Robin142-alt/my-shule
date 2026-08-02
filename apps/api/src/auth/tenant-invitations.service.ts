@@ -16,6 +16,7 @@ import {
   TenantManagedUsersResponseDto,
   TenantInvitableRoleCode,
   TenantInvitationResponseDto,
+  UpdateTenantMembershipProfileDto,
 } from './dto/tenant-invitation.dto';
 import { AuthorizationRepository } from './repositories/authorization.repository';
 
@@ -63,10 +64,12 @@ type TenantManagedUserRow = {
   email: string;
   role_code: string;
   role_name: string;
-  status: 'active' | 'suspended' | 'invited' | 'expired';
+  status: 'active' | 'suspended' | 'revoked' | 'invited' | 'expired';
   phone?: string | null;
   department?: string | null;
   assignment?: string | null;
+  tsc_number?: string | null;
+  employment_type?: string | null;
   identifier?: string | null;
   delivery_method?: string | null;
   note?: string | null;
@@ -82,6 +85,12 @@ type PendingInvitationRow = {
   role_name: string;
   invited_by_display_name: string;
   expires_at: Date | string;
+};
+
+type MembershipProfileTargetRow = {
+  user_id: string;
+  display_name: string;
+  email: string;
 };
 
 type InvitationEmailDelivery = {
@@ -283,14 +292,16 @@ export class TenantInvitationsService {
           SELECT
             tm.id::text AS id,
             'member'::text AS kind,
-            u.display_name,
+            COALESCE(NULLIF(tm.metadata->>'display_name', ''), u.display_name) AS display_name,
             lower(u.email) AS email,
             r.code AS role_code,
             r.name AS role_name,
             tm.status,
-            NULL::text AS phone,
-            NULL::text AS department,
-            NULL::text AS assignment,
+            NULLIF(tm.metadata->>'phone', '') AS phone,
+            NULLIF(tm.metadata->>'department', '') AS department,
+            NULLIF(tm.metadata->>'assignment', '') AS assignment,
+            NULLIF(tm.metadata->>'tsc_number', '') AS tsc_number,
+            NULLIF(tm.metadata->>'employment_type', '') AS employment_type,
             NULL::text AS identifier,
             NULL::text AS delivery_method,
             NULL::text AS note,
@@ -303,7 +314,7 @@ export class TenantInvitationsService {
             ON r.id = tm.role_id
            AND r.tenant_id = tm.tenant_id
           WHERE tm.tenant_id = $1
-            AND tm.status IN ('active', 'suspended')
+            AND tm.status IN ('active', 'suspended', 'revoked')
             AND (
               $2::text IS NULL
               OR lower(u.display_name) LIKE $2::text
@@ -325,6 +336,8 @@ export class TenantInvitationsService {
             NULLIF(token.metadata->>'phone', '') AS phone,
             NULLIF(token.metadata->>'department', '') AS department,
             NULLIF(token.metadata->>'assignment', '') AS assignment,
+            NULLIF(token.metadata->>'tsc_number', '') AS tsc_number,
+            NULLIF(token.metadata->>'employment_type', '') AS employment_type,
             NULLIF(token.metadata->>'identifier', '') AS identifier,
             NULLIF(token.metadata->>'delivery_method', '') AS delivery_method,
             NULLIF(token.metadata->>'note', '') AS note,
@@ -355,6 +368,8 @@ export class TenantInvitationsService {
           managed_users.phone,
           managed_users.department,
           managed_users.assignment,
+          managed_users.tsc_number,
+          managed_users.employment_type,
           managed_users.identifier,
           managed_users.delivery_method,
           managed_users.note,
@@ -372,6 +387,8 @@ export class TenantInvitationsService {
             phone,
             department,
             assignment,
+            tsc_number,
+            employment_type,
             identifier,
             delivery_method,
             note,
@@ -390,6 +407,8 @@ export class TenantInvitationsService {
             phone,
             department,
             assignment,
+            tsc_number,
+            employment_type,
             identifier,
             delivery_method,
             note,
@@ -569,13 +588,14 @@ export class TenantInvitationsService {
 
   async updateTenantMembershipStatus(
     membershipId: string,
-    status: 'active' | 'suspended',
+    status: 'active' | 'suspended' | 'revoked',
   ): Promise<TenantManagedUserDto> {
-    if (status !== 'active' && status !== 'suspended') {
-      throw new BadRequestException('Tenant membership status must be active or suspended.');
+    if (status !== 'active' && status !== 'suspended' && status !== 'revoked') {
+      throw new BadRequestException('Tenant membership status must be active, suspended, or revoked.');
     }
 
     const tenantId = this.requireTenantId();
+    const staffStatus = status === 'revoked' ? 'archived' : status;
     return this.databaseService.withRequestTransaction(async () => {
       const result = await this.databaseService.query<TenantManagedUserRow>(
         `
@@ -592,14 +612,16 @@ export class TenantInvitationsService {
           RETURNING
             tm.id::text AS id,
             'member'::text AS kind,
-            u.display_name,
+            COALESCE(NULLIF(tm.metadata->>'display_name', ''), u.display_name) AS display_name,
             lower(u.email) AS email,
             r.code AS role_code,
             r.name AS role_name,
             tm.status,
-            NULL::text AS phone,
-            NULL::text AS department,
-            NULL::text AS assignment,
+            NULLIF(tm.metadata->>'phone', '') AS phone,
+            NULLIF(tm.metadata->>'department', '') AS department,
+            NULLIF(tm.metadata->>'assignment', '') AS assignment,
+            NULLIF(tm.metadata->>'tsc_number', '') AS tsc_number,
+            NULLIF(tm.metadata->>'employment_type', '') AS employment_type,
             NULL::text AS identifier,
             NULL::text AS delivery_method,
             NULL::text AS note,
@@ -634,7 +656,7 @@ export class TenantInvitationsService {
               u.email,
               tm.user_id::text
             ),
-            $3,
+            $5,
             NOW(),
             NOW()
           FROM tenant_memberships tm
@@ -653,7 +675,7 @@ export class TenantInvitationsService {
             status = EXCLUDED.status,
             updated_at = NOW()
         `,
-        [membershipId, tenantId, status, [...SCHOOL_STAFF_ROLE_CODES]],
+        [membershipId, tenantId, status, [...SCHOOL_STAFF_ROLE_CODES], staffStatus],
       );
 
       await this.recordAudit('tenant.membership.status_changed', 'tenant_membership', membership.id, {
@@ -664,6 +686,131 @@ export class TenantInvitationsService {
       });
 
       return membership;
+    });
+  }
+
+  async updateTenantMembershipProfile(
+    membershipId: string,
+    dto: UpdateTenantMembershipProfileDto,
+  ): Promise<TenantManagedUserDto> {
+    const tenantId = this.requireTenantId();
+    const email = dto.email.trim().toLowerCase();
+
+    return this.databaseService.withRequestTransaction(async () => {
+      const targetResult = await this.databaseService.query<MembershipProfileTargetRow>(
+        `
+          SELECT
+            tm.user_id::text AS user_id,
+            COALESCE(NULLIF(tm.metadata->>'display_name', ''), u.display_name) AS display_name,
+            lower(u.email) AS email
+          FROM tenant_memberships tm
+          JOIN users u
+            ON u.id = tm.user_id
+          WHERE tm.id = $1
+            AND tm.tenant_id = $2
+          LIMIT 1
+          FOR UPDATE OF tm, u
+        `,
+        [membershipId, tenantId],
+      );
+      const target = targetResult.rows[0];
+
+      if (!target) {
+        throw new NotFoundException('Tenant membership was not found.');
+      }
+
+      const conflictResult = await this.databaseService.query<{ id: string }>(
+        `
+          SELECT id::text AS id
+          FROM users
+          WHERE lower(email) = $1
+            AND id <> $2
+          LIMIT 1
+        `,
+        [email, target.user_id],
+      );
+
+      if (conflictResult.rows[0]) {
+        throw new BadRequestException('That email address is already used by another MyShule account.');
+      }
+
+      await this.databaseService.query(
+        `
+          UPDATE users
+          SET
+            display_name = $2,
+            full_name = $2,
+            email = $3,
+            updated_at = NOW()
+          WHERE id = $1
+        `,
+        [target.user_id, dto.display_name, email],
+      );
+
+      const result = await this.databaseService.query<TenantManagedUserRow>(
+        `
+          UPDATE tenant_memberships tm
+          SET
+            metadata = COALESCE(tm.metadata, '{}'::jsonb) || jsonb_build_object(
+              'display_name', $3::text,
+              'phone', $4::text,
+              'department', $5::text,
+              'assignment', $6::text,
+              'tsc_number', $7::text,
+              'employment_type', $8::text
+            ),
+            updated_at = NOW()
+          FROM users u, roles r
+          WHERE tm.id = $1
+            AND tm.tenant_id = $2
+            AND u.id = tm.user_id
+            AND r.id = tm.role_id
+            AND r.tenant_id = tm.tenant_id
+          RETURNING
+            tm.id::text AS id,
+            'member'::text AS kind,
+            COALESCE(NULLIF(tm.metadata->>'display_name', ''), u.display_name) AS display_name,
+            lower(u.email) AS email,
+            r.code AS role_code,
+            r.name AS role_name,
+            tm.status,
+            NULLIF(tm.metadata->>'phone', '') AS phone,
+            NULLIF(tm.metadata->>'department', '') AS department,
+            NULLIF(tm.metadata->>'assignment', '') AS assignment,
+            NULLIF(tm.metadata->>'tsc_number', '') AS tsc_number,
+            NULLIF(tm.metadata->>'employment_type', '') AS employment_type,
+            NULL::text AS identifier,
+            NULL::text AS delivery_method,
+            NULL::text AS note,
+            NULL::timestamptz AS expires_at,
+            tm.created_at
+        `,
+        [
+          membershipId,
+          tenantId,
+          dto.display_name,
+          dto.phone ?? '',
+          dto.department ?? '',
+          dto.assignment ?? '',
+          dto.tsc_number ?? '',
+          dto.employment_type ?? '',
+        ],
+      );
+      const membership = result.rows[0];
+
+      if (!membership) {
+        throw new NotFoundException('Tenant membership was not found.');
+      }
+
+      const mappedMembership = this.mapManagedUser(membership);
+      await this.recordAudit('tenant.membership.profile_changed', 'tenant_membership', membership.id, {
+        old_display_name: target.display_name,
+        new_display_name: mappedMembership.display_name,
+        old_email: target.email,
+        new_email: mappedMembership.email,
+      });
+
+      return mappedMembership;
     });
   }
 
@@ -702,14 +849,16 @@ export class TenantInvitationsService {
         RETURNING
           tm.id::text AS id,
           'member'::text AS kind,
-          u.display_name,
+          COALESCE(NULLIF(tm.metadata->>'display_name', ''), u.display_name) AS display_name,
           lower(u.email) AS email,
           r.code AS role_code,
           r.name AS role_name,
           tm.status,
-          NULL::text AS phone,
-          NULL::text AS department,
-          NULL::text AS assignment,
+          NULLIF(tm.metadata->>'phone', '') AS phone,
+          NULLIF(tm.metadata->>'department', '') AS department,
+          NULLIF(tm.metadata->>'assignment', '') AS assignment,
+          NULLIF(tm.metadata->>'tsc_number', '') AS tsc_number,
+          NULLIF(tm.metadata->>'employment_type', '') AS employment_type,
           NULL::text AS identifier,
           NULL::text AS delivery_method,
           NULL::text AS note,
@@ -1094,6 +1243,8 @@ export class TenantInvitationsService {
       phone: row.phone ?? null,
       department: row.department ?? null,
       assignment: row.assignment ?? null,
+      tsc_number: row.tsc_number ?? null,
+      employment_type: row.employment_type ?? null,
       identifier: row.identifier ?? null,
       delivery_method: row.delivery_method ?? null,
       note: row.note ?? null,

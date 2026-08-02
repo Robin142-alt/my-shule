@@ -634,6 +634,138 @@ test('AccountantCommandService builds a live tenant-scoped overview without demo
   }
 });
 
+test('AccountantCommandService reads the expense register inside the authenticated tenant', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new AccountantCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+        role: 'accountant',
+      }),
+    } as never,
+    {
+      executeWithTenant: async (
+        tenantId: string,
+        userId: string | null | undefined,
+        callback: (tx: { $queryRawUnsafe: (sql: string, ...params: unknown[]) => Promise<unknown[]> }) => Promise<unknown>,
+      ) => {
+        assert.equal(tenantId, 'tenant-a');
+        assert.equal(userId, '11111111-1111-4111-8111-111111111111');
+        return callback({
+          $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+            queries.push({ sql, params });
+            if (sql.includes('total_this_month_minor')) {
+              return [{
+                total_this_month_minor: '1250000',
+                pending_approval: '1',
+                approved: '2',
+                total_count: '3',
+              }];
+            }
+            return [{
+              id: '22222222-2222-4222-8222-222222222222',
+              date: new Date('2026-08-02T08:00:00.000Z'),
+              category: 'utilities',
+              description: 'Electricity tokens',
+              amount_minor: '1250000',
+              status: 'pending',
+            }];
+          },
+        });
+      },
+    } as never,
+    {} as never,
+  );
+
+  const response = await service.getExpenses();
+
+  assert.deepEqual(response.metrics, {
+    total_this_month_minor: '1250000',
+    pending_approval: 1,
+    approved: 2,
+    total_count: 3,
+  });
+  assert.equal(response.items[0].description, 'Electricity tokens');
+  assert.equal(response.items[0].amount_minor, '1250000');
+  assert.equal(queries.length, 2);
+  for (const query of queries) {
+    assert.deepEqual(query.params, ['tenant-a']);
+    assert.match(query.sql, /FROM school_expenses/);
+    assert.match(query.sql, /WHERE tenant_id = \$1/);
+  }
+});
+
+test('AccountantCommandService persists an expense before emitting its approval event', async () => {
+  const workflowCalls: any[] = [];
+  const notificationCalls: any[] = [];
+  const queryCalls: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new AccountantCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+        role: 'accountant',
+      }),
+    } as never,
+    {
+      executeWithTenant: async (
+        tenantId: string,
+        userId: string | null | undefined,
+        callback: (tx: { $queryRawUnsafe: (sql: string, ...params: unknown[]) => Promise<unknown[]> }) => Promise<unknown>,
+      ) => {
+        assert.equal(tenantId, 'tenant-a');
+        assert.equal(userId, '11111111-1111-4111-8111-111111111111');
+        return callback({
+          $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+            queryCalls.push({ sql, params });
+            return [{
+              id: '22222222-2222-4222-8222-222222222222',
+              date: new Date('2026-08-02T08:00:00.000Z'),
+              category: 'utilities',
+              description: 'Electricity tokens',
+              amount_minor: '1250000',
+              status: 'pending',
+            }];
+          },
+        });
+      },
+    } as never,
+    {
+      recordWorkflowAction: async (input: any) => {
+        workflowCalls.push(input);
+        return { id: 'event-expense-1', ...input };
+      },
+      notifyRoles: async (tenantId: string, input: any) => {
+        notificationCalls.push({ tenantId, input });
+      },
+    } as never,
+  );
+
+  const response = await service.createExpense({
+    category: 'utilities',
+    description: 'Electricity tokens',
+    amount_minor: '1250000',
+  });
+
+  assert.equal(response.success, true);
+  assert.equal(response.expense.status, 'pending');
+  assert.equal(queryCalls.length, 1);
+  assert.match(queryCalls[0].sql, /INSERT INTO school_expenses/);
+  assert.deepEqual(queryCalls[0].params, [
+    'tenant-a',
+    'utilities',
+    'Electricity tokens',
+    '1250000',
+  ]);
+  assert.equal(workflowCalls.length, 1);
+  assert.equal(workflowCalls[0].eventType, 'accountant.expense_submitted');
+  assert.deepEqual(workflowCalls[0].targetRoles, ['accountant', 'principal']);
+  assert.equal(workflowCalls[0].entityId, '22222222-2222-4222-8222-222222222222');
+  assert.equal(notificationCalls.length, 1);
+  assert.equal(notificationCalls[0].tenantId, 'tenant-a');
+});
+
 test('GuidanceCounsellingCommandService creates real tenant-scoped counselling referrals before workflow events', async () => {
   const writes: Array<{ sql: string; params: unknown[] }> = [];
   const workflowCalls: any[] = [];

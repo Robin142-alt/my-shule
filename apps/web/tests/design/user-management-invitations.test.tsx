@@ -371,6 +371,188 @@ describe("school-scoped user management and invitations", () => {
     );
   }, 30000);
 
+  it("keeps a revoked membership in the deactivated user workspace after a live reload", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+
+      if (url.startsWith("/api/auth/invitations") && method === "GET") {
+        return Promise.resolve(jsonResponse({
+          users: [{
+            id: "membership-revoked-1",
+            kind: "member",
+            display_name: "Deactivated Teacher",
+            email: "deactivated.teacher@example.test",
+            role_code: "teacher",
+            role_name: "Teacher",
+            status: "revoked",
+          }],
+        }));
+      }
+
+      return Promise.resolve(jsonResponse({}));
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    renderWithProviders(<SchoolPages role="principal" tenantSlug="kisumu-boys" />);
+    const commandCenter = await screen.findByTestId("role-operational-command-center");
+    await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
+
+    expect(await within(commandCenter).findByText("Deactivated Teacher")).toBeVisible();
+    expect(within(commandCenter).getByText("1 inactive")).toBeVisible();
+    expect(within(commandCenter).getByText("0 pending invites")).toBeVisible();
+    await user.click(within(commandCenter).getByRole("button", { name: /Suspended \/ Deactivated/i }));
+    expect(within(commandCenter).getByText("Deactivated Teacher")).toBeVisible();
+  }, 30000);
+
+  it("runs user detail, edit, role, status, deactivation, and password recovery actions through live contracts", async () => {
+    const user = userEvent.setup();
+    let currentName = "Mary Wanjiku";
+    let currentRoleCode = "teacher";
+    let currentRoleName = "Teacher";
+    let currentStatus = "active";
+
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+
+      if (url.startsWith("/api/auth/invitations") && method === "GET") {
+        return Promise.resolve(jsonResponse({
+          users: [{
+            id: "membership-actions-1",
+            kind: "member",
+            display_name: currentName,
+            email: "mary.wanjiku@example.test",
+            phone: "0712000000",
+            role_code: currentRoleCode,
+            role_name: currentRoleName,
+            status: currentStatus,
+            department: "Mathematics",
+            assignment: "Form 2 West",
+          }],
+        }));
+      }
+
+      if (url === "/api/auth/csrf") {
+        return Promise.resolve(jsonResponse({ token: "csrf-user-actions-token" }));
+      }
+
+      if (url === "/api/auth/tenant-users/membership-actions-1" && method === "PATCH") {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { display_name?: string; email?: string };
+        currentName = body.display_name ?? currentName;
+        return Promise.resolve(jsonResponse({
+          id: "membership-actions-1",
+          kind: "member",
+          display_name: currentName,
+          email: body.email ?? "mary.wanjiku@example.test",
+          phone: "0712000000",
+          role_code: currentRoleCode,
+          role_name: currentRoleName,
+          status: currentStatus,
+          department: "Mathematics",
+          assignment: "Form 2 West",
+        }));
+      }
+
+      if (url.endsWith("/role") && method === "PATCH") {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { role_code?: string };
+        currentRoleCode = body.role_code ?? currentRoleCode;
+        currentRoleName = currentRoleCode === "librarian" ? "Librarian" : "Teacher";
+        return Promise.resolve(jsonResponse({
+          id: "membership-actions-1",
+          kind: "member",
+          display_name: currentName,
+          email: "mary.wanjiku@example.test",
+          role_code: currentRoleCode,
+          role_name: currentRoleName,
+          status: currentStatus,
+        }));
+      }
+
+      if (url.endsWith("/status") && method === "PATCH") {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { status?: string };
+        currentStatus = body.status ?? currentStatus;
+        return Promise.resolve(jsonResponse({
+          id: "membership-actions-1",
+          kind: "member",
+          display_name: currentName,
+          email: "mary.wanjiku@example.test",
+          role_code: currentRoleCode,
+          role_name: currentRoleName,
+          status: currentStatus,
+        }));
+      }
+
+      if (url === "/api/auth/password-recovery/request" && method === "POST") {
+        return Promise.resolve(jsonResponse({ success: true, message: "Recovery requested." }));
+      }
+
+      return Promise.resolve(jsonResponse({ message: "Unexpected request" }, { status: 500 }));
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    renderWithProviders(<SchoolPages role="principal" tenantSlug="kisumu-boys" />);
+    const commandCenter = await screen.findByTestId("role-operational-command-center");
+    await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
+    expect(await within(commandCenter).findByText("Mary Wanjiku")).toBeVisible();
+
+    await user.click(within(commandCenter).getByRole("button", { name: "Open Invite Form" }));
+    expect(within(commandCenter).getByLabelText("Full name")).toBeVisible();
+    await user.click(within(commandCenter).getByRole("button", { name: "All Users" }));
+
+    await user.click(within(commandCenter).getByRole("button", { name: "View details" }));
+    expect(screen.getByRole("dialog", { name: "Mary Wanjiku details" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Close Mary Wanjiku details" }));
+
+    await user.click(within(commandCenter).getByRole("button", { name: "Edit user" }));
+    const editDialog = screen.getByRole("dialog", { name: "Edit Mary Wanjiku" });
+    await user.clear(within(editDialog).getByLabelText("Name"));
+    await user.type(within(editDialog).getByLabelText("Name"), "Mary Njeri");
+    await user.click(within(editDialog).getByRole("button", { name: "Save User" }));
+    expect(await within(commandCenter).findByText("Mary Njeri updated.")).toBeVisible();
+
+    await user.click(within(commandCenter).getByRole("button", { name: "Change role" }));
+    const roleDialog = screen.getByRole("dialog", { name: "Change role for Mary Njeri" });
+    await user.selectOptions(within(roleDialog).getByLabelText("School role"), "Librarian");
+    await user.click(within(roleDialog).getByRole("button", { name: "Save role" }));
+    expect(await within(commandCenter).findByText(/role changed to Librarian/i)).toBeVisible();
+
+    await user.click(within(commandCenter).getByRole("button", { name: "Suspend" }));
+    await user.click(within(screen.getByRole("dialog", { name: "Suspend Mary Njeri" })).getByRole("button", { name: "Confirm suspended" }));
+    expect(await within(commandCenter).findByText("Mary Njeri is now Suspended.")).toBeVisible();
+
+    await user.click(within(commandCenter).getByRole("button", { name: "Reactivate" }));
+    await user.click(within(screen.getByRole("dialog", { name: "Reactivate Mary Njeri" })).getByRole("button", { name: "Confirm active" }));
+    expect(await within(commandCenter).findByText("Mary Njeri is now Active.")).toBeVisible();
+
+    await user.click(within(commandCenter).getByRole("button", { name: "Deactivate" }));
+    await user.click(within(screen.getByRole("dialog", { name: "Deactivate Mary Njeri" })).getByRole("button", { name: "Confirm deactivated" }));
+    expect(await within(commandCenter).findByText("Mary Njeri is now Deactivated.")).toBeVisible();
+
+    await user.click(within(commandCenter).getByRole("button", { name: "Reset password" }));
+    const resetDialog = screen.getByRole("dialog", { name: "Reset password for Mary Njeri" });
+    await user.click(within(resetDialog).getByRole("button", { name: "Send recovery email" }));
+    expect(await within(commandCenter).findByText(/Password recovery instructions were requested for Mary Njeri/i)).toBeVisible();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/tenant-users/membership-actions-1",
+      expect.objectContaining({ method: "PATCH", body: expect.stringContaining('"display_name":"Mary Njeri"') }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/tenant-users/membership-actions-1/role",
+      expect.objectContaining({ method: "PATCH", body: '{"role_code":"librarian"}' }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/tenant-users/membership-actions-1/status",
+      expect.objectContaining({ method: "PATCH", body: '{"status":"revoked"}' }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/password-recovery/request",
+      expect.objectContaining({ method: "POST", body: expect.stringContaining('"tenantSlug":"kisumu-boys"') }),
+    );
+  }, 30000);
+
   it("does not claim email delivery failed when the invitation API fails after submission", async () => {
     const user = userEvent.setup();
     fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {

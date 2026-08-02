@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { PortalPages } from "@/components/portal/portal-pages";
 import { SchoolPages } from "@/components/school/school-pages";
 import { getSchoolRoleAlias } from "@/lib/auth/school-role-normalization";
+import type { SchoolExperienceRole } from "@/lib/experiences/school-data";
 
 import { renderWithProviders } from "./test-utils";
 
@@ -13,7 +14,7 @@ jest.mock("@/components/school/role-operational-command-center", () => ({
   ),
 }));
 
-const mockLiveRoleIds = new Set([
+const mockLiveRoleIds = new Set<SchoolExperienceRole>([
   "secretary",
   "librarian",
   "storekeeper",
@@ -29,7 +30,7 @@ const mockLiveRoleIds = new Set([
 ]);
 
 jest.mock("@/components/school/live-role-command-center", () => ({
-  isLiveRoleCommandCenterRole: (role: string) => mockLiveRoleIds.has(role),
+  isLiveRoleCommandCenterRole: (role: SchoolExperienceRole) => mockLiveRoleIds.has(role),
   LiveRoleCommandCenter: ({ role, activeSection }: { role: string; activeSection?: string }) => (
     <div data-testid="live-role-command-center" data-role={role}>{role} {activeSection}</div>
   ),

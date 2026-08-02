@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post } from '@nestjs/common';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { AccountantCommandService } from './accountant-command.service';
+import { CreateAccountantExpenseDto } from './dto/create-accountant-expense.dto';
 
 @Controller('admin-command/accountant')
 @RequiresModule('finance')
@@ -17,6 +18,12 @@ export class AccountantCommandController {
   @Get('expenses')
   getExpenses() {
     return this.service.getExpenses();
+  }
+
+  @Post('expenses')
+  @Permissions('finance:write')
+  createExpense(@Body() dto: CreateAccountantExpenseDto) {
+    return this.service.createExpense(dto);
   }
 
   @Post('actions')

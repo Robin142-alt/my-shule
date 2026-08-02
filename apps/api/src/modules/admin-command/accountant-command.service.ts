@@ -1,7 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
+import { CreateAccountantExpenseDto } from './dto/create-accountant-expense.dto';
 
 type AccountantOverviewMetricRow = {
   collected_today_minor: unknown;
@@ -23,6 +24,22 @@ type AccountantOverviewActivityRow = {
   occurred_at: Date | string;
 };
 
+type AccountantExpenseRow = {
+  id: string;
+  date: Date | string;
+  category: string;
+  description: string;
+  amount_minor: unknown;
+  status: string;
+};
+
+type AccountantExpenseMetricRow = {
+  total_this_month_minor: unknown;
+  pending_approval: unknown;
+  approved: unknown;
+  total_count: unknown;
+};
+
 @Injectable()
 export class AccountantCommandService {
   constructor(
@@ -37,14 +54,6 @@ export class AccountantCommandService {
       throw new UnauthorizedException('Tenant context is required');
     }
     return tenantId;
-  }
-
-  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
-    try {
-      return await this.prisma.query<T>(query, params);
-    } catch (e) {
-      return { rows: [], rowCount: 0 };
-    }
   }
 
   async getOverview() {
@@ -224,11 +233,141 @@ export class AccountantCommandService {
 
   async getExpenses() {
     const tenantId = this.requireTenantId();
-    const res = await this.executeSql(
-      `SELECT * FROM finance_expenses WHERE tenant_id = $1 ORDER BY expense_date DESC`,
-      [tenantId]
+    const actorUserId = this.requestContext.getStore()?.user_id;
+
+    return this.prisma.executeWithTenant(tenantId, actorUserId, async (tx) => {
+      const [metricRows, expenseRows] = await Promise.all([
+        tx.$queryRawUnsafe<AccountantExpenseMetricRow[]>(
+          `
+          SELECT
+            COALESCE(
+              SUM(amount_minor) FILTER (
+                WHERE created_at >= date_trunc('month', timezone('Africa/Nairobi', NOW()))
+                  AT TIME ZONE 'Africa/Nairobi'
+              ),
+              0
+            )::text AS total_this_month_minor,
+            COUNT(*) FILTER (WHERE lower(status) IN ('pending', 'pending_approval'))::text AS pending_approval,
+            COUNT(*) FILTER (WHERE lower(status) = 'approved')::text AS approved,
+            COUNT(*)::text AS total_count
+          FROM school_expenses
+          WHERE tenant_id = $1
+          `,
+          tenantId,
+        ),
+        tx.$queryRawUnsafe<AccountantExpenseRow[]>(
+          `
+          SELECT
+            id::text,
+            created_at AS date,
+            category,
+            description,
+            amount_minor::text,
+            status
+          FROM school_expenses
+          WHERE tenant_id = $1
+          ORDER BY created_at DESC
+          LIMIT 100
+          `,
+          tenantId,
+        ),
+      ]);
+      const metrics = metricRows[0] ?? {
+        total_this_month_minor: '0',
+        pending_approval: '0',
+        approved: '0',
+        total_count: '0',
+      };
+
+      return {
+        metrics: {
+          total_this_month_minor: String(metrics.total_this_month_minor ?? '0'),
+          pending_approval: Number(metrics.pending_approval ?? 0),
+          approved: Number(metrics.approved ?? 0),
+          total_count: Number(metrics.total_count ?? 0),
+        },
+        items: expenseRows.map((row) => ({
+          id: row.id,
+          date: row.date instanceof Date ? row.date.toISOString() : String(row.date),
+          category: row.category,
+          description: row.description,
+          amount_minor: String(row.amount_minor ?? '0'),
+          status: row.status,
+        })),
+      };
+    });
+  }
+
+  async createExpense(dto: CreateAccountantExpenseDto) {
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requestContext.getStore()?.user_id;
+    const amountMinor = BigInt(dto.amount_minor);
+
+    if (amountMinor > 9_223_372_036_854_775_807n) {
+      throw new BadRequestException('Expense amount exceeds the supported financial limit');
+    }
+
+    const expense = await this.prisma.executeWithTenant(
+      tenantId,
+      actorUserId,
+      async (tx) => {
+        const rows = await tx.$queryRawUnsafe<AccountantExpenseRow[]>(
+          `
+          INSERT INTO school_expenses (
+            tenant_id,
+            category,
+            description,
+            amount_minor,
+            status
+          )
+          VALUES ($1, $2, $3, $4::bigint, 'pending')
+          RETURNING
+            id::text,
+            created_at AS date,
+            category,
+            description,
+            amount_minor::text,
+            status
+          `,
+          tenantId,
+          dto.category,
+          dto.description,
+          dto.amount_minor,
+        );
+
+        return rows[0];
+      },
     );
-    return res.rows;
+
+    if (!expense) {
+      throw new Error('Expense request could not be persisted');
+    }
+
+    await this.recordAction({
+      action: 'expense_submitted',
+      title: 'Expense submitted for approval',
+      message: `${dto.description} was submitted for principal approval.`,
+      entity_type: 'school_expense',
+      entity_id: expense.id,
+      source_dashboard: 'accountant-expenses-workspace',
+      target_roles: ['accountant', 'principal'],
+      priority: 'high',
+      payload: {
+        category: dto.category,
+        amount_minor: dto.amount_minor,
+        status: expense.status,
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Expense saved and submitted for principal approval.',
+      expense: {
+        ...expense,
+        date: expense.date instanceof Date ? expense.date.toISOString() : String(expense.date),
+        amount_minor: String(expense.amount_minor),
+      },
+    };
   }
 
   async recordAction(dto: any) {

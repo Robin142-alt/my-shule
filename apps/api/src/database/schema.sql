@@ -491,6 +491,7 @@ CREATE TABLE tenant_memberships (
   role_id uuid NOT NULL,
   status text NOT NULL DEFAULT 'active',
   invited_by_user_id uuid,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT NOW(),
   updated_at timestamptz NOT NULL DEFAULT NOW(),
   CONSTRAINT ck_tenant_memberships_tenant_id_non_global CHECK (tenant_id <> 'global'),

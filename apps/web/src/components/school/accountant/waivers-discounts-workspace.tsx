@@ -2,15 +2,28 @@
 
 import { useEffect, useState } from "react";
 import { SchoolExperienceRole } from "@/lib/experiences/school-data";
+import type { StudentFeeBalanceResponse } from "@/components/school/school-pages";
 import { SchoolPageHeader } from "@/components/school/school-page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { buildBillingApiPath, toMinorUnits } from "@/lib/billing/billing-utils";
+import { buildBillingApiPath, formatActivityDate, formatMinorKes, toMinorUnits } from "@/lib/billing/billing-utils";
 import { StatusPill } from "@/components/ui/status-pill";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 type SchoolRouteMode = "hosted" | "public";
+
+type WaiverRow = {
+  id: string;
+  waiver_number: string;
+  student_id: string;
+  student_name: string;
+  class_name: string | null;
+  amount_minor: string;
+  reason: string;
+  status: string;
+  created_at: string;
+};
 
 export function WaiversDiscountsWorkspace({
   role,
@@ -21,7 +34,8 @@ export function WaiversDiscountsWorkspace({
   routeMode?: SchoolRouteMode;
   activeSection?: string;
 }) {
-  const [waivers, setWaivers] = useState<any[]>([]);
+  const [waivers, setWaivers] = useState<WaiverRow[]>([]);
+  const [students, setStudents] = useState<StudentFeeBalanceResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -35,19 +49,21 @@ export function WaiversDiscountsWorkspace({
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(
-        buildBillingApiPath("/api/billing/waivers", tenantSlug),
-        { cache: "no-store" }
-      );
+      const [waiverResponse, studentResponse] = await Promise.all([
+        fetch(buildBillingApiPath("/api/finance/waivers", tenantSlug), { cache: "no-store" }),
+        fetch(buildBillingApiPath("/api/billing/student-balances?limit=50", tenantSlug), { cache: "no-store" }),
+      ]);
 
-      if (!response.ok) {
+      if (!waiverResponse.ok) {
         throw new Error("Unable to load fee waivers for this school.");
       }
 
-      const data = await response.json();
+      const data = await waiverResponse.json();
+      const studentData = studentResponse.ok ? await studentResponse.json() : [];
       setWaivers(Array.isArray(data) ? data : data?.items ?? data?.waivers ?? []);
-    } catch (e: any) {
-      setError(e.message || "An error occurred");
+      setStudents(Array.isArray(studentData) ? studentData : []);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "An error occurred");
     } finally {
       setLoading(false);
     }
@@ -72,11 +88,16 @@ export function WaiversDiscountsWorkspace({
     setSubmitting(true);
 
     try {
+      const selectedStudent = students.find((student) => student.student_id === formDraft.studentId);
+      if (!selectedStudent) {
+        setSubmitError("Select a learner from this school's live fee accounts.");
+        return;
+      }
       const response = await requestDashboardApi<{ message?: string; waiver?: any; request?: any }>("/finance/waivers", {
         method: "POST",
         body: {
           student_id: formDraft.studentId.trim(),
-          student_name: formDraft.studentId.trim(),
+          student_name: selectedStudent.student_name || "Student",
           amount_minor: amountMinor,
           reason: formDraft.reason.trim(),
           source_dashboard: "accountant-waivers-discounts-workspace",
@@ -87,8 +108,8 @@ export function WaiversDiscountsWorkspace({
       setFormDraft({ studentId: "", amount: "", reason: "" });
       await loadWaivers();
       setNotice(response?.message ?? "Fee waiver request submitted.");
-    } catch (e: any) {
-      setSubmitError(e.message || "Failed to submit fee waiver request.");
+    } catch (caught) {
+      setSubmitError(caught instanceof Error ? caught.message : "Failed to submit fee waiver request.");
     } finally {
       setSubmitting(false);
     }
@@ -122,14 +143,19 @@ export function WaiversDiscountsWorkspace({
             rows={waivers}
             getRowKey={(row: any) => row.id || `${row.created_at}-${row.student_name}-${row.amount}`}
             columns={[
-              { id: "created_at", header: "Date", render: (row: any) => row.created_at },
-              { id: "student_name", header: "Student", render: (row: any) => row.student_name },
-              { id: "amount", header: "Amount", render: (row: any) => row.amount },
-              { id: "reason", header: "Reason", render: (row: any) => row.reason },
+              { id: "created_at", header: "Date", render: (row: WaiverRow) => formatActivityDate(row.created_at) },
+              { id: "student_name", header: "Student", render: (row: WaiverRow) => row.student_name },
+              { id: "amount", header: "Amount", render: (row: WaiverRow) => formatMinorKes(row.amount_minor) },
+              { id: "reason", header: "Reason", render: (row: WaiverRow) => row.reason },
               {
                 id: "status",
                 header: "Status",
-                render: (row: any) => <StatusPill tone={row.status === "approved" ? "ok" : "warning"} label={row.status} />,
+                render: (row: WaiverRow) => (
+                  <StatusPill
+                    tone={row.status === "approved" ? "ok" : row.status === "rejected" ? "critical" : "warning"}
+                    label={row.status.replaceAll("_", " ")}
+                  />
+                ),
               },
             ]}
             emptyMessage="No waivers or discounts found."
@@ -146,14 +172,23 @@ export function WaiversDiscountsWorkspace({
           )}
           
           <div className="space-y-1">
-            <label className="text-sm font-medium">Student ID / Name</label>
-            <input
-              type="text"
+            <label htmlFor="waiver-student" className="text-sm font-medium">Learner fee account</label>
+            <select
+              id="waiver-student"
               className="w-full rounded border border-slate-300 p-2 text-sm"
               value={formDraft.studentId}
               onChange={(e) => setFormDraft({ ...formDraft, studentId: e.target.value })}
-              placeholder="e.g. STU-123"
-            />
+            >
+              <option value="">Select learner</option>
+              {students.map((student) => (
+                <option key={student.student_id} value={student.student_id}>
+                  {student.student_name || "Unnamed student"} · Balance {formatMinorKes(student.balance_amount_minor)}
+                </option>
+              ))}
+            </select>
+            {students.length === 0 ? (
+              <p className="mt-1 text-xs text-amber-700">No invoiced learner accounts are available. Generate student invoices before requesting a waiver.</p>
+            ) : null}
           </div>
           
           <div className="space-y-1">
@@ -182,7 +217,7 @@ export function WaiversDiscountsWorkspace({
             <Button type="button" variant="outline" onClick={() => setShowModal(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={submitting || students.length === 0}>
               {submitting ? "Applying..." : "Apply Waiver"}
             </Button>
           </div>

@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
 import { getCsrfToken } from "@/lib/auth/csrf-client";
+import { requestPasswordRecovery } from "@/lib/auth/recovery-client";
 import {
   addSchoolRecord,
   mergeSchoolRecordsById,
@@ -20,6 +21,11 @@ type SchoolUserStatus = "Active" | "Pending" | "Suspended" | "Deactivated";
 type InvitationStatus = "Pending" | "Accepted" | "Expired" | "Revoked" | "Email Failed";
 type UserManagementTab = "users" | "invitations" | "invite" | "roles" | "inactive" | "audit";
 type InviteDeliveryMethod = "SMS" | "Email" | "Copy link";
+type PendingStatusChange = {
+  user: SchoolUserRecord;
+  status: "Active" | "Suspended" | "Deactivated";
+  reason: string;
+};
 
 export type SchoolUserRecord = {
   id: string;
@@ -243,7 +249,7 @@ function initialInviteForm(): InviteFormState {
 
 function apiStatusToUserStatus(status: ManagedUserApi["status"]): SchoolUserStatus {
   if (status === "suspended") return "Suspended";
-  if (status === "deactivated") return "Deactivated";
+  if (status === "deactivated" || status === "revoked") return "Deactivated";
   return "Active";
 }
 
@@ -312,10 +318,12 @@ function splitLiveUsers(payloadUsers: ManagedUserApi[], schoolId: string, actorR
   payloadUsers.forEach((apiUser) => {
     const isInvitation =
       apiUser.kind === "invitation"
-      || apiUser.status === "invited"
-      || apiUser.status === "expired"
-      || apiUser.status === "revoked"
-      || apiUser.status === "accepted";
+      || (apiUser.kind !== "member" && (
+        apiUser.status === "invited"
+        || apiUser.status === "expired"
+        || apiUser.status === "revoked"
+        || apiUser.status === "accepted"
+      ));
 
     if (isInvitation) {
       invitations.push(apiUserToInvitation(apiUser, schoolId, actorRole));
@@ -454,8 +462,12 @@ export function UserManagementWorkspace({
   const [error, setError] = useState<string | null>(null);
   const [selectedDetail, setSelectedDetail] = useState<SchoolUserRecord | UserInvitationRecord | null>(null);
   const [editingUser, setEditingUser] = useState<SchoolUserRecord | null>(null);
+  const [roleChangeUser, setRoleChangeUser] = useState<SchoolUserRecord | null>(null);
+  const [pendingStatusChange, setPendingStatusChange] = useState<PendingStatusChange | null>(null);
+  const [passwordResetUser, setPasswordResetUser] = useState<SchoolUserRecord | null>(null);
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteActionBusy, setInviteActionBusy] = useState<string | null>(null);
+  const [userActionBusy, setUserActionBusy] = useState<string | null>(null);
   const explainManagePermission = () => {
     setNotice(
       actorRole === "Deputy Principal"
@@ -603,58 +615,58 @@ export function UserManagementWorkspace({
       return;
     }
 
-    const updatedAt = nowIso();
-    let nextUser = { ...user, status, statusReason: reason, statusChangedBy: actorName, statusChangedAt: updatedAt };
-
-    if (typeof fetch === "function" && (status === "Active" || status === "Suspended")) {
-      try {
-        const csrfToken = await getCsrfToken();
-        const response = await fetch(`/api/auth/tenant-users/${encodeURIComponent(user.id)}/status`, {
-          method: "PATCH",
-          credentials: "same-origin",
-          headers: {
-            "Content-Type": "application/json",
-            "x-myshule-csrf": csrfToken,
-          },
-          body: JSON.stringify({ status: status === "Active" ? "active" : "suspended" }),
-        });
-        const payload = await response.json().catch(() => null);
-
-        if (!response.ok) {
-          throw new Error(readApiMessage(payload) ?? "Unable to update user status.");
-        }
-
-        const apiUser = readManagedUserPayload(payload);
-        if (apiUser?.id) {
-          nextUser = { ...apiUserToSchoolUser(apiUser, schoolId), statusReason: reason, statusChangedBy: actorName, statusChangedAt: updatedAt };
-        }
-      } catch {
-        setNotice("Live user service could not update status. Saved the change locally for this school.");
-      }
+    if (typeof fetch !== "function") {
+      setError("Live school user management is unavailable in this browser session.");
+      return;
     }
 
-    updateSchoolRecord<SchoolUserRecord>(
-      userModule,
-      user.id,
-      {
-        status: nextUser.status,
+    const busyKey = `status:${user.id}`;
+    setUserActionBusy(busyKey);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const csrfToken = await getCsrfToken();
+      const apiStatus = status === "Active" ? "active" : status === "Suspended" ? "suspended" : "revoked";
+      const response = await fetch(`/api/auth/tenant-users/${encodeURIComponent(user.id)}/status`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "x-myshule-csrf": csrfToken,
+        },
+        body: JSON.stringify({ status: apiStatus }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(readApiMessage(payload) ?? "Unable to update user status.");
+      }
+
+      const apiUser = readManagedUserPayload(payload);
+      if (!apiUser?.id) {
+        throw new Error("The user service returned an incomplete status update.");
+      }
+
+      const updatedAt = nowIso();
+      const nextUser = {
+        ...apiUserToSchoolUser(apiUser, schoolId),
+        status,
         statusReason: reason,
         statusChangedBy: actorName,
         statusChangedAt: updatedAt,
-      },
-      schoolId,
-    );
-    setUsers((current) =>
-      current.map((item) =>
-        item.id === user.id
-          ? { ...item, ...nextUser }
-          : item,
-      ),
-    );
-    addUserAudit(`User ${nextUser.status.toLowerCase()}`, user.name, user.status, nextUser.status, reason);
-    publishUserEvent("USER_STATUS_CHANGED", `User ${nextUser.status.toLowerCase()}`, `${user.name} is now ${nextUser.status.toLowerCase()} in ${schoolName}.`, user.id);
-    setNotice(`${user.name} is now ${nextUser.status}.`);
-    setError(null);
+      };
+      updateSchoolRecord<SchoolUserRecord>(userModule, user.id, nextUser, schoolId);
+      setUsers((current) => current.map((item) => (item.id === user.id ? { ...item, ...nextUser } : item)));
+      addUserAudit(`User ${status.toLowerCase()}`, user.name, user.status, status, reason);
+      publishUserEvent("USER_STATUS_CHANGED", `User ${status.toLowerCase()}`, `${user.name} is now ${status.toLowerCase()} in ${schoolName}.`, user.id);
+      setNotice(`${user.name} is now ${status}.`);
+      setPendingStatusChange(null);
+    } catch (statusError) {
+      setError(statusError instanceof Error ? statusError.message : "Unable to update user status.");
+    } finally {
+      setUserActionBusy(null);
+    }
   }
 
   function removeUser(user: SchoolUserRecord) {
@@ -846,10 +858,36 @@ export function UserManagementWorkspace({
     addUserAudit("Invitation copied", invite.invitedName, undefined, invite.inviteCode, "Invite link copied");
   }
 
-  function resetPassword(user: SchoolUserRecord) {
-    addUserAudit("Password reset link sent", user.name, undefined, "Reset link sent", "School admin requested reset");
-    publishUserEvent("USER_PASSWORD_RESET_SENT", "Password reset link sent", `${user.name} password reset link was sent.`, user.id);
-    setNotice(`Password reset link sent to ${user.name}.`);
+  async function resetPassword(user: SchoolUserRecord) {
+    if (!canManageUsers) {
+      setError("Your account is not allowed to request password resets.");
+      return;
+    }
+
+    if (!user.email || !/\S+@\S+\.\S+/.test(user.email)) {
+      setError(`${user.name} does not have a valid email address for password recovery.`);
+      return;
+    }
+
+    setUserActionBusy(`password:${user.id}`);
+    setError(null);
+    setNotice(null);
+
+    try {
+      await requestPasswordRecovery({
+        audience: user.role === "Parent" || user.role === "Student" ? "portal" : "school",
+        identifier: user.email,
+        tenantSlug: schoolId,
+      });
+      addUserAudit("Password reset requested", user.name, undefined, "Recovery email requested", "School administrator requested password recovery");
+      publishUserEvent("USER_PASSWORD_RESET_REQUESTED", "Password reset requested", `${user.name} password recovery email was requested.`, user.id);
+      setNotice(`Password recovery instructions were requested for ${user.name}.`);
+      setPasswordResetUser(null);
+    } catch (resetError) {
+      setError(resetError instanceof Error ? resetError.message : "Unable to request password recovery.");
+    } finally {
+      setUserActionBusy(null);
+    }
   }
 
   async function saveEditedUser(event: React.FormEvent<HTMLFormElement>) {
@@ -867,45 +905,126 @@ export function UserManagementWorkspace({
       role: String(form.get("role") ?? editingUser.role),
       department: String(form.get("department") ?? "").trim(),
       assignment: String(form.get("assignment") ?? "").trim(),
+      tscNumber: String(form.get("tscNumber") ?? "").trim(),
+      employmentType: String(form.get("employmentType") ?? "").trim(),
     };
 
-    if (!updates.name || !updates.phone || !updates.role) {
-      setError("Name, phone, and role are required before saving.");
+    if (!updates.name || !updates.email || !/\S+@\S+\.\S+/.test(updates.email)) {
+      setError("Name and a valid email are required before saving.");
       return;
     }
 
-    if (typeof fetch === "function" && updates.role !== editingUser.role) {
-      try {
-        const csrfToken = await getCsrfToken();
-        const response = await fetch(`/api/auth/tenant-users/${encodeURIComponent(editingUser.id)}/role`, {
-          method: "PATCH",
-          credentials: "same-origin",
-          headers: {
-            "Content-Type": "application/json",
-            "x-myshule-csrf": csrfToken,
-          },
-          body: JSON.stringify({ role_code: roleCodeForLabel(updates.role) }),
-        });
-
-        if (!response.ok) {
-          throw new Error("Unable to update role.");
-        }
-      } catch {
-        setNotice("Live user service could not update the role. Saved the change locally for this school.");
-      }
+    if (typeof fetch !== "function") {
+      setError("Live school user management is unavailable in this browser session.");
+      return;
     }
 
-    updateSchoolRecord<SchoolUserRecord>(userModule, editingUser.id, updates, schoolId);
-    setUsers((current) => current.map((user) => (user.id === editingUser.id ? { ...user, ...updates } : user)));
-    addUserAudit("User edited", editingUser.name, JSON.stringify({
-      name: editingUser.name,
-      role: editingUser.role,
-      department: editingUser.department,
-    }), JSON.stringify(updates), "User details updated");
-    publishUserEvent("USER_UPDATED", "User updated", `${updates.name} user record was updated.`, editingUser.id);
-    setNotice(`${updates.name} updated.`);
-    setEditingUser(null);
+    setUserActionBusy(`profile:${editingUser.id}`);
     setError(null);
+    setNotice(null);
+
+    try {
+      const response = await fetch(`/api/auth/tenant-users/${encodeURIComponent(editingUser.id)}`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "x-myshule-csrf": await getCsrfToken(),
+        },
+        body: JSON.stringify({
+          display_name: updates.name,
+          email: updates.email.toLowerCase(),
+          phone: updates.phone,
+          department: updates.department,
+          assignment: updates.assignment,
+          tsc_number: updates.tscNumber,
+          employment_type: updates.employmentType,
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(readApiMessage(payload) ?? "Unable to update user details.");
+      }
+
+      const apiUser = readManagedUserPayload(payload);
+      if (!apiUser?.id) {
+        throw new Error("The user service returned an incomplete profile update.");
+      }
+
+      const nextUser = apiUserToSchoolUser(apiUser, schoolId);
+      updateSchoolRecord<SchoolUserRecord>(userModule, editingUser.id, nextUser, schoolId);
+      setUsers((current) => current.map((user) => (user.id === editingUser.id ? { ...user, ...nextUser } : user)));
+      addUserAudit("User edited", editingUser.name, JSON.stringify({
+        name: editingUser.name,
+        email: editingUser.email,
+        department: editingUser.department,
+      }), JSON.stringify({
+        name: nextUser.name,
+        email: nextUser.email,
+        department: nextUser.department,
+      }), "User details updated");
+      publishUserEvent("USER_UPDATED", "User updated", `${nextUser.name} user record was updated.`, editingUser.id);
+      setNotice(`${nextUser.name} updated.`);
+      setEditingUser(null);
+    } catch (editError) {
+      setError(editError instanceof Error ? editError.message : "Unable to update user details.");
+    } finally {
+      setUserActionBusy(null);
+    }
+  }
+
+  async function saveUserRole(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!roleChangeUser) {
+      return;
+    }
+
+    const form = new FormData(event.currentTarget);
+    const role = String(form.get("role") ?? roleChangeUser.role);
+    if (role === roleChangeUser.role) {
+      setRoleChangeUser(null);
+      return;
+    }
+
+    setUserActionBusy(`role:${roleChangeUser.id}`);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await fetch(`/api/auth/tenant-users/${encodeURIComponent(roleChangeUser.id)}/role`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "x-myshule-csrf": await getCsrfToken(),
+        },
+        body: JSON.stringify({ role_code: roleCodeForLabel(role) }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(readApiMessage(payload) ?? "Unable to update user role.");
+      }
+
+      const apiUser = readManagedUserPayload(payload);
+      if (!apiUser?.id) {
+        throw new Error("The user service returned an incomplete role update.");
+      }
+
+      const nextUser = apiUserToSchoolUser(apiUser, schoolId);
+      updateSchoolRecord<SchoolUserRecord>(userModule, roleChangeUser.id, nextUser, schoolId);
+      setUsers((current) => current.map((user) => (user.id === roleChangeUser.id ? { ...user, ...nextUser } : user)));
+      addUserAudit("User role changed", roleChangeUser.name, roleChangeUser.role, nextUser.role, "Role changed by school administrator");
+      publishUserEvent("USER_ROLE_CHANGED", "User role changed", `${nextUser.name} is now assigned the ${nextUser.role} role.`, roleChangeUser.id);
+      setNotice(`${nextUser.name} role changed to ${nextUser.role}.`);
+      setRoleChangeUser(null);
+    } catch (roleError) {
+      setError(roleError instanceof Error ? roleError.message : "Unable to update user role.");
+    } finally {
+      setUserActionBusy(null);
+    }
   }
 
   async function createInvitation(event: React.FormEvent<HTMLFormElement>) {
@@ -1136,20 +1255,19 @@ export function UserManagementWorkspace({
             onStatusFilter={setStatusFilter}
             onDepartmentFilter={setDepartmentFilter}
           />
-          {editingUser ? (
-            <EditUserForm user={editingUser} onCancel={() => setEditingUser(null)} onSubmit={saveEditedUser} />
-          ) : null}
           <UsersTable
             users={filteredUsers}
             canManageUsers={canManageUsers}
+            busyAction={userActionBusy}
             onPermissionDenied={explainManagePermission}
             onView={setSelectedDetail}
             onEdit={setEditingUser}
-            onSuspend={(user) => updateUserStatus(user, "Suspended", "Suspended from school user management")}
-            onDeactivate={(user) => updateUserStatus(user, "Deactivated", "Deactivated from school user management")}
-            onReactivate={(user) => updateUserStatus(user, "Active", "Reactivated by school administrator")}
+            onChangeRole={setRoleChangeUser}
+            onSuspend={(user) => setPendingStatusChange({ user, status: "Suspended", reason: "Suspended from school user management" })}
+            onDeactivate={(user) => setPendingStatusChange({ user, status: "Deactivated", reason: "Deactivated from school user management" })}
+            onReactivate={(user) => setPendingStatusChange({ user, status: "Active", reason: "Reactivated by school administrator" })}
             onRemove={removeUser}
-            onResetPassword={resetPassword}
+            onResetPassword={setPasswordResetUser}
           />
         </Card>
       ) : null}
@@ -1276,14 +1394,16 @@ export function UserManagementWorkspace({
           <UsersTable
             users={inactiveUsers}
             canManageUsers={canManageUsers}
+            busyAction={userActionBusy}
             onPermissionDenied={explainManagePermission}
             onView={setSelectedDetail}
             onEdit={setEditingUser}
-            onSuspend={(user) => updateUserStatus(user, "Suspended", "Suspended from school user management")}
-            onDeactivate={(user) => updateUserStatus(user, "Deactivated", "Deactivated from school user management")}
-            onReactivate={(user) => updateUserStatus(user, "Active", "Reactivated by school administrator")}
+            onChangeRole={setRoleChangeUser}
+            onSuspend={(user) => setPendingStatusChange({ user, status: "Suspended", reason: "Suspended from school user management" })}
+            onDeactivate={(user) => setPendingStatusChange({ user, status: "Deactivated", reason: "Deactivated from school user management" })}
+            onReactivate={(user) => setPendingStatusChange({ user, status: "Active", reason: "Reactivated by school administrator" })}
             onRemove={removeUser}
-            onResetPassword={resetPassword}
+            onResetPassword={setPasswordResetUser}
           />
         </Card>
       ) : null}
@@ -1294,6 +1414,73 @@ export function UserManagementWorkspace({
 
       {selectedDetail ? (
         <DetailPanel record={selectedDetail} onClose={() => setSelectedDetail(null)} />
+      ) : null}
+      {editingUser ? (
+        <UserDialog title={`Edit ${editingUser.name}`} description="Update this school membership and login identity." onClose={() => setEditingUser(null)}>
+          <EditUserForm
+            user={editingUser}
+            busy={userActionBusy === `profile:${editingUser.id}`}
+            onCancel={() => setEditingUser(null)}
+            onSubmit={saveEditedUser}
+          />
+        </UserDialog>
+      ) : null}
+      {roleChangeUser ? (
+        <UserDialog title={`Change role for ${roleChangeUser.name}`} description="The new role takes effect only inside this school." onClose={() => setRoleChangeUser(null)}>
+          <RoleChangeForm
+            user={roleChangeUser}
+            busy={userActionBusy === `role:${roleChangeUser.id}`}
+            onCancel={() => setRoleChangeUser(null)}
+            onSubmit={saveUserRole}
+          />
+        </UserDialog>
+      ) : null}
+      {pendingStatusChange ? (
+        <UserDialog
+          title={`${pendingStatusChange.status === "Active" ? "Reactivate" : pendingStatusChange.status === "Suspended" ? "Suspend" : "Deactivate"} ${pendingStatusChange.user.name}`}
+          description={pendingStatusChange.status === "Deactivated"
+            ? "Deactivation revokes this user’s access to the current school until an administrator reactivates it."
+            : pendingStatusChange.status === "Suspended"
+              ? "Suspension blocks school access but preserves the membership and audit history."
+              : "Reactivation restores this user’s school access."}
+          onClose={() => setPendingStatusChange(null)}
+        >
+          <label className="grid gap-1 text-sm font-bold text-[#40608F]">
+            Reason
+            <textarea
+              value={pendingStatusChange.reason}
+              onChange={(event) => setPendingStatusChange((current) => current ? { ...current, reason: event.currentTarget.value } : null)}
+              className="min-h-20 rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]"
+            />
+          </label>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={!pendingStatusChange.reason.trim() || userActionBusy !== null}
+              onClick={() => void updateUserStatus(pendingStatusChange.user, pendingStatusChange.status, pendingStatusChange.reason.trim())}
+              className="rounded-xl border border-[#BFD7FF] bg-[#EEF6FF] px-4 py-2 text-sm font-black text-[#0B3A7A] disabled:cursor-wait disabled:opacity-60"
+            >
+              {userActionBusy === `status:${pendingStatusChange.user.id}` ? "Saving..." : `Confirm ${pendingStatusChange.status.toLowerCase()}`}
+            </button>
+            <button type="button" onClick={() => setPendingStatusChange(null)} className="rounded-xl border border-[#D7E0EF] bg-white px-4 py-2 text-sm font-black text-[#40608F]">Cancel</button>
+          </div>
+        </UserDialog>
+      ) : null}
+      {passwordResetUser ? (
+        <UserDialog title={`Reset password for ${passwordResetUser.name}`} description={`Send password recovery instructions to ${passwordResetUser.email || "the user’s verified email"}.`} onClose={() => setPasswordResetUser(null)}>
+          <p className="text-sm font-semibold leading-6 text-[#52657F]">MyShule will issue a short-lived recovery link. The current password is never exposed to the school administrator.</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={userActionBusy !== null}
+              onClick={() => void resetPassword(passwordResetUser)}
+              className="rounded-xl border border-[#BFD7FF] bg-[#EEF6FF] px-4 py-2 text-sm font-black text-[#0B3A7A] disabled:cursor-wait disabled:opacity-60"
+            >
+              {userActionBusy === `password:${passwordResetUser.id}` ? "Requesting..." : "Send recovery email"}
+            </button>
+            <button type="button" onClick={() => setPasswordResetUser(null)} className="rounded-xl border border-[#D7E0EF] bg-white px-4 py-2 text-sm font-black text-[#40608F]">Cancel</button>
+          </div>
+        </UserDialog>
       ) : null}
     </div>
   );
@@ -1378,8 +1565,10 @@ function UserFilters({
 function UsersTable({
   users,
   canManageUsers,
+  busyAction,
   onView,
   onEdit,
+  onChangeRole,
   onSuspend,
   onDeactivate,
   onReactivate,
@@ -1389,8 +1578,10 @@ function UsersTable({
 }: {
   users: SchoolUserRecord[];
   canManageUsers: boolean;
+  busyAction: string | null;
   onView: (user: SchoolUserRecord) => void;
   onEdit: (user: SchoolUserRecord) => void;
+  onChangeRole: (user: SchoolUserRecord) => void;
   onSuspend: (user: SchoolUserRecord) => void;
   onDeactivate: (user: SchoolUserRecord) => void;
   onReactivate: (user: SchoolUserRecord) => void;
@@ -1442,19 +1633,19 @@ function UsersTable({
               <td className="px-3 py-3 text-[#52657F]">{displayDate(user.joinedAt)}</td>
               <td className="px-3 py-3">
                 <div className="flex flex-wrap gap-1.5">
-                  <SmallAction label="View details" icon={Eye} onClick={() => onView(user)} />
-                  <SmallAction label="Edit user" onClick={canManageUsers ? () => onEdit(user) : onPermissionDenied} locked={!canManageUsers} />
-                  <SmallAction label="Change role" onClick={canManageUsers ? () => onEdit(user) : onPermissionDenied} locked={!canManageUsers} />
+                  <SmallAction label="View details" icon={Eye} onClick={() => onView(user)} disabled={busyAction !== null} />
+                  <SmallAction label="Edit user" onClick={canManageUsers ? () => onEdit(user) : onPermissionDenied} locked={!canManageUsers} disabled={busyAction !== null} />
+                  <SmallAction label="Change role" onClick={canManageUsers ? () => onChangeRole(user) : onPermissionDenied} locked={!canManageUsers} disabled={busyAction !== null} />
                   {user.status === "Active" ? (
                     <>
-                      <SmallAction label="Suspend" onClick={canManageUsers ? () => onSuspend(user) : onPermissionDenied} locked={!canManageUsers} tone="warning" />
-                      <SmallAction label="Deactivate" onClick={canManageUsers ? () => onDeactivate(user) : onPermissionDenied} locked={!canManageUsers} tone="danger" />
+                      <SmallAction label="Suspend" onClick={canManageUsers ? () => onSuspend(user) : onPermissionDenied} locked={!canManageUsers} disabled={busyAction !== null} tone="warning" />
+                      <SmallAction label="Deactivate" onClick={canManageUsers ? () => onDeactivate(user) : onPermissionDenied} locked={!canManageUsers} disabled={busyAction !== null} tone="danger" />
                     </>
                   ) : (
-                    <SmallAction label="Reactivate" icon={RotateCcw} onClick={canManageUsers ? () => onReactivate(user) : onPermissionDenied} locked={!canManageUsers} />
+                    <SmallAction label="Reactivate" icon={RotateCcw} onClick={canManageUsers ? () => onReactivate(user) : onPermissionDenied} locked={!canManageUsers} disabled={busyAction !== null} />
                   )}
-                  <SmallAction label="Reset password" onClick={() => onResetPassword(user)} />
-                  {user.status === "Deactivated" ? <SmallAction label="Remove" onClick={canManageUsers ? () => onRemove(user) : onPermissionDenied} locked={!canManageUsers} tone="danger" /> : null}
+                  <SmallAction label="Reset password" onClick={canManageUsers ? () => onResetPassword(user) : onPermissionDenied} locked={!canManageUsers} disabled={busyAction !== null} />
+                  {user.status === "Deactivated" ? <SmallAction label="Remove" onClick={canManageUsers ? () => onRemove(user) : onPermissionDenied} locked={!canManageUsers} disabled={busyAction !== null} tone="danger" /> : null}
                 </div>
               </td>
             </tr>
@@ -1666,16 +1857,19 @@ function AuditPanel({ records }: { records: UserManagementAuditRecord[] }) {
 
 function EditUserForm({
   user,
+  busy,
   onCancel,
   onSubmit,
 }: {
   user: SchoolUserRecord;
+  busy: boolean;
   onCancel: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <form className="mt-4 grid gap-3 rounded-xl border border-[#D7E0EF] bg-[#F8FAFC] p-3 md:grid-cols-2 xl:grid-cols-3" onSubmit={onSubmit}>
+    <form className="grid gap-3 md:grid-cols-2" onSubmit={onSubmit}>
       <input type="hidden" name="id" defaultValue={user.id} />
+      <input type="hidden" name="role" defaultValue={user.role} />
       <label className="grid gap-1 text-sm font-bold text-[#40608F]">
         Name
         <input name="name" defaultValue={user.name} className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]" />
@@ -1688,12 +1882,10 @@ function EditUserForm({
         Email
         <input name="email" defaultValue={user.email} className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]" />
       </label>
-      <label className="grid gap-1 text-sm font-bold text-[#40608F]">
+      <div className="grid gap-1 text-sm font-bold text-[#40608F]">
         Role
-        <select name="role" defaultValue={user.role} className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]">
-          {schoolRoles.map((role) => <option key={role}>{role}</option>)}
-        </select>
-      </label>
+        <div className="rounded-xl border border-[#D7E0EF] bg-[#F8FAFC] px-3 py-2 text-sm font-semibold text-[#071D49]">{user.role}</div>
+      </div>
       <label className="grid gap-1 text-sm font-bold text-[#40608F]">
         Department
         <input name="department" defaultValue={user.department} className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]" />
@@ -1704,7 +1896,7 @@ function EditUserForm({
       </label>
       <label className="grid gap-1 text-sm font-bold text-[#40608F]">
         TSC Number
-        <input name="tscNumber" defaultValue={user.tscNumber} placeholder="Teaching staff only" className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]" />
+        <input name="tscNumber" defaultValue={user.tscNumber ?? ""} placeholder="Teaching staff only" className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]" />
       </label>
       <label className="grid gap-1 text-sm font-bold text-[#40608F]">
         Employment Type
@@ -1716,11 +1908,68 @@ function EditUserForm({
           <option value="Non-Teaching">Non-Teaching Staff</option>
         </select>
       </label>
-      <div className="flex flex-wrap gap-2 md:col-span-2 xl:col-span-3">
-        <button type="submit" className="rounded-xl border border-[#BFE8D7] bg-[#ECFDF5] px-4 py-2 text-sm font-black text-[#047857]">Save User</button>
-        <button type="button" onClick={onCancel} className="rounded-xl border border-[#D7E0EF] bg-white px-4 py-2 text-sm font-black text-[#40608F]">Cancel</button>
+      <div className="flex flex-wrap gap-2 md:col-span-2">
+        <button type="submit" disabled={busy} className="rounded-xl border border-[#BFE8D7] bg-[#ECFDF5] px-4 py-2 text-sm font-black text-[#047857] disabled:cursor-wait disabled:opacity-60">{busy ? "Saving..." : "Save User"}</button>
+        <button type="button" disabled={busy} onClick={onCancel} className="rounded-xl border border-[#D7E0EF] bg-white px-4 py-2 text-sm font-black text-[#40608F] disabled:opacity-60">Cancel</button>
       </div>
     </form>
+  );
+}
+
+function RoleChangeForm({
+  user,
+  busy,
+  onCancel,
+  onSubmit,
+}: {
+  user: SchoolUserRecord;
+  busy: boolean;
+  onCancel: () => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <form className="grid gap-4" onSubmit={onSubmit}>
+      <label className="grid gap-1 text-sm font-bold text-[#40608F]">
+        School role
+        <select name="role" defaultValue={user.role} className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]">
+          {schoolRoles.map((role) => <option key={role}>{role}</option>)}
+        </select>
+      </label>
+      <p className="rounded-xl border border-[#BFD7FF] bg-[#EEF6FF] px-3 py-2 text-sm font-semibold text-[#40608F]">Role changes are tenant-scoped, permission-checked, and recorded in the audit log.</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="submit" disabled={busy} className="rounded-xl border border-[#BFE8D7] bg-[#ECFDF5] px-4 py-2 text-sm font-black text-[#047857] disabled:cursor-wait disabled:opacity-60">{busy ? "Saving..." : "Save role"}</button>
+        <button type="button" disabled={busy} onClick={onCancel} className="rounded-xl border border-[#D7E0EF] bg-white px-4 py-2 text-sm font-black text-[#40608F] disabled:opacity-60">Cancel</button>
+      </div>
+    </form>
+  );
+}
+
+function UserDialog({
+  title,
+  description,
+  onClose,
+  children,
+}: {
+  title: string;
+  description: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#071D49]/45 p-4" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose();
+    }}>
+      <section role="dialog" aria-modal="true" aria-label={title} className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-[#D7E0EF] bg-white p-4 shadow-2xl md:p-5">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-black text-[#071D49]">{title}</h3>
+            <p className="mt-1 text-sm font-semibold leading-6 text-[#52657F]">{description}</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label={`Close ${title}`} className="shrink-0 rounded-lg border border-[#D7E0EF] bg-white px-3 py-1.5 text-xs font-black text-[#40608F]">Close</button>
+        </div>
+        {children}
+      </section>
+    </div>
   );
 }
 
@@ -1734,16 +1983,11 @@ function DetailPanel({
   const entries = Object.entries(record).filter(([key]) => !["inviteToken"].includes(key));
 
   return (
-    <Card className="p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#40608F]">Details</p>
-          <h3 className="mt-1 text-lg font-black text-[#071D49]">{"name" in record ? record.name : record.invitedName}</h3>
-        </div>
-        <button type="button" onClick={onClose} className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-black text-[#40608F]">
-          Close
-        </button>
-      </div>
+    <UserDialog
+      title={`${"name" in record ? record.name : record.invitedName} details`}
+      description="Current school-scoped identity, assignment, and access information."
+      onClose={onClose}
+    >
       <dl className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {entries.map(([key, value]) => (
           <div key={key} className="rounded-xl border border-[#D7E0EF] bg-[#F8FAFC] px-3 py-2">
@@ -1752,7 +1996,7 @@ function DetailPanel({
           </div>
         ))}
       </dl>
-    </Card>
+    </UserDialog>
   );
 }
 

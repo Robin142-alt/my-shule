@@ -732,7 +732,7 @@ test('TenantInvitationsService revokes only pending tenant invitations for the c
   assert.deepEqual(queries[0]?.values, ['invite-1', 'green-valley', 'school-admin']);
 });
 
-test('TenantInvitationsService updates tenant membership status for the current tenant', async () => {
+test('TenantInvitationsService deactivates a tenant membership and archives its staff projection', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
 
   const service = new TenantInvitationsService(
@@ -749,7 +749,7 @@ test('TenantInvitationsService updates tenant membership status for the current 
               email: 'principal@example.test',
               role_code: 'admin',
               role_name: 'School admin',
-              status: 'suspended',
+              status: 'revoked',
               expires_at: null,
               created_at: new Date('2026-05-12T09:00:00.000Z'),
             },
@@ -774,18 +774,18 @@ test('TenantInvitationsService updates tenant membership status for the current 
     } as never,
   );
 
-  const response = await service.updateTenantMembershipStatus('membership-1', 'suspended');
+  const response = await service.updateTenantMembershipStatus('membership-1', 'revoked');
 
-  assert.equal(response.status, 'suspended');
+  assert.equal(response.status, 'revoked');
   assert.equal(response.display_name, 'Mary Wanjiku');
   assert.match(queries[0]?.text ?? '', /UPDATE tenant_memberships/);
-  assert.deepEqual(queries[0]?.values, ['membership-1', 'green-valley', 'suspended']);
+  assert.deepEqual(queries[0]?.values, ['membership-1', 'green-valley', 'revoked']);
   assert.match(queries[1]?.text ?? '', /INSERT INTO staff_profiles/);
   assert.match(queries[1]?.text ?? '', /ON CONFLICT \(tenant_id, user_id\)/);
   assert.deepEqual(queries[1]?.values, [
     'membership-1',
     'green-valley',
-    'suspended',
+    'revoked',
     [
       'owner',
       'admin',
@@ -814,6 +814,94 @@ test('TenantInvitationsService updates tenant membership status for the current 
       'admissions_officer',
       'ict_manager',
     ],
+    'archived',
+  ]);
+});
+
+test('TenantInvitationsService updates membership profile data inside the current tenant', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+
+  const service = new TenantInvitationsService(
+    {
+      withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
+      query: async (text: string, values: unknown[]) => {
+        queries.push({ text, values });
+
+        if (/SELECT[\s\S]+FROM tenant_memberships tm[\s\S]+FOR UPDATE OF tm, u/.test(text)) {
+          return { rows: [{ user_id: 'user-1', display_name: 'Mary Wanjiku', email: 'old@example.test' }] };
+        }
+
+        if (/SELECT id::text AS id[\s\S]+FROM users/.test(text)) {
+          return { rows: [] };
+        }
+
+        if (/UPDATE users/.test(text)) {
+          return { rows: [] };
+        }
+
+        return {
+          rows: [
+            {
+              id: 'membership-1',
+              kind: 'member',
+              display_name: 'Mary Njeri',
+              email: 'mary.njeri@example.test',
+              role_code: 'teacher',
+              role_name: 'Teacher',
+              status: 'active',
+              phone: '0712000000',
+              department: 'Mathematics',
+              assignment: 'Form 2 West',
+              tsc_number: 'TSC-100',
+              employment_type: 'TSC',
+              expires_at: null,
+              created_at: new Date('2026-05-12T09:00:00.000Z'),
+            },
+          ],
+        };
+      },
+    } as never,
+    {
+      ensureTenantAuthorizationBaseline: async () => undefined,
+      getRoleByCode: async () => ({ id: 'role-1' }),
+    } as never,
+    {
+      assertTransactionalEmailConfigured: () => undefined,
+      sendInvitationEmail: async () => undefined,
+    } as never,
+    { get: () => undefined } as never,
+    {
+      requireStore: () => ({
+        tenant_id: 'green-valley',
+        user_id: 'school-admin',
+      }),
+    } as never,
+  );
+
+  const response = await service.updateTenantMembershipProfile('membership-1', {
+    display_name: 'Mary Njeri',
+    email: 'mary.njeri@example.test',
+    phone: '0712000000',
+    department: 'Mathematics',
+    assignment: 'Form 2 West',
+    tsc_number: 'TSC-100',
+    employment_type: 'TSC',
+  });
+
+  assert.equal(response.display_name, 'Mary Njeri');
+  assert.equal(response.department, 'Mathematics');
+  assert.deepEqual(queries[0]?.values, ['membership-1', 'green-valley']);
+  assert.deepEqual(queries[1]?.values, ['mary.njeri@example.test', 'user-1']);
+  assert.deepEqual(queries[2]?.values, ['user-1', 'Mary Njeri', 'mary.njeri@example.test']);
+  assert.deepEqual(queries[3]?.values, [
+    'membership-1',
+    'green-valley',
+    'Mary Njeri',
+    '0712000000',
+    'Mathematics',
+    'Form 2 West',
+    'TSC-100',
+    'TSC',
   ]);
 });
 

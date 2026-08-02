@@ -9,6 +9,7 @@ import { FinanceWidgetDataDto } from '../dashboard/dashboard.dto';
 import { EventPublisherService } from '../events/event-publisher.service';
 import { ApprovalsService } from '../approvals/approvals.service';
 import { createHash } from 'node:crypto';
+import { RequestFeeWaiverDto } from './dto/request-fee-waiver.dto';
 
 export class CreatePaymentDto {
 
@@ -671,9 +672,55 @@ export class FinanceController {
     return result.rows[0];
   }
 
+  @Get('waivers')
+  @Permissions('finance:read')
+  async listWaivers() {
+    const tenantId = this.requestContext.requireStore().tenant_id;
+    const result = await this.db.query(
+      `
+      SELECT *
+      FROM (
+        SELECT
+          id::text,
+          waiver_number,
+          student_id::text,
+          student_name,
+          class_name,
+          amount_minor::text,
+          reason,
+          lower(status) AS status,
+          created_at
+        FROM tenant_pending_waivers
+        WHERE tenant_id = $1
+
+        UNION ALL
+
+        SELECT
+          id::text,
+          CONCAT('APR-', UPPER(LEFT(id::text, 8))) AS waiver_number,
+          target_entity_id AS student_id,
+          COALESCE(NULLIF(new_value ->> 'studentName', ''), target_entity_id) AS student_name,
+          NULLIF(new_value ->> 'className', '') AS class_name,
+          COALESCE(NULLIF(new_value ->> 'amountMinor', ''), '0') AS amount_minor,
+          COALESCE(reason, 'Fee waiver approval request') AS reason,
+          lower(status::text) AS status,
+          created_at
+        FROM approval_requests
+        WHERE school_id = $1
+          AND module = 'FINANCE'
+          AND action = 'FEE_WAIVER'
+      ) AS waiver_register
+      ORDER BY created_at DESC
+      LIMIT 100
+      `,
+      [tenantId],
+    );
+    return result.rows;
+  }
+
   @Post('waivers')
   @Permissions('finance:write')
-  async requestWaiver(@Body() dto: any) {
+  async requestWaiver(@Body() dto: RequestFeeWaiverDto) {
     const store = this.requestContext.requireStore();
     const tenantId = store.tenant_id;
     const userId = store.user_id;

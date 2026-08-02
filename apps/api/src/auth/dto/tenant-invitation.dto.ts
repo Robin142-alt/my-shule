@@ -88,14 +88,56 @@ export class CreateTenantInvitationDto {
 
 export class UpdateTenantMembershipStatusDto {
   @IsString()
-  @IsIn(['active', 'suspended'])
-  status!: 'active' | 'suspended';
+  @IsIn(['active', 'suspended', 'revoked'])
+  status!: 'active' | 'suspended' | 'revoked';
 }
 
 export class UpdateTenantMembershipRoleDto {
   @IsString()
   @IsIn(TENANT_INVITABLE_ROLE_CODES)
   role_code!: string;
+}
+
+export class UpdateTenantMembershipProfileDto {
+  @Transform(trim)
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  display_name!: string;
+
+  @Transform(trim)
+  @IsEmail()
+  email!: string;
+
+  @Transform(trim)
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  phone?: string;
+
+  @Transform(trim)
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  department?: string;
+
+  @Transform(trim)
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  assignment?: string;
+
+  @Transform(trim)
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  tsc_number?: string;
+
+  @Transform(trim)
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  employment_type?: string;
 }
 
 export class ListTenantUsersQueryDto {
@@ -112,7 +154,7 @@ export class ListTenantUsersQueryDto {
 
   @Transform(trim)
   @IsOptional()
-  @IsIn(['active', 'suspended', 'invited', 'expired'])
+  @IsIn(['active', 'suspended', 'revoked', 'invited', 'expired'])
   status?: TenantManagedUserStatus;
 
   @Type(() => Number)
@@ -152,7 +194,7 @@ export type TenantInvitationResponseDto = {
   created_at?: string;
 };
 
-export type TenantManagedUserStatus = 'active' | 'suspended' | 'invited' | 'expired';
+export type TenantManagedUserStatus = 'active' | 'suspended' | 'revoked' | 'invited' | 'expired';
 
 export type TenantManagedUserDto = {
   id: string;
@@ -165,6 +207,8 @@ export type TenantManagedUserDto = {
   phone?: string | null;
   department?: string | null;
   assignment?: string | null;
+  tsc_number?: string | null;
+  employment_type?: string | null;
   identifier?: string | null;
   delivery_method?: string | null;
   note?: string | null;

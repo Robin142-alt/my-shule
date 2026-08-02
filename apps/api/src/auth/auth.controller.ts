@@ -23,6 +23,7 @@ import {
   TenantManagedUserDto,
   TenantManagedUsersResponseDto,
   TenantInvitationResponseDto,
+  UpdateTenantMembershipProfileDto,
   UpdateTenantMembershipRoleDto,
   UpdateTenantMembershipStatusDto,
 } from './dto/tenant-invitation.dto';
@@ -160,6 +161,18 @@ export class AuthController {
     return this.tenantInvitationsService.updateTenantMembershipStatus(
       membershipId,
       dto.status,
+    );
+  }
+
+  @Patch('tenant-users/:membershipId')
+  @Permissions('users:write', 'tenant_memberships:write')
+  async updateTenantMembershipProfile(
+    @Param('membershipId') membershipId: string,
+    @Body() dto: UpdateTenantMembershipProfileDto,
+  ): Promise<TenantManagedUserDto> {
+    return this.tenantInvitationsService.updateTenantMembershipProfile(
+      membershipId,
+      dto,
     );
   }
 

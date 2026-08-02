@@ -56,4 +56,59 @@ describe("accountant command center contract", () => {
     expect(service).toContain("WHERE tenant_id = $1");
     expect(service).toMatch(/,\s*tenantId,\s*\);/);
   });
+
+  it("provides a tenant-scoped expense register with validated approval submission", () => {
+    const workspace = readWeb("src/components/school/accountant/expenses-workspace.tsx");
+    const controller = readRepo("apps/api/src/modules/admin-command/accountant-command.controller.ts");
+    const service = readRepo("apps/api/src/modules/admin-command/accountant-command.service.ts");
+    const dto = readRepo("apps/api/src/modules/admin-command/dto/create-accountant-expense.dto.ts");
+
+    expect(workspace).toContain('"/admin-command/accountant/expenses"');
+    expect(workspace).toContain("Submit for approval");
+    expect(workspace).toContain("Expense register");
+    expect(controller).toContain("@Post('expenses')");
+    expect(controller).toContain("@Permissions('finance:write')");
+    expect(service).toContain("INSERT INTO school_expenses");
+    expect(service).toContain("WHERE tenant_id = $1");
+    expect(service).toContain("expense_submitted");
+    expect(service).not.toContain("finance_expenses");
+    expect(dto).toContain("@Matches(/^[1-9][0-9]*$/");
+  });
+
+  it("turns arrears into a searchable statement and guardian follow-up worklist", () => {
+    const workspace = readWeb("src/components/school/accountant/arrears-workspace.tsx");
+
+    expect(workspace).toContain("Collection worklist");
+    expect(workspace).toContain("student_arrears_reminder_requested");
+    expect(workspace).toContain("/statement/export");
+    expect(workspace).toContain("openPrintDocument");
+    expect(workspace).toContain("total_balance_minor: addMinor");
+  });
+
+  it("generates truthful previewable finance report artifacts", () => {
+    const workspace = readWeb("src/components/school/accountant/reports-workspace.tsx");
+    const billingController = readRepo("apps/api/src/modules/billing/billing.controller.ts");
+    const billingService = readRepo("apps/api/src/modules/billing/billing.service.ts");
+
+    expect(workspace).toContain("Preview & print");
+    expect(workspace).toContain("Download CSV");
+    expect(workspace).toContain("openPrintDocument");
+    expect(workspace).toContain("checksum_sha256");
+    expect(billingController).toContain("return this.billingService.exportStudentBalancesCsv()");
+    expect(billingService).toContain("async exportStudentBalancesCsv");
+    expect(billingService).toContain("createCsvReportArtifact");
+    expect(billingController).not.toContain("For now return raw JSON from listStudentBalances");
+  });
+
+  it("selects fee waiver learners from live school accounts", () => {
+    const workspace = readWeb("src/components/school/accountant/waivers-discounts-workspace.tsx");
+    const controller = readRepo("apps/api/src/modules/finance/finance.controller.ts");
+
+    expect(workspace).toContain("Learner fee account");
+    expect(workspace).toContain('/api/finance/waivers');
+    expect(workspace).toContain('/api/billing/student-balances?limit=50');
+    expect(workspace).not.toContain("Student ID / Name");
+    expect(controller).toContain("async listWaivers()");
+    expect(controller).toContain("FROM tenant_pending_waivers");
+  });
 });

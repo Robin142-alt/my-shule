@@ -710,6 +710,48 @@ export class BillingService {
       .slice(0, limit);
   }
 
+  async exportStudentBalancesCsv() {
+    const balances: StudentFeeBalanceResponseDto[] = [];
+    const pageSize = 50;
+
+    for (let offset = 0; ; offset += pageSize) {
+      const page = await this.listStudentBalances({ limit: pageSize, offset });
+      balances.push(...page);
+
+      if (page.length < pageSize) {
+        break;
+      }
+    }
+
+    return createCsvReportArtifact({
+      reportId: 'student-balances',
+      title: 'Student fee balances',
+      filename: `student-fee-balances-${new Date().toISOString().slice(0, 10)}.csv`,
+      headers: [
+        'Student',
+        'Student ID',
+        'Currency',
+        'Invoiced Minor',
+        'Paid Minor',
+        'Credit Minor',
+        'Balance Minor',
+        'Invoice Count',
+        'Last Activity',
+      ],
+      rows: balances.map((balance) => [
+        balance.student_name,
+        balance.student_id,
+        balance.currency_code,
+        balance.invoiced_amount_minor,
+        balance.paid_amount_minor,
+        balance.credit_amount_minor,
+        balance.balance_amount_minor,
+        balance.invoice_count,
+        balance.last_activity_at,
+      ]),
+    });
+  }
+
   async getStudentStatement(studentId: string): Promise<StudentFeeStatementResponseDto> {
     const normalizedStudentId = studentId.trim();
 

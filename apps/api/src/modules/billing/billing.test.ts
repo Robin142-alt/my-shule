@@ -1698,6 +1698,82 @@ test('BillingService lists student balances from tenant-scoped aggregate summari
   assert.equal(response[0].balance_amount_minor, '65000');
 });
 
+test('BillingService exports tenant-scoped student balances as a verifiable CSV artifact', async () => {
+  const requestContext = new RequestContextService();
+  const studentId = '00000000-0000-0000-0000-000000000803';
+  let tenantUsed: string | null = null;
+
+  const service = new BillingService(
+    requestContext,
+    {} as never,
+    { invalidateTenant: async (): Promise<void> => undefined } as never,
+    {
+      buildOverview: () => ({}),
+      ensureCurrentLifecycle: async () => ({ subscription: null, overview: null }),
+      getNextRenewalWindow: () => ({
+        start_at: new Date('2026-05-01T00:00:00.000Z'),
+        end_at: new Date('2026-05-31T00:00:00.000Z'),
+      }),
+      toResponse: () => ({}),
+    } as never,
+    { listSubscriptionNotifications: async () => [] } as never,
+    {} as never,
+    {
+      listStudentBalanceSummaries: async (
+        tenantId: string,
+        options: { limit?: number; offset?: number },
+      ) => {
+        tenantUsed = tenantId;
+        assert.deepEqual(options, { limit: 50, offset: 0 });
+        return [{
+          tenant_id: tenantId,
+          student_id: studentId,
+          student_name: 'Akinyi Learner',
+          currency_code: 'KES',
+          invoiced_amount_minor: '250000',
+          paid_amount_minor: '100000',
+          invoice_count: 2,
+          last_activity_at: new Date('2026-05-16T09:00:00.000Z'),
+        }];
+      },
+    } as never,
+    undefined,
+    {
+      listUnappliedCreditSummaries: async () => [],
+    } as never,
+  );
+
+  const artifact = await requestContext.run(
+    {
+      request_id: 'req-student-balance-export',
+      tenant_id: 'tenant-a',
+      user_id: '00000000-0000-0000-0000-000000000010',
+      role: 'bursar',
+      session_id: 'session-student-balance-export',
+      permissions: ['billing:read'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'GET',
+      path: '/billing/student-balances/csv',
+      started_at: '2026-05-16T00:00:00.000Z',
+    },
+    () => service.exportStudentBalancesCsv(),
+  );
+
+  assert.equal(tenantUsed, 'tenant-a');
+  assert.equal(artifact.report_id, 'student-balances');
+  assert.equal(artifact.content_type, 'text/csv; charset=utf-8');
+  assert.equal(artifact.row_count, 1);
+  assert.match(artifact.filename, /^student-fee-balances-\d{4}-\d{2}-\d{2}\.csv$/);
+  assert.match(artifact.csv, /Student,Student ID,Currency,Invoiced Minor,Paid Minor,Credit Minor,Balance Minor/);
+  assert.match(artifact.csv, /Akinyi Learner,00000000-0000-0000-0000-000000000803,KES,250000,100000,0,150000,2/);
+  assert.equal(
+    artifact.checksum_sha256,
+    createHash('sha256').update(artifact.csv).digest('hex'),
+  );
+});
+
 test('BillingService builds a student fee statement with running balances and pending receipts', async () => {
   const requestContext = new RequestContextService();
   const studentId = '00000000-0000-0000-0000-000000000802';
