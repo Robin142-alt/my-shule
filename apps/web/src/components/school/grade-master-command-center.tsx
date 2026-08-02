@@ -4,7 +4,6 @@
 import { useState, useEffect, type ReactNode } from "react";
 import {
   AlertTriangle,
-  Banknote,
   Bell,
   BookMarked,
   BookOpenCheck,
@@ -42,7 +41,7 @@ import { toast } from "sonner";
 
 type GradeRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
-type GradeView = "overview" | "learners" | "streams" | "attendance" | "academics" | "exams" | "discipline" | "welfare" | "fees" | "communication" | "meetings" | "timetable" | "assignments" | "requests" | "reports" | "notifications" | "teaching" | "settings";
+type GradeView = "overview" | "learners" | "streams" | "attendance" | "academics" | "exams" | "discipline" | "welfare" | "communication" | "meetings" | "timetable" | "assignments" | "requests" | "reports" | "notifications" | "teaching" | "settings";
 type GradeActionTone = "success" | "info" | "warning" | "danger";
 type GradeOverviewData = {
   total_learners?: string | number;
@@ -52,7 +51,6 @@ type GradeOverviewData = {
   streams_covered?: string | number;
   open_discipline_cases?: string | number;
   academic_risk_learners?: string | number;
-  fee_arrears_watchlist?: string | number;
   pending_parent_followups?: string | number;
   reports_not_ready?: string | number;
 };
@@ -120,15 +118,6 @@ type GradeWelfareRow = {
   priority: string;
   assigned_to: string;
   status: string;
-};
-
-type GradeFeeRow = {
-  id: string;
-  learner: string;
-  stream: string;
-  fee_balance: string;
-  promise_date: string;
-  report_block: string;
 };
 
 type GradeCommunicationRow = {
@@ -212,7 +201,6 @@ const navItems: NavItem[] = [
   { id: "exams", label: "Exams & Report Readiness", icon: ClipboardCheck, group: "Academics" },
   { id: "discipline", label: "Discipline & Behaviour", icon: ShieldAlert, group: "Student Welfare" },
   { id: "welfare", label: "Welfare & Counselling", icon: HeartPulse, group: "Student Welfare" },
-  { id: "fees", label: "Fees Watchlist", icon: Banknote, group: "Administration" },
   { id: "communication", label: "Parent Communication", icon: MessageCircle, group: "Communication" },
   { id: "meetings", label: "Meetings & Follow-ups", icon: CalendarDays, group: "Communication" },
   { id: "timetable", label: "Timetable & Lessons", icon: CalendarClock, group: "Planning" },
@@ -223,6 +211,11 @@ const navItems: NavItem[] = [
   { id: "teaching", label: "My Teaching Workspace", icon: BookMarked, group: "System" },
   { id: "settings", label: "Settings", icon: Settings, group: "System" },
 ];
+
+function normalizeGradeView(activeSection?: string): GradeView {
+  const candidate = activeSection && activeSection !== "dashboard" ? activeSection : "overview";
+  return navItems.some((item) => item.id === candidate) ? (candidate as GradeView) : "overview";
+}
 
 const toneClasses: Record<Tone, { card: string; chip: string; dot: string; text: string }> = {
   success: {
@@ -564,7 +557,7 @@ function LearnerProfileDrawer({ learner, onClose }: { learner: GradeLearnerRow |
   const learnerLabel = learner.learner;
 
   const handleRecordLearnerConcern = async () => {
-    const riskCategory = window.prompt("Risk category, for example attendance, academic, welfare, or fees")?.trim();
+    const riskCategory = window.prompt("Risk category, for example attendance, academic, welfare, or discipline")?.trim();
     if (!riskCategory) {
       toast.error("Risk category is required before saving a learner concern.");
       return;
@@ -733,7 +726,7 @@ function LearnerProfileDrawer({ learner, onClose }: { learner: GradeLearnerRow |
         </header>
         <div className="p-4 space-y-6">
           <section className="flex flex-wrap gap-2">
-            <button type="button" className="rounded-full bg-[#071D49] px-3 py-1.5 text-xs font-black text-white" onClick={() => sendGradeNotification({ action: "parent_message_sent", title: "Parent message queued", message: `${learnerLabel} needs a grade-master follow-up covering attendance, academics, welfare, or fees.`, targetRoles: ["parent", "grade_master", "secretary"], priority: "normal", payload: { learnerId: learner.id, admissionNumber: learner.admission_number, stream: learner.stream } })}>Message Parent</button>
+            <button type="button" className="rounded-full bg-[#071D49] px-3 py-1.5 text-xs font-black text-white" onClick={() => sendGradeNotification({ action: "parent_message_sent", title: "Parent message queued", message: `${learnerLabel} needs a grade-master follow-up covering attendance, academics, welfare, or discipline.`, targetRoles: ["parent", "grade_master", "secretary"], priority: "normal", payload: { learnerId: learner.id, admissionNumber: learner.admission_number, stream: learner.stream } })}>Message Parent</button>
             <button type="button" disabled={pendingAction !== null} className="rounded-full border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49] disabled:opacity-60" onClick={handleRecordLearnerConcern}>{pendingAction === "concern" ? "Saving..." : "Record Concern"}</button>
             <button type="button" disabled={pendingAction !== null} className="rounded-full border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49] disabled:opacity-60" onClick={handleScheduleLearnerMeeting}>{pendingAction === "meeting" ? "Scheduling..." : "Schedule Meeting"}</button>
             <button type="button" disabled={pendingAction !== null} className="rounded-full border border-rose-200 text-rose-700 bg-rose-50 px-3 py-1.5 text-xs font-black disabled:opacity-60" onClick={handleEscalateLearnerToDeputy}>{pendingAction === "deputy" ? "Escalating..." : "Escalate to Deputy"}</button>
@@ -1256,26 +1249,6 @@ function WelfareWorkspace() {
   );
 }
 
-function FeesWorkspace() {
-  const liveSession = useLiveTenantSession("school");
-  const { data: feesRows = [] } = useSchoolQuery<GradeFeeRow[]>("/api/grade-master/fees-watchlist", { enabled: !!liveSession.session });
-  return (
-    <Panel title="Fees Watchlist" description="Read-only fee supervision view with parent follow-up tools." icon={Banknote}>
-       <DataTable 
-        columns={["Learner", "Stream", "Fee Balance", "Promise Date", "Report Block", "Actions"]}
-        rows={feesRows.map((row) => [
-          row.learner,
-          row.stream,
-          row.fee_balance,
-          row.promise_date,
-          <StatusChip key={`block-${row.id}`} label={row.report_block} tone={statusTone(row.report_block)} />,
-          <button key={`fee-${row.id}`} type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => sendGradeNotification({ action: "parent_fee_follow_up_sent", title: "Parent fee follow-up queued", message: `${row.learner} has an accountant-approved balance of ${row.fee_balance}.`, targetRoles: ["parent", "grade_master", "secretary"], priority: "high", payload: { learner: row.learner, stream: row.stream, balance: row.fee_balance } })}>Message Parent</button>,
-        ])}
-      />
-    </Panel>
-  );
-}
-
 function CommunicationWorkspace() {
   const liveSession = useLiveTenantSession("school");
   const { data: communicationRows = [] } = useSchoolQuery<GradeCommunicationRow[]>("/api/grade-master/communications", { enabled: !!liveSession.session });
@@ -1301,7 +1274,7 @@ function CommunicationWorkspace() {
     <Panel title="Parent Communication" description="Where the Grade/Form Master communicates with parents." icon={MessageCircle}>
        <div className="mb-4 flex gap-2">
            <button type="button" onClick={handleSendMessage} disabled={isSubmitting} className="rounded-xl bg-[#071D49] px-3 py-2 text-sm font-black text-white disabled:opacity-50">{isSubmitting ? "Sending..." : "Send Bulk Notice"}</button>
-           <button type="button" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-black text-[#071D49]" onClick={() => openGradeRecord("Grade message templates", [["Template", "Attendance concern"], ["Template", "Meeting reminder"], ["Template", "Academic intervention"], ["Template", "Fees follow-up"]])}>Message Templates</button>
+           <button type="button" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-black text-[#071D49]" onClick={() => openGradeRecord("Grade message templates", [["Template", "Attendance concern"], ["Template", "Meeting reminder"], ["Template", "Academic intervention"], ["Template", "Welfare follow-up"]])}>Message Templates</button>
        </div>
        <DataTable 
         columns={["Learner", "Parent/Guardian", "Last Contacted", "Last Message Type", "Status", "Actions"]}
@@ -1569,9 +1542,7 @@ function SettingsWorkspace() {
 export function GradeMasterCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode: GradeRouteMode }) {
   const liveSession = useLiveTenantSession("school");
   const { data: searchableLearners = [] } = useSchoolQuery<GradeLearnerRow[]>("/api/grade-master/learners", { enabled: !!liveSession.session });
-  const [activeViewState, setActiveViewState] = useState<GradeView>(
-    (activeSection && activeSection !== "dashboard" ? activeSection : "overview") as GradeView
-  );
+  const [activeViewState, setActiveViewState] = useState<GradeView>(() => normalizeGradeView(activeSection));
   const activeView = activeViewState;
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedLearner, setSelectedLearner] = useState<GradeLearnerRow | null>(null);
@@ -1698,7 +1669,6 @@ export function GradeMasterCommandCenter({ activeSection, routeMode }: { activeS
           {activeView === "exams" && <ExamsWorkspace />}
           {activeView === "discipline" && <DisciplineWorkspace />}
           {activeView === "welfare" && <WelfareWorkspace />}
-          {activeView === "fees" && <FeesWorkspace />}
           {activeView === "communication" && <CommunicationWorkspace />}
           {activeView === "meetings" && <MeetingsWorkspace />}
           {activeView === "timetable" && <TimetableWorkspace />}

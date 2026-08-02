@@ -588,9 +588,12 @@ describe("dashboard action contract safety", () => {
     expect(receiptsSource).toMatch(/openPaymentModal/);
     expect(receiptsSource).toMatch(/openReceiptPreview/);
     expect(arrearsSource).toMatch(/sendArrearsReminders/);
-    expect(arrearsSource).toMatch(/admin-command\/accountant\/actions/);
+    expect(arrearsSource).toMatch(/admin-command\/accountant\/fee-follow-up/);
     expect(arrearsSource).toMatch(/recipient_scope: "linked_guardians"/);
-    expect(arrearsSource).toMatch(/target_roles: \["accountant", "principal", "class_teacher", "parent"\]/);
+    expect(arrearsSource).not.toMatch(/target_roles/);
+    expect(accountantControllerSource).toMatch(/@Permissions\('finance:follow-up'\)/);
+    expect(accountantServiceSource).toMatch(/'accountant',\s*'principal',\s*'deputy_principal',\s*'secretary',\s*'parent'/);
+    expect(accountantServiceSource).not.toMatch(/FEE_FOLLOW_UP_TARGET_ROLES[\s\S]*class_teacher/);
     expect(arrearsSource).not.toMatch(/Arrears reminder request recorded/);
     expect(principalStudentsSource).toMatch(/buildSchoolSectionHref\("admissions", "admissions"/);
     expect(teacherSubjectsSource).toMatch(/buildSchoolSectionHref\("teacher", "students"/);
@@ -1035,7 +1038,6 @@ describe("dashboard action contract safety", () => {
   it("persists class teacher shared workflow actions through class-teacher command endpoints", () => {
     const sharedSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/class-teacher/shared.tsx"), "utf8");
     const commandSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/class-teacher-command-center.tsx"), "utf8");
-    const feesSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/class-teacher/workspaces/fees.tsx"), "utf8");
     const communicationSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/class-teacher/workspaces/communication.tsx"), "utf8");
     const registerSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/class-teacher/workspaces/register.tsx"), "utf8");
     const disciplineRouteSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/class-teacher/workspaces/discipline.tsx"), "utf8");
@@ -1068,7 +1070,6 @@ describe("dashboard action contract safety", () => {
     expect(sharedSource).toMatch(/admin-command\/class-teacher\/communications/);
     expect(commandSource).toMatch(/sendClassTeacherCommunication/);
     expect(commandSource).not.toMatch(/Form 2 Blue/);
-    expect(feesSource).toMatch(/sendClassTeacherCommunication/);
     expect(communicationSource).toMatch(/sendClassTeacherCommunication/);
     expect(commentsRouteSource).toMatch(/export \{ ReportCommentsWorkspace \} from "\.\.\/report-comments-workspace"/);
     expect(commentsSource).toMatch(/saveReportComment/);
@@ -1105,9 +1106,9 @@ describe("dashboard action contract safety", () => {
     expect(classTeacherServiceSource).toMatch(/INSERT INTO student_welfare_cases/);
     expect(classTeacherServiceSource).toMatch(/inventory_requests/);
     expect(classTeacherServiceSource).not.toMatch(/storeRequests: \{ count: 0/);
-    expect(classTeacherServiceSource).toMatch(/student_invoices/);
-    expect(classTeacherServiceSource).toMatch(/manual_fee_payments/);
-    expect(classTeacherServiceSource).not.toMatch(/async getFees\(tenantId: string, userId: string, streamId: string\) \{\s*return \[\];\s*\}/);
+    expect(classTeacherServiceSource).not.toMatch(/student_invoices/);
+    expect(classTeacherServiceSource).not.toMatch(/manual_fee_payments/);
+    expect(classTeacherServiceSource).not.toMatch(/async getFees\(/);
     expect(classTeacherServiceSource).toMatch(/FROM report_snapshots/);
     expect(classTeacherServiceSource).not.toMatch(/async getReports\(tenantId: string, userId: string, streamId: string\) \{\s*return \[\];\s*\}/);
     expect(controllerSource).toMatch(/@Post\('meetings'\)/);
@@ -1437,7 +1438,6 @@ describe("dashboard action contract safety", () => {
     const roleDashboardSources = [
       "src/components/school/boarding-master-command-center.tsx",
       "src/components/school/class-teacher-command-center.tsx",
-      "src/components/school/class-teacher/workspaces/fees.tsx",
       "src/components/school/class-teacher/workspaces/meetings.tsx",
       "src/components/school/class-teacher/workspaces/tasks.tsx",
       "src/components/school/exams-manager-command-center.tsx",

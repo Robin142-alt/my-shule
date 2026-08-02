@@ -3,6 +3,15 @@ import { RequestContextService } from '../../common/request-context/request-cont
 import { PrismaService } from '../../database/prisma.service';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
 import { CreateAccountantExpenseDto } from './dto/create-accountant-expense.dto';
+import { CreateFeeFollowUpDto } from './dto/create-fee-follow-up.dto';
+
+const FEE_FOLLOW_UP_TARGET_ROLES = [
+  'accountant',
+  'principal',
+  'deputy_principal',
+  'secretary',
+  'parent',
+] as const;
 
 type AccountantOverviewMetricRow = {
   collected_today_minor: unknown;
@@ -413,5 +422,17 @@ export class AccountantCommandService {
     });
 
     return { success: true, message: 'Finance workflow saved and notifications queued', event };
+  }
+
+  async recordFeeFollowUp(dto: CreateFeeFollowUpDto) {
+    return this.recordAction({
+      ...dto,
+      target_roles: [...FEE_FOLLOW_UP_TARGET_ROLES],
+      payload: {
+        ...dto.payload,
+        recipient_scope: 'linked_guardians',
+        authorized_follow_up_roles: FEE_FOLLOW_UP_TARGET_ROLES.slice(0, 4),
+      },
+    });
   }
 }

@@ -124,7 +124,7 @@ export function ArrearsWorkspace({
     const reminderKey = targets.length === 1 ? targets[0].student_id : "bulk";
     setSendingReminderFor(reminderKey);
     try {
-      await requestDashboardApi("/admin-command/accountant/actions", {
+      await requestDashboardApi("/admin-command/accountant/fee-follow-up", {
         method: "POST",
         body: {
           action: targets.length === 1 ? "student_arrears_reminder_requested" : "arrears_reminders_requested",
@@ -133,7 +133,6 @@ export function ArrearsWorkspace({
           entity_type: "student_arrears",
           entity_id: targets.length === 1 ? targets[0].student_id : undefined,
           source_dashboard: "accountant-arrears-workspace",
-          target_roles: ["accountant", "principal", "class_teacher", "parent"],
           payload: {
             recipient_scope: "linked_guardians",
             arrears_count: targets.length,

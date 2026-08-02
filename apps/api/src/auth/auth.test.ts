@@ -158,6 +158,30 @@ test('Default school invite catalog exposes the required school operating roles'
   assert.ok(deputyPermissions.includes('academics:assign-teachers'));
 });
 
+test('fee follow-up permission is limited to authorized school office roles', () => {
+  const permission = DEFAULT_PERMISSION_CATALOG.find(
+    (candidate) => candidate.resource === 'finance' && candidate.action === 'follow-up',
+  );
+  assert.ok(permission, 'finance:follow-up should be provisioned');
+
+  const rolesWithFeeFollowUp = DEFAULT_ROLE_CATALOG
+    .filter((role) => (role.permissions as readonly string[]).includes('finance:follow-up'))
+    .map((role) => role.code)
+    .sort();
+
+  assert.deepEqual(rolesWithFeeFollowUp, [
+    'accountant',
+    'bursar',
+    'deputy_principal',
+    'principal',
+    'secretary',
+  ]);
+  for (const roleCode of ['teacher', 'class_teacher', 'grade_master']) {
+    const role = DEFAULT_ROLE_CATALOG.find((candidate) => candidate.code === roleCode);
+    assert.equal((role?.permissions as readonly string[]).includes('finance:follow-up'), false);
+  }
+});
+
 test('AuthService authenticateAccessToken rejects access tokens when the audience does not match the session audience', async () => {
   const requestContext = new RequestContextService();
 

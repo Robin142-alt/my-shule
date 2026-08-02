@@ -19,6 +19,17 @@ export type ResolvedOperationalSearchRecord = OperationalSearchRecord & {
   roleKey: OperationalRoleKey;
 };
 
+const feeBalanceSearchRoles = new Set([
+  "principal",
+  "deputy-principal",
+  "secretary",
+  "accountant",
+  "bursar",
+  "parent",
+  "superadmin",
+  "platform-owner",
+]);
+
 function matchesQuery(record: OperationalSearchRecord, query: string) {
   const normalized = query.trim().toLowerCase();
 
@@ -60,6 +71,9 @@ export function resolveOperationalSearch(
       roleKey: policy.roleKey,
       mode: policy.mode,
       actions: record.actions.filter((action) => {
+        if (action.capability === "finance:view" && !feeBalanceSearchRoles.has(policy.roleKey)) {
+          return false;
+        }
         if (!action.capability || !context.capabilities?.length) {
           return true;
         }

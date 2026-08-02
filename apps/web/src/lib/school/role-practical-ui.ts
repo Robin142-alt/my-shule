@@ -152,18 +152,18 @@ export const practicalRoleProfiles: Record<SchoolExperienceRole, PracticalRolePr
   },
   "class-teacher": {
     title: "Class Teacher Desk",
-    subtitle: "Class register, attendance, welfare, fees follow-up, discipline, parent communication, and class reports.",
+    subtitle: "Class register, attendance, welfare, discipline, parent communication, and class reports.",
     sidebarTitle: "Class Desk",
     sidebarSubtitle: "Class welfare",
-    todayContext: "Class attendance, absent learners, fee follow-ups, discipline, parent messages, and academic concerns.",
+    todayContext: "Class attendance, absent learners, welfare follow-ups, discipline, parent messages, and academic concerns.",
     sectionNoun: "class desk",
     summaryCards: [
       { label: "Class Attendance", value: "94%", helper: "3 absent learners", source: "From class register", tone: "ok" },
-      { label: "Fee Defaulters", value: "8", helper: "Parent SMS ready", source: "From fee balances", tone: "warning" },
+      { label: "Attendance Follow-ups", value: "3", helper: "Parent SMS ready", source: "From class register", tone: "warning" },
       { label: "Discipline Cases", value: "2", helper: "One repeat concern", source: "From discipline records", tone: "warning" },
       { label: "Parent Messages", value: "5", helper: "2 unread", source: "From parent messages", tone: "warning" },
     ],
-    urgentAlerts: ["3 absent learners need parent SMS", "One welfare note needs follow-up", "Fee reminder list ready"],
+    urgentAlerts: ["3 absent learners need parent SMS", "One welfare note needs follow-up", "One discipline review is due"],
     emptyState: "No class follow-up waiting right now.",
   },
   "grade-master": {
@@ -347,7 +347,7 @@ export const practicalRoleProfiles: Record<SchoolExperienceRole, PracticalRolePr
     subtitle: "School records, users, documents, reports, parent support, and daily office actions.",
     sidebarTitle: "Admin Desk",
     sidebarSubtitle: "School office",
-    todayContext: "Student records, documents, staff support, reports, fee follow-ups, and parent requests.",
+    todayContext: "Student records, documents, staff support, reports, office follow-ups, and parent requests.",
     sectionNoun: "admin desk",
     summaryCards: [
       { label: "Office Tasks", value: "18", helper: "6 urgent", source: "From admin records", tone: "warning" },

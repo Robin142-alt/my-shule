@@ -256,16 +256,6 @@ export class ClassTeacherController {
     return this.classTeacherService.getTasks(tenantId, userId, streamId);
   }
 
-  @Get('fees')
-  @Permissions('academics:read')
-  getFees(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId: string
-  ) {
-    return this.classTeacherService.getFees(tenantId, userId, streamId);
-  }
-
   @Get('health')
   @Permissions('academics:read')
   getHealth(

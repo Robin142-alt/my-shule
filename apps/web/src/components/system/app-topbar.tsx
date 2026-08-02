@@ -130,6 +130,7 @@ const roleQuickActions: Record<string, QuickActionItem[]> = {
     { label: "Send Announcement", href: "/communication-center?action=announcement" },
     { label: "Generate Board Report", href: "/reports-analytics?report=board" },
     { label: "Open Incident Center", href: "/discipline?action=incident-center" },
+    { label: "Open Fee Follow-up", href: "/finance?action=fee-reminder" },
   ],
   "deputy-principal": [
     { label: "Assign Substitute", href: "/timetable-builder?action=assign-substitute" },
@@ -137,6 +138,7 @@ const roleQuickActions: Record<string, QuickActionItem[]> = {
     { label: "Notify Parent", href: "/communication?action=parent-sms" },
     { label: "Resolve Conflict", href: "/timetable-builder?action=resolve-conflict" },
     { label: "Generate Daily Report", href: "/reports-analytics?report=daily-operations" },
+    { label: "Open Fee Follow-up", href: "/finance?action=fee-reminder" },
   ],
   secretary: [
     { label: "Register Visitor", href: "/visitors?action=register" },
@@ -144,6 +146,7 @@ const roleQuickActions: Record<string, QuickActionItem[]> = {
     { label: "Record Inquiry", href: "/admissions?action=inquiry" },
     { label: "Update Parent Phone", href: "/school-admin?action=parent-phone" },
     { label: "Book Appointment", href: "/school-calendar?action=appointment" },
+    { label: "Open Fee Follow-up", href: "/finance?action=fee-reminder" },
   ],
   accountant: [
     { label: "Record Payment", href: "/finance?action=record-payment" },
@@ -321,6 +324,7 @@ export function AppTopbar({
       : [];
   const schoolQuickActions = getQuickActionsForProfile(profile);
   const normalizedRoleKey = normalizeOperationalRoleKey(profile?.roleKey ?? profile?.roleLabel);
+  const canFollowUpFees = ["principal", "deputy-principal", "secretary", "accountant", "bursar"].includes(normalizedRoleKey);
   const urgentActionItems = notifications.length > 0
     ? notifications.slice(0, 6).map((item) => ({
         id: item.id,
@@ -335,12 +339,12 @@ export function AppTopbar({
           detail: "Review missing registers and send absence SMS.",
           href: "/students?action=attendance-follow-up",
         },
-        {
+        ...(canFollowUpFees ? [{
           id: "fee-reminders",
           title: "Fee reminders",
           detail: "Open balances that need parent SMS today.",
           href: "/finance?action=fee-reminder",
-        },
+        }] : []),
         {
           id: "approval-queue",
           title: "Approval queue",

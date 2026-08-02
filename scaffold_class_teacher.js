@@ -9,7 +9,6 @@ const workspaces = [
   { id: "discipline", label: "Discipline & Behaviour", icon: "ShieldAlert", group: "Student Welfare", desc: "Class Teacher sees class-level behaviour issues and records minor incidents." },
   { id: "welfare", label: "Welfare & Counselling", icon: "HeartPulse", group: "Student Welfare", desc: "Class Teacher identifies learners who may need extra support and refers them safely." },
   { id: "health", label: "Health Notes", icon: "Stethoscope", group: "Student Welfare", desc: "Shows safe learner health alerts and nurse-related class follow-ups." },
-  { id: "fees", label: "Fees Follow-up", icon: "Banknote", group: "Administration", desc: "Class Teacher can see basic fee status for follow-up." },
   { id: "communication", label: "Parent Communication", icon: "MessageCircle", group: "Communication", desc: "Send and track parent/guardian communication for the class." },
   { id: "meetings", label: "Meetings & Appointments", icon: "Calendar", group: "Communication", desc: "Track parent meetings and learner follow-ups." },
   { id: "homework", label: "Homework & Class Tasks", icon: "BookOpenCheck", group: "Planning", desc: "Class Teacher can view class-wide homework/task load and create class notices or tasks." },
@@ -168,7 +167,7 @@ function OverviewWorkspace() {
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 font-bold text-[#071D49]">Total Learners: 46</div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 font-bold text-[#071D49]">Present Today: 43</div>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 font-bold text-rose-700">Absent Today: 3</div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 font-bold text-[#071D49]">Fee Arrears: 7</div>
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 font-bold text-[#071D49]">Open Concerns: 2</div>
       </div>
     </Panel>
   );
@@ -239,8 +238,8 @@ function LearnerProfileDrawer({
                 <span className="block font-black text-[#071D49]">92%</span>
               </div>
               <div className="rounded-xl bg-[#F8FAFC] border border-[#D8E0EC] p-3">
-                <span className="block text-xs text-[#64748B] mb-1">Fee Status</span>
-                <span className="block font-black text-rose-600">Arrears</span>
+                <span className="block text-xs text-[#64748B] mb-1">Welfare Status</span>
+                <span className="block font-black text-emerald-600">No active concern</span>
               </div>
             </div>
           </section>

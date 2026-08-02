@@ -7261,9 +7261,9 @@ function GenericRoleOperationalCommandCenter({
       entityId: studentId,
       severity: "warning",
       sms: student?.parentPhone ? [{ recipient: student.parentPhone, message: `Fee reminder for ${student.student}: balance KSh ${student.balance.toLocaleString("en-KE")}.` }] : undefined,
-      notifications: [{ audienceRoles: ["parent", "class-teacher", "principal"], title: "Fee reminder queued", severity: "warning" }],
+      notifications: [{ audienceRoles: ["parent", "accountant", "principal", "deputy-principal", "secretary"], title: "Fee reminder queued", severity: "warning" }],
     });
-    addFinanceExecutionLog(`${student?.student ?? "Student"} fee reminder queued`, ["Fee reminder SMS queued", "Class teacher copy ready"]);
+    addFinanceExecutionLog(`${student?.student ?? "Student"} fee reminder queued`, ["Fee reminder SMS queued", "Authorized finance follow-up roles notified"]);
     setFinanceNotice(`${student?.student ?? "Student"} fee reminder queued for ${student?.parentPhone ?? "parent"}.`);
   }
 

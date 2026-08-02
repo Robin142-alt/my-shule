@@ -9,7 +9,7 @@ import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
 import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
 
 export type Tone = "success" | "info" | "warning" | "danger" | "neutral";
-export type TeacherView = "home" | "register" | "attendance" | "progress" | "comments" | "discipline" | "welfare" | "health" | "fees" | "communication" | "meetings" | "homework" | "timetable" | "documents" | "requests" | "reports" | "notifications" | "settings" | string;
+export type TeacherView = "home" | "register" | "attendance" | "progress" | "comments" | "discipline" | "welfare" | "health" | "communication" | "meetings" | "homework" | "timetable" | "documents" | "requests" | "reports" | "notifications" | "settings" | string;
 
 export const toneClasses: Record<Tone, { card: string; chip: string; dot: string; text: string }> = {
   success: {

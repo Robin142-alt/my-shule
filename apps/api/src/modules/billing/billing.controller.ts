@@ -170,7 +170,7 @@ export class BillingController {
   }
 
   @Get('student-balances')
-  @Permissions('billing:read')
+  @Permissions('finance:follow-up')
   async listStudentBalances(
     @Query() query: ListStudentBalancesQueryDto,
   ): Promise<StudentFeeBalanceResponseDto[]> {
@@ -198,7 +198,7 @@ export class BillingController {
   }
 
   @Get('student-balances/:studentId/statement')
-  @Permissions('billing:read')
+  @Permissions('finance:follow-up')
   async getStudentStatement(
     @Param('studentId') studentId: string,
   ): Promise<StudentFeeStatementResponseDto> {
@@ -206,7 +206,7 @@ export class BillingController {
   }
 
   @Get('student-balances/:studentId/statement/export')
-  @Permissions('billing:read')
+  @Permissions('finance:follow-up')
   async exportStudentStatement(@Param('studentId') studentId: string) {
     return this.billingService.exportStudentStatementCsv(studentId);
   }
@@ -321,7 +321,7 @@ export class BillingController {
   }
 
   @Get('student-balances/csv')
-  @Permissions('billing:read')
+  @Permissions('finance:follow-up')
   async getStudentBalancesCsv() {
     return this.billingService.exportStudentBalancesCsv();
   }

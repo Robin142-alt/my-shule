@@ -191,7 +191,6 @@ export interface ClassTeacherStudentOverview {
   name: string;
   className: string;
   attendancePercent: string;
-  feeStatus: string;
   academic: string;
   discipline: string;
 }

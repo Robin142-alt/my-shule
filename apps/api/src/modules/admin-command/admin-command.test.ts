@@ -545,13 +545,12 @@ test('AccountantCommandService records arrears reminders and queues tenant-scope
     } as never,
   );
 
-  const result = await service.recordAction({
+  const result = await service.recordFeeFollowUp({
     action: 'arrears_reminders_requested',
     title: 'Fee arrears reminders queued',
     message: '2 arrears reminders queued for linked guardian follow-up.',
     entity_type: 'student_arrears',
-    target_roles: ['accountant', 'principal', 'class_teacher', 'parent'],
-    priority: 'high',
+    source_dashboard: 'accountant-arrears-workspace',
     payload: {
       recipient_scope: 'linked_guardians',
       arrears_count: 2,
@@ -562,12 +561,13 @@ test('AccountantCommandService records arrears reminders and queues tenant-scope
   assert.equal(workflowCalls.length, 1);
   assert.equal(workflowCalls[0].tenantId, 'tenant-a');
   assert.equal(workflowCalls[0].eventType, 'accountant.arrears_reminders_requested');
-  assert.deepEqual(workflowCalls[0].targetRoles, ['accountant', 'principal', 'class_teacher', 'parent']);
+  assert.deepEqual(workflowCalls[0].targetRoles, ['accountant', 'principal', 'deputy_principal', 'secretary', 'parent']);
   assert.equal(notificationCalls.length, 1);
   assert.equal(notificationCalls[0].tenantId, 'tenant-a');
-  assert.deepEqual(notificationCalls[0].input.targetRoles, ['accountant', 'principal', 'class_teacher', 'parent']);
+  assert.deepEqual(notificationCalls[0].input.targetRoles, ['accountant', 'principal', 'deputy_principal', 'secretary', 'parent']);
   assert.match(notificationCalls[0].input.type, /accountant\.arrears_reminders_requested/);
   assert.equal(notificationCalls[0].input.metadata.recipient_scope, 'linked_guardians');
+  assert.deepEqual(notificationCalls[0].input.metadata.authorized_follow_up_roles, ['accountant', 'principal', 'deputy_principal', 'secretary']);
 });
 
 test('AccountantCommandService builds a live tenant-scoped overview without demo defaults', async () => {

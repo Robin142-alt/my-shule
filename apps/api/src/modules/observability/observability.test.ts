@@ -205,6 +205,7 @@ test('SloMonitoringService raises and clears alerts when objectives are violated
 });
 
 test('SloMetricsService exposes recent API failure paths for production triage', () => {
+  const failureTimestampMs = Date.now() - 60_000;
   const metricsService = new SloMetricsService({
     get(key: string) {
       return key === 'observability.sloWindowSeconds' ? 60 * 60 * 24 * 30 : undefined;
@@ -218,7 +219,7 @@ test('SloMetricsService exposes recent API failure paths for production triage',
     method: 'GET',
     path: '/health',
     event: 'request.completed',
-    timestamp_ms: Date.parse('2026-07-03T18:00:00.000Z'),
+    timestamp_ms: failureTimestampMs - 60_000,
   });
   metricsService.recordApiRequest({
     outcome: 'failure',
@@ -227,12 +228,12 @@ test('SloMetricsService exposes recent API failure paths for production triage',
     method: 'POST',
     path: '/platform/schools?token=%5Bredacted%5D',
     event: 'request.completed',
-    timestamp_ms: Date.parse('2026-07-03T18:01:00.000Z'),
+    timestamp_ms: failureTimestampMs,
   });
 
   assert.deepEqual(metricsService.getRecentApiFailures(), [
     {
-      timestamp: '2026-07-03T18:01:00.000Z',
+      timestamp: new Date(failureTimestampMs).toISOString(),
       method: 'POST',
       path: '/platform/schools?token=%5Bredacted%5D',
       status_code: 500,

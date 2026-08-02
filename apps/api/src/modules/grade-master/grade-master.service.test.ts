@@ -18,7 +18,6 @@ test('GradeMasterService returns tenant and grade scoped overview from live scho
           streams_covered: 2,
           open_discipline_cases: 4,
           academic_risk_learners: 5,
-          fee_arrears_watchlist: 6,
           pending_parent_followups: 7,
           reports_not_ready: 8,
           counselling_referrals: 9,

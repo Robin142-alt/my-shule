@@ -26,6 +26,18 @@ describe("Implementation 142 role-aware search access policy", () => {
     );
   });
 
+  it("removes fee-balance actions from teacher, class-teacher, and grade-master student search", () => {
+    for (const role of ["teacher", "class-teacher", "grade-master"]) {
+      const student = resolveOperationalSearch("Brian", { role })[0];
+      expect(student?.actions.map((action) => action.label)).not.toContain("View Fee Balance");
+    }
+
+    for (const role of ["principal", "deputy-principal", "secretary", "accountant"]) {
+      const student = resolveOperationalSearch("Brian", { role })[0];
+      expect(student?.actions.map((action) => action.label)).toContain("View Fee Balance");
+    }
+  });
+
   it("keeps sensitive case searches inside sensitive role scopes", () => {
     const accountantResults = resolveOperationalSearch("clinic follow-up", { role: "accountant" });
     const nurseResults = resolveOperationalSearch("clinic follow-up", { role: "nurse" });

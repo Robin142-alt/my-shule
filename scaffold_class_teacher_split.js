@@ -18,7 +18,7 @@ import { LucideIcon } from "lucide-react";
 export type Tone = "success" | "info" | "warning" | "danger" | "neutral";
 export type TeacherView = 
   | "home" | "register" | "attendance" | "progress" | "comments" 
-  | "discipline" | "welfare" | "health" | "fees" | "communication" 
+  | "discipline" | "welfare" | "health" | "communication"
   | "meetings" | "homework" | "timetable" | "documents" | "requests" 
   | "reports" | "notifications" | "settings";
 
@@ -77,7 +77,6 @@ const workspaces = [
   { id: "discipline", label: "Discipline & Behaviour", icon: "ShieldAlert", component: "DisciplineWorkspace", group: "Student Welfare", desc: "Class Teacher sees class-level behaviour issues and records minor incidents." },
   { id: "welfare", label: "Welfare & Counselling", icon: "HeartPulse", component: "WelfareWorkspace", group: "Student Welfare", desc: "Class Teacher identifies learners who may need extra support and refers them safely." },
   { id: "health", label: "Health Notes", icon: "Stethoscope", component: "HealthNotesWorkspace", group: "Student Welfare", desc: "Shows safe learner health alerts and nurse-related class follow-ups." },
-  { id: "fees", label: "Fees Follow-up", icon: "Banknote", component: "FeesWorkspace", group: "Administration", desc: "Class Teacher can see basic fee status for follow-up." },
   { id: "communication", label: "Parent Communication", icon: "MessageCircle", component: "CommunicationWorkspace", group: "Communication", desc: "Send and track parent/guardian communication for the class." },
   { id: "meetings", label: "Meetings & Appointments", icon: "Calendar", component: "MeetingsWorkspace", group: "Communication", desc: "Track parent meetings and learner follow-ups." },
   { id: "homework", label: "Homework & Class Tasks", icon: "BookOpenCheck", component: "HomeworkWorkspace", group: "Planning", desc: "Class Teacher can view class-wide homework/task load and create class notices or tasks." },
@@ -98,7 +97,7 @@ function generateWorkspaceCode(ws) {
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 font-bold text-[#071D49]">Total Learners: 46</div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 font-bold text-[#071D49]">Present Today: 43</div>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 font-bold text-rose-700">Absent Today: 3</div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 font-bold text-[#071D49]">Fee Arrears: 7</div>
+        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 font-bold text-[#071D49]">Open Concerns: 2</div>
       </div>
       <div className="mt-6">
         <h3 className="mb-3 text-sm font-black uppercase text-[#64748B]">Urgent Follow-ups</h3>

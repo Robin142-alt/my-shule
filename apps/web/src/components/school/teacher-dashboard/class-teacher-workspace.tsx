@@ -25,7 +25,6 @@ export function ClassTeacherWorkspace() {
         { label: "Admission number", value: student.admissionNo || "-" },
         { label: "Learner", value: student.name || "-" },
         { label: "Attendance", value: `${student.attendancePercent ?? "-"}%` },
-        { label: "Fee status", value: student.feeStatus || "-" },
         { label: "Academic", value: student.academic || "-" },
         { label: "Discipline", value: student.discipline || "-" },
       ],
@@ -64,11 +63,6 @@ export function ClassTeacherWorkspace() {
     s.admissionNo,
     s.name,
     s.attendancePercent,
-    s.feeStatus === 'Cleared' ? (
-      <span key={s.id + 'fee'} className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">Cleared</span>
-    ) : (
-      <span key={s.id + 'fee'} className="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-800">{s.feeStatus}</span>
-    ),
     s.academic,
     s.discipline,
     <button key={s.id + 'btn'} type="button" onClick={() => openLearnerProfile(s)} className="text-[#1D4ED8] hover:underline font-bold">View Profile</button>
@@ -102,7 +96,7 @@ export function ClassTeacherWorkspace() {
         <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-[#64748B]" /></div>
       ) : (
         <RecordTable
-          columns={["Adm No.", "Learner", "Attendance %", "Fee Status", "Academic", "Discipline", "Actions"]}
+          columns={["Adm No.", "Learner", "Attendance %", "Academic", "Discipline", "Actions"]}
           rows={rows}
           emptyState="No learners are linked to your class yet. Admissions or the deputy class setup must assign learners before class-teacher review can start."
         />

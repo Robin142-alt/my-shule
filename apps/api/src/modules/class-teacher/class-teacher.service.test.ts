@@ -365,43 +365,6 @@ test('ClassTeacherService dashboard overview counts teacher inventory requests f
   assert.equal(inventoryQuery.params[1], 'teacher-a');
 });
 
-test('ClassTeacherService returns tenant and stream scoped fee arrears for class-teacher fees workspace', async () => {
-  const queries: Array<{ sql: string; params: unknown[] }> = [];
-  const service = new ClassTeacherService(
-    {
-      query: async (sql: string, params: unknown[]) => {
-        queries.push({ sql, params });
-        return {
-          rows: [
-            {
-              id: 'student-a',
-              learner: 'Amina Otieno',
-              balance_minor: 125000,
-              last_payment_at: '2026-06-20T09:15:00.000Z',
-            },
-          ],
-          rowCount: 1,
-        };
-      },
-    } as never,
-    {} as never,
-  );
-
-  const result = await service.getFees('tenant-a', 'teacher-a', 'stream-a');
-
-  assert.equal(result.length, 1);
-  assert.equal(result[0].id, 'student-a');
-  assert.equal(result[0].learner, 'Amina Otieno');
-  assert.equal(result[0].balance, 'KES 1,250.00');
-  assert.equal(result[0].lastPayment, '6/20/2026');
-  assert.equal(result[0].status, 'Overdue');
-  assert.match(queries[0].sql, /student_invoices/);
-  assert.match(queries[0].sql, /manual_fee_payments/);
-  assert.match(queries[0].sql, /sca\.class_section_id = \$2/);
-  assert.equal(queries[0].params[0], 'tenant-a');
-  assert.equal(queries[0].params[1], 'stream-a');
-});
-
 test('ClassTeacherService returns tenant scoped report snapshots for class-teacher reports endpoint', async () => {
   const queries: Array<{ sql: string; params: unknown[] }> = [];
   const service = new ClassTeacherService(

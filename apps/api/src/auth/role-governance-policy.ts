@@ -120,19 +120,24 @@ const ROLE_INHERITANCE: Partial<Record<BlueprintUserRole, readonly BlueprintUser
   transport_manager: ['driver'],
 };
 
+const ROLE_PERMISSION_EXCLUSIONS: Partial<Record<BlueprintUserRole, readonly string[]>> = {
+  school_admin: ['finance:follow-up'],
+};
+
 const ROLE_PERMISSIONS: Partial<Record<BlueprintUserRole, readonly string[]>> = {
   super_admin: ['*:*'],
   platform_support: ['support:view', 'support:manage', 'reports:read'],
   finance_admin: ['billing:read', 'billing:write', 'reports:read'],
   school_admin: ['users:read', 'users:write', 'roles:read', 'roles:write', 'students:read', 'reports:read',
     'academics:read', 'academics:write', 'academics:assign-teachers', 'academics:manage-lifecycle', 'academics:merge'],
-  principal: ['principal:read', 'principal:write', 'students:read', 'finance:read', 'reports:read',
+  principal: ['principal:read', 'principal:write', 'students:read', 'finance:read', 'finance:follow-up', 'reports:read',
     'academics:read', 'academics:write', 'academics:assign-teachers', 'academics:manage-lifecycle', 'academics:merge',
     'exams:read', 'exams:publish'],
   deputy_principal: [
     'deputy:read',
     'deputy:write',
     'students:read',
+    'finance:follow-up',
     'academics:read',
     'academics:write',
     'academics:assign-teachers',
@@ -140,9 +145,9 @@ const ROLE_PERMISSIONS: Partial<Record<BlueprintUserRole, readonly string[]>> = 
     'academics:merge',
     'discipline:manage',
   ],
-  secretary: ['secretary:read', 'secretary:write', 'admissions:read', 'documents:write', 'school_sms:send'],
-  bursar: ['finance:read', 'finance:write', 'billing:read', 'billing:write', 'payments:create'],
-  accountant: ['finance:read', 'billing:read', 'payments:create'],
+  secretary: ['secretary:read', 'secretary:write', 'admissions:read', 'finance:follow-up', 'documents:write', 'school_sms:send'],
+  bursar: ['finance:read', 'finance:follow-up', 'finance:write', 'billing:read', 'billing:write', 'payments:create'],
+  accountant: ['finance:read', 'finance:follow-up', 'billing:read', 'payments:create'],
   dean_academics: ['academics:read', 'exams:read', 'exams:review', 'exams:approve', 'reports:read'],
   exams_manager: ['academics:read', 'exams:read', 'exams:write', 'exams:enter-marks', 'exams:review', 'reports:read'],
   hod: ['academics:read', 'academics:assign-teachers', 'exams:review'],
@@ -267,7 +272,8 @@ function expandedPermissions(role: BlueprintUserRole, seen = new Set<BlueprintUs
   const inherited = (ROLE_INHERITANCE[role] ?? [])
     .flatMap((parentRole) => expandedPermissions(parentRole, seen));
 
-  return [...new Set([...own, ...inherited])];
+  const exclusions = new Set(ROLE_PERMISSION_EXCLUSIONS[role] ?? []);
+  return [...new Set([...own, ...inherited])].filter((permission) => !exclusions.has(permission));
 }
 
 function issue(

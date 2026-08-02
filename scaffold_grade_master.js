@@ -9,7 +9,6 @@ const workspaces = [
   { id: "exams", label: "Exams & Report Readiness", icon: "ClipboardCheck", group: "Academics", desc: "Monitors whether report cards are ready for the grade/form." },
   { id: "discipline", label: "Discipline & Behaviour", icon: "ShieldAlert", group: "Student Welfare", desc: "Monitors discipline issues within the form/grade." },
   { id: "welfare", label: "Welfare & Counselling", icon: "HeartPulse", group: "Student Welfare", desc: "Tracks learner welfare concerns without exposing sensitive details." },
-  { id: "fees", label: "Fees Watchlist", icon: "Banknote", group: "Administration", desc: "Read-only fee supervision view with parent follow-up tools." },
   { id: "communication", label: "Parent Communication", icon: "MessageCircle", group: "Communication", desc: "Communicate with parents of learners in the assigned form/grade." },
   { id: "meetings", label: "Meetings & Follow-ups", icon: "CalendarDays", group: "Communication", desc: "Follow-up command center for parent meetings, learner reviews, and pending interventions." },
   { id: "timetable", label: "Timetable & Lessons", icon: "CalendarClock", group: "Planning", desc: "Monitors whether learners in the form/grade are receiving lessons as planned." },
@@ -104,7 +103,7 @@ const toneClasses: Record<Tone, { card: string; chip: string; dot: string; text:
 
 const gradeSearchRecords = [
   { id: "student-brian", label: "Brian Otieno", detail: "ADM-2041 | Form 2 Blue | absent today", view: "learners" },
-  { id: "guardian-wanjiku", label: "Mrs. Wanjiku", detail: "Guardian message about fees", view: "communication" },
+  { id: "guardian-wanjiku", label: "Mrs. Wanjiku", detail: "Guardian message about attendance", view: "communication" },
 ] satisfies Array<{ id: string; label: string; detail: string; view: GradeView }>;
 
 type GradeSearchRecord = (typeof gradeSearchRecords)[number];
@@ -473,19 +472,6 @@ function WelfareWorkspace() {
   );
 }
 
-function FeesWorkspace() {
-  return (
-    <Panel title="Fees Watchlist" description="Read-only fee supervision view with parent follow-up tools." icon={Banknote}>
-       <DataTable 
-        columns={["Learner", "Stream", "Fee Balance", "Promise Date", "Report Block", "Actions"]}
-        rows={[
-          ["Brian Otieno", "Form 2 Blue", "KES 15,000", "2026-06-15", <StatusChip key="b1" label="Blocked" tone="danger"/>, <button key="a1" className="text-[#1D4ED8] font-bold text-xs">Message Parent</button>],
-        ]}
-      />
-    </Panel>
-  );
-}
-
 function CommunicationWorkspace() {
   return (
     <Panel title="Parent Communication" description="Where the Grade/Form Master communicates with parents." icon={MessageCircle}>
@@ -560,7 +546,7 @@ function ReportsWorkspace() {
   return (
     <Panel title="Reports & Downloads" description="Printable and exportable grade/form reports." icon={FileText}>
        <div className="grid gap-4 md:grid-cols-3">
-         {["Grade/Form learner list", "Daily attendance summary", "Report-card readiness", "Stream comparison", "Fee arrears watchlist"].map(r => (
+         {["Grade/Form learner list", "Daily attendance summary", "Report-card readiness", "Stream comparison", "Academic risk watchlist"].map(r => (
            <button key={r} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left font-bold text-[#071D49] hover:border-[#071D49] transition">{r}</button>
          ))}
        </div>
@@ -747,7 +733,6 @@ export function GradeMasterCommandCenter({ routeMode }: { routeMode: GradeRouteM
           {activeView === "exams" && <ExamsWorkspace />}
           {activeView === "discipline" && <DisciplineWorkspace />}
           {activeView === "welfare" && <WelfareWorkspace />}
-          {activeView === "fees" && <FeesWorkspace />}
           {activeView === "communication" && <CommunicationWorkspace />}
           {activeView === "meetings" && <MeetingsWorkspace />}
           {activeView === "timetable" && <TimetableWorkspace />}

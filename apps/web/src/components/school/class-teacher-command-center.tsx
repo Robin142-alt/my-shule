@@ -6,7 +6,7 @@ import {
   Bell, BookOpenCheck, Calendar, CalendarDays, CheckSquare,
   ClipboardCheck, FileSignature, FileText, FolderOpen, GraduationCap,
   HeartPulse, Home, MessageCircle, Settings, ShieldAlert,
-  Stethoscope, Banknote, Users, X, BarChart3
+  Stethoscope, Users, X, BarChart3
 } from "lucide-react";
 
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
@@ -27,7 +27,6 @@ import { ReportCommentsWorkspace } from "./class-teacher/workspaces/comments";
 import { DisciplineWorkspace } from "./class-teacher/workspaces/discipline";
 import { WelfareWorkspace } from "./class-teacher/workspaces/welfare";
 import { HealthNotesWorkspace } from "./class-teacher/workspaces/health";
-import { FeesWorkspace } from "./class-teacher/workspaces/fees";
 import { CommunicationWorkspace } from "./class-teacher/workspaces/communication";
 import { MeetingsWorkspace } from "./class-teacher/workspaces/meetings";
 import { HomeworkWorkspace } from "./class-teacher/workspaces/homework";
@@ -48,7 +47,6 @@ const navItems = [
   { id: "discipline", label: "Discipline & Behaviour", icon: ShieldAlert, group: "Student Welfare" },
   { id: "welfare", label: "Welfare & Counselling", icon: HeartPulse, group: "Student Welfare" },
   { id: "health", label: "Health Notes", icon: Stethoscope, group: "Student Welfare" },
-  { id: "fees", label: "Fees Follow-up", icon: Banknote, group: "Administration" },
   { id: "communication", label: "Parent Communication", icon: MessageCircle, group: "Communication" },
   { id: "meetings", label: "Meetings & Appointments", icon: Calendar, group: "Communication" },
   { id: "homework", label: "Homework & Class Tasks", icon: BookOpenCheck, group: "Planning" },
@@ -59,6 +57,11 @@ const navItems = [
   { id: "notifications", label: "Notifications", icon: Bell, group: "System" },
   { id: "settings", label: "Settings", icon: Settings, group: "System" },
 ];
+
+function normalizeClassTeacherView(section?: string): TeacherView {
+  const candidate = section && section !== "dashboard" ? section : "home";
+  return navItems.some((item) => item.id === candidate) ? candidate : "home";
+}
 
 type LearnerNoteDraft = {
   note_type: string;
@@ -153,7 +156,7 @@ function LearnerProfileDrawer({ learnerId, onClose }: { learnerId: string | null
           <section className="space-y-3">
              <h3 className="text-xs font-black uppercase tracking-widest text-[#64748B]">Quick Actions</h3>
              <div className="flex flex-wrap gap-2">
-               <button type="button" className="rounded-full bg-[#071D49] px-3 py-1.5 text-xs font-black text-white" onClick={() => sendClassTeacherCommunication({ audience: "individual_parent", learnerId, subject: `Parent follow-up for ${learnerId}`, message: `${learnerId} needs a class teacher follow-up. Please check attendance, welfare, fees, and academic notes in the parent portal.`, source: "class-teacher-learner-profile" })}>Message Parent</button>
+               <button type="button" className="rounded-full bg-[#071D49] px-3 py-1.5 text-xs font-black text-white" onClick={() => sendClassTeacherCommunication({ audience: "individual_parent", learnerId, subject: `Parent follow-up for ${learnerId}`, message: `${learnerId} needs a class teacher follow-up. Please check attendance, welfare, and academic notes in the parent portal.`, source: "class-teacher-learner-profile" })}>Message Parent</button>
                <button type="button" className="rounded-full border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]" onClick={() => setNoteOpen(true)}>Add Class Note</button>
              </div>
           </section>
@@ -165,7 +168,7 @@ function LearnerProfileDrawer({ learnerId, onClose }: { learnerId: string | null
 
 export function ClassTeacherCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: SchoolRouteMode }) {
   const [activeViewState, setActiveViewState] = useState<TeacherView>(
-    (activeSection && activeSection !== "dashboard" ? activeSection : "home") as TeacherView
+    normalizeClassTeacherView(activeSection)
   );
   const activeView = activeViewState;
 
@@ -199,7 +202,6 @@ export function ClassTeacherCommandCenter({ activeSection, routeMode }: { active
           {activeView === "discipline" && <DisciplineWorkspace />}
           {activeView === "welfare" && <WelfareWorkspace />}
           {activeView === "health" && <HealthNotesWorkspace />}
-          {activeView === "fees" && <FeesWorkspace />}
           {activeView === "communication" && <CommunicationWorkspace />}
           {activeView === "meetings" && <MeetingsWorkspace />}
           {activeView === "homework" && <HomeworkWorkspace />}

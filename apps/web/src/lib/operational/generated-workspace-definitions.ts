@@ -958,14 +958,14 @@ export const generatedWorkspaceDefinitions: DocxAddedModuleContract[] = [
     title: "My Class",
     uniqueSidebar: ["My Class"],
     urgentActionStrip: ["Download Class List","Contact Parents","Add Class Note","Print Class Register"],
-    mainTable: table("My Class Table", ["Student","Admission no.","Parent contact","Attendance %","Fees status","Academic status","Discipline status","Actions",""], ["View","Edit"], ["Export selected"]),
+    mainTable: table("My Class Table", ["Student","Admission no.","Parent contact","Attendance %","Welfare status","Academic status","Discipline status","Actions",""], ["View","Edit"], ["Export selected"]),
     forms: [],
     rightDetailsDrawer: ["audit history", "recent activity"],
     approvalWorkflow: "Draft -> Submitted -> Approved",
     smsTriggers: [],
     printOutputs: [],
     permissionChecks: [],
-    sampleData: ["Total learners","Absent today","Fee arrears","Discipline concerns","Health alerts","Pending report comments"]
+    sampleData: ["Total learners","Absent today","Welfare follow-ups","Discipline concerns","Health alerts","Pending report comments"]
   }),
   moduleContract({
     id: "attendance-follow-up",

@@ -1109,7 +1109,7 @@ const roleBlueprints: OperationalRoleBlueprint[] = [
     firstViewport: ["absent students", "students needing attention", "unread parent messages", "missing assignments", "discipline follow-ups"],
     sidebar: ["Dashboard Home", "My Class", "Attendance", "Academic Performance", "Assignments", "Discipline", "Parent Communication"],
     primaryActions: ["Mark Attendance", "Message Parent", "Record Note", "Mark Concern", "Generate Class Report"],
-    tables: [table("Class Roster", ["Student", "Admission No", "Attendance", "Fee Status", "Discipline", "Average"], ["Open Profile", "Message Parent", "Record Note", "Mark Concern"], ["Send SMS", "Print class list"])],
+    tables: [table("Class Roster", ["Student", "Admission No", "Attendance", "Welfare", "Discipline", "Average"], ["Open Profile", "Message Parent", "Record Note", "Mark Concern"], ["Send SMS", "Print class list"])],
     forms: [form("Class Note Form", ["Student", "Concern category", "Note", "Follow-up date", "Notify parent"], ["Save Note"])],
     workflows: ["Concern recorded -> Follow-up scheduled -> Parent contacted -> Resolved"],
     communicationTriggers: ["Absenteeism notice", "Assignment reminder", "Appreciation message"],

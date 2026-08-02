@@ -102,15 +102,6 @@ export class GradeMasterService {
         ) AS open_discipline_cases,
         (SELECT COUNT(DISTINCT student_id)::int FROM mark_risk) AS academic_risk_learners,
         (
-          SELECT COUNT(DISTINCT invoice.student_id)::int
-          FROM student_invoices invoice
-          JOIN grade_learners learner
-            ON learner.student_id = invoice.student_id
-           AND learner.tenant_id = invoice.tenant_id
-          WHERE invoice.status IN ('open', 'pending_payment', 'overdue')
-            AND invoice.balance_minor > 0
-        ) AS fee_arrears_watchlist,
-        (
           SELECT COUNT(*)::int
           FROM workflow_events event
           WHERE event.tenant_id = $1
@@ -160,7 +151,6 @@ export class GradeMasterService {
       streams_covered: 0,
       open_discipline_cases: 0,
       academic_risk_learners: 0,
-      fee_arrears_watchlist: 0,
       pending_parent_followups: 0,
       reports_not_ready: 0,
       counselling_referrals: 0,
@@ -481,48 +471,6 @@ export class GradeMasterService {
     `;
     const { rows } = await this.executeSql(query, [tenantId, this.normalizeGradeLevelId(gradeLevelId)]);
     return rows;
-  }
-
-  async getFeesWatchlist(tenantId: string, _userId: string, gradeLevelId?: string | null) {
-    const query = `
-      SELECT
-        student.id::text,
-        trim(student.first_name || ' ' || student.last_name) AS learner,
-        section.name AS stream,
-        COALESCE(SUM(invoice.balance_minor), 0)::bigint AS balance_minor,
-        NULL::text AS promise_date
-      FROM student_class_assignments assignment
-      JOIN students student
-        ON student.tenant_id = assignment.tenant_id
-       AND student.id = assignment.student_id
-      JOIN class_sections section
-        ON section.tenant_id = assignment.tenant_id
-       AND section.id = assignment.class_section_id
-      JOIN student_invoices invoice
-        ON invoice.tenant_id = assignment.tenant_id
-       AND invoice.student_id = assignment.student_id
-       AND invoice.status IN ('open', 'pending_payment', 'overdue')
-      WHERE assignment.tenant_id = $1
-        AND assignment.status = 'active'
-        AND (
-          $2::text IS NULL
-          OR assignment.academic_level_id::text = $2
-          OR section.academic_level_id::text = $2
-          OR section.grade_level = $2
-          OR section.name = $2
-        )
-      GROUP BY student.id, student.first_name, student.last_name, section.name
-      HAVING COALESCE(SUM(invoice.balance_minor), 0) > 0
-      ORDER BY balance_minor DESC, learner ASC
-      LIMIT 100
-    `;
-    const { rows } = await this.executeSql(query, [tenantId, this.normalizeGradeLevelId(gradeLevelId)]);
-    return rows.map((row) => ({
-      ...row,
-      fee_balance: this.money(row.balance_minor),
-      promise_date: row.promise_date ?? 'Not recorded',
-      report_block: Number(row.balance_minor ?? 0) > 0 ? 'Blocked' : 'Clear',
-    }));
   }
 
   async getCommunications(tenantId: string, _userId: string, gradeLevelId?: string | null) {

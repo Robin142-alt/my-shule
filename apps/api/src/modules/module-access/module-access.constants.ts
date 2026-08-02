@@ -46,7 +46,7 @@ export const MODULE_REGISTRY_SEED = [
     description: 'Fee structures, invoices, payments, arrears, collections, and financial oversight.',
     category: 'finance',
     route_segment: 'finance',
-    permission_scopes: ['finance:read', 'finance:write', 'payments:create'],
+    permission_scopes: ['finance:read', 'finance:follow-up', 'finance:write', 'payments:create'],
     billing_metadata: { pricing_unit: 'student', plan_family: 'core_finance' },
   },
   {

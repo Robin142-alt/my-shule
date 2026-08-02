@@ -170,10 +170,6 @@ export function useClassTeacherTasks(streamId: string) {
   return useClassTeacherStreamQuery("tasks", "class-teacher/tasks", streamId);
 }
 
-export function useClassTeacherFees(streamId: string) {
-  return useClassTeacherStreamQuery("fees", "class-teacher/fees", streamId);
-}
-
 export function useClassTeacherHealth(streamId: string) {
   return useClassTeacherStreamQuery("health", "class-teacher/health", streamId);
 }

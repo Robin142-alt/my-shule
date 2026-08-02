@@ -1,5 +1,7 @@
 MyShule Class Teacher Dashboard — Full Workspace Blueprint
-The Class Teacher Dashboard is the daily control center for one assigned class/stream, for example Form 2 East, Grade 6 Blue, or PP2 A. It is not a general admin dashboard. It helps the class teacher monitor learners, mark attendance, follow up discipline/welfare/fees issues, communicate with parents, prepare class reports, and add class teacher comments to report cards.
+ACCESS POLICY (supersedes any legacy fee references below): fee balances and fee follow-up are restricted to Accountant/Bursar, Principal, Deputy Principal, and Secretary. Teachers, Class Teachers, and Grade/Form Masters must not receive fee data or fee follow-up actions.
+
+The Class Teacher Dashboard is the daily control center for one assigned class/stream, for example Form 2 East, Grade 6 Blue, or PP2 A. It is not a general admin dashboard. It helps the class teacher monitor learners, mark attendance, follow up discipline and welfare issues, communicate with parents, prepare class reports, and add class teacher comments to report cards.
 The Class Teacher can also be a normal subject teacher, but this dashboard focuses on class ownership. Subject teaching tasks can remain in the Teacher Dashboard.
 
 1. Dashboard Scope

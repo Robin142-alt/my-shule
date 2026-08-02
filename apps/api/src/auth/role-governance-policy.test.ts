@@ -67,6 +67,24 @@ test('buildRoleGovernancePolicy lets principal and deputy manage the academic fo
   }
 });
 
+test('buildRoleGovernancePolicy limits fee follow-up to school office roles', () => {
+  const policy = buildRoleGovernancePolicy({
+    activeModules: ['finance', 'academics'],
+  });
+  const rolesWithFeeFollowUp = policy.roles
+    .filter((role) => role.permissions.includes('finance:follow-up'))
+    .map((role) => role.code)
+    .sort();
+
+  assert.deepEqual(rolesWithFeeFollowUp, [
+    'accountant',
+    'bursar',
+    'deputy_principal',
+    'principal',
+    'secretary',
+  ]);
+});
+
 test('evaluateRoleAssignment rejects cross-tenant global roles and unsafe school assignments', () => {
   const policy = buildRoleGovernancePolicy({
     activeModules: ['finance'],

@@ -203,7 +203,6 @@ export class ClassTeacherService {
       totalLearners: learnersRes.rows[0]?.count || 0,
       presentToday: attendanceRes.rows[0]?.present || 0,
       absentToday: attendanceRes.rows[0]?.absent || 0,
-      feeArrears: 0, // Requires deeper ledger logic
       urgentFollowups: [] // Requires welfare/discipline incidents logic
     };
   }
@@ -524,14 +523,6 @@ export class ClassTeacherService {
         s.first_name || ' ' || s.last_name as name,
         cs.name as class_name,
         COALESCE((
-          SELECT SUM(le.credit_amount - le.debit_amount)
-          FROM ledger_entries le
-          JOIN accounts a ON le.account_id = a.id AND a.tenant_id = le.tenant_id
-          WHERE a.metadata->>'student_id' = s.id::text
-            AND a.tenant_id = s.tenant_id
-            AND a.category = 'asset'
-        ), 0) as fee_balance_minor,
-        COALESCE((
           SELECT COUNT(*)
           FROM academics_attendance a
           WHERE a.student_id = s.id
@@ -601,7 +592,6 @@ export class ClassTeacherService {
           name: r.name,
           className: r.class_name,
           attendancePercent,
-          feeStatus: parseInt(r.fee_balance_minor) > 0 ? `Arrears (KES ${parseInt(r.fee_balance_minor) / 100})` : "Cleared",
           academic,
           discipline: r.active_incidents > 0 ? "Action Needed" : "Good"
         };
@@ -1299,51 +1289,6 @@ export class ClassTeacherService {
     `;
     const { rows } = await this.executeSql(query, [tenantId, userId]);
     return rows.map(r => ({ ...r, dueDate: r.dueDate ? new Date(r.dueDate).toLocaleDateString() : 'N/A' }));
-  }
-
-  async getFees(tenantId: string, userId: string, streamId: string) {
-    const query = `
-      SELECT
-        s.id,
-        s.first_name || ' ' || s.last_name as learner,
-        COALESCE(invoice_totals.balance_minor, 0)::bigint as balance_minor,
-        last_payments.last_payment_at
-      FROM student_class_assignments sca
-      JOIN students s ON s.id = sca.student_id AND s.tenant_id = sca.tenant_id
-      LEFT JOIN (
-        SELECT tenant_id, student_id, SUM(balance_minor)::bigint as balance_minor
-        FROM student_invoices
-        WHERE tenant_id = $1
-          AND status IN ('open', 'pending_payment', 'overdue')
-        GROUP BY tenant_id, student_id
-      ) invoice_totals ON invoice_totals.tenant_id = s.tenant_id AND invoice_totals.student_id = s.id
-      LEFT JOIN (
-        SELECT tenant_id, student_id, MAX(received_at) as last_payment_at
-        FROM manual_fee_payments
-        WHERE tenant_id = $1
-          AND status IN ('received', 'deposited', 'cleared')
-        GROUP BY tenant_id, student_id
-      ) last_payments ON last_payments.tenant_id = s.tenant_id AND last_payments.student_id = s.id
-      WHERE sca.tenant_id = $1
-        AND sca.class_section_id = $2
-        AND sca.status = 'active'
-        AND COALESCE(invoice_totals.balance_minor, 0) > 0
-      ORDER BY invoice_totals.balance_minor DESC, learner ASC
-    `;
-    const { rows } = await this.executeSql(query, [tenantId, streamId]);
-
-    return rows.map((row: any) => {
-      const balanceMinor = Number(row.balance_minor || 0);
-      const lastPaymentDate = row.last_payment_at ? new Date(row.last_payment_at) : null;
-
-      return {
-        id: row.id,
-        learner: row.learner,
-        balance: `KES ${(balanceMinor / 100).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-        lastPayment: lastPaymentDate ? lastPaymentDate.toLocaleDateString() : 'No payment recorded',
-        status: 'Overdue',
-      };
-    });
   }
 
   async getHealth(tenantId: string, userId: string, streamId: string) {

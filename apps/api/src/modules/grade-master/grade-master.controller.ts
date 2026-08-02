@@ -83,13 +83,6 @@ export class GradeMasterController {
     return this.gradeMasterService.getWelfare(tenantId, userId, gradeLevelId);
   }
 
-  @Get('fees-watchlist')
-  @Permissions('students:read')
-  getFeesWatchlist(@Query('gradeLevelId') gradeLevelId?: string) {
-    const { tenantId, userId } = this.context();
-    return this.gradeMasterService.getFeesWatchlist(tenantId, userId, gradeLevelId);
-  }
-
   @Get('communications')
   @Permissions('academics:read')
   getCommunications(@Query('gradeLevelId') gradeLevelId?: string) {
