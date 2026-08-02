@@ -3045,13 +3045,13 @@ test('ExamsRepository derives teacher mark-entry rows from open windows, assessm
   });
 
   assert.equal(rows[0]?.status, 'draft');
-  assert.match(calls[0]!.sql, /FROM exam_mark_entry_windows window/);
+  assert.match(calls[0]!.sql, /FROM exam_mark_entry_windows mark_window/);
   assert.match(calls[0]!.sql, /JOIN exam_assessments assessment/);
   assert.match(calls[0]!.sql, /JOIN students student/);
   assert.match(calls[0]!.sql, /FROM student_class_assignments class_assignment/);
   assert.match(calls[0]!.sql, /FROM student_subject_enrollments subject_enrollment/);
   assert.match(calls[0]!.sql, /LEFT JOIN exam_marks mark/);
-  assert.match(calls[0]!.sql, /window\.status = 'open'/);
+  assert.match(calls[0]!.sql, /mark_window\.status = 'open'/);
   assert.match(calls[0]!.sql, /assignment\.teacher_user_id = \$4::text/);
   assert.match(calls[0]!.sql, /LIMIT \$6::integer\s+OFFSET \$7::integer/);
   assert.deepEqual(calls[0]!.params, [
@@ -4355,8 +4355,15 @@ test('ExamsRepository correctly aggregates exam analytics data', async () => {
   
   assert.equal(queries.length, 6);
   assert.equal(paramsList.every((params) => params[0] === 'tenant-xyz'), true);
-  assert.match(queries[0], /window\.class_section_id::text = class_assignment\.class_section_id/);
+  assert.match(queries[0], /mark_window\.class_section_id::text = class_assignment\.class_section_id/);
   assert.match(queries[0], /mark\.student_id::text = expected\.student_id/);
+  for (const query of queries) {
+    assert.doesNotMatch(
+      query,
+      /\b(?:FROM|JOIN|UPDATE)\s+exam_mark_entry_windows\s+window\b/i,
+      'PostgreSQL reserves WINDOW; mark-entry tables must use a safe alias',
+    );
+  }
   for (const query of queries.slice(1)) {
     assert.match(query, /mark\.status IN \('locked', 'published'\)/);
     assert.match(query, /mark\.score_status = 'entered'/);

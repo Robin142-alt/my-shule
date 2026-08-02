@@ -190,26 +190,26 @@ export class ExamsRepository {
     const result = await this.executeSql(
       `
         SELECT
-          window.id::text,
-          window.exam_series_id::text,
-          window.subject_id::text,
-          window.class_section_id::text,
-          window.opens_at::text,
-          window.closes_at::text,
-          window.status
-        FROM exam_mark_entry_windows window
+          mark_window.id::text,
+          mark_window.exam_series_id::text,
+          mark_window.subject_id::text,
+          mark_window.class_section_id::text,
+          mark_window.opens_at::text,
+          mark_window.closes_at::text,
+          mark_window.status
+        FROM exam_mark_entry_windows mark_window
         JOIN exam_series series
-          ON series.tenant_id = window.tenant_id
-         AND series.id = window.exam_series_id
-        WHERE window.tenant_id = $1
-          AND window.exam_series_id = $2::uuid
+          ON series.tenant_id = mark_window.tenant_id
+         AND series.id = mark_window.exam_series_id
+        WHERE mark_window.tenant_id = $1
+          AND mark_window.exam_series_id = $2::uuid
           AND series.academic_term_id = $3::uuid
-          AND window.class_section_id = $4::uuid
-          AND window.subject_id = $5::uuid
-          AND window.status = 'open'
-          AND window.opens_at <= NOW()
-          AND window.closes_at >= NOW()
-        ORDER BY window.created_at DESC
+          AND mark_window.class_section_id = $4::uuid
+          AND mark_window.subject_id = $5::uuid
+          AND mark_window.status = 'open'
+          AND mark_window.opens_at <= NOW()
+          AND mark_window.closes_at >= NOW()
+        ORDER BY mark_window.created_at DESC
         LIMIT 1
       `,
       [
@@ -326,35 +326,35 @@ export class ExamsRepository {
            ), scoped AS MATERIALIZED (
              SELECT source.*
              FROM source
-             JOIN exam_mark_entry_windows window
-               ON window.tenant_id = $1
-              AND window.id = $4::uuid
-              AND window.exam_series_id = source.exam_series_id
-              AND window.class_section_id = source.class_section_id
-              AND window.subject_id = source.subject_id
-              AND window.status = 'open'
-              AND window.opens_at <= NOW()
-              AND window.closes_at >= NOW()
+             JOIN exam_mark_entry_windows mark_window
+               ON mark_window.tenant_id = $1
+              AND mark_window.id = $4::uuid
+              AND mark_window.exam_series_id = source.exam_series_id
+              AND mark_window.class_section_id = source.class_section_id
+              AND mark_window.subject_id = source.subject_id
+              AND mark_window.status = 'open'
+              AND mark_window.opens_at <= NOW()
+              AND mark_window.closes_at >= NOW()
              JOIN exam_series series
-               ON series.tenant_id = window.tenant_id
-              AND series.id = window.exam_series_id
+               ON series.tenant_id = mark_window.tenant_id
+              AND series.id = mark_window.exam_series_id
               AND series.academic_term_id = source.academic_term_id
               AND series.locked_at IS NULL
               AND series.published_at IS NULL
               AND series.status NOT IN ('locked', 'published')
              JOIN exam_assessments assessment
-               ON assessment.tenant_id = window.tenant_id
+               ON assessment.tenant_id = mark_window.tenant_id
               AND assessment.id = source.assessment_id
               AND assessment.exam_series_id = source.exam_series_id
               AND assessment.subject_id = source.subject_id
              JOIN students student
-               ON student.tenant_id = window.tenant_id
+               ON student.tenant_id = mark_window.tenant_id
               AND student.id = source.student_id
               AND student.status = 'active'
              WHERE EXISTS (
                SELECT 1
                FROM teacher_subject_assignments assignment
-               WHERE assignment.tenant_id = window.tenant_id
+               WHERE assignment.tenant_id = mark_window.tenant_id
                  AND assignment.teacher_user_id = $2::text
                  AND assignment.academic_term_id = source.academic_term_id::text
                  AND assignment.class_section_id = source.class_section_id::text
@@ -488,16 +488,16 @@ export class ExamsRepository {
                  FILTER (WHERE mark.id IS NOT NULL),
                ARRAY[]::text[]
              ) AS mark_ids
-           FROM exam_mark_entry_windows window
+           FROM exam_mark_entry_windows mark_window
            JOIN students student
-             ON student.tenant_id = window.tenant_id
+             ON student.tenant_id = mark_window.tenant_id
             AND student.status = 'active'
             AND EXISTS (
               SELECT 1
               FROM student_class_assignments class_assignment
               WHERE class_assignment.tenant_id = student.tenant_id
                 AND class_assignment.student_id = student.id::text
-                AND class_assignment.class_section_id = window.class_section_id::text
+                AND class_assignment.class_section_id = mark_window.class_section_id::text
                 AND class_assignment.status = 'active'
             )
             AND EXISTS (
@@ -505,25 +505,25 @@ export class ExamsRepository {
               FROM student_subject_enrollments subject_enrollment
               WHERE subject_enrollment.tenant_id = student.tenant_id
                 AND subject_enrollment.student_id = student.id::text
-                AND subject_enrollment.class_section_id = window.class_section_id::text
-                AND subject_enrollment.subject_id = window.subject_id::text
+                AND subject_enrollment.class_section_id = mark_window.class_section_id::text
+                AND subject_enrollment.subject_id = mark_window.subject_id::text
                 AND subject_enrollment.status = 'active'
             )
            LEFT JOIN exam_marks mark
-             ON mark.tenant_id = window.tenant_id
-            AND mark.exam_series_id = window.exam_series_id
+             ON mark.tenant_id = mark_window.tenant_id
+            AND mark.exam_series_id = mark_window.exam_series_id
             AND mark.assessment_id = $5::uuid
-            AND mark.class_section_id = window.class_section_id
-            AND mark.subject_id = window.subject_id
+            AND mark.class_section_id = mark_window.class_section_id
+            AND mark.subject_id = mark_window.subject_id
             AND mark.student_id = student.id
-           WHERE window.tenant_id = $1
-             AND window.id = $3::uuid
-             AND window.exam_series_id = $4::uuid
-             AND window.class_section_id = $6::uuid
-             AND window.subject_id = $7::uuid
-             AND window.status = 'open'
-             AND window.opens_at <= NOW()
-             AND window.closes_at >= NOW()`,
+           WHERE mark_window.tenant_id = $1
+             AND mark_window.id = $3::uuid
+             AND mark_window.exam_series_id = $4::uuid
+             AND mark_window.class_section_id = $6::uuid
+             AND mark_window.subject_id = $7::uuid
+             AND mark_window.status = 'open'
+             AND mark_window.opens_at <= NOW()
+             AND mark_window.closes_at >= NOW()`,
           input.tenant_id,
           input.actor_user_id,
           input.source_window_id,
@@ -748,8 +748,8 @@ export class ExamsRepository {
          FROM exam_mark_entry_windows
          WHERE tenant_id = $1 AND exam_series_id = $2::uuid
        ), expected AS (
-         SELECT window.class_section_id, window.subject_id, COUNT(student.id)::integer AS expected_count
-         FROM windows window
+         SELECT mark_window.class_section_id, mark_window.subject_id, COUNT(student.id)::integer AS expected_count
+         FROM windows mark_window
          LEFT JOIN students student
            ON student.tenant_id = $1
           AND student.status = 'active'
@@ -757,18 +757,18 @@ export class ExamsRepository {
             SELECT 1 FROM student_class_assignments class_assignment
             WHERE class_assignment.tenant_id = student.tenant_id
               AND class_assignment.student_id = student.id::text
-              AND class_assignment.class_section_id = window.class_section_id::text
+              AND class_assignment.class_section_id = mark_window.class_section_id::text
               AND class_assignment.status = 'active'
           )
           AND EXISTS (
             SELECT 1 FROM student_subject_enrollments subject_enrollment
             WHERE subject_enrollment.tenant_id = student.tenant_id
               AND subject_enrollment.student_id = student.id::text
-              AND subject_enrollment.class_section_id = window.class_section_id::text
-              AND subject_enrollment.subject_id = window.subject_id::text
+              AND subject_enrollment.class_section_id = mark_window.class_section_id::text
+              AND subject_enrollment.subject_id = mark_window.subject_id::text
               AND subject_enrollment.status = 'active'
           )
-         GROUP BY window.class_section_id, window.subject_id
+         GROUP BY mark_window.class_section_id, mark_window.subject_id
        ), saved AS (
          SELECT class_section_id, subject_id, COUNT(DISTINCT student_id)::integer AS saved_count
          FROM exam_marks
@@ -2254,25 +2254,25 @@ export class ExamsRepository {
     const result = await this.executeSql(
       `
         SELECT
-          window.id::text,
-          window.exam_series_id::text,
-          window.subject_id::text,
-          window.class_section_id::text,
-          window.opens_at::text,
-          window.closes_at::text,
-          window.status,
+          mark_window.id::text,
+          mark_window.exam_series_id::text,
+          mark_window.subject_id::text,
+          mark_window.class_section_id::text,
+          mark_window.opens_at::text,
+          mark_window.closes_at::text,
+          mark_window.status,
           COUNT(mark.id)::int AS mark_count,
           MAX(mark.updated_at)::text AS last_marked_at
-        FROM exam_mark_entry_windows window
+        FROM exam_mark_entry_windows mark_window
         LEFT JOIN exam_marks mark
-          ON mark.tenant_id = window.tenant_id
-         AND mark.exam_series_id = window.exam_series_id
-         AND mark.subject_id = window.subject_id
-         AND mark.class_section_id = window.class_section_id
-        WHERE window.tenant_id = $1
-          AND ($2::uuid IS NULL OR window.exam_series_id = $2::uuid)
-          AND ($3::uuid IS NULL OR window.class_section_id = $3::uuid)
-          AND ($4::uuid IS NULL OR window.subject_id = $4::uuid)
+          ON mark.tenant_id = mark_window.tenant_id
+         AND mark.exam_series_id = mark_window.exam_series_id
+         AND mark.subject_id = mark_window.subject_id
+         AND mark.class_section_id = mark_window.class_section_id
+        WHERE mark_window.tenant_id = $1
+          AND ($2::uuid IS NULL OR mark_window.exam_series_id = $2::uuid)
+          AND ($3::uuid IS NULL OR mark_window.class_section_id = $3::uuid)
+          AND ($4::uuid IS NULL OR mark_window.subject_id = $4::uuid)
           AND (
             $5::uuid IS NULL
             OR EXISTS (
@@ -2281,16 +2281,16 @@ export class ExamsRepository {
               JOIN teacher_subject_assignments assignment
                 ON assignment.tenant_id = series.tenant_id
                AND assignment.academic_term_id = series.academic_term_id::text
-               AND assignment.class_section_id = window.class_section_id::text
-               AND assignment.subject_id = window.subject_id::text
+               AND assignment.class_section_id = mark_window.class_section_id::text
+               AND assignment.subject_id = mark_window.subject_id::text
                AND assignment.teacher_user_id = $5::text
                AND assignment.status = 'active'
-              WHERE series.tenant_id = window.tenant_id
-                AND series.id = window.exam_series_id
+              WHERE series.tenant_id = mark_window.tenant_id
+                AND series.id = mark_window.exam_series_id
             )
           )
-        GROUP BY window.id
-        ORDER BY window.closes_at DESC, window.opens_at DESC
+        GROUP BY mark_window.id
+        ORDER BY mark_window.closes_at DESC, mark_window.opens_at DESC
         LIMIT $6::integer
         OFFSET $7::integer
       `,
@@ -2486,7 +2486,7 @@ export class ExamsRepository {
        ), changed_summary AS (
          SELECT COUNT(*)::integer AS affected_marks FROM changed_marks
        )
-       UPDATE exam_mark_entry_windows window
+       UPDATE exam_mark_entry_windows mark_window
        SET status = CASE WHEN $4 = 'lock' THEN 'closed' ELSE 'open' END,
            last_action = CASE WHEN $4 = 'return' THEN 'returned' WHEN $4 = 'lock' THEN 'locked' ELSE 'opened' END,
            last_action_at = NOW(),
@@ -2494,14 +2494,14 @@ export class ExamsRepository {
            return_reason = CASE WHEN $4 = 'return' THEN $5 ELSE NULL END,
            updated_at = NOW()
        FROM mark_state, changed_summary
-       WHERE window.tenant_id = $1
-         AND window.id = $3::uuid
+       WHERE mark_window.tenant_id = $1
+         AND mark_window.id = $3::uuid
          AND (
            $4 = 'open'
            OR ($4 = 'lock' AND mark_state.total_marks > 0 AND mark_state.blockers = 0)
            OR ($4 = 'return' AND mark_state.total_marks > 0 AND mark_state.published_marks = 0)
          )
-       RETURNING window.*, window.last_action AS workflow_status, changed_summary.affected_marks`,
+       RETURNING mark_window.*, mark_window.last_action AS workflow_status, changed_summary.affected_marks`,
       [input.tenant_id, input.actor_user_id, input.mark_window_id, input.action, input.reason ?? null],
     );
     return result.rows[0] ?? null;
@@ -2510,26 +2510,26 @@ export class ExamsRepository {
   async findMarkWindowRecipients(input: { tenant_id: string; mark_window_id: string }) {
     const result = await this.executeSql(
       `SELECT
-         window.id::text,
-         COALESCE(class_section.name, window.class_section_id::text) AS class_name,
-         COALESCE(subject.name, window.subject_id::text) AS subject_name,
-         window.closes_at::text,
+         mark_window.id::text,
+         COALESCE(class_section.name, mark_window.class_section_id::text) AS class_name,
+         COALESCE(subject.name, mark_window.subject_id::text) AS subject_name,
+         mark_window.closes_at::text,
          COALESCE(array_remove(array_agg(DISTINCT assignment.teacher_user_id::text), NULL), ARRAY[]::text[]) AS recipient_user_ids
-       FROM exam_mark_entry_windows window
+       FROM exam_mark_entry_windows mark_window
        INNER JOIN exam_series series
-         ON series.tenant_id = window.tenant_id AND series.id = window.exam_series_id
+         ON series.tenant_id = mark_window.tenant_id AND series.id = mark_window.exam_series_id
        LEFT JOIN teacher_subject_assignments assignment
-         ON assignment.tenant_id = window.tenant_id
+         ON assignment.tenant_id = mark_window.tenant_id
         AND assignment.academic_term_id = series.academic_term_id::text
-        AND assignment.class_section_id = window.class_section_id::text
-        AND assignment.subject_id = window.subject_id::text
+        AND assignment.class_section_id = mark_window.class_section_id::text
+        AND assignment.subject_id = mark_window.subject_id::text
         AND assignment.status = 'active'
        LEFT JOIN class_sections class_section
-         ON class_section.tenant_id = window.tenant_id AND class_section.id = window.class_section_id::text
+         ON class_section.tenant_id = mark_window.tenant_id AND class_section.id = mark_window.class_section_id::text
        LEFT JOIN subjects subject
-         ON subject.tenant_id = window.tenant_id AND subject.id = window.subject_id::text
-       WHERE window.tenant_id = $1 AND window.id = $2::uuid
-       GROUP BY window.id, class_section.name, subject.name
+         ON subject.tenant_id = mark_window.tenant_id AND subject.id = mark_window.subject_id::text
+       WHERE mark_window.tenant_id = $1 AND mark_window.id = $2::uuid
+       GROUP BY mark_window.id, class_section.name, subject.name
        LIMIT 1`,
       [input.tenant_id, input.mark_window_id],
     );
@@ -4274,37 +4274,37 @@ export class ExamsRepository {
 
   async getMarkEntryWindows(tenantId: string, filters: Record<string, any> = {}) {
     let query = `SELECT
-      window.*,
-      COALESCE(class_section.name, window.class_section_id::text) AS class_name,
-      COALESCE(subject.name, window.subject_id::text) AS subject_name,
-      COALESCE(window.last_action, window.status) AS workflow_status,
+      mark_window.*,
+      COALESCE(class_section.name, mark_window.class_section_id::text) AS class_name,
+      COALESCE(subject.name, mark_window.subject_id::text) AS subject_name,
+      COALESCE(mark_window.last_action, mark_window.status) AS workflow_status,
       COALESCE(student_counts.expected_count, 0)::integer AS expected_count,
       COALESCE(mark_counts.saved_count, 0)::integer AS saved_count,
       COALESCE(mark_counts.submitted_count, 0)::integer AS submitted_count,
       GREATEST(COALESCE(student_counts.expected_count, 0) - COALESCE(mark_counts.saved_count, 0), 0)::integer AS missing_count,
       COALESCE(teacher_assignments.teacher_user_ids, ARRAY[]::text[]) AS teacher_user_ids
-      FROM exam_mark_entry_windows window
+      FROM exam_mark_entry_windows mark_window
       LEFT JOIN class_sections class_section
-        ON class_section.tenant_id = window.tenant_id AND class_section.id = window.class_section_id::text
+        ON class_section.tenant_id = mark_window.tenant_id AND class_section.id = mark_window.class_section_id::text
       LEFT JOIN subjects subject
-        ON subject.tenant_id = window.tenant_id AND subject.id = window.subject_id::text
+        ON subject.tenant_id = mark_window.tenant_id AND subject.id = mark_window.subject_id::text
       LEFT JOIN LATERAL (
         SELECT COUNT(*)::integer AS expected_count FROM students student
-        WHERE student.tenant_id = window.tenant_id
+        WHERE student.tenant_id = mark_window.tenant_id
           AND student.status = 'active'
           AND EXISTS (
             SELECT 1 FROM student_class_assignments class_assignment
             WHERE class_assignment.tenant_id = student.tenant_id
               AND class_assignment.student_id = student.id::text
-              AND class_assignment.class_section_id = window.class_section_id::text
+              AND class_assignment.class_section_id = mark_window.class_section_id::text
               AND class_assignment.status = 'active'
           )
           AND EXISTS (
             SELECT 1 FROM student_subject_enrollments subject_enrollment
             WHERE subject_enrollment.tenant_id = student.tenant_id
               AND subject_enrollment.student_id = student.id::text
-              AND subject_enrollment.class_section_id = window.class_section_id::text
-              AND subject_enrollment.subject_id = window.subject_id::text
+              AND subject_enrollment.class_section_id = mark_window.class_section_id::text
+              AND subject_enrollment.subject_id = mark_window.subject_id::text
               AND subject_enrollment.status = 'active'
           )
       ) student_counts ON TRUE
@@ -4312,10 +4312,10 @@ export class ExamsRepository {
         SELECT COUNT(DISTINCT mark.student_id)::integer AS saved_count,
           COUNT(DISTINCT mark.student_id) FILTER (WHERE mark.status IN ('submitted', 'reviewed', 'locked', 'published'))::integer AS submitted_count
         FROM exam_marks mark
-        WHERE mark.tenant_id = window.tenant_id
-          AND mark.exam_series_id = window.exam_series_id
-          AND mark.class_section_id = window.class_section_id
-          AND mark.subject_id = window.subject_id
+        WHERE mark.tenant_id = mark_window.tenant_id
+          AND mark.exam_series_id = mark_window.exam_series_id
+          AND mark.class_section_id = mark_window.class_section_id
+          AND mark.subject_id = mark_window.subject_id
       ) mark_counts ON TRUE
       LEFT JOIN LATERAL (
         SELECT array_agg(DISTINCT assignment.teacher_user_id::text) AS teacher_user_ids
@@ -4323,22 +4323,22 @@ export class ExamsRepository {
         JOIN teacher_subject_assignments assignment
           ON assignment.tenant_id = series.tenant_id
          AND assignment.academic_term_id = series.academic_term_id::text
-         AND assignment.class_section_id = window.class_section_id::text
-         AND assignment.subject_id = window.subject_id::text
+         AND assignment.class_section_id = mark_window.class_section_id::text
+         AND assignment.subject_id = mark_window.subject_id::text
          AND assignment.status = 'active'
-        WHERE series.tenant_id = window.tenant_id AND series.id = window.exam_series_id
+        WHERE series.tenant_id = mark_window.tenant_id AND series.id = mark_window.exam_series_id
       ) teacher_assignments ON TRUE
-      WHERE window.tenant_id = $1`;
+      WHERE mark_window.tenant_id = $1`;
     const params: any[] = [tenantId];
     let paramCount = 2;
 
     if (filters.exam_series_id) {
-      query += ` AND window.exam_series_id = $${paramCount}::uuid`;
+      query += ` AND mark_window.exam_series_id = $${paramCount}::uuid`;
       params.push(filters.exam_series_id);
       paramCount++;
     }
     
-    query += ` ORDER BY window.opens_at ASC`;
+    query += ` ORDER BY mark_window.opens_at ASC`;
     const result = await this.executeSql(query, params);
     return result.rows;
   }
@@ -4351,18 +4351,18 @@ export class ExamsRepository {
     const query = `
       SELECT
         mark.id::text,
-        window.id::text AS mark_entry_window_id,
-        window.exam_series_id::text,
+        mark_window.id::text AS mark_entry_window_id,
+        mark_window.exam_series_id::text,
         series.name AS exam_series_name,
         series.academic_term_id::text,
         assessment.id::text AS assessment_id,
         assessment.name AS assessment_name,
         assessment.max_score::float AS max_score,
         assessment.weight::float AS assessment_weight,
-        window.class_section_id::text,
-        COALESCE(class_section.name, window.class_section_id::text) AS class_name,
-        window.subject_id::text,
-        COALESCE(subject.name, window.subject_id::text) AS subject_name,
+        mark_window.class_section_id::text,
+        COALESCE(class_section.name, mark_window.class_section_id::text) AS class_name,
+        mark_window.subject_id::text,
+        COALESCE(subject.name, mark_window.subject_id::text) AS subject_name,
         student.id::text AS student_id,
         student.admission_number,
         NULLIF(BTRIM(CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name)), '') AS student_name,
@@ -4372,69 +4372,69 @@ export class ExamsRepository {
         COALESCE(mark.status, 'draft') AS status,
         mark.entered_by_user_id::text,
         mark.updated_at::text,
-        window.opens_at::text,
-        window.closes_at::text
-      FROM exam_mark_entry_windows window
+        mark_window.opens_at::text,
+        mark_window.closes_at::text
+      FROM exam_mark_entry_windows mark_window
       JOIN exam_series series
-        ON series.tenant_id = window.tenant_id
-       AND series.id = window.exam_series_id
+        ON series.tenant_id = mark_window.tenant_id
+       AND series.id = mark_window.exam_series_id
       JOIN exam_assessments assessment
-        ON assessment.tenant_id = window.tenant_id
-       AND assessment.exam_series_id = window.exam_series_id
-       AND assessment.subject_id = window.subject_id
+        ON assessment.tenant_id = mark_window.tenant_id
+       AND assessment.exam_series_id = mark_window.exam_series_id
+       AND assessment.subject_id = mark_window.subject_id
       JOIN students student
-        ON student.tenant_id = window.tenant_id
+        ON student.tenant_id = mark_window.tenant_id
        AND student.status = 'active'
        AND EXISTS (
          SELECT 1 FROM student_class_assignments class_assignment
          WHERE class_assignment.tenant_id = student.tenant_id
            AND class_assignment.student_id = student.id::text
-           AND class_assignment.class_section_id = window.class_section_id::text
+           AND class_assignment.class_section_id = mark_window.class_section_id::text
            AND class_assignment.status = 'active'
        )
        AND EXISTS (
          SELECT 1 FROM student_subject_enrollments subject_enrollment
          WHERE subject_enrollment.tenant_id = student.tenant_id
            AND subject_enrollment.student_id = student.id::text
-           AND subject_enrollment.class_section_id = window.class_section_id::text
-           AND subject_enrollment.subject_id = window.subject_id::text
+           AND subject_enrollment.class_section_id = mark_window.class_section_id::text
+           AND subject_enrollment.subject_id = mark_window.subject_id::text
            AND subject_enrollment.status = 'active'
        )
       LEFT JOIN class_sections class_section
-        ON class_section.tenant_id = window.tenant_id
-       AND class_section.id = window.class_section_id::text
+        ON class_section.tenant_id = mark_window.tenant_id
+       AND class_section.id = mark_window.class_section_id::text
       LEFT JOIN subjects subject
-        ON subject.tenant_id = window.tenant_id
-       AND subject.id = window.subject_id::text
+        ON subject.tenant_id = mark_window.tenant_id
+       AND subject.id = mark_window.subject_id::text
       LEFT JOIN exam_marks mark
-        ON mark.tenant_id = window.tenant_id
-       AND mark.exam_series_id = window.exam_series_id
+        ON mark.tenant_id = mark_window.tenant_id
+       AND mark.exam_series_id = mark_window.exam_series_id
        AND mark.assessment_id = assessment.id
-       AND mark.class_section_id = window.class_section_id
-       AND mark.subject_id = window.subject_id
+       AND mark.class_section_id = mark_window.class_section_id
+       AND mark.subject_id = mark_window.subject_id
        AND mark.student_id = student.id
-      WHERE window.tenant_id = $1
-        AND ($2::uuid IS NULL OR window.exam_series_id = $2::uuid)
+      WHERE mark_window.tenant_id = $1
+        AND ($2::uuid IS NULL OR mark_window.exam_series_id = $2::uuid)
         AND ($3::uuid IS NULL OR student.id = $3::uuid)
         AND (
           $4::uuid IS NULL
           OR EXISTS (
             SELECT 1
             FROM teacher_subject_assignments assignment
-            WHERE assignment.tenant_id = window.tenant_id
+            WHERE assignment.tenant_id = mark_window.tenant_id
               AND assignment.academic_term_id = series.academic_term_id::text
-              AND assignment.class_section_id = window.class_section_id::text
-              AND assignment.subject_id = window.subject_id::text
+              AND assignment.class_section_id = mark_window.class_section_id::text
+              AND assignment.subject_id = mark_window.subject_id::text
               AND assignment.teacher_user_id = $4::text
               AND assignment.status = 'active'
           )
         )
-        AND ($5::uuid IS NULL OR window.class_section_id = $5::uuid)
-        AND ($8::uuid IS NULL OR window.subject_id = $8::uuid)
+        AND ($5::uuid IS NULL OR mark_window.class_section_id = $5::uuid)
+        AND ($8::uuid IS NULL OR mark_window.subject_id = $8::uuid)
         AND ($9::uuid IS NULL OR assessment.id = $9::uuid)
-        AND window.status = 'open'
-        AND window.opens_at <= NOW()
-        AND window.closes_at >= NOW()
+        AND mark_window.status = 'open'
+        AND mark_window.opens_at <= NOW()
+        AND mark_window.closes_at >= NOW()
       ORDER BY
         class_section.name NULLS LAST,
         subject.name NULLS LAST,
@@ -5216,7 +5216,7 @@ export class ExamsRepository {
       : [tenantId, scope.actor_user_id];
     const markScope = this.analyticsMarkScope('mark', scope);
     const examMarksScope = this.analyticsMarkScope('exam_marks', scope);
-    const windowScope = this.analyticsWindowScope('window', scope);
+    const windowScope = this.analyticsWindowScope('mark_window', scope);
     const seriesScope = this.analyticsSeriesScope('exam_series', scope);
     const kpiResult = await this.executeSql(
       `
@@ -5247,27 +5247,27 @@ export class ExamsRepository {
         expected_marks AS (
           SELECT DISTINCT
             student.id AS student_id,
-            window.exam_series_id,
+            mark_window.exam_series_id,
             assessment.id AS assessment_id
           FROM students student
           JOIN student_class_assignments class_assignment
             ON class_assignment.tenant_id = student.tenant_id
            AND class_assignment.student_id = student.id
            AND class_assignment.status = 'active'
-          JOIN exam_mark_entry_windows window
-            ON window.tenant_id = class_assignment.tenant_id
-           AND window.class_section_id::text = class_assignment.class_section_id
-           AND window.status = 'open'
+          JOIN exam_mark_entry_windows mark_window
+            ON mark_window.tenant_id = class_assignment.tenant_id
+           AND mark_window.class_section_id::text = class_assignment.class_section_id
+           AND mark_window.status = 'open'
           JOIN student_subject_enrollments subject_enrollment
             ON subject_enrollment.tenant_id = student.tenant_id
            AND subject_enrollment.student_id = student.id
-           AND subject_enrollment.class_section_id = window.class_section_id::text
-           AND subject_enrollment.subject_id = window.subject_id::text
+           AND subject_enrollment.class_section_id = mark_window.class_section_id::text
+           AND subject_enrollment.subject_id = mark_window.subject_id::text
            AND subject_enrollment.status = 'active'
           JOIN exam_assessments assessment
-            ON assessment.tenant_id = window.tenant_id
-           AND assessment.exam_series_id = window.exam_series_id
-           AND assessment.subject_id = window.subject_id
+            ON assessment.tenant_id = mark_window.tenant_id
+           AND assessment.exam_series_id = mark_window.exam_series_id
+           AND assessment.subject_id = mark_window.subject_id
           WHERE student.tenant_id = $1
             AND student.status = 'active'
             AND ${windowScope}
