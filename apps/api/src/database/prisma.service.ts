@@ -4,6 +4,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { createHash } from 'node:crypto';
 import { Pool } from 'pg';
 import { RequestContextService } from '../common/request-context/request-context.service';
+import type { RequestContextState } from '../common/request-context/request-context.types';
 
 const DEFAULT_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/shule_hub';
 
@@ -12,6 +13,23 @@ export function buildTenantSessionSettingsQuery(tenantId: string, userId: string
     SELECT
       set_config('app.tenant_id', ${tenantId}, true),
       set_config('app.user_id', ${userId ?? ''}, true)
+  `;
+}
+
+export function buildRequestSessionSettingsQuery(context: RequestContextState): Prisma.Sql {
+  return Prisma.sql`
+    SELECT
+      set_config('app.tenant_id', ${context.tenant_id ?? ''}, true),
+      set_config('app.user_id', ${context.user_id}, true),
+      set_config('app.request_id', ${context.request_id}, true),
+      set_config('app.role', ${context.role ?? ''}, true),
+      set_config('app.session_id', ${context.session_id ?? ''}, true),
+      set_config('app.method', ${context.method ?? ''}, true),
+      set_config('app.path', ${context.path ?? ''}, true),
+      set_config('app.client_ip', ${context.client_ip ?? ''}, true),
+      set_config('app.user_agent', ${context.user_agent ?? ''}, true),
+      set_config('app.started_at', ${context.started_at ?? ''}, true),
+      set_config('app.is_authenticated', ${context.is_authenticated ? 'true' : 'false'}, true)
   `;
 }
 
@@ -55,30 +73,44 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   }
 
   async query<T = any>(sql: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    const requestContext = this.requestContext?.getStore();
     const firstParam = params[0];
     const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
     const expectsRows = this.rawSqlReturnsRows(sql);
+
+    if (requestContext) {
+      return this.$transaction(async (tx) => {
+        await tx.$queryRaw(buildRequestSessionSettingsQuery(requestContext));
+        return this.executeRawQuery<T>(tx, sql, params, expectsRows);
+      }, {
+        maxWait: 30000,
+        timeout: 60000,
+      });
+    }
+
     if (isUuid) {
       return this.executeWithTenant(firstParam, null, async (tx: any) => {
-        if (!expectsRows) {
-          const rowCount = await tx.$executeRawUnsafe(sql, ...params);
-          return { rows: [], rowCount };
-        }
-
-        const result = await tx.$queryRawUnsafe(sql, ...params);
-        const arr = Array.isArray(result) ? result : [result];
-        return { rows: arr, rowCount: arr.length };
+        return this.executeRawQuery<T>(tx, sql, params, expectsRows);
       });
-    } else {
-      if (!expectsRows) {
-        const rowCount = await this.$executeRawUnsafe(sql, ...params);
-        return { rows: [], rowCount };
-      }
-
-      const result = await this.$queryRawUnsafe(sql, ...params);
-      const arr = Array.isArray(result) ? result : [result];
-        return { rows: arr, rowCount: arr.length };
     }
+
+    return this.executeRawQuery<T>(this, sql, params, expectsRows);
+  }
+
+  private async executeRawQuery<T>(
+    client: Pick<Prisma.TransactionClient, '$executeRawUnsafe' | '$queryRawUnsafe'>,
+    sql: string,
+    params: any[],
+    expectsRows: boolean,
+  ): Promise<{ rows: T[]; rowCount: number }> {
+    if (!expectsRows) {
+      const rowCount = await client.$executeRawUnsafe(sql, ...params);
+      return { rows: [], rowCount };
+    }
+
+    const result = await client.$queryRawUnsafe<T[]>(sql, ...params);
+    const rows = Array.isArray(result) ? result : [result];
+    return { rows, rowCount: rows.length };
   }
 
   private rawSqlReturnsRows(sql: string): boolean {

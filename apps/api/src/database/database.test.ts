@@ -6,7 +6,11 @@ import { RequestContextService } from '../common/request-context/request-context
 import { buildDatabasePoolOptions } from './database.module';
 import { DatabaseSecurityService } from './database-security.service';
 import { DatabaseService } from './database.service';
-import { buildTenantSessionSettingsQuery, PrismaService } from './prisma.service';
+import {
+  buildRequestSessionSettingsQuery,
+  buildTenantSessionSettingsQuery,
+  PrismaService,
+} from './prisma.service';
 
 interface RecordedQuery {
   text: string;
@@ -188,6 +192,85 @@ test('buildTenantSessionSettingsQuery binds tenant and user context without stri
     "tenant-a'; SELECT pg_sleep(10); --",
     "user-b'; DROP TABLE students; --",
   ]);
+});
+
+test('buildRequestSessionSettingsQuery carries the guarded route into Prisma transactions', () => {
+  const statement = buildRequestSessionSettingsQuery({
+    request_id: 'req-parent-login',
+    trace_id: 'trace-parent-login',
+    span_id: 'span-parent-login',
+    parent_span_id: null,
+    tenant_id: null,
+    tenant_source: null,
+    audience: 'portal',
+    user_id: 'anonymous',
+    role: 'guest',
+    session_id: null,
+    permissions: [],
+    is_authenticated: false,
+    client_ip: '127.0.0.1',
+    user_agent: 'database.test',
+    method: 'POST',
+    path: '/auth/parent/login',
+    started_at: '2026-08-02T09:30:00.000Z',
+  }) as any;
+
+  assert.equal(statement.sql.includes('/auth/parent/login'), false);
+  assert.equal(statement.values.includes('/auth/parent/login'), true);
+  assert.equal(statement.values.includes('anonymous'), true);
+  assert.equal(statement.values.includes('POST'), true);
+});
+
+test('PrismaService.query applies request path before guarded parent login lookup', async () => {
+  const requestContext = new RequestContextService();
+  const calls: Array<{ kind: string; value: unknown }> = [];
+  const prisma = Object.create(PrismaService.prototype) as any;
+  prisma.requestContext = requestContext;
+  prisma.$transaction = async (callback: (tx: any) => Promise<unknown>) => callback({
+    $queryRaw: async (statement: any) => {
+      calls.push({ kind: 'settings', value: statement.values });
+      return [];
+    },
+    $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+      calls.push({ kind: 'query', value: [normalizeSql(sql), ...params] });
+      return [];
+    },
+    $executeRawUnsafe: async () => 0,
+  });
+
+  await requestContext.run(
+    {
+      request_id: 'req-parent-login',
+      tenant_id: null,
+      user_id: 'anonymous',
+      role: 'guest',
+      session_id: null,
+      permissions: [],
+      is_authenticated: false,
+      client_ip: '127.0.0.1',
+      user_agent: 'database.test',
+      method: 'POST',
+      path: '/auth/parent/login',
+      started_at: '2026-08-02T09:30:00.000Z',
+    },
+    async () => {
+      await prisma.query(
+        'SELECT * FROM app.find_linked_parent_password_auth_subject($1, $2)',
+        [null, 'ADM-00001'],
+      );
+    },
+  );
+
+  assert.equal(calls[0]?.kind, 'settings');
+  assert.equal((calls[0]?.value as unknown[]).includes('/auth/parent/login'), true);
+  assert.deepEqual(calls[1], {
+    kind: 'query',
+    value: [
+      'SELECT * FROM app.find_linked_parent_password_auth_subject($1, $2)',
+      null,
+      'ADM-00001',
+    ],
+  });
 });
 
 test('DatabaseService.query scopes request-context calls into a transaction-local session', async () => {
