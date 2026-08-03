@@ -8,7 +8,6 @@ export default function InternalPortalLoginPage() {
       heroTitle="School access for families and learners."
       heroDescription="A calm, mobile-first portal for fees, academics, notices, and downloads that feels friendly from the first screen."
       badge="Portal access"
-      logoMark="PT"
       helper="Parents only see linked learners, and students only see their own records, comments, balances, and messages."
       highlights={[
         {

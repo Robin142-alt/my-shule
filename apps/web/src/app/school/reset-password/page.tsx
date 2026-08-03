@@ -23,7 +23,6 @@ export default async function SchoolResetPasswordPage({
       heroTitle={`Create a new password for ${resolution.branding.shortName}`}
       heroDescription="Reset access in a way that feels safe, familiar, and easy for non-technical school teams."
       badge="Secure school reset"
-      logoMark={resolution.branding.logoMark}
       helper="New passwords return staff directly to their school's protected account."
       highlights={[
         { id: "simple-reset", title: "Simple reset", description: "Straightforward steps without exposing families or staff to confusing recovery UX." },

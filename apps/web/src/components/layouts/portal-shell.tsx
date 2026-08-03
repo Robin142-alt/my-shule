@@ -15,6 +15,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
+import { MyShuleMark } from "@/components/brand/myshule-brand";
+
 const portalNavItems = [
   { id: "dashboard", label: "Dashboard", href: "", icon: LayoutDashboard },
   { id: "fees", label: "Fees", href: "/fees", icon: Wallet },
@@ -52,9 +54,7 @@ export function PortalShell({
         {/* Brand */}
         <div className="border-b border-blue-100/60 px-5 py-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-sky-600 shadow-sm shadow-blue-200">
-              <span className="text-sm font-bold text-white">SH</span>
-            </div>
+            <MyShuleMark size={40} className="shadow-sm shadow-blue-200" />
             <div className="min-w-0">
               <p className="truncate text-[14px] font-semibold text-[#1a1d26]">My Shule Portal</p>
               <p className="text-[11px] text-[#8b8f9a]">{viewer === "parent" ? "Family access" : "Student access"}</p>

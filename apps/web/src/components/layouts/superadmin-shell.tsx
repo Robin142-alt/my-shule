@@ -21,6 +21,7 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
+import { MyShuleMark } from "@/components/brand/myshule-brand";
 import { TaskQueue } from "../shared/task-queue";
 import { ApprovalInbox } from "../shared/approval-inbox";
 import { NotificationBell } from "../shared/notification-bell";
@@ -118,9 +119,7 @@ export function SuperAdminShell({
         {/* Brand */}
         <div className="border-b border-white/[0.06] px-5 py-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FF7A1A] shadow-lg shadow-orange/20">
-              <span className="text-sm font-bold text-white">SH</span>
-            </div>
+            <MyShuleMark size={40} className="shadow-lg shadow-orange/20" />
             <div>
               <p className="text-[14px] font-semibold text-white tracking-tight">My Shule</p>
               <p className="text-[11px] text-white/40">Platform Control</p>

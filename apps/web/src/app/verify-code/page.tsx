@@ -10,7 +10,6 @@ export default function VerifyCodePage() {
       heroTitle="Complete your secure sign-in."
       heroDescription="Use the one-time code sent to your email to finish opening the right My Shule workspace."
       badge="My Shule secure access"
-      logoMark="SH"
         helper="Verification codes protect high-privilege sessions without exposing passwords or school data."
       highlights={[
         {

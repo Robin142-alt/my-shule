@@ -8,7 +8,6 @@ export default function SupportStaffLoginPage() {
       heroTitle="Resolve school issues with SLA context, ticket queues, and operational visibility."
       heroDescription="Internal support teams enter a control-center experience for customer replies, escalations, school health, incidents, and recurring issue patterns."
       badge="Support operations"
-      logoMark="SP"
       helper="Support actions are role protected, internally audited, and separated from school-facing user access."
       highlights={[
         {

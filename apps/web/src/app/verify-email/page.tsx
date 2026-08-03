@@ -15,7 +15,6 @@ export default async function VerifyEmailPage({
       heroTitle="Secure account verification before workspace access."
       heroDescription="Email verification confirms account ownership before sensitive school or platform records are opened."
       badge="Identity security"
-      logoMark="SH"
       helper="Verification links are single-use, short-lived, and tied to the account email."
       highlights={[
         {

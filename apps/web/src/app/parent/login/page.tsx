@@ -46,7 +46,6 @@ export default async function ParentLoginPage({
       heroTitle="Stay connected to your child in real time."
       heroDescription="Parent login brings fees, attendance, progress, discipline, clinic notes, transport status, notices, and teacher communication into one secure family workspace."
       badge="Family access"
-      logoMark="PT"
       helper="Parent sessions are linked only to verified learners, so each family sees the records, balances, and school updates meant for them."
       highlights={[
         {

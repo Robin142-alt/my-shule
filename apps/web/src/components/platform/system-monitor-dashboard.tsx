@@ -27,6 +27,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { MyShuleBrand, MyShuleMark } from "@/components/brand/myshule-brand";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
@@ -987,7 +988,7 @@ export function SystemMonitorDashboard({ routeMode }: { routeMode: RouteMode }) 
     <div className="flex min-h-screen bg-[#F3F6FA] font-sans">
       <aside className="hidden h-screen w-[260px] overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-6">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-100/70">MyShule</p>
+          <MyShuleBrand markSize={38} nameClassName="text-base" />
           <h2 className="mt-2 text-xl font-black">System Monitor</h2>
           <p className="mt-2 text-sm leading-6 text-white/65">Platform Health & Ops</p>
         </div>
@@ -1018,7 +1019,7 @@ export function SystemMonitorDashboard({ routeMode }: { routeMode: RouteMode }) 
         <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white shrink-0">SM</div>
+              <MyShuleMark size={40} />
               <h1 className="text-lg font-black text-[#071D49] truncate">{navItems.find(i => i.id === activeView)?.label || "Dashboard"}</h1>
               <span className="rounded-full border border-[#D8E0EC] bg-[#F8FAFC] px-2.5 py-1 text-xs font-bold uppercase tracking-[0.12em] text-[#64748B]">{routeMode}</span>
             </div>

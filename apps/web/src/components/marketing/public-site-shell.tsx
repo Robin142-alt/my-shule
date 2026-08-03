@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { PhoneCall } from "lucide-react";
 
-import { SITE_CONTACT_PHONE, SITE_NAME } from "@/lib/seo";
+import { MyShuleBrand } from "@/components/brand/myshule-brand";
 import { CTAButton } from "@/components/marketing/cta-button";
+import { SITE_CONTACT_PHONE } from "@/lib/seo";
 
 const primaryLinks = [
   { label: "Parent Portal", href: "/parent-portal" },
@@ -17,10 +18,7 @@ export function PublicSiteShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-30 border-b border-white/10 bg-[#071D49]/95 backdrop-blur-xl">
         <div className="mx-auto flex min-h-[76px] w-full max-w-7xl items-center justify-between gap-4 px-5 sm:px-8 lg:px-10">
           <Link href="/" className="flex items-center gap-3" aria-label="MyShule home">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent text-sm font-bold text-white shadow-[0_0_24px_rgba(255,122,26,0.26)]">
-              MS
-            </span>
-            <span className="text-lg font-semibold text-white">{SITE_NAME}</span>
+            <MyShuleBrand markSize={42} preload nameClassName="text-xl" />
           </Link>
           <nav className="hidden items-center gap-1 text-sm font-semibold lg:flex" aria-label="Primary navigation">
             {primaryLinks.map((link) => (
@@ -62,7 +60,7 @@ export function PublicSiteShell({ children }: { children: React.ReactNode }) {
       <footer className="border-t border-white/10 bg-[#071D49]/95">
         <div className="mx-auto grid w-full max-w-7xl gap-8 px-5 py-10 sm:px-8 lg:grid-cols-[1.1fr_1fr] lg:px-10">
           <div>
-            <p className="text-xl font-semibold text-white">{SITE_NAME}</p>
+            <MyShuleBrand markSize={44} nameClassName="text-xl" />
             <p className="mt-2 max-w-xl text-sm leading-6 text-white/75">
               Structured visibility for Kenyan schools across academic, financial, operational, welfare, communication, governance, security, and intelligence layers.
             </p>

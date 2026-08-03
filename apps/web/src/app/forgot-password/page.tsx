@@ -8,7 +8,6 @@ export default function ForgotPasswordPage() {
       heroTitle="Recover access without weakening account security."
       heroDescription="A secure recovery entry for school staff, parents, students, support teams, and platform operators."
       badge="Secure recovery"
-      logoMark="SH"
       helper="Recovery messaging avoids account enumeration and sends instructions only through verified channels."
       highlights={[
         {

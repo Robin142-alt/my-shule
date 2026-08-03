@@ -27,6 +27,7 @@ import {
   LockKeyhole
 } from "lucide-react";
 
+import { MyShuleMark } from "@/components/brand/myshule-brand";
 import { getCurrentSchoolId, publishSchoolOperationalEvent, requireCurrentSchoolId } from "@/lib/school/school-operational-store";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
@@ -509,7 +510,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
       <header className="sticky top-0 z-30 border-b border-[#D8E0EC] bg-white px-4 py-3 shadow-sm sm:px-6">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#071D49] text-white font-black">MS</div>
+            <MyShuleMark size={40} />
             <div>
               <h1 className="text-sm font-black text-[#071D49]">Counselling workspace controls</h1>
               <p className="text-xs font-bold text-[#64748B]">MyShule Ã¢â‚¬Â¢ Term 2, 2026</p>

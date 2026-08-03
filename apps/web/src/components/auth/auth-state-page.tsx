@@ -126,7 +126,6 @@ export function AuthStatePage({ kind }: { kind: AuthStateKind }) {
       heroTitle={hero.title}
       heroDescription={hero.description}
       badge={hero.badge}
-      logoMark="SH"
       helper="Authentication states use consistent language, accessible controls, and enterprise security patterns across My Shule."
       highlights={[
         {

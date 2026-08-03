@@ -25,6 +25,7 @@ import {
   UsersRound,
   type LucideIcon,
 } from "lucide-react";
+import { MyShuleMark } from "@/components/brand/myshule-brand";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
@@ -551,7 +552,7 @@ function TopNav({
     <header className="rounded-[24px] border border-[#C8D5EA]/70 bg-white/92 p-4 shadow-[0_18px_55px_rgba(7,29,73,0.1)] backdrop-blur-xl">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)] lg:items-start">
         <div className="flex items-start gap-4">
-          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#071D49] text-sm font-black text-white">MS</div>
+          <MyShuleMark size={48} />
           <div>
             <p className="text-xs font-black uppercase tracking-[0.2em] text-[#5F6F89]">MyShule student wellbeing</p>
             <h1 className="mt-1 text-2xl font-black tracking-tight text-[#071D49] md:text-3xl">Guidance & Counselling Department</h1>

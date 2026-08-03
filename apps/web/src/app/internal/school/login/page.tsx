@@ -16,7 +16,6 @@ export default async function InternalSchoolLoginPage() {
       heroTitle="Run your school with operational clarity."
       heroDescription="Visibility across departments. Every payment accountable. Every incident traceable. Every student monitored responsibly."
       badge={`${resolution.branding.county} school ERP`}
-      logoMark={resolution.branding.logoMark}
       helper="Staff sign-in stays school-aware, module-aware, branded, and protected by role-safe approvals and reporting records."
       highlights={[
         {

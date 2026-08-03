@@ -8,7 +8,6 @@ export default function SuperadminForgotPasswordPage() {
       heroTitle="Recover platform access safely."
       heroDescription="Account recovery for platform operators should feel simple, but still reflect the trust and control required for global admin access."
       badge="Controlled recovery"
-      logoMark="SH"
       helper="Recovery links are short-lived, device aware, and designed for high-privilege platform accounts."
       highlights={[
         { id: "verify-identity", title: "Identity first", description: "Recovery always starts by verifying the operator and their trusted channel." },

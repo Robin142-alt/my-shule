@@ -37,6 +37,7 @@ import {
   UsersRound,
 } from "lucide-react";
 
+import { MyShuleMark } from "@/components/brand/myshule-brand";
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
 import type { PortalSection } from "@/lib/routing/experience-routes";
 import { toPortalPath } from "@/lib/routing/experience-routes";
@@ -877,9 +878,10 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
         <header className="sticky top-3 z-10 rounded-[var(--radius-xl)] border border-white/12 bg-[#071D49]/78 px-4 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-3">
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--radius)] bg-orange-500 text-sm font-black text-white shadow-[0_0_30px_rgba(255,122,26,0.32)]">
-                MS
-              </span>
+              <MyShuleMark
+                size={44}
+                className="shadow-[0_0_30px_rgba(255,122,26,0.32)]"
+              />
               <div className="min-w-0">
                 <p className="text-[11px] font-black uppercase tracking-[0.2em] text-orange-200">Parent intelligence</p>
                 <p className="truncate text-sm font-semibold text-white/70">Verified school data for {activeLearnerName}</p>

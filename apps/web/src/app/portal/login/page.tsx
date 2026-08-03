@@ -28,7 +28,6 @@ export default function PortalLoginPage() {
       heroTitle="School update parents wanted."
       heroDescription="Attendance, fees, progress, clinic notes, teacher messages, and school notices appear in a secure family workspace when the school enables those modules."
       badge="Portal access"
-      logoMark="PT"
       helper="Parents only see linked learners, and students only see their own records, balances, comments, notices, and messages."
       highlights={[
         {

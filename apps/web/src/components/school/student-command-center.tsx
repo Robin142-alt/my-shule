@@ -1,5 +1,6 @@
 "use client";
 
+import { MyShuleMark } from "@/components/brand/myshule-brand";
 import { IntegratedSchoolCommandHeader } from "@/components/school/integrated-school-command-header";
 
 import { Calendar, BookOpen, GraduationCap, Award } from "lucide-react";
@@ -21,7 +22,7 @@ export function StudentCommandCenter({ routeMode, activeSection }: { routeMode?:
             <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-[#F3F6FA]/90 px-4 py-4 backdrop-blur sm:px-8">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#071D49] text-sm font-black text-white">MS</div>
+                  <MyShuleMark size={48} />
                   <div>
                     <h1 className="text-lg font-black text-[#071D49]">Student workspace controls</h1>
                     <p className="text-sm font-semibold text-[#64748B]">

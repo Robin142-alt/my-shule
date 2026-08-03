@@ -11,6 +11,8 @@ import {
   Wifi,
 } from "lucide-react";
 
+import { MyShuleBrand, MyShuleMark } from "@/components/brand/myshule-brand";
+
 type AuthHighlight = {
   id: string;
   title: string;
@@ -131,7 +133,6 @@ function AuthHero({
   badge,
   highlights,
   trustNotes,
-  logoMark,
   helper,
   dark,
 }: {
@@ -141,7 +142,6 @@ function AuthHero({
   badge: string;
   highlights: AuthHighlight[];
   trustNotes: AuthTrustNote[];
-  logoMark: string;
   helper: string;
   dark: boolean;
 }) {
@@ -151,13 +151,11 @@ function AuthHero({
       <div className="relative z-10 space-y-8">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span
-              className={`inline-flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-bold shadow-sm ${
-                dark ? "bg-accent text-white shadow-[0_0_28px_rgba(255,122,26,0.26)]" : "bg-primary text-white"
-              }`}
-            >
-              {logoMark}
-            </span>
+            <MyShuleMark
+              size={48}
+              preload
+              className={dark ? "shadow-[0_0_28px_rgba(244,176,0,0.22)]" : ""}
+            />
             <div>
               <p className={dark ? "text-sm font-semibold text-white" : "text-sm font-semibold text-slate-950"}>
                 My Shule ERP
@@ -234,7 +232,6 @@ export function AuthShell({
   heroTitle,
   heroDescription,
   badge,
-  logoMark,
   helper,
   highlights,
   trustNotes,
@@ -244,7 +241,6 @@ export function AuthShell({
   heroTitle: string;
   heroDescription: string;
   badge: string;
-  logoMark: string;
   helper: string;
   highlights: AuthHighlight[];
   trustNotes: AuthTrustNote[];
@@ -264,7 +260,6 @@ export function AuthShell({
           title={heroTitle}
           description={heroDescription}
           badge={badge}
-          logoMark={logoMark}
           helper={helper}
           highlights={highlights}
           trustNotes={trustNotes}
@@ -272,12 +267,15 @@ export function AuthShell({
         />
 
         <section
-          className="relative flex min-h-[calc(100vh-24px)] items-center justify-center overflow-hidden bg-white px-4 py-6 transition-colors duration-300 sm:px-6 md:px-8 lg:min-h-full"
+          className="relative flex min-h-[calc(100vh-24px)] flex-col items-center justify-center overflow-hidden bg-white px-4 py-6 transition-colors duration-300 sm:px-6 md:px-8 lg:min-h-full"
         >
           <div
             aria-hidden="true"
             className="absolute inset-x-0 top-0 h-40 bg-[linear-gradient(180deg,rgba(255,122,26,0.12),transparent_72%)] lg:hidden"
           />
+          <div className="relative z-10 mb-5 flex w-full max-w-[480px] lg:hidden">
+            <MyShuleBrand markSize={42} tone="brand" preload />
+          </div>
           <motion.div
             className="relative z-10 w-full max-w-[480px]"
             initial={{ opacity: 0, y: 12 }}

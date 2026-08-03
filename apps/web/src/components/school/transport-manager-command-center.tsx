@@ -27,6 +27,7 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
+import { MyShuleMark } from "@/components/brand/myshule-brand";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
@@ -307,7 +308,7 @@ function Topbar({
     <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-[#F3F6FA]/92 px-4 py-3 backdrop-blur">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-[#071D49] text-sm font-black text-white">MS</div>
+          <MyShuleMark size={44} />
           <div>
             <p className="text-xs font-black uppercase tracking-[0.2em] text-[#64748B]">Term 2 - Transport live</p>
             <h1 className="text-xl font-black text-[#071D49]">Transport Workspace</h1>

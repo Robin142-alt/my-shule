@@ -8,7 +8,6 @@ export default function PortalForgotPasswordPage() {
       heroTitle="Recover family portal access."
       heroDescription="Keep the portal recovery flow simple enough for families and learners while still protecting private school information."
       badge="Friendly recovery"
-      logoMark="PT"
       helper="Use the verified email address already linked to the portal account."
       highlights={[
         { id: "simple", title: "Simple for families", description: "Clear language and familiar identifiers reduce support calls." },

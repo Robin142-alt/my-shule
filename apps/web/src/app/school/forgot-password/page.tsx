@@ -17,7 +17,6 @@ export default async function SchoolForgotPasswordPage() {
       heroTitle={`Recover access to ${resolution.branding.shortName}`}
       heroDescription="Help principals, bursars, teachers, and office teams get back into the school workspace without adding technical friction."
       badge="School password recovery"
-      logoMark={resolution.branding.logoMark}
       helper="Recovery stays linked to the school that issued the staff account."
       highlights={[
         { id: "verified-email", title: "Verified email", description: "Staff start recovery with the email address on their school account." },

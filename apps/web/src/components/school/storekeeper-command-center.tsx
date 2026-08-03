@@ -38,6 +38,7 @@ import {
   XCircle,
   type LucideIcon,
 } from "lucide-react";
+import { MyShuleMark } from "@/components/brand/myshule-brand";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
@@ -974,9 +975,10 @@ function Header({
     <section id="top" className={cn("rounded-3xl border p-4 md:p-5", surface.card)}>
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex min-w-0 items-center gap-4">
-          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-3xl bg-[#FF7A1A] text-xl font-black text-white shadow-[0_18px_45px_rgba(255,122,26,0.34)]">
-            MS
-          </div>
+          <MyShuleMark
+            size={56}
+            className="shadow-[0_18px_45px_rgba(255,122,26,0.34)]"
+          />
           <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#FFB06C]">MyShule inventory control</p>
             <h1 className="mt-1 text-2xl font-black tracking-normal md:text-4xl">Storekeeper command center</h1>

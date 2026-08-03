@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+
 import { ImageResponse } from "next/og";
 
 import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo";
@@ -9,7 +12,13 @@ export const size = {
 };
 export const contentType = "image/png";
 
-export default function Image() {
+export default async function Image() {
+  const logoData = await readFile(
+    join(process.cwd(), "public", "brand", "myshule-mark-512.png"),
+    "base64",
+  );
+  const logoSrc = `data:image/png;base64,${logoData}`;
+
   return new ImageResponse(
     (
       <div
@@ -26,22 +35,16 @@ export default function Image() {
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "18px" }}>
-            <div
+            <img
+              src={logoSrc}
+              alt=""
+              width={68}
+              height={68}
               style={{
-                display: "flex",
-                width: 62,
-                height: 62,
-                alignItems: "center",
-                justifyContent: "center",
                 borderRadius: 18,
-                background: "#FF7A1A",
-                color: "white",
-                fontSize: 26,
-                fontWeight: 800,
+                background: "#FFFFFF",
               }}
-            >
-              MS
-            </div>
+            />
             <div style={{ display: "flex", flexDirection: "column" }}>
               <div style={{ fontSize: 34, fontWeight: 800 }}>{SITE_NAME}</div>
               <div style={{ color: "#FFB072", fontSize: 20, fontWeight: 700 }}>

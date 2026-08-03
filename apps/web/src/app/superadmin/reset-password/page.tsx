@@ -15,7 +15,6 @@ export default async function SuperadminResetPasswordPage({
       heroTitle="Set a new platform password."
       heroDescription="Choose a new high-trust password, complete recovery, and return to the platform with device protection intact."
       badge="Secure reset session"
-      logoMark="SH"
       helper="We recommend a unique password plus your authenticator app for ongoing platform access."
       highlights={[
         { id: "policy", title: "Strong policy", description: "Passwords should be unique, memorable, and hard to reuse elsewhere." },

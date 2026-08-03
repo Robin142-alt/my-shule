@@ -15,7 +15,6 @@ export default async function PortalResetPasswordPage({
       heroTitle="Choose a new portal password."
       heroDescription="A quick, friendly reset flow for parents and learners that still respects privacy and account safety."
       badge="Portal reset"
-      logoMark="PT"
       helper="Short, clear reset steps help families recover without needing technical support from the school office."
       highlights={[
         { id: "guided", title: "Guided recovery", description: "Every step explains what to do next without jargon." },

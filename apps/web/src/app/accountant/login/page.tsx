@@ -8,7 +8,6 @@ export default function AccountantLoginPage() {
       heroTitle="Fintech-grade access for fee collection, reconciliation, and reporting."
       heroDescription="A secure finance entry point for accountants who manage revenue analytics, M-PESA collections, ledgers, statements, and audit evidence."
       badge="Finance operations"
-      logoMark="AC"
       helper="Finance sessions prioritize transaction safety, device awareness, role permissions, and clear audit trails."
       highlights={[
         {

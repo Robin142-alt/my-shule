@@ -32,6 +32,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { MyShuleMark } from "@/components/brand/myshule-brand";
 import {
   getCurrentSchoolId,
   publishSchoolOperationalEvent,
@@ -498,7 +499,10 @@ function TopHeader({
     <header id="top" className="rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-4 text-[#071D49] shadow-[0_18px_50px_rgba(7,29,73,0.12)] md:p-5">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-4">
-          <div className="grid h-12 w-12 place-items-center rounded-[var(--radius-lg)] bg-[#071D49] text-sm font-black text-white shadow-[0_16px_34px_rgba(7,29,73,0.18)]">MS</div>
+          <MyShuleMark
+            size={48}
+            className="shadow-[0_16px_34px_rgba(7,29,73,0.18)]"
+          />
           <div>
             <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">MyShule admissions office</p>
             <p className="mt-1 text-lg font-black md:text-2xl">Registrar Admissions Command Center</p>

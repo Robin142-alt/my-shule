@@ -12,11 +12,22 @@ import {
 export type JsonLd = Record<string, unknown>;
 
 export function buildOrganizationJsonLd(): JsonLd {
+  const logoUrl = absoluteUrl("/brand/myshule-mark-512.png");
+
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: SITE_NAME,
+    alternateName: "My Shule",
     url: SITE_URL,
+    logo: {
+      "@type": "ImageObject",
+      url: logoUrl,
+      contentUrl: logoUrl,
+      width: 512,
+      height: 512,
+      caption: `${SITE_NAME} logo`,
+    },
     telephone: SITE_CONTACT_PHONE,
     areaServed: {
       "@type": "Country",

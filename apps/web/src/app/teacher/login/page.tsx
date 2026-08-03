@@ -8,7 +8,6 @@ export default function TeacherLoginPage() {
       heroTitle="Move from timetable to marks entry without friction."
       heroDescription="A fast academic workspace for teachers who need class context, assignment workflows, and CBC-ready records on any device."
       badge="Academic operations"
-      logoMark="TR"
       helper="Teacher access is scoped to assigned classes, subjects, timetable events, and academic workflows."
       highlights={[
         {

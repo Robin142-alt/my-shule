@@ -25,9 +25,6 @@ export const metadata: Metadata = {
   publisher: SITE_NAME,
   category: "education technology",
   manifest: "/manifest.webmanifest",
-  icons: {
-    icon: "/favicon.ico",
-  },
   alternates: {
     canonical: "/",
   },

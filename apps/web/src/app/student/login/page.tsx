@@ -8,7 +8,6 @@ export default function StudentLoginPage() {
       heroTitle="A lightweight learning portal for assignments, results, and school updates."
       heroDescription="Students get a focused mobile-first entry into learning tasks, academic records, timetable context, and school notices."
       badge="Learning portal"
-      logoMark="ST"
       helper="Student sessions are scoped to a single learner profile and never expose parent, finance, or staff workspaces."
       highlights={[
         {

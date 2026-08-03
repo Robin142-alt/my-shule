@@ -26,7 +26,6 @@ export default async function InviteAcceptancePage({
       heroTitle="Secure school onboarding starts from a verified invitation."
       heroDescription="New administrators create their own password from a signed, short-lived invitation link before entering a school workspace."
       badge="User onboarding"
-      logoMark="SH"
       helper="Invitation links bind the school, role, email address, and first password setup without exposing credentials."
       highlights={[
         {

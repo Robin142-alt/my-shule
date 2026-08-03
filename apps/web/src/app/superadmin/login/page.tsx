@@ -8,7 +8,6 @@ export default function SuperadminLoginPage() {
       heroTitle="Operate the platform with confidence."
       heroDescription="Monitor school health, subscriptions, MPESA reliability, and infrastructure from one premium control center designed for platform owners and support teams."
       badge="My Shule Platform Control"
-      logoMark="SH"
       helper="Platform-wide actions are audit logged, role protected, and separated from school data access."
       highlights={[
         {

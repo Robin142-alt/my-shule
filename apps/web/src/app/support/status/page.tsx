@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { Activity, AlertCircle, Clock3 } from "lucide-react";
+import { AlertCircle, Clock3 } from "lucide-react";
 
+import { MyShuleMark } from "@/components/brand/myshule-brand";
 import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
 import { getDashboardApiBaseUrl } from "@/lib/dashboard/api-client";
@@ -97,9 +98,7 @@ export default async function PublicSupportStatusPage({
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-sm)] bg-accent text-accent-foreground">
-                  <Activity className="h-5 w-5" />
-                </span>
+                <MyShuleMark size={40} preload />
                 <p className="text-sm font-semibold uppercase tracking-[0.14em] text-muted">
                   My Shule Status
                 </p>

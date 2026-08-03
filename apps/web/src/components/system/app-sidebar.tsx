@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { MyShuleBrand } from "@/components/brand/myshule-brand";
 import { Card } from "@/components/ui/card";
 import type {
   ExperienceNavItem,
@@ -79,22 +80,12 @@ export function AppSidebar({
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-40 w-[260px] transform border-r px-4 py-5 transition duration-150 lg:static lg:translate-x-0 ${styles.shell} ${
+      className={`custom-scrollbar fixed inset-y-0 left-0 z-40 w-[260px] transform overflow-y-auto border-r px-4 py-5 transition duration-150 lg:static lg:translate-x-0 ${styles.shell} ${
         mobileOpen ? "translate-x-0" : "-translate-x-full"
       }`}
     >
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">
-            Menu
-          </p>
-          <p className="mt-2 text-lg font-semibold text-white">
-            {brand.title}
-          </p>
-          <p className="mt-1 text-sm text-white/70">
-            {brand.subtitle}
-          </p>
-        </div>
+        <MyShuleBrand markSize={38} nameClassName="text-base" />
         <button
           type="button"
           onClick={onClose}
@@ -102,6 +93,18 @@ export function AppSidebar({
         >
           Close
         </button>
+      </div>
+
+      <div className="mt-5 rounded-[var(--radius-sm)] border border-white/10 bg-white/[0.06] px-3 py-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">
+          Menu
+        </p>
+        <p className="mt-2 text-lg font-semibold text-white">
+          {brand.title}
+        </p>
+        <p className="mt-1 text-sm text-white/70">
+          {brand.subtitle}
+        </p>
       </div>
 
       <nav className="mt-6 space-y-5">

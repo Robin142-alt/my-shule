@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Search, Bell, Users, Calendar, Phone, Mail } from "lucide-react";
+import { MyShuleMark } from "@/components/brand/myshule-brand";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
@@ -147,7 +148,7 @@ export function SecretaryCommandCenter({ routeMode }: { routeMode?: "hosted" | "
             <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-[#F3F6FA]/90 px-4 py-2 backdrop-blur">
               <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="grid h-9 w-9 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white">MS</div>
+                  <MyShuleMark size={36} />
                   <div>
                     <h1 className="text-lg font-black text-[#071D49]">Secretary Dashboard</h1>
                   </div>
