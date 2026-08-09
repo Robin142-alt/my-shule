@@ -344,6 +344,8 @@ export class EventsSchemaService implements OnModuleInit {
       ALTER TABLE notifications ADD COLUMN IF NOT EXISTS recipient_role text;
       ALTER TABLE notifications ADD COLUMN IF NOT EXISTS type text;
       ALTER TABLE notifications ADD COLUMN IF NOT EXISTS body text;
+      ALTER TABLE notifications ADD COLUMN IF NOT EXISTS source_module text;
+      ALTER TABLE notifications ADD COLUMN IF NOT EXISTS source_record_id text;
       ALTER TABLE notifications ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
       ALTER TABLE notifications ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT NOW();
 

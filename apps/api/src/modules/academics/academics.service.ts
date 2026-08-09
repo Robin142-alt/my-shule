@@ -371,6 +371,12 @@ export class AcademicsService {
   async assignTeacher(dto: AssignTeacherDto) {
     const tenantId = this.requireTenantId();
     const teacherUserId = this.requireText(dto.teacher_user_id, 'Teacher');
+    const assignmentType = dto.assignment_type ?? 'primary';
+    const isPrimary = assignmentType === 'supporting'
+      ? false
+      : assignmentType === 'primary'
+        ? true
+        : dto.is_primary ?? true;
     await this.requireActiveStaffUserInTenant(tenantId, teacherUserId);
     const termId = this.requireText(dto.academic_term_id, 'Academic term');
     const classSectionId = this.requireText(dto.class_section_id, 'Class section');
@@ -426,8 +432,8 @@ export class AcademicsService {
       class_section_id: classSectionId,
       subject_id: subjectId,
       teacher_user_id: teacherUserId,
-      assignment_type: dto.assignment_type ?? 'primary',
-      is_primary: dto.is_primary ?? true,
+      assignment_type: assignmentType,
+      is_primary: isPrimary,
       mark_entry_allowed: dto.mark_entry_allowed ?? true,
       lesson_record_allowed: dto.lesson_record_allowed ?? true,
       report_comment_allowed: dto.report_comment_allowed ?? true,

@@ -559,6 +559,7 @@ export function AcademicFoundationWorkspace({
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
+    const assignmentType = value(data, "assignment_type") || "primary";
     return submit("subject-teacher", "/academics/teacher-assignments", {
       academic_term_id: value(data, "academic_term_id"),
       class_section_id: value(data, "class_section_id"),
@@ -567,8 +568,8 @@ export function AcademicFoundationWorkspace({
       stream_id: value(data, "stream_id") || undefined,
       department_id: value(data, "department_id") || undefined,
       curriculum_model: value(data, "curriculum_model") || undefined,
-      assignment_type: value(data, "assignment_type") || "permanent",
-      is_primary: data.get("is_primary") === "on",
+      assignment_type: assignmentType,
+      is_primary: assignmentType !== "supporting",
       mark_entry_allowed: data.get("mark_entry_allowed") === "on",
       lesson_record_allowed: data.get("lesson_record_allowed") === "on",
       report_comment_allowed: data.get("report_comment_allowed") === "on",
@@ -994,8 +995,8 @@ export function AcademicFoundationWorkspace({
                 <label className="block text-sm font-bold">Subject / learning area<select name="subject_id" required className={fieldClass} defaultValue=""><option value="">Select subject</option>{activeSubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select></label>
                 <label className="block text-sm font-bold">Teacher<select name="teacher_user_id" required className={fieldClass} defaultValue=""><option value="">Select active staff member</option>{teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.label}</option>)}</select></label>
                 <div className="grid gap-3 sm:grid-cols-3"><label className="text-sm font-bold">Stream<select name="stream_id" defaultValue="" className={fieldClass}><option value="">All streams / none</option>{activeStreams.map((stream) => <option key={stream.id} value={stream.id}>{stream.class_section_name} {stream.name}</option>)}</select></label><label className="text-sm font-bold">Department<select name="department_id" defaultValue="" className={fieldClass}><option value="">Use subject department</option>{activeDepartments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></label><label className="text-sm font-bold">Curriculum<select name="curriculum_model" defaultValue="" className={fieldClass}><option value="">Use subject curriculum</option>{["CBC", "CBE", "8-4-4", "International", "Hybrid", "Custom"].map((model) => <option key={model} value={model}>{model}</option>)}</select></label></div>
-                <div className="grid gap-3 sm:grid-cols-3"><label className="text-sm font-bold">Type<select name="assignment_type" defaultValue="permanent" className={fieldClass}><option value="permanent">Permanent</option><option value="temporary">Temporary</option></select></label><label className="text-sm font-bold">Effective from<input type="date" name="effective_from" defaultValue={new Date().toISOString().slice(0, 10)} className={fieldClass} /></label><label className="text-sm font-bold">Effective to<input type="date" name="effective_to" className={fieldClass} /></label></div>
-                <div className="grid gap-2 sm:grid-cols-2"><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" name="is_primary" defaultChecked /> Primary teacher</label><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" name="mark_entry_allowed" defaultChecked /> Enter marks</label><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" name="lesson_record_allowed" defaultChecked /> Record lessons</label><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" name="report_comment_allowed" defaultChecked /> Report comments</label></div>
+                <div className="grid gap-3 sm:grid-cols-3"><label className="text-sm font-bold">Type<select name="assignment_type" defaultValue="primary" className={fieldClass}><option value="primary">Primary</option><option value="supporting">Supporting</option><option value="temporary">Temporary</option></select></label><label className="text-sm font-bold">Effective from<input type="date" name="effective_from" defaultValue={new Date().toISOString().slice(0, 10)} className={fieldClass} /></label><label className="text-sm font-bold">Effective to<input type="date" name="effective_to" className={fieldClass} /></label></div>
+                <div className="grid gap-2 sm:grid-cols-3"><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" name="mark_entry_allowed" defaultChecked /> Enter marks</label><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" name="lesson_record_allowed" defaultChecked /> Record lessons</label><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" name="report_comment_allowed" defaultChecked /> Report comments</label></div>
                 <label className="block text-sm font-bold">Reason / allocation note<input name="reason" className={fieldClass} placeholder="Why this teaching allocation is assigned" /></label>
                 <button className={primaryButtonClass} disabled={busyAction !== null || activeTerms.length === 0 || activeClasses.length === 0 || activeSubjects.length === 0 || teachers.length === 0}>{busyAction === "subject-teacher" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Assign Subject Teacher</button>
               </form>

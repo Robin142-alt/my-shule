@@ -138,6 +138,11 @@ describe("principal and deputy academic foundation workspace", () => {
     expect(workspaceSource).toContain("bulk-lifecycle");
     expect(workspaceSource).toContain("timeoutMs: 30_000");
     expect(workspaceSource).toContain("timeoutMs: 60_000");
+    expect(workspaceSource).toContain('const assignmentType = value(data, "assignment_type") || "primary"');
+    expect(workspaceSource).toContain('is_primary: assignmentType !== "supporting"');
+    expect(workspaceSource).toContain('name="assignment_type" defaultValue="primary"');
+    expect(workspaceSource).toContain('<option value="supporting">Supporting</option>');
+    expect(workspaceSource).not.toContain('name="is_primary"');
     expect(workspaceSource).toContain("Review impact");
     expect(workspaceSource).toContain("Most recently changed");
     expect(workspaceSource).not.toMatch(/Kisumu Boys|demo data/i);

@@ -343,6 +343,41 @@ test('AcademicsService assigns teachers to deterministic subject class term scop
   assert.deepEqual(calls, ['assign', 'audit']);
 });
 
+test('AcademicsService keeps supporting subject teachers non-primary even when a client sends a conflicting flag', async () => {
+  let scopeRead = 0;
+  let assignmentInput: Record<string, unknown> | undefined;
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    {
+      executeSql: async () => {
+        scopeRead += 1;
+        return scopeRead === 1
+          ? { rows: [{ id: 'term-1' }], rowCount: 1 }
+          : { rows: [{ id: 'primary-1', teacher_user_id: 'teacher-primary' }], rowCount: 1 };
+      },
+      findTeacherOptionByUserId: async () => ({ id: 'staff-2', user_id: 'teacher-support', label: 'Support Teacher' }),
+      createTeacherAssignment: async (input: Record<string, unknown>) => {
+        assignmentInput = input;
+        return { id: 'supporting-1', ...input };
+      },
+      appendAuditLog: async () => undefined,
+    } as never,
+    {} as never,
+  );
+
+  await service.assignTeacher({
+    academic_term_id: 'term-1',
+    class_section_id: 'class-1',
+    subject_id: 'subject-1',
+    teacher_user_id: 'teacher-support',
+    assignment_type: 'supporting',
+    is_primary: true,
+  });
+
+  assert.equal(assignmentInput?.assignment_type, 'supporting');
+  assert.equal(assignmentInput?.is_primary, false);
+});
+
 test('AcademicsService stores one canonical class, form, or grade name', async () => {
   const writes: Array<Record<string, unknown>> = [];
   let queryCount = 0;
