@@ -182,7 +182,7 @@ export function AssignmentsWorkspace({
         </article>
       </div>
       <div className="mb-4">
-        {hasPermission('academics:write') && (
+        {hasPermission('teacher:write') && (
           <button type="button" onClick={() => setIsModalOpen(true)} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Create Assignment</button>
         )}
       </div>

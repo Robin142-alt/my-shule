@@ -1934,6 +1934,231 @@ export class AuthSchemaService implements OnModuleInit {
         ADD CONSTRAINT tenant_memberships_status_check
         CHECK (status IN ('active', 'invited', 'suspended', 'revoked'));
 
+      CREATE TABLE IF NOT EXISTS user_roles (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        role_id uuid NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+        scope_type text NOT NULL DEFAULT 'SCHOOL',
+        scope_id text,
+        assigned_by_user_id uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+        status text NOT NULL DEFAULT 'ACTIVE',
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        deleted_at timestamptz
+      );
+
+      ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS tenant_id text;
+      ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS scope_type text;
+      ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS scope_id text;
+      ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS assigned_by_user_id uuid;
+      ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS status text;
+      ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS created_at timestamptz;
+      ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS updated_at timestamptz;
+      ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+
+      DO $$
+      DECLARE
+        legacy_column text;
+        has_invalid_ids boolean;
+        duplicate_assignment record;
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'user_roles'
+            AND column_name = 'school_id'
+        ) THEN
+          IF EXISTS (
+            SELECT 1
+            FROM user_roles
+            WHERE tenant_id IS NOT NULL
+              AND btrim(tenant_id) <> ''
+              AND school_id IS NOT NULL
+              AND btrim(school_id) <> ''
+              AND tenant_id <> school_id
+          ) THEN
+            RAISE EXCEPTION 'Cannot canonicalize user_roles tenant ownership because school_id and tenant_id conflict';
+          END IF;
+
+          UPDATE user_roles
+          SET tenant_id = school_id
+          WHERE (tenant_id IS NULL OR btrim(tenant_id) = '')
+            AND school_id IS NOT NULL
+            AND btrim(school_id) <> '';
+
+          ALTER TABLE user_roles ALTER COLUMN school_id DROP NOT NULL;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM user_roles
+          WHERE tenant_id IS NULL OR btrim(tenant_id) = ''
+        ) THEN
+          RAISE EXCEPTION 'Cannot canonicalize user_roles because tenant ownership is missing';
+        END IF;
+
+        FOREACH legacy_column IN ARRAY ARRAY['id', 'user_id', 'role_id', 'assigned_by_user_id'] LOOP
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'user_roles'
+              AND column_name = legacy_column
+              AND data_type IN ('text', 'character varying')
+          ) THEN
+            EXECUTE format(
+              'SELECT EXISTS (SELECT 1 FROM user_roles WHERE %I IS NOT NULL AND %I !~* %L)',
+              legacy_column,
+              legacy_column,
+              '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            ) INTO has_invalid_ids;
+
+            IF has_invalid_ids THEN
+              RAISE EXCEPTION 'Cannot migrate user_roles.% from text to uuid because non-UUID values exist', legacy_column;
+            END IF;
+
+            IF legacy_column = 'id' THEN
+              ALTER TABLE user_roles ALTER COLUMN id DROP DEFAULT;
+            END IF;
+
+            EXECUTE format(
+              'ALTER TABLE user_roles ALTER COLUMN %I TYPE uuid USING %I::uuid',
+              legacy_column,
+              legacy_column
+            );
+          END IF;
+        END LOOP;
+
+        FOREACH legacy_column IN ARRAY ARRAY['created_at', 'updated_at', 'deleted_at'] LOOP
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'user_roles'
+              AND column_name = legacy_column
+              AND data_type = 'timestamp without time zone'
+          ) THEN
+            EXECUTE format(
+              'ALTER TABLE user_roles ALTER COLUMN %I TYPE timestamptz USING %I AT TIME ZONE %L',
+              legacy_column,
+              legacy_column,
+              'UTC'
+            );
+          END IF;
+        END LOOP;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'user_roles'
+            AND column_name = 'status'
+            AND data_type = 'USER-DEFINED'
+        ) THEN
+          ALTER TABLE user_roles ALTER COLUMN status DROP DEFAULT;
+          ALTER TABLE user_roles ALTER COLUMN status TYPE text USING upper(status::text);
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'user_roles'
+            AND column_name = 'scope_type'
+            AND data_type = 'USER-DEFINED'
+        ) THEN
+          ALTER TABLE user_roles ALTER COLUMN scope_type DROP DEFAULT;
+          ALTER TABLE user_roles ALTER COLUMN scope_type TYPE text USING upper(scope_type::text);
+        END IF;
+
+        UPDATE user_roles
+        SET assigned_by_user_id = user_id
+        WHERE assigned_by_user_id IS NULL;
+
+        UPDATE user_roles
+        SET scope_type = COALESCE(NULLIF(upper(btrim(scope_type)), ''), 'SCHOOL'),
+            status = COALESCE(NULLIF(upper(btrim(status)), ''), 'ACTIVE'),
+            created_at = COALESCE(created_at, NOW()),
+            updated_at = COALESCE(updated_at, created_at, NOW());
+
+        SELECT tenant_id, user_id, role_id, scope_type, COALESCE(scope_id, '') AS scope_id
+        INTO duplicate_assignment
+        FROM user_roles
+        WHERE status = 'ACTIVE' AND deleted_at IS NULL
+        GROUP BY tenant_id, user_id, role_id, scope_type, COALESCE(scope_id, '')
+        HAVING COUNT(*) > 1
+        LIMIT 1;
+
+        IF duplicate_assignment IS NOT NULL THEN
+          RAISE EXCEPTION 'Cannot enforce active user role uniqueness because duplicate assignments exist for tenant % and user %',
+            duplicate_assignment.tenant_id,
+            duplicate_assignment.user_id;
+        END IF;
+
+        ALTER TABLE user_roles ALTER COLUMN id SET DEFAULT gen_random_uuid();
+        ALTER TABLE user_roles ALTER COLUMN tenant_id SET NOT NULL;
+        ALTER TABLE user_roles ALTER COLUMN user_id SET NOT NULL;
+        ALTER TABLE user_roles ALTER COLUMN role_id SET NOT NULL;
+        ALTER TABLE user_roles ALTER COLUMN scope_type SET DEFAULT 'SCHOOL';
+        ALTER TABLE user_roles ALTER COLUMN scope_type SET NOT NULL;
+        ALTER TABLE user_roles ALTER COLUMN assigned_by_user_id SET NOT NULL;
+        ALTER TABLE user_roles ALTER COLUMN status SET DEFAULT 'ACTIVE';
+        ALTER TABLE user_roles ALTER COLUMN status SET NOT NULL;
+        ALTER TABLE user_roles ALTER COLUMN created_at SET DEFAULT NOW();
+        ALTER TABLE user_roles ALTER COLUMN created_at SET NOT NULL;
+        ALTER TABLE user_roles ALTER COLUMN updated_at SET DEFAULT NOW();
+        ALTER TABLE user_roles ALTER COLUMN updated_at SET NOT NULL;
+      END;
+      $$;
+
+      ALTER TABLE user_roles DROP CONSTRAINT IF EXISTS user_roles_status_check;
+      ALTER TABLE user_roles DROP CONSTRAINT IF EXISTS ck_user_roles_status;
+      ALTER TABLE user_roles
+        ADD CONSTRAINT ck_user_roles_status CHECK (status IN ('ACTIVE', 'REVOKED'));
+
+      ALTER TABLE user_roles DROP CONSTRAINT IF EXISTS user_roles_scope_type_check;
+      ALTER TABLE user_roles DROP CONSTRAINT IF EXISTS ck_user_roles_scope_type;
+      ALTER TABLE user_roles
+        ADD CONSTRAINT ck_user_roles_scope_type
+        CHECK (scope_type IN (
+          'PLATFORM',
+          'SCHOOL',
+          'DEPARTMENT',
+          'GRADE_FORM',
+          'CLASS_STREAM',
+          'CLASS',
+          'STREAM',
+          'SUBJECT',
+          'BOARDING_HOUSE',
+          'ASSIGNED_STUDENTS',
+          'OWN_CHILDREN',
+          'SELF',
+          'READ_ONLY',
+          'NONE'
+        ));
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'fk_user_roles_user'
+        ) THEN
+          ALTER TABLE user_roles
+            ADD CONSTRAINT fk_user_roles_user
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'fk_user_roles_assigned_by_user'
+        ) THEN
+          ALTER TABLE user_roles
+            ADD CONSTRAINT fk_user_roles_assigned_by_user
+            FOREIGN KEY (assigned_by_user_id) REFERENCES users(id) ON DELETE RESTRICT;
+        END IF;
+      END;
+      $$;
+
       CREATE TABLE IF NOT EXISTS auth_action_tokens (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text,
@@ -2116,10 +2341,47 @@ export class AuthSchemaService implements OnModuleInit {
         WHERE user_type = 'platform_owner' AND status = 'active';
       CREATE INDEX IF NOT EXISTS ix_users_tenant_id ON users (tenant_id);
       CREATE UNIQUE INDEX IF NOT EXISTS ux_roles_tenant_code ON roles (tenant_id, code);
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_roles_tenant_id_id ON roles (tenant_id, id);
       CREATE UNIQUE INDEX IF NOT EXISTS ux_permissions_tenant_resource_action ON permissions (tenant_id, resource, action);
       CREATE UNIQUE INDEX IF NOT EXISTS ux_role_permissions_tenant_role_permission ON role_permissions (tenant_id, role_id, permission_id);
       CREATE UNIQUE INDEX IF NOT EXISTS ux_tenant_memberships_tenant_user ON tenant_memberships (tenant_id, user_id);
       CREATE INDEX IF NOT EXISTS ix_tenant_memberships_user_id ON tenant_memberships (user_id);
+      CREATE INDEX IF NOT EXISTS ix_user_roles_tenant_user_status
+        ON user_roles (tenant_id, user_id, status)
+        WHERE deleted_at IS NULL;
+      CREATE INDEX IF NOT EXISTS ix_user_roles_tenant_role
+        ON user_roles (tenant_id, role_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_user_roles_active_assignment
+        ON user_roles (tenant_id, user_id, role_id, scope_type, (COALESCE(scope_id, '')))
+        WHERE status = 'ACTIVE' AND deleted_at IS NULL;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'fk_user_roles_tenant_role'
+        ) THEN
+          ALTER TABLE user_roles
+            ADD CONSTRAINT fk_user_roles_tenant_role
+            FOREIGN KEY (tenant_id, role_id)
+            REFERENCES roles(tenant_id, id)
+            ON DELETE CASCADE;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'user_roles'
+            AND column_name = 'school_id'
+        ) AND NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'ck_user_roles_legacy_school_tenant'
+        ) THEN
+          ALTER TABLE user_roles
+            ADD CONSTRAINT ck_user_roles_legacy_school_tenant
+            CHECK (school_id IS NULL OR school_id = tenant_id);
+        END IF;
+      END;
+      $$;
       CREATE UNIQUE INDEX IF NOT EXISTS ux_auth_action_tokens_hash ON auth_action_tokens (token_hash);
       CREATE INDEX IF NOT EXISTS ix_auth_action_tokens_tenant_email ON auth_action_tokens (tenant_id, lower(email), purpose);
       CREATE INDEX IF NOT EXISTS ix_auth_action_tokens_tenant_invites
@@ -2151,6 +2413,8 @@ export class AuthSchemaService implements OnModuleInit {
       ALTER TABLE role_permissions FORCE ROW LEVEL SECURITY;
       ALTER TABLE tenant_memberships ENABLE ROW LEVEL SECURITY;
       ALTER TABLE tenant_memberships FORCE ROW LEVEL SECURITY;
+      ALTER TABLE user_roles ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE user_roles FORCE ROW LEVEL SECURITY;
       ALTER TABLE auth_action_tokens ENABLE ROW LEVEL SECURITY;
       ALTER TABLE auth_action_tokens FORCE ROW LEVEL SECURITY;
       ALTER TABLE auth_email_outbox ENABLE ROW LEVEL SECURITY;
@@ -2293,6 +2557,20 @@ export class AuthSchemaService implements OnModuleInit {
         OR NULLIF(current_setting('app.role', true), '') = 'platform_owner'
         OR NULLIF(current_setting('app.role', true), '') = 'system'
         OR COALESCE(NULLIF(current_setting('app.path', true), ''), '') LIKE '%/auth/invitations/accept%'
+      );
+
+      DROP POLICY IF EXISTS user_roles_rls_policy ON user_roles;
+      CREATE POLICY user_roles_rls_policy ON user_roles
+      FOR ALL
+      USING (
+        tenant_id = current_setting('app.tenant_id', true)
+        OR NULLIF(current_setting('app.role', true), '') = 'platform_owner'
+        OR NULLIF(current_setting('app.role', true), '') = 'system'
+      )
+      WITH CHECK (
+        tenant_id = current_setting('app.tenant_id', true)
+        OR NULLIF(current_setting('app.role', true), '') = 'platform_owner'
+        OR NULLIF(current_setting('app.role', true), '') = 'system'
       );
 
       DROP POLICY IF EXISTS auth_action_tokens_rls_policy ON auth_action_tokens;
@@ -2439,6 +2717,12 @@ export class AuthSchemaService implements OnModuleInit {
       DROP TRIGGER IF EXISTS trg_tenant_memberships_set_updated_at ON tenant_memberships;
       CREATE TRIGGER trg_tenant_memberships_set_updated_at
       BEFORE UPDATE ON tenant_memberships
+      FOR EACH ROW
+      EXECUTE FUNCTION set_updated_at();
+
+      DROP TRIGGER IF EXISTS trg_user_roles_set_updated_at ON user_roles;
+      CREATE TRIGGER trg_user_roles_set_updated_at
+      BEFORE UPDATE ON user_roles
       FOR EACH ROW
       EXECUTE FUNCTION set_updated_at();
 

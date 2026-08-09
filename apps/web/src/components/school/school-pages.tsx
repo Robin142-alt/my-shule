@@ -83,10 +83,14 @@ import { startSchoolOperationalEventSyncRetryWorker } from "@/lib/school/school-
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { SchoolTenantScopeProvider } from "@/lib/data/school-tenant-scope";
 import {
+  SchoolDashboardRoleProvider,
+  useSchoolDashboardRole,
+} from "@/lib/auth/school-dashboard-role-context";
+import {
   DashboardCommunicationProvider,
   useDashboardRefreshVersion,
 } from "@/lib/dashboard-communication/dashboard-communication-provider";
-import { GraduationCap, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import type { LearnerLookupItem } from "@/lib/students/student-lookup";
 import { PermissionProvider } from "@/components/providers/permission-context";
 
@@ -4340,7 +4344,7 @@ function SchoolBasicCardPage({
   );
 }
 
-type SchoolPagesProps = {
+export type SchoolPagesProps = {
   role: SchoolExperienceRole;
   section?: string;
   studentId?: string;
@@ -4348,6 +4352,7 @@ type SchoolPagesProps = {
   userLabel?: string | null;
   routeMode?: SchoolRouteMode;
   liveDataEnabled?: boolean;
+  sessionVerificationEnabled?: boolean;
 };
 
 type BackendSchoolNotification = {
@@ -4443,25 +4448,86 @@ export function SchoolPages(props: SchoolPagesProps) {
 
   return (
     <SchoolTenantScopeProvider tenantId={tenantId}>
-      <DashboardCommunicationProvider tenantId={tenantId}>
-        <SchoolCommandIdentityProvider tenantSlug={props.tenantSlug} userLabel={props.userLabel}>
-          {!props.studentId && isLiveRoleCommandCenterRole(props.role) ? (
-            <PermissionProvider schoolId={props.tenantSlug ?? undefined}>
-              <LiveRoleCommandCenter
-                key={`${props.role}:${props.section ?? "dashboard"}`}
-                role={props.role}
-                routeMode={props.routeMode ?? "hosted"}
-                activeSection={props.section ?? "dashboard"}
-                tenantSlug={props.tenantSlug}
-                userLabel={props.userLabel}
-              />
-            </PermissionProvider>
-          ) : (
-            <SchoolPagesShell {...props} />
-          )}
-        </SchoolCommandIdentityProvider>
-      </DashboardCommunicationProvider>
+      <SchoolDashboardRoleProvider
+        initialRole={props.role}
+        tenantSlug={props.tenantSlug}
+        userLabel={props.userLabel}
+        routeMode={props.routeMode ?? "hosted"}
+        liveDataEnabled={props.sessionVerificationEnabled === true}
+      >
+        <AuthorizedSchoolPagesContent {...props} tenantId={tenantId} />
+      </SchoolDashboardRoleProvider>
     </SchoolTenantScopeProvider>
+  );
+}
+
+function AuthorizedSchoolPagesContent(
+  props: SchoolPagesProps & { tenantId: string },
+) {
+  const roleState = useSchoolDashboardRole();
+
+  if (roleState.liveDataEnabled && !roleState.authenticatedSession) {
+    return (
+      <main className="grid min-h-[60vh] place-items-center px-5 py-12">
+        <div
+          role={roleState.error ? "alert" : "status"}
+          aria-live="polite"
+          className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 text-center shadow-sm"
+        >
+          <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+          <p className="mt-3 text-sm font-black text-foreground">
+            {roleState.error ? "Dashboard access could not be verified" : "Verifying your dashboard access"}
+          </p>
+          <p className="mt-2 text-xs font-semibold leading-5 text-muted">
+            {roleState.error
+              ? roleState.error
+              : "Confirming your school, identity, and active working role."}
+          </p>
+          {roleState.error ? (
+            <Button className="mt-4" variant="secondary" onClick={() => window.location.reload()}>
+              Retry session verification
+            </Button>
+          ) : null}
+        </div>
+      </main>
+    );
+  }
+
+  if (roleState.activeRole !== props.role) {
+    return (
+      <main className="grid min-h-[60vh] place-items-center px-5 py-12">
+        <div role="status" aria-live="polite" className="text-center">
+          <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+          <p className="mt-3 text-sm font-black text-foreground">Opening your authorized dashboard</p>
+        </div>
+      </main>
+    );
+  }
+
+  const authorizedProps: SchoolPagesProps = {
+    ...props,
+    role: roleState.activeRole,
+  };
+
+  return (
+    <DashboardCommunicationProvider tenantId={props.tenantId}>
+      <SchoolCommandIdentityProvider tenantSlug={props.tenantSlug} userLabel={props.userLabel}>
+        {!props.studentId && isLiveRoleCommandCenterRole(authorizedProps.role) ? (
+          <PermissionProvider schoolId={props.tenantSlug ?? undefined}>
+            <LiveRoleCommandCenter
+              key={`${authorizedProps.role}:${props.section ?? "dashboard"}`}
+              role={authorizedProps.role}
+              routeMode={props.routeMode ?? "hosted"}
+              activeSection={props.section ?? "dashboard"}
+              tenantSlug={props.tenantSlug}
+              userLabel={props.userLabel}
+            />
+          </PermissionProvider>
+        ) : (
+          <SchoolPagesShell {...authorizedProps} />
+        )}
+      </SchoolCommandIdentityProvider>
+    </DashboardCommunicationProvider>
   );
 }
 
@@ -4665,9 +4731,6 @@ function SchoolPagesShell({
     ? navItems
     : filterNavItemsByEnabledModules(navItems, visibleModuleCodes);
 
-  const { data: teachingAssignments } = useSchoolQuery<any[]>("/api/academics/teacher-assignments");
-  const hasTeachingAssignments = role === "teacher" || (Array.isArray(teachingAssignments) && teachingAssignments.length > 0);
-
   const scopedNavItems = shellNavItems
     .filter((item) => !(
       role === "principal"
@@ -4680,15 +4743,6 @@ function SchoolPagesShell({
       href: mapSchoolHref(role, item.href, routeMode),
     }));
 
-  if (hasTeachingAssignments && !scopedNavItems.some(item => item.id === "my-teaching")) {
-    scopedNavItems.push({
-      id: "my-teaching",
-      label: "My Teaching",
-      href: mapSchoolHref(role, toSchoolPath("my-teaching"), routeMode),
-      icon: GraduationCap,
-      group: "Academics",
-    });
-  }
   const principalDashboardEnabled =
     role !== "principal"
     || section !== "dashboard"

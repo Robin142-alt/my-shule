@@ -10,6 +10,7 @@ import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { getCurrentSchoolId } from "@/lib/school/school-operational-store";
 import { useOfflineMutation } from "@/lib/offline/use-offline-mutation";
 import { useOptionalSchoolTenantId } from "./school-tenant-scope";
+import { useOptionalSchoolDashboardRole } from "@/lib/auth/school-dashboard-role-context";
 
 export class PermissionDeniedError extends Error {
   constructor(message = "Permission denied") {
@@ -30,6 +31,15 @@ interface SchoolQueryOptions<T>
   tenantId?: string;
 }
 
+export function buildSchoolQueryKey(
+  tenantId: string,
+  userId: string,
+  activeAuthorizationRoleCode: string,
+  path: string | null,
+) {
+  return ["school", tenantId, userId, activeAuthorizationRoleCode, path] as const;
+}
+
 /**
  * Reusable data fetching hook scoped to the active tenant/school.
  * Enforces `tenantId` in the queryKey.
@@ -38,9 +48,17 @@ export function useSchoolQuery<T>(path: string | null, options?: SchoolQueryOpti
   const scopedTenantId = useOptionalSchoolTenantId();
   const activeTenantId = options?.tenantId || scopedTenantId || getCurrentSchoolId();
   const queryTenantId = activeTenantId || "session";
+  const dashboardRole = useOptionalSchoolDashboardRole();
+  const activeAuthorizationRoleCode = dashboardRole?.activeAuthorizationRoleCode ?? "session-role";
+  const userId = dashboardRole?.userId ?? "session-user";
 
   return useQuery<T, Error>({
-    queryKey: ["school", queryTenantId, path],
+    queryKey: buildSchoolQueryKey(
+      queryTenantId,
+      userId,
+      activeAuthorizationRoleCode,
+      path,
+    ),
     queryFn: async () => {
       if (!path) return null as T;
 
@@ -69,6 +87,9 @@ export function useSchoolMutation<TData, TVariables>(
 ) {
   const scopedTenantId = useOptionalSchoolTenantId();
   const activeTenantId = options?.tenantId || scopedTenantId || getCurrentSchoolId();
+  const dashboardRole = useOptionalSchoolDashboardRole();
+  const activeAuthorizationRoleCode = dashboardRole?.activeAuthorizationRoleCode ?? "session-role";
+  const userId = dashboardRole?.userId ?? "session-user";
 
   // Helper to safely extract a module name from the path for the sync queue
   const getModuleAndAction = (resolvedPath: string) => {
@@ -89,6 +110,7 @@ export function useSchoolMutation<TData, TVariables>(
     module: typeof path === "string" ? getModuleAndAction(path).module : "dynamic",
     action: typeof path === "string" ? getModuleAndAction(path).action : "dynamic",
     schoolId: activeTenantId || "session",
+    roleId: activeAuthorizationRoleCode,
     mutationFn: async (variables) => {
       const resolvedPath = typeof path === "function" ? path(variables) : path;
       try {
@@ -103,6 +125,11 @@ export function useSchoolMutation<TData, TVariables>(
       }
     },
     ...options,
-    queryKeysToInvalidate: [["school", activeTenantId || "session"]],
+    queryKeysToInvalidate: [[
+      "school",
+      activeTenantId || "session",
+      userId,
+      activeAuthorizationRoleCode,
+    ]],
   });
 }

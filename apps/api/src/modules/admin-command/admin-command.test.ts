@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import 'reflect-metadata';
 import { firstValueFrom, of } from 'rxjs';
 
-import { PERMISSIONS_KEY } from '../../auth/auth.constants';
+import { PERMISSIONS_KEY, ROLES_KEY } from '../../auth/auth.constants';
 import { MODULE_ACCESS_KEY } from '../module-access/module-access.decorator';
 import { AdminCommandController } from './admin-command.controller';
 import { AdminCommandSchemaService } from './admin-command-schema.service';
@@ -30,6 +30,7 @@ import { ExamsManagerCommandService } from './exams-manager-command.service';
 import { TeacherCommandService } from './teacher-command.service';
 import { DeanAcademicsCommandService } from './dean-academics-command.service';
 import { DeputyCommandService } from './deputy-command.service';
+import { DeputyCommandController } from './deputy-command.controller';
 import { AdmissionsCommandService } from './admissions-command.service';
 import { AdmissionsCommandRepository } from './repositories/admissions-command.repository';
 
@@ -2839,6 +2840,126 @@ test('DeputyCommandService delegates intervention creation and HOD messaging to 
   });
 });
 
+test('Deputy role delegation is exact-role guarded and blocks owner, admin, peer, and opaque role escalation', async () => {
+  const delegated: Array<{ tenantId: string; payload: Record<string, unknown> }> = [];
+  const service = new DeputyCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: 'deputy-a',
+        role: 'deputy_principal',
+      }),
+    } as never,
+    {
+      assignRole: async (tenantId: string, payload: Record<string, unknown>) => {
+        delegated.push({ tenantId, payload });
+        return { success: true };
+      },
+    } as never,
+    {} as never,
+  );
+
+  assert.deepEqual(
+    Reflect.getMetadata(ROLES_KEY, DeputyCommandController.prototype.assignRole),
+    ['deputy_principal'],
+  );
+
+  for (const [staffId, role] of [
+    ['deputy-a', 'owner'],
+    ['deputy-a', 'accountant'],
+    ['staff-a', 'owner'],
+    ['staff-a', 'admin'],
+    ['staff-a', 'principal'],
+    ['staff-a', 'deputy_principal'],
+  ]) {
+    await assert.rejects(
+      () => service.assignRole({ staffId, role }),
+      ForbiddenException,
+    );
+  }
+
+  await assert.rejects(
+    () => service.assignRole({
+      staffId: 'staff-a',
+      roleId: '11111111-1111-4111-8111-111111111111',
+    }),
+    (error: unknown) =>
+      error instanceof ForbiddenException
+      && /opaque role IDs/i.test(error.message),
+  );
+  assert.equal(delegated.length, 0);
+});
+
+test('Deputy role delegation repository blocks self-assignment after tenant-scoped staff resolution', async () => {
+  let capturedSql = '';
+  const repository = new DeputyCommandRepository({
+    query: async (sql: string) => {
+      capturedSql = sql;
+      return {
+        rows: [{
+          id: null,
+          userId: '11111111-1111-4111-8111-111111111111',
+          staffName: 'Deputy Principal',
+          roleId: 'role-accountant',
+          roleName: 'Accountant',
+          status: 'self_assignment_blocked',
+        }],
+      };
+    },
+  } as never);
+
+  await assert.rejects(
+    () => repository.assignRole('tenant-a', {
+      staffId: 'staff-profile-for-deputy',
+      roleCode: 'accountant',
+      assignedByUserId: '11111111-1111-4111-8111-111111111111',
+    }),
+    (error: unknown) =>
+      error instanceof ForbiddenException
+      && /cannot assign additional roles to themselves/i.test(error.message),
+  );
+  assert.match(
+    capturedSql,
+    /target_staff\.user_id IS DISTINCT FROM \$4::uuid/,
+  );
+});
+
+test('Deputy role delegation canonicalizes approved lower-privilege roles and binds the current tenant and actor', async () => {
+  let delegated: { tenantId: string; payload: Record<string, unknown> } | null = null;
+  const service = new DeputyCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: 'deputy-a',
+        role: 'deputy_principal',
+      }),
+    } as never,
+    {
+      assignRole: async (tenantId: string, payload: Record<string, unknown>) => {
+        delegated = { tenantId, payload };
+        return { success: true };
+      },
+    } as never,
+    {} as never,
+  );
+
+  await service.assignRole({
+    staffId: 'staff-a',
+    role: 'Head of Department',
+    department: 'Sciences',
+  });
+
+  assert.deepEqual(delegated, {
+    tenantId: 'tenant-a',
+    payload: {
+      staffId: 'staff-a',
+      roleCode: 'hod',
+      department: 'Sciences',
+      assignedByUserId: 'deputy-a',
+    },
+  });
+});
+
 test('DeanAcademicsCommandService reads interventions from the same central academic model', async () => {
   const calls: string[] = [];
   const service = new DeanAcademicsCommandService(
@@ -2919,6 +3040,157 @@ test('TeacherCommandService lists only the current teacher store requests with a
   assert.equal(queries[0].params[1], '11111111-1111-4111-8111-111111111111');
   assert.match(queries[0].sql, /tenant_id = \$1/);
   assert.match(queries[0].sql, /requested_by_user_id/);
+});
+
+test('TeacherCommandService derives syllabus coverage only from the current teacher active assignments', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new TeacherCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        return {
+          rows: [
+            {
+              id: 'assignment-a',
+              subject: 'Mathematics',
+              class_name: 'Form 2 East',
+              topic: 'Quadratic equations',
+              coverage: 100,
+              target: 100,
+              status: 'On Track',
+            },
+            {
+              id: 'assignment-b',
+              subject: 'Physics',
+              class_name: 'Form 3 North',
+              topic: 'Waves',
+              coverage: 50,
+              target: 100,
+              status: 'Behind',
+            },
+          ],
+          rowCount: 2,
+        };
+      },
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.getSyllabusCoverage();
+
+  assert.deepEqual(result.metrics, { on_track: 1, behind: 1 });
+  assert.equal(result.items[0].topic, 'Quadratic equations');
+  assert.deepEqual(queries[0].params, [
+    'tenant-a',
+    '11111111-1111-4111-8111-111111111111',
+  ]);
+  assert.match(queries[0].sql, /FROM teacher_subject_assignments assignment/i);
+  assert.match(queries[0].sql, /LEFT JOIN academics_lesson_plans plan/i);
+  assert.match(queries[0].sql, /LEFT JOIN academics_lesson_logs log/i);
+  assert.match(queries[0].sql, /assignment\.tenant_id = \$1/i);
+  assert.match(queries[0].sql, /assignment\.teacher_user_id::text = \$2/i);
+  assert.match(queries[0].sql, /assignment\.effective_from <= CURRENT_DATE/i);
+  assert.match(queries[0].sql, /assignment\.effective_to IS NULL/i);
+});
+
+test('TeacherCommandService exposes only active assigned co-curricular duties and published sessions', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new TeacherCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        return {
+          rows: [
+            {
+              id: 'assignment-club-a',
+              activity: 'Debate Club',
+              date: 'Fri 15:30',
+              expected: 28,
+              present: 'Not recorded',
+              status: 'Scheduled Today',
+              sessions_today: 1,
+            },
+          ],
+          rowCount: 1,
+        };
+      },
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.getClubs();
+
+  assert.deepEqual(result.metrics, { active_clubs: 1, sessions_today: 1 });
+  assert.equal(result.items[0].activity, 'Debate Club');
+  assert.equal('sessions_today' in result.items[0], false);
+  assert.deepEqual(queries[0].params, [
+    'tenant-a',
+    '11111111-1111-4111-8111-111111111111',
+  ]);
+  assert.match(queries[0].sql, /FROM teacher_subject_assignments assignment/i);
+  assert.match(queries[0].sql, /LEFT JOIN timetable_slots timetable/i);
+  assert.match(queries[0].sql, /timetable\.status = 'published'/i);
+  assert.match(queries[0].sql, /subject\.is_co_curricular = TRUE/i);
+  assert.match(queries[0].sql, /assignment\.effective_from <= CURRENT_DATE/i);
+});
+
+test('TeacherCommandService resource requests require current assignment and remain owner scoped', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new TeacherCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        return {
+          rows: [
+            {
+              id: 'request-a',
+              item: 'Graph books',
+              quantity: 30,
+              date: '2026-08-09',
+              priority: 'normal',
+              status: 'approved',
+            },
+          ],
+          rowCount: 1,
+        };
+      },
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.getResourceRequests();
+
+  assert.equal(result.metrics.approved, 1);
+  assert.equal(result.items[0].item, 'Graph books');
+  assert.deepEqual(queries[0].params, [
+    'tenant-a',
+    '11111111-1111-4111-8111-111111111111',
+    true,
+  ]);
+  assert.match(queries[0].sql, /FROM inventory_requests/i);
+  assert.match(queries[0].sql, /FROM teacher_subject_assignments assignment/i);
+  assert.match(queries[0].sql, /assignment\.tenant_id = inventory_requests\.tenant_id/i);
+  assert.match(queries[0].sql, /assignment\.teacher_user_id::text = \$2/i);
+  assert.match(queries[0].sql, /requested_by = \$2/i);
+  assert.match(queries[0].sql, /assignment\.effective_to IS NULL/i);
 });
 
 test('TeacherCommandService reads mark entry only for the current teacher and does not fake empty failures', async () => {
@@ -3026,7 +3298,7 @@ test('TeacherCommandService creates tenant-scoped store requests for the storeke
   assert.equal(result.request.request_number, 'REQ-2026-00003');
   assert.match(writes[0].sql, /INSERT INTO inventory_requests/);
   assert.equal(writes[0].params[0], 'tenant-a');
-  assert.equal(writes[0].params[3], 'Teacher request');
+  assert.equal(writes[0].params[3], '11111111-1111-4111-8111-111111111111');
   assert.match(String(writes[0].params[6]), /Exercise books/);
   assert.match(String(writes[0].params[6]), /11111111-1111-4111-8111-111111111111/);
   assert.equal(workflowCalls.length, 1);

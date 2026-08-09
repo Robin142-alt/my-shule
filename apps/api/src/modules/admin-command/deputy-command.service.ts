@@ -1,7 +1,26 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
+import { SCHOOL_STAFF_ROLE_CODES } from '../../auth/auth.constants';
+import { TENANT_INVITABLE_ROLE_CODES } from '../../auth/dto/tenant-invitation.dto';
 import { ExamsService } from '../exams/exams.service';
+import { AssignDeputyStaffRoleDto } from './dto/deputy-staff-role.dto';
 import { DeputyCommandRepository } from './repositories/deputy-command.repository';
+
+const DEPUTY_FORBIDDEN_DELEGATION_ROLES = new Set(['principal', 'deputy_principal']);
+const DEPUTY_DELEGATABLE_ROLE_CODES = new Set<string>(
+  TENANT_INVITABLE_ROLE_CODES.filter((roleCode) =>
+    (SCHOOL_STAFF_ROLE_CODES as readonly string[]).includes(roleCode)
+    && !DEPUTY_FORBIDDEN_DELEGATION_ROLES.has(roleCode),
+  ),
+);
+const DEPUTY_ROLE_ALIASES: Readonly<Record<string, string>> = {
+  head_of_department: 'hod',
+  dean_of_academics: 'dean_academics',
+  form_master: 'grade_master',
+  grade_form_master: 'grade_master',
+  school_counselor: 'school_counsellor',
+  laboratory_technician: 'lab_technician',
+};
 
 @Injectable()
 export class DeputyCommandService {
@@ -123,10 +142,41 @@ export class DeputyCommandService {
   generateReport(dto: any) { return this.repository.generateReport(this.requireTenantId(), dto.name, dto.format); }
   
   getStaff() { return this.repository.getStaff(this.requireTenantId()); }
-  assignRole(dto: any) {
+  async assignRole(dto: AssignDeputyStaffRoleDto) {
+    if (stringOrUndefined(dto.roleId) || stringOrUndefined(dto.role_id)) {
+      throw new ForbiddenException(
+        'Deputy role delegation requires a governed school role code; opaque role IDs are not accepted.',
+      );
+    }
+
+    const staffLookup = stringOrUndefined(
+      dto.staffId ?? dto.staff_id ?? dto.userId ?? dto.user_id ?? dto.name,
+    );
+    if (!staffLookup) {
+      throw new BadRequestException('Staff is required before assigning a role.');
+    }
+
+    const actorUserId = stringOrUndefined(this.requestContext.getStore()?.user_id);
+    if (!actorUserId) {
+      throw new UnauthorizedException('Authenticated staff context is required');
+    }
+    if (staffLookup.toLowerCase() === actorUserId.toLowerCase()) {
+      throw new ForbiddenException('Deputy Principals cannot assign additional roles to themselves.');
+    }
+
+    const roleLookup = stringOrUndefined(dto.roleCode ?? dto.role_code ?? dto.role);
+    const roleCode = roleLookup ? normalizeDeputyDelegatedRole(roleLookup) : null;
+    if (!roleCode || !DEPUTY_DELEGATABLE_ROLE_CODES.has(roleCode)) {
+      throw new ForbiddenException(
+        'Deputy Principals can only delegate approved lower-privilege school staff roles.',
+      );
+    }
+
     return this.repository.assignRole(this.requireTenantId(), {
-      ...dto,
-      assignedByUserId: this.requestContext.getStore()?.user_id,
+      staffId: staffLookup,
+      roleCode,
+      department: dto.department,
+      assignedByUserId: actorUserId,
     });
   }
 }
@@ -140,4 +190,9 @@ function objectOrUndefined(value: unknown): Record<string, unknown> | undefined 
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
     : undefined;
+}
+
+function normalizeDeputyDelegatedRole(value: string): string {
+  const normalized = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  return DEPUTY_ROLE_ALIASES[normalized] ?? normalized;
 }

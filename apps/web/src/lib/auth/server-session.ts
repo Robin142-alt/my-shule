@@ -17,6 +17,7 @@ import {
   TENANT_COOKIE,
 } from "@/lib/auth/session-cookies";
 import { normalizeSchoolExperienceRole } from "@/lib/auth/school-role-normalization";
+import type { SchoolDashboardRoleContext } from "@/lib/auth/dashboard-role-context";
 
 export type ExperienceGatewaySession = {
   audience: ExperienceAudience;
@@ -27,6 +28,7 @@ export type ExperienceGatewaySession = {
   accessToken: string;
   refreshToken: string;
   role?: string;
+  roleContext?: SchoolDashboardRoleContext;
   viewer?: string;
   user: LiveAuthUser;
 };

@@ -1,17 +1,59 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { requireCurrentSchoolId } from "@/lib/school/school-operational-store";
+import { getCurrentSchoolId } from "@/lib/school/school-operational-store";
 import { useOfflineMutation } from "@/lib/offline/use-offline-mutation";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
+import { useOptionalSchoolDashboardRole } from "@/lib/auth/school-dashboard-role-context";
+import { useOptionalAuth } from "@/lib/auth/auth-context";
 
 // Wired to real backend using the standard api client
-async function fetchApi(endpoint: string, options?: RequestInit) {
-  const tenantId = requireCurrentSchoolId();
-  
+async function fetchApi(tenantId: string, endpoint: string, options?: RequestInit) {
   return requestDashboardApi(endpoint, {
     method: options?.method as any || "GET",
     tenantId,
     body: options?.body ? JSON.parse(options.body as string) : undefined
   });
+}
+
+export type ClassTeacherQueryScope = {
+  schoolId: string;
+  userId: string;
+  activeAuthorizationRoleCode: string;
+};
+
+export function buildClassTeacherQueryKey(
+  scope: ClassTeacherQueryScope,
+  area: string,
+  streamId?: string,
+) {
+  return [
+    "class-teacher",
+    scope.schoolId,
+    scope.userId,
+    scope.activeAuthorizationRoleCode,
+    area,
+    ...(streamId ? [streamId] : []),
+  ] as const;
+}
+
+function useClassTeacherQueryScope(): ClassTeacherQueryScope {
+  const tenantId = useOptionalSchoolTenantId();
+  const dashboardRole = useOptionalSchoolDashboardRole();
+  const legacyAuth = useOptionalAuth();
+
+  return {
+    schoolId: tenantId?.trim()
+      || dashboardRole?.tenantSlug?.trim()
+      || getCurrentSchoolId().trim(),
+    userId: dashboardRole?.userId?.trim() || legacyAuth?.user?.id?.trim() || "",
+    activeAuthorizationRoleCode: dashboardRole?.activeAuthorizationRoleCode.trim()
+      || legacyAuth?.user?.role?.trim()
+      || "",
+  };
+}
+
+function isReadyClassTeacherScope(scope: ClassTeacherQueryScope) {
+  return Boolean(scope.schoolId && scope.userId && scope.activeAuthorizationRoleCode);
 }
 
 type ClassTeacherAssignment = {
@@ -37,12 +79,15 @@ function firstAssignedClassSectionId(response: unknown) {
   return firstClass?.classSectionId || firstClass?.class_section_id || firstClass?.id || "";
 }
 
-export function useResolvedClassTeacherStreamId(requestedStreamId?: string | null) {
+function useResolvedClassTeacherStreamIdForScope(
+  scope: ClassTeacherQueryScope,
+  requestedStreamId?: string | null,
+) {
   const shouldResolve = isUnresolvedStreamId(requestedStreamId);
   const assignmentsQuery = useQuery({
-    queryKey: ["class-teacher", "resolved-stream"],
-    queryFn: () => fetchApi("class-teacher/my-classes"),
-    enabled: shouldResolve,
+    queryKey: buildClassTeacherQueryKey(scope, "resolved-stream"),
+    queryFn: () => fetchApi(scope.schoolId, "class-teacher/my-classes"),
+    enabled: shouldResolve && isReadyClassTeacherScope(scope),
     staleTime: 60_000,
   });
   const resolvedStreamId = shouldResolve ? firstAssignedClassSectionId(assignmentsQuery.data) : requestedStreamId || "";
@@ -55,16 +100,31 @@ export function useResolvedClassTeacherStreamId(requestedStreamId?: string | nul
   };
 }
 
+export function useResolvedClassTeacherStreamId(requestedStreamId?: string | null) {
+  return useResolvedClassTeacherStreamIdForScope(
+    useClassTeacherQueryScope(),
+    requestedStreamId,
+  );
+}
+
 function useClassTeacherStreamQuery<T>(scope: string, endpoint: string, streamId?: string | null) {
-  const resolved = useResolvedClassTeacherStreamId(streamId);
+  const queryScope = useClassTeacherQueryScope();
+  const resolved = useResolvedClassTeacherStreamIdForScope(queryScope, streamId);
 
   return useQuery<T, Error>({
-    queryKey: ["class-teacher", scope, resolved.streamId || "unassigned"],
+    queryKey: buildClassTeacherQueryKey(
+      queryScope,
+      scope,
+      resolved.streamId || "unassigned",
+    ),
     queryFn: async () => {
       if (!resolved.streamId) return [] as T;
-      return await fetchApi(`${endpoint}?streamId=${encodeURIComponent(resolved.streamId)}`) as T;
+      return await fetchApi(
+        queryScope.schoolId,
+        `${endpoint}?streamId=${encodeURIComponent(resolved.streamId)}`,
+      ) as T;
     },
-    enabled: !resolved.isResolvingStream,
+    enabled: isReadyClassTeacherScope(queryScope) && !resolved.isResolvingStream,
   });
 }
 
@@ -82,20 +142,26 @@ export function useClassTeacherAttendance(streamId: string) {
 
 export function useSaveAttendance() {
   const queryClient = useQueryClient();
-  const schoolId = requireCurrentSchoolId();
+  const scope = useClassTeacherQueryScope();
 
   return useOfflineMutation({
     module: "attendance",
     action: "bulk_save",
-    schoolId,
+    schoolId: scope.schoolId,
+    roleId: scope.activeAuthorizationRoleCode,
+    requireAuthenticatedQueueActor: true,
     mutationFn: (data: { streamId: string; records: any[] }) => 
-      fetchApi("class-teacher/attendance", {
+      fetchApi(scope.schoolId, "class-teacher/attendance", {
         method: "POST",
         body: JSON.stringify(data)
       }),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["class-teacher", "attendance", variables.streamId] });
-      queryClient.invalidateQueries({ queryKey: ["class-teacher", "overview", variables.streamId] });
+      void queryClient.invalidateQueries({
+        queryKey: buildClassTeacherQueryKey(scope, "attendance", variables.streamId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: buildClassTeacherQueryKey(scope, "overview", variables.streamId),
+      });
     }
   });
 }
@@ -114,19 +180,23 @@ export function useClassTeacherDiscipline(streamId: string) {
 
 export function useReportDisciplineIncident() {
   const queryClient = useQueryClient();
-  const schoolId = requireCurrentSchoolId();
+  const scope = useClassTeacherQueryScope();
 
   return useOfflineMutation({
     module: "discipline",
     action: "report_incident",
-    schoolId,
+    schoolId: scope.schoolId,
+    roleId: scope.activeAuthorizationRoleCode,
+    requireAuthenticatedQueueActor: true,
     mutationFn: (data: { streamId: string; payload: any }) => 
-      fetchApi("class-teacher/discipline", {
+      fetchApi(scope.schoolId, "class-teacher/discipline", {
         method: "POST",
         body: JSON.stringify(data)
       }),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["class-teacher", "discipline", variables.streamId] });
+      void queryClient.invalidateQueries({
+        queryKey: buildClassTeacherQueryKey(scope, "discipline", variables.streamId),
+      });
     }
   });
 }
@@ -137,19 +207,23 @@ export function useClassTeacherWelfare(streamId: string) {
 
 export function useReferWelfareCase() {
   const queryClient = useQueryClient();
-  const schoolId = requireCurrentSchoolId();
+  const scope = useClassTeacherQueryScope();
 
   return useOfflineMutation({
     module: "welfare",
     action: "refer_case",
-    schoolId,
+    schoolId: scope.schoolId,
+    roleId: scope.activeAuthorizationRoleCode,
+    requireAuthenticatedQueueActor: true,
     mutationFn: (data: { streamId: string; payload: any }) => 
-      fetchApi("class-teacher/welfare", {
+      fetchApi(scope.schoolId, "class-teacher/welfare", {
         method: "POST",
         body: JSON.stringify(data)
       }),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["class-teacher", "welfare", variables.streamId] });
+      void queryClient.invalidateQueries({
+        queryKey: buildClassTeacherQueryKey(scope, "welfare", variables.streamId),
+      });
     }
   });
 }
@@ -191,9 +265,11 @@ export function useClassTeacherDocuments(streamId: string) {
 }
 
 export function useClassTeacherNotifications(streamId: string) {
+  const scope = useClassTeacherQueryScope();
   return useQuery({
-    queryKey: ["class-teacher", "notifications", streamId],
-    queryFn: () => fetchApi(`class-teacher/notifications`)
+    queryKey: buildClassTeacherQueryKey(scope, "notifications", streamId),
+    queryFn: () => fetchApi(scope.schoolId, "class-teacher/notifications"),
+    enabled: isReadyClassTeacherScope(scope),
   });
 }
 
@@ -202,23 +278,28 @@ export function useClassTeacherReports(streamId: string) {
 }
 
 export function useClassTeacherSettings(streamId: string) {
+  const scope = useClassTeacherQueryScope();
   return useQuery({
-    queryKey: ["class-teacher", "settings", streamId],
-    queryFn: () => fetchApi(`class-teacher/settings`)
+    queryKey: buildClassTeacherQueryKey(scope, "settings", streamId),
+    queryFn: () => fetchApi(scope.schoolId, "class-teacher/settings"),
+    enabled: isReadyClassTeacherScope(scope),
   });
 }
 
 export function useSaveClassTeacherSettings(streamId: string) {
   const queryClient = useQueryClient();
+  const scope = useClassTeacherQueryScope();
 
   return useMutation({
     mutationFn: (settings: { notificationsEnabled: boolean; defaultView: string; darkMode?: boolean }) =>
-      fetchApi(`class-teacher/settings?streamId=${encodeURIComponent(streamId || "")}`, {
+      fetchApi(scope.schoolId, `class-teacher/settings?streamId=${encodeURIComponent(streamId || "")}`, {
         method: "POST",
         body: JSON.stringify(settings),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["class-teacher", "settings", streamId] });
+      void queryClient.invalidateQueries({
+        queryKey: buildClassTeacherQueryKey(scope, "settings", streamId),
+      });
     },
   });
 }

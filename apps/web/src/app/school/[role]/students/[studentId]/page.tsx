@@ -48,5 +48,13 @@ export default async function SchoolStudentProfilePage({
   }
 
   const session = await readPublicSchoolSession(role as SchoolExperienceRole);
-  return <SchoolPages role={session.role} studentId={studentId} tenantSlug={session.tenantSlug} routeMode="public" />;
+  return (
+    <SchoolPages
+      role={session.role}
+      studentId={studentId}
+      tenantSlug={session.tenantSlug}
+      routeMode="public"
+      sessionVerificationEnabled
+    />
+  );
 }

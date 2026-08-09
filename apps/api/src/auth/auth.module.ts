@@ -5,6 +5,8 @@ import { CommonModule } from '../common/common.module';
 import { DatabaseModule } from '../database/database.module';
 import { RedisModule } from '../infrastructure/redis/redis.module';
 import { AuthController } from './auth.controller';
+import { AuditService } from './audit.service';
+import { DashboardRoleService } from './dashboard-role.service';
 import { AuthEmailVerificationService } from './auth-email-verification.service';
 import { AuthEmailService } from './auth-email.service';
 import { AuthInvitationService } from './auth-invitation.service';
@@ -18,6 +20,7 @@ import { TenantInvitationsService } from './tenant-invitations.service';
 import { TrustedDeviceService } from './trusted-device.service';
 import { AuthorizationRepository } from './repositories/authorization.repository';
 import { TenantMembershipsRepository } from './repositories/tenant-memberships.repository';
+import { UserRoleAssignmentsRepository } from './repositories/user-role-assignments.repository';
 import { UsersRepository } from './repositories/users.repository';
 import { PasswordService } from './password.service';
 import { SessionService } from './session.service';
@@ -30,6 +33,8 @@ import { AbacPolicyEngine } from './policies/abac-policy.engine';
   controllers: [AuthController],
   providers: [
     AuthSchemaService,
+    AuditService,
+    DashboardRoleService,
     AuthEmailVerificationService,
     AuthEmailService,
     AuthInvitationService,
@@ -42,6 +47,7 @@ import { AbacPolicyEngine } from './policies/abac-policy.engine';
     TrustedDeviceService,
     UsersRepository,
     TenantMembershipsRepository,
+    UserRoleAssignmentsRepository,
     AuthorizationRepository,
     PasswordService,
     TokenService,
@@ -50,6 +56,8 @@ import { AbacPolicyEngine } from './policies/abac-policy.engine';
   ],
   exports: [
     AuthSchemaService,
+    AuditService,
+    DashboardRoleService,
     AuthEmailVerificationService,
     AuthEmailService,
     AuthInvitationService,
@@ -65,6 +73,7 @@ import { AbacPolicyEngine } from './policies/abac-policy.engine';
     AbacPolicyEngine,
     UsersRepository,
     TenantMembershipsRepository,
+    UserRoleAssignmentsRepository,
     AuthorizationRepository,
     PasswordService,
   ],

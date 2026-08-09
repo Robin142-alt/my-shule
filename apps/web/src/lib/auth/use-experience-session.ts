@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { getCsrfToken } from "@/lib/auth/csrf-client";
 import type { ExperienceAudience } from "@/lib/auth/experience-audience";
+import type { SchoolDashboardRoleContext } from "@/lib/auth/dashboard-role-context";
 import type { PublicExperienceGatewaySession } from "@/lib/auth/server-session";
 
 type LoginInput = {
@@ -16,9 +17,24 @@ type LoginInput = {
 
 type SessionResponse = {
   redirectTo?: string;
+  roleContext?: SchoolDashboardRoleContext;
   session: PublicExperienceGatewaySession;
   user: PublicExperienceGatewaySession["user"];
 };
+
+type DashboardRolesResponse = {
+  roleContext: SchoolDashboardRoleContext;
+};
+
+export class ExperienceSessionRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "ExperienceSessionRequestError";
+  }
+}
 
 async function parseResponse(response: Response) {
   const json = (await response.json().catch(() => null)) as
@@ -27,10 +43,11 @@ async function parseResponse(response: Response) {
     | null;
 
   if (!response.ok) {
-    throw new Error(
+    throw new ExperienceSessionRequestError(
       json && "message" in json && json.message
         ? json.message
         : "Unable to complete the authentication request.",
+      response.status,
     );
   }
 
@@ -48,6 +65,7 @@ export function useExperienceSession(
   const [user, setUser] = useState<PublicExperienceGatewaySession["user"] | null>(null);
   const [isLoading, setIsLoading] = useState(options?.autoLoad ?? false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSwitchingRole, setIsSwitchingRole] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -211,15 +229,79 @@ export function useExperienceSession(
     }
   };
 
+  const loadDashboardRoles = async () => {
+    if (audience !== "school") {
+      throw new Error("Dashboard roles are available only for school sessions.");
+    }
+
+    const response = await fetch("/api/auth/dashboard-roles", {
+      method: "GET",
+      credentials: "same-origin",
+      cache: "no-store",
+    });
+    const payload = (await response.json().catch(() => null)) as
+      | DashboardRolesResponse
+      | { message?: string }
+      | null;
+
+    if (!response.ok || !payload || !("roleContext" in payload)) {
+      throw new ExperienceSessionRequestError(
+        payload && "message" in payload && payload.message
+          ? payload.message
+          : "Unable to load your dashboard roles.",
+        response.status,
+      );
+    }
+
+    return payload.roleContext;
+  };
+
+  const switchRole = async (roleCode: string) => {
+    if (audience !== "school") {
+      throw new Error("Dashboard switching is available only for school sessions.");
+    }
+
+    setIsSwitchingRole(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/auth/active-role", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-myshule-csrf": await getCsrfToken(),
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({ role_code: roleCode }),
+      });
+      const payload = await parseResponse(response);
+      setSession(payload.session);
+      setUser(payload.user);
+      setError(null);
+      return payload;
+    } catch (switchError) {
+      const message = switchError instanceof Error
+        ? switchError.message
+        : "Unable to switch dashboards.";
+      setError(message);
+      throw switchError;
+    } finally {
+      setIsSwitchingRole(false);
+    }
+  };
+
   return {
     session,
     user,
     isLoading,
     isSubmitting,
+    isSwitchingRole,
     error,
     login,
     logout,
     refresh,
+    loadDashboardRoles,
+    switchRole,
     clearError: () => setError(null),
   };
 }

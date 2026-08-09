@@ -170,7 +170,7 @@ export function AttendanceWorkspace() {
     <span key={t.id + 'status'} className={`font-bold ${t.status === 'Completed' ? 'text-green-600' : 'text-orange-500'}`}>
       {t.status}
     </span>,
-    hasPermission('school_attendance:write') ? (
+    hasPermission('teacher:write') ? (
       <button 
         key={t.id + 'btn'} 
         onClick={() => setActiveTask(t)}
@@ -223,7 +223,7 @@ export function AttendanceWorkspace() {
         </article>
       </div>
       <div className="mb-4">
-        {hasPermission('school_attendance:write') && (
+        {hasPermission('teacher:write') && (
           <button type="button" onClick={() => setActiveTask(data?.tasks?.[0] ?? null)} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Mark All Present</button>
         )}
       </div>

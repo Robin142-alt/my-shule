@@ -1,4 +1,12 @@
 import { createServerAuthClient } from "@/lib/auth/server-auth-client";
+import { serializeExperienceSession } from "@/lib/auth/experience-routing";
+import {
+  ACCESS_COOKIE,
+  AUDIENCE_COOKIE,
+  getExperienceSessionCookieName,
+  REFRESH_COOKIE,
+  TENANT_COOKIE,
+} from "@/lib/auth/session-cookies";
 
 function buildRequest(host: string) {
   return {
@@ -16,6 +24,15 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
     ok: (init?.status ?? 200) >= 200 && (init?.status ?? 200) < 300,
     json: async () => body,
   } as Response;
+}
+
+function cookieReader(values: Record<string, string>) {
+  return {
+    get(name: string) {
+      const value = values[name];
+      return value === undefined ? undefined : { value };
+    },
+  };
 }
 
 describe("server auth client production gateway", () => {
@@ -414,6 +431,122 @@ describe("server auth client production gateway", () => {
     expect(session.redirectTo).toBe("/school/principal");
     expect(session.role).toBe("principal");
     expect(session.user.role).toBe("owner");
+  });
+
+  it("preserves the backend-issued role context and exact authorization code when switching", async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = "https://api.example.invalid";
+    const roleContext = {
+      primary_role: "owner",
+      active_role: "owner",
+      assigned_roles: ["owner", "dean-of-academics"],
+      available_roles: [
+        {
+          role_code: "owner",
+          role_name: "Principal Dashboard",
+          is_primary: true,
+          is_teacher_mode: false,
+          sources: ["primary_membership"],
+        },
+        {
+          role_code: "teacher",
+          role_name: "Teacher Dashboard",
+          is_primary: false,
+          is_teacher_mode: true,
+          sources: ["teacher_eligibility"],
+        },
+      ],
+      teacher_dashboard_eligible: true,
+    };
+    const fetchMock = jest.mocked(global.fetch).mockResolvedValue(jsonResponse({
+      tokens: { access_token: "new-access", refresh_token: "new-refresh" },
+      user: {
+        user_id: "user-owner",
+        tenant_id: "school-alpha",
+        role: "owner",
+        email: "owner@example.invalid",
+        display_name: "School Owner",
+        permissions: ["tenant:admin"],
+        session_id: "session-owner",
+      },
+      role_context: roleContext,
+    }));
+    const client = createServerAuthClient(buildRequest("myshule.online"));
+    const cookies = cookieReader({
+      [AUDIENCE_COOKIE]: "school",
+      [ACCESS_COOKIE]: "old-access",
+      [REFRESH_COOKIE]: "old-refresh",
+      [TENANT_COOKIE]: "school-alpha",
+      [getExperienceSessionCookieName("school")]: serializeExperienceSession({
+        experience: "school",
+        homePath: "/school/teacher",
+        role: "teacher",
+        tenantSlug: "school-alpha",
+        userLabel: "School Owner",
+      }),
+    });
+
+    const session = await client.switchActiveRole("owner", cookies);
+
+    expect(session.role).toBe("principal");
+    expect(session.homePath).toBe("/school/principal");
+    expect(session.roleContext?.availableRoles[0]).toMatchObject({
+      roleCode: "principal",
+      authorizationRoleCode: "owner",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.example.invalid/auth/active-role",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ role_code: "owner" }),
+      }),
+    );
+  });
+
+  it("keeps Teacher as the active dashboard across token refresh", async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = "https://api.example.invalid";
+    jest.mocked(global.fetch).mockResolvedValue(jsonResponse({
+      tokens: { access_token: "next-access", refresh_token: "next-refresh" },
+      user: {
+        user_id: "user-principal",
+        tenant_id: "school-alpha",
+        role: "teacher",
+        email: "principal@example.invalid",
+        display_name: "Jane Mwangi",
+        permissions: ["academics:read"],
+        session_id: "session-principal",
+      },
+      role_context: {
+        primary_role: "principal",
+        active_role: "teacher",
+        assigned_roles: ["principal"],
+        available_roles: [
+          {
+            role_code: "principal",
+            role_name: "Principal Dashboard",
+            is_primary: true,
+            is_teacher_mode: false,
+            sources: ["primary_membership"],
+          },
+          {
+            role_code: "teacher",
+            role_name: "Teacher Dashboard",
+            is_primary: false,
+            is_teacher_mode: true,
+            sources: ["teacher_eligibility"],
+          },
+        ],
+        teacher_dashboard_eligible: true,
+      },
+    }));
+    const client = createServerAuthClient(buildRequest("myshule.online"));
+    const session = await client.refresh({ audience: "school" }, cookieReader({
+      [REFRESH_COOKIE]: "old-refresh",
+      [TENANT_COOKIE]: "school-alpha",
+    }));
+
+    expect(session.role).toBe("teacher");
+    expect(session.homePath).toBe("/school/teacher");
+    expect(session.roleContext?.activeRole).toBe("teacher");
   });
 
   it("routes portal sign-in through the backend and keeps viewer-specific destinations", async () => {

@@ -86,6 +86,7 @@ describe("laboratory offline mutation reliability", () => {
     const record = await syncQueue.enqueue({
       schoolId: "lab-school-stale-sync",
       userId: "technician-1",
+      roleId: "laboratory_technician",
       deviceId: "android-phone",
       module: "labs",
       action: "add-stock",
@@ -103,7 +104,11 @@ describe("laboratory offline mutation reliability", () => {
 
     const currentTime = Date.now();
     jest.spyOn(Date, "now").mockReturnValue(currentTime + LABORATORY_SYNC_LEASE_MS + 1);
-    const result = await syncPendingLaboratoryOperations(record.schoolId, record.userId);
+    const result = await syncPendingLaboratoryOperations(
+      record.schoolId,
+      record.userId,
+      record.roleId!,
+    );
 
     expect(result).toEqual({ synced: 1, failed: 0 });
     expect(requestDashboardApiMock).toHaveBeenCalledWith(
@@ -123,6 +128,7 @@ describe("laboratory offline mutation reliability", () => {
     const firstTechnician = await syncQueue.enqueue({
       schoolId,
       userId: "technician-first-shift",
+      roleId: "laboratory_technician",
       deviceId: "shared-lab-computer",
       module: "labs",
       action: "add-stock",
@@ -136,6 +142,7 @@ describe("laboratory offline mutation reliability", () => {
     const currentTechnician = await syncQueue.enqueue({
       schoolId,
       userId: "technician-current-shift",
+      roleId: "laboratory_technician",
       deviceId: "shared-lab-computer",
       module: "labs",
       action: "add-stock",
@@ -150,7 +157,11 @@ describe("laboratory offline mutation reliability", () => {
     recordIds.add(currentTechnician.id);
     requestDashboardApiMock.mockResolvedValue({ message: "Stock added" });
 
-    const result = await syncPendingLaboratoryOperations(schoolId, currentTechnician.userId);
+    const result = await syncPendingLaboratoryOperations(
+      schoolId,
+      currentTechnician.userId,
+      currentTechnician.roleId!,
+    );
 
     expect(result).toEqual({ synced: 1, failed: 0 });
     expect(requestDashboardApiMock).toHaveBeenCalledTimes(1);
@@ -160,5 +171,50 @@ describe("laboratory offline mutation reliability", () => {
     );
     const pending = await syncQueue.getRecordsBySchoolAndStatus(schoolId, "Pending");
     expect(pending.map((item) => item.id)).toContain(firstTechnician.id);
+  });
+
+  it("leaves another active role's queued mutation pending until the user switches back", async () => {
+    const schoolId = "multi-role-laboratory-school";
+    const ownerRecord = await syncQueue.enqueue({
+      schoolId,
+      userId: "multi-role-user",
+      roleId: "owner",
+      deviceId: "shared-device",
+      module: "labs",
+      action: "add-stock",
+      payload: {
+        __laboratory_request: true,
+        path: "/labs/items/equipment/microscope-1/stock",
+        method: "POST",
+        body: { submission_id: "owner-stock", quantity_added: 2 },
+      },
+    });
+    const laboratoryRecord = await syncQueue.enqueue({
+      schoolId,
+      userId: "multi-role-user",
+      roleId: "laboratory_technician",
+      deviceId: "shared-device",
+      module: "labs",
+      action: "add-stock",
+      payload: {
+        __laboratory_request: true,
+        path: "/labs/items/equipment/beaker-2/stock",
+        method: "POST",
+        body: { submission_id: "technician-stock", quantity_added: 12 },
+      },
+    });
+    recordIds.add(ownerRecord.id);
+    recordIds.add(laboratoryRecord.id);
+    requestDashboardApiMock.mockResolvedValue({ message: "Stock added" });
+
+    await expect(syncPendingLaboratoryOperations(
+      schoolId,
+      "multi-role-user",
+      "laboratory_technician",
+    )).resolves.toEqual({ synced: 1, failed: 0 });
+
+    const pending = await syncQueue.getRecordsBySchoolAndStatus(schoolId, "Pending");
+    expect(pending.map((item) => item.id)).toContain(ownerRecord.id);
+    expect(pending.map((item) => item.id)).not.toContain(laboratoryRecord.id);
   });
 });

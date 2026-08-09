@@ -1,8 +1,15 @@
 import type { LiveAuthUser } from "@/lib/dashboard/api-client";
 import type { ExperienceAudience } from "@/lib/auth/experience-audience";
+import {
+  normalizeDashboardRoleContext,
+  type DashboardRoleContextDto,
+} from "@/lib/auth/dashboard-role-context";
 import { resolveExperienceHost } from "@/lib/auth/experience-routing";
 import { normalizeMfaCode } from "@/lib/auth/mfa-challenge";
-import { normalizeSchoolExperienceRole } from "@/lib/auth/school-role-normalization";
+import {
+  isSchoolExperienceRole,
+  normalizeSchoolExperienceRole,
+} from "@/lib/auth/school-role-normalization";
 import {
   readAccessCookie,
   readAudienceCookie,
@@ -31,11 +38,16 @@ type BackendAuthResponse = {
     refresh_token: string;
   };
   user: LiveAuthUser;
+  role_context?: DashboardRoleContextDto;
 };
 
 type BackendMeResponse =
-  | { user: LiveAuthUser }
-  | { data: { user: LiveAuthUser } };
+  | { user: LiveAuthUser; role_context?: DashboardRoleContextDto }
+  | { data: { user: LiveAuthUser; role_context?: DashboardRoleContextDto }; role_context?: DashboardRoleContextDto };
+
+type BackendDashboardRolesResponse =
+  | DashboardRoleContextDto
+  | { data: DashboardRoleContextDto };
 
 type CookieReader = {
   get(name: string): { value: string } | undefined;
@@ -189,12 +201,16 @@ function buildGatewaySession(input: {
   viewer?: string;
   accessToken?: string;
   refreshToken?: string;
+  roleContext?: DashboardRoleContextDto;
   user: LiveAuthUser;
 }) {
-  const role =
-    input.audience === "school"
-      ? normalizeSchoolExperienceRole(input.role)
-      : input.role;
+  const fallbackRole = normalizeSchoolExperienceRole(input.role);
+  const roleContext = input.audience === "school"
+    ? normalizeDashboardRoleContext(input.roleContext, fallbackRole)
+    : undefined;
+  const role = input.audience === "school"
+    ? roleContext?.activeRole ?? fallbackRole
+    : input.role;
   const homePath = buildExperienceHomePath({
     audience: input.audience,
     role,
@@ -210,17 +226,28 @@ function buildGatewaySession(input: {
     accessToken: input.accessToken ?? "",
     refreshToken: input.refreshToken ?? "",
     role,
+    roleContext,
     viewer: input.viewer,
     user: input.user,
   } satisfies ExperienceGatewaySession;
 }
 
-function unwrapBackendUser(response: BackendMeResponse) {
+function unwrapBackendMe(response: BackendMeResponse) {
   if ("user" in response) {
-    return response.user;
+    return {
+      user: response.user,
+      roleContext: response.role_context,
+    };
   }
 
-  return response.data.user;
+  return {
+    user: response.data.user,
+    roleContext: response.role_context ?? response.data.role_context,
+  };
+}
+
+function unwrapDashboardRoleContext(response: BackendDashboardRolesResponse) {
+  return "data" in response ? response.data : response;
 }
 
 async function requestBackendAuth<T>(
@@ -305,6 +332,7 @@ async function loginSchoolAudience(input: LoginInput) {
     userLabel: response.user.display_name || response.user.email,
     tenantSlug: response.user.tenant_id,
     role: response.user.role,
+    roleContext: response.role_context,
     accessToken: response.tokens.access_token,
     refreshToken: response.tokens.refresh_token,
     user: response.user,
@@ -406,6 +434,7 @@ export function createServerAuthClient(request: Request) {
         userLabel: response.user.display_name || response.user.email,
         tenantSlug: response.user.tenant_id ?? tenantSlug ?? null,
         role: response.user.role,
+        roleContext: response.role_context,
         viewer: input.audience === "portal" ? (response.user.role === "student" ? "student" : "parent") : undefined,
         accessToken: response.tokens.access_token,
         refreshToken: response.tokens.refresh_token,
@@ -443,17 +472,82 @@ export function createServerAuthClient(request: Request) {
         method: "GET",
         accessToken,
       });
-      const user = unwrapBackendUser(response);
+      const { user, roleContext } = unwrapBackendMe(response);
 
       return buildGatewaySession({
         audience: requestedAudience,
         userLabel: user.display_name || user.email,
         tenantSlug: user.tenant_id ?? tenantSlug ?? null,
         role: user.role,
+        roleContext,
         viewer: requestedAudience === "portal" ? (user.role === "student" ? "student" : "parent") : undefined,
         accessToken,
         refreshToken: readRefreshCookie(cookies),
         user,
+      });
+    },
+
+    async dashboardRoles(cookies: CookieReader) {
+      const audience = readAudienceCookie(cookies);
+      const session = readExperienceSessionCookie(cookies, "school");
+      const tenantSlug = readTenantCookie(cookies)
+        ?? (session?.experience === "school" ? session.tenantSlug : null);
+      const accessToken = readAccessCookie(cookies);
+
+      if (audience !== "school" || session?.experience !== "school" || !tenantSlug || !accessToken) {
+        throw unauthorized("No active school session found.");
+      }
+
+      const response = await requestBackendAuth<BackendDashboardRolesResponse>(
+        "/auth/dashboard-roles",
+        {
+          audience: "school",
+          tenantSlug,
+          method: "GET",
+          accessToken,
+        },
+      );
+
+      return normalizeDashboardRoleContext(
+        unwrapDashboardRoleContext(response),
+        session.role,
+      );
+    },
+
+    async switchActiveRole(roleCode: string, cookies: CookieReader) {
+      if (!isSchoolExperienceRole(roleCode)) {
+        throw unauthorized("The requested dashboard role is not supported.", 400);
+      }
+
+      const audience = readAudienceCookie(cookies);
+      const currentSession = readExperienceSessionCookie(cookies, "school");
+      const tenantSlug = readTenantCookie(cookies)
+        ?? (currentSession?.experience === "school" ? currentSession.tenantSlug : null);
+      const accessToken = readAccessCookie(cookies);
+
+      if (audience !== "school" || currentSession?.experience !== "school" || !tenantSlug || !accessToken) {
+        throw unauthorized("No active school session found.");
+      }
+
+      const response = await requestBackendAuth<BackendAuthResponse>("/auth/active-role", {
+        audience: "school",
+        tenantSlug,
+        method: "POST",
+        accessToken,
+        body: {
+          role_code: roleCode.trim(),
+        },
+      });
+
+      return buildGatewaySession({
+        audience: "school",
+        userLabel: response.user.display_name || response.user.email,
+        tenantSlug: response.user.tenant_id ?? tenantSlug,
+        role: response.user.role,
+        roleContext: response.role_context,
+        accessToken: response.tokens.access_token,
+        refreshToken: response.tokens.refresh_token,
+        user: response.user,
       });
     },
   };

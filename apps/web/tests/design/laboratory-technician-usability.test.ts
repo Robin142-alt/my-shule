@@ -210,7 +210,8 @@ describe("Kenyan school Laboratory Technician usability layer", () => {
     expect(mutation).toContain("createLaboratoryQueueDedupeKey");
     expect(mutation).toContain("stableRequestBody");
     expect(mutation).toContain("requireAuthenticatedQueueActor: true");
-    expect(mutation).toContain("syncPendingLaboratoryOperations(schoolId, actorUserId)");
+    expect(mutation).toContain("syncPendingLaboratoryOperations(");
+    expect(mutation).toContain("activeAuthorizationRoleCode");
     expect(offline).toContain("Request timed out");
     expect(offline).toContain("Request failed: 5");
     expect(syncQueue).toContain("dedupeKey");

@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useOptionalSchoolDashboardRole } from "@/lib/auth/school-dashboard-role-context";
 
 interface PermissionContextType {
   permissions: string[];
@@ -15,6 +16,19 @@ const PermissionContext = createContext<PermissionContextType>({
   hasPermission: () => false,
 });
 
+export function buildPermissionQueryKey(
+  schoolId: string | undefined,
+  userId: string,
+  activeAuthorizationRoleCode: string,
+) {
+  return [
+    "permissions",
+    schoolId ?? "session",
+    userId,
+    activeAuthorizationRoleCode,
+  ] as const;
+}
+
 export function PermissionProvider({ 
   children,
   schoolId 
@@ -22,8 +36,11 @@ export function PermissionProvider({
   children: ReactNode;
   schoolId?: string;
 }) {
+  const dashboardRole = useOptionalSchoolDashboardRole();
+  const activeAuthorizationRoleCode = dashboardRole?.activeAuthorizationRoleCode ?? "session-role";
+  const userId = dashboardRole?.userId ?? "session-user";
   const { data, isLoading } = useQuery({
-    queryKey: ["permissions", schoolId],
+    queryKey: buildPermissionQueryKey(schoolId, userId, activeAuthorizationRoleCode),
     queryFn: async () => {
       if (!schoolId) return [];
       const res = await fetch(`/api/permissions/me?schoolId=${schoolId}`);

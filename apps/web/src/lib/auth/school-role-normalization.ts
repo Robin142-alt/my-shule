@@ -30,6 +30,8 @@ const schoolExperienceRoles = new Set<string>([
 
 const schoolRoleAliases: Record<string, SchoolExperienceRole> = {
   owner: "principal",
+  member: "admin",
+  staff: "admin",
   "school-admin": "admin",
   "school-owner": "principal",
   "tenant-owner": "principal",

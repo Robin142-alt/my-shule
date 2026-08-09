@@ -2,12 +2,14 @@ import { useMutation, UseMutationOptions, useQueryClient } from '@tanstack/react
 import { syncQueue } from './sync-queue';
 import { useOptionalAuth } from '@/lib/auth/auth-context';
 import { toast } from 'sonner';
+import { useOptionalSchoolDashboardRole } from '@/lib/auth/school-dashboard-role-context';
 
 interface OfflineMutationOptions<TData, TError, TVariables, TContext>
   extends UseMutationOptions<TData, TError, TVariables, TContext> {
   module: string;
   action: string;
   schoolId: string;
+  roleId?: string;
   queryKeysToInvalidate?: any[][];
   offlinePayload?: (variables: TVariables) => unknown;
   queueDedupeKey?: (variables: TVariables) => string | undefined;
@@ -19,6 +21,7 @@ export function useOfflineMutation<TData = unknown, TError = Error, TVariables =
   module,
   action,
   schoolId,
+  roleId,
   queryKeysToInvalidate,
   offlinePayload,
   queueDedupeKey,
@@ -35,6 +38,10 @@ export function useOfflineMutation<TData = unknown, TError = Error, TVariables =
 
   const queryClient = useQueryClient();
   const auth = useOptionalAuth();
+  const dashboardRole = useOptionalSchoolDashboardRole();
+  const queueRoleId = roleId?.trim()
+    || dashboardRole?.activeAuthorizationRoleCode.trim()
+    || undefined;
 
   return useMutation<TData, TError, TVariables, TContext>({
     mutationFn: async (variables: TVariables) => {
@@ -58,7 +65,7 @@ export function useOfflineMutation<TData = unknown, TError = Error, TVariables =
           ));
 
         if (isNetworkError) {
-          const authenticatedUserId = auth?.user?.id?.trim();
+          const authenticatedUserId = dashboardRole?.userId?.trim() || auth?.user?.id?.trim();
           if (requireAuthenticatedQueueActor && !authenticatedUserId) {
             throw new Error('Your signed-in session could not be confirmed, so this laboratory change was not queued. Your entries are still here; confirm your session and retry.');
           }
@@ -68,6 +75,7 @@ export function useOfflineMutation<TData = unknown, TError = Error, TVariables =
           await syncQueue.enqueue({
             schoolId,
             userId,
+            roleId: queueRoleId,
             deviceId,
             module,
             action,
@@ -76,7 +84,7 @@ export function useOfflineMutation<TData = unknown, TError = Error, TVariables =
           });
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('myshule:offline-queued', {
-              detail: { schoolId, module, action },
+              detail: { schoolId, roleId: queueRoleId, module, action },
             }));
           }
 

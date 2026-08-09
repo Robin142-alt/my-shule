@@ -72,6 +72,7 @@ export default async function SchoolSectionPage({
       userLabel={session.userLabel}
       routeMode="public"
       liveDataEnabled={liveDataEnabled}
+      sessionVerificationEnabled
     />
   );
 }

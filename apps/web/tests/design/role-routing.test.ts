@@ -12,6 +12,7 @@ describe("SaaS identity role routing", () => {
     expect(getRoleHomePath("school_owner")).toBe("/school/principal");
     expect(getRoleHomePath("school-owner")).toBe("/school/principal");
     expect(getRoleHomePath("admin")).toBe("/school/admin");
+    expect(getRoleHomePath("member")).toBe("/school/admin");
     expect(getRoleHomePath("school_admin")).toBe("/school/admin");
     expect(getRoleHomePath("school-admin")).toBe("/school/admin");
     expect(getRoleHomePath("bursar")).toBe("/school/bursar");
@@ -104,6 +105,7 @@ describe("SaaS identity role routing", () => {
   });
 
   test("does not self-redirect canonical school role routes", () => {
+    expect(getSchoolRoleAlias("member")).toBe("admin");
     expect(getSchoolRoleAlias("security_officer")).toBe("security-officer");
     expect(getSchoolRoleAlias("transport_manager")).toBe("transport-manager");
     expect(getSchoolRoleAlias("transport-manager")).toBeNull();

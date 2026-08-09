@@ -3,9 +3,12 @@
  */
 
 import { NextRequest } from "next/server";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 import { GET as getCsrf } from "@/app/api/auth/csrf/route";
 import { POST as postLogin } from "@/app/api/auth/login/route";
+import { POST as postActiveRole } from "@/app/api/auth/active-role/route";
 import { GET as getPublicSystemStatus } from "@/app/api/support/public/system-status/route";
 
 function buildRequest(url: string, init: RequestInit = {}) {
@@ -99,6 +102,41 @@ describe("auth and support route production contracts", () => {
       message: "Security check expired. Refresh the page and try again.",
     });
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects dashboard switching before backend authorization when CSRF does not match", async () => {
+    const response = await postActiveRole(
+      buildRequest("https://myshule.online/api/auth/active-role", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-myshule-csrf": "header-token",
+          cookie: "myshule.csrf=cookie-token",
+        },
+        body: JSON.stringify({ role_code: "teacher" }),
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      message: "Security check expired. Refresh the page and try again.",
+    });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("keeps every school dashboard entry route behind live session verification", () => {
+    const protectedSchoolRoutes = [
+      "src/app/internal/school/[section]/page.tsx",
+      "src/app/internal/school/students/[studentId]/page.tsx",
+      "src/app/school/[role]/page.tsx",
+      "src/app/school/[role]/[section]/page.tsx",
+      "src/app/school/[role]/students/[studentId]/page.tsx",
+    ];
+
+    for (const route of protectedSchoolRoutes) {
+      const source = readFileSync(path.join(process.cwd(), route), "utf8");
+      expect(source).toContain("sessionVerificationEnabled");
+    }
   });
 
   it("exposes the public status proxy route and forwards upstream JSON", async () => {

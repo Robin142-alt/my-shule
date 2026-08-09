@@ -17,6 +17,10 @@ import { AcceptInvitationDto, InvitationAcceptanceResponseDto } from './dto/invi
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
 import {
+  DashboardRoleContextDto,
+  SwitchActiveRoleDto,
+} from './dto/dashboard-role.dto';
+import {
   CreateTenantInvitationDto,
   ListTenantUsersQueryDto,
   TenantInvitationActionResponseDto,
@@ -198,6 +202,21 @@ export class AuthController {
   @Permissions('auth:read')
   async me(): Promise<MeResponseDto> {
     return this.authService.me();
+  }
+
+  @Get('dashboard-roles')
+  @Permissions('auth:read')
+  async dashboardRoles(): Promise<DashboardRoleContextDto> {
+    return this.authService.dashboardRoles();
+  }
+
+  @Post('active-role')
+  @Permissions('auth:read')
+  async switchActiveRole(
+    @Body() dto: SwitchActiveRoleDto,
+    @Req() request: Request,
+  ): Promise<AuthResponseDto> {
+    return this.authService.switchActiveRole(dto, this.buildRequestMetadata(request));
   }
 
   @Get('sessions')

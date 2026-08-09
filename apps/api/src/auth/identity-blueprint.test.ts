@@ -33,10 +33,12 @@ test('identity blueprint covers all authentication methods and security controls
 });
 
 test('identity blueprint normalizes every requested ERP role', () => {
-  assert.equal(BLUEPRINT_USER_ROLES.length, 29);
+  assert.equal(BLUEPRINT_USER_ROLES.length, 31);
   assert.equal(normalizeBlueprintRole('Dean of Academics'), 'dean_academics');
   assert.equal(normalizeBlueprintRole('Exams Manager'), 'exams_manager');
   assert.equal(normalizeBlueprintRole('Head of Department'), 'hod');
+  assert.equal(normalizeBlueprintRole('School Counsellor'), 'school_counsellor');
+  assert.equal(normalizeBlueprintRole('Dean of Students'), 'discipline_master');
   assert.equal(normalizeBlueprintRole('Deputy Principal'), 'deputy_principal');
   assert.equal(normalizeBlueprintRole('Bursar'), 'bursar');
   assert.equal(normalizeBlueprintRole('Nurse'), 'nurse');

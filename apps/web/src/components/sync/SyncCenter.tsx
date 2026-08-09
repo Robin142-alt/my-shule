@@ -1,21 +1,36 @@
-import React, { useEffect, useState } from 'react';
-import { syncQueue, OfflineSyncRecord } from '../../lib/offline/sync-queue';
+"use client";
+
+import React, { useCallback, useEffect, useState } from 'react';
+import { useOptionalSchoolDashboardRole } from '@/lib/auth/school-dashboard-role-context';
+import { getCsrfToken } from '@/lib/auth/csrf-client';
+import { canReplayOfflineRecord, syncQueue, OfflineSyncRecord } from '../../lib/offline/sync-queue';
 
 // Minimal Sync Center UI to show queue status and retry failed items
 export const SyncCenter: React.FC<{ schoolId: string }> = ({ schoolId }) => {
   const [records, setRecords] = useState<OfflineSyncRecord[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
+  const dashboardRole = useOptionalSchoolDashboardRole();
+  const activeAuthorizationRoleCode = dashboardRole?.activeAuthorizationRoleCode ?? null;
+  const userId = dashboardRole?.userId ?? null;
 
-  const loadRecords = async () => {
+  const loadRecords = useCallback(async () => {
+    if (!activeAuthorizationRoleCode || !userId) {
+      setRecords([]);
+      return;
+    }
     const allRecords = await syncQueue.getAllForSchool(schoolId);
-    setRecords(allRecords);
-  };
+    setRecords(allRecords.filter((record) => canReplayOfflineRecord(record, {
+      schoolId,
+      roleId: activeAuthorizationRoleCode,
+      userId,
+    })));
+  }, [activeAuthorizationRoleCode, schoolId, userId]);
 
   useEffect(() => {
-    loadRecords();
+    void loadRecords();
     const interval = setInterval(loadRecords, 5000); // Polling for updates
     return () => clearInterval(interval);
-  }, [schoolId]);
+  }, [loadRecords]);
 
   const handleRetryAll = async () => {
     if (isSyncing) return;
@@ -24,12 +39,23 @@ export const SyncCenter: React.FC<{ schoolId: string }> = ({ schoolId }) => {
     try {
       const failedRecords = await syncQueue.getRecordsBySchoolAndStatus(schoolId, 'Failed');
       for (const record of failedRecords) {
+        if (!canReplayOfflineRecord(record, {
+          schoolId,
+          roleId: activeAuthorizationRoleCode,
+          userId,
+        })) {
+          continue;
+        }
         await syncQueue.updateStatus(record.id, 'Syncing');
         // Trigger actual backend sync call here
         try {
           const res = await fetch('/api/sync/retry', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'x-myshule-csrf': await getCsrfToken(),
+            },
+            credentials: 'same-origin',
             body: JSON.stringify({ operations: [record] })
           });
           if (res.ok) {
@@ -43,11 +69,11 @@ export const SyncCenter: React.FC<{ schoolId: string }> = ({ schoolId }) => {
       }
     } finally {
       setIsSyncing(false);
-      loadRecords();
+      void loadRecords();
     }
   };
 
-  const pendingCount = records.filter(r => ['Saved offline', 'Draft'].includes(r.status)).length;
+  const pendingCount = records.filter(r => ['Pending', 'Draft'].includes(r.status)).length;
   const failedCount = records.filter(r => r.status === 'Failed').length;
 
   return (

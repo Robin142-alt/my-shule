@@ -30,6 +30,32 @@ export interface OfflineSyncRecord {
   aggregateId?: string;
 }
 
+export type OfflineReplayContext = {
+  schoolId: string;
+  roleId: string | null | undefined;
+  userId: string | null | undefined;
+};
+
+export function canReplayOfflineRecord(
+  record: OfflineSyncRecord,
+  context: OfflineReplayContext,
+) {
+  const activeRoleId = context.roleId?.trim().toLowerCase();
+  const recordRoleId = record.roleId?.trim().toLowerCase();
+
+  if (
+    record.schoolId !== context.schoolId
+    || !activeRoleId
+    || !recordRoleId
+    || recordRoleId !== activeRoleId
+  ) {
+    return false;
+  }
+
+  const activeUserId = context.userId?.trim();
+  return Boolean(activeUserId) && record.userId === activeUserId;
+}
+
 interface ShuleOfflineDB extends DBSchema {
   sync_queue: {
     key: string;
@@ -163,6 +189,7 @@ class SyncQueueService {
       const tx = db.transaction('sync_queue', 'readwrite');
       const existing = (await tx.store.index('by-school').getAll(parsedData.schoolId)).find(
         (candidate) => candidate.userId === parsedData.userId
+          && candidate.roleId === parsedData.roleId
           && candidate.module === parsedData.module
           && candidate.dedupeKey === parsedData.dedupeKey
           && ['Draft', 'Pending', 'Syncing', 'Failed'].includes(candidate.status),

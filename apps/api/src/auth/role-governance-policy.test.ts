@@ -18,6 +18,8 @@ test('ROLE_GOVERNANCE_BLUEPRINT covers global and school ERP roles', () => {
   assert.equal(ROLE_GOVERNANCE_BLUEPRINT.schoolRoles.includes('exams_manager'), true);
   assert.equal(ROLE_GOVERNANCE_BLUEPRINT.schoolRoles.includes('secretary'), true);
   assert.equal(ROLE_GOVERNANCE_BLUEPRINT.schoolRoles.includes('boarding_master'), true);
+  assert.equal(ROLE_GOVERNANCE_BLUEPRINT.schoolRoles.includes('school_counsellor'), true);
+  assert.equal(ROLE_GOVERNANCE_BLUEPRINT.schoolRoles.includes('discipline_master'), true);
   assert.equal(ROLE_GOVERNANCE_BLUEPRINT.schoolRoles.includes('security_officer'), true);
   assert.equal(ROLE_GOVERNANCE_BLUEPRINT.controls.includes('permission_inheritance'), true);
   assert.equal(ROLE_GOVERNANCE_BLUEPRINT.controls.includes('tenant_bound_assignments'), true);

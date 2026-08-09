@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHash, randomInt, randomUUID } from 'node:crypto';
 
 import { AuthResponseDto } from '../../auth/dto/auth-response.dto';
+import { DashboardRoleContextDto } from '../../auth/dto/dashboard-role.dto';
 import { PasswordService } from '../../auth/password.service';
 import { AuthorizationRepository } from '../../auth/repositories/authorization.repository';
 import { SessionService } from '../../auth/session.service';
@@ -258,6 +259,7 @@ export class ParentPortalAuthService {
         permissions,
         session_id: tokenPair.session_id,
       },
+      role_context: this.buildPortalRoleContext(subject),
     };
   }
 
@@ -437,6 +439,25 @@ export class ParentPortalAuthService {
         permissions,
         session_id: tokenPair.session_id,
       },
+      role_context: this.buildPortalRoleContext(subject),
+    };
+  }
+
+  private buildPortalRoleContext(subject: ParentAuthSubject): DashboardRoleContextDto {
+    return {
+      primary_role: subject.role_code,
+      active_role: subject.role_code,
+      assigned_roles: [subject.role_code],
+      available_roles: [
+        {
+          role_code: subject.role_code,
+          role_name: subject.role_code.replaceAll('_', ' '),
+          is_primary: true,
+          is_teacher_mode: false,
+          sources: ['primary_membership'],
+        },
+      ],
+      teacher_dashboard_eligible: false,
     };
   }
 

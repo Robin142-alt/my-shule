@@ -112,9 +112,9 @@ function installLiveExamsFetchMock(options?: { reportCards?: unknown[] }) {
         data: {
           id: "batch-1",
           status: "draft_generated",
-          total_count: 46,
-          processed_count: 44,
-          failed_count: 0,
+          total_students: 46,
+          completed_students: 44,
+          failed_students: 0,
           artifact_count: 44,
           queue_status: "running",
         },
@@ -224,9 +224,9 @@ function installLiveExamsFetchMock(options?: { reportCards?: unknown[] }) {
         data: {
           id: "batch-1",
           status: "draft_generated",
-          total_count: 46,
-          processed_count: 44,
-          failed_count: 0,
+          total_students: 46,
+          completed_students: 44,
+          failed_students: 0,
           artifact_count: 44,
           queue_status: "running",
         },
@@ -460,6 +460,7 @@ describe("exams workspace", () => {
           role: "teacher",
           section: "exams",
           tenantSlug: "barakaacademy",
+          liveDataEnabled: false,
         }),
       );
       await Promise.resolve();
@@ -467,7 +468,7 @@ describe("exams workspace", () => {
     });
 
     expect(
-      screen.getAllByRole("heading", { name: /Teacher Workspace/i }).length,
+      screen.getAllByRole("heading", { name: /Teacher Dashboard/i }).length,
     ).toBeGreaterThan(0);
     expect(
       screen.getAllByRole("heading", { name: /Exams & Marks/i }).length,

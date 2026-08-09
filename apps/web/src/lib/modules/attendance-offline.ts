@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { useOptionalSchoolDashboardRole } from "@/lib/auth/school-dashboard-role-context";
 import { withSession, type LiveAuthSession } from "@/lib/dashboard/api-client";
 
 export interface OfflineAttendanceRecord {
@@ -10,86 +11,230 @@ export interface OfflineAttendanceTask {
   id: string; // queue ID
   streamId: string;
   tenantId: string;
+  userId: string;
+  roleId: string;
   records: OfflineAttendanceRecord[];
   timestamp: number;
 }
 
 const STORAGE_KEY = "myshule_offline_attendance_queue";
+const attendanceSyncInFlight = new Map<string, Promise<AttendanceSyncResult>>();
 
-export function saveAttendanceOffline(tenantId: string, streamId: string, records: OfflineAttendanceRecord[]) {
+export type AttendanceReplayContext = {
+  tenantId: string;
+  userId: string;
+  roleId: string;
+};
+
+type AttendanceRequestSender = (
+  session: LiveAuthSession,
+  path: string,
+  options: {
+    method: "POST";
+    body: { streamId: string; records: OfflineAttendanceRecord[] };
+  },
+) => Promise<unknown>;
+
+function normalizeReplayContext(context: AttendanceReplayContext): AttendanceReplayContext {
+  return {
+    tenantId: context.tenantId.trim(),
+    userId: context.userId.trim(),
+    roleId: context.roleId.trim(),
+  };
+}
+
+function replayContextFromSession(session: LiveAuthSession): AttendanceReplayContext {
+  return normalizeReplayContext({
+    tenantId: session.tenantId,
+    userId: session.user.user_id,
+    roleId: session.user.role,
+  });
+}
+
+export function canReplayAttendanceTask(
+  task: OfflineAttendanceTask,
+  rawContext: AttendanceReplayContext,
+) {
+  const context = normalizeReplayContext(rawContext);
+  return Boolean(
+    context.tenantId
+      && context.userId
+      && context.roleId
+      && task.tenantId?.trim() === context.tenantId
+      && task.userId?.trim() === context.userId
+      && task.roleId?.trim() === context.roleId,
+  );
+}
+
+function readAttendanceQueue(): OfflineAttendanceTask[] {
   try {
     const existing = localStorage.getItem(STORAGE_KEY);
-    const queue: OfflineAttendanceTask[] = existing ? JSON.parse(existing) : [];
-    
-    // Check if there is already a queue for this stream today, and just overwrite
-    const filteredQueue = queue.filter(q => q.streamId !== streamId);
+    if (!existing) return [];
+
+    const parsed = JSON.parse(existing) as unknown;
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.filter((candidate): candidate is OfflineAttendanceTask => Boolean(
+      candidate
+        && typeof candidate === "object"
+        && typeof (candidate as OfflineAttendanceTask).id === "string"
+        && typeof (candidate as OfflineAttendanceTask).streamId === "string"
+        && typeof (candidate as OfflineAttendanceTask).tenantId === "string"
+        && Array.isArray((candidate as OfflineAttendanceTask).records),
+    ));
+  } catch {
+    return [];
+  }
+}
+
+function writeAttendanceQueue(queue: OfflineAttendanceTask[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(queue));
+}
+
+export function saveAttendanceOffline(
+  rawContext: AttendanceReplayContext,
+  streamId: string,
+  records: OfflineAttendanceRecord[],
+) {
+  try {
+    const context = normalizeReplayContext(rawContext);
+    if (!context.tenantId || !context.userId || !context.roleId) return false;
+
+    const queue = readAttendanceQueue();
+
+    // Replace only this actor's same-role register. Never overwrite another
+    // user's, tenant's, or dashboard role's queued work on a shared device.
+    const filteredQueue = queue.filter((task) => !(
+      task.streamId === streamId
+        && canReplayAttendanceTask(task, context)
+    ));
     
     filteredQueue.push({
-      id: `task_${Date.now()}`,
-      tenantId,
+      id: `task_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+      ...context,
       streamId,
       records,
       timestamp: Date.now(),
     });
     
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(filteredQueue));
+    writeAttendanceQueue(filteredQueue);
+    return true;
   } catch (err) {
     console.error("Failed to save attendance offline:", err);
+    return false;
   }
 }
 
+type AttendanceSyncResult = { synced: number; failed: number; skipped: number };
+
+async function performAttendanceSync(
+  session: LiveAuthSession,
+  sender: AttendanceRequestSender,
+  rawContext: AttendanceReplayContext,
+): Promise<AttendanceSyncResult> {
+  const context = normalizeReplayContext(rawContext);
+  const queue = readAttendanceQueue();
+  const syncedIds = new Set<string>();
+  let failed = 0;
+  let skipped = 0;
+
+  for (const task of queue) {
+    if (!canReplayAttendanceTask(task, context)) {
+      skipped += 1;
+      continue;
+    }
+
+    try {
+      await sender(session, "/class-teacher/attendance", {
+        method: "POST",
+        body: { streamId: task.streamId, records: task.records },
+      });
+      syncedIds.add(task.id);
+    } catch (err) {
+      failed += 1;
+      console.error("Sync failed for task", task.id, err);
+    }
+  }
+
+  if (syncedIds.size > 0) {
+    writeAttendanceQueue(queue.filter((task) => !syncedIds.has(task.id)));
+  }
+
+  return { synced: syncedIds.size, failed, skipped };
+}
+
+export function syncPendingAttendanceTasks(
+  session: LiveAuthSession,
+  sender: AttendanceRequestSender = withSession,
+  rawContext: AttendanceReplayContext = replayContextFromSession(session),
+): Promise<AttendanceSyncResult> {
+  const context = normalizeReplayContext(rawContext);
+  const ownerKey = `${context.tenantId}:${context.userId}:${context.roleId}`;
+  const existing = attendanceSyncInFlight.get(ownerKey);
+  if (existing) return existing;
+
+  const syncPromise = performAttendanceSync(session, sender, context).finally(() => {
+    if (attendanceSyncInFlight.get(ownerKey) === syncPromise) {
+      attendanceSyncInFlight.delete(ownerKey);
+    }
+  });
+  attendanceSyncInFlight.set(ownerKey, syncPromise);
+  return syncPromise;
+}
+
 export function useOfflineAttendanceSync(session: LiveAuthSession | null) {
+  const dashboardRoleState = useOptionalSchoolDashboardRole();
   const [isOnline, setIsOnline] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [queueCount, setQueueCount] = useState(0);
+  const replayContext = useMemo<AttendanceReplayContext | null>(() => {
+    if (dashboardRoleState) {
+      return normalizeReplayContext({
+        tenantId: dashboardRoleState.tenantSlug ?? "",
+        userId: dashboardRoleState.userId ?? "",
+        roleId: dashboardRoleState.activeAuthorizationRoleCode,
+      });
+    }
+    return session ? replayContextFromSession(session) : null;
+  }, [
+    dashboardRoleState,
+    session,
+  ]);
 
   const checkQueue = useCallback(() => {
     try {
-      const existing = localStorage.getItem(STORAGE_KEY);
-      if (existing) {
-        const queue: OfflineAttendanceTask[] = JSON.parse(existing);
-        setQueueCount(queue.length);
-        return queue;
+      if (!session || !replayContext) {
+        setQueueCount(0);
+        return [];
       }
+
+      const queue = readAttendanceQueue().filter((task) => canReplayAttendanceTask(task, replayContext));
+      setQueueCount(queue.length);
+      return queue;
     } catch {
       // ignore
     }
     setQueueCount(0);
     return [];
-  }, []);
+  }, [replayContext, session]);
 
   const syncQueue = useCallback(async () => {
-    if (!session || !isOnline || syncing) return;
+    if (!session || !replayContext || !isOnline || syncing) return;
     
     const queue = checkQueue();
     if (queue.length === 0) return;
 
     setSyncing(true);
-    let successCount = 0;
-    
-    const updatedQueue = [...queue];
-
-    for (let i = queue.length - 1; i >= 0; i--) {
-      const task = queue[i];
-      try {
-        await withSession(session, "/class-teacher/attendance", {
-          method: "POST",
-          body: { streamId: task.streamId, records: task.records }
-        });
-        // Remove from queue
-        updatedQueue.splice(i, 1);
-        successCount++;
-      } catch (err) {
-        console.error("Sync failed for task", task.id, err);
+    try {
+      const result = await syncPendingAttendanceTasks(session, withSession, replayContext);
+      if (result.synced > 0) {
+        checkQueue();
       }
-    }
-
-    if (successCount > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedQueue));
+    } finally {
+      setSyncing(false);
       checkQueue();
     }
-    setSyncing(false);
-  }, [session, isOnline, syncing, checkQueue]);
+  }, [session, replayContext, isOnline, syncing, checkQueue]);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -121,8 +266,8 @@ export function useOfflineAttendanceSync(session: LiveAuthSession | null) {
     queueCount,
     syncQueue,
     saveLocallyAndQueue: (streamId: string, records: OfflineAttendanceRecord[]) => {
-      if (!session) return;
-      saveAttendanceOffline(session.tenantId, streamId, records);
+      if (!session || !replayContext) return;
+      saveAttendanceOffline(replayContext, streamId, records);
       checkQueue();
       if (isOnline) {
         syncQueue();

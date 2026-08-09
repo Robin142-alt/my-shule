@@ -1,6 +1,8 @@
 import { Controller, Get, Post, Body, Param } from '@nestjs/common';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
+import { Roles } from '../../auth/decorators/roles.decorator';
 import { DeputyCommandService } from './deputy-command.service';
+import { AssignDeputyStaffRoleDto } from './dto/deputy-staff-role.dto';
 
 @Controller('admin-command/deputy')
 export class DeputyCommandController {
@@ -151,6 +153,7 @@ export class DeputyCommandController {
   getStaff() { return this.deputyService.getStaff(); }
 
   @Post('staff/assign-role')
+  @Roles('deputy_principal')
   @Permissions('deputy:write')
-  assignRole(@Body() body: any) { return this.deputyService.assignRole(body); }
+  assignRole(@Body() body: AssignDeputyStaffRoleDto) { return this.deputyService.assignRole(body); }
 }

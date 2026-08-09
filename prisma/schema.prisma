@@ -1023,7 +1023,7 @@ model SchoolMembership {
 // ==========================================
 model Role {
   id                  String               @id @default(uuid())
-  schoolId            String?              @map("school_id")
+  schoolId            String?              @map("tenant_id")
   school              School?              @relation(fields: [schoolId], references: [id])
   name                String
   code                String
@@ -1081,7 +1081,7 @@ model RolePermission {
 
 model UserRoleAssignment {
   id               String           @id @default(uuid())
-  schoolId         String           @map("school_id")
+  schoolId         String           @map("tenant_id")
   school           School           @relation(fields: [schoolId], references: [id])
   userId           String           @map("user_id")
   user             User             @relation(fields: [userId], references: [id])

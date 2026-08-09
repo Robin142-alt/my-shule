@@ -7,9 +7,9 @@ import {
 export default async function DashboardRoleModulePage({
   params,
 }: {
-  params: { role: string; module: string };
+  params: Promise<{ role: string; module: string }>;
 }) {
-  const { role, module } = params;
+  const { role, module } = await params;
 
   if (role === "parent") {
     redirect(`/portal/parent/${module}`);

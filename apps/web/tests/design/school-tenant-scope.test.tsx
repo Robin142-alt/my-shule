@@ -31,8 +31,8 @@ describe("school tenant scope", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(requestDashboardApi).toHaveBeenCalledWith("/students", { tenantId: "maranda-high" });
-    expect(queryClient.getQueryData(["school", "maranda-high", "/students"])).toEqual({ status: "ok" });
-    expect(queryClient.getQueryData(["school", "stale-browser-school", "/students"])).toBeUndefined();
+    expect(queryClient.getQueryData(["school", "maranda-high", "session-user", "session-role", "/students"])).toEqual({ status: "ok" });
+    expect(queryClient.getQueryData(["school", "stale-browser-school", "session-user", "session-role", "/students"])).toBeUndefined();
   });
 
   it("keeps an explicit tenant override for governed cross-tenant platform tools", async () => {
@@ -56,8 +56,8 @@ describe("school tenant scope", () => {
 
   it("invalidates only the routed school's cached workspaces after a successful mutation", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    queryClient.setQueryData(["school", "maranda-high", "/students"], []);
-    queryClient.setQueryData(["school", "stale-browser-school", "/students"], []);
+    queryClient.setQueryData(["school", "maranda-high", "session-user", "session-role", "/students"], []);
+    queryClient.setQueryData(["school", "stale-browser-school", "session-user", "session-role", "/students"], []);
     const wrapper = ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={queryClient}>
         <SchoolTenantScopeProvider tenantId="maranda-high">
@@ -80,7 +80,7 @@ describe("school tenant scope", () => {
       tenantId: "maranda-high",
       body: { name: "Amina" },
     });
-    expect(queryClient.getQueryState(["school", "maranda-high", "/students"])?.isInvalidated).toBe(true);
-    expect(queryClient.getQueryState(["school", "stale-browser-school", "/students"])?.isInvalidated).toBe(false);
+    expect(queryClient.getQueryState(["school", "maranda-high", "session-user", "session-role", "/students"])?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(["school", "stale-browser-school", "session-user", "session-role", "/students"])?.isInvalidated).toBe(false);
   });
 });

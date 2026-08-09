@@ -4,8 +4,12 @@ import {
   normalizeSchoolExperienceRole,
 } from "@/lib/auth/school-role-normalization";
 
-export default async function DashboardRolePage({ params }: { params: { role: string } }) {
-  const role = params.role;
+export default async function DashboardRolePage({
+  params,
+}: {
+  params: Promise<{ role: string }>;
+}) {
+  const { role } = await params;
 
   if (role === "parent") {
     redirect("/portal/parent");

@@ -3,11 +3,17 @@ import test from 'node:test';
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 
 import { RequestContextService } from '../common/request-context/request-context.service';
-import { DEFAULT_PERMISSION_CATALOG, DEFAULT_ROLE_CATALOG } from './auth.constants';
+import {
+  ACADEMIC_TEACHING_ROLE_CODES,
+  DEFAULT_PERMISSION_CATALOG,
+  DEFAULT_ROLE_CATALOG,
+} from './auth.constants';
 import type { IssuedTokenPair } from './auth.interfaces';
 import { AuthService } from './auth.service';
+import { DashboardRoleService } from './dashboard-role.service';
 import { TENANT_INVITABLE_ROLE_CODES } from './dto/tenant-invitation.dto';
 import { AuthorizationRepository } from './repositories/authorization.repository';
+import { UserRoleAssignmentsRepository } from './repositories/user-role-assignments.repository';
 import { SessionService } from './session.service';
 
 test('AuthService register rejects direct self-service account creation', async () => {
@@ -288,6 +294,7 @@ test('AuthService authenticateAccessToken allows platform sessions without a ten
     session_id: 'session-platform',
     is_authenticated: true,
     email_verified_at: '2026-05-14T00:00:00.000Z',
+    mfa_assured_at: '2026-05-14T00:00:00.000Z',
     refresh_token_id: 'refresh-platform',
     created_at: '2026-05-05T00:00:00.000Z',
     updated_at: '2026-05-05T00:00:00.000Z',
@@ -378,6 +385,7 @@ test('AuthService authenticateAccessToken lets default-domain requests use the s
     session_id: 'session-principal',
     is_authenticated: true,
     email_verified_at: '2026-05-14T00:00:00.000Z',
+    mfa_assured_at: '2026-05-14T00:00:00.000Z',
     refresh_token_id: 'refresh-principal',
     created_at: '2026-05-14T00:00:00.000Z',
     updated_at: '2026-05-14T00:00:00.000Z',
@@ -487,6 +495,7 @@ test('AuthService refresh lets default-domain requests use the signed refresh te
     session_id: 'session-principal',
     is_authenticated: true,
     email_verified_at: '2026-05-14T00:00:00.000Z',
+    mfa_assured_at: '2026-05-14T00:00:00.000Z',
     refresh_token_id: 'refresh-principal',
     created_at: '2026-05-14T00:00:00.000Z',
     updated_at: '2026-05-14T00:00:00.000Z',
@@ -1437,6 +1446,152 @@ test('AuthService enforces MFA and can persist a trusted device during high-priv
   });
 });
 
+test('AuthService bases login MFA assurance on every authorized dashboard role without widening the active role permissions', async () => {
+  const requestContext = new RequestContextService();
+  let mfaInput: Record<string, unknown> | undefined;
+  let createdSession: Record<string, unknown> | undefined;
+  const roleContext = {
+    primary_role: 'dean_academics',
+    active_role: 'dean_academics',
+    assigned_roles: ['dean_academics'],
+    available_roles: [
+      {
+        role_code: 'dean_academics',
+        role_name: 'Dean of Academics',
+        is_primary: true,
+        is_teacher_mode: false,
+        sources: ['primary_membership' as const],
+      },
+      {
+        role_code: 'teacher',
+        role_name: 'Teacher',
+        is_primary: false,
+        is_teacher_mode: true,
+        sources: ['teacher_eligibility' as const],
+      },
+    ],
+    teacher_dashboard_eligible: true,
+  };
+  const service = new AuthService(
+    requestContext,
+    {
+      findByEmail: async () => ({
+        id: 'user-dean',
+        tenant_id: 'tenant-a',
+        email: 'dean@example.test',
+        password_hash: 'hashed-password',
+        display_name: 'Academic Dean',
+        status: 'active',
+        email_verified_at: '2026-08-09T00:00:00.000Z',
+        mfa_enabled: false,
+      }),
+    } as never,
+    {
+      findActiveMembership: async () => ({
+        id: 'membership-dean',
+        tenant_id: 'tenant-a',
+        user_id: 'user-dean',
+        role_id: 'role-dean',
+        role_code: 'dean_academics',
+        role_name: 'Dean of Academics',
+        status: 'active',
+        created_at: new Date(),
+        updated_at: new Date(),
+      }),
+    } as never,
+    {
+      ensureTenantAuthorizationBaseline: async () => undefined,
+      getPermissionsByRoleId: async (tenantId: string, roleId: string) => {
+        assert.equal(tenantId, 'tenant-a');
+        if (roleId === 'role-dean') return ['auth:read', 'academics:read'];
+        if (roleId === 'role-teacher') return ['auth:read', 'teacher:read', 'teacher:write'];
+        throw new Error(`Unexpected role lookup: ${roleId}`);
+      },
+    } as never,
+    { compare: async () => true } as never,
+    {
+      issueTokenPair: async () => ({
+        access_token: 'access-token',
+        refresh_token: 'refresh-token',
+        token_type: 'Bearer' as const,
+        access_expires_in: 900,
+        refresh_expires_in: 2592000,
+        access_expires_at: '2026-08-09T00:15:00.000Z',
+        refresh_expires_at: '2026-09-08T00:00:00.000Z',
+        access_token_id: 'access-token-id',
+        refresh_token_id: 'refresh-token-id',
+        session_id: 'session-dean',
+      }),
+    } as never,
+    {
+      createSession: async (input: Record<string, unknown>) => {
+        createdSession = input;
+      },
+    } as never,
+    { get: () => undefined } as never,
+    {
+      enforceLoginChallenge: async (input: Record<string, unknown>) => {
+        mfaInput = input;
+        return { status: 'verified' as const };
+      },
+    } as never,
+    undefined,
+    undefined,
+    {
+      getAuthorizedRoleSet: async () => ({
+        context: roleContext,
+        roles: [
+          { role_id: 'role-dean', role_code: 'dean_academics' },
+          { role_id: 'role-teacher', role_code: 'teacher' },
+        ],
+      }),
+    } as never,
+  );
+
+  const response = await requestContext.run(
+    {
+      request_id: 'req-auth-role-union-mfa',
+      tenant_id: 'tenant-a',
+      tenant_source: 'subdomain',
+      audience: 'school',
+      user_id: 'anonymous',
+      role: 'guest',
+      session_id: null,
+      permissions: [],
+      is_authenticated: false,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'POST',
+      path: '/auth/login',
+      started_at: '2026-08-09T00:00:00.000Z',
+    },
+    () => service.login(
+      {
+        email: 'dean@example.test',
+        password: 'SecurePass!2026',
+        audience: 'school',
+        mfa_code: '123456',
+      },
+      { ip_address: '127.0.0.1', user_agent: 'test-suite' },
+    ),
+  );
+
+  assert.deepEqual(mfaInput?.permissions, [
+    'auth:read',
+    'academics:read',
+    'teacher:read',
+    'teacher:write',
+  ]);
+  assert.deepEqual(response.user.permissions, ['auth:read', 'academics:read']);
+  assert.deepEqual(createdSession?.permissions, ['auth:read', 'academics:read']);
+  assert.equal(response.user.role, 'dean_academics');
+  assert.equal(response.role_context.teacher_dashboard_eligible, true);
+  assert.equal(
+    Number.isFinite(Date.parse(String(createdSession?.mfa_assured_at))),
+    true,
+  );
+});
+
 test('AuthService allows the contract demo MFA bypass only for kb-high demo users outside production', async () => {
   const previousNodeEnv = process.env.NODE_ENV;
   const previousBypass = process.env.AUTH_CONTRACT_DEMO_MFA_BYPASS;
@@ -1814,4 +1969,664 @@ test('AuthService never honors the contract demo MFA bypass in production', asyn
     if (previousBypass === undefined) delete process.env.AUTH_CONTRACT_DEMO_MFA_BYPASS;
     else process.env.AUTH_CONTRACT_DEMO_MFA_BYPASS = previousBypass;
   }
+});
+
+test('DashboardRoleService grants Teacher mode to every teaching-eligible assigned role', async () => {
+  for (const roleCode of ACADEMIC_TEACHING_ROLE_CODES) {
+    const service = new DashboardRoleService(
+      {
+        findActiveMembership: async () => ({
+          id: `membership-${roleCode}`,
+          tenant_id: 'tenant-a',
+          user_id: 'user-a',
+          role_id: `role-${roleCode}`,
+          role_code: roleCode,
+          role_name: DEFAULT_ROLE_CATALOG.find((role) => role.code === roleCode)?.name ?? roleCode,
+          status: 'active',
+          created_at: new Date(),
+          updated_at: new Date(),
+        }),
+      } as never,
+      {
+        findActiveRolesForUser: async () => [],
+      } as never,
+      {
+        getRoleByCode: async (_tenantId: string, requestedRole: string) => ({
+          id: `role-${requestedRole}`,
+          tenant_id: 'tenant-a',
+          code: requestedRole,
+          name: 'Teacher',
+          description: null,
+          is_system: true,
+          created_at: new Date(),
+          updated_at: new Date(),
+        }),
+      } as never,
+    );
+
+    const context = await service.getRoleContext({
+      user_id: 'user-a',
+      tenant_id: 'tenant-a',
+      active_role: roleCode,
+    });
+    const teacherOption = context.available_roles.find((role) => role.role_code === 'teacher');
+
+    assert.equal(context.teacher_dashboard_eligible, true, roleCode);
+    assert.equal(teacherOption?.is_teacher_mode, true, roleCode);
+
+    const teacherSelection = await service.authorizeRole({
+      user_id: 'user-a',
+      tenant_id: 'tenant-a',
+      active_role: 'teacher',
+      requested_role: 'teacher',
+    });
+    assert.equal(teacherSelection.role_code, 'teacher', roleCode);
+  }
+});
+
+test('DashboardRoleService rejects unauthorized, cross-tenant, and unsupported additional roles', async () => {
+  const service = new DashboardRoleService(
+    {
+      findActiveMembership: async () => ({
+        id: 'membership-accountant',
+        tenant_id: 'tenant-a',
+        user_id: 'user-a',
+        role_id: 'role-accountant',
+        role_code: 'accountant',
+        role_name: 'Accountant',
+        status: 'active',
+        created_at: new Date(),
+        updated_at: new Date(),
+      }),
+    } as never,
+    {
+      findActiveRolesForUser: async () => [
+        {
+          assignment_id: 'cross-tenant-role',
+          tenant_id: 'tenant-b',
+          user_id: 'user-a',
+          role_id: 'role-principal-b',
+          role_code: 'principal',
+          role_name: 'Principal',
+          scope_type: 'SCHOOL',
+          scope_id: null,
+        },
+        {
+          assignment_id: 'unknown-role',
+          tenant_id: 'tenant-a',
+          user_id: 'user-a',
+          role_id: 'role-custom',
+          role_code: 'custom_dashboard_admin',
+          role_name: 'Custom dashboard admin',
+          scope_type: 'SCHOOL',
+          scope_id: null,
+        },
+      ],
+    } as never,
+    {
+      getRoleByCode: async () => {
+        throw new Error('Teacher role must not resolve for an unauthorized account');
+      },
+    } as never,
+  );
+
+  const context = await service.getRoleContext({
+    user_id: 'user-a',
+    tenant_id: 'tenant-a',
+    active_role: 'accountant',
+  });
+  assert.deepEqual(context.assigned_roles, ['accountant']);
+  assert.equal(context.teacher_dashboard_eligible, false);
+  assert.equal(context.available_roles.some((role) => role.role_code === 'principal'), false);
+  assert.equal(context.available_roles.some((role) => role.role_code === 'custom_dashboard_admin'), false);
+
+  await assert.rejects(
+    () => service.authorizeRole({
+      user_id: 'user-a',
+      tenant_id: 'tenant-a',
+      active_role: 'teacher',
+      requested_role: 'teacher',
+    }),
+    ForbiddenException,
+  );
+});
+
+test('DashboardRoleService deduplicates primary and additional roles while preserving genuine sources', async () => {
+  const service = new DashboardRoleService(
+    {
+      findActiveMembership: async () => ({
+        id: 'membership-principal',
+        tenant_id: 'tenant-a',
+        user_id: 'user-a',
+        role_id: 'role-principal',
+        role_code: 'principal',
+        role_name: 'Principal',
+        status: 'active',
+        created_at: new Date(),
+        updated_at: new Date(),
+      }),
+    } as never,
+    {
+      findActiveRolesForUser: async () => [
+        {
+          assignment_id: 'duplicate-principal',
+          tenant_id: 'tenant-a',
+          user_id: 'user-a',
+          role_id: 'role-principal',
+          role_code: 'principal',
+          role_name: 'Principal',
+          scope_type: 'SCHOOL',
+          scope_id: null,
+        },
+        {
+          assignment_id: 'hod-role',
+          tenant_id: 'tenant-a',
+          user_id: 'user-a',
+          role_id: 'role-hod',
+          role_code: 'hod',
+          role_name: 'Head of Department',
+          scope_type: 'SCHOOL',
+          scope_id: null,
+        },
+      ],
+    } as never,
+    {
+      getRoleByCode: async () => ({ id: 'role-teacher' }),
+    } as never,
+  );
+
+  const context = await service.getRoleContext({
+    user_id: 'user-a',
+    tenant_id: 'tenant-a',
+    active_role: 'principal',
+  });
+  const principal = context.available_roles.find((role) => role.role_code === 'principal');
+
+  assert.deepEqual(context.assigned_roles, ['principal', 'hod']);
+  assert.deepEqual(principal?.sources, ['primary_membership', 'additional_assignment']);
+  assert.equal(context.available_roles.filter((role) => role.role_code === 'teacher').length, 1);
+});
+
+test('DashboardRoleService refuses to elevate scoped additional assignments into tenant-wide dashboard sessions', async () => {
+  const service = new DashboardRoleService(
+    {
+      findActiveMembership: async () => ({
+        id: 'membership-accountant',
+        tenant_id: 'tenant-a',
+        user_id: 'user-a',
+        role_id: 'role-accountant',
+        role_code: 'accountant',
+        role_name: 'Accountant',
+        status: 'active',
+        created_at: new Date(),
+        updated_at: new Date(),
+      }),
+    } as never,
+    {
+      findActiveRolesForUser: async () => [
+        {
+          assignment_id: 'department-hod',
+          tenant_id: 'tenant-a',
+          user_id: 'user-a',
+          role_id: 'role-hod',
+          role_code: 'hod',
+          role_name: 'Head of Department',
+          scope_type: 'DEPARTMENT',
+          scope_id: 'department-science',
+        },
+        {
+          assignment_id: 'class-teacher',
+          tenant_id: 'tenant-a',
+          user_id: 'user-a',
+          role_id: 'role-class-teacher',
+          role_code: 'class_teacher',
+          role_name: 'Class Teacher',
+          scope_type: 'CLASS',
+          scope_id: 'class-a',
+        },
+        {
+          assignment_id: 'school-secretary',
+          tenant_id: 'tenant-a',
+          user_id: 'user-a',
+          role_id: 'role-secretary',
+          role_code: 'secretary',
+          role_name: 'Secretary',
+          scope_type: 'SCHOOL',
+          scope_id: null,
+        },
+      ],
+    } as never,
+    {
+      getRoleByCode: async () => {
+        throw new Error('Scoped teaching roles must not create Teacher eligibility');
+      },
+    } as never,
+  );
+
+  const context = await service.getRoleContext({
+    user_id: 'user-a',
+    tenant_id: 'tenant-a',
+    active_role: 'accountant',
+  });
+
+  assert.deepEqual(context.assigned_roles, ['accountant', 'secretary']);
+  assert.equal(context.teacher_dashboard_eligible, false);
+  await assert.rejects(
+    () => service.authorizeRole({
+      user_id: 'user-a',
+      tenant_id: 'tenant-a',
+      active_role: 'hod',
+      requested_role: 'hod',
+    }),
+    ForbiddenException,
+  );
+  await assert.rejects(
+    () => service.authorizeRole({
+      user_id: 'user-a',
+      tenant_id: 'tenant-a',
+      active_role: 'teacher',
+      requested_role: 'teacher',
+    }),
+    ForbiddenException,
+  );
+});
+
+test('DashboardRoleService preserves the existing least-privilege member session without teacher eligibility', async () => {
+  const service = new DashboardRoleService(
+    {
+      findActiveMembership: async () => ({
+        id: 'membership-member',
+        tenant_id: 'tenant-a',
+        user_id: 'user-a',
+        role_id: 'role-member',
+        role_code: 'member',
+        role_name: 'Member',
+        status: 'active',
+        created_at: new Date(),
+        updated_at: new Date(),
+      }),
+    } as never,
+    { findActiveRolesForUser: async () => [] } as never,
+    {} as never,
+  );
+
+  const context = await service.getRoleContext({
+    user_id: 'user-a',
+    tenant_id: 'tenant-a',
+    active_role: 'member',
+  });
+
+  assert.deepEqual(context.assigned_roles, ['member']);
+  assert.equal(context.active_role, 'member');
+  assert.equal(context.teacher_dashboard_eligible, false);
+  assert.deepEqual(context.available_roles.map((role) => role.role_code), ['member']);
+});
+
+test('DashboardRoleService rejects unsupported primary account roles', async () => {
+  const service = new DashboardRoleService(
+    {
+      findActiveMembership: async () => ({
+        id: 'membership-custom',
+        tenant_id: 'tenant-a',
+        user_id: 'user-a',
+        role_id: 'role-custom',
+        role_code: 'custom_dashboard_admin',
+        role_name: 'Custom dashboard admin',
+        status: 'active',
+        created_at: new Date(),
+        updated_at: new Date(),
+      }),
+    } as never,
+    { findActiveRolesForUser: async () => [] } as never,
+    {} as never,
+  );
+
+  await assert.rejects(
+    () => service.getRoleContext({
+      user_id: 'user-a',
+      tenant_id: 'tenant-a',
+      active_role: 'custom_dashboard_admin',
+    }),
+    ForbiddenException,
+  );
+});
+
+test('UserRoleAssignmentsRepository binds active assignments to the requested user and tenant', async () => {
+  let capturedSql = '';
+  let capturedValues: unknown[] = [];
+  const repository = new UserRoleAssignmentsRepository({
+    query: async (sql: string, values: unknown[]) => {
+      capturedSql = sql;
+      capturedValues = values;
+      return { rows: [] };
+    },
+  } as never);
+
+  await repository.findActiveRolesForUser('user-a', 'tenant-a');
+
+  assert.match(capturedSql, /user_role\.tenant_id = \$1/);
+  assert.match(capturedSql, /user_role\.user_id = \$2/);
+  assert.match(capturedSql, /upper\(user_role\.status\) = 'ACTIVE'/);
+  assert.match(capturedSql, /user_role\.deleted_at IS NULL/);
+  assert.match(capturedSql, /role\.tenant_id = user_role\.tenant_id/);
+  assert.match(capturedSql, /upper\(COALESCE\(user_role\.scope_type, ''\)\) = 'SCHOOL'/);
+  assert.match(capturedSql, /NULLIF\(btrim\(COALESCE\(user_role\.scope_id, ''\)\), ''\) IS NULL/);
+  assert.deepEqual(capturedValues, ['tenant-a', 'user-a']);
+});
+
+test('AuthService switches and refreshes the active role with exact permissions and one identity', async () => {
+  const requestContext = new RequestContextService();
+  const roleContext = {
+    primary_role: 'principal',
+    active_role: 'teacher',
+    assigned_roles: ['principal'],
+    available_roles: [
+      {
+        role_code: 'principal',
+        role_name: 'Principal',
+        is_primary: true,
+        is_teacher_mode: false,
+        sources: ['primary_membership' as const],
+      },
+      {
+        role_code: 'teacher',
+        role_name: 'Teacher',
+        is_primary: false,
+        is_teacher_mode: true,
+        sources: ['teacher_eligibility' as const],
+      },
+    ],
+    teacher_dashboard_eligible: true,
+  };
+  const tokenPairs: IssuedTokenPair[] = [];
+  let session = {
+    user_id: 'user-principal',
+    tenant_id: 'tenant-a',
+    role: 'principal',
+    audience: 'school' as const,
+    permissions: ['principal:read'],
+    session_id: 'session-a',
+    is_authenticated: true,
+    email_verified_at: '2026-08-09T00:00:00.000Z',
+    mfa_assured_at: null as string | null,
+    refresh_token_id: 'refresh-original',
+    created_at: '2026-08-09T00:00:00.000Z',
+    updated_at: '2026-08-09T00:00:00.000Z',
+    refresh_expires_at: '2026-09-09T00:00:00.000Z',
+    ip_address: '127.0.0.1',
+    user_agent: 'test-suite',
+  };
+  let auditMetadata: Record<string, unknown> | undefined;
+  let synchronizedRole: string | null = null;
+  const tokenService = {
+    issueTokenPair: async (subject: { role: string; session_id: string }) => {
+      const sequence = tokenPairs.length + 1;
+      const pair: IssuedTokenPair = {
+        access_token: `access-${sequence}`,
+        refresh_token: `refresh-${sequence}`,
+        token_type: 'Bearer',
+        access_expires_in: 900,
+        refresh_expires_in: 2592000,
+        access_expires_at: '2026-08-09T00:15:00.000Z',
+        refresh_expires_at: '2026-09-09T00:00:00.000Z',
+        access_token_id: `access-id-${sequence}`,
+        refresh_token_id: `refresh-id-${sequence}`,
+        session_id: subject.session_id,
+      };
+      assert.equal(subject.role, 'teacher');
+      tokenPairs.push(pair);
+      return pair;
+    },
+    verifyAccessToken: async () => ({
+      sub: 'user-principal',
+      user_id: 'user-principal',
+      tenant_id: 'tenant-a',
+      role: 'principal',
+      audience: 'school' as const,
+      session_id: 'session-a',
+      token_id: 'old-access-id',
+      type: 'access' as const,
+    }),
+    verifyRefreshToken: async () => ({
+      sub: 'user-principal',
+      user_id: 'user-principal',
+      tenant_id: 'tenant-a',
+      role: 'teacher',
+      audience: 'school' as const,
+      session_id: 'session-a',
+      token_id: session.refresh_token_id,
+      type: 'refresh' as const,
+    }),
+  };
+  const service = new AuthService(
+    requestContext,
+    {
+      findById: async () => ({
+        id: 'user-principal',
+        tenant_id: 'global',
+        email: 'principal@example.test',
+        password_hash: 'hashed-password',
+        display_name: 'School Principal',
+        status: 'active',
+        email_verified_at: '2026-08-09T00:00:00.000Z',
+      }),
+    } as never,
+    {
+      findActiveMembership: async () => ({
+        id: 'membership-principal',
+        tenant_id: 'tenant-a',
+        user_id: 'user-principal',
+        role_id: 'role-principal',
+        role_code: 'principal',
+        role_name: 'Principal',
+        status: 'active',
+        created_at: new Date(),
+        updated_at: new Date(),
+      }),
+    } as never,
+    {
+      ensureTenantAuthorizationBaseline: async () => undefined,
+      getPermissionsByRoleId: async (_tenantId: string, roleId: string) => {
+        assert.equal(roleId, 'role-teacher');
+        return ['auth:read', 'teacher:read', 'teacher:write'];
+      },
+    } as never,
+    {} as never,
+    tokenService as never,
+    {
+      getSession: async () => session,
+      invalidateSession: async () => undefined,
+      rotateRefreshToken: async (input: {
+        current_refresh_token_id: string;
+        next_token_pair: IssuedTokenPair;
+        role: string;
+        permissions: string[];
+      }) => {
+        assert.equal(input.current_refresh_token_id, session.refresh_token_id);
+        session = {
+          ...session,
+          role: input.role,
+          permissions: input.permissions,
+          refresh_token_id: input.next_token_pair.refresh_token_id,
+          refresh_expires_at: input.next_token_pair.refresh_expires_at,
+        };
+        return { session, token_pair: input.next_token_pair, replayed: false };
+      },
+      toPrincipal: (activeSession: typeof session) => ({
+        user_id: activeSession.user_id,
+        tenant_id: activeSession.tenant_id,
+        role: activeSession.role,
+        audience: activeSession.audience,
+        permissions: activeSession.permissions,
+        session_id: activeSession.session_id,
+        is_authenticated: true,
+      }),
+    } as never,
+    { get: () => undefined } as never,
+    undefined,
+    undefined,
+    {
+      synchronizeRequestSession: async (context: { role?: string | null }) => {
+        synchronizedRole = context.role ?? null;
+      },
+    } as never,
+    {
+      authorizeRole: async (input: { requested_role: string }) => {
+        assert.equal(input.requested_role, 'teacher');
+        return { role_id: 'role-teacher', role_code: 'teacher', context: roleContext };
+      },
+      getRoleContext: async () => roleContext,
+    } as never,
+    {
+      record: async (record: { metadata?: Record<string, unknown> }) => {
+        auditMetadata = record.metadata;
+      },
+    } as never,
+  );
+
+  await requestContext.run(
+    {
+      request_id: 'req-role-switch',
+      tenant_id: 'tenant-a',
+      tenant_source: 'subdomain',
+      audience: 'school',
+      user_id: 'user-principal',
+      role: 'principal',
+      session_id: 'session-a',
+      permissions: ['principal:read'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'POST',
+      path: '/auth/active-role',
+      started_at: '2026-08-09T00:00:00.000Z',
+    },
+    async () => {
+      await assert.rejects(
+        () => service.switchActiveRole(
+          { role_code: 'teacher' },
+          { ip_address: '127.0.0.1', user_agent: 'test-suite' },
+        ),
+        (error: unknown) =>
+          error instanceof UnauthorizedException
+          && /not MFA-assured/i.test(error.message),
+      );
+      assert.equal(tokenPairs.length, 0);
+
+      session = {
+        ...session,
+        mfa_assured_at: '2026-08-09T00:00:00.000Z',
+      };
+      const switched = await service.switchActiveRole(
+        { role_code: 'teacher' },
+        { ip_address: '127.0.0.1', user_agent: 'test-suite' },
+      );
+
+      assert.equal(switched.user.user_id, 'user-principal');
+      assert.equal(switched.user.tenant_id, 'tenant-a');
+      assert.equal(switched.user.session_id, 'session-a');
+      assert.equal(switched.user.role, 'teacher');
+      assert.deepEqual(switched.user.permissions, ['auth:read', 'teacher:read', 'teacher:write']);
+      assert.equal(switched.role_context.active_role, 'teacher');
+      assert.equal(synchronizedRole, 'teacher');
+      assert.deepEqual(auditMetadata, {
+        previous_role: 'principal',
+        active_role: 'teacher',
+        primary_role: 'principal',
+        teacher_dashboard_eligible: true,
+      });
+
+      await assert.rejects(
+        () => service.authenticateAccessToken('old-access-token', 'tenant-a', 'school'),
+        /out of sync with the active session/,
+      );
+
+      const refreshed = await service.refresh(
+        { refresh_token: 'refresh-1' },
+        { ip_address: '127.0.0.1', user_agent: 'test-suite' },
+      );
+      assert.equal(refreshed.user.role, 'teacher');
+      assert.equal(refreshed.role_context.active_role, 'teacher');
+
+      const me = await service.me();
+      assert.equal(me.user.role, 'teacher');
+      assert.equal(me.role_context.active_role, 'teacher');
+    },
+  );
+});
+
+test('AuthService never exposes staff dashboard role switching to portal sessions', async () => {
+  const requestContext = new RequestContextService();
+  let dashboardRoleCalls = 0;
+  const service = new AuthService(
+    requestContext,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    undefined,
+    undefined,
+    undefined,
+    {
+      getRoleContext: async () => {
+        dashboardRoleCalls += 1;
+        throw new Error('Portal sessions must not resolve staff dashboards');
+      },
+      authorizeRole: async () => {
+        dashboardRoleCalls += 1;
+        throw new Error('Portal sessions must not authorize staff dashboards');
+      },
+    } as never,
+    {} as never,
+  );
+
+  await requestContext.run(
+    {
+      request_id: 'req-portal-role-switch',
+      tenant_id: 'tenant-a',
+      tenant_source: 'subdomain',
+      audience: 'portal',
+      user_id: 'parent-a',
+      role: 'parent',
+      session_id: 'session-parent',
+      permissions: ['auth:read', 'portal:read_own_children'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'POST',
+      path: '/auth/active-role',
+      started_at: '2026-08-09T00:00:00.000Z',
+    },
+    async () => {
+      await assert.rejects(() => service.dashboardRoles(), ForbiddenException);
+      await assert.rejects(
+        () => service.switchActiveRole(
+          { role_code: 'teacher' },
+          { ip_address: '127.0.0.1', user_agent: 'test-suite' },
+        ),
+        ForbiddenException,
+      );
+    },
+  );
+
+  assert.equal(dashboardRoleCalls, 0);
+});
+
+test('default Teacher and Class Teacher roles receive exact Teacher command permissions only', () => {
+  const teacher = DEFAULT_ROLE_CATALOG.find((role) => role.code === 'teacher');
+  const classTeacher = DEFAULT_ROLE_CATALOG.find((role) => role.code === 'class_teacher');
+  const dean = DEFAULT_ROLE_CATALOG.find((role) => role.code === 'dean_academics');
+
+  for (const role of [teacher, classTeacher]) {
+    const permissions: readonly string[] = role?.permissions ?? [];
+    assert.equal(permissions.includes('teacher:read'), true);
+    assert.equal(permissions.includes('teacher:write'), true);
+  }
+
+  const deanPermissions: readonly string[] = dean?.permissions ?? [];
+  assert.equal(deanPermissions.includes('teacher:read'), false);
+  assert.equal(deanPermissions.includes('teacher:write'), false);
 });

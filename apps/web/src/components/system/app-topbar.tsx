@@ -5,6 +5,7 @@ import { startTransition, useDeferredValue, useState, type ReactNode } from "rea
 import { usePathname, useRouter } from "next/navigation";
 
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
+import { SchoolDashboardRoleSwitcher } from "@/components/school/school-dashboard-role-switcher";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
@@ -404,6 +405,9 @@ export function AppTopbar({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+          {variant === "school" ? (
+            <SchoolDashboardRoleSwitcher className="w-full sm:w-auto" />
+          ) : null}
           <div className="relative min-w-[240px]">
             <label className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 py-2 transition duration-150 focus-within:border-border-strong focus-within:shadow-[var(--shadow-focus)]">
               <Search className="h-4 w-4 text-muted" />

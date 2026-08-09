@@ -7,9 +7,9 @@ import {
 export default async function StudentProfileRoute({
   params,
 }: {
-  params: { role: string; studentId: string };
+  params: Promise<{ role: string; studentId: string }>;
 }) {
-  const { role, studentId } = params;
+  const { role, studentId } = await params;
 
   if (isSchoolExperienceRole(role)) {
     redirect(`/school/${normalizeSchoolExperienceRole(role)}/students/${studentId}`);

@@ -14,6 +14,7 @@ const productionModuleProxies: ProxyExpectation[] = [
   { route: "events", upstream: "/events", methods: ["GET", "POST"] },
   { route: "operational-workflows", upstream: "/operational-workflows", methods: ["GET", "POST"] },
   { route: "academics", upstream: "/academics", methods: ["GET", "POST"] },
+  { route: "class-teacher", upstream: "/class-teacher", methods: ["GET", "POST"] },
   { route: "reports", upstream: "/reports", methods: ["GET", "POST"] },
   { route: "staff", upstream: "/hr", methods: ["GET", "POST", "PATCH"] },
   { route: "hr", upstream: "/hr", methods: ["GET", "POST", "PATCH"] },

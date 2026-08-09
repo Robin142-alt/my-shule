@@ -1,10 +1,12 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
+import { Roles } from '../../auth/decorators/roles.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { TeacherCommandService } from './teacher-command.service';
 
 @Controller('admin-command/teacher')
 @RequiresModule('academics')
+@Roles('teacher')
 @Permissions('teacher:read')
 export class TeacherCommandController {
   constructor(private readonly service: TeacherCommandService) {}

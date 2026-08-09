@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
+import { SchoolDashboardRoleSwitcher } from "@/components/school/school-dashboard-role-switcher";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { tenantSlugToName } from "@/lib/seo/tenant-routes";
 
@@ -140,7 +141,10 @@ export function IntegratedSchoolCommandHeader({
           <DashboardGreeting name={greetingName} context={`${schoolName} ${contextLabel}`} />
           <h1 className="mt-1 text-2xl font-black">{roleTitle}</h1>
         </div>
-        {actions ? <div className="min-w-0 xl:max-w-[68%]">{actions}</div> : null}
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center xl:max-w-[68%] xl:justify-end">
+          <SchoolDashboardRoleSwitcher className="w-full sm:w-auto" />
+          {actions}
+        </div>
       </div>
     </header>
   );

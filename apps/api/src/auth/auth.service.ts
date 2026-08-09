@@ -2,7 +2,9 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   Optional,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -11,6 +13,7 @@ import type { Request } from 'express';
 
 import { RequestContextService } from '../common/request-context/request-context.service';
 import { DatabaseService } from '../database/database.service';
+import { AuditService } from './audit.service';
 import {
   DEFAULT_ROLE_OWNER,
   SUPERADMIN_ROLE_OWNER,
@@ -21,6 +24,11 @@ import {
   AuthenticatedPrincipal,
   IssuedTokenPair,
 } from './auth.interfaces';
+import {
+  AuthorizedDashboardRole,
+  DashboardRoleAuthorizationSet,
+  DashboardRoleService,
+} from './dashboard-role.service';
 import { LoginDto } from './dto/login.dto';
 import {
   AuthResponseDto,
@@ -29,6 +37,10 @@ import {
 } from './dto/auth-response.dto';
 import { LogoutResponseDto } from './dto/logout-response.dto';
 import { MeResponseDto } from './dto/me-response.dto';
+import {
+  DashboardRoleContextDto,
+  SwitchActiveRoleDto,
+} from './dto/dashboard-role.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
 import { AuthorizationRepository } from './repositories/authorization.repository';
@@ -56,6 +68,8 @@ export class AuthService {
     @Optional() private readonly mfaService?: MfaService,
     @Optional() private readonly trustedDeviceService?: TrustedDeviceService,
     @Optional() private readonly databaseService?: DatabaseService,
+    private readonly dashboardRoleService?: DashboardRoleService,
+    private readonly auditService?: AuditService,
   ) {}
 
   extractBearerToken(request: Request): string | null {
@@ -112,6 +126,23 @@ export class AuthService {
       throw new UnauthorizedException('Access token is out of sync with the active session');
     }
 
+    if (session.tenant_id && session.audience === 'school' && this.dashboardRoleService) {
+      try {
+        await this.dashboardRoleService.authorizeRole({
+          user_id: session.user_id,
+          tenant_id: session.tenant_id,
+          active_role: session.role,
+          requested_role: session.role,
+        });
+      } catch (error) {
+        if (error instanceof ForbiddenException || error instanceof UnauthorizedException) {
+          throw new UnauthorizedException('The active dashboard role is no longer available');
+        }
+
+        throw error;
+      }
+    }
+
     await this.assertEmailVerifiedForSensitiveSession(session);
 
     return this.sessionService.toPrincipal(session);
@@ -145,13 +176,35 @@ export class AuthService {
     await this.activateResolvedTenantContext(tenantId);
     await this.authorizationRepository.ensureTenantAuthorizationBaseline(tenantId);
 
-    const permissions = this.resolveEmailVerificationPermissions(
-      user,
-      await this.authorizationRepository.getPermissionsByRoleId(tenantId, membership.role_id),
+    const roleAuthorizationSet = audience === 'school'
+      ? await this.resolveLoginRoleAuthorizationSet(user.id, membership)
+      : this.buildPrimaryRoleAuthorizationSet(membership);
+    const primaryRolePermissions = await this.authorizationRepository.getPermissionsByRoleId(
+      tenantId,
+      membership.role_id,
     );
-    await this.enforceLoginSecurity(user, membership.role_code, permissions, dto, metadata);
+    const permissions = this.resolveEmailVerificationPermissions(user, primaryRolePermissions);
+    const assurancePermissions = await this.resolveLoginAssurancePermissions(
+      tenantId,
+      roleAuthorizationSet.roles,
+    );
+    const mfaAssuredAt = await this.enforceLoginSecurity(
+      user,
+      membership.role_code,
+      assurancePermissions,
+      dto,
+      metadata,
+    );
 
-    return this.createAuthResponse(user, membership, permissions, audience, metadata);
+    return this.createAuthResponse(
+      user,
+      membership,
+      permissions,
+      audience,
+      metadata,
+      roleAuthorizationSet.context,
+      mfaAssuredAt,
+    );
   }
 
   async refresh(dto: RefreshTokenDto, metadata: AuthRequestMetadata): Promise<AuthResponseDto> {
@@ -207,14 +260,25 @@ export class AuthService {
 
     await this.authorizationRepository.ensureTenantAuthorizationBaseline(tenantId);
 
-    const permissions = this.resolveEmailVerificationPermissions(
-      user,
-      await this.authorizationRepository.getPermissionsByRoleId(tenantId, membership.role_id),
+    const selectedRole = audience === 'school'
+      ? await this.resolveAuthorizedRefreshRole({
+          user_id: user.id,
+          tenant_id: tenantId,
+          session_role: session.role,
+          primary_role: membership.role_code,
+          primary_role_id: membership.role_id,
+        })
+      : this.buildPrimaryAuthorizedRole(membership);
+    const selectedRolePermissions = await this.authorizationRepository.getPermissionsByRoleId(
+      tenantId,
+      selectedRole.role_id,
     );
+    this.assertMfaAssuranceForRole(session, selectedRole.role_code, selectedRolePermissions);
+    const permissions = this.resolveEmailVerificationPermissions(user, selectedRolePermissions);
     const tokenPair = await this.tokenService.issueTokenPair({
       user_id: user.id,
       tenant_id: tenantId,
-      role: membership.role_code,
+      role: selectedRole.role_code,
       audience,
       session_id: payload.session_id,
     });
@@ -223,7 +287,7 @@ export class AuthService {
       session_id: payload.session_id,
       current_refresh_token_id: payload.token_id,
       next_token_pair: tokenPair,
-      role: membership.role_code,
+      role: selectedRole.role_code,
       permissions,
       email_verified_at: this.formatEmailVerifiedAt(user),
       ip_address: metadata.ip_address,
@@ -233,10 +297,12 @@ export class AuthService {
 
     return this.buildAuthResponse(
       user,
-      membership,
+      tenantId,
       permissions,
       activeTokenPair,
       audience,
+      selectedRole.context,
+      selectedRole.role_code,
     );
   }
 
@@ -272,6 +338,7 @@ export class AuthService {
           requestContext.session_id,
           this.resolveEmailVerificationPermissions(user, ['*:*']),
         ),
+        role_context: this.buildPlatformRoleContext(),
       };
     }
 
@@ -289,20 +356,161 @@ export class AuthService {
       throw new UnauthorizedException('User no longer has access to this tenant');
     }
 
+    const activeRole = requestContext.role ?? membership.role_code;
+    const selectedRole = requestContext.audience === 'school'
+      ? await this.resolveAuthorizedRoleOrPrimaryFallback({
+          user_id: user.id,
+          tenant_id: tenantId,
+          requested_role: activeRole,
+          membership,
+          allow_primary_fallback: false,
+        })
+      : this.buildPrimaryAuthorizedRole(membership);
     const permissions = this.resolveEmailVerificationPermissions(
       user,
-      await this.authorizationRepository.getPermissionsByRoleId(tenantId, membership.role_id),
+      await this.authorizationRepository.getPermissionsByRoleId(tenantId, selectedRole.role_id),
     );
 
     return {
       user: this.buildUserDto(
         user,
-        membership,
+        tenantId,
+        selectedRole.role_code,
         permissions,
         requestContext.session_id,
         this.requireTenantScopedAudience(requestContext.audience ?? 'school'),
       ),
+      role_context: selectedRole.context,
     };
+  }
+
+  async dashboardRoles(): Promise<DashboardRoleContextDto> {
+    const requestContext = this.requestContext.requireStore();
+
+    if (!requestContext.is_authenticated || !requestContext.session_id) {
+      throw new UnauthorizedException('No authenticated user found');
+    }
+
+    if (requestContext.audience === 'superadmin') {
+      return this.buildPlatformRoleContext();
+    }
+
+    if (requestContext.audience !== 'school') {
+      throw new ForbiddenException('Dashboard roles are only available to school staff sessions');
+    }
+
+    const tenantId = this.requireTenantId();
+    return this.requireDashboardRoleService().getRoleContext({
+      user_id: requestContext.user_id,
+      tenant_id: tenantId,
+      active_role: requestContext.role,
+    });
+  }
+
+  async switchActiveRole(
+    dto: SwitchActiveRoleDto,
+    metadata: AuthRequestMetadata,
+  ): Promise<AuthResponseDto> {
+    const requestContext = this.requestContext.requireStore();
+
+    if (
+      !requestContext.is_authenticated
+      || !requestContext.session_id
+      || requestContext.audience !== 'school'
+    ) {
+      throw new ForbiddenException('Dashboard role switching is only available to school accounts');
+    }
+
+    const tenantId = this.requireTenantId();
+    const session = await this.sessionService.getSession(requestContext.session_id);
+
+    if (
+      !session
+      || session.user_id !== requestContext.user_id
+      || session.tenant_id !== tenantId
+      || session.audience !== requestContext.audience
+    ) {
+      throw new UnauthorizedException('Session is no longer valid');
+    }
+
+    const user = await this.usersRepository.findById(requestContext.user_id);
+
+    if (!user || user.status !== 'active') {
+      await this.sessionService.invalidateSession(requestContext.session_id);
+      throw new UnauthorizedException('User account is no longer active');
+    }
+
+    await this.authorizationRepository.ensureTenantAuthorizationBaseline(tenantId);
+    const selectedRole = await this.requireDashboardRoleService().authorizeRole({
+      user_id: user.id,
+      tenant_id: tenantId,
+      active_role: dto.role_code,
+      requested_role: dto.role_code,
+    });
+    const selectedRolePermissions = await this.authorizationRepository.getPermissionsByRoleId(
+      tenantId,
+      selectedRole.role_id,
+    );
+    this.assertMfaAssuranceForRole(session, selectedRole.role_code, selectedRolePermissions);
+    const permissions = this.resolveEmailVerificationPermissions(user, selectedRolePermissions);
+    const tokenPair = await this.tokenService.issueTokenPair({
+      user_id: user.id,
+      tenant_id: tenantId,
+      role: selectedRole.role_code,
+      audience: this.requireTenantScopedAudience(requestContext.audience ?? 'school'),
+      session_id: session.session_id,
+    });
+    const rotation = await this.sessionService.rotateRefreshToken({
+      session_id: session.session_id,
+      current_refresh_token_id: session.refresh_token_id,
+      next_token_pair: tokenPair,
+      role: selectedRole.role_code,
+      permissions,
+      email_verified_at: this.formatEmailVerifiedAt(user),
+      ip_address: metadata.ip_address,
+      user_agent: metadata.user_agent,
+    });
+
+    if (rotation.session.role !== selectedRole.role_code) {
+      throw new ServiceUnavailableException('Dashboard role changed concurrently; refresh and try again');
+    }
+
+    this.requestContext.setRole(selectedRole.role_code);
+    this.requestContext.setPermissions(permissions);
+    await this.databaseService?.synchronizeRequestSession(this.requestContext.requireStore());
+
+    if (!rotation.replayed) {
+      try {
+        await this.requireAuditService().record({
+          tenant_id: tenantId,
+          actor_user_id: user.id,
+          action: 'auth.active_role_changed',
+          resource_type: 'auth_session',
+          resource_id: session.session_id,
+          metadata: {
+            previous_role: session.role,
+            active_role: selectedRole.role_code,
+            primary_role: selectedRole.context.primary_role,
+            teacher_dashboard_eligible: selectedRole.context.teacher_dashboard_eligible,
+          },
+        });
+      } catch {
+        await this.sessionService.invalidateSession(session.session_id);
+        throw new ServiceUnavailableException(
+          'Dashboard role switch could not be audited; the session was closed safely',
+        );
+      }
+    }
+
+    return this.buildAuthResponse(
+      user,
+      tenantId,
+      permissions,
+      rotation.token_pair,
+      this.requireTenantScopedAudience(requestContext.audience ?? 'school'),
+      selectedRole.context,
+      selectedRole.role_code,
+    );
   }
 
   private requireTenantScopedAudience(requestedAudience: AuthAudience | undefined): AuthAudience {
@@ -321,6 +529,8 @@ export class AuthService {
     permissions: string[],
     audience: AuthAudience,
     metadata: AuthRequestMetadata,
+    roleContext: DashboardRoleContextDto,
+    mfaAssuredAt: string | null,
   ): Promise<AuthResponseDto> {
     const tokenPair = await this.tokenService.issueTokenPair({
       user_id: user.id,
@@ -339,13 +549,22 @@ export class AuthService {
       session_id: tokenPair.session_id,
       is_authenticated: true,
       email_verified_at: this.formatEmailVerifiedAt(user),
+      mfa_assured_at: mfaAssuredAt,
       refresh_token_id: tokenPair.refresh_token_id,
       refresh_expires_at: tokenPair.refresh_expires_at,
       ip_address: metadata.ip_address,
       user_agent: metadata.user_agent,
     });
 
-    return this.buildAuthResponse(user, membership, permissions, tokenPair, audience);
+    return this.buildAuthResponse(
+      user,
+      membership.tenant_id,
+      permissions,
+      tokenPair,
+      audience,
+      roleContext,
+      membership.role_code,
+    );
   }
 
   private async loginPlatformOwner(
@@ -375,9 +594,15 @@ export class AuthService {
     }
 
     const permissions = this.resolveEmailVerificationPermissions(user, ['*:*']);
-    await this.enforceLoginSecurity(user, SUPERADMIN_ROLE_OWNER, permissions, dto, metadata);
+    const mfaAssuredAt = await this.enforceLoginSecurity(
+      user,
+      SUPERADMIN_ROLE_OWNER,
+      permissions,
+      dto,
+      metadata,
+    );
 
-    return this.createPlatformAuthResponse(user, metadata);
+    return this.createPlatformAuthResponse(user, metadata, mfaAssuredAt);
   }
 
   private async refreshPlatformOwner(
@@ -440,6 +665,7 @@ export class AuthService {
   private async createPlatformAuthResponse(
     user: UserEntity,
     metadata: AuthRequestMetadata,
+    mfaAssuredAt: string | null,
   ): Promise<AuthResponseDto> {
     const permissions = this.resolveEmailVerificationPermissions(user, ['*:*']);
     const tokenPair = await this.tokenService.issueTokenPair({
@@ -459,6 +685,7 @@ export class AuthService {
       session_id: tokenPair.session_id,
       is_authenticated: true,
       email_verified_at: this.formatEmailVerifiedAt(user),
+      mfa_assured_at: mfaAssuredAt,
       refresh_token_id: tokenPair.refresh_token_id,
       refresh_expires_at: tokenPair.refresh_expires_at,
       ip_address: metadata.ip_address,
@@ -474,13 +701,13 @@ export class AuthService {
     permissions: string[],
     dto: LoginDto,
     metadata: AuthRequestMetadata,
-  ): Promise<void> {
+  ): Promise<string | null> {
     if (this.isContractDemoMfaBypassAllowed(user)) {
-      return;
+      return new Date().toISOString();
     }
 
     if (!this.mfaService) {
-      return;
+      return null;
     }
 
     const trustedDevice = dto.trusted_device_token && this.trustedDeviceService
@@ -513,6 +740,10 @@ export class AuthService {
         userAgent: metadata.user_agent,
       });
     }
+
+    return result.status === 'verified' || result.status === 'trusted_device'
+      ? new Date().toISOString()
+      : null;
   }
 
   private isContractDemoMfaBypassAllowed(user: UserEntity): boolean {
@@ -531,10 +762,12 @@ export class AuthService {
 
   private buildAuthResponse(
     user: UserEntity,
-    membership: TenantMembershipEntity,
+    tenantId: string,
     permissions: string[],
     tokenPair: IssuedTokenPair,
     audience: AuthAudience,
+    roleContext: DashboardRoleContextDto,
+    activeRole: string,
   ): AuthResponseDto {
     const tokens: AuthTokensDto = {
       access_token: tokenPair.access_token,
@@ -548,21 +781,30 @@ export class AuthService {
 
     return {
       tokens,
-      user: this.buildUserDto(user, membership, permissions, tokenPair.session_id, audience),
+      user: this.buildUserDto(
+        user,
+        tenantId,
+        activeRole,
+        permissions,
+        tokenPair.session_id,
+        audience,
+      ),
+      role_context: roleContext,
     };
   }
 
   private buildUserDto(
     user: UserEntity,
-    membership: TenantMembershipEntity,
+    tenantId: string,
+    activeRole: string,
     permissions: string[],
     sessionId: string,
     audience: AuthAudience,
   ): AuthenticatedUserDto {
     return {
       user_id: user.id,
-      tenant_id: membership.tenant_id,
-      role: membership.role_code,
+      tenant_id: tenantId,
+      role: activeRole,
       audience,
       email: user.email,
       display_name: user.display_name,
@@ -591,6 +833,7 @@ export class AuthService {
     return {
       tokens,
       user: this.buildPlatformUserDto(user, tokenPair.session_id, permissions),
+      role_context: this.buildPlatformRoleContext(),
     };
   }
 
@@ -611,6 +854,205 @@ export class AuthService {
       permissions,
       session_id: sessionId,
     };
+  }
+
+  private async resolveLoginRoleAuthorizationSet(
+    userId: string,
+    membership: TenantMembershipEntity,
+  ): Promise<DashboardRoleAuthorizationSet> {
+    if (!this.dashboardRoleService) {
+      return {
+        context: this.buildFallbackRoleContext(membership.role_code, membership.role_name),
+        roles: [{ role_id: membership.role_id, role_code: membership.role_code }],
+      };
+    }
+
+    return this.dashboardRoleService.getAuthorizedRoleSet({
+      user_id: userId,
+      tenant_id: membership.tenant_id,
+      active_role: membership.role_code,
+    });
+  }
+
+  private buildPrimaryRoleAuthorizationSet(
+    membership: TenantMembershipEntity,
+  ): DashboardRoleAuthorizationSet {
+    const selectedRole = this.buildPrimaryAuthorizedRole(membership);
+
+    return {
+      context: selectedRole.context,
+      roles: [{ role_id: selectedRole.role_id, role_code: selectedRole.role_code }],
+    };
+  }
+
+  private buildPrimaryAuthorizedRole(
+    membership: TenantMembershipEntity,
+  ): AuthorizedDashboardRole {
+    return {
+      role_id: membership.role_id,
+      role_code: membership.role_code,
+      context: this.buildFallbackRoleContext(membership.role_code, membership.role_name),
+    };
+  }
+
+  private async resolveLoginAssurancePermissions(
+    tenantId: string,
+    roles: DashboardRoleAuthorizationSet['roles'],
+  ): Promise<string[]> {
+    const permissionSets = await Promise.all(
+      roles.map((role) =>
+        this.authorizationRepository.getPermissionsByRoleId(tenantId, role.role_id),
+      ),
+    );
+
+    return [...new Set(permissionSets.flat())];
+  }
+
+  private assertMfaAssuranceForRole(
+    session: { mfa_assured_at?: string | null },
+    roleCode: string,
+    permissions: string[],
+  ): void {
+    const requiresMfa = this.mfaService
+      ? this.mfaService.requiresChallenge(roleCode, permissions)
+      : this.hasSensitivePermission(permissions);
+
+    if (!requiresMfa) {
+      return;
+    }
+
+    const assuredAt = session.mfa_assured_at
+      ? Date.parse(session.mfa_assured_at)
+      : Number.NaN;
+    if (!Number.isFinite(assuredAt)) {
+      throw new UnauthorizedException(
+        'This session was not MFA-assured for privileged dashboard switching. Sign in again before changing roles.',
+      );
+    }
+  }
+
+  private async resolveAuthorizedRefreshRole(input: {
+    user_id: string;
+    tenant_id: string;
+    session_role: string;
+    primary_role: string;
+    primary_role_id: string;
+  }): Promise<AuthorizedDashboardRole> {
+    const fallbackMembership = Object.assign(new TenantMembershipEntity(), {
+      tenant_id: input.tenant_id,
+      user_id: input.user_id,
+      role_id: input.primary_role_id,
+      role_code: input.primary_role,
+      role_name: input.primary_role,
+      status: 'active',
+    });
+
+    return this.resolveAuthorizedRoleOrPrimaryFallback({
+      user_id: input.user_id,
+      tenant_id: input.tenant_id,
+      requested_role: input.session_role,
+      membership: fallbackMembership,
+      allow_primary_fallback: true,
+    });
+  }
+
+  private async resolveAuthorizedRoleOrPrimaryFallback(input: {
+    user_id: string;
+    tenant_id: string;
+    requested_role: string;
+    membership: TenantMembershipEntity;
+    allow_primary_fallback: boolean;
+  }): Promise<AuthorizedDashboardRole> {
+    if (!this.dashboardRoleService) {
+      return {
+        role_id: input.membership.role_id,
+        role_code: input.membership.role_code,
+        context: this.buildFallbackRoleContext(
+          input.membership.role_code,
+          input.membership.role_name,
+        ),
+      };
+    }
+
+    try {
+      return await this.dashboardRoleService.authorizeRole({
+        user_id: input.user_id,
+        tenant_id: input.tenant_id,
+        active_role: input.requested_role,
+        requested_role: input.requested_role,
+      });
+    } catch (error) {
+      if (
+        !input.allow_primary_fallback
+        || !(error instanceof ForbiddenException)
+        || input.requested_role === input.membership.role_code
+      ) {
+        throw error;
+      }
+
+      return this.dashboardRoleService.authorizeRole({
+        user_id: input.user_id,
+        tenant_id: input.tenant_id,
+        active_role: input.membership.role_code,
+        requested_role: input.membership.role_code,
+      });
+    }
+
+  }
+
+  private buildFallbackRoleContext(
+    roleCode: string,
+    roleName?: string,
+  ): DashboardRoleContextDto {
+    return {
+      primary_role: roleCode,
+      active_role: roleCode,
+      assigned_roles: [roleCode],
+      available_roles: [
+        {
+          role_code: roleCode,
+          role_name: roleName || roleCode.replaceAll('_', ' '),
+          is_primary: true,
+          is_teacher_mode: roleCode === 'teacher',
+          sources: ['primary_membership'],
+        },
+      ],
+      teacher_dashboard_eligible: roleCode === 'teacher',
+    };
+  }
+
+  private buildPlatformRoleContext(): DashboardRoleContextDto {
+    return {
+      primary_role: SUPERADMIN_ROLE_OWNER,
+      active_role: SUPERADMIN_ROLE_OWNER,
+      assigned_roles: [SUPERADMIN_ROLE_OWNER],
+      available_roles: [
+        {
+          role_code: SUPERADMIN_ROLE_OWNER,
+          role_name: 'Platform Owner',
+          is_primary: true,
+          is_teacher_mode: false,
+          sources: ['primary_membership'],
+        },
+      ],
+      teacher_dashboard_eligible: false,
+    };
+  }
+
+  private requireDashboardRoleService(): DashboardRoleService {
+    if (!this.dashboardRoleService) {
+      throw new InternalServerErrorException('Dashboard role service is unavailable');
+    }
+
+    return this.dashboardRoleService;
+  }
+
+  private requireAuditService(): AuditService {
+    if (!this.auditService) {
+      throw new InternalServerErrorException('Authentication audit service is unavailable');
+    }
+
+    return this.auditService;
   }
 
   private resolveEmailVerificationPermissions(

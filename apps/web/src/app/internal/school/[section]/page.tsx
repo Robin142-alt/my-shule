@@ -22,6 +22,7 @@ export default async function InternalSchoolSectionPage({
       role={context.role}
       section={section as SchoolSection}
       tenantSlug={context.tenantSlug}
+      sessionVerificationEnabled
     />
   );
 }

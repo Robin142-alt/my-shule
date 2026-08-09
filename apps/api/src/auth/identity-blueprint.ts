@@ -36,6 +36,8 @@ export const BLUEPRINT_USER_ROLES = [
   'teacher',
   'class_teacher',
   'grade_master',
+  'school_counsellor',
+  'discipline_master',
   'parent',
   'student',
   'librarian',
@@ -134,6 +136,15 @@ const blueprintRoleAliases: Record<string, BlueprintUserRole> = {
   form_master: 'grade_master',
   'form master': 'grade_master',
   'grade/form master': 'grade_master',
+  school_counsellor: 'school_counsellor',
+  counsellor: 'school_counsellor',
+  counselor: 'school_counsellor',
+  'school counsellor': 'school_counsellor',
+  'school counselor': 'school_counsellor',
+  discipline_master: 'discipline_master',
+  'discipline master': 'discipline_master',
+  dean_of_students: 'discipline_master',
+  'dean of students': 'discipline_master',
 };
 
 export function normalizeBlueprintRole(role: string): BlueprintUserRole {

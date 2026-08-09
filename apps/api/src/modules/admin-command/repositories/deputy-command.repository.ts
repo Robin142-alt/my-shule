@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { createHash, randomUUID } from 'crypto';
 
 import { PrismaService } from '../../../database/prisma.service';
@@ -1263,8 +1263,14 @@ export class DeputyCommandRepository {
           COALESCE(department.name, staff.department, 'Department not assigned') AS department,
           COALESCE(staff.status, 'active') AS status
         FROM staff_profiles staff
-        LEFT JOIN user_roles user_role ON user_role.tenant_id = staff.tenant_id AND user_role.user_id = staff.user_id
-        LEFT JOIN roles role ON role.id = user_role.role_id
+        LEFT JOIN user_roles user_role
+          ON user_role.tenant_id = staff.tenant_id
+         AND user_role.user_id = staff.user_id
+         AND user_role.status = 'ACTIVE'
+         AND user_role.deleted_at IS NULL
+        LEFT JOIN roles role
+          ON role.id = user_role.role_id
+         AND role.tenant_id = user_role.tenant_id
         LEFT JOIN departments department ON department.tenant_id = staff.tenant_id AND department.id = staff.department_id
         WHERE staff.tenant_id = $1
         ORDER BY staff.created_at DESC
@@ -1305,18 +1311,18 @@ export class DeputyCommandRepository {
         target_role AS (
           SELECT id, COALESCE(name, code) AS role_name
           FROM roles
-          WHERE (school_id IS NULL OR school_id = $1)
+          WHERE tenant_id = $1
             AND (
               id::text = $3
               OR lower(code) = lower($3)
               OR lower(name) = lower($3)
             )
-          ORDER BY CASE WHEN school_id = $1 THEN 0 ELSE 1 END, created_at DESC
+          ORDER BY created_at DESC
           LIMIT 1
         ),
         inserted AS (
           INSERT INTO user_roles (
-            school_id, user_id, role_id, scope_type, scope_id, assigned_by_user_id, status
+            tenant_id, user_id, role_id, scope_type, scope_id, assigned_by_user_id, status
           )
           SELECT
             $1,
@@ -1327,14 +1333,17 @@ export class DeputyCommandRepository {
             COALESCE($4::uuid, target_staff.user_id),
             'ACTIVE'
           FROM target_staff, target_role
-          WHERE NOT EXISTS (
+          WHERE ($4::uuid IS NULL OR target_staff.user_id IS DISTINCT FROM $4::uuid)
+            AND NOT EXISTS (
             SELECT 1
             FROM user_roles existing
-            WHERE existing.school_id = $1
+            WHERE existing.tenant_id = $1
               AND existing.user_id = target_staff.user_id
               AND existing.role_id = target_role.id
+              AND existing.status = 'ACTIVE'
               AND existing.deleted_at IS NULL
           )
+          ON CONFLICT DO NOTHING
           RETURNING id::text, user_id::text, role_id::text
         )
         SELECT
@@ -1343,7 +1352,11 @@ export class DeputyCommandRepository {
           target_staff.staff_name AS "staffName",
           target_role.id::text AS "roleId",
           target_role.role_name AS "roleName",
-          CASE WHEN inserted.id IS NULL THEN 'already_assigned' ELSE 'assigned' END AS status
+          CASE
+            WHEN $4::uuid IS NOT NULL AND target_staff.user_id = $4::uuid THEN 'self_assignment_blocked'
+            WHEN inserted.id IS NULL THEN 'already_assigned'
+            ELSE 'assigned'
+          END AS status
         FROM target_staff
         CROSS JOIN target_role
         LEFT JOIN inserted ON TRUE
@@ -1354,6 +1367,9 @@ export class DeputyCommandRepository {
     const assignment = result.rows[0];
     if (!assignment) {
       throw new Error('No matching staff member or role was found for this school.');
+    }
+    if (assignment.status === 'self_assignment_blocked') {
+      throw new ForbiddenException('Deputy Principals cannot assign additional roles to themselves.');
     }
 
     await this.createDeputyNotification(tenantId, {

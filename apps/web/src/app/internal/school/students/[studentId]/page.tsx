@@ -9,5 +9,13 @@ export default async function InternalSchoolStudentPage({
   const context = await readSchoolRequestContext();
   const { studentId } = await params;
 
-  return <SchoolPages role={context.role} studentId={studentId} tenantSlug={context.tenantSlug} section="students" />;
+  return (
+    <SchoolPages
+      role={context.role}
+      studentId={studentId}
+      tenantSlug={context.tenantSlug}
+      section="students"
+      sessionVerificationEnabled
+    />
+  );
 }

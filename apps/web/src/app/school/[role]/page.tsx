@@ -170,6 +170,7 @@ export default async function SchoolRoleHomePage({
       userLabel={session.userLabel}
       routeMode="public"
       liveDataEnabled={liveDataEnabled}
+      sessionVerificationEnabled
     />
   );
 }

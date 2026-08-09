@@ -21,6 +21,7 @@ const AUTH_REFRESH_ROTATION_PREFIX = 'auth:refresh-rotation';
 
 interface CreateSessionInput extends AuthenticatedPrincipal {
   email_verified_at: string | null;
+  mfa_assured_at?: string | null;
   refresh_token_id: string;
   refresh_expires_at: string;
   ip_address: string | null;
@@ -35,6 +36,7 @@ export interface SafeSessionRecord {
   permissions: string[];
   session_id: string;
   is_authenticated: boolean;
+  mfa_assured_at: string | null;
   created_at: string;
   updated_at: string;
   refresh_expires_at: string;
@@ -47,6 +49,7 @@ export interface SafeSessionRecord {
 interface RefreshRotationReplay {
   client_fingerprint: string;
   expires_at: number;
+  role: string;
   token_pair: IssuedTokenPair;
 }
 
@@ -78,6 +81,7 @@ export class SessionService {
       session_id: input.session_id,
       is_authenticated: true,
       email_verified_at: input.email_verified_at,
+      mfa_assured_at: input.mfa_assured_at ?? null,
       refresh_token_id: input.refresh_token_id,
       created_at: now,
       updated_at: now,
@@ -205,6 +209,10 @@ export class SessionService {
         );
 
         if (replay) {
+          if (replay.role !== input.role) {
+            throw new ConflictException('Session role changed during a concurrent token rotation');
+          }
+
           return {
             session: currentSession,
             token_pair: replay.token_pair,
@@ -221,7 +229,7 @@ export class SessionService {
       this.persistFallbackSession(nextSession);
       this.fallbackRefreshRotations.set(
         rotationKey,
-        this.buildRotationReplay(input.next_token_pair, clientFingerprint),
+        this.buildRotationReplay(input.next_token_pair, clientFingerprint, input.role),
       );
       return {
         session: nextSession,
@@ -254,6 +262,10 @@ export class SessionService {
         );
 
         if (replay) {
+          if (replay.role !== input.role) {
+            throw new ConflictException('Session role changed during a concurrent token rotation');
+          }
+
           return {
             session: currentSession,
             token_pair: replay.token_pair,
@@ -269,6 +281,7 @@ export class SessionService {
       const rotationReplay = this.buildRotationReplay(
         input.next_token_pair,
         clientFingerprint,
+        input.role,
       );
 
       const ttlSeconds = this.getSessionTtlSeconds(nextSession.refresh_expires_at);
@@ -328,6 +341,7 @@ export class SessionService {
       permissions: session.permissions,
       session_id: session.session_id,
       is_authenticated: session.is_authenticated,
+      mfa_assured_at: session.mfa_assured_at ?? null,
       created_at: session.created_at,
       updated_at: session.updated_at,
       refresh_expires_at: session.refresh_expires_at,
@@ -406,10 +420,12 @@ export class SessionService {
   private buildRotationReplay(
     tokenPair: IssuedTokenPair,
     clientFingerprint: string,
+    role: string,
   ): RefreshRotationReplay {
     return {
       client_fingerprint: clientFingerprint,
       expires_at: Date.now() + this.getRefreshRotationGraceSeconds() * 1000,
+      role,
       token_pair: tokenPair,
     };
   }

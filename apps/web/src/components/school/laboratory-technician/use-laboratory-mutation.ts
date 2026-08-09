@@ -7,6 +7,7 @@ import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { useOptionalAuth } from "@/lib/auth/auth-context";
 import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
 import { useOfflineMutation } from "@/lib/offline/use-offline-mutation";
+import { useOptionalSchoolDashboardRole } from "@/lib/auth/school-dashboard-role-context";
 import { getCurrentSchoolId } from "@/lib/school/school-operational-store";
 import { syncPendingLaboratoryOperations, type QueuedLaboratoryRequest } from "./laboratory-sync";
 
@@ -46,15 +47,26 @@ export function useLaboratoryMutation<TData, TVariables>({
 } & Omit<UseMutationOptions<TData, Error, TVariables>, "mutationFn">) {
   const scopedTenantId = useOptionalSchoolTenantId();
   const schoolId = (scopedTenantId || getCurrentSchoolId()).trim();
-  const actorUserId = useOptionalAuth()?.user?.id?.trim() ?? "";
+  const legacyAuth = useOptionalAuth();
+  const dashboardRole = useOptionalSchoolDashboardRole();
+  const actorUserId = dashboardRole?.userId?.trim() || legacyAuth?.user?.id?.trim() || "";
+  const activeAuthorizationRoleCode = dashboardRole?.activeAuthorizationRoleCode.trim() || "";
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!schoolId || !actorUserId) return;
+    if (!schoolId || !actorUserId || !activeAuthorizationRoleCode) return;
     const sync = () => {
       if (typeof navigator !== "undefined" && !navigator.onLine) return;
-      void syncPendingLaboratoryOperations(schoolId, actorUserId).then(({ synced }) => {
-        if (synced > 0) void queryClient.invalidateQueries({ queryKey: ["school", schoolId] });
+      void syncPendingLaboratoryOperations(
+        schoolId,
+        actorUserId,
+        activeAuthorizationRoleCode,
+      ).then(({ synced }) => {
+        if (synced > 0) {
+          void queryClient.invalidateQueries({
+            queryKey: ["school", schoolId, actorUserId, activeAuthorizationRoleCode],
+          });
+        }
       });
     };
     if (typeof navigator !== "undefined" && navigator.onLine) sync();
@@ -62,12 +74,13 @@ export function useLaboratoryMutation<TData, TVariables>({
     return () => {
       window.removeEventListener("online", sync);
     };
-  }, [actorUserId, queryClient, schoolId]);
+  }, [activeAuthorizationRoleCode, actorUserId, queryClient, schoolId]);
 
   return useOfflineMutation<TData, Error, TVariables, unknown>({
     module: "labs",
     action,
     schoolId,
+    roleId: activeAuthorizationRoleCode || undefined,
     mutationFn: (variables) => requestDashboardApi<TData>(
       typeof path === "function" ? path(variables) : path,
       {
@@ -89,7 +102,12 @@ export function useLaboratoryMutation<TData, TVariables>({
     },
     queueServerFailures: true,
     requireAuthenticatedQueueActor: true,
-    queryKeysToInvalidate: [["school", schoolId]],
+    queryKeysToInvalidate: [[
+      "school",
+      schoolId,
+      actorUserId || "session-user",
+      activeAuthorizationRoleCode || "session-role",
+    ]],
     ...options,
   });
 }

@@ -1,3 +1,5 @@
+import { DashboardRoleContextDto } from './dashboard-role.dto';
+
 export class AuthTokensDto {
   access_token!: string;
   refresh_token!: string;
@@ -24,4 +26,5 @@ export class AuthenticatedUserDto {
 export class AuthResponseDto {
   tokens!: AuthTokensDto;
   user!: AuthenticatedUserDto;
+  role_context!: DashboardRoleContextDto;
 }

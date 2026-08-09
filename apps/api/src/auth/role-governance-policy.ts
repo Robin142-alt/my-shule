@@ -64,6 +64,8 @@ const SCHOOL_ROLES = [
   'teacher',
   'class_teacher',
   'grade_master',
+  'school_counsellor',
+  'discipline_master',
   'parent',
   'student',
   'librarian',
@@ -108,6 +110,8 @@ const ROLE_MODULE_REQUIREMENTS: Partial<Record<BlueprintUserRole, readonly strin
   ict_manager: ['lab_management'],
   dean_academics: ['exams'],
   exams_manager: ['exams'],
+  school_counsellor: ['discipline'],
+  discipline_master: ['discipline'],
 };
 
 const ROLE_INHERITANCE: Partial<Record<BlueprintUserRole, readonly BlueprintUserRole[]>> = {
@@ -159,6 +163,8 @@ const ROLE_PERMISSIONS: Partial<Record<BlueprintUserRole, readonly string[]>> = 
   teacher: ['students:read', 'academics:read', 'exams:enter-marks', 'discipline:write'],
   class_teacher: ['students:read', 'academics:read', 'exams:enter-marks', 'discipline:write', 'portal:message_school'],
   grade_master: ['students:read', 'academics:read', 'exams:review', 'discipline:read', 'discipline:reports', 'reports:read'],
+  school_counsellor: ['students:read', 'discipline:read', 'counselling:read', 'counselling:write', 'counselling:manage'],
+  discipline_master: ['students:read', 'discipline:read', 'discipline:write', 'discipline:manage', 'discipline:reports', 'counselling:read'],
   parent: ['auth:read', 'portal:read_own_children', 'portal:message_school'],
   student: ['auth:read', 'student-portal:read', 'student-portal:write', 'academics:read', 'lms:read'],
   librarian: ['library:read', 'library:write'],

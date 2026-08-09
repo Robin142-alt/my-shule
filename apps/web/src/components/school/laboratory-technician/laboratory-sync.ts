@@ -1,5 +1,9 @@
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
-import { type OfflineSyncRecord, syncQueue } from "@/lib/offline/sync-queue";
+import {
+  canReplayOfflineRecord,
+  type OfflineSyncRecord,
+  syncQueue,
+} from "@/lib/offline/sync-queue";
 
 export type QueuedLaboratoryRequest = {
   __laboratory_request: true;
@@ -18,13 +22,13 @@ export function isStaleLaboratorySync(record: OfflineSyncRecord, now = Date.now(
   return !Number.isFinite(updatedAt) || now - updatedAt >= LABORATORY_SYNC_LEASE_MS;
 }
 
-function actorSyncKey(schoolId: string, userId: string) {
-  return `${schoolId}:${userId}`;
+function actorSyncKey(schoolId: string, userId: string, roleId: string) {
+  return `${schoolId}:${userId}:${roleId}`;
 }
 
-function scheduleStaleRecovery(schoolId: string, userId: string, syncingRecords: OfflineSyncRecord[], now: number) {
+function scheduleStaleRecovery(schoolId: string, userId: string, roleId: string, syncingRecords: OfflineSyncRecord[], now: number) {
   if (typeof window === "undefined" || syncingRecords.length === 0) return;
-  const syncKey = actorSyncKey(schoolId, userId);
+  const syncKey = actorSyncKey(schoolId, userId, roleId);
   const dueAt = Math.min(...syncingRecords.map((record) => {
     const updatedAt = Date.parse(record.statusUpdatedAt ?? record.createdAtLocal);
     return Number.isFinite(updatedAt) ? updatedAt + LABORATORY_SYNC_LEASE_MS : now;
@@ -35,7 +39,7 @@ function scheduleStaleRecovery(schoolId: string, userId: string, syncingRecords:
   const handle = window.setTimeout(() => {
     recoveryTimers.delete(syncKey);
     if (typeof navigator !== "undefined" && !navigator.onLine) return;
-    void syncPendingLaboratoryOperations(schoolId, userId);
+    void syncPendingLaboratoryOperations(schoolId, userId, roleId);
   }, Math.max(0, dueAt - now) + 25);
   recoveryTimers.set(syncKey, { handle, dueAt });
 }
@@ -60,7 +64,7 @@ function queuedRequest(record: OfflineSyncRecord): QueuedLaboratoryRequest | nul
   };
 }
 
-async function runLaboratorySync(schoolId: string, userId: string) {
+async function runLaboratorySync(schoolId: string, userId: string, roleId: string) {
   const [pending, failedRecords, syncingRecords] = await Promise.all([
     syncQueue.getRecordsBySchoolAndStatus(schoolId, "Pending"),
     syncQueue.getRecordsBySchoolAndStatus(schoolId, "Failed"),
@@ -70,16 +74,22 @@ async function runLaboratorySync(schoolId: string, userId: string) {
   const activeLaboratorySyncs = syncingRecords.filter(
     (record) => record.userId === userId
       && record.module === "labs"
+      && canReplayOfflineRecord(record, { schoolId, userId, roleId })
       && queuedRequest(record)
       && !isStaleLaboratorySync(record, now),
   );
-  scheduleStaleRecovery(schoolId, userId, activeLaboratorySyncs, now);
-  const laboratoryRecords = [
+  scheduleStaleRecovery(schoolId, userId, roleId, activeLaboratorySyncs, now);
+  const candidateRecords = [
     ...pending,
     ...failedRecords,
     ...syncingRecords.filter((record) => isStaleLaboratorySync(record, now)),
   ]
     .filter((record) => record.userId === userId && record.module === "labs" && queuedRequest(record));
+  // Records created under another authorized working role remain untouched so
+  // switching back can resume them. Replay never changes ownership metadata.
+  const laboratoryRecords = candidateRecords.filter((record) =>
+    canReplayOfflineRecord(record, { schoolId, userId, roleId }),
+  );
   let synced = 0;
   let failed = 0;
 
@@ -110,15 +120,19 @@ async function runLaboratorySync(schoolId: string, userId: string) {
   return { synced, failed };
 }
 
-export function syncPendingLaboratoryOperations(schoolId: string, userId: string) {
+export function syncPendingLaboratoryOperations(schoolId: string, userId: string, roleId: string) {
   const normalizedUserId = userId.trim();
   if (!normalizedUserId) {
     return Promise.reject(new Error("Laboratory sync requires the authenticated user ID"));
   }
-  const syncKey = actorSyncKey(schoolId, normalizedUserId);
+  const normalizedRoleId = roleId.trim();
+  if (!normalizedRoleId) {
+    return Promise.reject(new Error("Laboratory sync requires the active dashboard role"));
+  }
+  const syncKey = actorSyncKey(schoolId, normalizedUserId, normalizedRoleId);
   const existing = activeSyncs.get(syncKey);
   if (existing) return existing;
-  const running = runLaboratorySync(schoolId, normalizedUserId).finally(() => activeSyncs.delete(syncKey));
+  const running = runLaboratorySync(schoolId, normalizedUserId, normalizedRoleId).finally(() => activeSyncs.delete(syncKey));
   activeSyncs.set(syncKey, running);
   return running;
 }

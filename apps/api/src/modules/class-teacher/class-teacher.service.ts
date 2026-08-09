@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   Optional,
@@ -14,6 +15,7 @@ import {
 } from '../exams/dto/exams.dto';
 import { ExamsService } from '../exams/exams.service';
 import type { SaveTeacherMarksDto, TeacherMarkInput } from './dto/class-teacher.dto';
+import { RequestContextService } from '../../common/request-context/request-context.service';
 
 @Injectable()
 export class ClassTeacherService {
@@ -46,7 +48,12 @@ export class ClassTeacherService {
     private readonly prisma: PrismaService,
     private readonly eventPublisherService: EventPublisherService,
     @Optional() private readonly examsService?: ExamsService,
+    @Optional() private readonly requestContext?: RequestContextService,
   ) {}
+
+  private isClassTeacherMode(): boolean {
+    return this.requestContext?.getStore()?.role === 'class_teacher';
+  }
 
   private async assertStudentBelongsToStream(tenantId: string, streamId: string, studentId: string) {
     if (!studentId) {
@@ -69,6 +76,12 @@ export class ClassTeacherService {
     }
   }
 
+  private assignmentCapabilityClause(
+    capability?: 'mark_entry_allowed' | 'lesson_record_allowed' | 'report_comment_allowed',
+  ): string {
+    return capability ? `AND ${capability} = TRUE` : '';
+  }
+
   private requireText(value: unknown, fieldName: string): string {
     const normalized = typeof value === 'string' ? value.trim() : '';
     if (!normalized) {
@@ -82,42 +95,161 @@ export class ClassTeacherService {
     userId: string,
     classSectionId: string,
     subjectId: string,
+    capability?: 'mark_entry_allowed' | 'lesson_record_allowed' | 'report_comment_allowed',
   ) {
+    const capabilityClause = this.assignmentCapabilityClause(capability);
     const { rows } = await this.executeSql(
       `SELECT id
        FROM teacher_subject_assignments
        WHERE tenant_id = $1
          AND teacher_user_id = $2
-         AND class_section_id = $3
-         AND subject_id = $4
-         AND status = 'active'
+          AND class_section_id = $3
+          AND subject_id = $4
+          AND status = 'active'
+          AND effective_from <= CURRENT_DATE
+          AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
+          ${capabilityClause}
        LIMIT 1`,
       [tenantId, userId, classSectionId, subjectId],
     );
 
     if (rows.length === 0) {
-      throw new BadRequestException('Select an assigned class and subject before publishing homework.');
+      throw new ForbiddenException('This class and subject are not active in your teaching assignments.');
     }
   }
 
-  private async assertTeacherAssignedClass(tenantId: string, userId: string, classSectionId: string) {
+  private async assertTeacherAssignedClass(
+    tenantId: string,
+    userId: string,
+    classSectionId: string,
+    capability?: 'mark_entry_allowed' | 'lesson_record_allowed' | 'report_comment_allowed',
+  ) {
+    const capabilityClause = this.assignmentCapabilityClause(capability);
     const { rows } = await this.executeSql(
       `SELECT id
        FROM teacher_subject_assignments
        WHERE tenant_id = $1
-         AND teacher_user_id = $2
-         AND class_section_id = $3
-         AND status = 'active'
+          AND teacher_user_id = $2
+          AND class_section_id = $3
+          AND status = 'active'
+          AND effective_from <= CURRENT_DATE
+          AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
+          ${capabilityClause}
        LIMIT 1`,
       [tenantId, userId, classSectionId],
     );
 
     if (rows.length === 0) {
-      throw new BadRequestException('Select one of your assigned classes before saving this lesson log.');
+      throw new ForbiddenException('This class is not active in your teaching assignments.');
+    }
+  }
+
+  private async assertTeacherAssignedStudent(
+    tenantId: string,
+    userId: string,
+    studentId: string,
+  ) {
+    if (!studentId) {
+      throw new BadRequestException('Select a learner before submitting this teacher action.');
+    }
+
+    const { rows } = await this.executeSql(
+      `SELECT assignment.id
+       FROM student_class_assignments student_assignment
+       JOIN teacher_subject_assignments assignment
+         ON assignment.tenant_id = student_assignment.tenant_id
+        AND assignment.class_section_id = student_assignment.class_section_id
+       WHERE student_assignment.tenant_id = $1
+         AND assignment.teacher_user_id = $2
+         AND student_assignment.student_id = $3
+         AND student_assignment.status = 'active'
+         AND assignment.status = 'active'
+         AND assignment.effective_from <= CURRENT_DATE
+         AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
+       LIMIT 1`,
+      [tenantId, userId, studentId],
+    );
+
+    if (rows.length === 0) {
+      throw new ForbiddenException('The selected learner is outside your active teaching assignments.');
+    }
+  }
+
+  private async assertActiveClassTeacherClass(
+    tenantId: string,
+    userId: string,
+    classSectionId: string,
+  ) {
+    const { rows } = await this.executeSql(
+      `SELECT id
+       FROM academics_class_teachers
+       WHERE tenant_id = $1
+         AND teacher_user_id::text = $2
+         AND class_section_id = $3
+         AND is_active = TRUE
+         AND status = 'active'
+         AND effective_from <= CURRENT_DATE
+         AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
+       LIMIT 1`,
+      [tenantId, userId, classSectionId],
+    );
+
+    if (rows.length === 0) {
+      throw new ForbiddenException('An active class-teacher appointment is required for this class.');
+    }
+  }
+
+  private async assertCurrentRoleAssignedClass(
+    tenantId: string,
+    userId: string,
+    classSectionId: string,
+    capability?: 'mark_entry_allowed' | 'lesson_record_allowed' | 'report_comment_allowed',
+  ) {
+    if (this.isClassTeacherMode()) {
+      await this.assertActiveClassTeacherClass(tenantId, userId, classSectionId);
+      return;
+    }
+
+    await this.assertTeacherAssignedClass(tenantId, userId, classSectionId, capability);
+  }
+
+  private async assertActiveClassTeacherStudent(
+    tenantId: string,
+    userId: string,
+    studentId: string,
+  ) {
+    if (!studentId) {
+      throw new BadRequestException('Select a learner before saving a class-teacher comment.');
+    }
+
+    const { rows } = await this.executeSql(
+      `SELECT appointment.id
+       FROM academics_class_teachers appointment
+       JOIN student_class_assignments student_assignment
+         ON student_assignment.tenant_id = appointment.tenant_id
+        AND student_assignment.class_section_id = appointment.class_section_id
+       WHERE appointment.tenant_id = $1
+         AND appointment.teacher_user_id::text = $2
+         AND student_assignment.student_id = $3
+         AND student_assignment.status = 'active'
+         AND appointment.is_active = TRUE
+         AND appointment.status = 'active'
+         AND appointment.effective_from <= CURRENT_DATE
+         AND (appointment.effective_to IS NULL OR appointment.effective_to >= CURRENT_DATE)
+       LIMIT 1`,
+      [tenantId, userId, studentId],
+    );
+
+    if (rows.length === 0) {
+      throw new ForbiddenException('The learner is outside your active class-teacher appointment.');
     }
   }
 
   async getMyClasses(tenantId: string, userId: string) {
+    if (this.isClassTeacherMode()) {
+      return this.getClassTeacherAppointments(tenantId, userId);
+    }
+
     const query = `
       SELECT 
         tsa.id,
@@ -159,6 +291,8 @@ export class ClassTeacherService {
       WHERE tsa.tenant_id = $1 
         AND tsa.teacher_user_id = $2
         AND tsa.status = 'active'
+        AND tsa.effective_from <= CURRENT_DATE
+        AND (tsa.effective_to IS NULL OR tsa.effective_to >= CURRENT_DATE)
     `;
     const { rows: result } = await this.executeSql(query, [tenantId, userId]);
 
@@ -189,6 +323,8 @@ export class ClassTeacherService {
   }
 
   async getOverview(tenantId: string, userId: string, streamId: string) {
+    await this.assertCurrentRoleAssignedClass(tenantId, userId, streamId);
+
     const learnersRes = await this.executeSql(
       `SELECT count(*)::int as count FROM student_class_assignments WHERE tenant_id = $1 AND class_section_id = $2 AND status = 'active'`,
       [tenantId, streamId]
@@ -274,7 +410,102 @@ export class ClassTeacherService {
     };
   }
 
+  private async getClassTeacherAppointments(tenantId: string, userId: string) {
+    const query = `
+      SELECT
+        appointment.id,
+        cs.id AS class_section_id,
+        NULL::text AS subject_id,
+        cs.name AS class_name,
+        'Class Teacher'::text AS subject_name,
+        COALESCE(student_counts.student_count, 0) AS learners_count,
+        CASE WHEN today_attendance.class_section_id IS NULL THEN 'Pending' ELSE 'Completed' END AS attendance_status,
+        COALESCE(attendance_stats.present_count, 0)::int AS attendance_present_count,
+        COALESCE(attendance_stats.total_count, 0)::int AS attendance_total_count,
+        '--'::text AS cat_average
+      FROM academics_class_teachers appointment
+      JOIN class_sections cs
+        ON cs.id = appointment.class_section_id
+       AND cs.tenant_id = appointment.tenant_id
+      LEFT JOIN (
+        SELECT class_section_id, tenant_id, COUNT(student_id) AS student_count
+        FROM student_class_assignments
+        WHERE status = 'active'
+        GROUP BY class_section_id, tenant_id
+      ) student_counts
+        ON student_counts.class_section_id = appointment.class_section_id
+       AND student_counts.tenant_id = appointment.tenant_id
+      LEFT JOIN (
+        SELECT
+          student_assignment.class_section_id,
+          attendance.tenant_id,
+          COUNT(*) FILTER (WHERE LOWER(attendance.status) = 'present') AS present_count,
+          COUNT(*) AS total_count
+        FROM academics_attendance attendance
+        JOIN student_class_assignments student_assignment
+          ON student_assignment.student_id = attendance.student_id
+         AND student_assignment.tenant_id = attendance.tenant_id
+        WHERE attendance.attendance_date >= CURRENT_DATE - interval '30 days'
+          AND student_assignment.status = 'active'
+        GROUP BY student_assignment.class_section_id, attendance.tenant_id
+      ) attendance_stats
+        ON attendance_stats.class_section_id = appointment.class_section_id
+       AND attendance_stats.tenant_id = appointment.tenant_id
+      LEFT JOIN (
+        SELECT DISTINCT student_assignment.class_section_id, attendance.tenant_id
+        FROM academics_attendance attendance
+        JOIN student_class_assignments student_assignment
+          ON student_assignment.student_id = attendance.student_id
+         AND student_assignment.tenant_id = attendance.tenant_id
+        WHERE attendance.attendance_date = CURRENT_DATE
+          AND student_assignment.status = 'active'
+      ) today_attendance
+        ON today_attendance.class_section_id = appointment.class_section_id
+       AND today_attendance.tenant_id = appointment.tenant_id
+      WHERE appointment.tenant_id = $1
+        AND appointment.teacher_user_id::text = $2
+        AND appointment.is_active = TRUE
+        AND appointment.status = 'active'
+        AND appointment.effective_from <= CURRENT_DATE
+        AND (appointment.effective_to IS NULL OR appointment.effective_to >= CURRENT_DATE)
+      ORDER BY cs.name
+    `;
+    const { rows } = await this.executeSql(query, [tenantId, userId]);
+    const totalLearners = rows.reduce((sum, row) => sum + Number(row.learners_count || 0), 0);
+    const attendancePresentCount = rows.reduce(
+      (sum, row) => sum + Number(row.attendance_present_count || 0),
+      0,
+    );
+    const attendanceTotalCount = rows.reduce(
+      (sum, row) => sum + Number(row.attendance_total_count || 0),
+      0,
+    );
+
+    return {
+      stats: {
+        assignedClasses: rows.length,
+        totalLearnersTaught: totalLearners,
+        averageAttendance:
+          attendanceTotalCount > 0
+            ? `${Math.round((attendancePresentCount / attendanceTotalCount) * 100)}%`
+            : '0%',
+      },
+      classes: rows.map((row) => ({
+        id: row.id,
+        classSectionId: row.class_section_id,
+        subjectId: row.subject_id,
+        className: row.class_name,
+        subjectName: row.subject_name,
+        learnersCount: Number(row.learners_count || 0),
+        attendanceStatus: row.attendance_status,
+        catAverage: row.cat_average,
+      })),
+    };
+  }
+
   async getRegister(tenantId: string, userId: string, streamId: string) {
+    await this.assertCurrentRoleAssignedClass(tenantId, userId, streamId);
+
     // streamId here is actually class_section_id
     const query = `
       SELECT 
@@ -332,6 +563,8 @@ export class ClassTeacherService {
       WHERE tsa.tenant_id = $1 
         AND tsa.teacher_user_id = $2
         AND tsa.status = 'active'
+        AND tsa.effective_from <= CURRENT_DATE
+        AND (tsa.effective_to IS NULL OR tsa.effective_to >= CURRENT_DATE)
     `;
     const { rows: result } = await this.executeSql(query, [tenantId, userId, today]);
     
@@ -422,6 +655,9 @@ export class ClassTeacherService {
         AND tsa.tenant_id = w.tenant_id
         AND tsa.academic_term_id = es.academic_term_id::text
         AND tsa.status = 'active'
+        AND tsa.mark_entry_allowed = TRUE
+        AND tsa.effective_from <= CURRENT_DATE
+        AND (tsa.effective_to IS NULL OR tsa.effective_to >= CURRENT_DATE)
       WHERE w.tenant_id = $1 
         AND tsa.teacher_user_id = $2
         AND w.status = 'open'
@@ -472,6 +708,17 @@ export class ClassTeacherService {
       WHERE ts.tenant_id = $1 
         AND ts.teacher_id = $2
         AND ts.status = 'published'
+        AND EXISTS (
+          SELECT 1
+          FROM teacher_subject_assignments assignment
+          WHERE assignment.tenant_id = ts.tenant_id
+            AND assignment.teacher_user_id = $2
+            AND assignment.class_section_id = ts.class_section_id
+            AND assignment.subject_id = ts.subject_id
+            AND assignment.status = 'active'
+            AND assignment.effective_from <= CURRENT_DATE
+            AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
+        )
       ORDER BY ts.day_of_week ASC, ts.starts_at ASC
     `;
     const { rows: result } = await this.executeSql(query, [tenantId, userId]);
@@ -557,10 +804,17 @@ export class ClassTeacherService {
             AND m.tenant_id = s.tenant_id
         ) as avg_marks
       FROM class_sections cs
+      JOIN academics_class_teachers appointment
+        ON appointment.tenant_id = cs.tenant_id
+       AND appointment.class_section_id = cs.id::text
       JOIN student_class_assignments sca ON sca.class_section_id = cs.id AND sca.tenant_id = cs.tenant_id
       JOIN students s ON s.id = sca.student_id AND s.tenant_id = sca.tenant_id
       WHERE cs.tenant_id = $1 
-        AND cs.class_teacher_id = $2
+        AND appointment.teacher_user_id::text = $2
+        AND appointment.is_active = TRUE
+        AND appointment.status = 'active'
+        AND appointment.effective_from <= CURRENT_DATE
+        AND (appointment.effective_to IS NULL OR appointment.effective_to >= CURRENT_DATE)
         AND sca.status = 'active'
       ORDER BY s.admission_number ASC
     `;
@@ -603,7 +857,7 @@ export class ClassTeacherService {
     const query = `
       SELECT 
         di.id,
-        di.incident_date,
+        di.created_at AS incident_date,
         s.first_name || ' ' || s.last_name as learner_name,
         cs.name as class_name,
         di.category,
@@ -613,9 +867,17 @@ export class ClassTeacherService {
       JOIN students s ON s.id = di.student_id AND s.tenant_id = di.tenant_id
       JOIN student_class_assignments sca ON sca.student_id = s.id AND sca.tenant_id = s.tenant_id AND sca.status = 'active'
       JOIN class_sections cs ON cs.id = sca.class_section_id AND cs.tenant_id = sca.tenant_id
+      JOIN academics_class_teachers appointment
+        ON appointment.tenant_id = sca.tenant_id
+       AND appointment.class_section_id = sca.class_section_id
       WHERE di.tenant_id = $1
-        AND di.reported_by_user_id = $2
-      ORDER BY di.incident_date DESC
+        AND di.reported_by::text = $2
+        AND appointment.teacher_user_id::text = $2
+        AND appointment.is_active = TRUE
+        AND appointment.status = 'active'
+        AND appointment.effective_from <= CURRENT_DATE
+        AND (appointment.effective_to IS NULL OR appointment.effective_to >= CURRENT_DATE)
+      ORDER BY di.created_at DESC
     `;
     const { rows: result } = await this.executeSql(query, [tenantId, userId]);
     
@@ -633,6 +895,7 @@ export class ClassTeacherService {
 
   async saveDisciplineConcern(tenantId: string, userId: string, payload: any) {
     this.logger.log(`Saving discipline concern for student ${payload.studentId}`);
+    await this.assertActiveClassTeacherStudent(tenantId, userId, payload?.studentId);
     
     // Default values if not provided
     const severity = payload.severity || 'medium';
@@ -641,8 +904,8 @@ export class ClassTeacherService {
     
     await this.executeSql(
       `INSERT INTO discipline_incidents 
-        (tenant_id, student_id, category, severity, description, incident_date, reported_by_user_id, action_taken, status)
-       VALUES ($1, $2, $3, $4, $5, CURRENT_DATE, $6, $7, $8)`,
+        (tenant_id, student_id, category, severity, description, reported_by, action_taken, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
         tenantId, 
         payload.studentId, 
@@ -667,11 +930,18 @@ export class ClassTeacherService {
         rcc.final_comment,
         rcc.comment_status
       FROM class_sections cs
+      JOIN academics_class_teachers appointment
+        ON appointment.tenant_id = cs.tenant_id
+       AND appointment.class_section_id = cs.id::text
       JOIN student_class_assignments sca ON sca.class_section_id = cs.id AND sca.tenant_id = cs.tenant_id
       JOIN students s ON s.id = sca.student_id AND s.tenant_id = sca.tenant_id
       LEFT JOIN report_card_comments rcc ON rcc.student_id = s.id AND rcc.tenant_id = s.tenant_id
       WHERE cs.tenant_id = $1 
-        AND cs.class_teacher_id = $2
+        AND appointment.teacher_user_id::text = $2
+        AND appointment.is_active = TRUE
+        AND appointment.status = 'active'
+        AND appointment.effective_from <= CURRENT_DATE
+        AND (appointment.effective_to IS NULL OR appointment.effective_to >= CURRENT_DATE)
         AND sca.status = 'active'
       ORDER BY s.admission_number ASC
     `;
@@ -710,6 +980,7 @@ export class ClassTeacherService {
     const items = Array.isArray(data) ? data : [data];
     
     for (const item of items) {
+      await this.assertActiveClassTeacherStudent(tenantId, userId, item?.studentId);
       const existing = await this.executeSql(checkQuery, [tenantId, item.studentId]);
       if ((existing.rowCount ?? 0) > 0) {
         await this.executeSql(updateQuery, [tenantId, item.studentId, item.comment]);
@@ -722,6 +993,8 @@ export class ClassTeacherService {
   }
 
   async getAttendance(tenantId: string, userId: string, streamId: string) {
+    await this.assertCurrentRoleAssignedClass(tenantId, userId, streamId);
+
     const query = `
       SELECT 
         s.id as "id",
@@ -742,40 +1015,72 @@ export class ClassTeacherService {
   }
 
   async saveAttendance(tenantId: string, userId: string, streamId: string, records: any[]) {
-    this.logger.log(`Saved ${records.length} attendance records for class/stream ${streamId}`);
+    const submittedRecords = Array.isArray(records) ? records : [];
+    this.logger.log(`Saving ${submittedRecords.length} attendance records for class/stream ${streamId}`);
+    await this.assertCurrentRoleAssignedClass(tenantId, userId, streamId);
     
-    if (!records || records.length === 0) {
+    if (submittedRecords.length === 0) {
       return { success: true, count: 0 };
+    }
+
+    const normalizedRecords = submittedRecords.map((record) => ({
+      studentId: this.requireText(record?.studentId ?? record?.id, 'Learner'),
+      status: String(record?.status ?? record?.attendance ?? 'present').trim().toLowerCase(),
+    }));
+    const allowedStatuses = new Set(['present', 'absent', 'late', 'excused']);
+    const uniqueStudentIds = new Set(normalizedRecords.map((record) => record.studentId));
+    if (uniqueStudentIds.size !== normalizedRecords.length) {
+      throw new BadRequestException('Each learner may appear only once in an attendance register.');
+    }
+    if (normalizedRecords.some((record) => !allowedStatuses.has(record.status))) {
+      throw new BadRequestException('Attendance status must be present, absent, late, or excused.');
+    }
+
+    const activeStudents = await this.executeSql<{ student_id: string }>(
+      `SELECT student_id::text
+       FROM student_class_assignments
+       WHERE tenant_id = $1
+         AND class_section_id = $2
+         AND status = 'active'
+         AND student_id::text = ANY($3::text[])`,
+      [tenantId, streamId, [...uniqueStudentIds]],
+    );
+    const activeStudentIds = new Set(activeStudents.rows.map((row) => String(row.student_id)));
+    if (activeStudentIds.size !== uniqueStudentIds.size) {
+      throw new ForbiddenException('Attendance includes a learner outside this active class register.');
     }
 
     const today = new Date().toISOString().split('T')[0];
 
-    await this.executeSql(
-      `DELETE FROM academics_attendance WHERE tenant_id = $1 AND class_id = $2 AND attendance_date = $3`,
-      [tenantId, streamId, today]
-    );
-
     let paramIndex = 4;
-    const values = records.map(r => {
+    const values = normalizedRecords.map(() => {
        const str = `($1, $2, $3, $${paramIndex}, $${paramIndex+1}, $${paramIndex+2})`;
        paramIndex += 3;
        return str;
     }).join(', ');
 
     const params: any[] = [tenantId, streamId, today];
-    records.forEach(r => {
-      params.push(r.id || r.studentId, r.attendance || r.status || 'present', userId);
+    normalizedRecords.forEach((record) => {
+      params.push(record.studentId, record.status, userId);
     });
 
-    const query = `
+    const insertQuery = `
       INSERT INTO academics_attendance (tenant_id, class_id, attendance_date, student_id, status, submitted_by)
       VALUES ${values}
     `;
 
-    await this.executeSql(query, params);
+    await this.prisma.executeWithTenant(tenantId, userId, async (tx: any) => {
+      await tx.$executeRawUnsafe(
+        `DELETE FROM academics_attendance WHERE tenant_id = $1 AND class_id = $2 AND attendance_date = $3`,
+        tenantId,
+        streamId,
+        today,
+      );
+      await tx.$executeRawUnsafe(insertQuery, ...params);
+    });
 
-    const presentCount = records.filter(r => (r.attendance || r.status || 'present') === 'present').length;
-    const absentCount = records.length - presentCount;
+    const presentCount = normalizedRecords.filter((record) => record.status === 'present').length;
+    const absentCount = normalizedRecords.length - presentCount;
 
     await this.eventPublisherService.publishAttendanceRegisterMarked({
       tenant_id: tenantId,
@@ -786,10 +1091,11 @@ export class ClassTeacherService {
       absent_count: absentCount,
     });
 
-    return { success: true, count: records.length };
+    return { success: true, count: normalizedRecords.length };
   }
 
   async reportDisciplineIncident(tenantId: string, userId: string, streamId: string, payload: any) {
+    await this.assertCurrentRoleAssignedClass(tenantId, userId, streamId);
     await this.assertStudentBelongsToStream(tenantId, streamId, payload.studentId);
     this.logger.log(`Reported discipline incident for student ${payload.studentId}`);
     
@@ -869,6 +1175,9 @@ export class ClassTeacherService {
        AND tsa.subject_id = w.subject_id::text
        AND tsa.teacher_user_id = $3
        AND tsa.status = 'active'
+       AND tsa.mark_entry_allowed = TRUE
+       AND tsa.effective_from <= CURRENT_DATE
+       AND (tsa.effective_to IS NULL OR tsa.effective_to >= CURRENT_DATE)
       JOIN LATERAL (
         SELECT ea.id, ea.max_score
         FROM exam_assessments ea
@@ -997,6 +1306,7 @@ export class ClassTeacherService {
   }
 
   async referWelfareCase(tenantId: string, userId: string, streamId: string, payload: any) {
+    await this.assertCurrentRoleAssignedClass(tenantId, userId, streamId);
     await this.assertStudentBelongsToStream(tenantId, streamId, payload.studentId);
     this.logger.log(`Referred welfare case for student ${payload.studentId}`);
 
@@ -1023,6 +1333,8 @@ export class ClassTeacherService {
   }
 
   async getProgress(tenantId: string, userId: string, streamId: string) {
+    await this.assertCurrentRoleAssignedClass(tenantId, userId, streamId);
+
     const scoreRes = await this.executeSql(
       `SELECT COALESCE(ROUND(AVG(score), 2), 0)::numeric as avg FROM exam_marks WHERE tenant_id = $1 AND class_section_id = $2`,
       [tenantId, streamId]
@@ -1038,6 +1350,8 @@ export class ClassTeacherService {
   }
 
   async getComments(tenantId: string, userId: string, streamId: string) {
+    await this.assertActiveClassTeacherClass(tenantId, userId, streamId);
+
     const query = `
       SELECT 
         s.id,
@@ -1056,6 +1370,8 @@ export class ClassTeacherService {
   }
 
   async getDiscipline(tenantId: string, userId: string, streamId: string) {
+    await this.assertCurrentRoleAssignedClass(tenantId, userId, streamId);
+
     const query = `
       SELECT 
         di.id,
@@ -1079,6 +1395,8 @@ export class ClassTeacherService {
   }
 
   async getWelfare(tenantId: string, userId: string, streamId: string) {
+    await this.assertCurrentRoleAssignedClass(tenantId, userId, streamId);
+
     const query = `
       SELECT 
         sw.id,
@@ -1098,6 +1416,10 @@ export class ClassTeacherService {
   }
 
   async getStreamTimetable(tenantId: string, userId: string, streamId: string) {
+    await this.assertCurrentRoleAssignedClass(tenantId, userId, streamId);
+
+    const teacherFilter = this.isClassTeacherMode() ? '' : 'AND teacher_id::text = $3';
+
     const query = `
       SELECT 
         id,
@@ -1115,14 +1437,19 @@ export class ClassTeacherService {
         teacher_id as teacher,
         'Room 1' as room
       FROM academics_timetable_slots
-      WHERE tenant_id = $1 AND class_id = $2
+      WHERE tenant_id = $1 AND class_id = $2 ${teacherFilter}
       ORDER BY day_of_week, start_time
     `;
-    const { rows } = await this.executeSql(query, [tenantId, streamId]);
+    const params = this.isClassTeacherMode() ? [tenantId, streamId] : [tenantId, streamId, userId];
+    const { rows } = await this.executeSql(query, params);
     return rows;
   }
 
   async getSubjects(tenantId: string, userId: string, streamId: string) {
+    await this.assertCurrentRoleAssignedClass(tenantId, userId, streamId);
+
+    const teacherFilter = this.isClassTeacherMode() ? '' : 'AND teacher_id::text = $3';
+
     const query = `
       SELECT 
         subject_id as id,
@@ -1130,10 +1457,11 @@ export class ClassTeacherService {
         teacher_id as teacher,
         COUNT(id) as "lessonsPerWeek"
       FROM academics_timetable_slots
-      WHERE tenant_id = $1 AND class_id = $2
+      WHERE tenant_id = $1 AND class_id = $2 ${teacherFilter}
       GROUP BY subject_id, teacher_id
     `;
-    const { rows } = await this.executeSql(query, [tenantId, streamId]);
+    const params = this.isClassTeacherMode() ? [tenantId, streamId] : [tenantId, streamId, userId];
+    const { rows } = await this.executeSql(query, params);
     return rows.map(r => ({
       ...r,
       lessonsPerWeek: Number(r.lessonsPerWeek)
@@ -1141,6 +1469,8 @@ export class ClassTeacherService {
   }
 
   async getCommunication(tenantId: string, userId: string, streamId: string) {
+    await this.assertCurrentRoleAssignedClass(tenantId, userId, streamId);
+
     const query = `
       SELECT 
         id,
@@ -1150,15 +1480,19 @@ export class ClassTeacherService {
         message as content,
         status
       FROM communication_sms_outbox
-      WHERE tenant_id = $1
+      WHERE tenant_id = $1 AND sent_by::text = $2
       ORDER BY created_at DESC
       LIMIT 50
     `;
-    const { rows } = await this.executeSql(query, [tenantId]);
+    const { rows } = await this.executeSql(query, [tenantId, userId]);
     return rows.map(r => ({ ...r, date: new Date(r.date).toLocaleDateString() }));
   }
 
   async getHomework(tenantId: string, userId: string, streamId: string) {
+    if (streamId) {
+      await this.assertCurrentRoleAssignedClass(tenantId, userId, streamId);
+    }
+
     const query = `
       SELECT 
         a.id,
@@ -1258,7 +1592,7 @@ export class ClassTeacherService {
   async saveLessonLog(tenantId: string, userId: string, payload: any) {
     const classId = this.requireText(payload?.classId, 'Assigned class');
     const topics = this.requireText(payload?.topics, 'Topics covered');
-    await this.assertTeacherAssignedClass(tenantId, userId, classId);
+    await this.assertTeacherAssignedClass(tenantId, userId, classId, 'lesson_record_allowed');
 
     const query = `
       INSERT INTO academics_lesson_logs (tenant_id, teacher_id, class_id, log_date, covered_topics, student_understanding_notes, challenges)
@@ -1292,6 +1626,8 @@ export class ClassTeacherService {
   }
 
   async getHealth(tenantId: string, userId: string, streamId: string) {
+    await this.assertActiveClassTeacherClass(tenantId, userId, streamId);
+
     const query = `
       SELECT 
         cv.id,
@@ -1328,6 +1664,8 @@ export class ClassTeacherService {
   }
 
   async getRequests(tenantId: string, userId: string, streamId: string) {
+    await this.assertActiveClassTeacherClass(tenantId, userId, streamId);
+
     const query = `
       SELECT 
         r.id,
@@ -1347,6 +1685,8 @@ export class ClassTeacherService {
   }
 
   async getDocuments(tenantId: string, userId: string, streamId: string) {
+    await this.assertCurrentRoleAssignedClass(tenantId, userId, streamId);
+
     const query = `
       SELECT 
         id,
@@ -1376,6 +1716,8 @@ export class ClassTeacherService {
   }
 
   async getReports(tenantId: string, userId: string, streamId: string) {
+    await this.assertCurrentRoleAssignedClass(tenantId, userId, streamId);
+
     const query = `
       SELECT
         id::text,
@@ -1419,6 +1761,8 @@ export class ClassTeacherService {
   }
 
   async getSettings(tenantId: string, userId: string, streamId: string) {
+    await this.assertCurrentRoleAssignedClass(tenantId, userId, streamId);
+
     const { rows } = await this.executeSql(
       `
         SELECT payload
@@ -1443,6 +1787,8 @@ export class ClassTeacherService {
   }
 
   async saveSettings(tenantId: string, userId: string, streamId: string, payload: any) {
+    await this.assertCurrentRoleAssignedClass(tenantId, userId, streamId);
+
     const notificationsEnabled = Boolean(payload?.notificationsEnabled);
     const defaultView = String(payload?.defaultView || 'Overview').trim();
     if (!defaultView) {

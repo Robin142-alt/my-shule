@@ -9,6 +9,9 @@ test('ClassTeacherService saves class-teacher settings as tenant and stream scop
     {
       query: async (sql: string, params: unknown[]) => {
         queries.push({ sql, params });
+        if (/FROM teacher_subject_assignments/.test(sql)) {
+          return { rows: [{ id: 'assignment-a' }], rowCount: 1 };
+        }
         return {
           rows: [{
             id: '55555555-5555-4555-8555-555555555555',
@@ -27,22 +30,44 @@ test('ClassTeacherService saves class-teacher settings as tenant and stream scop
   });
 
   assert.equal(result.success, true);
-  assert.match(queries[0].sql, /INSERT INTO workflow_events/);
-  assert.equal(queries[0].params[0], 'tenant-a');
-  assert.equal(queries[0].params[1], 'user-a');
-  assert.equal(queries[0].params[2], 'stream-a');
-  assert.equal(queries[0].params[3], 'class_teacher.settings_saved');
+  const settingsInsert = queries.find((query) => /INSERT INTO workflow_events/.test(query.sql));
+  assert.ok(settingsInsert);
+  assert.equal(settingsInsert.params[0], 'tenant-a');
+  assert.equal(settingsInsert.params[1], 'user-a');
+  assert.equal(settingsInsert.params[2], 'stream-a');
+  assert.equal(settingsInsert.params[3], 'class_teacher.settings_saved');
 });
 
 test('ClassTeacherService publishes attendance counts from submitted attendance values', async () => {
   const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const transactionQueries: Array<{ sql: string; params: unknown[] }> = [];
   const attendanceEvents: any[] = [];
   const service = new ClassTeacherService(
     {
       query: async (sql: string, params: unknown[]) => {
         queries.push({ sql, params });
+        if (/FROM teacher_subject_assignments/.test(sql)) {
+          return { rows: [{ id: 'assignment-a' }], rowCount: 1 };
+        }
+        if (/FROM student_class_assignments/.test(sql)) {
+          return {
+            rows: [
+              { student_id: 'student-1' },
+              { student_id: 'student-2' },
+              { student_id: 'student-3' },
+            ],
+            rowCount: 3,
+          };
+        }
         return { rows: [], rowCount: 0 };
       },
+      executeWithTenant: async (_tenantId: string, _userId: string, callback: (tx: any) => Promise<unknown>) =>
+        callback({
+          $executeRawUnsafe: async (sql: string, ...params: unknown[]) => {
+            transactionQueries.push({ sql, params });
+            return 1;
+          },
+        }),
     } as never,
     {
       publishAttendanceRegisterMarked: async (input: any) => {
@@ -59,8 +84,8 @@ test('ClassTeacherService publishes attendance counts from submitted attendance 
 
   assert.equal(result.success, true);
   assert.equal(result.count, 3);
-  assert.match(queries[0].sql, /DELETE FROM academics_attendance/);
-  assert.match(queries[1].sql, /INSERT INTO academics_attendance/);
+  assert.match(transactionQueries[0].sql, /DELETE FROM academics_attendance/);
+  assert.match(transactionQueries[1].sql, /INSERT INTO academics_attendance/);
   assert.equal(attendanceEvents.length, 1);
   assert.equal(attendanceEvents[0].present_count, 1);
   assert.equal(attendanceEvents[0].absent_count, 2);
@@ -283,7 +308,7 @@ test('ClassTeacherService rejects homework for classes or subjects not assigned 
       subjectId: 'subject-a',
       dueDate: '2026-07-20',
     }),
-    /assigned class and subject/,
+    /class and subject.*active.*teaching assignments/,
   );
 
   assert.match(queries[0].sql, /teacher_subject_assignments/);
@@ -371,6 +396,9 @@ test('ClassTeacherService returns tenant scoped report snapshots for class-teach
     {
       query: async (sql: string, params: unknown[]) => {
         queries.push({ sql, params });
+        if (/FROM teacher_subject_assignments/.test(sql)) {
+          return { rows: [{ id: 'assignment-a' }], rowCount: 1 };
+        }
         return {
           rows: [
             {
@@ -395,18 +423,22 @@ test('ClassTeacherService returns tenant scoped report snapshots for class-teach
   assert.equal(result.metrics.generated_this_term, 1);
   assert.equal(result.reports[0].report_name, 'Class register');
   assert.equal(result.reports[0].download_url, '/api/admin-command/class-teacher/reports/snapshot-a/download');
-  assert.match(queries[0].sql, /FROM report_snapshots/);
-  assert.match(queries[0].sql, /tenant_id = \$1/);
-  assert.equal(queries[0].params[0], 'tenant-a');
+  const reportQuery = queries.find((query) => /FROM report_snapshots/.test(query.sql));
+  assert.ok(reportQuery);
+  assert.match(reportQuery.sql, /tenant_id = \$1/);
+  assert.equal(reportQuery.params[0], 'tenant-a');
 });
 
-test('ClassTeacherService verifies discipline students belong to the selected stream before persisting', async () => {
+test('ClassTeacherService authorizes class-teacher discipline through an active appointment and publishes once', async () => {
   const queries: Array<{ sql: string; params: unknown[] }> = [];
   const disciplineEvents: any[] = [];
   const service = new ClassTeacherService(
     {
       query: async (sql: string, params: unknown[]) => {
         queries.push({ sql, params });
+        if (/FROM academics_class_teachers/.test(sql)) {
+          return { rows: [{ id: 'appointment-a' }], rowCount: 1 };
+        }
         if (/student_class_assignments/.test(sql)) {
           return { rows: [{ id: 'assignment-a' }], rowCount: 1 };
         }
@@ -421,6 +453,8 @@ test('ClassTeacherService verifies discipline students belong to the selected st
         disciplineEvents.push(input);
       },
     } as never,
+    undefined,
+    { getStore: () => ({ role: 'class_teacher' }) } as never,
   );
 
   const result = await service.reportDisciplineIncident('tenant-a', 'teacher-a', 'stream-a', {
@@ -430,11 +464,16 @@ test('ClassTeacherService verifies discipline students belong to the selected st
   });
 
   assert.equal(result.success, true);
-  assert.match(queries[0].sql, /student_class_assignments/);
-  assert.equal(queries[0].params[0], 'tenant-a');
-  assert.equal(queries[0].params[1], 'stream-a');
-  assert.equal(queries[0].params[2], 'student-a');
-  assert.match(queries[1].sql, /INSERT INTO discipline_incidents/);
+  assert.match(queries[0].sql, /academics_class_teachers/);
+  assert.match(queries[0].sql, /effective_from <= CURRENT_DATE/);
+  assert.equal(queries.some((query) => /teacher_subject_assignments/.test(query.sql)), false);
+  const studentScopeQuery = queries.find((query) => /student_class_assignments/.test(query.sql));
+  assert.ok(studentScopeQuery);
+  assert.equal(studentScopeQuery.params[0], 'tenant-a');
+  assert.equal(studentScopeQuery.params[1], 'stream-a');
+  assert.equal(studentScopeQuery.params[2], 'student-a');
+  assert.ok(queries.find((query) => /INSERT INTO discipline_incidents/.test(query.sql)));
+  assert.equal(disciplineEvents.length, 1);
   assert.equal(disciplineEvents[0].incident_id, 'incident-a');
 });
 
@@ -445,6 +484,9 @@ test('ClassTeacherService persists welfare referrals before publishing the refer
     {
       query: async (sql: string, params: unknown[]) => {
         queries.push({ sql, params });
+        if (/FROM teacher_subject_assignments/.test(sql)) {
+          return { rows: [{ id: 'teacher-assignment-a' }], rowCount: 1 };
+        }
         if (/student_class_assignments/.test(sql)) {
           return { rows: [{ id: 'assignment-a' }], rowCount: 1 };
         }
@@ -468,11 +510,110 @@ test('ClassTeacherService persists welfare referrals before publishing the refer
 
   assert.equal(result.success, true);
   assert.equal(result.referralId, 'welfare-a');
-  assert.match(queries[0].sql, /student_class_assignments/);
-  assert.match(queries[1].sql, /INSERT INTO student_welfare_cases/);
-  assert.equal(queries[1].params[0], 'tenant-a');
-  assert.equal(queries[1].params[1], 'student-a');
-  assert.equal(queries[1].params[3], 'Needs counselling follow up');
+  const studentScopeQuery = queries.find((query) => /student_class_assignments/.test(query.sql));
+  assert.ok(studentScopeQuery);
+  const insertQuery = queries.find((query) => /INSERT INTO student_welfare_cases/.test(query.sql));
+  assert.ok(insertQuery);
+  assert.equal(insertQuery.params[0], 'tenant-a');
+  assert.equal(insertQuery.params[1], 'student-a');
+  assert.equal(insertQuery.params[3], 'Needs counselling follow up');
   assert.equal(welfareEvents[0].referral_id, 'welfare-a');
   assert.equal(welfareEvents[0].tenant_id, 'tenant-a');
+});
+
+test('ClassTeacherService saves class discipline concerns from an active appointment without a subject assignment', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new ClassTeacherService(
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        if (/FROM academics_class_teachers appointment/.test(sql)) {
+          return { rows: [{ id: 'appointment-a' }], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 1 };
+      },
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.saveDisciplineConcern('tenant-a', 'teacher-a', {
+    studentId: 'student-a',
+    concernType: 'welfare',
+    description: 'Follow-up required',
+  });
+
+  assert.equal(result.success, true);
+  const appointmentQuery = queries.find((query) => /FROM academics_class_teachers appointment/.test(query.sql));
+  assert.ok(appointmentQuery);
+  assert.match(appointmentQuery.sql, /student_class_assignments/);
+  assert.match(appointmentQuery.sql, /effective_from <= CURRENT_DATE/);
+  assert.equal(queries.some((query) => /teacher_subject_assignments/.test(query.sql)), false);
+  const insertQuery = queries.find((query) => /INSERT INTO discipline_incidents/.test(query.sql));
+  assert.ok(insertQuery);
+  assert.match(insertQuery.sql, /reported_by/);
+  assert.doesNotMatch(insertQuery.sql, /reported_by_user_id/);
+});
+
+test('ClassTeacherService rejects class discipline concerns after the class-teacher appointment ends', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new ClassTeacherService(
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+    {} as never,
+  );
+
+  await assert.rejects(
+    () => service.saveDisciplineConcern('tenant-a', 'teacher-a', {
+      studentId: 'student-a',
+      concernType: 'attendance',
+      description: 'Repeated absence',
+    }),
+    /active class-teacher appointment/,
+  );
+  assert.equal(queries.some((query) => /INSERT INTO discipline_incidents/.test(query.sql)), false);
+});
+
+test('ClassTeacherService scopes class-mode homework reads by appointment and teacher-mode reads by teaching assignment', async () => {
+  const classModeQueries: Array<{ sql: string; params: unknown[] }> = [];
+  const classModeService = new ClassTeacherService(
+    {
+      query: async (sql: string, params: unknown[]) => {
+        classModeQueries.push({ sql, params });
+        if (/FROM academics_class_teachers/.test(sql)) {
+          return { rows: [{ id: 'appointment-a' }], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+    {} as never,
+    undefined,
+    { getStore: () => ({ role: 'class_teacher' }) } as never,
+  );
+  await classModeService.getHomework('tenant-a', 'teacher-a', 'stream-a');
+  assert.match(classModeQueries[0].sql, /academics_class_teachers/);
+  assert.equal(classModeQueries.some((query) => /teacher_subject_assignments/.test(query.sql)), false);
+
+  const teacherModeQueries: Array<{ sql: string; params: unknown[] }> = [];
+  const teacherModeService = new ClassTeacherService(
+    {
+      query: async (sql: string, params: unknown[]) => {
+        teacherModeQueries.push({ sql, params });
+        if (/FROM teacher_subject_assignments/.test(sql)) {
+          return { rows: [{ id: 'assignment-a' }], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+    {} as never,
+    undefined,
+    { getStore: () => ({ role: 'teacher' }) } as never,
+  );
+  await teacherModeService.getHomework('tenant-a', 'teacher-a', 'stream-a');
+  assert.match(teacherModeQueries[0].sql, /teacher_subject_assignments/);
+  assert.match(teacherModeQueries[0].sql, /effective_from <= CURRENT_DATE/);
+  assert.equal(teacherModeQueries.some((query) => /academics_class_teachers/.test(query.sql)), false);
 });

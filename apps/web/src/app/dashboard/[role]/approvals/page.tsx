@@ -4,12 +4,12 @@ import {
   normalizeSchoolExperienceRole,
 } from "@/lib/auth/school-role-normalization";
 
-export default function LegacyDashboardApprovalsPage({
+export default async function LegacyDashboardApprovalsPage({
   params,
 }: {
-  params: { role: string };
+  params: Promise<{ role: string }>;
 }) {
-  const role = params.role;
+  const { role } = await params;
 
   if (role === "parent") {
     redirect("/portal/parent/approvals");

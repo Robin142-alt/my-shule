@@ -1,379 +1,261 @@
-import { Controller, Get, Post, Body, Query, Headers } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UnauthorizedException } from '@nestjs/common';
+
 import { Permissions } from '../../auth/decorators/permissions.decorator';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { RequestContextService } from '../../common/request-context/request-context.service';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { ClassTeacherService } from './class-teacher.service';
 import { SaveTeacherMarksDto } from './dto/class-teacher.dto';
 
 @Controller('class-teacher')
 @RequiresModule('academics')
+@Roles('teacher', 'class_teacher')
+@Permissions('teacher:read')
 export class ClassTeacherController {
-  constructor(private readonly classTeacherService: ClassTeacherService) {}
+  constructor(
+    private readonly classTeacherService: ClassTeacherService,
+    private readonly requestContext: RequestContextService,
+  ) {}
+
+  private currentScope(): { tenantId: string; userId: string } {
+    const context = this.requestContext.requireStore();
+    if (!context.is_authenticated || !context.tenant_id || !context.user_id) {
+      throw new UnauthorizedException('Authenticated teacher context is required');
+    }
+
+    return { tenantId: context.tenant_id, userId: context.user_id };
+  }
 
   @Get('my-classes')
-  @Permissions('academics:read')
-  getMyClasses(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-  ) {
+  getMyClasses() {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getMyClasses(tenantId, userId);
   }
 
   @Get('overview')
-  @Permissions('academics:read')
-  getOverview(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId: string
-  ) {
+  getOverview(@Query('streamId') streamId: string) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getOverview(tenantId, userId, streamId);
   }
 
   @Get('dashboard-overview')
-  @Permissions('academics:read')
-  getDashboardOverview(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-  ) {
+  getDashboardOverview() {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getDashboardOverview(tenantId, userId);
   }
 
   @Get('register')
-  @Permissions('academics:read')
-  getRegister(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId: string
-  ) {
+  getRegister(@Query('streamId') streamId: string) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getRegister(tenantId, userId, streamId);
   }
 
   @Get('pending-attendance')
-  @Permissions('academics:read')
-  getPendingAttendance(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-  ) {
+  getPendingAttendance() {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getPendingAttendance(tenantId, userId);
   }
 
   @Get('pending-marks')
-  @Permissions('exams:read')
-  getPendingMarks(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-  ) {
+  getPendingMarks() {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getPendingMarks(tenantId, userId);
   }
 
   @Get('timetable')
-  @Permissions('academics:read')
-  getTimetable(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId?: string
-  ) {
-    if (streamId) {
-      return this.classTeacherService.getStreamTimetable(tenantId, userId, streamId);
-    }
-    return this.classTeacherService.getTimetable(tenantId, userId);
+  getTimetable(@Query('streamId') streamId?: string) {
+    const { tenantId, userId } = this.currentScope();
+    return streamId
+      ? this.classTeacherService.getStreamTimetable(tenantId, userId, streamId)
+      : this.classTeacherService.getTimetable(tenantId, userId);
   }
 
   @Get('sent-messages')
-  @Permissions('academics:read')
-  getSentMessages(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-  ) {
+  getSentMessages() {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getSentMessages(tenantId, userId);
   }
 
   @Get('register-overview')
-  @Permissions('academics:read')
-  getClassRegisterOverview(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-  ) {
+  getClassRegisterOverview() {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getClassRegisterOverview(tenantId, userId);
   }
 
   @Get('discipline-concerns')
-  @Permissions('academics:read')
-  getDisciplineConcerns(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-  ) {
+  getDisciplineConcerns() {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getDisciplineConcerns(tenantId, userId);
   }
 
   @Post('discipline-concerns')
-  @Permissions('academics:write')
-  saveDisciplineConcern(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Body() body: any
-  ) {
+  @Permissions('teacher:write')
+  saveDisciplineConcern(@Body() body: any) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.saveDisciplineConcern(tenantId, userId, body);
   }
 
   @Get('report-comments')
-  @Permissions('academics:read')
-  getReportComments(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-  ) {
+  getReportComments() {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getReportComments(tenantId, userId);
   }
 
   @Post('report-comments')
-  @Permissions('academics:write')
-  saveReportComment(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Body() body: any,
-  ) {
+  @Permissions('teacher:write')
+  saveReportComment(@Body() body: any) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.saveReportComment(tenantId, userId, body);
   }
 
   @Get('attendance')
-  @Permissions('academics:read')
-  getAttendance(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId: string
-  ) {
+  getAttendance(@Query('streamId') streamId: string) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getAttendance(tenantId, userId, streamId);
   }
 
   @Post('attendance')
-  @Permissions('academics:write')
-  saveAttendance(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Body() body: { streamId: string; records: any[] }
-  ) {
+  @Permissions('teacher:write')
+  saveAttendance(@Body() body: { streamId: string; records: any[] }) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.saveAttendance(tenantId, userId, body.streamId, body.records);
   }
 
   @Post('marks')
-  @Permissions('exams:enter-marks')
-  saveMarks(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Body() body: SaveTeacherMarksDto
-  ) {
+  @Permissions('teacher:write', 'exams:enter-marks')
+  saveMarks(@Body() body: SaveTeacherMarksDto) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.saveMarks(tenantId, userId, body);
   }
 
   @Get('progress')
-  @Permissions('academics:read')
-  getProgress(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId: string
-  ) {
+  getProgress(@Query('streamId') streamId: string) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getProgress(tenantId, userId, streamId);
   }
 
   @Get('comments')
-  @Permissions('academics:read')
-  getComments(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId: string
-  ) {
+  getComments(@Query('streamId') streamId: string) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getComments(tenantId, userId, streamId);
   }
 
   @Get('discipline')
-  @Permissions('academics:read')
-  getDiscipline(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId: string
-  ) {
+  getDiscipline(@Query('streamId') streamId: string) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getDiscipline(tenantId, userId, streamId);
   }
 
   @Post('discipline')
-  @Permissions('academics:write')
-  reportDiscipline(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Body() body: { streamId: string; payload: any }
-  ) {
+  @Permissions('teacher:write')
+  reportDiscipline(@Body() body: { streamId: string; payload: any }) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.reportDisciplineIncident(tenantId, userId, body.streamId, body.payload);
   }
 
   @Get('welfare')
-  @Permissions('academics:read')
-  getWelfare(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId: string
-  ) {
+  getWelfare(@Query('streamId') streamId: string) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getWelfare(tenantId, userId, streamId);
   }
 
   @Post('welfare')
-  @Permissions('academics:write')
-  referWelfare(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Body() body: { streamId: string; payload: any }
-  ) {
+  @Permissions('teacher:write')
+  referWelfare(@Body() body: { streamId: string; payload: any }) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.referWelfareCase(tenantId, userId, body.streamId, body.payload);
   }
 
-
-
   @Get('subjects')
-  @Permissions('academics:read')
-  getSubjects(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId: string
-  ) {
+  getSubjects(@Query('streamId') streamId: string) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getSubjects(tenantId, userId, streamId);
   }
 
   @Get('communication')
-  @Permissions('academics:read')
-  getCommunication(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId: string
-  ) {
+  getCommunication(@Query('streamId') streamId: string) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getCommunication(tenantId, userId, streamId);
   }
 
   @Get('tasks')
-  @Permissions('academics:read')
-  getTasks(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId: string
-  ) {
+  getTasks(@Query('streamId') streamId: string) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getTasks(tenantId, userId, streamId);
   }
 
   @Get('health')
-  @Permissions('academics:read')
-  getHealth(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId: string
-  ) {
+  getHealth(@Query('streamId') streamId: string) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getHealth(tenantId, userId, streamId);
   }
 
   @Get('homework')
-  @Permissions('academics:read')
-  getHomework(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId: string
-  ) {
+  getHomework(@Query('streamId') streamId: string) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getHomework(tenantId, userId, streamId);
   }
 
   @Post('homework')
-  @Permissions('academics:write')
-  saveHomework(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Body() body: any
-  ) {
+  @Permissions('teacher:write')
+  saveHomework(@Body() body: any) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.saveHomework(tenantId, userId, body);
   }
 
   @Get('lesson-logs')
-  @Permissions('academics:read')
-  getLessonLogs(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId?: string
-  ) {
+  getLessonLogs(@Query('streamId') streamId?: string) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getLessonLogs(tenantId, userId, streamId);
   }
 
   @Post('lesson-logs')
-  @Permissions('academics:write')
-  saveLessonLog(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Body() body: any
-  ) {
+  @Permissions('teacher:write')
+  saveLessonLog(@Body() body: any) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.saveLessonLog(tenantId, userId, body);
   }
 
   @Get('meetings')
-  @Permissions('academics:read')
-  getMeetings(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId: string
-  ) {
+  getMeetings(@Query('streamId') streamId: string) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getMeetings(tenantId, userId, streamId);
   }
 
   @Get('requests')
-  @Permissions('academics:read')
-  getRequests(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId: string
-  ) {
+  getRequests(@Query('streamId') streamId: string) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getRequests(tenantId, userId, streamId);
   }
 
   @Get('documents')
-  @Permissions('academics:read')
-  getDocuments(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId: string
-  ) {
+  getDocuments(@Query('streamId') streamId: string) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getDocuments(tenantId, userId, streamId);
   }
 
   @Get('notifications')
-  @Permissions('academics:read')
-  getNotifications(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId: string
-  ) {
+  getNotifications(@Query('streamId') streamId: string) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getNotifications(tenantId, userId, streamId);
   }
 
   @Get('reports')
-  @Permissions('academics:read')
-  getReports(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId: string
-  ) {
+  getReports(@Query('streamId') streamId: string) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getReports(tenantId, userId, streamId);
   }
 
   @Get('settings')
-  @Permissions('academics:read')
-  getSettings(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId: string
-  ) {
+  getSettings(@Query('streamId') streamId: string) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getSettings(tenantId, userId, streamId);
   }
 
   @Post('settings')
-  @Permissions('academics:write')
-  saveSettings(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
-    @Query('streamId') streamId: string,
-    @Body() body: any,
-  ) {
+  @Permissions('teacher:write')
+  saveSettings(@Query('streamId') streamId: string, @Body() body: any) {
+    const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.saveSettings(tenantId, userId, streamId, body);
   }
 }
