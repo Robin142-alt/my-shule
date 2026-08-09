@@ -383,7 +383,23 @@ export async function requestDashboardApi<T>(
   }
 
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
+    let responseMessage = "";
+    try {
+      const payload = await response.clone().json() as {
+        message?: string | string[];
+        error?: string | { message?: string | string[] };
+      };
+      const candidate = payload.message
+        ?? (typeof payload.error === "object" ? payload.error?.message : payload.error);
+      responseMessage = Array.isArray(candidate) ? candidate.join(" ") : String(candidate ?? "").trim();
+    } catch {
+      // Some upstream failures are HTML or empty. The status remains truthful.
+    }
+    throw new Error(
+      responseMessage
+        ? `Request failed: ${response.status} — ${responseMessage}`
+        : `Request failed: ${response.status}`,
+    );
   }
 
   const json = (await response.json()) as T | ApiEnvelope<T>;

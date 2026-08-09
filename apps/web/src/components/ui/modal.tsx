@@ -13,6 +13,7 @@ export function Modal({
   children,
   footer,
   size = "md",
+  mobileFullScreen = false,
 }: {
   open: boolean;
   title: string;
@@ -21,6 +22,7 @@ export function Modal({
   children: ReactNode;
   footer?: ReactNode;
   size?: "sm" | "md" | "lg" | "xl";
+  mobileFullScreen?: boolean;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -131,10 +133,19 @@ export function Modal({
         : size === "lg"
         ? "max-w-2xl"
         : "max-w-xl";
+  const mobileSizeClass = mobileFullScreen
+    ? size === "sm"
+      ? "max-w-none sm:max-w-md"
+      : size === "xl"
+        ? "max-w-none sm:max-w-5xl"
+        : size === "lg"
+          ? "max-w-none sm:max-w-2xl"
+          : "max-w-none sm:max-w-xl"
+    : sizeClass;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pt-[10vh] pb-8 backdrop-blur-md transition-all duration-300 overflow-y-auto"
+      className={`fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 backdrop-blur-md transition-all duration-300 overflow-y-auto ${mobileFullScreen ? "p-0 sm:px-4 sm:pt-[10vh] sm:pb-8" : "px-4 pt-[10vh] pb-8"}`}
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
@@ -147,7 +158,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className={`fade-in-panel glass-panel w-full ${sizeClass} rounded-[var(--radius-lg)] outline-none shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] ring-1 ring-slate-200/50 transform transition-all duration-300 scale-100 opacity-100`}
+        className={`fade-in-panel glass-panel w-full ${mobileSizeClass} ${mobileFullScreen ? "flex min-h-[100dvh] max-h-[100dvh] flex-col rounded-none sm:min-h-0 sm:max-h-none sm:rounded-[var(--radius-lg)]" : "rounded-[var(--radius-lg)]"} outline-none shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] ring-1 ring-slate-200/50 transform transition-all duration-300 scale-100 opacity-100`}
       >
         <div className="flex items-start justify-between gap-4 border-b border-border bg-white px-5 py-3.5">
           <div className="min-w-0">
@@ -168,7 +179,7 @@ export function Modal({
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <div className="px-5 py-5 custom-scrollbar max-h-[60vh] overflow-y-auto">{children}</div>
+        <div className={`px-5 py-5 custom-scrollbar overflow-y-auto ${mobileFullScreen ? "min-h-0 flex-1 max-h-none sm:flex-none sm:max-h-[60vh]" : "max-h-[60vh]"}`}>{children}</div>
         <div className="flex flex-wrap items-center justify-end gap-3 rounded-b-[var(--radius-lg)] border-t border-border bg-surface px-5 py-4 backdrop-blur-sm">
           {footer || (
             <Button variant="outline" onClick={onClose} className="px-4">

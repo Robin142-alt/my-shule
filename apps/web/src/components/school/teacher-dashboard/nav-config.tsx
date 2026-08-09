@@ -14,7 +14,8 @@ import {
   UsersRound,
   Sword,
   Activity,
-  Bell
+  Bell,
+  FlaskConical
 } from "lucide-react";
 import { TeacherView } from "./types";
 
@@ -37,6 +38,7 @@ export const navItems: Array<{
   { id: "discipline-welfare", label: "Discipline", icon: Sword, group: "Student Support" },
   { id: "parent-communication", label: "Parents", icon: MessageSquare, group: "Student Support" },
   { id: "teaching-resources", label: "Resources", icon: BookOpen, group: "Operations" },
+  { id: "practical-requisitions", label: "Practical Requisitions", icon: FlaskConical, group: "Operations" },
   { id: "store-requests", label: "Store Requests", icon: Package, group: "Operations" },
   { id: "reports", label: "Reports", icon: FileText, group: "Operations" },
   { id: "notifications", label: "Notifications", icon: Bell, group: "Account" },

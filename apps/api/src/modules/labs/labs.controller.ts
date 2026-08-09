@@ -1,18 +1,32 @@
-import { Body, Controller, Get, Param, Post, InternalServerErrorException } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import {
+  AddLaboratoryStockDto,
   ChemicalDisposalRequestDto,
+  ConfirmPracticalIssueDto,
   CreateChemicalItemDto,
   CreateLabDepartmentDto,
   CreateLabDto,
   CreateLabEquipmentDto,
   CreateLabSessionDto,
+  CreateLaboratoryItemDto,
+  CreateLabStorageLocationDto,
+  CreatePracticalRequestDto,
+  GenerateLabRegisterDto,
+  ImportLaboratoryItemsDto,
   IssueChemicalDto,
   IssueEquipmentDto,
   MarkLabAttendanceDto,
+  PreparePracticalDto,
+  ReceivePracticalReturnDto,
   ReconcileEquipmentDto,
+  RecordBreakageLossDto,
+  ReviewPracticalRequestDto,
+  SaveLabSafetyCheckDto,
+  SaveLabStocktakeDto,
+  StartLabStocktakeDto,
 } from './dto/labs.dto';
 import { LabsService } from './labs.service';
 
@@ -121,7 +135,7 @@ export class LabsController {
   }
 
   @Get('requests')
-  @Permissions('labs:read')
+  @Permissions('labs:request')
   getRequests() {
     return this.labsService.getRequests();
   }
@@ -130,5 +144,153 @@ export class LabsController {
   @Permissions('labs:read')
   getIssues() {
     return this.labsService.getIssues();
+  }
+
+  @Get('home')
+  @Permissions('labs:read')
+  getHome() {
+    return this.labsService.getHome();
+  }
+
+  @Post('items')
+  @Permissions('labs:inventory')
+  createLaboratoryItem(@Body() dto: CreateLaboratoryItemDto) {
+    return this.labsService.createLaboratoryItem(dto);
+  }
+
+  @Post('items/import')
+  @Permissions('labs:inventory')
+  importLaboratoryItems(@Body() dto: ImportLaboratoryItemsDto) {
+    return this.labsService.importLaboratoryItems(dto);
+  }
+
+  @Post('items/:itemSource/:itemId/stock')
+  @Permissions('labs:inventory')
+  addLaboratoryStock(
+    @Param('itemSource') itemSource: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: AddLaboratoryStockDto,
+  ) {
+    return this.labsService.addLaboratoryStock(itemSource, itemId, dto);
+  }
+
+  @Get('locations')
+  @Permissions('labs:read')
+  listStorageLocations() {
+    return this.labsService.listStorageLocations();
+  }
+
+  @Post('locations')
+  @Permissions('labs:inventory')
+  createStorageLocation(@Body() dto: CreateLabStorageLocationDto) {
+    return this.labsService.createStorageLocation(dto);
+  }
+
+  @Post('practical-requests')
+  @Permissions('labs:request')
+  createPracticalRequest(@Body() dto: CreatePracticalRequestDto) {
+    return this.labsService.createPracticalRequest(dto);
+  }
+
+  @Patch('practical-requests/:requestId/review')
+  @Permissions('labs:inventory')
+  reviewPracticalRequest(
+    @Param('requestId') requestId: string,
+    @Body() dto: ReviewPracticalRequestDto,
+  ) {
+    return this.labsService.reviewPracticalRequest(requestId, dto);
+  }
+
+  @Patch('practical-requests/:requestId/preparation')
+  @Permissions('labs:inventory')
+  preparePracticalRequest(
+    @Param('requestId') requestId: string,
+    @Body() dto: PreparePracticalDto,
+  ) {
+    return this.labsService.preparePracticalRequest(requestId, dto);
+  }
+
+  @Post('practical-requests/:requestId/issues')
+  @Permissions('labs:inventory')
+  confirmPracticalIssue(
+    @Param('requestId') requestId: string,
+    @Body() dto: ConfirmPracticalIssueDto,
+  ) {
+    return this.labsService.confirmPracticalIssue(requestId, dto);
+  }
+
+  @Post('issues/:issueId/returns')
+  @Permissions('labs:inventory')
+  receivePracticalReturn(
+    @Param('issueId') issueId: string,
+    @Body() dto: ReceivePracticalReturnDto,
+  ) {
+    return this.labsService.receivePracticalReturn(issueId, dto);
+  }
+
+  @Post('issues/:issueId/reminders')
+  @Permissions('labs:inventory')
+  sendReturnReminder(@Param('issueId') issueId: string) {
+    return this.labsService.sendReturnReminder(issueId);
+  }
+
+  @Get('breakage-loss')
+  @Permissions('labs:read')
+  listBreakageLoss() {
+    return this.labsService.listBreakageLoss();
+  }
+
+  @Post('breakage-loss')
+  @Permissions('labs:inventory')
+  recordBreakageLoss(@Body() dto: RecordBreakageLossDto) {
+    return this.labsService.recordBreakageLoss(dto);
+  }
+
+  @Get('stocktakes')
+  @Permissions('labs:read')
+  listStocktakes() {
+    return this.labsService.listStocktakes();
+  }
+
+  @Post('stocktakes')
+  @Permissions('labs:inventory')
+  startStocktake(@Body() dto: StartLabStocktakeDto) {
+    return this.labsService.startStocktake(dto);
+  }
+
+  @Patch('stocktakes/:stocktakeId')
+  @Permissions('labs:inventory')
+  saveStocktake(
+    @Param('stocktakeId') stocktakeId: string,
+    @Body() dto: SaveLabStocktakeDto,
+  ) {
+    return this.labsService.saveStocktake(stocktakeId, dto);
+  }
+
+  @Post('stocktakes/:stocktakeId/submit')
+  @Permissions('labs:inventory')
+  submitStocktake(
+    @Param('stocktakeId') stocktakeId: string,
+    @Body() dto: SaveLabStocktakeDto,
+  ) {
+    return this.labsService.submitStocktake(stocktakeId, dto);
+  }
+
+  @Get('safety-checks')
+  @Permissions('labs:read')
+  listSafetyChecks() {
+    return this.labsService.listSafetyChecks();
+  }
+
+  @Post('safety-checks')
+  @Permissions('labs:inventory')
+  saveSafetyCheck(@Body() dto: SaveLabSafetyCheckDto) {
+    return this.labsService.saveSafetyCheck(dto);
+  }
+
+  @Post('registers')
+  @Permissions('reports:read', 'labs:read')
+  generateRegister(@Body() dto: GenerateLabRegisterDto) {
+    return this.labsService.generateRegister(dto);
   }
 }

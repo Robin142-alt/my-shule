@@ -158,11 +158,15 @@ function openInlinePrintPreview(html: string, title: string) {
     const userAgent = window.navigator?.userAgent?.toLowerCase() ?? "";
     if (!userAgent.includes("jsdom")) {
       iframe?.contentWindow?.focus();
+      iframe?.contentWindow?.print?.();
     }
-    window.print?.();
   });
   overlay.querySelector("[data-myshule-download-pdf]")?.addEventListener("click", () => {
-    window.print?.();
+    const userAgent = window.navigator?.userAgent?.toLowerCase() ?? "";
+    if (!userAgent.includes("jsdom")) {
+      iframe?.contentWindow?.focus();
+      iframe?.contentWindow?.print?.();
+    }
   });
   overlay.querySelector("[data-myshule-close]")?.addEventListener("click", () => overlay.remove());
   overlay.querySelector("[data-myshule-cancel]")?.addEventListener("click", () => overlay.remove());
@@ -174,12 +178,14 @@ export function openPrintDocument({
   subtitle,
   rows,
   footer,
+  logoUrl,
 }: {
   eyebrow: string;
   title: string;
   subtitle: string;
   rows: PrintableRow[];
   footer: string;
+  logoUrl?: string | null;
 }) {
   if (typeof window === "undefined") {
     return;
@@ -195,6 +201,15 @@ export function openPrintDocument({
       `,
     )
     .join("");
+  const safeLogoUrl = logoUrl && (
+    logoUrl.startsWith("/")
+    || logoUrl.startsWith("https://")
+    || logoUrl.startsWith("http://")
+    || logoUrl.startsWith("data:image/")
+  ) ? logoUrl : null;
+  const renderedLogo = safeLogoUrl
+    ? `<img class="brand-logo" src="${escapeHtml(safeLogoUrl)}" alt="School logo" />`
+    : "";
 
   const documentHtml = `
     <!doctype html>
@@ -225,6 +240,17 @@ export function openPrintDocument({
             text-transform: uppercase;
             color: #64748b;
           }
+          .brand-logo {
+            display: block;
+            width: 72px;
+            height: 72px;
+            margin-bottom: 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            object-fit: contain;
+            padding: 6px;
+            box-sizing: border-box;
+          }
           h1 {
             margin: 12px 0 0;
             font-size: 24px;
@@ -246,6 +272,7 @@ export function openPrintDocument({
             gap: 24px;
             padding: 12px 0;
             border-bottom: 1px solid #e2e8f0;
+            break-inside: avoid;
           }
           .row:last-child {
             border-bottom: none;
@@ -303,6 +330,15 @@ export function openPrintDocument({
             border-color: #cbd5e1;
             color: #334155;
           }
+          @page {
+            margin: 16mm 14mm 20mm;
+            @bottom-right {
+              content: "Page " counter(page) " of " counter(pages);
+              font-family: Inter, Segoe UI, Arial, sans-serif;
+              font-size: 10px;
+              color: #64748b;
+            }
+          }
           @media print {
             body {
               background: #ffffff;
@@ -327,6 +363,7 @@ export function openPrintDocument({
           <button class="neutral" type="button" onclick="window.close()">Close</button>
         </div>
         <main class="page">
+          ${renderedLogo}
           <div class="eyebrow">${escapeHtml(eyebrow)}</div>
           <h1>${escapeHtml(title)}</h1>
           <p class="subtitle">${escapeHtml(subtitle)}</p>

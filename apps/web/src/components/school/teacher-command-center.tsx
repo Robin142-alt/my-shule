@@ -33,6 +33,7 @@ import { MyProfileWorkspace } from "./teacher-dashboard/my-profile-workspace";
 import { ClassTeacherWorkspace } from "./teacher-dashboard/class-teacher-workspace";
 import { ClubWorkspace } from "./teacher-dashboard/club-workspace";
 import { InvigilationWorkspace } from "./teacher-dashboard/invigilation-workspace";
+import { PracticalRequisitionsWorkspace } from "./teacher-dashboard/practical-requisitions-workspace";
 
 function normalizeTeacherView(section?: string): TeacherView {
   const sectionMap: Record<string, TeacherView> = {
@@ -50,6 +51,7 @@ function normalizeTeacherView(section?: string): TeacherView {
     exams: "exams-marks",
     "student-notes": "learner-progress",
     "resource-requests": "teaching-resources",
+    "lab-practical-requests": "practical-requisitions",
     "reports-downloads": "reports",
     "reports-analytics": "academic-intelligence",
     "academic-analytics": "academic-intelligence",
@@ -118,6 +120,7 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
           {activeView === "syllabus-coverage" && <SyllabusCoverageWorkspace />}
           {activeView === "learner-progress" && <LearnerProgressWorkspace />}
           {activeView === "teaching-resources" && <TeachingResourcesWorkspace />}
+          {activeView === "practical-requisitions" && <PracticalRequisitionsWorkspace />}
           {activeView === "store-requests" && <StoreRequestsWorkspace />}
           {activeView === "reports" && <ReportsDownloadsWorkspace />}
           {activeView === "notifications" && <NotificationsWorkspace />}
@@ -130,7 +133,7 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
             "overview", "attendance", "assignments", "discipline-welfare", "classes",
             "lesson-log", "assessments-cats", "exams-marks", "academic-intelligence", "parent-communication",
             "timetable", "syllabus-coverage", "learner-progress", "teaching-resources",
-            "store-requests", "reports", "notifications", "profile", "class-teacher",
+            "practical-requisitions", "store-requests", "reports", "notifications", "profile", "class-teacher",
             "club", "invigilation"
           ].includes(activeView) && (
             <div className="rounded-xl bg-white border border-[#D8E0EC] p-12 text-center text-[#64748B]">

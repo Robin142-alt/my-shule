@@ -53,6 +53,7 @@ import { LabTimetableWorkspace } from "@/components/school/laboratory-technician
 import { OverviewWorkspace as LaboratoryOverviewWorkspace } from "@/components/school/laboratory-technician/overview-workspace";
 import { ReportsWorkspace as LaboratoryReportsWorkspace } from "@/components/school/laboratory-technician/reports-workspace";
 import { SafetyIncidentsWorkspace } from "@/components/school/laboratory-technician/safety-incidents-workspace";
+import { StocktakeWorkspace as LaboratoryStocktakeWorkspace } from "@/components/school/laboratory-technician/stocktake-workspace";
 import { BooksWorkspace } from "@/components/school/librarian/books-workspace";
 import { BorrowersWorkspace } from "@/components/school/librarian/borrowers-workspace";
 import { FinesLostDamagedWorkspace } from "@/components/school/librarian/fines-lost-damaged-workspace";
@@ -295,12 +296,12 @@ const LIVE_ROLE_CONFIG: Record<LiveRole, RoleCommandConfig> = {
   "laboratory-technician": {
     roleTitle: "Laboratory Technician Dashboard",
     roleLabel: "Laboratory Technician",
-    eyebrow: "Laboratory command",
-    subtitle: "Inventory, apparatus, chemicals, practical schedules, safety, and reports",
-    liveLabel: "Live laboratory operations",
+    eyebrow: "School laboratory",
+    subtitle: "Prepare practicals, manage stock, receive returns, and keep laboratory registers",
+    liveLabel: "Today in the laboratory",
     defaultSection: "overview",
-    primarySection: "apparatus-issue",
-    primaryAction: "Issue apparatus",
+    primarySection: "lab-inventory",
+    primaryAction: "Add Item",
     icon: FlaskConical,
     workspaces: {
       overview: LaboratoryOverviewWorkspace,
@@ -308,6 +309,7 @@ const LIVE_ROLE_CONFIG: Record<LiveRole, RoleCommandConfig> = {
       "apparatus-issue": ApparatusIssueWorkspace,
       chemicals: ChemicalsWorkspace,
       "lab-timetable": LabTimetableWorkspace,
+      stocktake: LaboratoryStocktakeWorkspace,
       "safety-incidents": SafetyIncidentsWorkspace,
       reports: LaboratoryReportsWorkspace,
     },

@@ -9,6 +9,10 @@ interface OfflineMutationOptions<TData, TError, TVariables, TContext>
   action: string;
   schoolId: string;
   queryKeysToInvalidate?: any[][];
+  offlinePayload?: (variables: TVariables) => unknown;
+  queueDedupeKey?: (variables: TVariables) => string | undefined;
+  queueServerFailures?: boolean;
+  requireAuthenticatedQueueActor?: boolean;
 }
 
 export function useOfflineMutation<TData = unknown, TError = Error, TVariables = void, TContext = unknown>({
@@ -16,6 +20,10 @@ export function useOfflineMutation<TData = unknown, TError = Error, TVariables =
   action,
   schoolId,
   queryKeysToInvalidate,
+  offlinePayload,
+  queueDedupeKey,
+  queueServerFailures = false,
+  requireAuthenticatedQueueActor = false,
   mutationFn,
   onSuccess,
   onError,
@@ -43,10 +51,18 @@ export function useOfflineMutation<TData = unknown, TError = Error, TVariables =
           error instanceof TypeError || // e.g. Failed to fetch
           error.message?.includes('Network Error') ||
           error.message?.includes('Failed to fetch') ||
-          error.status >= 500;
+          (queueServerFailures && (
+            error.message?.includes('Request timed out') ||
+            error.message?.includes('Request failed: 5') ||
+            error.status >= 500
+          ));
 
         if (isNetworkError) {
-          const userId = auth?.user?.id || 'unknown-user';
+          const authenticatedUserId = auth?.user?.id?.trim();
+          if (requireAuthenticatedQueueActor && !authenticatedUserId) {
+            throw new Error('Your signed-in session could not be confirmed, so this laboratory change was not queued. Your entries are still here; confirm your session and retry.');
+          }
+          const userId = authenticatedUserId || 'unknown-user';
           const deviceId = typeof localStorage !== 'undefined' ? localStorage.getItem('device_id') || 'unknown-device' : 'unknown-device';
           
           await syncQueue.enqueue({
@@ -55,12 +71,18 @@ export function useOfflineMutation<TData = unknown, TError = Error, TVariables =
             deviceId,
             module,
             action,
-            payload: variables,
+            payload: offlinePayload ? offlinePayload(variables) : variables,
+            dedupeKey: queueDedupeKey?.(variables),
           });
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('myshule:offline-queued', {
+              detail: { schoolId, module, action },
+            }));
+          }
 
-          toast?.success("Saved offline. Will sync when connection returns.");
+          toast?.warning("Saved on this device. Waiting to sync when the connection returns.");
 
-          // Return a mock success response so the UI optimistically updates
+          // This is a truthful local queue state, not confirmation from the server.
           return { _offline: true } as unknown as TData;
         }
 
@@ -68,8 +90,7 @@ export function useOfflineMutation<TData = unknown, TError = Error, TVariables =
         throw error;
       }
     },
-    onSuccess: (...args: any[]) => {
-      const [data, variables, context] = args;
+    onSuccess: (data, variables, onMutateResult, context) => {
       // Invalidate relevant queries to update UI optimistically
       if (queryKeysToInvalidate) {
         queryKeysToInvalidate.forEach((key) => {
@@ -78,13 +99,12 @@ export function useOfflineMutation<TData = unknown, TError = Error, TVariables =
       }
       
       if (onSuccess) {
-        (onSuccess as any)(data, variables, context);
+        onSuccess(data, variables, onMutateResult, context);
       }
     },
-    onError: (...args: any[]) => {
-      const [error, variables, context] = args;
+    onError: (error, variables, onMutateResult, context) => {
       if (onError) {
-        (onError as any)(error, variables, context);
+        onError(error, variables, onMutateResult, context);
       }
     },
     ...options,

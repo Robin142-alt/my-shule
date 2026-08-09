@@ -85,6 +85,7 @@ export const SCHOOL_SECTIONS = [
   "coverage-review",
   "marks-moderation",
   "resource-requests",
+  "practical-requisitions",
   "my-timetable",
   "subjects-classes",
   "assignments-homework",

@@ -17,9 +17,9 @@ export class LabEventConsumer implements EventConsumerDescriptor<'lab.request.su
       task_key: `lab-request-${payload.request_id}`,
       assigned_to_role: 'LAB_TECHNICIAN',
       created_by_user_id: payload.requested_by_user_id,
-      title: 'New Lab Equipment Request',
-      description: `Equipment ${payload.equipment_id} requested for ${payload.date_needed}.`,
-      module: 'lab',
+      title: 'New practical request',
+      description: `A practical lesson request needs review for ${payload.date_needed}.`,
+      module: 'laboratory',
       record_id: payload.request_id,
       priority: 'normal',
     });
@@ -29,9 +29,9 @@ export class LabEventConsumer implements EventConsumerDescriptor<'lab.request.su
       notification_key: `lab-request-notification-${payload.request_id}`,
       recipient_role: 'LAB_TECHNICIAN',
       type: 'LAB_REQUEST',
-      title: 'New Lab Equipment Request',
-      body: `A new request for lab equipment has been submitted.`,
-      source_module: 'lab',
+      title: 'New practical request',
+      body: 'A teacher submitted a practical lesson request for laboratory review.',
+      source_module: 'laboratory',
       source_record_id: payload.request_id,
     });
   }

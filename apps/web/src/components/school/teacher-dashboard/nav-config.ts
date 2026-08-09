@@ -19,6 +19,7 @@ import {
   Medal,
   PenTool,
   BarChart3,
+  FlaskConical,
   type LucideIcon,
 } from "lucide-react";
 import { TeacherView } from "./types";
@@ -57,6 +58,7 @@ export const navItems: NavItem[] = [
   
   // Resources & Admin
   { id: "teaching-resources", label: "Teaching Resources", icon: FolderOpen, group: "Resources & Admin" },
+  { id: "practical-requisitions", label: "Practical Requisitions", icon: FlaskConical, group: "Resources & Admin" },
   { id: "store-requests", label: "Store Requests", icon: ShoppingCart, group: "Resources & Admin" },
   { id: "reports", label: "Reports & Downloads", icon: FileText, group: "Resources & Admin" },
   { id: "notifications", label: "Notifications", icon: Bell, group: "Resources & Admin" },

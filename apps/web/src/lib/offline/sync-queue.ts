@@ -20,7 +20,9 @@ export interface OfflineSyncRecord {
   retryCount: number;
   errorMessage?: string;
   createdAtLocal: string;
+  statusUpdatedAt?: string;
   syncedAt?: string;
+  dedupeKey?: string;
 
   // New fields
   type: 'mutation' | 'workflow' | 'module_specific';
@@ -110,7 +112,7 @@ class SyncQueueService {
    * Adds a new record to the offline queue
    */
   async enqueue(
-    recordData: Omit<OfflineSyncRecord, 'id' | 'operationId' | 'status' | 'retryCount' | 'createdAtLocal' | 'type'> & {
+    recordData: Omit<OfflineSyncRecord, 'id' | 'operationId' | 'status' | 'retryCount' | 'createdAtLocal' | 'statusUpdatedAt' | 'type'> & {
       type?: 'mutation' | 'workflow' | 'module_specific';
     },
     isDraft = false
@@ -134,6 +136,7 @@ class SyncQueueService {
       type: z.enum(['mutation', 'workflow', 'module_specific']).default('mutation'),
       workflowBinding: z.string().optional(),
       aggregateId: z.string().optional(),
+      dedupeKey: z.string().trim().min(1).optional(),
     });
 
     const parsedData = EnqueueInputSchema.parse(recordData);
@@ -141,6 +144,7 @@ class SyncQueueService {
     const db = await this.getDB();
     const id = uuidv4();
     const operationId = uuidv4();
+    const createdAtLocal = new Date().toISOString();
 
     const record: OfflineSyncRecord = {
       ...parsedData,
@@ -148,9 +152,30 @@ class SyncQueueService {
       operationId,
       status: isDraft ? 'Draft' : 'Pending',
       retryCount: 0,
-      createdAtLocal: new Date().toISOString(),
+      createdAtLocal,
+      statusUpdatedAt: createdAtLocal,
       type: parsedData.type || 'mutation',
     };
+
+    if (parsedData.dedupeKey) {
+      // Read/write transactions on this store are serialized, so two rapid clicks
+      // cannot create two queue records for the same tenant-scoped operation.
+      const tx = db.transaction('sync_queue', 'readwrite');
+      const existing = (await tx.store.index('by-school').getAll(parsedData.schoolId)).find(
+        (candidate) => candidate.userId === parsedData.userId
+          && candidate.module === parsedData.module
+          && candidate.dedupeKey === parsedData.dedupeKey
+          && ['Draft', 'Pending', 'Syncing', 'Failed'].includes(candidate.status),
+      );
+      if (existing) {
+        await tx.done;
+        return existing;
+      }
+      this.assertTenantSafety(record.schoolId);
+      await tx.store.put(record);
+      await tx.done;
+      return record;
+    }
 
     // Ensure safe write
     await this.putRecord(db, record);
@@ -185,8 +210,11 @@ class SyncQueueService {
     if (record) {
       this.assertTenantSafety(record.schoolId);
       record.status = status;
+      record.statusUpdatedAt = new Date().toISOString();
       if (errorMessage) {
         record.errorMessage = errorMessage;
+      } else if (status !== 'Failed') {
+        delete record.errorMessage;
       }
       if (status === 'Failed') {
         record.retryCount += 1;

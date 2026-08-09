@@ -13,6 +13,7 @@ export type TeacherView =
   | "discipline-welfare"
   | "parent-communication"
   | "teaching-resources"
+  | "practical-requisitions"
   | "store-requests"
   | "reports"
   | "notifications"

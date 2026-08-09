@@ -1,5 +1,5 @@
 import React from "react";
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { syncQueue } from "@/lib/offline/sync-queue";
 import { useOfflineMutation } from "@/lib/offline/use-offline-mutation";
@@ -9,6 +9,8 @@ if (typeof global.structuredClone !== "function") {
   global.structuredClone = (val: any) => JSON.parse(JSON.stringify(val));
 }
 
+let mockOptionalAuthUser: { id: string } | null = { id: "test-user-id" };
+
 // Mock useAuth context
 jest.mock("@/lib/auth/auth-context", () => ({
   useAuth: () => ({
@@ -16,7 +18,7 @@ jest.mock("@/lib/auth/auth-context", () => ({
     isAuthenticated: true,
   }),
   useOptionalAuth: () => ({
-    user: { id: "test-user-id" },
+    user: mockOptionalAuthUser,
     isAuthenticated: true,
   }),
 }));
@@ -90,6 +92,10 @@ describe("Offline Sync Queue School ID Validation", () => {
 });
 
 describe("useOfflineMutation Hook School ID Validation", () => {
+  beforeEach(() => {
+    mockOptionalAuthUser = { id: "test-user-id" };
+  });
+
   it("should throw a Tenant Isolation Violation error if schoolId is empty when rendering hook", () => {
     const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
 
@@ -140,5 +146,30 @@ describe("useOfflineMutation Hook School ID Validation", () => {
       { wrapper: createWrapper() }
     );
     expect(result.current.mutate).toBeDefined();
+  });
+
+  it("does not strand a laboratory mutation under unknown-user when authentication is unavailable", async () => {
+    mockOptionalAuthUser = null;
+    const schoolId = "lab-school-without-actor";
+    const { result } = renderHook(
+      () =>
+        useOfflineMutation({
+          module: "labs",
+          action: "add-stock",
+          schoolId,
+          requireAuthenticatedQueueActor: true,
+          mutationFn: async () => {
+            throw new TypeError("Failed to fetch");
+          },
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await act(async () => {
+      await expect(result.current.mutateAsync()).rejects.toThrow(
+        "this laboratory change was not queued",
+      );
+    });
+    expect(await syncQueue.getAllForSchool(schoolId)).toHaveLength(0);
   });
 });
