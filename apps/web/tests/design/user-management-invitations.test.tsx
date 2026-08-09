@@ -2,6 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { SchoolPages } from "@/components/school/school-pages";
+import { UserManagementWorkspace } from "@/components/school/user-management-workspace";
 import {
   addSchoolRecord,
   readSchoolData,
@@ -633,7 +634,28 @@ describe("school-scoped user management and invitations", () => {
       const method = init?.method ?? "GET";
 
       if (url.startsWith("/api/auth/invitations") && method === "GET") {
-        return Promise.resolve(jsonResponse({ users: [] }));
+        return Promise.resolve(jsonResponse({
+          users: [
+            {
+              id: "membership-kibabi-live-teacher",
+              kind: "member",
+              display_name: "Kibabi Live Teacher",
+              email: "teacher@kibabi.example.test",
+              role_code: "teacher",
+              role_name: "Teacher",
+              status: "active",
+            },
+            {
+              id: "invite-kibabi-live-parent",
+              kind: "invitation",
+              display_name: "Kibabi Pending Parent",
+              email: "parent@kibabi.example.test",
+              role_code: "parent",
+              role_name: "Parent",
+              status: "invited",
+            },
+          ],
+        }));
       }
 
       if (url === "/api/auth/csrf") {
@@ -670,6 +692,10 @@ describe("school-scoped user management and invitations", () => {
     expect(within(commandCenter).getAllByRole("heading", { name: /Users & Invitations/i }).length).toBeGreaterThan(0);
     expect(within(commandCenter).getByText(/Deputy Principal can invite school users in Kisumu Boys/i)).toBeVisible();
     expect(within(commandCenter).queryByRole("option", { name: /Super Admin/i })).not.toBeInTheDocument();
+    expect(await within(commandCenter).findByText("Kibabi Live Teacher")).toBeVisible();
+    expect(within(commandCenter).getByText("1 active users")).toBeVisible();
+    expect(within(commandCenter).getByText("1 pending invites")).toBeVisible();
+    expect(within(commandCenter).queryByText(/Live user service is unavailable/i)).not.toBeInTheDocument();
 
     await user.click(within(commandCenter).getByRole("button", { name: /Invite New User/i }));
     await user.type(within(commandCenter).getByLabelText(/Full name/i), "Mr. Otieno");
@@ -689,5 +715,133 @@ describe("school-scoped user management and invitations", () => {
         }),
       ]),
     );
+  }, 30000);
+
+  it("uses the same live tenant users and invitations for Principal and Deputy Principal", async () => {
+    const liveUsers = [
+      {
+        id: "membership-kibabi-shared-teacher",
+        kind: "member",
+        display_name: "Kibabi Shared Teacher",
+        email: "shared.teacher@kibabi.example.test",
+        role_code: "teacher",
+        role_name: "Teacher",
+        status: "active",
+      },
+      {
+        id: "invite-kibabi-shared-parent",
+        kind: "invitation",
+        display_name: "Kibabi Shared Parent",
+        email: "shared.parent@kibabi.example.test",
+        role_code: "parent",
+        role_name: "Parent",
+        status: "invited",
+      },
+    ];
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).startsWith("/api/auth/invitations") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve(jsonResponse({ users: liveUsers }));
+      }
+
+      return Promise.resolve(jsonResponse({}));
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const principal = renderWithProviders(
+      <UserManagementWorkspace
+        schoolId="kibabi-high"
+        schoolName="Kibabi"
+        actorRole="Principal"
+        actorName="Principal Wanjiku"
+      />,
+    );
+
+    expect(await screen.findByText("Kibabi Shared Teacher")).toBeVisible();
+    expect(screen.getByText("1 active users")).toBeVisible();
+    expect(screen.getByText("1 pending invites")).toBeVisible();
+    principal.unmount();
+    window.localStorage.clear();
+
+    renderWithProviders(
+      <UserManagementWorkspace
+        schoolId="kibabi-high"
+        schoolName="Kibabi"
+        actorRole="Deputy Principal"
+        actorName="Deputy Otieno"
+      />,
+    );
+
+    expect(await screen.findByText("Kibabi Shared Teacher")).toBeVisible();
+    expect(screen.getByText("1 active users")).toBeVisible();
+    expect(screen.getByText("1 pending invites")).toBeVisible();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(readSchoolData("school-users", "kibabi-high")).toEqual([
+      expect.objectContaining({ id: "membership-kibabi-shared-teacher", schoolId: "kibabi-high" }),
+    ]);
+  }, 30000);
+
+  it("reports a user-management permission failure instead of a false service outage", async () => {
+    seedSchoolUser("kibabi-high", {
+      id: "cached-kibabi-teacher",
+      name: "Cached Kibabi Teacher",
+      email: "cached.teacher@kibabi.example.test",
+    });
+    addSchoolRecord("user-invitations", {
+      id: "cached-kibabi-invitation",
+      invitedName: "Cached Kibabi Parent",
+      phone: "0712000001",
+      email: "cached.parent@kibabi.example.test",
+      role: "Parent",
+      department: "School access",
+      assignment: "Parent",
+      identifier: "",
+      deliveryMethod: "Email",
+      note: "",
+      invitedByUserId: "principal-1",
+      invitedByRole: "Principal",
+      invitationStatus: "Pending",
+      inviteCode: "Hidden after delivery",
+      inviteToken: "Hidden after delivery",
+      expiryDate: "2026-08-16T09:00:00.000Z",
+      createdAt: "2026-08-09T09:00:00.000Z",
+      updatedAt: "2026-08-09T09:00:00.000Z",
+    }, "kibabi-high");
+    addSchoolRecord("user-management-audit", {
+      id: "cached-kibabi-audit",
+      action: "User updated",
+      actorUser: "Principal Wanjiku",
+      actorRole: "Principal",
+      target: "Cached Kibabi Teacher",
+      timestamp: "2026-08-09T09:00:00.000Z",
+    }, "kibabi-high");
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).startsWith("/api/auth/invitations") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve(jsonResponse(
+          { message: "Missing required permission users:read." },
+          { status: 403 },
+        ));
+      }
+
+      return Promise.resolve(jsonResponse({}));
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    renderWithProviders(
+      <UserManagementWorkspace
+        schoolId="kibabi-high"
+        schoolName="Kibabi"
+        actorRole="Deputy Principal"
+        actorName="Deputy Otieno"
+      />,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Permission-based access denied/i);
+    expect(screen.queryByText(/Live user service is unavailable/i)).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("Cached Kibabi Teacher")).not.toBeInTheDocument();
+      expect(readSchoolData("school-users", "kibabi-high")).toEqual([]);
+      expect(readSchoolData("user-invitations", "kibabi-high")).toEqual([]);
+      expect(readSchoolData("user-management-audit", "kibabi-high")).toEqual([]);
+    });
   }, 30000);
 });

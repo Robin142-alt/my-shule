@@ -67,7 +67,12 @@ export async function proxySchoolApiRequest(input: SchoolProxyRequest) {
   let response = await fetchSchoolApi(session, input);
   let payload = await response.json().catch(() => null);
 
-  if (response.status !== 401) {
+  // Role baselines can add a permission after a long-lived school session was
+  // created. Refresh once on a 403 so the retried request uses the current
+  // tenant-scoped permission snapshot, then return a genuine denial unchanged.
+  const needsSessionRefresh = response.status === 401 || response.status === 403;
+
+  if (!needsSessionRefresh) {
     const nextResponse = createSchoolApiResponse(response, payload, input);
 
     if (refreshedSession) {
@@ -81,8 +86,14 @@ export async function proxySchoolApiRequest(input: SchoolProxyRequest) {
 
   if (didRefreshSession) {
     const nextResponse = createSchoolApiResponse(response, payload, input);
-    clearExperienceSessionCookies(nextResponse);
-    nextResponse.headers.set("x-myshule-session-expired", "1");
+    if (response.status === 401) {
+      clearExperienceSessionCookies(nextResponse);
+      nextResponse.headers.set("x-myshule-session-expired", "1");
+    } else if (refreshedSession) {
+      setExperienceSessionCookies(nextResponse, refreshedSession.session, {
+        rememberSession: refreshedSession.rememberSession,
+      });
+    }
     return nextResponse;
   }
 

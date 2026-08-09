@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomBytes } from 'node:crypto';
 
@@ -91,6 +91,11 @@ type MembershipProfileTargetRow = {
   user_id: string;
   display_name: string;
   email: string;
+  role_code: string;
+};
+
+type MembershipManagementTargetRow = {
+  role_code: string;
 };
 
 type InvitationEmailDelivery = {
@@ -166,6 +171,8 @@ export class TenantInvitationsService {
         throw new BadRequestException('A Principal cannot invite another Principal.');
       }
     }
+
+    this.assertDeputyCanManageRole(roleCode, 'invite');
 
     if (!displayName) {
       throw new BadRequestException('Invitee display name is required.');
@@ -452,6 +459,7 @@ export class TenantInvitationsService {
       await this.assertEmailAvailableForTenant(invitation.email, tenantId);
 
       const roleCode = this.normalizeRoleCode(invitation.role_code);
+      this.assertDeputyCanManageRole(roleCode, 'resend an invitation for');
       const role = await this.authorizationRepository.getRoleByCode(tenantId, roleCode);
       const schoolName = await this.getSchoolName(tenantId);
       const roleName = this.displayRoleName(role.name || invitation.role_name, roleCode);
@@ -555,26 +563,36 @@ export class TenantInvitationsService {
   ): Promise<TenantInvitationActionResponseDto> {
     const tenantId = this.requireTenantId();
     const context = this.requestContext.requireStore();
-    const result = await this.databaseService.query<{ id: string }>(
-      `
-        UPDATE auth_action_tokens
-        SET
-          consumed_at = NOW(),
-          metadata = metadata || jsonb_build_object(
-            'status', 'revoked',
-            'revoked_by_user_id', $3,
-            'revoked_at', NOW()
-          ),
-          updated_at = NOW()
-        WHERE id = $1
-          AND tenant_id = $2
-          AND purpose = 'invite_acceptance'
-          AND consumed_at IS NULL
-          AND metadata->>'purpose' = 'tenant_user_invitation'
-        RETURNING id::text
-      `,
-      [invitationId, tenantId, context.user_id],
-    );
+    const result = await this.databaseService.withRequestTransaction(async () => {
+      if (this.isDeputyPrincipal()) {
+        const invitation = await this.loadPendingTenantInvitationForUpdate(invitationId, tenantId);
+        this.assertDeputyCanManageRole(
+          this.normalizeRoleCode(invitation.role_code),
+          'revoke an invitation for',
+        );
+      }
+
+      return this.databaseService.query<{ id: string }>(
+        `
+          UPDATE auth_action_tokens
+          SET
+            consumed_at = NOW(),
+            metadata = metadata || jsonb_build_object(
+              'status', 'revoked',
+              'revoked_by_user_id', $3,
+              'revoked_at', NOW()
+            ),
+            updated_at = NOW()
+          WHERE id = $1
+            AND tenant_id = $2
+            AND purpose = 'invite_acceptance'
+            AND consumed_at IS NULL
+            AND metadata->>'purpose' = 'tenant_user_invitation'
+          RETURNING id::text
+        `,
+        [invitationId, tenantId, context.user_id],
+      );
+    });
 
     if (!result.rows[0]) {
       throw new NotFoundException('Pending invitation was not found.');
@@ -597,6 +615,11 @@ export class TenantInvitationsService {
     const tenantId = this.requireTenantId();
     const staffStatus = status === 'revoked' ? 'archived' : status;
     return this.databaseService.withRequestTransaction(async () => {
+      if (this.isDeputyPrincipal()) {
+        const target = await this.loadTenantMembershipForManagement(membershipId, tenantId);
+        this.assertDeputyCanManageRole(target.role_code, 'change the status of');
+      }
+
       const result = await this.databaseService.query<TenantManagedUserRow>(
         `
           UPDATE tenant_memberships tm
@@ -702,10 +725,14 @@ export class TenantInvitationsService {
           SELECT
             tm.user_id::text AS user_id,
             COALESCE(NULLIF(tm.metadata->>'display_name', ''), u.display_name) AS display_name,
-            lower(u.email) AS email
+            lower(u.email) AS email,
+            r.code AS role_code
           FROM tenant_memberships tm
           JOIN users u
             ON u.id = tm.user_id
+          JOIN roles r
+            ON r.id = tm.role_id
+           AND r.tenant_id = tm.tenant_id
           WHERE tm.id = $1
             AND tm.tenant_id = $2
           LIMIT 1
@@ -718,6 +745,8 @@ export class TenantInvitationsService {
       if (!target) {
         throw new NotFoundException('Tenant membership was not found.');
       }
+
+      this.assertDeputyCanManageRole(target.role_code, 'update');
 
       const conflictResult = await this.databaseService.query<{ id: string }>(
         `
@@ -834,53 +863,61 @@ export class TenantInvitationsService {
     await this.authorizationRepository.ensureTenantAuthorizationBaseline(tenantId);
     const role = await this.authorizationRepository.getRoleByCode(tenantId, roleCode);
 
-    const result = await this.databaseService.query<TenantManagedUserRow>(
-      `
-        UPDATE tenant_memberships tm
-        SET
-          role_id = $3,
-          updated_at = NOW()
-        FROM users u, roles r
-        WHERE tm.id = $1
-          AND tm.tenant_id = $2
-          AND u.id = tm.user_id
-          AND r.id = $3
-          AND r.tenant_id = tm.tenant_id
-        RETURNING
-          tm.id::text AS id,
-          'member'::text AS kind,
-          COALESCE(NULLIF(tm.metadata->>'display_name', ''), u.display_name) AS display_name,
-          lower(u.email) AS email,
-          r.code AS role_code,
-          r.name AS role_name,
-          tm.status,
-          NULLIF(tm.metadata->>'phone', '') AS phone,
-          NULLIF(tm.metadata->>'department', '') AS department,
-          NULLIF(tm.metadata->>'assignment', '') AS assignment,
-          NULLIF(tm.metadata->>'tsc_number', '') AS tsc_number,
-          NULLIF(tm.metadata->>'employment_type', '') AS employment_type,
-          NULL::text AS identifier,
-          NULL::text AS delivery_method,
-          NULL::text AS note,
-          NULL::timestamptz AS expires_at,
-          tm.created_at
-      `,
-      [membershipId, tenantId, role.id],
-    );
+    return this.databaseService.withRequestTransaction(async () => {
+      if (this.isDeputyPrincipal()) {
+        const target = await this.loadTenantMembershipForManagement(membershipId, tenantId);
+        this.assertDeputyCanManageRole(target.role_code, 'change the role of');
+        this.assertDeputyCanManageRole(roleCode, 'assign');
+      }
 
-    if (!result.rows[0]) {
-      throw new NotFoundException('Tenant membership was not found.');
-    }
+      const result = await this.databaseService.query<TenantManagedUserRow>(
+        `
+          UPDATE tenant_memberships tm
+          SET
+            role_id = $3,
+            updated_at = NOW()
+          FROM users u, roles r
+          WHERE tm.id = $1
+            AND tm.tenant_id = $2
+            AND u.id = tm.user_id
+            AND r.id = $3
+            AND r.tenant_id = tm.tenant_id
+          RETURNING
+            tm.id::text AS id,
+            'member'::text AS kind,
+            COALESCE(NULLIF(tm.metadata->>'display_name', ''), u.display_name) AS display_name,
+            lower(u.email) AS email,
+            r.code AS role_code,
+            r.name AS role_name,
+            tm.status,
+            NULLIF(tm.metadata->>'phone', '') AS phone,
+            NULLIF(tm.metadata->>'department', '') AS department,
+            NULLIF(tm.metadata->>'assignment', '') AS assignment,
+            NULLIF(tm.metadata->>'tsc_number', '') AS tsc_number,
+            NULLIF(tm.metadata->>'employment_type', '') AS employment_type,
+            NULL::text AS identifier,
+            NULL::text AS delivery_method,
+            NULL::text AS note,
+            NULL::timestamptz AS expires_at,
+            tm.created_at
+        `,
+        [membershipId, tenantId, role.id],
+      );
 
-    const membership = this.mapManagedUser(result.rows[0]);
-    await this.recordAudit('tenant.membership.role_changed', 'tenant_membership', membership.id, {
-      email: membership.email,
-      display_name: membership.display_name,
-      role_code: roleCode,
-      role_name: membership.role_name,
+      if (!result.rows[0]) {
+        throw new NotFoundException('Tenant membership was not found.');
+      }
+
+      const membership = this.mapManagedUser(result.rows[0]);
+      await this.recordAudit('tenant.membership.role_changed', 'tenant_membership', membership.id, {
+        email: membership.email,
+        display_name: membership.display_name,
+        role_code: roleCode,
+        role_name: membership.role_name,
+      });
+
+      return membership;
     });
-
-    return membership;
   }
 
   private normalizeRoleCode(roleCode: string): TenantInvitableRoleCode {
@@ -1226,6 +1263,52 @@ export class TenantInvitationsService {
 
     if (!result.rows[0]) {
       throw new NotFoundException('Pending invitation was not found.');
+    }
+
+    return result.rows[0];
+  }
+
+  private isDeputyPrincipal(): boolean {
+    return this.requestContext.requireStore().role?.trim().toLowerCase() === 'deputy_principal';
+  }
+
+  private assertDeputyCanManageRole(targetRoleCode: string, action: string): void {
+    if (!this.isDeputyPrincipal()) {
+      return;
+    }
+
+    const targetRole = targetRoleCode.trim().toLowerCase();
+    const deputyLevel = ROLE_HIERARCHY.deputy_principal;
+    const targetLevel = ROLE_HIERARCHY[targetRole] ?? Number.POSITIVE_INFINITY;
+
+    if (targetLevel >= deputyLevel) {
+      throw new ForbiddenException(
+        `Deputy Principals cannot ${action} a Principal, another Deputy Principal, or a higher-privilege school user.`,
+      );
+    }
+  }
+
+  private async loadTenantMembershipForManagement(
+    membershipId: string,
+    tenantId: string,
+  ): Promise<MembershipManagementTargetRow> {
+    const result = await this.databaseService.query<MembershipManagementTargetRow>(
+      `
+        SELECT r.code AS role_code
+        FROM tenant_memberships tm
+        INNER JOIN roles r
+          ON r.id = tm.role_id
+         AND r.tenant_id = tm.tenant_id
+        WHERE tm.id = $1
+          AND tm.tenant_id = $2
+        LIMIT 1
+        FOR UPDATE OF tm
+      `,
+      [membershipId, tenantId],
+    );
+
+    if (!result.rows[0]) {
+      throw new NotFoundException('Tenant membership was not found.');
     }
 
     return result.rows[0];

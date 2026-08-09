@@ -65,6 +65,17 @@ test('buildRoleGovernancePolicy lets principal and deputy manage the academic fo
     assert.equal(role?.permissions.includes('academics:write'), true);
     assert.equal(role?.permissions.includes('academics:assign-teachers'), true);
   }
+
+  const deputy = policy.roles.find((candidate) => candidate.code === 'deputy_principal');
+  for (const permission of [
+    'users:read',
+    'users:write',
+    'tenant_memberships:read',
+    'tenant_memberships:write',
+    'roles:read',
+  ]) {
+    assert.equal(deputy?.permissions.includes(permission), true);
+  }
 });
 
 test('buildRoleGovernancePolicy limits fee follow-up to school office roles', () => {

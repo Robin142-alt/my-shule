@@ -136,6 +136,11 @@ const ROLE_PERMISSIONS: Partial<Record<BlueprintUserRole, readonly string[]>> = 
   deputy_principal: [
     'deputy:read',
     'deputy:write',
+    'users:read',
+    'users:write',
+    'tenant_memberships:read',
+    'tenant_memberships:write',
+    'roles:read',
     'students:read',
     'finance:follow-up',
     'academics:read',

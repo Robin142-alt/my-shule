@@ -511,7 +511,17 @@ export function UserManagementWorkspace({
         const rawPayload = await response.json().catch(() => null);
 
         if (!response.ok) {
-          throw new Error(readApiMessage(rawPayload) ?? "Unable to load live school users.");
+          const message = readApiMessage(rawPayload) ?? "Unable to load live school users.";
+
+          if (response.status === 401) {
+            throw new Error(`Your school session has expired. Sign in again to load live user records. ${message}`);
+          }
+
+          if (response.status === 403) {
+            throw new Error(`Permission-based access denied: ${message}`);
+          }
+
+          throw new Error(message);
         }
 
         const payload = readManagedUsersPayload(rawPayload);
@@ -530,9 +540,28 @@ export function UserManagementWorkspace({
         writeSchoolData(invitationModule, live.invitations, schoolId);
         setUsers(live.users);
         setInvitations(live.invitations);
-      } catch {
+      } catch (liveAccessError) {
         if (mounted) {
-          setNotice((current) => current ?? "Live user service is unavailable. Showing saved school user records.");
+          const message = liveAccessError instanceof Error
+            ? liveAccessError.message
+            : "Live user service is unavailable. Showing saved school user records.";
+          const isAccessFailure = message.startsWith("Permission-based access denied:")
+            || message.startsWith("Your school session has expired.");
+
+          if (isAccessFailure) {
+            // A local browser cache is only a degraded-service fallback. It
+            // must never survive a definitive access denial for this school.
+            writeSchoolData(userModule, [], schoolId);
+            writeSchoolData(invitationModule, [], schoolId);
+            writeSchoolData(userAuditModule, [], schoolId);
+            setUsers([]);
+            setInvitations([]);
+            setAuditRecords([]);
+            setError(message);
+            setNotice(null);
+          } else {
+            setNotice((current) => current ?? "Live user service is unavailable. Showing saved school user records.");
+          }
         }
       }
     }

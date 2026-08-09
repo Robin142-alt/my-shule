@@ -100,6 +100,27 @@ test('AuthorizationRepository bootstraps default authorization with set-based qu
 
   assert.equal(queries.length, 3);
   assert.equal(queries.every((query) => query.text.includes('jsonb_to_recordset')), true);
+
+  const seededRolePermissions = JSON.parse(String(queries[2]?.values[1])) as Array<{
+    role_code: string;
+    resource: string;
+    action: string;
+  }>;
+  const deputyPermissions = seededRolePermissions
+    .filter((permission) => permission.role_code === 'deputy_principal')
+    .map((permission) => `${permission.resource}:${permission.action}`);
+
+  for (const requiredPermission of [
+    'users:read',
+    'users:write',
+    'tenant_memberships:read',
+    'tenant_memberships:write',
+  ]) {
+    assert.ok(
+      deputyPermissions.includes(requiredPermission),
+      `baseline should provision ${requiredPermission} for Deputy Principal`,
+    );
+  }
 });
 
 test('Default school invite catalog exposes the required school operating roles', () => {
@@ -154,6 +175,11 @@ test('Default school invite catalog exposes the required school operating roles'
   const deputyPrincipal = catalogByCode.get('deputy_principal');
   assert.ok(deputyPrincipal, 'deputy principal role should be present');
   const deputyPermissions = deputyPrincipal.permissions as readonly string[];
+  assert.ok(deputyPermissions.includes('users:read'));
+  assert.ok(deputyPermissions.includes('users:write'));
+  assert.ok(deputyPermissions.includes('tenant_memberships:read'));
+  assert.ok(deputyPermissions.includes('tenant_memberships:write'));
+  assert.ok(deputyPermissions.includes('roles:read'));
   assert.ok(deputyPermissions.includes('academics:write'));
   assert.ok(deputyPermissions.includes('academics:assign-teachers'));
 });

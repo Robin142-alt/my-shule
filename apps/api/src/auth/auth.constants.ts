@@ -526,6 +526,15 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Daily operations, discipline, duty roster, and timetable execution access',
     permissions: [
       'auth:read',
+      // The Deputy Users & Invitations workspace reads and manages the same
+      // tenant-scoped membership projection as the Principal workspace.
+      // Target-role checks in TenantInvitationsService keep this from granting
+      // authority over the Principal or peer leadership accounts.
+      'users:read',
+      'users:write',
+      'tenant_memberships:read',
+      'tenant_memberships:write',
+      'roles:read',
       'deputy:read',
       'deputy:write',
       'students:read',

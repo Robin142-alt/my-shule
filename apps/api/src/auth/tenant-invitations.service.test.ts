@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { BadRequestException, ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, ValidationPipe } from '@nestjs/common';
 
 import { CreateTenantInvitationDto } from './dto/tenant-invitation.dto';
 import { EmailDeliveryError } from './auth-email.service';
@@ -957,6 +957,51 @@ test('TenantInvitationsService updates tenant membership role after validating r
   assert.deepEqual(roleLookups, [{ tenantId: 'green-valley', code: 'teacher' }]);
   assert.match(queries[0]?.text ?? '', /UPDATE tenant_memberships/);
   assert.deepEqual(queries[0]?.values, ['membership-1', 'green-valley', 'role-teacher']);
+});
+
+test('TenantInvitationsService prevents a deputy principal from changing a principal membership', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+
+  const service = new TenantInvitationsService(
+    {
+      withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
+      query: async (text: string, values: unknown[]) => {
+        queries.push({ text, values });
+
+        if (text.includes('SELECT r.code AS role_code')) {
+          return { rows: [{ role_code: 'principal' }] };
+        }
+
+        throw new Error('A protected membership must not be updated.');
+      },
+    } as never,
+    {
+      ensureTenantAuthorizationBaseline: async () => undefined,
+      getRoleByCode: async () => ({ id: 'role-teacher', code: 'teacher' }),
+    } as never,
+    {
+      assertTransactionalEmailConfigured: () => undefined,
+      sendInvitationEmail: async () => undefined,
+    } as never,
+    { get: () => undefined } as never,
+    {
+      requireStore: () => ({
+        tenant_id: 'kibabi-high',
+        user_id: 'deputy-1',
+        role: 'deputy_principal',
+      }),
+    } as never,
+  );
+
+  await assert.rejects(
+    () => service.updateTenantMembershipStatus('principal-membership', 'suspended'),
+    (error: unknown) => error instanceof ForbiddenException
+      && /cannot change the status of a Principal/i.test(error.message),
+  );
+
+  assert.equal(queries.length, 1);
+  assert.match(queries[0]?.text ?? '', /FOR UPDATE OF tm/);
+  assert.deepEqual(queries[0]?.values, ['principal-membership', 'kibabi-high']);
 });
 
 test('TenantInvitationsService records audit logs for invitation and membership actions', async () => {
