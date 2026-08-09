@@ -196,7 +196,8 @@ export class IntegrationsSchemaService implements OnModuleInit {
         expires_at timestamptz NOT NULL,
         consumed_at timestamptz,
         attempts integer NOT NULL DEFAULT 0,
-        created_at timestamptz NOT NULL DEFAULT NOW()
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
       );
 
       DO $$
@@ -430,7 +431,13 @@ export class IntegrationsSchemaService implements OnModuleInit {
       ALTER TABLE parent_otp_challenges
         ADD COLUMN IF NOT EXISTS purpose text NOT NULL DEFAULT 'parent_login',
         ADD COLUMN IF NOT EXISTS consumed_at timestamptz,
-        ADD COLUMN IF NOT EXISTS attempts integer NOT NULL DEFAULT 0;
+        ADD COLUMN IF NOT EXISTS attempts integer NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT NOW(),
+        ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
+      UPDATE parent_otp_challenges
+      SET created_at = COALESCE(created_at, updated_at, NOW()),
+          updated_at = COALESCE(updated_at, created_at, NOW())
+      WHERE created_at IS NULL OR updated_at IS NULL;
       ALTER TABLE parent_otp_challenges
         ALTER COLUMN user_id DROP NOT NULL,
         ALTER COLUMN phone_hash DROP NOT NULL,
@@ -439,7 +446,11 @@ export class IntegrationsSchemaService implements OnModuleInit {
         ALTER COLUMN purpose SET DEFAULT 'parent_login',
         ALTER COLUMN purpose SET NOT NULL,
         ALTER COLUMN attempts SET DEFAULT 0,
-        ALTER COLUMN attempts SET NOT NULL;
+        ALTER COLUMN attempts SET NOT NULL,
+        ALTER COLUMN created_at SET DEFAULT NOW(),
+        ALTER COLUMN created_at SET NOT NULL,
+        ALTER COLUMN updated_at SET DEFAULT NOW(),
+        ALTER COLUMN updated_at SET NOT NULL;
 
       CREATE INDEX IF NOT EXISTS ix_sms_logs_tenant_created ON sms_logs (tenant_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS ix_sms_logs_tenant_status_created ON sms_logs (tenant_id, status, created_at DESC);

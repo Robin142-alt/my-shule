@@ -136,7 +136,8 @@ export class ParentPortalAuthRepository {
       `
         WITH invalidated AS (
           UPDATE parent_otp_challenges
-          SET consumed_at = NOW()
+          SET consumed_at = NOW(),
+              updated_at = NOW()
           WHERE tenant_id = $1
             AND user_id = $2::uuid
             AND purpose = $7
@@ -151,11 +152,14 @@ export class ParentPortalAuthRepository {
           phone_last4,
           otp_hash,
           purpose,
-          expires_at
+          expires_at,
+          created_at,
+          updated_at
         )
-        VALUES ($1, $2::uuid, $3, $4, $5, $6, $7, $8::timestamptz)
+        VALUES ($1, $2::uuid, $3, $4, $5, $6, $7, $8::timestamptz, NOW(), NOW())
         RETURNING id::text, tenant_id, user_id::text, email, phone_hash, phone_last4,
-                  otp_hash, purpose, expires_at, consumed_at, attempts
+                  otp_hash, purpose, expires_at, consumed_at, attempts,
+                  created_at, updated_at
       `,
       [
         input.tenant_id,
@@ -217,7 +221,8 @@ export class ParentPortalAuthRepository {
     const result = await this.executeSql<{ id: string }>(
       `
         UPDATE parent_otp_challenges
-        SET consumed_at = NOW()
+        SET consumed_at = NOW(),
+            updated_at = NOW()
         WHERE tenant_id = $1
           AND id = $2::uuid
           AND consumed_at IS NULL
@@ -234,7 +239,8 @@ export class ParentPortalAuthRepository {
     await this.executeSql(
       `
         UPDATE parent_otp_challenges
-        SET attempts = attempts + 1
+        SET attempts = attempts + 1,
+            updated_at = NOW()
         WHERE tenant_id = $1
           AND id = $2::uuid
       `,
@@ -252,7 +258,8 @@ export class ParentPortalAuthRepository {
       `
         WITH consumed AS (
           UPDATE parent_otp_challenges
-          SET consumed_at = NOW()
+          SET consumed_at = NOW(),
+              updated_at = NOW()
           WHERE tenant_id = $1
             AND id = $2::uuid
             AND user_id = $3::uuid
@@ -302,7 +309,8 @@ export class ParentPortalAuthRepository {
       `
         WITH consumed AS (
           UPDATE parent_otp_challenges
-          SET consumed_at = NOW()
+          SET consumed_at = NOW(),
+              updated_at = NOW()
           WHERE tenant_id = $1
             AND id = $2::uuid
             AND user_id = $3::uuid

@@ -22,6 +22,7 @@ import { SchoolSmsWalletService } from './school-sms-wallet.service';
 import { SchoolSmsWalletRepository } from './school-sms-wallet.repository';
 import { SmsDispatchService } from './sms-dispatch.service';
 import { DarajaIntegrationService } from './daraja-integration.service';
+import { ParentPortalAuthRepository } from './parent-portal-auth.repository';
 import { ParentPortalAuthService } from './parent-portal-auth.service';
 
 test('IntegrationsSchemaService creates tenant-scoped SMS, Daraja, parent OTP, and onboarding tables', async () => {
@@ -38,6 +39,10 @@ test('IntegrationsSchemaService creates tenant-scoped SMS, Daraja, parent OTP, a
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS school_sms_wallets/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS school_integrations/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS parent_otp_challenges/);
+  assert.match(
+    schemaSql,
+    /ALTER COLUMN updated_at SET DEFAULT NOW\(\),\s*ALTER COLUMN updated_at SET NOT NULL/,
+  );
   assert.match(schemaSql, /request_path NOT IN \('\/auth\/parent\/otp\/request', '\/auth\/parent\/otp\/verify'\)/);
   const dropOtpVerifyFunction = schemaSql.indexOf(
     'DROP FUNCTION IF EXISTS app.find_parent_otp_challenge_for_verify(uuid)',
@@ -48,6 +53,59 @@ test('IntegrationsSchemaService creates tenant-scoped SMS, Daraja, parent OTP, a
   assert.ok(dropOtpVerifyFunction >= 0);
   assert.ok(createOtpVerifyFunction > dropOtpVerifyFunction);
   assert.match(schemaSql, /ALTER TABLE school_sms_wallets FORCE ROW LEVEL SECURITY/);
+});
+
+test('ParentPortalAuthRepository writes complete challenge timestamps required by production', async () => {
+  let capturedSql = '';
+  let capturedParams: unknown[] = [];
+  const repository = new ParentPortalAuthRepository({
+    query: async (sql: string, params: unknown[]) => {
+      capturedSql = sql;
+      capturedParams = params;
+      return {
+        rows: [{
+          id: 'challenge-1',
+          tenant_id: 'tenant-a',
+          user_id: '00000000-0000-4000-8000-000000000001',
+          email: 'ADM-00001',
+          phone_hash: 'phone-hash',
+          phone_last4: '2589',
+          otp_hash: 'otp-hash',
+          purpose: 'parent_login',
+          expires_at: '2026-08-09T02:15:00.000Z',
+          consumed_at: null,
+          attempts: 0,
+          created_at: '2026-08-09T02:05:00.000Z',
+          updated_at: '2026-08-09T02:05:00.000Z',
+        }],
+        rowCount: 1,
+      };
+    },
+  } as never);
+
+  await repository.createOtpChallenge({
+    tenant_id: 'tenant-a',
+    user_id: '00000000-0000-4000-8000-000000000001',
+    email: 'ADM-00001',
+    phone_hash: 'phone-hash',
+    phone_last4: '2589',
+    otp_hash: 'otp-hash',
+    expires_at: '2026-08-09T02:15:00.000Z',
+  });
+
+  assert.match(capturedSql, /SET consumed_at = NOW\(\),\s*updated_at = NOW\(\)/);
+  assert.match(capturedSql, /expires_at,\s*created_at,\s*updated_at/);
+  assert.match(capturedSql, /\$8::timestamptz, NOW\(\), NOW\(\)/);
+  assert.deepEqual(capturedParams, [
+    'tenant-a',
+    '00000000-0000-4000-8000-000000000001',
+    'ADM-00001',
+    'phone-hash',
+    '2589',
+    'otp-hash',
+    'parent_login',
+    '2026-08-09T02:15:00.000Z',
+  ]);
 });
 
 test('PlatformSmsService stores encrypted credentials and returns only masked provider metadata', async () => {
