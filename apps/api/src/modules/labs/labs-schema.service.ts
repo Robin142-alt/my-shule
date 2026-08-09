@@ -531,6 +531,10 @@ export class LabsSchemaService implements OnModuleInit {
       ALTER TABLE lab_equipment ALTER COLUMN department_id DROP NOT NULL;
       ALTER TABLE lab_equipment ALTER COLUMN lab_id DROP NOT NULL;
       ALTER TABLE lab_equipment ALTER COLUMN asset_tag DROP NOT NULL;
+      -- Existing schools may have the earlier quantity-only apparatus register.
+      -- Add the newer condition buckets before altering their numeric precision.
+      ALTER TABLE lab_equipment ADD COLUMN IF NOT EXISTS quantity_in_use numeric(12, 3) NOT NULL DEFAULT 0;
+      ALTER TABLE lab_equipment ADD COLUMN IF NOT EXISTS quantity_damaged numeric(12, 3) NOT NULL DEFAULT 0;
       ALTER TABLE lab_equipment ALTER COLUMN quantity_total TYPE numeric(12, 3) USING quantity_total::numeric;
       ALTER TABLE lab_equipment ALTER COLUMN quantity_available TYPE numeric(12, 3) USING quantity_available::numeric;
       ALTER TABLE lab_equipment ALTER COLUMN quantity_in_use TYPE numeric(12, 3) USING quantity_in_use::numeric;

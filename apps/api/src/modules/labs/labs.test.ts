@@ -54,6 +54,12 @@ test('LabsSchemaService creates tenant-safe lab, equipment, chemical, and attend
   assert.match(schemaSql, /last_preparation_submission_id/);
   assert.match(schemaSql, /DEPUTY_PRINCIPAL/);
   assert.match(schemaSql, /quantity_total TYPE numeric\(12, 3\)/);
+  const addQuantityInUse = schemaSql.indexOf('ADD COLUMN IF NOT EXISTS quantity_in_use');
+  const alterQuantityInUse = schemaSql.indexOf('ALTER COLUMN quantity_in_use TYPE');
+  const addQuantityDamaged = schemaSql.indexOf('ADD COLUMN IF NOT EXISTS quantity_damaged');
+  const alterQuantityDamaged = schemaSql.indexOf('ALTER COLUMN quantity_damaged TYPE');
+  assert.ok(addQuantityInUse >= 0 && addQuantityInUse < alterQuantityInUse, 'legacy quantity_in_use must be added before its type is altered');
+  assert.ok(addQuantityDamaged >= 0 && addQuantityDamaged < alterQuantityDamaged, 'legacy quantity_damaged must be added before its type is altered');
   assert.match(schemaSql, /app\.role[\s\S]+'system'/);
 });
 
