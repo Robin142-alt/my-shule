@@ -20,6 +20,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   return proxySchoolApiRequest(request, context, "/timetable");
 }
 
+export async function PUT(request: NextRequest, context: RouteContext) {
+  return proxySchoolApiRequest(request, context, "/timetable");
+}
+
 export async function DELETE(request: NextRequest, context: RouteContext) {
   return proxySchoolApiRequest(request, context, "/timetable");
 }

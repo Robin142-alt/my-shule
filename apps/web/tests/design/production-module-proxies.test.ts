@@ -18,7 +18,7 @@ const productionModuleProxies: ProxyExpectation[] = [
   { route: "reports", upstream: "/reports", methods: ["GET", "POST"] },
   { route: "staff", upstream: "/hr", methods: ["GET", "POST", "PATCH"] },
   { route: "hr", upstream: "/hr", methods: ["GET", "POST", "PATCH"] },
-  { route: "timetable", upstream: "/timetable", methods: ["GET", "POST", "PATCH", "DELETE"] },
+  { route: "timetable", upstream: "/timetable", methods: ["GET", "POST", "PATCH", "PUT", "DELETE"] },
 ];
 
 function readProxyRoute(route: string) {

@@ -7,6 +7,7 @@ import {
   BookOpen,
   Building2,
   BusFront,
+  CalendarDays,
   CheckCircle2,
   ClipboardCheck,
   HeartPulse,
@@ -44,6 +45,7 @@ import { AcademicFoundationWorkspace } from "./academic-foundation-workspace";
 import { AcademicIntelligenceWorkspace } from "./academic-intelligence-workspace";
 import { LiveReportCardsWorkspace } from "./live-report-cards-workspace";
 import { PrincipalSchoolProfileWorkspace } from "./principal-dashboard/school-profile-workspace";
+import { StaffTimetableOverviewWorkspace } from "./staff-timetable-overview-workspace";
 
 type PrincipalSection =
   | "overview"
@@ -59,6 +61,7 @@ type PrincipalSection =
   | "sick-bay"
   | "boarding"
   | "academics"
+  | "timetable"
   | "staff"
   | "transport"
   | "library"
@@ -576,6 +579,7 @@ export function PrincipalCommandCenter({
       { id: "classes-streams", label: "Classes & Streams", icon: BookOpen },
       { id: "subjects-departments", label: "Subjects & Departments", icon: Library },
       { id: "academics", label: "Teacher Allocations", count: navCount(schoolRecords.academicRecords.length), icon: UsersRound },
+      { id: "timetable", label: "Master Timetable", icon: CalendarDays },
       { id: "fees", label: "Fees", count: navCount(pendingFeeItems), icon: Wallet },
       { id: "attendance", label: "Attendance", count: navCount(attendanceFollowUps), icon: Activity },
       { id: "discipline", label: "Discipline", count: navCount(schoolRecords.disciplineCases.length), icon: ShieldAlert },
@@ -1033,6 +1037,16 @@ export function PrincipalCommandCenter({
 
     if (activeWorkspace === "exams-reports") {
       return <LiveReportCardsWorkspace audience="principal" />;
+    }
+
+    if (activeWorkspace === "timetable") {
+      return (
+        <StaffTimetableOverviewWorkspace
+          title="School master timetable"
+          description="Published class, teacher, room, and resource schedules across this school."
+          theme="dark"
+        />
+      );
     }
 
     if (activeWorkspace === "academic-intelligence") {

@@ -343,6 +343,7 @@ export const PORTAL_SECTIONS = [
   "dashboard",
   "fees",
   "academics",
+  "timetable",
   "discipline",
   "health",
   "messages",

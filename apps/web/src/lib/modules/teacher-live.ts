@@ -166,8 +166,30 @@ export interface TimetableSlot {
 }
 
 export async function fetchTimetableLive(session: LiveAuthSession): Promise<TimetableSlot[]> {
-  return withSession(session, "/class-teacher/timetable", {
+  const response = await withSession<unknown>(session, "/timetable/my-schedule", {
     method: "GET",
+  });
+  const rows = Array.isArray(response)
+    ? response
+    : Array.isArray((response as { slots?: unknown[] } | null)?.slots)
+      ? (response as { slots: unknown[] }).slots
+      : Array.isArray((response as { items?: unknown[] } | null)?.items)
+        ? (response as { items: unknown[] }).items
+        : [];
+  const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+  return rows.map((value, index) => {
+    const row = value as Record<string, unknown>;
+    const dayNumber = Number(row.day_of_week ?? row.dayOfWeek ?? 0);
+    return {
+      id: String(row.id ?? row.slot_id ?? `published-slot-${index}`),
+      dayName: String(row.day_name ?? row.dayName ?? dayNames[dayNumber - 1] ?? "Day not recorded"),
+      startTime: String(row.starts_at ?? row.startTime ?? "").slice(0, 5),
+      endTime: String(row.ends_at ?? row.endTime ?? "").slice(0, 5),
+      className: String(row.class_name ?? row.className ?? row.class_section_id ?? "Class not recorded"),
+      subjectName: String(row.subject_name ?? row.subjectName ?? row.subject_id ?? "Subject not recorded"),
+      roomName: String(row.resource_name ?? row.room_name ?? row.roomName ?? row.room_id ?? "General classroom"),
+    };
   });
 }
 

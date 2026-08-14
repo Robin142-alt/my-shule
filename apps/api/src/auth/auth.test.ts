@@ -2630,3 +2630,28 @@ test('default Teacher and Class Teacher roles receive exact Teacher command perm
   assert.equal(deanPermissions.includes('teacher:read'), false);
   assert.equal(deanPermissions.includes('teacher:write'), false);
 });
+
+test('timetable permissions keep role views read-only while the Deputy retains timetable write access', () => {
+  const role = (code: string): readonly string[] =>
+    DEFAULT_ROLE_CATALOG.find((candidate) => candidate.code === code)?.permissions ?? [];
+
+  for (const roleCode of [
+    'teacher',
+    'class_teacher',
+    'grade_master',
+    'hod',
+    'dean_academics',
+    'exams_manager',
+    'discipline_master',
+    'school_counsellor',
+    'boarding_master',
+  ]) {
+    assert.equal(role(roleCode).includes('timetable:read'), true, `${roleCode} should read assigned timetable views`);
+    assert.equal(role(roleCode).includes('timetable:write'), false, `${roleCode} must not mutate the master timetable`);
+  }
+
+  assert.equal(role('principal').includes('timetable:read'), true);
+  assert.equal(role('principal').includes('timetable:write'), false, 'Principal retains timetable oversight without draft mutation');
+  assert.equal(role('deputy_principal').includes('timetable:read'), true);
+  assert.equal(role('deputy_principal').includes('timetable:write'), true);
+});

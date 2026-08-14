@@ -34,6 +34,7 @@ interface DashboardRealtimeFilter {
   enabledModules: string[];
   permissions: string[];
   role?: string | null;
+  userId?: string | null;
 }
 
 interface DashboardSnapshotOptions {
@@ -396,6 +397,22 @@ const eventConfigs: Partial<Record<SupportedDomainEventName, DashboardEventConfi
   'timetable.slot.cancelled': timetableDataChangedConfig('Timetable slot cancelled', 'warning'),
   'timetable.version.revision_created': timetableDataChangedConfig('Timetable revision created'),
   'timetable.version.published': timetableDataChangedConfig('Timetable published', 'ok'),
+  'timetable.configuration.updated': timetableDataChangedConfig('Timetable configuration updated'),
+  'timetable.requirements.updated': timetableDataChangedConfig('Subject period requirements updated'),
+  'timetable.availability.updated': timetableDataChangedConfig('Teacher availability updated'),
+  'timetable.resource.created': timetableDataChangedConfig('Timetable resource created', 'ok'),
+  'timetable.resource.updated': timetableDataChangedConfig('Timetable resource updated'),
+  'timetable.generation.completed': timetableDataChangedConfig('Timetable generation completed', 'ok'),
+  'timetable.generation.partial': timetableDataChangedConfig(
+    'Timetable generation completed with unscheduled lessons',
+    'warning',
+  ),
+  'timetable.validation.completed': timetableValidationConfig(),
+  'timetable.version.copied': timetableDataChangedConfig('Previous timetable copied', 'ok'),
+  'timetable.version.auto_fixed': timetableDataChangedConfig('Timetable conflicts auto-fixed', 'ok'),
+  'timetable.relief.assigned': timetableReliefConfig('Relief lesson assigned', 'ok'),
+  'timetable.relief.cancelled': timetableReliefConfig('Relief lesson cancelled', 'warning'),
+  'timetable.export.generated': timetableDataChangedConfig('Timetable export generated', 'ok'),
   'academic.calendar.updated': academicDataChangedConfig('Academic calendar updated'),
   'academic.class.updated': academicDataChangedConfig('Class setup updated'),
   'academic.stream.updated': academicDataChangedConfig('Stream setup updated'),
@@ -445,7 +462,7 @@ export class DashboardRealtimeService {
       return null;
     }
 
-    if (!this.isRoleTargeted(filter.role, roleChannels)) {
+    if (!this.isAudienceTargeted(filter.role, filter.userId, roleChannels)) {
       return null;
     }
 
@@ -491,6 +508,7 @@ export class DashboardRealtimeService {
         enabledModules,
         permissions: store.permissions,
         role: store.role,
+        userId: store.user_id,
       }))
       .filter((event): event is DashboardRealtimeEvent => Boolean(event));
 
@@ -553,14 +571,26 @@ export class DashboardRealtimeService {
     return sourceModule === 'platform';
   }
 
-  private isRoleTargeted(role: string | null | undefined, roleChannels: string[]): boolean {
-    if (!role || roleChannels.length === 0) {
+  private isAudienceTargeted(
+    role: string | null | undefined,
+    userId: string | null | undefined,
+    targetChannels: string[],
+  ): boolean {
+    if (targetChannels.length === 0 || (!role && !userId)) {
       return true;
     }
 
-    const normalizedRoleChannel = `role:${role.trim().toLowerCase().replace(/[ _]+/g, '-')}`;
-    return roleChannels.some(
-      (channel) => channel.trim().toLowerCase().replace(/[ _]+/g, '-') === normalizedRoleChannel,
+    const normalizedChannels = targetChannels.map(
+      (channel) => channel.trim().toLowerCase().replace(/[ _]+/g, '-'),
+    );
+    const normalizedRoleChannel = role
+      ? `role:${role.trim().toLowerCase().replace(/[ _]+/g, '-')}`
+      : null;
+    const normalizedUserChannel = userId ? `user:${userId.trim().toLowerCase()}` : null;
+
+    return Boolean(
+      (normalizedRoleChannel && normalizedChannels.includes(normalizedRoleChannel))
+      || (normalizedUserChannel && normalizedChannels.includes(normalizedUserChannel)),
     );
   }
 
@@ -661,6 +691,57 @@ function timetableDataChangedConfig(
     ['principal', 'deputy-principal', 'dean-academics', 'exams-manager', 'hod', 'teacher', 'class-teacher', 'grade-master'],
     tone,
   );
+}
+
+function timetableValidationConfig(): DashboardEventConfig {
+  return {
+    ...timetableDataChangedConfig('Timetable validation completed'),
+    tone: (event) => {
+      const payload = payloadRecord(event);
+      return Number(payload.hard_conflicts ?? 0) > 0 ? 'warning' : 'ok';
+    },
+    body: (event) => {
+      const payload = payloadRecord(event);
+      const conflicts = Number(payload.hard_conflicts ?? 0);
+      const warnings = Number(payload.warnings ?? 0);
+
+      if (conflicts > 0) {
+        return `Timetable validation found ${conflicts} hard conflict${conflicts === 1 ? '' : 's'} and ${warnings} warning${warnings === 1 ? '' : 's'}.`;
+      }
+
+      return `Timetable validation passed with ${warnings} warning${warnings === 1 ? '' : 's'}.`;
+    },
+  };
+}
+
+function timetableReliefConfig(
+  title: string,
+  tone: DashboardRealtimeNotification['tone'],
+): DashboardEventConfig {
+  return {
+    ...timetableDataChangedConfig(title, tone),
+    roleChannels: (event) => {
+      const payload = payloadRecord(event);
+      const channels = [
+        'role:principal',
+        'role:deputy-principal',
+        'role:dean-academics',
+        'role:hod',
+      ];
+
+      if (typeof payload.relief_teacher_id === 'string' && payload.relief_teacher_id.trim()) {
+        channels.push(`user:${payload.relief_teacher_id.trim()}`);
+      }
+
+      return channels;
+    },
+    body: (event) => {
+      const payload = payloadRecord(event);
+      const reliefDate = typeof payload.relief_date === 'string' ? payload.relief_date : 'the selected date';
+
+      return `${title} for ${reliefDate}.`;
+    },
+  };
 }
 
 function academicDataChangedConfig(

@@ -6,6 +6,7 @@ import {
   BookMarked,
   BookOpen,
   Briefcase,
+  CalendarDays,
   CheckSquare,
   FileText,
   LayoutGrid,
@@ -30,6 +31,7 @@ import { OverviewWorkspace } from "./hod/overview-workspace";
 import { ReportsWorkspace } from "./hod/reports-workspace";
 import { ResourceRequestsWorkspace } from "./hod/resource-requests-workspace";
 import { SubjectAllocationWorkspace } from "./hod/subject-allocation-workspace";
+import { StaffTimetableOverviewWorkspace } from "./staff-timetable-overview-workspace";
 import { cn } from "./hod/shared";
 
 type HodRouteMode = "hosted" | "public";
@@ -38,6 +40,7 @@ type HodView =
   | "overview"
   | "department-teachers"
   | "subject-allocation"
+  | "timetable"
   | "coverage-review"
   | "lesson-plans"
   | "marks-moderation"
@@ -73,6 +76,13 @@ const hodNavItems: HodNavItem[] = [
     label: "Subject Allocation",
     description: "Subjects, classes, weekly lessons, and teacher allocation.",
     icon: LayoutGrid,
+    group: "Department Admin",
+  },
+  {
+    id: "timetable",
+    label: "Department Timetable",
+    description: "Published lessons, teachers, classes, and resources scoped to this department.",
+    icon: CalendarDays,
     group: "Department Admin",
   },
   {
@@ -130,8 +140,8 @@ const hodViewAliases: Record<string, HodView> = {
   "teacher-attendance": "department-teachers",
   "lesson-observation": "department-teachers",
   "subject-allocation": "subject-allocation",
-  timetable: "subject-allocation",
-  "timetable-builder": "subject-allocation",
+  timetable: "timetable",
+  "timetable-builder": "timetable",
   "schemes-of-work": "coverage-review",
   syllabus: "coverage-review",
   "syllabus-coverage": "coverage-review",
@@ -329,6 +339,13 @@ function HodWorkspace({
       return <DepartmentTeachersWorkspace />;
     case "subject-allocation":
       return <SubjectAllocationWorkspace />;
+    case "timetable":
+      return (
+        <StaffTimetableOverviewWorkspace
+          title="Department timetable"
+          description="Published lessons are filtered by the backend to the current school and HOD department scope."
+        />
+      );
     case "coverage-review":
       return <CoverageReviewWorkspace />;
     case "lesson-plans":

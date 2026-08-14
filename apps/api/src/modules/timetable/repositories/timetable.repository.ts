@@ -657,14 +657,38 @@ export class TimetableRepository {
     tenant_id: string;
     teacher_id: string;
     day_of_week?: string;
+    academic_year?: string;
+    term_name?: string;
   }) {
     const result = await this.executeSql(
       `
         SELECT
           slot.id::text AS slot_id,
+          slot.version_id::text,
           slot.class_section_id,
+          COALESCE(section.name, slot.class_section_id) AS class_name,
+          slot.stream_id,
+          stream.name AS stream_name,
           slot.subject_id,
+          COALESCE(subject.name, slot.subject_id) AS subject_name,
+          slot.teacher_id AS original_teacher_id,
+          COALESCE(original_teacher.full_name, original_teacher.display_name,
+                   original_teacher.preferred_name, original_teacher.email, slot.teacher_id) AS original_teacher_name,
+          relief.id::text AS relief_id,
+          relief.substitute_teacher_id,
+          COALESCE(substitute.full_name, substitute.display_name,
+                   substitute.preferred_name, substitute.email) AS substitute_teacher_name,
+          COALESCE(relief.substitute_teacher_id, slot.teacher_id) AS effective_teacher_id,
+          COALESCE(substitute.full_name, substitute.display_name,
+                   substitute.preferred_name, substitute.email,
+                   original_teacher.full_name, original_teacher.display_name,
+                   original_teacher.preferred_name, original_teacher.email, slot.teacher_id) AS effective_teacher_name,
+          (relief.id IS NOT NULL) AS is_relief,
           slot.room_id,
+          slot.resource_id::text,
+          resource.name AS resource_name,
+          slot.period_id::text,
+          period.name AS period_name,
           slot.day_of_week,
           slot.starts_at::text,
           slot.ends_at::text,
@@ -675,13 +699,35 @@ export class TimetableRepository {
         JOIN timetable_slots slot
           ON slot.tenant_id = version.tenant_id AND slot.version_id = version.id
          AND slot.status <> 'cancelled'
+        LEFT JOIN class_sections section
+          ON section.tenant_id = slot.tenant_id AND section.id::text = slot.class_section_id
+        LEFT JOIN class_streams stream
+          ON stream.tenant_id = slot.tenant_id AND stream.id::text = slot.stream_id
+        LEFT JOIN subjects subject
+          ON subject.tenant_id = slot.tenant_id AND subject.id::text = slot.subject_id
+        LEFT JOIN staff_profiles original_teacher
+          ON original_teacher.tenant_id = slot.tenant_id
+         AND original_teacher.user_id::text = slot.teacher_id
+        LEFT JOIN timetable_resources resource
+          ON resource.tenant_id = slot.tenant_id AND resource.id = slot.resource_id
+        LEFT JOIN timetable_period_definitions period
+          ON period.tenant_id = slot.tenant_id AND period.id = slot.period_id
+        LEFT JOIN timetable_relief_assignments relief
+          ON relief.tenant_id = slot.tenant_id AND relief.slot_id = slot.id
+         AND relief.relief_date = CURRENT_DATE AND relief.status = 'assigned'
+        LEFT JOIN staff_profiles substitute
+          ON substitute.tenant_id = relief.tenant_id
+         AND substitute.user_id::text = relief.substitute_teacher_id
         WHERE version.tenant_id = $1
           AND version.status = 'published'
-          AND slot.teacher_id = $2
+          AND (slot.teacher_id = $2 OR relief.substitute_teacher_id = $2)
           AND ($3::text IS NULL OR slot.day_of_week = $3::integer)
+          AND ($4::text IS NULL OR version.academic_year = $4)
+          AND ($5::text IS NULL OR version.term_name = $5)
         ORDER BY slot.day_of_week, slot.starts_at, slot.class_section_id
       `,
-      [input.tenant_id, input.teacher_id, input.day_of_week ?? null],
+      [input.tenant_id, input.teacher_id, input.day_of_week ?? null,
+        input.academic_year ?? null, input.term_name ?? null],
     );
 
     return result.rows;

@@ -49,6 +49,19 @@ export type SupportedDomainEventName =
   | 'timetable.slot.cancelled'
   | 'timetable.version.revision_created'
   | 'timetable.version.published'
+  | 'timetable.configuration.updated'
+  | 'timetable.requirements.updated'
+  | 'timetable.availability.updated'
+  | 'timetable.resource.created'
+  | 'timetable.resource.updated'
+  | 'timetable.generation.completed'
+  | 'timetable.generation.partial'
+  | 'timetable.validation.completed'
+  | 'timetable.version.copied'
+  | 'timetable.version.auto_fixed'
+  | 'timetable.relief.assigned'
+  | 'timetable.relief.cancelled'
+  | 'timetable.export.generated'
   | 'academic.calendar.updated'
   | 'academic.class.updated'
   | 'academic.stream.updated'
@@ -423,10 +436,42 @@ export interface ReportCardPublishedPayload {
 export interface TimetableLifecyclePayload {
   tenant_id: string;
   entity_id: string;
-  academic_year: string;
-  term_name: string;
-  action: 'created' | 'updated' | 'cancelled' | 'revision_created' | 'published';
+  academic_year?: string;
+  term_name?: string;
+  action:
+    | 'created'
+    | 'updated'
+    | 'cancelled'
+    | 'revision_created'
+    | 'published'
+    | 'configuration_updated'
+    | 'requirements_updated'
+    | 'availability_updated'
+    | 'resource_created'
+    | 'resource_updated'
+    | 'generation_completed'
+    | 'generation_partial'
+    | 'validation_completed'
+    | 'copied'
+    | 'auto_fixed'
+    | 'relief_assigned'
+    | 'relief_cancelled'
+    | 'export_generated';
   occurred_at: string;
+  version_id?: string | null;
+  row_version?: number;
+  status?: string;
+  scheduled_lessons?: number;
+  unscheduled_lessons?: number;
+  hard_conflicts?: number;
+  warnings?: number;
+  changed_lessons?: number;
+  source_version_id?: string | null;
+  timetable_slot_id?: string | null;
+  relief_teacher_id?: string | null;
+  original_teacher_id?: string | null;
+  relief_date?: string | null;
+  export_format?: 'pdf' | 'csv' | string;
   metadata?: Record<string, unknown>;
 }
 
@@ -494,6 +539,19 @@ export interface DomainEventPayloadMap {
   'timetable.slot.cancelled': TimetableLifecyclePayload;
   'timetable.version.revision_created': TimetableLifecyclePayload;
   'timetable.version.published': TimetableLifecyclePayload;
+  'timetable.configuration.updated': TimetableLifecyclePayload;
+  'timetable.requirements.updated': TimetableLifecyclePayload;
+  'timetable.availability.updated': TimetableLifecyclePayload;
+  'timetable.resource.created': TimetableLifecyclePayload;
+  'timetable.resource.updated': TimetableLifecyclePayload;
+  'timetable.generation.completed': TimetableLifecyclePayload;
+  'timetable.generation.partial': TimetableLifecyclePayload;
+  'timetable.validation.completed': TimetableLifecyclePayload;
+  'timetable.version.copied': TimetableLifecyclePayload;
+  'timetable.version.auto_fixed': TimetableLifecyclePayload;
+  'timetable.relief.assigned': TimetableLifecyclePayload;
+  'timetable.relief.cancelled': TimetableLifecyclePayload;
+  'timetable.export.generated': TimetableLifecyclePayload;
   'academic.calendar.updated': AcademicSetupChangedPayload;
   'academic.class.updated': AcademicSetupChangedPayload;
   'academic.stream.updated': AcademicSetupChangedPayload;

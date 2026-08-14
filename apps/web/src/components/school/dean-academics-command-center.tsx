@@ -5,6 +5,7 @@ import {
   BarChart3,
   BookMarked,
   BookOpen,
+  CalendarDays,
   ClipboardList,
   FileEdit,
   FileText,
@@ -30,6 +31,7 @@ import { LessonPlansWorkspace } from "./dean-academics/lesson-plans-workspace";
 import { OverviewWorkspace } from "./dean-academics/overview-workspace";
 import { TeacherWorkloadWorkspace } from "./dean-academics/teacher-workload-workspace";
 import { LiveReportCardsWorkspace } from "./live-report-cards-workspace";
+import { StaffTimetableOverviewWorkspace } from "./staff-timetable-overview-workspace";
 import { cn } from "./dean-academics/shared";
 
 type DeanRouteMode = "hosted" | "public";
@@ -39,6 +41,7 @@ type DeanView =
   | "curriculum-coverage"
   | "department-performance"
   | "teacher-workload"
+  | "timetable"
   | "lesson-plans"
   | "lesson-logs"
   | "assessments"
@@ -80,6 +83,13 @@ const deanNavItems: DeanNavItem[] = [
     label: "Teacher Workload",
     description: "Teaching load, allocation, and follow-up visibility.",
     icon: UsersRound,
+    group: "Teaching",
+  },
+  {
+    id: "timetable",
+    label: "Master Timetable",
+    description: "School-wide published lessons, teacher load, classes, and shared resources.",
+    icon: CalendarDays,
     group: "Teaching",
   },
   {
@@ -132,6 +142,8 @@ const deanViewAliases: Record<string, DeanView> = {
   teachers: "teacher-workload",
   staff: "teacher-workload",
   "teacher-workload": "teacher-workload",
+  timetable: "timetable",
+  "timetable-builder": "timetable",
   "lesson-plans": "lesson-plans",
   "lesson-logs": "lesson-logs",
   attendance: "lesson-logs",
@@ -327,6 +339,13 @@ function DeanWorkspace({
       );
     case "teacher-workload":
       return <TeacherWorkloadWorkspace />;
+    case "timetable":
+      return (
+        <StaffTimetableOverviewWorkspace
+          title="Academic master timetable"
+          description="A school-wide published view for academic continuity, workload review, and resource coordination."
+        />
+      );
     case "lesson-plans":
       return <LessonPlansWorkspace />;
     case "lesson-logs":

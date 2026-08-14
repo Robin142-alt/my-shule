@@ -77,6 +77,7 @@ import { FeesWorkspace as ParentFeesWorkspace } from "@/components/school/parent
 import { HealthWorkspace as ParentHealthWorkspace } from "@/components/school/parent/health-workspace";
 import { MessagesWorkspace as ParentMessagesWorkspace } from "@/components/school/parent/messages-workspace";
 import { NotificationsWorkspace as ParentNotificationsWorkspace } from "@/components/school/parent/notifications-workspace";
+import { PortalTimetableWorkspace } from "@/components/school/portal-timetable-workspace";
 import { GateRegisterWorkspace } from "@/components/school/security-officer/gate-register-workspace";
 import { IncidentsWorkspace as SecurityIncidentsWorkspace } from "@/components/school/security-officer/incidents-workspace";
 import { OverviewWorkspace as SecurityOverviewWorkspace } from "@/components/school/security-officer/overview-workspace";
@@ -410,6 +411,7 @@ const LIVE_ROLE_CONFIG: Record<LiveRole, RoleCommandConfig> = {
       dashboard: ParentDashboardWorkspace,
       fees: ParentFeesWorkspace,
       academics: ParentAcademicsWorkspace,
+      timetable: PortalTimetableWorkspace,
       behavior: ParentBehaviorWorkspace,
       discipline: ParentBehaviorWorkspace,
       health: ParentHealthWorkspace,
@@ -432,6 +434,7 @@ const LIVE_ROLE_CONFIG: Record<LiveRole, RoleCommandConfig> = {
       dashboard: StudentDashboardWorkspace,
       fees: StudentFeesWorkspace,
       academics: StudentAcademicsWorkspace,
+      timetable: PortalTimetableWorkspace,
       behavior: StudentBehaviorWorkspace,
       discipline: StudentBehaviorWorkspace,
       messages: StudentMessagesWorkspace,

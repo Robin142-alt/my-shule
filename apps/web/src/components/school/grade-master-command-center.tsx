@@ -38,6 +38,7 @@ import { buildSchoolSectionHref } from "./school-pages";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
 import { toast } from "sonner";
+import { StaffTimetableOverviewWorkspace } from "./staff-timetable-overview-workspace";
 
 type GradeRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
@@ -135,16 +136,6 @@ type GradeMeetingRow = {
   learner: string;
   date: string;
   time: string;
-  status: string;
-};
-
-type GradeLessonRow = {
-  id: string;
-  day: string;
-  time: string;
-  stream: string;
-  subject: string;
-  teacher: string;
   status: string;
 };
 
@@ -1338,52 +1329,11 @@ function MeetingsWorkspace() {
 }
 
 function TimetableWorkspace() {
-  const liveSession = useLiveTenantSession("school");
-  const { data: lessons = [] } = useSchoolQuery<GradeLessonRow[]>("/api/grade-master/timetable", { enabled: !!liveSession.session });
-  const [pendingAction, setPendingAction] = useState<string | null>(null);
-
-  const handleReportMissedLesson = async () => {
-    setPendingAction("missed_lesson_reported");
-    try {
-      await submitPromptedGradeWorkflowAction({
-        action: "missed_lesson_reported",
-        title: "Missed lesson reported",
-        message: (values) => `${values.stream} ${values.subject} missed lesson was reported with recovery plan ${values.recoveryPlan}.`,
-        targetRoles: ["grade_master", "teacher", "deputy_principal", "dean_of_academics"],
-        priority: "high",
-        payload: { workflow: "lesson_coverage" },
-        prompts: [
-          { key: "stream", label: "Stream", requiredMessage: "Stream is required." },
-          { key: "subject", label: "Subject", requiredMessage: "Subject is required." },
-          { key: "teacher", label: "Teacher", requiredMessage: "Teacher is required." },
-          { key: "reason", label: "Reason", requiredMessage: "Missed lesson reason is required." },
-          { key: "recoveryPlan", label: "Recovery plan", requiredMessage: "Recovery plan is required." },
-        ],
-        successTitle: "Missed lesson reported",
-        successDescription: "Teacher and leadership recovery follow-up was queued.",
-      });
-    } finally {
-      setPendingAction(null);
-    }
-  };
-
   return (
-    <Panel title="Timetable & Lessons" description="Monitors whether learners are receiving lessons as planned." icon={CalendarClock}>
-      <DataTable 
-        columns={["Day", "Time", "Stream", "Subject", "Teacher", "Status", "Actions"]}
-        rows={lessons.map((lesson) => [
-          lesson.day,
-          lesson.time,
-          lesson.stream,
-          lesson.subject,
-          lesson.teacher,
-          <StatusChip key={`lesson-${lesson.id}`} label={lesson.status} tone={statusTone(lesson.status)} />,
-          String(lesson.status).toLowerCase() === "completed"
-            ? <button key={`view-${lesson.id}`} type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => openGradeRecord("Lesson coverage log", [["Day", lesson.day], ["Time", lesson.time], ["Stream", lesson.stream], ["Subject", lesson.subject], ["Teacher", lesson.teacher], ["Status", lesson.status]])}>View Log</button>
-            : <button key={`missed-${lesson.id}`} type="button" disabled={pendingAction !== null} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={handleReportMissedLesson}>{pendingAction === "missed_lesson_reported" ? "Saving..." : "Report Missed Lesson"}</button>,
-        ])}
-      />
-    </Panel>
+    <StaffTimetableOverviewWorkspace
+      title="Grade timetable & lessons"
+      description="Published lessons are backend-scoped to the grade or form responsibility assigned to this user."
+    />
   );
 }
 

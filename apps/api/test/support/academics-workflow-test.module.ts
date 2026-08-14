@@ -5,6 +5,8 @@ import { ConfigModule } from '@nestjs/config';
 import configuration from '../../src/config/configuration';
 import { AuthModule } from '../../src/auth/auth.module';
 import { CommonModule } from '../../src/common/common.module';
+import { AgpModule } from '../../src/common/platform-governance/agp.module';
+import { WidgetRegistryModule } from '../../src/common/widget-registry/widget-registry.module';
 import { DatabaseModule } from '../../src/database/database.module';
 import { JwtAuthGuard } from '../../src/guards/jwt-auth.guard';
 import { RbacGuard } from '../../src/guards/rbac.guard';
@@ -33,6 +35,8 @@ import { SecurityModule } from '../../src/modules/security/security.module';
       ignoreEnvFile: true,
       load: [configuration],
     }),
+    AgpModule,
+    WidgetRegistryModule,
     CommonModule,
     TenantModule,
     DatabaseModule,

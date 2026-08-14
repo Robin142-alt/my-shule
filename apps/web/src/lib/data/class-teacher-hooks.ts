@@ -229,7 +229,21 @@ export function useReferWelfareCase() {
 }
 
 export function useClassTeacherTimetable(streamId: string) {
-  return useClassTeacherStreamQuery("timetable", "class-teacher/timetable", streamId);
+  const scope = useClassTeacherQueryScope();
+  return useQuery({
+    queryKey: buildClassTeacherQueryKey(scope, "timetable", streamId),
+    queryFn: async () => {
+      const response = await fetchApi(
+        scope.schoolId,
+        `timetable/views?view=class&class_section_id=${encodeURIComponent(streamId)}`,
+      ) as { slots?: unknown[]; items?: unknown[] } | unknown[];
+      if (Array.isArray(response)) return response;
+      if (Array.isArray(response?.slots)) return response.slots;
+      return Array.isArray(response?.items) ? response.items : [];
+    },
+    enabled: isReadyClassTeacherScope(scope) && Boolean(streamId),
+    staleTime: 30_000,
+  });
 }
 
 export function useClassTeacherSubjects(streamId: string) {

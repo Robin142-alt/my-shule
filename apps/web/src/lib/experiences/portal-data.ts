@@ -1,6 +1,7 @@
 import {
   BellRing,
   BookOpenCheck,
+  CalendarDays,
   Download,
   LayoutGrid,
   MessageSquareText,
@@ -23,6 +24,7 @@ const portalNavBase = {
     { id: "dashboard", label: "Dashboard", href: toPortalPath("dashboard"), icon: LayoutGrid, group: "Home" },
     { id: "fees", label: "Fees", href: toPortalPath("fees"), icon: ReceiptText, group: "Learner record" },
     { id: "academics", label: "Academics", href: toPortalPath("academics"), icon: BookOpenCheck, group: "Learner record" },
+    { id: "timetable", label: "Timetable", href: toPortalPath("timetable"), icon: CalendarDays, group: "Learner record" },
     { id: "discipline", label: "Behavior", href: toPortalPath("discipline"), icon: ShieldAlert, group: "Learner record" },
     { id: "health", label: "Health", href: toPortalPath("health"), icon: Stethoscope, group: "Learner record" },
     { id: "messages", label: "Messages", href: toPortalPath("messages"), icon: MessageSquareText, group: "School contact" },
@@ -33,6 +35,7 @@ const portalNavBase = {
     { id: "dashboard", label: "Dashboard", href: toPortalPath("dashboard"), icon: LayoutGrid, group: "Home" },
     { id: "fees", label: "Fees", href: toPortalPath("fees"), icon: ReceiptText, group: "Learner record" },
     { id: "academics", label: "Academics", href: toPortalPath("academics"), icon: BookOpenCheck, group: "Learner record" },
+    { id: "timetable", label: "Timetable", href: toPortalPath("timetable"), icon: CalendarDays, group: "Learner record" },
     { id: "discipline", label: "Behavior", href: toPortalPath("discipline"), icon: ShieldAlert, group: "Learner record" },
     { id: "messages", label: "Messages", href: toPortalPath("messages"), icon: MessageSquareText, group: "School contact" },
     { id: "downloads", label: "Downloads", href: toPortalPath("downloads"), icon: Download, group: "School contact" },

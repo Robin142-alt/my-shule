@@ -120,9 +120,11 @@ const registerUser = async (
     session_id: sessionId,
   });
 
-  const permissions = ['owner', 'principal'].includes(role) 
-    ? ['*:*'] 
-    : ['exams:enter-marks', 'timetable:read', 'academics:read'];
+  const permissions = ['owner', 'principal'].includes(role)
+    ? ['*:*']
+    : role === 'deputy_principal'
+      ? ['academics:read', 'timetable:read', 'timetable:write']
+      : ['exams:enter-marks', 'timetable:read', 'academics:read'];
 
   await sessionService.createSession({
     user_id: userId,
@@ -155,6 +157,7 @@ describe('Academics End-to-End Workflow', () => {
   let testingModule: TestingModule;
   let pool: Pool;
   let principal: RegisteredTenantUser;
+  let deputy: RegisteredTenantUser;
   let teacherA: RegisteredTenantUser;
   let teacherB: RegisteredTenantUser;
 
@@ -164,6 +167,7 @@ describe('Academics End-to-End Workflow', () => {
   let academicYearId: string;
   let termId: string;
   let classSectionId: string;
+  let secondClassSectionId: string;
   let subjectId: string;
 
   beforeAll(async () => {
@@ -194,6 +198,7 @@ describe('Academics End-to-End Workflow', () => {
     const moduleAccessService = app.get(ModuleAccessService);
 
     principal = await registerUser(app, tenantId, `principal-${suffix}@example.test`, 'principal');
+    deputy = await registerUser(app, tenantId, `deputy-${suffix}@example.test`, 'deputy_principal');
     teacherA = await registerUser(app, tenantId, `teachera-${suffix}@example.test`, 'teacher');
     teacherB = await registerUser(app, tenantId, `teacherb-${suffix}@example.test`, 'teacher');
 
@@ -249,6 +254,14 @@ describe('Academics End-to-End Workflow', () => {
       .expect(201);
     classSectionId = classRes.body.id;
 
+    const secondClassRes = await request(app.getHttpServer())
+      .post('/academics/class-sections')
+      .set('host', principal.host)
+      .set('authorization', `Bearer ${principal.access_token}`)
+      .send({ academic_year_id: academicYearId, name: 'Grade 2 East', grade_level: 'Grade 2', capacity: 40 })
+      .expect(201);
+    secondClassSectionId = secondClassRes.body.id;
+
     // 4. Subject
     const subjRes = await request(app.getHttpServer())
       .post('/academics/subjects')
@@ -261,6 +274,7 @@ describe('Academics End-to-End Workflow', () => {
     expect(academicYearId).toBeDefined();
     expect(termId).toBeDefined();
     expect(classSectionId).toBeDefined();
+    expect(secondClassSectionId).toBeDefined();
     expect(subjectId).toBeDefined();
   });
 
@@ -287,6 +301,18 @@ describe('Academics End-to-End Workflow', () => {
       .send({
         academic_term_id: termId,
         class_section_id: classSectionId,
+        subject_id: subjectId,
+        teacher_user_id: teacherA.user_id,
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/academics/teacher-assignments')
+      .set('host', principal.host)
+      .set('authorization', `Bearer ${principal.access_token}`)
+      .send({
+        academic_term_id: termId,
+        class_section_id: secondClassSectionId,
         subject_id: subjectId,
         teacher_user_id: teacherA.user_id,
       })
@@ -336,13 +362,37 @@ describe('Academics End-to-End Workflow', () => {
   });
 
   test('Timetable rejects double booking for teacher', async () => {
-    // 1. Create a slot
     await request(app.getHttpServer())
-      .post('/timetable/slots')
-      .set('host', principal.host)
-      .set('authorization', `Bearer ${principal.access_token}`)
+      .put('/timetable/configuration')
+      .set('host', deputy.host)
+      .set('authorization', `Bearer ${deputy.access_token}`)
       .send({
-        academic_year: '2026',
+        academic_year: '2026 Academic Year',
+        term_name: 'Term 1',
+        default_lesson_duration_minutes: 40,
+        days: [{
+          day_of_week: 1,
+          name: 'Monday',
+          is_teaching_day: true,
+          order_index: 0,
+          periods: [{
+            name: 'Period 1',
+            starts_at: '08:00',
+            ends_at: '08:40',
+            is_teaching: true,
+            order_index: 0,
+          }],
+        }],
+        common_blocks: [],
+      })
+      .expect(200);
+
+    const firstSlot = await request(app.getHttpServer())
+      .post('/timetable/slots')
+      .set('host', deputy.host)
+      .set('authorization', `Bearer ${deputy.access_token}`)
+      .send({
+        academic_year: '2026 Academic Year',
         term_name: 'Term 1',
         class_section_id: classSectionId,
         subject_id: subjectId,
@@ -351,27 +401,28 @@ describe('Academics End-to-End Workflow', () => {
         starts_at: '08:00',
         ends_at: '08:40',
         room_id: 'room-1',
-      });
+      })
+      .expect(201);
+    expect(firstSlot.body.id).toBeDefined();
 
-    // 2. Create overlapping slot for same teacher, different class
     const conflictRes = await request(app.getHttpServer())
       .post('/timetable/slots')
-      .set('host', principal.host)
-      .set('authorization', `Bearer ${principal.access_token}`)
+      .set('host', deputy.host)
+      .set('authorization', `Bearer ${deputy.access_token}`)
       .send({
-        academic_year: '2026',
+        academic_year: '2026 Academic Year',
         term_name: 'Term 1',
-        class_section_id: randomUUID(), // Different class
+        class_section_id: secondClassSectionId,
         subject_id: subjectId,
         teacher_id: teacherA.user_id,
-        day_of_week: 1, // MONDAY
-        starts_at: '08:00', // Exact overlap
+        day_of_week: 1,
+        starts_at: '08:00',
         ends_at: '08:40',
         room_id: 'room-2',
       });
 
-    expect(conflictRes.status).toBe(400); // Should be rejected due to conflict
-    expect(JSON.stringify(conflictRes.body)).toMatch(/conflict|double|overlap/i);
+    expect(conflictRes.status).toBe(400);
+    expect(JSON.stringify(conflictRes.body)).toMatch(/teacher.*already|teacher.*conflict|teacher clash/i);
   });
 
   test('Teacher A successfully enters marks for their assigned subject', async () => {
