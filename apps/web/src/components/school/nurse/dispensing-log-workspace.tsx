@@ -3,7 +3,6 @@ import { useState } from "react";
 import { ClipboardList, PlusCircle, Search } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { dispenseMedicine } from "./api-client";
 
@@ -24,8 +23,7 @@ type DispensingData = {
 };
 
 export function DispensingLogWorkspace() {
-  const queryClient = useQueryClient();
-  const { data, isLoading } = useSchoolQuery<DispensingData>('/admin-command/nurse/dispensing-log');
+  const { data, isLoading, refetch } = useSchoolQuery<DispensingData>('/admin-command/nurse/dispensing-log');
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,7 +42,7 @@ export function DispensingLogWorkspace() {
     setIsSubmitting(true);
     try {
       await dispenseMedicine({ ...form, quantity_given: Number(form.quantity_given) });
-      queryClient.invalidateQueries({ queryKey: ["school", "session", "/admin-command/nurse/dispensing-log"] });
+      await refetch();
       toast.success("Medicine dispensed and logged.");
       setShowForm(false);
       setForm({ student_name: "", class_name: "", medicine_name: "", dosage: "", quantity_given: "" });

@@ -1,36 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Info, AlertTriangle, AlertCircle, X, ExternalLink } from "lucide-react";
+import { AlertCircle, AlertTriangle, Check, ExternalLink, Info, Loader2, RefreshCw, X } from "lucide-react";
 
-interface NotificationData {
-  id: string;
-  title: string;
-  message: string;
-  priority: "LOW" | "NORMAL" | "HIGH" | "URGENT";
-  status: "UNREAD" | "READ" | "ACTION_REQUIRED" | "ACTION_TAKEN" | "DISMISSED" | "EXPIRED" | "FAILED";
-  module: string;
-  actionUrl: string | null;
-  actionLabel: string | null;
-  createdAt: string;
-}
-
-function fallbackNotifications(): NotificationData[] {
-  return [
-    {
-      id: "local-attendance-registers",
-      title: "Attendance registers",
-      message: "Open the attendance registers desk to review current attendance follow-up work.",
-      priority: "NORMAL",
-      status: "UNREAD",
-      module: "attendance",
-      actionUrl: "attendance",
-      actionLabel: "Attendance registers",
-      createdAt: new Date().toISOString(),
-    },
-  ];
-}
+import { useNotifications, type DashboardNotification } from "@/hooks/useNotifications";
 
 export function NotificationDrawer({
   basePath,
@@ -39,90 +13,43 @@ export function NotificationDrawer({
 }: {
   basePath: string;
   onClose: () => void;
-  onNotificationUpdate: () => void;
+  onNotificationUpdate: () => void | Promise<unknown>;
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"ALL" | "UNREAD" | "ACTION_REQUIRED">("UNREAD");
-  const [notifications, setNotifications] = useState<NotificationData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const status = activeTab === "ALL" ? undefined : activeTab;
+  const {
+    notifications,
+    isLoading,
+    error,
+    mutationError,
+    pendingIds,
+    isMarkingAllRead,
+    markAsRead,
+    markAllAsRead,
+    refetch,
+  } = useNotifications(status);
+  const visibleError = mutationError ?? error;
 
-  const fetchNotifications = useCallback(async () => {
-    setLoading(true);
-    if (typeof fetch !== "function") {
-      setNotifications(fallbackNotifications());
-      setLoading(false);
-      return;
-    }
-
+  const handleMarkAsRead = async (id: string) => {
     try {
-      const token = localStorage.getItem("auth_token") || "";
-      const statusQuery = activeTab === "ALL" ? "" : activeTab;
-      const res = await fetch(`/api/v1/notifications?status=${statusQuery}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setNotifications(Array.isArray(data) && data.length > 0 ? data : fallbackNotifications());
-      }
+      await markAsRead(id);
+      await onNotificationUpdate();
     } catch {
-      setNotifications(fallbackNotifications());
-    } finally {
-      setLoading(false);
-    }
-  }, [activeTab]);
-
-  useEffect(() => {
-    const fetchTimer = window.setTimeout(() => {
-      void fetchNotifications();
-    }, 0);
-    return () => window.clearTimeout(fetchTimer);
-  }, [fetchNotifications]);
-
-  const markAsRead = async (id: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    if (typeof fetch !== "function") {
-      setNotifications((prev) => prev.filter((n) => n.id !== id));
-      onNotificationUpdate();
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem("auth_token") || "";
-      await fetch(`/api/v1/notifications/${id}/read`, {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setNotifications((prev) => prev.filter((n) => n.id !== id));
-      onNotificationUpdate();
-    } catch {
-      setNotifications((prev) => prev.filter((n) => n.id !== id));
-      onNotificationUpdate();
+      // The hook retains the record and exposes the mutation error in this drawer.
     }
   };
 
-  const markAllAsRead = async () => {
-    if (typeof fetch !== "function") {
-      setNotifications([]);
-      onNotificationUpdate();
-      return;
-    }
-
+  const handleMarkAllAsRead = async () => {
     try {
-      const token = localStorage.getItem("auth_token") || "";
-      await fetch(`/api/v1/notifications/read-all`, {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (activeTab === "UNREAD") setNotifications([]);
-      else fetchNotifications();
-      onNotificationUpdate();
+      await markAllAsRead();
+      await onNotificationUpdate();
     } catch {
-      setNotifications([]);
-      onNotificationUpdate();
+      // The hook retains all records and exposes the mutation error in this drawer.
     }
   };
 
-  const getPriorityIcon = (priority: string) => {
+  const getPriorityIcon = (priority: DashboardNotification["priority"]) => {
     switch (priority) {
       case "URGENT": return <AlertTriangle className="h-4 w-4 text-red-500" />;
       case "HIGH": return <AlertCircle className="h-4 w-4 text-orange-500" />;
@@ -132,19 +59,21 @@ export function NotificationDrawer({
   };
 
   return (
-    <div className="absolute right-0 top-[calc(100%+8px)] z-30 w-[360px] rounded-xl border border-[#e8eaed] bg-white shadow-xl flex flex-col max-h-[500px]">
+    <div className="absolute right-0 top-[calc(100%+8px)] z-30 flex max-h-[500px] w-[360px] flex-col rounded-xl border border-[#e8eaed] bg-white shadow-xl">
       <div className="flex items-center justify-between border-b border-[#e8eaed] px-4 py-3">
         <h3 className="font-semibold text-[#1a1d26]">Notifications</h3>
         <div className="flex items-center gap-2">
-          {activeTab === "UNREAD" && notifications.length > 0 && (
+          {activeTab === "UNREAD" && notifications.length > 0 ? (
             <button
-              onClick={markAllAsRead}
-              className="text-xs font-medium text-emerald-600 hover:text-emerald-700"
+              type="button"
+              disabled={isMarkingAllRead}
+              onClick={() => void handleMarkAllAsRead()}
+              className="min-h-10 text-xs font-medium text-emerald-600 hover:text-emerald-700 disabled:cursor-wait disabled:opacity-60"
             >
-              Mark all as read
+              {isMarkingAllRead ? "Marking..." : "Mark all as read"}
             </button>
-          )}
-          <button onClick={onClose} className="text-[#8b8f9a] hover:text-[#1a1d26]">
+          ) : null}
+          <button type="button" aria-label="Close notifications" onClick={onClose} className="grid h-10 w-10 place-items-center text-[#8b8f9a] hover:text-[#1a1d26]">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -153,9 +82,10 @@ export function NotificationDrawer({
       <div className="flex items-center gap-4 border-b border-[#e8eaed] px-4 pt-2">
         {(["UNREAD", "ACTION_REQUIRED", "ALL"] as const).map((tab) => (
           <button
+            type="button"
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`pb-2 text-xs font-medium border-b-2 transition ${
+            className={`min-h-10 border-b-2 pb-2 text-xs font-medium transition ${
               activeTab === tab
                 ? "border-emerald-500 text-emerald-700"
                 : "border-transparent text-[#5a5e6a] hover:text-[#1a1d26]"
@@ -166,64 +96,78 @@ export function NotificationDrawer({
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
-        {loading ? (
-          <div className="flex items-center justify-center p-6 text-sm text-[#8b8f9a]">Loading...</div>
-        ) : notifications.length === 0 ? (
+      <div className="custom-scrollbar flex-1 overflow-y-auto p-2">
+        {visibleError ? (
+          <div role="alert" className="mb-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+            <p className="font-semibold">Notifications could not be refreshed.</p>
+            <p className="mt-1 break-words text-xs">{visibleError.message}</p>
+            <button type="button" onClick={() => void refetch()} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-lg border border-red-200 bg-white px-3 text-xs font-semibold">
+              <RefreshCw className="h-3.5 w-3.5" /> Retry
+            </button>
+          </div>
+        ) : null}
+
+        {isLoading && notifications.length === 0 ? (
+          <div className="flex items-center justify-center gap-2 p-6 text-sm text-[#8b8f9a]"><Loader2 className="h-4 w-4 animate-spin" /> Loading notifications...</div>
+        ) : !visibleError && notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-8 text-center">
             <Check className="mb-2 h-8 w-8 text-emerald-200" />
             <p className="text-sm font-medium text-[#1a1d26]">All caught up!</p>
-            <p className="text-xs text-[#8b8f9a]">No new notifications to display.</p>
+            <p className="text-xs text-[#8b8f9a]">No notifications match this view.</p>
           </div>
         ) : (
           <div className="space-y-1">
-            {notifications.map((notif) => (
+            {notifications.map((notification) => (
               <div
-                key={notif.id}
+                key={notification.id}
                 className={`group flex items-start gap-3 rounded-lg p-3 transition ${
-                  notif.status === "UNREAD" || notif.status === "ACTION_REQUIRED"
+                  notification.status === "UNREAD" || notification.status === "ACTION_REQUIRED"
                     ? "bg-[#f9fafc] hover:bg-[#f3f4f6]"
                     : "hover:bg-[#f9fafc]"
                 }`}
               >
-                <div className="mt-0.5 shrink-0">{getPriorityIcon(notif.priority)}</div>
+                <div className="mt-0.5 shrink-0">{getPriorityIcon(notification.priority)}</div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex justify-between items-start">
-                    <p className="text-sm font-semibold text-[#1a1d26]">{notif.title}</p>
-                    <span className="text-[10px] text-[#8b8f9a] shrink-0 ml-2">
-                      {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
+                  <div className="flex items-start justify-between">
+                    <p className="text-sm font-semibold text-[#1a1d26]">{notification.title}</p>
+                    {notification.createdAt ? (
+                      <span className="ml-2 shrink-0 text-[10px] text-[#8b8f9a]">
+                        {new Date(notification.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    ) : null}
                   </div>
-                  <p className="mt-0.5 text-xs text-[#5a5e6a] leading-relaxed line-clamp-2">
-                    {notif.message}
-                  </p>
-                  
-                  {notif.actionUrl ? (
+                  {notification.message ? <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-[#5a5e6a]">{notification.message}</p> : null}
+
+                  {notification.actionUrl ? (
                     <button
+                      type="button"
                       onClick={() => {
                         onClose();
-                        const targetUrl = notif.actionUrl!.startsWith("/")
-                          ? notif.actionUrl!
-                          : `${basePath}/${notif.actionUrl!}`;
+                        const targetUrl = notification.actionUrl!.startsWith("/")
+                          ? notification.actionUrl!
+                          : `${basePath}/${notification.actionUrl!}`;
                         router.push(targetUrl.replace(/\/{2,}/g, "/"));
                       }}
-                      className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 transition hover:border-emerald-200 hover:bg-emerald-100"
+                      className="mt-2 inline-flex min-h-10 items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 transition hover:border-emerald-200 hover:bg-emerald-100"
                     >
-                      {notif.actionLabel || "View Details"}
+                      {notification.actionLabel || "View details"}
                       <ExternalLink className="h-3 w-3" />
                     </button>
                   ) : null}
                 </div>
-                
-                {notif.status === "UNREAD" && (
+
+                {notification.status === "UNREAD" ? (
                   <button
-                    onClick={(e) => markAsRead(notif.id, e)}
-                    className="opacity-0 group-hover:opacity-100 shrink-0 mt-0.5 rounded-full p-1 text-emerald-600 hover:bg-emerald-100 transition"
+                    type="button"
+                    disabled={pendingIds.has(notification.id)}
+                    onClick={() => void handleMarkAsRead(notification.id)}
+                    className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-full text-emerald-600 opacity-0 transition hover:bg-emerald-100 group-hover:opacity-100 focus-visible:opacity-100 disabled:cursor-wait disabled:opacity-60"
                     title="Mark as read"
+                    aria-label={`Mark ${notification.title} as read`}
                   >
                     <Check className="h-4 w-4" />
                   </button>
-                )}
+                ) : null}
               </div>
             ))}
           </div>

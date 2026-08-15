@@ -257,7 +257,7 @@ function Topbar({ activeView, onViewChange }: { activeView: TeacherView; onViewC
         </div>
         <div className="flex items-center gap-2">
           <TaskQueue />
-          <ApprovalInbox currentUserId="school" />
+          <ApprovalInbox />
           <NotificationBell />
         </div>
       </div>

@@ -44,7 +44,7 @@ describe("librarian library workspace", () => {
   });
 
   it("issues a book with a receipt and updates inventory immediately", () => {
-    const dataset = createLibraryDataset();
+    const dataset = createLibraryDataset({ useTestFixture: true });
     const book = dataset.books.find((item) => item.accessionNumber === "LIB-MATH-0007");
 
     expect(book?.quantityAvailable).toBe(14);
@@ -82,7 +82,7 @@ describe("librarian library workspace", () => {
   });
 
   it("blocks borrowing when a title has no available copies", () => {
-    const dataset = createLibraryDataset();
+    const dataset = createLibraryDataset({ useTestFixture: true });
 
     expect(() =>
       issueLibraryBook(dataset, {
@@ -95,7 +95,7 @@ describe("librarian library workspace", () => {
   });
 
   it("returns overdue books, applies pending fines, and restores stock", () => {
-    const dataset = createLibraryDataset();
+    const dataset = createLibraryDataset({ useTestFixture: true });
 
     const result = returnLibraryBook(dataset, {
       borrowingId: "borrow-overdue-blossoms",
@@ -127,7 +127,7 @@ describe("librarian library workspace", () => {
   });
 
   it("generates the required operational report set", () => {
-    const reports = buildLibraryReports(createLibraryDataset());
+    const reports = buildLibraryReports(createLibraryDataset({ useTestFixture: true }));
 
     expect(reports.map((report) => report.title)).toEqual([
       "Borrowed books report",

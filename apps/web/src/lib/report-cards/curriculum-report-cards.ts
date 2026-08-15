@@ -54,6 +54,14 @@ export interface ReportCardGenerationRow {
   missingItems: string[];
 }
 
+export interface ReportCardLearnerSource {
+  id: string;
+  admissionNumber: string;
+  learnerName: string;
+  gradeForm?: string;
+  stream?: string;
+}
+
 export interface ReportCardDocumentData {
   id: string;
   reportNumber: string;
@@ -277,11 +285,13 @@ export function buildReportCardGenerationRows(
   options?: {
     settings?: ReportCardSettings;
     classReportingModes?: Record<string, ClassReportingMode>;
+    learnersByReportId?: Record<string, ReportCardLearnerSource[]>;
   },
 ): ReportCardGenerationRow[] {
   const settings = options?.settings ?? curriculumSettings;
 
-  return reports.map((report, index) => {
+  return reports.flatMap((report) => {
+    const learners = options?.learnersByReportId?.[report.id] ?? report.learners ?? [];
     const reportingMode = inferClassReportingMode({
       className: report.className,
       template: report.template,
@@ -307,23 +317,23 @@ export function buildReportCardGenerationRows(
       requiresComments && report.tone !== "ok" ? "Class teacher comment has not been added." : null,
     ].filter(Boolean) as string[];
 
-    return {
-      id: report.id,
-      admissionNumber: `ADM-${String(index + 1).padStart(4, "0")}`,
-      learnerName: ["Aisha Njeri", "Brian Otieno", "Carol Wanjiku"][index] ?? `Learner ${index + 1}`,
-      gradeForm: report.className,
-      stream: report.className.split(" ").slice(-1)[0] ?? "Main",
+    return learners.map((learner) => ({
+      id: learner.id,
+      admissionNumber: learner.admissionNumber,
+      learnerName: learner.learnerName,
+      gradeForm: learner.gradeForm ?? report.className,
+      stream: learner.stream ?? "",
       reportingMode,
       reportType,
       cbcCompletion: requiresCbcObservations ? (cbcMissing === 0 ? "Complete" : `${cbcMissing} missing`) : "Not required",
       marksCompletion: requiresMarks ? (marksMissing === 0 ? "Complete" : `${marksMissing} missing`) : "Not required",
       commentsStatus: requiresComments ? (report.tone === "ok" ? "Complete" : "Missing comments") : "Not required",
       approvalStatus: missingItems.length === 0 ? "Ready for review" : "Data incomplete",
-      publishedStatus: "Unpublished",
-      printedStatus: "Not printed",
-      feeHoldStatus: "Clear",
-      missingItems,
-    };
+      publishedStatus: "Unpublished" as const,
+      printedStatus: "Not printed" as const,
+      feeHoldStatus: "Clear" as const,
+      missingItems: [...missingItems],
+    }));
   });
 }
 
@@ -338,7 +348,7 @@ function buildMarksSupplement(mark: ExamMarkRow | undefined, fields: ExamScoreFi
     percentage: mark.scores[field.id] ? `${mark.scores[field.id]}%` : undefined,
     grade: mark.competency,
     teacherComment: undefined,
-    teacherName: "Subject teacher",
+    teacherName: undefined,
   }));
 }
 
@@ -354,7 +364,7 @@ function buildLearningAreas(competencies: CbcCompetencyRow[]) {
     learnerStrengths: undefined,
     areaNeedingSupport: item.tone === "ok" ? undefined : "Teacher follow-up required.",
     parentSupport: item.tone === "ok" ? undefined : "Review the learning activity at home and confirm practice time.",
-    teacher: "Assigned teacher",
+    teacher: undefined,
   }));
 }
 
@@ -362,22 +372,24 @@ export function buildReportCardDocument(input: {
   data: ExamsModuleData;
   row: ReportCardGenerationRow;
   settings?: ReportCardSettings;
+  reportNumber?: string;
+  school?: Partial<ReportCardDocumentData["school"]>;
+  academic?: Partial<ReportCardDocumentData["academic"]>;
+  generatedBy?: string;
 }): ReportCardDocumentData {
   const settings = input.settings ?? curriculumSettings;
-  const mark = input.data.marks.find((candidate) => candidate.student === input.row.learnerName) ?? input.data.marks[0];
+  const mark = input.data.marks.find(
+    (candidate) => candidate.admissionNumber === input.row.admissionNumber,
+  );
   const isLegacy = input.row.reportType === "LEGACY_844_KCSE";
   const canUseMarks = isLegacy || (input.row.reportType === "HYBRID_CBC_MARKS" && settings.allowMarksSupplement);
 
   return {
     id: input.row.id,
-    reportNumber: `MS-${input.row.id.toUpperCase()}-2026`,
+    reportNumber: input.reportNumber?.trim() || input.row.id,
     school: {
-      name: input.data.schoolName,
-      motto: "Knowledge, Character, Service",
-      address: "P.O. Box 100, Kisumu, Kenya",
-      phone: "+254 700 000 000",
-      email: "office@myshule.online",
-      website: "myshule.online",
+      ...input.school,
+      name: input.school?.name?.trim() || input.data.schoolName,
     },
     learner: {
       fullName: input.row.learnerName,
@@ -386,16 +398,19 @@ export function buildReportCardDocument(input: {
       gradeForm: input.row.gradeForm,
       stream: input.row.stream,
       gender: mark?.gender,
-      boardingStatus: "Day scholar",
-      classTeacher: "Class Teacher",
-      status: "Active",
+      boardingStatus: undefined,
+      classTeacher: undefined,
+      status: undefined,
     },
     academic: {
-      academicYear: "2026",
-      term: "Term 2",
-      reportingPeriod: input.data.currentExam,
-      closingDate: "2026-06-28",
-      nextTermOpeningDate: "2026-08-26",
+      academicYear: input.academic?.academicYear?.trim() || "",
+      term: input.academic?.term?.trim() || "",
+      reportingPeriod:
+        input.academic?.reportingPeriod?.trim()
+        || (input.data.currentExam === "No exam selected" ? "" : input.data.currentExam),
+      openingDate: input.academic?.openingDate,
+      closingDate: input.academic?.closingDate,
+      nextTermOpeningDate: input.academic?.nextTermOpeningDate,
     },
     curriculum: {
       schoolDirection: settings.schoolDefaultCurriculumDirection,
@@ -450,7 +465,7 @@ export function buildReportCardDocument(input: {
       { role: "Principal/Deputy" },
     ],
     verification: {
-      generatedBy: "MyShule Reports",
+      generatedBy: input.generatedBy?.trim() || "MyShule Reports",
       generatedAt: new Date().toISOString(),
       qrValue: `verify:${input.row.id}`,
       securityNote: "Generated from MyShule. Unauthorized alteration is invalid.",

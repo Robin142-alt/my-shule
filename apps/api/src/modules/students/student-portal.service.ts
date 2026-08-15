@@ -26,39 +26,17 @@ export class StudentPortalService {
     return tenantId;
   }
 
-  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[]; rowCount: number }> {
-    if ((this.prisma as any).query) {
-      return (this.prisma as any).query(query, params);
-    }
-
-    if ((this.prisma as any).executeWithTenant) {
-      return (this.prisma as any).executeWithTenant(params[0], null, async (tx: any) => {
-        const result = await tx.$queryRawUnsafe(query, ...params);
-        const rows = Array.isArray(result) ? result : [result];
-        return { rows, rowCount: rows.length };
-      });
-    }
-
-    const result = await (this.prisma as any).$queryRawUnsafe(query, ...params);
-    const rows = Array.isArray(result) ? result : [result];
-    return { rows, rowCount: rows.length };
-  }
-
   private async executeTenantSql<T = any>(
     tenantId: string,
     userId: string,
     query: string,
     params: any[] = [],
   ): Promise<{ rows: T[]; rowCount: number }> {
-    if ((this.prisma as any).executeWithTenant) {
-      return (this.prisma as any).executeWithTenant(tenantId, userId, async (tx: any) => {
-        const result = await tx.$queryRawUnsafe(query, ...params);
-        const rows = Array.isArray(result) ? result : [result];
-        return { rows, rowCount: rows.length };
-      });
-    }
-
-    return this.executeSql<T>(query, params);
+    return this.prisma.executeWithTenant(tenantId, userId, async (tx: any) => {
+      const result = await tx.$queryRawUnsafe(query, ...params);
+      const rows = Array.isArray(result) ? result : [result];
+      return { rows, rowCount: rows.length };
+    });
   }
 
   private async resolveStudentId(tenantId: string, userId: string): Promise<string> {
@@ -86,10 +64,12 @@ export class StudentPortalService {
 
     // Preserve access for older student accounts created before portal links
     // were introduced, but never allow the fallback across a school boundary.
-    const legacyStudent = await this.prisma.student.findUnique({
-      where: { id: userId, schoolId: tenantId },
-      select: { id: true },
-    });
+    const legacyStudent = await this.prisma.executeWithTenant(tenantId, userId, (tx) =>
+      tx.student.findUnique({
+        where: { id: userId, schoolId: tenantId },
+        select: { id: true },
+      }),
+    );
     if (!legacyStudent) {
       throw new UnauthorizedException('Student portal account is not linked in this school');
     }
@@ -214,49 +194,56 @@ export class StudentPortalService {
     const userId = this.requireUserId();
     const studentId = await this.resolveStudentId(tenantId, userId);
 
-    const student = await this.prisma.student.findUnique({
-      where: { id: studentId, schoolId: tenantId },
-      include: {
-        currentClass: true,
-        currentStream: true,
-      }
-    });
+    const [portalData, pendingAssignments] = await Promise.all([
+      this.prisma.executeWithTenant(tenantId, userId, async (tx) => {
+        const student = await tx.student.findUnique({
+          where: { id: studentId, schoolId: tenantId },
+          include: {
+            currentClass: true,
+            currentStream: true,
+          }
+        });
 
-    if (!student) {
-      throw new UnauthorizedException('Student not found in this school');
-    }
+        if (!student) {
+          throw new UnauthorizedException('Student not found in this school');
+        }
 
-    const [attendanceRecords, latestReportCard, unreadMessages, pendingAssignments] = await Promise.all([
-      this.prisma.attendanceRecord.findMany({
-        where: { studentId, schoolId: tenantId },
-        orderBy: { createdAt: 'desc' },
-        take: 30,
-      }),
-      this.prisma.reportCard.findFirst({
-        where: {
-          studentId,
-          schoolId: tenantId,
-          status: 'RELEASED',
-          releasedAt: { not: null },
-        },
-        include: {
-          academicYear: true,
-          term: true,
-        },
-        orderBy: [
-          { academicYear: { startDate: 'desc' } },
-          { term: { termNumber: 'desc' } },
-        ],
-      }),
-      this.prisma.notification.count({
-        where: {
-          schoolId: tenantId,
-          targetUserId: userId,
-          status: 'UNREAD',
-        },
+        const [attendanceRecords, latestReportCard, unreadMessages] = await Promise.all([
+          tx.attendanceRecord.findMany({
+            where: { studentId, schoolId: tenantId },
+            orderBy: { createdAt: 'desc' },
+            take: 30,
+          }),
+          tx.reportCard.findFirst({
+            where: {
+              studentId,
+              schoolId: tenantId,
+              status: 'RELEASED',
+              releasedAt: { not: null },
+            },
+            include: {
+              academicYear: true,
+              term: true,
+            },
+            orderBy: [
+              { academicYear: { startDate: 'desc' } },
+              { term: { termNumber: 'desc' } },
+            ],
+          }),
+          tx.notification.count({
+            where: {
+              schoolId: tenantId,
+              targetUserId: userId,
+              status: 'UNREAD',
+            },
+          }),
+        ]);
+
+        return { student, attendanceRecords, latestReportCard, unreadMessages };
       }),
       this.countPendingAssignments(tenantId, userId, studentId),
     ]);
+    const { student, attendanceRecords, latestReportCard, unreadMessages } = portalData;
 
     const attendanceSummary = attendanceRecords.reduce(
       (summary, record) => {
@@ -308,15 +295,17 @@ export class StudentPortalService {
     const studentId = await this.resolveStudentId(tenantId, userId);
 
     const [reportCards, assignments] = await Promise.all([
-      this.prisma.reportCard.findMany({
-        where: {
-          studentId,
-          schoolId: tenantId,
-          status: 'RELEASED',
-          releasedAt: { not: null },
-        },
-        orderBy: { term: { startDate: 'desc' } },
-      }),
+      this.prisma.executeWithTenant(tenantId, userId, (tx) =>
+        tx.reportCard.findMany({
+          where: {
+            studentId,
+            schoolId: tenantId,
+            status: 'RELEASED',
+            releasedAt: { not: null },
+          },
+          orderBy: { term: { startDate: 'desc' } },
+        }),
+      ),
       this.listAssignments(tenantId, userId, studentId),
     ]);
 
@@ -336,11 +325,13 @@ export class StudentPortalService {
     const userId = this.requireUserId();
     const studentId = await this.resolveStudentId(tenantId, userId);
 
-    const records = await this.prisma.attendanceRecord.findMany({
-      where: { studentId, schoolId: tenantId },
-      orderBy: { createdAt: 'desc' },
-      take: 30
-    });
+    const records = await this.prisma.executeWithTenant(tenantId, userId, (tx) =>
+      tx.attendanceRecord.findMany({
+        where: { studentId, schoolId: tenantId },
+        orderBy: { createdAt: 'desc' },
+        take: 30
+      }),
+    );
 
     return {
       metrics: {
@@ -548,14 +539,6 @@ export class StudentPortalService {
       };
     };
 
-    if ((this.prisma as any).executeWithTenant) {
-      return (this.prisma as any).executeWithTenant(tenantId, userId, execute);
-    }
-
-    if ((this.prisma as any).$transaction) {
-      return (this.prisma as any).$transaction(execute);
-    }
-
-    return execute(this.prisma as any);
+    return this.prisma.executeWithTenant(tenantId, userId, execute);
   }
 }

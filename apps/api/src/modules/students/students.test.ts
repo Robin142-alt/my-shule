@@ -9,6 +9,8 @@ import { RequestContextService } from '../../common/request-context/request-cont
 import { ParentPortalService } from '../../parent-portal/parent-portal.service';
 import { AttendanceService } from './attendance.service';
 import { StudentPortalService } from './student-portal.service';
+import '../academics/academic-tenant-boundary.test';
+import { StudentLifecycleService } from './student-lifecycle.service';
 import { StudentsModule } from './students.module';
 import { StudentsRepository } from './repositories/students.repository';
 import { StudentsSchemaService } from './students-schema.service';
@@ -81,6 +83,160 @@ test('StudentsSchemaService adds a full-text index for active student directory 
   assert.match(schemaSql, /parent_user\.password_changed_at IS NULL/);
   assert.match(schemaSql, /role\.code = 'parent'/);
   assert.match(schemaSql, /lower\(student\.admission_number\)/);
+});
+
+test('StudentLifecycleService rejects every cross-tenant class placement reference before mutation', async () => {
+  const scenarios = [
+    { name: 'class', classId: 'class-b', yearId: 'year-a', levelId: 'level-a', streamId: 'stream-a' },
+    { name: 'stream', classId: 'class-a', yearId: 'year-a', levelId: 'level-a', streamId: 'stream-b' },
+    { name: 'academic year', classId: 'class-a', yearId: 'year-b', levelId: 'level-a', streamId: 'stream-a' },
+    { name: 'academic level', classId: 'class-a', yearId: 'year-a', levelId: 'level-b', streamId: 'stream-a' },
+  ];
+
+  for (const scenario of scenarios) {
+    const mutations: string[] = [];
+    const events: unknown[] = [];
+    const tx = {
+      student: {
+        findFirst: async ({ where }: any) => where.schoolId === 'tenant-a'
+          ? { id: 'student-a', schoolId: 'tenant-a', studentStatus: 'ENROLLED' }
+          : null,
+        update: async () => { mutations.push('student.update'); return {}; },
+      },
+      class: {
+        findFirst: async ({ where }: any) => where.id === 'class-a' && where.schoolId === 'tenant-a'
+          ? { id: 'class-a', schoolId: 'tenant-a', academicLevelId: 'level-a' }
+          : null,
+      },
+      stream: {
+        findFirst: async ({ where }: any) => where.id === 'stream-a'
+          && where.schoolId === 'tenant-a'
+          && where.classId === 'class-a'
+          ? { id: 'stream-a', schoolId: 'tenant-a', classId: 'class-a' }
+          : null,
+      },
+      academicYear: {
+        findFirst: async ({ where }: any) => where.id === 'year-a' && where.schoolId === 'tenant-a'
+          ? { id: 'year-a', schoolId: 'tenant-a' }
+          : null,
+      },
+      academicLevel: {
+        findFirst: async ({ where }: any) => where.id === 'level-a' && where.schoolId === 'tenant-a'
+          ? { id: 'level-a', schoolId: 'tenant-a', isActive: true }
+          : null,
+      },
+      studentClassAssignment: {
+        updateMany: async () => { mutations.push('assignment.archive'); },
+        create: async () => { mutations.push('assignment.create'); },
+      },
+      studentAuditLog: {
+        create: async () => { mutations.push('audit.create'); },
+      },
+    };
+    const service = new StudentLifecycleService(
+      {
+        executeWithTenant: async (tenantId: string, userId: string, callback: (client: any) => Promise<unknown>) => {
+          assert.equal(tenantId, 'tenant-a');
+          assert.equal(userId, 'user-a');
+          return callback(tx);
+        },
+      } as never,
+      { publish: async (event: unknown) => { events.push(event); } } as never,
+    );
+
+    await assert.rejects(
+      () => service.placeInClass(
+        'tenant-a',
+        'student-a',
+        scenario.classId,
+        scenario.yearId,
+        scenario.levelId,
+        'user-a',
+        scenario.streamId,
+      ),
+      /not found|selected school class/i,
+      scenario.name,
+    );
+    assert.deepEqual(mutations, [], `${scenario.name} must reject before persistence`);
+    assert.deepEqual(events, [], `${scenario.name} must reject before event publication`);
+  }
+});
+
+test('StudentLifecycleService persists a valid same-tenant class placement after relationship validation', async () => {
+  const calls: Array<{ method: string; input?: unknown }> = [];
+  const tx = {
+    student: {
+      findFirst: async ({ where }: any) => {
+        calls.push({ method: 'student.findFirst', input: where });
+        return { id: 'student-a', schoolId: 'tenant-a', studentStatus: 'ENROLLED' };
+      },
+      update: async ({ data }: any) => {
+        calls.push({ method: 'student.update', input: data });
+        return { id: 'student-a', ...data };
+      },
+    },
+    class: {
+      findFirst: async ({ where }: any) => {
+        calls.push({ method: 'class.findFirst', input: where });
+        return { id: 'class-a', schoolId: 'tenant-a', academicLevelId: 'level-a' };
+      },
+    },
+    stream: {
+      findFirst: async ({ where }: any) => {
+        calls.push({ method: 'stream.findFirst', input: where });
+        return { id: 'stream-a', schoolId: 'tenant-a', classId: 'class-a' };
+      },
+    },
+    academicYear: {
+      findFirst: async ({ where }: any) => {
+        calls.push({ method: 'year.findFirst', input: where });
+        return { id: 'year-a', schoolId: 'tenant-a' };
+      },
+    },
+    academicLevel: {
+      findFirst: async ({ where }: any) => {
+        calls.push({ method: 'level.findFirst', input: where });
+        return { id: 'level-a', schoolId: 'tenant-a', isActive: true };
+      },
+    },
+    studentClassAssignment: {
+      updateMany: async ({ where }: any) => { calls.push({ method: 'assignment.archive', input: where }); },
+      create: async ({ data }: any) => { calls.push({ method: 'assignment.create', input: data }); },
+    },
+    studentAuditLog: {
+      create: async ({ data }: any) => { calls.push({ method: 'audit.create', input: data }); },
+    },
+  };
+  const service = new StudentLifecycleService(
+    {
+      executeWithTenant: async (_tenantId: string, _userId: string, callback: (client: any) => Promise<unknown>) => callback(tx),
+    } as never,
+    { publish: async (input: unknown) => { calls.push({ method: 'event.publish', input }); } } as never,
+  );
+
+  const placed = await service.placeInClass(
+    'tenant-a',
+    'student-a',
+    'class-a',
+    'year-a',
+    'level-a',
+    'user-a',
+    'stream-a',
+  );
+
+  assert.equal(placed.currentClassId, 'class-a');
+  assert.deepEqual((calls.find((call) => call.method === 'stream.findFirst')?.input as any), {
+    id: 'stream-a',
+    schoolId: 'tenant-a',
+    classId: 'class-a',
+    deletedAt: null,
+  });
+  assert.deepEqual(calls.slice(-4).map((call) => call.method), [
+    'assignment.create',
+    'student.update',
+    'audit.create',
+    'event.publish',
+  ]);
 });
 
 test('StudentsService creates a student and publishes student.created', async () => {
@@ -325,21 +481,29 @@ test('ParentPortalService exposes only linked published academic records', async
 test('StudentPortalService exposes only the signed-in student released report cards', async () => {
   const requestContext = new RequestContextService();
   const reportCardCalls: any[] = [];
+  const tenantTransactions: Array<{ tenantId: string; userId: string }> = [];
   const service = new StudentPortalService(
     {
-      query: async (sql: string) => {
-        if (/FROM student_portal_access access/.test(sql)) {
-          return { rows: [{ student_id: 'student-1' }], rowCount: 1 };
-        }
-        if (/FROM academics_assignments assignment/.test(sql)) {
-          return { rows: [], rowCount: 0 };
-        }
-        return { rows: [], rowCount: 0 };
+      executeWithTenant: async (tenantId: string, userId: string, callback: (tx: any) => Promise<unknown>) => {
+        tenantTransactions.push({ tenantId, userId });
+        return callback({
+          $queryRawUnsafe: async (sql: string) => {
+            if (/FROM student_portal_access access/.test(sql)) {
+              return [{ student_id: 'student-1' }];
+            }
+            return [];
+          },
+          reportCard: {
+            findMany: async (args: any) => {
+              reportCardCalls.push(args);
+              return [];
+            },
+          },
+        });
       },
       reportCard: {
-        findMany: async (args: any) => {
-          reportCardCalls.push(args);
-          return [];
+        findMany: async () => {
+          throw new Error('direct report card access must not be used');
         },
       },
     } as never,
@@ -370,55 +534,64 @@ test('StudentPortalService exposes only the signed-in student released report ca
     status: 'RELEASED',
     releasedAt: { not: null },
   });
+  assert.equal(tenantTransactions.length >= 3, true);
+  assert.equal(tenantTransactions.every((call) => call.tenantId === 'tenant-a'), true);
+  assert.equal(tenantTransactions.every((call) => call.userId === 'student-1'), true);
 });
 
 test('StudentPortalService dashboard derives metrics from tenant-scoped records instead of stubs', async () => {
   const requestContext = new RequestContextService();
   const queries: any[] = [];
+  const tenantTransactions: Array<{ tenantId: string; userId: string }> = [];
   const service = new StudentPortalService(
     {
-      student: {
-        findUnique: async (args: any) => {
-          queries.push({ model: 'student', args });
-          return {
-            id: 'student-1',
-            firstName: 'Amina',
-            lastName: 'Otieno',
-            admissionNumber: 'ADM-001',
-            currentClass: { name: 'Grade 8' },
-            currentStream: { name: 'Blue' },
-          };
-        },
-      },
-      attendanceRecord: {
-        findMany: async (args: any) => {
-          queries.push({ model: 'attendanceRecord', args });
-          return [
-            { id: 'att-1', status: 'PRESENT', createdAt: new Date('2026-07-13T06:00:00.000Z') },
-            { id: 'att-2', status: 'PRESENT', createdAt: new Date('2026-07-12T06:00:00.000Z') },
-            { id: 'att-3', status: 'ABSENT', createdAt: new Date('2026-07-11T06:00:00.000Z') },
-          ];
-        },
-      },
-      reportCard: {
-        findFirst: async (args: any) => {
-          queries.push({ model: 'reportCard', args });
-          return { meanGrade: 'B+', meanScore: 72, term: { name: 'Term 2' }, academicYear: { name: '2026' } };
-        },
-      },
-      notification: {
-        count: async (args: any) => {
-          queries.push({ model: 'notification', args });
-          return 4;
-        },
-      },
-      query: async (sql: string, values: any[]) => {
-        if (/FROM student_portal_access access/.test(sql)) {
-          queries.push({ model: 'portal-access', sql, values });
-          return { rows: [{ student_id: 'student-1' }], rowCount: 1 };
-        }
-        queries.push({ model: 'assignments', sql, values });
-        return { rows: [{ pending_count: '3' }], rowCount: 1 };
+      executeWithTenant: async (tenantId: string, userId: string, callback: (tx: any) => Promise<unknown>) => {
+        tenantTransactions.push({ tenantId, userId });
+        return callback({
+          student: {
+            findUnique: async (args: any) => {
+              queries.push({ model: 'student', args });
+              return {
+                id: 'student-1',
+                firstName: 'Amina',
+                lastName: 'Otieno',
+                admissionNumber: 'ADM-001',
+                currentClass: { name: 'Grade 8' },
+                currentStream: { name: 'Blue' },
+              };
+            },
+          },
+          attendanceRecord: {
+            findMany: async (args: any) => {
+              queries.push({ model: 'attendanceRecord', args });
+              return [
+                { id: 'att-1', status: 'PRESENT', createdAt: new Date('2026-07-13T06:00:00.000Z') },
+                { id: 'att-2', status: 'PRESENT', createdAt: new Date('2026-07-12T06:00:00.000Z') },
+                { id: 'att-3', status: 'ABSENT', createdAt: new Date('2026-07-11T06:00:00.000Z') },
+              ];
+            },
+          },
+          reportCard: {
+            findFirst: async (args: any) => {
+              queries.push({ model: 'reportCard', args });
+              return { meanGrade: 'B+', meanScore: 72, term: { name: 'Term 2' }, academicYear: { name: '2026' } };
+            },
+          },
+          notification: {
+            count: async (args: any) => {
+              queries.push({ model: 'notification', args });
+              return 4;
+            },
+          },
+          $queryRawUnsafe: async (sql: string, ...values: any[]) => {
+            if (/FROM student_portal_access access/.test(sql)) {
+              queries.push({ model: 'portal-access', sql, values });
+              return [{ student_id: 'student-1' }];
+            }
+            queries.push({ model: 'assignments', sql, values });
+            return [{ pending_count: '3' }];
+          },
+        });
       },
     } as never,
     requestContext,
@@ -472,6 +645,8 @@ test('StudentPortalService dashboard derives metrics from tenant-scoped records 
   assert.deepEqual(queries.find((query) => query.model === 'assignments')?.values, ['tenant-a', 'student-1']);
   assert.match(queries.find((query) => query.model === 'assignments')?.sql ?? '', /academics_assignments/);
   assert.match(queries.find((query) => query.model === 'assignments')?.sql ?? '', /academics_assignment_submissions/);
+  assert.equal(tenantTransactions.every((call) => call.tenantId === 'tenant-a'), true);
+  assert.equal(tenantTransactions.every((call) => call.userId === 'student-1'), true);
 });
 
 test('ParentPortalService blocks dashboard query access to unlinked child records', async () => {

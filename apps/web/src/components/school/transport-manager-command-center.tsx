@@ -357,7 +357,7 @@ function Topbar({
           <StatusChip label={today} tone="neutral" />
           <div className="flex items-center gap-2">
             <TaskQueue />
-            <ApprovalInbox currentUserId="school" />
+            <ApprovalInbox />
             <NotificationBell />
           </div>
           <button type="button" onClick={() => onViewChange("incidents")} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#FF7A1A] px-4 text-sm font-black text-white shadow-[0_14px_30px_rgba(255,122,26,0.25)]">

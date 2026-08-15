@@ -70,12 +70,11 @@ function Panel({ title, description, icon: Icon, children, actions }: { title: s
 
 function OverviewWorkspace() {
   const { data: ticketsData } = useSchoolQuery<any>("/api/support/tickets?limit=5");
-  const { data: alertsData } = useSchoolQuery<any>("/api/observability/alerts");
-  const { data: healthData } = useSchoolQuery<any>("/api/observability/health");
+  const { data: overviewData } = useSchoolQuery<any>("/api/admin-command/ict-manager/overview");
   const { data: assetsData } = useSchoolQuery<any>("/api/assets/dashboard");
 
   const openTickets = ticketsData?.meta?.total_items ?? 0;
-  const systemAlerts = alertsData?.alerts?.length ?? healthData?.active_alert_count ?? 0;
+  const pendingMaintenance = overviewData?.metrics?.pendingMaintenance ?? 0;
   const assignedDevices = assetsData?.total_records ?? 0;
   const tickets = ticketsData?.data ?? [];
 
@@ -91,9 +90,9 @@ function OverviewWorkspace() {
           <div className="mt-2 text-3xl font-black text-[#071D49]">{assignedDevices}</div>
         </Card>
         <Card className="p-6">
-          <div className="text-sm font-semibold text-gray-500">System Alerts</div>
-          <div className={`mt-2 text-3xl font-black ${systemAlerts > 0 ? 'text-red-500' : 'text-green-500'}`}>
-            {systemAlerts}
+          <div className="text-sm font-semibold text-gray-500">Pending Maintenance</div>
+          <div className={`mt-2 text-3xl font-black ${pendingMaintenance > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+            {pendingMaintenance}
           </div>
         </Card>
       </div>
@@ -563,26 +562,35 @@ function ManageIctAssetModal({
 }
 
 function SystemLogsWorkspace() {
-  const { data: alertsData, isLoading } = useSchoolQuery<any>("/api/observability/alerts");
-  const alerts = alertsData?.alerts ?? [];
+  const { data: maintenanceData, isLoading, error, refetch } = useSchoolQuery<any>("/api/admin-command/ict-manager/maintenance");
+  const records = Array.isArray(maintenanceData)
+    ? maintenanceData
+    : Array.isArray(maintenanceData?.data)
+      ? maintenanceData.data
+      : [];
 
   return (
-    <Panel title="System Logs" description="Review server logs, observability metrics, and infrastructure alerts." icon={Server}>
+    <Panel title="School ICT Logs" description="Review tenant-scoped maintenance records. Platform-wide observability remains restricted to platform owners." icon={Server}>
       {isLoading ? (
-        <p className="text-sm text-slate-500">Loading alerts...</p>
-      ) : !alerts.length ? (
+        <p className="text-sm text-slate-500">Loading school ICT records...</p>
+      ) : error ? (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          <p className="font-bold">School ICT records could not be loaded.</p>
+          <button type="button" className="mt-3 rounded-lg border border-red-300 bg-white px-3 py-2 font-bold" onClick={() => void refetch()}>Retry</button>
+        </div>
+      ) : !records.length ? (
         <div className="rounded-lg border border-dashed border-[#D8E0EC] p-8 text-center text-slate-500">
-          No system alerts at the moment. Everything is running smoothly.
+          No school ICT maintenance records have been logged yet.
         </div>
       ) : (
         <div className="space-y-4">
-          {alerts.map((alert: any, i: number) => (
-            <div key={i} className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 p-4">
+          {records.map((record: any, i: number) => (
+            <div key={record.id ?? i} className="flex items-center justify-between rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-4">
               <div>
-                <p className="font-bold text-red-800">{alert.name}</p>
-                <p className="text-xs text-red-600 mt-1">{alert.description || alert.type}</p>
+                <p className="font-bold text-[#071D49]">{record.asset_name ?? record.title ?? record.name ?? "ICT maintenance record"}</p>
+                <p className="mt-1 text-xs text-[#64748B]">{record.description ?? record.notes ?? record.issue ?? "No additional notes recorded."}</p>
               </div>
-              <StatusPill label="Active" tone="critical" />
+              <StatusPill label={record.status ?? "Recorded"} tone={record.status === "completed" ? "ok" : "warning"} />
             </div>
           ))}
         </div>
@@ -605,16 +613,6 @@ export function IctManagerCommandCenter({ activeSection, routeMode }: { activeSe
     const newPath = buildSchoolSectionHref("ict-manager", view, routeMode ?? "hosted");
     window.history.replaceState(null, "", newPath);
   };
-
-  const { data: ticketsData } = useSchoolQuery<any>("/api/support/tickets");
-  const { data: alertsData } = useSchoolQuery<any>("/api/observability/alerts");
-  const { data: healthData } = useSchoolQuery<any>("/api/health");
-  const { data: assetsData } = useSchoolQuery<any>("/api/assets");
-
-  const openTickets = ticketsData?.meta?.total_items ?? 0;
-  const systemAlerts = alertsData?.alerts?.length ?? healthData?.active_alert_count ?? 0;
-  const assignedDevices = assetsData?.total_records ?? 0;
-  const tickets = ticketsData?.data ?? [];
 
   return (
     <div className="min-h-screen bg-[#F3F6FA]">

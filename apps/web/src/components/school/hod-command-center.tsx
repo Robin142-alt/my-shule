@@ -291,7 +291,7 @@ function Topbar({
             ) : null}
           </div>
           <TaskQueue />
-          <ApprovalInbox currentUserId="school" />
+          <ApprovalInbox />
           <NotificationBell />
         </div>
       </div>

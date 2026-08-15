@@ -8,6 +8,7 @@ import {
 import { AgpExecutionService } from '../../common/platform-governance/agp-execution.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import {
+  CreateTransportAssignmentDto,
   CreateTransportDriverDto,
   CreateTransportManifestDto,
   CreateTransportRouteDto,
@@ -18,7 +19,6 @@ import {
 } from './dto/transport.dto';
 import { TransportRepository } from './repositories/transport.repository';
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
-import { Optional } from '@nestjs/common';
 
 @Injectable()
 export class TransportService {
@@ -26,13 +26,25 @@ export class TransportService {
     private readonly requestContext: RequestContextService,
     private readonly agp: AgpExecutionService,
     private readonly repository: TransportRepository,
-    @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
+    private readonly schoolEvents: SchoolOperationalEventsService,
   ) {}
 
   getDashboard() {
     this.assertPermission('transport:read');
 
     return this.repository.getDashboard(this.requireTenantId());
+  }
+
+  listVehicles() {
+    this.assertPermission('transport:read');
+
+    return this.repository.listVehicles(this.requireTenantId());
+  }
+
+  listTrips() {
+    this.assertPermission('transport:read');
+
+    return this.repository.listTrips(this.requireTenantId());
   }
 
   async createRoute(dto: CreateTransportRouteDto) {
@@ -93,31 +105,57 @@ export class TransportService {
 
   async createManifest(dto: CreateTransportManifestDto) {
     this.assertPermission('transport:write');
+    const tenantId = this.requireTenantId();
+    const routeId = this.requireUuid(dto.route_id, 'Transport route');
+    const academicTermId = dto.academic_term_id
+      ? this.requireUuid(dto.academic_term_id, 'Academic term')
+      : undefined;
     const studentIds = this.requireUniqueIds(dto.student_ids, 'Transport manifest students');
+    this.assertDateRange(dto.effective_from, dto.effective_to);
+
+    const references = await this.repository.validateManifestReferences({
+      tenant_id: tenantId,
+      route_id: routeId,
+      academic_term_id: academicTermId,
+      student_ids: studentIds,
+    });
+
+    if (
+      !references.route_exists
+      || !references.academic_term_exists
+      || Number(references.student_count) !== studentIds.length
+    ) {
+      throw new BadRequestException(
+        'Transport assignment references must be active records owned by the current school',
+      );
+    }
+
     const manifest = await this.repository.createManifest({
       ...dto,
+      route_id: routeId,
+      academic_term_id: academicTermId,
       student_ids: studentIds,
-      tenant_id: this.requireTenantId(),
+      tenant_id: tenantId,
       created_by_user_id: this.requireUserId(),
     });
 
     await this.audit('transport.manifest.created', 'transport_manifest', manifest?.id, {
-      route_id: dto.route_id,
+      route_id: routeId,
       learner_count: studentIds.length,
     });
 
     for (const studentId of studentIds) {
-      await this.schoolEvents?.recordSchoolOperation({
+      await this.schoolEvents.recordSchoolOperation({
         event: {
           id: `${manifest.id}-${studentId}`,
           type: 'transport.route_assigned',
           module: 'transport',
           actorRole: this.requestContext.getStore()?.role || 'transport_officer',
           title: 'Transport Route Assigned',
-          body: `Student ${studentId} assigned to transport route ${dto.route_id}.`,
+          body: `Student ${studentId} assigned to transport route ${routeId}.`,
           entityId: manifest.id,
           severity: 'info',
-          payload: { route_id: dto.route_id, student_id: studentId },
+          payload: { route_id: routeId, student_id: studentId },
         },
         notifications: [
           {
@@ -125,19 +163,34 @@ export class TransportService {
             schoolId: this.requireTenantId(),
             audienceRoles: ['accountant', 'finance', 'parent'],
             title: 'Transport Route Assigned',
-            body: `Student ${studentId} has been assigned to transport route ${dto.route_id}. Transport fees may apply.`,
+            body: `Student ${studentId} has been assigned to transport route ${routeId}. Transport fees may apply.`,
             sourceModule: 'transport',
             relatedModule: 'finance',
             relatedRecordId: manifest.id,
             priority: 'normal',
             read: false,
             createdAt: new Date().toISOString(),
-          }
-        ]
-      }).catch(() => undefined);
+          },
+        ],
+      });
     }
 
     return manifest;
+  }
+
+  createAssignment(dto: CreateTransportAssignmentDto) {
+    const singleStudentId = dto.student_id ?? dto.studentId;
+    const studentIds = dto.student_ids
+      ?? dto.studentIds
+      ?? (singleStudentId ? [singleStudentId] : []);
+
+    return this.createManifest({
+      route_id: dto.route_id ?? dto.routeId ?? '',
+      academic_term_id: dto.academic_term_id ?? dto.academicTermId,
+      effective_from: dto.effective_from ?? dto.effectiveFrom,
+      effective_to: dto.effective_to ?? dto.effectiveTo,
+      student_ids: studentIds,
+    });
   }
 
   async startTrip(dto: StartTransportTripDto) {
@@ -225,7 +278,41 @@ export class TransportService {
       throw new BadRequestException(`${fieldName} are required`);
     }
 
-    return ids;
+    return ids.map((id) => this.requireUuid(id, fieldName));
+  }
+
+  private assertDateRange(effectiveFrom?: string, effectiveTo?: string): void {
+    const values = [effectiveFrom, effectiveTo].filter((value): value is string => Boolean(value));
+
+    for (const value of values) {
+      const parsed = Date.parse(`${value}T00:00:00.000Z`);
+      if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(value)
+        || !Number.isFinite(parsed)
+        || new Date(parsed).toISOString().slice(0, 10) !== value
+      ) {
+        throw new BadRequestException('Transport assignment effective dates must use YYYY-MM-DD');
+      }
+    }
+
+    if (!effectiveFrom || !effectiveTo) return;
+
+    const from = Date.parse(`${effectiveFrom}T00:00:00.000Z`);
+    const to = Date.parse(`${effectiveTo}T00:00:00.000Z`);
+
+    if (to < from) {
+      throw new BadRequestException('Transport assignment effective date range is invalid');
+    }
+  }
+
+  private requireUuid(value: string | undefined, fieldName: string): string {
+    const normalized = this.requireText(value, fieldName);
+
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalized)) {
+      throw new BadRequestException(`${fieldName} must be a valid identifier`);
+    }
+
+    return normalized;
   }
 
   private async audit(

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CalendarClock,
   CheckCircle2,
@@ -152,26 +152,62 @@ export function DeputyTimetableManagementWorkspace() {
 
   const yearsQuery = useSchoolQuery<AcademicYear[] | { items?: AcademicYear[] }>("/api/academics/academic-years");
   const termsQuery = useSchoolQuery<AcademicTerm[] | { items?: AcademicTerm[] }>("/api/academics/academic-terms");
-  const classesQuery = useSchoolQuery<ClassSection[] | { items?: ClassSection[] }>("/api/academics/class-sections");
+  const years = rowsFrom(yearsQuery.data).filter((year) =>
+    year.status === "active" && !year.archived_at);
+  const allTerms = rowsFrom(termsQuery.data).filter((term) =>
+    term.status === "active" && !term.archived_at);
+  const selectedYear = years.find((year) => year.name === selectedYearName) ?? years[0] ?? null;
+  const classesQuery = useSchoolQuery<ClassSection[] | { items?: ClassSection[] }>(
+    selectedYear
+      ? `/api/academics/class-sections?academic_year_id=${encodeURIComponent(selectedYear.id)}`
+      : null,
+  );
   const subjectsQuery = useSchoolQuery<Subject[] | { items?: Subject[] }>("/api/academics/subjects");
   const teachersQuery = useSchoolQuery<Teacher[] | { items?: Teacher[] }>("/api/academics/teachers");
   const assignmentsQuery = useSchoolQuery<TeacherAssignment[] | { items?: TeacherAssignment[] }>("/api/academics/teacher-assignments?limit=300");
 
-  const years = rowsFrom(yearsQuery.data);
-  const allTerms = rowsFrom(termsQuery.data);
   const allClasses = rowsFrom(classesQuery.data);
   const subjects = rowsFrom(subjectsQuery.data);
   const teachers = rowsFrom(teachersQuery.data);
   const assignments = rowsFrom(assignmentsQuery.data);
-  const selectedYear = years.find((year) => year.name === selectedYearName) ?? years[0] ?? null;
   const terms = selectedYear ? allTerms.filter((term) => term.academic_year_id === selectedYear.id) : [];
   const selectedTerm = terms.find((term) => term.name === selectedTermName) ?? terms[0] ?? null;
-  const classes = selectedYear ? allClasses.filter((section) => !section.academic_year_id || section.academic_year_id === selectedYear.id) : [];
+  const classes = selectedYear
+    ? allClasses.filter((section) =>
+        section.academic_year_id === selectedYear.id
+        && section.is_active === true
+        && section.status === "active"
+        && !section.archived_at)
+    : [];
   const academicYear = selectedYear?.name ?? "";
   const termName = selectedTerm?.name ?? "";
   const selectorQuery = academicYear && termName ? `academic_year=${encodeURIComponent(academicYear)}&term_name=${encodeURIComponent(termName)}` : "";
-  const effectiveClassId = selectedClassId || classes[0]?.id || "";
+  const selectedClassAvailable = Boolean(selectedClassId && classes.some((section) => section.id === selectedClassId));
+  const effectiveClassId = selectedClassAvailable
+    ? selectedClassId
+    : classes[0]?.id || "";
   const effectiveTeacherId = selectedTeacherId || (teachers[0] ? teacherId(teachers[0]) : "");
+
+  useEffect(() => {
+    if (selectedClassId && !selectedClassAvailable) {
+      setSelectedClassId("");
+    }
+  }, [selectedClassAvailable, selectedClassId]);
+
+  const sourceLoading = yearsQuery.isLoading || termsQuery.isLoading || classesQuery.isLoading
+    || subjectsQuery.isLoading || teachersQuery.isLoading || assignmentsQuery.isLoading;
+  const sourceError = yearsQuery.error || termsQuery.error || classesQuery.error
+    || subjectsQuery.error || teachersQuery.error || assignmentsQuery.error;
+  const retrySources = async () => {
+    await Promise.all([
+      yearsQuery.refetch(),
+      termsQuery.refetch(),
+      classesQuery.refetch(),
+      subjectsQuery.refetch(),
+      teachersQuery.refetch(),
+      assignmentsQuery.refetch(),
+    ]);
+  };
 
   const readinessQuery = useSchoolQuery<ReadinessResponse>(selectorQuery ? `/api/timetable/readiness?${selectorQuery}` : null);
   const plannerQuery = useSchoolQuery<PlannerResponse>(selectorQuery ? `/api/timetable/planner?${selectorQuery}` : null);
@@ -182,7 +218,7 @@ export function DeputyTimetableManagementWorkspace() {
   const unscheduledQuery = useSchoolQuery<UnscheduledResponse>(selectorQuery ? `/api/timetable/unscheduled?${selectorQuery}` : null);
   const historyQuery = useSchoolQuery<HistoryResponse>(selectorQuery ? `/api/timetable/versions/history?${selectorQuery}` : null);
   const viewParams = (() => {
-    if (!selectorQuery) return null;
+    if (!selectorQuery || (view === "class" && !effectiveClassId)) return null;
     const params = new URLSearchParams(selectorQuery);
     params.set("view", view);
     if (view === "class" && effectiveClassId) params.set("class_section_id", effectiveClassId);
@@ -629,13 +665,16 @@ export function DeputyTimetableManagementWorkspace() {
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div><p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[#47658F]"><CalendarClock className="h-4 w-4" /> Smart timetable & relief</p><h2 className="mt-2 text-2xl font-black">Timetable command centre</h2><p className="mt-1 max-w-3xl text-sm text-[#64748B]">Configure scheduling rules, generate the maximum valid draft, review from four perspectives, publish an immutable version, and manage daily relief.</p></div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm font-black">Academic year<select aria-label="Timetable academic year" value={academicYear} onChange={(event) => { setSelectedYearName(event.target.value); setSelectedTermName(""); setValidation(null); }} className={controlClass}>{years.length === 0 ? <option value="">No academic year</option> : years.map((year) => <option key={year.id} value={year.name}>{year.name}</option>)}</select></label>
+            <label className="text-sm font-black">Academic year<select aria-label="Timetable academic year" value={academicYear} onChange={(event) => { setSelectedYearName(event.target.value); setSelectedTermName(""); setSelectedClassId(""); setSelectedTeacherId(""); setSelectedResourceId(""); setScopeId(""); setValidation(null); }} className={controlClass}>{years.length === 0 ? <option value="">No academic year</option> : years.map((year) => <option key={year.id} value={year.name}>{year.name}</option>)}</select></label>
             <label className="text-sm font-black">Term<select aria-label="Timetable term" value={termName} onChange={(event) => { setSelectedTermName(event.target.value); setValidation(null); }} className={controlClass}>{terms.length === 0 ? <option value="">No term</option> : terms.map((term) => <option key={term.id} value={term.name}>{term.name}</option>)}</select></label>
           </div>
         </div>
       </section>
 
       <div className={`rounded-xl border px-4 py-3 text-sm font-bold ${saveState === "failed" ? "border-rose-200 bg-rose-50 text-rose-800" : saveState === "queued" ? "border-amber-300 bg-amber-50 text-amber-900" : "border-[#D8E0EC] bg-[#F8FAFC] text-[#47658F]"}`} aria-live="polite">{saveStateLabel(saveState)}</div>
+
+      {sourceLoading ? <div className="rounded-xl border border-[#D8E0EC] bg-white p-4 text-sm font-bold text-[#64748B]" role="status">Loading active academic years, terms, classes, subjects, teachers, and allocations...</div> : null}
+      {sourceError ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-800" role="alert"><p>Academic timetable source data could not be loaded. Existing timetable records remain unchanged.</p><button type="button" onClick={() => void retrySources()} className="mt-3 min-h-11 rounded-lg border border-rose-300 bg-white px-4">Retry academic sources</button></div> : null}
 
       <nav className="flex gap-2 overflow-x-auto rounded-xl border border-[#D8E0EC] bg-white p-2" aria-label="Timetable workspace tabs">
         {([[

@@ -4,7 +4,6 @@ import { Stethoscope } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { Modal } from "@/components/ui/modal";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createWelfareCase, openWelfareCase } from "./api-client";
 
@@ -27,11 +26,10 @@ export function DeputyWelfareWorkspace() {
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ studentName: "", concern: "", assignedTo: "School Counsellor" });
 
-  const queryClient = useQueryClient();
-  const { data, isLoading } = useSchoolQuery<WelfareData>('/admin-command/deputy/welfare');
+  const { data, isLoading, refetch } = useSchoolQuery<WelfareData>('/admin-command/deputy/welfare');
 
   const createMutation = useSchoolMutation('/admin-command/deputy/welfare', 'POST', {
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/welfare'] })
+    onSuccess: () => refetch()
   });
 
   const cases = data?.cases || [];
@@ -45,7 +43,7 @@ export function DeputyWelfareWorkspace() {
       });
       setShowModal(false);
       setFormData({ studentName: "", concern: "", assignedTo: "School Counsellor" });
-      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/welfare'] });
+      await refetch();
       toast.success("Welfare case created and referred successfully.");
     } catch (e: any) {
       toast.error(e.message || "Failed to create welfare case");
@@ -55,7 +53,7 @@ export function DeputyWelfareWorkspace() {
   const handleOpenCase = async (id: string, studentName: string) => {
     try {
       await openWelfareCase(id);
-      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/welfare'] });
+      await refetch();
       toast.success(`Case for ${studentName} opened. Status updated to In Progress.`);
     } catch (e: any) {
       toast.error(e.message || "Failed to open case.");

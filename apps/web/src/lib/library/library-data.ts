@@ -612,16 +612,31 @@ export function calculateOverdueDays(dueDate: string, returnedAt: string) {
   return Math.max(0, Math.floor(diff / 86_400_000));
 }
 
-export function createLibraryDataset(): LibraryDataset {
-  return cloneDataset({
-    books: baseBooks,
-    members: baseMembers,
-    borrowings: baseBorrowings,
-    returns: baseReturns,
-    fines: baseFines,
-    activityLogs: baseActivityLogs,
-    processedSubmissionIds: [],
-  });
+export function createLibraryDataset(options?: { useTestFixture?: boolean }): LibraryDataset {
+  const useTestFixture =
+    process.env.NODE_ENV === "test" && options?.useTestFixture === true;
+
+  return cloneDataset(
+    useTestFixture
+      ? {
+          books: baseBooks,
+          members: baseMembers,
+          borrowings: baseBorrowings,
+          returns: baseReturns,
+          fines: baseFines,
+          activityLogs: baseActivityLogs,
+          processedSubmissionIds: [],
+        }
+      : {
+          books: [],
+          members: [],
+          borrowings: [],
+          returns: [],
+          fines: [],
+          activityLogs: [],
+          processedSubmissionIds: [],
+        },
+  );
 }
 
 export function isLibrarySection(value: string): value is LibrarySectionId {

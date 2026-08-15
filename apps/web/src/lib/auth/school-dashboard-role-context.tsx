@@ -112,6 +112,27 @@ export function getDefaultDashboardRolePath(
   return routeMode === "public" ? `/school/${role}` : "/dashboard";
 }
 
+export function resolveSchoolDashboardTenantBinding(input: {
+  requestedTenantSlug?: string | null;
+  authenticatedTenantSlug?: string | null;
+  liveDataEnabled: boolean;
+}) {
+  const requestedTenantSlug = input.requestedTenantSlug?.trim() || null;
+  const authenticatedTenantSlug = input.authenticatedTenantSlug?.trim() || null;
+
+  return {
+    tenantSlug: input.liveDataEnabled
+      ? authenticatedTenantSlug
+      : requestedTenantSlug ?? authenticatedTenantSlug,
+    mismatch: Boolean(
+      input.liveDataEnabled
+      && requestedTenantSlug
+      && authenticatedTenantSlug
+      && requestedTenantSlug !== authenticatedTenantSlug,
+    ),
+  };
+}
+
 function readLastDashboardPath(input: {
   tenantSlug: string | null;
   userId: string | null;
@@ -193,7 +214,14 @@ export function SchoolDashboardRoleProvider({
   const [roleError, setRoleError] = useState<string | null>(null);
   const sessionRoleContext = auth.session?.roleContext;
   const userId = auth.user?.user_id ?? null;
-  const normalizedTenantSlug = tenantSlug?.trim() || auth.session?.tenantSlug || null;
+  // Once the gateway has authenticated the request, its tenant is the only
+  // trustworthy cache and dashboard scope. The route slug is merely the
+  // requested school and must never override the signed-in session.
+  const normalizedTenantSlug = resolveSchoolDashboardTenantBinding({
+    requestedTenantSlug: tenantSlug,
+    authenticatedTenantSlug: auth.session?.tenantSlug,
+    liveDataEnabled,
+  }).tenantSlug;
   const loadDashboardRoles = useEffectEvent(() => auth.loadDashboardRoles());
 
   useEffect(() => {

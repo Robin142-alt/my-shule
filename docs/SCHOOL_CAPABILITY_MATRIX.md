@@ -1,6 +1,6 @@
 # MyShule School Capability Matrix
 
-Generated: 2026-07-15T21:01:36.619Z
+Generated: 2026-08-15T05:19:23.302Z
 
 Status: NOT_YET_MANUALLY_VERIFIED
 
@@ -27,6 +27,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - Ict Manager: apps/web/src/components/school/ict-manager-command-center.tsx
 - Laboratory Technician: apps/web/src/components/school/laboratory-technician-command-center.tsx
 - Librarian: apps/web/src/components/school/librarian-command-center.tsx
+- Live Role: apps/web/src/components/school/live-role-command-center.tsx
 - Nurse: apps/web/src/components/school/nurse-command-center.tsx
 - Principal: apps/web/src/components/school/principal-command-center.tsx
 - Procurement Officer: apps/web/src/components/school/procurement-officer-command-center.tsx
@@ -42,6 +43,16 @@ This matrix is generated from source code so production-readiness gaps can be re
 ## Role Sidebar And Workspace Inventory
 | Role | Sidebar label | Workspace id | Source | Status |
 | --- | --- | --- | --- | --- |
+| Accountant | Arrears | arrears | apps/web/src/components/school/accountant-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Accountant | Expenses | expenses | apps/web/src/components/school/accountant-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Accountant | Fee Structures | fee-structures | apps/web/src/components/school/accountant-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Accountant | Student Invoices | invoices | apps/web/src/components/school/accountant-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Accountant | M-Pesa Reconciliation | m-pesa-reconciliation | apps/web/src/components/school/accountant-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Accountant | Finance Overview | overview | apps/web/src/components/school/accountant-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Accountant | Payments | payments | apps/web/src/components/school/accountant-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Accountant | Receipts | receipts | apps/web/src/components/school/accountant-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Accountant | Finance Reports | reports | apps/web/src/components/school/accountant-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Accountant | Waivers & Discounts | waivers-discounts | apps/web/src/components/school/accountant-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Admissions Dashboard | Applicant Profiles | applicant-profiles | apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Admissions Dashboard | Applications | applications | apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Admissions Dashboard | Appointments | appointments | apps/web/src/components/school/admissions-dashboard/admissions-dashboard-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
@@ -79,38 +90,40 @@ This matrix is generated from source code so production-readiness gaps can be re
 | Boarding Master | Boarding Settings | settings | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Boarding Master | Visitors & Gate Passes | visitors | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Boarding Master | Health & Welfare | welfare | apps/web/src/components/school/boarding-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Class Teacher | Assessments / CATs | assessments-cats | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Class Teacher | Assignments & Homework | assignments | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Academic Intelligence | academic-intelligence | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Assessments | assessments-cats | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Assignments | assignments | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | Attendance | attendance | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Class Teacher | Class Teacher Workspace | class-teacher | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Class Teacher | class-teacher | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | My Classes | classes | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Class Teacher | Club / Co-curricular | club | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Club Patron | club | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | Report Card Comments | comments | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | Parent Communication | communication | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Class Teacher | Discipline & Welfare | discipline-welfare | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Discipline | discipline-welfare | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | Discipline & Behaviour | discipline | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | Documents & Letters | documents | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | Exams & Marks | exams-marks | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Class Teacher | Fees Follow-up | fees | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | Health Notes | health | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | Overview | home | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | Homework & Class Tasks | homework | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Class Teacher | Invigilation Duties | invigilation | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Invigilation | invigilation | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | Learner Progress | learner-progress | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | Lesson Log | lesson-log | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | Meetings & Appointments | meetings | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | Notifications | notifications | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | Overview | overview | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Class Teacher | Parent Communication | parent-communication | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Parents | parent-communication | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Practical Requisitions | practical-requisitions | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | My Profile | profile | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | Academic Progress | progress | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | My Class Register | register | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Reports | reports | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | Reports & Downloads | reports | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | Requests & Approvals | requests | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | Settings | settings | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | Store Requests | store-requests | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Class Teacher | Syllabus Coverage | syllabus-coverage | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Class Teacher | Teaching Resources | teaching-resources | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Syllabus | syllabus-coverage | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | Resources | teaching-resources | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | My Timetable | timetable | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | Timetable | timetable | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | Welfare & Counselling | welfare | apps/web/src/components/school/class-teacher-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
@@ -139,7 +152,9 @@ This matrix is generated from source code so production-readiness gaps can be re
 | Dean Academics | Academic Overview | overview | apps/web/src/components/school/dean-academics-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Dean Academics | Academic Reports | reports | apps/web/src/components/school/dean-academics-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Dean Academics | Teacher Workload | teacher-workload | apps/web/src/components/school/dean-academics-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Deputy Principal | Academics Monitoring | academics | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Dean Academics | Master Timetable | timetable | apps/web/src/components/school/dean-academics-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Deputy Principal | Academic Intelligence | academic-intelligence | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Deputy Principal | Academic Foundation | academics | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Deputy Principal | Approvals & Escalations | approvals | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Deputy Principal | Attendance & Punctuality | attendance | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Deputy Principal | Classes & Streams | classes | apps/web/src/components/school/deputy-principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
@@ -180,7 +195,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 | Exams Manager | Marks Entry Hub | marks-entry | apps/web/src/components/school/exams-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Exams Manager | Data Validation | moderation | apps/web/src/components/school/exams-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Exams Manager | Exam Command Center | overview | apps/web/src/components/school/exams-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Exams Manager | Publishing | publishing | apps/web/src/components/school/exams-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Exams Manager | Report Card Handoff | publishing | apps/web/src/components/school/exams-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Exams Manager | Report Cards | report-cards | apps/web/src/components/school/exams-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Exams Manager | Reports & Audit | reports | apps/web/src/components/school/exams-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Grade Master | Academic Progress | academics | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
@@ -189,7 +204,6 @@ This matrix is generated from source code so production-readiness gaps can be re
 | Grade Master | Parent Communication | communication | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Grade Master | Discipline & Behaviour | discipline | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Grade Master | Exams & Report Readiness | exams | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Grade Master | Fees Watchlist | fees | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Grade Master | Learners | learners | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Grade Master | Meetings & Follow-ups | meetings | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Grade Master | Notifications | notifications | apps/web/src/components/school/grade-master-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
@@ -205,6 +219,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 | Guidance Counselling | Faith Akinyi referral | faith-referral | apps/web/src/components/school/guidance-counselling-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Guidance Counselling | Parent meeting | parent-meeting | apps/web/src/components/school/guidance-counselling-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Guidance Counselling | Wellbeing summary | wellness-report | apps/web/src/components/school/guidance-counselling-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Hod | Academic Intelligence | academic-intelligence | apps/web/src/components/school/hod-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Hod | Coverage Review | coverage-review | apps/web/src/components/school/hod-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Hod | Department Teachers | department-teachers | apps/web/src/components/school/hod-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Hod | Lesson Plans Review | lesson-plans | apps/web/src/components/school/hod-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
@@ -213,6 +228,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 | Hod | Department Reports | reports | apps/web/src/components/school/hod-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Hod | Resource Requests | resource-requests | apps/web/src/components/school/hod-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Hod | Subject Allocation | subject-allocation | apps/web/src/components/school/hod-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Hod | Department Timetable | timetable | apps/web/src/components/school/hod-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Laboratory Technician | Apparatus & Equipment | apparatus | apps/web/src/components/school/laboratory-technician-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Laboratory Technician | Chemicals & Reagents | chemicals | apps/web/src/components/school/laboratory-technician-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Laboratory Technician | Consumables & Specimens | consumables | apps/web/src/components/school/laboratory-technician-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
@@ -255,11 +271,14 @@ This matrix is generated from source code so production-readiness gaps can be re
 | Nurse | Parent Notifications | parent-notifications | apps/web/src/components/school/nurse-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Nurse | Sick Bay Queue | sick-bay-queue | apps/web/src/components/school/nurse-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Nurse | Visits | visits | apps/web/src/components/school/nurse-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Principal | Academics | academics | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Academic Intelligence | academic-intelligence | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Academic Calendar | academic-setup | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Teacher Allocations | academics | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | Approvals | approvals | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | Attendance | attendance | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | Audit Logs | audit-logs | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | Boarding | boarding | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Classes & Streams | classes-streams | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | Communication | communication | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | Discipline | discipline | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | Exams & Report Cards | exams-reports | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
@@ -267,12 +286,20 @@ This matrix is generated from source code so production-readiness gaps can be re
 | Principal | Library | library | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | Overview | overview | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | Reports | reports | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | School Profile | school-profile | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | School Setup | setup-checklist | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | Sick Bay | sick-bay | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | Staff | staff | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Subjects & Departments | subjects-departments | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | Master Timetable | timetable | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | Transport | transport | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | Users & Invitations | users-invitations | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | Parents & Visitors | visitors | apps/web/src/components/school/principal-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Procurement Officer | Budget Tracking | budget | apps/web/src/components/school/procurement-officer-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Procurement Officer | Overview | overview | apps/web/src/components/school/procurement-officer-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Procurement Officer | Purchase Orders | pos | apps/web/src/components/school/procurement-officer-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Procurement Officer | Requisitions | requisitions | apps/web/src/components/school/procurement-officer-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Procurement Officer | Supplier Directory | suppliers | apps/web/src/components/school/procurement-officer-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Role Operational | Form | form | apps/web/src/components/school/role-operational-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Role Operational | Today's Work | queue | apps/web/src/components/school/role-operational-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Role Operational | Records | records | apps/web/src/components/school/role-operational-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
@@ -325,25 +352,27 @@ This matrix is generated from source code so production-readiness gaps can be re
 | Storekeeper | Suppliers | suppliers | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Storekeeper | Transfers | transfers | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Storekeeper | Total Inventory Value | value | apps/web/src/components/school/storekeeper-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Teacher | Assessments / CATs | assessments-cats | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Teacher | Assignments & Homework | assignments | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Academic Intelligence | academic-intelligence | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Assessments | assessments-cats | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Assignments | assignments | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Teacher | Attendance | attendance | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Teacher | Class Teacher Workspace | class-teacher | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Class Teacher | class-teacher | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Teacher | My Classes | classes | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Teacher | Club / Co-curricular | club | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Teacher | Discipline & Welfare | discipline-welfare | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Club Patron | club | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Discipline | discipline-welfare | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Teacher | Exams & Marks | exams-marks | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Teacher | Invigilation Duties | invigilation | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Invigilation | invigilation | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Teacher | Learner Progress | learner-progress | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Teacher | Lesson Log | lesson-log | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Teacher | Notifications | notifications | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Teacher | Overview | overview | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Teacher | Parent Communication | parent-communication | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Parents | parent-communication | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Practical Requisitions | practical-requisitions | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Teacher | My Profile | profile | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Teacher | Reports & Downloads | reports | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Reports | reports | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Teacher | Store Requests | store-requests | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Teacher | Syllabus Coverage | syllabus-coverage | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Teacher | Teaching Resources | teaching-resources | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Syllabus | syllabus-coverage | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Teacher | Resources | teaching-resources | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Teacher | My Timetable | timetable | apps/web/src/components/school/teacher-dashboard/nav-config.ts | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Transport Manager | Student Transport Allocation | allocation | apps/web/src/components/school/transport-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Transport Manager | Transport Attendance | attendance | apps/web/src/components/school/transport-manager-command-center.tsx | DISCOVERED_NOT_MANUALLY_VERIFIED |
@@ -364,6 +393,9 @@ This matrix is generated from source code so production-readiness gaps can be re
 ## Button And Action Inventory
 | Role | Component | Label | Source | Handler | Status |
 | --- | --- | --- | --- | --- | --- |
+| Accountant | button | navigateTo("m-pesa-reconciliation")} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49] hover:bg-[#F8FAFC]" > Reconcile M-Pesa | apps/web/src/components/school/accountant-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Accountant | button | navigateTo("payments")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#071D49] px-4 text-sm font-black text-white hover:bg-[#0B2D6F]" > Record payment | apps/web/src/components/school/accountant-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Accountant | button | navigateTo(item.id)} className= `} > | apps/web/src/components/school/accountant-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Boarding Master | button | exportBoardingCsv("boarding-register-import-template.csv", ["student_admission_number", "boarding_category", "house", "room", "bed_label"], [], "Boarding register import template")}>Import | apps/web/src/components/school/boarding-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Boarding Master | button | generateBoardingReport(r)}> | apps/web/src/components/school/boarding-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Boarding Master | button | handleApproveBoardingRequest(request)}>Approve | apps/web/src/components/school/boarding-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
@@ -399,7 +431,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 | Boarding Master | button | openBoardingActionRecord("Welfare note", [["Student", String(record.title ?? "-")], ["Dorm", String(record.metadata?.dorm ?? record.owner_name ?? "-")], ["Concern", String(record.metadata?.concern_type ?? "-")], ["Referred to", String(record.metadata?.referred_to ?? "-")], ["Note", String(record.notes ?? "-")]])}>View Note | apps/web/src/components/school/boarding-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Boarding Master | button | openBoardingActionRecord(report.title || "Boarding report", [["Report", String(report.title ?? "-")], ["Status", String(report.status ?? "Ready")], ["Generated", String(report.created_at ?? "-")]])}> | apps/web/src/components/school/boarding-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Boarding Master | button | openSearchRecord(r)} className="w-full text-left p-2 hover:bg-[#F8FAFC] rounded-lg"> | apps/web/src/components/school/boarding-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Boarding Master | button | openView("roll-call")} className="inline-flex h-10 items-center justify-center rounded-xl bg-[#071D49] px-4 text-sm font-black text-white">Start Roll Call | apps/web/src/components/school/boarding-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Boarding Master | button | openView("roll-call")} className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[#071D49] px-4 text-sm font-black text-white sm:w-auto">Start Roll Call | apps/web/src/components/school/boarding-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Boarding Master | button | openView(item.id)} className= > | apps/web/src/components/school/boarding-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Boarding Master | button | Unlabeled button | apps/web/src/components/school/boarding-master-command-center.tsx | form-submit | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Boarding Master | button | Unlabeled button | apps/web/src/components/school/boarding-master-command-center.tsx | form-submit | DISCOVERED_NOT_MANUALLY_VERIFIED |
@@ -419,7 +451,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 | Boarding Master | form | Form submission | apps/web/src/components/school/boarding-master-command-center.tsx | onSubmit | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | button | Cancel | apps/web/src/components/school/class-teacher-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | button | onViewChange(item.id as TeacherView)} className= > | apps/web/src/components/school/class-teacher-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Class Teacher | button | sendClassTeacherCommunication( `, message: `$ needs a class teacher follow-up. Please check attendance, welfare, fees, and academic notes in the parent portal.`, source: "class-teacher-learner-profile" })}>Message Parent | apps/web/src/components/school/class-teacher-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Class Teacher | button | sendClassTeacherCommunication( `, message: `$ needs a class teacher follow-up. Please check attendance, welfare, and academic notes in the parent portal.`, source: "class-teacher-learner-profile" })}>Message Parent | apps/web/src/components/school/class-teacher-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | button | setNoteOpen(true)}>Add Class Note | apps/web/src/components/school/class-teacher-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | button | Unlabeled button | apps/web/src/components/school/class-teacher-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Class Teacher | button | Unlabeled button | apps/web/src/components/school/class-teacher-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
@@ -467,7 +499,6 @@ This matrix is generated from source code so production-readiness gaps can be re
 | Dean Academics | button | onSearchResult(item)} className="w-full rounded-lg px-3 py-2 text-left transition hover:bg-[#F3F6FA]" > | apps/web/src/components/school/dean-academics-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Dean Academics | button | onViewChange(item.id)} className= > | apps/web/src/components/school/dean-academics-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Deputy Principal | button | setActiveWorkspace(item.id)} className= > | apps/web/src/components/school/deputy-principal-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Deputy Principal | button | setActiveWorkspace(item.id)} className= > | apps/web/src/components/school/deputy-principal-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Deputy Principal | button | setActiveWorkspace(target)} className="rounded-lg border border-cyan-200/30 bg-cyan-200/10 px-3 py-2 text-sm font-black text-cyan-100" > | apps/web/src/components/school/deputy-principal-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Discipline Master | button | } className= > | apps/web/src/components/school/discipline-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Discipline Master | button | setActiveWorkspace("log-incident")} > Log Incident | apps/web/src/components/school/discipline-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
@@ -476,7 +507,6 @@ This matrix is generated from source code so production-readiness gaps can be re
 | Discipline Master | button | setIsMobileMenuOpen(true)} > | apps/web/src/components/school/discipline-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Exams Manager | button | CSV templates | apps/web/src/components/school/exams-manager-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Exams Manager | button | Import marks | apps/web/src/components/school/exams-manager-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Exams Manager | button | setActiveView(item.id)} className= `} > | apps/web/src/components/school/exams-manager-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Exams Manager | button | setActiveView(item.id)} className= `} > | apps/web/src/components/school/exams-manager-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Exams Manager | button | setActiveView(item.id)} className="block w-full px-4 py-3 text-left hover:bg-blue-50" > | apps/web/src/components/school/exams-manager-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Exams Manager | button | Unlabeled button | apps/web/src/components/school/exams-manager-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
@@ -494,9 +524,8 @@ This matrix is generated from source code so production-readiness gaps can be re
 | Grade Master | button | onNavigate('meetings')}>View Details | apps/web/src/components/school/grade-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Grade Master | button | onNavigate('streams')} className="text-[#1D4ED8] font-bold text-xs">Open Stream | apps/web/src/components/school/grade-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Grade Master | button | onSelectLearner(learner)} className="text-[#1D4ED8] font-bold text-xs">Open Profile | apps/web/src/components/school/grade-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Grade Master | button | openGradeRecord("Grade message templates", [["Template", "Attendance concern"], ["Template", "Meeting reminder"], ["Template", "Academic intervention"], ["Template", "Fees follow-up"]])}>Message Templates | apps/web/src/components/school/grade-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Grade Master | button | openGradeRecord("Grade message templates", [["Template", "Attendance concern"], ["Template", "Meeting reminder"], ["Template", "Academic intervention"], ["Template", "Welfare follow-up"]])}>Message Templates | apps/web/src/components/school/grade-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Grade Master | button | openGradeRecord("Learner risk profile", [["Learner", learner.learner], ["ADM", learner.admission_number], ["Stream", learner.stream], ["Risk", learner.risk]])}>Open Profile | apps/web/src/components/school/grade-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Grade Master | button | openGradeRecord("Lesson coverage log", [["Day", lesson.day], ["Time", lesson.time], ["Stream", lesson.stream], ["Subject", lesson.subject], ["Teacher", lesson.teacher], ["Status", lesson.status]])}>View Log | apps/web/src/components/school/grade-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Grade Master | button | openGradeRecord(`$ at-risk learners`, [["Subject", row.subject], ["Teacher", row.teacher], ["Average", row.average], ["At-risk", String(row.at_risk)]])}>View Learners | apps/web/src/components/school/grade-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Grade Master | button | openGradeRecord(report.report_name, [["Report", report.report_name], ["Format", report.type], ["Status", report.status], ["Download", report.download_url]])}> | apps/web/src/components/school/grade-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Grade Master | button | openSearchRecord(r)} className="w-full text-left p-2 hover:bg-[#F8FAFC] rounded-lg"> | | risk | apps/web/src/components/school/grade-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
@@ -504,10 +533,8 @@ This matrix is generated from source code so production-readiness gaps can be re
 | Grade Master | button | openView("learners")} className="inline-flex h-10 items-center justify-center rounded-xl bg-[#071D49] px-4 text-sm font-black text-white hidden sm:flex">Take Quick Action | apps/web/src/components/school/grade-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Grade Master | button | openView(item.id)} className= > | apps/web/src/components/school/grade-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Grade Master | button | sendGradeNotification( has $ attendance requiring guardian follow-up.`, targetRoles: ["parent", "grade_master", "secretary"], priority: "high", payload: })}>Message Parent | apps/web/src/components/school/grade-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Grade Master | button | sendGradeNotification( has an accountant-approved balance of $ .`, targetRoles: ["parent", "grade_master", "secretary"], priority: "high", payload: })}>Message Parent | apps/web/src/components/school/grade-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Grade Master | button | sendGradeNotification( needs a grade-master follow-up covering attendance, academics, welfare, or fees.`, targetRoles: ["parent", "grade_master", "secretary"], priority: "normal", payload: })}>Message Parent | apps/web/src/components/school/grade-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Grade Master | button | sendGradeNotification( needs a grade-master follow-up covering attendance, academics, welfare, or discipline.`, targetRoles: ["parent", "grade_master", "secretary"], priority: "normal", payload: })}>Message Parent | apps/web/src/components/school/grade-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Grade Master | button | sendGradeNotification( needs a welfare follow-up. Sensitive counselling notes remain restricted.`, targetRoles: ["class_teacher", "grade_master"], priority: "normal", payload: })}>Notify Class Teacher | apps/web/src/components/school/grade-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Grade Master | button | Unlabeled button | apps/web/src/components/school/grade-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Grade Master | button | Unlabeled button | apps/web/src/components/school/grade-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Grade Master | button | Unlabeled button | apps/web/src/components/school/grade-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Grade Master | button | Unlabeled button | apps/web/src/components/school/grade-master-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
@@ -546,6 +573,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 | Ict Manager | button | openTicket(t)} className="text-[#1D4ED8] hover:underline text-xs font-bold">View | apps/web/src/components/school/ict-manager-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Ict Manager | button | recordIctWorkflowAction(title, detail, priority === "high" ? "high" : "normal")} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left transition hover:border-[#1D4ED8]" > | apps/web/src/components/school/ict-manager-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Ict Manager | button | setSelectedAssetForManagement(a)}>Manage | apps/web/src/components/school/ict-manager-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Ict Manager | button | void refetch()}>Retry | apps/web/src/components/school/ict-manager-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Ict Manager | form | Form submission | apps/web/src/components/school/ict-manager-command-center.tsx | onSubmit | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Ict Manager | form | Form submission | apps/web/src/components/school/ict-manager-command-center.tsx | onSubmit | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Ict Manager | form | Form submission | apps/web/src/components/school/ict-manager-command-center.tsx | onSubmit | DISCOVERED_NOT_MANUALLY_VERIFIED |
@@ -635,15 +663,14 @@ This matrix is generated from source code so production-readiness gaps can be re
 | Librarian | form | Form submission | apps/web/src/components/school/librarian-command-center.tsx | onSubmit | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Librarian | form | Form submission | apps/web/src/components/school/librarian-command-center.tsx | onSubmit | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Librarian | form | Form submission | apps/web/src/components/school/librarian-command-center.tsx | onSubmit | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Principal | ActionRow | Academic oversight | apps/web/src/components/school/principal-command-center.tsx | onAction | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Live Role | button | navigateTo(config.primarySection)} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#071D49] px-4 text-sm font-black text-white hover:bg-[#0B2D6F]" > | apps/web/src/components/school/live-role-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Live Role | button | navigateTo(item.id)} className= `} > | apps/web/src/components/school/live-role-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | ActionRow | Export Fee Summary | apps/web/src/components/school/principal-command-center.tsx | onAction | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | ActionRow | Export Summary | apps/web/src/components/school/principal-command-center.tsx | onAction | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | ActionRow | Primary action | apps/web/src/components/school/principal-command-center.tsx | onAction | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | ActionRow | Print Attendance Report | apps/web/src/components/school/principal-command-center.tsx | onAction | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | ActionRow | Print Defaulters List | apps/web/src/components/school/principal-command-center.tsx | onAction | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | ActionRow | Print Workspace Report | apps/web/src/components/school/principal-command-center.tsx | onAction | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Principal | ActionRow | Report publishing | apps/web/src/components/school/principal-command-center.tsx | onAction | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Principal | ActionRow | Results approval | apps/web/src/components/school/principal-command-center.tsx | onAction | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | ActionRow | Send Absence SMS | apps/web/src/components/school/principal-command-center.tsx | onAction | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | ActionRow | View Collections | apps/web/src/components/school/principal-command-center.tsx | onAction | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | button | } className="rounded-lg bg-[#071D49] px-3 py-2 text-sm font-black text-white" > Print | apps/web/src/components/school/principal-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
@@ -656,18 +683,14 @@ This matrix is generated from source code so production-readiness gaps can be re
 | Principal | button | setActiveWorkspace("setup-checklist")} className="rounded-lg border border-cyan-200/30 bg-cyan-200/10 px-3 py-2 text-sm font-black text-cyan-100" > Open School Setup | apps/web/src/components/school/principal-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | button | setActiveWorkspace(label === "Fees" ? "fees" : label === "Sick Bay" ? "sick-bay" : label === "Parents & Visitors" ? "visitors" : label.toLowerCase() as PrincipalSection)} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm font-black text-white transition hover:border-cyan-200/40 hover:bg-white/10" > | apps/web/src/components/school/principal-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | button | setActiveWorkspace(step.target as PrincipalSection)} className="rounded-lg border border-cyan-200/30 bg-cyan-200/10 px-3 py-2 text-sm font-black text-cyan-100" > | apps/web/src/components/school/principal-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Principal | button | setMobileSidebarOpen(false)} /> ) : null} Principal Command className= > : null} | apps/web/src/components/school/principal-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Principal | button | setMobileSidebarOpen(false)} /> ) : null} /> ) : ( )} Principal Command className= > : null} | apps/web/src/components/school/principal-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | button | setMobileSidebarOpen(true)} > Menu | apps/web/src/components/school/principal-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Principal | button | setPrintDialogOpen(false)}>Close | apps/web/src/components/school/principal-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Procurement Officer | button | Cancel | apps/web/src/components/school/procurement-officer-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Procurement Officer | button | Cancel | apps/web/src/components/school/procurement-officer-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Procurement Officer | button | Cancel | apps/web/src/components/school/procurement-officer-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Procurement Officer | button | openProcurementRecord("Purchase order details", [ ["Order #", String(po.order_number ?? po.po_number ?? po.id ?? "-")], ["Supplier", String(po.supplier_name ?? "-")], ["Total", `KES $ `], ["Status", String(po.status ?? "-")], ])} > View | apps/web/src/components/school/procurement-officer-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Procurement Officer | button | setActiveView("budget")} className= `}> Budget Tracking | apps/web/src/components/school/procurement-officer-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Procurement Officer | button | setActiveView("overview")} className= `}> Overview | apps/web/src/components/school/procurement-officer-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Procurement Officer | button | setActiveView("pos")} className= `}> Purchase Orders | apps/web/src/components/school/procurement-officer-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Procurement Officer | button | setActiveView("requisitions")} className= `}> Requisitions | apps/web/src/components/school/procurement-officer-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
-| Procurement Officer | button | setActiveView("suppliers")} className= `}> Supplier Directory | apps/web/src/components/school/procurement-officer-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
+| Procurement Officer | button | setActiveView(item.id)} className= `} > | apps/web/src/components/school/procurement-officer-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Procurement Officer | button | setIsSupplierModalOpen(false)} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel | apps/web/src/components/school/procurement-officer-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Procurement Officer | button | setSelectedRequest(r)}>Review | apps/web/src/components/school/procurement-officer-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
 | Procurement Officer | button | setSelectedSupplier(s)}>Edit | apps/web/src/components/school/procurement-officer-command-center.tsx | onClick | DISCOVERED_NOT_MANUALLY_VERIFIED |
@@ -910,23 +933,23 @@ This matrix is generated from source code so production-readiness gaps can be re
 ## Frontend Route Section Inventory
 - supportWorkspaceSectionIds: 4 sections - support-new-ticket, support-my-tickets, support-knowledge-base, support-system-status
 - admissionsDashboardSectionIds: 22 sections - dashboard, overview, enquiries, applications, applicant-profiles, documents, interviews, appointments, selection, fee-clearance, placement, enrolment, parents, transfers, imports, templates, tasks, communication, reports, admissions, class-placement, parent-linking
-- teacherDashboardSectionIds: 37 sections - dashboard, overview, students, academics, communication, timetable, my-timetable, classes, subjects-classes, attendance, teacher-attendance, lesson-log, lesson-logs, lesson-plans, syllabus-coverage, assignments, assignments-homework, assessments-cats, exams, exams-marks, marks-entry, learner-progress, student-notes, discipline-welfare, parent-communication, messages, teaching-resources, resource-requests, store-requests, reports, reports-downloads, reports-analytics, notifications, profile, class-teacher, club, invigilation
+- teacherDashboardSectionIds: 40 sections - dashboard, overview, students, academics, communication, timetable, my-timetable, classes, subjects-classes, attendance, teacher-attendance, lesson-log, lesson-logs, lesson-plans, syllabus-coverage, assignments, assignments-homework, assessments-cats, exams, exams-marks, marks-entry, learner-progress, student-notes, discipline-welfare, parent-communication, messages, teaching-resources, resource-requests, practical-requisitions, store-requests, reports, reports-downloads, reports-analytics, academic-analytics, academic-intelligence, notifications, profile, class-teacher, club, invigilation
 - examsManagerDashboardSectionIds: 27 sections - dashboard, overview, exams, builder, exam-setup, scheduler, exam-timetable, marks, missing-marks, submissions, marks-entry, moderation, validation, grading, academic-analytics, analysis, drafts, report-templates, report-cards, publishing, imports, templates, imports-templates, exports, audit-log, archive, reports
-- roleOperationalWorkspaceSectionIds: 67 sections - dashboard, setup-checklist, school-setup, executive-analytics, alerts-risks, approvals, universal-approvals, users-staff, reports, reports-analytics, school-calendar, communication-center, document-printing, data-security, ai-insights, audit-logs, settings, students, school-admin, mpesa, academics, academic-interventions, syllabus, curriculum-coverage, department-performance, teacher-workload, lesson-plans, lesson-logs, assessments, attendance, resources, department-teachers, subject-allocation, coverage-review, marks-moderation, resource-requests, student-analytics, marks, grading, validation, communication, transport, procurement, hostel, boarding, cbt, lms, visitors, assets, iot, exams, discipline, labs, teacher-attendance, clinic, leadership, timetable, staff, admissions, inventory, library, hr-payroll, timetable-builder, canteen-meals, co-curricular, setup-wizard, ict-assets
-- deanAcademicsWorkspaceSectionIds: 33 sections - dashboard, overview, academic-overview, academics, curriculum, syllabus, curriculum-coverage, academic-analytics, department-performance, student-analytics, teachers, staff, teacher-workload, lesson-plans, lesson-logs, attendance, pending, moderation, results-moderation, integrity, exams, marks, grading, validation, assessments, interventions, alerts, academic-interventions, history, approvals, universal-approvals, reports, reports-analytics
-- hodWorkspaceSectionIds: 43 sections - dashboard, overview, my-teaching, department-settings, department-overview, department-teachers, staff, teacher-attendance, lesson-observation, subject-allocation, timetable, timetable-builder, schemes-of-work, syllabus, syllabus-coverage, attendance, academics, lesson-delivery, coverage-review, lesson-plans, assessments-cats, exams, exams-marks-moderation, marks, grading, validation, performance-analytics, student-analytics, learner-interventions, marks-moderation, resources, resources-requests, resource-requests, procurement, inventory, approvals, communication, users-invitations, sick-bay, exams-reports, department-meetings, reports, reports-downloads
-- financeRoleDedicatedSectionIds: 10 sections - fee-structures, invoices, payments, receipts, mpesa, m-pesa-reconciliation, arrears, waivers-discounts, expenses, reports
+- roleOperationalWorkspaceSectionIds: 69 sections - dashboard, setup-checklist, school-setup, executive-analytics, alerts-risks, approvals, universal-approvals, users-staff, reports, reports-analytics, school-calendar, communication-center, document-printing, data-security, ai-insights, audit-logs, settings, students, school-admin, mpesa, academics, academic-interventions, academic-analytics, academic-intelligence, syllabus, curriculum-coverage, department-performance, teacher-workload, lesson-plans, lesson-logs, assessments, attendance, resources, department-teachers, subject-allocation, coverage-review, marks-moderation, resource-requests, student-analytics, marks, grading, validation, communication, transport, procurement, hostel, boarding, cbt, lms, visitors, assets, iot, exams, discipline, labs, teacher-attendance, clinic, leadership, timetable, staff, admissions, inventory, library, hr-payroll, timetable-builder, canteen-meals, co-curricular, setup-wizard, ict-assets
+- deanAcademicsWorkspaceSectionIds: 34 sections - dashboard, overview, academic-overview, academics, curriculum, syllabus, curriculum-coverage, academic-analytics, academic-intelligence, department-performance, student-analytics, teachers, staff, teacher-workload, lesson-plans, lesson-logs, attendance, pending, moderation, results-moderation, integrity, exams, marks, grading, validation, assessments, interventions, alerts, academic-interventions, history, approvals, universal-approvals, reports, reports-analytics
+- hodWorkspaceSectionIds: 45 sections - dashboard, overview, my-teaching, department-settings, department-overview, department-teachers, staff, teacher-attendance, lesson-observation, subject-allocation, timetable, timetable-builder, schemes-of-work, syllabus, syllabus-coverage, attendance, academics, lesson-delivery, coverage-review, lesson-plans, assessments-cats, exams, exams-marks-moderation, marks, grading, validation, performance-analytics, academic-analytics, academic-intelligence, student-analytics, learner-interventions, marks-moderation, resources, resources-requests, resource-requests, procurement, inventory, approvals, communication, users-invitations, sick-bay, exams-reports, department-meetings, reports, reports-downloads
+- financeRoleDedicatedSectionIds: 13 sections - dashboard, overview, finance, fee-structures, invoices, payments, receipts, mpesa, m-pesa-reconciliation, arrears, waivers-discounts, expenses, reports
 
 ## API Controller Inventory
-- AuthController (apps/api/src/auth/auth.controller.ts) - @Controller(auth) - 19 route handlers
+- AuthController (apps/api/src/auth/auth.controller.ts) - @Controller(auth) - 22 route handlers
 - AutoRepairController (apps/api/src/common/auto-repair/auto-repair.controller.ts) - @Controller(auto-repair) - 2 route handlers
 - ArchitectureRuntimeService (apps/api/src/common/platform-governance/architecture-runtime.controller.ts) - @Controller(platform-governance) - 1 route handlers
 - ReportExportJobsController (apps/api/src/common/reports/report-export-jobs.controller.ts) - @Controller(reports) - 1 route handlers
 - AcademicController (apps/api/src/modules/academics/academic.controller.ts) - @Controller(academic) - 12 route handlers
-- AcademicsController (apps/api/src/modules/academics/academics.controller.ts) - @Controller(academics) - 54 route handlers
+- AcademicsController (apps/api/src/modules/academics/academics.controller.ts) - @Controller(academics) - 80 route handlers
 - AttendanceController (apps/api/src/modules/academics/attendance-mark.controller.ts) - @Controller(attendance) - 1 route handlers
-- AccountantCommandController (apps/api/src/modules/admin-command/accountant-command.controller.ts) - @Controller(admin-command/accountant) - 2 route handlers
-- AdminCommandController (apps/api/src/modules/admin-command/admin-command.controller.ts) - @Controller(admin-command) - 94 route handlers
+- AccountantCommandController (apps/api/src/modules/admin-command/accountant-command.controller.ts) - @Controller(admin-command/accountant) - 5 route handlers
+- AdminCommandController (apps/api/src/modules/admin-command/admin-command.controller.ts) - @Controller(admin-command) - 95 route handlers
 - AdmissionsCommandController (apps/api/src/modules/admin-command/admissions-command.controller.ts) - @Controller(admin-command/admissions) - 35 route handlers
 - BoardingMasterCommandController (apps/api/src/modules/admin-command/boarding-master-command.controller.ts) - @Controller(admin-command/boarding-master) - 24 route handlers
 - ClassTeacherCommandController (apps/api/src/modules/admin-command/class-teacher-command.controller.ts) - @Controller(admin-command/class-teacher) - 27 route handlers
@@ -939,15 +962,15 @@ This matrix is generated from source code so production-readiness gaps can be re
 - LaboratoryTechnicianCommandController (apps/api/src/modules/admin-command/laboratory-technician-command.controller.ts) - @Controller(admin-command/laboratory-technician) - 17 route handlers
 - LibrarianCommandController (apps/api/src/modules/admin-command/librarian-command.controller.ts) - @Controller(admin-command/librarian) - 24 route handlers
 - NurseCommandController (apps/api/src/modules/admin-command/nurse-command.controller.ts) - @Controller(admin-command/nurse) - 18 route handlers
-- ParentCommandController (apps/api/src/modules/admin-command/parent-command.controller.ts) - @Controller(admin-command/parent) - 5 route handlers
+- ParentCommandController (apps/api/src/modules/admin-command/parent-command.controller.ts) - @Controller(admin-command/parent) - 8 route handlers
 - ProcurementOfficerCommandController (apps/api/src/modules/admin-command/procurement-officer-command.controller.ts) - @Controller(admin-command/procurement-officer) - 21 route handlers
 - SecretaryCommandController (apps/api/src/modules/admin-command/secretary-command.controller.ts) - @Controller(admin-command/secretary) - 39 route handlers
 - SecurityOfficerCommandController (apps/api/src/modules/admin-command/security-officer-command.controller.ts) - @Controller(admin-command/security-officer) - 56 route handlers
 - StorekeeperCommandController (apps/api/src/modules/admin-command/storekeeper-command.controller.ts) - @Controller(admin-command/storekeeper) - 24 route handlers
-- StudentCommandController (apps/api/src/modules/admin-command/student-command.controller.ts) - @Controller(admin-command/student) - 4 route handlers
+- StudentCommandController (apps/api/src/modules/admin-command/student-command.controller.ts) - @Controller(admin-command/student) - 7 route handlers
 - TeacherCommandController (apps/api/src/modules/admin-command/teacher-command.controller.ts) - @Controller(admin-command/teacher) - 21 route handlers
 - TransportManagerCommandController (apps/api/src/modules/admin-command/transport-manager-command.controller.ts) - @Controller(admin-command/transport-manager) - 27 route handlers
-- AdmissionsController (apps/api/src/modules/admissions/admissions.controller.ts) - @Controller(admissions) - 32 route handlers
+- AdmissionsController (apps/api/src/modules/admissions/admissions.controller.ts) - @Controller(admissions) - 41 route handlers
 - AiInsightsController (apps/api/src/modules/ai-insights/ai-insights.controller.ts) - @Controller(ai-insights) - 3 route handlers
 - ApprovalsController (apps/api/src/modules/approvals/approvals.controller.ts) - @Controller(api/approvals) - 6 route handlers
 - AssetsController (apps/api/src/modules/assets/assets.controller.ts) - @Controller(assets) - 3 route handlers
@@ -955,7 +978,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - BiometricAttendanceController (apps/api/src/modules/biometric-attendance/biometric-attendance.controller.ts) - @Controller(biometric-attendance) - 7 route handlers
 - BoardingController (apps/api/src/modules/boarding/boarding.controller.ts) - @Controller(boarding) - 7 route handlers
 - CbtController (apps/api/src/modules/cbt/cbt.controller.ts) - @Controller(cbt) - 3 route handlers
-- ClassTeacherController (apps/api/src/modules/class-teacher/class-teacher.controller.ts) - @Controller(class-teacher) - 38 route handlers
+- ClassTeacherController (apps/api/src/modules/class-teacher/class-teacher.controller.ts) - @Controller(class-teacher) - 37 route handlers
 - ClinicController (apps/api/src/modules/clinic/clinic.controller.ts) - @Controller(clinic) - 19 route handlers
 - SendSmsDto (apps/api/src/modules/communication/communication.controller.ts) - @Controller(communication) - 5 route handlers
 - SmsController (apps/api/src/modules/communication/sms.controller.ts) - @Controller(sms) - 1 route handlers
@@ -969,31 +992,32 @@ This matrix is generated from source code so production-readiness gaps can be re
 - NotificationRouterController (apps/api/src/modules/events/notification-router.controller.ts) - @Controller(workflow/inbox) - 5 route handlers
 - OperationalWorkflowDispatcherController (apps/api/src/modules/events/operational-workflow-dispatcher.controller.ts) - @Controller(operational-workflows) - 6 route handlers
 - SchoolOperationalEventsController (apps/api/src/modules/events/school-operational-events.controller.ts) - @Controller(events) - 3 route handlers
-- ExamsController (apps/api/src/modules/exams/exams.controller.ts) - @Controller(exams) - 92 route handlers
+- ExamsController (apps/api/src/modules/exams/exams.controller.ts) - @Controller(exams) - 98 route handlers
 - ReportCardDownloadController (apps/api/src/modules/exams/report-card-download.controller.ts) - @Controller(exams) - 1 route handlers
 - FeesController (apps/api/src/modules/finance/fees.controller.ts) - @Controller(fees) - 2 route handlers
-- CreatePaymentDto (apps/api/src/modules/finance/finance.controller.ts) - @Controller(finance) - 21 route handlers
-- GradeMasterController (apps/api/src/modules/grade-master/grade-master.controller.ts) - @Controller(grade-master) - 18 route handlers
+- CreatePaymentDto (apps/api/src/modules/finance/finance.controller.ts) - @Controller(finance) - 22 route handlers
+- GradeMasterController (apps/api/src/modules/grade-master/grade-master.controller.ts) - @Controller(grade-master) - 17 route handlers
 - HealthController (apps/api/src/modules/health/health.controller.ts) - @Controller(health) - 2 route handlers
 - SystemController (apps/api/src/modules/health/system.controller.ts) - @Controller(root) - 4 route handlers
 - HostelController (apps/api/src/modules/hostel/hostel.controller.ts) - @Controller(hostel) - 3 route handlers
 - HrController (apps/api/src/modules/hr/hr.controller.ts) - @Controller(hr) - 31 route handlers
 - StaffController (apps/api/src/modules/hr/staff-dashboard.controller.ts) - @Controller(staff) - 1 route handlers
 - DarajaIntegrationController (apps/api/src/modules/integrations/daraja-integration.controller.ts) - @Controller(integrations/daraja) - 5 route handlers
-- ParentPortalAuthController (apps/api/src/modules/integrations/parent-portal-auth.controller.ts) - @Controller(auth/parent) - 2 route handlers
+- ParentPortalAuthController (apps/api/src/modules/integrations/parent-portal-auth.controller.ts) - @Controller(auth/parent) - 3 route handlers
 - PlatformSmsController (apps/api/src/modules/integrations/platform-sms.controller.ts) - @Controller(platform) - 6 route handlers
 - SchoolSmsController (apps/api/src/modules/integrations/school-sms.controller.ts) - @Controller(root) - 6 route handlers
+- StudentPortalAuthController (apps/api/src/modules/integrations/student-portal-auth.controller.ts) - @Controller(auth/student) - 3 route handlers
 - InventoryController (apps/api/src/modules/inventory/inventory.controller.ts) - @Controller(inventory) - 38 route handlers
 - IotGatewayController (apps/api/src/modules/iot/iot-gateway.controller.ts) - @Controller(iot/gateway) - 3 route handlers
 - IotController (apps/api/src/modules/iot/iot.controller.ts) - @Controller(iot) - 6 route handlers
-- LabsController (apps/api/src/modules/labs/labs.controller.ts) - @Controller(labs) - 16 route handlers
+- LabsController (apps/api/src/modules/labs/labs.controller.ts) - @Controller(labs) - 37 route handlers
 - LibraryController (apps/api/src/modules/library/library.controller.ts) - @Controller(library) - 21 route handlers
 - LmsController (apps/api/src/modules/lms/lms.controller.ts) - @Controller(lms) - 4 route handlers
 - PlatformModuleAccessController (apps/api/src/modules/module-access/module-access.controller.ts) - @Controller(platform) - 9 route handlers
 - NotificationsController (apps/api/src/modules/notifications/notifications.controller.ts) - @Controller(v1/notifications) - 6 route handlers
 - ObservabilityController (apps/api/src/modules/observability/observability.controller.ts) - @Controller(observability) - 6 route handlers
 - OperationsController (apps/api/src/modules/operations/operations.controller.ts) - @Controller(operations) - 3 route handlers
-- SchoolController (apps/api/src/modules/operations/school-settings.controller.ts) - @Controller(school) - 4 route handlers
+- SchoolController (apps/api/src/modules/operations/school-settings.controller.ts) - @Controller(school) - 6 route handlers
 - ParentPortalActionsController (apps/api/src/modules/parent-portal/parent-portal-actions.controller.ts) - @Controller(parent-portal) - 2 route handlers
 - MpesaC2bController (apps/api/src/modules/payments/controllers/mpesa-c2b.controller.ts) - @Controller([payments/mpesa/c2b, mpesa/c2b]) - 6 route handlers
 - MpesaCallbackController (apps/api/src/modules/payments/controllers/mpesa-callback.controller.ts) - @Controller([payments/mpesa, mpesa]) - 3 route handlers
@@ -1011,7 +1035,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - SupportController (apps/api/src/modules/support/support.controller.ts) - @Controller(support) - 23 route handlers
 - SyncController (apps/api/src/modules/sync/sync.controller.ts) - @Controller(sync) - 6 route handlers
 - TenantFinanceController (apps/api/src/modules/tenant-finance/tenant-finance.controller.ts) - @Controller(tenant-finance) - 6 route handlers
-- TimetableController (apps/api/src/modules/timetable/timetable.controller.ts) - @Controller(timetable) - 5 route handlers
+- TimetableController (apps/api/src/modules/timetable/timetable.controller.ts) - @Controller(timetable) - 38 route handlers
 - TransportController (apps/api/src/modules/transport/transport.controller.ts) - @Controller(transport) - 12 route handlers
 - VisitorsController (apps/api/src/modules/visitors/visitors.controller.ts) - @Controller(visitors) - 9 route handlers
 - ApprovalController (apps/api/src/modules/workflow/controllers/approval.controller.ts) - @Controller(approvals) - 4 route handlers
@@ -1023,9 +1047,9 @@ This matrix is generated from source code so production-readiness gaps can be re
 - ParentPortalController (apps/api/src/parent-portal/parent-portal.controller.ts) - @Controller(parent) - 8 route handlers
 
 ## Workflow Backend Contract Inventory
-- academics | controllers=3 | services=2 | tests=2
+- academics | controllers=3 | services=2 | tests=3
 - admin-command | controllers=22 | services=26 | tests=2
-- admissions | controllers=1 | services=3 | tests=2
+- admissions | controllers=1 | services=3 | tests=3
 - ai-insights | controllers=1 | services=2 | tests=2
 - analytics | controllers=0 | services=0 | tests=1
 - approvals | controllers=1 | services=1 | tests=0
@@ -1051,7 +1075,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - hr | controllers=2 | services=3 | tests=1
 - implementation100 | controllers=0 | services=0 | tests=1
 - implementation300 | controllers=0 | services=0 | tests=3
-- integrations | controllers=4 | services=6 | tests=2
+- integrations | controllers=5 | services=6 | tests=2
 - inventory | controllers=1 | services=2 | tests=2
 - iot | controllers=2 | services=3 | tests=1
 - labs | controllers=1 | services=2 | tests=1
@@ -1059,7 +1083,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - lms | controllers=1 | services=2 | tests=1
 - mobile | controllers=0 | services=0 | tests=1
 - module-access | controllers=1 | services=2 | tests=1
-- notifications | controllers=1 | services=1 | tests=0
+- notifications | controllers=1 | services=1 | tests=1
 - observability | controllers=1 | services=5 | tests=2
 - operations | controllers=2 | services=2 | tests=2
 - parent-portal | controllers=1 | services=0 | tests=0
@@ -1073,16 +1097,18 @@ This matrix is generated from source code so production-readiness gaps can be re
 - support | controllers=1 | services=6 | tests=5
 - sync | controllers=1 | services=6 | tests=2
 - tenant-finance | controllers=1 | services=2 | tests=0
-- timetable | controllers=1 | services=2 | tests=1
+- timetable | controllers=1 | services=3 | tests=1
 - transport | controllers=1 | services=2 | tests=1
 - visitors | controllers=1 | services=2 | tests=1
 - workflow | controllers=6 | services=6 | tests=0
 
 ## Automated Test Coverage Inventory
+- apps/api/src/modules/academics/academic-tenant-boundary.test.ts
 - apps/api/src/modules/academics/academics.test.ts
 - apps/api/src/modules/academics/curriculum-policy.test.ts
 - apps/api/src/modules/admin-command/admin-command.test.ts
 - apps/api/src/modules/admin-command/class-teacher-command.service.test.ts
+- apps/api/src/modules/admissions/admission-input.test.ts
 - apps/api/src/modules/admissions/admissions.repository.test.ts
 - apps/api/src/modules/admissions/admissions.test.ts
 - apps/api/src/modules/ai-insights/ai-governance-policy.test.ts
@@ -1130,6 +1156,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/api/src/modules/lms/lms.test.ts
 - apps/api/src/modules/mobile/mobile-app-policy.test.ts
 - apps/api/src/modules/module-access/module-access.test.ts
+- apps/api/src/modules/notifications/notifications.test.ts
 - apps/api/src/modules/observability/audit-monitoring-policy.test.ts
 - apps/api/src/modules/observability/observability.test.ts
 - apps/api/src/modules/operations/operations.test.ts
@@ -1152,8 +1179,14 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/api/src/modules/timetable/timetable.test.ts
 - apps/api/src/modules/transport/transport.test.ts
 - apps/api/src/modules/visitors/visitors.test.ts
+- apps/web/tests/design/academic-curriculum-builder.test.tsx
+- apps/web/tests/design/academic-foundation-record-visibility.test.tsx
+- apps/web/tests/design/academic-foundation-workspace.test.ts
 - apps/web/tests/design/academic-office-production-readiness.test.tsx
 - apps/web/tests/design/academic-parent-portal-upgrade.test.tsx
+- apps/web/tests/design/academic-policy-builders.test.tsx
+- apps/web/tests/design/accountant-command-center-contract.test.ts
+- apps/web/tests/design/active-role-cache-isolation.test.ts
 - apps/web/tests/design/admissions-dashboard-routing.test.tsx
 - apps/web/tests/design/admissions-empty-state-workflows.test.ts
 - apps/web/tests/design/admissions-live-api.test.ts
@@ -1166,14 +1199,20 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/tests/design/counsellor-human-workflows.test.ts
 - apps/web/tests/design/dashboard-action-contract.test.ts
 - apps/web/tests/design/dashboard-api-client.test.ts
+- apps/web/tests/design/dashboard-api-cookie-session.test.ts
 - apps/web/tests/design/dashboard-communication-enforcer.test.ts
+- apps/web/tests/design/dashboard-communication-tenant.test.tsx
 - apps/web/tests/design/dashboard-production-readiness.test.tsx
+- apps/web/tests/design/dashboard-role-context.test.ts
 - apps/web/tests/design/dashboard.spec.ts
 - apps/web/tests/design/dean-hod-command-center-contract.test.ts
 - apps/web/tests/design/density.test.tsx
 - apps/web/tests/design/deputy-discipline-workspace.test.tsx
+- apps/web/tests/design/deputy-timetable-class-scope.test.tsx
+- apps/web/tests/design/deputy-timetable-management.test.ts
 - apps/web/tests/design/discipline-human-workflows.test.tsx
 - apps/web/tests/design/docx-operational-workspace.test.tsx
+- apps/web/tests/design/dropdown-menu.test.tsx
 - apps/web/tests/design/enterprise-dashboard-architecture.test.ts
 - apps/web/tests/design/exams-manager-command-center.test.ts
 - apps/web/tests/design/exams-manager-human-workflows.test.ts
@@ -1190,6 +1229,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/tests/design/frontend-operationalization.test.tsx
 - apps/web/tests/design/global-enforcer.test.ts
 - apps/web/tests/design/global-school-search.test.tsx
+- apps/web/tests/design/header-popover.test.tsx
 - apps/web/tests/design/hierarchy.test.tsx
 - apps/web/tests/design/implementation100-live-modules.test.tsx
 - apps/web/tests/design/implementation100-modules.test.ts
@@ -1204,22 +1244,28 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/tests/design/invite-redirect.test.ts
 - apps/web/tests/design/iot-module.test.tsx
 - apps/web/tests/design/kisumu-boys-demo-communication.test.ts
+- apps/web/tests/design/laboratory-offline-sync.test.ts
+- apps/web/tests/design/laboratory-technician-usability.test.ts
 - apps/web/tests/design/layout.test.tsx
 - apps/web/tests/design/learner-picker.test.tsx
 - apps/web/tests/design/librarian-human-workflows.test.ts
 - apps/web/tests/design/library-module-access.test.ts
 - apps/web/tests/design/library-workspace.test.tsx
 - apps/web/tests/design/mobile-low-bandwidth.test.tsx
+- apps/web/tests/design/mobile-workspace-navigation.test.tsx
 - apps/web/tests/design/modal.test.tsx
 - apps/web/tests/design/module-live-adapters.test.ts
 - apps/web/tests/design/module-readiness.test.ts
+- apps/web/tests/design/myshule-branding.test.tsx
 - apps/web/tests/design/no-false-success-copy.test.ts
 - apps/web/tests/design/offline-db-challenge.test.tsx
+- apps/web/tests/design/offline-role-replay.test.ts
 - apps/web/tests/design/offline-validation.test.tsx
 - apps/web/tests/design/offline.test.tsx
 - apps/web/tests/design/operational-action-contract.test.tsx
 - apps/web/tests/design/operational-modules-production-readiness.test.tsx
 - apps/web/tests/design/principal-production-readiness.test.tsx
+- apps/web/tests/design/principal-school-profile.test.tsx
 - apps/web/tests/design/principal-staff-roles-human-workflows.test.ts
 - apps/web/tests/design/principal-subjects-departments-human-workflows.test.ts
 - apps/web/tests/design/procurement-human-workflows.test.ts
@@ -1233,21 +1279,33 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/tests/design/role-dashboard-empty-states.test.ts
 - apps/web/tests/design/role-dashboard-structure.test.tsx
 - apps/web/tests/design/role-routing.test.ts
+- apps/web/tests/design/role-workspace-tenant-cleanliness.test.tsx
 - apps/web/tests/design/role.test.tsx
+- apps/web/tests/design/runtime-data-isolation.test.tsx
 - apps/web/tests/design/school-command-center-routing.test.tsx
+- apps/web/tests/design/school-dashboard-role-switcher.test.tsx
 - apps/web/tests/design/school-finance-bulk-billing.test.tsx
+- apps/web/tests/design/school-module-access-cache.test.ts
 - apps/web/tests/design/school-operational-store.test.ts
+- apps/web/tests/design/school-role-command-identity.test.ts
 - apps/web/tests/design/school-shell-search.test.tsx
+- apps/web/tests/design/school-tenant-scope.test.tsx
 - apps/web/tests/design/search-access-policy.test.ts
 - apps/web/tests/design/seo-architecture.test.ts
 - apps/web/tests/design/server-auth-client.test.ts
 - apps/web/tests/design/session-refreshing-fetch.test.ts
+- apps/web/tests/design/shared-topbar-communication.test.tsx
+- apps/web/tests/design/shared-topbar-proxies.test.ts
 - apps/web/tests/design/sidebar-workspace-data-routing.test.tsx
+- apps/web/tests/design/smart-timetable-role-surfaces.test.ts
 - apps/web/tests/design/storekeeper-human-workflows.test.ts
+- apps/web/tests/design/student-admission-wizard.test.tsx
 - apps/web/tests/design/support-live.test.ts
+- apps/web/tests/design/teacher-attendance-offline-role.test.ts
 - apps/web/tests/design/teacher-dashboard-human-workflows.test.ts
 - apps/web/tests/design/teacher-dashboard-routing.test.tsx
 - apps/web/tests/design/teacher-exams-marks-workspace.test.tsx
+- apps/web/tests/design/teacher-practical-requisition.test.ts
 - apps/web/tests/design/time-aware-greeting.test.tsx
 - apps/web/tests/design/transport-human-workflows.test.ts
 - apps/web/tests/design/transport-module.test.tsx
@@ -1276,9 +1334,12 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/app/api/admin-command/[...path]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/admissions/[...path]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/ai-insights/[...path]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/app/api/approvals/[[...path]]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/assets/[...path]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/attendance/[...path]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/app/api/auth/active-role/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/auth/csrf/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/app/api/auth/dashboard-roles/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/auth/email-verification/request/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/auth/email-verification/verify/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/auth/invitations/[invitationId]/resend/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -1288,6 +1349,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/app/api/auth/login/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/auth/logout/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/auth/me/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/app/api/auth/parent/login/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/auth/parent/otp/request/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/auth/parent/otp/verify/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/auth/password-recovery/request/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -1295,14 +1357,20 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/app/api/auth/password/forgot/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/auth/password/reset/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/auth/refresh/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/app/api/auth/student/login/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/app/api/auth/student/otp/request/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/app/api/auth/student/otp/verify/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/auth/tenant-users/[membershipId]/role/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/app/api/auth/tenant-users/[membershipId]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/auth/tenant-users/[membershipId]/status/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/billing/[...path]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/biometric-attendance/[...path]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/boarding/[...path]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/cbt/[...path]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/app/api/class-teacher/[...path]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/clinic/[...path]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/counselling/[...path]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/app/api/dashboard/[[...path]]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/discipline/[...path]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/events/[...path]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/exams/[...path]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -1352,8 +1420,10 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/app/api/support/public/status-subscriptions/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/support/public/status-subscriptions/unsubscribe/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/support/public/system-status/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/app/api/tasks/[[...path]]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/timetable/[...path]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/transport/[...path]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/app/api/v1/notifications/[[...path]]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/visitors/[...path]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/api/workflow/[...path]/route.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/app/dashboard/[role]/[module]/loading.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -1467,6 +1537,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/components/auth/public-school-login-view.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/auth/school-login-view.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/auth/superadmin-login-view.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/brand/myshule-brand.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/common/dashboard-greeting.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/common/data-states.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/common/learner-picker.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -1663,9 +1734,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/components/platform/superadmin-pages.tsx | csv-download | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/platform/superadmin-pages.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/platform/superadmin-pages.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
-- apps/web/src/components/platform/system-monitor-dashboard.tsx | csv-download | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/platform/system-monitor-dashboard.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
-- apps/web/src/components/platform/system-monitor-dashboard.tsx | print-preview | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/platform/system-monitor-dashboard.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/platform/workspaces/AuditLogsWorkspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/platform/workspaces/BroadcastsWorkspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -1689,18 +1758,28 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/components/portal/parent-command-center.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/portal/parent-command-center.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/portal/portal-pages.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
-- apps/web/src/components/portal/portal-pages.tsx | print-preview | DISCOVERED_NOT_MANUALLY_VERIFIED
-- apps/web/src/components/portal/portal-pages.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/portal/portal-shell.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/providers/app-providers.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/providers/permission-context.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/report-cards/report-card-document.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/report-cards/report-card-document.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/academic-curriculum-builder.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/academic-curriculum-builder.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/academic-foundation-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/academic-foundation-workspace.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/academic-intelligence-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/academic-intelligence-workspace.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/academic-policy-builders.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/academic-policy-builders.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/academic-record-manager.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/academic-record-manager.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/academics-workspace-admin.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/academics-workspace-admin.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/accountant-command-center.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/accountant-command-center.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/accountant/arrears-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/accountant/arrears-workspace.tsx | print-preview | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/accountant/arrears-workspace.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/accountant/expenses-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/accountant/expenses-workspace.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/accountant/fee-structures-workspace.tsx | csv-download | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -1714,6 +1793,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/components/school/accountant/m-pesa-reconciliation-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/accountant/m-pesa-reconciliation-workspace.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/accountant/overview-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/accountant/overview-workspace.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/accountant/payments-workspace.tsx | csv-download | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/accountant/payments-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/accountant/payments-workspace.tsx | print-preview | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -1722,6 +1802,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/components/school/accountant/receipts-workspace.tsx | print-preview | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/accountant/receipts-workspace.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/accountant/reports-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/accountant/reports-workspace.tsx | print-preview | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/accountant/reports-workspace.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/accountant/waivers-discounts-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/admin/classes-streams-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -1757,6 +1838,9 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/components/school/admissions-dashboard/reports-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/admissions-dashboard/reports-workspace.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/admissions-dashboard/selection-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/admissions-dashboard/student-admission-wizard.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/admissions-dashboard/student-bulk-admission.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/admissions-dashboard/student-bulk-admission.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/admissions-dashboard/tasks-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/admissions-dashboard/templates-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/admissions-dashboard/transfers-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -1818,7 +1902,6 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/components/school/class-teacher/workspaces/discipline.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/class-teacher/workspaces/discipline.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/class-teacher/workspaces/documents.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
-- apps/web/src/components/school/class-teacher/workspaces/fees.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/class-teacher/workspaces/health.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/class-teacher/workspaces/home.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/class-teacher/workspaces/homework.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -1842,8 +1925,10 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/components/school/dean-academics/api-client.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/dean-academics/api-client.ts | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/dean-academics/assessments-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/dean-academics/assessments-workspace.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/dean-academics/curriculum-coverage-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/dean-academics/department-performance-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/dean-academics/department-performance-workspace.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/dean-academics/lesson-logs-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/dean-academics/lesson-plans-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/dean-academics/overview-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -1876,7 +1961,13 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/components/school/deputy-principal/staff-duty-workspace.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/deputy-principal/staff-roles-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/deputy-principal/teaching-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/deputy-principal/timetable-command-panels.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/deputy-principal/timetable-management-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/deputy-principal/timetable-management-workspace.tsx | print-preview | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/deputy-principal/timetable-relief-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/deputy-principal/timetable-schedule-view.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/deputy-principal/timetable-setup-panels.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/deputy-principal/timetable-types.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/deputy-principal/welfare-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/discipline-master-command-center.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/discipline-master-command-center.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -1915,6 +2006,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/components/school/exams-manager-command-center.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/exams-manager-command-center.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/exams-manager/analysis-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/exams-manager/analysis-workspace.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/exams-manager/api-client.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/exams-manager/api-client.ts | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/exams-manager/exam-setup-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -1979,6 +2071,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/components/school/ict-manager/reports-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/ict-manager/reports-workspace.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/ict-manager/shared.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/integrated-school-command-header.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/laboratory-technician-command-center.tsx | csv-download | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/laboratory-technician-command-center.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/laboratory-technician-command-center.tsx | print-preview | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -1987,13 +2080,21 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/components/school/laboratory-technician/api-client.ts | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/laboratory-technician/apparatus-issue-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/laboratory-technician/chemicals-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/laboratory-technician/lab-inventory-workspace.tsx | csv-download | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/laboratory-technician/lab-inventory-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/laboratory-technician/lab-inventory-workspace.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/laboratory-technician/lab-timetable-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/laboratory-technician/laboratory-sync.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/laboratory-technician/overview-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/laboratory-technician/reports-workspace.tsx | csv-download | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/laboratory-technician/reports-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/laboratory-technician/reports-workspace.tsx | print-preview | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/laboratory-technician/reports-workspace.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/laboratory-technician/safety-incidents-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/laboratory-technician/shared.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/laboratory-technician/stocktake-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/laboratory-technician/types.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/laboratory-technician/use-laboratory-mutation.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/librarian-command-center.tsx | csv-download | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/librarian-command-center.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/librarian-command-center.tsx | print-preview | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -2010,6 +2111,10 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/components/school/librarian/reports-workspace.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/librarian/return-book-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/librarian/shared.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/live-report-cards-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/live-report-cards-workspace.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/live-role-command-center.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/live-role-command-center.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/nurse-command-center.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/nurse-command-center.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/nurse/api-client.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -2040,6 +2145,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/components/school/parent/health-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/parent/messages-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/parent/notifications-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/portal-timetable-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/principal-command-center.tsx | csv-download | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/principal-command-center.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/principal-command-center.tsx | print-preview | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -2122,6 +2228,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/components/school/role-operational-command-center.tsx | print-preview | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/role-operational-command-center.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/role-operational-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/school-dashboard-role-switcher.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/school-finance-page.tsx | csv-download | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/school-finance-page.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/school-finance-page.tsx | print-preview | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -2165,6 +2272,8 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/components/school/security-officer/student-exit-passes-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/security-officer/visitors-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/session-management-panel.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/staff-timetable-overview-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/staff-timetable-overview-workspace.tsx | print-preview | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/storekeeper-command-center.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/storekeeper-command-center.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/storekeeper/api-client.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -2195,6 +2304,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/components/school/student/downloads-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/student/downloads-workspace.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/student/fees-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/student/fees-workspace.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/student/messages-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/student/notifications-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/teacher-command-center.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -2224,11 +2334,10 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/components/school/teacher-dashboard/my-profile-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/teacher-dashboard/nav-config.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/teacher-dashboard/nav-config.ts | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
-- apps/web/src/components/school/teacher-dashboard/nav-config.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
-- apps/web/src/components/school/teacher-dashboard/nav-config.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/teacher-dashboard/notifications-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/teacher-dashboard/overview-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/teacher-dashboard/parent-communication-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/school/teacher-dashboard/practical-requisitions-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/teacher-dashboard/reports-downloads-workspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/teacher-dashboard/reports-downloads-workspace.tsx | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/school/teacher-dashboard/shared-components.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -2280,7 +2389,9 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/components/shared/empty-state.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/shared/entity-detail-drawer.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/shared/error-state.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/shared/header-popover.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/shared/loading-state.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/components/shared/mobile-workspace-navigation.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/shared/notification-bell.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/shared/permission-gate.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/shared/print/DocumentControls.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -2354,6 +2465,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/components/workflows/approvals/ApprovalWorkspace.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/workflows/audit-log-timeline.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/components/workflows/task-card.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/hooks/use-dashboard-communication-query.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/hooks/use-dashboard-state.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/hooks/use-live-tenant-session.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/hooks/useApprovals.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -2374,6 +2486,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/lib/auth/auth-guards.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/auth/csrf-client.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/auth/csrf.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/lib/auth/dashboard-role-context.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/auth/email-verification-client.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/auth/experience-audience.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/auth/experience-routing.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -2386,6 +2499,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/lib/auth/role-routing.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/auth/school-api-proxy.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/auth/school-branding.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/lib/auth/school-dashboard-role-context.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/auth/school-role-normalization.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/auth/server-auth-client.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/auth/server-session.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -2434,6 +2548,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/lib/data/class-teacher-hooks.ts | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/data/school-api-config.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/data/school-hooks.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/lib/data/school-tenant-scope.tsx | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/date-utils.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/demo/kisumu-boys-high-demo.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/demo/kisumu-boys-high-demo.ts | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -2497,6 +2612,8 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/lib/platform/school-onboarding-client.ts | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/report-cards/curriculum-report-cards.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/report-cards/curriculum-report-cards.ts | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/lib/report-cards/live-report-card.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
+- apps/web/src/lib/report-cards/live-report-card.ts | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/routing/experience-context.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/routing/experience-routes.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/routing/experience-routes.ts | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -2509,7 +2626,6 @@ This matrix is generated from source code so production-readiness gaps can be re
 - apps/web/src/lib/school/role-practical-ui.ts | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/school/school-operational-store.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/search/operational-search-registry.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
-- apps/web/src/lib/search/operational-search-registry.ts | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/search/operational-search-resolver.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/search/search-access-policy.ts | download-or-export-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
 - apps/web/src/lib/search/search-access-policy.ts | report-document-copy | DISCOVERED_NOT_MANUALLY_VERIFIED
@@ -2762,7 +2878,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - ReportCardComment: school_id
 - ReportCardGenerationBatches: tenant_id
 - ReportCardSetting: school_id
-- Role: school_id
+- Role: school_id + tenant_id
 - RolePermission: school_id + tenant_id
 - School: global-or-needs-review
 - SchoolIntegrations: tenant_id
@@ -2854,7 +2970,7 @@ This matrix is generated from source code so production-readiness gaps can be re
 - UsageRecords: tenant_id
 - User: global-or-needs-review
 - UserPermissionOverride: school_id
-- UserRoleAssignment: school_id
+- UserRoleAssignment: school_id + tenant_id
 - VehicleFuelLog: school_id
 - VehicleServiceLogs: tenant_id
 - Visitor: school_id

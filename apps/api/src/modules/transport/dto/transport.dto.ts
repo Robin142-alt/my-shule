@@ -52,6 +52,21 @@ export interface CreateTransportManifestDto {
   student_ids: string[];
 }
 
+export interface CreateTransportAssignmentDto {
+  route_id?: string;
+  routeId?: string;
+  academic_term_id?: string;
+  academicTermId?: string;
+  effective_from?: string;
+  effectiveFrom?: string;
+  effective_to?: string;
+  effectiveTo?: string;
+  student_id?: string;
+  studentId?: string;
+  student_ids?: string[];
+  studentIds?: string[];
+}
+
 export interface StartTransportTripDto {
   route_id: string;
   vehicle_id: string;

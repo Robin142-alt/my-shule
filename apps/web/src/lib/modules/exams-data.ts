@@ -56,6 +56,13 @@ export interface ReportCardBatch {
   total: number;
   status: string;
   tone: StatusTone;
+  learners?: Array<{
+    id: string;
+    admissionNumber: string;
+    learnerName: string;
+    gradeForm?: string;
+    stream?: string;
+  }>;
 }
 
 export interface ExamAnalysisItem {
@@ -154,6 +161,25 @@ export interface MarksSummary {
   distribution: Record<"EE" | "ME" | "AE" | "BE", number>;
 }
 
+export interface ExamsAccessPolicy {
+  canViewDashboard: boolean;
+  canManageSetup: boolean;
+  canViewAllocations: boolean;
+  canEnterMarks: boolean;
+  canModerate: boolean;
+  canApproveReportCards: boolean;
+  canSubmitReportCards: boolean;
+  canGenerateReportCards: boolean;
+  canViewReportCards: boolean;
+  canPublishReportCards: boolean;
+  canViewAnalytics: boolean;
+  canViewAudit: boolean;
+}
+
+export type ExamsModuleDataSeed = Partial<
+  Omit<ExamsModuleData, "schoolName" | "role">
+>;
+
 export const examScoreFields: ExamScoreField[] = [
   { id: "mathematics", label: "Mathematics", shortLabel: "Maths", maxScore: 100 },
   { id: "english", label: "English", shortLabel: "Eng", maxScore: 100 },
@@ -161,94 +187,82 @@ export const examScoreFields: ExamScoreField[] = [
   { id: "kiswahili", label: "Kiswahili", shortLabel: "Kis", maxScore: 100 },
 ];
 
-const baseMarks: ExamMarkRow[] = [
-  {
-    id: "mark-001",
-    admissionNumber: "ADM-2025-001",
-    student: "Aisha Njeri",
-    stream: "Grade 8 Unity",
-    gender: "F",
-    scores: { mathematics: "84", english: "79", science: "82", kiswahili: "76" },
-    competency: "EE",
-    status: "Clean",
-  },
-  {
-    id: "mark-002",
-    admissionNumber: "ADM-2025-002",
-    student: "Brian Otieno",
-    stream: "Grade 8 Unity",
-    gender: "M",
-    scores: { mathematics: "69", english: "74", science: "71", kiswahili: "68" },
-    competency: "ME",
-    status: "Review",
-  },
-  {
-    id: "mark-003",
-    admissionNumber: "ADM-2025-003",
-    student: "Carol Wanjiku",
-    stream: "Grade 8 Unity",
-    gender: "F",
-    scores: { mathematics: "78", english: "82", science: "80", kiswahili: "77" },
-    competency: "EE",
-    status: "Clean",
-  },
-  {
-    id: "mark-004",
-    admissionNumber: "ADM-2025-004",
-    student: "Daniel Mutua",
-    stream: "Grade 8 Unity",
-    gender: "M",
-    scores: { mathematics: "72", english: "66", science: "68", kiswahili: "" },
-    competency: "AE",
-    status: "Missing",
-  },
-  {
-    id: "mark-005",
-    admissionNumber: "ADM-2025-005",
-    student: "Eunice Achieng",
-    stream: "Grade 8 Unity",
-    gender: "F",
-    scores: { mathematics: "91", english: "88", science: "86", kiswahili: "84" },
-    competency: "EE",
-    status: "Outlier",
-  },
-  {
-    id: "mark-006",
-    admissionNumber: "ADM-2025-006",
-    student: "Farhan Ali",
-    stream: "Grade 8 Unity",
-    gender: "M",
-    scores: { mathematics: "58", english: "63", science: "61", kiswahili: "59" },
-    competency: "AE",
-    status: "Review",
-  },
-  {
-    id: "mark-007",
-    admissionNumber: "ADM-2025-007",
-    student: "Grace Muthoni",
-    stream: "Grade 8 Unity",
-    gender: "F",
-    scores: { mathematics: "80", english: "76", science: "79", kiswahili: "72" },
-    competency: "ME",
-    status: "Clean",
-  },
-  {
-    id: "mark-008",
-    admissionNumber: "ADM-2025-008",
-    student: "Hassan Mwangi",
-    stream: "Grade 8 Unity",
-    gender: "M",
-    scores: { mathematics: "64", english: "70", science: "67", kiswahili: "65" },
-    competency: "ME",
-    status: "Clean",
-  },
-];
+const previewPermissionsByRole: Partial<Record<SchoolExperienceRole, readonly string[]>> = {
+  admin: ["*:*"],
+  principal: ["exams:read", "exams:publish", "reports:read"],
+  "dean-academics": ["exams:read", "exams:review", "exams:approve", "reports:read"],
+  "exams-manager": ["exams:read", "exams:write", "exams:enter-marks", "exams:review", "reports:read"],
+  hod: ["exams:review"],
+  "grade-master": ["exams:review", "reports:read"],
+  teacher: ["exams:enter-marks"],
+  "class-teacher": ["exams:enter-marks"],
+};
 
-function cloneMarks() {
-  return baseMarks.map((row) => ({
-    ...row,
-    scores: { ...row.scores },
-  }));
+const examOfficerRoles = new Set<SchoolExperienceRole>(["admin", "exams-manager"]);
+const deanApprovalRoles = new Set<SchoolExperienceRole>(["admin", "dean-academics"]);
+const principalPublishingRoles = new Set<SchoolExperienceRole>(["admin", "principal"]);
+
+/**
+ * Mirrors the backend exam workflow gates for navigation and controls. When live
+ * permissions are supplied they are authoritative, including an explicitly empty
+ * permission list. Role defaults are used only for a signed-out preview surface.
+ */
+export function resolveExamsAccessPolicy(input: {
+  role: SchoolExperienceRole;
+  permissions?: readonly string[];
+  hasTeachingAssignment?: boolean;
+}): ExamsAccessPolicy {
+  const permissions = new Set(
+    (input.permissions ?? previewPermissionsByRole[input.role] ?? [])
+      .map((permission) => permission.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  const has = (permission: string) => permissions.has("*:*") || permissions.has(permission);
+  const hasAny = (...required: string[]) => required.some(has);
+  const canEnterMarks = has("exams:enter-marks") || (
+    input.permissions === undefined
+    && input.hasTeachingAssignment === true
+  );
+  const canManageSetup = has("exams:write") && examOfficerRoles.has(input.role);
+  const canModerate = hasAny("exams:review", "exams:approve") || permissions.has("*:*");
+  const canApproveReportCards =
+    deanApprovalRoles.has(input.role)
+    && has("exams:approve");
+  const canSubmitReportCards =
+    examOfficerRoles.has(input.role)
+    && has("exams:write");
+  const canGenerateReportCards = canSubmitReportCards;
+  const canPublishReportCards =
+    principalPublishingRoles.has(input.role)
+    && (
+      has("exams:publish")
+      || (has("principal:write") && has("exams:read"))
+      || permissions.has("*:*")
+    );
+  const canViewReportCards = hasAny(
+    "exams:read",
+    "exams:write",
+    "exams:review",
+    "exams:approve",
+    "exams:publish",
+    "reports:read",
+  );
+  const canViewDashboard = canEnterMarks || canManageSetup || canModerate || canViewReportCards;
+
+  return {
+    canViewDashboard,
+    canManageSetup,
+    canViewAllocations: canManageSetup || canModerate || has("exams:read"),
+    canEnterMarks,
+    canModerate,
+    canApproveReportCards,
+    canSubmitReportCards,
+    canGenerateReportCards,
+    canViewReportCards,
+    canPublishReportCards,
+    canViewAnalytics: canViewReportCards,
+    canViewAudit: canViewReportCards || canModerate,
+  };
 }
 
 export function validateExamScore(value: string, maxScore: number): ScoreValidation {
@@ -354,353 +368,46 @@ export function calculateMarksSummary(rows: ExamMarkRow[], fields = examScoreFie
   };
 }
 
+function cloneSeedRows(seed: ExamsModuleDataSeed) {
+  return {
+    setup: seed.setup?.map((item) => ({ ...item })) ?? [],
+    allocations: seed.allocations?.map((item) => ({ ...item })) ?? [],
+    publishing: seed.publishing?.map((item) => ({ ...item })) ?? [],
+    metrics: seed.metrics?.map((item) => ({ ...item })) ?? [],
+    queues: seed.queues?.map((item) => ({ ...item })) ?? [],
+    fields: seed.fields?.map((item) => ({ ...item })) ?? examScoreFields.map((item) => ({ ...item })),
+    marks: seed.marks?.map((item) => ({ ...item, scores: { ...item.scores } })) ?? [],
+    approvals: seed.approvals?.map((item) => ({ ...item })) ?? [],
+    reports: seed.reports?.map((item) => ({
+      ...item,
+      learners: item.learners?.map((learner) => ({ ...learner })),
+    })) ?? [],
+    analysis: seed.analysis?.map((item) => ({ ...item })) ?? [],
+    competencies: seed.competencies?.map((item) => ({ ...item })) ?? [],
+    history: seed.history?.map((item) => ({ ...item })) ?? [],
+    audit: seed.audit?.map((item) => ({ ...item })) ?? [],
+  };
+}
+
+/**
+ * Builds the exams workspace from caller-supplied, tenant-authoritative records.
+ * Missing records intentionally remain empty; the client must never invent a school,
+ * class, learner, staff member, result, approval, or audit event as a fallback.
+ */
 export function buildExamsModuleData({
   role,
   schoolName,
+  seed = {},
 }: {
   role: SchoolExperienceRole;
   schoolName: string;
+  seed?: ExamsModuleDataSeed;
 }): ExamsModuleData {
-  const leadershipTone: StatusTone = role === "teacher" ? "warning" : "ok";
-
   return {
-    schoolName,
+    schoolName: schoolName.trim(),
     role,
-    currentExam: "Term 2 Mid-term CAT",
-    currentClass: "Grade 8 Unity",
-    setup: [
-      {
-        id: "setup-window",
-        label: "Exam window",
-        value: "17-21 June",
-        helper: "Active timetable with controlled late-entry cut-off",
-        tone: "ok",
-      },
-      {
-        id: "setup-assessment",
-        label: "Assessment configuration",
-        value: "CBC/CBE first with hybrid class support",
-        helper: "Competency descriptors, approved marks supplements, and legacy class reports are versioned",
-        tone: "ok",
-      },
-      {
-        id: "setup-boundaries",
-        label: "Descriptor and grading rules",
-        value: "EE, ME, AE, BE + approved marks scales",
-        helper: "School-wide defaults never force a pure 8-4-4 mode; legacy applies only per class/report",
-        tone: "ok",
-      },
-      {
-        id: "setup-risk",
-        label: "Operational readiness",
-        value: "7 checks open",
-        helper: "Missing marks, moderation samples, and approval owners need attention",
-        tone: "warning",
-      },
-    ],
-    allocations: [
-      {
-        id: "alloc-maths",
-        className: "Grade 8 Unity",
-        subject: "Mathematics",
-        teacher: "Beatrice Wanjiku",
-        reviewer: "Mr. Kiptoo",
-        learners: 46,
-        status: "Entry open",
-        tone: "warning",
-      },
-      {
-        id: "alloc-english",
-        className: "Grade 7 Hope",
-        subject: "English",
-        teacher: "Esther Mwende",
-        reviewer: "HOD Languages",
-        learners: 51,
-        status: "Submitted",
-        tone: "ok",
-      },
-      {
-        id: "alloc-science",
-        className: "Grade 9 Courage",
-        subject: "Integrated Science",
-        teacher: "Peter Ochieng",
-        reviewer: "HOD STEM",
-        learners: 39,
-        status: "Moderation",
-        tone: "warning",
-      },
-    ],
-    publishing: [
-      {
-        id: "publish-principal",
-        label: "Principal approval",
-        value: "Waiting",
-        helper: "Publishing opens after HOD and deputy timestamps are complete",
-        tone: "warning",
-      },
-      {
-        id: "publish-portal",
-        label: "Parent portal release",
-        value: "Scheduled",
-        helper: "SMS and portal visibility stay off until immutable lock",
-        tone: "warning",
-      },
-      {
-        id: "publish-pdf",
-        label: "Report PDFs",
-        value: "127 ready",
-        helper: "Batch generation queue is warm for print day",
-        tone: "ok",
-      },
-    ],
-    metrics: [
-      {
-        id: "pending-marks",
-        label: "Pending marks entry",
-        value: "18",
-        helper: "Cells still open across assigned subjects",
-        tone: "warning",
-      },
-      {
-        id: "awaiting-submission",
-        label: "Classes awaiting submission",
-        value: "4",
-        helper: "Teacher handoff due before 4:00 PM",
-        tone: "warning",
-      },
-      {
-        id: "submission-progress",
-        label: "Submission progress",
-        value: "82%",
-        helper: "Across active mid-term exam books",
-        tone: "ok",
-      },
-      {
-        id: "approval-status",
-        label: "Approval status",
-        value: role === "teacher" ? "HOD review" : "Deputy review",
-        helper: "Teacher to principal workflow is active",
-        tone: leadershipTone,
-      },
-      {
-        id: "missing-alerts",
-        label: "Missing marks alerts",
-        value: "7",
-        helper: "Smart checks found empty or abnormal cells",
-        tone: "warning",
-      },
-    ],
-    queues: [
-      {
-        id: "queue-maths",
-        title: "Grade 8 Unity - Mathematics",
-        subtitle: "3 missing marks, 1 outlier, autosave healthy",
-        value: "92%",
-        tone: "warning",
-        progress: 92,
-      },
-      {
-        id: "queue-english",
-        title: "Grade 7 Hope - English",
-        subtitle: "Submitted by Ms. Mwende, waiting HOD approval",
-        value: "HOD",
-        tone: "ok",
-        progress: 100,
-      },
-      {
-        id: "queue-science",
-        title: "Grade 9 Courage - Integrated Science",
-        subtitle: "Moderation requested for practical score spread",
-        value: "Review",
-        tone: "warning",
-        progress: 76,
-      },
-    ],
-    fields: examScoreFields,
-    marks: cloneMarks(),
-    approvals: [
-      {
-        id: "approval-teacher",
-        role: "Teacher",
-        owner: "Beatrice Wanjiku",
-        status: "Complete",
-        timestamp: "Today, 10:18 AM",
-        note: "Marks submitted with two teacher comments pending.",
-        tone: "ok",
-      },
-      {
-        id: "approval-hod",
-        role: "HOD",
-        owner: "Mr. Kiptoo",
-        status: "Active",
-        timestamp: "Due 12:30 PM",
-        note: "Checking missing marks and subject mean movement.",
-        tone: "warning",
-      },
-      {
-        id: "approval-deputy",
-        role: "Deputy Principal",
-        owner: "Mercy Gathoni",
-        status: "Waiting",
-        timestamp: "After HOD",
-        note: "Receives locked submission after department review.",
-        tone: "warning",
-      },
-      {
-        id: "approval-principal",
-        role: "Principal",
-        owner: "Grace Njeri",
-        status: "Waiting",
-        timestamp: "Before publishing",
-        note: "Final publish authority with immutable result lock.",
-        tone: "warning",
-      },
-    ],
-    reports: [
-      {
-        id: "report-grade-8",
-        className: "Grade 8 Unity",
-        template: "Hybrid CBC + Marks Report",
-        ready: 42,
-        total: 46,
-        status: "Review comments",
-        tone: "warning",
-      },
-      {
-        id: "report-grade-7",
-        className: "Grade 7 Hope",
-        template: "CBC/CBE Competency Report",
-        ready: 51,
-        total: 51,
-        status: "Print ready",
-        tone: "ok",
-      },
-      {
-        id: "report-grade-9",
-        className: "Grade 9 Courage",
-        template: "CBC/CBE Competency Report",
-        ready: 34,
-        total: 39,
-        status: "Moderation",
-        tone: "warning",
-      },
-      {
-        id: "report-form-4",
-        className: "Form 4 South",
-        template: "Legacy 8-4-4/KCSE Report",
-        ready: 58,
-        total: 60,
-        status: "Archived format review",
-        tone: "warning",
-      },
-    ],
-    analysis: [
-      {
-        id: "mean-movement",
-        label: "Mean score",
-        value: "73.8",
-        helper: "+2.4 from previous CAT",
-        tone: "ok",
-      },
-      {
-        id: "grade-spread",
-        label: "Grade distribution",
-        value: "38% EE",
-        helper: "Top band is rising in Maths and English",
-        tone: "ok",
-      },
-      {
-        id: "risk-indicator",
-        label: "Risk indicators",
-        value: "11 learners",
-        helper: "Below 50 in at least two subjects",
-        tone: "warning",
-      },
-      {
-        id: "teacher-analysis",
-        label: "Teacher analysis",
-        value: "4 queues",
-        helper: "Submission speed is healthy across departments",
-        tone: "ok",
-      },
-    ],
-    competencies: [
-      {
-        id: "cbc-communication",
-        competency: "Communication and collaboration",
-        coverage: "94%",
-        status: "Evidence complete",
-        evidence: "Project notes, oral rubric, peer task",
-        tone: "ok",
-      },
-      {
-        id: "cbc-critical-thinking",
-        competency: "Critical thinking and problem solving",
-        coverage: "88%",
-        status: "Needs HOD sample",
-        evidence: "Maths reasoning rubric and Science practical",
-        tone: "warning",
-      },
-      {
-        id: "cbc-digital",
-        competency: "Digital literacy",
-        coverage: "72%",
-        status: "Teacher follow-up",
-        evidence: "Lab activity score pending for 9 learners",
-        tone: "warning",
-      },
-    ],
-    history: [
-      {
-        id: "hist-1",
-        exam: "Term 1 End-term",
-        mean: "71.4",
-        topSubject: "English",
-        riskSignal: "13 learners below target",
-      },
-      {
-        id: "hist-2",
-        exam: "Term 1 CAT 2",
-        mean: "69.8",
-        topSubject: "Mathematics",
-        riskSignal: "Science practical dip",
-      },
-      {
-        id: "hist-3",
-        exam: "2025 End-year",
-        mean: "68.6",
-        topSubject: "Kiswahili",
-        riskSignal: "Grade 7 transition gap",
-      },
-    ],
-    audit: [
-      {
-        id: "audit-1",
-        actor: "Beatrice Wanjiku",
-        action: "Edited mark",
-        scope: "Grade 8 Unity - Mathematics",
-        time: "Today, 10:16 AM",
-        detail: "Aisha Njeri score changed from 82 to 84 with autosave checkpoint.",
-        tone: "ok",
-      },
-      {
-        id: "audit-2",
-        actor: "Mr. Kiptoo",
-        action: "Requested moderation",
-        scope: "Integrated Science practical",
-        time: "Today, 09:42 AM",
-        detail: "Outlier spread flagged before HOD approval.",
-        tone: "warning",
-      },
-      {
-        id: "audit-3",
-        actor: "Grace Njeri",
-        action: "Locked previous results",
-        scope: "Term 1 End-term",
-        time: "Yesterday, 04:30 PM",
-        detail: "Published records made immutable after parent portal release.",
-        tone: "ok",
-      },
-    ],
+    currentExam: seed.currentExam?.trim() || "No exam selected",
+    currentClass: seed.currentClass?.trim() || "No class selected",
+    ...cloneSeedRows(seed),
   };
 }

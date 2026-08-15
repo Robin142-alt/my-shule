@@ -4,9 +4,15 @@ import 'reflect-metadata';
 
 import { PERMISSIONS_KEY } from '../../auth/auth.constants';
 import { MODULE_ACCESS_KEY } from '../module-access/module-access.decorator';
+import { TransportRepository } from './repositories/transport.repository';
 import { TransportController } from './transport.controller';
 import { TransportSchemaService } from './transport-schema.service';
 import { TransportService } from './transport.service';
+
+const ROUTE_ID = '00000000-0000-4000-8000-000000000101';
+const FOREIGN_ROUTE_ID = '00000000-0000-4000-8000-000000000102';
+const STUDENT_ONE_ID = '00000000-0000-4000-8000-000000000201';
+const STUDENT_TWO_ID = '00000000-0000-4000-8000-000000000202';
 
 test('TransportSchemaService creates tenant-safe routes, vehicles, manifests, trips, alerts, and service logs', async () => {
   let schemaSql = '';
@@ -51,82 +57,79 @@ test('TransportController is gated by transport module and transport permissions
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, createTripHandler), ['transport:write']);
 });
 
-test('TransportController lists tenant-scoped vehicles and trips from real records', async () => {
-  const calls: Array<Record<string, unknown>> = [];
+test('TransportController delegates vehicle and trip reads to the governed transport service', async () => {
+  const calls: string[] = [];
   const controller = new TransportController(
     {
-      transportVehicle: {
-        findMany: async (query: any) => {
-          calls.push({ method: 'vehicles', query });
-          return [{
-            id: 'vehicle-1',
-            vehicleType: 'Bus',
-            registrationNumber: 'KDA 123A',
-            routeName: 'Eastlands AM',
-            driverName: 'Driver A',
-            status: 'MAINTENANCE',
-            fuelLevel: 42,
-            maintenanceNote: 'Tyre service due',
-          }];
-        },
+      listVehicles: async () => {
+        calls.push('vehicles');
+        return [{ id: 'vehicle-1', vehicle: 'Bus (KDA 123A)' }];
       },
-      transportTrips: {
-        findMany: async (query: any) => {
-          calls.push({ method: 'trips', query });
-          return [{
-            id: 'trip-1',
-            studentName: 'Learner One',
-            admissionNo: 'ADM-001',
-            routeName: 'Eastlands AM',
-            stopName: 'Donholm',
-            scheduled_start_at: new Date('2026-05-21T06:30:00.000Z'),
-            status: 'started',
-          }];
-        },
+      listTrips: async () => {
+        calls.push('trips');
+        return [{ id: 'assignment-1', student: 'Learner One' }];
       },
     } as never,
-    {} as never,
   );
-  (controller as any).requestContext = { requireStore: () => ({ tenant_id: 'tenant-a' }) };
 
   const vehicles = await controller.getVehicles();
   const trips = await controller.getTrips();
 
-  assert.deepEqual(calls.map((call) => (call.query as any).where), [{ schoolId: 'tenant-a' }, { tenant_id: 'tenant-a' }]);
-  assert.deepEqual(vehicles, [{
-    id: 'vehicle-1',
-    vehicle: 'Bus (KDA 123A)',
-    route: 'Eastlands AM',
-    driver: 'Driver A',
-    status: 'Maintenance',
-    fuelLevel: 42,
-    maintenanceNote: 'Tyre service due',
-  }]);
-  assert.deepEqual(trips, [{
-    id: 'trip-1',
-    student: 'Learner One',
-    admissionNo: 'ADM-001',
-    route: 'Eastlands AM',
-    stop: 'Donholm',
-    pickupTime: '2026-05-21T06:30:00.000Z',
-    status: 'Boarded',
-  }]);
+  assert.deepEqual(calls, ['vehicles', 'trips']);
+  assert.deepEqual(vehicles, [{ id: 'vehicle-1', vehicle: 'Bus (KDA 123A)' }]);
+  assert.deepEqual(trips, [{ id: 'assignment-1', student: 'Learner One' }]);
 });
 
 test('TransportController does not hide transport database failures as empty lists', async () => {
   const controller = new TransportController(
     {
-      transportVehicle: {
-        findMany: async () => {
-          throw new Error('transport database unavailable');
-        },
+      listVehicles: async () => {
+        throw new Error('transport database unavailable');
       },
     } as never,
-    {} as never,
   );
-  (controller as any).requestContext = { requireStore: () => ({ tenant_id: 'tenant-a' }) };
 
   await assert.rejects(() => controller.getVehicles(), /transport database unavailable/);
+});
+
+test('TransportRepository vehicle and trip reads retain the current tenant in SQL and parameters', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new TransportRepository({
+    query: async (sql: string, params: unknown[]) => {
+      queries.push({ sql, params });
+      return { rows: [], rowCount: 0 };
+    },
+  } as never);
+
+  await repository.listVehicles('school-a');
+  await repository.listTrips('school-a');
+
+  assert.equal(queries.length, 2);
+  assert.deepEqual(queries.map((query) => query.params), [['school-a'], ['school-a']]);
+  assert.match(queries[0].sql, /FROM transport_vehicles vehicle[\s\S]+vehicle\.tenant_id = \$1/);
+  assert.match(queries[1].sql, /FROM transport_manifest_students[\s\S]+manifest_student\.tenant_id = \$1/);
+  assert.match(queries[1].sql, /student\.tenant_id = manifest_student\.tenant_id/);
+});
+
+test('TransportController assignment endpoint delegates to manifest assignment semantics', async () => {
+  const calls: unknown[] = [];
+  const controller = new TransportController({
+    createAssignment: async (dto: unknown) => {
+      calls.push(dto);
+      return { id: 'manifest-1', status: 'active' };
+    },
+    createRoute: async () => {
+      throw new Error('assignment endpoint must not create a route');
+    },
+  } as never);
+
+  const result = await controller.createAssignment({
+    routeId: 'route-1',
+    studentId: 'student-1',
+  });
+
+  assert.deepEqual(calls, [{ routeId: 'route-1', studentId: 'student-1' }]);
+  assert.deepEqual(result, { id: 'manifest-1', status: 'active' });
 });
 
 test('TransportService creates auditable routes, vehicles, manifests, trips, events, and principal dashboard data', async () => {
@@ -142,6 +145,10 @@ test('TransportService creates auditable routes, vehicles, manifests, trips, eve
       createVehicle: async (input: Record<string, unknown>) => {
         calls.push({ method: 'createVehicle', ...input });
         return { id: 'vehicle-1', registration_number: input.registration_number, status: 'active' };
+      },
+      validateManifestReferences: async (input: Record<string, unknown>) => {
+        calls.push({ method: 'validateManifestReferences', ...input });
+        return { route_exists: true, academic_term_exists: true, student_count: 2 };
       },
       createManifest: async (input: Record<string, unknown>) => {
         calls.push({ method: 'createManifest', ...input });
@@ -173,6 +180,7 @@ test('TransportService creates auditable routes, vehicles, manifests, trips, eve
         };
       },
     } as never,
+    { recordSchoolOperation: async () => undefined } as never,
   );
 
   const route = await service.createRoute({
@@ -186,8 +194,8 @@ test('TransportService creates auditable routes, vehicles, manifests, trips, eve
     ownership_type: 'school_owned',
   });
   const manifest = await service.createManifest({
-    route_id: 'route-1',
-    student_ids: ['student-1', 'student-2'],
+    route_id: ROUTE_ID,
+    student_ids: [STUDENT_ONE_ID, STUDENT_TWO_ID],
   });
   const trip = await service.startTrip({
     route_id: 'route-1',
@@ -204,7 +212,7 @@ test('TransportService creates auditable routes, vehicles, manifests, trips, eve
 
   assert.deepEqual(route, { id: 'route-1', name: 'Eastlands AM', status: 'active' });
   assert.deepEqual(vehicle, { id: 'vehicle-1', registration_number: 'KDA 123A', status: 'active' });
-  assert.deepEqual(manifest, { id: 'manifest-1', route_id: 'route-1', status: 'active' });
+  assert.deepEqual(manifest, { id: 'manifest-1', route_id: ROUTE_ID, status: 'active' });
   assert.deepEqual(trip, { id: 'trip-1', route_id: 'route-1', status: 'in_progress' });
   assert.equal(dashboard.active_routes, 1);
   assert.deepEqual(calls.map((call) => call.method), [
@@ -212,6 +220,7 @@ test('TransportService creates auditable routes, vehicles, manifests, trips, eve
     'appendAuditLog',
     'createVehicle',
     'appendAuditLog',
+    'validateManifestReferences',
     'createManifest',
     'appendAuditLog',
     'startTrip',
@@ -223,7 +232,83 @@ test('TransportService creates auditable routes, vehicles, manifests, trips, eve
   assert.equal(calls[0]?.tenant_id, 'tenant-a');
   assert.equal(calls[0]?.created_by_user_id, 'user-1');
   assert.equal(calls[2]?.registration_number, 'KDA 123A');
-  assert.deepEqual(calls[4]?.student_ids, ['student-1', 'student-2']);
+  assert.deepEqual(calls[4]?.student_ids, [STUDENT_ONE_ID, STUDENT_TWO_ID]);
+  assert.deepEqual(calls[5]?.student_ids, [STUDENT_ONE_ID, STUDENT_TWO_ID]);
+});
+
+test('TransportService rejects foreign assignment references before persistence', async () => {
+  const calls: string[] = [];
+  const service = new TransportService(
+    { getStore: () => ({ tenant_id: 'school-a', user_id: 'user-1', permissions: ['transport:*'] }) } as never,
+    {} as never,
+    {
+      validateManifestReferences: async (input: Record<string, unknown>) => {
+        calls.push(`validate:${input.tenant_id}`);
+        return { route_exists: false, academic_term_exists: true, student_count: 1 };
+      },
+      createManifest: async () => {
+        calls.push('persist');
+      },
+    } as never,
+    { recordSchoolOperation: async () => undefined } as never,
+  );
+
+  await assert.rejects(
+    () => service.createAssignment({ routeId: FOREIGN_ROUTE_ID, studentId: STUDENT_ONE_ID }),
+    /owned by the current school/i,
+  );
+  assert.deepEqual(calls, ['validate:school-a']);
+});
+
+test('TransportService propagates assignment audit and event failures', async () => {
+  const baseRepository = {
+    validateManifestReferences: async () => ({
+      route_exists: true,
+      academic_term_exists: true,
+      student_count: 1,
+    }),
+    createManifest: async () => ({ id: 'manifest-1', status: 'active' }),
+  };
+  const context = {
+    getStore: () => ({
+      tenant_id: 'school-a',
+      user_id: 'user-1',
+      role: 'transport_manager',
+      permissions: ['transport:*'],
+    }),
+  };
+  const auditFailure = new TransportService(
+    context as never,
+    {} as never,
+    {
+      ...baseRepository,
+      appendAuditLog: async () => {
+        throw new Error('audit unavailable');
+      },
+    } as never,
+    { recordSchoolOperation: async () => undefined } as never,
+  );
+
+  await assert.rejects(
+    () => auditFailure.createAssignment({ routeId: ROUTE_ID, studentId: STUDENT_ONE_ID }),
+    /audit unavailable/,
+  );
+
+  const eventFailure = new TransportService(
+    context as never,
+    {} as never,
+    { ...baseRepository, appendAuditLog: async () => undefined } as never,
+    {
+      recordSchoolOperation: async () => {
+        throw new Error('event unavailable');
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    () => eventFailure.createAssignment({ routeId: ROUTE_ID, studentId: STUDENT_ONE_ID }),
+    /event unavailable/,
+  );
 });
 
 test('TransportService rejects unsafe transport mutations before repository writes', async () => {
@@ -237,6 +322,7 @@ test('TransportService rejects unsafe transport mutations before repository writ
       },
       appendAuditLog: async () => undefined,
     } as never,
+    { recordSchoolOperation: async () => undefined } as never,
   );
 
   await assert.rejects(

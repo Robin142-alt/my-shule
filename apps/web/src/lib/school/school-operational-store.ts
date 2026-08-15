@@ -193,15 +193,7 @@ export function getCurrentSchoolId(explicitSchoolId?: string | null) {
     return normalizedExplicit;
   }
 
-  if (typeof window === "undefined") {
-    return DEFAULT_SCHOOL_ID;
-  }
-
-  try {
-    return window.localStorage.getItem("myshule.currentSchoolId") || DEFAULT_SCHOOL_ID;
-  } catch {
-    return DEFAULT_SCHOOL_ID;
-  }
+  return DEFAULT_SCHOOL_ID;
 }
 
 export function requireCurrentSchoolId(explicitSchoolId?: string | null) {
@@ -266,9 +258,9 @@ export function readSchoolData<T extends object>(
     const parsed = stored ? (JSON.parse(stored) as T[]) : [];
 
     return Array.isArray(parsed)
-      ? parsed.filter((record) => {
+        ? parsed.filter((record) => {
           const scopedRecord = record as T & { schoolId?: string };
-          return !scopedRecord.schoolId || scopedRecord.schoolId === schoolId;
+          return scopedRecord.schoolId === schoolId;
         })
       : [];
   } catch {
@@ -925,11 +917,11 @@ export function queueSchoolOperationalEventSync(input: BackendOperationalEventSy
 }
 
 export function mergeSchoolRecordsById<T extends { id: string }>(baseRecords: T[], storedRecords: T[]) {
-  const byId = new Map<string, T>();
-
-  [...storedRecords, ...baseRecords].forEach((record) => {
-    byId.set(record.id, { ...byId.get(record.id), ...record });
-  });
-
-  return Array.from(byId.values());
+  // Browser storage is an offline transport/cache only. It must never be
+  // promoted into the confirmed school read model unless the owning workspace
+  // renders an explicit QUEUED/FAILED/CONFLICT state. Existing generic role
+  // workspaces do not expose that distinction, so their server response remains
+  // the sole confirmed source of truth.
+  void storedRecords;
+  return [...baseRecords];
 }

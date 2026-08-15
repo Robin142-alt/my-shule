@@ -538,6 +538,10 @@ export class AcademicsService {
     return this.repository.getAcademicFoundation(this.requireTenantId());
   }
 
+  getCommunications() {
+    return this.repository.listCommunications(this.requireTenantId(), this.currentUserId());
+  }
+
   private requireTenantId(): string {
     const tenantId = this.requestContext.getStore()?.tenant_id;
 
@@ -699,8 +703,11 @@ export class AcademicsService {
     return this.repository.listAcademicTerms(this.requireTenantId());
   }
 
-  listClassSections() {
-    return this.repository.listClassSections(this.requireTenantId());
+  listClassSections(options: { academicYearId?: string; includeArchived?: boolean } = {}) {
+    return this.repository.listClassSections(this.requireTenantId(), {
+      academicYearId: options.academicYearId?.trim() || undefined,
+      includeArchived: options.includeArchived === true,
+    });
   }
 
   listSubjects() {
@@ -915,8 +922,11 @@ export class AcademicsService {
     return stream;
   }
 
-  listClassStreams() {
-    return this.repository.listClassStreams(this.requireTenantId());
+  listClassStreams(options: { academicYearId?: string; includeArchived?: boolean } = {}) {
+    return this.repository.listClassStreams(this.requireTenantId(), {
+      academicYearId: options.academicYearId?.trim() || undefined,
+      includeArchived: options.includeArchived === true,
+    });
   }
 
   // --- Departments ---

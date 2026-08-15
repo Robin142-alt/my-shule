@@ -1414,7 +1414,7 @@ export class TimetableService {
   private async validateSlotReferences(tenantId: string, input: CreateTimetableSlotDto) {
     const validation = await this.timetableRepository.validateSlotReferences(tenantId, input);
     const labels: Record<keyof typeof validation, string> = {
-      academic_year: 'academic year', term: 'term', class_section: 'class', subject: 'subject', teacher: 'teacher', teacher_assignment: 'teacher assignment for this class and subject',
+      academic_year: 'academic year', term: 'term', class_section: 'class', stream: 'stream', subject: 'subject', teacher: 'teacher', teacher_assignment: 'teacher assignment for this class and subject',
     };
     const missing = Object.entries(validation).filter(([, valid]) => !valid).map(([key]) => labels[key as keyof typeof validation]);
     if (missing.length > 0) throw new BadRequestException(`Invalid timetable setup: ${missing.join(', ')}`);

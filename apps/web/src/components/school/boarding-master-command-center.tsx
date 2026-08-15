@@ -1525,7 +1525,7 @@ export function BoardingMasterCommandCenter({ routeMode, activeSection }: { rout
                    <StatusChip label="Current school" tone="info" />
                <div className="flex items-center gap-2">
                  <TaskQueue />
-                 <ApprovalInbox currentUserId="school" />
+                 <ApprovalInbox />
                  <NotificationBell />
                </div>
                <button type="button" onClick={() => openView("roll-call")} className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[#071D49] px-4 text-sm font-black text-white sm:w-auto">Start Roll Call</button>

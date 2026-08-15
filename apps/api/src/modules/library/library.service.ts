@@ -382,20 +382,7 @@ export class LibraryService {
   }
 
   async listCatalogItems() {
-    const tenantId = this.requireTenantId();
-    const db = (this.libraryRepository as any).databaseService;
-    const res = await db.query(
-      `SELECT c.id, c.title, c.author, c.isbn, c.category_id as subject, 
-              COUNT(cp.id)::int as total,
-              SUM(CASE WHEN cp.status = 'available' THEN 1 ELSE 0 END)::int as available
-       FROM library_catalog_items c
-       LEFT JOIN library_copies cp ON c.id = cp.catalog_item_id AND c.tenant_id = cp.tenant_id
-       WHERE c.tenant_id = $1
-       GROUP BY c.id, c.title, c.author, c.isbn, c.category_id
-       ORDER BY c.title ASC`,
-      [tenantId]
-    );
-    return res.rows;
+    return this.libraryRepository.listCatalogItems(this.requireTenantId());
   }
 
   private calculateFineMinor(dueOn: string, returnedOn: string, dailyFineMinor: number): number {

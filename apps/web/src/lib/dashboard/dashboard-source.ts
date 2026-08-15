@@ -1,6 +1,4 @@
 import {
-  fetchApiObservabilityAlerts,
-  fetchApiObservabilityHealth,
   fetchApiReadiness,
   fetchApiDashboardSummary,
   isDashboardApiConfigured,
@@ -151,17 +149,9 @@ function mergeActivityFeed(snapshot: DashboardSnapshot, input: {
 async function hydrateWithLiveSignals(
   snapshot: DashboardSnapshot,
 ): Promise<DashboardSnapshot> {
-  const [readinessResult, healthResult, alertsResult] = await Promise.allSettled([
-    fetchApiReadiness(),
-    fetchApiObservabilityHealth(),
-    fetchApiObservabilityAlerts(),
-  ]);
+  const [readinessResult] = await Promise.allSettled([fetchApiReadiness()]);
 
-  if (
-    readinessResult.status !== "fulfilled" ||
-    healthResult.status !== "fulfilled" ||
-    alertsResult.status !== "fulfilled"
-  ) {
+  if (readinessResult.status !== "fulfilled") {
     return {
       ...snapshot,
       notifications: [
@@ -178,20 +168,21 @@ async function hydrateWithLiveSignals(
   }
 
   const readiness = readinessResult.value;
-  const health = healthResult.value;
-  const alerts = alertsResult.value.alerts;
+  const overallStatus = readiness.slo?.overall_status
+    ?? (readiness.status === "ok" ? "healthy" : "degraded");
+  const activeAlertCount = readiness.slo?.active_alert_count ?? 0;
 
   return {
     ...snapshot,
-    pageDescription: `${snapshot.pageDescription} Live API status is connected to readiness and system health checks.`,
+    pageDescription: `${snapshot.pageDescription} Live API status is connected to the non-sensitive readiness contract.`,
     alerts: [
       ...buildLiveAlerts(snapshot, {
         readinessStatus: readiness.status,
         postgres: readiness.services.postgres,
         redis: readiness.services.redis,
         bullmq: readiness.services.bullmq,
-        overallStatus: health.overall_status,
-        activeAlertCount: health.active_alert_count,
+        overallStatus,
+        activeAlertCount,
       }),
       ...snapshot.alerts,
     ].slice(0, 4),
@@ -199,16 +190,12 @@ async function hydrateWithLiveSignals(
       role: snapshot.role,
       postgres: readiness.services.postgres,
       redis: readiness.services.redis,
-      overallStatus: health.overall_status,
-      alerts: alerts.map((alert) => ({
-        title: alert.title,
-        message: alert.message,
-        severity: alert.severity,
-      })),
+      overallStatus,
+      alerts: [],
     }).slice(0, 5),
     activityFeed: mergeActivityFeed(snapshot, {
-      overallStatus: health.overall_status,
-      activeAlertCount: health.active_alert_count,
+      overallStatus,
+      activeAlertCount,
     }),
   };
 }

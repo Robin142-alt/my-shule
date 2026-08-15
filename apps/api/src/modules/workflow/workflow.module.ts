@@ -2,6 +2,7 @@ import { ActivityWidgetProvider } from './widgets/activity-widget.provider';
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
 import { ObservabilityModule } from '../observability/observability.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 // Services
 import { WorkflowService } from './services/workflow.service';
@@ -19,7 +20,7 @@ import { ApprovalController } from './controllers/approval.controller';
 import { DashboardController } from './controllers/dashboard.controller';
 
 @Module({
-  imports: [DatabaseModule, ObservabilityModule],
+  imports: [DatabaseModule, ObservabilityModule, NotificationsModule],
   controllers: [
     WorkflowController,
     NotificationController,

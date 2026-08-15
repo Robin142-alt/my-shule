@@ -22,10 +22,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { MyShuleMark } from "@/components/brand/myshule-brand";
-import { TaskQueue } from "../shared/task-queue";
-import { ApprovalInbox } from "../shared/approval-inbox";
-import { NotificationBell } from "../shared/notification-bell";
-import { WorkflowToast } from "../shared/workflow-toast";
 
 /* ─── Nav Config ─────────────────────────────────────────────────── */
 const superadminNav = [
@@ -42,45 +38,6 @@ const superadminNav = [
   { id: "settings", label: "Settings", href: "/superadmin/settings", icon: Waypoints },
 ];
 
-const platformNotifications = [
-  {
-    id: "failed-sms",
-    title: "Failed SMS deliveries",
-    detail: "23 parent messages need retry across active schools.",
-    href: "/superadmin/sms-settings?filter=failed",
-  },
-  {
-    id: "mpesa-callbacks",
-    title: "M-Pesa callback issues",
-    detail: "Four payment confirmations need reconciliation.",
-    href: "/superadmin/mpesa-monitoring?filter=failed-callbacks",
-  },
-  {
-    id: "school-setup",
-    title: "School setup tasks",
-    detail: "Three schools have incomplete term, class, or fee setup.",
-    href: "/superadmin/schools?filter=setup",
-  },
-  {
-    id: "support-sla",
-    title: "Support SLA warning",
-    detail: "Two school tickets are close to escalation.",
-    href: "/superadmin/support?filter=sla",
-  },
-  {
-    id: "backup-review",
-    title: "Backup review",
-    detail: "Yesterday's verification report is ready for review.",
-    href: "/superadmin/infrastructure?panel=backups",
-  },
-  {
-    id: "audit-alert",
-    title: "Audit alert",
-    detail: "Permission changes were made by a platform operator.",
-    href: "/superadmin/audit-logs?filter=permissions",
-  },
-] as const;
-
 /* ─── Super Admin Shell ──────────────────────────────────────────── */
 export function SuperAdminShell({
   children,
@@ -95,7 +52,6 @@ export function SuperAdminShell({
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState("Platform control ready for schools, billing, support, M-Pesa, SMS, and system health.");
   const searchResults = searchTerm.trim()
@@ -107,7 +63,6 @@ export function SuperAdminShell({
   function openPlatformPath(href: string, message: string) {
     setNotice(message);
     setSearchTerm("");
-    setNotificationsOpen(false);
     setProfileOpen(false);
     router.push(href);
   }
@@ -278,11 +233,6 @@ export function SuperAdminShell({
                   </div>
                 ) : null}
               </label>
-              <div className="flex items-center gap-2">
-                <TaskQueue />
-                <ApprovalInbox currentUserId="super-admin-user" />
-                <NotificationBell />
-              </div>
               <div className="relative">
                 <button
                   type="button"

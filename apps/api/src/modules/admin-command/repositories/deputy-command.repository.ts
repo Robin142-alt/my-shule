@@ -883,38 +883,57 @@ export class DeputyCommandRepository {
   }
 
   async getClasses(tenantId: string) {
-    const metrics = await this.safeQuery(
+    const metricsResult = await this.executeSql(
       `
-        SELECT
-          (SELECT COUNT(*)::int FROM classes WHERE tenant_id = $1 AND status = 'active') AS active_classes
+        SELECT COUNT(*)::int AS active_classes
+        FROM class_sections section
+        WHERE section.tenant_id = $1
+          AND COALESCE(section.is_active, TRUE) = TRUE
+          AND COALESCE(section.status, 'active') = 'active'
+          AND section.archived_at IS NULL
       `,
       [tenantId],
-      { active_classes: 0 }
     );
+    const metrics = { active_classes: Number(metricsResult.rows[0]?.active_classes ?? 0) };
 
     const classesResult = await this.executeSql(
       `
         SELECT
           section.id::text,
           section.name,
-          COALESCE(staff.full_name, staff.display_name, 'Class teacher not assigned') AS "classTeacher",
+          COALESCE(class_teacher.teacher_name, 'Class teacher not assigned') AS "classTeacher",
           COALESCE(student_counts.count, 0)::int AS "studentCount",
-          CASE WHEN section.is_active THEN 'Active' ELSE 'Inactive' END AS status
+          'Active' AS status
         FROM class_sections section
-        LEFT JOIN class_teachers class_teacher ON class_teacher.tenant_id = section.tenant_id AND class_teacher.class_section_id = section.id
-        LEFT JOIN staff_profiles staff ON staff.tenant_id = section.tenant_id AND (staff.user_id = class_teacher.teacher_user_id OR staff.id = class_teacher.staff_profile_id)
-        LEFT JOIN (
-          SELECT tenant_id, class_id, COUNT(*) AS count
-          FROM students
-          WHERE tenant_id = $1 AND status = 'active'
-          GROUP BY tenant_id, class_id
-        ) student_counts ON student_counts.tenant_id = section.tenant_id AND student_counts.class_id = section.id
+        LEFT JOIN LATERAL (
+          SELECT COALESCE(staff.display_name, staff.staff_number) AS teacher_name
+          FROM academics_class_teachers assignment
+          LEFT JOIN staff_profiles staff
+            ON staff.tenant_id = assignment.tenant_id
+           AND staff.user_id = assignment.teacher_user_id
+          WHERE assignment.tenant_id = section.tenant_id
+            AND assignment.class_section_id::text = section.id::text
+            AND COALESCE(assignment.is_active, TRUE) = TRUE
+            AND COALESCE(assignment.status, 'active') = 'active'
+          ORDER BY assignment.updated_at DESC
+          LIMIT 1
+        ) class_teacher ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT COUNT(*)::int AS count
+          FROM student_class_assignments placement
+          WHERE placement.tenant_id = section.tenant_id
+            AND placement.class_section_id::text = section.id::text
+            AND placement.status = 'active'
+        ) student_counts ON TRUE
         WHERE section.tenant_id = $1
+          AND COALESCE(section.is_active, TRUE) = TRUE
+          AND COALESCE(section.status, 'active') = 'active'
+          AND section.archived_at IS NULL
         ORDER BY section.name ASC
         LIMIT 50
       `,
       [tenantId],
-    ).catch(() => ({ rows: [] }));
+    );
 
     return {
       metrics,

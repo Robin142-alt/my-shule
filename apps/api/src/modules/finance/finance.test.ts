@@ -13,9 +13,63 @@ import {
   PostedFinancialTransaction,
 } from './finance.types';
 import { LedgerService } from './ledger.service';
+import { FinancePaymentCompletedConsumer } from './finance-events.handler';
 
 const sleep = (delayMs: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, delayMs));
+
+function paymentCompletedEvent(amountMinor = '125000', tenantId = 'tenant-a') {
+  return {
+    id: 'event-payment-1',
+    tenant_id: tenantId,
+    event_name: 'payment.completed',
+    payload: { amount_minor: amountMinor },
+  } as never;
+}
+
+test('FinancePaymentCompletedConsumer updates the tenant current-term projection from canonical academic dates', async () => {
+  const calls: Array<{ kind: string; sql?: string; params?: unknown[]; tenantId?: string }> = [];
+  const consumer = new FinancePaymentCompletedConsumer({
+    executeWithTenant: async (tenantId: string, userId: string | null, callback: (tx: any) => Promise<void>) => {
+      calls.push({ kind: 'tenant', tenantId, params: [userId] });
+      await callback({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          calls.push({ kind: 'query', sql, params });
+          return [{ academic_year: '2026', term_name: 'Term 3' }];
+        },
+        $executeRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          calls.push({ kind: 'execute', sql, params });
+          return 1;
+        },
+      });
+    },
+  } as never);
+
+  await consumer.handle(paymentCompletedEvent());
+
+  assert.deepEqual(calls[0], { kind: 'tenant', tenantId: 'tenant-a', params: [null] });
+  assert.match(calls.find((call) => call.kind === 'query')?.sql ?? '', /CURRENT_DATE BETWEEN term\.starts_on AND term\.ends_on/);
+  assert.deepEqual(calls.find((call) => call.kind === 'execute')?.params, ['tenant-a', '2026 - Term 3', 125000]);
+});
+
+test('FinancePaymentCompletedConsumer fails instead of writing an invented term or invalid amount', async () => {
+  let tenantExecutions = 0;
+  const consumer = new FinancePaymentCompletedConsumer({
+    executeWithTenant: async (_tenantId: string, _userId: string | null, callback: (tx: any) => Promise<void>) => {
+      tenantExecutions += 1;
+      await callback({
+        $queryRawUnsafe: async () => [],
+        $executeRawUnsafe: async () => {
+          throw new Error('projection write must not run without an active term');
+        },
+      });
+    },
+  } as never);
+
+  await assert.rejects(() => consumer.handle(paymentCompletedEvent()), /No active academic term/);
+  await assert.rejects(() => consumer.handle(paymentCompletedEvent('-50')), /invalid amount_minor/);
+  assert.equal(tenantExecutions, 1);
+});
 
 const makeAccount = (overrides: Partial<AccountEntity> = {}): AccountEntity =>
   Object.assign(new AccountEntity(), {

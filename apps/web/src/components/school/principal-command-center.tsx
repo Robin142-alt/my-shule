@@ -45,6 +45,20 @@ import { AcademicFoundationWorkspace } from "./academic-foundation-workspace";
 import { AcademicIntelligenceWorkspace } from "./academic-intelligence-workspace";
 import { LiveReportCardsWorkspace } from "./live-report-cards-workspace";
 import { PrincipalSchoolProfileWorkspace } from "./principal-dashboard/school-profile-workspace";
+import { PrincipalOverviewWorkspace } from "./principal-dashboard/overview-workspace";
+import { PrincipalSetupChecklistWorkspace } from "./principal-dashboard/setup-checklist-workspace";
+import { PrincipalAcademicSetupWorkspace } from "./principal-dashboard/academic-setup-workspace";
+import { PrincipalClassesStreamsWorkspace } from "./principal-dashboard/classes-streams-workspace";
+import { PrincipalSubjectsDepartmentsWorkspace } from "./principal-dashboard/subjects-departments-workspace";
+import { PrincipalFinanceOverviewWorkspace } from "./principal-dashboard/finance-overview-workspace";
+import { PrincipalAttendanceWorkspace } from "./principal-dashboard/attendance-workspace";
+import { PrincipalDisciplineWorkspace } from "./principal-dashboard/discipline-workspace";
+import { PrincipalAcademicsWorkspace } from "./principal-dashboard/academics-workspace";
+import { PrincipalStaffRolesWorkspace } from "./principal-dashboard/staff-roles-workspace";
+import { PrincipalCommunicationWorkspace } from "./principal-dashboard/communication-workspace";
+import { PrincipalApprovalsWorkspace } from "./principal-dashboard/approvals-workspace";
+import { PrincipalReportsWorkspace } from "./principal-dashboard/reports-workspace";
+import { PrincipalExamsReportsWorkspace } from "./principal-dashboard/exams-reports-workspace";
 import { StaffTimetableOverviewWorkspace } from "./staff-timetable-overview-workspace";
 
 type PrincipalSection =
@@ -215,15 +229,16 @@ function formatKsh(value: number) {
 }
 
 function getPrincipalSchoolId(tenantSlug?: string | null) {
-  return tenantSlug?.trim() || "school-workspace";
+  const schoolId = tenantSlug?.trim();
+  if (!schoolId) {
+    throw new Error("Principal dashboard requires a verified school context");
+  }
+
+  return schoolId;
 }
 
 function getPrincipalSchoolName(schoolId: string) {
   return schoolId === "school-workspace" ? "School workspace" : tenantSlugToName(schoolId);
-}
-
-function isKisumuDemoTenant(schoolId: string) {
-  return schoolId === "kisumu-boys" || schoolId === "kisumu-boys-demo";
 }
 
 function normalizePrincipalSection(section?: string): PrincipalSection {
@@ -303,7 +318,6 @@ export function PrincipalCommandCenter({
   const schoolId = getPrincipalSchoolId(tenantSlug);
   const fallbackSchoolName = getPrincipalSchoolName(schoolId);
   const principalName = userLabel?.trim() || "Principal";
-  const isDemoTenant = isKisumuDemoTenant(schoolId);
   const [activeWorkspace, setActiveWorkspaceState] = useState<PrincipalSection>(() =>
     normalizePrincipalSection(activeSection),
   );
@@ -328,10 +342,6 @@ export function PrincipalCommandCenter({
   useEffect(() => {
     setActiveWorkspaceState(normalizePrincipalSection(activeSection));
   }, [activeSection]);
-
-  useEffect(() => {
-    window.localStorage.setItem("myshule.currentSchoolId", schoolId);
-  }, [schoolId]);
 
   useEffect(() => {
     return subscribeToSchoolDataUpdates((detail) => {
@@ -434,15 +444,15 @@ export function PrincipalCommandCenter({
   }, [revision, schoolId]);
 
   const collectedToday = schoolRecords.feePayments.reduce((total, row) => total + Number(row.amount || 0), 0);
-  const visibleCollections = collectedToday > 0 ? collectedToday : isDemoTenant ? 248500 : 0;
+  const visibleCollections = collectedToday;
   const visitorsInside = schoolRecords.visitors.filter((row) => /inside/i.test(row.status)).length;
   const waitingInquiries = schoolRecords.inquiries.filter((row) => /waiting/i.test(row.status)).length;
   const medicineAlerts = schoolRecords.medicineStock.filter((row) => Number(row.quantity) <= Number(row.reorderAt)).length;
   const libraryFollowUps = schoolRecords.libraryLoans.filter((row) => /overdue|lost|damaged/i.test(row.status) || Number(row.fine) > 0).length;
   const attendanceRegister = schoolRecords.attendanceRegisters[0];
-  const presentStudents = attendanceRegister?.present ?? (isDemoTenant ? 944 : 0);
-  const absentStudents = attendanceRegister?.absent ?? (isDemoTenant ? 18 : 0);
-  const lateStudents = attendanceRegister?.late ?? (isDemoTenant ? 12 : 0);
+  const presentStudents = attendanceRegister?.present ?? 0;
+  const absentStudents = attendanceRegister?.absent ?? 0;
+  const lateStudents = attendanceRegister?.late ?? 0;
   const missingRegisters = schoolRecords.attendanceRegisters.length === 0 ? 0 : 3;
   const guardianRecipientCount =
     attendanceRegister?.absentStudents?.filter((student) => Boolean(student.phone || student.guardian)).length ?? 0;
@@ -702,6 +712,22 @@ export function PrincipalCommandCenter({
   ];
 
   function renderWorkspace() {
+    const canonicalWorkspace = String(activeWorkspace);
+    if (canonicalWorkspace === "overview") return <PrincipalOverviewWorkspace />;
+    if (canonicalWorkspace === "setup-checklist") return <PrincipalSetupChecklistWorkspace />;
+    if (canonicalWorkspace === "academic-setup") return <PrincipalAcademicSetupWorkspace />;
+    if (canonicalWorkspace === "classes-streams") return <PrincipalClassesStreamsWorkspace />;
+    if (canonicalWorkspace === "subjects-departments") return <PrincipalSubjectsDepartmentsWorkspace />;
+    if (canonicalWorkspace === "fees") return <PrincipalFinanceOverviewWorkspace />;
+    if (canonicalWorkspace === "attendance") return <PrincipalAttendanceWorkspace />;
+    if (canonicalWorkspace === "discipline") return <PrincipalDisciplineWorkspace />;
+    if (canonicalWorkspace === "academics") return <PrincipalAcademicsWorkspace />;
+    if (canonicalWorkspace === "staff") return <PrincipalStaffRolesWorkspace />;
+    if (canonicalWorkspace === "communication") return <PrincipalCommunicationWorkspace />;
+    if (canonicalWorkspace === "approvals") return <PrincipalApprovalsWorkspace />;
+    if (canonicalWorkspace === "reports") return <PrincipalReportsWorkspace />;
+    if (canonicalWorkspace === "exams-reports") return <PrincipalExamsReportsWorkspace />;
+
     if (activeWorkspace === "school-profile") {
       return (
         <section aria-label="Principal school profile workspace" className="space-y-5">

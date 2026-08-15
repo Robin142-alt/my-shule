@@ -3,7 +3,6 @@ import { useState } from "react";
 import { FileBarChart, Download, RefreshCw } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { generateHealthReport } from "./api-client";
 import { downloadCsvFile } from "@/lib/dashboard/export";
@@ -79,8 +78,7 @@ function normalizeReportsData(value: ReportsData | ReportSnapshotRecord[] | unde
 }
 
 export function HealthReportsWorkspace() {
-  const queryClient = useQueryClient();
-  const { data, isLoading } = useSchoolQuery<ReportsData | ReportSnapshotRecord[]>('/admin-command/nurse/health-reports');
+  const { data, isLoading, isError, error, refetch } = useSchoolQuery<ReportsData | ReportSnapshotRecord[]>('/admin-command/nurse/health-reports');
   const [isGenerating, setIsGenerating] = useState(false);
   const [reportType, setReportType] = useState("weekly");
 
@@ -98,7 +96,7 @@ export function HealthReportsWorkspace() {
     setIsGenerating(true);
     try {
       await generateHealthReport({ report_type: reportType });
-      queryClient.invalidateQueries({ queryKey: ["school", "session", "/admin-command/nurse/health-reports"] });
+      await refetch();
       toast.success(`${reportType.charAt(0).toUpperCase() + reportType.slice(1)} health report request submitted. Refreshing report status.`);
     } catch (e: any) { toast.error(e.message || "Failed to generate report."); }
     finally { setIsGenerating(false); }
@@ -137,6 +135,13 @@ export function HealthReportsWorkspace() {
         </button>
       </div>
     }>
+      {isError ? (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
+          Health reports could not be loaded. {error instanceof Error ? error.message : "Please retry."}{" "}
+          <button type="button" className="font-black underline" onClick={() => void refetch()}>Retry</button>
+        </div>
+      ) : null}
+
       <div className="grid gap-4 md:grid-cols-2 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="text-sm font-semibold text-[#64748B]">Total Reports</div>

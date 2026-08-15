@@ -362,76 +362,23 @@ const systemUsersBase: Array<{
 }> = [];
 
 function buildTenantFinanceConfig(tenant: TenantOption): TenantFinanceConfigView {
-  const primarySettlement = `${tenant.name} Main Fees - KCB Westlands`;
-
+  void tenant;
   return {
-    paybillNumber: "247247",
-    tillNumber: "837492",
-    accountReferenceExample: "ADM-2025-001",
-    mpesaStatus: "Live",
-    mpesaStatusTone: "ok",
-    reconciliationStatus: "Balanced to 09:00",
-    reconciliationStatusTone: "ok",
-    darajaEnvironment: "Production",
-    callbackUrl: "https://api.myshule.co.ke/mpesa/callback/barakaacademy",
-    todayCollections: formatCurrency(248_500),
-    pendingReconciliations: "3",
-    failedCallbacks: "1",
-    unmatchedPayments: "2",
-    channels: [
-      {
-        id: "channel-paybill",
-        type: "MPESA Paybill",
-        name: "School fees paybill",
-        identifier: "247247",
-        accountInstruction: "Use learner admission number, e.g. ADM-2025-001",
-        settlement: primarySettlement,
-        status: "Active",
-        statusTone: "ok",
-      },
-      {
-        id: "channel-till",
-        type: "MPESA Till",
-        name: "Onsite bursar till",
-        identifier: "837492",
-        accountInstruction: "Use receipt reference from bursar desk",
-        settlement: primarySettlement,
-        status: "Active",
-        statusTone: "ok",
-      },
-      {
-        id: "channel-bank",
-        type: "Bank deposit",
-        name: "Direct bank transfer",
-        identifier: "KCB 0134 5221 9087",
-        accountInstruction: "Narration must include admission number",
-        settlement: primarySettlement,
-        status: "Active",
-        statusTone: "ok",
-      },
-    ],
-    bankAccounts: [
-      {
-        id: "bank-main-fees",
-        bankName: "KCB Bank Kenya",
-        branchName: "Westlands",
-        accountName: `${tenant.name} Main Fees Account`,
-        accountNumber: "0134 5221 9087",
-        currency: "KES",
-        status: "Active",
-        statusTone: "ok",
-      },
-      {
-        id: "bank-development",
-        bankName: "Co-operative Bank",
-        branchName: "Nairobi CBD",
-        accountName: `${tenant.name} Development Fund`,
-        accountNumber: "0112 8840 7752",
-        currency: "KES",
-        status: "Review",
-        statusTone: "warning",
-      },
-    ],
+    paybillNumber: "Not configured",
+    tillNumber: "Not configured",
+    accountReferenceExample: "Not configured",
+    mpesaStatus: "Not configured",
+    mpesaStatusTone: "warning",
+    reconciliationStatus: "No live reconciliation data",
+    reconciliationStatusTone: "warning",
+    darajaEnvironment: "Not configured",
+    callbackUrl: "Not configured",
+    todayCollections: formatCurrency(0),
+    pendingReconciliations: "0",
+    failedCallbacks: "0",
+    unmatchedPayments: "0",
+    channels: [],
+    bankAccounts: [],
   };
 }
 

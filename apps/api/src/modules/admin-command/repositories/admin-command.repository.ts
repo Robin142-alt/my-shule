@@ -991,31 +991,60 @@ export class AdminCommandRepository {
 
   async getClassesOverview(tenantId: string) {
     const classesQuery = await this.executeSql(
-      `SELECT count(*)::int as count FROM class_sections WHERE tenant_id = $1`,
+      `SELECT COUNT(*)::int AS count
+       FROM class_sections section
+       WHERE section.tenant_id = $1
+         AND COALESCE(section.is_active, TRUE) = TRUE
+         AND COALESCE(section.status, 'active') = 'active'
+         AND section.archived_at IS NULL`,
       [tenantId]
-    ).catch(() => ({ rows: [{ count: 0 }] }));
+    );
     const streamsQuery = await this.executeSql(
-      `SELECT count(*)::int as count FROM class_streams WHERE tenant_id = $1`,
+      `SELECT COUNT(*)::int AS count
+       FROM class_streams stream
+       JOIN class_sections section
+         ON section.tenant_id = stream.tenant_id
+        AND section.id::text = stream.class_section_id::text
+       WHERE stream.tenant_id = $1
+         AND COALESCE(stream.is_active, TRUE) = TRUE
+         AND COALESCE(stream.status, 'active') = 'active'
+         AND stream.archived_at IS NULL
+         AND COALESCE(section.is_active, TRUE) = TRUE
+         AND COALESCE(section.status, 'active') = 'active'
+         AND section.archived_at IS NULL`,
       [tenantId]
-    ).catch(() => ({ rows: [{ count: 0 }] }));
+    );
     
     const totalClasses = classesQuery.rows[0]?.count || 0;
     const totalStreams = streamsQuery.rows[0]?.count || 0;
 
     const distributionQuery = await this.executeSql(
-      `SELECT grade_level as label, count(sca.student_id)::int as value 
+      `SELECT COALESCE(cs.grade_level, cs.name) AS label,
+              COUNT(DISTINCT sca.student_id)::int AS value
        FROM class_sections cs
-       LEFT JOIN student_class_assignments sca ON cs.id = sca.class_section_id
+       LEFT JOIN student_class_assignments sca
+         ON sca.tenant_id = cs.tenant_id
+        AND sca.class_section_id::text = cs.id::text
+        AND sca.status = 'active'
        WHERE cs.tenant_id = $1
-       GROUP BY grade_level`,
+         AND COALESCE(cs.is_active, TRUE) = TRUE
+         AND COALESCE(cs.status, 'active') = 'active'
+         AND cs.archived_at IS NULL
+       GROUP BY COALESCE(cs.grade_level, cs.name)
+       ORDER BY label`,
       [tenantId]
-    ).catch(() => ({ rows: [] }));
+    );
+
+    const activeStudentCount = distributionQuery.rows.reduce(
+      (total: number, row: any) => total + Number(row.value ?? 0),
+      0,
+    );
 
     return {
       status: totalClasses > 0 ? "active" : "setup_required",
       totalClasses,
       totalStreams,
-      averageClassSize: 0,
+      averageClassSize: totalClasses > 0 ? Math.round(activeStudentCount / totalClasses) : 0,
       capacityUtilization: 0,
       classDistribution: distributionQuery.rows,
       recentAdjustments: []

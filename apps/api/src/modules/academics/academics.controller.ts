@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, Param, Patch, Delete, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Param, Patch, Delete } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
@@ -92,8 +92,14 @@ export class AcademicsController {
 
   @Get('class-streams')
   @Permissions('academics:read')
-  listClassStreams() {
-    return this.academicsService.listClassStreams();
+  listClassStreams(
+    @Query('academic_year_id') academicYearId?: string,
+    @Query('include_archived') includeArchived?: string,
+  ) {
+    return this.academicsService.listClassStreams({
+      academicYearId,
+      includeArchived: includeArchived === 'true',
+    });
   }
 
   @Post('class-structure')
@@ -228,8 +234,14 @@ export class AcademicsController {
 
   @Get('class-sections')
   @Permissions('academics:read')
-  listClassSections() {
-    return this.academicsService.listClassSections();
+  listClassSections(
+    @Query('academic_year_id') academicYearId?: string,
+    @Query('include_archived') includeArchived?: string,
+  ) {
+    return this.academicsService.listClassSections({
+      academicYearId,
+      includeArchived: includeArchived === 'true',
+    });
   }
 
   @Get('subjects')
@@ -539,18 +551,6 @@ export class AcademicsController {
   @Get('communications')
   @Permissions('academics:read')
   async getCommunications() {
-    const tenantId = (this.academicsService as any).requestContext.getStore()?.tenant_id;
-    if (!tenantId) throw new UnauthorizedException('Tenant ID required');
-    try {
-      const items = await (this.academicsService as any).repository.prisma.communicationBroadcast.findMany({
-        where: { schoolId: tenantId },
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-      });
-      return { items };
-    } catch (e: any) {
-      console.error('academics.controller error:', e);
-      throw new InternalServerErrorException(e.message);
-    }
+    return { items: await this.academicsService.getCommunications() };
   }
 }

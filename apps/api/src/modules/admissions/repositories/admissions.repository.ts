@@ -221,11 +221,23 @@ export class AdmissionsRepository {
           btrim(concat_ws(' ', section.name, NULLIF(section.stream, ''))) AS label,
           section.name AS value
         FROM class_sections section
+        JOIN academic_years year
+          ON year.tenant_id = section.tenant_id
+         AND year.id::text = section.academic_year_id::text
         LEFT JOIN (
           SELECT tenant_id, class_section_id, COUNT(*)::int AS student_count
-          FROM student_class_assignments
-          WHERE tenant_id = $1
-            AND status = 'active'
+          FROM (
+            SELECT assignment.tenant_id, assignment.class_section_id::text, assignment.student_id::text
+            FROM student_class_assignments assignment
+            WHERE assignment.tenant_id = $1
+              AND assignment.status = 'active'
+            UNION
+            SELECT enrollment.tenant_id, enrollment.class_section_id::text, enrollment.student_id::text
+            FROM student_academic_enrollments enrollment
+            WHERE enrollment.tenant_id = $1
+              AND enrollment.status = 'active'
+              AND enrollment.class_section_id IS NOT NULL
+          ) active_students
           GROUP BY tenant_id, class_section_id
         ) student_counts
           ON student_counts.tenant_id = section.tenant_id
@@ -233,6 +245,10 @@ export class AdmissionsRepository {
         WHERE section.tenant_id = $1
           AND section.is_active = TRUE
           AND lower(COALESCE(section.status, 'active')) = 'active'
+          AND section.archived_at IS NULL
+          AND section.enrolment_open = TRUE
+          AND lower(COALESCE(year.status, 'active')) = 'active'
+          AND year.archived_at IS NULL
         ORDER BY NULLIF(section.grade_level, '') ASC NULLS LAST, section.name ASC, NULLIF(section.stream, '') ASC NULLS LAST
       `, [tenantId],
     );
@@ -2502,35 +2518,87 @@ export class AdmissionsRepository {
     const result = await this.executeSql(tenantId, `
         WITH selected_section AS (
           SELECT
-            id,
-            tenant_id AS school_id,
-            class_name,
-            stream_name,
-            academic_year,
-            capacity
-          FROM academic_class_sections
-          WHERE tenant_id = $1
-            AND lower(class_name) = lower($2)
-            AND lower(stream_name) = lower($3)
-            AND is_active = TRUE
-          ORDER BY academic_year DESC, created_at DESC
+            section.id::text,
+            section.tenant_id,
+            section.name AS class_name,
+            section.academic_year_id::text,
+            year.name AS academic_year,
+            section.capacity
+          FROM class_sections section
+          JOIN academic_years year
+            ON year.tenant_id = section.tenant_id
+           AND year.id::text = section.academic_year_id::text
+          WHERE section.tenant_id = $1
+            AND lower(btrim(section.name)) = lower(btrim($2))
+            AND section.is_active = TRUE
+            AND lower(COALESCE(section.status, 'active')) = 'active'
+            AND section.archived_at IS NULL
+            AND section.enrolment_open = TRUE
+            AND section.academic_level_id IS NOT NULL
+            AND lower(COALESCE(year.status, 'active')) = 'active'
+            AND year.archived_at IS NULL
+          ORDER BY year.is_current DESC, year.starts_on DESC, section.created_at DESC
           LIMIT 1
-          FOR UPDATE
+          FOR UPDATE OF section
+        ),
+        selected_stream AS (
+          SELECT
+            stream.id::text,
+            stream.name,
+            stream.capacity
+          FROM class_streams stream
+          JOIN selected_section section
+            ON stream.class_section_id::text = section.id
+          WHERE stream.tenant_id = $1
+            AND NULLIF(btrim($3), '') IS NOT NULL
+            AND lower(btrim(stream.name)) = lower(btrim($3))
+            AND stream.is_active = TRUE
+            AND lower(COALESCE(stream.status, 'active')) = 'active'
+            AND stream.archived_at IS NULL
+          ORDER BY stream.created_at ASC
+          LIMIT 1
+          FOR UPDATE OF stream
         )
         SELECT
           selected_section.id,
+          selected_section.academic_year_id,
           selected_section.class_name,
-          selected_section.stream_name,
+          COALESCE(selected_stream.name, '') AS stream_name,
+          selected_stream.id AS stream_id,
           selected_section.academic_year,
-          selected_section.capacity,
+          CASE
+            WHEN selected_stream.id IS NOT NULL
+              THEN COALESCE(selected_stream.capacity, selected_section.capacity)
+            ELSE selected_section.capacity
+          END AS capacity,
           (
             SELECT COUNT(*)::int
-            FROM student_academic_enrollments enrollment
-            WHERE enrollment.tenant_id = selected_section.tenant_id
-              AND enrollment.class_section_id = selected_section.id
-              AND enrollment.status = 'active'
+            FROM (
+              SELECT assignment.student_id::text
+              FROM student_class_assignments assignment
+              WHERE assignment.tenant_id = selected_section.tenant_id
+                AND assignment.class_section_id::text = selected_section.id
+                AND assignment.status = 'active'
+                AND (
+                  selected_stream.id IS NULL
+                  OR assignment.stream_id::text = selected_stream.id
+                )
+              UNION
+              SELECT enrollment.student_id::text
+              FROM student_academic_enrollments enrollment
+              WHERE enrollment.tenant_id = selected_section.tenant_id
+                AND enrollment.class_section_id::text = selected_section.id
+                AND enrollment.status = 'active'
+                AND (
+                  selected_stream.id IS NULL
+                  OR lower(btrim(enrollment.stream_name)) = lower(btrim(selected_stream.name))
+                )
+            ) active_students
           ) AS current_enrollments
         FROM selected_section
+        LEFT JOIN selected_stream ON TRUE
+        WHERE NULLIF(btrim($3), '') IS NULL
+           OR selected_stream.id IS NOT NULL
       `, [tenantId, className, streamName],
     );
 
@@ -2542,42 +2610,120 @@ export class AdmissionsRepository {
     student_id: string;
     application_id: string;
     class_section_id?: string | null;
+    stream_id?: string | null;
     class_name: string;
     stream_name: string;
     academic_year: string;
   }) {
     const result = await this.executeSql(input.school_id, `
-        INSERT INTO student_academic_enrollments (
-          tenant_id,
-          student_id,
-          application_id,
-          class_section_id,
-          class_name,
-          stream_name,
-          academic_year,
-          status
+        WITH selected_section AS (
+          SELECT
+            section.id::text,
+            section.academic_level_id::text,
+            section.academic_year_id::text
+          FROM class_sections section
+          WHERE section.tenant_id = $1
+            AND section.id::text = $4::text
+            AND section.is_active = TRUE
+            AND lower(COALESCE(section.status, 'active')) = 'active'
+            AND section.archived_at IS NULL
+            AND section.enrolment_open = TRUE
+            AND section.academic_level_id IS NOT NULL
+          LIMIT 1
+        ),
+        selected_stream AS (
+          SELECT stream.id::text
+          FROM class_streams stream
+          JOIN selected_section section
+            ON stream.class_section_id::text = section.id
+          WHERE stream.tenant_id = $1
+            AND NULLIF(btrim($6), '') IS NOT NULL
+            AND stream.id::text = $8::text
+            AND lower(btrim(stream.name)) = lower(btrim($6))
+            AND stream.is_active = TRUE
+            AND lower(COALESCE(stream.status, 'active')) = 'active'
+            AND stream.archived_at IS NULL
+          ORDER BY stream.created_at ASC
+          LIMIT 1
+        ),
+        upserted_enrollment AS (
+          INSERT INTO student_academic_enrollments (
+            tenant_id,
+            student_id,
+            application_id,
+            class_section_id,
+            class_name,
+            stream_name,
+            academic_year,
+            status
+          )
+          SELECT $1, $2::text, $3::text, section.id, $5, $6, $7, 'active'
+          FROM selected_section section
+          LEFT JOIN selected_stream stream ON TRUE
+          WHERE NULLIF(btrim($6), '') IS NULL
+             OR stream.id IS NOT NULL
+          ON CONFLICT (tenant_id, student_id, academic_year)
+          DO UPDATE SET
+            application_id = EXCLUDED.application_id,
+            class_section_id = EXCLUDED.class_section_id,
+            class_name = EXCLUDED.class_name,
+            stream_name = EXCLUDED.stream_name,
+            status = 'active',
+            updated_at = NOW()
+          RETURNING
+            id,
+            student_id::text,
+            application_id::text,
+            class_section_id::text,
+            class_name,
+            stream_name,
+            academic_year,
+            status,
+            enrolled_at,
+            created_at,
+            updated_at
+        ),
+        upserted_assignment AS (
+          INSERT INTO student_class_assignments (
+            tenant_id,
+            school_id,
+            student_id,
+            class_section_id,
+            stream_id,
+            academic_level_id,
+            academic_year_id,
+            status,
+            assigned_by_user_id,
+            updated_at
+          )
+          SELECT
+            $1,
+            $1,
+            $2::text,
+            section.id,
+            stream.id,
+            section.academic_level_id,
+            section.academic_year_id,
+            'active',
+            NULLIF(current_setting('app.user_id', true), '')::uuid,
+            NOW()
+          FROM selected_section section
+          LEFT JOIN selected_stream stream ON TRUE
+          WHERE NULLIF(btrim($6), '') IS NULL
+             OR stream.id IS NOT NULL
+          ON CONFLICT (tenant_id, student_id, academic_year_id) WHERE status = 'active'
+          DO UPDATE SET
+            school_id = EXCLUDED.school_id,
+            class_section_id = EXCLUDED.class_section_id,
+            stream_id = EXCLUDED.stream_id,
+            academic_level_id = EXCLUDED.academic_level_id,
+            assigned_by_user_id = COALESCE(EXCLUDED.assigned_by_user_id, student_class_assignments.assigned_by_user_id),
+            updated_at = NOW()
+          RETURNING id
         )
-        VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7, 'active')
-        ON CONFLICT (tenant_id, student_id, academic_year)
-        DO UPDATE SET
-          application_id = EXCLUDED.application_id,
-          class_section_id = EXCLUDED.class_section_id,
-          class_name = EXCLUDED.class_name,
-          stream_name = EXCLUDED.stream_name,
-          status = 'active',
-          updated_at = NOW()
-        RETURNING
-          id,
-          student_id::text,
-          application_id::text,
-          class_section_id::text,
-          class_name,
-          stream_name,
-          academic_year,
-          status,
-          enrolled_at,
-          created_at,
-          updated_at
+        SELECT enrollment.*
+        FROM upserted_enrollment enrollment
+        CROSS JOIN (SELECT COUNT(*) FROM upserted_assignment) assignment_write
       `, [
         input.school_id,
         input.student_id,
@@ -2586,6 +2732,7 @@ export class AdmissionsRepository {
         input.class_name,
         input.stream_name,
         input.academic_year,
+        input.stream_id ?? null,
       ],
     );
 

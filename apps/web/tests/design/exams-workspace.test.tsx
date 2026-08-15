@@ -2,11 +2,15 @@ import { createElement } from "react";
 import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { ExamsModuleScreen } from "@/components/modules/exams/exams-module-screen";
+import {
+  ExamsModuleScreen,
+  type ExamTeachingAssignment,
+} from "@/components/modules/exams/exams-module-screen";
 import { SchoolPages } from "@/components/school/school-pages";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import { isSchoolSectionEnabled } from "@/lib/module-access/module-access-map";
 import { mapExamsWorkspaceFromLive } from "@/lib/modules/exams-client";
+import type { ExamsModuleDataSeed } from "@/lib/modules/exams-data";
 
 import { renderWithProviders } from "./test-utils";
 
@@ -44,25 +48,38 @@ const enabledModules = [
   "students",
 ];
 
-function mockLiveExamsSession() {
+function mockLiveExamsSession(
+  role: "teacher" | "principal" | "dean-academics" | "exams-manager" = "teacher",
+) {
+  const permissionsByRole = {
+    teacher: ["exams:enter-marks"],
+    principal: ["exams:read", "exams:publish", "reports:read"],
+    "dean-academics": ["exams:read", "exams:review", "exams:approve", "reports:read"],
+    "exams-manager": ["exams:read", "exams:write", "exams:enter-marks", "exams:review", "reports:read"],
+  } as const;
+  const permissions = [...permissionsByRole[role]];
   mockUseLiveTenantSession.mockReturnValue({
     apiConfigured: true,
     session: {
       tenantId: "barakaacademy",
       user: {
-        id: "teacher-1",
+        user_id: `${role}-1`,
         display_name: "Beatrice Wanjiku",
         email: "teacher@example.test",
-        role: "teacher",
+        role,
         tenant_id: "barakaacademy",
+        permissions,
+        session_id: "session-exams-1",
       },
     },
     user: {
-      id: "teacher-1",
+      user_id: `${role}-1`,
       display_name: "Beatrice Wanjiku",
       email: "teacher@example.test",
-      role: "teacher",
+      role,
       tenant_id: "barakaacademy",
+      permissions,
+      session_id: "session-exams-1",
     },
     isLoading: false,
     isSubmitting: false,
@@ -411,6 +428,79 @@ function buildLiveWorkspaceWithoutReportCards() {
   });
 }
 
+function buildTeacherAssignmentFixture(): ExamTeachingAssignment {
+  return {
+    id: "teacher-maths-g8-unity",
+    exam: "Test assessment",
+    className: "Grade 8",
+    stream: "Unity",
+    subject: "Mathematics",
+    curriculum: "CBC",
+    deadline: "Test deadline",
+    status: "Draft",
+    missingMarks: 1,
+    invalidMarks: 0,
+    lastSaved: "Not saved",
+    teacherName: "Assigned test teacher",
+    schoolId: "barakaacademy",
+    academicYear: "2026",
+    term: "Term 2",
+    learners: [
+      {
+        id: "test-learner-1",
+        admissionNumber: "TEST-001",
+        learnerName: "Assigned Test Learner",
+        paper1: "",
+        paper2: "",
+        practical: "",
+        scoreLevel: "",
+        competency: "Test competency",
+        teacherComment: "Test evidence is pending.",
+        status: "Missing",
+      },
+    ],
+  };
+}
+
+function buildReportCardsSeed(): ExamsModuleDataSeed {
+  return {
+    currentExam: "Test reporting period",
+    currentClass: "Grade 8 Unity",
+    reports: [
+      {
+        id: "cbc-report",
+        className: "Grade 7 Hope",
+        template: "CBC/CBE Competency Report",
+        ready: 0,
+        total: 1,
+        status: "Data incomplete",
+        tone: "warning",
+        learners: [{ id: "cbc-learner", admissionNumber: "TEST-101", learnerName: "CBC Test Learner", stream: "Hope" }],
+      },
+      {
+        id: "legacy-report",
+        className: "Form 4 West",
+        template: "Legacy 8-4-4/KCSE",
+        ready: 1,
+        total: 1,
+        status: "Ready",
+        tone: "ok",
+        learners: [{ id: "legacy-learner", admissionNumber: "TEST-102", learnerName: "Legacy Test Learner", stream: "West" }],
+      },
+      {
+        id: "hybrid-report",
+        className: "Grade 8 Unity",
+        template: "Hybrid CBC + Marks",
+        ready: 0,
+        total: 1,
+        status: "Data incomplete",
+        tone: "warning",
+        learners: [{ id: "hybrid-learner", admissionNumber: "TEST-103", learnerName: "Hybrid Test Learner", stream: "Unity" }],
+      },
+    ],
+  };
+}
+
 describe("exams workspace", () => {
   jest.setTimeout(60000);
 
@@ -552,12 +642,12 @@ describe("exams workspace", () => {
 
   it("does not submit locked mark corrections with hardcoded mark or approver ids", async () => {
     const user = userEvent.setup();
-    mockLiveExamsSession();
+    mockLiveExamsSession("dean-academics");
     const fetchMock = installLiveExamsFetchMock();
 
     renderWithProviders(
       createElement(ExamsModuleScreen, {
-        role: "principal",
+        role: "dean-academics",
         schoolName: "Baraka Academy",
         tenantSlug: "barakaacademy",
         initialLiveWorkspace: buildInitialLiveExamsWorkspace(),
@@ -579,14 +669,14 @@ describe("exams workspace", () => {
     );
   });
 
-  it("generates report-card previews, polls batch progress, and publishes as principal", async () => {
+  it("generates report-card previews and polls batch progress as exams manager", async () => {
     const user = userEvent.setup();
-    mockLiveExamsSession();
+    mockLiveExamsSession("exams-manager");
     const fetchMock = installLiveExamsFetchMock();
 
     renderWithProviders(
       createElement(ExamsModuleScreen, {
-        role: "principal",
+        role: "exams-manager",
         schoolName: "Baraka Academy",
         tenantSlug: "barakaacademy",
         initialLiveWorkspace: buildInitialLiveExamsWorkspace(),
@@ -602,12 +692,35 @@ describe("exams workspace", () => {
     await user.click(screen.getByRole("button", { name: /generate class batch/i }));
     expect(await screen.findByText(/44\/46 report cards/i)).toBeVisible();
 
-    await user.click(screen.getByRole("button", { name: /publish selected card/i }));
-    expect(await screen.findByText(/report card published to the parent portal/i)).toBeVisible();
-
-    expect(fetchMock).toHaveBeenCalledWith(
+    expect(screen.queryByRole("button", { name: /publish selected card/i })).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith(
       expect.stringContaining("/api/exams/report-cards/publish"),
-      expect.objectContaining({ method: "POST" }),
+      expect.anything(),
+    );
+  });
+
+  it("publishes an approved live report card only from the principal workflow", async () => {
+    const user = userEvent.setup();
+    mockLiveExamsSession("principal");
+    const fetchMock = installLiveExamsFetchMock();
+
+    renderWithProviders(
+      createElement(ExamsModuleScreen, {
+        role: "principal",
+        schoolName: "Baraka Academy",
+        tenantSlug: "barakaacademy",
+        initialLiveWorkspace: buildInitialLiveExamsWorkspace(),
+        liveSessionOverride: mockUseLiveTenantSession({} as any),
+      }),
+    );
+
+    await user.click(screen.getByRole("tab", { name: /report cards/i }));
+    await user.click(await screen.findByRole("button", { name: /publish report card for/i }));
+
+    expect((await screen.findAllByText(/report card published to the parent portal/i)).length).toBeGreaterThan(0);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/exams/report-cards/report-card-1/transition"),
+      expect.objectContaining({ method: "PATCH", body: expect.stringContaining('"action":"publish"') }),
     );
   });
 
@@ -622,7 +735,8 @@ describe("exams workspace", () => {
 
     expect(screen.queryByRole("button", { name: /continue marks entry/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /import spreadsheet/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /generate reports/i })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /generate reports/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /report cards/i })).toBeVisible();
   });
 
   it("shows principal My Exam Entry only for assigned teaching subjects and opens the selected marksheet", async () => {
@@ -650,6 +764,20 @@ describe("exams workspace", () => {
             schoolId: "barakaacademy",
             academicYear: "2026",
             term: "Term 2",
+            learners: [
+              {
+                id: "principal-test-learner",
+                admissionNumber: "TEST-201",
+                learnerName: "Principal Test Learner",
+                paper1: "",
+                paper2: "68",
+                practical: "15",
+                scoreLevel: "",
+                competency: "",
+                teacherComment: "Paper 1 is pending.",
+                status: "Missing",
+              },
+            ],
           },
         ],
       }),
@@ -680,6 +808,7 @@ describe("exams workspace", () => {
         role: "teacher",
         schoolName: "Baraka Academy",
         tenantSlug: "barakaacademy",
+        teachingAssignmentsOverride: [buildTeacherAssignmentFixture()],
       }),
     );
 
@@ -693,7 +822,7 @@ describe("exams workspace", () => {
     expect(screen.getAllByText(/Mathematics/i).length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("button", { name: /download template for mathematics/i }));
-    expect(screen.getByText(/Template queued for Grade 8 Unity Mathematics/i)).toBeVisible();
+    expect(screen.getByText(/Template downloaded for Grade 8 Unity Mathematics/i)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /continue draft for mathematics/i }));
     expect(screen.getByRole("heading", { name: /Mathematics marksheet/i })).toBeVisible();
@@ -707,6 +836,7 @@ describe("exams workspace", () => {
         role: "teacher",
         schoolName: "Baraka Academy",
         tenantSlug: "barakaacademy",
+        moduleDataSeed: buildReportCardsSeed(),
       }),
     );
 
@@ -714,7 +844,7 @@ describe("exams workspace", () => {
     expect(screen.getByRole("button", { name: /submit to hod/i })).toBeDisabled();
   });
 
-  it("exposes complete curriculum-aware report generation filters and truthful row actions", async () => {
+  it("exposes complete curriculum-aware report preview filters and truthful row actions", async () => {
     const user = userEvent.setup();
 
     renderWithProviders(
@@ -722,6 +852,7 @@ describe("exams workspace", () => {
         role: "principal",
         schoolName: "Baraka Academy",
         tenantSlug: "barakaacademy",
+        moduleDataSeed: buildReportCardsSeed(),
       }),
     );
 
@@ -746,27 +877,18 @@ describe("exams workspace", () => {
     expect(screen.getByText(/Awaiting approval/i)).toBeVisible();
     expect(screen.getByText(/Held\/blocked/i)).toBeVisible();
 
-    expect(screen.getAllByRole("button", { name: /^Regenerate$/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /^Preview$/i }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: /^Print$/i }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: /download pdf/i }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: /send notification/i }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: /audit trail/i }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /^Regenerate$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /send notification/i })).not.toBeInTheDocument();
 
-    await user.click(screen.getAllByRole("button", { name: /^Approve$/i })[1]);
-    expect(screen.getByText(/report approved/i)).toBeVisible();
-
-    await user.click(screen.getAllByRole("button", { name: /^Publish$/i })[1]);
-    expect(screen.getByText(/report published to the permitted parent portal/i)).toBeVisible();
-
-    await user.click(screen.getAllByRole("button", { name: /^Unpublish$/i })[1]);
-    expect(screen.getByText(/report unpublished from the parent portal/i)).toBeVisible();
-
-    await user.click(screen.getAllByRole("button", { name: /audit trail/i })[0]);
-    expect(screen.getByRole("dialog", { name: /report card audit trail/i })).toBeVisible();
-    expect(screen.getAllByText(/school-scoped audit trail/i).length).toBeGreaterThan(0);
+    await user.click(screen.getAllByRole("button", { name: /^Preview$/i })[0]);
+    expect(screen.getByRole("dialog", { name: /report card preview/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /download pdf/i })).toBeVisible();
+    expect(screen.getByRole("tab", { name: /audit trail/i })).toBeVisible();
   }, 60000);
 
-  it("lets report generation settings switch a school to pure CBC without leaving Form 4 as an implicit legacy school mode", async () => {
+  it("lets report preview settings model pure CBC without claiming to change the school mode", async () => {
     const user = userEvent.setup();
 
     renderWithProviders(
@@ -774,6 +896,7 @@ describe("exams workspace", () => {
         role: "principal",
         schoolName: "Baraka Academy",
         tenantSlug: "barakaacademy",
+        moduleDataSeed: buildReportCardsSeed(),
       }),
     );
 
@@ -783,8 +906,8 @@ describe("exams workspace", () => {
 
     await user.selectOptions(screen.getByLabelText(/school default curriculum direction/i), "CBC_CBE");
 
-    expect(screen.getByText(/CBC\/CBE is now the school default direction/i)).toBeVisible();
-    expect(screen.getByText(/Legacy 8-4-4\/KCSE remains selectable only as an explicit class\/report format/i)).toBeVisible();
+    expect(screen.getByText(/CBC\/CBE preview selected\. This does not change the school setting/i)).toBeVisible();
+    expect(screen.getByText(/legacy 8-4-4\/KCSE remains an explicit class\/report format/i)).toBeVisible();
 
     await user.selectOptions(screen.getByLabelText(/report card type/i), "LEGACY_844_KCSE");
     expect(screen.getByText(/No report cards match the selected filters/i)).toBeVisible();

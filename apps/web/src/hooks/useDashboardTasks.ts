@@ -1,67 +1,88 @@
-import { useState, useEffect, useCallback } from 'react';
-import { DashboardApi } from '../lib/client/dashboard-api';
+"use client";
 
-type DashboardTask = {
+import { useCallback, useMemo, useState } from "react";
+
+import { useDashboardCommunicationQuery } from "@/hooks/use-dashboard-communication-query";
+import { DashboardApi } from "@/lib/client/dashboard-api";
+
+export type DashboardTask = {
   id: string;
   title: string;
   description?: string;
   due_date?: string;
-  status?: string;
+  status: string;
 };
 
-function normalizeDashboardTasks(payload: unknown): DashboardTask[] {
-  const candidate =
-    Array.isArray(payload)
-      ? payload
-      : payload && typeof payload === 'object' && Array.isArray((payload as { tasks?: unknown }).tasks)
-        ? (payload as { tasks: unknown[] }).tasks
-        : payload && typeof payload === 'object' && Array.isArray((payload as { data?: unknown }).data)
-          ? (payload as { data: unknown[] }).data
-          : payload && typeof payload === 'object' && Array.isArray((payload as { items?: unknown }).items)
-            ? (payload as { items: unknown[] }).items
-            : [];
+function payloadItems(payload: unknown) {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== "object") return [];
+  for (const key of ["tasks", "data", "items"] as const) {
+    const value = (payload as Record<string, unknown>)[key];
+    if (Array.isArray(value)) return value;
+  }
+  return [];
+}
 
-  return candidate
-    .filter((task): task is Record<string, unknown> => Boolean(task) && typeof task === 'object')
-    .map((task, index) => ({
-      id: String(task.id ?? task.task_id ?? `task-${index}`),
-      title: String(task.title ?? task.name ?? 'Untitled task'),
-      description: typeof task.description === 'string' ? task.description : undefined,
-      due_date: typeof task.due_date === 'string' ? task.due_date : typeof task.dueDate === 'string' ? task.dueDate : undefined,
-      status: typeof task.status === 'string' ? task.status.toLowerCase() : 'open',
-    }));
+function normalizeDashboardTasks(payload: unknown): DashboardTask[] {
+  return payloadItems(payload).flatMap((candidate) => {
+    if (!candidate || typeof candidate !== "object") return [];
+    const task = candidate as Record<string, unknown>;
+    const idValue = task.id ?? task.task_id;
+    const titleValue = task.title ?? task.name;
+    const id = typeof idValue === "string" ? idValue.trim() : "";
+    const title = typeof titleValue === "string" ? titleValue.trim() : "";
+    if (!id || !title) return [];
+
+    return [{
+      id,
+      title,
+      description: typeof task.description === "string" ? task.description : undefined,
+      due_date: typeof task.due_date === "string"
+        ? task.due_date
+        : typeof task.dueDate === "string"
+          ? task.dueDate
+          : undefined,
+      status: typeof task.status === "string" ? task.status.toLowerCase() : "open",
+    }];
+  });
+}
+
+function toError(error: unknown) {
+  return error instanceof Error ? error : new Error("Task request failed.");
 }
 
 export function useDashboardTasks() {
-  const [tasks, setTasks] = useState<DashboardTask[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const query = useDashboardCommunicationQuery<unknown>("/api/tasks", DashboardApi.getTasks);
+  const [mutationError, setMutationError] = useState<Error | null>(null);
+  const [pendingIds, setPendingIds] = useState<Set<string>>(() => new Set());
+  const tasks = useMemo(() => normalizeDashboardTasks(query.data), [query.data]);
 
-  const fetchTasks = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const data = await DashboardApi.getTasks();
-      setTasks(normalizeDashboardTasks(data));
-    } catch (err) {
-      console.error('Failed to fetch tasks', err);
-      setTasks([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const completeTask = async (id: string) => {
+  const completeTask = useCallback(async (id: string) => {
+    setMutationError(null);
+    setPendingIds((current) => new Set(current).add(id));
     try {
       await DashboardApi.completeTask(id);
-      setTasks(prev => prev.filter(t => t.id !== id));
-    } catch (err) {
-      console.error('Failed to complete task', err);
-      throw err;
+      await query.refetch();
+    } catch (error) {
+      const normalizedError = toError(error);
+      setMutationError(normalizedError);
+      throw normalizedError;
+    } finally {
+      setPendingIds((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
     }
+  }, [query]);
+
+  return {
+    tasks,
+    isLoading: query.isLoading,
+    error: query.error,
+    mutationError,
+    pendingIds,
+    completeTask,
+    refetch: query.refetch,
   };
-
-  useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
-
-  return { tasks, isLoading, completeTask, refetch: fetchTasks };
 }

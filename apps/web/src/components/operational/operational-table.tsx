@@ -10,10 +10,6 @@ import {
   type PrintableRow,
 } from "@/lib/dashboard/export";
 import type { StatusTone } from "@/lib/dashboard/types";
-import {
-  getCurrentSchoolId,
-  publishSchoolOperationalEvent,
-} from "@/lib/school/school-operational-store";
 
 import { OperationalStatePanel } from "./operational-state-panel";
 
@@ -45,28 +41,17 @@ export type OperationalTableContract = {
   printLabel: string;
 };
 
-function resolveOperationalSchoolId() {
-  if (typeof window === "undefined") {
-    return "default-school";
-  }
-
-  try {
-    const configuredSchoolId = window.localStorage.getItem("myshule.currentSchoolId")?.trim();
-    const routeSchoolId = window.location.pathname.match(/^\/school\/([^/?#]+)/)?.[1]?.trim();
-
-    return configuredSchoolId || routeSchoolId || "default-school";
-  } catch {
-    return "default-school";
-  }
-}
-
 export function OperationalTable({
   contract,
+  state = "ACTIVE",
+  loadingMessage = "Loading school records...",
   emptyMessage = "No records require action.",
+  errorMessage = "School records could not be loaded.",
   onAction,
   showStatePanels = true,
 }: {
   contract: OperationalTableContract;
+  state?: "ACTIVE" | "LOADING" | "FAILED";
   loadingMessage?: string;
   emptyMessage?: string;
   errorMessage?: string;
@@ -88,6 +73,17 @@ export function OperationalTable({
   const [editRow, setEditRow] = useState<OperationalTableRow | null>(null);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
   const [deleteRow, setDeleteRow] = useState<OperationalTableRow | null>(null);
+  const [authoritativeRows, setAuthoritativeRows] = useState(contract.rows);
+
+  if (authoritativeRows !== contract.rows) {
+    setAuthoritativeRows(contract.rows);
+    setRows(contract.rows);
+    setSelectedRows(new Set());
+    setDetailRow(null);
+    setEditRow(null);
+    setDeleteRow(null);
+  }
+
   const normalizedSearch = search.trim().toLowerCase();
   const normalizedFilter = activeFilter?.trim().toLowerCase() ?? "";
   const visibleRows = useMemo(() => {
@@ -217,63 +213,6 @@ export function OperationalTable({
     });
   }
 
-  function operationalEventType(action: string, scope: string) {
-    return `operational_table.${scope}.${action.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "action"}`;
-  }
-
-  function publishTableAction(
-    action: string,
-    context: { scope: "export" | "print" | "filter" | "sort" | "bulk" | "row"; rowId?: string },
-  ) {
-    const selectedIds = selectedRows.size ? Array.from(selectedRows) : visibleRows.map((row) => row.id);
-    const targetRows = context.rowId
-      ? rows.filter((row) => row.id === context.rowId)
-      : context.scope === "bulk"
-        ? rows.filter((row) => selectedIds.includes(row.id))
-        : visibleRows;
-    const schoolId = getCurrentSchoolId(resolveOperationalSchoolId());
-    const lowerAction = action.toLowerCase();
-
-    return publishSchoolOperationalEvent({
-      schoolId,
-      type: operationalEventType(action, context.scope),
-      module: "operational-table",
-      actorRole: "school-staff",
-      entityId: context.rowId ?? `${contract.title}:${context.scope}`,
-      title: `${contract.title}: ${action}`,
-      body: `${action} accepted for ${targetRows.length} ${targetRows.length === 1 ? "record" : "records"} in ${contract.title}.`,
-      severity: /delete|reject|remove|deactivate|failed/.test(lowerAction) ? "warning" : "info",
-      payload: {
-        tableTitle: contract.title,
-        action,
-        scope: context.scope,
-        rowId: context.rowId,
-        selectedRowIds: context.scope === "bulk" ? selectedIds : undefined,
-        visibleRecordCount: visibleRows.length,
-        targetRecordCount: targetRows.length,
-      },
-      notifications: /sms|notify|reminder|alert|approve|reject|assign|escalate/.test(lowerAction)
-        ? [
-            {
-              audienceRoles: ["Principal", "Deputy Principal", "System Monitor"],
-              title: `${contract.title}: ${action}`,
-              body: `${action} was recorded for ${targetRows.length} ${targetRows.length === 1 ? "record" : "records"}.`,
-              severity: /reject|escalate|failed/.test(lowerAction) ? "warning" : "info",
-              relatedModule: "operational-table",
-              relatedRecordId: context.rowId,
-              requiresAction: /approve|reject|assign|escalate/.test(lowerAction),
-            },
-          ]
-        : undefined,
-      sms: /sms/.test(lowerAction)
-        ? targetRows.map((row) => ({
-            recipient: row.cells.phone ?? row.cells.parentPhone ?? row.cells.contact ?? rowDisplayName(row),
-            message: `${contract.title}: ${action} has been recorded for ${rowDisplayName(row)}.`,
-          }))
-        : undefined,
-    });
-  }
-
   function updateRowStatus(rowId: string, label: string, tone: StatusTone = "ok") {
     setRows((current) =>
       current.map((row) =>
@@ -296,36 +235,44 @@ export function OperationalTable({
 
     if (/view|open|review|details|audit|history/.test(normalized)) {
       setDetailRow(row);
+      return;
     } else if (/edit|update|assign|verify|reconcile/.test(normalized)) {
       setEditRow(row);
       setEditValues(row.cells);
+      return;
     } else if (/delete|remove|deactivate/.test(normalized)) {
       setDeleteRow(row);
       return;
-    } else if (/approve/.test(normalized)) {
+    } else if (/print|slip|receipt|letter/.test(normalized)) {
+      printRows([row], `${action} - ${row.id}`);
+      await runAction(action, { scope: "print", rowId: row.id });
+      return;
+    } else if (/export/.test(normalized)) {
+      exportRows([row]);
+      await runAction(action, { scope: "export", rowId: row.id });
+      return;
+    }
+
+    const succeeded = await runAction(action, { scope: "row", rowId: row.id });
+    if (!succeeded) {
+      return;
+    }
+
+    if (/approve/.test(normalized)) {
       updateRowStatus(row.id, "Approved", "ok");
     } else if (/reject/.test(normalized)) {
       updateRowStatus(row.id, "Rejected", "critical");
     } else if (/resolve|mark returned|return|check out|checkout/.test(normalized)) {
       updateRowStatus(row.id, "Resolved", "ok");
-    } else if (/sms|notify|reminder|alert/.test(normalized)) {
-      setNoticeTone("warning");
-      setNotice(`${action} is being queued for ${row.cells.student ?? row.cells.parent ?? row.cells.visitor ?? row.id}.`);
-    } else if (/print|slip|receipt|letter/.test(normalized)) {
-      printRows([row], `${action} - ${row.id}`);
-    } else if (/export/.test(normalized)) {
-      exportRows([row]);
-    } else {
+    } else if (!/sms|notify|reminder|alert/.test(normalized)) {
       updateRowStatus(row.id, `${action} done`, "ok");
     }
-
-    await runAction(action, { scope: "row", rowId: row.id });
   }
 
   async function runAction(
     action: string,
     context: { scope: "export" | "print" | "filter" | "sort" | "bulk" | "row"; rowId?: string },
-  ) {
+  ): Promise<boolean> {
     const selectedCount = selectedRows.size;
     const suffix = context.rowId
       ? ` for ${context.rowId}`
@@ -342,18 +289,20 @@ export function OperationalTable({
     try {
       if (onAction) {
         await onAction(action, context);
+      } else if (context.scope === "export" || context.scope === "print" || context.scope === "filter" || context.scope === "sort") {
+        setNoticeTone("success");
+        setNotice(`${action}${suffix} applied to this view. No school record was changed.`);
+        return true;
       } else {
-        publishTableAction(action, context);
+        throw new Error(`${action}${suffix} is not connected to a school workflow. No record was changed.`);
       }
       setNoticeTone("success");
-      setNotice(
-        onAction
-          ? `${action}${suffix} returned from the connected workflow.`
-          : `${action}${suffix} was recorded for this school and queued for dashboard sync.`,
-      );
+      setNotice(`${action}${suffix} returned from the connected workflow.`);
+      return true;
     } catch (error) {
       setNoticeTone("danger");
       setNotice(error instanceof Error ? error.message : `${action}${suffix} failed. Try again.`);
+      return false;
     } finally {
       setBusyAction(null);
     }
@@ -361,6 +310,11 @@ export function OperationalTable({
 
   async function handleBulkAction(action: string) {
     const targetIds = selectedRows.size ? selectedRows : new Set(visibleRows.map((row) => row.id));
+    const succeeded = await runAction(action, { scope: "bulk" });
+
+    if (!succeeded) {
+      return;
+    }
 
     if (/approve/i.test(action)) {
       setRows((current) =>
@@ -371,7 +325,6 @@ export function OperationalTable({
       setNotice(`${action} is being queued for ${targetIds.size} record${targetIds.size === 1 ? "" : "s"}.`);
     }
 
-    await runAction(action, { scope: "bulk" });
   }
 
   function toggleRow(rowId: string, checked: boolean) {
@@ -523,6 +476,21 @@ export function OperationalTable({
         ))}
       </div>
 
+      {showStatePanels && state === "LOADING" ? (
+        <div className="mt-4">
+          <OperationalStatePanel state="LOADING" message={loadingMessage} />
+        </div>
+      ) : null}
+      {showStatePanels && state === "FAILED" ? (
+        <div className="mt-4">
+          <OperationalStatePanel
+            state="FAILED"
+            message={errorMessage}
+            onAction={() => void runAction("Retry", { scope: "filter" })}
+          />
+        </div>
+      ) : null}
+
       <div className="mt-4 overflow-x-auto rounded-[var(--radius-sm)] border border-border">
         <table className="w-full min-w-[720px] border-collapse text-left text-sm">
           <thead className="sticky top-0 bg-primary-soft/45 text-[10px] font-black uppercase tracking-[0.14em] text-muted">
@@ -617,7 +585,7 @@ export function OperationalTable({
         </div>
       ) : null}
 
-      {showStatePanels && rows.length === 0 ? (
+      {showStatePanels && state === "ACTIVE" && rows.length === 0 ? (
         <div className="mt-4">
           <OperationalStatePanel state="EMPTY" message={emptyMessage} />
         </div>
@@ -666,12 +634,20 @@ export function OperationalTable({
               type="button"
               onClick={() => {
                 if (!editRow) return;
-                setRows((current) =>
-                  current.map((row) => row.id === editRow.id ? { ...row, cells: { ...row.cells, ...editValues } } : row),
-                );
-                setNoticeTone("warning");
-                void runAction("Update record", { scope: "row", rowId: editRow.id });
-                setEditRow(null);
+                const editingRow = editRow;
+                const nextValues = { ...editValues };
+
+                void (async () => {
+                  const succeeded = await runAction("Update record", { scope: "row", rowId: editingRow.id });
+                  if (!succeeded) {
+                    return;
+                  }
+
+                  setRows((current) =>
+                    current.map((row) => row.id === editingRow.id ? { ...row, cells: { ...row.cells, ...nextValues } } : row),
+                  );
+                  setEditRow(null);
+                })();
               }}
               className="rounded-[var(--radius-xs)] border border-accent/25 bg-accent-soft px-3 py-2 text-xs font-bold text-accent"
             >
@@ -717,16 +693,21 @@ export function OperationalTable({
               onClick={() => {
                 if (!deleteRow) return;
                 const deletedId = deleteRow.id;
-                setRows((current) => current.filter((row) => row.id !== deletedId));
-                setSelectedRows((current) => {
-                  const next = new Set(current);
-                  next.delete(deletedId);
-                  return next;
-                });
-                setNoticeTone("warning");
-                setNotice(`${deletedId} removed from this working list. Sending delete action...`);
-                void runAction("Delete", { scope: "row", rowId: deletedId });
-                setDeleteRow(null);
+
+                void (async () => {
+                  const succeeded = await runAction("Delete", { scope: "row", rowId: deletedId });
+                  if (!succeeded) {
+                    return;
+                  }
+
+                  setRows((current) => current.filter((row) => row.id !== deletedId));
+                  setSelectedRows((current) => {
+                    const next = new Set(current);
+                    next.delete(deletedId);
+                    return next;
+                  });
+                  setDeleteRow(null);
+                })();
               }}
               className="rounded-[var(--radius-xs)] border border-danger/25 bg-danger-soft px-3 py-2 text-xs font-bold text-danger"
             >

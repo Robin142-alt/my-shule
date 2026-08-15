@@ -54,9 +54,30 @@ export class StudentLifecycleService {
 
   async placeInClass(schoolId: string, studentId: string, classId: string, academicYearId: string, academicLevelId: string, userId: string, streamId?: string) {
     return this.prisma.executeWithTenant(schoolId, userId, async (tx: any) => {
-      const student = await tx.student.findUnique({ where: { id: studentId } });
-      if (!student || student.schoolId !== schoolId) {
+      const [student, classSection, academicYear, academicLevel, stream] = await Promise.all([
+        tx.student.findFirst({ where: { id: studentId, schoolId } }),
+        tx.class.findFirst({ where: { id: classId, schoolId, deletedAt: null } }),
+        tx.academicYear.findFirst({ where: { id: academicYearId, schoolId, deletedAt: null } }),
+        tx.academicLevel.findFirst({ where: { id: academicLevelId, schoolId, isActive: true } }),
+        streamId
+          ? tx.stream.findFirst({ where: { id: streamId, schoolId, classId, deletedAt: null } })
+          : Promise.resolve(null),
+      ]);
+
+      if (!student) {
         throw new NotFoundException('Student not found');
+      }
+
+      if (!classSection || !academicYear || !academicLevel) {
+        throw new NotFoundException('Class placement references were not found for this school');
+      }
+
+      if (streamId && !stream) {
+        throw new NotFoundException('Stream was not found in the selected school class');
+      }
+
+      if (classSection.academicLevelId && classSection.academicLevelId !== academicLevelId) {
+        throw new BadRequestException('Selected academic level does not match the class');
       }
 
       await tx.studentClassAssignment.updateMany({

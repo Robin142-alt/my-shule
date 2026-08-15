@@ -5,11 +5,6 @@ type ApiEnvelope<T> = {
 
 import { getCsrfToken } from "@/lib/auth/csrf-client";
 import type {
-  AlertItem,
-  DashboardRole,
-  DashboardSnapshot,
-  NotificationItem,
-  StatusTone,
   FinanceWidgetData,
   AcademicsWidgetData,
   StudentsWidgetData
@@ -450,11 +445,11 @@ export function fetchApiReadiness() {
 }
 
 export function fetchApiObservabilityHealth() {
-  return requestDashboardApi<ObservabilityHealthResponse>("/observability/health");
+  return requestDashboardApi<ObservabilityHealthResponse>("/observability/health?audience=superadmin");
 }
 
 export function fetchApiObservabilityAlerts() {
-  return requestDashboardApi<ObservabilityAlertsResponse>("/observability/alerts");
+  return requestDashboardApi<ObservabilityAlertsResponse>("/observability/alerts?audience=superadmin");
 }
 
 export function fetchApiDashboardSummary(role: string, accessToken?: string) {

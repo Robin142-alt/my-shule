@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
@@ -15,25 +15,30 @@ export class FeesController {
   @Get('summary')
   @Permissions('finance:read')
   async getFeeSummary() {
-    const tenantId = this.requestContext.requireStore().tenant_id;
-    if (!tenantId) throw new Error('Tenant ID required');
-    const items = await this.prisma.feeStructure.findMany({
-      where: { schoolId: tenantId as string }
-    });
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
+    if (!tenantId) throw new UnauthorizedException('Tenant ID required');
+    const items = await this.prisma.executeWithTenant(tenantId, store.user_id, (tx) =>
+      tx.feeStructure.findMany({
+        where: { schoolId: tenantId }
+      }),
+    );
     return { items };
   }
 
   @Get('payments')
   @Permissions('finance:read')
   async getFeePayments() {
-    const tenantId = this.requestContext.requireStore().tenant_id;
-    if (!tenantId) throw new Error('Tenant ID required');
-    const items = await this.prisma.payment.findMany({
-      where: { schoolId: tenantId as string },
-      orderBy: { paymentDate: 'desc' },
-      take: 50
-    });
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
+    if (!tenantId) throw new UnauthorizedException('Tenant ID required');
+    const items = await this.prisma.executeWithTenant(tenantId, store.user_id, (tx) =>
+      tx.payment.findMany({
+        where: { schoolId: tenantId },
+        orderBy: { paymentDate: 'desc' },
+        take: 50
+      }),
+    );
     return { items };
   }
 }
-

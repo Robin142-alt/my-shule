@@ -1,16 +1,10 @@
 # Manual Gmail Verification Scripts
 
-Generated: 2026-07-15T21:01:36.619Z
+Generated: 2026-08-15T05:19:23.302Z
 
-Status: PARTIAL_GMAIL_EVIDENCE; MGV_WORKFLOWS_NOT_YET_MANUALLY_VERIFIED
+Status: NOT_YET_MANUALLY_VERIFIED
 
 Use these scripts with real Gmail inboxes and production/staging credentials. Mark a script passed only after the email, link, route, dashboard, data persistence, audit entry, and cross-school isolation expectations are confirmed.
-
-Connected Gmail evidence captured on 2026-07-16:
-- Recent production verification-code delivery to the system owner Gmail account from `onboarding@myshule.online` was confirmed. The verification code was not copied into this repository.
-- Production password-reset delivery to the system owner Gmail account from `no-reply@myshule.online` was confirmed, with a production reset route. The reset token was inspected but not copied into this repository.
-- Historical principal-invite delivery to the connected Gmail account was confirmed, with a production invite route containing `token` and `tenant` parameters. Those invite messages were expired, so they are template/link-shape evidence only.
-- None of MGV-01 through MGV-16 should be marked `VERIFIED_MANUALLY` until the matching recipient-account workflow is executed end to end.
 
 ## School Creation And Principal Activation
 
@@ -61,7 +55,6 @@ Connected Gmail evidence captured on 2026-07-16:
   - Any server/provider log IDs.
 - Result: NOT_YET_MANUALLY_VERIFIED
 - Defect links: none recorded yet.
-
 ## Staff Invitation And Acceptance
 
 - Script ID: MGV-02

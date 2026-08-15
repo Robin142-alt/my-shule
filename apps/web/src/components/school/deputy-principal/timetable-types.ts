@@ -24,15 +24,31 @@ export type ReadinessResponse = {
   };
 };
 
-export type AcademicYear = { id: string; name: string };
-export type AcademicTerm = { id: string; academic_year_id: string; name: string };
+export type AcademicYear = {
+  id: string;
+  name: string;
+  status: "active";
+  is_current?: boolean;
+  archived_at?: null;
+};
+export type AcademicTerm = {
+  id: string;
+  academic_year_id: string;
+  name: string;
+  status: "active";
+  is_current?: boolean;
+  archived_at?: null;
+};
 export type ClassSection = {
   id: string;
-  academic_year_id?: string;
+  academic_year_id: string;
   name: string;
   grade_level?: string;
   stream?: string;
   stream_id?: string;
+  is_active?: boolean;
+  status?: string;
+  archived_at?: string | null;
 };
 export type Subject = { id: string; code?: string; name: string };
 export type Teacher = {

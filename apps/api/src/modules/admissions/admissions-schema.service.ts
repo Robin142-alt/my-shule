@@ -397,6 +397,79 @@ export class AdmissionsSchemaService implements OnModuleInit {
           ON DELETE SET NULL (to_class_section_id)
       );
 
+      -- Admissions historically referenced its own academic_class_sections table.
+      -- New enrolments use the canonical academics class_sections registry, while
+      -- this validator keeps existing historical references valid without copying
+      -- or deleting those legacy rows.
+      ALTER TABLE student_academic_enrollments
+        DROP CONSTRAINT IF EXISTS fk_student_academic_enrollments_section;
+      ALTER TABLE student_academic_lifecycle_events
+        DROP CONSTRAINT IF EXISTS fk_student_academic_lifecycle_events_target_section;
+
+      CREATE OR REPLACE FUNCTION validate_admissions_class_section_reference()
+      RETURNS trigger AS $$
+      DECLARE
+        referenced_section_id text;
+        section_exists boolean := FALSE;
+      BEGIN
+        referenced_section_id := CASE
+          WHEN TG_TABLE_NAME = 'student_academic_enrollments'
+            THEN to_jsonb(NEW) ->> 'class_section_id'
+          ELSE to_jsonb(NEW) ->> 'to_class_section_id'
+        END;
+
+        IF referenced_section_id IS NULL THEN
+          RETURN NEW;
+        END IF;
+
+        IF to_regclass('public.class_sections') IS NOT NULL THEN
+          EXECUTE '
+            SELECT EXISTS (
+              SELECT 1
+              FROM public.class_sections section
+              WHERE section.tenant_id = $1
+                AND section.id::text = $2
+            )
+          '
+          INTO section_exists
+          USING NEW.tenant_id, referenced_section_id;
+        END IF;
+
+        IF NOT section_exists THEN
+          SELECT EXISTS (
+            SELECT 1
+            FROM academic_class_sections legacy_section
+            WHERE legacy_section.tenant_id = NEW.tenant_id
+              AND legacy_section.id::text = referenced_section_id
+          )
+          INTO section_exists;
+        END IF;
+
+        IF NOT section_exists THEN
+          RAISE EXCEPTION 'Class section % is not owned by tenant %', referenced_section_id, NEW.tenant_id
+            USING ERRCODE = '23503';
+        END IF;
+
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+
+      DROP TRIGGER IF EXISTS trg_student_academic_enrollments_validate_section
+        ON student_academic_enrollments;
+      CREATE TRIGGER trg_student_academic_enrollments_validate_section
+        BEFORE INSERT OR UPDATE OF tenant_id, class_section_id
+        ON student_academic_enrollments
+        FOR EACH ROW
+        EXECUTE FUNCTION validate_admissions_class_section_reference();
+
+      DROP TRIGGER IF EXISTS trg_student_academic_lifecycle_validate_section
+        ON student_academic_lifecycle_events;
+      CREATE TRIGGER trg_student_academic_lifecycle_validate_section
+        BEFORE INSERT OR UPDATE OF tenant_id, to_class_section_id
+        ON student_academic_lifecycle_events
+        FOR EACH ROW
+        EXECUTE FUNCTION validate_admissions_class_section_reference();
+
       CREATE TABLE IF NOT EXISTS academic_subject_offerings (
         id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text NOT NULL,

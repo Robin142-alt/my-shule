@@ -891,6 +891,92 @@ test('AcademicsService lists class streams only through the active tenant reposi
   assert.deepEqual(result, [{ id: 'stream-1', name: 'North' }]);
 });
 
+test('AcademicsService forwards exact academic-year and historical class list options inside the active tenant', async () => {
+  const calls: Array<{ kind: string; tenantId: string; options: Record<string, unknown> }> = [];
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    {
+      listClassSections: async (tenantId: string, options: Record<string, unknown>) => {
+        calls.push({ kind: 'sections', tenantId, options });
+        return [];
+      },
+      listClassStreams: async (tenantId: string, options: Record<string, unknown>) => {
+        calls.push({ kind: 'streams', tenantId, options });
+        return [];
+      },
+    } as never,
+    {} as never,
+  );
+
+  await service.listClassSections({ academicYearId: ' year-2026 ', includeArchived: false });
+  await service.listClassStreams({ academicYearId: 'year-2025', includeArchived: true });
+
+  assert.deepEqual(calls, [
+    {
+      kind: 'sections',
+      tenantId: 'tenant-a',
+      options: { academicYearId: 'year-2026', includeArchived: false },
+    },
+    {
+      kind: 'streams',
+      tenantId: 'tenant-a',
+      options: { academicYearId: 'year-2025', includeArchived: true },
+    },
+  ]);
+});
+
+test('AcademicsRepository class lists bind tenant, year, and active lifecycle defaults', async () => {
+  const calls: Array<{ tenantId: string; sql: string; params: unknown[] }> = [];
+  const sectionFixtures = [
+    { id: 'a-current', tenant_id: 'tenant-a', academic_year_id: 'year-2026', name: 'Grade 9', is_active: true, status: 'active', archived_at: null },
+    { id: 'a-archived', tenant_id: 'tenant-a', academic_year_id: 'year-2026', name: 'Grade 8', is_active: false, status: 'archived', archived_at: '2026-01-01' },
+    { id: 'a-old', tenant_id: 'tenant-a', academic_year_id: 'year-2025', name: 'Grade 7', is_active: true, status: 'active', archived_at: null },
+    { id: 'b-current', tenant_id: 'tenant-b', academic_year_id: 'year-2026', name: 'Form 3', is_active: true, status: 'active', archived_at: null },
+  ];
+  const streamFixtures = [
+    { id: 'stream-a', tenant_id: 'tenant-a', academic_year_id: 'year-2026', name: 'North', is_active: true, status: 'active', archived_at: null },
+    { id: 'stream-b', tenant_id: 'tenant-b', academic_year_id: 'year-2026', name: 'West', is_active: true, status: 'active', archived_at: null },
+  ];
+  const repository = new AcademicsRepository({
+    executeWithTenant: async (
+      tenantId: string,
+      _userId: string | null,
+      callback: (tx: { $queryRawUnsafe: (sql: string, ...params: unknown[]) => Promise<unknown[]> }) => Promise<unknown>,
+    ) => callback({
+      $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+        calls.push({ tenantId, sql, params });
+        const [requestedTenant, academicYearId, includeArchived] = params as [string, string | null, boolean];
+        const fixtures = sql.includes('FROM class_streams') ? streamFixtures : sectionFixtures;
+        return fixtures.filter((row) =>
+          row.tenant_id === requestedTenant
+          && (!academicYearId || row.academic_year_id === academicYearId)
+          && (includeArchived || (row.is_active && row.status === 'active' && !row.archived_at)));
+      },
+    }),
+  } as never);
+
+  const tenantA = await repository.listClassSections('tenant-a', { academicYearId: 'year-2026' });
+  const tenantB = await repository.listClassSections('tenant-b', { academicYearId: 'year-2026' });
+  const historical = await repository.listClassSections('tenant-a', {
+    academicYearId: 'year-2026',
+    includeArchived: true,
+  });
+  const streams = await repository.listClassStreams('tenant-a', { academicYearId: 'year-2026' });
+
+  assert.deepEqual(tenantA.map((row: any) => row.id), ['a-current']);
+  assert.deepEqual(tenantB.map((row: any) => row.id), ['b-current']);
+  assert.deepEqual(historical.map((row: any) => row.id), ['a-current', 'a-archived']);
+  assert.deepEqual(streams.map((row: any) => row.id), ['stream-a']);
+  for (const call of calls) {
+    assert.equal(call.params[0], call.tenantId);
+    assert.equal(call.params[1], 'year-2026');
+    assert.match(call.sql, /academic_year_id::text = \$2/);
+    assert.match(call.sql, /COALESCE\([^)]*is_active[^)]*, TRUE\) = TRUE/);
+    assert.match(call.sql, /archived_at IS NULL/);
+  }
+  assert.match(calls.at(-1)?.sql ?? '', /class_section\.archived_at IS NULL/);
+});
+
 test('AcademicsService validates and audits HOD reassignment in the active school', async () => {
   const calls: string[] = [];
   const service = new AcademicsService(

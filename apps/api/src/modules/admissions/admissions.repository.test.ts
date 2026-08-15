@@ -184,6 +184,114 @@ test('AdmissionsSchemaService creates academic enrollment and capacity tables', 
   assert.match(bootstrapSql, /CREATE POLICY student_academic_enrollments_rls_policy/);
   assert.match(bootstrapSql, /CREATE POLICY student_academic_lifecycle_events_rls_policy/);
   assert.match(bootstrapSql, /CREATE TRIGGER trg_student_academic_enrollments_set_updated_at/);
+  assert.match(bootstrapSql, /DROP CONSTRAINT IF EXISTS fk_student_academic_enrollments_section/);
+  assert.match(bootstrapSql, /CREATE OR REPLACE FUNCTION validate_admissions_class_section_reference/);
+  assert.match(bootstrapSql, /to_regclass\('public\.class_sections'\)/);
+  assert.match(bootstrapSql, /FROM public\.class_sections section/);
+  assert.match(bootstrapSql, /FROM academic_class_sections legacy_section/);
+  assert.match(bootstrapSql, /CREATE TRIGGER trg_student_academic_enrollments_validate_section/);
+});
+
+test('AdmissionsRepository resolves registration capacity from the canonical tenant class registry', async () => {
+  const calls: Array<{ tenantId: string; sql: string; params: unknown[] }> = [];
+  const canonicalSections = [
+    {
+      tenant_id: 'tenant-a',
+      name: 'Grade 7',
+      stream: 'Hope',
+      is_active: true,
+      result: {
+        id: 'class-a',
+        class_name: 'Grade 7',
+        stream_name: 'Hope',
+        academic_year: '2026',
+        capacity: 45,
+        current_enrollments: 12,
+      },
+    },
+    {
+      tenant_id: 'tenant-a',
+      name: 'Grade 8',
+      stream: 'Dormant',
+      is_active: false,
+      result: { id: 'inactive-a' },
+    },
+    {
+      tenant_id: 'tenant-b',
+      name: 'Grade 9',
+      stream: 'Foreign',
+      is_active: true,
+      result: { id: 'foreign-b' },
+    },
+  ];
+  const repository = new AdmissionsRepository({
+    executeWithTenant: async (tenantId: string, _userId: string | null, cb: any) => cb({
+      $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+        calls.push({ tenantId, sql, params });
+        const section = canonicalSections.find((candidate) =>
+          candidate.tenant_id === tenantId
+          && candidate.name.toLowerCase() === String(params[1]).toLowerCase()
+          && candidate.stream.toLowerCase() === String(params[2]).toLowerCase()
+          && candidate.is_active,
+        );
+        return section ? [section.result] : [];
+      },
+    }),
+  } as never);
+
+  const active = await repository.findAcademicClassSectionForUpdate(
+    'tenant-a',
+    'Grade 7',
+    'Hope',
+  );
+  const inactive = await repository.findAcademicClassSectionForUpdate(
+    'tenant-a',
+    'Grade 8',
+    'Dormant',
+  );
+  const foreign = await repository.findAcademicClassSectionForUpdate(
+    'tenant-a',
+    'Grade 9',
+    'Foreign',
+  );
+
+  assert.equal(active?.id, 'class-a');
+  assert.equal(inactive, null);
+  assert.equal(foreign, null);
+  assert.match(calls[0]!.sql, /FROM class_sections section/);
+  assert.doesNotMatch(calls[0]!.sql, /FROM academic_class_sections/);
+  assert.match(calls[0]!.sql, /section\.tenant_id = \$1/);
+  assert.match(calls[0]!.sql, /section\.is_active = TRUE/);
+  assert.match(calls[0]!.sql, /section\.enrolment_open = TRUE/);
+  assert.match(calls[0]!.sql, /student_class_assignments/);
+  assert.match(calls[0]!.sql, /student_academic_enrollments/);
+});
+
+test('AdmissionsRepository mirrors approved registration into canonical class assignments', async () => {
+  let sql = '';
+  const repository = new AdmissionsRepository({
+    executeWithTenant: async (_tenantId: string, _userId: string | null, cb: any) => cb({
+      $queryRawUnsafe: async (query: string) => {
+        sql = query;
+        return [{ id: 'enrollment-a' }];
+      },
+    }),
+  } as never);
+
+  await repository.createStudentAcademicEnrollment({
+    school_id: 'tenant-a',
+    student_id: 'student-a',
+    application_id: 'application-a',
+    class_section_id: 'class-a',
+    class_name: 'Grade 7',
+    stream_name: 'Hope',
+    academic_year: '2026',
+  });
+
+  assert.match(sql, /FROM class_sections section/);
+  assert.match(sql, /INSERT INTO student_academic_enrollments/);
+  assert.match(sql, /INSERT INTO student_class_assignments/);
+  assert.match(sql, /ON CONFLICT \(tenant_id, student_id, academic_year_id\) WHERE status = 'active'/);
 });
 
 test('AdmissionsSchemaService creates subject and timetable enrollment tables', async () => {

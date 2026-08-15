@@ -1591,7 +1591,7 @@ export function GradeMasterCommandCenter({ activeSection, routeMode }: { activeS
                    <button type="button" onClick={() => openView("exams")} className="inline-flex h-10 items-center justify-center rounded-xl border border-[#D8E0EC] bg-white px-4 text-sm font-black text-[#071D49] hidden sm:flex">Grade/Form Results</button>
                    <button type="button" onClick={() => openView("learners")} className="inline-flex h-10 items-center justify-center rounded-xl bg-[#071D49] px-4 text-sm font-black text-white hidden sm:flex">Take Quick Action</button>
                <TaskQueue />
-               <ApprovalInbox currentUserId="school" />
+               <ApprovalInbox />
                <NotificationBell />
             </div>
           </div>

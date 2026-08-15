@@ -531,7 +531,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
               <Plus className="mr-2 h-4 w-4" /> New Case
             </button>
             <TaskQueue />
-            <ApprovalInbox currentUserId="school" />
+            <ApprovalInbox />
             <NotificationBell />
           </div>
         </div>

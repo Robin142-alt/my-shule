@@ -5,6 +5,7 @@ import {
 import {
   getDefaultDashboardRolePath,
   isValidDashboardRolePath,
+  resolveSchoolDashboardTenantBinding,
 } from "@/lib/auth/school-dashboard-role-context";
 
 describe("school dashboard role context", () => {
@@ -150,5 +151,36 @@ describe("school dashboard role context", () => {
     expect(isValidDashboardRolePath("/school/principal/finance", "teacher", "public")).toBe(false);
     expect(getDefaultDashboardRolePath("teacher", "public")).toBe("/school/teacher");
     expect(getDefaultDashboardRolePath("teacher", "hosted")).toBe("/dashboard");
+  });
+
+  it("keeps authenticated tenant context ahead of a route-provided school slug", () => {
+    expect(resolveSchoolDashboardTenantBinding({
+      requestedTenantSlug: "school-b",
+      authenticatedTenantSlug: "school-a",
+      liveDataEnabled: true,
+    })).toEqual({
+      tenantSlug: "school-a",
+      mismatch: true,
+    });
+  });
+
+  it("does not promote an unverified route tenant into a live dashboard scope", () => {
+    expect(resolveSchoolDashboardTenantBinding({
+      requestedTenantSlug: "school-b",
+      authenticatedTenantSlug: null,
+      liveDataEnabled: true,
+    })).toEqual({
+      tenantSlug: null,
+      mismatch: false,
+    });
+
+    expect(resolveSchoolDashboardTenantBinding({
+      requestedTenantSlug: "fixture-school",
+      authenticatedTenantSlug: null,
+      liveDataEnabled: false,
+    })).toEqual({
+      tenantSlug: "fixture-school",
+      mismatch: false,
+    });
   });
 });

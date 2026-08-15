@@ -592,7 +592,7 @@ function TopNav({
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-2">
               <TaskQueue />
-              <ApprovalInbox currentUserId="school" />
+              <ApprovalInbox />
               <NotificationBell />
             </div>
             <LightStatusChip icon={Siren} label="2 emergency alerts" tone="critical" />

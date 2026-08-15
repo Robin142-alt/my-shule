@@ -96,7 +96,12 @@ test('EventsSchemaService repairs legacy notifications table for tenant-scoped d
   assert.match(bootstrapSql, /ALTER TABLE notifications ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '\{\}'::jsonb;/);
   assert.match(bootstrapSql, /ALTER TABLE notifications\s+ALTER COLUMN school_id DROP NOT NULL;/);
   assert.match(bootstrapSql, /ALTER TABLE notifications\s+ALTER COLUMN status TYPE text USING lower\(status::text\);/);
+  assert.match(bootstrapSql, /SET recipient_user_id = target_user_id::text::uuid/);
+  assert.match(bootstrapSql, /SET recipient_role = COALESCE\(NULLIF\(recipient_role, ''\), NULLIF\(target_role, ''\)\)/);
+  assert.match(bootstrapSql, /SET source_module = COALESCE\(NULLIF\(source_module, ''\), NULLIF\(module, ''\)\)/);
+  assert.match(bootstrapSql, /SET source_record_id = COALESCE\(NULLIF\(source_record_id, ''\), NULLIF\(entity_id::text, ''\)\)/);
   assert.match(bootstrapSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_notifications_tenant_notification_key/);
+  assert.match(bootstrapSql, /CREATE INDEX IF NOT EXISTS ix_notifications_tenant_user_status_created/);
   assert.match(bootstrapSql, /CREATE POLICY notifications_rls_policy ON notifications/);
   assert.match(bootstrapSql, /ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS module text;/);
   assert.match(bootstrapSql, /ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity_type text;/);

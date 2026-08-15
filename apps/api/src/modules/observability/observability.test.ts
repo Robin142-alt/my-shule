@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { IS_PUBLIC_KEY, ROLES_KEY, SUPERADMIN_ROLE_OWNER } from '../../auth/auth.constants';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { AuditLogService } from './audit-log.service';
 import { GradesAuditService } from './grades-audit.service';
+import { ObservabilityController } from './observability.controller';
 import { SloMetricsService } from './slo-metrics.service';
 import { SloMonitoringService } from './slo-monitoring.service';
 import {
@@ -12,6 +14,14 @@ import {
   PRODUCTION_SYNTHETIC_CHECKS,
   validateProductionObservabilityCatalog,
 } from './production-observability.catalog';
+
+test('ObservabilityController restricts platform telemetry to the platform owner', () => {
+  assert.equal(Reflect.hasMetadata(IS_PUBLIC_KEY, ObservabilityController), false);
+  assert.deepEqual(
+    Reflect.getMetadata(ROLES_KEY, ObservabilityController),
+    [SUPERADMIN_ROLE_OWNER],
+  );
+});
 
 test('AuditLogService records contextual request fields', async () => {
   const requestContext = new RequestContextService();

@@ -4,7 +4,6 @@ import { ShieldAlert, Search, PlusCircle } from "lucide-react";
 import { Panel, StatusChip, Tone, openDeputyRecord } from "./shared";
 import { Modal } from "@/components/ui/modal";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createDisciplineIncident, escalateDisciplineIncident } from "./api-client";
 
@@ -51,8 +50,7 @@ export function DeputyDisciplineWorkspace() {
   const [formData, setFormData] = useState<DisciplineIncidentDraft>({ studentName: "", incidentType: "", severity: "High" });
   const [isSubmittingCreate, setIsSubmittingCreate] = useState(false);
 
-  const queryClient = useQueryClient();
-  const { data: incidentPayload } = useSchoolQuery<DisciplineResponse>('/admin-command/deputy/discipline');
+  const { data: incidentPayload, refetch } = useSchoolQuery<DisciplineResponse>('/admin-command/deputy/discipline');
   const incidents = normalizeIncidents(incidentPayload);
   
   const handleCreate = async () => {
@@ -65,7 +63,7 @@ export function DeputyDisciplineWorkspace() {
       });
       setShowModal(false);
       setFormData({ studentName: "", incidentType: "", severity: "High" });
-      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/discipline'] });
+      await refetch();
       toast.success("Incident logged successfully.");
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Failed to log incident.");
@@ -77,7 +75,7 @@ export function DeputyDisciplineWorkspace() {
   const handleEscalate = async (id: string, caseNo: string) => {
     try {
       await escalateDisciplineIncident(id);
-      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/discipline'] });
+      await refetch();
       toast.success(`Case ${caseNo} escalated to Principal.`);
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Failed to escalate case.");

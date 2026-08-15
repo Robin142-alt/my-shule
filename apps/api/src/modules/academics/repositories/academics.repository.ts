@@ -345,6 +345,16 @@ export class AcademicsRepository {
     });
   }
 
+  async listCommunications(tenantId: string, actorUserId: string | null) {
+    return this.prisma.executeWithTenant(tenantId, actorUserId, (tx) =>
+      tx.communicationBroadcast.findMany({
+        where: { schoolId: tenantId },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      }),
+    );
+  }
+
 
   async createAcademicYear(input: Record<string, unknown>) {
     const academicYearId = randomUUID();
@@ -1395,23 +1405,65 @@ export class AcademicsRepository {
   }
 
   async listAcademicYears(tenantId: string) {
-    const result = await this.executeSql(this.getTenantId([`SELECT id, name, starts_on, ends_on FROM academic_years WHERE tenant_id = $1 ORDER BY starts_on DESC`,
-      [tenantId]]), `SELECT id, name, starts_on, ends_on FROM academic_years WHERE tenant_id = $1 ORDER BY starts_on DESC`,
-      [tenantId]);
+    const result = await this.executeSql(
+      tenantId,
+      `SELECT id::text, name, starts_on, ends_on, status, is_current, archived_at::text
+       FROM academic_years
+       WHERE tenant_id = $1
+         AND lower(COALESCE(status, 'active')) = 'active'
+         AND archived_at IS NULL
+       ORDER BY is_current DESC, starts_on DESC, name DESC`,
+      [tenantId],
+    );
     return result.rows;
   }
 
   async listAcademicTerms(tenantId: string) {
-    const result = await this.executeSql(this.getTenantId([`SELECT id, academic_year_id, name, starts_on, ends_on FROM academic_terms WHERE tenant_id = $1 ORDER BY starts_on DESC`,
-      [tenantId]]), `SELECT id, academic_year_id, name, starts_on, ends_on FROM academic_terms WHERE tenant_id = $1 ORDER BY starts_on DESC`,
-      [tenantId]);
+    const result = await this.executeSql(
+      tenantId,
+      `SELECT term.id::text, term.academic_year_id::text, term.name,
+              term.starts_on, term.ends_on, term.status, term.is_current,
+              term.archived_at::text
+       FROM academic_terms term
+       JOIN academic_years year
+         ON year.tenant_id = term.tenant_id
+        AND year.id::text = term.academic_year_id::text
+       WHERE term.tenant_id = $1
+         AND lower(COALESCE(year.status, 'active')) = 'active'
+         AND year.archived_at IS NULL
+         AND lower(COALESCE(term.status, 'active')) = 'active'
+         AND term.archived_at IS NULL
+       ORDER BY year.is_current DESC, term.is_current DESC, term.starts_on DESC, term.name DESC`,
+      [tenantId],
+    );
     return result.rows;
   }
 
-  async listClassSections(tenantId: string) {
-    const result = await this.executeSql(this.getTenantId([`SELECT id, academic_year_id, name, grade_level, stream, capacity FROM class_sections WHERE tenant_id = $1 ORDER BY grade_level ASC, name ASC`,
-      [tenantId]]), `SELECT id, academic_year_id, name, grade_level, stream, capacity FROM class_sections WHERE tenant_id = $1 ORDER BY grade_level ASC, name ASC`,
-      [tenantId]);
+  async listClassSections(
+    tenantId: string,
+    options: { academicYearId?: string; includeArchived?: boolean } = {},
+  ) {
+    const result = await this.executeSql(
+      tenantId,
+      `SELECT section.id::text, section.tenant_id, section.academic_year_id::text,
+              section.academic_level_id::text, section.name, section.grade_level,
+              section.stream, section.custom_label, section.capacity, section.is_active,
+              section.status, section.version, section.archived_at::text,
+              section.created_at::text, section.updated_at::text
+       FROM class_sections section
+       WHERE section.tenant_id = $1
+         AND ($2::text IS NULL OR section.academic_year_id::text = $2)
+         AND (
+           $3::boolean
+           OR (
+             COALESCE(section.is_active, TRUE) = TRUE
+             AND COALESCE(section.status, 'active') = 'active'
+             AND section.archived_at IS NULL
+           )
+         )
+       ORDER BY section.grade_level ASC, section.name ASC`,
+      [tenantId, options.academicYearId ?? null, options.includeArchived === true],
+    );
     return result.rows;
   }
 
@@ -1555,19 +1607,35 @@ export class AcademicsRepository {
     return streamResult.rows[0];
   }
 
-  async listClassStreams(tenantId: string) {
+  async listClassStreams(
+    tenantId: string,
+    options: { academicYearId?: string; includeArchived?: boolean } = {},
+  ) {
     const result = await this.executeSql(
       tenantId,
       `SELECT stream.id::text, stream.tenant_id, stream.class_section_id::text,
-              class_section.name AS class_section_name, stream.name, stream.code, stream.capacity,
+              class_section.academic_year_id::text, class_section.name AS class_section_name,
+              stream.name, stream.code, stream.capacity,
               stream.stream_teacher_user_id::text, stream.status, stream.is_active, stream.version,
-              stream.created_at::text, stream.updated_at::text
+              stream.archived_at::text, stream.created_at::text, stream.updated_at::text
        FROM class_streams stream
        JOIN class_sections class_section
          ON class_section.tenant_id = stream.tenant_id AND class_section.id = stream.class_section_id
        WHERE stream.tenant_id = $1
+         AND ($2::text IS NULL OR class_section.academic_year_id::text = $2)
+         AND (
+           $3::boolean
+           OR (
+             COALESCE(stream.is_active, TRUE) = TRUE
+             AND COALESCE(stream.status, 'active') = 'active'
+             AND stream.archived_at IS NULL
+             AND COALESCE(class_section.is_active, TRUE) = TRUE
+             AND COALESCE(class_section.status, 'active') = 'active'
+             AND class_section.archived_at IS NULL
+           )
+         )
        ORDER BY class_section.name ASC, stream.name ASC`,
-      [tenantId],
+      [tenantId, options.academicYearId ?? null, options.includeArchived === true],
     );
     return result.rows;
   }

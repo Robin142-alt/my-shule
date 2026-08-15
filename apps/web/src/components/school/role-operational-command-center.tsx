@@ -59,7 +59,6 @@ import {
 } from "@/lib/school/role-practical-ui";
 import {
   addSchoolRecord,
-  getCurrentSchoolId,
   mergeSchoolRecordsById,
   publishSchoolOperationalEvent,
   readSchoolData,
@@ -67,7 +66,7 @@ import {
   updateSchoolRecord,
 } from "@/lib/school/school-operational-store";
 import { useQueryClient } from "@tanstack/react-query";
-import { useSchoolMutation, useSchoolQuery } from "@/lib/data/school-hooks";
+import { isSchoolQueryForPath, useSchoolMutation, useSchoolQuery } from "@/lib/data/school-hooks";
 import { isExtremeErpWorkspaceId } from "@/lib/operational/extreme-erp-blueprints";
 import {
   getKisumuBoysRoleFeed,
@@ -5057,17 +5056,18 @@ function GenericRoleOperationalCommandCenter({
   const blueprintId = roleIdMap[role];
   const blueprint = blueprintId ? getOperationalRoleBlueprint(blueprintId) : null;
   const roleTitle = titleizeRole(role);
-  const roleProfile = getPracticalRoleProfile(role);
+  const configuredRoleProfile = getPracticalRoleProfile(role);
+  const roleProfile: PracticalRoleProfile = {
+    ...configuredRoleProfile,
+    // Profile copy describes the role, but its historic sample counters and
+    // alerts are not school records. Live dashboards must start empty until a
+    // tenant-scoped API or confirmed workflow entry supplies data.
+    summaryCards: [],
+    urgentAlerts: [],
+    emptyState: "No live summary is available for this role yet. Open a section to load its school records.",
+  };
   const greetingName = getSchoolRoleGreetingName(role);
-  const [schoolId] = useState(() => {
-    const resolvedSchoolId = getCurrentSchoolId(tenantSlug);
-
-    if (typeof window !== "undefined" && tenantSlug?.trim()) {
-      window.localStorage.setItem("myshule.currentSchoolId", resolvedSchoolId);
-    }
-
-    return resolvedSchoolId;
-  });
+  const schoolId = tenantSlug?.trim() || "";
   const sidebarItems = useMemo(() => blueprint?.sidebar ?? [], [blueprint?.sidebar]);
   const routeWorkspaceKey = `${initialSection ?? ""}:${initialWorkspace ?? ""}`;
   const preferredWorkspace = useMemo(
@@ -5268,17 +5268,13 @@ function GenericRoleOperationalCommandCenter({
       }
     });
   }, [schoolId]);
-  const kisumuBoysRoleFeed = useMemo(
-    () => getKisumuBoysRoleFeed(demoRole, schoolId),
-    [demoRole, schoolId],
-  );
-  const kisumuBoysScore = useMemo(
-    () => (useKisumuBoysDemo ? scoreKisumuBoysHighDemoReadiness() : null),
-    [useKisumuBoysDemo],
-  );
+  const kisumuBoysRoleFeed = getKisumuBoysRoleFeed(demoRole, schoolId);
+  const kisumuBoysScore = useKisumuBoysDemo ? scoreKisumuBoysHighDemoReadiness() : null;
 
   function upsertSchoolQueryRecord<T extends { id: string }>(path: string, record: T) {
-    queryClient.setQueryData<T[]>(["school", schoolId || "session", path], (current) => {
+    queryClient.setQueriesData<T[]>({
+      predicate: (query) => isSchoolQueryForPath(query.queryKey, schoolId, path),
+    }, (current) => {
       const records = Array.isArray(current) ? current : [];
 
       return [
@@ -5289,7 +5285,9 @@ function GenericRoleOperationalCommandCenter({
   }
 
   function updateSchoolQueryRecord<T extends { id: string }>(path: string, recordId: string, updates: Partial<T>) {
-    queryClient.setQueryData<T[]>(["school", schoolId || "session", path], (current) => {
+    queryClient.setQueriesData<T[]>({
+      predicate: (query) => isSchoolQueryForPath(query.queryKey, schoolId, path),
+    }, (current) => {
       const records = Array.isArray(current) ? current : [];
 
       return records.map((item) => (item.id === recordId ? { ...item, ...updates } : item));

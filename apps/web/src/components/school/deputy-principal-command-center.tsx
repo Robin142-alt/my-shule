@@ -115,11 +115,11 @@ function resolveDeputyWorkspace(section?: string) {
 }
 
 function getDeputySchoolId(tenantSlug?: string | null) {
-  return tenantSlug?.trim() || "school-workspace";
+  return tenantSlug?.trim() || "";
 }
 
 function getDeputySchoolName(schoolId: string) {
-  return schoolId === "school-workspace" ? "School workspace" : tenantSlugToName(schoolId);
+  return schoolId ? tenantSlugToName(schoolId) : "Verified school";
 }
 
 type DeputySchoolIdentity = {
@@ -141,7 +141,7 @@ export function DeputyPrincipalCommandCenter({
   const schoolId = getDeputySchoolId(tenantSlug);
   const fallbackSchoolName = getDeputySchoolName(schoolId);
   const { data: schoolIdentity } = useSchoolQuery<DeputySchoolIdentity>("/school/identity", {
-    tenantId: schoolId,
+    ...(schoolId ? { tenantId: schoolId } : {}),
   });
   const schoolName = schoolIdentity?.schoolName?.trim() || fallbackSchoolName;
   const deputyName = userLabel?.trim() || "Deputy Principal";
@@ -158,14 +158,15 @@ export function DeputyPrincipalCommandCenter({
   // Listen to teaching toggle from settings workspace
   useEffect(() => {
     const handleToggle = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      setIsTeachingEnabled(customEvent.detail);
-      if (!customEvent.detail && activeWorkspace === "teaching") {
+      const customEvent = e as CustomEvent<{ enabled?: boolean }>;
+      const enabled = customEvent.detail?.enabled === true;
+      setIsTeachingEnabled(enabled);
+      if (!enabled && activeWorkspace === "teaching") {
         setActiveWorkspace("overview");
       }
     };
-    window.addEventListener("deputy-teaching-toggle", handleToggle);
-    return () => window.removeEventListener("deputy-teaching-toggle", handleToggle);
+    window.addEventListener("myshule:deputy-teaching-toggle", handleToggle);
+    return () => window.removeEventListener("myshule:deputy-teaching-toggle", handleToggle);
   }, [activeWorkspace]);
 
   const navItems = useMemo(() => {
@@ -186,6 +187,19 @@ export function DeputyPrincipalCommandCenter({
       return acc;
     }, {});
   }, [navItems]);
+
+  if (!schoolId) {
+    return (
+      <main className="grid min-h-[60vh] place-items-center px-5 py-12">
+        <div role="alert" className="w-full max-w-md rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-red-900">
+          <p className="text-sm font-black">School context is unavailable</p>
+          <p className="mt-2 text-xs font-semibold leading-5">
+            Sign in again before opening deputy-principal records. No fallback school has been selected.
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   const renderWorkspace = () => {
     switch (activeWorkspace) {
@@ -328,7 +342,7 @@ export function DeputyPrincipalCommandCenter({
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <TaskQueue />
-                  <ApprovalInbox currentUserId="school" />
+                  <ApprovalInbox />
                   <NotificationBell />
                 </div>
               </div>

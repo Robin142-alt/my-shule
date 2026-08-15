@@ -8,10 +8,7 @@ import {
   openPrintDocument,
   type PrintableRow,
 } from "@/lib/dashboard/export";
-import {
-  getCurrentSchoolId,
-  publishSchoolOperationalEvent,
-} from "@/lib/school/school-operational-store";
+import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
 
 export type OperationalFormField = {
   id: string;
@@ -51,36 +48,41 @@ function fieldKey(label: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-function getSchoolScopedFormStorageKey(formId: string) {
-  const fallbackSchoolId = "default-school";
-
-  if (typeof window === "undefined") {
-    return `myshule:${fallbackSchoolId}:operational-form:${formId}`;
+function getSchoolScopedFormStorageKey(formId: string, schoolId: string) {
+  const normalizedSchoolId = schoolId.trim();
+  if (!normalizedSchoolId) {
+    return null;
   }
 
-  try {
-    const configuredSchoolId = window.localStorage.getItem("myshule.currentSchoolId");
-    const routeSchoolId = window.location.pathname.match(/^\/school\/([^/?#]+)/)?.[1];
-    const schoolId = configuredSchoolId || routeSchoolId || fallbackSchoolId;
-
-    return `myshule:${schoolId}:operational-form:${formId}`;
-  } catch {
-    return `myshule:${fallbackSchoolId}:operational-form:${formId}`;
-  }
+  return `myshule:${normalizedSchoolId}:operational-form:${formId}`;
 }
 
-function resolveOperationalSchoolId() {
-  if (typeof window === "undefined") {
-    return "default-school";
+function loadSchoolScopedDraft(
+  storageKey: string | null,
+  defaultValues: OperationalFormValues,
+) {
+  if (typeof window === "undefined" || !storageKey) {
+    return { ...defaultValues };
   }
 
   try {
-    const configuredSchoolId = window.localStorage.getItem("myshule.currentSchoolId")?.trim();
-    const routeSchoolId = window.location.pathname.match(/^\/school\/([^/?#]+)/)?.[1]?.trim();
+    const stored = window.localStorage.getItem(storageKey);
+    const parsed = stored ? JSON.parse(stored) as unknown : null;
 
-    return configuredSchoolId || routeSchoolId || "default-school";
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return { ...defaultValues };
+    }
+
+    return Object.fromEntries(
+      Object.entries(defaultValues).map(([key, fallback]) => [
+        key,
+        typeof (parsed as Record<string, unknown>)[key] === "string"
+          ? (parsed as Record<string, string>)[key]
+          : fallback,
+      ]),
+    ) as OperationalFormValues;
   } catch {
-    return "default-school";
+    return { ...defaultValues };
   }
 }
 
@@ -97,8 +99,9 @@ export function OperationalFormShell({
   ) => void | Promise<void>;
   showExecutionContract?: boolean;
 }) {
+  const schoolId = useOptionalSchoolTenantId();
   const formId = fieldKey(contract.title);
-  const storageKey = getSchoolScopedFormStorageKey(formId);
+  const storageKey = getSchoolScopedFormStorageKey(formId, schoolId ?? "");
   const defaultValues = useMemo(
     () =>
       Object.fromEntries(
@@ -109,20 +112,18 @@ export function OperationalFormShell({
   const [notice, setNotice] = useState<string | null>(null);
   const [noticeTone, setNoticeTone] = useState<"success" | "warning" | "danger">("success");
   const [busyAction, setBusyAction] = useState<OperationalFormFooterAction | null>(null);
-  const [values, setValues] = useState<OperationalFormValues>(() => {
-    if (typeof window === "undefined") {
-      return defaultValues;
-    }
-
-    try {
-      const stored = window.localStorage.getItem(storageKey);
-
-      return stored ? { ...defaultValues, ...(JSON.parse(stored) as OperationalFormValues) } : defaultValues;
-    } catch {
-      return defaultValues;
-    }
-  });
+  const [values, setValues] = useState<OperationalFormValues>(() =>
+    loadSchoolScopedDraft(storageKey, defaultValues),
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [draftScopeKey, setDraftScopeKey] = useState(storageKey);
+
+  if (draftScopeKey !== storageKey) {
+    setDraftScopeKey(storageKey);
+    setValues(loadSchoolScopedDraft(storageKey, defaultValues));
+    setErrors({});
+    setNotice(null);
+  }
 
   function validate(nextValues: OperationalFormValues) {
     const nextErrors: Record<string, string> = {};
@@ -148,11 +149,15 @@ export function OperationalFormShell({
       return;
     }
 
+    if (!storageKey) {
+      throw new Error("A verified school context is required before saving this draft.");
+    }
+
     window.localStorage.setItem(storageKey, JSON.stringify(nextValues));
   }
 
   function clearDraft() {
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && storageKey) {
       window.localStorage.removeItem(storageKey);
     }
   }
@@ -180,59 +185,6 @@ export function OperationalFormShell({
     });
   }
 
-  function formEventType(action: OperationalFormFooterAction) {
-    return `operational_form.${action.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "action"}`;
-  }
-
-  function publishFormAction(action: OperationalFormFooterAction, nextValues: OperationalFormValues) {
-    const normalized = action.toLowerCase();
-    const schoolId = getCurrentSchoolId(resolveOperationalSchoolId());
-    const providedFields = Object.entries(nextValues)
-      .filter(([, value]) => value.trim().length > 0)
-      .map(([key]) => key);
-
-    publishSchoolOperationalEvent({
-      schoolId,
-      type: formEventType(action),
-      module: contract.workflowBinding || "operational-form",
-      actorRole: "school-staff",
-      entityId: `${contract.title}:${action}`,
-      title: `${contract.title}: ${action}`,
-      body: `${action} accepted for ${contract.title} with ${providedFields.length} completed field${providedFields.length === 1 ? "" : "s"}.`,
-      severity: /approval|sms/.test(normalized) ? "warning" : "info",
-      payload: {
-        formTitle: contract.title,
-        action,
-        auditAction: contract.auditAction,
-        workflowBinding: contract.workflowBinding,
-        capability: contract.capability,
-        providedFields,
-        values: nextValues,
-      },
-      notifications: /approval|submit|sms/.test(normalized)
-        ? [
-            {
-              audienceRoles: ["Principal", "Deputy Principal", "System Monitor"],
-              title: `${contract.title}: ${action}`,
-              body: `${action} was recorded for ${contract.title}.`,
-              severity: /approval|sms/.test(normalized) ? "warning" : "info",
-              relatedModule: contract.workflowBinding || "operational-form",
-              relatedRecordId: `${contract.title}:${action}`,
-              requiresAction: /approval/.test(normalized),
-            },
-          ]
-        : undefined,
-      sms: /sms/.test(normalized)
-        ? [
-            {
-              recipient: nextValues.phone || nextValues.mobile || nextValues.parent || "school-contact",
-              message: `${contract.title}: ${action} has been recorded by the school.`,
-            },
-          ]
-        : undefined,
-    });
-  }
-
   async function runAction(action: OperationalFormFooterAction, nextValues: OperationalFormValues) {
     if (action !== "Preview" && action !== "Print" && action !== "Preview Print") {
       closeOpenPrintPreviews();
@@ -240,18 +192,28 @@ export function OperationalFormShell({
     setBusyAction(action);
 
     try {
+      if (action === "Save Draft") {
+        persistDraft(nextValues);
+      }
+
       if (onAction) {
         await onAction(action, contract, nextValues);
+        if (action === "Submit") {
+          clearDraft();
+        }
+      } else if (action === "Save Draft") {
+        setNoticeTone("warning");
+        setNotice("Draft saved locally for this verified school. It remains unsubmitted.");
+        return;
       } else {
-        publishFormAction(action, nextValues);
+        throw new Error(`${action} is not connected to a school workflow. No school record was changed.`);
       }
-      setNoticeTone(action === "Save Draft" ? "warning" : "success");
       if (action === "Save Draft") {
-        setNotice("Draft saved locally for this school. It will not be treated as submitted until you submit it.");
-      } else if (onAction) {
-        setNotice(`${action} returned from the connected workflow.`);
+        setNoticeTone("warning");
+        setNotice("Draft saved locally for this verified school. It remains unsubmitted.");
       } else {
-        setNotice(`${action} was recorded for this school and queued for dashboard sync.`);
+        setNoticeTone("success");
+        setNotice(`${action} returned from the connected workflow.`);
       }
     } catch (error) {
       setNoticeTone("danger");
@@ -341,7 +303,6 @@ export function OperationalFormShell({
             return;
           }
 
-          clearDraft();
           setNoticeTone("warning");
           setNotice("Saving...");
           void runAction("Submit", nextValues);
@@ -413,18 +374,15 @@ export function OperationalFormShell({
                     return;
                   } else if (action === "Preview") {
                     printValues(nextValues, `${contract.title} preview`);
-                    publishFormAction(action, nextValues);
                     setNoticeTone("success");
-                    setNotice(`${contract.title} preview is ready and the preview action was recorded.`);
+                    setNotice(`${contract.title} preview is ready. No school record was changed.`);
                   } else if (action === "Print") {
                     printValues(nextValues, `${contract.title} print copy`);
-                    publishFormAction(action, nextValues);
                     setNoticeTone("success");
                     setNotice(
-                      `${contract.title} print copy ready with ${contract.fields.length} field${contract.fields.length === 1 ? "" : "s"} loaded.`,
+                      `${contract.title} print copy ready with ${contract.fields.length} field${contract.fields.length === 1 ? "" : "s"} loaded. No school record was changed.`,
                     );
                   } else if (action === "Save Draft") {
-                    persistDraft(nextValues);
                     void runAction(action, nextValues);
                     return;
                   } else if (action === "Send SMS") {
@@ -444,10 +402,9 @@ export function OperationalFormShell({
                       return;
                     }
                     printValues(nextValues, `${contract.title} print preview`);
-                    publishFormAction(action, nextValues);
                     setNoticeTone("success");
                     setNotice(
-                      `${contract.title} print preview ready with ${contract.fields.length} field${contract.fields.length === 1 ? "" : "s"} loaded.`,
+                      `${contract.title} print preview ready with ${contract.fields.length} field${contract.fields.length === 1 ? "" : "s"} loaded. No school record was changed.`,
                     );
                   } else if (action === "Submit for Approval") {
                     if (!validate(nextValues)) {

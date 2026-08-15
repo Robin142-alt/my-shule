@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import {
@@ -14,6 +14,7 @@ import {
   type OperationalTableContract,
 } from "@/components/operational/operational-table";
 import { RightDetailsDrawer } from "@/components/operational/right-details-drawer";
+import { SchoolTenantScopeProvider } from "@/lib/data/school-tenant-scope";
 
 import { renderWithProviders } from "./test-utils";
 
@@ -130,6 +131,11 @@ const queueContract: OperationalQueueContract = {
 };
 
 describe("universal operational form and table system", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    window.history.replaceState({}, "", "/");
+  });
+
   it("renders the complete table contract with search, filters, sort, columns, row actions, bulk actions, export, print, loading, empty, and error states", () => {
     renderWithProviders(
       <OperationalTable
@@ -152,10 +158,39 @@ describe("universal operational form and table system", () => {
     expect(screen.getByText("KES 18,500")).toBeVisible();
     expect(screen.getByRole("button", { name: /row row-1 review/i })).toBeVisible();
     expect(screen.getByRole("button", { name: /bulk reconcile selected/i })).toBeVisible();
-    expect(screen.getByText(/Loading reconciliation rows/)).toBeVisible();
-    expect(screen.getByText(/No payment exceptions are pending/)).toBeVisible();
-    expect(screen.getByText(/Payment queue is degraded/)).toBeVisible();
     expect(screen.getByText(/Page 1 of 1/)).toBeVisible();
+  });
+
+  it("shows truthful loading, failed, and empty table states only when active", () => {
+    const loading = renderWithProviders(
+      <OperationalTable
+        contract={tableContract}
+        state="LOADING"
+        loadingMessage="Loading reconciliation rows"
+      />,
+    );
+    expect(screen.getByText(/Loading reconciliation rows/)).toBeVisible();
+    expect(screen.queryByText(/Payment queue is degraded/)).not.toBeInTheDocument();
+    loading.unmount();
+
+    const failed = renderWithProviders(
+      <OperationalTable
+        contract={tableContract}
+        state="FAILED"
+        errorMessage="Payment queue is degraded. Retry sync."
+      />,
+    );
+    expect(screen.getByText(/Payment queue is degraded/)).toBeVisible();
+    expect(screen.queryByText(/Loading reconciliation rows/)).not.toBeInTheDocument();
+    failed.unmount();
+
+    renderWithProviders(
+      <OperationalTable
+        contract={{ ...tableContract, rows: [] }}
+        emptyMessage="No payment exceptions are pending."
+      />,
+    );
+    expect(screen.getAllByText(/No payment exceptions are pending/).length).toBeGreaterThan(0);
   });
 
   it("renders the governed form footer and execution metadata without disconnecting workflow context", () => {
@@ -280,25 +315,89 @@ describe("universal operational form and table system", () => {
     revokeObjectUrlSpy.mockRestore();
   }, 20000);
 
+  it("fails visibly and leaves table rows unchanged when a mutation has no workflow handler", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <OperationalTable
+        contract={{
+          ...tableContract,
+          rows: tableContract.rows.map((row) => ({
+            ...row,
+            actions: ["Approve", "Delete"],
+          })),
+        }}
+        showStatePanels={false}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /row row-1 approve/i }));
+    expect(screen.getByText(/approve for row-1 is not connected to a school workflow/i)).toBeVisible();
+    expect(screen.queryByText("Approved")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: /row row-1 delete/i }));
+    await user.click(screen.getByRole("button", { name: /yes, remove record/i }));
+    expect(screen.getByText(/delete for row-1 is not connected to a school workflow/i)).toBeVisible();
+    expect(screen.getByText("QEX7ABC123")).toBeVisible();
+  });
+
+  it("reconciles temporary connected-action state with the next authoritative server rows", async () => {
+    const user = userEvent.setup();
+    const onAction = jest.fn().mockResolvedValue(undefined);
+    const initialRows = tableContract.rows.map((row) => ({
+      ...row,
+      actions: ["Approve"],
+    }));
+    const result = renderWithProviders(
+      <OperationalTable
+        contract={{ ...tableContract, rows: initialRows }}
+        onAction={onAction}
+        showStatePanels={false}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /row row-1 approve/i }));
+    expect(screen.getAllByText("Approved").length).toBeGreaterThan(0);
+
+    const authoritativeRows = initialRows.map((row) => ({
+      ...row,
+      cells: { ...row.cells, status: "Rejected by server" },
+      status: { label: "Rejected by server", tone: "critical" as const },
+    }));
+    result.rerender(
+      <OperationalTable
+        contract={{ ...tableContract, rows: authoritativeRows }}
+        onAction={onAction}
+        showStatePanels={false}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getAllByText("Rejected by server").length).toBeGreaterThan(0));
+    expect(screen.queryByText("Approved")).not.toBeInTheDocument();
+  });
+
   it("validates required form fields, saves drafts locally, submits new entries, and resets cleanly", async () => {
     const user = userEvent.setup();
     const onAction = jest.fn();
-    const storageKey = "myshule:default-school:operational-form:parent-sms-follow-up";
+    const storageKey = "myshule:school-a:operational-form:parent-sms-follow-up";
 
     window.localStorage.removeItem(storageKey);
 
     renderWithProviders(
-      <OperationalFormShell
-        contract={{
-          ...formContract,
-          fields: [
-            { id: "student", label: "Student", type: "text", value: "" },
-            { id: "phone", label: "Parent Phone", type: "tel", value: "" },
-            { id: "message", label: "Message", type: "textarea", value: "" },
-          ],
-        }}
-        onAction={onAction}
-      />,
+      <SchoolTenantScopeProvider tenantId="school-a">
+        <OperationalFormShell
+          contract={{
+            ...formContract,
+            fields: [
+              { id: "student", label: "Student", type: "text", value: "" },
+              { id: "phone", label: "Parent Phone", type: "tel", value: "" },
+              { id: "message", label: "Message", type: "textarea", value: "" },
+            ],
+          }}
+          onAction={onAction}
+        />
+      </SchoolTenantScopeProvider>,
     );
 
     await user.click(screen.getByRole("button", { name: /^submit$/i }));
@@ -319,9 +418,86 @@ describe("universal operational form and table system", () => {
       expect.objectContaining({ student: "Brian Otieno" }),
     );
     expect(screen.getByText(/submit returned from the connected workflow/i)).toBeVisible();
+    expect(window.localStorage.getItem(storageKey)).toBeNull();
 
     await user.click(screen.getByRole("button", { name: /cancel/i }));
     expect(screen.getByLabelText(/student/i)).toHaveValue("");
+  }, 15000);
+
+  it("refuses to save a draft without a verified school context", async () => {
+    const user = userEvent.setup();
+
+    window.localStorage.setItem("myshule.currentSchoolId", "browser-controlled-school");
+    window.history.replaceState({}, "", "/school/route-controlled-school/timetable");
+
+    renderWithProviders(<OperationalFormShell contract={formContract} />);
+    await user.click(screen.getByRole("button", { name: /save draft/i }));
+
+    expect(screen.getByText(/verified school context is required/i)).toBeVisible();
+    expect(Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index)))
+      .not.toEqual(expect.arrayContaining([expect.stringContaining("operational-form:parent-sms-follow-up")]));
+  });
+
+  it("keeps a verified-tenant draft when backend submission fails", async () => {
+    const user = userEvent.setup();
+    const storageKey = "myshule:school-a:operational-form:parent-sms-follow-up";
+    const onAction = jest.fn(async (action: string) => {
+      if (action === "Submit") {
+        throw new Error("Submission rejected by the school API.");
+      }
+    });
+
+    renderWithProviders(
+      <SchoolTenantScopeProvider tenantId="school-a">
+        <OperationalFormShell contract={formContract} onAction={onAction} />
+      </SchoolTenantScopeProvider>,
+    );
+
+    await user.clear(screen.getByLabelText(/student/i));
+    await user.type(screen.getByLabelText(/student/i), "Tenant A Draft Student");
+    await user.click(screen.getByRole("button", { name: /save draft/i }));
+    expect(window.localStorage.getItem(storageKey)).toContain("Tenant A Draft Student");
+
+    await user.click(screen.getByRole("button", { name: /^submit$/i }));
+    expect(await screen.findByText(/submission rejected by the school api/i)).toBeVisible();
+    expect(window.localStorage.getItem(storageKey)).toContain("Tenant A Draft Student");
+  });
+
+  it("reloads drafts on verified tenant changes without carrying values across schools", async () => {
+    const tenantAKey = "myshule:school-a:operational-form:parent-sms-follow-up";
+    const tenantBKey = "myshule:school-b:operational-form:parent-sms-follow-up";
+    window.localStorage.setItem(tenantAKey, JSON.stringify({ student: "Tenant A Student" }));
+    window.localStorage.setItem(tenantBKey, JSON.stringify({ student: "Tenant B Student" }));
+
+    const result = renderWithProviders(
+      <SchoolTenantScopeProvider tenantId="school-a">
+        <OperationalFormShell contract={formContract} />
+      </SchoolTenantScopeProvider>,
+    );
+    expect(screen.getByLabelText(/student/i)).toHaveValue("Tenant A Student");
+
+    result.rerender(
+      <SchoolTenantScopeProvider tenantId="school-b">
+        <OperationalFormShell contract={formContract} />
+      </SchoolTenantScopeProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByLabelText(/student/i)).toHaveValue("Tenant B Student"));
+    expect(screen.queryByDisplayValue("Tenant A Student")).not.toBeInTheDocument();
+  });
+
+  it("fails visibly when a form mutation has no connected workflow", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <SchoolTenantScopeProvider tenantId="school-a">
+        <OperationalFormShell contract={formContract} />
+      </SchoolTenantScopeProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /^submit$/i }));
+    expect(await screen.findByText(/submit is not connected to a school workflow/i)).toBeVisible();
+    expect(window.localStorage.getItem("myshule:school-a:events")).toBeNull();
   });
 
   it("turns queue actions into visible local workflow updates instead of static buttons", async () => {

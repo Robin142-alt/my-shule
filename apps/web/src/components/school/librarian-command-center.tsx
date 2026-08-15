@@ -1988,7 +1988,7 @@ function Topbar({ activeView, onViewChange }: { activeView: LibrarianView; onVie
           </button>
           <div className="flex items-center gap-2">
             <TaskQueue />
-            <ApprovalInbox currentUserId="school" />
+            <ApprovalInbox />
             <NotificationBell />
           </div>
           <div className="relative group">

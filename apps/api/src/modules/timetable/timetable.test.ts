@@ -902,6 +902,149 @@ test('read-only timetable roles cannot opt into a draft or request a draft versi
   );
 });
 
+test('Timetable view references reject inactive, wrong-year, and cross-tenant classes while explicit history remains readable', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new TimetableWorkflowRepository({
+    query: async (sql: string, params: unknown[]) => {
+      queries.push({ sql, params });
+      const [tenantId, classSectionId, streamId, , , , academicYear, historical] = params;
+      const classExists = tenantId === 'tenant-a'
+        && (classSectionId === 'class-active' || classSectionId === 'class-archived');
+      const streamExists = tenantId === 'tenant-a'
+        && (streamId == null || streamId === 'stream-active' || streamId === 'stream-archived');
+      const activeScope = academicYear === '2026'
+        && classSectionId === 'class-active'
+        && (streamId == null || streamId === 'stream-active');
+      return {
+        rows: [{
+          class_ok: classSectionId == null || (classExists && (historical === true || activeScope)),
+          stream_ok: streamId == null || (streamExists && (historical === true || activeScope)),
+          teacher_ok: true,
+          resource_ok: true,
+          department_ok: true,
+        }],
+        rowCount: 1,
+      };
+    },
+  } as never);
+
+  await repository.validateViewReference('tenant-a', {
+    academic_year: '2026',
+    class_section_id: 'class-active',
+    stream_id: 'stream-active',
+  });
+  await assert.rejects(
+    () => repository.validateViewReference('tenant-a', {
+      academic_year: '2025',
+      class_section_id: 'class-active',
+      stream_id: 'stream-active',
+    }),
+    /inactive, belongs to another academic year, or is outside this school/,
+  );
+  await assert.rejects(
+    () => repository.validateViewReference('tenant-a', {
+      academic_year: '2026',
+      class_section_id: 'class-archived',
+      stream_id: 'stream-archived',
+    }),
+    /inactive, belongs to another academic year, or is outside this school/,
+  );
+  await assert.rejects(
+    () => repository.validateViewReference('tenant-b', {
+      academic_year: '2026',
+      class_section_id: 'class-active',
+    }),
+    /outside this school/,
+  );
+  await repository.validateViewReference('tenant-a', {
+    academic_year: '2025',
+    class_section_id: 'class-archived',
+    stream_id: 'stream-archived',
+  }, true);
+
+  const contractSql = queries[0]?.sql ?? '';
+  assert.match(contractSql, /section\.academic_year_id/);
+  assert.match(contractSql, /year\.name = \$7/);
+  assert.match(contractSql, /section\.status, 'active'/);
+  assert.match(contractSql, /stream\.status, 'active'/);
+  assert.match(contractSql, /archived_at IS NULL/);
+  assert.equal(queries.at(-1)?.params[7], true);
+});
+
+test('Timetable slot reference validation binds active class and stream to tenant and academic year', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new TimetableRepository({
+    query: async (sql: string, params: unknown[]) => {
+      queries.push({ sql, params });
+      const [tenantId, academicYear, termName, classSectionId, , , streamId] = params;
+      const valid = tenantId === 'tenant-a'
+        && academicYear === '2026'
+        && termName === 'Term 2'
+        && classSectionId === 'class-active'
+        && (streamId == null || streamId === 'stream-active');
+      return {
+        rows: [{
+          academic_year: valid,
+          term: valid,
+          class_section: valid,
+          stream: valid,
+          subject: valid,
+          teacher: valid,
+          teacher_assignment: valid,
+        }],
+        rowCount: 1,
+      };
+    },
+  } as never);
+  const baseSlot = {
+    academic_year: '2026',
+    term_name: 'Term 2',
+    class_section_id: 'class-active',
+    stream_id: 'stream-active',
+    subject_id: 'subject-1',
+    teacher_id: 'teacher-1',
+    day_of_week: 1,
+    starts_at: '08:00',
+    ends_at: '08:40',
+  };
+
+  const active = await repository.validateSlotReferences('tenant-a', baseSlot);
+  const wrongYear = await repository.validateSlotReferences('tenant-a', {
+    ...baseSlot,
+    academic_year: '2025',
+  });
+  const inactive = await repository.validateSlotReferences('tenant-a', {
+    ...baseSlot,
+    class_section_id: 'class-archived',
+    stream_id: 'stream-archived',
+  });
+  const otherTenant = await repository.validateSlotReferences('tenant-b', baseSlot);
+
+  assert.equal(active.class_section, true);
+  assert.equal(active.stream, true);
+  assert.equal(wrongYear.class_section, false);
+  assert.equal(inactive.class_section, false);
+  assert.equal(inactive.stream, false);
+  assert.equal(otherTenant.class_section, false);
+  const contractSql = queries[0]?.sql ?? '';
+  assert.match(contractSql, /section\.tenant_id = \$1/);
+  assert.match(contractSql, /year\.name = \$2/);
+  assert.match(contractSql, /stream\.class_section_id::text = \$4/);
+  assert.match(contractSql, /COALESCE\(stream\.is_active, TRUE\) = TRUE/);
+  assert.match(contractSql, /stream\.archived_at IS NULL/);
+
+  const service = new TimetableService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    { validateSlotReferences: async () => inactive } as never,
+    {} as never,
+    {} as never,
+  );
+  await assert.rejects(
+    () => (service as any).validateSlotReferences('tenant-a', baseSlot),
+    /Invalid timetable setup: academic year, term, class, stream/,
+  );
+});
+
 test('copy-previous remaps target periods and never reuses stale source period identifiers', () => {
   const source = readFileSync(
     join(process.cwd(), 'apps/api/src/modules/timetable/repositories/timetable-workflow.repository.ts'),

@@ -21,9 +21,9 @@ type PrincipalClassesData = {
 };
 
 export function PrincipalClassesStreamsWorkspace() {
-  const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalClassesData>('/admin-command/principal/classes');
+  const { data, isLoading, error, refetch: refetchOverview } = useSchoolQuery<PrincipalClassesData>('/admin-command/principal/classes');
   const { data: yearsData } = useSchoolQuery<any[]>('/academics/academic-years');
-  const { data: classesData } = useSchoolQuery<any[]>('/academics/class-sections');
+  const { data: classesData, refetch: refetchClassSections } = useSchoolQuery<any[]>('/academics/class-sections');
   const { hasPermission } = usePermissions();
 
   const [isClassModalOpen, setIsClassModalOpen] = useState(false);
@@ -50,7 +50,7 @@ export function PrincipalClassesStreamsWorkspace() {
         }
       });
       setIsClassModalOpen(false);
-      refetch();
+      await Promise.all([refetchOverview(), refetchClassSections()]);
     } catch (err: any) {
       setFormError(err.message || "Failed to create class section");
     } finally {
@@ -73,7 +73,7 @@ export function PrincipalClassesStreamsWorkspace() {
         }
       });
       setIsStreamModalOpen(false);
-      refetch();
+      await Promise.all([refetchOverview(), refetchClassSections()]);
     } catch (err: any) {
       setFormError(err.message || "Failed to create stream");
     } finally {
@@ -85,7 +85,7 @@ export function PrincipalClassesStreamsWorkspace() {
     if (!confirm("Are you sure you want to archive this class?")) return;
     try {
       await requestDashboardApi(`/academics/class-sections/${id}`, { method: "DELETE" });
-      refetch();
+      await Promise.all([refetchOverview(), refetchClassSections()]);
     } catch (err: any) {
       toast.error(err.message || "Failed to archive class");
     }

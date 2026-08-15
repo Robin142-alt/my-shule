@@ -13,6 +13,7 @@ import { HrController } from './hr.controller';
 import { HrSchemaService } from './hr-schema.service';
 import { HrService } from './hr.service';
 import { HrRepository } from './repositories/hr.repository';
+import { StaffDashboardService } from './staff-dashboard.service';
 
 test('HR providers expose concrete Nest dependency metadata', () => {
   assert.deepEqual(Reflect.getMetadata('design:paramtypes', HrSchemaService), [PrismaService]);
@@ -22,6 +23,160 @@ test('HR providers expose concrete Nest dependency metadata', () => {
     EventPublisherService,
     AgpExecutionService,
   ]);
+  assert.deepEqual(Reflect.getMetadata('design:paramtypes', StaffDashboardService), [
+    RequestContextService,
+    HrRepository,
+  ]);
+});
+
+test('StaffDashboardService resolves the dashboard for the exact request tenant and user', async () => {
+  const calls: unknown[] = [];
+  const service = new StaffDashboardService(
+    {
+      requireStore: () => ({ tenant_id: 'school-a', user_id: 'user-a', role: 'teacher' }),
+      getStore: () => ({ tenant_id: 'school-a', user_id: 'user-a', role: 'teacher' }),
+    } as never,
+    {
+      getStaffDashboard: async (...args: unknown[]) => {
+        calls.push(args);
+        return { available: true, profile: { id: 'staff-a' } };
+      },
+    } as never,
+  );
+
+  const result = await service.getStaffDashboard();
+
+  assert.deepEqual(calls, [['school-a', 'user-a', 'teacher']]);
+  assert.deepEqual(result, { available: true, profile: { id: 'staff-a' } });
+});
+
+test('HrRepository builds staff dashboard metrics from current-school canonical records', async () => {
+  const transactionCalls: unknown[] = [];
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new HrRepository({
+    executeWithTenant: async (
+      tenantId: string,
+      userId: string,
+      callback: (tx: { $queryRawUnsafe: (sql: string, ...params: unknown[]) => Promise<unknown[]> }) => Promise<unknown>,
+    ) => {
+      transactionCalls.push([tenantId, userId]);
+      return callback({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          queries.push({ sql, params });
+
+          if (/FROM staff_profiles profile[\s\S]+profile\.user_id::text = \$2/.test(sql)) {
+            return [{
+              id: 'staff-a',
+              user_id: 'user-a',
+              display_name: 'Teacher A',
+              department: 'Science',
+              job_title: 'Teacher',
+              status: 'active',
+            }];
+          }
+          if (/to_regclass\('public\.timetable_slots'\)/.test(sql)) {
+            return [{ timetable: true, notifications: true, announcements: true }];
+          }
+          if (/FROM timetable_slots slot/.test(sql)) {
+            return [{
+              id: 'slot-a',
+              class_name: 'Grade 8 Blue',
+              subject_name: 'Biology',
+              day_of_week: 2,
+              starts_at: '08:00:00',
+              ends_at: '08:40:00',
+              room: 'Lab 1',
+              total_count: 4,
+            }];
+          }
+          if (/FROM notifications notification/.test(sql)) {
+            return [{ count: 7 }];
+          }
+          if (/FROM staff_leave_balances balance/.test(sql)) {
+            return [{ balance: '11.5' }];
+          }
+          if (/FROM announcements announcement/.test(sql)) {
+            return [{ id: 'announcement-a', title: 'Staff briefing' }];
+          }
+          if (/FROM staff_audit_logs audit/.test(sql)) {
+            return [{ id: 'audit-a', action: 'staff.leave.requested' }];
+          }
+          if (/FROM staff_leave_requests request/.test(sql)) {
+            return [{ id: 'leave-a', staff_name: 'Teacher A', days: 2 }];
+          }
+          throw new Error(`Unexpected staff dashboard query: ${sql}`);
+        },
+      });
+    },
+  } as never);
+
+  const result = await repository.getStaffDashboard('school-a', 'user-a', 'teacher');
+
+  assert.deepEqual(transactionCalls, [['school-a', 'user-a']]);
+  assert.equal(result.available, true);
+  assert.equal(result.profile?.display_name, 'Teacher A');
+  assert.deepEqual(result.metrics, {
+    upcomingClasses: 4,
+    pendingTasks: 0,
+    unreadMessages: 7,
+    leaveBalance: 11.5,
+  });
+  assert.deepEqual(result.schedule, [{
+    id: 'slot-a',
+    class_name: 'Grade 8 Blue',
+    subject_name: 'Biology',
+    day_of_week: 2,
+    starts_at: '08:00:00',
+    ends_at: '08:40:00',
+    room: 'Lab 1',
+  }]);
+  assert.deepEqual(result.announcements, [{ id: 'announcement-a', title: 'Staff briefing' }]);
+  assert.deepEqual(result.leave_requests, [{ id: 'leave-a', staff_name: 'Teacher A', days: 2 }]);
+  assert.equal(result.dataAvailability.pendingTasks, false);
+  assert.equal(result.dataAvailability.payrollExceptions, false);
+
+  for (const query of queries.filter(({ params }) => params.length > 0)) {
+    assert.equal(query.params[0], 'school-a');
+    assert.match(query.sql, /tenant_id = \$1/);
+  }
+  assert.ok(queries.some(({ sql, params }) =>
+    /teacher_id::text = \$2/.test(sql) && params[1] === 'user-a'));
+});
+
+test('HrRepository returns truthful zero availability without querying other staff when no profile is linked', async () => {
+  const queries: string[] = [];
+  const repository = new HrRepository({
+    executeWithTenant: async (
+      tenantId: string,
+      userId: string,
+      callback: (tx: { $queryRawUnsafe: (sql: string, ...params: unknown[]) => Promise<unknown[]> }) => Promise<unknown>,
+    ) => {
+      assert.equal(tenantId, 'school-a');
+      assert.equal(userId, 'user-a');
+      return callback({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          queries.push(sql);
+          assert.deepEqual(params, ['school-a', 'user-a']);
+          return [];
+        },
+      });
+    },
+  } as never);
+
+  const result = await repository.getStaffDashboard('school-a', 'user-a', 'teacher');
+
+  assert.equal(queries.length, 1);
+  assert.equal(result.available, false);
+  assert.equal(result.profile, null);
+  assert.deepEqual(result.metrics, {
+    upcomingClasses: 0,
+    pendingTasks: 0,
+    unreadMessages: 0,
+    leaveBalance: 0,
+  });
+  assert.deepEqual(result.schedule, []);
+  assert.deepEqual(result.announcements, []);
+  assert.equal(result.dataAvailability.profile, false);
 });
 
 test('HrSchemaService creates staff management tables with forced RLS', async () => {

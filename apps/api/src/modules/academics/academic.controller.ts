@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
@@ -12,17 +12,140 @@ export class AcademicController {
     private readonly requestContext: RequestContextService
   ) {}
 
+  private normalizeMark(input: any) {
+    const mark = {
+      academicTermId: String(input?.academicTermId ?? input?.academic_term_id ?? '').trim(),
+      assessmentId: String(input?.assessmentId ?? input?.assessment_id ?? '').trim(),
+      classSectionId: String(input?.classSectionId ?? input?.class_section_id ?? '').trim(),
+      examSeriesId: String(input?.examSeriesId ?? input?.exam_series_id ?? '').trim(),
+      studentId: String(input?.studentId ?? input?.student_id ?? '').trim(),
+      subjectId: String(input?.subjectId ?? input?.subject_id ?? '').trim(),
+      score: Number(input?.score),
+      remarks: String(input?.remarks ?? '').trim(),
+    };
+    const ids = [
+      mark.academicTermId,
+      mark.assessmentId,
+      mark.classSectionId,
+      mark.examSeriesId,
+      mark.studentId,
+      mark.subjectId,
+    ];
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+    if (ids.some((id) => !uuidPattern.test(id))) {
+      throw new BadRequestException('Every mark must reference valid academic records');
+    }
+    if (!Number.isFinite(mark.score) || mark.score < 0) {
+      throw new BadRequestException('Mark score must be a non-negative number');
+    }
+
+    return mark;
+  }
+
+  private async validateMarkReferences(tx: any, tenantId: string, mark: ReturnType<AcademicController['normalizeMark']>) {
+    const rows = await tx.$queryRawUnsafe(
+      `
+        SELECT
+          EXISTS (
+            SELECT 1
+            FROM students student
+            WHERE student.tenant_id = $1
+              AND student.id::text = $2
+              AND lower(COALESCE(student.status, 'active')) IN ('accepted', 'enrolled', 'active')
+              AND student.deleted_at IS NULL
+          ) AS student_exists,
+          EXISTS (
+            SELECT 1
+            FROM class_sections section
+            WHERE section.tenant_id = $1
+              AND section.id::text = $3
+              AND section.is_active = TRUE
+              AND lower(COALESCE(section.status, 'active')) = 'active'
+              AND section.archived_at IS NULL
+          ) AS class_exists,
+          EXISTS (
+            SELECT 1
+            FROM academic_terms term
+            WHERE term.tenant_id = $1
+              AND term.id::text = $4
+              AND lower(COALESCE(term.status, 'active')) = 'active'
+              AND term.archived_at IS NULL
+          ) AS term_exists,
+          EXISTS (
+            SELECT 1
+            FROM exam_series series
+            WHERE series.tenant_id = $1
+              AND series.id::text = $5
+              AND series.academic_term_id::text = $4
+              AND lower(COALESCE(series.status, 'draft')) <> 'archived'
+          ) AS series_exists,
+          EXISTS (
+            SELECT 1
+            FROM subjects subject
+            WHERE subject.tenant_id = $1
+              AND subject.id::text = $6
+              AND lower(COALESCE(subject.status, 'active')) = 'active'
+              AND subject.deleted_at IS NULL
+              AND subject.archived_at IS NULL
+          ) AS subject_exists,
+          EXISTS (
+            SELECT 1
+            FROM student_class_assignments assignment
+            WHERE assignment.tenant_id = $1
+              AND assignment.student_id::text = $2
+              AND assignment.class_section_id::text = $3
+              AND assignment.status = 'active'
+          ) AS class_assignment_exists,
+          assessment.max_score::text AS max_score
+        FROM exam_assessments assessment
+        WHERE assessment.tenant_id = $1
+          AND assessment.id::text = $7
+          AND assessment.exam_series_id::text = $5
+          AND assessment.subject_id::text = $6
+        LIMIT 1
+      `,
+      tenantId,
+      mark.studentId,
+      mark.classSectionId,
+      mark.academicTermId,
+      mark.examSeriesId,
+      mark.subjectId,
+      mark.assessmentId,
+    );
+    const validation = Array.isArray(rows) ? rows[0] : rows;
+    const referencesAreValid = validation
+      && validation.student_exists === true
+      && validation.class_exists === true
+      && validation.term_exists === true
+      && validation.series_exists === true
+      && validation.subject_exists === true
+      && validation.class_assignment_exists === true;
+
+    if (!referencesAreValid) {
+      throw new BadRequestException('Mark references are not active records in this school');
+    }
+
+    const maxScore = Number(validation.max_score);
+    if (!Number.isFinite(maxScore) || mark.score > maxScore) {
+      throw new BadRequestException(`Mark score cannot exceed ${validation.max_score}`);
+    }
+  }
+
   @Get('communications')
   @Permissions('academics:read')
   async getCommunications() {
-    const tenantId = this.requestContext.requireStore().tenant_id;
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
     if (!tenantId) throw new UnauthorizedException('Tenant ID required');
     try {
-      const items = await this.prisma.communicationBroadcast.findMany({
-        where: { schoolId: tenantId },
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-      });
+      const items = await this.prisma.executeWithTenant(tenantId, store.user_id, (tx) =>
+        tx.communicationBroadcast.findMany({
+          where: { schoolId: tenantId },
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+        }),
+      );
       return { items };
     } catch (e: any) {
       console.error('academic.controller error:', e);
@@ -33,19 +156,23 @@ export class AcademicController {
   @Post('dean/lock-batch')
   @Permissions('academics:write')
   async lockBatch(@Body() body: any) {
-    const tenantId = this.requestContext.requireStore().tenant_id;
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
     if (!tenantId) throw new UnauthorizedException('Tenant ID required');
-    const batchId = body.batchId || body.id;
-    if (batchId) {
-      try {
-        await this.prisma.reportCardGenerationBatches.updateMany({
+    const batchId = String(body?.batchId ?? body?.id ?? '').trim();
+    if (!batchId) throw new BadRequestException('Report-card batch ID is required');
+    try {
+      const result = await this.prisma.executeWithTenant(tenantId, store.user_id, (tx) =>
+        tx.reportCardGenerationBatches.updateMany({
           where: { id: batchId, tenant_id: tenantId },
           data: { status: 'LOCKED' }
-        });
-      } catch (e: any) {
-        console.error('academic.controller error:', e);
-        throw new InternalServerErrorException(e.message);
-      }
+        }),
+      );
+      if (result.count !== 1) throw new BadRequestException('Report-card batch was not found in this school');
+    } catch (e: any) {
+      if (e instanceof BadRequestException) throw e;
+      console.error('academic.controller error:', e);
+      throw new InternalServerErrorException(e.message);
     }
     return { success: true };
   }
@@ -53,18 +180,25 @@ export class AcademicController {
   @Post('dean/action')
   @Permissions('academics:write')
   async deanAction(@Body() body: any) {
-    const tenantId = this.requestContext.requireStore().tenant_id;
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
     if (!tenantId) throw new UnauthorizedException('Tenant ID required');
-    if (body.taskId) {
-      try {
-        await this.prisma.workflowTask.updateMany({
-          where: { id: body.taskId, schoolId: tenantId },
-          data: { status: body.action === 'approve' ? 'DONE' : 'CANCELLED' }
-        });
-      } catch (e: any) {
-        console.error('academic.controller error:', e);
-        throw new InternalServerErrorException(e.message);
-      }
+    const taskId = String(body?.taskId ?? '').trim();
+    const action = String(body?.action ?? '').trim().toLowerCase();
+    if (!taskId) throw new BadRequestException('Academic task ID is required');
+    if (!['approve', 'reject'].includes(action)) throw new BadRequestException('Action must be approve or reject');
+    try {
+      const result = await this.prisma.executeWithTenant(tenantId, store.user_id, (tx) =>
+        tx.workflowTask.updateMany({
+          where: { id: taskId, schoolId: tenantId },
+          data: { status: action === 'approve' ? 'DONE' : 'CANCELLED' }
+        }),
+      );
+      if (result.count !== 1) throw new BadRequestException('Academic task was not found in this school');
+    } catch (e: any) {
+      if (e instanceof BadRequestException) throw e;
+      console.error('academic.controller error:', e);
+      throw new InternalServerErrorException(e.message);
     }
     return { success: true };
   }
@@ -72,85 +206,95 @@ export class AcademicController {
   @Post('exams-manager/import-marks')
   @Permissions('academics:write')
   async importMarks(@Body() body: any) {
-    const tenantId = this.requestContext.requireStore().tenant_id;
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
     if (!tenantId) throw new UnauthorizedException('Tenant ID required');
-    const { marks } = body;
-    if (Array.isArray(marks)) {
-      for (const m of marks) {
-        try {
-          await this.prisma.examMarks.create({
-            data: {
-              academic_term_id: m.academicTermId || m.academic_term_id,
-              assessment_id: m.assessmentId || m.assessment_id,
-              class_section_id: m.classSectionId || m.class_section_id,
-              entered_by_user_id: m.enteredByUserId || m.entered_by_user_id || '00000000-0000-0000-0000-000000000000',
-              exam_series_id: m.examSeriesId || m.exam_series_id,
-              score: m.score,
-              student_id: m.studentId || m.student_id,
-              subject_id: m.subjectId || m.subject_id,
-              tenant_id: tenantId,
-              remarks: m.remarks || '',
-              updated_by_user_id: m.updatedByUserId || m.updated_by_user_id || '00000000-0000-0000-0000-000000000000',
-              status: 'draft',
-            }
-          });
-        } catch (e: any) {
-          console.error('academic.controller error:', e);
-          throw new InternalServerErrorException(e.message);
-        }
-      }
+    if (!store.user_id) throw new UnauthorizedException('User ID required');
+    if (!Array.isArray(body?.marks) || body.marks.length === 0) {
+      throw new BadRequestException('At least one mark is required');
     }
-    return { success: true };
+    const marks = body.marks.map((mark: any) => this.normalizeMark(mark));
+
+    return this.prisma.executeWithTenant(tenantId, store.user_id, async (tx) => {
+      // Validate the complete import first so a foreign record never causes a
+      // partial batch write, even before transaction rollback is considered.
+      for (const mark of marks) {
+        await this.validateMarkReferences(tx, tenantId, mark);
+      }
+
+      const records = [];
+      for (const mark of marks) {
+        records.push(await tx.examMarks.create({
+          data: {
+            academic_term_id: mark.academicTermId,
+            assessment_id: mark.assessmentId,
+            class_section_id: mark.classSectionId,
+            entered_by_user_id: store.user_id,
+            exam_series_id: mark.examSeriesId,
+            score: mark.score,
+            student_id: mark.studentId,
+            subject_id: mark.subjectId,
+            tenant_id: tenantId,
+            remarks: mark.remarks,
+            updated_by_user_id: store.user_id,
+            status: 'draft',
+          },
+        }));
+      }
+
+      return { success: true, imported: records.length };
+    });
   }
 
   @Get('exams-manager/export-marks')
   @Permissions('academics:read')
   async exportMarks() {
-    const tenantId = this.requestContext.requireStore().tenant_id;
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
     if (!tenantId) throw new UnauthorizedException('Tenant ID required');
-    try {
-      const items = await this.prisma.examMarks.findMany({
+    const items = await this.prisma.executeWithTenant(tenantId, store.user_id, (tx) =>
+      tx.examMarks.findMany({
         where: { tenant_id: tenantId }
-      });
-      return { items };
-    } catch (e: any) {
-      console.error('academic.controller error:', e);
-      throw new InternalServerErrorException(e.message);
-    }
+      }),
+    );
+    return { items };
   }
 
   @Post('exams-manager/zeraki-sync')
   @Permissions('academics:write')
   async syncZeraki(@Body() body: any) {
-    const tenantId = this.requestContext.requireStore().tenant_id;
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
     if (!tenantId) throw new UnauthorizedException('Tenant ID required');
-    try {
-      const count = await this.prisma.examMarks.count({
+    const count = await this.prisma.executeWithTenant(tenantId, store.user_id, (tx) =>
+      tx.examMarks.count({
         where: { tenant_id: tenantId }
-      });
-      return { success: true, count };
-    } catch (e: any) {
-      console.error('academic.controller error:', e);
-      throw new InternalServerErrorException(e.message);
-    }
+      }),
+    );
+    return { success: true, count };
   }
 
   @Post('grade-master/compile')
   @Permissions('academics:write')
   async compileGrades(@Body() body: any) {
-    const tenantId = this.requestContext.requireStore().tenant_id;
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
     if (!tenantId) throw new UnauthorizedException('Tenant ID required');
-    const { studentId, examSeriesId } = body;
-    if (studentId && examSeriesId) {
-      try {
-        await this.prisma.studentReportCards.updateMany({
+    const studentId = String(body?.studentId ?? '').trim();
+    const examSeriesId = String(body?.examSeriesId ?? '').trim();
+    if (!studentId || !examSeriesId) throw new BadRequestException('Student and exam series are required');
+    try {
+      const result = await this.prisma.executeWithTenant(tenantId, store.user_id, (tx) =>
+        tx.studentReportCards.updateMany({
           where: { student_id: studentId, exam_series_id: examSeriesId, tenant_id: tenantId },
           data: { status: 'compiled' }
-        });
-      } catch (e: any) {
-        console.error('academic.controller error:', e);
-        throw new InternalServerErrorException(e.message);
-      }
+        }),
+      );
+      if (result.count === 0) throw new BadRequestException('No report cards matched this student and exam series in this school');
+    } catch (e: any) {
+      if (e instanceof BadRequestException) throw e;
+      console.error('academic.controller error:', e);
+      throw new InternalServerErrorException(e.message);
     }
     return { success: true };
   }
@@ -158,29 +302,34 @@ export class AcademicController {
   @Post('grade-master/comment')
   @Permissions('academics:write')
   async addComment(@Body() body: any) {
-    const tenantId = this.requestContext.requireStore().tenant_id;
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
     if (!tenantId) throw new UnauthorizedException('Tenant ID required');
-    const { reportCardId, comment } = body;
-    if (reportCardId) {
-      try {
-        const rc = await this.prisma.studentReportCards.findFirst({
+    const reportCardId = String(body?.reportCardId ?? '').trim();
+    const comment = String(body?.comment ?? '').trim();
+    if (!reportCardId) throw new BadRequestException('Report-card ID is required');
+    if (!comment) throw new BadRequestException('Comment is required');
+    try {
+      const updated = await this.prisma.executeWithTenant(tenantId, store.user_id, async (tx) => {
+        const rc = await tx.studentReportCards.findFirst({
           where: { id: reportCardId, tenant_id: tenantId }
         });
-        if (rc) {
-          let metadataObj = typeof rc.metadata === 'string' ? JSON.parse(rc.metadata) : rc.metadata;
-          if (!metadataObj || typeof metadataObj !== 'object') {
-            metadataObj = {};
-          }
-          metadataObj['comment'] = comment;
-          await this.prisma.studentReportCards.update({
-            where: { id: reportCardId },
-            data: { metadata: metadataObj }
-          });
+        if (!rc) return false;
+        let metadataObj = typeof rc.metadata === 'string' ? JSON.parse(rc.metadata) : rc.metadata;
+        if (!metadataObj || typeof metadataObj !== 'object' || Array.isArray(metadataObj)) {
+          metadataObj = {};
         }
-      } catch (e: any) {
-        console.error('academic.controller error:', e);
-        throw new InternalServerErrorException(e.message);
-      }
+        const result = await tx.studentReportCards.updateMany({
+          where: { id: reportCardId, tenant_id: tenantId },
+          data: { metadata: { ...(metadataObj as Record<string, unknown>), comment } }
+        });
+        return result.count === 1;
+      });
+      if (!updated) throw new BadRequestException('Report card was not found in this school');
+    } catch (e: any) {
+      if (e instanceof BadRequestException) throw e;
+      console.error('academic.controller error:', e);
+      throw new InternalServerErrorException(e.message);
     }
     return { success: true };
   }
@@ -188,12 +337,13 @@ export class AcademicController {
   @Get('hod/requests')
   @Permissions('academics:read')
   async getHodRequests() {
-    const tenantId = this.requestContext.requireStore().tenant_id;
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
     if (!tenantId) throw new UnauthorizedException('Tenant ID required');
     try {
-      const items = await this.prisma.approvalRequest.findMany({
-        where: { schoolId: tenantId }
-      });
+      const items = await this.prisma.executeWithTenant(tenantId, store.user_id, (tx) =>
+        tx.approvalRequest.findMany({ where: { schoolId: tenantId } }),
+      );
       return { items };
     } catch (e: any) {
       console.error('academic.controller error:', e);
@@ -204,12 +354,13 @@ export class AcademicController {
   @Get('hod/subject-allocation')
   @Permissions('academics:read')
   async getSubjectAllocation() {
-    const tenantId = this.requestContext.requireStore().tenant_id;
-    if (!tenantId) throw new Error('Tenant ID required');
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
+    if (!tenantId) throw new UnauthorizedException('Tenant ID required');
     try {
-      const items = await this.prisma.subject.findMany({
-        where: { schoolId: tenantId as string }
-      });
+      const items = await this.prisma.executeWithTenant(tenantId, store.user_id, (tx) =>
+        tx.subject.findMany({ where: { schoolId: tenantId } }),
+      );
       return { items };
     } catch (e: any) {
       console.error('academic.controller error:', e);
@@ -220,12 +371,13 @@ export class AcademicController {
   @Get('hod/department-meetings')
   @Permissions('academics:read')
   async getDepartmentMeetings() {
-    const tenantId = this.requestContext.requireStore().tenant_id;
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
     if (!tenantId) throw new UnauthorizedException('Tenant ID required');
     try {
-      const items = await this.prisma.meetingMinutes.findMany({
-        where: { tenant_id: tenantId }
-      });
+      const items = await this.prisma.executeWithTenant(tenantId, store.user_id, (tx) =>
+        tx.meetingMinutes.findMany({ where: { tenant_id: tenantId } }),
+      );
       return { items };
     } catch (e: any) {
       console.error('academic.controller error:', e);
@@ -236,30 +388,29 @@ export class AcademicController {
   @Post('marks/enter')
   @Permissions('academics:write')
   async enterMarks(@Body() body: any) {
-    const tenantId = this.requestContext.requireStore().tenant_id;
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
     if (!tenantId) throw new UnauthorizedException('Tenant ID required');
-    const { academicTermId, assessmentId, classSectionId, examSeriesId, score, studentId, subjectId, remarks } = body;
-    try {
-      const record = await this.prisma.examMarks.create({
+    if (!store.user_id) throw new UnauthorizedException('User ID required');
+    const mark = this.normalizeMark(body);
+    const record = await this.prisma.executeWithTenant(tenantId, store.user_id, async (tx) => {
+      await this.validateMarkReferences(tx, tenantId, mark);
+      return tx.examMarks.create({
         data: {
-          academic_term_id: academicTermId || body.academic_term_id,
-          assessment_id: assessmentId || body.assessment_id,
-          class_section_id: classSectionId || body.class_section_id,
-          exam_series_id: examSeriesId || body.exam_series_id,
-          score: score,
-          student_id: studentId || body.student_id,
-          subject_id: subjectId || body.subject_id,
+          academic_term_id: mark.academicTermId,
+          assessment_id: mark.assessmentId,
+          class_section_id: mark.classSectionId,
+          exam_series_id: mark.examSeriesId,
+          score: mark.score,
+          student_id: mark.studentId,
+          subject_id: mark.subjectId,
           tenant_id: tenantId,
-          remarks: remarks || '',
-          entered_by_user_id: '00000000-0000-0000-0000-000000000000',
-          updated_by_user_id: '00000000-0000-0000-0000-000000000000',
+          remarks: mark.remarks,
+          entered_by_user_id: store.user_id,
+          updated_by_user_id: store.user_id,
         }
       });
-      return { success: true, record };
-    } catch (e: any) {
-      console.error('academic.controller error:', e);
-      throw new InternalServerErrorException(e.message);
-    }
+    });
+    return { success: true, record };
   }
 }
-

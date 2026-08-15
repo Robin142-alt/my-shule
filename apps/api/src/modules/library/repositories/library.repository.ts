@@ -424,6 +424,36 @@ export class LibraryRepository {
       }))
     };
   }
+
+  async listCatalogItems(tenantId: string) {
+    const result = await this.executeSql(
+      `
+        SELECT
+          catalog.id::text,
+          catalog.title,
+          catalog.author,
+          catalog.isbn,
+          catalog.category AS subject,
+          COUNT(copy.id)::int AS total,
+          COUNT(copy.id) FILTER (WHERE copy.status = 'available')::int AS available
+        FROM library_catalog_items catalog
+        LEFT JOIN library_copies copy
+          ON copy.tenant_id = catalog.tenant_id
+         AND copy.catalog_item_id = catalog.id
+        WHERE catalog.tenant_id = $1
+        GROUP BY
+          catalog.id,
+          catalog.title,
+          catalog.author,
+          catalog.isbn,
+          catalog.category
+        ORDER BY catalog.title ASC, catalog.id ASC
+      `,
+      [tenantId],
+    );
+
+    return result.rows;
+  }
 }
 
 function normalizeLibraryListLimit(limit: number | undefined): number {

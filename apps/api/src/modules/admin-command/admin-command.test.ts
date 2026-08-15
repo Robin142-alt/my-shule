@@ -224,6 +224,58 @@ test('DeputyCommandRepository maps missing attendance relations to neutral label
   assert.equal(result.records[0].reason, 'Unexplained');
 });
 
+test('Principal and Deputy class dashboards share the active tenant class-section projection', async () => {
+  const principalQueries: Array<{ sql: string; params: unknown[] }> = [];
+  const principalRepository = new AdminCommandRepository({
+    query: async (sql: string, params: unknown[]) => {
+      principalQueries.push({ sql, params });
+      if (/FROM class_streams stream/.test(sql)) return { rows: [{ count: 3 }], rowCount: 1 };
+      if (/COUNT\(DISTINCT sca\.student_id\)/.test(sql)) {
+        return { rows: [{ label: 'Grade 9', value: 42 }], rowCount: 1 };
+      }
+      return { rows: [{ count: 2 }], rowCount: 1 };
+    },
+  } as never);
+  const deputyQueries: Array<{ sql: string; params: unknown[] }> = [];
+  const deputyRepository = new DeputyCommandRepository({
+    query: async (sql: string, params: unknown[]) => {
+      deputyQueries.push({ sql, params });
+      if (/SELECT\s+section\.id::text/.test(sql)) {
+        return {
+          rows: [{
+            id: 'class-1',
+            name: 'Grade 9',
+            classTeacher: 'Jane Wanjiku',
+            studentCount: 42,
+            status: 'Active',
+          }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [{ active_classes: 2 }], rowCount: 1 };
+    },
+  } as never);
+
+  const principal = await principalRepository.getClassesOverview('tenant-a');
+  const deputy = await deputyRepository.getClasses('tenant-a');
+
+  assert.equal(principal.totalClasses, 2);
+  assert.equal(principal.totalStreams, 3);
+  assert.equal(principal.averageClassSize, 21);
+  assert.equal(deputy.metrics.active_classes, 2);
+  assert.equal(deputy.classesList[0]?.id, 'class-1');
+  for (const query of [...principalQueries, ...deputyQueries]) {
+    assert.deepEqual(query.params, ['tenant-a']);
+    assert.match(query.sql, /tenant_id = \$1/);
+  }
+  const combinedSql = [...principalQueries, ...deputyQueries].map((query) => query.sql).join('\n');
+  assert.match(combinedSql, /COALESCE\(section\.is_active, TRUE\) = TRUE/);
+  assert.match(combinedSql, /COALESCE\(section\.status, 'active'\) = 'active'/);
+  assert.match(combinedSql, /section\.archived_at IS NULL/);
+  assert.match(combinedSql, /sca\.tenant_id = cs\.tenant_id/);
+  assert.doesNotMatch(combinedSql, /FROM classes WHERE/);
+});
+
 test('AdmissionsCommandService rejects unsupported application statuses before persistence and audit', async () => {
   let updateCalls = 0;
   let auditCalls = 0;

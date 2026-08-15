@@ -15,7 +15,57 @@ import { renderWithProviders } from "./test-utils";
 
 describe("curriculum-aware report cards", () => {
   function buildTestExamsData() {
-    return buildExamsModuleData({ role: "principal", schoolName: "Kisumu Boys" });
+    return buildExamsModuleData({
+      role: "principal",
+      schoolName: "Curriculum Test School",
+      seed: {
+        currentExam: "Test reporting period",
+        currentClass: "Test class",
+        reports: [
+          { id: "cbc-batch", className: "Grade 7 Hope", template: "CBC/CBE Competency Report", ready: 1, total: 1, status: "Ready", tone: "ok" },
+          { id: "hybrid-batch", className: "Grade 8 Unity", template: "Hybrid CBC + Marks", ready: 1, total: 2, status: "Incomplete", tone: "warning" },
+          { id: "legacy-batch", className: "Form 4 West", template: "Legacy 8-4-4/KCSE", ready: 1, total: 1, status: "Ready", tone: "ok" },
+        ],
+        marks: [
+          {
+            id: "test-mark",
+            admissionNumber: "TEST-002",
+            student: "Fixture Learner 2",
+            stream: "Unity",
+            gender: "",
+            scores: { mathematics: "75", english: "71", science: "73", kiswahili: "69" },
+            competency: "ME",
+            status: "Clean",
+          },
+        ],
+        competencies: [
+          { id: "test-competency", competency: "Communication", coverage: "Complete", status: "ME", evidence: "Test evidence", tone: "ok" },
+        ],
+      },
+    });
+  }
+
+  function buildTestReportCardGenerationRows(
+    reports: Parameters<typeof buildReportCardGenerationRows>[0],
+    options?: Parameters<typeof buildReportCardGenerationRows>[1],
+  ) {
+    return buildReportCardGenerationRows(reports, {
+      ...options,
+      learnersByReportId: Object.fromEntries(
+        reports.map((report, index) => [
+          report.id,
+          [
+            {
+              id: `${report.id}-learner`,
+              admissionNumber: `TEST-${String(index + 1).padStart(3, "0")}`,
+              learnerName: `Fixture Learner ${index + 1}`,
+              gradeForm: report.className,
+              stream: report.className.split(" ").at(-1) ?? "",
+            },
+          ],
+        ]),
+      ),
+    });
   }
 
   it("keeps the school direction CBC/CBE first and selects legacy only from class/report context", () => {
@@ -63,7 +113,7 @@ describe("curriculum-aware report cards", () => {
 
   it("builds generation rows for CBC, hybrid, and legacy class report modes", () => {
     const data = buildTestExamsData();
-    const rows = buildReportCardGenerationRows(data.reports);
+    const rows = buildTestReportCardGenerationRows(data.reports);
 
     expect(rows.map((row) => row.reportType)).toEqual(
       expect.arrayContaining(["CBC_CBE_COMPETENCY", "HYBRID_CBC_MARKS", "LEGACY_844_KCSE"]),
@@ -73,7 +123,7 @@ describe("curriculum-aware report cards", () => {
 
   it("uses school direction and explicit class settings instead of assuming Form 4 makes the whole school legacy", () => {
     const data = buildTestExamsData();
-    const pureCbcRows = buildReportCardGenerationRows(data.reports, {
+    const pureCbcRows = buildTestReportCardGenerationRows(data.reports, {
       settings: {
         ...curriculumSettings,
         schoolDefaultCurriculumDirection: "CBC_CBE",
@@ -86,7 +136,7 @@ describe("curriculum-aware report cards", () => {
     const formFourClass = data.reports.find((report) => report.className.includes("Form 4"));
     expect(formFourClass).toBeDefined();
 
-    const hybridRows = buildReportCardGenerationRows(data.reports, {
+    const hybridRows = buildTestReportCardGenerationRows(data.reports, {
       settings: {
         ...curriculumSettings,
         schoolDefaultCurriculumDirection: "HYBRID_TRANSITION",
@@ -101,7 +151,7 @@ describe("curriculum-aware report cards", () => {
 
   it("uses existing report batch template metadata before class-name fallback inference", () => {
     const data = buildTestExamsData();
-    const rows = buildReportCardGenerationRows(
+    const rows = buildTestReportCardGenerationRows(
       data.reports.map((report) =>
         report.className === "Grade 8 Unity"
           ? { ...report, template: "CBC/CBE Competency Report" }
@@ -122,7 +172,7 @@ describe("curriculum-aware report cards", () => {
 
   it("uses report default settings to decide whether CBC observations, marks supplements, and comments block generation", () => {
     const data = buildTestExamsData();
-    const rows = buildReportCardGenerationRows(data.reports, {
+    const rows = buildTestReportCardGenerationRows(data.reports, {
       settings: {
         ...curriculumSettings,
         allowMarksSupplement: false,
@@ -146,7 +196,7 @@ describe("curriculum-aware report cards", () => {
 
   it("does not render hybrid marks supplement when the school has disabled marks supplements", () => {
     const data = buildTestExamsData();
-    const rows = buildReportCardGenerationRows(data.reports, {
+    const rows = buildTestReportCardGenerationRows(data.reports, {
       settings: {
         ...curriculumSettings,
         allowMarksSupplement: false,
@@ -178,7 +228,7 @@ describe("curriculum-aware report cards", () => {
 
   it("renders CBC reports without marks tables and renders legacy as a class/report format", () => {
     const data = buildTestExamsData();
-    const rows = buildReportCardGenerationRows(data.reports);
+    const rows = buildTestReportCardGenerationRows(data.reports);
     const cbcRow = rows.find((row) => row.reportType === "CBC_CBE_COMPETENCY");
     const legacyRow = rows.find((row) => row.reportType === "LEGACY_844_KCSE");
 
@@ -204,7 +254,7 @@ describe("curriculum-aware report cards", () => {
 
   it("keeps legacy previews free of CBC-only sections while hybrid previews include both competency and marks sections", () => {
     const data = buildTestExamsData();
-    const rows = buildReportCardGenerationRows(data.reports);
+    const rows = buildTestReportCardGenerationRows(data.reports);
     const hybridRow = rows.find((row) => row.reportType === "HYBRID_CBC_MARKS");
     const legacyRow = rows.find((row) => row.reportType === "LEGACY_844_KCSE");
 

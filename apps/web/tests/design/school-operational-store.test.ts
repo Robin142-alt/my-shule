@@ -4,6 +4,8 @@ import {
   addSchoolRecord,
   createNotification,
   getSchoolScopedStorageKey,
+  getCurrentSchoolId,
+  mergeSchoolRecordsById,
   publishSchoolOperationalEvent,
   publishSchoolOperationalEventAndSync,
   readSchoolData,
@@ -30,6 +32,23 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
 describe("school operational store", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("does not infer a tenant from mutable browser state or promote local rows as confirmed data", () => {
+    window.localStorage.setItem("myshule.currentSchoolId", "school-from-browser");
+    window.history.replaceState({}, "", "/school/school-from-route/timetable");
+
+    expect(getCurrentSchoolId()).toBe("");
+    expect(getCurrentSchoolId(" school-a ")).toBe("school-a");
+    expect(readSchoolData("finance-payments")).toEqual([]);
+    expect(() => addSchoolRecord("finance-payments", { id: "unscoped-row" })).toThrow(
+      /tenant isolation violation/i,
+    );
+    expect(mergeSchoolRecordsById(
+      [{ id: "server-1", status: "confirmed" }],
+      [{ id: "local-1", status: "pending" }],
+    )).toEqual([{ id: "server-1", status: "confirmed" }]);
   });
 
   it("keeps school records isolated by school-scoped storage keys", () => {

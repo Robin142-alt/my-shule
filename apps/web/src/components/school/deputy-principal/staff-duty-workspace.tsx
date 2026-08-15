@@ -2,8 +2,7 @@
 import { useState } from "react";
 import { UsersRound } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
-import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
-import { useQueryClient } from "@tanstack/react-query";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { toast } from "sonner";
 import { requestDutyReport, manageDutyRoster } from "./api-client";
 
@@ -24,27 +23,18 @@ type StaffDutyData = {
 };
 
 export function DeputyStaffDutyWorkspace() {
-  const queryClient = useQueryClient();
   const { data, isLoading, refetch } = useSchoolQuery<StaffDutyData>('/admin-command/deputy/staff-duty');
 
   const [showManageModal, setShowManageModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [rosterData, setRosterData] = useState({ staffName: '', dutyArea: '', time: '' });
 
-  const requestMutation = useSchoolMutation<{ id: string }, { id: string }>(
-    ({ id }) => `/admin-command/deputy/staff-duty/${id}/request-report`,
-    'POST',
-    {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/staff-duty'] })
-    }
-  );
-
   const duties = data?.duties || [];
 
   const handleRequestReport = async (id: string, staffName: string) => {
     try {
       await requestDutyReport(id);
-      queryClient.invalidateQueries({ queryKey: ["school", "session", '/admin-command/deputy/staff-duty'] });
+      await refetch();
       toast.success(`Report requested from ${staffName}.`);
     } catch (e: any) {
       toast.error(e.message || "Failed to request report.");

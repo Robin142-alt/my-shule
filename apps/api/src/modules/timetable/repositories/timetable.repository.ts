@@ -25,6 +25,7 @@ export interface TimetableReferenceValidation {
   academic_year: boolean;
   term: boolean;
   class_section: boolean;
+  stream: boolean;
   subject: boolean;
   teacher: boolean;
   teacher_assignment: boolean;
@@ -67,6 +68,8 @@ export class TimetableRepository {
           EXISTS (
             SELECT 1 FROM academic_years year
             WHERE year.tenant_id = $1 AND year.name = $2
+              AND COALESCE(year.status, 'active') = 'active'
+              AND year.archived_at IS NULL
           ) AS academic_year,
           EXISTS (
             SELECT 1
@@ -74,14 +77,46 @@ export class TimetableRepository {
             JOIN academic_years year
               ON year.tenant_id = term.tenant_id AND year.id = term.academic_year_id
             WHERE term.tenant_id = $1 AND year.name = $2 AND term.name = $3
+              AND COALESCE(year.status, 'active') = 'active'
+              AND year.archived_at IS NULL
+              AND COALESCE(term.status, 'active') = 'active'
+              AND term.archived_at IS NULL
           ) AS term,
           EXISTS (
-            SELECT 1 FROM class_sections section
-            WHERE section.tenant_id = $1 AND section.id = $4::uuid
+            SELECT 1
+            FROM class_sections section
+            JOIN academic_years year
+              ON year.tenant_id = section.tenant_id
+             AND year.id::text = section.academic_year_id::text
+            WHERE section.tenant_id = $1 AND section.id::text = $4
+              AND year.name = $2
+              AND COALESCE(section.is_active, TRUE) = TRUE
+              AND COALESCE(section.status, 'active') = 'active'
+              AND section.archived_at IS NULL
           ) AS class_section,
+          ($7::text IS NULL OR EXISTS (
+            SELECT 1
+            FROM class_streams stream
+            JOIN class_sections section
+              ON section.tenant_id = stream.tenant_id
+             AND section.id::text = stream.class_section_id::text
+            JOIN academic_years year
+              ON year.tenant_id = section.tenant_id
+             AND year.id::text = section.academic_year_id::text
+            WHERE stream.tenant_id = $1
+              AND stream.id::text = $7
+              AND stream.class_section_id::text = $4
+              AND year.name = $2
+              AND COALESCE(stream.is_active, TRUE) = TRUE
+              AND COALESCE(stream.status, 'active') = 'active'
+              AND stream.archived_at IS NULL
+              AND COALESCE(section.is_active, TRUE) = TRUE
+              AND COALESCE(section.status, 'active') = 'active'
+              AND section.archived_at IS NULL
+          )) AS stream,
           EXISTS (
             SELECT 1 FROM subjects subject
-            WHERE subject.tenant_id = $1 AND subject.id = $5::uuid
+            WHERE subject.tenant_id = $1 AND subject.id::text = $5
           ) AS subject,
           EXISTS (
             SELECT 1 FROM staff_profiles staff
@@ -99,9 +134,9 @@ export class TimetableRepository {
             WHERE assignment.tenant_id = $1
               AND year.name = $2
               AND term.name = $3
-              AND assignment.class_section_id = $4::uuid
-              AND assignment.subject_id = $5::uuid
-              AND assignment.teacher_user_id = $6::uuid
+              AND assignment.class_section_id::text = $4
+              AND assignment.subject_id::text = $5
+              AND assignment.teacher_user_id::text = $6
               AND assignment.status = 'active'
           ) AS teacher_assignment
       `,
@@ -112,6 +147,7 @@ export class TimetableRepository {
         input.class_section_id,
         input.subject_id,
         input.teacher_id,
+        input.stream_id ?? null,
       ],
     );
 
@@ -119,6 +155,7 @@ export class TimetableRepository {
       academic_year: false,
       term: false,
       class_section: false,
+      stream: false,
       subject: false,
       teacher: false,
       teacher_assignment: false,

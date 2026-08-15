@@ -153,21 +153,21 @@ const sectionCopy: Record<
 };
 
 const initialBorrowForm: BorrowFormState = {
-  memberId: "member-sh-24011",
-  bookId: "book-math-g7",
-  dueDate: "2026-05-21",
+  memberId: "",
+  bookId: "",
+  dueDate: "",
 };
 
 const initialReturnForm: ReturnFormState = {
-  borrowingId: "borrow-overdue-blossoms",
+  borrowingId: "",
   condition: "good",
-  returnedAt: "2026-05-07",
+  returnedAt: "",
   notes: "",
 };
 
 const reportFilterDefaults: ReportFilters = {
-  dateFrom: "2026-05-01",
-  dateTo: "2026-05-07",
+  dateFrom: "",
+  dateTo: "",
   category: "",
   member: "",
   status: "",
@@ -661,14 +661,18 @@ function ReceiptPreview({
 
 export function LibraryWorkspace({
   section,
-  userLabel = "Librarian Amani Prep",
-  tenantSlug = "amani-prep",
+  userLabel = "Authenticated librarian",
+  tenantSlug = "",
+  initialDataset,
 }: {
   section: LibrarySectionId;
   userLabel?: string;
   tenantSlug?: string;
+  initialDataset?: LibraryDataset;
 }) {
-  const [dataset, setDataset] = useState<LibraryDataset>(() => createLibraryDataset());
+  const [dataset, setDataset] = useState<LibraryDataset>(() =>
+    initialDataset ?? createLibraryDataset(),
+  );
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [availabilityFilter, setAvailabilityFilter] = useState("");
@@ -1358,7 +1362,9 @@ export function LibraryWorkspace({
               </div>
               <div>
                 <p className="text-[13px] font-semibold">School Library</p>
-                <p className="font-mono text-[11px] text-slate-400">{tenantSlug}</p>
+                <p className="font-mono text-[11px] text-slate-400">
+                  {tenantSlug || "Tenant session required"}
+                </p>
               </div>
             </div>
             <div className="mt-4 rounded-[var(--radius-sm)] border border-slate-800 bg-slate-900/80 px-3 py-2">

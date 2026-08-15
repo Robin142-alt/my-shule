@@ -1,71 +1,65 @@
-const API_BASE_URL = '/api'; // Adjust if needed
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
-async function fetchWithTenant(url: string, options: RequestInit = {}) {
-  // In a real app, this tenantId would be retrieved from auth state/context
-  const tenantId = localStorage.getItem('tenantId') || '';
-  const token = localStorage.getItem('token') || '';
-  const method = (options.method ?? 'GET').toUpperCase();
+type DashboardPayload = Record<string, unknown>;
 
-  if (!tenantId && !token && method === 'GET' && isPassiveDashboardRead(url)) {
-    return [];
-  }
-
-  const headers = new Headers(options.headers || {});
-  if (tenantId) headers.set('x-tenant-id', tenantId);
-  if (token) headers.set('Authorization', `Bearer ${token}`);
-  if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
-
-  const response = await fetch(`${API_BASE_URL}${url}`, {
-    ...options,
-    headers,
-  });
-
-  if (!response || typeof response.ok !== 'boolean') {
-    throw new Error('Dashboard API did not return a valid response.');
-  }
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => null);
-    throw new Error(errorData?.message || 'API Request Failed');
-  }
-
-  return response.json();
+function encodePathSegment(value: string) {
+  return encodeURIComponent(value);
 }
 
-function isPassiveDashboardRead(url: string) {
-  return url === '/tasks'
-    || url === '/approvals'
-    || url === '/notifications'
-    || url.startsWith('/dashboard/feed')
-    || url.startsWith('/dashboard/summary');
+function requestSessionApi<T>(
+  path: string,
+  method: "GET" | "POST" | "PATCH" = "GET",
+  body?: DashboardPayload,
+) {
+  return requestDashboardApi<T>(path, {
+    method,
+    ...(body ? { body } : {}),
+  });
+}
+
+function notificationPath(status?: string) {
+  const normalizedStatus = status?.trim();
+  return normalizedStatus
+    ? `/api/v1/notifications?status=${encodeURIComponent(normalizedStatus)}`
+    : "/api/v1/notifications";
 }
 
 export const DashboardApi = {
-  // Feed
-  getFeed: (role: string, limit = 20, offset = 0) => 
-    fetchWithTenant(`/dashboard/feed?role=${role}&limit=${limit}&offset=${offset}`),
-  
-  getSummary: (role: string) => 
-    fetchWithTenant(`/dashboard/summary?role=${role}`),
+  getFeed: (role: string, limit = 20, offset = 0) =>
+    requestSessionApi<unknown[]>(
+      `/api/dashboard/feed?role=${encodeURIComponent(role)}&limit=${limit}&offset=${offset}`,
+    ),
 
-  // Notifications
-  getNotifications: () => fetchWithTenant('/notifications'),
-  markNotificationRead: (id: string) => fetchWithTenant(`/notifications/${id}/read`, { method: 'PATCH' }),
+  getSummary: (role: string) =>
+    requestSessionApi<unknown>(`/api/dashboard/summary?role=${encodeURIComponent(role)}`),
 
-  // Tasks
-  getTasks: () => fetchWithTenant('/tasks'),
-  createTask: (data: any) => fetchWithTenant('/tasks', { method: 'POST', body: JSON.stringify(data) }),
-  completeTask: (id: string) => fetchWithTenant(`/tasks/${id}/complete`, { method: 'PATCH' }),
-  assignTask: (id: string, userId: string) => fetchWithTenant(`/tasks/${id}/assign`, { method: 'PATCH', body: JSON.stringify({ userId }) }),
+  getNotifications: (status?: string) =>
+    requestSessionApi<unknown>(notificationPath(status)),
+  getNotificationBadges: () =>
+    requestSessionApi<unknown>("/api/v1/notifications/badges"),
+  markNotificationRead: (id: string) =>
+    requestSessionApi<unknown>(`/api/v1/notifications/${encodePathSegment(id)}/read`, "PATCH"),
+  markAllNotificationsRead: () =>
+    requestSessionApi<unknown>("/api/v1/notifications/read-all", "PATCH"),
 
-  // Approvals
-  getApprovals: () => fetchWithTenant('/approvals'),
-  createApproval: (data: any) => fetchWithTenant('/approvals', { method: 'POST', body: JSON.stringify(data) }),
-  approveRequest: (id: string, userId: string, comment?: string) => 
-    fetchWithTenant(`/approvals/${id}/approve`, { method: 'POST', body: JSON.stringify({ userId, comment }) }),
-  rejectRequest: (id: string, userId: string, reason?: string) => 
-    fetchWithTenant(`/approvals/${id}/reject`, { method: 'POST', body: JSON.stringify({ userId, reason }) }),
+  getTasks: () => requestSessionApi<unknown>("/api/tasks"),
+  createTask: (data: DashboardPayload) => requestSessionApi<unknown>("/api/tasks", "POST", data),
+  completeTask: (id: string) =>
+    requestSessionApi<unknown>(`/api/tasks/${encodePathSegment(id)}/complete`, "PATCH"),
+  assignTask: (id: string, userId: string) =>
+    requestSessionApi<unknown>(`/api/tasks/${encodePathSegment(id)}/assign`, "PATCH", { userId }),
 
-  // Workflow Events
-  createEvent: (data: any) => fetchWithTenant('/workflow/events', { method: 'POST', body: JSON.stringify(data) }),
+  getApprovals: () => requestSessionApi<unknown>("/api/approvals"),
+  createApproval: (data: DashboardPayload) => requestSessionApi<unknown>("/api/approvals", "POST", data),
+  approveRequest: (id: string, comment?: string) =>
+    requestSessionApi<unknown>(`/api/approvals/${encodePathSegment(id)}/approve`, "POST", {
+      ...(comment ? { comment } : {}),
+    }),
+  rejectRequest: (id: string, reason: string) =>
+    requestSessionApi<unknown>(`/api/approvals/${encodePathSegment(id)}/reject`, "POST", {
+      reason,
+    }),
+
+  createEvent: (data: DashboardPayload) =>
+    requestSessionApi<unknown>("/api/workflow/events", "POST", data),
 };

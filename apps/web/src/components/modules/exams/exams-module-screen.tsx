@@ -36,7 +36,7 @@ import {
   ReportCardVerificationStrip,
 } from "@/components/report-cards/report-card-document";
 import { StatusPill } from "@/components/ui/status-pill";
-import { Tabs } from "@/components/ui/tabs";
+import { Tabs, type TabItem } from "@/components/ui/tabs";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import {
   downloadCsvFile,
@@ -47,6 +47,7 @@ import type { StatusTone } from "@/lib/dashboard/types";
 import {
   buildExamsModuleData,
   calculateMarksSummary,
+  resolveExamsAccessPolicy,
   validateExamScore,
   type ApprovalStep,
   type CbcCompetencyRow,
@@ -54,7 +55,9 @@ import {
   type ExamAllocationRow,
   type ExamAuditEntry,
   type ExamMarkRow,
+  type ExamsAccessPolicy,
   type ExamsModuleData,
+  type ExamsModuleDataSeed,
   type ExamPublishingItem,
   type ExamScoreField,
   type ExamScoreFieldId,
@@ -70,7 +73,9 @@ import {
   generateReportCardLive,
   lockExamMarkSheetLive,
   mapLiveReportCardToPreview,
+  publishLiveExamSeries,
   publishReportCardLive,
+  transitionLiveReportCard,
   fetchExamsAnalyticsLive,
   type ExamMarkSheetView,
   type ExamReportCardPreview,
@@ -117,9 +122,10 @@ export interface ExamTeachingAssignment {
   schoolId: string;
   academicYear: string;
   term: string;
+  learners?: ExamEntryLearnerRow[];
 }
 
-interface ExamEntryLearnerRow {
+export interface ExamEntryLearnerRow {
   id: string;
   admissionNumber: string;
   learnerName: string;
@@ -144,118 +150,8 @@ function getAssignmentTone(status: ExamEntryStatus, missingMarks: number, invali
   return "ok";
 }
 
-function buildDefaultTeachingAssignments({
-  role,
-  schoolId,
-}: {
-  role: SchoolExperienceRole;
-  schoolId: string;
-}): ExamTeachingAssignment[] {
-  if (role !== "teacher") {
-    return [];
-  }
-
-  return [
-    {
-      id: "teacher-maths-g8-unity",
-      exam: "Term 2 Mid-term CAT",
-      className: "Grade 8",
-      stream: "Unity",
-      subject: "Mathematics",
-      curriculum: "CBC",
-      deadline: "24 May, 4:00 PM",
-      status: "Draft",
-      missingMarks: 1,
-      invalidMarks: 1,
-      lastSaved: "3 minutes ago",
-      teacherName: "Assigned teacher",
-      schoolId,
-      academicYear: "2026",
-      term: "Term 2",
-    },
-  ];
-}
-
 function buildAssignmentLearners(assignment: ExamTeachingAssignment): ExamEntryLearnerRow[] {
-  if (assignment.curriculum === "8-4-4") {
-    return [
-      {
-        id: `${assignment.id}-learner-1`,
-        admissionNumber: "ADM-2026-401",
-        learnerName: "Linet Auma",
-        paper1: "76",
-        paper2: "72",
-        practical: "18",
-        scoreLevel: "",
-        competency: "",
-        teacherComment: "Strong practical work.",
-        status: "Complete",
-      },
-      {
-        id: `${assignment.id}-learner-2`,
-        admissionNumber: "ADM-2026-402",
-        learnerName: "Peter Mwangi",
-        paper1: "",
-        paper2: "68",
-        practical: "15",
-        scoreLevel: "",
-        competency: "",
-        teacherComment: "Paper 1 still missing.",
-        status: "Missing",
-      },
-      {
-        id: `${assignment.id}-learner-3`,
-        admissionNumber: "ADM-2026-403",
-        learnerName: "Nadia Hassan",
-        paper1: "82",
-        paper2: "79",
-        practical: "20",
-        scoreLevel: "",
-        competency: "",
-        teacherComment: "Consistent mastery.",
-        status: "Complete",
-      },
-    ];
-  }
-
-  return [
-    {
-      id: `${assignment.id}-learner-1`,
-      admissionNumber: "ADM-2025-001",
-      learnerName: "Aisha Njeri",
-      paper1: "",
-      paper2: "",
-      practical: "",
-      scoreLevel: "EE",
-      competency: "Number operations",
-      teacherComment: "Confident with applied tasks.",
-      status: "Complete",
-    },
-    {
-      id: `${assignment.id}-learner-2`,
-      admissionNumber: "ADM-2025-004",
-      learnerName: "Daniel Mutua",
-      paper1: "",
-      paper2: "",
-      practical: "",
-      scoreLevel: "",
-      competency: "Measurement",
-      teacherComment: "Evidence pending.",
-      status: "Missing",
-    },
-    {
-      id: `${assignment.id}-learner-3`,
-      admissionNumber: "ADM-2025-005",
-      learnerName: "Eunice Achieng",
-      paper1: "",
-      paper2: "",
-      practical: "",
-      scoreLevel: "ME",
-      competency: "Patterns",
-      teacherComment: "Needs moderation on outlier task.",
-      status: "Invalid",
-    },
-  ];
+  return assignment.learners?.map((learner) => ({ ...learner })) ?? [];
 }
 
 function getAssignmentScope(assignment: ExamTeachingAssignment) {
@@ -333,6 +229,7 @@ function PageIntro({
   currentClass,
   saveState,
   hasAssignedTeacherEntry,
+  canGenerateReports,
   onContinueMarksEntry,
   onImportSpreadsheet,
   onGenerateReports,
@@ -342,10 +239,14 @@ function PageIntro({
   currentClass: string;
   saveState: SaveState;
   hasAssignedTeacherEntry: boolean;
+  canGenerateReports: boolean;
   onContinueMarksEntry?: () => void;
   onImportSpreadsheet?: () => void;
   onGenerateReports?: () => void;
 }) {
+  const hasExamContext =
+    currentExam !== "No exam selected" && currentClass !== "No class selected";
+
   return (
     <section className="overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-[0_18px_50px_rgba(2,6,23,0.24)]">
       <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -355,16 +256,16 @@ function PageIntro({
               label={saveState === "synced" ? "Autosave ready" : getSaveLabel(saveState)}
               tone={saveState === "saving" ? "pending" : "synced"}
             />
-            <span className="badge badge-info">Draft recovered locally</span>
+            <span className="badge badge-info">Tenant-isolated drafts</span>
             <span className="badge badge-neutral">School protected</span>
           </div>
           <h2 className="mt-4 text-2xl font-bold leading-tight text-foreground md:text-3xl">
             Exams & Results command center
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-            {schoolName} is running {currentExam} for {currentClass}. Marks, moderation,
-            approvals, parent PDFs, publishing controls, and trace records stay in one fast
-            academic operations surface.
+            {hasExamContext
+              ? `${schoolName} is running ${currentExam} for ${currentClass}. Marks, moderation, approvals, parent PDFs, publishing controls, and trace records stay in one academic operations surface.`
+              : `No active exam or class has been returned for ${schoolName || "this school"}. Connect the live school session or configure an exam before entering results.`}
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
             {hasAssignedTeacherEntry ? (
@@ -379,10 +280,17 @@ function PageIntro({
                 </Button>
               </>
             ) : null}
-            <Button variant="secondary" size="lg" onClick={onGenerateReports}>
-              <FileDown className="h-4 w-4" />
-              Generate reports
-            </Button>
+            {canGenerateReports ? (
+              <Button
+                variant="secondary"
+                size="lg"
+                onClick={onGenerateReports}
+                disabled={!hasExamContext}
+              >
+                <FileDown className="h-4 w-4" />
+                Print operations report
+              </Button>
+            ) : null}
           </div>
         </div>
         <div className="border-t border-border bg-surface-muted px-5 py-5 xl:border-l xl:border-t-0">
@@ -442,7 +350,18 @@ function MyExamEntryPanel({
     : assignments;
 
   if (assignments.length === 0) {
-    return null;
+    return (
+      <Card className="p-5">
+        <p className="eyebrow">Assigned teaching workload</p>
+        <h3 className="mt-2 section-title text-lg">My Exam Entry</h3>
+        <div className="mt-4 rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-5">
+          <p className="text-sm font-semibold text-foreground">No assigned exam entries loaded</p>
+          <p className="mt-1 text-[13px] leading-5 text-muted">
+            Teaching assignments and learner marksheets appear only after the live school service returns records for this user and tenant.
+          </p>
+        </div>
+      </Card>
+    );
   }
 
   const counts = [
@@ -608,7 +527,7 @@ function ExamEntryMarksheetPanel({
       )
     : rows;
   const blockingRows = rows.filter((row) => row.status === "Missing" || row.status === "Invalid");
-  const submitBlocked = !assignment || blockingRows.length > 0;
+  const submitBlocked = !assignment || rows.length === 0 || blockingRows.length > 0;
 
   async function submitMarks() {
     if (!assignment || submitBlocked) {
@@ -683,7 +602,9 @@ function ExamEntryMarksheetPanel({
 
         {submitBlocked ? (
           <div className="mt-3 rounded-[var(--radius-sm)] border border-warning/20 bg-warning-soft px-4 py-3 text-sm font-semibold text-warning">
-            Resolve missing marks before submitting. {blockingRows.length} learner record{blockingRows.length === 1 ? "" : "s"} still need review.
+            {rows.length === 0
+              ? "No tenant-scoped learner records were returned for this assignment."
+              : `Resolve missing marks before submitting. ${blockingRows.length} learner record${blockingRows.length === 1 ? "" : "s"} still need review.`}
           </div>
         ) : null}
       </div>
@@ -860,9 +781,17 @@ function DashboardPanel({
             <p className="eyebrow">Operational dashboard</p>
             <h3 className="mt-2 section-title text-lg">Submission pressure and moderation queues</h3>
           </div>
-          <StatusPill label="Live exam window" tone="ok" />
+          <StatusPill
+            label={data.queues.length > 0 ? "Live exam data" : "Awaiting live data"}
+            tone={data.queues.length > 0 ? "ok" : "warning"}
+          />
         </div>
         <div className="mt-5 space-y-4">
+          {data.queues.length === 0 ? (
+            <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-5 text-sm text-muted">
+              No tenant-scoped submission or moderation queues have been returned.
+            </div>
+          ) : null}
           {data.queues.map((queue) => (
             <div key={queue.id} className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -887,27 +816,36 @@ function DashboardPanel({
         <Card className="p-5">
           <p className="eyebrow">Teacher quick access</p>
           <div className="mt-4 space-y-3">
-            {["Grade 8 Unity - Mathematics", "Grade 7 Hope - English", "Grade 9 Courage - Science"].map((item) => (
-              <button
-                key={item}
-                type="button"
-                className="flex w-full items-center justify-between rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 py-2.5 text-left text-sm font-semibold text-foreground transition hover:border-info/30 hover:bg-info-soft/50"
+            {data.allocations.length === 0 ? (
+              <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 py-4 text-sm text-muted">
+                No tenant-scoped teaching allocations have been returned.
+              </div>
+            ) : null}
+            {data.allocations.map((allocation) => (
+              <div
+                key={allocation.id}
+                className="flex w-full items-center justify-between rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 py-2.5 text-left text-sm font-semibold text-foreground"
               >
-                {item}
+                {allocation.className} - {allocation.subject}
                 <BookOpenCheck className="h-4 w-4 text-muted" />
-              </button>
+              </div>
             ))}
           </div>
         </Card>
         <Card className="p-5">
           <p className="eyebrow">Smart alerts</p>
           <div className="mt-4 space-y-3 text-sm">
-            <div className="rounded-[var(--radius-sm)] border border-warning/20 bg-warning-soft px-3 py-2 text-warning">
-              7 missing cells need review before HOD approval.
-            </div>
-            <div className="rounded-[var(--radius-sm)] border border-info/20 bg-info-soft px-3 py-2 text-info">
-              Science practical mean is 6.2 points above historical trend.
-            </div>
+            {data.queues.length === 0 ? (
+              <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 py-3 text-muted">
+                No live exam alerts are available.
+              </div>
+            ) : (
+              data.queues.map((queue) => (
+                <div key={queue.id} className="rounded-[var(--radius-sm)] border border-warning/20 bg-warning-soft px-3 py-2 text-warning">
+                  {queue.title}: {queue.subtitle}
+                </div>
+              ))
+            )}
           </div>
         </Card>
       </div>
@@ -962,6 +900,7 @@ function MarksEntryGrid({
   const marksLocked = submissionState === "submitted";
   const outlierCount = rows.filter((row) => row.status === "Outlier").length;
   const submissionBlocked =
+    rows.length === 0 ||
     marksSummary.missingScores > 0 ||
     marksSummary.invalidScores > 0 ||
     outlierCount > 0;
@@ -1096,7 +1035,7 @@ function MarksEntryGrid({
 
   function exportMarks() {
     downloadCsvFile({
-      filename: "exam-marks-grade-8-unity.csv",
+      filename: "exam-marks.csv",
       headers: ["Admission", "Student", "Class", ...fields.map((field) => field.label), "Status"],
       rows: rows.map((row) => [
         row.admissionNumber,
@@ -1124,7 +1063,7 @@ function MarksEntryGrid({
             <p className="eyebrow">Results entry</p>
             <h3 className="mt-2 section-title text-lg">Spreadsheet marks entry</h3>
             <p className="mt-1 text-[13px] leading-5 text-muted">
-              Grade 8 Unity, Mathematics department view with live validation and class intelligence.
+              Only learner records returned for the authenticated school and assigned marksheet are shown here.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1403,9 +1342,15 @@ function AllocationPanel({
           Teachers only see assigned subjects and classes. HOD reviewers can reopen submitted sheets with reasons and timestamps.
         </p>
         <div className="mt-4 space-y-2 text-[13px] text-muted-strong">
-          <p className="rounded-[var(--radius-sm)] bg-surface-muted px-3 py-2">3 active departments</p>
-          <p className="rounded-[var(--radius-sm)] bg-surface-muted px-3 py-2">136 learners covered</p>
-          <p className="rounded-[var(--radius-sm)] bg-surface-muted px-3 py-2">No cross-school allocations</p>
+          <p className="rounded-[var(--radius-sm)] bg-surface-muted px-3 py-2">
+            {allocations.length} tenant-scoped allocations returned
+          </p>
+          <p className="rounded-[var(--radius-sm)] bg-surface-muted px-3 py-2">
+            {allocations.reduce((total, allocation) => total + allocation.learners, 0)} learners covered
+          </p>
+          <p className="rounded-[var(--radius-sm)] bg-surface-muted px-3 py-2">
+            School boundary is enforced by the live API
+          </p>
         </div>
       </Card>
     </div>
@@ -1416,10 +1361,10 @@ function BulkUploadPanel() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const uploadChecks: Array<[string, string, StatusTone]> = [
-    ["Template match", "Grade 8 Unity template recognized", "ok"],
-    ["Duplicate guard", "2 duplicate admission numbers blocked", "warning"],
-    ["School boundary", "Upload scoped to Baraka Academy only", "ok"],
-    ["Partial recovery", "Last interrupted import can resume", "ok"],
+    ["Template match", selectedFileName ? "Ready for live validation" : "Awaiting a selected file", "warning"],
+    ["Duplicate guard", "Runs before any school record is written", "warning"],
+    ["School boundary", "Requires the authenticated tenant context", "warning"],
+    ["Partial recovery", "Available only after the server creates an import batch", "warning"],
   ];
 
   return (
@@ -1509,30 +1454,9 @@ function ModerationPanel({
 
 function ApprovalPanel({
   approvals,
-  submissionState,
-  reopenReason,
-  onReopen,
 }: {
   approvals: ApprovalStep[];
-  submissionState: SubmissionState;
-  reopenReason: string;
-  onReopen: (reason: string) => void;
 }) {
-  const [showReopenForm, setShowReopenForm] = useState(false);
-  const [reason, setReason] = useState("");
-
-  function handleReopen() {
-    const trimmedReason = reason.trim();
-
-    if (!trimmedReason) {
-      return;
-    }
-
-    onReopen(trimmedReason);
-    setReason("");
-    setShowReopenForm(false);
-  }
-
   return (
     <Card className="p-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -1540,56 +1464,20 @@ function ApprovalPanel({
           <p className="eyebrow">Approval workflow</p>
           <h3 className="mt-2 section-title text-lg">Teacher to publishing governance</h3>
         </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => setShowReopenForm((current) => !current)}
-        >
-          Reopen with reason
-        </Button>
+        <span className="rounded-full border border-border bg-surface-muted px-3 py-1 text-[12px] font-semibold text-muted">
+          Read-only projection
+        </span>
       </div>
-      <div
-        aria-live="polite"
-        className={`mt-5 rounded-[var(--radius-sm)] border px-4 py-3 text-sm font-semibold ${
-          submissionState === "submitted"
-            ? "border-info/20 bg-info-soft text-info"
-            : submissionState === "reopened"
-              ? "border-warning/20 bg-warning-soft text-warning"
-              : "border-border bg-surface-muted text-muted-strong"
-        }`}
-      >
-        {getSubmissionMessage(submissionState)}
-        {reopenReason ? (
-          <p className="mt-1 text-[13px] font-normal leading-5">
-            Reopen reason: {reopenReason}
-          </p>
-        ) : null}
-      </div>
-      {showReopenForm ? (
-        <div className="mt-4 rounded-[var(--radius-sm)] border border-border bg-surface-muted p-4">
-          <label className="space-y-2 text-sm text-foreground">
-            <span className="font-semibold">Reopening reason</span>
-            <textarea
-              aria-label="Reopening reason"
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              className="input-base min-h-24"
-              placeholder="Explain why marks need to be reopened before approval."
-            />
-          </label>
-          <div className="mt-3 flex justify-end">
-            <Button
-              size="sm"
-              onClick={handleReopen}
-              disabled={!reason.trim()}
-            >
-              Reopen marks
-            </Button>
-          </div>
+      <p className="mt-4 text-sm leading-6 text-muted">
+        Report-card decisions use the authoritative live workflow in the Report cards tab. Mark corrections require a selected live moderation record and audited reason.
+      </p>
+      {approvals.length === 0 ? (
+        <div className="mt-5 rounded-[var(--radius-sm)] border border-dashed border-border bg-surface-muted px-4 py-5 text-sm text-muted">
+          No tenant-authoritative approval steps were returned.
         </div>
-      ) : null}
-      <div className="mt-5 grid gap-4 xl:grid-cols-4">
-        {approvals.map((step, index) => (
+      ) : (
+        <div className="mt-5 grid gap-4 xl:grid-cols-4">
+          {approvals.map((step, index) => (
           <div key={step.id} className="relative rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-4">
             <div className="flex items-start justify-between gap-3">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-muted text-sm font-bold text-foreground">
@@ -1602,8 +1490,9 @@ function ApprovalPanel({
             <p className="mt-3 text-[13px] leading-5 text-muted">{step.note}</p>
             <p className="mt-3 text-[12px] font-semibold text-muted-strong">{step.timestamp}</p>
           </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }
@@ -1638,7 +1527,126 @@ function getReportCardStatusTone(status: ReportCardStatus): StatusTone {
   return "warning";
 }
 
-function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
+type LiveReportCardWorkflowAction = "submit" | "approve" | "publish";
+
+function getLiveReportCardAction(
+  card: ExamReportCardPreview,
+  access: ExamsAccessPolicy,
+): { action: LiveReportCardWorkflowAction; label: string } | null {
+  const status = card.status.trim().toLowerCase();
+
+  if (
+    access.canSubmitReportCards
+    && ["draft", "draft_generated", "regeneration_required"].includes(status)
+  ) {
+    return { action: "submit", label: "Submit for Dean review" };
+  }
+
+  if (access.canApproveReportCards && status === "under_review") {
+    return { action: "approve", label: "Approve report card" };
+  }
+
+  if (access.canPublishReportCards && status === "approved") {
+    return { action: "publish", label: "Publish report card" };
+  }
+
+  return null;
+}
+
+function LiveReportCardWorkflow({
+  cards,
+  access,
+  isLiveMode,
+  activeActionId,
+  feedback,
+  onTransition,
+}: {
+  cards: ExamReportCardPreview[];
+  access: ExamsAccessPolicy;
+  isLiveMode: boolean;
+  activeActionId: string | null;
+  feedback: { message: string; tone: StatusTone } | null;
+  onTransition: (card: ExamReportCardPreview, action: LiveReportCardWorkflowAction) => void;
+}) {
+  return (
+    <Card className="p-5">
+      <div>
+        <p className="eyebrow">Authoritative workflow</p>
+        <h3 className="mt-2 section-title text-lg">Live report-card approvals and publishing</h3>
+        <p className="mt-1 text-[13px] leading-5 text-muted">
+          Status changes are submitted to the tenant-scoped Exams API and appear here only from live report-card records.
+        </p>
+      </div>
+      {feedback ? (
+        <div
+          role={feedback.tone === "critical" ? "alert" : "status"}
+          className={`mt-4 rounded-[var(--radius-sm)] border px-4 py-3 text-sm font-semibold ${toneClasses[feedback.tone]}`}
+        >
+          {feedback.message}
+        </div>
+      ) : null}
+      {cards.length === 0 ? (
+        <div className="mt-4 rounded-[var(--radius-sm)] border border-dashed border-border bg-surface-muted px-4 py-5 text-sm text-muted">
+          No tenant-authoritative report-card records are available. Approval and publishing controls remain unavailable.
+        </div>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {cards.map((card) => {
+            const nextAction = getLiveReportCardAction(card, access);
+            const actionId = nextAction ? `report-card-${nextAction.action}-${card.id}` : null;
+
+            return (
+              <div
+                key={card.id}
+                className="flex flex-col gap-3 rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3 md:flex-row md:items-center md:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-foreground">{card.title}</p>
+                  <p className="mt-1 text-[12px] text-muted">{card.className} · {card.verificationCode}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusPill label={card.status} tone={card.status === "published" ? "ok" : "warning"} />
+                  {nextAction ? (
+                    <Button
+                      size="sm"
+                      onClick={() => onTransition(card, nextAction.action)}
+                      disabled={!isLiveMode || Boolean(activeActionId)}
+                      aria-label={`${nextAction.label} for ${card.title}`}
+                    >
+                      {activeActionId === actionId ? "Saving..." : nextAction.label}
+                    </Button>
+                  ) : (
+                    <span className="text-[12px] font-semibold text-muted">
+                      No transition is allowed for this role and status.
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function ReportCardsPanel({
+  data,
+  liveCards,
+  access,
+  isLiveMode,
+  activeActionId,
+  feedback,
+  onTransition,
+}: {
+  data: ExamsModuleData;
+  liveCards: ExamReportCardPreview[];
+  access: ExamsAccessPolicy;
+  isLiveMode: boolean;
+  activeActionId: string | null;
+  feedback: { message: string; tone: StatusTone } | null;
+  onTransition: (card: ExamReportCardPreview, action: LiveReportCardWorkflowAction) => void;
+}) {
   const [reportSettings, setReportSettings] = useState<ReportCardSettings>(() => ({ ...curriculumSettings }));
   const [classReportingModes, setClassReportingModes] = useState<Record<string, ClassReportingMode>>(() =>
     Object.fromEntries(
@@ -1653,9 +1661,11 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
   );
   const [reportTypeFilter, setReportTypeFilter] = useState<ReportCardType | "ALL">("ALL");
   const [modeFilter, setModeFilter] = useState<ClassReportingMode | "ALL">("ALL");
-  const [academicYearFilter, setAcademicYearFilter] = useState("2026");
-  const [termFilter, setTermFilter] = useState("Term 2");
-  const [reportingPeriodFilter, setReportingPeriodFilter] = useState(data.currentExam);
+  const [academicYearFilter, setAcademicYearFilter] = useState("");
+  const [termFilter, setTermFilter] = useState("");
+  const [reportingPeriodFilter, setReportingPeriodFilter] = useState(
+    data.currentExam === "No exam selected" ? "" : data.currentExam,
+  );
   const [gradeFormFilter, setGradeFormFilter] = useState("ALL");
   const [streamFilter, setStreamFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState<ReportCardStatus | "ALL">("ALL");
@@ -1664,16 +1674,7 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
   const [approvalFilter, setApprovalFilter] = useState<"ALL" | "APPROVED" | "PENDING">("ALL");
   const [feeHoldFilter, setFeeHoldFilter] = useState<"ALL" | "Clear" | "Held">("ALL");
   const [selectedReport, setSelectedReport] = useState<ReportCardDocumentData | null>(null);
-  const [auditRow, setAuditRow] = useState<ReportCardGenerationRow | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [rowOverrides, setRowOverrides] = useState<
-    Record<
-      string,
-      Partial<Pick<ReportCardGenerationRow, "approvalStatus" | "publishedStatus" | "printedStatus">> & {
-        auditNote?: string;
-      }
-    >
-  >({});
 
   const baseRows = useMemo(
     () =>
@@ -1683,14 +1684,7 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
       }),
     [classReportingModes, data.reports, reportSettings],
   );
-  const rows = useMemo(
-    () =>
-      baseRows.map((row) => ({
-        ...row,
-        ...(rowOverrides[row.id] ?? {}),
-      })),
-    [baseRows, rowOverrides],
-  );
+  const rows = baseRows;
 
   const filteredRows = rows.filter((row) => {
     const matchesType = reportTypeFilter === "ALL" || row.reportType === reportTypeFilter;
@@ -1739,16 +1733,6 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
     awaitingApproval: rows.filter((row) => row.approvalStatus !== "Principal/Deputy approved" && row.publishedStatus !== "Published").length,
   };
 
-  function updateRow(rowId: string, update: Partial<ReportCardGenerationRow> & { auditNote?: string }) {
-    setRowOverrides((current) => ({
-      ...current,
-      [rowId]: {
-        ...(current[rowId] ?? {}),
-        ...update,
-      },
-    }));
-  }
-
   function updateSchoolDirection(direction: SchoolCurriculumDirection) {
     setReportSettings((current) => ({
       ...current,
@@ -1767,8 +1751,8 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
     );
     setNotice(
       direction === "CBC_CBE"
-        ? "CBC/CBE is now the school default direction. Legacy 8-4-4/KCSE remains selectable only as an explicit class/report format."
-        : "Hybrid Transition is now the school default direction. Legacy 8-4-4/KCSE remains class-level transition support only.",
+        ? "CBC/CBE preview selected. This does not change the school setting; legacy 8-4-4/KCSE remains an explicit class/report format."
+        : "Hybrid Transition preview selected. This does not change the school setting; legacy 8-4-4/KCSE remains class-level transition support only.",
     );
   }
 
@@ -1777,7 +1761,7 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
       ...current,
       [key]: value,
     }));
-    setNotice("Report-card settings draft updated for the current school workspace.");
+    setNotice("Readiness preview settings updated locally. No tenant setting was changed.");
   }
 
   function updateClassReportingMode(className: string, mode: ClassReportingMode) {
@@ -1785,7 +1769,7 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
       ...current,
       [className]: mode,
     }));
-    setNotice(`${className}: reporting mode set to ${getReportingModeLabel(mode)}. Report rows refreshed from the class-level setting.`);
+    setNotice(`${className}: ${getReportingModeLabel(mode)} preview selected. No class setting was changed.`);
   }
 
   function buildPreview(row: ReportCardGenerationRow) {
@@ -1799,99 +1783,6 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
   function openPreview(row: ReportCardGenerationRow) {
     setSelectedReport(buildPreview(row));
     setNotice(null);
-  }
-
-  function generateDraft(row: ReportCardGenerationRow) {
-    if (row.missingItems.length > 0) {
-      updateRow(row.id, {
-        approvalStatus: "Data incomplete",
-        auditNote: "Generation blocked until missing report-card inputs are completed.",
-      });
-      setNotice(`${row.learnerName}: generation blocked because ${row.missingItems[0]}`);
-      return;
-    }
-
-    updateRow(row.id, {
-      approvalStatus: "Ready for review",
-      auditNote: "Draft generated from current exam, competency, and comment records.",
-    });
-    setSelectedReport(buildPreview({ ...row, approvalStatus: "Ready for review" }));
-    setNotice(`${row.learnerName}: report draft generated and ready for review.`);
-  }
-
-  function regenerateReport(row: ReportCardGenerationRow) {
-    generateDraft(row);
-  }
-
-  function submitForReview(row: ReportCardGenerationRow) {
-    if (row.approvalStatus === "Data incomplete") {
-      setNotice(`${row.learnerName}: complete missing marks, CBC observations, or comments before review.`);
-      return;
-    }
-
-    updateRow(row.id, {
-      approvalStatus: "Submitted for review",
-      auditNote: "Submitted to Deputy/Principal approval queue.",
-    });
-    setNotice(`${row.learnerName}: report sent to the approval queue.`);
-  }
-
-  function approveReport(row: ReportCardGenerationRow) {
-    if (row.approvalStatus !== "Submitted for review" && row.approvalStatus !== "Ready for review") {
-      setNotice(`${row.learnerName}: submit the report for review before approval.`);
-      return;
-    }
-
-    updateRow(row.id, {
-      approvalStatus: "Principal/Deputy approved",
-      auditNote: "Approved for parent portal publishing.",
-    });
-    setNotice(`${row.learnerName}: report approved.`);
-  }
-
-  function publishReport(row: ReportCardGenerationRow) {
-    if (row.approvalStatus !== "Principal/Deputy approved") {
-      setNotice(`${row.learnerName}: approval is required before parent portal publishing.`);
-      return;
-    }
-
-    updateRow(row.id, {
-      publishedStatus: "Published",
-      auditNote: "Published to the permitted parent portal.",
-    });
-    setNotice(`${row.learnerName}: report published to the permitted parent portal.`);
-  }
-
-  function unpublishReport(row: ReportCardGenerationRow) {
-    if (row.publishedStatus !== "Published") {
-      setNotice(`${row.learnerName}: report is already unpublished.`);
-      return;
-    }
-
-    updateRow(row.id, {
-      publishedStatus: "Unpublished",
-      auditNote: "Unpublished from the permitted parent portal.",
-    });
-    setNotice(`${row.learnerName}: report unpublished from the parent portal.`);
-  }
-
-  function queueReportNotification(row: ReportCardGenerationRow) {
-    if (row.publishedStatus !== "Published") {
-      setNotice(`${row.learnerName}: notification saved as pending until the report is published.`);
-      return;
-    }
-
-    updateRow(row.id, {
-      auditNote: "Parent portal report notification queued after publication.",
-    });
-    setNotice(`${row.learnerName}: report notification queued.`);
-  }
-
-  function markPrinted(report: ReportCardDocumentData) {
-    updateRow(report.id, {
-      printedStatus: "Printed",
-      auditNote: "Print preview ready for official A4 document.",
-    });
   }
 
   function openPrintPreview(report: ReportCardDocumentData) {
@@ -1934,23 +1825,23 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
         </body>
       </html>`);
     printWindow.document.close();
-    markPrinted(report);
     setNotice(`${report.learner.fullName}: print preview ready.`);
   }
 
   async function downloadPdf(report: ReportCardDocumentData) {
-    if (!report.id || report.id.startsWith("draft") || report.id === "1" || report.id === "2") {
+    const isAuthoritativeLiveCard = liveCards.some((card) => card.id === report.id);
+
+    if (!isAuthoritativeLiveCard) {
       openPrintPreview(report);
-      setNotice(`${report.learner.fullName}: print preview ready. Use the browser print dialog to save this unsaved report draft as PDF.`);
+      setNotice(`${report.learner.fullName}: this is a read-only readiness preview. Use the browser print dialog to save it; no report-card download was claimed.`);
       return;
     }
 
     setNotice(`${report.learner.fullName}: downloading PDF...`);
     try {
       const res = await fetch(`/api/exams/report-cards/${report.id}/download`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('myshule_auth_token') || ''}`
-        }
+        credentials: "same-origin",
+        cache: "no-store",
       });
       if (!res.ok) throw new Error("Failed to download PDF");
       const blob = await res.blob();
@@ -2024,42 +1915,15 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
     },
     {
       id: "actions",
-      header: "Actions",
-      className: "min-w-[420px]",
+      header: "Readiness preview",
+      className: "min-w-[220px]",
       render: (row) => (
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" onClick={() => openPreview(row)}>
             Preview
           </Button>
-          <Button size="sm" onClick={() => generateDraft(row)}>
-            Generate
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => regenerateReport(row)}>
-            Regenerate
-          </Button>
           <Button size="sm" variant="secondary" onClick={() => openPrintPreview(buildPreview(row))}>
             Print
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => downloadPdf(buildPreview(row))}>
-            Download PDF
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => submitForReview(row)}>
-            Submit
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => approveReport(row)}>
-            Approve
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => publishReport(row)}>
-            Publish
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => unpublishReport(row)}>
-            Unpublish
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => queueReportNotification(row)}>
-            Send notification
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => setAuditRow(row)}>
-            Audit trail
           </Button>
         </div>
       ),
@@ -2068,14 +1932,21 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
 
   return (
     <div className="space-y-5">
+      <LiveReportCardWorkflow
+        cards={liveCards}
+        access={access}
+        isLiveMode={isLiveMode}
+        activeActionId={activeActionId}
+        feedback={feedback}
+        onTransition={onTransition}
+      />
       <Card className="p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
-            <p className="eyebrow">Report card settings</p>
-            <h3 className="mt-2 section-title text-lg">CBC/CBE-first reporting with class-level transition modes</h3>
+            <p className="eyebrow">Readiness preview settings</p>
+            <h3 className="mt-2 section-title text-lg">CBC/CBE-first document preview with class-level transition modes</h3>
             <p className="mt-1 text-[13px] leading-5 text-muted">
-              School default direction is {reportSettings.schoolDefaultCurriculumDirection === "CBC_CBE" ? "CBC/CBE School" : "Hybrid Transition School"}.
-              Legacy 8-4-4/KCSE is available only for selected classes, archived formats, or explicit report type selection.
+              These controls recalculate a read-only document preview. They do not save tenant settings or change report-card workflow status.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -2215,8 +2086,7 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
               onChange={(event) => setAcademicYearFilter(event.target.value)}
               className="h-10 w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 text-sm text-foreground"
             >
-              <option value="2026">2026</option>
-              <option value="2025">2025</option>
+              <option value="">Not returned by the current exam record</option>
             </select>
           </label>
           <label className="space-y-1">
@@ -2226,9 +2096,7 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
               onChange={(event) => setTermFilter(event.target.value)}
               className="h-10 w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 text-sm text-foreground"
             >
-              <option value="Term 2">Term 2</option>
-              <option value="Term 1">Term 1</option>
-              <option value="Term 3">Term 3</option>
+              <option value="">Not returned by the current exam record</option>
             </select>
           </label>
           <label className="space-y-1">
@@ -2238,8 +2106,9 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
               onChange={(event) => setReportingPeriodFilter(event.target.value)}
               className="h-10 w-full rounded-[var(--radius-sm)] border border-border bg-white px-3 text-sm text-foreground"
             >
-              <option value={data.currentExam}>{data.currentExam}</option>
-              <option value="Term 2 Endterm">Term 2 Endterm</option>
+              <option value={reportingPeriodFilter}>
+                {reportingPeriodFilter || "Not returned by the current exam record"}
+              </option>
             </select>
           </label>
           <label className="space-y-1">
@@ -2361,8 +2230,8 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
       ) : null}
 
       <DataTable
-        title="Report card generation"
-        subtitle="Generate, review, approve, publish, and print curriculum-aware report cards from current school records."
+        title="Report card readiness preview"
+        subtitle="Review and print caller-supplied readiness data. Workflow mutations are available only on authoritative live report-card records above."
         columns={columns}
         rows={filteredRows}
         getRowKey={(row) => row.id}
@@ -2385,30 +2254,6 @@ function ReportCardsPanel({ data }: { data: ExamsModuleData }) {
             />
             <ReportCardVerificationStrip report={selectedReport} />
             <ReportCardDocument report={selectedReport} />
-          </div>
-        ) : null}
-      </Modal>
-      <Modal
-        open={Boolean(auditRow)}
-        title="Report card audit trail"
-        description="School-scoped audit trail for the selected report-card workflow."
-        onClose={() => setAuditRow(null)}
-      >
-        {auditRow ? (
-          <div className="space-y-3 text-sm">
-            <div className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
-              <p className="font-semibold text-foreground">{auditRow.learnerName}</p>
-              <p className="mt-1 text-muted">{getReportCardTypeLabel(auditRow.reportType)} | {auditRow.approvalStatus}</p>
-            </div>
-            {[
-              "School-scoped audit trail ready.",
-              rowOverrides[auditRow.id]?.auditNote ?? "No mutation has been recorded for this report in this session.",
-              `Tenant: ${data.schoolName}`,
-            ].map((item) => (
-              <p key={item} className="rounded-[var(--radius-sm)] border border-border bg-white px-4 py-3 font-semibold text-foreground">
-                {item}
-              </p>
-            ))}
           </div>
         ) : null}
       </Modal>
@@ -2953,9 +2798,21 @@ function PublishingHistoryPanel({
   );
 }
 
-function ResultLockingPanel() {
-  const [locked, setLocked] = useState(false);
-
+function ResultLockingPanel({
+  canPublish,
+  isLiveMode,
+  hasSelectedSeries,
+  isPending,
+  feedback,
+  onPublish,
+}: {
+  canPublish: boolean;
+  isLiveMode: boolean;
+  hasSelectedSeries: boolean;
+  isPending: boolean;
+  feedback: string | null;
+  onPublish: () => void;
+}) {
   return (
     <Card className="p-5">
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -2964,8 +2821,8 @@ function ResultLockingPanel() {
           <h3 className="mt-2 section-title text-lg">Controlled publishing with immutable result records</h3>
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             {[
-              ["Publish preview", "Parent portal hidden until principal approval"],
-              ["Lock state", locked ? "Current exam results are locked" : "Current exam results are open"],
+              ["Publishing gate", "Dean-approved report cards are required"],
+              ["Selected series", hasSelectedSeries ? "Tenant exam series selected" : "No tenant exam series selected"],
               ["Conflict handling", "Concurrent edits create reviewable versions"],
             ].map(([label, value]) => (
               <div key={label} className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
@@ -2979,11 +2836,20 @@ function ResultLockingPanel() {
           <LockKeyhole className="h-6 w-6 text-info" />
           <p className="mt-4 text-sm font-semibold text-foreground">Principal publishing control</p>
           <p className="mt-2 text-[13px] leading-5 text-muted">
-            Published results become immutable. Reopening requires a controlled reason and audit entry.
+            This control calls the canonical tenant-scoped exam-series publishing workflow. No local lock state is created.
           </p>
-          <Button className="mt-4" onClick={() => setLocked(true)} block>
-            Lock and publish
+          <Button
+            className="mt-4"
+            onClick={onPublish}
+            disabled={!canPublish || !isLiveMode || !hasSelectedSeries || isPending}
+            block
+          >
+            {isPending ? "Publishing..." : "Publish selected exam series"}
           </Button>
+          {!canPublish ? (
+            <p className="mt-3 text-[12px] font-semibold text-warning">Principal publishing permission is required.</p>
+          ) : null}
+          {feedback ? <p className="mt-3 text-[12px] font-semibold text-muted">{feedback}</p> : null}
         </div>
       </div>
     </Card>
@@ -3108,7 +2974,7 @@ function BatchProgressCard({
 }
 
 function LiveExamsOperationsPanel({
-  role,
+  access,
   apiConfigured,
   isLiveMode,
   isLoading,
@@ -3127,7 +2993,7 @@ function LiveExamsOperationsPanel({
   onGenerateBatch,
   onPublishSelected,
 }: {
-  role: SchoolExperienceRole;
+  access: ExamsAccessPolicy;
   apiConfigured: boolean;
   isLiveMode: boolean;
   isLoading: boolean;
@@ -3146,15 +3012,12 @@ function LiveExamsOperationsPanel({
   onGenerateBatch: () => void;
   onPublishSelected: () => void;
 }) {
-  const teacherMode = role === "teacher";
-  const principalMode = role === "principal";
-  const officerMode = !teacherMode;
   const disabled = !isLiveMode || isLoading || Boolean(activeActionId);
   const statusLabel = isLiveMode
     ? "Live exams API connected"
     : apiConfigured
-      ? "Preview until live sign-in"
-      : "Preview mode";
+      ? "Live sign-in required"
+      : "Exams API unavailable";
 
   return (
     <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -3170,35 +3033,26 @@ function LiveExamsOperationsPanel({
           <StatusPill label={statusLabel} tone={isLiveMode ? "ok" : "warning"} />
         </div>
 
-        <div className="mt-5 grid gap-3 lg:grid-cols-2">
-          {(markSheets.length > 0 ? markSheets : [
-            {
-              id: "preview-sheet",
-              examSeriesId: "series-preview",
-              academicTermId: "term-preview",
-              assessmentId: "assessment-preview",
-              subjectId: "subject-preview",
-              classSectionId: "class-preview",
-              title: "Preview mark sheet",
-              status: "open",
-              progressLabel: "0/0 marks",
-              tone: "warning" as StatusTone,
-              learnerCount: 0,
-              markCount: 0,
-            },
-          ]).map((sheet) => (
-            <div key={sheet.id} className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-foreground">{sheet.title}</p>
-                <StatusPill label={sheet.status} tone={sheet.tone} />
+        {markSheets.length > 0 ? (
+          <div className="mt-5 grid gap-3 lg:grid-cols-2">
+            {markSheets.map((sheet) => (
+              <div key={sheet.id} className="rounded-[var(--radius-sm)] border border-border bg-surface-muted px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-foreground">{sheet.title}</p>
+                  <StatusPill label={sheet.status} tone={sheet.tone} />
+                </div>
+                <p className="mt-1 text-[13px] text-muted">{sheet.progressLabel}</p>
               </div>
-              <p className="mt-1 text-[13px] text-muted">{sheet.progressLabel}</p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-5 rounded-[var(--radius-sm)] border border-dashed border-border bg-surface-muted px-4 py-5 text-sm text-muted">
+            No tenant-authoritative mark sheets are available for this active role.
+          </div>
+        )}
 
         <div className="mt-5 flex flex-wrap gap-2">
-          {teacherMode ? (
+          {access.canEnterMarks ? (
             <>
               <Button size="sm" onClick={onSaveMark} disabled={disabled}>
                 <ClipboardCheck className="h-3.5 w-3.5" />
@@ -3214,12 +3068,14 @@ function LiveExamsOperationsPanel({
               </Button>
             </>
           ) : null}
-          {officerMode ? (
+          {access.canModerate ? (
+            <Button size="sm" variant="secondary" onClick={onCorrectMark} disabled={disabled}>
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Correct locked mark
+            </Button>
+          ) : null}
+          {access.canGenerateReportCards ? (
             <>
-              <Button size="sm" variant="secondary" onClick={onCorrectMark} disabled={disabled}>
-                <ShieldCheck className="h-3.5 w-3.5" />
-                Correct locked mark
-              </Button>
               <Button size="sm" onClick={onGenerateReportCard} disabled={disabled}>
                 <FileDown className="h-3.5 w-3.5" />
                 Generate report card
@@ -3230,7 +3086,7 @@ function LiveExamsOperationsPanel({
               </Button>
             </>
           ) : null}
-          {principalMode ? (
+          {access.canPublishReportCards ? (
             <Button size="sm" onClick={onPublishSelected} disabled={disabled || !selectedPreview}>
               <ShieldCheck className="h-3.5 w-3.5" />
               Publish selected card
@@ -3260,6 +3116,7 @@ export function ExamsModuleScreen({
   initialLiveWorkspace,
   liveSessionOverride,
   teachingAssignmentsOverride,
+  moduleDataSeed,
 }: {
   role: SchoolExperienceRole;
   schoolName: string;
@@ -3267,15 +3124,18 @@ export function ExamsModuleScreen({
   initialLiveWorkspace?: ExamsLiveWorkspace;
   liveSessionOverride?: ReturnType<typeof useLiveTenantSession>;
   teachingAssignmentsOverride?: ExamTeachingAssignment[];
+  moduleDataSeed?: ExamsModuleDataSeed;
 }) {
-  const data = useMemo(() => buildExamsModuleData({ role, schoolName }), [role, schoolName]);
+  const data = useMemo(
+    () => buildExamsModuleData({ role, schoolName, seed: moduleDataSeed }),
+    [moduleDataSeed, role, schoolName],
+  );
   const liveTenantId = tenantSlug?.trim() || schoolName;
   const queryClient = useQueryClient();
   const discoveredLiveSession = useLiveTenantSession(liveTenantId);
   const liveSession = liveSessionOverride ?? discoveredLiveSession;
   const [saveState, setSaveState] = useState<SaveState>("synced");
   const [submissionState, setSubmissionState] = useState<SubmissionState>("draft");
-  const [reopenReason, setReopenReason] = useState("");
   const [moduleMessage, setModuleMessage] = useState<string | null>(null);
   const [moduleError, setModuleError] = useState<string | null>(null);
   const [activeActionId, setActiveActionId] = useState<string | null>(null);
@@ -3283,13 +3143,21 @@ export function ExamsModuleScreen({
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
   const [activeBatchStatus, setActiveBatchStatus] = useState<LiveReportCardBatchStatus | null>(null);
   const teachingAssignments = useMemo(
-    () =>
-      teachingAssignmentsOverride ??
-      buildDefaultTeachingAssignments({
-        role,
-        schoolId: liveTenantId,
-      }),
-    [liveTenantId, role, teachingAssignmentsOverride],
+    () => teachingAssignmentsOverride ?? [],
+    [teachingAssignmentsOverride],
+  );
+  const livePermissions = liveSession.session
+    ? (Array.isArray(liveSession.session.user.permissions)
+        ? liveSession.session.user.permissions
+        : [])
+    : undefined;
+  const access = useMemo(
+    () => resolveExamsAccessPolicy({
+      role,
+      permissions: livePermissions,
+      hasTeachingAssignment: teachingAssignments.length > 0,
+    }),
+    [livePermissions, role, teachingAssignments.length],
   );
   const [selectedTeachingAssignmentId, setSelectedTeachingAssignmentId] = useState<string | null>(null);
   const [examEntryMessage, setExamEntryMessage] = useState<string | null>(null);
@@ -3298,20 +3166,20 @@ export function ExamsModuleScreen({
   const liveWorkspaceQuery = useQuery({
     queryKey: ["exams-module", liveSession.session?.tenantId],
     queryFn: () => fetchExamsWorkspaceLive(liveSession.session!),
-    enabled: Boolean(liveSession.session),
+    enabled: Boolean(liveSession.session && (access.canViewAllocations || access.canViewReportCards)),
     initialData: initialLiveWorkspace,
     placeholderData: (previous) => previous,
   });
   const batchStatusQuery = useQuery({
     queryKey: ["exams-report-card-batch", liveSession.session?.tenantId, activeBatchId],
     queryFn: () => fetchReportCardBatchStatusLive(liveSession.session!, activeBatchId!),
-    enabled: Boolean(liveSession.session && activeBatchId),
+    enabled: Boolean(liveSession.session && access.canViewReportCards && activeBatchId),
     refetchInterval: activeBatchId ? 3000 : false,
   });
   const analyticsQuery = useQuery({
     queryKey: ["exams-analytics", liveSession.session?.tenantId],
     queryFn: () => fetchExamsAnalyticsLive(liveSession.session!),
-    enabled: Boolean(liveSession.session),
+    enabled: Boolean(liveSession.session && access.canViewAnalytics),
     staleTime: Infinity,
     retry: false,
     refetchOnWindowFocus: false,
@@ -3351,13 +3219,31 @@ export function ExamsModuleScreen({
 
   function saveTeachingDraft(assignment: ExamTeachingAssignment) {
     setSelectedTeachingAssignmentId(assignment.id);
-    setSaveState("synced");
-    setExamEntryMessage(`Draft saved locally for ${getAssignmentScope(assignment)} ${assignment.subject}.`);
+    setExamEntryMessage(`Draft not saved: open the assigned live mark sheet so changes are persisted and audited for ${getAssignmentScope(assignment)} ${assignment.subject}.`);
   }
 
   function downloadTeachingTemplate(assignment: ExamTeachingAssignment) {
     setSelectedTeachingAssignmentId(assignment.id);
-    setExamEntryMessage(`Template queued for ${getAssignmentScope(assignment)} ${assignment.subject}.`);
+    const learners = buildAssignmentLearners(assignment);
+
+    if (learners.length === 0) {
+      setExamEntryMessage(`No tenant-authoritative learners were returned for ${getAssignmentScope(assignment)} ${assignment.subject}; no template was created.`);
+      return;
+    }
+
+    downloadCsvFile({
+      filename: `exam-entry-${assignment.id}.csv`,
+      headers: ["Admission Number", "Learner Name", "Paper 1", "Paper 2", "Practical", "Teacher Comment"],
+      rows: learners.map((learner) => [
+        learner.admissionNumber,
+        learner.learnerName,
+        learner.paper1,
+        learner.paper2,
+        learner.practical,
+        learner.teacherComment,
+      ]),
+    });
+    setExamEntryMessage(`Template downloaded for ${getAssignmentScope(assignment)} ${assignment.subject}.`);
   }
 
   function requestTeachingImport(assignment: ExamTeachingAssignment) {
@@ -3405,7 +3291,7 @@ export function ExamsModuleScreen({
 
   async function runLiveAction(actionId: string, action: () => Promise<string>) {
     if (!liveSession.session) {
-        setModuleError("Connect a live school session before changing exam records.");
+      setModuleError("Connect a live school session before changing exam records.");
       return;
     }
 
@@ -3424,7 +3310,15 @@ export function ExamsModuleScreen({
     }
   }
 
+  function requireCapability(allowed: boolean, message: string) {
+    if (allowed) return true;
+    setModuleMessage(null);
+    setModuleError(message);
+    return false;
+  }
+
   function saveLiveMark() {
+    if (!requireCapability(access.canEnterMarks, "The active role cannot enter exam marks.")) return;
     void runLiveAction("save-mark", async () => {
       await enterExamMarkLive(liveSession.session!, buildLiveMarkInput(84));
       setSaveState("synced");
@@ -3433,6 +3327,7 @@ export function ExamsModuleScreen({
   }
 
   function previewBulkUpload() {
+    if (!requireCapability(access.canEnterMarks, "The active role cannot upload exam marks.")) return;
     void runLiveAction("preview-upload", async () => {
       await bulkUploadExamMarksLive(liveSession.session!, {
         mode: "preview",
@@ -3443,6 +3338,7 @@ export function ExamsModuleScreen({
   }
 
   function lockLiveSheet() {
+    if (!requireCapability(access.canEnterMarks, "The active role cannot lock exam mark sheets.")) return;
     void runLiveAction("lock-sheet", async () => {
       if (!selectedMarkSheet) {
         throw new Error("No live mark sheet is available.");
@@ -3455,12 +3351,14 @@ export function ExamsModuleScreen({
   }
 
   function correctLiveMark() {
+    if (!requireCapability(access.canModerate, "The active role cannot review locked-mark corrections.")) return;
     void runLiveAction("correct-mark", async () => {
       throw new Error("No locked mark correction record is selected. Open a returned locked-mark correction from the moderation queue before submitting an audited correction.");
     });
   }
 
   function generateLiveReportCard() {
+    if (!requireCapability(access.canGenerateReportCards, "Exams Manager authorization is required to generate report cards.")) return;
     void runLiveAction("generate-report-card", async () => {
       if (!selectedMarkSheet) {
         throw new Error("No live mark sheet is available.");
@@ -3480,6 +3378,7 @@ export function ExamsModuleScreen({
   }
 
   function generateLiveBatch() {
+    if (!requireCapability(access.canGenerateReportCards, "Exams Manager authorization is required to generate report-card batches.")) return;
     void runLiveAction("generate-batch", async () => {
       if (!selectedMarkSheet) {
         throw new Error("No live mark sheet is available.");
@@ -3496,6 +3395,7 @@ export function ExamsModuleScreen({
   }
 
   function publishLiveReportCard() {
+    if (!requireCapability(access.canPublishReportCards, "Principal authorization is required to publish report cards.")) return;
     void runLiveAction("publish-report-card", async () => {
       if (!selectedPreview) {
         throw new Error("No generated report card is selected.");
@@ -3510,17 +3410,170 @@ export function ExamsModuleScreen({
     });
   }
 
-  function submitForApproval() {
-    setSubmissionState("submitted");
-    setReopenReason("");
-    setSaveState("synced");
+  function transitionReportCard(
+    card: ExamReportCardPreview,
+    action: LiveReportCardWorkflowAction,
+  ) {
+    const allowed = action === "submit"
+      ? access.canSubmitReportCards
+      : action === "approve"
+        ? access.canApproveReportCards
+        : access.canPublishReportCards;
+    const requiredRole = action === "submit"
+      ? "Exams Manager"
+      : action === "approve"
+        ? "Dean of Academics"
+        : "Principal";
+
+    if (!requireCapability(allowed, `${requiredRole} authorization is required to ${action} report cards.`)) return;
+
+    void runLiveAction(`report-card-${action}-${card.id}`, async () => {
+      await transitionLiveReportCard(liveSession.session!, card.id, action);
+      return action === "submit"
+        ? "Report card submitted to the Dean review queue."
+        : action === "approve"
+          ? "Report card approved through the tenant workflow."
+          : "Report card published to the parent portal.";
+    });
   }
 
-  function reopenMarks(reason: string) {
-    setSubmissionState("reopened");
-    setReopenReason(reason);
-    setSaveState("synced");
+  function publishLiveSeries() {
+    if (!requireCapability(access.canPublishReportCards, "Principal authorization is required to publish exam results.")) return;
+
+    void runLiveAction("publish-exam-series", async () => {
+      if (!selectedMarkSheet) {
+        throw new Error("No tenant-authoritative exam series is selected.");
+      }
+
+      await publishLiveExamSeries(liveSession.session!, selectedMarkSheet.examSeriesId);
+      return "Exam series published through the tenant workflow.";
+    });
   }
+
+  function submitForApproval() {
+    setModuleMessage(null);
+    setModuleError("This readiness grid cannot submit marks. Use an assigned live mark sheet so the tenant workflow is persisted and audited.");
+  }
+
+  const workflowFeedback = moduleError
+    ? { message: moduleError, tone: "critical" as StatusTone }
+    : moduleMessage
+      ? { message: moduleMessage, tone: "ok" as StatusTone }
+      : null;
+  const examTabs = ([
+    access.canViewDashboard
+      ? { id: "dashboard", label: "Dashboard", panel: <DashboardPanel data={data} /> }
+      : null,
+    access.canManageSetup
+      ? { id: "setup", label: "Setup", panel: <ExamSetupPanel setup={data.setup} /> }
+      : null,
+    access.canViewAllocations
+      ? {
+          id: "allocation",
+          label: "Allocation",
+          panel: <AllocationPanel allocations={liveAllocationRows.length > 0 ? liveAllocationRows : data.allocations} />,
+        }
+      : null,
+    access.canEnterMarks
+      ? {
+          id: "marks",
+          label: "Marks entry",
+          panel: (
+            <MarksEntryGrid
+              fields={data.fields}
+              initialRows={data.marks}
+              saveState={saveState}
+              setSaveState={setSaveState}
+              submissionState={submissionState}
+              onSubmitForApproval={submitForApproval}
+            />
+          ),
+        }
+      : null,
+    access.canEnterMarks
+      ? { id: "bulk", label: "Bulk upload", panel: <BulkUploadPanel /> }
+      : null,
+    access.canModerate
+      ? { id: "moderation", label: "Moderation", panel: <ModerationPanel queues={data.queues} /> }
+      : null,
+    access.canApproveReportCards
+      ? {
+          id: "approval",
+          label: "Approval pipeline",
+          panel: (
+            <ApprovalPanel
+              approvals={data.approvals}
+            />
+          ),
+        }
+      : null,
+    access.canViewReportCards
+      ? {
+          id: "reports",
+          label: "Report cards",
+          panel: (
+            <ReportCardsPanel
+              data={data}
+              liveCards={liveWorkspace?.reportCards ?? []}
+              access={access}
+              isLiveMode={isLiveMode}
+              activeActionId={activeActionId}
+              feedback={workflowFeedback}
+              onTransition={transitionReportCard}
+            />
+          ),
+        }
+      : null,
+    access.canManageSetup || access.canModerate
+      ? { id: "competencies", label: "CBC competencies", panel: <CompetenciesPanel competencies={data.competencies} /> }
+      : null,
+    access.canViewAnalytics
+      ? {
+          id: "analytics",
+          label: "Analytics",
+          panel: (
+            <AnalyticsPanel
+              analysis={data.analysis}
+              history={data.history}
+              isLiveMode={isLiveMode}
+              isLoading={analyticsQuery.isLoading}
+              error={analyticsQuery.error}
+              liveData={analyticsQuery.data}
+              refetch={analyticsQuery.refetch}
+            />
+          ),
+        }
+      : null,
+    access.canPublishReportCards
+      ? {
+          id: "publishing",
+          label: "Publishing & history",
+          panel: <PublishingHistoryPanel publishing={data.publishing} history={data.history} />,
+        }
+      : null,
+    access.canPublishReportCards
+      ? {
+          id: "locking",
+          label: "Result publishing",
+          panel: (
+            <ResultLockingPanel
+              canPublish={access.canPublishReportCards}
+              isLiveMode={isLiveMode}
+              hasSelectedSeries={Boolean(selectedMarkSheet)}
+              isPending={activeActionId === "publish-exam-series"}
+              feedback={moduleError ?? moduleMessage}
+              onPublish={publishLiveSeries}
+            />
+          ),
+        }
+      : null,
+    access.canViewAudit
+      ? { id: "audit", label: "Audit trail", panel: <AuditPanel audit={data.audit} /> }
+      : null,
+  ] as Array<TabItem | null>).filter((item): item is TabItem => item !== null);
+  const defaultExamTab = examTabs.some((item) => item.id === "marks")
+    ? "marks"
+    : examTabs[0]?.id;
 
   return (
     <div className="space-y-6">
@@ -3529,7 +3582,8 @@ export function ExamsModuleScreen({
         currentExam={data.currentExam}
         currentClass={data.currentClass}
         saveState={saveState}
-        hasAssignedTeacherEntry={hasAssignedTeacherEntry}
+        hasAssignedTeacherEntry={access.canEnterMarks && hasAssignedTeacherEntry}
+        canGenerateReports={access.canViewReportCards}
         onContinueMarksEntry={() => {
           const assignment = teachingAssignments[0];
           if (assignment) {
@@ -3551,144 +3605,63 @@ export function ExamsModuleScreen({
               { label: "Current exam", value: data.currentExam },
               { label: "Current class", value: data.currentClass },
               { label: "Teaching assignments", value: String(teachingAssignments.length) },
-              { label: "Live mode", value: isLiveMode ? "Connected" : "Offline/demo snapshot" },
+              { label: "Live mode", value: isLiveMode ? "Connected" : "Not connected" },
             ],
             footer: "Generated from the active exams command center.",
           })
         }
       />
       <MetricStrip metrics={data.metrics} />
-      {role === "principal" ? (
+      {access.canPublishReportCards ? (
         <PrincipalAcademicApprovalPanel
           message={principalApprovalMessage}
           onAction={openPrincipalAcademicAction}
         />
       ) : null}
-      <MyExamEntryPanel
-        assignments={teachingAssignments}
-        activeAssignmentId={activeTeachingAssignmentId}
-        message={examEntryMessage}
-        onOpenAssignment={openTeachingAssignment}
-        onDownloadTemplate={downloadTeachingTemplate}
-        onSaveDraft={saveTeachingDraft}
-        onImportRequest={requestTeachingImport}
-      />
-      <LiveExamsOperationsPanel
-        role={role}
-        apiConfigured={liveSession.apiConfigured}
-        isLiveMode={isLiveMode}
-        isLoading={liveWorkspaceQuery.isLoading}
-        error={moduleError ?? liveSession.error ?? null}
-        markSheets={liveMarkSheets}
-        selectedPreview={selectedPreview}
-        batchStatus={batchStatus ?? null}
-        batchPolling={Boolean(activeBatchId && batchStatusQuery.isFetching)}
-        message={moduleMessage}
-        activeActionId={activeActionId}
-        onSaveMark={saveLiveMark}
-        onPreviewUpload={previewBulkUpload}
-        onLockSheet={lockLiveSheet}
-        onCorrectMark={correctLiveMark}
-        onGenerateReportCard={generateLiveReportCard}
-        onGenerateBatch={generateLiveBatch}
-        onPublishSelected={publishLiveReportCard}
-      />
-      <Tabs
-        defaultTab="marks"
-        items={[
-          {
-            id: "dashboard",
-            label: "Dashboard",
-            panel: <DashboardPanel data={data} />,
-          },
-          {
-            id: "setup",
-            label: "Setup",
-            panel: <ExamSetupPanel setup={data.setup} />,
-          },
-          {
-            id: "allocation",
-            label: "Allocation",
-            panel: <AllocationPanel allocations={liveAllocationRows.length > 0 ? liveAllocationRows : data.allocations} />,
-          },
-          {
-            id: "marks",
-            label: "Marks entry",
-            panel: (
-              <MarksEntryGrid
-                fields={data.fields}
-                initialRows={data.marks}
-                saveState={saveState}
-                setSaveState={setSaveState}
-                submissionState={submissionState}
-                onSubmitForApproval={submitForApproval}
-              />
-            ),
-          },
-          {
-            id: "bulk",
-            label: "Bulk upload",
-            panel: <BulkUploadPanel />,
-          },
-          {
-            id: "moderation",
-            label: "Moderation",
-            panel: <ModerationPanel queues={data.queues} />,
-          },
-          {
-            id: "approval",
-            label: "Approval pipeline",
-            panel: (
-              <ApprovalPanel
-                approvals={data.approvals}
-                submissionState={submissionState}
-                reopenReason={reopenReason}
-                onReopen={reopenMarks}
-              />
-            ),
-          },
-          {
-            id: "reports",
-            label: "Report cards",
-            panel: <ReportCardsPanel data={data} />,
-          },
-          {
-            id: "competencies",
-            label: "CBC competencies",
-            panel: <CompetenciesPanel competencies={data.competencies} />,
-          },
-          {
-            id: "analytics",
-            label: "Analytics",
-            panel: (
-              <AnalyticsPanel
-                analysis={data.analysis}
-                history={data.history}
-                isLiveMode={isLiveMode}
-                isLoading={analyticsQuery.isLoading}
-                error={analyticsQuery.error}
-                liveData={analyticsQuery.data}
-                refetch={analyticsQuery.refetch}
-              />
-            ),
-          },
-          {
-            id: "publishing",
-            label: "Publishing & history",
-            panel: <PublishingHistoryPanel publishing={data.publishing} history={data.history} />,
-          },
-          {
-            id: "locking",
-            label: "Result locking",
-            panel: <ResultLockingPanel />,
-          },
-          {
-            id: "audit",
-            label: "Audit trail",
-            panel: <AuditPanel audit={data.audit} />,
-          },
-        ]}
-      />
+      {access.canEnterMarks || hasAssignedTeacherEntry ? (
+        <MyExamEntryPanel
+          assignments={teachingAssignments}
+          activeAssignmentId={activeTeachingAssignmentId}
+          message={examEntryMessage}
+          onOpenAssignment={openTeachingAssignment}
+          onDownloadTemplate={downloadTeachingTemplate}
+          onSaveDraft={saveTeachingDraft}
+          onImportRequest={requestTeachingImport}
+        />
+      ) : null}
+      {access.canViewDashboard ? (
+        <LiveExamsOperationsPanel
+          access={access}
+          apiConfigured={liveSession.apiConfigured}
+          isLiveMode={isLiveMode}
+          isLoading={liveWorkspaceQuery.isLoading}
+          error={moduleError ?? liveSession.error ?? null}
+          markSheets={liveMarkSheets}
+          selectedPreview={selectedPreview}
+          batchStatus={batchStatus ?? null}
+          batchPolling={Boolean(activeBatchId && batchStatusQuery.isFetching)}
+          message={moduleMessage}
+          activeActionId={activeActionId}
+          onSaveMark={saveLiveMark}
+          onPreviewUpload={previewBulkUpload}
+          onLockSheet={lockLiveSheet}
+          onCorrectMark={correctLiveMark}
+          onGenerateReportCard={generateLiveReportCard}
+          onGenerateBatch={generateLiveBatch}
+          onPublishSelected={publishLiveReportCard}
+        />
+      ) : null}
+      {examTabs.length > 0 ? (
+        <Tabs defaultTab={defaultExamTab} items={examTabs} />
+      ) : (
+        <Card className="border-warning/30 bg-warning/10 p-5">
+          <p className="eyebrow">Access restricted</p>
+          <h3 className="mt-2 section-title text-lg">No exams capability is active for this role</h3>
+          <p className="mt-2 text-sm leading-6 text-muted">
+            The backend permission set for the active role does not allow marks, review, report cards, publishing, analytics, or audit access.
+          </p>
+        </Card>
+      )}
       <section className="grid gap-4 md:grid-cols-3">
         {[
           {

@@ -170,7 +170,7 @@ export function DisciplineMasterCommandCenter({ activeSection, routeMode }: { ac
             </button>
             <div className="flex items-center gap-2">
               <TaskQueue />
-              <ApprovalInbox currentUserId="school" />
+              <ApprovalInbox />
               <NotificationBell />
             </div>
             <button type="button" aria-label="Open discipline reports and help" onClick={() => setActiveWorkspace("reports")} className="hidden sm:block rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-2 text-[#64748B] hover:bg-white hover:border-[#38BDF8] transition-all">

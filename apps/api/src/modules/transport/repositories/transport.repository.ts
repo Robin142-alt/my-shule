@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../../database/prisma.service';
 
@@ -9,6 +9,12 @@ export interface TransportDashboardSummary {
   trips_today: number;
   open_alerts: number;
   service_due_vehicles: number;
+}
+
+export interface TransportManifestReferenceCheck {
+  route_exists: boolean;
+  academic_term_exists: boolean;
+  student_count: number;
 }
 
 @Injectable()
@@ -37,6 +43,167 @@ export class TransportRepository {
   }
 
   constructor(private readonly prisma: PrismaService) {}
+
+  async listVehicles(tenantId: string) {
+    const result = await this.executeSql(
+      `
+        SELECT
+          vehicle.id::text,
+          concat_ws(
+            ' ',
+            NULLIF(concat_ws(' ', vehicle.make, vehicle.model), ''),
+            '(' || vehicle.registration_number || ')'
+          ) AS vehicle,
+          COALESCE(latest_assignment.route_name, 'Unassigned') AS route,
+          COALESCE(latest_assignment.driver_name, 'Unassigned') AS driver,
+          CASE
+            WHEN vehicle.status = 'active' THEN 'Active'
+            WHEN vehicle.status = 'maintenance' THEN 'Maintenance'
+            ELSE 'Offline'
+          END AS status,
+          0::int AS "fuelLevel",
+          FALSE AS "fuelLevelAvailable",
+          CASE
+            WHEN vehicle.service_due_date <= CURRENT_DATE
+              THEN 'Service overdue since ' || vehicle.service_due_date::text
+            WHEN vehicle.service_due_date IS NOT NULL
+              THEN 'Next service ' || vehicle.service_due_date::text
+            ELSE ''
+          END AS "maintenanceNote"
+        FROM transport_vehicles vehicle
+        LEFT JOIN LATERAL (
+          SELECT
+            route.name AS route_name,
+            driver.name AS driver_name
+          FROM transport_trips trip
+          INNER JOIN transport_routes route
+            ON route.tenant_id = trip.tenant_id
+           AND route.id = trip.route_id
+          LEFT JOIN transport_drivers driver
+            ON driver.tenant_id = trip.tenant_id
+           AND driver.id = trip.driver_id
+          WHERE trip.tenant_id = vehicle.tenant_id
+            AND trip.vehicle_id = vehicle.id
+          ORDER BY trip.trip_date DESC, trip.created_at DESC
+          LIMIT 1
+        ) latest_assignment ON TRUE
+        WHERE vehicle.tenant_id = $1
+        ORDER BY vehicle.registration_number ASC
+      `,
+      [tenantId],
+    );
+
+    return result.rows;
+  }
+
+  async listTrips(tenantId: string) {
+    const result = await this.executeSql(
+      `
+        SELECT
+          manifest_student.id::text,
+          concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS student,
+          student.admission_number AS "admissionNo",
+          route.name AS route,
+          COALESCE(stop.name, 'Stop not assigned') AS stop,
+          CASE latest_event.event_type
+            WHEN 'pickup' THEN 'Picked'
+            WHEN 'dropoff' THEN 'Dropped'
+            WHEN 'incident' THEN 'Not Picked'
+            ELSE 'Waiting'
+          END AS status,
+          FALSE AS "parentAlertSent",
+          CASE
+            WHEN latest_event.event_time IS NULL THEN ''
+            ELSE to_char(latest_event.event_time AT TIME ZONE 'Africa/Nairobi', 'HH24:MI')
+          END AS time
+        FROM transport_manifest_students manifest_student
+        INNER JOIN transport_manifests manifest
+          ON manifest.tenant_id = manifest_student.tenant_id
+         AND manifest.id = manifest_student.manifest_id
+         AND manifest.status = 'active'
+        INNER JOIN transport_routes route
+          ON route.tenant_id = manifest.tenant_id
+         AND route.id = manifest.route_id
+        INNER JOIN students student
+          ON student.tenant_id = manifest_student.tenant_id
+         AND student.id::text = manifest_student.student_id::text
+        LEFT JOIN transport_route_stops stop
+          ON stop.tenant_id = manifest_student.tenant_id
+         AND stop.id = manifest_student.pickup_stop_id
+        LEFT JOIN LATERAL (
+          SELECT event.event_type, event.event_time
+          FROM transport_trip_events event
+          INNER JOIN transport_trips trip
+            ON trip.tenant_id = event.tenant_id
+           AND trip.id = event.trip_id
+          WHERE event.tenant_id = manifest_student.tenant_id
+            AND trip.manifest_id = manifest.id
+            AND event.student_id::text = manifest_student.student_id::text
+          ORDER BY event.event_time DESC
+          LIMIT 1
+        ) latest_event ON TRUE
+        WHERE manifest_student.tenant_id = $1
+          AND manifest_student.boarding_status = 'active'
+          AND (manifest.effective_to IS NULL OR manifest.effective_to >= CURRENT_DATE)
+        ORDER BY route.name ASC, student.admission_number ASC
+      `,
+      [tenantId],
+    );
+
+    return result.rows;
+  }
+
+  async validateManifestReferences(input: {
+    tenant_id: string;
+    route_id: string;
+    academic_term_id?: string;
+    student_ids: string[];
+  }): Promise<TransportManifestReferenceCheck> {
+    const result = await this.executeSql<TransportManifestReferenceCheck>(
+      `
+        SELECT
+          EXISTS (
+            SELECT 1
+            FROM transport_routes route
+            WHERE route.tenant_id = $1
+              AND route.id::text = $2
+              AND route.status = 'active'
+          ) AS route_exists,
+          (
+            $3::text IS NULL
+            OR EXISTS (
+              SELECT 1
+              FROM academic_terms term
+              WHERE term.tenant_id = $1
+                AND term.id::text = $3
+            )
+          ) AS academic_term_exists,
+          (
+            SELECT COUNT(DISTINCT student.id)::int
+            FROM students student
+            WHERE student.tenant_id = $1
+              AND student.id::text IN (
+                SELECT jsonb_array_elements_text($4::jsonb)
+              )
+              AND lower(COALESCE(student.status, 'active')) NOT IN (
+                'archived', 'transferred', 'graduated'
+              )
+          ) AS student_count
+      `,
+      [
+        input.tenant_id,
+        input.route_id,
+        input.academic_term_id ?? null,
+        JSON.stringify(input.student_ids),
+      ],
+    );
+
+    return result.rows[0] ?? {
+      route_exists: false,
+      academic_term_exists: false,
+      student_count: 0,
+    };
+  }
 
   async getDashboard(tenantId: string) {
     const [summary, routes, vehicles, manifests, trips, alerts] = await Promise.all([
@@ -292,39 +459,77 @@ export class TransportRepository {
   }
 
   async createManifest(input: Record<string, unknown>) {
-    return this.prisma.withRequestTransaction(async () => {
-      const result = await this.executeSql(
+    return this.prisma.withRequestTransaction(async (tx) => {
+      const manifests = await tx.$queryRawUnsafe(
         `
           INSERT INTO transport_manifests (
             tenant_id, route_id, academic_term_id, effective_from, effective_to,
             created_by_user_id
           )
-          VALUES ($1, $2::uuid, $3::uuid, COALESCE($4::date, CURRENT_DATE), $5::date, $6::uuid)
+          SELECT
+            $1,
+            route.id,
+            $3::uuid,
+            COALESCE($4::date, CURRENT_DATE),
+            $5::date,
+            $6::uuid
+          FROM transport_routes route
+          WHERE route.tenant_id = $1
+            AND route.id::text = $2
+            AND route.status = 'active'
+            AND (
+              $3::text IS NULL
+              OR EXISTS (
+                SELECT 1
+                FROM academic_terms term
+                WHERE term.tenant_id = $1
+                  AND term.id::text = $3
+              )
+            )
           RETURNING *
         `,
-        [
-          input.tenant_id,
-          input.route_id,
-          input.academic_term_id ?? null,
-          input.effective_from ?? null,
-          input.effective_to ?? null,
-          input.created_by_user_id,
-        ],
-      );
-      const manifest = result.rows[0];
+        input.tenant_id,
+        input.route_id,
+        input.academic_term_id ?? null,
+        input.effective_from ?? null,
+        input.effective_to ?? null,
+        input.created_by_user_id,
+      ) as Array<Record<string, unknown>>;
+      const manifest = manifests[0] as ({ id: string } & Record<string, unknown>) | undefined;
+
+      if (!manifest) {
+        throw new BadRequestException(
+          'Transport route and academic term must belong to the current school',
+        );
+      }
 
       for (const studentId of (input.student_ids ?? []) as string[]) {
-        await this.executeSql(
+        const assignments = await tx.$queryRawUnsafe(
           `
             INSERT INTO transport_manifest_students (
               tenant_id, manifest_id, student_id, boarding_status
             )
-            VALUES ($1, $2::uuid, $3::uuid, 'active')
+            SELECT $1, $2::uuid, student.id::text::uuid, 'active'
+            FROM students student
+            WHERE student.tenant_id = $1
+              AND student.id::text = $3
+              AND lower(COALESCE(student.status, 'active')) NOT IN (
+                'archived', 'transferred', 'graduated'
+              )
             ON CONFLICT (tenant_id, manifest_id, student_id)
             DO UPDATE SET boarding_status = 'active', updated_at = NOW()
+            RETURNING id::text
           `,
-          [input.tenant_id, manifest.id, studentId],
-        );
+          input.tenant_id,
+          manifest.id,
+          studentId,
+        ) as Array<Record<string, unknown>>;
+
+        if (assignments.length !== 1) {
+          throw new BadRequestException(
+            'Every transport student assignment must belong to the current school',
+          );
+        }
       }
 
       return manifest;
@@ -462,6 +667,6 @@ export class TransportRepository {
         input.resource_id ?? null,
         JSON.stringify(input.metadata ?? {}),
       ],
-    ).catch(() => undefined);
+    );
   }
 }

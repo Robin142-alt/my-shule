@@ -455,12 +455,16 @@ export class TimetableWorkflowRepository {
         JOIN academic_years year
           ON year.tenant_id = term.tenant_id AND year.id = term.academic_year_id
         WHERE term.tenant_id = $1 AND year.name = $2 AND term.name = $3
+          AND COALESCE(year.status, 'active') = 'active'
+          AND year.archived_at IS NULL
+          AND COALESCE(term.status, 'active') = 'active'
+          AND term.archived_at IS NULL
         LIMIT 1
       `,
       [tenantId, academicYear, termName],
     );
     if (!result.rows[0]) {
-      throw new BadRequestException('The selected academic year and term do not belong to this school');
+      throw new BadRequestException('The selected academic year and term are inactive or do not belong to this school');
     }
   }
 
@@ -699,13 +703,43 @@ export class TimetableWorkflowRepository {
       for (const requirement of input.requirements) {
         const refs = this.asRows<any>(await tx.$queryRawUnsafe(
           `SELECT
-             EXISTS (SELECT 1 FROM class_sections WHERE tenant_id = $1 AND id::text = $2) AS class_ok,
-             ($3::text IS NULL OR EXISTS (SELECT 1 FROM class_streams WHERE tenant_id = $1 AND id::text = $3 AND class_section_id::text = $2)) AS stream_ok,
+             EXISTS (
+               SELECT 1
+               FROM class_sections section
+               JOIN academic_years year
+                 ON year.tenant_id = section.tenant_id
+                AND year.id::text = section.academic_year_id::text
+               WHERE section.tenant_id = $1 AND section.id::text = $2
+                 AND year.name = $7
+                 AND COALESCE(section.is_active, TRUE) = TRUE
+                 AND COALESCE(section.status, 'active') = 'active'
+                 AND section.archived_at IS NULL
+             ) AS class_ok,
+             ($3::text IS NULL OR EXISTS (
+               SELECT 1
+               FROM class_streams stream
+               JOIN class_sections section
+                 ON section.tenant_id = stream.tenant_id
+                AND section.id::text = stream.class_section_id::text
+               JOIN academic_years year
+                 ON year.tenant_id = section.tenant_id
+                AND year.id::text = section.academic_year_id::text
+               WHERE stream.tenant_id = $1 AND stream.id::text = $3
+                 AND stream.class_section_id::text = $2
+                 AND year.name = $7
+                 AND COALESCE(stream.is_active, TRUE) = TRUE
+                 AND COALESCE(stream.status, 'active') = 'active'
+                 AND stream.archived_at IS NULL
+                 AND COALESCE(section.is_active, TRUE) = TRUE
+                 AND COALESCE(section.status, 'active') = 'active'
+                 AND section.archived_at IS NULL
+             )) AS stream_ok,
              EXISTS (SELECT 1 FROM subjects WHERE tenant_id = $1 AND id::text = $4) AS subject_ok,
              ($5::text IS NULL OR EXISTS (SELECT 1 FROM staff_profiles WHERE tenant_id = $1 AND user_id::text = $5 AND COALESCE(status, 'active') = 'active')) AS teacher_ok,
              ($6::text IS NULL OR EXISTS (SELECT 1 FROM timetable_resources WHERE tenant_id = $1 AND id::text = $6 AND status = 'active')) AS resource_ok`,
           input.tenant_id, String(requirement.class_section_id), requirement.stream_id ?? null,
           String(requirement.subject_id), requirement.teacher_id ?? null, requirement.resource_id ?? null,
+          input.academic_year,
         ));
         const refsRow = refs[0] ?? {};
         if (!refsRow.class_ok || !refsRow.stream_ok || !refsRow.subject_ok || !refsRow.teacher_ok || !refsRow.resource_ok) {
@@ -2045,34 +2079,78 @@ export class TimetableWorkflowRepository {
   }
 
   async validateViewReference(tenantId: string, input: {
+    academic_year: string;
     class_section_id?: string;
     stream_id?: string;
     teacher_id?: string;
     resource_id?: string;
     department_id?: string;
-  }) {
+  }, allowHistoricalReferences = false) {
     const result = await this.query<any>(
       `SELECT
-         ($2::text IS NULL OR EXISTS (SELECT 1 FROM class_sections WHERE tenant_id = $1 AND id::text = $2)) AS class_ok,
+         ($2::text IS NULL OR EXISTS (
+           SELECT 1
+           FROM class_sections section
+           JOIN academic_years year
+             ON year.tenant_id = section.tenant_id
+            AND year.id::text = section.academic_year_id::text
+           WHERE section.tenant_id = $1 AND section.id::text = $2
+             AND (
+               $8::boolean
+               OR (
+                 year.name = $7
+                 AND COALESCE(year.status, 'active') = 'active'
+                 AND year.archived_at IS NULL
+                 AND COALESCE(section.is_active, TRUE) = TRUE
+                 AND COALESCE(section.status, 'active') = 'active'
+                 AND section.archived_at IS NULL
+               )
+             )
+         )) AS class_ok,
          ($3::text IS NULL OR EXISTS (
-           SELECT 1 FROM class_streams stream
+           SELECT 1
+           FROM class_streams stream
+           JOIN class_sections section
+             ON section.tenant_id = stream.tenant_id
+            AND section.id::text = stream.class_section_id::text
+           JOIN academic_years year
+             ON year.tenant_id = section.tenant_id
+            AND year.id::text = section.academic_year_id::text
            WHERE stream.tenant_id = $1 AND stream.id::text = $3
              AND ($2::text IS NULL OR stream.class_section_id::text = $2)
+             AND (
+               $8::boolean
+               OR (
+                 year.name = $7
+                 AND COALESCE(year.status, 'active') = 'active'
+                 AND year.archived_at IS NULL
+                 AND COALESCE(stream.is_active, TRUE) = TRUE
+                 AND COALESCE(stream.status, 'active') = 'active'
+                 AND stream.archived_at IS NULL
+                 AND COALESCE(section.is_active, TRUE) = TRUE
+                 AND COALESCE(section.status, 'active') = 'active'
+                 AND section.archived_at IS NULL
+               )
+             )
          )) AS stream_ok,
          ($4::text IS NULL OR EXISTS (SELECT 1 FROM staff_profiles WHERE tenant_id = $1 AND user_id::text = $4 AND COALESCE(status, 'active') = 'active')) AS teacher_ok,
          ($5::text IS NULL OR EXISTS (SELECT 1 FROM timetable_resources WHERE tenant_id = $1 AND id::text = $5 AND status = 'active')) AS resource_ok,
          ($6::text IS NULL OR EXISTS (SELECT 1 FROM academics_departments WHERE tenant_id = $1 AND id::text = $6 AND COALESCE(is_active, TRUE))) AS department_ok`,
       [tenantId, input.class_section_id ?? null, input.stream_id ?? null,
-        input.teacher_id ?? null, input.resource_id ?? null, input.department_id ?? null],
+        input.teacher_id ?? null, input.resource_id ?? null, input.department_id ?? null,
+        input.academic_year, allowHistoricalReferences],
     );
     const refs = result.rows[0] ?? {};
     if (!refs.class_ok || !refs.stream_ok || !refs.teacher_ok || !refs.resource_ok || !refs.department_ok) {
-      throw new BadRequestException('A timetable view filter references a class, stream, teacher, resource, or department outside this school');
+      throw new BadRequestException('A timetable view filter is inactive, belongs to another academic year, or is outside this school');
     }
   }
 
   async listView(input: TimetableViewRepositoryInput) {
-    await this.validateViewReference(input.tenant_id, input);
+    if (!input.version_id) {
+      await this.assertAcademicScope(input.tenant_id, input.academic_year, input.term_name);
+    }
+    await this.validateViewReference(input.tenant_id, input, Boolean(input.version_id));
     const version = await this.query<any>(
       `SELECT id::text, academic_year, term_name, status, revision_number,
               row_version, published_at::text

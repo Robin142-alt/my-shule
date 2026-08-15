@@ -2,20 +2,36 @@
 import { useState, useEffect } from "react";
 import { Settings } from "lucide-react";
 import { Panel } from "./shared";
+import { useOptionalSchoolDashboardRole } from "@/lib/auth/school-dashboard-role-context";
+import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
 
 export function DeputySettingsWorkspace() {
+  const tenantId = useOptionalSchoolTenantId();
+  const roleState = useOptionalSchoolDashboardRole();
+  const settingsKey = tenantId && roleState?.userId
+    ? `myshule:${tenantId}:${roleState.userId}:${roleState.activeAuthorizationRoleCode}:deputy-settings`
+    : null;
   const [teachingEnabled, setTeachingEnabled] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   useEffect(() => {
-    // Load from local storage on mount
-    const saved = localStorage.getItem("myshule_deputy_settings");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      setTeachingEnabled(parsed.teachingEnabled ?? true);
-      setNotificationsEnabled(parsed.notificationsEnabled ?? true);
+    if (!settingsKey) return;
+
+    try {
+      const saved = localStorage.getItem(settingsKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const nextTeachingEnabled = parsed.teachingEnabled ?? true;
+        setTeachingEnabled(nextTeachingEnabled);
+        setNotificationsEnabled(parsed.notificationsEnabled ?? true);
+        window.dispatchEvent(new CustomEvent("myshule:deputy-teaching-toggle", {
+          detail: { enabled: nextTeachingEnabled },
+        }));
+      }
+    } catch {
+      localStorage.removeItem(settingsKey);
     }
-  }, []);
+  }, [settingsKey]);
 
   const handleToggleTeaching = () => {
     const newVal = !teachingEnabled;
@@ -32,7 +48,8 @@ export function DeputySettingsWorkspace() {
   };
 
   const saveSettings = (teaching: boolean, notifs: boolean) => {
-    localStorage.setItem("myshule_deputy_settings", JSON.stringify({
+    if (!settingsKey) return;
+    localStorage.setItem(settingsKey, JSON.stringify({
       teachingEnabled: teaching,
       notificationsEnabled: notifs
     }));

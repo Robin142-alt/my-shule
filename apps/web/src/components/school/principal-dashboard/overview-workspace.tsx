@@ -2,7 +2,8 @@
 
 import { Card } from "@/components/ui/card";
 import { AlertCircle, Activity, Users, FileText } from "lucide-react";
-import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { isSchoolQueryForPath, useSchoolQuery } from "@/lib/data/school-hooks";
+import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
 import { useDashboardEventBus } from "@/lib/dashboard-communication/dashboard-communication-provider";
 import { useEffect } from "react";
 import { DashboardEngine } from "@/components/dashboard/dashboard-engine";
@@ -17,20 +18,25 @@ type PrincipalOverviewData = {
 };
 
 import { useQueryClient } from "@tanstack/react-query";
-import { getCurrentSchoolId } from "@/lib/school/school-operational-store";
 
 export function PrincipalOverviewWorkspace() {
   const { data, isLoading, error } = useSchoolQuery<PrincipalOverviewData>('/admin-command/principal/overview');
   const queryClient = useQueryClient();
   const eventBus = useDashboardEventBus();
+  const tenantId = useOptionalSchoolTenantId();
 
   useEffect(() => {
     // Subscribe to the global Event Bus
-    const unsubscribe = eventBus.subscribe("STUDENT_ADMITTED", (event) => {
+    const unsubscribe = eventBus.subscribe("STUDENT_ADMITTED", () => {
       // When a student is admitted somewhere else in the app, instantly update the metric
-      const activeTenantId = getCurrentSchoolId();
-      queryClient.setQueryData<PrincipalOverviewData>(
-        ["school", activeTenantId || "session", '/admin-command/principal/overview'],
+      queryClient.setQueriesData<PrincipalOverviewData>(
+        {
+          predicate: (query) => isSchoolQueryForPath(
+            query.queryKey,
+            tenantId,
+            '/admin-command/principal/overview',
+          ),
+        },
         (currentData) => {
           if (!currentData) return currentData;
           return {
@@ -49,7 +55,7 @@ export function PrincipalOverviewWorkspace() {
     });
 
     return () => unsubscribe();
-  }, [eventBus, queryClient]);
+  }, [eventBus, queryClient, tenantId]);
 
   if (isLoading) {
     return (

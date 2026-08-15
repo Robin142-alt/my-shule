@@ -75,6 +75,7 @@ import {
   isSchoolSectionEnabled,
 } from "@/lib/module-access/module-access-map";
 import {
+  clearCachedSchoolModuleCodes,
   readCachedSchoolModuleCodes,
   writeCachedSchoolModuleCodes,
 } from "@/lib/module-access/school-module-access-cache";
@@ -83,6 +84,7 @@ import { startSchoolOperationalEventSyncRetryWorker } from "@/lib/school/school-
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { SchoolTenantScopeProvider } from "@/lib/data/school-tenant-scope";
 import {
+  resolveSchoolDashboardTenantBinding,
   SchoolDashboardRoleProvider,
   useSchoolDashboardRole,
 } from "@/lib/auth/school-dashboard-role-context";
@@ -3964,124 +3966,170 @@ function ModuleAccessVerifyingPanel({
   );
 }
 
-type LabsAttendanceRow = {
-  id: string;
-  student: string;
-  className: string;
-  status: string;
-  tone: "ok" | "warning" | "critical";
+type LabsDashboardResponse = {
+  todaysSessions?: number;
+  pendingRequests?: number;
+  lowStockExpiring?: number;
+  unreturnedItems?: number;
 };
 
-function LabsOperationsPage() {
-  const [attendanceRows, setAttendanceRows] = useState<LabsAttendanceRow[]>([
-    { id: "lab-att-1", student: "Awaiting class register", className: "Grade 9 Blue", status: "Not marked", tone: "warning" as const },
-    { id: "lab-att-2", student: "Class stream register", className: "Form 2 East", status: "Not marked", tone: "warning" as const },
-  ]);
+type LabsInventoryRow = {
+  id: string;
+  item_name?: string;
+  item_type?: string;
+  quantity_available?: string | number;
+  unit?: string;
+  storage_location?: string;
+  status: string;
+};
 
-  function markMandatoryAttendance() {
-    setAttendanceRows((rows) =>
-      rows.map((row) => ({
-        ...row,
-        status: "Present",
-        tone: "ok" as const,
-      })),
-    );
+type LabsPracticalRequestRow = {
+  id: string;
+  subject?: string;
+  class_name?: string;
+  practical_title?: string;
+  practical_date?: string;
+  status?: string;
+};
+
+function laboratoryStatusTone(status?: string): "ok" | "warning" | "critical" {
+  const normalized = status?.trim().toLowerCase() ?? "";
+  if (/expired|missing|damaged|out of stock|rejected|cancelled/.test(normalized)) {
+    return "critical";
   }
+  if (/low|pending|requested|review|preparing|maintenance|in use/.test(normalized)) {
+    return "warning";
+  }
+  return "ok";
+}
+
+function LabsOperationsPage({ liveDataEnabled = true }: { liveDataEnabled?: boolean }) {
+  const router = useRouter();
+  const [dashboard, setDashboard] = useState<LabsDashboardResponse | null>(null);
+  const [inventory, setInventory] = useState<LabsInventoryRow[]>([]);
+  const [requests, setRequests] = useState<LabsPracticalRequestRow[]>([]);
+  const [isLoading, setIsLoading] = useState(liveDataEnabled);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadVersion, setReloadVersion] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!liveDataEnabled) {
+      setIsLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    async function loadLaboratoryRecords() {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const responses = await Promise.all([
+          fetch("/api/labs/dashboard", { credentials: "same-origin", cache: "no-store" }),
+          fetch("/api/labs/inventory", { credentials: "same-origin", cache: "no-store" }),
+          fetch("/api/labs/requests", { credentials: "same-origin", cache: "no-store" }),
+        ]);
+
+        for (const response of responses) {
+          if (redirectOnExpiredSessionResponse(response, "school", (href) => router.replace(href))) {
+            throw new Error("Your school session has expired. Sign in again to load laboratory records.");
+          }
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null) as { message?: string } | null;
+            throw new Error(payload?.message ?? "Laboratory records could not be loaded.");
+          }
+        }
+
+        const [nextDashboard, nextInventory, nextRequests] = await Promise.all([
+          responses[0].json() as Promise<LabsDashboardResponse>,
+          responses[1].json() as Promise<{ items?: LabsInventoryRow[] }>,
+          responses[2].json() as Promise<LabsPracticalRequestRow[]>,
+        ]);
+
+        if (!cancelled) {
+          setDashboard(nextDashboard);
+          setInventory(Array.isArray(nextInventory.items) ? nextInventory.items : []);
+          setRequests(Array.isArray(nextRequests) ? nextRequests : []);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : "Laboratory records could not be loaded.");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadLaboratoryRecords();
+    return () => {
+      cancelled = true;
+    };
+  }, [liveDataEnabled, reloadVersion, router]);
 
   return (
     <div className="space-y-6">
       <SchoolPageHeader
         eyebrow="Laboratories"
         title="Laboratory operations"
-        description="Departments, sessions, mandatory attendance, equipment issuing, chemical safety, and reconciliation in one school-safe page."
-        actions={<Button onClick={markMandatoryAttendance}>Mark attendance</Button>}
+        description="Practical requests and laboratory stock shared from this school's live laboratory records."
+        actions={<Button variant="secondary" onClick={() => setReloadVersion((value) => value + 1)} disabled={isLoading}>{isLoading ? "Loading…" : "Reload records"}</Button>}
       />
+      {error ? (
+        <Card className="border-danger/20 bg-danger-soft p-5" role="alert">
+          <p className="font-black text-danger">Laboratory data did not load</p>
+          <p className="mt-2 text-sm text-muted">{error}</p>
+          <Button className="mt-4" variant="secondary" onClick={() => setReloadVersion((value) => value + 1)}>Retry</Button>
+        </Card>
+      ) : null}
       <MetricGrid
         items={[
-          { id: "scheduled", label: "Scheduled sessions", value: "0", helper: "Create sessions from the lab API" },
-          { id: "attendance", label: "Attendance required", value: "Mandatory", helper: "Completion is blocked until marking is done" },
-          { id: "chemicals", label: "Expired chemicals", value: "Blocked", helper: "Unsafe batches cannot be issued" },
-          { id: "returns", label: "Open reconciliations", value: "0", helper: "Returned equipment is tracked per session" },
+          { id: "scheduled", label: "Today's practicals", value: isLoading ? "…" : String(dashboard?.todaysSessions ?? 0), helper: "Confirmed laboratory sessions for today" },
+          { id: "requests", label: "Pending requests", value: isLoading ? "…" : String(dashboard?.pendingRequests ?? 0), helper: "Requests awaiting laboratory follow-up" },
+          { id: "chemicals", label: "Low stock / expiring", value: isLoading ? "…" : String(dashboard?.lowStockExpiring ?? 0), helper: "Items requiring stock or safety attention" },
+          { id: "returns", label: "Unreturned items", value: isLoading ? "…" : String(dashboard?.unreturnedItems ?? 0), helper: "Issues still awaiting reconciliation" },
         ]}
       />
       <Tabs
         items={[
           {
-            id: "sessions",
-            label: "Sessions",
+            id: "requests",
+            label: "Practical requests",
             panel: (
               <DataTable
-                title="Lab sessions"
-                subtitle="Every session is linked to a lab, class, subject, teacher, and attendance register."
+                title="Practical requests"
+                subtitle={isLoading ? "Loading this school's practical requests…" : "Classes and subjects come from confirmed requests in this school."}
                 columns={[
                   { id: "subject", header: "Subject", render: (row) => row.subject },
-                  { id: "className", header: "Class", render: (row) => row.className },
-                  { id: "lab", header: "Lab", render: (row) => row.lab },
-                  { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone={row.tone} /> },
+                  { id: "className", header: "Class", render: (row) => row.class_name },
+                  { id: "practical", header: "Practical", render: (row) => row.practical_title },
+                  { id: "date", header: "Date", render: (row) => row.practical_date },
+                  { id: "status", header: "Status", render: (row) => <StatusPill label={row.status ?? "Requested"} tone={laboratoryStatusTone(row.status)} /> },
                 ]}
-                rows={[
-                  { id: "session-1", subject: "Chemistry practical", className: "Form 3", lab: "Chemistry Lab 1", status: "Ready to schedule", tone: "warning" as const },
-                  { id: "session-2", subject: "ICT project", className: "Grade 8", lab: "ICT Lab", status: "No conflicts", tone: "ok" as const },
-                ]}
-                getRowKey={(row) => row.id}
-              />
-            ),
-          },
-          {
-            id: "attendance",
-            label: "Attendance",
-            panel: (
-              <DataTable
-                title="Mandatory lab attendance"
-                subtitle="Absent, late, and excused records are traceable to the lab session."
-                columns={[
-                  { id: "student", header: "Learner", render: (row) => row.student },
-                  { id: "className", header: "Class", render: (row) => row.className },
-                  { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone={row.tone} /> },
-                ]}
-                rows={attendanceRows}
+                rows={requests}
                 getRowKey={(row) => row.id}
               />
             ),
           },
           {
             id: "inventory",
-            label: "Equipment",
+            label: "Inventory",
             panel: (
               <DataTable
-                title="Equipment issue register"
-                subtitle="Quantity issued, returned, damaged, and reconciled are recorded per session."
+                title="Laboratory inventory"
+                subtitle={isLoading ? "Loading this school's laboratory stock…" : "Live apparatus, consumables, and chemicals for this school."}
                 columns={[
-                  { id: "name", header: "Equipment", render: (row) => row.name },
-                  { id: "department", header: "Department", render: (row) => row.department },
-                  { id: "available", header: "Available", render: (row) => row.available, className: "text-right", headerClassName: "text-right" },
-                  { id: "condition", header: "Condition", render: (row) => <StatusPill label={row.condition} tone={row.tone} /> },
+                  { id: "name", header: "Item", render: (row) => row.item_name },
+                  { id: "type", header: "Type", render: (row) => row.item_type },
+                  { id: "available", header: "Available", render: (row) => `${row.quantity_available ?? 0} ${row.unit ?? ""}`.trim(), className: "text-right", headerClassName: "text-right" },
+                  { id: "location", header: "Location", render: (row) => row.storage_location || "Not set" },
+                  { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone={laboratoryStatusTone(row.status)} /> },
                 ]}
-                rows={[
-                  { id: "eq-1", name: "Microscope", department: "Biology", available: "12", condition: "Serviceable", tone: "ok" as const },
-                  { id: "eq-2", name: "Bunsen burner", department: "Chemistry", available: "18", condition: "Reconcile returns", tone: "warning" as const },
-                ]}
-                getRowKey={(row) => row.id}
-              />
-            ),
-          },
-          {
-            id: "chemicals",
-            label: "Chemicals",
-            panel: (
-              <DataTable
-                title="Chemical batch safety"
-                subtitle="Expired and quarantined chemicals cannot be issued; disposal requires HOD approval."
-                columns={[
-                  { id: "name", header: "Chemical", render: (row) => row.name },
-                  { id: "batch", header: "Batch", render: (row) => row.batch },
-                  { id: "hazard", header: "Hazard", render: (row) => row.hazard },
-                  { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone={row.tone} /> },
-                ]}
-                rows={[
-                  { id: "chem-1", name: "Hydrochloric acid", batch: "HCL-2026-01", hazard: "Corrosive", status: "Active", tone: "ok" as const },
-                  { id: "chem-2", name: "Ethanol", batch: "ETH-2025-04", hazard: "Flammable", status: "Near expiry", tone: "warning" as const },
-                ]}
+                rows={inventory}
                 getRowKey={(row) => row.id}
               />
             ),
@@ -4444,25 +4492,24 @@ function formatSchoolNotificationTime(value: unknown) {
 }
 
 export function SchoolPages(props: SchoolPagesProps) {
-  const tenantId = props.tenantSlug?.trim() || "school-workspace";
-
   return (
-    <SchoolTenantScopeProvider tenantId={tenantId}>
-      <SchoolDashboardRoleProvider
-        initialRole={props.role}
-        tenantSlug={props.tenantSlug}
-        userLabel={props.userLabel}
-        routeMode={props.routeMode ?? "hosted"}
-        liveDataEnabled={props.sessionVerificationEnabled === true}
-      >
-        <AuthorizedSchoolPagesContent {...props} tenantId={tenantId} />
-      </SchoolDashboardRoleProvider>
-    </SchoolTenantScopeProvider>
+    <SchoolDashboardRoleProvider
+      initialRole={props.role}
+      tenantSlug={props.tenantSlug}
+      userLabel={props.userLabel}
+      routeMode={props.routeMode ?? "hosted"}
+      liveDataEnabled={props.sessionVerificationEnabled === true}
+    >
+      <AuthorizedSchoolPagesContent
+        {...props}
+        tenantId={props.tenantSlug?.trim() || null}
+      />
+    </SchoolDashboardRoleProvider>
   );
 }
 
 function AuthorizedSchoolPagesContent(
-  props: SchoolPagesProps & { tenantId: string },
+  props: SchoolPagesProps & { tenantId: string | null },
 ) {
   const roleState = useSchoolDashboardRole();
 
@@ -4504,30 +4551,67 @@ function AuthorizedSchoolPagesContent(
     );
   }
 
+  const tenantBinding = resolveSchoolDashboardTenantBinding({
+    requestedTenantSlug: props.tenantId,
+    authenticatedTenantSlug: roleState.authenticatedSession?.tenantSlug,
+    liveDataEnabled: roleState.liveDataEnabled,
+  });
+
+  if (tenantBinding.mismatch) {
+    return (
+      <main className="grid min-h-[60vh] place-items-center px-5 py-12">
+        <div role="alert" className="w-full max-w-md rounded-2xl border border-danger/20 bg-danger-soft p-6 text-center">
+          <p className="text-sm font-black text-danger">School access does not match this address</p>
+          <p className="mt-2 text-xs font-semibold leading-5 text-muted">
+            This dashboard address belongs to a different school than your signed-in session. Return to your assigned school or sign in again.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  const tenantId = tenantBinding.tenantSlug ?? roleState.tenantSlug?.trim() ?? null;
+
+  if (!tenantId) {
+    return (
+      <main className="grid min-h-[60vh] place-items-center px-5 py-12">
+        <div role="alert" className="w-full max-w-md rounded-2xl border border-danger/20 bg-danger-soft p-6 text-center">
+          <p className="text-sm font-black text-danger">School context is unavailable</p>
+          <p className="mt-2 text-xs font-semibold leading-5 text-muted">
+            MyShule could not verify which school owns this dashboard. Sign in again before viewing or changing school records.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   const authorizedProps: SchoolPagesProps = {
     ...props,
     role: roleState.activeRole,
+    tenantSlug: tenantId,
   };
 
   return (
-    <DashboardCommunicationProvider tenantId={props.tenantId}>
-      <SchoolCommandIdentityProvider tenantSlug={props.tenantSlug} userLabel={props.userLabel}>
-        {!props.studentId && isLiveRoleCommandCenterRole(authorizedProps.role) ? (
-          <PermissionProvider schoolId={props.tenantSlug ?? undefined}>
-            <LiveRoleCommandCenter
-              key={`${authorizedProps.role}:${props.section ?? "dashboard"}`}
-              role={authorizedProps.role}
-              routeMode={props.routeMode ?? "hosted"}
-              activeSection={props.section ?? "dashboard"}
-              tenantSlug={props.tenantSlug}
-              userLabel={props.userLabel}
-            />
-          </PermissionProvider>
-        ) : (
-          <SchoolPagesShell {...authorizedProps} />
-        )}
-      </SchoolCommandIdentityProvider>
-    </DashboardCommunicationProvider>
+    <SchoolTenantScopeProvider tenantId={tenantId}>
+      <DashboardCommunicationProvider tenantId={tenantId}>
+        <SchoolCommandIdentityProvider tenantSlug={tenantId} userLabel={props.userLabel}>
+          {!props.studentId && isLiveRoleCommandCenterRole(authorizedProps.role) ? (
+            <PermissionProvider schoolId={tenantId}>
+              <LiveRoleCommandCenter
+                key={`${authorizedProps.role}:${props.section ?? "dashboard"}`}
+                role={authorizedProps.role}
+                routeMode={props.routeMode ?? "hosted"}
+                activeSection={props.section ?? "dashboard"}
+                tenantSlug={tenantId}
+                userLabel={props.userLabel}
+              />
+            </PermissionProvider>
+          ) : (
+            <SchoolPagesShell {...authorizedProps} />
+          )}
+        </SchoolCommandIdentityProvider>
+      </DashboardCommunicationProvider>
+    </SchoolTenantScopeProvider>
   );
 }
 
@@ -4541,14 +4625,21 @@ function SchoolPagesShell({
   liveDataEnabled = true,
 }: SchoolPagesProps) {
   const router = useRouter();
+  const roleState = useSchoolDashboardRole();
   const dashboardRefreshVersion = useDashboardRefreshVersion();
   const replaceRoute = router.replace;
   const workspace = getSchoolWorkspace(role, tenantSlug);
+  const moduleCacheIdentity = {
+    role,
+    tenantSlug,
+    userId: roleState.userId,
+    activeAuthorizationRoleCode: roleState.activeAuthorizationRoleCode,
+  };
   const [moduleAccessState, setModuleAccessState] = useState<{
     codes: Set<string> | null;
     verified: boolean;
   }>(() => {
-    const cachedModuleCodes = readCachedSchoolModuleCodes({ role, tenantSlug });
+    const cachedModuleCodes = readCachedSchoolModuleCodes(moduleCacheIdentity);
 
     if (!liveDataEnabled) {
       return {
@@ -4576,7 +4667,13 @@ function SchoolPagesShell({
         );
   useEffect(() => {
     let cancelled = false;
-    const cachedModuleCodes = readCachedSchoolModuleCodes({ role, tenantSlug });
+    const cacheIdentity = {
+      role,
+      tenantSlug,
+      userId: roleState.userId,
+      activeAuthorizationRoleCode: roleState.activeAuthorizationRoleCode,
+    };
+    const cachedModuleCodes = readCachedSchoolModuleCodes(cacheIdentity);
     const hasUsableCachedModuleCodes = Boolean(cachedModuleCodes && cachedModuleCodes.size > 0);
 
     if (!liveDataEnabled) {
@@ -4598,6 +4695,17 @@ function SchoolPagesShell({
             }
 
             if (!response.ok) {
+              if (response.status === 401 || response.status === 403) {
+                clearCachedSchoolModuleCodes(cacheIdentity);
+                if (!cancelled) {
+                  setModuleAccessState({
+                    codes: new Set(),
+                    verified: true,
+                  });
+                }
+                return;
+              }
+
               if (!cancelled && !hasUsableCachedModuleCodes) {
                 setModuleAccessState({
                   codes: new Set(),
@@ -4619,8 +4727,7 @@ function SchoolPagesShell({
           const nextModuleCodes = new Set(moduleCodes);
 
           writeCachedSchoolModuleCodes({
-            role,
-            tenantSlug,
+            ...cacheIdentity,
             moduleCodes: nextModuleCodes,
           });
           setModuleAccessState({
@@ -4643,7 +4750,15 @@ function SchoolPagesShell({
     return () => {
       cancelled = true;
     };
-  }, [dashboardRefreshVersion, liveDataEnabled, replaceRoute, role, tenantSlug]);
+  }, [
+    dashboardRefreshVersion,
+    liveDataEnabled,
+    replaceRoute,
+    role,
+    roleState.activeAuthorizationRoleCode,
+    roleState.userId,
+    tenantSlug,
+  ]);
   useEffect(() => {
     if (!liveDataEnabled) {
       return () => undefined;
@@ -4809,7 +4924,7 @@ function SchoolPagesShell({
   const notifications: ExperienceNotificationItem[] = [
     ...(liveDataEnabled ? liveNotifications : []),
     ...subscriptionNotifications,
-    ...workspace.snapshot.notifications.slice(0, 3).map(
+    ...(!liveDataEnabled ? workspace.snapshot.notifications.slice(0, 3) : []).map(
       (item): ExperienceNotificationItem => ({
         id: item.id,
         title: item.title,
@@ -5043,7 +5158,7 @@ function SchoolPagesShell({
         <DisciplineWorkspace tenantSlug={tenantSlug} />
       ) : null}
       {!studentId && !renderRoleOperationalWorkspace && section === "labs" ? (
-        <LabsOperationsPage />
+        <LabsOperationsPage liveDataEnabled={liveDataEnabled} />
       ) : null}
       {!studentId && !renderRoleOperationalWorkspace && section === "teacher-attendance" ? (
         <TeacherBiometricAttendancePage />

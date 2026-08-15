@@ -409,6 +409,32 @@ export class EventsSchemaService implements OnModuleInit {
           FROM information_schema.columns
           WHERE table_schema = 'public'
             AND table_name = 'notifications'
+            AND column_name = 'target_user_id'
+        ) THEN
+          UPDATE notifications
+          SET recipient_user_id = target_user_id::text::uuid
+          WHERE recipient_user_id IS NULL
+            AND target_user_id IS NOT NULL
+            AND target_user_id::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'notifications'
+            AND column_name = 'target_role'
+        ) THEN
+          UPDATE notifications
+          SET recipient_role = COALESCE(NULLIF(recipient_role, ''), NULLIF(target_role, ''))
+          WHERE recipient_role IS NULL OR btrim(recipient_role) = '';
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'notifications'
             AND column_name = 'event_type'
         ) THEN
           UPDATE notifications
@@ -447,8 +473,32 @@ export class EventsSchemaService implements OnModuleInit {
             AND column_name = 'metadata_json'
         ) THEN
           UPDATE notifications
-          SET metadata = COALESCE(metadata, metadata_json, '{}'::jsonb)
-          WHERE metadata IS NULL;
+          SET metadata = COALESCE(NULLIF(metadata, '{}'::jsonb), metadata_json, '{}'::jsonb)
+          WHERE metadata IS NULL OR metadata = '{}'::jsonb;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'notifications'
+            AND column_name = 'module'
+        ) THEN
+          UPDATE notifications
+          SET source_module = COALESCE(NULLIF(source_module, ''), NULLIF(module, ''))
+          WHERE source_module IS NULL OR btrim(source_module) = '';
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'notifications'
+            AND column_name = 'entity_id'
+        ) THEN
+          UPDATE notifications
+          SET source_record_id = COALESCE(NULLIF(source_record_id, ''), NULLIF(entity_id::text, ''))
+          WHERE source_record_id IS NULL OR btrim(source_record_id) = '';
         END IF;
 
         UPDATE notifications
@@ -517,6 +567,236 @@ export class EventsSchemaService implements OnModuleInit {
         ON notifications (tenant_id, notification_key);
       CREATE INDEX IF NOT EXISTS ix_notifications_tenant_role_status_created
         ON notifications (tenant_id, recipient_role, status, created_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_notifications_tenant_user_status_created
+        ON notifications (tenant_id, recipient_user_id, status, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS tasks (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        task_key text NOT NULL,
+        assigned_to_user_id uuid,
+        assigned_to_role text,
+        created_by_user_id uuid,
+        title text NOT NULL,
+        description text,
+        module text,
+        record_id text,
+        status text NOT NULL DEFAULT 'OPEN',
+        priority text NOT NULL DEFAULT 'normal',
+        due_date timestamptz,
+        metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+        completed_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS task_key text;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_to_user_id uuid;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_to_role text;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS description text;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS module text;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS record_id text;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS status text DEFAULT 'OPEN';
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority text DEFAULT 'normal';
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS due_date timestamptz;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS completed_at timestamptz;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT NOW();
+
+      DO $$
+      BEGIN
+        IF to_regclass('public.dashboard_tasks') IS NOT NULL THEN
+          INSERT INTO tasks (
+            tenant_id,
+            task_key,
+            assigned_to_user_id,
+            assigned_to_role,
+            title,
+            description,
+            status,
+            due_date,
+            metadata,
+            created_at,
+            updated_at
+          )
+          SELECT
+            legacy.tenant_id::text,
+            'legacy-dashboard:' || legacy.id::text,
+            COALESCE(legacy.assigned_to_user_id, legacy.target_user_id),
+            legacy.target_role,
+            legacy.title,
+            legacy.description,
+            upper(COALESCE(NULLIF(legacy.status, ''), 'open')),
+            legacy.due_date,
+            jsonb_build_object('legacyDashboardTaskId', legacy.id::text),
+            legacy.created_at,
+            legacy.updated_at
+          FROM dashboard_tasks legacy
+          ON CONFLICT (tenant_id, task_key) DO NOTHING;
+        END IF;
+
+        UPDATE tasks
+        SET task_key = 'legacy-task:' || id::text
+        WHERE task_key IS NULL OR btrim(task_key) = '';
+
+        UPDATE tasks
+        SET status = COALESCE(NULLIF(status, ''), 'OPEN'),
+            priority = COALESCE(NULLIF(priority, ''), 'normal'),
+            metadata = COALESCE(metadata, '{}'::jsonb),
+            updated_at = COALESCE(updated_at, created_at, NOW());
+
+        ALTER TABLE tasks ALTER COLUMN task_key SET NOT NULL;
+        ALTER TABLE tasks ALTER COLUMN status SET DEFAULT 'OPEN';
+        ALTER TABLE tasks ALTER COLUMN status SET NOT NULL;
+        ALTER TABLE tasks ALTER COLUMN priority SET DEFAULT 'normal';
+        ALTER TABLE tasks ALTER COLUMN priority SET NOT NULL;
+        ALTER TABLE tasks ALTER COLUMN metadata SET DEFAULT '{}'::jsonb;
+        ALTER TABLE tasks ALTER COLUMN metadata SET NOT NULL;
+        ALTER TABLE tasks ALTER COLUMN updated_at SET DEFAULT NOW();
+        ALTER TABLE tasks ALTER COLUMN updated_at SET NOT NULL;
+      END;
+      $$;
+
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_tasks_tenant_task_key
+        ON tasks (tenant_id, task_key);
+      CREATE INDEX IF NOT EXISTS ix_tasks_tenant_user_status_created
+        ON tasks (tenant_id, assigned_to_user_id, status, created_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_tasks_tenant_role_status_created
+        ON tasks (tenant_id, assigned_to_role, status, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS approval_requests (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        approval_key text NOT NULL,
+        requested_by_user_id uuid,
+        approver_role text,
+        approver_user_id uuid,
+        module text,
+        record_id text,
+        approval_type text,
+        reason text,
+        status text NOT NULL DEFAULT 'PENDING',
+        decision_note text,
+        metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+        decided_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+
+      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS approval_key text;
+      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS requested_by_user_id uuid;
+      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS approver_role text;
+      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS approver_user_id uuid;
+      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS module text;
+      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS record_id text;
+      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS approval_type text;
+      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS reason text;
+      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS decision_note text;
+      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
+      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS decided_at timestamptz;
+      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT NOW();
+
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'approval_requests'
+            AND column_name = 'status'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE approval_requests ALTER COLUMN status DROP DEFAULT;
+          ALTER TABLE approval_requests ALTER COLUMN status TYPE text USING upper(status::text);
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'title'
+        ) THEN
+          EXECUTE $migration$
+            UPDATE approval_requests
+            SET metadata = COALESCE(metadata, '{}'::jsonb)
+              || jsonb_build_object('title', COALESCE(NULLIF(title, ''), 'Approval request'))
+          $migration$;
+          ALTER TABLE approval_requests ALTER COLUMN title DROP NOT NULL;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'requested_by_role'
+        ) THEN
+          EXECUTE $migration$
+            UPDATE approval_requests
+            SET metadata = COALESCE(metadata, '{}'::jsonb)
+              || jsonb_build_object('requestedByRole', requested_by_role)
+            WHERE requested_by_role IS NOT NULL
+          $migration$;
+          ALTER TABLE approval_requests ALTER COLUMN requested_by_role DROP NOT NULL;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'approver_roles'
+        ) THEN
+          EXECUTE $migration$
+            UPDATE approval_requests
+            SET approver_role = COALESCE(
+              approver_role,
+              NULLIF(approver_roles ->> 0, '')
+            )
+            WHERE approver_role IS NULL
+          $migration$;
+          ALTER TABLE approval_requests ALTER COLUMN approver_roles DROP NOT NULL;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'entity_id'
+        ) THEN
+          EXECUTE $migration$
+            UPDATE approval_requests
+            SET record_id = COALESCE(record_id, NULLIF(entity_id, ''))
+            WHERE record_id IS NULL
+          $migration$;
+          ALTER TABLE approval_requests ALTER COLUMN entity_id DROP NOT NULL;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'entity_type'
+        ) THEN
+          ALTER TABLE approval_requests ALTER COLUMN entity_type DROP NOT NULL;
+        END IF;
+
+        ALTER TABLE approval_requests ALTER COLUMN requested_by_user_id DROP NOT NULL;
+
+        UPDATE approval_requests
+        SET approval_key = 'legacy-approval:' || id::text
+        WHERE approval_key IS NULL OR btrim(approval_key) = '';
+
+        UPDATE approval_requests
+        SET status = upper(COALESCE(NULLIF(status, ''), 'PENDING')),
+            metadata = COALESCE(metadata, '{}'::jsonb),
+            updated_at = COALESCE(updated_at, created_at, NOW());
+
+        ALTER TABLE approval_requests ALTER COLUMN approval_key SET NOT NULL;
+        ALTER TABLE approval_requests ALTER COLUMN status SET DEFAULT 'PENDING';
+        ALTER TABLE approval_requests ALTER COLUMN status SET NOT NULL;
+        ALTER TABLE approval_requests ALTER COLUMN metadata SET DEFAULT '{}'::jsonb;
+        ALTER TABLE approval_requests ALTER COLUMN metadata SET NOT NULL;
+        ALTER TABLE approval_requests ALTER COLUMN updated_at SET DEFAULT NOW();
+        ALTER TABLE approval_requests ALTER COLUMN updated_at SET NOT NULL;
+      END;
+      $$;
+
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_approval_requests_tenant_approval_key
+        ON approval_requests (tenant_id, approval_key);
+      CREATE INDEX IF NOT EXISTS ix_approval_requests_tenant_user_status_created
+        ON approval_requests (tenant_id, approver_user_id, status, created_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_approval_requests_tenant_role_status_created
+        ON approval_requests (tenant_id, approver_role, status, created_at DESC);
 
       CREATE OR REPLACE FUNCTION app.claim_outbox_events(
         batch_size integer,
@@ -620,6 +900,10 @@ export class EventsSchemaService implements OnModuleInit {
       ALTER TABLE event_consumer_runs FORCE ROW LEVEL SECURITY;
       ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
       ALTER TABLE notifications FORCE ROW LEVEL SECURITY;
+      ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE tasks FORCE ROW LEVEL SECURITY;
+      ALTER TABLE approval_requests ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE approval_requests FORCE ROW LEVEL SECURITY;
 
       DROP POLICY IF EXISTS audit_logs_rls_policy ON audit_logs;
       CREATE POLICY audit_logs_rls_policy ON audit_logs
@@ -641,6 +925,20 @@ export class EventsSchemaService implements OnModuleInit {
 
       DROP POLICY IF EXISTS notifications_rls_policy ON notifications;
       CREATE POLICY notifications_rls_policy ON notifications
+      FOR ALL
+      USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+      DROP POLICY IF EXISTS tasks_rls_policy ON tasks;
+      DROP POLICY IF EXISTS tasks_tenant_policy ON tasks;
+      CREATE POLICY tasks_rls_policy ON tasks
+      FOR ALL
+      USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+      DROP POLICY IF EXISTS approval_requests_rls_policy ON approval_requests;
+      DROP POLICY IF EXISTS approval_requests_tenant_policy ON approval_requests;
+      CREATE POLICY approval_requests_rls_policy ON approval_requests
       FOR ALL
       USING (tenant_id = current_setting('app.tenant_id', true))
       WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
@@ -678,6 +976,20 @@ export class EventsSchemaService implements OnModuleInit {
       DROP TRIGGER IF EXISTS trg_notifications_set_updated_at ON notifications;
       CREATE TRIGGER trg_notifications_set_updated_at
       BEFORE UPDATE ON notifications
+      FOR EACH ROW
+      EXECUTE FUNCTION set_updated_at();
+
+      DROP TRIGGER IF EXISTS trg_tasks_set_updated_at ON tasks;
+      DROP TRIGGER IF EXISTS trg_tasks_updated_at ON tasks;
+      CREATE TRIGGER trg_tasks_set_updated_at
+      BEFORE UPDATE ON tasks
+      FOR EACH ROW
+      EXECUTE FUNCTION set_updated_at();
+
+      DROP TRIGGER IF EXISTS trg_approval_requests_set_updated_at ON approval_requests;
+      DROP TRIGGER IF EXISTS trg_approval_requests_updated_at ON approval_requests;
+      CREATE TRIGGER trg_approval_requests_set_updated_at
+      BEFORE UPDATE ON approval_requests
       FOR EACH ROW
       EXECUTE FUNCTION set_updated_at();
     `);

@@ -164,6 +164,65 @@ test('LibraryService lists circulation ledger for the current tenant', async () 
   assert.equal(rows[0]?.id, 'ledger-1');
 });
 
+test('LibraryService loads the catalog through its tenant-scoped repository contract', async () => {
+  let capturedTenantId = '';
+  const service = new LibraryService(
+    {} as never,
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'librarian-1' }) } as never,
+    {
+      listCatalogItems: async (tenantId: string) => {
+        capturedTenantId = tenantId;
+        return [{ id: 'catalog-1', title: 'Blossoms of the Savannah', total: 2, available: 1 }];
+      },
+    } as never,
+    {} as never,
+  );
+
+  const rows = await service.listCatalogItems();
+
+  assert.equal(capturedTenantId, 'tenant-a');
+  assert.equal(rows[0]?.id, 'catalog-1');
+});
+
+test('LibraryRepository catalog query uses canonical category and tenant-safe copy joins', async () => {
+  let capturedSql = '';
+  let capturedValues: unknown[] = [];
+  const repository = new LibraryRepository({
+    query: async (sql: string, values: unknown[]) => {
+      capturedSql = sql;
+      capturedValues = values;
+      return {
+        rows: [{ id: 'catalog-1', title: 'Blossoms of the Savannah', subject: 'Literature', total: 2, available: 1 }],
+        rowCount: 1,
+      };
+    },
+  } as never);
+
+  const rows = await repository.listCatalogItems('tenant-a');
+
+  assert.match(capturedSql, /catalog\.category AS subject/);
+  assert.match(capturedSql, /copy\.tenant_id = catalog\.tenant_id/);
+  assert.match(capturedSql, /catalog\.tenant_id = \$1/);
+  assert.doesNotMatch(capturedSql, /category_id/);
+  assert.deepEqual(capturedValues, ['tenant-a']);
+  assert.equal(rows[0]?.available, 1);
+});
+
+test('LibraryService exposes catalog repository failures instead of returning fake empty data', async () => {
+  const service = new LibraryService(
+    {} as never,
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'librarian-1' }) } as never,
+    {
+      listCatalogItems: async () => {
+        throw new Error('library database unavailable');
+      },
+    } as never,
+    {} as never,
+  );
+
+  await assert.rejects(() => service.listCatalogItems(), /library database unavailable/);
+});
+
 test('LibraryService lists tenant-scoped library visit workflow events', async () => {
   let capturedSql = '';
   let capturedValues: unknown[] = [];

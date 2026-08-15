@@ -1,16 +1,7 @@
-import { Controller, Get, Patch, Param, Query, Body, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Param, Query, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
-import { Request } from 'express';
-
-// Minimal interface for JWT payload mapping, typically you'd have a custom decorator
-interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-    schoolId: string;
-    role: string;
-  };
-}
+import { RequestContextService } from '../../common/request-context/request-context.service';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 
@@ -18,22 +9,21 @@ import { Permissions } from '../../auth/decorators/permissions.decorator';
 @UseGuards(JwtAuthGuard)
 @Permissions('notifications:*')
 export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(
+    private readonly notificationsService: NotificationsService,
+    private readonly requestContext: RequestContextService,
+  ) {}
 
   @Get()
   async getUserNotifications(
-    @Req() req: AuthenticatedRequest,
     @Query('status') status?: string,
     @Query('module') module?: string,
     @Query('limit') limit?: string,
     @Query('skip') skip?: string,
   ) {
-    const user = req.user;
-    if (!user || !user.schoolId) {
-      throw new Error('Unauthorized or no school selected');
-    }
+    const principal = this.requirePrincipal();
 
-    return this.notificationsService.getUserNotifications(user.schoolId, user.id, user.role, {
+    return this.notificationsService.getUserNotifications(principal.tenantId, principal.userId, principal.role, {
       status,
       module,
       limit,
@@ -42,52 +32,60 @@ export class NotificationsController {
   }
 
   @Get('badges')
-  async getBadges(@Req() req: AuthenticatedRequest) {
-    const user = req.user;
-    if (!user || !user.schoolId) {
-      return { unreadCount: 0, urgentCount: 0, byModule: {} };
-    }
+  async getBadges() {
+    const principal = this.requirePrincipal();
 
-    return this.notificationsService.getBadges(user.schoolId, user.id, user.role);
+    return this.notificationsService.getBadges(principal.tenantId, principal.userId, principal.role);
   }
 
   @Patch('read-all')
-  async markAllAsRead(@Req() req: AuthenticatedRequest) {
-    const user = req.user;
-    if (!user || !user.schoolId) {
-      throw new Error('Unauthorized');
-    }
+  async markAllAsRead() {
+    const principal = this.requirePrincipal();
 
-    return this.notificationsService.markAllAsRead(user.schoolId, user.id, user.role);
+    return this.notificationsService.markAllAsRead(principal.tenantId, principal.userId, principal.role);
   }
 
   @Patch(':id/read')
-  async markAsRead(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    const user = req.user;
-    if (!user || !user.schoolId) {
-      throw new Error('Unauthorized');
-    }
+  async markAsRead(@Param('id') id: string) {
+    const principal = this.requirePrincipal();
 
-    return this.notificationsService.safeMarkAsRead(id, user.schoolId, user.id);
+    return this.notificationsService.safeMarkAsRead(
+      id,
+      principal.tenantId,
+      principal.userId,
+      principal.role,
+    );
   }
 
   @Patch(':id/dismiss')
-  async dismiss(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    const user = req.user;
-    if (!user || !user.schoolId) {
-      throw new Error('Unauthorized');
-    }
+  async dismiss(@Param('id') id: string) {
+    const principal = this.requirePrincipal();
 
-    return this.notificationsService.dismiss(id, user.schoolId, user.id);
+    return this.notificationsService.dismiss(id, principal.tenantId, principal.userId, principal.role);
   }
 
   @Patch(':id/action-taken')
-  async markActionTaken(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    const user = req.user;
-    if (!user || !user.schoolId) {
-      throw new Error('Unauthorized');
+  async markActionTaken(@Param('id') id: string) {
+    const principal = this.requirePrincipal();
+
+    return this.notificationsService.markActionTaken(
+      id,
+      principal.tenantId,
+      principal.userId,
+      principal.role,
+    );
+  }
+
+  private requirePrincipal(): { tenantId: string; userId: string; role: string } {
+    const store = this.requestContext.requireStore();
+    if (!store.is_authenticated || !store.tenant_id || !store.user_id || !store.role) {
+      throw new UnauthorizedException('An authenticated school role is required');
     }
 
-    return this.notificationsService.markActionTaken(id, user.schoolId, user.id);
+    return {
+      tenantId: store.tenant_id,
+      userId: store.user_id,
+      role: store.role,
+    };
   }
 }

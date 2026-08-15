@@ -191,7 +191,7 @@ function Topbar({ activeView, onViewChange }: { activeView: TeacherView; onViewC
             />
           </div>
           <TaskQueue />
-          <ApprovalInbox currentUserId="school" />
+          <ApprovalInbox />
           <NotificationBell />
         </div>
       </div>

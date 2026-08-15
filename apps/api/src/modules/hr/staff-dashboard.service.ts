@@ -1,20 +1,20 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { PrismaService } from '../../database/prisma.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
+import { HrRepository } from './repositories/hr.repository';
 
 @Injectable()
 export class StaffDashboardService {
   constructor(
-    private readonly prisma: PrismaService,
     private readonly requestContext: RequestContextService,
+    private readonly repository: HrRepository,
   ) {}
 
-  private requireStaffId(): string {
+  private requireUserId(): string {
     const userId = this.requestContext.getStore()?.user_id;
     if (!userId) {
       throw new UnauthorizedException('User context is required');
     }
-    return userId; // In a real scenario we'd map userId to staff_profile_id
+    return userId;
   }
 
   private requireTenantId(): string {
@@ -27,20 +27,13 @@ export class StaffDashboardService {
 
   async getStaffDashboard() {
     const tenantId = this.requireTenantId();
-    const userId = this.requireStaffId();
+    const store = this.requestContext.requireStore();
+    const userId = this.requireUserId();
 
-    // Ideally, we'd query for the staff profile associated with the user
-    // For now, let's just return a standard dashboard structure
-    return {
-      metrics: {
-        upcomingClasses: 2,
-        pendingTasks: 5,
-        unreadMessages: 3,
-        leaveBalance: 14
-      },
-      schedule: [],
-      announcements: [],
-      recentActivity: []
-    };
+    return this.repository.getStaffDashboard(
+      tenantId,
+      userId,
+      store.role ?? '',
+    );
   }
 }

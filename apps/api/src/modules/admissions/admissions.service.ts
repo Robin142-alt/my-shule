@@ -687,6 +687,10 @@ export class AdmissionsService {
         streamName,
       );
       this.assertAcademicCapacityAvailable(className, streamName, academicClassSection);
+      const canonicalClassName = String(academicClassSection!.class_name ?? className).trim();
+      const canonicalStreamName = streamName
+        ? String(academicClassSection!.stream_name ?? streamName).trim()
+        : '';
 
       const nameParts = this.splitName(application.full_name);
       const student = await this.studentsService.createStudent({
@@ -732,8 +736,8 @@ export class AdmissionsService {
       const allocation = await this.admissionsRepository.createAllocation({
         school_id: tenantId,
         student_id: student.id,
-        class_name: className,
-        stream_name: streamName,
+        class_name: canonicalClassName,
+        stream_name: canonicalStreamName,
         dormitory_name: dto.dormitory_name?.trim() || null,
         transport_route: dto.transport_route?.trim() || null,
         effective_from: new Date().toISOString().slice(0, 10),
@@ -742,8 +746,8 @@ export class AdmissionsService {
         tenantId,
         application.id,
         student.id,
-        className,
-        streamName,
+        canonicalClassName,
+        canonicalStreamName,
         academicClassSection,
       );
       await this.publishAcademicEnrollmentCreated(tenantId, student.id, academicEnrollment);
@@ -1677,9 +1681,25 @@ export class AdmissionsService {
   private assertAcademicCapacityAvailable(
     className: string,
     streamName: string,
-    classSection: { capacity?: number | string | null; current_enrollments?: number | string | null } | null,
+    classSection: {
+      stream_id?: string | null;
+      capacity?: number | string | null;
+      current_enrollments?: number | string | null;
+    } | null,
   ) {
-    if (!classSection?.capacity) {
+    if (!classSection) {
+      throw new BadRequestException(
+        `Active class section "${className} ${streamName}" was not found in this school`,
+      );
+    }
+
+    if (streamName && !classSection.stream_id) {
+      throw new BadRequestException(
+        `Active stream "${streamName}" was not found for class section "${className}" in this school`,
+      );
+    }
+
+    if (classSection.capacity == null) {
       return;
     }
 
@@ -1927,17 +1947,30 @@ export class AdmissionsService {
     studentId: string,
     className: string,
     streamName: string,
-    classSection: { id?: string | null; academic_year?: string | null } | null,
+    classSection: {
+      id?: string | null;
+      stream_id?: string | null;
+      academic_year?: string | null;
+    } | null,
   ) {
-    return this.admissionsRepository.createStudentAcademicEnrollment({
+    const enrollment = await this.admissionsRepository.createStudentAcademicEnrollment({
       school_id: tenantId,
       student_id: studentId,
       application_id: applicationId,
       class_section_id: classSection?.id ?? null,
+      stream_id: classSection?.stream_id ?? null,
       class_name: className,
       stream_name: streamName,
       academic_year: classSection?.academic_year ?? new Date().getUTCFullYear().toString(),
     });
+
+    if (!enrollment) {
+      throw new BadRequestException(
+        `The selected class section or stream is no longer active in this school`,
+      );
+    }
+
+    return enrollment;
   }
 
   private async enrollSubjectsAndTimetable(

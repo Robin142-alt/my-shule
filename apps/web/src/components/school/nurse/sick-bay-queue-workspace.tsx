@@ -3,7 +3,6 @@ import { useState } from "react";
 import { BedDouble, PlusCircle, Search } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { admitToSickBay, dischargeFromSickBay } from "./api-client";
 
@@ -23,8 +22,7 @@ type SickBayData = {
 };
 
 export function SickBayQueueWorkspace() {
-  const queryClient = useQueryClient();
-  const { data, isLoading } = useSchoolQuery<SickBayData>('/admin-command/nurse/sick-bay-queue');
+  const { data, isLoading, refetch } = useSchoolQuery<SickBayData>('/admin-command/nurse/sick-bay-queue');
   const [showForm, setShowForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({ student_name: "", class_name: "", complaint: "", notes: "" });
@@ -46,7 +44,7 @@ export function SickBayQueueWorkspace() {
     setIsSubmitting(true);
     try {
       await admitToSickBay(form);
-      queryClient.invalidateQueries({ queryKey: ["school", "session", "/admin-command/nurse/sick-bay-queue"] });
+      await refetch();
       toast.success("Student admitted to sick bay.");
       setShowForm(false);
       setForm({ student_name: "", class_name: "", complaint: "", notes: "" });
@@ -57,7 +55,7 @@ export function SickBayQueueWorkspace() {
   const handleDischarge = async (id: string, name: string) => {
     try {
       await dischargeFromSickBay(id);
-      queryClient.invalidateQueries({ queryKey: ["school", "session", "/admin-command/nurse/sick-bay-queue"] });
+      await refetch();
       toast.success(`${name} discharged from sick bay.`);
     } catch (e: any) { toast.error(e.message || "Failed to discharge student."); }
   };

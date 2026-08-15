@@ -19,12 +19,13 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { isProductionReadyModule } from "@/lib/features/module-readiness";
 import type { OperationalSearchAction } from "@/lib/search/operational-search-registry";
 import { resolveOperationalSearch } from "@/lib/search/operational-search-resolver";
 import { usePermissions } from "@/components/providers/permission-context";
-import { NotificationBell, type BadgesResponse } from "@/components/common/notifications/notification-bell";
+import { NotificationBell } from "@/components/common/notifications/notification-bell";
+import { useNotificationBadges } from "@/hooks/useNotifications";
 
 const schoolNavItems = [
   { id: "dashboard", label: "Dashboard", href: "", icon: LayoutDashboard, requiredPermission: "" },
@@ -79,32 +80,12 @@ export function SchoolShell({
   const bottomItems = visibleSchoolNavItems.filter((i) => i.id === "settings");
   const canUseGlobalSearch = globalSearchRoles.has(role);
   const normalizedSearchTerm = searchTerm.trim().toLowerCase();
-  const [badges, setBadges] = useState<BadgesResponse | null>(null);
-
-  useEffect(() => {
-    const fetchBadges = async () => {
-      if (typeof fetch !== "function") {
-        setBadges({ unreadCount: 1, urgentCount: 0, byModule: { attendance: 1 } });
-        return;
-      }
-
-      try {
-        const token = localStorage.getItem("auth_token") || "";
-        const res = await fetch("/api/v1/notifications/badges", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setBadges(data);
-        }
-      } catch {
-        setBadges({ unreadCount: 1, urgentCount: 0, byModule: { attendance: 1 } });
-      }
-    };
-    fetchBadges();
-    const interval = setInterval(fetchBadges, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  const {
+    badges,
+    isLoading: badgesLoading,
+    error: badgesError,
+    refetch: refetchBadges,
+  } = useNotificationBadges();
 
   function toRoleHref(href: string) {
     const [rawPath, rawQuery] = href.split("?");
@@ -380,7 +361,13 @@ export function SchoolShell({
                   ) : null}
                 </div>
               ) : null}
-              <NotificationBell basePath={basePath} badges={badges} onBadgesUpdate={setBadges} />
+              <NotificationBell
+                basePath={basePath}
+                badges={badges}
+                badgesLoading={badgesLoading}
+                badgesError={badgesError}
+                onBadgesRefresh={() => void refetchBadges()}
+              />
               <button
                 type="button"
                 onClick={() => router.push(`${basePath}/settings`)}

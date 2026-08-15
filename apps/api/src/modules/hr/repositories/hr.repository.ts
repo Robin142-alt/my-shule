@@ -34,6 +34,274 @@ export class HrRepository {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  async getStaffDashboard(tenantId: string, userId: string, role: string) {
+    return this.prisma.executeWithTenant(tenantId, userId, async (tx) => {
+      const profiles = await tx.$queryRawUnsafe<Array<Record<string, unknown>>>(
+        `
+          SELECT
+            profile.id::text,
+            profile.user_id::text,
+            profile.staff_number,
+            profile.display_name,
+            profile.status,
+            department.name AS department,
+            job_title.title AS job_title
+          FROM staff_profiles profile
+          LEFT JOIN staff_departments department
+            ON department.tenant_id = profile.tenant_id
+           AND department.id = profile.department_id
+          LEFT JOIN staff_job_titles job_title
+            ON job_title.tenant_id = profile.tenant_id
+           AND job_title.id = profile.job_title_id
+          WHERE profile.tenant_id = $1
+            AND profile.user_id::text = $2
+            AND profile.status NOT IN ('exited', 'archived')
+          LIMIT 1
+        `,
+        tenantId,
+        userId,
+      );
+      const profile = profiles[0] ?? null;
+
+      if (!profile) {
+        return this.unavailableStaffDashboard();
+      }
+
+      const tableAvailabilityRows = await tx.$queryRawUnsafe<Array<Record<string, boolean>>>(
+        `
+          SELECT
+            (
+              to_regclass('public.timetable_slots') IS NOT NULL
+              AND to_regclass('public.class_sections') IS NOT NULL
+              AND to_regclass('public.subjects') IS NOT NULL
+            ) AS timetable,
+            to_regclass('public.notifications') IS NOT NULL AS notifications,
+            to_regclass('public.announcements') IS NOT NULL AS announcements
+        `,
+      );
+      const tableAvailability = tableAvailabilityRows[0] ?? {
+        timetable: false,
+        notifications: false,
+        announcements: false,
+      };
+
+      let schedule: Array<Record<string, unknown>> = [];
+      if (tableAvailability.timetable) {
+        schedule = await tx.$queryRawUnsafe<Array<Record<string, unknown>>>(
+          `
+            SELECT
+              slot.id::text,
+              class_section.name AS class_name,
+              subject.name AS subject_name,
+              slot.day_of_week,
+              slot.starts_at::text,
+              slot.ends_at::text,
+              slot.room_id AS room,
+              COUNT(*) OVER()::int AS total_count
+            FROM timetable_slots slot
+            INNER JOIN class_sections class_section
+              ON class_section.tenant_id = slot.tenant_id
+             AND class_section.id::text = slot.class_section_id::text
+            INNER JOIN subjects subject
+              ON subject.tenant_id = slot.tenant_id
+             AND subject.id::text = slot.subject_id::text
+            WHERE slot.tenant_id = $1
+              AND slot.teacher_id::text = $2
+              AND slot.status = 'published'
+            ORDER BY
+              CASE
+                WHEN slot.day_of_week >= EXTRACT(ISODOW FROM CURRENT_DATE)::int THEN 0
+                ELSE 1
+              END,
+              slot.day_of_week,
+              slot.starts_at
+            LIMIT 8
+          `,
+          tenantId,
+          userId,
+        );
+      }
+
+      let unreadMessages = 0;
+      if (tableAvailability.notifications) {
+        const unreadRows = await tx.$queryRawUnsafe<Array<{ count: number | string }>>(
+          `
+            SELECT COUNT(*)::int AS count
+            FROM notifications notification
+            WHERE notification.tenant_id = $1
+              AND notification.status = 'unread'
+              AND (
+                notification.recipient_user_id::text = $2
+                OR (
+                  notification.recipient_user_id IS NULL
+                  AND notification.recipient_role = NULLIF($3, '')
+                )
+              )
+          `,
+          tenantId,
+          userId,
+          role,
+        );
+        unreadMessages = Number(unreadRows[0]?.count ?? 0);
+      }
+
+      const leaveBalanceRows = await tx.$queryRawUnsafe<Array<{ balance: number | string }>>(
+        `
+          SELECT COALESCE(SUM(balance.available_days), 0)::numeric AS balance
+          FROM staff_leave_balances balance
+          WHERE balance.tenant_id = $1
+            AND balance.staff_profile_id::text = $2
+        `,
+        tenantId,
+        profile.id,
+      );
+      const leaveBalance = Number(leaveBalanceRows[0]?.balance ?? 0);
+
+      let announcements: Array<Record<string, unknown>> = [];
+      if (tableAvailability.announcements) {
+        announcements = await tx.$queryRawUnsafe<Array<Record<string, unknown>>>(
+          `
+            SELECT
+              announcement.id::text,
+              announcement.title,
+              announcement.body,
+              announcement.created_at::text
+            FROM announcements announcement
+            WHERE announcement.tenant_id = $1
+              AND announcement.status = 'published'
+              AND (
+                announcement.audience::text = '{}'
+                OR regexp_replace(announcement.audience::text, '[[:space:]]', '', 'g') = '{"all":true}'
+                OR (
+                  announcement.audience::text LIKE '%"userIds"%'
+                  AND position(to_jsonb($2::text)::text IN announcement.audience::text) > 0
+                )
+                OR (
+                  NULLIF($3, '') IS NOT NULL
+                  AND announcement.audience::text LIKE '%"roles"%'
+                  AND position(to_jsonb($3::text)::text IN announcement.audience::text) > 0
+                )
+              )
+            ORDER BY announcement.created_at DESC
+            LIMIT 10
+          `,
+          tenantId,
+          userId,
+          role,
+        );
+      }
+
+      const recentActivity = await tx.$queryRawUnsafe<Array<Record<string, unknown>>>(
+        `
+          SELECT
+            audit.id::text,
+            audit.action,
+            audit.metadata,
+            audit.created_at::text
+          FROM staff_audit_logs audit
+          WHERE audit.tenant_id = $1
+            AND (
+              audit.staff_profile_id::text = $2
+              OR (
+                audit.staff_profile_id IS NULL
+                AND audit.actor_user_id::text = $3
+              )
+            )
+          ORDER BY audit.created_at DESC
+          LIMIT 10
+        `,
+        tenantId,
+        profile.id,
+        userId,
+      );
+
+      const leaveRequests = await tx.$queryRawUnsafe<Array<Record<string, unknown>>>(
+        `
+          SELECT
+            request.id::text,
+            profile.display_name AS staff_name,
+            department.name AS department,
+            request.leave_type,
+            request.status,
+            request.requested_days AS days,
+            request.override_reason,
+            request.created_at::text
+          FROM staff_leave_requests request
+          INNER JOIN staff_profiles profile
+            ON profile.tenant_id = request.tenant_id
+           AND profile.id = request.staff_profile_id
+          LEFT JOIN staff_departments department
+            ON department.tenant_id = profile.tenant_id
+           AND department.id = profile.department_id
+          WHERE request.tenant_id = $1
+            AND request.staff_profile_id::text = $2
+          ORDER BY request.created_at DESC
+          LIMIT 20
+        `,
+        tenantId,
+        profile.id,
+      );
+
+      return {
+        available: true,
+        reason: null,
+        profile,
+        metrics: {
+          upcomingClasses: Number(schedule[0]?.total_count ?? 0),
+          pendingTasks: 0,
+          unreadMessages,
+          leaveBalance,
+        },
+        schedule: schedule.map(({ total_count: _totalCount, ...item }) => item),
+        announcements,
+        recentActivity,
+        leave_requests: leaveRequests,
+        payroll_exceptions: [],
+        dataAvailability: {
+          profile: true,
+          upcomingClasses: tableAvailability.timetable,
+          pendingTasks: false,
+          unreadMessages: tableAvailability.notifications,
+          leaveBalance: true,
+          announcements: tableAvailability.announcements,
+          recentActivity: true,
+          leaveRequests: true,
+          payrollExceptions: false,
+        },
+      };
+    });
+  }
+
+  private unavailableStaffDashboard() {
+    return {
+      available: false,
+      reason: 'No active staff profile is linked to this user in the current school',
+      profile: null,
+      metrics: {
+        upcomingClasses: 0,
+        pendingTasks: 0,
+        unreadMessages: 0,
+        leaveBalance: 0,
+      },
+      schedule: [],
+      announcements: [],
+      recentActivity: [],
+      leave_requests: [],
+      payroll_exceptions: [],
+      dataAvailability: {
+        profile: false,
+        upcomingClasses: false,
+        pendingTasks: false,
+        unreadMessages: false,
+        leaveBalance: false,
+        announcements: false,
+        recentActivity: false,
+        leaveRequests: false,
+        payrollExceptions: false,
+      },
+    };
+  }
+
   async createStaffProfile(input: {
     tenant_id: string;
     display_name: string;

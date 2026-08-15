@@ -3,10 +3,9 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useSchoolQuery, useSchoolMutation, PermissionDeniedError } from "./school-hooks";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
-import { getCurrentSchoolId } from "@/lib/school/school-operational-store";
+import { SchoolTenantScopeProvider } from "./school-tenant-scope";
 
 jest.mock("@/lib/dashboard/api-client");
-jest.mock("@/lib/school/school-operational-store");
 
 describe("School Hooks Data Fetching Infrastructure", () => {
   let queryClient: QueryClient;
@@ -19,11 +18,12 @@ describe("School Hooks Data Fetching Infrastructure", () => {
         mutations: { retry: false },
       },
     });
-    (getCurrentSchoolId as jest.Mock).mockReturnValue("test-school-id");
   });
 
   const wrapper = ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      <SchoolTenantScopeProvider tenantId="test-school-id">{children}</SchoolTenantScopeProvider>
+    </QueryClientProvider>
   );
 
   describe("useSchoolQuery", () => {
@@ -64,15 +64,17 @@ describe("School Hooks Data Fetching Infrastructure", () => {
       });
     });
 
-    it("falls back to the session-backed API proxy when browser school storage is empty", async () => {
-      (getCurrentSchoolId as jest.Mock).mockReturnValue("");
-      (requestDashboardApi as jest.Mock).mockResolvedValue({ status: "ok" });
+    it("does not call the school API when no verified tenant scope exists", async () => {
+      const unscopedWrapper = ({ children }: { children: React.ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      );
+      const { result } = renderHook(
+        () => useSchoolQuery("/admin-command/principal/overview"),
+        { wrapper: unscopedWrapper },
+      );
 
-      const { result } = renderHook(() => useSchoolQuery("/admin-command/principal/overview"), { wrapper });
-
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-      expect(requestDashboardApi).toHaveBeenCalledWith("/admin-command/principal/overview", {});
+      expect(result.current.fetchStatus).toBe("idle");
+      expect(requestDashboardApi).not.toHaveBeenCalled();
     });
   });
 
@@ -91,6 +93,21 @@ describe("School Hooks Data Fetching Infrastructure", () => {
         tenantId: "test-school-id",
         body: { someData: 123 },
       });
+    });
+
+    it("rejects an unscoped mutation before network or offline queue handling", async () => {
+      const unscopedWrapper = ({ children }: { children: React.ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      );
+      const { result } = renderHook(
+        () => useSchoolMutation("/test-mutation"),
+        { wrapper: unscopedWrapper },
+      );
+
+      await expect(result.current.mutateAsync({ someData: 123 })).rejects.toThrow(
+        /verified school context/i,
+      );
+      expect(requestDashboardApi).not.toHaveBeenCalled();
     });
   });
 });

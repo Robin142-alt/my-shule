@@ -2383,7 +2383,7 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: RouteMode }) {
                   </button>
               <div className="flex items-center gap-2">
                 <TaskQueue />
-                <ApprovalInbox currentUserId="school" />
+                <ApprovalInbox />
                 <NotificationBell />
               </div>
             </div>

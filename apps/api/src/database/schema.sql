@@ -3660,74 +3660,9 @@ CREATE POLICY workflow_events_tenant_policy ON workflow_events FOR ALL USING (te
 CREATE INDEX IF NOT EXISTS idx_workflow_events_tenant_id ON workflow_events(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_workflow_events_status ON workflow_events(tenant_id, status);
 
-CREATE TABLE IF NOT EXISTS dashboard_tasks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id tenant_key NOT NULL,
-    workflow_event_id UUID REFERENCES workflow_events(id) ON DELETE SET NULL,
-    target_role TEXT,
-    target_user_id UUID,
-    title TEXT NOT NULL,
-    description TEXT,
-    status TEXT NOT NULL DEFAULT 'open',
-    due_date TIMESTAMPTZ,
-    assigned_to_user_id UUID,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-ALTER TABLE dashboard_tasks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE dashboard_tasks FORCE ROW LEVEL SECURITY;
-CREATE POLICY dashboard_tasks_tenant_policy ON dashboard_tasks FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
-CREATE INDEX IF NOT EXISTS idx_dashboard_tasks_tenant_id ON dashboard_tasks(tenant_id);
-
-CREATE TABLE IF NOT EXISTS approval_requests (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id tenant_key NOT NULL,
-    requested_by_user_id UUID NOT NULL,
-    requested_by_role TEXT NOT NULL,
-    approver_roles JSONB NOT NULL DEFAULT '[]'::jsonb,
-    approval_type TEXT NOT NULL,
-    entity_type TEXT NOT NULL,
-    entity_id TEXT NOT NULL,
-    title TEXT NOT NULL,
-    reason TEXT,
-    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-    status TEXT NOT NULL DEFAULT 'pending',
-    approved_by_user_id UUID,
-    comment TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-ALTER TABLE approval_requests ENABLE ROW LEVEL SECURITY;
-ALTER TABLE approval_requests FORCE ROW LEVEL SECURITY;
-CREATE POLICY approval_requests_tenant_policy ON approval_requests FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
-CREATE INDEX IF NOT EXISTS idx_approval_requests_tenant_id ON approval_requests(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_approval_requests_status ON approval_requests(tenant_id, status);
-
-CREATE TABLE IF NOT EXISTS notifications (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id tenant_key NOT NULL,
-    user_id UUID,
-    target_role TEXT,
-    title TEXT NOT NULL,
-    message TEXT NOT NULL,
-    type TEXT NOT NULL,
-    priority TEXT NOT NULL DEFAULT 'normal',
-    entity_type TEXT,
-    entity_id TEXT,
-    action_url TEXT,
-    is_read BOOLEAN NOT NULL DEFAULT FALSE,
-    read_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notifications FORCE ROW LEVEL SECURITY;
-CREATE POLICY notifications_tenant_policy ON notifications FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
-CREATE INDEX IF NOT EXISTS idx_notifications_tenant_id ON notifications(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(tenant_id, is_read);
+-- Tasks, approval requests, and notifications use the canonical event-consumer
+-- contracts declared above. Runtime bootstrap migrates records from the former
+-- dashboard_tasks and legacy notification/approval shapes before serving reads.
 
 -- ==========================================
 -- SECRETARY DASHBOARD SCHEMA ADDITIONS

@@ -23,6 +23,16 @@ export type ClinicLowStockBatch = {
   recommended_order_quantity: number | string;
 };
 
+export type ClinicVisitListItem = {
+  id: string;
+  created_at: Date | string;
+  reason: string | null;
+  status: string;
+  outcome: string | null;
+  student_id: string;
+  student_name: string;
+};
+
 @Injectable()
 export class ClinicRepository {
 
@@ -278,6 +288,37 @@ export class ClinicRepository {
     );
 
     return result.rows[0];
+  }
+
+  async listVisits(tenantId: string): Promise<ClinicVisitListItem[]> {
+    const result = await this.executeSql<ClinicVisitListItem>(
+      `
+        SELECT
+          visit.id::text,
+          visit.created_at,
+          COALESCE(visit.symptoms_summary, visit.diagnosis_summary) AS reason,
+          visit.status,
+          visit.treatment_summary AS outcome,
+          visit.student_id::text,
+          COALESCE(
+            NULLIF(TRIM(CONCAT_WS(' ', student.first_name, student.last_name)), ''),
+            'Learner not linked'
+          ) AS student_name
+        FROM clinic_visits visit
+        LEFT JOIN students student
+          ON student.tenant_id = visit.tenant_id
+         AND student.id = visit.student_id
+        WHERE visit.tenant_id = $1
+        ORDER BY visit.created_at DESC, visit.id DESC
+        LIMIT 50
+      `,
+      [tenantId],
+    );
+
+    return result.rows.map((row) => ({
+      ...row,
+      student_name: row.student_name || 'Learner not linked',
+    }));
   }
 
   async findBatchForDispensing(

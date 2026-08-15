@@ -1,11 +1,12 @@
 import { Controller, Get, Query } from '@nestjs/common';
 
-import { Public } from '../../auth/decorators/public.decorator';
+import { SUPERADMIN_ROLE_OWNER } from '../../auth/auth.constants';
+import { Roles } from '../../auth/decorators/roles.decorator';
 import { SloMetricsService } from './slo-metrics.service';
 import { SloMonitoringService } from './slo-monitoring.service';
 
-@Public()
 @Controller('observability')
+@Roles(SUPERADMIN_ROLE_OWNER)
 export class ObservabilityController {
   constructor(
     private readonly sloMonitoringService: SloMonitoringService,

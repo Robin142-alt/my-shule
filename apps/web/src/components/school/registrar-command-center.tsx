@@ -544,7 +544,7 @@ function TopHeader({
             <LightStatusChip icon={ShieldCheck} label="Main Campus" tone="success" />
             <div className="flex items-center gap-2">
               <TaskQueue />
-              <ApprovalInbox currentUserId="school" />
+              <ApprovalInbox />
               <NotificationBell />
             </div>
             <LightStatusChip icon={BrainCircuit} label="AI insights ready" tone="cyan" />

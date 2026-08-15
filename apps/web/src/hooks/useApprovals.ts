@@ -1,45 +1,85 @@
-import { useState, useEffect, useCallback } from 'react';
-import { DashboardApi } from '../lib/client/dashboard-api';
+"use client";
+
+import { useCallback, useMemo, useState } from "react";
+
+import { useDashboardCommunicationQuery } from "@/hooks/use-dashboard-communication-query";
+import { DashboardApi } from "@/lib/client/dashboard-api";
+
+export type DashboardApproval = {
+  id: string;
+  title: string;
+  reason?: string;
+};
+
+function normalizeApprovals(payload: unknown): DashboardApproval[] {
+  const items = Array.isArray(payload)
+    ? payload
+    : payload && typeof payload === "object" && Array.isArray((payload as { approvals?: unknown }).approvals)
+      ? (payload as { approvals: unknown[] }).approvals
+      : payload && typeof payload === "object" && Array.isArray((payload as { data?: unknown }).data)
+        ? (payload as { data: unknown[] }).data
+        : [];
+
+  return items.flatMap((candidate) => {
+    if (!candidate || typeof candidate !== "object") return [];
+    const approval = candidate as Record<string, unknown>;
+    const id = typeof approval.id === "string" ? approval.id.trim() : "";
+    const title = typeof approval.title === "string" ? approval.title.trim() : "";
+    if (!id || !title) return [];
+    return [{
+      id,
+      title,
+      reason: typeof approval.reason === "string" ? approval.reason : undefined,
+    }];
+  });
+}
+
+function toError(error: unknown) {
+  return error instanceof Error ? error : new Error("Approval request failed.");
+}
 
 export function useApprovals() {
-  const [approvals, setApprovals] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const query = useDashboardCommunicationQuery<unknown>("/api/approvals", DashboardApi.getApprovals);
+  const [mutationError, setMutationError] = useState<Error | null>(null);
+  const [pendingIds, setPendingIds] = useState<Set<string>>(() => new Set());
+  const approvals = useMemo(() => normalizeApprovals(query.data), [query.data]);
 
-  const fetchApprovals = useCallback(async () => {
+  const runDecision = useCallback(async (
+    id: string,
+    decision: () => Promise<unknown>,
+  ) => {
+    setMutationError(null);
+    setPendingIds((current) => new Set(current).add(id));
     try {
-      setIsLoading(true);
-      const data = await DashboardApi.getApprovals();
-      setApprovals(data);
-    } catch (err) {
-      console.error('Failed to fetch approvals', err);
+      await decision();
+      await query.refetch();
+    } catch (error) {
+      const normalizedError = toError(error);
+      setMutationError(normalizedError);
+      throw normalizedError;
     } finally {
-      setIsLoading(false);
+      setPendingIds((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
     }
-  }, []);
+  }, [query]);
 
-  const approve = async (id: string, userId: string, comment?: string) => {
-    try {
-      await DashboardApi.approveRequest(id, userId, comment);
-      setApprovals(prev => prev.filter(a => a.id !== id));
-    } catch (err) {
-      console.error('Failed to approve', err);
-      throw err;
-    }
+  const approve = useCallback((id: string, comment?: string) =>
+    runDecision(id, () => DashboardApi.approveRequest(id, comment)), [runDecision]);
+
+  const reject = useCallback((id: string, reason: string) =>
+    runDecision(id, () => DashboardApi.rejectRequest(id, reason)), [runDecision]);
+
+  return {
+    approvals,
+    isLoading: query.isLoading,
+    error: query.error,
+    mutationError,
+    pendingIds,
+    approve,
+    reject,
+    refetch: query.refetch,
   };
-
-  const reject = async (id: string, userId: string, reason?: string) => {
-    try {
-      await DashboardApi.rejectRequest(id, userId, reason);
-      setApprovals(prev => prev.filter(a => a.id !== id));
-    } catch (err) {
-      console.error('Failed to reject', err);
-      throw err;
-    }
-  };
-
-  useEffect(() => {
-    fetchApprovals();
-  }, [fetchApprovals]);
-
-  return { approvals, isLoading, approve, reject, refetch: fetchApprovals };
 }

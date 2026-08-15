@@ -1974,7 +1974,7 @@ describe("frontend operational command surfaces", () => {
     expect(screen.getAllByText(/1 succeeded, 0 failed/i).length).toBeGreaterThan(0);
   });
 
-  it("maps library lost-book charge approval to seeded lost fine records and queues only selected notices", async () => {
+  it("does not fabricate library lost-book approval records when no tenant fines are returned", async () => {
     const user = userEvent.setup();
     const fetchMock = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -2016,11 +2016,14 @@ describe("frontend operational command surfaces", () => {
     expect(screen.getByText(/select library lost-book fines/i)).toBeVisible();
     expect(screen.queryByText(/WORKFLOW_MAPPING_MISSING/i)).not.toBeInTheDocument();
 
-    await user.click(await screen.findByRole("checkbox", { name: /select blossoms of the savannah/i }));
-    await user.click(screen.getByRole("button", { name: /approve selected/i }));
-
-    expect(await screen.findByText(/Approve Charge queued for Blossoms of the Savannah/i)).toBeVisible();
-    expect(screen.getAllByText(/1 succeeded, 0 failed/i).length).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText(/No library lost-book fines found for Approve Charge/i)).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /approve selected/i })).toBeDisabled();
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/operational-workflows/principal/actions/approve-lost-book-charge/dispatch",
+      expect.anything(),
+    );
   });
 
   it("maps budget approval to budget-linked procurement requests and queues selected budget work", async () => {

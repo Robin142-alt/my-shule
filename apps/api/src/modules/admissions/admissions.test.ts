@@ -109,8 +109,26 @@ test('AdmissionsService registers an approved application into the student direc
         class_name: 'Grade 7',
         stream_name: 'Hope',
       }),
-      findAcademicClassSectionForUpdate: async () => null,
-      createStudentAcademicEnrollment: async () => null,
+      findAcademicClassSectionForUpdate: async () => ({
+        id: '00000000-0000-0000-0000-000000000704',
+        stream_id: '00000000-0000-0000-0000-000000000705',
+        class_name: 'Grade 7',
+        stream_name: 'Hope',
+        academic_year: '2026',
+        capacity: 45,
+        current_enrollments: 12,
+      }),
+      createStudentAcademicEnrollment: async () => ({
+        id: '00000000-0000-0000-0000-000000000706',
+        student_id: '00000000-0000-0000-0000-000000000702',
+        application_id: '00000000-0000-0000-0000-000000000701',
+        class_section_id: '00000000-0000-0000-0000-000000000704',
+        stream_id: '00000000-0000-0000-0000-000000000705',
+        class_name: 'Grade 7',
+        stream_name: 'Hope',
+        academic_year: '2026',
+        status: 'active',
+      }),
       enrollStudentSubjectsAndTimetable: async () => ({
         subject_enrollments: [],
         timetable_enrollments: [],
@@ -173,6 +191,75 @@ test('AdmissionsService registers an approved application into the student direc
   assert.equal(applicationRegistered, true);
 });
 
+test('AdmissionsService rejects foreign or inactive class selections before creating a student', async () => {
+  const requestContext = new RequestContextService();
+  let studentCreates = 0;
+  let registrationWrites = 0;
+  const service = new AdmissionsService(
+    requestContext,
+    {
+      withRequestTransaction: async <T>(callback: () => Promise<T>): Promise<T> => callback(),
+    } as never,
+    {
+      findApplicationByIdForUpdate: async () => ({
+        id: '00000000-0000-0000-0000-000000000705',
+        tenant_id: 'tenant-a',
+        full_name: 'Tenant Boundary Student',
+        gender: 'female',
+        nationality: 'Kenyan',
+        class_applying: 'Grade 7',
+        status: 'approved',
+        parent_name: 'Boundary Parent',
+        parent_phone: '254700000705',
+      }),
+      // The canonical repository returns null for an inactive section or one
+      // owned by another tenant.
+      findAcademicClassSectionForUpdate: async () => null,
+      markApplicationRegistered: async () => {
+        registrationWrites += 1;
+      },
+    } as never,
+    {} as never,
+    {
+      createStudent: async () => {
+        studentCreates += 1;
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    requestContext.run(
+      {
+        request_id: 'req-admissions-class-boundary',
+        tenant_id: 'tenant-a',
+        user_id: '00000000-0000-0000-0000-000000000001',
+        role: 'admissions',
+        session_id: 'session-1',
+        permissions: ['admissions:*', 'students:*'],
+        is_authenticated: true,
+        client_ip: '127.0.0.1',
+        user_agent: 'test-suite',
+        method: 'POST',
+        path: '/admissions/applications/00000000-0000-0000-0000-000000000705/register',
+        started_at: '2026-08-15T00:00:00.000Z',
+      },
+      () => service.registerApprovedApplication(
+        '00000000-0000-0000-0000-000000000705',
+        {
+          admission_number: 'ADM-BOUNDARY-705',
+          class_name: 'Foreign Grade',
+          stream_name: 'Hidden',
+        },
+      ),
+    ),
+    (error: unknown) => error instanceof BadRequestException
+      && /not found in this school/i.test(error.message),
+  );
+
+  assert.equal(studentCreates, 0);
+  assert.equal(registrationWrites, 0);
+});
+
 test('AdmissionsService completes approved application enrolment with guardian, fee, academic, and event handoffs', async () => {
   const requestContext = new RequestContextService();
   const calls: Record<string, any[]> = {
@@ -226,6 +313,7 @@ test('AdmissionsService completes approved application enrolment with guardian, 
         assert.equal(streamName, 'Hope');
         return {
           id: '00000000-0000-0000-0000-000000000732',
+          stream_id: '00000000-0000-0000-0000-000000000733',
           class_name: className,
           stream_name: streamName,
           academic_year: '2026',
@@ -606,7 +694,10 @@ test('AdmissionsRepository lists active admissions class options from tenant-own
   assert.match(calls[0]!.sql, /FROM class_sections section/);
   assert.match(calls[0]!.sql, /WHERE section\.tenant_id = \$1/);
   assert.match(calls[0]!.sql, /section\.is_active = TRUE/);
+  assert.match(calls[0]!.sql, /section\.enrolment_open = TRUE/);
+  assert.match(calls[0]!.sql, /JOIN academic_years year/);
   assert.match(calls[0]!.sql, /student_class_assignments/);
+  assert.match(calls[0]!.sql, /student_academic_enrollments/);
   assert.deepEqual(calls[0]!.params, ['tenant-a']);
   assert.doesNotMatch(calls[0]!.sql, /PP2|Kisumu Boys/i);
   assert.deepEqual(classes, [
@@ -1033,8 +1124,26 @@ test('AdmissionsService invites the parent portal user when registration has a p
         class_name: 'Grade 5',
         stream_name: 'East',
       }),
-      findAcademicClassSectionForUpdate: async () => null,
-      createStudentAcademicEnrollment: async () => null,
+      findAcademicClassSectionForUpdate: async () => ({
+        id: '00000000-0000-0000-0000-000000000716',
+        stream_id: '00000000-0000-0000-0000-000000000717',
+        class_name: 'Grade 5',
+        stream_name: 'East',
+        academic_year: '2026',
+        capacity: 40,
+        current_enrollments: 10,
+      }),
+      createStudentAcademicEnrollment: async () => ({
+        id: '00000000-0000-0000-0000-000000000718',
+        student_id: '00000000-0000-0000-0000-000000000712',
+        application_id: '00000000-0000-0000-0000-000000000711',
+        class_section_id: '00000000-0000-0000-0000-000000000716',
+        stream_id: '00000000-0000-0000-0000-000000000717',
+        class_name: 'Grade 5',
+        stream_name: 'East',
+        academic_year: '2026',
+        status: 'active',
+      }),
       enrollStudentSubjectsAndTimetable: async () => ({
         subject_enrollments: [],
         timetable_enrollments: [],
@@ -1195,8 +1304,26 @@ test('AdmissionsService assigns fees and creates a student fee invoice during re
         class_name: 'Grade 6',
         stream_name: 'North',
       }),
-      findAcademicClassSectionForUpdate: async () => null,
-      createStudentAcademicEnrollment: async () => null,
+      findAcademicClassSectionForUpdate: async () => ({
+        id: '00000000-0000-0000-0000-000000000737',
+        stream_id: '00000000-0000-0000-0000-000000000738',
+        class_name: 'Grade 6',
+        stream_name: 'North',
+        academic_year: '2026',
+        capacity: 40,
+        current_enrollments: 10,
+      }),
+      createStudentAcademicEnrollment: async () => ({
+        id: '00000000-0000-0000-0000-000000000739',
+        student_id: '00000000-0000-0000-0000-000000000732',
+        application_id: '00000000-0000-0000-0000-000000000731',
+        class_section_id: '00000000-0000-0000-0000-000000000737',
+        stream_id: '00000000-0000-0000-0000-000000000738',
+        class_name: 'Grade 6',
+        stream_name: 'North',
+        academic_year: '2026',
+        status: 'active',
+      }),
       enrollStudentSubjectsAndTimetable: async () => ({
         subject_enrollments: [],
         timetable_enrollments: [],
@@ -1344,6 +1471,7 @@ test('AdmissionsService creates an academic enrollment when class capacity is av
       }),
       findAcademicClassSectionForUpdate: async () => ({
         id: '00000000-0000-0000-0000-000000000744',
+        stream_id: '00000000-0000-0000-0000-000000000746',
         class_name: 'Grade 4',
         stream_name: 'West',
         academic_year: '2026',
@@ -1440,6 +1568,7 @@ test('AdmissionsService creates an academic enrollment when class capacity is av
       student_id: '00000000-0000-0000-0000-000000000742',
       application_id: '00000000-0000-0000-0000-000000000741',
       class_section_id: '00000000-0000-0000-0000-000000000744',
+      stream_id: '00000000-0000-0000-0000-000000000746',
       class_name: 'Grade 4',
       stream_name: 'West',
       academic_year: '2026',
@@ -1484,6 +1613,7 @@ test('AdmissionsService enrolls registered students into configured subjects and
       }),
       findAcademicClassSectionForUpdate: async () => ({
         id: '00000000-0000-0000-0000-000000000764',
+        stream_id: '00000000-0000-0000-0000-000000000765',
         class_name: 'Grade 8',
         stream_name: 'South',
         academic_year: '2026',
@@ -1641,6 +1771,7 @@ test('AdmissionsService publishes academic enrollment hooks during registration'
       }),
       findAcademicClassSectionForUpdate: async () => ({
         id: '00000000-0000-0000-0000-000000000794',
+        stream_id: '00000000-0000-0000-0000-000000000796',
         class_name: 'Grade 8',
         stream_name: 'South',
         academic_year: '2026',
@@ -1766,6 +1897,7 @@ test('AdmissionsService promotes an active student into the next configured clas
       }),
       findAcademicClassSectionForUpdate: async () => ({
         id: '00000000-0000-0000-0000-000000000773',
+        stream_id: '00000000-0000-0000-0000-000000000777',
         class_name: 'Grade 9',
         stream_name: 'North',
         academic_year: '2027',
@@ -2034,6 +2166,7 @@ test('AdmissionsService blocks registration when configured class capacity is fu
       }),
       findAcademicClassSectionForUpdate: async () => ({
         id: '00000000-0000-0000-0000-000000000754',
+        stream_id: '00000000-0000-0000-0000-000000000755',
         class_name: 'Grade 4',
         stream_name: 'Full',
         academic_year: '2026',

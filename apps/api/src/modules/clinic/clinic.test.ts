@@ -131,8 +131,7 @@ test('ClinicService normalizes medicine inventory search and pagination', async 
 });
 
 test('ClinicService lists visits with tenant-scoped student names instead of hardcoded unknown labels', async () => {
-  let capturedSql = '';
-  let capturedParams: unknown[] = [];
+  let capturedTenantId = '';
   const service = new ClinicService(
     {
       getStore: () => ({
@@ -147,67 +146,71 @@ test('ClinicService lists visits with tenant-scoped student names instead of har
       }),
     } as never,
     {
-      databaseService: {
-        query: async (sql: string, params: unknown[]) => {
-          capturedSql = sql;
-          capturedParams = params;
-          return {
-            rows: [{
-              id: 'visit-1',
-              created_at: '2026-06-26T08:00:00.000Z',
-              reason: 'Headache',
-              status: 'open',
-              outcome: null,
-              student_id: 'student-1',
-              student_name: 'Amina Njeri',
-            }],
-          };
-        },
+      listVisits: async (tenantId: string) => {
+        capturedTenantId = tenantId;
+        return [{
+          id: 'visit-1',
+          created_at: '2026-06-26T08:00:00.000Z',
+          reason: 'Headache',
+          status: 'open',
+          outcome: null,
+          student_id: 'student-1',
+          student_name: 'Amina Njeri',
+        }];
       },
     } as never,
   );
 
   const visits = await service.listVisits();
 
-  assert.match(capturedSql, /LEFT JOIN students s ON s\.tenant_id = v\.tenant_id AND s\.id = v\.student_id/);
-  assert.deepEqual(capturedParams, ['tenant-a']);
+  assert.equal(capturedTenantId, 'tenant-a');
   assert.equal(visits[0].student_name, 'Amina Njeri');
 });
 
-test('ClinicService maps unlinked clinic visits to a neutral learner label', async () => {
+test('ClinicRepository lists canonical visits in one tenant and maps unlinked learners neutrally', async () => {
+  let capturedSql = '';
+  let capturedParams: unknown[] = [];
+  const repository = new ClinicRepository({
+    query: async (sql: string, params: unknown[]) => {
+      capturedSql = sql;
+      capturedParams = params;
+      return {
+        rows: [{
+          id: 'visit-1',
+          created_at: '2026-06-26T08:00:00.000Z',
+          reason: 'Headache',
+          status: 'open',
+          outcome: null,
+          student_id: 'student-1',
+          student_name: null,
+        }],
+        rowCount: 1,
+      };
+    },
+  } as never);
+
+  const visits = await repository.listVisits('tenant-a');
+
+  assert.match(capturedSql, /visit\.symptoms_summary/);
+  assert.match(capturedSql, /student\.tenant_id = visit\.tenant_id/);
+  assert.doesNotMatch(capturedSql, /visit\.reason|visit\.outcome/);
+  assert.deepEqual(capturedParams, ['tenant-a']);
+  assert.equal(visits[0].student_name, 'Learner not linked');
+});
+
+test('ClinicService exposes repository failures instead of returning an empty visit list', async () => {
   const service = new ClinicService(
     {
-      getStore: () => ({
-        tenant_id: 'tenant-a',
-        user_id: 'nurse-1',
-        permissions: ['clinic:read'],
-      }),
-      requireStore: () => ({
-        tenant_id: 'tenant-a',
-        user_id: 'nurse-1',
-        permissions: ['clinic:read'],
-      }),
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: 'nurse-1', permissions: ['clinic:read'] }),
     } as never,
     {
-      databaseService: {
-        query: async () => ({
-          rows: [{
-            id: 'visit-1',
-            created_at: '2026-06-26T08:00:00.000Z',
-            reason: 'Headache',
-            status: 'open',
-            outcome: null,
-            student_id: null,
-            student_name: null,
-          }],
-        }),
+      listVisits: async () => {
+        throw new Error('clinic database unavailable');
       },
     } as never,
   );
 
-  const visits = await service.listVisits();
-
-  assert.equal(visits[0].student_name, 'Learner not linked');
+  await assert.rejects(() => service.listVisits(), /clinic database unavailable/);
 });
 
 test('ClinicService blocks dispensing expired medicine and preserves inventory data', async () => {

@@ -3,7 +3,6 @@ import { useState } from "react";
 import { Pill, PlusCircle, Search, AlertTriangle } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { addMedicineStock, adjustMedicineStock } from "./api-client";
 import { Modal } from "@/components/ui/modal";
@@ -31,8 +30,7 @@ type AdjustStockFormData = {
 };
 
 export function MedicineInventoryWorkspace() {
-  const queryClient = useQueryClient();
-  const { data, isLoading } = useSchoolQuery<MedicineData>('/admin-command/nurse/medicine-inventory');
+  const { data, isLoading, refetch } = useSchoolQuery<MedicineData>('/admin-command/nurse/medicine-inventory');
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -63,7 +61,7 @@ export function MedicineInventoryWorkspace() {
     setIsSubmitting(true);
     try {
       await addMedicineStock({ ...form, quantity: Number(form.quantity), reorder_level: Number(form.reorder_level) || 10 });
-      queryClient.invalidateQueries({ queryKey: ["school", "session", "/admin-command/nurse/medicine-inventory"] });
+      await refetch();
       toast.success("Medicine added to inventory.");
       setShowForm(false);
       setForm({ name: "", category: "", quantity: "", unit: "tablets", reorder_level: "", expiry_date: "" });
@@ -84,7 +82,7 @@ export function MedicineInventoryWorkspace() {
         adjustment: Number(formData.adjustment),
         reason: formData.reason
       });
-      queryClient.invalidateQueries({ queryKey: ["school", "session", "/admin-command/nurse/medicine-inventory"] });
+      await refetch();
       toast.success(`Stock adjusted for ${selectedMed.name}.`);
       setIsAdjustOpen(false);
       adjustForm.reset();

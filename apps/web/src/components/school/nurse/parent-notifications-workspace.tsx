@@ -3,7 +3,6 @@ import { useState } from "react";
 import { Bell, PlusCircle, Search, RefreshCw } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { sendParentNotification, resendParentNotification } from "./api-client";
 
@@ -24,8 +23,7 @@ type NotificationsData = {
 };
 
 export function ParentNotificationsWorkspace() {
-  const queryClient = useQueryClient();
-  const { data, isLoading } = useSchoolQuery<NotificationsData>('/admin-command/nurse/parent-notifications');
+  const { data, isLoading, refetch } = useSchoolQuery<NotificationsData>('/admin-command/nurse/parent-notifications');
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,7 +46,7 @@ export function ParentNotificationsWorkspace() {
     setIsSubmitting(true);
     try {
       await sendParentNotification(form);
-      queryClient.invalidateQueries({ queryKey: ["school", "session", "/admin-command/nurse/parent-notifications"] });
+      await refetch();
       toast.success("Parent notification sent.");
       setShowForm(false);
       setForm({ student_name: "", parent_name: "", parent_phone: "", message: "", channel: "sms" });
@@ -59,7 +57,7 @@ export function ParentNotificationsWorkspace() {
   const handleResend = async (id: string) => {
     try {
       await resendParentNotification(id);
-      queryClient.invalidateQueries({ queryKey: ["school", "session", "/admin-command/nurse/parent-notifications"] });
+      await refetch();
       toast.success("Notification resent.");
     } catch (e: any) { toast.error(e.message || "Failed to resend."); }
   };

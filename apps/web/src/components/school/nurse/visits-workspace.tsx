@@ -3,7 +3,6 @@ import { useState } from "react";
 import { Stethoscope, Search, PlusCircle } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createVisit, closeVisit, referVisit } from "./api-client";
 
@@ -24,8 +23,7 @@ type VisitsData = {
 };
 
 export function VisitsWorkspace() {
-  const queryClient = useQueryClient();
-  const { data, isLoading } = useSchoolQuery<VisitsData>('/admin-command/nurse/visits');
+  const { data, isLoading, refetch } = useSchoolQuery<VisitsData>('/admin-command/nurse/visits');
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,7 +46,7 @@ export function VisitsWorkspace() {
     setIsSubmitting(true);
     try {
       await createVisit(form);
-      queryClient.invalidateQueries({ queryKey: ["school", "session", "/admin-command/nurse/visits"] });
+      await refetch();
       toast.success("Visit recorded successfully.");
       setShowForm(false);
       setForm({ student_name: "", class_name: "", complaint: "", diagnosis: "", treatment: "" });
@@ -59,7 +57,7 @@ export function VisitsWorkspace() {
   const handleClose = async (id: string) => {
     try {
       await closeVisit(id);
-      queryClient.invalidateQueries({ queryKey: ["school", "session", "/admin-command/nurse/visits"] });
+      await refetch();
       toast.success("Visit closed.");
     } catch (e: any) { toast.error(e.message || "Failed to close visit."); }
   };
@@ -67,7 +65,7 @@ export function VisitsWorkspace() {
   const handleRefer = async (id: string) => {
     try {
       await referVisit(id, { reason: "Requires specialist attention" });
-      queryClient.invalidateQueries({ queryKey: ["school", "session", "/admin-command/nurse/visits"] });
+      await refetch();
       toast.success("Student referred for further treatment.");
     } catch (e: any) { toast.error(e.message || "Failed to refer visit."); }
   };
