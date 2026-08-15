@@ -113,6 +113,28 @@ test('EventsSchemaService repairs legacy notifications table for tenant-scoped d
   assert.match(bootstrapSql, /SET aggregate_id = resource_id/);
 });
 
+test('EventsSchemaService migrates dashboard tasks without assuming optional legacy columns exist', async () => {
+  let bootstrapSql = '';
+  const service = new EventsSchemaService(
+    {
+      runSchemaBootstrap: async (sql: string) => {
+        bootstrapSql = sql;
+      },
+    } as never,
+    { onModuleInit: async () => undefined } as never,
+  );
+
+  await service.onModuleInit();
+
+  assert.match(bootstrapSql, /to_jsonb\(legacy\) ->> 'assigned_to_user_id'/);
+  assert.match(bootstrapSql, /to_jsonb\(legacy\) ->> 'target_user_id'/);
+  assert.match(bootstrapSql, /'legacyDueDate', to_jsonb\(legacy\) -> 'due_date'/);
+  assert.match(bootstrapSql, /FROM tasks canonical/);
+  assert.match(bootstrapSql, /ROW_NUMBER\(\) OVER \(/);
+  assert.doesNotMatch(bootstrapSql, /legacy\.assigned_to_user_id/);
+  assert.doesNotMatch(bootstrapSql, /ON CONFLICT \(tenant_id, task_key\)/);
+});
+
 test('EventsSchemaService preserves outbox claim function identity across bootstraps', async () => {
   let bootstrapSql = '';
   const service = new EventsSchemaService(

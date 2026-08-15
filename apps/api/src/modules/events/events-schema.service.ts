@@ -623,17 +623,35 @@ export class EventsSchemaService implements OnModuleInit {
           SELECT
             legacy.tenant_id::text,
             'legacy-dashboard:' || legacy.id::text,
-            COALESCE(legacy.assigned_to_user_id, legacy.target_user_id),
-            legacy.target_role,
+            CASE
+              WHEN COALESCE(
+                NULLIF(to_jsonb(legacy) ->> 'assigned_to_user_id', ''),
+                NULLIF(to_jsonb(legacy) ->> 'target_user_id', '')
+              ) ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+              THEN COALESCE(
+                NULLIF(to_jsonb(legacy) ->> 'assigned_to_user_id', ''),
+                NULLIF(to_jsonb(legacy) ->> 'target_user_id', '')
+              )::uuid
+              ELSE NULL
+            END,
+            NULLIF(to_jsonb(legacy) ->> 'target_role', ''),
             legacy.title,
             legacy.description,
-            upper(COALESCE(NULLIF(legacy.status, ''), 'open')),
-            legacy.due_date,
-            jsonb_build_object('legacyDashboardTaskId', legacy.id::text),
+            upper(COALESCE(NULLIF(to_jsonb(legacy) ->> 'status', ''), 'open')),
+            NULL::timestamptz,
+            jsonb_strip_nulls(jsonb_build_object(
+              'legacyDashboardTaskId', legacy.id::text,
+              'legacyDueDate', to_jsonb(legacy) -> 'due_date'
+            )),
             legacy.created_at,
             legacy.updated_at
           FROM dashboard_tasks legacy
-          ON CONFLICT (tenant_id, task_key) DO NOTHING;
+          WHERE NOT EXISTS (
+            SELECT 1
+            FROM tasks canonical
+            WHERE canonical.tenant_id = legacy.tenant_id::text
+              AND canonical.task_key = 'legacy-dashboard:' || legacy.id::text
+          );
         END IF;
 
         UPDATE tasks
@@ -645,6 +663,21 @@ export class EventsSchemaService implements OnModuleInit {
             priority = COALESCE(NULLIF(priority, ''), 'normal'),
             metadata = COALESCE(metadata, '{}'::jsonb),
             updated_at = COALESCE(updated_at, created_at, NOW());
+
+        WITH ranked_task_keys AS (
+          SELECT
+            id,
+            ROW_NUMBER() OVER (
+              PARTITION BY tenant_id, task_key
+              ORDER BY created_at, id
+            ) AS duplicate_position
+          FROM tasks
+        )
+        UPDATE tasks task
+        SET task_key = task.task_key || ':duplicate:' || task.id::text
+        FROM ranked_task_keys ranked
+        WHERE task.id = ranked.id
+          AND ranked.duplicate_position > 1;
 
         ALTER TABLE tasks ALTER COLUMN task_key SET NOT NULL;
         ALTER TABLE tasks ALTER COLUMN status SET DEFAULT 'OPEN';
