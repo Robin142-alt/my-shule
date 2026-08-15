@@ -25,6 +25,7 @@ import { PaymentsWorkspace } from "@/components/school/accountant/payments-works
 import { ReceiptsWorkspace } from "@/components/school/accountant/receipts-workspace";
 import { ReportsWorkspace } from "@/components/school/accountant/reports-workspace";
 import { WaiversDiscountsWorkspace } from "@/components/school/accountant/waivers-discounts-workspace";
+import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import {
   IntegratedSchoolCommandHeader,
   SchoolCommandSidebarIdentity,
@@ -261,10 +262,10 @@ export function AccountantCommandCenter({
     <div
       data-route-mode={routeMode}
       data-testid="accountant-command-center"
-      className="min-h-screen bg-[#F3F6FA] p-3 md:p-5"
+      className="min-h-dvh bg-[#F3F6FA] p-3 md:p-5"
     >
       <div className="mx-auto grid max-w-[1800px] gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="hidden h-[calc(100vh-40px)] rounded-2xl bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.24)] xl:sticky xl:top-5 xl:flex xl:flex-col">
+        <aside className="hidden h-[calc(100dvh-40px)] rounded-2xl bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.24)] xl:sticky xl:top-5 xl:flex xl:flex-col">
           <SchoolCommandSidebarIdentity
             eyebrow="Finance command"
             title={roleLabel}
@@ -335,22 +336,13 @@ export function AccountantCommandCenter({
           />
 
           <div className="rounded-xl border border-[#C8D5EA] bg-white p-3 shadow-sm xl:hidden">
-            <label
-              htmlFor="accountant-mobile-workspace"
-              className="mb-2 block text-xs font-black uppercase tracking-[0.14em] text-[#5F6F89]"
-            >
-              Finance workspace
-            </label>
-            <select
-              id="accountant-mobile-workspace"
+            <MobileWorkspaceNavigation
+              label="Finance workspace"
+              items={ACCOUNTANT_NAV_ITEMS}
               value={activeWorkspace}
-              onChange={(event) => navigateTo(event.currentTarget.value as AccountantSection)}
-              className="h-11 w-full rounded-lg border border-[#C8D5EA] bg-[#F8FAFC] px-3 text-sm font-bold text-[#071D49] outline-none focus:border-cyan-400 focus:ring-4 focus:ring-cyan-300/20"
-            >
-              {ACCOUNTANT_NAV_ITEMS.map((item) => (
-                <option key={item.id} value={item.id}>{item.label}</option>
-              ))}
-            </select>
+              onValueChange={(value) => navigateTo(value as AccountantSection)}
+              testId="accountant-mobile-workspace-nav"
+            />
           </div>
 
           <section className="rounded-2xl bg-[#071D49] p-4 shadow-[0_24px_70px_rgba(7,29,73,0.18)] md:p-5">

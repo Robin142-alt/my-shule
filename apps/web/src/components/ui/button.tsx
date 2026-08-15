@@ -37,10 +37,10 @@ export function buttonClasses({
   };
 
   const sizeClasses: Record<ButtonSize, string> = {
-    sm: "h-8 px-3 text-xs",
-    md: "h-10 px-4 text-[13px]",
+    sm: "h-11 px-3 text-sm xl:h-8 xl:text-xs",
+    md: "h-11 px-4 text-sm xl:h-10 xl:text-[13px]",
     lg: "h-11 px-5 text-sm",
-    icon: "h-10 w-10 p-0 flex items-center justify-center",
+    icon: "h-11 w-11 p-0 flex items-center justify-center xl:h-10 xl:w-10",
   };
 
   return [base, variantClasses[variant], sizeClasses[size], block ? "w-full" : "", className]

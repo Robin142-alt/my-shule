@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { MyShuleMark } from "@/components/brand/myshule-brand";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
+import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
@@ -269,7 +270,7 @@ function Sidebar({
   onViewChange: (view: TransportView) => void;
 }) {
   return (
-    <aside className="hidden h-[calc(100vh-1.5rem)] overflow-hidden rounded-2xl bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
+    <aside className="hidden h-[calc(100dvh-1.5rem)] overflow-hidden rounded-2xl bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
       <SchoolCommandSidebarIdentity eyebrow="Transport command" title="Transport Manager" subtitle="Fleet, routes, safety, and parent communication" />
       <nav className="mt-4 h-[calc(100%-8.5rem)] space-y-1 overflow-y-auto pr-1" aria-label="Transport manager navigation">
         {navItems.map((item, index) => {
@@ -305,7 +306,7 @@ function Topbar({
   const today = "Today";
 
   return (
-    <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-[#F3F6FA]/92 px-4 py-3 backdrop-blur">
+    <header className="sticky top-0 z-20 shrink-0 border-b border-[#D8E0EC] bg-[#F3F6FA]/92 px-4 py-3 backdrop-blur">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-3">
           <MyShuleMark size={44} />
@@ -314,7 +315,7 @@ function Topbar({
             <h1 className="text-xl font-black text-[#071D49]">Transport Workspace</h1>
           </div>
         </div>
-        <div className="grid gap-2 md:grid-cols-[minmax(240px,1fr)_auto_auto_auto_auto] xl:min-w-[760px]">
+        <div className="grid gap-2 lg:grid-cols-[minmax(240px,1fr)_auto_auto_auto_auto] xl:min-w-[760px]">
           <div className="relative">
             <label className="flex min-h-11 items-center gap-3 rounded-xl border border-[#D8E0EC] bg-white/88 px-3 text-[#64748B] shadow-sm">
               <Search className="h-4 w-4" aria-hidden="true" />
@@ -365,19 +366,13 @@ function Topbar({
         </div>
       </div>
       <div className="mt-3 lg:hidden">
-        <label className="sr-only" htmlFor="transport-mobile-workspace">Transport workspace</label>
-        <select
-          id="transport-mobile-workspace"
-          className="h-11 w-full rounded-xl border border-[#D8E0EC] bg-white px-3 text-sm font-black text-[#071D49] outline-none"
-          onChange={(event) => onViewChange(event.target.value as TransportView)}
+        <MobileWorkspaceNavigation
+          label="Transport workspace"
+          items={navItems}
           value={activeView}
-        >
-          {navItems.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.label}
-            </option>
-          ))}
-        </select>
+          onValueChange={(value) => onViewChange(value as TransportView)}
+          testId="transport-mobile-workspace-nav"
+        />
       </div>
     </header>
   );
@@ -1553,10 +1548,10 @@ export function TransportManagerCommandCenter({ routeMode, activeSection }: { ro
   }
 
   return (
-    <div data-route-mode={routeMode} className="h-screen overflow-hidden bg-[#F3F6FA] text-[#071D49]">
+    <div data-route-mode={routeMode} className="h-dvh overflow-hidden bg-[#F3F6FA] text-[#071D49]">
       <div className="grid h-full gap-4 p-3 lg:grid-cols-[292px_minmax(0,1fr)]">
         <Sidebar activeView={activeView} onViewChange={openView} />
-        <div className="min-h-0 overflow-hidden rounded-2xl border border-[#D8E0EC] bg-[#F3F6FA] shadow-[0_20px_70px_rgba(7,29,73,0.1)]">
+        <div className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-[#D8E0EC] bg-[#F3F6FA] shadow-[0_20px_70px_rgba(7,29,73,0.1)]">
           <Topbar
             activeView={activeView}
             searchTerm={searchTerm}
@@ -1565,7 +1560,7 @@ export function TransportManagerCommandCenter({ routeMode, activeSection }: { ro
             onSearchResult={openSearchRecord}
             onViewChange={openView}
           />
-          <main className="h-[calc(100%-84px)] overflow-y-auto p-4">
+          <main className="min-h-0 flex-1 overflow-y-auto p-4">
             <div className="space-y-4">
               <IntegratedSchoolCommandHeader roleTitle="Transport Manager Dashboard" fallbackUserLabel="Transport Manager" />
               <div role="status" className="rounded-xl border border-[#BFDBFE] bg-[#EEF5FF] px-4 py-3 text-sm font-bold text-[#071D49]">

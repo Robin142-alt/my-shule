@@ -522,7 +522,7 @@ export function ExamsMarksWorkspace({
                 type="button"
                 onClick={() => persistScores("draft")}
                 disabled={!activeWindow || markRows.length === 0 || markSheetReadOnly || isSaving}
-                className="inline-flex items-center gap-2 rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 Save draft
@@ -531,7 +531,7 @@ export function ExamsMarksWorkspace({
                 type="button"
                 onClick={() => persistScores("submit")}
                 disabled={!activeWindow || markRows.length === 0 || markSheetReadOnly || isSaving}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white transition hover:bg-[#123A7A] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white transition hover:bg-[#123A7A] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 Submit for moderation
@@ -595,7 +595,109 @@ export function ExamsMarksWorkspace({
               </p>
             </div>
           ) : (
-            <div className="mt-5 overflow-x-auto rounded-2xl border border-[#D8E0EC]">
+            <>
+              <div className="mt-5 grid gap-3 lg:hidden">
+                {markRows.map((row) => {
+                  const draft = activeDrafts[row.student_id] ?? draftFromRow(row);
+                  const validation = getValidation(draft, activeWindow.outOf);
+                  const rowReadOnly = Boolean(row.id) && row.status !== "draft";
+
+                  return (
+                    <article key={row.student_id} className="rounded-2xl border border-[#D8E0EC] bg-white p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="break-words font-black text-[#071D49]">{row.student_name ?? "Unnamed learner"}</h3>
+                          <p className="mt-0.5 text-sm font-semibold text-[#64748B]">
+                            Admission {row.admission_number ?? "not recorded"}
+                          </p>
+                        </div>
+                        <span
+                          className={cn(
+                            "inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-xs font-black",
+                            validation.tone === "success" && "border-emerald-200 bg-emerald-50 text-emerald-700",
+                            validation.tone === "warning" && "border-amber-200 bg-amber-50 text-amber-700",
+                            validation.tone === "danger" && "border-red-200 bg-red-50 text-red-700",
+                          )}
+                        >
+                          {validation.tone === "success" ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
+                          {validation.label}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 grid gap-3">
+                        <label className="grid gap-1.5 text-xs font-black uppercase tracking-[0.1em] text-[#64748B]">
+                          Evidence
+                          <select
+                            aria-label={`${row.student_name ?? "Learner"} evidence status`}
+                            value={draft.scoreStatus}
+                            disabled={rowReadOnly}
+                            onChange={(event) => {
+                              const scoreStatus = event.target.value as ExamScoreStatus;
+                              updateDraft(row.student_id, {
+                                scoreStatus,
+                                ...(scoreStatus === "entered" ? {} : { score: "" }),
+                              });
+                            }}
+                            className="min-h-11 w-full rounded-xl border border-[#D8E0EC] bg-white px-3 text-base font-bold normal-case tracking-normal text-[#071D49] outline-none transition focus:border-[#1D4ED8] focus:ring-2 focus:ring-blue-100 disabled:bg-[#F1F5F9]"
+                          >
+                            <option value="" disabled>Select evidence</option>
+                            {SCORE_STATUS_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <div className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] gap-3">
+                          <label className="grid min-w-0 gap-1.5 text-xs font-black uppercase tracking-[0.1em] text-[#64748B]">
+                            Score / {activeWindow.outOf}
+                            <input
+                              aria-label={`${row.student_name ?? "Learner"} score`}
+                              type="number"
+                              min="0"
+                              max={activeWindow.outOf}
+                              step="0.01"
+                              value={draft.score}
+                              disabled={rowReadOnly || draft.scoreStatus !== "entered"}
+                              onChange={(event) => updateDraft(row.student_id, {
+                                score: event.target.value,
+                                scoreStatus: "entered",
+                              })}
+                              className={cn(
+                                "min-h-11 min-w-0 w-full rounded-xl border px-3 text-center text-base font-black normal-case tracking-normal text-[#071D49] outline-none transition focus:border-[#1D4ED8] focus:ring-2 focus:ring-blue-100 disabled:bg-[#F1F5F9]",
+                                validation.tone !== "danger" ? "border-[#D8E0EC]" : "border-red-300 bg-red-50",
+                              )}
+                            />
+                          </label>
+                          <label className="grid min-w-0 gap-1.5 text-xs font-black uppercase tracking-[0.1em] text-[#64748B]">
+                            Remarks
+                            <input
+                              aria-label={`${row.student_name ?? "Learner"} mark remarks`}
+                              value={draft.remarks}
+                              disabled={rowReadOnly}
+                              maxLength={500}
+                              onChange={(event) => updateDraft(row.student_id, { remarks: event.target.value })}
+                              placeholder="Optional note"
+                              className="min-h-11 min-w-0 w-full rounded-xl border border-[#D8E0EC] px-3 text-base font-semibold normal-case tracking-normal text-[#071D49] outline-none transition focus:border-[#1D4ED8] focus:ring-2 focus:ring-blue-100 disabled:bg-[#F1F5F9]"
+                            />
+                          </label>
+                        </div>
+                      </div>
+
+                      <p className="mt-3 rounded-xl bg-[#F8FAFC] px-3 py-2 text-xs font-bold text-[#475569]">
+                        Policy result: {rowReadOnly
+                          ? row.status.replaceAll("_", " ")
+                          : draft.scoreStatus === "entered"
+                            ? "Calculated after grading policy"
+                            : draft.scoreStatus
+                              ? SCORE_STATUS_LABELS[draft.scoreStatus]
+                              : "Pending evidence"}
+                      </p>
+                    </article>
+                  );
+                })}
+              </div>
+
+              <div className="mt-5 hidden overflow-x-auto rounded-2xl border border-[#D8E0EC] lg:block">
               <table className="min-w-[1120px] divide-y divide-[#E2E8F0] bg-white text-sm">
                 <thead className="bg-[#F8FAFC] text-left text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">
                   <tr>
@@ -695,7 +797,8 @@ export function ExamsMarksWorkspace({
                   })}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           )}
         </section>
       </div>

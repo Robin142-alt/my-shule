@@ -7,18 +7,18 @@ export function cn(...classes: Array<string | false | null | undefined>) {
 
 export function Panel({ title, description, icon: Icon, headerEnd, children }: { title: string; description: string; icon: LucideIcon; headerEnd?: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
-      <div className="mb-4 flex gap-3 justify-between">
-        <div className="flex gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-4 shadow-[0_18px_50px_rgba(7,29,73,0.08)] sm:p-5">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
             <Icon className="h-5 w-5" aria-hidden="true" />
           </span>
-          <div>
-            <h2 className="text-xl font-black text-[#071D49]">{title}</h2>
+          <div className="min-w-0">
+            <h2 className="text-lg font-black text-[#071D49] sm:text-xl">{title}</h2>
             <p className="mt-1 text-sm leading-6 text-[#64748B]">{description}</p>
           </div>
         </div>
-        {headerEnd && <div>{headerEnd}</div>}
+        {headerEnd && <div className="flex min-w-0 flex-wrap gap-2 sm:shrink-0">{headerEnd}</div>}
       </div>
       {children}
     </section>
@@ -36,26 +36,40 @@ export function RecordTable({
 }) {
   if (rows.length === 0) {
     return (
-      <div className="flex h-32 flex-col items-center justify-center rounded-xl border border-dashed border-[#D8E0EC] bg-[#F8FAFC]">
-        <p className="text-sm font-semibold text-[#64748B]">{emptyState}</p>
+      <div className="flex min-h-32 flex-col items-center justify-center rounded-xl border border-dashed border-[#D8E0EC] bg-[#F8FAFC] p-5 text-center">
+        <p className="max-w-xl text-sm font-semibold text-[#64748B]">{emptyState}</p>
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-[#D8E0EC]">
-      <table className="min-w-full divide-y divide-[#E2E8F0] bg-white text-sm">
-        <thead className="bg-[#F8FAFC] text-left text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">
-          <tr>{columns.map((column) => <th key={column} className="px-4 py-3">{column}</th>)}</tr>
-        </thead>
-        <tbody className="divide-y divide-[#E2E8F0]">
-          {rows.map((row, index) => (
-            <tr key={index} className="align-top">
-              {row.map((cell, cellIndex) => <td key={cellIndex} className="px-4 py-3 font-semibold text-[#071D49]">{cell}</td>)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="overflow-hidden rounded-2xl border border-[#D8E0EC]">
+      <div className="space-y-2 bg-[#F8FAFC] p-3 lg:hidden">
+        {rows.map((row, rowIndex) => (
+          <article key={rowIndex} className="space-y-3 rounded-xl border border-[#D8E0EC] bg-white p-4 shadow-sm">
+            {columns.map((column, cellIndex) => (
+              <div key={`${column}-${cellIndex}`} className="grid min-w-0 gap-1 sm:grid-cols-[minmax(7rem,0.45fr)_minmax(0,1fr)] sm:gap-3">
+                <p className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748B]">{column}</p>
+                <div className="min-w-0 break-words text-sm font-semibold text-[#071D49] sm:text-right">{row[cellIndex] ?? "-"}</div>
+              </div>
+            ))}
+          </article>
+        ))}
+      </div>
+      <div className="hidden overflow-x-auto lg:block">
+        <table className="min-w-full divide-y divide-[#E2E8F0] bg-white text-sm">
+          <thead className="bg-[#F8FAFC] text-left text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">
+            <tr>{columns.map((column) => <th key={column} className="px-4 py-3">{column}</th>)}</tr>
+          </thead>
+          <tbody className="divide-y divide-[#E2E8F0]">
+            {rows.map((row, index) => (
+              <tr key={index} className="align-top">
+                {row.map((cell, cellIndex) => <td key={cellIndex} className="px-4 py-3 font-semibold text-[#071D49]">{cell}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

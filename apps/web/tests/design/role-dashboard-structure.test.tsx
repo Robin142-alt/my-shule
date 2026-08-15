@@ -591,18 +591,23 @@ describe("role dashboard operational structure", () => {
 
     const commandCenter = await screen.findByTestId("deputy-principal-command-center");
     const sidebar = commandCenter.querySelector("aside");
-    const mobileWorkspace = within(commandCenter).getByRole("combobox", { name: /Deputy workspace navigation/i });
+    const mobileWorkspace = within(commandCenter).getByRole("button", { name: /Open Deputy workspace sidebar/i });
 
-    expect(commandCenter.className.split(/\s+/)).toContain("min-h-screen");
+    expect(commandCenter.className.split(/\s+/)).toContain("min-h-dvh");
     expect(commandCenter.className.split(/\s+/)).not.toContain("h-screen");
     expect(sidebar?.className ?? "").toMatch(/xl:sticky/);
     expect(sidebar?.className ?? "").toMatch(/hidden/);
     expect(commandCenter.innerHTML).not.toContain("max-h-[calc(100vh");
     expect(commandCenter.innerHTML).not.toContain("grid h-full min-h-0");
-    expect(mobileWorkspace).toHaveValue("overview");
+    expect(mobileWorkspace).toHaveAttribute("aria-expanded", "false");
+    expect(within(commandCenter).queryByRole("combobox", { name: /Deputy workspace/i })).not.toBeInTheDocument();
 
-    await user.selectOptions(mobileWorkspace, "attendance");
-    expect(mobileWorkspace).toHaveValue("attendance");
+    await user.click(mobileWorkspace);
+    const workspaceDialog = screen.getByRole("dialog", { name: "Deputy workspace" });
+    await user.click(within(workspaceDialog).getByRole("button", { name: /Attendance & Punctuality/i }));
+
+    expect(screen.queryByRole("dialog", { name: "Deputy workspace" })).not.toBeInTheDocument();
+    expect(mobileWorkspace).toHaveAccessibleDescription(/Attendance & Punctuality/i);
     expect(within(commandCenter).getAllByRole("heading", { name: /Attendance & Punctuality/i }).length).toBeGreaterThan(0);
   }, 30000);
 

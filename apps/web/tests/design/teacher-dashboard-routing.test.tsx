@@ -25,8 +25,8 @@ describe("teacher dashboard routing", () => {
       }),
     );
 
-    expect(await screen.findByRole("heading", { name: /Teacher Workspace/i })).toBeVisible();
-    expect(screen.getByText(/Teacher Dash/i)).toBeVisible();
+    expect(await screen.findByTestId("teacher-command-center")).toBeVisible();
+    expect(screen.getAllByText(/Teacher Dash/i).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /Assignments/i })).toBeVisible();
     expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
   });
@@ -42,7 +42,7 @@ describe("teacher dashboard routing", () => {
       }),
     );
 
-    const shell = await screen.findByRole("heading", { name: /Teacher Workspace/i });
+    const shell = await screen.findByTestId("teacher-command-center");
     expect(shell).toBeVisible();
     expect(screen.getByRole("button", { name: /Assignments/i })).toHaveClass("bg-white/15");
     expect(within(document.body).queryByText(/Workspace Not Found/i)).not.toBeInTheDocument();
@@ -51,9 +51,9 @@ describe("teacher dashboard routing", () => {
   it.each([
     ["students", /Learner Progress/i],
     ["academics", /Exams & Marks/i],
-    ["communication", /Parent Communication/i],
-    ["reports-downloads", /Reports & Downloads/i],
-    ["reports-analytics", /Reports & Downloads/i],
+    ["communication", /^Parents$/i],
+    ["reports-downloads", /^Reports$/i],
+    ["reports-analytics", /Academic Intelligence/i],
   ] as const)(
     "routes legacy teacher sidebar section %s into the new teacher shell",
     async (section, activeButton) => {
@@ -67,7 +67,7 @@ describe("teacher dashboard routing", () => {
         }),
       );
 
-      expect(await screen.findByRole("heading", { name: /Teacher Workspace/i })).toBeVisible();
+      expect(await screen.findByTestId("teacher-command-center")).toBeVisible();
       expect(screen.getByRole("button", { name: activeButton })).toHaveClass("bg-white/15");
       expect(within(document.body).queryByText(/Workspace Not Found/i)).not.toBeInTheDocument();
       expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
@@ -85,7 +85,7 @@ describe("teacher dashboard routing", () => {
       }),
     );
 
-    expect(await screen.findByRole("heading", { name: /Teacher Workspace/i })).toBeVisible();
+    expect(await screen.findByTestId("teacher-command-center")).toBeVisible();
     expect(screen.getByRole("button", { name: /Overview/i })).toHaveClass("bg-white/15");
 
     view.rerender(

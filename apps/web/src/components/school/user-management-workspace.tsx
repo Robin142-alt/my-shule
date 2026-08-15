@@ -1627,7 +1627,72 @@ function UsersTable({
   }
 
   return (
-    <div className="mt-4 overflow-x-auto">
+    <>
+      <div className="mt-4 grid gap-3 lg:hidden">
+        {users.map((user) => (
+          <article key={user.id} className="rounded-2xl border border-[#D7E0EF] bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="break-words font-black text-[#071D49]">{user.name}</h3>
+                <p className="mt-0.5 text-sm font-semibold text-[#40608F]">{user.role}</p>
+              </div>
+              <StatusPill label={user.status} tone={statusTone(user.status)} compact />
+            </div>
+            <dl className="mt-3 grid gap-2 rounded-xl bg-[#F8FAFC] p-3 text-sm">
+              <div className="min-w-0">
+                <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">Assignment</dt>
+                <dd className="mt-0.5 break-words font-semibold text-[#52657F]">
+                  {user.department || "Not assigned"} · {user.assignment || "No class/department assignment"}
+                </dd>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="min-w-0">
+                  <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">Phone</dt>
+                  <dd className="mt-0.5 break-words font-semibold text-[#52657F]">{user.phone || "Not recorded"}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">Last active</dt>
+                  <dd className="mt-0.5 break-words font-semibold text-[#52657F]">{user.lastActive}</dd>
+                </div>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">Email</dt>
+                <dd className="mt-0.5 break-all font-semibold text-[#52657F]">{user.email || "No email"}</dd>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="min-w-0">
+                  <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">Employment</dt>
+                  <dd className="mt-0.5 break-words font-semibold text-[#52657F]">{user.employmentType || "Not recorded"}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">TSC number</dt>
+                  <dd className="mt-0.5 break-words font-semibold text-[#52657F]">{user.tscNumber || "Not recorded"}</dd>
+                </div>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">Joined</dt>
+                <dd className="mt-0.5 font-semibold text-[#52657F]">{displayDate(user.joinedAt)}</dd>
+              </div>
+            </dl>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <SmallAction label="View details" icon={Eye} onClick={() => onView(user)} disabled={busyAction !== null} />
+              <SmallAction label="Edit user" onClick={canManageUsers ? () => onEdit(user) : onPermissionDenied} locked={!canManageUsers} disabled={busyAction !== null} />
+              <SmallAction label="Change role" onClick={canManageUsers ? () => onChangeRole(user) : onPermissionDenied} locked={!canManageUsers} disabled={busyAction !== null} />
+              {user.status === "Active" ? (
+                <>
+                  <SmallAction label="Suspend" onClick={canManageUsers ? () => onSuspend(user) : onPermissionDenied} locked={!canManageUsers} disabled={busyAction !== null} tone="warning" />
+                  <SmallAction label="Deactivate" onClick={canManageUsers ? () => onDeactivate(user) : onPermissionDenied} locked={!canManageUsers} disabled={busyAction !== null} tone="danger" />
+                </>
+              ) : (
+                <SmallAction label="Reactivate" icon={RotateCcw} onClick={canManageUsers ? () => onReactivate(user) : onPermissionDenied} locked={!canManageUsers} disabled={busyAction !== null} />
+              )}
+              <SmallAction label="Reset password" onClick={canManageUsers ? () => onResetPassword(user) : onPermissionDenied} locked={!canManageUsers} disabled={busyAction !== null} />
+              {user.status === "Deactivated" ? <SmallAction label="Remove" onClick={canManageUsers ? () => onRemove(user) : onPermissionDenied} locked={!canManageUsers} disabled={busyAction !== null} tone="danger" /> : null}
+            </div>
+          </article>
+        ))}
+      </div>
+      <div className="mt-4 hidden overflow-x-auto lg:block">
       <table className="min-w-[980px] w-full text-left text-sm">
         <thead className="bg-[#F8FAFC] text-xs uppercase tracking-[0.12em] text-[#597091]">
           <tr>
@@ -1681,7 +1746,8 @@ function UsersTable({
           ))}
         </tbody>
       </table>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -1711,7 +1777,67 @@ function InvitationsTable({
   }
 
   return (
-    <div className="mt-4 overflow-x-auto">
+    <>
+      <div className="mt-4 grid gap-3 lg:hidden">
+        {invitations.map((invite) => (
+          <article key={invite.id} className="rounded-2xl border border-[#D7E0EF] bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="break-words font-black text-[#071D49]">{invite.invitedName}</h3>
+                <p className="mt-0.5 text-sm font-semibold text-[#40608F]">{invite.role}</p>
+              </div>
+              <StatusPill label={invite.invitationStatus} tone={statusTone(invite.invitationStatus)} compact />
+            </div>
+            <dl className="mt-3 grid gap-2 rounded-xl bg-[#F8FAFC] p-3 text-sm">
+              <div className="min-w-0">
+                <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">Contact</dt>
+                <dd className="mt-0.5 break-words font-semibold text-[#52657F]">{invite.phone || "Not recorded"}</dd>
+                <dd className="break-all text-[#52657F]">{invite.email || "No email"}</dd>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">Invited</dt>
+                  <dd className="mt-0.5 font-semibold text-[#52657F]">{displayDate(invite.createdAt)}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">Expires</dt>
+                  <dd className="mt-0.5 font-semibold text-[#52657F]">{displayDate(invite.expiryDate)}</dd>
+                </div>
+              </div>
+              <div>
+                <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">Invited by</dt>
+                <dd className="mt-0.5 break-words font-semibold text-[#52657F]">{invite.invitedByRole || "Not recorded"}</dd>
+              </div>
+            </dl>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <SmallAction label="View details" icon={Eye} onClick={() => onView(invite)} />
+              {invite.invitationStatus === "Pending" || invite.invitationStatus === "Email Failed" ? (
+                <SmallAction
+                  label={busyAction === `resend:${invite.id}` ? "Resending..." : "Resend invitation"}
+                  icon={Mail}
+                  onClick={() => onResend(invite)}
+                  disabled={busyAction !== null}
+                />
+              ) : null}
+              {invite.invitationStatus === "Pending" ? (
+                <SmallAction
+                  label={busyAction === `revoke:${invite.id}` ? "Revoking..." : "Revoke invitation"}
+                  onClick={() => onRevoke(invite)}
+                  disabled={busyAction !== null}
+                  tone="danger"
+                />
+              ) : null}
+              {invite.inviteCode !== "Hidden after delivery" && !invite.inviteToken.includes(".live.") ? (
+                <SmallAction label="Copy invite link/code" icon={Copy} onClick={() => onCopy(invite)} />
+              ) : null}
+              {invite.invitationStatus === "Expired" || invite.invitationStatus === "Revoked" ? (
+                <SmallAction label="Clear expired" onClick={() => onClear(invite)} />
+              ) : null}
+            </div>
+          </article>
+        ))}
+      </div>
+      <div className="mt-4 hidden overflow-x-auto lg:block">
       <table className="min-w-[940px] w-full text-left text-sm">
         <thead className="bg-[#F8FAFC] text-xs uppercase tracking-[0.12em] text-[#597091]">
           <tr>
@@ -1769,7 +1895,8 @@ function InvitationsTable({
           ))}
         </tbody>
       </table>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -2056,7 +2183,7 @@ function SmallAction({
       disabled={disabled}
       aria-disabled={locked ? "true" : undefined}
       onClick={onClick}
-      className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-black disabled:cursor-wait disabled:opacity-70 ${locked ? "border-[#D7E0EF] bg-[#F8FAFC] text-[#597091]" : toneClass}`}
+      className={`inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border px-2 py-2 text-center text-xs font-black disabled:cursor-wait disabled:opacity-70 sm:min-h-0 sm:justify-start sm:py-1 ${locked ? "border-[#D7E0EF] bg-[#F8FAFC] text-[#597091]" : toneClass}`}
     >
       {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
       {locked ? <Lock className="h-3.5 w-3.5" /> : null}

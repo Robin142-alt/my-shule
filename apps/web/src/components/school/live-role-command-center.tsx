@@ -94,6 +94,7 @@ import { ReceptionQueueWorkspace } from "@/components/school/secretary/reception
 import { ReportsWorkspace as SecretaryReportsWorkspace } from "@/components/school/secretary/reports-workspace";
 import { StudentClearanceWorkspace } from "@/components/school/secretary/student-clearance-workspace";
 import { VisitorsWorkspace as SecretaryVisitorsWorkspace } from "@/components/school/secretary/visitors-workspace";
+import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import {
   IntegratedSchoolCommandHeader,
   SchoolCommandSidebarIdentity,
@@ -560,10 +561,10 @@ export function LiveRoleCommandCenter({
       data-route-mode={routeMode}
       data-testid="live-role-command-center"
       data-role={role}
-      className="min-h-screen bg-[#F3F6FA] p-3 md:p-5"
+      className="min-h-dvh bg-[#F3F6FA] p-3 md:p-5"
     >
       <div className="mx-auto grid max-w-[1800px] gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="hidden h-[calc(100vh-40px)] rounded-2xl bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.24)] xl:sticky xl:top-5 xl:flex xl:flex-col">
+        <aside className="hidden h-[calc(100dvh-40px)] rounded-2xl bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.24)] xl:sticky xl:top-5 xl:flex xl:flex-col">
           <SchoolCommandSidebarIdentity
             eyebrow={config.eyebrow}
             title={config.roleLabel}
@@ -624,22 +625,13 @@ export function LiveRoleCommandCenter({
           />
 
           <div className="rounded-xl border border-[#C8D5EA] bg-white p-3 shadow-sm xl:hidden">
-            <label
-              htmlFor={`${role}-mobile-workspace`}
-              className="mb-2 block text-xs font-black uppercase tracking-[0.14em] text-[#5F6F89]"
-            >
-              {config.roleLabel} workspace
-            </label>
-            <select
-              id={`${role}-mobile-workspace`}
+            <MobileWorkspaceNavigation
+              label={`${config.roleLabel} workspace`}
+              items={navItems}
               value={activeWorkspace}
-              onChange={(event) => navigateTo(event.currentTarget.value)}
-              className="h-11 w-full rounded-lg border border-[#C8D5EA] bg-[#F8FAFC] px-3 text-sm font-bold text-[#071D49] outline-none focus:border-cyan-400 focus:ring-4 focus:ring-cyan-300/20"
-            >
-              {navItems.map((item) => (
-                <option key={item.id} value={item.id}>{item.label}</option>
-              ))}
-            </select>
+              onValueChange={navigateTo}
+              testId={`${role}-mobile-workspace-nav`}
+            />
           </div>
 
           <section className="rounded-2xl bg-[#071D49] p-4 shadow-[0_24px_70px_rgba(7,29,73,0.18)] md:p-5">

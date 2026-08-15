@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useEffectEvent, useRef, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useId, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ export function Modal({
   size?: "sm" | "md" | "lg" | "xl";
   mobileFullScreen?: boolean;
 }) {
+  const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const requestClose = useEffectEvent(() => {
@@ -106,22 +108,19 @@ export function Modal({
     };
   }, [open]);
 
-  // Lock body scroll when modal is open
   useEffect(() => {
-    if (open) {
-      document.body.style.overflow = "hidden";
-      // Focus the dialog on open
-      requestAnimationFrame(() => dialogRef.current?.focus());
-    } else {
-      document.body.style.overflow = "";
-    }
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    requestAnimationFrame(() => dialogRef.current?.focus());
 
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow = previousOverflow;
     };
   }, [open]);
 
-  if (!open) {
+  if (!open || typeof document === "undefined") {
     return null;
   }
 
@@ -143,9 +142,10 @@ export function Modal({
           : "max-w-none sm:max-w-xl"
     : sizeClass;
 
-  return (
+  return createPortal(
     <div
-      className={`fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 backdrop-blur-md transition-all duration-300 overflow-y-auto ${mobileFullScreen ? "p-0 sm:px-4 sm:pt-[10vh] sm:pb-8" : "px-4 pt-[10vh] pb-8"}`}
+      className={`fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 backdrop-blur-md transition-all duration-300 ${mobileFullScreen ? "p-0 sm:px-4 sm:pb-8 sm:pt-[10vh]" : "px-3 pb-4 pt-4 sm:px-4 sm:pb-8 sm:pt-[10vh]"}`}
+      style={{ paddingBottom: mobileFullScreen ? undefined : "max(1rem, env(safe-area-inset-bottom))" }}
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
@@ -157,12 +157,12 @@ export function Modal({
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="modal-title"
-        className={`fade-in-panel glass-panel w-full ${mobileSizeClass} ${mobileFullScreen ? "flex min-h-[100dvh] max-h-[100dvh] flex-col rounded-none sm:min-h-0 sm:max-h-none sm:rounded-[var(--radius-lg)]" : "rounded-[var(--radius-lg)]"} outline-none shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] ring-1 ring-slate-200/50 transform transition-all duration-300 scale-100 opacity-100`}
+        aria-labelledby={titleId}
+        className={`fade-in-panel glass-panel flex w-full flex-col ${mobileSizeClass} ${mobileFullScreen ? "min-h-[100dvh] max-h-[100dvh] rounded-none sm:min-h-0 sm:max-h-none sm:rounded-[var(--radius-lg)]" : "max-h-[calc(100dvh-2rem)] rounded-[var(--radius-lg)]"} outline-none shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] ring-1 ring-slate-200/50 transform transition-all duration-300 scale-100 opacity-100`}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-border bg-white px-5 py-3.5">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border bg-white px-4 py-3.5 sm:px-5">
           <div className="min-w-0">
-            <h3 id="modal-title" className="text-[15px] font-semibold text-foreground">
+            <h3 id={titleId} className="text-[15px] font-semibold text-foreground">
               {title}
             </h3>
             {description ? (
@@ -174,20 +174,24 @@ export function Modal({
             size="icon"
             aria-label="Close dialog"
             onClick={onClose}
-            className="shrink-0 -mr-1 -mt-0.5 h-8 w-8 rounded-full text-muted hover:text-foreground hover:bg-surface-strong hover:rotate-90 transition-all duration-200"
+            className="-mr-2 -mt-1 h-11 w-11 shrink-0 rounded-full text-muted transition-all duration-200 hover:rotate-90 hover:bg-surface-strong hover:text-foreground xl:-mr-1 xl:-mt-0.5 xl:h-9 xl:w-9"
           >
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <div className={`px-5 py-5 custom-scrollbar overflow-y-auto ${mobileFullScreen ? "min-h-0 flex-1 max-h-none sm:flex-none sm:max-h-[60vh]" : "max-h-[60vh]"}`}>{children}</div>
-        <div className="flex flex-wrap items-center justify-end gap-3 rounded-b-[var(--radius-lg)] border-t border-border bg-surface px-5 py-4 backdrop-blur-sm">
+        <div className={`custom-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5 ${mobileFullScreen ? "max-h-none sm:flex-none sm:max-h-[60vh]" : "max-h-[calc(100dvh-11rem)] sm:flex-none sm:max-h-[60vh]"}`}>{children}</div>
+        <div
+          className="flex shrink-0 flex-col-reverse items-stretch gap-2 rounded-b-[var(--radius-lg)] border-t border-border bg-surface px-4 py-3.5 backdrop-blur-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-3 sm:px-5 sm:py-4"
+          style={{ paddingBottom: mobileFullScreen ? "max(0.875rem, env(safe-area-inset-bottom))" : undefined }}
+        >
           {footer || (
-            <Button variant="outline" onClick={onClose} className="px-4">
+            <Button variant="outline" onClick={onClose} className="w-full px-4 sm:w-auto">
               Close
             </Button>
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

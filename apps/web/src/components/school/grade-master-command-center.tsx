@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
+import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
@@ -1526,9 +1527,9 @@ export function GradeMasterCommandCenter({ activeSection, routeMode }: { activeS
   }
 
   return (
-    <div data-testid="role-operational-command-center" className="flex min-h-screen bg-[#F3F6FA]">
+    <div data-testid="role-operational-command-center" className="flex min-h-dvh bg-[#F3F6FA]">
       {/* Sidebar */}
-      <aside className="hidden h-screen w-[260px] overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
+      <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
         <SchoolCommandSidebarIdentity eyebrow="Grade command" title="Grade/Form Master" subtitle="Assigned grade, form, and stream oversight" />
         <nav className="space-y-1" aria-label="Grade form master navigation">
           {navItems.map((item, index) => {
@@ -1555,19 +1556,19 @@ export function GradeMasterCommandCenter({ activeSection, routeMode }: { activeS
       </aside>
 
       {/* Main Area */}
-      <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
+      <main className="flex h-dvh min-w-0 flex-1 flex-col overflow-hidden">
         {/* Topbar */}
         <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white">F2</div>
               <div>
                 <h1 className="text-lg font-black text-[#071D49]">Grade/Form Master Command Center</h1>
                 <p className="text-xs font-bold text-[#64748B]">Live tenant workspace for assigned streams, learners, academics, attendance, welfare, and reports.</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-               <div className="relative w-64 hidden md:block">
+            <div className="flex w-full flex-wrap items-center gap-2 xl:w-auto xl:justify-end">
+               <div className="relative hidden w-full md:block xl:w-64">
                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
                  <input 
                    value={searchTerm}
@@ -1596,15 +1597,13 @@ export function GradeMasterCommandCenter({ activeSection, routeMode }: { activeS
           </div>
           {/* Mobile Nav Selector */}
           <div className="mt-3 lg:hidden">
-            <select
-              className="h-10 w-full rounded-xl border border-[#D8E0EC] bg-white px-3 text-sm font-bold text-[#071D49] outline-none"
+            <MobileWorkspaceNavigation
+              label="Grade master workspace"
+              items={navItems}
               value={activeView}
-              onChange={(e) => openView(e.target.value as GradeView)}
-            >
-              {navItems.map((item) => (
-                <option key={item.id} value={item.id}>{item.label}</option>
-              ))}
-            </select>
+              onValueChange={(value) => openView(value as GradeView)}
+              testId="grade-master-mobile-workspace-nav"
+            />
           </div>
         </header>
 

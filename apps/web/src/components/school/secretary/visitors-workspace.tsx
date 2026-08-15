@@ -93,8 +93,73 @@ export function VisitorsWorkspace() {
         </div>
       </div>
 
-      {/* Visitors Table */}
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      {/* Mobile visitor cards */}
+      <div className="grid gap-3 lg:hidden">
+        {isLoading ? (
+          <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] px-4 py-8 text-center text-sm font-semibold text-[#64748B]">Loading visitors...</div>
+        ) : visitors.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-[#D8E0EC] bg-[#F8FAFC] px-4 py-8 text-center">
+            <p className="font-black text-[#071D49]">No visitors checked in yet today.</p>
+            <p className="mt-1 text-sm font-semibold text-[#64748B]">Use Check In to register the first visitor at reception.</p>
+          </div>
+        ) : (
+          visitors.map((visitor) => (
+            <article key={visitor.id} className="rounded-2xl border border-[#D8E0EC] bg-white p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-[#64748B]">Badge {visitor.badge_number}</p>
+                  <h3 className="mt-1 break-words font-black text-[#071D49]">{visitor.full_name}</h3>
+                  <p className="mt-0.5 text-sm font-semibold text-[#64748B]">ID {visitor.id_number}</p>
+                </div>
+                <StatusChip label={visitor.status} tone={getStatusTone(visitor.status)} />
+              </div>
+              <dl className="mt-3 grid gap-2 rounded-xl bg-[#F8FAFC] p-3 text-sm">
+                <div>
+                  <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#64748B]">Purpose</dt>
+                  <dd className="mt-0.5 break-words font-semibold text-[#071D49]">{visitor.purpose}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#64748B]">Person to see</dt>
+                  <dd className="mt-0.5 break-words font-semibold text-[#071D49]">{visitor.person_to_see}</dd>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#64748B]">Check in</dt>
+                    <dd className="mt-0.5 font-semibold text-[#52657F]">{visitor.check_in_time}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#64748B]">Check out</dt>
+                    <dd className="mt-0.5 font-semibold text-[#52657F]">{visitor.check_out_time || "Not yet"}</dd>
+                  </div>
+                </div>
+              </dl>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {visitor.status === "On Premises" ? (
+                  <button
+                    type="button"
+                    disabled={actionId === visitor.id}
+                    onClick={() => handleCheckOut(visitor.id)}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-black text-white hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    <LogOut className="h-4 w-4" /> Check Out
+                  </button>
+                ) : <span />}
+                <button
+                  type="button"
+                  disabled={actionId === visitor.id}
+                  onClick={() => handlePrintSlip(visitor.id)}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#D8E0EC] bg-white px-3 text-sm font-black text-[#071D49] hover:bg-[#F8FAFC] disabled:opacity-50"
+                >
+                  <Printer className="h-4 w-4" /> Visitor slip
+                </button>
+              </div>
+            </article>
+          ))
+        )}
+      </div>
+
+      {/* Desktop visitors table */}
+      <div className="hidden overflow-x-auto rounded-xl border border-[#D8E0EC] lg:block">
         <table className="w-full text-sm text-left whitespace-nowrap">
           <thead className="bg-[#F8FAFC] text-[#071D49]">
             <tr>

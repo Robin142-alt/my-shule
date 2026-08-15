@@ -188,7 +188,7 @@ export function FeesWorkspace() {
             <select
               value={account?.student_id ?? ""}
               onChange={(event) => setSelectedStudentId(event.currentTarget.value)}
-              className="mt-1 block min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900"
+              className="mt-1 block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-base text-slate-900 sm:w-auto sm:text-sm"
             >
               {accounts.map((row) => (
                 <option key={row.student_id} value={row.student_id}>
@@ -232,7 +232,7 @@ export function FeesWorkspace() {
                   </p>
                 </div>
                 <Button
-                  className="gap-2 bg-blue-600 hover:bg-blue-700"
+                  className="w-full gap-2 bg-blue-600 hover:bg-blue-700 md:w-auto"
                   onClick={() => {
                     setPaymentError(null);
                     setPaymentDialogOpen(true);
@@ -266,7 +266,76 @@ export function FeesWorkspace() {
             <div className="border-b border-slate-100 bg-slate-50/50 p-4">
               <h3 className="font-medium text-slate-900">Invoices and payments</h3>
             </div>
-            <div className="overflow-x-auto">
+            <div className="space-y-3 bg-slate-50/40 p-3 lg:hidden">
+              {isLoading ? (
+                <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+                  Loading financial records...
+                </div>
+              ) : (
+                <>
+                  {invoices.map((invoice) => (
+                    <article key={`mobile-invoice-${invoice.id}`} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">Invoice</p>
+                          <h4 className="mt-1 font-semibold text-slate-900">
+                            {[invoice.term, invoice.academic_year].filter(Boolean).join(" - ") || "Fee invoice"}
+                          </h4>
+                        </div>
+                        <StatusBadge status={invoice.status} />
+                      </div>
+                      <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                        <div>
+                          <dt className="text-xs text-slate-500">Date</dt>
+                          <dd className="mt-0.5 font-medium text-slate-800">{formatDate(invoice.created_at)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-slate-500">Amount</dt>
+                          <dd className="mt-0.5 font-semibold text-slate-900">{formatMoney(invoice.amount_minor)}</dd>
+                        </div>
+                        <div className="min-w-0 sm:col-span-2">
+                          <dt className="text-xs text-slate-500">Reference</dt>
+                          <dd className="mt-0.5 break-all font-medium text-slate-800">{invoice.invoice_number || invoice.id}</dd>
+                        </div>
+                      </dl>
+                    </article>
+                  ))}
+                  {transactions.map((transaction) => (
+                    <article key={`mobile-transaction-${transaction.id}`} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">Payment</p>
+                          <h4 className="mt-1 font-semibold text-slate-900">
+                            Fee payment{transaction.payment_method ? ` (${transaction.payment_method})` : ""}
+                          </h4>
+                        </div>
+                        <StatusBadge status={transaction.status} />
+                      </div>
+                      <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                        <div>
+                          <dt className="text-xs text-slate-500">Date</dt>
+                          <dd className="mt-0.5 font-medium text-slate-800">{formatDate(transaction.created_at)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-slate-500">Amount</dt>
+                          <dd className="mt-0.5 font-semibold text-emerald-700">{formatMoney(transaction.amount_minor)}</dd>
+                        </div>
+                        <div className="min-w-0 sm:col-span-2">
+                          <dt className="text-xs text-slate-500">Receipt</dt>
+                          <dd className="mt-0.5 break-all font-medium text-slate-800">{transaction.receipt_number || transaction.id}</dd>
+                        </div>
+                      </dl>
+                    </article>
+                  ))}
+                  {invoices.length === 0 && transactions.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
+                      No invoices or confirmed payments exist for this learner yet.
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </div>
+            <div className="hidden overflow-x-auto lg:block">
               <table className="w-full min-w-[760px] text-left text-sm">
                 <thead className="border-b border-slate-200 text-xs uppercase text-slate-500">
                   <tr>

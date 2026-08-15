@@ -29,6 +29,7 @@ import {
 
 import { MyShuleBrand, MyShuleMark } from "@/components/brand/myshule-brand";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
+import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
@@ -985,8 +986,8 @@ export function SystemMonitorDashboard({ routeMode }: { routeMode: RouteMode }) 
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F3F6FA] font-sans">
-      <aside className="hidden h-screen w-[260px] overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
+    <div className="flex min-h-dvh bg-[#F3F6FA] font-sans">
+      <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-6">
           <MyShuleBrand markSize={38} nameClassName="text-base" />
           <h2 className="mt-2 text-xl font-black">System Monitor</h2>
@@ -1015,7 +1016,7 @@ export function SystemMonitorDashboard({ routeMode }: { routeMode: RouteMode }) 
           })}
         </nav>
       </aside>
-      <main className="flex-1 min-w-0 flex flex-col h-screen">
+      <main className="flex h-dvh min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
@@ -1023,7 +1024,7 @@ export function SystemMonitorDashboard({ routeMode }: { routeMode: RouteMode }) 
               <h1 className="text-lg font-black text-[#071D49] truncate">{navItems.find(i => i.id === activeView)?.label || "Dashboard"}</h1>
               <span className="rounded-full border border-[#D8E0EC] bg-[#F8FAFC] px-2.5 py-1 text-xs font-bold uppercase tracking-[0.12em] text-[#64748B]">{routeMode}</span>
             </div>
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
               <StatusChip label="Global Platform" tone="info" />
               <button type="button" aria-label="Open System Monitor search" className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#071D49] text-white" onClick={() => pushMonitorToast({ title: "Search ready", message: "Use each workspace search box to inspect tenant-safe operational metadata.", type: "info" })}>
                 <Search className="h-4 w-4" />
@@ -1034,15 +1035,13 @@ export function SystemMonitorDashboard({ routeMode }: { routeMode: RouteMode }) 
             </div>
           </div>
           <div className="mt-3 lg:hidden">
-            <select
-              className="h-10 w-full rounded-xl border border-[#D8E0EC] bg-white px-3 text-sm font-bold text-[#071D49] outline-none"
+            <MobileWorkspaceNavigation
+              label="System monitor workspace"
+              items={navItems}
               value={activeView}
-              onChange={(e) => setActiveView(e.target.value as ViewId)}
-            >
-              {navItems.map((item) => (
-                <option key={item.id} value={item.id}>{item.label}</option>
-              ))}
-            </select>
+              onValueChange={(value) => setActiveView(value as ViewId)}
+              testId="system-monitor-mobile-workspace-nav"
+            />
           </div>
         </header>
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">

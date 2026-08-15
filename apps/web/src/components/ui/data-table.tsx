@@ -50,8 +50,8 @@ export function DataTable<T>({
   return (
     <Card className="overflow-hidden">
       {title || subtitle ? (
-        <div className="border-b border-border bg-surface px-5 py-3.5">
-          <div className="flex items-center justify-between gap-4">
+        <div className="border-b border-border bg-surface px-4 py-3.5 sm:px-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="min-w-0">
               {title ? (
                 <h3 className="section-title text-lg">
@@ -63,7 +63,7 @@ export function DataTable<T>({
               ) : null}
             </div>
             {actions || safeRows.length > 0 ? (
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2 sm:shrink-0">
                 {actions}
                 {safeRows.length > 0 ? (
                   <span className="badge badge-neutral">
@@ -129,11 +129,14 @@ export function DataTable<T>({
               >
                 <div className="space-y-2">
                   {columns.map((column) => (
-                    <div key={column.id} className="flex items-center justify-between gap-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+                    <div
+                      key={column.id}
+                      className="grid min-w-0 gap-1 sm:grid-cols-[minmax(7rem,0.45fr)_minmax(0,1fr)] sm:items-start sm:gap-3"
+                    >
+                      <p className="pt-0.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
                         {column.mobileLabel ?? column.header}
                       </p>
-                      <div className="text-[13px] text-foreground text-right">
+                      <div className="min-w-0 break-words text-left text-[13px] text-foreground sm:text-right">
                         {column.render(row)}
                       </div>
                     </div>
@@ -145,7 +148,7 @@ export function DataTable<T>({
 
           {/* Pagination */}
           {totalPages > 1 ? (
-            <div className="flex items-center justify-between border-t border-border bg-surface-muted px-4 py-2.5">
+            <div className="flex flex-col gap-2 border-t border-border bg-surface-muted px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:py-2.5">
               <p className="text-[13px] text-muted">
                 <span className="font-medium text-foreground">
                   {safeCurrentPage * pageSize + 1}
@@ -157,12 +160,12 @@ export function DataTable<T>({
                 {" "}of{" "}
                 <span className="font-medium text-foreground">{safeRows.length}</span>
               </p>
-              <div className="flex items-center gap-0.5">
+              <div className="flex items-center justify-between gap-0.5 sm:justify-end">
                 <button
                   type="button"
                   disabled={safeCurrentPage === 0}
                   onClick={() => setCurrentPage(0)}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-[var(--radius-xs)] text-muted transition-colors hover:bg-white hover:text-accent disabled:cursor-not-allowed disabled:opacity-30"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-[var(--radius-xs)] text-muted transition-colors hover:bg-white hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 xl:h-9 xl:w-9"
                   aria-label="First page"
                 >
                   <ChevronsLeft className="h-3.5 w-3.5" />
@@ -173,12 +176,12 @@ export function DataTable<T>({
                   onClick={() =>
                     setCurrentPage((page) => Math.max(0, Math.min(page, totalPages - 1) - 1))
                   }
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-[var(--radius-xs)] text-muted transition-colors hover:bg-white hover:text-accent disabled:cursor-not-allowed disabled:opacity-30"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-[var(--radius-xs)] text-muted transition-colors hover:bg-white hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 xl:h-9 xl:w-9"
                   aria-label="Previous page"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
                 </button>
-                <span className="px-2 text-[13px] font-medium text-foreground tabular-nums">
+                <span className="shrink-0 px-1 text-[13px] font-medium text-foreground tabular-nums sm:px-2">
                   {safeCurrentPage + 1} / {totalPages}
                 </span>
                 <button
@@ -187,7 +190,7 @@ export function DataTable<T>({
                   onClick={() =>
                     setCurrentPage((page) => Math.min(totalPages - 1, Math.min(page, totalPages - 1) + 1))
                   }
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-[var(--radius-xs)] text-muted transition-colors hover:bg-white hover:text-accent disabled:cursor-not-allowed disabled:opacity-30"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-[var(--radius-xs)] text-muted transition-colors hover:bg-white hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 xl:h-9 xl:w-9"
                   aria-label="Next page"
                 >
                   <ChevronRight className="h-3.5 w-3.5" />
@@ -196,7 +199,7 @@ export function DataTable<T>({
                   type="button"
                   disabled={safeCurrentPage >= totalPages - 1}
                   onClick={() => setCurrentPage(totalPages - 1)}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-[var(--radius-xs)] text-muted transition-colors hover:bg-white hover:text-accent disabled:cursor-not-allowed disabled:opacity-30"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-[var(--radius-xs)] text-muted transition-colors hover:bg-white hover:text-accent disabled:cursor-not-allowed disabled:opacity-30 xl:h-9 xl:w-9"
                   aria-label="Last page"
                 >
                   <ChevronsRight className="h-3.5 w-3.5" />

@@ -32,6 +32,7 @@ import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { toast } from "sonner";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
+import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
@@ -1461,9 +1462,9 @@ export function BoardingMasterCommandCenter({ routeMode, activeSection }: { rout
   }
 
   return (
-    <div className="flex min-h-screen bg-[#F3F6FA]">
+    <div className="flex min-h-dvh bg-[#F3F6FA]">
       {/* Sidebar */}
-      <aside className="hidden h-screen w-[260px] overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
+      <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
         <SchoolCommandSidebarIdentity eyebrow="Boarding command" title="Boarding Master" subtitle="Dormitory and resident oversight" />
         <nav className="space-y-1" aria-label="Boarding master navigation">
           {navItems.map((item, index) => {
@@ -1490,7 +1491,7 @@ export function BoardingMasterCommandCenter({ routeMode, activeSection }: { rout
       </aside>
 
       {/* Main Area */}
-      <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
+      <main className="flex h-dvh min-w-0 flex-1 flex-col overflow-hidden">
         {/* Topbar */}
         <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -1498,11 +1499,11 @@ export function BoardingMasterCommandCenter({ routeMode, activeSection }: { rout
               <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white">BM</div>
               <div>
                 <h1 className="text-sm font-black text-[#071D49]">Boarding operations controls</h1>
-                <p className="text-xs font-bold text-[#64748B]">Boarding Master Ã¢â‚¬Â¢ Term 2, 2026 Ã¢â‚¬Â¢ Week 6 Ã¢â‚¬Â¢ All Dormitories</p>
+                <p className="text-xs font-bold text-[#64748B]">Boarding Master · Term 2, 2026 · Week 6 · All Dormitories</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-               <div className="relative w-64 hidden md:block">
+            <div className="flex flex-wrap items-center gap-2">
+               <div className="relative hidden w-full md:block xl:w-64">
                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
                  <input 
                    value={searchTerm}
@@ -1527,20 +1528,18 @@ export function BoardingMasterCommandCenter({ routeMode, activeSection }: { rout
                  <ApprovalInbox currentUserId="school" />
                  <NotificationBell />
                </div>
-               <button type="button" onClick={() => openView("roll-call")} className="inline-flex h-10 items-center justify-center rounded-xl bg-[#071D49] px-4 text-sm font-black text-white">Start Roll Call</button>
+               <button type="button" onClick={() => openView("roll-call")} className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[#071D49] px-4 text-sm font-black text-white sm:w-auto">Start Roll Call</button>
             </div>
           </div>
           {/* Mobile Nav Selector */}
           <div className="mt-3 lg:hidden">
-            <select
-              className="h-10 w-full rounded-xl border border-[#D8E0EC] bg-white px-3 text-sm font-bold text-[#071D49] outline-none"
+            <MobileWorkspaceNavigation
+              label="Boarding workspace"
+              items={navItems}
               value={activeView}
-              onChange={(e) => openView(e.target.value as ViewId)}
-            >
-              {navItems.map((item) => (
-                <option key={item.id} value={item.id}>{item.label}</option>
-              ))}
-            </select>
+              onValueChange={(value) => openView(value as ViewId)}
+              testId="boarding-mobile-workspace-nav"
+            />
           </div>
         </header>
 

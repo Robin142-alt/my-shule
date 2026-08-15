@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
+import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
@@ -2328,8 +2329,8 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: RouteMode }) {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F3F6FA] font-sans">
-      <aside className="hidden h-screen w-[260px] overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
+    <div className="flex min-h-dvh bg-[#F3F6FA] font-sans">
+      <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
         <SchoolCommandSidebarIdentity eyebrow="Security command" title="Security Officer" subtitle="Gate, visitor, and safety operations" />
         <nav className="space-y-1" aria-label="Security navigation">
           {navItems.map((item, index) => {
@@ -2354,14 +2355,14 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: RouteMode }) {
           })}
         </nav>
       </aside>
-      <main className="flex-1 min-w-0 flex flex-col h-screen">
+      <main className="flex h-dvh min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white shrink-0">SO</div>
               <h1 className="text-lg font-black text-[#071D49] truncate">{navItems.find(i => i.id === activeView)?.label || "Dashboard"}</h1>
             </div>
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                   <StatusChip label="Term 2 (2026)" tone="info" />
                   {searchOpen ? (
                     <input
@@ -2372,7 +2373,7 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: RouteMode }) {
                           void handleSearchSecurityRecords();
                         }
                       }}
-                      className="h-10 w-56 rounded-xl border border-[#D8E0EC] px-3 text-sm font-semibold text-[#071D49] outline-none"
+                      className="h-11 w-full rounded-xl border border-[#D8E0EC] px-3 text-base font-semibold text-[#071D49] outline-none sm:w-56 sm:text-sm"
                       placeholder="Search gate records"
                       autoFocus
                     />
@@ -2388,15 +2389,13 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: RouteMode }) {
             </div>
           </div>
           <div className="mt-3 lg:hidden">
-            <select
-              className="h-10 w-full rounded-xl border border-[#D8E0EC] bg-white px-3 text-sm font-bold text-[#071D49] outline-none"
+            <MobileWorkspaceNavigation
+              label="Security workspace"
+              items={navItems}
               value={activeView}
-              onChange={(e) => setActiveView(e.target.value as ViewId)}
-            >
-              {navItems.map((item) => (
-                <option key={item.id} value={item.id}>{item.label}</option>
-              ))}
-            </select>
+              onValueChange={(value) => setActiveView(value as ViewId)}
+              testId="security-mobile-workspace-nav"
+            />
           </div>
             </header>
             <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">

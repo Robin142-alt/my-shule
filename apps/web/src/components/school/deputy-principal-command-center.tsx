@@ -34,6 +34,7 @@ import {
 
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
+import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { WorkflowToast } from "@/components/shared/workflow-toast";
@@ -254,10 +255,10 @@ export function DeputyPrincipalCommandCenter({
   };
 
   return (
-    <div data-route-mode={routeMode} data-testid="deputy-principal-command-center" className="min-h-screen bg-[#F3F4F6] pb-24 lg:pb-6">
+    <div data-route-mode={routeMode} data-testid="deputy-principal-command-center" className="min-h-dvh bg-[#F3F4F6] pb-6">
       <div className="grid gap-5 p-3 md:p-5 xl:grid-cols-[300px_minmax(0,1fr)]">
         {/* Sidebar */}
-        <aside className="hidden h-[calc(100vh-40px)] rounded-[var(--radius-xl)] border border-[#C8D5EA]/50 bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.22)] xl:sticky xl:top-5 xl:flex xl:flex-col">
+        <aside className="hidden h-[calc(100dvh-40px)] rounded-[var(--radius-xl)] border border-[#C8D5EA]/50 bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.22)] xl:sticky xl:top-5 xl:flex xl:flex-col">
           <div className="rounded-[var(--radius-lg)] border border-white/10 bg-white/[0.06] p-4">
             <div className="flex items-center gap-3">
               {schoolIdentity?.logoUrl && failedLogoUrl !== schoolIdentity.logoUrl ? (
@@ -335,20 +336,13 @@ export function DeputyPrincipalCommandCenter({
           </header>
 
           <div className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-white p-3 shadow-sm xl:hidden">
-            <label htmlFor="deputy-mobile-workspace" className="mb-2 block text-xs font-black uppercase tracking-[0.14em] text-[#5F6F89]">
-              Deputy workspace
-            </label>
-            <select
-              id="deputy-mobile-workspace"
-              aria-label="Deputy workspace navigation"
+            <MobileWorkspaceNavigation
+              label="Deputy workspace"
+              items={navItems}
               value={navItems.some((item) => item.id === activeWorkspace) ? activeWorkspace : "overview"}
-              onChange={(event) => setActiveWorkspace(event.currentTarget.value)}
-              className="h-11 w-full rounded-[var(--radius)] border border-[#C8D5EA] bg-[#F8FAFC] px-3 text-sm font-bold text-[#071D49] outline-none focus:border-cyan-400 focus:ring-4 focus:ring-cyan-300/20"
-            >
-              {navItems.map((item) => (
-                <option key={item.id} value={item.id}>{item.label}</option>
-              ))}
-            </select>
+              onValueChange={setActiveWorkspace}
+              testId="deputy-mobile-workspace-nav"
+            />
           </div>
 
           <div className="rounded-[var(--radius-xl)] bg-[#071D49] p-5 shadow-[0_24px_70px_rgba(7,29,73,0.22)]">
@@ -360,28 +354,6 @@ export function DeputyPrincipalCommandCenter({
         </main>
       </div>
 
-      {/* Mobile nav */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#071D49]/94 px-2 py-2 text-white shadow-[0_-18px_50px_rgba(0,0,0,0.28)] backdrop-blur-xl lg:hidden">
-        <div className="grid grid-cols-5 gap-1">
-          {navItems.slice(0, 5).map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveWorkspace(item.id)}
-                className={cn(
-                  "flex min-h-14 flex-col items-center justify-center gap-1 rounded-[var(--radius)] px-1 text-center text-[10px] font-black active:scale-95",
-                  activeWorkspace === item.id ? "text-cyan-400" : "text-white/70"
-                )}
-              >
-                <Icon className="h-4 w-4" aria-hidden="true" />
-                <span className="truncate w-full">{item.label.split(' ')[0]}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      
     </div>
   );
 }

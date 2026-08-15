@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
+import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 import { TaskQueue } from "@/components/shared/task-queue";
@@ -296,21 +297,13 @@ function Topbar({
       </div>
 
       <div className="mt-3 lg:hidden">
-        <label className="sr-only" htmlFor="hod-mobile-workspace">
-          HOD workspace
-        </label>
-        <select
-          id="hod-mobile-workspace"
-          className="w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 text-sm font-black text-[#071D49]"
+        <MobileWorkspaceNavigation
+          label="HOD workspace"
+          items={hodNavItems}
           value={activeView}
-          onChange={(event) => onViewChange(event.target.value as HodView)}
-        >
-          {hodNavItems.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.label}
-            </option>
-          ))}
-        </select>
+          onValueChange={(value) => onViewChange(value as HodView)}
+          testId="hod-mobile-workspace-nav"
+        />
       </div>
     </header>
   );

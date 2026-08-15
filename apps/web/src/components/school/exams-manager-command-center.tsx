@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner";
 
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
+import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import { ImportsTemplatesWorkspace } from "@/components/modules/exams-manager/workspaces/imports-templates-workspace";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
@@ -379,9 +380,9 @@ export function ExamsManagerCommandCenter({
     <div
       data-testid="role-operational-command-center"
       data-route-mode={actualRouteMode}
-      className="min-h-screen bg-[#EEF3F8] text-[#071D49]"
+      className="min-h-dvh bg-[#EEF3F8] text-[#071D49]"
     >
-      <div className="flex min-h-screen">
+      <div className="flex min-h-dvh">
         <aside className="hidden w-[296px] shrink-0 border-r border-white/15 bg-[#071D49] p-5 text-white shadow-2xl lg:flex lg:flex-col">
           <SchoolCommandSidebarIdentity eyebrow="Exams command" title="Exams Manager" subtitle="Setup, marks, moderation, reports, and approval handoff" />
 
@@ -499,21 +500,22 @@ export function ExamsManagerCommandCenter({
               </div>
             </div>
 
-            <div className="mt-4 -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:hidden">
-              {navItems.map((item) => (
-                <button
-                  key={item.id}
-                  aria-label={`Open ${item.id} quick tab`}
-                  onClick={() => setActiveView(item.id)}
-                  className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold transition-colors ${
-                    activeView === item.id
-                      ? "bg-[#071D49] text-white"
-                      : "border border-[#D9E2EF] bg-white text-[#64748B]"
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
+            <div className="mt-4 lg:hidden">
+              <MobileWorkspaceNavigation
+                label="Exams workspace"
+                items={navItems.map((item) => ({
+                  ...item,
+                  description: item.summary,
+                  group: ["overview", "exam-setup", "exam-timetable"].includes(item.id)
+                    ? "Setup"
+                    : ["marks-entry", "moderation", "analysis"].includes(item.id)
+                      ? "Marks & analysis"
+                      : "Publishing & reports",
+                }))}
+                value={activeView}
+                onValueChange={(value) => setActiveView(value as ExamsManagerCanonicalView)}
+                testId="exams-manager-mobile-workspace-nav"
+              />
             </div>
           </header>
 

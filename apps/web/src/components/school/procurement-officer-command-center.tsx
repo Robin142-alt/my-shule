@@ -1,6 +1,7 @@
 "use client";
 
 import { MyShuleMark } from "@/components/brand/myshule-brand";
+import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 
 import { useState, type FormEvent } from "react";
@@ -18,6 +19,14 @@ import { toast } from "sonner";
 
 type ProcurementView = "overview" | "pos" | "suppliers" | "requisitions" | "budget";
 type ProcurementSelectOption = { id: string; label: string; status?: string | null };
+
+const procurementNavItems = [
+  { id: "overview", label: "Overview", icon: LayoutDashboard, group: "Command" },
+  { id: "pos", label: "Purchase Orders", icon: ShoppingCart, group: "Procurement" },
+  { id: "suppliers", label: "Supplier Directory", icon: Truck, group: "Procurement" },
+  { id: "requisitions", label: "Requisitions", icon: FileText, group: "Requests" },
+  { id: "budget", label: "Budget Tracking", icon: DollarSign, group: "Finance" },
+] satisfies Array<{ id: ProcurementView; label: string; icon: typeof LayoutDashboard; group: string }>;
 
 function procurementActionSlug(message: string) {
   return message
@@ -847,51 +856,35 @@ export function ProcurementOfficerCommandCenter({ routeMode, activeSection }: { 
   const activeView = rawActiveView;
 
   return (
-    <div className="min-h-screen bg-[#F3F6FA]">
+    <div className="min-h-dvh bg-[#F3F6FA]">
       <div className="mx-auto flex max-w-[1920px] flex-col gap-6 p-4 lg:flex-row lg:p-6">
         
         {/* Sidebar */}
-        <aside className="hidden h-[calc(100vh-1.5rem)] overflow-hidden rounded-2xl bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:flex lg:flex-col lg:w-72 shrink-0">
+        <aside className="hidden h-[calc(100dvh-1.5rem)] shrink-0 overflow-hidden rounded-2xl bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:flex lg:w-72 lg:flex-col">
           <SchoolCommandSidebarIdentity eyebrow="Procurement command" title="Procurement Officer" subtitle="Orders, suppliers, requisitions, and budgets" />
           <nav className="mt-4 flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar" aria-label="Navigation">
-            <button 
-              onClick={() => setActiveView("overview")}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold transition ${activeView === "overview" ? "bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/72 hover:bg-white/10 hover:text-white"}`}>
-              <LayoutDashboard className="h-4 w-4 shrink-0" />
-              Overview
-            </button>
-            <button 
-              onClick={() => setActiveView("pos")}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold transition ${activeView === "pos" ? "bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/72 hover:bg-white/10 hover:text-white"}`}>
-              <ShoppingCart className="h-4 w-4 shrink-0" />
-              Purchase Orders
-            </button>
-            <button 
-              onClick={() => setActiveView("suppliers")}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold transition ${activeView === "suppliers" ? "bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/72 hover:bg-white/10 hover:text-white"}`}>
-              <Truck className="h-4 w-4 shrink-0" />
-              Supplier Directory
-            </button>
-            <button 
-              onClick={() => setActiveView("requisitions")}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold transition ${activeView === "requisitions" ? "bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/72 hover:bg-white/10 hover:text-white"}`}>
-              <FileText className="h-4 w-4 shrink-0" />
-              Requisitions
-            </button>
-            <button 
-              onClick={() => setActiveView("budget")}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold transition ${activeView === "budget" ? "bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/72 hover:bg-white/10 hover:text-white"}`}>
-              <DollarSign className="h-4 w-4 shrink-0" />
-              Budget Tracking
-            </button>
+            {procurementNavItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setActiveView(item.id)}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold transition ${activeView === item.id ? "bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/72 hover:bg-white/10 hover:text-white"}`}
+                >
+                  <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  {item.label}
+                </button>
+              );
+            })}
           </nav>
         </aside>
 
         {/* Main Content */}
         <main className="min-w-0 flex-1">
-          <div className="min-h-[calc(100vh-3rem)] rounded-2xl bg-white shadow-[0_2px_40px_rgba(7,29,73,0.04)] overflow-hidden">
+          <div className="min-h-[calc(100dvh-3rem)] overflow-hidden rounded-2xl bg-white shadow-[0_2px_40px_rgba(7,29,73,0.04)]">
             
-            <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-[#F3F6FA]/90 px-4 py-2 backdrop-blur">
+            <header className="sticky top-0 z-20 space-y-3 border-b border-[#D8E0EC] bg-[#F3F6FA]/90 px-4 py-3 backdrop-blur">
               <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
                 <div className="flex items-center gap-3">
                   <MyShuleMark size={36} />
@@ -899,8 +892,8 @@ export function ProcurementOfficerCommandCenter({ routeMode, activeSection }: { 
                     <h1 className="text-lg font-black text-[#071D49]">Procurement Dashboard</h1>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="relative">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                  <div className="relative w-full sm:w-auto">
                     <label className="flex min-h-10 items-center gap-3 rounded-xl border border-[#D8E0EC] bg-white px-3 text-[#64748B] shadow-sm focus-within:border-[#1D4ED8] focus-within:ring-1 focus-within:ring-[#1D4ED8]">
                       <Search className="h-4 w-4" />
                       <input
@@ -911,8 +904,17 @@ export function ProcurementOfficerCommandCenter({ routeMode, activeSection }: { 
                       />
                     </label>
                   </div>
-                  <Button className="bg-[#071D49] hover:bg-[#071D49]/90 text-white rounded-xl" onClick={() => { setActiveView("pos"); setPurchaseOrderModalOpen(true); }}>New Purchase Order</Button>
+                  <Button className="w-full rounded-xl bg-[#071D49] text-white hover:bg-[#071D49]/90 sm:w-auto" onClick={() => { setActiveView("pos"); setPurchaseOrderModalOpen(true); }}>New Purchase Order</Button>
                 </div>
+              </div>
+              <div className="lg:hidden">
+                <MobileWorkspaceNavigation
+                  label="Procurement workspace"
+                  items={procurementNavItems}
+                  value={activeView}
+                  onValueChange={(value) => setActiveView(value as ProcurementView)}
+                  testId="procurement-mobile-workspace-nav"
+                />
               </div>
             </header>
 

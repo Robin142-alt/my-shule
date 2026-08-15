@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
+import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 import { TaskQueue } from "@/components/shared/task-queue";
@@ -180,10 +181,10 @@ export function ClassTeacherCommandCenter({ activeSection, routeMode }: { active
   const [selectedLearner, setSelectedLearner] = useState<string | null>(null);
 
   return (
-    <div className="flex min-h-screen bg-[#F3F6FA]">
+    <div className="flex min-h-dvh bg-[#F3F6FA]">
       <Sidebar activeView={activeView} onViewChange={setActiveView} />
       <main className="flex-1 min-w-0 flex flex-col">
-        <Topbar />
+        <Topbar activeView={activeView} onViewChange={setActiveView} />
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
           <IntegratedSchoolCommandHeader roleTitle="Class Teacher Dashboard" fallbackUserLabel="Class Teacher" />
           {activeView === "home" && <OverviewWorkspace />}
@@ -221,7 +222,7 @@ export function ClassTeacherCommandCenter({ activeSection, routeMode }: { active
 
 function Sidebar({ activeView, onViewChange }: { activeView: TeacherView; onViewChange: (v: TeacherView) => void; }) {
   return (
-    <aside className="hidden h-screen w-[260px] overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
+    <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
       <SchoolCommandSidebarIdentity eyebrow="Class command" title="Class Teacher Dashboard" subtitle="Assigned class and stream" />
       <nav className="space-y-1">
         {navItems.map((item, index) => {
@@ -246,7 +247,7 @@ function Sidebar({ activeView, onViewChange }: { activeView: TeacherView; onView
   );
 }
 
-function Topbar() {
+function Topbar({ activeView, onViewChange }: { activeView: TeacherView; onViewChange: (view: TeacherView) => void }) {
   return (
     <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -259,6 +260,15 @@ function Topbar() {
           <ApprovalInbox currentUserId="school" />
           <NotificationBell />
         </div>
+      </div>
+      <div className="mt-3 lg:hidden">
+        <MobileWorkspaceNavigation
+          label="Class teacher workspace"
+          items={navItems}
+          value={activeView}
+          onValueChange={(value) => onViewChange(value as TeacherView)}
+          testId="class-teacher-mobile-workspace-nav"
+        />
       </div>
     </header>
   );

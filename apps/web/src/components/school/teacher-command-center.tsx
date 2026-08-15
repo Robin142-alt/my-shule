@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
+import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 import { TaskQueue } from "@/components/shared/task-queue";
@@ -88,9 +89,9 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
   };
 
   return (
-    <div data-testid="teacher-command-center" className="flex min-h-screen bg-[#F3F6FA]">
+    <div data-testid="teacher-command-center" className="flex min-h-dvh bg-[#F3F6FA]">
       <Sidebar activeView={activeView} onViewChange={setActiveView} />
-      <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
+      <main className="flex h-dvh min-w-0 flex-1 flex-col overflow-hidden">
         <Topbar activeView={activeView} onViewChange={setActiveView} />
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
           <IntegratedSchoolCommandHeader roleTitle="Teacher Dashboard" fallbackUserLabel="Teacher" />
@@ -149,7 +150,7 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
 
 function Sidebar({ activeView, onViewChange }: { activeView: TeacherView; onViewChange: (v: TeacherView) => void; }) {
   return (
-    <aside className="hidden h-screen w-[260px] overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
+    <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
       <SchoolCommandSidebarIdentity eyebrow="Teacher command" title="Teacher Dashboard" subtitle="Personal teaching workspace" />
       <nav className="space-y-1">
         {navItems.map((item, index) => {
@@ -195,15 +196,13 @@ function Topbar({ activeView, onViewChange }: { activeView: TeacherView; onViewC
         </div>
       </div>
       <div className="mt-3 lg:hidden">
-        <select
-          className="h-10 w-full rounded-xl border border-[#D8E0EC] bg-white px-3 text-sm font-bold text-[#071D49] outline-none"
+        <MobileWorkspaceNavigation
+          label="Teacher workspace"
+          items={navItems}
           value={activeView}
-          onChange={(e) => onViewChange(e.target.value as TeacherView)}
-        >
-          {navItems.map((item) => (
-            <option key={item.id} value={item.id}>{item.label}</option>
-          ))}
-        </select>
+          onValueChange={(value) => onViewChange(value as TeacherView)}
+          testId="teacher-mobile-workspace-nav"
+        />
       </div>
     </header>
   );

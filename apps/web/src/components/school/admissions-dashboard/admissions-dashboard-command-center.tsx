@@ -17,7 +17,9 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { ComponentType } from "react";
+import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 
 import { ApplicantProfilesWorkspace } from "./applicant-profiles-workspace";
@@ -148,6 +150,7 @@ export function AdmissionsDashboardCommandCenter({
   routeMode: AdmissionsRouteMode;
   activeSection?: string;
 }) {
+  const router = useRouter();
   const workspaceId = normalizeAdmissionsSection(activeSection);
   const Workspace = workspaceComponents[workspaceId];
   const activeItem =
@@ -160,13 +163,13 @@ export function AdmissionsDashboardCommandCenter({
   return (
     <main
       data-testid="admissions-dashboard-command-center"
-      className="min-h-screen bg-[#F1F5F9] p-4 text-[#071D49] md:p-6"
+      className="min-h-dvh bg-[#F1F5F9] p-4 text-[#071D49] md:p-6"
     >
-      <div className="grid min-h-[calc(100vh-3rem)] gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="rounded-3xl bg-[#071D49] p-5 text-white shadow-[0_24px_60px_rgba(7,29,73,0.18)]">
+      <div className="grid min-h-[calc(100dvh-3rem)] gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="hidden rounded-3xl bg-[#071D49] p-5 text-white shadow-[0_24px_60px_rgba(7,29,73,0.18)] lg:sticky lg:top-6 lg:block lg:self-start">
           <SchoolCommandSidebarIdentity eyebrow="Admissions command" title="Admissions Officer" subtitle="Enquiries, applications, placement, enrolment, and parent handoff" />
 
-          <nav className="mt-5 max-h-[calc(100vh-15rem)] space-y-5 overflow-y-auto pr-1">
+          <nav className="mt-5 max-h-[calc(100dvh-15rem)] space-y-5 overflow-y-auto pr-1">
             {Object.entries(groupedNav).map(([group, items]) => (
               <div key={group}>
                 <p className="px-2 text-[11px] font-black uppercase tracking-[0.18em] text-white/40">
@@ -199,6 +202,15 @@ export function AdmissionsDashboardCommandCenter({
         </aside>
 
         <section className="min-w-0 space-y-5">
+          <div className="rounded-2xl border border-[#C8D5EA] bg-white p-3 shadow-sm lg:hidden">
+            <MobileWorkspaceNavigation
+              label="Admissions workspace"
+              items={admissionsNavItems}
+              value={workspaceId}
+              onValueChange={(value) => router.push(admissionsHref(value as AdmissionsWorkspaceId, routeMode))}
+              testId="admissions-mobile-workspace-nav"
+            />
+          </div>
           <IntegratedSchoolCommandHeader
             roleTitle="Admissions Officer Dashboard"
             fallbackUserLabel="Admissions Officer"
