@@ -65,6 +65,8 @@ test('TimetableSchemaService creates tenant-scoped timetable tables with forced 
   assert.match(schemaSql, /CREATE UNIQUE INDEX uq_timetable_versions_active_status/);
   assert.match(schemaSql, /ALTER TABLE timetable_audit_logs ALTER COLUMN version_id DROP NOT NULL/);
   assert.match(schemaSql, /ALTER TABLE timetable_audit_logs ALTER COLUMN slot_id DROP NOT NULL/);
+  assert.match(schemaSql, /ALTER TABLE timetable_audit_logs ALTER COLUMN actor_user_id DROP NOT NULL/);
+  assert.match(schemaSql, /ALTER TABLE timetable_audit_logs ALTER COLUMN updated_at SET DEFAULT NOW\(\)/);
 });
 
 test('Timetable configuration round-trips period times in the DTO HH:mm format', async () => {

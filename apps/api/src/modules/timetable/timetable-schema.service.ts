@@ -373,12 +373,16 @@ export class TimetableSchemaService implements OnModuleInit {
       ALTER TABLE timetable_audit_logs ADD COLUMN IF NOT EXISTS slot_id uuid;
       ALTER TABLE timetable_audit_logs ADD COLUMN IF NOT EXISTS actor_user_id uuid;
       ALTER TABLE timetable_audit_logs ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE timetable_audit_logs ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
       -- Configuration, requirements, availability, and resource changes are
       -- timetable audit events without a lesson/version reference. Older
       -- installations created these columns as NOT NULL, which makes the
       -- configuration transaction roll back at its final audit insert.
       ALTER TABLE timetable_audit_logs ALTER COLUMN version_id DROP NOT NULL;
       ALTER TABLE timetable_audit_logs ALTER COLUMN slot_id DROP NOT NULL;
+      ALTER TABLE timetable_audit_logs ALTER COLUMN actor_user_id DROP NOT NULL;
+      ALTER TABLE timetable_audit_logs ALTER COLUMN metadata SET DEFAULT '{}'::jsonb;
+      ALTER TABLE timetable_audit_logs ALTER COLUMN updated_at SET DEFAULT NOW();
 
       ALTER TABLE timetable_versions DROP CONSTRAINT IF EXISTS uq_timetable_versions_tenant_term;
       DROP INDEX IF EXISTS uq_timetable_versions_active_status;
