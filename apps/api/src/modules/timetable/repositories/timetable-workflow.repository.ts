@@ -491,7 +491,9 @@ export class TimetableWorkflowRepository {
         [tenantId, record.id],
       ),
       this.query<any>(
-        `SELECT id::text, day_of_week, name, starts_at::text, ends_at::text,
+        `SELECT id::text, day_of_week, name,
+                to_char(starts_at, 'HH24:MI') AS starts_at,
+                to_char(ends_at, 'HH24:MI') AS ends_at,
                 period_type, is_teaching, order_index, metadata
          FROM timetable_period_definitions
          WHERE tenant_id = $1 AND configuration_id = $2::uuid
@@ -642,7 +644,11 @@ export class TimetableWorkflowRepository {
         `INSERT INTO timetable_audit_logs (tenant_id, actor_user_id, action, metadata)
          VALUES ($1, $2::uuid, 'timetable.configuration.updated', $3::jsonb)`,
         input.tenant_id, input.actor_user_id,
-        JSON.stringify({ academic_year: input.academic_year, term_name: input.term_name }),
+        JSON.stringify({
+          configuration_id: configurationId,
+          academic_year: input.academic_year,
+          term_name: input.term_name,
+        }),
       );
     });
 

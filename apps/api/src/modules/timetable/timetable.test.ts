@@ -63,6 +63,36 @@ test('TimetableSchemaService creates tenant-scoped timetable tables with forced 
   assert.match(schemaSql, /CREATE POLICY %I ON %I FOR ALL USING/);
   assert.match(schemaSql, /current_setting\(''app\.tenant_id'', true\)/);
   assert.match(schemaSql, /CREATE UNIQUE INDEX uq_timetable_versions_active_status/);
+  assert.match(schemaSql, /ALTER TABLE timetable_audit_logs ALTER COLUMN version_id DROP NOT NULL/);
+  assert.match(schemaSql, /ALTER TABLE timetable_audit_logs ALTER COLUMN slot_id DROP NOT NULL/);
+});
+
+test('Timetable configuration round-trips period times in the DTO HH:mm format', async () => {
+  const queries: string[] = [];
+  const repository = new TimetableWorkflowRepository({
+    query: async (sql: string) => {
+      queries.push(sql);
+      if (sql.includes('FROM timetable_configurations')) {
+        return {
+          rows: [{ id: 'configuration-1', academic_year: '2026', term_name: 'Term 2', row_version: 1 }],
+          rowCount: 1,
+        };
+      }
+      if (sql.includes('FROM timetable_days')) {
+        return {
+          rows: [{ id: 'day-1', day_of_week: 1, name: 'Monday', is_teaching_day: true, order_index: 0 }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    },
+  } as never);
+
+  await repository.getConfiguration('tenant-a', '2026', 'Term 2');
+
+  const periodQuery = queries.find((sql) => sql.includes('FROM timetable_period_definitions')) ?? '';
+  assert.match(periodQuery, /to_char\(starts_at, 'HH24:MI'\) AS starts_at/);
+  assert.match(periodQuery, /to_char\(ends_at, 'HH24:MI'\) AS ends_at/);
 });
 
 test('TimetableService blocks canonical constraint conflicts before saving a slot', async () => {
