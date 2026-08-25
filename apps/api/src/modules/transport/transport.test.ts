@@ -47,6 +47,20 @@ test('TransportSchemaService creates tenant-safe routes, vehicles, manifests, tr
   assert.match(schemaSql, /ix_transport_trips_route_date/);
   assert.match(schemaSql, /assigned_vehicle_id uuid/);
   assert.match(schemaSql, /fk_transport_routes_assigned_vehicle/);
+  assert.match(schemaSql, /format_type\(attribute\.atttypid, attribute\.atttypmod\)/);
+  assert.match(schemaSql, /ALTER COLUMN assigned_vehicle_id TYPE %s USING assigned_vehicle_id::text::%s/);
+  assert.match(schemaSql, /ALTER COLUMN assigned_vehicle_id TYPE uuid[\s\S]+USING NULLIF\(BTRIM\(assigned_vehicle_id::text\), ''\)::uuid/);
+  assert.match(schemaSql, /Cannot convert % transport route vehicle assignment\(s\) to UUID/);
+  assert.ok(
+    schemaSql.indexOf("attribute.attrelid = 'transport_vehicles'::regclass")
+      < schemaSql.indexOf('CREATE INDEX IF NOT EXISTS ix_transport_routes_assigned_vehicle'),
+    'legacy vehicle ID compatibility must run before the assignment index is created',
+  );
+  assert.ok(
+    schemaSql.indexOf("attribute.attrelid = 'transport_vehicles'::regclass")
+      < schemaSql.indexOf('ADD CONSTRAINT fk_transport_routes_assigned_vehicle'),
+    'legacy vehicle ID compatibility must run before the assignment foreign key is created',
+  );
   assert.match(schemaSql, /ix_vehicle_fuel_logs_vehicle/);
   assert.match(schemaSql, /ALTER TABLE vehicle_fuel_logs ADD COLUMN IF NOT EXISTS cost_minor bigint/);
   assert.match(schemaSql, /ALTER TABLE vehicle_service_logs ADD COLUMN IF NOT EXISTS next_service_date date/);

@@ -495,6 +495,72 @@ export class TransportSchemaService implements OnModuleInit {
       ALTER TABLE transport_audit_logs ADD COLUMN IF NOT EXISTS resource_id uuid;
       ALTER TABLE transport_audit_logs ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
 
+      DO $$
+      DECLARE
+        vehicle_id_type text;
+        assigned_vehicle_id_type text;
+        invalid_assigned_vehicle_count bigint;
+      BEGIN
+        SELECT format_type(attribute.atttypid, attribute.atttypmod)
+        INTO vehicle_id_type
+        FROM pg_attribute attribute
+        WHERE attribute.attrelid = 'transport_vehicles'::regclass
+          AND attribute.attname = 'id'
+          AND attribute.attnum > 0
+          AND NOT attribute.attisdropped;
+
+        SELECT format_type(attribute.atttypid, attribute.atttypmod)
+        INTO assigned_vehicle_id_type
+        FROM pg_attribute attribute
+        WHERE attribute.attrelid = 'transport_routes'::regclass
+          AND attribute.attname = 'assigned_vehicle_id'
+          AND attribute.attnum > 0
+          AND NOT attribute.attisdropped;
+
+        IF vehicle_id_type IS NULL OR assigned_vehicle_id_type IS NULL THEN
+          RAISE EXCEPTION 'Transport vehicle assignment columns are missing during schema bootstrap';
+        END IF;
+
+        IF assigned_vehicle_id_type <> vehicle_id_type THEN
+          IF vehicle_id_type = 'uuid' THEN
+            SELECT COUNT(*)
+            INTO invalid_assigned_vehicle_count
+            FROM transport_routes
+            WHERE assigned_vehicle_id IS NOT NULL
+              AND BTRIM(assigned_vehicle_id::text) <> ''
+              AND BTRIM(assigned_vehicle_id::text) !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+
+            IF invalid_assigned_vehicle_count > 0 THEN
+              RAISE EXCEPTION
+                'Cannot convert % transport route vehicle assignment(s) to UUID',
+                invalid_assigned_vehicle_count
+                USING ERRCODE = '22P02';
+            END IF;
+
+            UPDATE transport_routes
+            SET assigned_vehicle_id = NULL
+            WHERE assigned_vehicle_id IS NOT NULL
+              AND BTRIM(assigned_vehicle_id::text) = '';
+
+            ALTER TABLE transport_routes
+              ALTER COLUMN assigned_vehicle_id TYPE uuid
+              USING NULLIF(BTRIM(assigned_vehicle_id::text), '')::uuid;
+          ELSIF vehicle_id_type = 'text'
+             OR vehicle_id_type LIKE 'character varying%'
+             OR vehicle_id_type LIKE 'character(%' THEN
+            EXECUTE format(
+              'ALTER TABLE transport_routes ALTER COLUMN assigned_vehicle_id TYPE %s USING assigned_vehicle_id::text::%s',
+              vehicle_id_type,
+              vehicle_id_type
+            );
+          ELSE
+            RAISE EXCEPTION
+              'Unsupported transport_vehicles.id type % for route vehicle assignments',
+              vehicle_id_type;
+          END IF;
+        END IF;
+      END $$;
+
       CREATE UNIQUE INDEX IF NOT EXISTS transport_routes_name
         ON transport_routes (tenant_id, lower(name));
       CREATE UNIQUE INDEX IF NOT EXISTS ux_transport_vehicles_tenant_id_id
