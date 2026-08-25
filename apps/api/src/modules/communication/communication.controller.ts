@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, NotFoundException, Param, Patch, Post, Query } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { PrismaService } from '../../database/prisma.service';
@@ -23,7 +23,10 @@ export class CommunicationController {
 
   @Post('sms')
   @Permissions('school_sms:send')
-  async sendSms(@Body() dto: SendSmsDto) {
+  async sendSms(
+    @Body() dto: SendSmsDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
     const store = this.requestContext.requireStore();
     const tenantId = store.tenant_id;
     const userId = store.user_id;
@@ -38,17 +41,19 @@ export class CommunicationController {
     return this.smsService.sendSms({
       tenantId,
       userId,
+      idempotencyKey,
       ...dto,
     });
   }
 
   @Get('sms')
   @Permissions('school_sms:read', 'school_communication:read')
-  async getSms() {
+  async getSms(@Query('limit') limit?: string) {
     const store = this.requestContext.requireStore();
     const tenantId = store.tenant_id;
     if (!tenantId) throw new Error('Tenant context required');
-    return this.smsService.getSms(tenantId);
+    const parsedLimit = Number.parseInt(limit ?? '50', 10);
+    return this.smsService.getSms(tenantId, Number.isFinite(parsedLimit) ? parsedLimit : 50);
   }
 
   @Get('summary')

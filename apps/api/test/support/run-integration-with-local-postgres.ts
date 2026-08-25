@@ -1,5 +1,6 @@
 import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -13,7 +14,7 @@ type StartedCluster = {
   postgresProcess?: ChildProcess;
 };
 
-const DEFAULT_DATABASE_NAME = 'my_shule';
+const DISPOSABLE_DATABASE_PREFIX = 'my_shule_disposable_';
 const POSTGRES_SUPERUSER = 'postgres';
 const LOCAL_POSTGRES_CLEANUP_RETRIES = 5;
 const LOCAL_POSTGRES_CLEANUP_DELAY_MS = 250;
@@ -234,7 +235,10 @@ const reservePort = async (): Promise<number> =>
     });
   });
 
-const initializeCluster = async (binDir: string | null): Promise<StartedCluster> => {
+const initializeCluster = async (
+  binDir: string | null,
+  databaseName: string,
+): Promise<StartedCluster> => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), 'my-shule-it-postgres-'));
   const dataDir = path.join(rootDir, 'data');
   const logDir = path.join(rootDir, 'log');
@@ -298,7 +302,7 @@ const initializeCluster = async (binDir: string | null): Promise<StartedCluster>
     String(port),
     '-U',
     POSTGRES_SUPERUSER,
-    DEFAULT_DATABASE_NAME,
+    databaseName,
   ]);
 
   return {
@@ -411,7 +415,13 @@ const main = async (): Promise<void> => {
   }
 
   if (process.env.DATABASE_URL?.trim()) {
-    const exitCode = await runTargetCommand(targetCommand, process.env);
+    const exitCode = await runTargetCommand(targetCommand, {
+      ...process.env,
+      // Destructive integration fixtures must be able to distinguish an
+      // explicitly supplied database from the disposable cluster below.
+      MYSHULE_DISPOSABLE_POSTGRES: '0',
+      MYSHULE_DISPOSABLE_POSTGRES_DATABASE: '',
+    });
     process.exit(exitCode);
   }
 
@@ -424,14 +434,17 @@ const main = async (): Promise<void> => {
   }
 
   let cluster: StartedCluster | null = null;
+  const databaseName = `${DISPOSABLE_DATABASE_PREFIX}${randomUUID().replace(/-/g, '')}`;
 
   try {
-    cluster = await initializeCluster(binDir);
-    const databaseUrl = `postgresql://${POSTGRES_SUPERUSER}@127.0.0.1:${cluster.port}/${DEFAULT_DATABASE_NAME}`;
+    cluster = await initializeCluster(binDir, databaseName);
+    const databaseUrl = `postgresql://${POSTGRES_SUPERUSER}@127.0.0.1:${cluster.port}/${databaseName}`;
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       DATABASE_URL: databaseUrl,
       APP_BASE_DOMAIN: process.env.APP_BASE_DOMAIN ?? 'integration.test',
+      MYSHULE_DISPOSABLE_POSTGRES: '1',
+      MYSHULE_DISPOSABLE_POSTGRES_DATABASE: databaseName,
     };
 
     process.stdout.write(

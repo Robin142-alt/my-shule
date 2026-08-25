@@ -19,16 +19,21 @@ export class GuidanceCounsellingCommandController {
     return this.service.getSessions();
   }
 
+  @Get('options')
+  getWorkspaceOptions() {
+    return this.service.getWorkspaceOptions();
+  }
+
   @Post('sessions')
   @Permissions('counselling:write')
   createSession(@Body() dto: any) {
-    return this.service.recordCounsellingAction('session.created', dto);
+    return this.service.createSession(dto);
   }
 
   @Post('sessions/:id/complete')
   @Permissions('counselling:write')
   completeSession(@Param('id') id: string, @Body() dto: any) {
-    return this.service.recordCounsellingAction('session.completed', dto, id);
+    return this.service.completeSession(id, dto);
   }
 
   @Get('referrals')
@@ -61,13 +66,13 @@ export class GuidanceCounsellingCommandController {
   @Post('welfare-notes')
   @Permissions('counselling:write')
   createWelfareNote(@Body() dto: any) {
-    return this.service.recordCounsellingAction('welfare-note.created', dto);
+    return this.service.createWelfareNote(dto);
   }
 
   @Post('welfare-notes/:id/flag')
   @Permissions('counselling:write')
   flagWelfareNote(@Param('id') id: string, @Body() dto: any) {
-    return this.service.recordCounsellingAction('welfare-note.flagged', dto, id);
+    return this.service.flagWelfareNote(id, dto);
   }
 
   @Get('follow-ups')
@@ -78,13 +83,13 @@ export class GuidanceCounsellingCommandController {
   @Post('follow-ups')
   @Permissions('counselling:write')
   createFollowUp(@Body() dto: any) {
-    return this.service.recordCounsellingAction('follow-up.created', dto);
+    return this.service.createFollowUp(dto);
   }
 
   @Post('follow-ups/:id/done')
   @Permissions('counselling:write')
   completeFollowUp(@Param('id') id: string, @Body() dto: any) {
-    return this.service.recordCounsellingAction('follow-up.completed', dto, id);
+    return this.service.completeFollowUp(id, dto);
   }
 
   @Get('parent-engagement')
@@ -95,18 +100,23 @@ export class GuidanceCounsellingCommandController {
   @Post('parent-engagement')
   @Permissions('counselling:write')
   createParentEngagement(@Body() dto: any) {
-    return this.service.recordCounsellingAction('parent-engagement.created', dto);
+    return this.service.createParentEngagement(dto);
   }
 
   @Post('parent-engagement/:id/notify')
   @Permissions('counselling:write')
   notifyParentEngagement(@Param('id') id: string, @Body() dto: any) {
-    return this.service.recordCounsellingAction('parent-engagement.notified', dto, id);
+    return this.service.notifyParentEngagement(id, dto);
   }
 
   @Get('reports')
   getReports() {
     return this.service.getReports();
+  }
+
+  @Get('reports/:snapshotId/download')
+  getReportDownload(@Param('snapshotId') snapshotId: string) {
+    return this.service.getReportDownload(snapshotId);
   }
 
   @Post('reports/generate')
@@ -119,6 +129,11 @@ export class GuidanceCounsellingCommandController {
   @Permissions('counselling:write')
   saveSettings(@Body() dto: any) {
     return this.service.saveSettings(dto);
+  }
+
+  @Get('settings')
+  getSettings() {
+    return this.service.getSettings();
   }
 
   @Post('actions')

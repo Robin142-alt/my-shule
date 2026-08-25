@@ -41,10 +41,11 @@ import { WorkflowRepository } from './repositories/workflow.repository';
 import { AuthModule } from '../../auth/auth.module';
 import { ModuleAccessModule } from '../module-access/module-access.module';
 import { QueueModule } from '../../queue/queue.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Global()
 @Module({
-  imports: [AuthModule, ModuleAccessModule, QueueModule],
+  imports: [AuthModule, ModuleAccessModule, NotificationsModule, QueueModule],
   controllers: [
     DashboardRealtimeController,
     OperationalWorkflowDispatcherController,

@@ -54,11 +54,12 @@ import {
 } from "@/lib/school/school-operational-store";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
-import { downloadCsvFile } from "@/lib/dashboard/export";
+import { downloadBase64File, downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { buildSchoolSectionHref } from "./school-pages";
+import { ReportsWorkspace as SecretaryReportsWorkspace } from "./secretary/reports-workspace";
 
 function frontOfficeExportTimestamp() {
   return new Date().toISOString().replace(/[:.]/g, "-");
@@ -236,6 +237,36 @@ function Panel({
   );
 }
 
+const secretaryColumnAliases: Record<string, string[]> = {
+  ticket_no_: ["ticket_number", "ticket_no", "request_no", "ref_no", "id"],
+  request_no_: ["request_no", "ticket_number", "ref_no", "id"],
+  ref_no_: ["ref_no", "reference", "id"],
+  caller_recipient: ["caller_recipient", "caller", "recipient", "caller_name"],
+  recipient_sender: ["recipient_sender", "recipient", "sender"],
+  student: ["student", "student_name"],
+  class: ["class", "class_name"],
+  number: ["number", "phone_number", "phone"],
+  date: ["date", "date_created", "created_at", "received_at"],
+  time: ["time", "time_in", "created_at"],
+  subject: ["subject", "title", "purpose"],
+  description: ["description", "message", "notes"],
+  received_by: ["received_by", "recorded_by", "source_user_id"],
+};
+
+export function readSecretaryTableCell(row: Record<string, any>, column: string): ReactNode {
+  const fieldKey = column.toLowerCase().replace(/[^a-z0-9]/g, "_");
+  const aliases = secretaryColumnAliases[fieldKey] || [fieldKey];
+  const payload = row?.payload && typeof row.payload === "object" ? row.payload : {};
+  const value = aliases
+    .map((key) => row?.[key] ?? payload?.[key])
+    .find((candidate) => candidate !== null && candidate !== undefined && candidate !== "");
+
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
 function RealDataTable({  
   columns,  
   actions,  
@@ -243,7 +274,8 @@ function RealDataTable({
   loading, 
   error,
   emptyIcon: EmptyIcon = FileText,
-  emptyMessage = "This front-office workspace is empty for the current school. Use the workspace action to create the first visitor, parent, document, or communication record."
+  emptyMessage = "This front-office workspace is empty for the current school. Use the workspace action to create the first visitor, parent, document, or communication record.",
+  rowAction,
 }: { 
   columns: string[], 
   actions: string[], 
@@ -251,7 +283,8 @@ function RealDataTable({
   loading: boolean, 
   error: string | null,
   emptyIcon?: LucideIcon, 
-  emptyMessage?: string 
+  emptyMessage?: string,
+  rowAction?: (action: string, row: any) => Promise<string | void>,
 }) {
   const [selectedRowDetails, setSelectedRowDetails] = useState<{ action: string; row: any } | null>(null);
   const [pendingRowAction, setPendingRowAction] = useState<string | null>(null);
@@ -263,6 +296,21 @@ function RealDataTable({
     const rowLabel = describeRow(row);
     if (/view|details|profile|notes|report/i.test(action)) {
       setSelectedRowDetails({ action, row });
+      return;
+    }
+
+    if (rowAction) {
+      setPendingRowAction(`${action}:${rowLabel}`);
+      try {
+        const message = await rowAction(action, row);
+        toast.success(message || `${action} completed.`, { description: rowLabel });
+      } catch (err) {
+        toast.error(`${action} failed`, {
+          description: err instanceof Error ? err.message : "The requested record update could not be completed.",
+        });
+      } finally {
+        setPendingRowAction(null);
+      }
       return;
     }
 
@@ -386,14 +434,13 @@ function RealDataTable({
                 if (col === 'Status') {
                   return (
                     <td key={idx} className="px-4 py-3">
-                      <StatusChip label={row.status || "WAITING"} tone="info" />
+                      <StatusChip label={String(row.status || "Not recorded")} tone="info" />
                     </td>
                   );
                 }
-                const fieldKey = col.toLowerCase().replace(/[^a-z0-9]/g, '_');
                 return (
                   <td key={idx} className="px-4 py-3 whitespace-nowrap">
-                    {row[fieldKey] || `${col} Data`}
+                    {readSecretaryTableCell(row, col)}
                   </td>
                 );
               })}
@@ -522,7 +569,7 @@ function ParentRequestModal({ onClose, onSuccess }: { onClose: () => void; onSuc
     const notes = String(formData.get("notes") || "").trim();
 
     try {
-      await requestDashboardApi("/api/admin-command/secretary/parent-messages", {
+      const response = await requestDashboardApi<{ message?: string }>("/api/admin-command/secretary/parent-messages", {
         method: "POST",
         body: {
           subject: `${requestType} request from ${parentName}`,
@@ -538,7 +585,7 @@ function ParentRequestModal({ onClose, onSuccess }: { onClose: () => void; onSuc
           source_dashboard: "secretary-parent-desk",
         },
       });
-      toast.success("Parent request recorded and routed for follow-up.");
+      toast.success(response.message || "Parent request recorded and delivered to the linked guardian.");
       onSuccess?.();
       onClose();
     } catch (err) {
@@ -556,16 +603,16 @@ function ParentRequestModal({ onClose, onSuccess }: { onClose: () => void; onSuc
         {error ? <div className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div> : null}
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-sm font-bold text-[#071D49]">
-            Parent / guardian
-            <input name="parent_name" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Full name" />
+            Exact parent / guardian
+            <input name="parent_name" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Linked guardian full name" />
           </label>
           <label className="block text-sm font-bold text-[#071D49]">
             Phone number
             <input name="phone_number" type="tel" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="+254..." />
           </label>
           <label className="block text-sm font-bold text-[#071D49]">
-            Student
-            <input name="student_name" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Linked learner" />
+            Student name or admission number
+            <input name="student_name" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Exact learner name or admission number" />
           </label>
           <label className="block text-sm font-bold text-[#071D49]">
             Class / stream
@@ -608,9 +655,35 @@ function ParentRequestModal({ onClose, onSuccess }: { onClose: () => void; onSuc
 }
 
 function ParentDeskWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
-  const { data: rawData, isLoading: loading, error, refetch } = useSchoolQuery<any[]>("/api/communication/summary");
-  const data = rawData || [];
+  const { data: rawData, isLoading: loading, error, refetch } = useSchoolQuery<{ requests?: any[]; messages?: any[] }>("/api/admin-command/secretary/parent-messages");
+  const data = rawData?.requests || rawData?.messages || [];
   const [isParentRequestOpen, setIsParentRequestOpen] = useState(false);
+
+  const handleParentRequestAction = async (action: string, row: any) => {
+    if (action === "Reply") {
+      const reply = window.prompt("Write the reply to this student's linked guardian:");
+      if (reply === null) return "Reply cancelled.";
+      if (!reply.trim()) throw new Error("Reply message is required.");
+      const response = await requestDashboardApi<{ message?: string }>(
+        `/api/admin-command/secretary/parent-messages/${encodeURIComponent(String(row.id))}/reply`,
+        { method: "POST", body: { reply: reply.trim() } },
+      );
+      await refetch();
+      return response.message || "Reply delivered to the linked guardian.";
+    }
+    if (action === "Assign") {
+      const assignee = window.prompt("Enter the exact staff name, staff number, email, or account ID:");
+      if (assignee === null) return "Assignment cancelled.";
+      if (!assignee.trim()) throw new Error("An exact staff assignee is required.");
+      const response = await requestDashboardApi<{ message?: string }>(
+        `/api/admin-command/secretary/parent-messages/${encodeURIComponent(String(row.id))}/assign`,
+        { method: "POST", body: { assignee: assignee.trim() } },
+      );
+      await refetch();
+      return response.message || "Parent request assigned.";
+    }
+    throw new Error(`Unsupported parent request action: ${action}`);
+  };
 
   return (
     <>
@@ -622,6 +695,7 @@ function ParentDeskWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) =>
           loading={loading}
           error={error?.message || null}
           emptyIcon={UserCircle}
+          rowAction={handleParentRequestAction}
         />
       </Panel>
       {isParentRequestOpen ? <ParentRequestModal onClose={() => setIsParentRequestOpen(false)} onSuccess={() => refetch()} /> : null}
@@ -822,20 +896,47 @@ function LogCallModal({ onClose, onSuccess }: { onClose: () => void; onSuccess?:
 }
 
 function CallsLogWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
-  const { data: rawData, isLoading: loading, error, refetch } = useSchoolQuery<any[]>("/api/communication/summary");
-  const data = rawData || [];
+  const { data: rawData, isLoading: loading, error, refetch } = useSchoolQuery<{ calls?: any[] }>("/api/admin-command/secretary/calls-log");
+  const data = rawData?.calls || [];
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
+
+  const handleCallAction = async (action: string, row: any) => {
+    if (action === "Mark Followed Up") {
+      const response = await requestDashboardApi<{ message?: string }>(
+        `/api/admin-command/secretary/calls-log/${encodeURIComponent(String(row.id))}/follow-up`,
+        { method: "POST" },
+      );
+      await refetch();
+      return response.message || "Call marked as followed up.";
+    }
+    if (action === "Queue Follow-Up") {
+      const response = await requestDashboardApi<{ message?: string }>("/api/admin-command/secretary/actions", {
+        method: "POST",
+        body: {
+          action: "call.follow_up",
+          title: `Call follow-up: ${row.caller_recipient || row.caller_name || row.id}`,
+          description: row.notes || row.subject || "Call follow-up requested by the secretary.",
+          entityType: "frontoffice_call",
+          entityId: row.id,
+          source: "secretary-calls-log",
+        },
+      });
+      return response.message || "Call follow-up added to the front-office workflow.";
+    }
+    throw new Error(`Unsupported call action: ${action}`);
+  };
 
   return (
     <>
       <Panel title="Calls Log" description="Record of incoming and outgoing calls." icon={Phone} actions={<button type="button" onClick={() => setIsCallModalOpen(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Log New Call</button>}>
         <RealDataTable 
           columns={["Time","Direction","Caller/Recipient","Number","Subject","Duration","Action Required","Status","Actions"]} 
-          actions={["View Notes","Mark Followed Up","Create Task"]} 
+          actions={["View Notes","Mark Followed Up","Queue Follow-Up"]}
           data={data}
           loading={loading}
           error={error?.message || null}
           emptyIcon={Phone}
+          rowAction={handleCallAction}
         />
       </Panel>
       {isCallModalOpen ? <LogCallModal onClose={() => setIsCallModalOpen(false)} onSuccess={() => refetch()} /> : null}
@@ -1007,20 +1108,56 @@ function DraftDocumentModal({ onClose, onSuccess }: { onClose: () => void; onSuc
 }
 
 function LettersWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
-  const { data: rawData, isLoading: loading, error, refetch } = useSchoolQuery<any[]>("/api/communication/summary");
-  const data = rawData || [];
+  const { data: rawData, isLoading: loading, error, refetch } = useSchoolQuery<{ documents?: any[] }>("/api/admin-command/secretary/letters-documents");
+  const data = rawData?.documents || [];
   const [isDocumentModalOpen, setIsDocumentModalOpen] = useState(false);
+
+  const handleDocumentAction = async (action: string, row: any) => {
+    const mode = action === "Download" ? "download" : action === "Print" ? "print" : null;
+    if (!mode) throw new Error(`Unsupported document action: ${action}`);
+    const response = await requestDashboardApi<{
+      message?: string;
+      document?: { title?: string; message?: string; created_at?: string; payload?: Record<string, any> };
+      artifact?: { filename?: string; content_type?: string; content_base64?: string };
+    }>(`/api/admin-command/secretary/letters-documents/${encodeURIComponent(String(row.id))}/${mode}`, { method: "POST" });
+    const artifact = response.artifact;
+    const document = response.document;
+    if (!artifact?.content_base64 || !artifact.filename || !artifact.content_type || !document) {
+      throw new Error("The stored document artifact is incomplete.");
+    }
+    if (mode === "download") {
+      downloadBase64File({
+        filename: artifact.filename,
+        contentBase64: artifact.content_base64,
+        mimeType: artifact.content_type,
+      });
+      return "Document download started from the stored artifact.";
+    }
+    openPrintDocument({
+      eyebrow: "Secretary office document",
+      title: document.title || row.title || "School document",
+      subtitle: `Prepared ${document.created_at || row.date_created || "for the current school"}`,
+      rows: [
+        { label: "Recipient", value: String(document.payload?.recipient || row.recipient || "Not recorded") },
+        { label: "Document type", value: String(document.payload?.type || row.type || "Document") },
+        { label: "Content", value: String(document.payload?.body || document.message || "") },
+      ],
+      footer: "Print preview generated from the stored tenant-scoped document artifact.",
+    });
+    return "Document print preview opened.";
+  };
 
   return (
     <>
       <Panel title="Letters & Documents" description="Manage official school correspondence." icon={FileText} actions={<button type="button" onClick={() => setIsDocumentModalOpen(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Draft New Document</button>}>
         <RealDataTable 
           columns={["Date","Type","Reference","Recipient/Sender","Subject","Status","Actions"]} 
-          actions={["View","Edit","Print","Archive"]} 
+          actions={["View","Download","Print"]}
           data={data}
           loading={loading}
           error={error?.message || null}
           emptyIcon={FileText}
+          rowAction={handleDocumentAction}
         />
       </Panel>
       {isDocumentModalOpen ? <DraftDocumentModal onClose={() => setIsDocumentModalOpen(false)} onSuccess={() => refetch()} /> : null}
@@ -1140,18 +1277,19 @@ function SecretaryMessageModal({ onClose, onSuccess }: { onClose: () => void; on
     const formData = new FormData(event.currentTarget);
 
     try {
-      await requestDashboardApi("/api/admin-command/secretary/parent-messages", {
+      const response = await requestDashboardApi<{ message?: string }>("/api/admin-command/secretary/parent-messages", {
         method: "POST",
         body: {
           subject: formData.get("subject"),
           message: formData.get("message"),
           recipient: formData.get("recipient"),
-          audience: formData.get("audience"),
+          student_reference: formData.get("student_reference"),
+          audience: "parent",
           channel: formData.get("channel"),
           source_dashboard: "secretary-communication-desk",
         },
       });
-      toast.success("Front-office message recorded and routed.");
+      toast.success(response.message || "Front-office message delivered to the linked guardian.");
       onSuccess?.();
       onClose();
     } catch (err) {
@@ -1169,26 +1307,19 @@ function SecretaryMessageModal({ onClose, onSuccess }: { onClose: () => void; on
         {error ? <div className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div> : null}
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-sm font-bold text-[#071D49]">
-            Recipient
-            <input name="recipient" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Parent, class, staff, or office" />
+            Exact guardian
+            <input name="recipient" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Guardian name, email, phone, or account ID" />
           </label>
           <label className="block text-sm font-bold text-[#071D49]">
-            Audience
-            <select name="audience" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
-              <option value="parent">Parent / Guardian</option>
-              <option value="staff">Staff</option>
-              <option value="class">Class or stream</option>
-              <option value="office">Office desk</option>
-            </select>
+            Student name or admission number
+            <input name="student_reference" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Exact linked learner" />
           </label>
           <label className="block text-sm font-bold text-[#071D49]">
             Channel
             <select name="channel" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
-              <option value="in_app">In-app</option>
-              <option value="sms">SMS queue</option>
-              <option value="email">Email queue</option>
-              <option value="phone_call">Phone call follow-up</option>
+              <option value="in_app">Verified in-app delivery</option>
             </select>
+            <span className="mt-1 block text-xs font-semibold text-[#64748B]">SMS and email require their configured delivery queues and are not claimed by this form.</span>
           </label>
           <label className="block text-sm font-bold text-[#071D49]">
             Subject
@@ -1242,15 +1373,16 @@ function RecordDispatchModal({ onClose, onSuccess }: { onClose: () => void, onSu
     setError(null);
     const formData = new FormData(e.currentTarget);
     try {
-      await requestDashboardApi("/api/admin-command/secretary/letters-documents", {
+      const response = await requestDashboardApi<{ message?: string }>("/api/admin-command/secretary/mail-parcels", {
         method: "POST",
         body: {
           sender: formData.get("sender"),
           recipient: formData.get("recipient"),
           type: formData.get("type"),
+          description: formData.get("description"),
         }
       });
-      toast.success("Mail/Parcel recorded successfully");
+      toast.success(response.message || "Mail or parcel recorded and the exact recipient was notified.");
       if (onSuccess) onSuccess();
       onClose();
     } catch (err: any) {
@@ -1270,8 +1402,9 @@ function RecordDispatchModal({ onClose, onSuccess }: { onClose: () => void, onSu
           <input name="sender" required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Sender name or company" />
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Recipient</label>
-          <input name="recipient" required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Staff or Department" />
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Exact staff recipient</label>
+          <input name="recipient" required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Staff name, number, email, or account ID" />
+          <p className="mt-1 text-xs font-semibold text-[#64748B]">The recipient must resolve to one active staff account in this school.</p>
         </div>
         <div>
           <label className="block text-sm font-bold text-[#071D49] mb-1">Item Type</label>
@@ -1281,6 +1414,10 @@ function RecordDispatchModal({ onClose, onSuccess }: { onClose: () => void, onSu
             <option value="parcel">Parcel / Package</option>
             <option value="document">Document</option>
           </select>
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-[#071D49] mb-1">Description</label>
+          <textarea name="description" required rows={3} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Courier reference, contents, handling notes, or collection instructions" />
         </div>
         <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
           <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
@@ -1294,15 +1431,29 @@ function RecordDispatchModal({ onClose, onSuccess }: { onClose: () => void, onSu
 }
 
 function MailParcelsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
-  const { data: rawData, isLoading: loading, error, refetch } = useSchoolQuery<any[]>("/api/operations/reports");
-  const data = rawData || [];
+  const { data: rawData, isLoading: loading, error, refetch } = useSchoolQuery<{ items?: any[] }>("/api/admin-command/secretary/mail-parcels");
+  const data = rawData?.items || [];
   const { hasPermission } = usePermissions();
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleMailParcelAction = async (action: string, row: any) => {
+    let path: string;
+    if (action === "Notify Recipient") {
+      path = `/api/admin-command/secretary/mail-parcels/${encodeURIComponent(String(row.id))}/notify`;
+    } else if (action === "Mark Collected") {
+      path = `/api/admin-command/secretary/mail-parcels/${encodeURIComponent(String(row.id))}/collect`;
+    } else {
+      throw new Error(`Unsupported mail or parcel action: ${action}`);
+    }
+    const response = await requestDashboardApi<{ message?: string }>(path, { method: "POST" });
+    await refetch();
+    return response.message || `${action} completed.`;
+  };
 
   return (
     <>
       <Panel title="Mail, Deliveries & Parcels" description="Tracks physical mail, deliveries, documents, and parcels entering or leaving school." icon={Package} actions={
-        hasPermission('frontoffice:write') ? (
+        hasPermission('secretary:write') ? (
           <Button onClick={() => setIsModalOpen(true)}><Plus className="inline-block w-4 h-4 mr-1" /> Record Mail/Parcel</Button>
         ) : (
           <span className="text-xs font-bold text-[#64748B]">Restricted</span>
@@ -1310,11 +1461,13 @@ function MailParcelsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) =
       }>
         <RealDataTable 
           columns={["Ref No.","Date","Sender","Recipient","Type","Description","Status","Received By","Actions"]} 
-          actions={["View","Assign Recipient","Notify Recipient","Mark Collected","Print Receipt","Mark Returned","Report Lost"]} 
+          actions={["View","Notify Recipient","Mark Collected"]}
           data={data}
           loading={loading}
           error={error?.message || null}
           emptyIcon={Package}
+          emptyMessage="No mail or parcels are awaiting handling. Record the first item and select its exact staff recipient."
+          rowAction={handleMailParcelAction}
         />
       </Panel>
       {isModalOpen && <RecordDispatchModal onClose={() => setIsModalOpen(false)} onSuccess={() => refetch()} />}
@@ -1444,22 +1597,8 @@ function LostFoundWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => 
   );
 }
 
-function ReportsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
-  const { data: rawData, isLoading: loading, error } = useSchoolQuery<any[]>("/api/dashboard/summary?role=secretary");
-  const data = rawData || [];
-
-  return (
-    <Panel title="Reports" description="Generates front-office reports." icon={BarChart} actions={<button type="button" onClick={() => exportSecretaryCsv("front-office-summary.csv", "Front office summary")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Generate Report</button>}>
-      <RealDataTable 
-        columns={["Report Name","Date Range","Format","Status","Actions"]} 
-        actions={["View","Download PDF","Download Excel","Print","Send to Principal"]} 
-        data={data}
-        loading={loading}
-        error={error?.message || null}
-        emptyIcon={BarChart}
-      />
-    </Panel>
-  );
+export function ReportsWorkspace({ onNavigate: _onNavigate }: { onNavigate: (v: SecretaryView) => void }) {
+  return <SecretaryReportsWorkspace />;
 }
 
 function SettingsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void }) {

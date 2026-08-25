@@ -349,8 +349,8 @@ describe("admissions dashboard routing", () => {
     await user.click(within(dashboard).getByRole("button", { name: /continue/i }));
     await user.selectOptions(within(dashboard).getByLabelText(/^Academic year/i), "year-2026");
     await user.selectOptions(within(dashboard).getByLabelText(/^Curriculum/i), "CBC");
-    await user.selectOptions(within(dashboard).getByLabelText(/^Grade \/ form/i), "Form 2");
-    const classSelect = within(dashboard).getByLabelText(/^Class/i);
+    const classSelect = within(dashboard).getByLabelText(/^Class \/ form \/ grade/i);
+    await user.selectOptions(classSelect, "class-11");
 
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/admissions/foundation"), expect.anything());
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/api/academics/class-sections"), expect.anything());

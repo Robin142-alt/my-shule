@@ -6,6 +6,7 @@ import { EventsModule } from '../events/events.module';
 import { ExamsModule } from '../exams/exams.module';
 import { SyncModule } from '../sync/sync.module';
 import { AttendanceService } from './attendance.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { StudentsController } from './students.controller';
 import { StudentController } from './student-portal.controller';
 import { StudentPortalActionsController } from './student-portal-actions.controller';
@@ -15,7 +16,7 @@ import { StudentPortalService } from './student-portal.service';
 import { StudentsRepository } from './repositories/students.repository';
 
 @Module({
-  imports: [EventsModule, BillingModule, SyncModule, ExamsModule],
+  imports: [EventsModule, BillingModule, SyncModule, ExamsModule, NotificationsModule],
   controllers: [StudentsController, StudentController, StudentPortalActionsController],
   providers: [
     StudentsWidgetProvider,

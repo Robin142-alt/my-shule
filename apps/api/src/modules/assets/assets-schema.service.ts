@@ -8,6 +8,7 @@ const ASSET_TABLES = [
   'asset_assignments',
   'asset_repairs',
   'asset_depreciation_entries',
+  'facility_issues',
   'asset_audit_logs',
 ] as const;
 
@@ -54,7 +55,11 @@ export class AssetsSchemaService implements OnModuleInit {
           assigned_to_id uuid,
           status text NOT NULL DEFAULT 'active',
           assigned_at timestamptz NOT NULL DEFAULT NOW(),
+          due_at timestamptz,
           returned_at timestamptz,
+          assigned_to_name text,
+          department text,
+          notes text,
           created_at timestamptz NOT NULL DEFAULT NOW(),
           updated_at timestamptz NOT NULL DEFAULT NOW(),
           audit_log_reference uuid
@@ -65,6 +70,10 @@ export class AssetsSchemaService implements OnModuleInit {
           asset_id uuid,
           issue_title text NOT NULL,
           repair_status text NOT NULL DEFAULT 'open',
+          technician text,
+          scheduled_for date,
+          completed_at timestamptz,
+          notes text,
           cost_minor bigint NOT NULL DEFAULT 0,
           created_at timestamptz NOT NULL DEFAULT NOW(),
           updated_at timestamptz NOT NULL DEFAULT NOW(),
@@ -81,10 +90,36 @@ export class AssetsSchemaService implements OnModuleInit {
           updated_at timestamptz NOT NULL DEFAULT NOW(),
           audit_log_reference uuid
         );
+        CREATE TABLE IF NOT EXISTS facility_issues (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          tenant_id text NOT NULL,
+          title text NOT NULL,
+          description text,
+          location text NOT NULL,
+          reported_by_user_id uuid,
+          reported_by_name text,
+          priority text NOT NULL DEFAULT 'normal',
+          status text NOT NULL DEFAULT 'open',
+          resolved_at timestamptz,
+          resolution_notes text,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW(),
+          audit_log_reference uuid
+        );
+        ALTER TABLE asset_assignments ADD COLUMN IF NOT EXISTS due_at timestamptz;
+        ALTER TABLE asset_assignments ADD COLUMN IF NOT EXISTS assigned_to_name text;
+        ALTER TABLE asset_assignments ADD COLUMN IF NOT EXISTS department text;
+        ALTER TABLE asset_assignments ADD COLUMN IF NOT EXISTS notes text;
+        ALTER TABLE asset_repairs ADD COLUMN IF NOT EXISTS technician text;
+        ALTER TABLE asset_repairs ADD COLUMN IF NOT EXISTS scheduled_for date;
+        ALTER TABLE asset_repairs ADD COLUMN IF NOT EXISTS completed_at timestamptz;
+        ALTER TABLE asset_repairs ADD COLUMN IF NOT EXISTS notes text;
       `,
       indexesSql: `
         CREATE INDEX IF NOT EXISTS ix_asset_assignments_asset ON asset_assignments (tenant_id, asset_id, status);
         CREATE INDEX IF NOT EXISTS ix_asset_repairs_status ON asset_repairs (tenant_id, repair_status);
+        CREATE INDEX IF NOT EXISTS ix_asset_assignments_due ON asset_assignments (tenant_id, status, due_at);
+        CREATE INDEX IF NOT EXISTS ix_facility_issues_status ON facility_issues (tenant_id, status, priority);
       `,
     }));
 

@@ -215,13 +215,15 @@ export class SupportSchemaService implements OnModuleInit {
         last_delivery_error text,
         next_delivery_attempt_at timestamptz,
         delivered_at timestamptz,
+        provider_accepted_at timestamptz,
+        delivery_unknown_at timestamptz,
         metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW(),
         CONSTRAINT uq_support_notifications_tenant_id_id UNIQUE (tenant_id, id),
         CONSTRAINT ck_support_notifications_recipient_type CHECK (recipient_type IN ('school', 'support')),
         CONSTRAINT ck_support_notifications_channel CHECK (channel IN ('in_app', 'email', 'sms')),
-        CONSTRAINT ck_support_notifications_delivery_status CHECK (delivery_status IN ('queued', 'sent', 'failed', 'read')),
+        CONSTRAINT ck_support_notifications_delivery_status CHECK (delivery_status IN ('queued', 'provider_accepted', 'delivery_unknown', 'sent', 'failed', 'read')),
         CONSTRAINT fk_support_notifications_ticket
           FOREIGN KEY (tenant_id, ticket_id)
           REFERENCES support_tickets (tenant_id, id)
@@ -245,6 +247,18 @@ export class SupportSchemaService implements OnModuleInit {
 
       ALTER TABLE support_notifications
         ADD COLUMN IF NOT EXISTS delivered_at timestamptz;
+
+      ALTER TABLE support_notifications
+        ADD COLUMN IF NOT EXISTS provider_accepted_at timestamptz;
+
+      ALTER TABLE support_notifications
+        ADD COLUMN IF NOT EXISTS delivery_unknown_at timestamptz;
+
+      ALTER TABLE support_notifications
+        DROP CONSTRAINT IF EXISTS ck_support_notifications_delivery_status;
+      ALTER TABLE support_notifications
+        ADD CONSTRAINT ck_support_notifications_delivery_status
+        CHECK (delivery_status IN ('queued', 'provider_accepted', 'delivery_unknown', 'sent', 'failed', 'read'));
 
       CREATE TABLE IF NOT EXISTS support_kb_articles (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

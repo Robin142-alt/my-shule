@@ -74,6 +74,9 @@ export async function markMessageRead(id: string) {
 export async function replyToMessage(id: string, data: any) {
   return requestDashboardApi(`/admin-command/secretary/parent-messages/${id}/reply`, { method: 'POST', body: data });
 }
+export async function assignParentMessage(id: string, data: any) {
+  return requestDashboardApi(`/admin-command/secretary/parent-messages/${id}/assign`, { method: 'POST', body: data });
+}
 
 // ── Letters & Documents ──
 export async function fetchLettersDocuments() {
@@ -87,6 +90,20 @@ export async function downloadDocument(id: string) {
 }
 export async function printDocument(id: string) {
   return requestDashboardApi(`/admin-command/secretary/letters-documents/${id}/print`, { method: 'POST' });
+}
+
+// ── Mail, deliveries & parcels ──
+export async function fetchMailParcels() {
+  return requestDashboardApi('/admin-command/secretary/mail-parcels');
+}
+export async function recordMailParcel(data: any) {
+  return requestDashboardApi('/admin-command/secretary/mail-parcels', { method: 'POST', body: data });
+}
+export async function notifyMailParcelRecipient(id: string) {
+  return requestDashboardApi(`/admin-command/secretary/mail-parcels/${id}/notify`, { method: 'POST' });
+}
+export async function collectMailParcel(id: string) {
+  return requestDashboardApi(`/admin-command/secretary/mail-parcels/${id}/collect`, { method: 'POST' });
 }
 
 // ── Student Clearance ──

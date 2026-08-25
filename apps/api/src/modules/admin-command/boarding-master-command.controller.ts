@@ -9,6 +9,11 @@ import { BoardingMasterCommandService } from './boarding-master-command.service'
 export class BoardingMasterCommandController {
   constructor(private readonly service: BoardingMasterCommandService) {}
 
+  @Get('references')
+  getReferences() {
+    return this.service.getReferences();
+  }
+
   @Get('overview')
   getOverview() {
     return this.service.getOverview();
@@ -137,6 +142,11 @@ export class BoardingMasterCommandController {
   @Permissions('boarding:write')
   generateReport(@Body() dto: any) {
     return this.service.generateReport(dto);
+  }
+
+  @Post('reports/:id/download')
+  downloadReport(@Param('id') id: string) {
+    return this.service.downloadReport(id);
   }
 
   @Post('actions')

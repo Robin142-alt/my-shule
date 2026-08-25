@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { AlertCircle, Wallet, TrendingUp, Download, PieChart, Receipt, Plus, Loader2, CheckCircle2 } from "lucide-react";
+import { AlertCircle, Plus, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
-import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { usePermissions } from "@/components/providers/permission-context";
+import { useVerifiedPrincipalDashboardApi } from "./verified-tenant-api";
 
 type PrincipalWorkspaceData = {
   status: "active" | "degraded" | "setup_required";
@@ -18,10 +18,36 @@ type PrincipalWorkspaceData = {
   pendingWaivers: Array<{ id: string; student: string; class: string; amount: string; reason: string; date: string }>;
 };
 
+type FinanceStudentOption = {
+  id: string;
+  admission_number: string;
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
+  metadata?: Record<string, unknown> | null;
+};
+
+function formatStudentName(student: FinanceStudentOption) {
+  return [student.first_name, student.middle_name, student.last_name]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+function getStudentClassName(student: FinanceStudentOption) {
+  const metadata = student.metadata ?? {};
+  const candidate = metadata.current_class_name ?? metadata.class_name ?? metadata.grade_level;
+
+  return typeof candidate === "string" && candidate.trim() ? candidate.trim() : undefined;
+}
+
 export function PrincipalFinanceOverviewWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalWorkspaceData>('/admin-command/principal/finance-overview');
   const { data: feeCategoriesData } = useSchoolQuery<any[]>('/finance/fee-categories');
+  const { data: studentsData, isLoading: studentsLoading } = useSchoolQuery<FinanceStudentOption[]>('/students?status=active&limit=200');
   const { hasPermission, isLoading: permissionsLoading } = usePermissions();
+  const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
+  const activeStudents = Array.isArray(studentsData) ? studentsData : [];
 
   const [isFeeCategoryModalOpen, setIsFeeCategoryModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -37,12 +63,17 @@ export function PrincipalFinanceOverviewWorkspace() {
     setFormError("");
     const formData = new FormData(e.currentTarget);
     try {
-      await requestDashboardApi('/finance/fee-categories', {
+      const amount = Number(formData.get("amount"));
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new Error("Enter a fee category amount greater than zero.");
+      }
+
+      await requestPrincipalApi('/finance/fee-categories', {
         method: "POST",
         body: {
           name: formData.get("name"),
           description: formData.get("description"),
-          amount_minor: 0, // Placeholder, normally part of the form
+          amount_minor: Math.round(amount * 100),
           currency_code: "KES"
         }
       });
@@ -61,14 +92,26 @@ export function PrincipalFinanceOverviewWorkspace() {
     setWaiverFormError("");
     const formData = new FormData(e.currentTarget);
     try {
-      await requestDashboardApi('/finance/waivers', {
+      const studentId = String(formData.get("student_id") ?? "");
+      const student = activeStudents.find((candidate) => candidate.id === studentId);
+      const amount = Number(formData.get("amount"));
+
+      if (!student) {
+        throw new Error("Select an active student from this school before requesting a waiver.");
+      }
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new Error("Enter a waiver amount greater than zero.");
+      }
+
+      const className = getStudentClassName(student);
+      await requestPrincipalApi('/finance/waivers', {
         method: "POST",
         body: {
-          student_id: formData.get("student_id"),
-          amount_minor: Math.round(parseFloat(formData.get("amount") as string) * 100),
+          student_id: student.id,
+          student_name: formatStudentName(student),
+          ...(className ? { class_name: className } : {}),
+          amount_minor: String(Math.round(amount * 100)),
           reason: formData.get("reason"),
-          student_name: "Lookup Required", // Or fetch from student selection
-          class_name: "Lookup Required"
         }
       });
       setIsWaiverModalOpen(false);
@@ -83,7 +126,7 @@ export function PrincipalFinanceOverviewWorkspace() {
   const handleArchiveFeeCategory = async (id: string) => {
     if (!confirm("Are you sure you want to archive this fee category?")) return;
     try {
-      await requestDashboardApi(`/finance/fee-categories/${id}`, { method: "DELETE" });
+      await requestPrincipalApi(`/finance/fee-categories/${id}`, { method: "DELETE" });
       refetch();
     } catch (err: any) {
       toast.error(err.message || "Failed to archive fee category");
@@ -92,7 +135,7 @@ export function PrincipalFinanceOverviewWorkspace() {
 
   const handleWaiverDecision = async (id: string, approved: boolean) => {
     try {
-      await requestDashboardApi(`/finance/waivers/${id}/approve`, {
+      await requestPrincipalApi(`/finance/waivers/${id}/approve`, {
         method: "POST",
         body: { approved },
       });
@@ -180,9 +223,20 @@ export function PrincipalFinanceOverviewWorkspace() {
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Checking access
                 </Button>
               ) : hasPermission('finance:write') ? (
-                <Button size="sm" variant="outline" onClick={() => setIsWaiverModalOpen(true)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsWaiverModalOpen(true)}
+                  disabled={studentsLoading || activeStudents.length === 0}
+                  title={activeStudents.length === 0 ? "Add an active student before requesting a waiver" : undefined}
+                >
                   <Plus className="h-4 w-4 mr-2" /> Add Waiver
                 </Button>
+              ) : null}
+              {!studentsLoading && activeStudents.length === 0 && hasPermission('finance:write') ? (
+                <p className="mt-3 max-w-sm text-xs text-white/50">
+                  No active students are available. Add a student before requesting a fee waiver.
+                </p>
               ) : null}
             </div>
           ) : (
@@ -214,16 +268,20 @@ export function PrincipalFinanceOverviewWorkspace() {
         <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full mt-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-white">Fee Categories</h2>
-            <Button size="sm" variant="outline" onClick={() => setIsFeeCategoryModalOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" /> Add Category
-            </Button>
+            {hasPermission('finance:write') ? (
+              <Button size="sm" variant="outline" onClick={() => setIsFeeCategoryModalOpen(true)}>
+                <Plus className="h-4 w-4 mr-1" /> Add Category
+              </Button>
+            ) : null}
           </div>
           {!feeCategoriesData || feeCategoriesData.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-6 text-center">
               <p className="text-white/60 text-sm mb-4">No fee categories configured yet.</p>
-              <Button size="sm" variant="outline" onClick={() => setIsFeeCategoryModalOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" /> Add Category
-              </Button>
+              {hasPermission('finance:write') ? (
+                <Button size="sm" variant="outline" onClick={() => setIsFeeCategoryModalOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" /> Add Category
+                </Button>
+              ) : null}
             </div>
           ) : (
             <div className="space-y-2">
@@ -253,12 +311,25 @@ export function PrincipalFinanceOverviewWorkspace() {
             </div>
           )}
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-foreground">Name</label>
-            <input name="name" required className="input-base" placeholder="e.g. Tuition Fee" />
+            <label htmlFor="principal-fee-category-name" className="text-sm font-semibold text-foreground">Name</label>
+            <input id="principal-fee-category-name" name="name" required className="input-base" placeholder="e.g. Tuition Fee" />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-foreground">Description</label>
-            <textarea name="description" className="input-base" placeholder="Optional details..." />
+            <label htmlFor="principal-fee-category-description" className="text-sm font-semibold text-foreground">Description</label>
+            <textarea id="principal-fee-category-description" name="description" className="input-base" placeholder="Optional details..." />
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="principal-fee-category-amount" className="text-sm font-semibold text-foreground">Amount (KES)</label>
+            <input
+              id="principal-fee-category-amount"
+              type="number"
+              name="amount"
+              required
+              min="0.01"
+              step="0.01"
+              className="input-base"
+              placeholder="e.g. 12500"
+            />
           </div>
           <div className="pt-4 flex justify-end">
             <Button type="submit" disabled={isSubmitting}>
@@ -277,16 +348,23 @@ export function PrincipalFinanceOverviewWorkspace() {
             </div>
           )}
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-foreground">Student ID</label>
-            <input name="student_id" required className="input-base" placeholder="e.g. STU-1234" />
+            <label htmlFor="principal-waiver-student" className="text-sm font-semibold text-foreground">Student</label>
+            <select id="principal-waiver-student" name="student_id" required className="input-base" defaultValue="">
+              <option value="">Select an active student</option>
+              {activeStudents.map((student) => (
+                <option key={student.id} value={student.id}>
+                  {formatStudentName(student)} - {student.admission_number}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-foreground">Amount</label>
-            <input type="number" name="amount" required min="0" step="0.01" className="input-base" placeholder="e.g. 5000" />
+            <label htmlFor="principal-waiver-amount" className="text-sm font-semibold text-foreground">Amount (KES)</label>
+            <input id="principal-waiver-amount" type="number" name="amount" required min="0.01" step="0.01" className="input-base" placeholder="e.g. 5000" />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-foreground">Reason</label>
-            <textarea name="reason" required className="input-base" placeholder="Reason for waiver..." />
+            <label htmlFor="principal-waiver-reason" className="text-sm font-semibold text-foreground">Reason</label>
+            <textarea id="principal-waiver-reason" name="reason" required minLength={5} className="input-base" placeholder="Reason for waiver..." />
           </div>
           <div className="pt-4 flex justify-end">
             <Button type="submit" disabled={isSubmittingWaiver}>

@@ -133,8 +133,7 @@ describe("guided student admission", () => {
 
     await user.selectOptions(screen.getByLabelText(/^Academic year/i), "year-2026");
     await user.selectOptions(screen.getByLabelText(/^Curriculum/i), "CBC");
-    await user.selectOptions(screen.getByLabelText(/^Grade \/ form/i), "Grade 7");
-    await user.selectOptions(screen.getByLabelText(/^Class/i), "class-grade-7");
+    await user.selectOptions(screen.getByLabelText(/^Class \/ form \/ grade/i), "class-grade-7");
     await user.selectOptions(screen.getByLabelText(/^Stream/i), "stream-north");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 

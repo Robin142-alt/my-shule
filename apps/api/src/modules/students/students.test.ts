@@ -315,6 +315,121 @@ test('StudentsService creates a student and publishes student.created', async ()
   assert.equal(studentCreatedPayload.tenant_id, 'tenant-a');
 });
 
+test('StudentsService summary binds slug tenants and reports persisted attendance truthfully', async () => {
+  const requestContext = new RequestContextService();
+  const tenantExecutions: Array<{ tenantId: string; userId: string | null }> = [];
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new StudentsService(
+    requestContext,
+    {
+      executeWithTenant: async (tenantId: string, userId: string | null, callback: any) => {
+        tenantExecutions.push({ tenantId, userId });
+        return callback({
+          $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+            queries.push({ sql, params });
+            return [{
+              total_students: 12n,
+              absent_today: 3n,
+              new_enrollments: 2n,
+              boys_count: 7n,
+              girls_count: 5n,
+            }];
+          },
+        });
+      },
+      $queryRawUnsafe: async () => {
+        throw new Error('summary must not bypass tenant context');
+      },
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+
+  const summary = await requestContext.run(
+    {
+      request_id: 'req-student-summary',
+      tenant_id: 'school-kisumu-central',
+      user_id: '00000000-0000-0000-0000-000000000001',
+      role: 'Principal',
+      session_id: 'session-summary',
+      permissions: ['students:read'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'GET',
+      path: '/students/summary/dashboard',
+      started_at: '2026-08-25T00:00:00.000Z',
+    },
+    () => service.getSummary(),
+  );
+
+  assert.deepEqual(tenantExecutions, [{ tenantId: 'school-kisumu-central', userId: null }]);
+  assert.equal(queries.length, 1);
+  assert.deepEqual(queries[0]!.params, ['school-kisumu-central']);
+  assert.match(queries[0]!.sql, /student\.tenant_id = \$1/);
+  assert.match(queries[0]!.sql, /attendance\.tenant_id = \$1/);
+  assert.deepEqual(summary, {
+    totalStudents: '12',
+    absentToday: '3',
+    newEnrollments: '2',
+    trendLabel: '+2 this month',
+    demographics: [
+      { label: 'Boys', value: 58 },
+      { label: 'Girls', value: 42 },
+    ],
+  });
+});
+
+test('StudentsService summary does not invent demographic data for an empty tenant', async () => {
+  const requestContext = new RequestContextService();
+  const service = new StudentsService(
+    requestContext,
+    {
+      executeWithTenant: async (_tenantId: string, _userId: string | null, callback: any) =>
+        callback({
+          $queryRawUnsafe: async () => [{
+            total_students: 0n,
+            absent_today: 0n,
+            new_enrollments: 0n,
+            boys_count: 0n,
+            girls_count: 0n,
+          }],
+        }),
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+
+  const summary = await requestContext.run(
+    {
+      request_id: 'req-empty-student-summary',
+      tenant_id: 'new-school-slug',
+      user_id: '00000000-0000-0000-0000-000000000001',
+      role: 'Principal',
+      session_id: 'session-empty-summary',
+      permissions: ['students:read'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'GET',
+      path: '/students/summary/dashboard',
+      started_at: '2026-08-25T00:00:00.000Z',
+    },
+    () => service.getSummary(),
+  );
+
+  assert.equal(summary.trendLabel, 'No enrollments this month');
+  assert.deepEqual(summary.demographics, []);
+});
+
 test('StudentsRepository uses keyset cursor pagination for the high-volume student directory', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new StudentsRepository(
@@ -542,6 +657,7 @@ test('StudentPortalService exposes only the signed-in student released report ca
 test('StudentPortalService dashboard derives metrics from tenant-scoped records instead of stubs', async () => {
   const requestContext = new RequestContextService();
   const queries: any[] = [];
+  const notificationBadgeCalls: any[][] = [];
   const tenantTransactions: Array<{ tenantId: string; userId: string }> = [];
   const service = new StudentPortalService(
     {
@@ -577,12 +693,6 @@ test('StudentPortalService dashboard derives metrics from tenant-scoped records 
               return { meanGrade: 'B+', meanScore: 72, term: { name: 'Term 2' }, academicYear: { name: '2026' } };
             },
           },
-          notification: {
-            count: async (args: any) => {
-              queries.push({ model: 'notification', args });
-              return 4;
-            },
-          },
           $queryRawUnsafe: async (sql: string, ...values: any[]) => {
             if (/FROM student_portal_access access/.test(sql)) {
               queries.push({ model: 'portal-access', sql, values });
@@ -595,6 +705,12 @@ test('StudentPortalService dashboard derives metrics from tenant-scoped records 
       },
     } as never,
     requestContext,
+    {
+      getBadges: async (...args: any[]) => {
+        notificationBadgeCalls.push(args);
+        return { unreadCount: 4, urgentCount: 0, byModule: {} };
+      },
+    } as never,
   );
 
   const dashboard = await requestContext.run(
@@ -637,11 +753,7 @@ test('StudentPortalService dashboard derives metrics from tenant-scoped records 
     status: 'RELEASED',
     releasedAt: { not: null },
   });
-  assert.deepEqual(queries.find((query) => query.model === 'notification')?.args.where, {
-    schoolId: 'tenant-a',
-    targetUserId: 'student-1',
-    status: 'UNREAD',
-  });
+  assert.deepEqual(notificationBadgeCalls[0], ['tenant-a', 'student-1', 'student']);
   assert.deepEqual(queries.find((query) => query.model === 'assignments')?.values, ['tenant-a', 'student-1']);
   assert.match(queries.find((query) => query.model === 'assignments')?.sql ?? '', /academics_assignments/);
   assert.match(queries.find((query) => query.model === 'assignments')?.sql ?? '', /academics_assignment_submissions/);

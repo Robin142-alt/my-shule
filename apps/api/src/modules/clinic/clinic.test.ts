@@ -213,6 +213,174 @@ test('ClinicService exposes repository failures instead of returning an empty vi
   await assert.rejects(() => service.listVisits(), /clinic database unavailable/);
 });
 
+test('ClinicRepository atomically creates and audits visits only for an active student in the requested tenant', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new ClinicRepository({
+    query: async (sql: string, params: unknown[]) => {
+      queries.push({ sql, params });
+      return { rows: [], rowCount: 0 };
+    },
+  } as never);
+
+  const visit = await repository.createVisit({
+    tenant_id: 'tenant-a',
+    student_id: 'student-from-another-school',
+    recorded_by_user_id: '11111111-1111-4111-8111-111111111111',
+  });
+
+  assert.equal(visit, undefined);
+  assert.deepEqual(queries[0].params.slice(0, 2), ['tenant-a', 'student-from-another-school']);
+  assert.match(queries[0].sql, /FROM students student/i);
+  assert.match(queries[0].sql, /student\.tenant_id = \$1/i);
+  assert.match(queries[0].sql, /student\.id::text = \$2/i);
+  assert.match(queries[0].sql, /student\.deleted_at IS NULL/i);
+  assert.match(queries[0].sql, /LOWER\(COALESCE\(student\.status::text, 'active'\)\)/i);
+  assert.match(queries[0].sql, /INSERT INTO clinic_visits/i);
+  assert.match(queries[0].sql, /FROM selected_student student/i);
+  assert.match(queries[0].sql, /INSERT INTO clinic_audit_logs/i);
+  assert.match(queries[0].sql, /FROM inserted_visit visit/i);
+});
+
+test('ClinicRepository materializes visit notices only for exact active guardian accounts', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new ClinicRepository({
+    query: async (sql: string, params: unknown[]) => {
+      queries.push({ sql, params });
+      return { rows: [{ guardian_count: 2, notification_count: 2 }], rowCount: 1 };
+    },
+  } as never);
+
+  const delivery = await repository.notifyVisitGuardians({
+    tenant_id: 'tenant-a',
+    student_id: 'student-a',
+    visit_id: 'visit-a',
+    title: 'School clinic visit recorded',
+    body: 'A clinic visit was recorded for Amina Njeri.',
+  });
+
+  assert.deepEqual(delivery, { guardian_count: 2, notification_count: 2 });
+  assert.deepEqual(queries[0].params.slice(0, 3), ['tenant-a', 'student-a', 'visit-a']);
+  assert.match(queries[0].sql, /guardian\.tenant_id = \$1/i);
+  assert.match(queries[0].sql, /guardian\.student_id::text = \$2/i);
+  assert.match(queries[0].sql, /LOWER\(guardian\.status\) = 'active'/i);
+  assert.match(queries[0].sql, /INNER JOIN tenant_memberships membership/i);
+  assert.match(queries[0].sql, /recipient_user_id, recipient_guardian_id/i);
+  assert.doesNotMatch(queries[0].sql, /recipient_role/i);
+});
+
+test('ClinicService notifies exact active guardians and keeps the realtime event staff scoped', async () => {
+  const repositoryCalls: Array<{ method: string; input: Record<string, unknown> }> = [];
+  const eventCalls: Array<Record<string, any>> = [];
+  const service = new ClinicService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+        role: 'nurse',
+        permissions: ['clinic:write'],
+      }),
+      requireStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+        role: 'nurse',
+        permissions: ['clinic:write'],
+      }),
+    } as never,
+    {
+      createVisit: async (input: Record<string, unknown>) => {
+        repositoryCalls.push({ method: 'createVisit', input });
+        return {
+          id: 'visit-a',
+          student_id: 'student-a',
+          student_name: 'Amina Njeri',
+          status: 'open',
+          audit_count: 1,
+        };
+      },
+      notifyVisitGuardians: async (input: Record<string, unknown>) => {
+        repositoryCalls.push({ method: 'notifyVisitGuardians', input });
+        return { guardian_count: 2, notification_count: 2 };
+      },
+    } as never,
+    {
+      recordSchoolOperation: async (input: Record<string, any>) => {
+        eventCalls.push(input);
+        return { status: 'accepted' };
+      },
+    } as never,
+  );
+
+  const result = await service.recordVisit({
+    student_id: 'student-a',
+    symptoms_summary: 'Headache',
+  });
+
+  assert.equal(result.id, 'visit-a');
+  assert.deepEqual(result.delivery, {
+    status: 'complete',
+    guardian_count: 2,
+    guardian_notification_count: 2,
+    guardian_recipient_scope: 'exact_linked_guardian_users',
+    staff_event_status: 'accepted',
+    reasons: [],
+  });
+  assert.equal(repositoryCalls[0].input.tenant_id, 'tenant-a');
+  assert.equal(repositoryCalls[0].input.student_id, 'student-a');
+  assert.equal(repositoryCalls[1].input.student_id, 'student-a');
+  assert.deepEqual(eventCalls[0].notifications[0].audienceRoles, ['nurse', 'boarding_master']);
+  assert.equal(eventCalls[0].notifications[0].audienceRoles.includes('parent'), false);
+});
+
+test('ClinicService rejects a non-canonical learner and reports post-persistence delivery failure as degraded', async () => {
+  const baseContext = {
+    getStore: () => ({
+      tenant_id: 'tenant-a',
+      user_id: '11111111-1111-4111-8111-111111111111',
+      role: 'nurse',
+      permissions: ['clinic:write'],
+    }),
+    requireStore: () => ({
+      tenant_id: 'tenant-a',
+      user_id: '11111111-1111-4111-8111-111111111111',
+      role: 'nurse',
+      permissions: ['clinic:write'],
+    }),
+  } as never;
+  const rejected = new ClinicService(baseContext, {
+    createVisit: async () => undefined,
+  } as never);
+  await assert.rejects(
+    () => rejected.recordVisit({ student_id: 'student-from-another-school' }),
+    /not active in this school/i,
+  );
+
+  const persisted = new ClinicService(
+    baseContext,
+    {
+      createVisit: async () => ({
+        id: 'visit-a',
+        student_id: 'student-a',
+        student_name: 'Amina Njeri',
+        audit_count: 1,
+      }),
+      notifyVisitGuardians: async () => {
+        throw new Error('notification store unavailable');
+      },
+    } as never,
+    {
+      recordSchoolOperation: async () => {
+        throw new Error('event outbox unavailable');
+      },
+    } as never,
+  );
+
+  const result = await persisted.recordVisit({ student_id: 'student-a' });
+  assert.equal(result.id, 'visit-a', 'the canonical clinic record remains persisted');
+  assert.equal(result.delivery.status, 'degraded');
+  assert.equal(result.delivery.staff_event_status, 'failed');
+  assert.deepEqual(result.delivery.reasons, ['guardian_notification_failed', 'staff_event_failed']);
+});
+
 test('ClinicService blocks dispensing expired medicine and preserves inventory data', async () => {
   const service = new ClinicService(
     {

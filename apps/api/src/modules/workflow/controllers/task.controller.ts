@@ -44,7 +44,7 @@ export class TaskController {
     private readonly requestContext: RequestContextService,
   ) {}
 
-  @Permissions('auth:read')
+  @Permissions('events:read')
   @Get()
   async getTasks(): Promise<TaskRow[]> {
     const principal = this.requirePrincipal();
@@ -63,10 +63,13 @@ export class TaskController {
         task.created_at,
         task.updated_at
       FROM tasks task
-      WHERE task.tenant_id = $1
+      WHERE task.tenant_id::text = $1::text
         AND (
           task.assigned_to_user_id::text = $2::text
-          OR regexp_replace(lower(btrim(COALESCE(task.assigned_to_role, ''))), '[^a-z0-9]+', '_', 'g') = $3
+          OR (
+            task.assigned_to_user_id IS NULL
+            AND regexp_replace(lower(btrim(COALESCE(task.assigned_to_role, ''))), '[^a-z0-9]+', '_', 'g') = $3
+          )
         )
         AND lower(task.status) IN ('open', 'pending', 'in_progress')
       ORDER BY
@@ -149,7 +152,7 @@ export class TaskController {
     });
   }
 
-  @Permissions('auth:read')
+  @Permissions('events:write')
   @Patch(':id/complete')
   async completeTask(@Param('id') id: string): Promise<TaskRow> {
     const principal = this.requirePrincipal();
@@ -163,11 +166,14 @@ export class TaskController {
           completed_at = COALESCE(task.completed_at, NOW()),
           updated_at = NOW()
         WHERE task.id::text = $1::text
-          AND task.tenant_id = $2
+          AND task.tenant_id::text = $2::text
           AND lower(task.status) IN ('open', 'pending', 'in_progress')
           AND (
             task.assigned_to_user_id::text = $3::text
-            OR regexp_replace(lower(btrim(COALESCE(task.assigned_to_role, ''))), '[^a-z0-9]+', '_', 'g') = $4
+            OR (
+              task.assigned_to_user_id IS NULL
+              AND regexp_replace(lower(btrim(COALESCE(task.assigned_to_role, ''))), '[^a-z0-9]+', '_', 'g') = $4
+            )
           )
         RETURNING
           id::text,
@@ -207,9 +213,9 @@ export class TaskController {
     return this.prisma.executeWithTenant(principal.tenantId, principal.userId, async (tx) => {
       const rows = await tx.$queryRawUnsafe<TaskRow[]>(`
         UPDATE tasks task
-        SET assigned_to_user_id = $1::uuid, updated_at = NOW()
+        SET assigned_to_user_id = $1::uuid, assigned_to_role = NULL, updated_at = NOW()
         WHERE task.id::text = $2::text
-          AND task.tenant_id = $3
+          AND task.tenant_id::text = $3::text
           AND lower(task.status) IN ('open', 'pending', 'in_progress')
         RETURNING
           id::text,

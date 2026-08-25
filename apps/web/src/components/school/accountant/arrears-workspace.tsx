@@ -124,7 +124,7 @@ export function ArrearsWorkspace({
     const reminderKey = targets.length === 1 ? targets[0].student_id : "bulk";
     setSendingReminderFor(reminderKey);
     try {
-      await requestDashboardApi("/admin-command/accountant/fee-follow-up", {
+      const result = await requestDashboardApi<{ message?: string }>("/admin-command/accountant/fee-follow-up", {
         method: "POST",
         body: {
           action: targets.length === 1 ? "student_arrears_reminder_requested" : "arrears_reminders_requested",
@@ -145,7 +145,7 @@ export function ArrearsWorkspace({
           },
         },
       });
-      toast.success(targets.length === 1 ? "Guardian reminder queued." : "Arrears reminders queued.");
+      toast.success(result.message || (targets.length === 1 ? "Guardian reminder queued." : "Arrears reminders queued."));
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : "Failed to queue arrears reminders.");
     } finally {

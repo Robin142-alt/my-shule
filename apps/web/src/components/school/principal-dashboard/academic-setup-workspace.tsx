@@ -6,7 +6,7 @@ import { AlertCircle, GraduationCap, Calendar, Settings, Plus, Loader2, FileText
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
-import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { useVerifiedPrincipalDashboardApi } from "./verified-tenant-api";
 import { usePermissions } from "@/components/providers/permission-context";
 
 type AcademicSetupData = {
@@ -22,6 +22,7 @@ type AcademicSetupData = {
 
 export function PrincipalAcademicSetupWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<AcademicSetupData>('/admin-command/principal/academic-setup');
+  const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
   const { hasPermission } = usePermissions();
   const { data: yearsData } = useSchoolQuery<any[]>('/academics/academic-years');
 
@@ -40,7 +41,7 @@ export function PrincipalAcademicSetupWorkspace() {
     setFormError("");
     const formData = new FormData(e.currentTarget);
     try {
-      await requestDashboardApi('/academics/years', {
+      await requestPrincipalApi('/academics/years', {
         method: "POST",
         body: {
           name: formData.get("name"),
@@ -63,7 +64,7 @@ export function PrincipalAcademicSetupWorkspace() {
     setFormError("");
     const formData = new FormData(e.currentTarget);
     try {
-      await requestDashboardApi('/academics/terms', {
+      await requestPrincipalApi('/academics/terms', {
         method: "POST",
         body: {
           academic_year_id: formData.get("academic_year_id"),
@@ -85,7 +86,7 @@ export function PrincipalAcademicSetupWorkspace() {
     if (!confirm("Are you sure you want to archive this academic year?")) return;
     setActionError(null);
     try {
-      await requestDashboardApi(`/academics/years/${id}`, { method: "DELETE" });
+      await requestPrincipalApi(`/academics/years/${id}`, { method: "DELETE" });
       refetch();
     } catch (err: any) {
       setActionError(err.message || "Failed to archive year");
@@ -114,7 +115,7 @@ export function PrincipalAcademicSetupWorkspace() {
     setGradingFormError("");
     const formData = new FormData(e.currentTarget);
     try {
-      await requestDashboardApi('/academics/grading-systems', {
+      await requestPrincipalApi('/academics/grading-systems', {
         method: "POST",
         body: {
           name: formData.get("name"),
@@ -136,7 +137,7 @@ export function PrincipalAcademicSetupWorkspace() {
     setAttendanceFormError("");
     const formData = new FormData(e.currentTarget);
     try {
-      await requestDashboardApi('/academics/attendance-settings', {
+      await requestPrincipalApi('/academics/attendance-settings', {
         method: "POST",
         body: {
           name: formData.get("name"),
@@ -158,7 +159,7 @@ export function PrincipalAcademicSetupWorkspace() {
     setReportCardFormError("");
     const formData = new FormData(e.currentTarget);
     try {
-      await requestDashboardApi('/academics/report-card-settings', {
+      await requestPrincipalApi('/academics/report-card-settings', {
         method: "POST",
         body: {
           name: formData.get("name"),
@@ -180,7 +181,7 @@ export function PrincipalAcademicSetupWorkspace() {
     if (!confirm("Are you sure you want to archive this grading system?")) return;
     setActionError(null);
     try {
-      await requestDashboardApi(`/academics/grading-systems/${id}`, { method: "DELETE" });
+      await requestPrincipalApi(`/academics/grading-systems/${id}`, { method: "DELETE" });
       refetch();
     } catch (err: any) {
       setActionError(err.message || "Failed to archive grading system");
@@ -191,7 +192,7 @@ export function PrincipalAcademicSetupWorkspace() {
     if (!confirm("Are you sure you want to archive this attendance setting?")) return;
     setActionError(null);
     try {
-      await requestDashboardApi(`/academics/attendance-settings/${id}`, { method: "DELETE" });
+      await requestPrincipalApi(`/academics/attendance-settings/${id}`, { method: "DELETE" });
       refetch();
     } catch (err: any) {
       setActionError(err.message || "Failed to archive attendance setting");
@@ -202,7 +203,7 @@ export function PrincipalAcademicSetupWorkspace() {
     if (!confirm("Are you sure you want to archive this report card setting?")) return;
     setActionError(null);
     try {
-      await requestDashboardApi(`/academics/report-card-settings/${id}`, { method: "DELETE" });
+      await requestPrincipalApi(`/academics/report-card-settings/${id}`, { method: "DELETE" });
       refetch();
     } catch (err: any) {
       setActionError(err.message || "Failed to archive report card setting");

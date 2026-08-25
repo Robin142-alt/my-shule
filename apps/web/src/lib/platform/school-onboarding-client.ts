@@ -684,7 +684,11 @@ export async function testPlatformSmsProvider(id: string) {
     credentials: "same-origin",
   });
 
-  return await parsePlatformResponse<{ status: "ok"; provider_id: string }>(response);
+  return await parsePlatformResponse<{
+    status: "configuration_valid";
+    provider_id: string;
+    connectivity_tested: false;
+  }>(response);
 }
 
 export async function setDefaultPlatformSmsProvider(id: string) {

@@ -39,7 +39,7 @@ export class AgpExecutionService {
       const result = await intent.handler();
 
       // 3. Event Emission
-      if (intent.eventName && intent.eventPayload) {
+      if (!intent.governanceRecordedInHandler && intent.eventName && intent.eventPayload) {
         await this.eventPublisher.publish({
           tenant_id: tenantId,
           event_key: `${intent.eventName}-${intent.aggregateId}-${Date.now()}`,
@@ -51,14 +51,16 @@ export class AgpExecutionService {
       }
 
       // 4. Audit Logging
-      await this.auditTrail.createAuditLog(
-        tenantId,
-        userId,
-        intent.actionName,
-        intent.aggregateType,
-        intent.aggregateId,
-        { status: 'SUCCESS' }
-      );
+      if (!intent.governanceRecordedInHandler) {
+        await this.auditTrail.createAuditLog(
+          tenantId,
+          userId,
+          intent.actionName,
+          intent.aggregateType,
+          intent.aggregateId,
+          { status: 'SUCCESS' }
+        );
+      }
 
       return result;
 

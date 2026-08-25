@@ -3,8 +3,8 @@
 import { Card } from "@/components/ui/card";
 import { AlertCircle, BookOpen, GraduationCap } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { toast } from "sonner";
+import { useVerifiedPrincipalDashboardApi } from "./verified-tenant-api";
 
 type PrincipalAcademicsData = {
   status: "active" | "degraded" | "setup_required";
@@ -17,6 +17,7 @@ type PrincipalAcademicsData = {
 
 export function PrincipalAcademicsWorkspace() {
   const { data, isLoading, error } = useSchoolQuery<PrincipalAcademicsData>('/admin-command/principal/academics');
+  const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
 
   if (isLoading) {
     return (
@@ -90,7 +91,7 @@ export function PrincipalAcademicsWorkspace() {
               type="button"
               onClick={async () => {
                 try {
-                  await requestDashboardApi("/admin-command/principal/reports/generate", {
+                  await requestPrincipalApi("/admin-command/principal/reports/generate", {
                     method: "POST",
                     body: { title: "Department performance report", type: "department_performance", source_dashboard: "principal-academics" },
                   });

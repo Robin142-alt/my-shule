@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '../../../database/prisma.service';
 
@@ -14,7 +14,17 @@ export interface ProcurementDashboardSummary {
 @Injectable()
 export class ProcurementRepository {
 
-  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+  private async executeSql<T = any>(query: string, params: any[] = [], tx?: any): Promise<{ rows: T[], rowCount: number }> {
+    if (tx) {
+      if (/\bRETURNING\b/i.test(query) || /^\s*(?:SELECT|WITH)\b/i.test(query)) {
+        const result = await tx.$queryRawUnsafe(query, ...params);
+        const rows = Array.isArray(result) ? result : [result];
+        return { rows, rowCount: rows.length };
+      }
+      const rowCount = await tx.$executeRawUnsafe(query, ...params);
+      return { rows: [], rowCount };
+    }
+
     const firstParam = params[0];
     const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
 
@@ -44,7 +54,19 @@ export class ProcurementRepository {
         `
           SELECT
             (SELECT COUNT(*)::int FROM procurement_requests WHERE tenant_id = $1 AND status IN ('draft', 'submitted', 'returned')) AS open_requests,
-            (SELECT COUNT(*)::int FROM procurement_requests WHERE tenant_id = $1 AND status = 'submitted') AS pending_approvals,
+            (
+              SELECT COUNT(*)::int
+              FROM dashboard_approval_requests approval
+              INNER JOIN procurement_requests request
+                ON request.tenant_id::text = approval.tenant_id::text
+               AND request.id::text = approval.record_id
+              WHERE approval.tenant_id::text = $1::text
+                AND approval.approval_key = 'procurement-approval-' || request.id::text
+                AND regexp_replace(lower(btrim(COALESCE(approval.module, ''))), '[^a-z0-9]+', '_', 'g') = 'procurement'
+                AND regexp_replace(lower(btrim(COALESCE(approval.approval_type, ''))), '[^a-z0-9]+', '_', 'g') = 'procurement'
+                AND lower(approval.status) IN ('pending', 'pending_approval', 'changes_requested', 'escalated')
+                AND lower(request.status) = 'submitted'
+            ) AS pending_approvals,
             (SELECT COUNT(*)::int FROM procurement_suppliers WHERE tenant_id = $1 AND status = 'active') AS active_suppliers,
             (SELECT COUNT(*)::int FROM purchase_orders WHERE tenant_id = $1) AS purchase_order_count,
             (SELECT COUNT(*)::int FROM supplier_invoices WHERE tenant_id = $1) AS invoices_attached,
@@ -165,8 +187,8 @@ export class ProcurementRepository {
     return result.rows[0];
   }
 
-  async createRequest(input: Record<string, unknown>) {
-    return this.prisma.withRequestTransaction(async () => {
+  async createRequest(input: Record<string, unknown>, tx?: any) {
+    const persist = async (activeTx: any) => {
       const result = await this.executeSql(
         `
           INSERT INTO procurement_requests (
@@ -185,6 +207,7 @@ export class ProcurementRepository {
           input.needed_by ?? null,
           input.requested_by_user_id,
         ],
+        activeTx,
       );
       const request = result.rows[0];
 
@@ -204,15 +227,52 @@ export class ProcurementRepository {
             item.estimated_unit_cost_minor,
             item.budget_code ?? input.budget_code ?? null,
           ],
+          activeTx,
         );
       }
 
       return request;
-    });
+    };
+
+    if (tx) {
+      return persist(tx);
+    }
+
+    return this.prisma.executeWithTenant(
+      String(input.tenant_id),
+      typeof input.requested_by_user_id === 'string' ? input.requested_by_user_id : null,
+      persist,
+    );
   }
 
-  async recordApproval(input: Record<string, unknown>) {
-    return this.prisma.withRequestTransaction(async () => {
+  async recordApproval(input: Record<string, unknown>, tx?: any) {
+    const persist = async (activeTx: any) => {
+      const request = await this.executeSql<{ id: string }>(
+        `
+          UPDATE procurement_requests
+          SET status = $3,
+              updated_at = NOW()
+          WHERE tenant_id = $1
+            AND id = $2::uuid
+            AND status IN ('submitted', 'returned')
+          RETURNING id::text
+        `,
+        [
+          input.tenant_id,
+          input.request_id,
+          input.decision === 'approved'
+            ? 'approved'
+            : input.decision === 'rejected'
+              ? 'rejected'
+              : 'returned',
+        ],
+        activeTx,
+      );
+
+      if (!request.rows[0]) {
+        throw new NotFoundException('Pending procurement request was not found in the active school');
+      }
+
       const result = await this.executeSql(
         `
           INSERT INTO procurement_approvals (
@@ -228,29 +288,21 @@ export class ProcurementRepository {
           input.reason ?? null,
           input.approver_user_id,
         ],
-      );
-
-      await this.executeSql(
-        `
-          UPDATE procurement_requests
-          SET status = $3,
-              updated_at = NOW()
-          WHERE tenant_id = $1
-            AND id = $2::uuid
-        `,
-        [
-          input.tenant_id,
-          input.request_id,
-          input.decision === 'approved'
-            ? 'approved'
-            : input.decision === 'rejected'
-              ? 'rejected'
-              : 'returned',
-        ],
+        activeTx,
       );
 
       return result.rows[0];
-    });
+    };
+
+    if (tx) {
+      return persist(tx);
+    }
+
+    return this.prisma.executeWithTenant(
+      String(input.tenant_id),
+      typeof input.approver_user_id === 'string' ? input.approver_user_id : null,
+      persist,
+    );
   }
 
   async createPurchaseOrder(input: Record<string, unknown>) {
@@ -350,8 +402,8 @@ export class ProcurementRepository {
     return result.rows[0];
   }
 
-  async appendAuditLog(input: Record<string, unknown>) {
-    await this.executeSql(
+  async appendAuditLog(input: Record<string, unknown>, tx?: any) {
+    const write = this.executeSql(
       `
         INSERT INTO procurement_audit_logs (
           tenant_id, actor_user_id, action, resource_type, resource_id, metadata
@@ -366,6 +418,14 @@ export class ProcurementRepository {
         input.resource_id ?? null,
         JSON.stringify(input.metadata ?? {}),
       ],
-    ).catch(() => undefined);
+      tx,
+    );
+
+    if (tx) {
+      await write;
+      return;
+    }
+
+    await write;
   }
 }

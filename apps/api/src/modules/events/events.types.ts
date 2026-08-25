@@ -24,6 +24,8 @@ export type SupportedDomainEventName =
   | 'transport.request.submitted'
   | 'counselling.referral.submitted'
   | 'procurement.request.submitted'
+  | 'procurement.request.approved'
+  | 'procurement.request.rejected'
   | 'lab.request.submitted'
   | 'asset.request.submitted'
   | 'attendance.register.marked'
@@ -34,6 +36,9 @@ export type SupportedDomainEventName =
   | 'grading.system.created'
   | 'report.card.published'
   | 'communication.sms.queued'
+  | 'communication.sms.provider_accepted'
+  | 'communication.sms.delivery_failed'
+  | 'communication.sms.delivery_unknown'
   | 'admissions.cleared'
   | 'staff.updated'
   | 'staff.invited'
@@ -241,6 +246,7 @@ export interface SchoolOperationRecordedPayload {
   entity_id: string | null;
   severity: 'info' | 'warning' | 'critical' | 'success';
   target_roles: string[];
+  target_user_ids?: string[];
   notifications: Record<string, unknown>[];
   sms: Record<string, unknown>[];
   payload: Record<string, unknown>;
@@ -358,6 +364,20 @@ export interface ProcurementRequestSubmittedPayload {
   quantity: number;
   estimated_cost: number;
   status: string;
+}
+
+export interface ProcurementRequestDecisionPayload {
+  tenant_id: string;
+  request_id: string;
+  approval_id: string;
+  approval_projection_id: string;
+  requested_by_user_id: string;
+  decided_by_user_id: string;
+  decided_by_role: string;
+  decision: 'approved' | 'rejected';
+  reason: string | null;
+  status: 'approved' | 'rejected';
+  decided_at: string;
 }
 
 export interface LabRequestSubmittedPayload {
@@ -514,6 +534,8 @@ export interface DomainEventPayloadMap {
   'transport.request.submitted': TransportRequestSubmittedPayload;
   'counselling.referral.submitted': CounsellingReferralSubmittedPayload;
   'procurement.request.submitted': ProcurementRequestSubmittedPayload;
+  'procurement.request.approved': ProcurementRequestDecisionPayload;
+  'procurement.request.rejected': ProcurementRequestDecisionPayload;
   'lab.request.submitted': LabRequestSubmittedPayload;
   'asset.request.submitted': AssetRequestSubmittedPayload;
   'attendance.register.marked': AttendanceRegisterMarkedPayload;
@@ -524,6 +546,9 @@ export interface DomainEventPayloadMap {
   'grading.system.created': GradingSystemCreatedPayload;
   'report.card.published': ReportCardPublishedPayload;
   'communication.sms.queued': CommunicationSmsQueuedPayload;
+  'communication.sms.provider_accepted': CommunicationSmsProviderAcceptedPayload;
+  'communication.sms.delivery_failed': CommunicationSmsDeliveryFailedPayload;
+  'communication.sms.delivery_unknown': CommunicationSmsDeliveryFailedPayload;
   'admissions.cleared': AdmissionsClearedPayload;
   'staff.updated': StaffUpdatedPayload;
   'staff.invited': StaffInvitedPayload;
@@ -704,9 +729,31 @@ export interface DashboardRealtimeSnapshot {
 export interface CommunicationSmsQueuedPayload {
   tenant_id: string;
   sms_id: string;
-  recipient_phone: string;
-  message: string;
-  sent_by: string;
+  recipient_phone_last4: string | null;
+  sent_by: string | null;
+  queued_at: string;
+}
+
+export interface CommunicationSmsProviderAcceptedPayload {
+  tenant_id: string;
+  sms_id: string;
+  recipient_phone_last4: string | null;
+  requested_by_user_id: string | null;
+  provider_id: string;
+  provider_code: string;
+  provider_message_id: string | null;
+  attempt_count: number;
+  provider_accepted_at: string;
+}
+
+export interface CommunicationSmsDeliveryFailedPayload {
+  tenant_id: string;
+  sms_id: string;
+  recipient_phone_last4: string | null;
+  requested_by_user_id: string | null;
+  attempt_count: number;
+  failure_reason: string;
+  outcome_recorded_at: string;
 }
 
 export interface AdmissionsClearedPayload {

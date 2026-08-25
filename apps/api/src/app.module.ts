@@ -73,6 +73,7 @@ import { ClassTeacherModule } from './modules/class-teacher/class-teacher.module
 import { SecretaryModule } from './modules/secretary/secretary.module';
 import { ApprovalsModule } from './modules/approvals/approvals.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { WorkflowModule } from './modules/workflow/workflow.module';
 
 const NODE_ENV = process.env.NODE_ENV ?? 'development';
 const ENV_FILE_PATHS = [
@@ -146,6 +147,7 @@ const ENV_FILE_PATHS = [
     ClassTeacherModule,
     SecretaryModule,
     NotificationsModule,
+    WorkflowModule,
   ],
   providers: [
     {

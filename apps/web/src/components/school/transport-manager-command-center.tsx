@@ -33,7 +33,6 @@ import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
-import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Button } from "@/components/ui/button";
@@ -153,13 +152,6 @@ const toneClasses: Record<Tone, { chip: string; card: string; dot: string; text:
   },
 };
 
-const overviewKpis: Kpi[] = [
-  { label: "Active Vehicles", value: "18", helper: "15 on route, 3 loading", trend: "+2 vs yesterday", tone: "success", icon: BusFront },
-  { label: "Students Using Transport", value: "642", helper: "Across 12 routes", trend: "96% allocated", tone: "info", icon: Users },
-  { label: "Trips Completed Today", value: "31", helper: "Morning pickup closed", trend: "4 live", tone: "success", icon: CheckCircle2 },
-  { label: "Vehicles Under Maintenance", value: "3", helper: "1 urgent brake check", trend: "safety hold", tone: "warning", icon: Wrench },
-];
-
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -186,9 +178,13 @@ function dateLabel(value: unknown, fallback = "Not dated") {
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString();
 }
 
-function moneyLabel(value: unknown) {
-  const amount = Number(value ?? 0);
-  return Number.isFinite(amount) ? `KES ${amount.toLocaleString()}` : "KES 0";
+function moneyMinorLabel(value: unknown) {
+  const amountMinor = Number(value);
+  if (!Number.isFinite(amountMinor)) return "Not recorded";
+  return `KES ${(amountMinor / 100).toLocaleString("en-KE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 function transportActionSlug(message: string) {
@@ -434,10 +430,37 @@ function KpiGrid({ items }: { items: Kpi[] }) {
   );
 }
 
-function ProgressBar({ value, tone = "info" }: { value: string; tone?: Tone }) {
+function QueryStateCard({
+  isLoading,
+  error,
+  loadingLabel,
+  onRetry,
+}: {
+  isLoading: boolean;
+  error: Error | null;
+  loadingLabel: string;
+  onRetry: () => void;
+}) {
+  if (!isLoading && !error) return null;
+
   return (
-    <div className="h-2 rounded-full bg-[#E2E8F0]">
-      <div className={cn("h-full rounded-full", toneClasses[tone].rail)} style={{ width: `${Math.max(8, Math.min(100, Number(value)))}%` }} />
+    <div
+      role={error ? "alert" : "status"}
+      className={cn(
+        "rounded-2xl border p-4 text-sm font-semibold",
+        error ? "border-rose-200 bg-rose-50 text-rose-900" : "border-blue-200 bg-blue-50 text-blue-900",
+      )}
+    >
+      <p>{error ? error.message : loadingLabel}</p>
+      {error ? (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="mt-3 rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-black text-rose-800"
+        >
+          Retry
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -545,26 +568,40 @@ function DataTable({
 }
 
 function OverviewWorkspace({ onViewChange }: { onViewChange: (view: TransportView) => void }) {
-  const { data: dashboard, isLoading } = useSchoolQuery<any>("/api/admin-command/transport-manager/overview");
-  const { data: routesData } = useSchoolQuery<any>("/api/admin-command/transport-manager/routes");
+  const overviewQuery = useSchoolQuery<any>("/api/admin-command/transport-manager/overview");
+  const routesQuery = useSchoolQuery<any>("/api/admin-command/transport-manager/routes");
+  const dashboard = overviewQuery.data;
+  const routesData = routesQuery.data;
   const metrics = dashboard?.metrics ?? {};
-  
-  const kpis = isLoading || !dashboard ? overviewKpis : [
-    { label: "Active Vehicles", value: String(metrics.totalVehicles ?? 0), helper: "Tenant fleet records", trend: "Active", tone: "success", icon: BusFront },
-    { label: "Registered Drivers", value: String(metrics.totalDrivers ?? 0), helper: "Driver records", trend: "Staffed", tone: "info", icon: Users },
-    { label: "Routes Configured", value: String(metrics.totalRoutes ?? 0), helper: "School transport routes", trend: "Configured", tone: "success", icon: Route },
-    { label: "Trips Today", value: String(metrics.todayTrips ?? 0), helper: "Daily trip records", trend: "Live", tone: Number(metrics.todayTrips ?? 0) > 0 ? "info" : "neutral", icon: CheckCircle2 },
+  const kpis: Kpi[] = [
+    { label: "Fleet vehicles", value: String(metrics.totalVehicles ?? 0), helper: "School fleet records", trend: "Database records", tone: Number(metrics.totalVehicles ?? 0) > 0 ? "success" : "neutral", icon: BusFront },
+    { label: "Registered drivers", value: String(metrics.totalDrivers ?? 0), helper: "Transport driver records", trend: "Database records", tone: Number(metrics.totalDrivers ?? 0) > 0 ? "info" : "neutral", icon: Users },
+    { label: "Routes configured", value: String(metrics.totalRoutes ?? 0), helper: `${metrics.active_routes ?? 0} active route(s)`, trend: "Route register", tone: Number(metrics.active_routes ?? 0) > 0 ? "success" : "neutral", icon: Route },
+    { label: "Trips recorded today", value: String(metrics.todayTrips ?? 0), helper: "Persisted trip records", trend: "Today", tone: Number(metrics.todayTrips ?? 0) > 0 ? "info" : "neutral", icon: CheckCircle2 },
   ];
 
-  const routes = asRows<any>(routesData).map((r: any) => [
-    r.code || r.id?.substring?.(0, 8) || "ROUTE",
-    r.route_name || r.name || "Route",
-    r.zone || "Zone not set",
-    r.status || "active",
-    r.direction || "round_trip",
-    String(r.learner_count || r.student_count || 0),
-    toneFromStatus(r.status || "active")
-  ]);
+  const routes = asRows<any>(routesData).map((route: any) => ({
+    id: route.id || route.code || route.route_name,
+    code: route.code || "No code",
+    name: route.route_name || route.name || "Transport route",
+    driver: route.driver || "Driver not assigned",
+    vehicle: route.vehicle || "Vehicle not assigned",
+    students: Number(route.students_count ?? route.learner_count ?? 0),
+    status: route.status || "Status not recorded",
+  }));
+
+  if (overviewQuery.isLoading || overviewQuery.error) {
+    return (
+      <Panel title="Transport Operations Center" description="Tenant-scoped transport metrics and route records." icon={LayoutDashboard}>
+        <QueryStateCard
+          isLoading={overviewQuery.isLoading}
+          error={overviewQuery.error}
+          loadingLabel="Loading school transport records..."
+          onRetry={() => void overviewQuery.refetch()}
+        />
+      </Panel>
+    );
+  }
 
   return (
     <>
@@ -574,7 +611,7 @@ function OverviewWorkspace({ onViewChange }: { onViewChange: (view: TransportVie
             <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-100/70">School fleet command center</p>
             <h2 className="mt-3 max-w-4xl text-3xl font-black tracking-[-0.02em] md:text-5xl">Transport Operations Center</h2>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-blue-100/78">
-              Live fleet coordination, route reliability, student safety, parent communication, compliance, and operational alerts in one focused workspace where student safety is central.
+              Tenant-scoped fleet coordination, route assignments, student safety, guardian communication, compliance, and operational records in one focused workspace.
             </p>
           </div>
           <div className="grid gap-3">
@@ -588,15 +625,15 @@ function OverviewWorkspace({ onViewChange }: { onViewChange: (view: TransportVie
           </div>
         </div>
       </section>
-      <KpiGrid items={isLoading ? overviewKpis.map(k => ({...k, value: "..."})) as any : kpis as any} />
+      <KpiGrid items={kpis} />
       <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
-        <Panel title="Transport status panel" description="Priority-ordered operational alerts for routes, drivers, vehicles, and emergencies." icon={AlertTriangle}>
+        <Panel title="Transport record status" description="Counts loaded from the active school's transport records." icon={AlertTriangle}>
           <div className="space-y-3">
             {[
-              ["Vehicles currently on route", "Live trips and route heartbeats are pulled from tenant transport trip records.", "success"],
-              ["Delayed routes", "Any delayed trips should be logged against the affected route for parent notification.", "warning"],
-              ["Driver coverage", "Driver assignment gaps should be resolved before opening the next trip.", "info"],
-              ["Vehicle safety", "Maintenance and compliance holds block unsafe transport operations.", "warning"],
+              ["Fleet records", `${metrics.totalVehicles ?? 0} vehicle record(s) registered.`, Number(metrics.totalVehicles ?? 0) > 0 ? "success" : "neutral"],
+              ["Active routes", `${metrics.active_routes ?? 0} active route record(s).`, Number(metrics.active_routes ?? 0) > 0 ? "info" : "neutral"],
+              ["Students assigned", `${metrics.students_transported ?? 0} student assignment(s) on active manifests.`, Number(metrics.students_transported ?? 0) > 0 ? "info" : "neutral"],
+              ["Trips today", `${metrics.todayTrips ?? 0} trip record(s) dated today.`, Number(metrics.todayTrips ?? 0) > 0 ? "success" : "neutral"],
             ].map(([title, detail, tone]) => (
               <article key={title} className={cn("rounded-xl border p-4", toneClasses[tone as Tone].card)}>
                 <div className="flex items-start justify-between gap-3">
@@ -604,28 +641,32 @@ function OverviewWorkspace({ onViewChange }: { onViewChange: (view: TransportVie
                     <h3 className="font-black">{title}</h3>
                     <p className="mt-1 text-sm leading-6 opacity-75">{detail}</p>
                   </div>
-                  <StatusChip label="Live" tone={tone as Tone} />
+                  <StatusChip label="School records" tone={tone as Tone} />
                 </div>
               </article>
             ))}
           </div>
         </Panel>
-        <Panel title="Live route snapshot" description="Compact route control table with ETA, delay, progress, and driver visibility." icon={Route}>
+        <Panel title="Route assignment snapshot" description="Canonical route, driver, vehicle, student-count, and status fields." icon={Route}>
           <div className="space-y-3">
-            {isLoading ? (
-              <div className="p-4 text-center text-[#64748B]">Loading routes...</div>
+            {routesQuery.isLoading || routesQuery.error ? (
+              <QueryStateCard
+                isLoading={routesQuery.isLoading}
+                error={routesQuery.error}
+                loadingLabel="Loading route assignments..."
+                onRetry={() => void routesQuery.refetch()}
+              />
             ) : routes.length === 0 ? (
-              <div className="p-4 text-center text-[#64748B]">No active routes today.</div>
-            ) : routes.map(([bus, route, driver, status, eta, progress, tone]: any) => (
-              <div key={`${bus}-${route}`} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3">
-                <div className="grid gap-3 sm:grid-cols-[90px_minmax(0,1fr)_120px_90px] sm:items-center">
-                  <strong className="text-[#071D49]">{bus}</strong>
+              <div className="p-4 text-center text-[#64748B]">No transport routes have been configured for this school.</div>
+            ) : routes.map((route) => (
+              <div key={route.id} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3">
+                <div className="grid gap-3 sm:grid-cols-[90px_minmax(0,1fr)_120px] sm:items-center">
+                  <strong className="text-[#071D49]">{route.code}</strong>
                   <div>
-                    <p className="font-black text-[#071D49]">{route}</p>
-                    <p className="text-xs font-semibold text-[#64748B]">{driver} - ETA {eta}</p>
+                    <p className="font-black text-[#071D49]">{route.name}</p>
+                    <p className="text-xs font-semibold text-[#64748B]">{route.vehicle} · {route.driver} · {route.students} student(s)</p>
                   </div>
-                  <StatusChip label={status} tone={tone as Tone} />
-                  <ProgressBar value={progress} tone={tone as Tone} />
+                  <StatusChip label={route.status} tone={toneFromStatus(route.status)} />
                 </div>
               </div>
             ))}
@@ -637,14 +678,14 @@ function OverviewWorkspace({ onViewChange }: { onViewChange: (view: TransportVie
           <div className="grid gap-3 md:grid-cols-4">
             {[
               ["Morning pickup records", String(metrics.todayTrips ?? 0), "success"],
-              ["Evening drop-off readiness", String(metrics.totalRoutes ?? 0), "info"],
+              ["Active route records", String(metrics.active_routes ?? 0), "info"],
               ["Fleet records", String(metrics.totalVehicles ?? 0), "warning"],
               ["Driver records", String(metrics.totalDrivers ?? 0), "danger"],
             ].map(([title, value, tone]) => (
               <div key={title} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
                 <p className="text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">{title}</p>
                 <p className="mt-3 text-2xl font-black text-[#071D49]">{value}</p>
-                <ProgressBar value={Number(value) > 0 ? "72" : "8"} tone={tone as Tone} />
+                <p className={cn("mt-2 text-xs font-black", toneClasses[tone as Tone].text)}>From school transport records</p>
               </div>
             ))}
           </div>
@@ -655,7 +696,7 @@ function OverviewWorkspace({ onViewChange }: { onViewChange: (view: TransportVie
               ["Allocate Student", "allocation"],
               ["Create Route", "routes"],
               ["Schedule Maintenance", "maintenance"],
-              ["Send SMS to Parents", "notifications"],
+              ["Notify Route Guardians", "notifications"],
               ["Log Fuel Refill", "fuel"],
             ].map(([label, view]) => (
               <button key={label} type="button" onClick={() => onViewChange(view as TransportView)} className="rounded-xl border border-[#D8E0EC] bg-[#EEF5FF] p-3 text-left text-sm font-black text-[#071D49] transition hover:-translate-y-0.5 hover:shadow-md">
@@ -670,32 +711,44 @@ function OverviewWorkspace({ onViewChange }: { onViewChange: (view: TransportVie
 }
 
 function FleetWorkspace({ onAction }: { onAction: TransportActionHandler }) {
-  const { data: vehiclesData } = useSchoolQuery<any>("/api/admin-command/transport-manager/vehicles");
+  const vehiclesQuery = useSchoolQuery<any>("/api/admin-command/transport-manager/vehicles");
+  const vehiclesData = vehiclesQuery.data;
   const mappedVehicles = asRows<any>(vehiclesData).map((v: any) => [
-    v.registration_number || v.plate_number || v.id?.substring?.(0, 8) || "Vehicle",
-    v.make || v.model || v.id?.substring?.(0, 8) || "Vehicle record",
-    String(v.capacity),
-    v.ownership_type,
-    v.assigned_driver || "Not assigned",
-    v.assigned_route || "Not assigned",
-    v.status || "active",
+    v.registration_number || v.registration || "Registration not recorded",
+    v.make_model || [v.make, v.model].filter(Boolean).join(" ") || "Make/model not recorded",
+    String(v.capacity ?? 0),
+    v.assigned_driver || v.driver || "Driver not assigned",
+    v.assigned_route || "Route not assigned",
+    v.status || "Status not recorded",
     dateLabel(v.insurance_expiry_date, "Not set"),
     dateLabel(v.service_due_date, "Not set"),
-    toneFromStatus(v.service_status || v.status),
   ]);
+
+  if (vehiclesQuery.isLoading || vehiclesQuery.error) {
+    return (
+      <Panel title="Fleet Management" description="Canonical school vehicle records and assignments." icon={BusFront}>
+        <QueryStateCard
+          isLoading={vehiclesQuery.isLoading}
+          error={vehiclesQuery.error}
+          loadingLabel="Loading fleet records..."
+          onRetry={() => void vehiclesQuery.refetch()}
+        />
+      </Panel>
+    );
+  }
 
   return (
     <>
       <Panel title="Fleet Management" description="Manage all vehicles with search, filters, pagination, export, status badges, and side detail drawers." icon={BusFront}>
         <KpiGrid items={[
-          { label: "Fleet Available", value: String(mappedVehicles.length), helper: "Tenant vehicles", trend: "Live records", tone: "success", icon: BusFront },
+          { label: "Fleet vehicles", value: String(mappedVehicles.length), helper: "Tenant-scoped vehicle records", trend: "Fleet register", tone: mappedVehicles.length ? "success" : "neutral", icon: BusFront },
         ]} />
       </Panel>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Panel title="Vehicle table" description="Vehicle Number, Bus Name, Capacity, Driver, Route, Status, Insurance Expiry, and Next Service Date." icon={ClipboardList}>
           <DataTable
             title="Fleet register"
-            columns={["Vehicle Number", "Bus Name", "Capacity", "Driver", "Route", "Status", "Insurance Expiry", "Next Service", "Tone"]}
+            columns={["Vehicle Number", "Make / Model", "Capacity", "Driver", "Route", "Status", "Insurance Expiry", "Next Service"]}
             rows={mappedVehicles}
             onAction={onAction}
           />
@@ -716,7 +769,8 @@ function FleetWorkspace({ onAction }: { onAction: TransportActionHandler }) {
 }
 
 function RoutesWorkspace({ onViewChange }: { onViewChange: (view: TransportView) => void }) {
-  const { data: routesData } = useSchoolQuery<any>("/api/admin-command/transport-manager/routes");
+  const routesQuery = useSchoolQuery<any>("/api/admin-command/transport-manager/routes");
+  const routesData = routesQuery.data;
   const routeCards = asRows<any>(routesData);
 
   function handleRoutePlanningAction(action: string) {
@@ -724,11 +778,20 @@ function RoutesWorkspace({ onViewChange }: { onViewChange: (view: TransportView)
       onViewChange("allocation");
       return;
     }
-    if (action === "Optimize route") {
-      onViewChange("reports");
-      return;
-    }
     onViewChange("routes");
+  }
+
+  if (routesQuery.isLoading || routesQuery.error) {
+    return (
+      <Panel title="Routes & Stops" description="Canonical school transport route assignments." icon={Route}>
+        <QueryStateCard
+          isLoading={routesQuery.isLoading}
+          error={routesQuery.error}
+          loadingLabel="Loading route records..."
+          onRetry={() => void routesQuery.refetch()}
+        />
+      </Panel>
+    );
   }
 
   return (
@@ -741,7 +804,9 @@ function RoutesWorkspace({ onViewChange }: { onViewChange: (view: TransportView)
                 <div>
                   <h3 className="font-black text-[#071D49]">{route.route_name || route.name || "Transport route"}</h3>
                   <p className="mt-1 text-sm font-semibold text-[#64748B]">{route.code || "No code"} - {route.zone || "Zone not set"} - {route.direction || "round trip"}</p>
-                  <p className="mt-1 text-xs font-bold text-[#64748B]">Students assigned: {route.learner_count || route.student_count || 0}</p>
+                  <p className="mt-2 text-xs font-bold text-[#64748B]">Vehicle: {route.vehicle || "Not assigned"}</p>
+                  <p className="mt-1 text-xs font-bold text-[#64748B]">Driver: {route.driver || "Not assigned"}</p>
+                  <p className="mt-1 text-xs font-bold text-[#64748B]">Stops: {route.pickup_points ?? 0} · Students assigned: {route.students_count ?? route.learner_count ?? 0}</p>
                 </div>
                 <StatusChip label={route.status || "active"} tone={toneFromStatus(route.status || "active")} />
               </div>
@@ -754,27 +819,31 @@ function RoutesWorkspace({ onViewChange }: { onViewChange: (view: TransportView)
           ) : null}
         </div>
       </Panel>
-      <Panel title="Map / route panel" description="Google Maps-inspired operational view with stops, pickup order, distance, estimated arrival time, and route path." icon={Map}>
-        <div className="relative min-h-[410px] overflow-hidden rounded-2xl border border-[#D8E0EC] bg-[linear-gradient(135deg,#EAF3FF,#F8FAFC)] p-5">
-          <div className="absolute inset-x-8 top-1/2 h-2 -translate-y-1/2 rounded-full bg-[#BFDBFE]" />
-          {["School", "Stop 1", "Stop 2", "Stop 3", "Stop 4"].map((stop, index) => (
-            <div key={stop} className="absolute top-[calc(50%-18px)]" style={{ left: `${8 + index * 21}%` }}>
-              <span className="grid h-9 w-9 place-items-center rounded-full bg-[#071D49] text-xs font-black text-white shadow-lg">{index + 1}</span>
-              <p className="mt-2 w-24 text-xs font-black text-[#071D49]">{stop}</p>
-            </div>
+      <Panel title="Route assignment details" description="Persisted vehicle, driver, stop, and student assignment counts for each route." icon={Map}>
+        <div className="space-y-3">
+          {routeCards.map((route: any) => (
+            <article key={`assignment-${route.id || route.route_name}`} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-black text-[#071D49]">{route.route_name || "Transport route"}</h3>
+                  <p className="mt-1 text-sm font-semibold text-[#64748B]">{route.vehicle || "Vehicle not assigned"} · {route.driver || "Driver not assigned"}</p>
+                  <p className="mt-1 text-xs font-bold text-[#64748B]">{route.pickup_points ?? 0} stop(s) · {route.students_count ?? route.learner_count ?? 0} student(s)</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRoutePlanningAction("Assign students")}
+                  className="rounded-xl bg-[#071D49] px-4 py-2 text-xs font-black text-white"
+                >
+                  Assign students
+                </button>
+              </div>
+            </article>
           ))}
-          <div className="absolute bottom-5 left-5 right-5 grid gap-3 md:grid-cols-4">
-            {["Add stop", "Edit stop", "Assign students", "Optimize route"].map((action) => (
-              <button
-                key={action}
-                type="button"
-                onClick={() => handleRoutePlanningAction(action)}
-                className="rounded-xl bg-white/88 px-4 py-3 text-sm font-black text-[#071D49] shadow-sm"
-              >
-                {action}
-              </button>
-            ))}
-          </div>
+          {routeCards.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-[#D8E0EC] bg-white p-4 text-sm font-semibold text-[#64748B]">
+              Route assignment details will appear after the first transport route is created.
+            </div>
+          ) : null}
         </div>
       </Panel>
     </div>
@@ -926,8 +995,22 @@ function AllocationWorkspace({ onAction }: { onAction: TransportActionHandler })
 }
 
 function DriversWorkspace() {
-  const { data: driversData } = useSchoolQuery<any>("/api/admin-command/transport-manager/drivers");
+  const driversQuery = useSchoolQuery<any>("/api/admin-command/transport-manager/drivers");
+  const driversData = driversQuery.data;
   const driverCards = asRows<any>(driversData);
+
+  if (driversQuery.isLoading || driversQuery.error) {
+    return (
+      <Panel title="Driver Management" description="Tenant-scoped transport driver records." icon={IdCard}>
+        <QueryStateCard
+          isLoading={driversQuery.isLoading}
+          error={driversQuery.error}
+          loadingLabel="Loading driver records..."
+          onRetry={() => void driversQuery.refetch()}
+        />
+      </Panel>
+    );
+  }
 
   return (
     <Panel title="Driver Management" description="License status, vehicle assignments, phone numbers, attendance, performance scores, and missing-document alerts." icon={IdCard}>
@@ -955,27 +1038,48 @@ function DriversWorkspace() {
 }
 
 function FuelWorkspace({ onAction }: { onAction: TransportActionHandler }) {
-  const { data: fuelMaintenanceData } = useSchoolQuery<any>("/api/admin-command/transport-manager/fuel-maintenance");
+  const fuelQuery = useSchoolQuery<any>("/api/admin-command/transport-manager/fuel-maintenance");
+  const fuelMaintenanceData = fuelQuery.data;
+  const metrics = fuelMaintenanceData?.metrics ?? {};
   const fuelLogs = asRows<any>(fuelMaintenanceData?.fuelLogs);
   const fuelLogRows = fuelLogs.map((log: any) => [
-    log.vehicle_registration || log.vehicle_id?.substring?.(0, 8) || "Vehicle",
-    `${log.amount ?? log.litres ?? log.liters ?? 0} L`,
-    moneyLabel(log.cost),
-    log.station || "Station not recorded",
-    dateLabel(log.log_date || log.created_at),
-    log.created_by || "Transport team",
+    log.vehicle || "Vehicle not recorded",
+    `${log.litres ?? 0} L`,
+    moneyMinorLabel(log.cost_minor),
+    log.description || log.station || log.receipt_reference || "Station/reference not recorded",
+    dateLabel(log.date || log.log_date || log.created_at),
+    log.status || "Recorded",
   ]);
+
+  if (fuelQuery.isLoading || fuelQuery.error) {
+    return (
+      <Panel title="Fuel Management" description="Canonical school vehicle fuel ledger." icon={Fuel}>
+        <QueryStateCard
+          isLoading={fuelQuery.isLoading}
+          error={fuelQuery.error}
+          loadingLabel="Loading fuel ledger records..."
+          onRetry={() => void fuelQuery.refetch()}
+        />
+      </Panel>
+    );
+  }
 
   return (
     <>
       <KpiGrid items={[
-        { label: "Fuel logs", value: String(fuelLogs.length), helper: "Tenant fuel records", trend: "live", tone: "warning", icon: Fuel },
-        { label: "Vehicles logged", value: String(new Set(fuelLogs.map((log: any) => log.vehicle_id)).size), helper: "With fuel activity", trend: "inspect", tone: "info", icon: BusFront },
-        { label: "Fuel cost captured", value: moneyLabel(fuelLogs.reduce((sum: number, log: any) => sum + Number(log.cost ?? 0), 0)), helper: "Across records", trend: "audit", tone: "info", icon: Gauge },
-        { label: "Fuel records ready", value: fuelLogs.length ? "Yes" : "No", helper: "Exportable ledger", trend: "stable", tone: fuelLogs.length ? "success" : "neutral", icon: CheckCircle2 },
+        { label: "Fuel logs", value: String(fuelLogs.length), helper: "Tenant-scoped fuel records", trend: "Fuel ledger", tone: fuelLogs.length ? "warning" : "neutral", icon: Fuel },
+        { label: "Vehicles logged", value: String(new Set(fuelLogs.map((log: any) => log.vehicle_id).filter(Boolean)).size), helper: "Vehicles with ledger activity", trend: "Fuel ledger", tone: fuelLogs.length ? "info" : "neutral", icon: BusFront },
+        { label: "Fuel cost this month", value: moneyMinorLabel(metrics.fuel_cost_this_month_minor ?? 0), helper: "Persisted minor-unit total", trend: "This month", tone: "info", icon: Gauge },
+        { label: "Fuel volume this month", value: `${metrics.fuel_litres_this_month ?? 0} L`, helper: "Persisted litre total", trend: "This month", tone: Number(metrics.fuel_litres_this_month ?? 0) > 0 ? "success" : "neutral", icon: CheckCircle2 },
       ]} />
       <Panel title="Fuel Management" description="Fuel costs, refills, station logs, vehicle efficiency, and suspicious consumption alerts." icon={Fuel}>
-        <DataTable title="Fuel log table" columns={["Vehicle", "Liters", "Cost", "Station", "Date", "Logged By"]} rows={fuelLogRows} onAction={onAction} />
+        {fuelLogRows.length > 0 ? (
+          <DataTable title="Fuel log table" columns={["Vehicle", "Litres", "Cost", "Station / Reference", "Date", "Status"]} rows={fuelLogRows} onAction={onAction} />
+        ) : (
+          <div className="rounded-xl border border-dashed border-[#D8E0EC] bg-white p-4 text-sm font-semibold text-[#64748B]">
+            No fuel records are logged. Record the first refill to create the tenant fuel ledger.
+          </div>
+        )}
       </Panel>
     </>
   );
@@ -1067,8 +1171,22 @@ function LogMaintenanceModal({ onClose }: { onClose: () => void }) {
 function MaintenanceWorkspace() {
   const { hasPermission } = usePermissions();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { data: fuelMaintenanceData } = useSchoolQuery<any>("/api/admin-command/transport-manager/fuel-maintenance");
+  const maintenanceQuery = useSchoolQuery<any>("/api/admin-command/transport-manager/fuel-maintenance");
+  const fuelMaintenanceData = maintenanceQuery.data;
   const maintenanceLogs = asRows<any>(fuelMaintenanceData?.maintenanceLogs);
+
+  if (maintenanceQuery.isLoading || maintenanceQuery.error) {
+    return (
+      <Panel title="Maintenance & Repairs" description="Canonical vehicle service records." icon={Wrench}>
+        <QueryStateCard
+          isLoading={maintenanceQuery.isLoading}
+          error={maintenanceQuery.error}
+          loadingLabel="Loading maintenance records..."
+          onRetry={() => void maintenanceQuery.refetch()}
+        />
+      </Panel>
+    );
+  }
 
   return (
     <>
@@ -1091,8 +1209,9 @@ function MaintenanceWorkspace() {
             <article key={log.id || log.vehicle_id || log.description} className={cn("rounded-2xl border p-4", toneClasses[tone].card)}>
               <StatusChip label={log.status || log.priority || "open"} tone={tone} />
               <h3 className="mt-3 font-black">{log.description || "Maintenance record"}</h3>
-              <p className="mt-2 text-sm font-semibold opacity-75">Vehicle: {log.vehicle_id?.substring?.(0, 8) || "Vehicle not set"}</p>
-              <p className="mt-1 text-sm font-semibold opacity-75">Logged: {dateLabel(log.log_date || log.created_at)}</p>
+              <p className="mt-2 text-sm font-semibold opacity-75">Vehicle: {log.vehicle || "Vehicle not recorded"}</p>
+              <p className="mt-1 text-sm font-semibold opacity-75">Logged: {dateLabel(log.date || log.log_date || log.created_at)}</p>
+              <p className="mt-1 text-sm font-semibold opacity-75">Cost: {moneyMinorLabel(log.cost_minor)}</p>
             </article>
           );})}
           {maintenanceLogs.length === 0 ? (
@@ -1108,20 +1227,40 @@ function MaintenanceWorkspace() {
 }
 
 function TripsWorkspace({ onAction }: { onAction: TransportActionHandler }) {
-  const { data: tripsData } = useSchoolQuery<any>("/api/admin-command/transport-manager/trips");
+  const tripsQuery = useSchoolQuery<any>("/api/admin-command/transport-manager/trips");
+  const tripsData = tripsQuery.data;
   const tripRows = asRows<any>(tripsData).map((trip: any) => [
-    trip.vehicle_registration || trip.vehicle_id?.substring?.(0, 8) || "Vehicle",
-    trip.route_name || trip.route_id?.substring?.(0, 8) || "Route",
-    trip.driver_name || trip.driver_id?.substring?.(0, 8) || "Driver not assigned",
-    trip.status || "in_progress",
-    trip.actual_end_at ? "Completed" : "Open",
-    String(trip.learner_count ?? 0),
-    toneFromStatus(trip.status || "in_progress"),
+    trip.vehicle || "Vehicle not recorded",
+    trip.route || "Route not recorded",
+    trip.driver || "Driver not assigned",
+    trip.status || "Status not recorded",
+    trip.departure_time || "Not recorded",
+    trip.arrival_time || "Not recorded",
+    String(trip.students ?? 0),
   ]);
 
+  if (tripsQuery.isLoading || tripsQuery.error) {
+    return (
+      <Panel title="Trip Monitoring" description="Persisted transport trip records." icon={RadioTower}>
+        <QueryStateCard
+          isLoading={tripsQuery.isLoading}
+          error={tripsQuery.error}
+          loadingLabel="Loading transport trip records..."
+          onRetry={() => void tripsQuery.refetch()}
+        />
+      </Panel>
+    );
+  }
+
   return (
-    <Panel title="Trip Monitoring" description="Live daily operations for in-progress trips, delayed trips, missed pickups, and emergency incidents." icon={RadioTower}>
-      <DataTable title="Live trip table" columns={["Vehicle", "Route", "Driver", "Status", "ETA", "Progress", "Tone"]} rows={tripRows} onAction={onAction} />
+    <Panel title="Trip Monitoring" description="Recorded trip assignments, times, status, and student counts." icon={RadioTower}>
+      {tripRows.length > 0 ? (
+        <DataTable title="Trip register" columns={["Vehicle", "Route", "Driver", "Status", "Departure", "Arrival", "Students"]} rows={tripRows} onAction={onAction} />
+      ) : (
+        <div className="rounded-xl border border-dashed border-[#D8E0EC] bg-white p-4 text-sm font-semibold text-[#64748B]">
+          No transport trips have been recorded for this school.
+        </div>
+      )}
     </Panel>
   );
 }
@@ -1149,40 +1288,52 @@ function AttendanceWorkspace({ onAction }: { onAction: TransportActionHandler })
 }
 
 function GpsWorkspace() {
-  const { data: tripsData } = useSchoolQuery<any>("/api/admin-command/transport-manager/trips");
-  const liveTrips = asRows<any>(tripsData);
+  const tripsQuery = useSchoolQuery<any>("/api/admin-command/transport-manager/trips");
+  const trips = asRows<any>(tripsQuery.data);
+  const inProgressTrips = trips.filter((trip: any) => String(trip.status ?? "").toLowerCase() === "in progress");
+
+  if (tripsQuery.isLoading || tripsQuery.error) {
+    return (
+      <Panel title="GPS Tracking Center" description="Trip records awaiting a configured GPS position feed." icon={MapPin}>
+        <QueryStateCard
+          isLoading={tripsQuery.isLoading}
+          error={tripsQuery.error}
+          loadingLabel="Loading trip records for GPS tracking..."
+          onRetry={() => void tripsQuery.refetch()}
+        />
+      </Panel>
+    );
+  }
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <Panel title="GPS Tracking Center" description="Real-time vehicle positions, route progress, current speed, and estimated arrival." icon={MapPin}>
-        <div className="relative min-h-[460px] overflow-hidden rounded-2xl border border-[#D8E0EC] bg-[radial-gradient(circle_at_20%_20%,#DBEAFE,transparent_32%),linear-gradient(135deg,#F8FAFC,#EAF3FF)] p-5">
-          <p className="text-sm font-black uppercase tracking-[0.16em] text-[#64748B]">Main map area</p>
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
-            {["Vehicle markers", "Live movement indicators", "Route overlays"].map((item) => (
-              <div key={item} className="rounded-2xl border border-[#BFDBFE] bg-white/82 p-5 text-center font-black text-[#071D49] shadow-sm">{item}</div>
-            ))}
-          </div>
-          <div className="absolute bottom-6 left-6 rounded-2xl bg-[#071D49] px-5 py-4 text-sm font-bold text-white shadow-lg">{liveTrips.length} live trip record(s) loaded</div>
+      <Panel title="GPS Tracking Center" description="Location tracking requires coordinates from a configured GPS provider; trip records alone do not prove a live position." icon={MapPin}>
+        <div className="min-h-[280px] rounded-2xl border border-dashed border-amber-300 bg-amber-50 p-6 text-amber-950">
+          <h3 className="font-black">GPS position feed unavailable</h3>
+          <p className="mt-2 text-sm font-semibold leading-6">
+            The current transport API provides trip status and assignments but no verified latitude, longitude, speed, or ETA. Map markers are withheld until a provider position record is available.
+          </p>
+          <p className="mt-4 text-sm font-black">{inProgressTrips.length} in-progress trip record(s) currently require position-provider data.</p>
         </div>
       </Panel>
-      <Panel title="Live status sidebar" description="Active buses, drivers, delay status, route deviations, and emergency indicators." icon={RadioTower}>
+      <Panel title="In-progress trip records" description="Persisted trip state only; this list does not claim live GPS visibility." icon={RadioTower}>
         <div className="space-y-3">
-          {liveTrips.map((trip: any) => {
-            const tone = toneFromStatus(trip.status || "in_progress");
+          {inProgressTrips.map((trip: any) => {
+            const tone = toneFromStatus(trip.status || "in progress");
             return (
             <div key={trip.id || trip.vehicle_id || trip.route_id} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="font-black text-[#071D49]">{trip.vehicle_registration || trip.vehicle_id?.substring?.(0, 8) || "Vehicle"}</p>
-                  <p className="text-xs font-semibold text-[#64748B]">{trip.route_name || trip.route_id?.substring?.(0, 8) || "Route"} - {trip.driver_name || "Driver not assigned"} - {trip.status || "in_progress"}</p>
+                  <p className="font-black text-[#071D49]">{trip.vehicle || "Vehicle not recorded"}</p>
+                  <p className="text-xs font-semibold text-[#64748B]">{trip.route || "Route not recorded"} - {trip.driver || "Driver not assigned"} - {trip.status || "Status not recorded"}</p>
                 </div>
-                <StatusChip label={trip.status || "in_progress"} tone={tone} />
+                <StatusChip label={trip.status || "Status not recorded"} tone={tone} />
               </div>
             </div>
           );})}
-          {liveTrips.length === 0 ? (
+          {inProgressTrips.length === 0 ? (
             <div className="rounded-xl border border-dashed border-[#D8E0EC] bg-white p-3 text-sm font-semibold text-[#64748B]">
-              No live trips have been started.
+              No in-progress trip records are available.
             </div>
           ) : null}
         </div>
@@ -1194,11 +1345,16 @@ function GpsWorkspace() {
 function ComposeTransportNoticeModal({
   template,
   onClose,
+  onQueued,
 }: {
   template: string;
   onClose: () => void;
+  onQueued?: () => void;
 }) {
   const [submitting, setSubmitting] = useState(false);
+  const optionsQuery = useSchoolQuery<TransportAssignmentOptions>("/api/admin-command/transport-manager/assignment-options");
+  const routeOptions = optionsQuery.data?.routes ?? [];
+  const studentOptions = optionsQuery.data?.students ?? [];
 
   async function handleSendTransportNotice(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1207,33 +1363,49 @@ function ComposeTransportNoticeModal({
     const message = String(form.get("message") ?? "").trim();
     const noticeType = String(form.get("notice_type") ?? "general").trim();
     const priority = String(form.get("priority") ?? "normal").trim();
-    const targetRoles = form.getAll("target_roles").map((value) => String(value).trim()).filter(Boolean);
+    const routeId = String(form.get("route_id") ?? "").trim();
+    const studentId = String(form.get("student_id") ?? "").trim();
     const channels = form.getAll("channels").map((value) => String(value).trim()).filter(Boolean);
 
-    if (!title || !message || targetRoles.length === 0) {
-      toast.error("Title, message, and at least one recipient role are required.");
+    if (!title || !message || (!routeId && !studentId)) {
+      toast.error("Title, message, and a transport route or student are required.");
+      return;
+    }
+    if (channels.length === 0) {
+      toast.error("Select in-app notification or SMS queue delivery.");
       return;
     }
 
     setSubmitting(true);
     try {
-      await requestDashboardApi("/api/admin-command/transport-manager/notices", {
+      const result = await requestDashboardApi<{
+        status: "queued" | "degraded";
+        targeted_students: number;
+        sms_queued: number;
+        in_app_notifications_created: number;
+      }>("/api/admin-command/transport-manager/notices", {
         method: "POST",
         body: {
           title,
           message,
           notice_type: noticeType,
           priority,
-          target_roles: targetRoles,
-          channels: channels.length > 0 ? channels : ["in_app"],
+          route_id: routeId || undefined,
+          student_ids: studentId ? [studentId] : [],
+          recipient_scope: "linked_transport_guardians",
+          channels,
         },
       });
-      toast.success("Transport notice sent", {
-        description: `Notice queued for ${targetRoles.join(", ")}.`,
-      });
+      const description = `${result.targeted_students} student assignment(s); ${result.in_app_notifications_created} in-app notification(s); ${result.sms_queued} SMS queue record(s).`;
+      if (result.status === "degraded") {
+        toast.warning("Transport notice partially queued", { description });
+      } else {
+        toast.success("Transport notice queued", { description });
+      }
+      onQueued?.();
       onClose();
     } catch (error) {
-      toast.error("Transport notice was not sent", {
+      toast.error("Transport notice was not queued", {
         description: error instanceof Error ? error.message : "The transport notice could not be queued.",
       });
     } finally {
@@ -1273,20 +1445,33 @@ function ComposeTransportNoticeModal({
           <textarea name="message" required rows={4} defaultValue={defaultMessage} className="mt-1 w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" />
         </label>
         <fieldset className="rounded-xl border border-[#D8E0EC] p-3">
-          <legend className="px-1 text-sm font-bold text-[#071D49]">Recipients</legend>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            {[
-              ["parent", "Parents"],
-              ["class_teacher", "Class Teachers"],
-              ["student", "Students"],
-              ["principal", "Principal"],
-            ].map(([value, label]) => (
-              <label key={value} className="flex items-center gap-2 text-sm font-semibold text-[#64748B]">
-                <input type="checkbox" name="target_roles" value={value} defaultChecked={value === "parent"} />
-                {label}
+          <legend className="px-1 text-sm font-bold text-[#071D49]">Selected transport guardians</legend>
+          {optionsQuery.error ? (
+            <QueryStateCard
+              isLoading={false}
+              error={optionsQuery.error}
+              loadingLabel=""
+              onRetry={() => void optionsQuery.refetch()}
+            />
+          ) : (
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              <label className="text-sm font-semibold text-[#64748B]">Route
+                <select name="route_id" disabled={optionsQuery.isLoading} className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white px-3 py-2 text-sm disabled:bg-slate-100">
+                  <option value="">{optionsQuery.isLoading ? "Loading routes..." : "Select route (optional)"}</option>
+                  {routeOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                </select>
               </label>
-            ))}
-          </div>
+              <label className="text-sm font-semibold text-[#64748B]">Student
+                <select name="student_id" disabled={optionsQuery.isLoading} className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white px-3 py-2 text-sm disabled:bg-slate-100">
+                  <option value="">{optionsQuery.isLoading ? "Loading students..." : "Select student (optional)"}</option>
+                  {studentOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                </select>
+              </label>
+            </div>
+          )}
+          <p className="mt-2 text-xs font-semibold text-[#64748B]">
+            The backend resolves only active same-school transport assignments and their linked guardians. Selecting both fields limits the notice to that student on that route.
+          </p>
         </fieldset>
         <div className="grid gap-4 sm:grid-cols-2">
           <fieldset className="rounded-xl border border-[#D8E0EC] p-3">
@@ -1305,8 +1490,8 @@ function ComposeTransportNoticeModal({
         </div>
         <div className="flex justify-end gap-2 border-t border-[#D8E0EC] pt-4">
           <button type="button" className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]" onClick={onClose} disabled={submitting}>Cancel</button>
-          <button type="submit" className="rounded-xl bg-[#071D49] px-5 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting}>
-            {submitting ? "Sending..." : "Send Notice"}
+          <button type="submit" className="rounded-xl bg-[#071D49] px-5 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting || optionsQuery.isLoading || Boolean(optionsQuery.error)}>
+            {submitting ? "Queuing..." : "Queue Notice"}
           </button>
         </div>
       </form>
@@ -1316,6 +1501,15 @@ function ComposeTransportNoticeModal({
 
 function NotificationsWorkspace({ onAction }: { onAction: TransportActionHandler }) {
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const noticesQuery = useSchoolQuery<any>("/api/admin-command/transport-manager/notices");
+  const notices = asRows<any>(noticesQuery.data);
+  const noticeRows = notices.map((notice: any) => [
+    notice.scope || "Selected transport guardians",
+    notice.title || notice.notice_type || "Transport notice",
+    Array.isArray(notice.channels) ? notice.channels.join(", ") : "No channel recorded",
+    `${notice.delivery_status || "recorded"} · ${notice.in_app_notifications_created ?? 0} in-app · SMS: ${notice.sms_queued ?? 0} queued, ${notice.sms_processing ?? 0} dispatching, ${notice.sms_provider_accepted ?? 0} provider-accepted, ${notice.sms_needs_review ?? 0} review`,
+    dateLabel(notice.created_at),
+  ]);
 
   return (
     <>
@@ -1333,23 +1527,68 @@ function NotificationsWorkspace({ onAction }: { onAction: TransportActionHandler
               </button>
             ))}
           </div>
-          <DataTable
-            title="Communication log"
-            columns={["Parent", "Student", "Message Type", "Delivery Status", "Timestamp"]}
-            rows={[]}
-            onAction={onAction}
-          />
+          <div>
+            {noticesQuery.isLoading || noticesQuery.error ? (
+              <QueryStateCard
+                isLoading={noticesQuery.isLoading}
+                error={noticesQuery.error}
+                loadingLabel="Loading transport communication records..."
+                onRetry={() => void noticesQuery.refetch()}
+              />
+            ) : noticeRows.length > 0 ? (
+              <DataTable
+                title="Communication log"
+                columns={["Scope", "Notice", "Channels", "Delivery Record", "Timestamp"]}
+                rows={noticeRows}
+                onAction={onAction}
+              />
+            ) : (
+              <div className="rounded-xl border border-dashed border-[#D8E0EC] bg-white p-4 text-sm font-semibold text-[#64748B]">
+                No transport notices have been queued. Choose a template, select a route or student, and queue the first guardian notice.
+              </div>
+            )}
+          </div>
         </div>
       </Panel>
-      {selectedTemplate ? <ComposeTransportNoticeModal template={selectedTemplate} onClose={() => setSelectedTemplate(null)} /> : null}
+      {selectedTemplate ? (
+        <ComposeTransportNoticeModal
+          template={selectedTemplate}
+          onClose={() => setSelectedTemplate(null)}
+          onQueued={() => void noticesQuery.refetch()}
+        />
+      ) : null}
     </>
   );
 }
 
 function IncidentsWorkspace({ onAction }: { onAction: TransportActionHandler }) {
+  const incidentsQuery = useSchoolQuery<any>("/api/admin-command/transport-manager/incidents");
+  const incidents = asRows<any>(incidentsQuery.data);
+  const incidentRows = incidents.map((incident: any) => [
+    dateLabel(incident.date || incident.created_at),
+    incident.vehicle || "Vehicle not recorded",
+    incident.driver || "Driver not recorded",
+    incident.type || "Transport incident",
+    incident.severity || "Warning",
+    incident.status || "Open",
+  ]);
+
   return (
     <Panel title="Incident Reports" description="Breakdown, accident, student issue, delay, and safety concern records with timeline, photos, actions taken, and follow-up tasks." icon={ShieldAlert}>
-      <DataTable title="Incident table" columns={["Date", "Vehicle", "Driver", "Type", "Severity", "Status"]} rows={[]} onAction={onAction} />
+      {incidentsQuery.isLoading || incidentsQuery.error ? (
+        <QueryStateCard
+          isLoading={incidentsQuery.isLoading}
+          error={incidentsQuery.error}
+          loadingLabel="Loading transport incident records..."
+          onRetry={() => void incidentsQuery.refetch()}
+        />
+      ) : incidentRows.length > 0 ? (
+        <DataTable title="Incident table" columns={["Date", "Vehicle", "Driver", "Type", "Severity", "Status"]} rows={incidentRows} onAction={onAction} />
+      ) : (
+        <div className="rounded-xl border border-dashed border-[#D8E0EC] bg-white p-4 text-sm font-semibold text-[#64748B]">
+          No delay, incident, or transport alert records exist for this school.
+        </div>
+      )}
     </Panel>
   );
 }

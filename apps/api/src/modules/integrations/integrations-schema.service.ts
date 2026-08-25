@@ -99,12 +99,14 @@ export class IntegrationsSchemaService implements OnModuleInit {
         message_ciphertext text,
         message_preview text,
         message_type text,
-        status text NOT NULL CHECK (status IN ('queued', 'sent', 'delivered', 'failed', 'rejected')),
+        status text NOT NULL CHECK (status IN ('queued', 'provider_accepted', 'delivery_unknown', 'sent', 'delivered', 'failed', 'rejected')),
         credit_cost integer NOT NULL DEFAULT 1,
         provider_message_id text,
         failure_reason text,
         sent_by_user_id uuid,
         sent_at timestamptz,
+        provider_accepted_at timestamptz,
+        delivery_unknown_at timestamptz,
         delivered_at timestamptz,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW()
@@ -350,7 +352,11 @@ export class IntegrationsSchemaService implements OnModuleInit {
         ADD COLUMN IF NOT EXISTS failure_reason text,
         ADD COLUMN IF NOT EXISTS sent_by_user_id uuid,
         ADD COLUMN IF NOT EXISTS sent_at timestamptz,
+        ADD COLUMN IF NOT EXISTS provider_accepted_at timestamptz,
+        ADD COLUMN IF NOT EXISTS delivery_unknown_at timestamptz,
         ADD COLUMN IF NOT EXISTS delivered_at timestamptz;
+      ALTER TABLE sms_logs DROP CONSTRAINT IF EXISTS sms_logs_status_check;
+      ALTER TABLE sms_logs DROP CONSTRAINT IF EXISTS ck_sms_logs_status;
       UPDATE sms_logs
       SET tenant_id = COALESCE(NULLIF(tenant_id, ''), NULLIF(school_id, ''), 'legacy-unassigned'),
           recipient_ciphertext = COALESCE(NULLIF(recipient_ciphertext, ''), NULLIF(phone_number, ''), 'legacy-redacted'),
@@ -363,6 +369,8 @@ export class IntegrationsSchemaService implements OnModuleInit {
           status = CASE lower(status)
             WHEN 'delivered' THEN 'delivered'
             WHEN 'sent' THEN 'sent'
+            WHEN 'provider_accepted' THEN 'provider_accepted'
+            WHEN 'delivery_unknown' THEN 'delivery_unknown'
             WHEN 'failed' THEN 'failed'
             WHEN 'rejected' THEN 'rejected'
             ELSE 'queued'
@@ -384,6 +392,9 @@ export class IntegrationsSchemaService implements OnModuleInit {
         ALTER COLUMN credit_cost SET NOT NULL,
         ALTER COLUMN updated_at SET DEFAULT NOW(),
         ALTER COLUMN updated_at SET NOT NULL;
+      ALTER TABLE sms_logs
+        ADD CONSTRAINT ck_sms_logs_status
+        CHECK (status IN ('queued', 'provider_accepted', 'delivery_unknown', 'sent', 'delivered', 'failed', 'rejected'));
 
       ALTER TABLE sms_wallet_transactions
         ALTER COLUMN reference DROP NOT NULL,

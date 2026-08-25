@@ -19,10 +19,15 @@ export class ICTManagerCommandController {
     return this.service.getAssets();
   }
 
+  @Get('options')
+  getOptions() {
+    return this.service.getOptions();
+  }
+
   @Post('assets')
   @Permissions('ict:write')
   createAsset(@Body() dto: any) {
-    return this.service.recordIctAction('asset.created', dto);
+    return this.service.createAsset(dto);
   }
 
   @Post('assets/:id/manage')
@@ -39,13 +44,13 @@ export class ICTManagerCommandController {
   @Post('asset-assignment')
   @Permissions('ict:write')
   assignAsset(@Body() dto: any) {
-    return this.service.recordIctAction('asset-assignment.created', dto);
+    return this.service.assignAsset(dto);
   }
 
   @Post('asset-assignment/:id/revoke')
   @Permissions('ict:write')
-  revokeAssetAssignment(@Param('id') id: string, @Body() dto: any) {
-    return this.service.recordIctAction('asset-assignment.revoked', dto, id);
+  revokeAssetAssignment(@Param('id') id: string) {
+    return this.service.revokeAssetAssignment(id);
   }
 
   @Get('loans-returns')
@@ -56,13 +61,13 @@ export class ICTManagerCommandController {
   @Post('loans-returns')
   @Permissions('ict:write')
   createLoan(@Body() dto: any) {
-    return this.service.recordIctAction('loan.created', dto);
+    return this.service.createLoan(dto);
   }
 
   @Post('loans-returns/:id/return')
   @Permissions('ict:write')
-  returnLoan(@Param('id') id: string, @Body() dto: any) {
-    return this.service.recordIctAction('loan.returned', dto, id);
+  returnLoan(@Param('id') id: string) {
+    return this.service.returnLoan(id);
   }
 
   @Get('maintenance')
@@ -73,13 +78,13 @@ export class ICTManagerCommandController {
   @Post('maintenance')
   @Permissions('ict:write')
   createMaintenance(@Body() dto: any) {
-    return this.service.recordIctAction('maintenance.created', dto);
+    return this.service.createMaintenance(dto);
   }
 
   @Post('maintenance/:id/complete')
   @Permissions('ict:write')
   completeMaintenance(@Param('id') id: string, @Body() dto: any) {
-    return this.service.recordIctAction('maintenance.completed', dto, id);
+    return this.service.completeMaintenance(id, dto);
   }
 
   @Get('facilities-issues')
@@ -90,13 +95,13 @@ export class ICTManagerCommandController {
   @Post('facilities-issues')
   @Permissions('ict:write')
   createFacilitiesIssue(@Body() dto: any) {
-    return this.service.recordIctAction('facilities-issue.created', dto);
+    return this.service.createFacilityIssue(dto);
   }
 
   @Post('facilities-issues/:id/resolve')
   @Permissions('ict:write')
   resolveFacilitiesIssue(@Param('id') id: string, @Body() dto: any) {
-    return this.service.recordIctAction('facilities-issue.resolved', dto, id);
+    return this.service.resolveFacilityIssue(id, dto);
   }
 
   @Get('reports')
@@ -108,6 +113,11 @@ export class ICTManagerCommandController {
   @Permissions('ict:write')
   generateReport(@Body() dto: any) {
     return this.service.generateReport(dto);
+  }
+
+  @Post('reports/:id/download')
+  downloadReport(@Param('id') id: string) {
+    return this.service.downloadReport(id);
   }
 
   @Post('actions')

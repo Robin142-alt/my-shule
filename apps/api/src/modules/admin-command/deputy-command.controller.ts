@@ -134,7 +134,9 @@ export class DeputyCommandController {
 
   @Post('approvals/:id/action')
   @Permissions('deputy:write')
-  actionApproval(@Param('id') id: string, @Body('action') action: string) { return this.deputyService.actionApproval(id, action); }
+  actionApproval(@Param('id') id: string, @Body() dto: Record<string, unknown>) {
+    return this.deputyService.actionApproval(id, dto ?? {});
+  }
 
   @Get('communication')
   @Permissions('deputy:read')
@@ -147,6 +149,10 @@ export class DeputyCommandController {
   @Post('reports/generate')
   @Permissions('deputy:write')
   generateReport(@Body() body: any) { return this.deputyService.generateReport(body); }
+
+  @Post('reports/:id/download')
+  @Permissions('deputy:read')
+  downloadReport(@Param('id') id: string) { return this.deputyService.downloadReportArtifact(id); }
 
   @Get('staff')
   @Permissions('deputy:read')

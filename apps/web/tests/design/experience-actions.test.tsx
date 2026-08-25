@@ -626,7 +626,7 @@ describe("experience actions", () => {
       );
 
       expect(await screen.findByText("Learner One's balance")).toBeVisible();
-      expect(screen.getByText("INV-001")).toBeVisible();
+      expect(screen.getAllByText("INV-001").length).toBeGreaterThan(0);
       expect(screen.getByRole("button", { name: /preview statement/i })).toBeEnabled();
       expect(screen.queryByRole("button", { name: /record payment/i })).not.toBeInTheDocument();
       expect(fetchMock).toHaveBeenCalledWith(

@@ -7,8 +7,8 @@ import { toast } from "sonner";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
-import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { usePermissions } from "@/components/providers/permission-context";
+import { useVerifiedPrincipalDashboardApi } from "./verified-tenant-api";
 
 type PrincipalSubjectsData = {
   status: "active" | "degraded" | "setup_required";
@@ -33,6 +33,7 @@ type StaffOption = {
 
 export function PrincipalSubjectsDepartmentsWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalSubjectsData>('/admin-command/principal/subjects');
+  const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
   const { data: yearsData } = useSchoolQuery<any[]>('/academics/academic-years');
   const { data: subjectsData } = useSchoolQuery<any[]>('/academics/subjects');
   const { data: departmentsData } = useSchoolQuery<any[]>('/academics/departments');
@@ -63,7 +64,7 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
     setFormError("");
     const formData = new FormData(e.currentTarget);
     try {
-      await requestDashboardApi('/academics/subjects', {
+      await requestPrincipalApi('/academics/subjects', {
         method: "POST",
         body: {
           code: formData.get("code"),
@@ -82,7 +83,7 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
   const handleArchiveSubject = async (id: string) => {
     if (!confirm("Are you sure you want to archive this subject?")) return;
     try {
-      await requestDashboardApi(`/academics/subjects/${id}`, { method: "DELETE" });
+      await requestPrincipalApi(`/academics/subjects/${id}`, { method: "DELETE" });
       refetch();
     } catch (err: any) {
       toast.error(err.message || "Failed to archive subject");
@@ -117,7 +118,7 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
     setDeptFormError("");
     const formData = new FormData(e.currentTarget);
     try {
-      await requestDashboardApi('/academics/departments', {
+      await requestPrincipalApi('/academics/departments', {
         method: "POST",
         body: {
           name: formData.get("name"),
@@ -136,7 +137,7 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
   const handleArchiveDepartment = async (id: string) => {
     if (!confirm("Are you sure you want to archive this department?")) return;
     try {
-      await requestDashboardApi(`/academics/departments/${id}`, { method: "DELETE" });
+      await requestPrincipalApi(`/academics/departments/${id}`, { method: "DELETE" });
       refetch();
     } catch (err: any) {
       toast.error(err.message || "Failed to archive department");

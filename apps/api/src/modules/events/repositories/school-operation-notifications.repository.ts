@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../../database/prisma.service';
+import { notificationRecipientPredicate } from '../../notifications/notification-recipient-predicate';
 
 export interface MaterializeSchoolOperationNotificationInput {
   tenantId: string;
@@ -100,6 +101,7 @@ export class SchoolOperationNotificationsRepository {
 
   async listForTenantRole(
     tenantId: string,
+    userId: string,
     role: string | null,
     options: { limit?: number } = {},
   ): Promise<SchoolOperationNotificationView[]> {
@@ -116,30 +118,16 @@ export class SchoolOperationNotificationsRepository {
           metadata,
           created_at,
           updated_at
-        FROM notifications
-        WHERE tenant_id = $1
-          AND (
-            $2::text IS NULL
-            OR metadata->'target_roles' IS NULL
-            OR CASE
-              WHEN jsonb_typeof(metadata->'target_roles') = 'array'
-                THEN jsonb_array_length(metadata->'target_roles') = 0
-                  OR (metadata->'target_roles') ? $2
-              ELSE true
-            END
-            OR CASE
-              WHEN jsonb_typeof(metadata->'audienceRoles') = 'array'
-                THEN (metadata->'audienceRoles') ? $2
-              ELSE false
-            END
-            OR metadata->>'recipientRole' = $2
-          )
+        FROM notifications notification
+        WHERE notification.tenant_id = $1
+          AND notification.notification_key LIKE 'school-operation:%'
+          AND ${notificationRecipientPredicate('notification', '$2', '$3')}
         ORDER BY
-          CASE WHEN status = 'unread' THEN 0 ELSE 1 END,
-          created_at DESC
-        LIMIT $3::integer
+          CASE WHEN notification.status = 'unread' THEN 0 ELSE 1 END,
+          notification.created_at DESC
+        LIMIT $4::integer
       `,
-      [tenantId, role, this.normalizeLimit(options.limit)],
+      [tenantId, userId, role ?? '', this.normalizeLimit(options.limit)],
     );
 
     return result.rows.map((row) => this.toView(row));
@@ -147,34 +135,21 @@ export class SchoolOperationNotificationsRepository {
 
   async markReadForTenantRole(
     tenantId: string,
+    userId: string,
     role: string | null,
     notificationId: string,
   ): Promise<SchoolOperationNotificationView | null> {
     const result = await this.executeSql(
       `
-        UPDATE notifications
+        UPDATE notifications notification
         SET
           status = 'read',
           read_at = COALESCE(read_at, NOW()),
           updated_at = NOW()
-        WHERE tenant_id = $1
-          AND id::text = $2::text
-          AND (
-            $3::text IS NULL
-            OR metadata->'target_roles' IS NULL
-            OR CASE
-              WHEN jsonb_typeof(metadata->'target_roles') = 'array'
-                THEN jsonb_array_length(metadata->'target_roles') = 0
-                  OR (metadata->'target_roles') ? $3
-              ELSE true
-            END
-            OR CASE
-              WHEN jsonb_typeof(metadata->'audienceRoles') = 'array'
-                THEN (metadata->'audienceRoles') ? $3
-              ELSE false
-            END
-            OR metadata->>'recipientRole' = $3
-          )
+        WHERE notification.tenant_id = $1
+          AND notification.id::text = $2::text
+          AND notification.notification_key LIKE 'school-operation:%'
+          AND ${notificationRecipientPredicate('notification', '$3', '$4')}
         RETURNING
           id,
           notification_key,
@@ -187,7 +162,7 @@ export class SchoolOperationNotificationsRepository {
           created_at,
           updated_at
       `,
-      [tenantId, notificationId, role],
+      [tenantId, notificationId, userId, role ?? ''],
     );
 
     const [row] = result.rows;

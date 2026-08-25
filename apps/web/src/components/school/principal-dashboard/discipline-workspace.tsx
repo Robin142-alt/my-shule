@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Loader2 } from "lucide-react";
 import { usePermissions } from "@/components/providers/permission-context";
-import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { useVerifiedPrincipalDashboardApi } from "./verified-tenant-api";
 
 type PrincipalDisciplineData = {
   status: "active" | "degraded" | "setup_required";
@@ -22,6 +22,7 @@ type PrincipalDisciplineData = {
 
 export function PrincipalDisciplineWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalDisciplineData>('/admin-command/principal/discipline');
+  const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
   const { hasPermission } = usePermissions();
   
   const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false);
@@ -35,7 +36,7 @@ export function PrincipalDisciplineWorkspace() {
     const formData = new FormData(e.currentTarget);
     
     try {
-      await requestDashboardApi('/admin-command/discipline/incidents', {
+      await requestPrincipalApi('/admin-command/discipline/incidents', {
         method: "POST",
         body: {
           studentId: formData.get("studentId"),

@@ -7,24 +7,15 @@ export class WorkflowRepository {
 
   private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
     const firstParam = params[0];
-    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
-
-    if ((this.prisma as any).query) {
-      return (this.prisma as any).query(query, params);
-    }
-
-    
-    if (isUuid) {
+    if (typeof firstParam === 'string' && firstParam.trim()) {
       return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
         const result = await tx.$queryRawUnsafe(query, ...params);
         const arr = Array.isArray(result) ? result : [result];
         return { rows: arr, rowCount: arr.length };
       });
-    } else {
-      const result = await this.prisma.$queryRawUnsafe(query, ...params);
-      const arr = Array.isArray(result) ? result : [result];
-        return { rows: arr, rowCount: arr.length };
     }
+
+    throw new Error('A tenant key is required for workflow projection writes');
   }
 
   async createNotification(params: {
@@ -45,7 +36,7 @@ export class WorkflowRepository {
       INSERT INTO notifications (
         tenant_id, notification_key, recipient_user_id, recipient_role,
         type, title, body, priority, source_module, source_record_id, metadata
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      ) VALUES ($1, $2, $3::uuid, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
       ON CONFLICT (tenant_id, notification_key) DO NOTHING
       `,
       [
@@ -82,7 +73,7 @@ export class WorkflowRepository {
       INSERT INTO tasks (
         tenant_id, task_key, assigned_to_user_id, assigned_to_role,
         created_by_user_id, title, description, module, record_id, priority, metadata
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      ) VALUES ($1, $2, $3::uuid, $4, $5::uuid, $6, $7, $8, $9, $10, $11::jsonb)
       ON CONFLICT (tenant_id, task_key) DO NOTHING
       `,
       [
@@ -115,10 +106,10 @@ export class WorkflowRepository {
   }): Promise<void> {
     await this.executeSql(
       `
-      INSERT INTO approval_requests (
+      INSERT INTO dashboard_approval_requests (
         tenant_id, approval_key, requested_by_user_id, approver_role, approver_user_id,
         module, record_id, approval_type, reason, metadata
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ) VALUES ($1, $2, $3::uuid, $4, $5::uuid, $6, $7, $8, $9, $10::jsonb)
       ON CONFLICT (tenant_id, approval_key) DO NOTHING
       `,
       [

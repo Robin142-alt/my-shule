@@ -3,10 +3,23 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import 'reflect-metadata';
 
+import { PERMISSIONS_KEY } from '../../auth/auth.constants';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { NotificationsController } from './notifications.controller';
+import { notificationRecipientPredicate } from './notification-recipient-predicate';
 import { NotificationsService } from './notifications.service';
 import '../workflow/workflow-communication.test';
+
+test('notification recipient predicate never broadens an exact guardian notice to the parent role', () => {
+  const predicate = notificationRecipientPredicate('notification', '$2', '$3');
+
+  assert.match(predicate, /notification\.recipient_guardian_id IS NOT NULL/);
+  assert.match(predicate, /FROM student_guardians recipient_guardian/);
+  assert.match(predicate, /recipient_guardian\.tenant_id = notification\.tenant_id/);
+  assert.match(predicate, /recipient_guardian\.user_id::text = \$2::text/);
+  assert.match(predicate, /recipient_guardian\.status = 'active'/);
+  assert.match(predicate, /notification\.recipient_guardian_id IS NULL\s+AND \(/);
+});
 
 type StoredNotification = {
   id: string;
@@ -37,16 +50,22 @@ function createNotificationsHarness() {
   const isRecipient = (row: StoredNotification, userId: string, role: string) => {
     const effectiveUserId = row.recipient_user_id
       ?? (typeof row.metadata.targetUserId === 'string' ? row.metadata.targetUserId : null)
-      ?? (typeof row.metadata.recipientUserId === 'string' ? row.metadata.recipientUserId : null);
+      ?? (typeof row.metadata.recipientUserId === 'string' ? row.metadata.recipientUserId : null)
+      ?? (typeof row.metadata.target_user_id === 'string' ? row.metadata.target_user_id : null)
+      ?? (typeof row.metadata.recipient_user_id === 'string' ? row.metadata.recipient_user_id : null);
     if (effectiveUserId) return effectiveUserId === userId;
     const metadataRoles = [
       ...(Array.isArray(row.metadata.target_roles) ? row.metadata.target_roles : []),
+      ...(Array.isArray(row.metadata.targetRoles) ? row.metadata.targetRoles : []),
       ...(Array.isArray(row.metadata.audienceRoles) ? row.metadata.audienceRoles : []),
+      ...(Array.isArray(row.metadata.audience_roles) ? row.metadata.audience_roles : []),
     ].map(normalizeRole);
     const normalizedRole = normalizeRole(role);
     return normalizeRole(row.recipient_role) === normalizedRole
       || normalizeRole(row.metadata.recipientRole) === normalizedRole
       || normalizeRole(row.metadata.targetRole) === normalizedRole
+      || normalizeRole(row.metadata.recipient_role) === normalizedRole
+      || normalizeRole(row.metadata.target_role) === normalizedRole
       || metadataRoles.includes(normalizedRole);
   };
 
@@ -162,7 +181,7 @@ test('NotificationsController sources tenant, user, and active role from Request
       user_id: '00000000-0000-4000-8000-000000000101',
       role: 'teacher',
       session_id: 'session-a',
-      permissions: ['notifications:*'],
+      permissions: ['events:read', 'events:write'],
       is_authenticated: true,
       client_ip: '127.0.0.1',
       user_agent: 'test-suite',
@@ -202,6 +221,16 @@ test('NotificationsController sources tenant, user, and active role from Request
       '00000000-0000-4000-8000-000000000101',
       'teacher',
     ]);
+  }
+});
+
+test('NotificationsController uses catalogued personal-inbox permissions for reads and mutations', () => {
+  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, NotificationsController), ['events:read']);
+  for (const method of ['markAllAsRead', 'markAsRead', 'dismiss', 'markActionTaken'] as const) {
+    assert.deepEqual(
+      Reflect.getMetadata(PERMISSIONS_KEY, NotificationsController.prototype[method]),
+      ['events:write'],
+    );
   }
 });
 
@@ -245,6 +274,17 @@ test('NotificationsService isolates two tenants and authorizes user or active-ro
     title: 'Case escalated',
     message: 'A deputy review is required.',
   });
+  const snakeCaseRoleNotification = await service.createNotification({
+    schoolId: 'tenant-a',
+    actorUserId: userTwo,
+    module: 'discipline',
+    eventType: 'legacy.case.escalated',
+    entityType: 'discipline_case',
+    entityId: 'case-a-legacy-role',
+    title: 'Legacy role case escalated',
+    message: 'A deputy review is required through a legacy role field.',
+    metadataJson: { target_role: 'deputy_principal' },
+  });
   const specificallyAssignedNotification = await service.createNotification({
     schoolId: 'tenant-a',
     actorUserId: userTwo,
@@ -256,6 +296,30 @@ test('NotificationsService isolates two tenants and authorizes user or active-ro
     entityId: 'batch-private',
     title: 'Marks returned',
     message: 'Only the assigned teacher may see this.',
+  });
+  const unresolvedLegacyUserNotification = await service.createNotification({
+    schoolId: 'tenant-a',
+    actorUserId: userTwo,
+    targetRole: 'teacher',
+    module: 'academics',
+    eventType: 'legacy.assignment',
+    entityType: 'legacy_notification',
+    entityId: 'legacy-private',
+    title: 'Legacy private notification',
+    message: 'An unresolved explicit target must not broaden to the teacher role.',
+    metadataJson: { recipientUserId: 'legacy-user-key' },
+  });
+  const snakeCaseLegacyUserNotification = await service.createNotification({
+    schoolId: 'tenant-a',
+    actorUserId: userTwo,
+    targetRole: 'teacher',
+    module: 'academics',
+    eventType: 'legacy.assignment',
+    entityType: 'legacy_notification',
+    entityId: 'legacy-private-snake-case',
+    title: 'Legacy snake-case private notification',
+    message: 'A legacy explicit user target must not broaden to the teacher role.',
+    metadataJson: { target_user_id: userTwo },
   });
   const bursarNotification = await service.createNotification({
     schoolId: 'tenant-a',
@@ -285,9 +349,17 @@ test('NotificationsService isolates two tenants and authorizes user or active-ro
   assert.equal(visible.some((item) => item.id === bursarNotification.id), false);
   assert.equal(visible.some((item) => item.id === otherTenantNotification.id), false);
   assert.equal(visible.some((item) => item.id === specificallyAssignedNotification.id), false);
+  assert.equal(visible.some((item) => item.id === unresolvedLegacyUserNotification.id), false);
+  assert.equal(visible.some((item) => item.id === snakeCaseLegacyUserNotification.id), false);
   assert.equal(teacherNotification.message, 'Open your timetable.');
   assert.equal(teacherNotification.status, 'ACTION_REQUIRED');
   assert.equal(teacherNotification.actionUrl, '/school/teacher/my-timetable');
+
+  const targetVisible = await service.getUserNotifications('tenant-a', userTwo, 'teacher');
+  assert.equal(
+    targetVisible.find((item) => item.id === snakeCaseLegacyUserNotification.id)?.targetUserId,
+    userTwo,
+  );
 
   const badges = await service.getBadges('tenant-a', userOne, 'teacher');
   assert.deepEqual(badges, {
@@ -299,7 +371,11 @@ test('NotificationsService isolates two tenants and authorizes user or active-ro
   const deputyVisible = await service.getUserNotifications('tenant-a', userOne, 'Deputy Principal');
   assert.deepEqual(
     deputyVisible.map((item) => item.id).sort(),
-    [userNotification.id, roleAliasNotification.id].sort(),
+    [userNotification.id, roleAliasNotification.id, snakeCaseRoleNotification.id].sort(),
+  );
+  assert.equal(
+    deputyVisible.find((item) => item.id === snakeCaseRoleNotification.id)?.targetRole,
+    'deputy_principal',
   );
 
   await assert.rejects(
@@ -308,6 +384,10 @@ test('NotificationsService isolates two tenants and authorizes user or active-ro
   );
   await assert.rejects(
     () => service.dismiss(userNotification.id, 'tenant-b', userOne, 'teacher'),
+    /not found for the active school role/i,
+  );
+  await assert.rejects(
+    () => service.dismiss(snakeCaseLegacyUserNotification.id, 'tenant-a', userOne, 'teacher'),
     /not found for the active school role/i,
   );
 
@@ -323,6 +403,7 @@ test('NotificationsService isolates two tenants and authorizes user or active-ro
   const mutationSql = harness.sqlCalls.find((call) => /UPDATE notifications notification/.test(call.sql))?.sql ?? '';
   assert.match(readSql, /notification\.tenant_id = \$1/);
   assert.match(readSql, /recipient_user_id/);
+  assert.match(readSql, /target_user_id/);
   assert.match(readSql, /recipient_role/);
   assert.match(mutationSql, /notification\.tenant_id = \$1/);
   assert.match(mutationSql, /recipient_user_id/);

@@ -4,6 +4,7 @@ import { Heart, Plus, ArrowUpRight } from "lucide-react";
 import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { usePermissions } from "@/components/providers/permission-context";
 import { createWelfareNote, escalateWelfareNote } from "./api-client";
 
 type WelfareRecord = {
@@ -28,11 +29,23 @@ type WelfareNotesData = {
   notes: WelfareRecord[];
 };
 
+type WelfareLearnerOptions = {
+  learners: Array<{ id: string; full_name: string; admission_no: string }>;
+};
+
 export function WelfareNotesWorkspace() {
-  const { data, isLoading, refetch } = useSchoolQuery<WelfareNotesData>('/admin-command/class-teacher/welfare-notes');
+  const { hasPermission } = usePermissions();
+  const canWrite = hasPermission('teacher:write');
+  const { data, isLoading, error, refetch } = useSchoolQuery<WelfareNotesData>('/admin-command/class-teacher/welfare-notes');
+  const {
+    data: learnerOptions,
+    isLoading: learnersLoading,
+    error: learnersError,
+    refetch: refetchLearners,
+  } = useSchoolQuery<WelfareLearnerOptions>('/admin-command/class-teacher/learner-profiles');
   const [showAdd, setShowAdd] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [form, setForm] = useState({ student_name: "", category: "", note: "", severity: "Medium" });
+  const [form, setForm] = useState({ student_id: "", category: "", note: "", severity: "Medium" });
   const [saving, setSaving] = useState(false);
 
   const notes = data?.notes || [];
@@ -53,8 +66,8 @@ export function WelfareNotesWorkspace() {
   };
 
   const handleCreate = async () => {
-    if (!form.student_name.trim() || !form.note.trim()) {
-      toast.error("Student name and note are required.");
+    if (!form.student_id || !form.category || !form.note.trim()) {
+      toast.error("Select an assigned learner and category, then enter the note.");
       return;
     }
     setSaving(true);
@@ -62,10 +75,12 @@ export function WelfareNotesWorkspace() {
       await createWelfareNote(form);
       toast.success("Welfare note created.");
       setShowAdd(false);
-      setForm({ student_name: "", category: "", note: "", severity: "Medium" });
-      refetch();
-    } catch {
-      toast.error("Failed to create welfare note.");
+      setForm({ student_id: "", category: "", note: "", severity: "Medium" });
+      await refetch();
+    } catch (submissionError) {
+      toast.error("Failed to create welfare note.", {
+        description: submissionError instanceof Error ? submissionError.message : "The welfare note could not be saved.",
+      });
     } finally {
       setSaving(false);
     }
@@ -76,9 +91,11 @@ export function WelfareNotesWorkspace() {
     try {
       await escalateWelfareNote(id);
       toast.success("Case escalated to counsellor/deputy.");
-      refetch();
-    } catch {
-      toast.error("Failed to escalate.");
+      await refetch();
+    } catch (submissionError) {
+      toast.error("Failed to escalate.", {
+        description: submissionError instanceof Error ? submissionError.message : "The welfare concern could not be escalated.",
+      });
     } finally {
       setActionLoading(null);
     }
@@ -89,11 +106,11 @@ export function WelfareNotesWorkspace() {
       title="Welfare Notes"
       description="Track welfare concerns, create notes, and escalate serious cases to counsellor or deputy."
       icon={Heart}
-      actions={
+      actions={canWrite ? (
         <button onClick={() => setShowAdd(true)} className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900">
           <Plus className="w-4 h-4" /> New Welfare Note
         </button>
-      }
+      ) : undefined}
     >
       <div className="grid gap-4 md:grid-cols-4 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
@@ -130,6 +147,12 @@ export function WelfareNotesWorkspace() {
           <tbody className="divide-y divide-[#D8E0EC]">
             {isLoading ? (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading welfare notes...</td></tr>
+            ) : error ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-rose-700">
+                  Welfare notes could not be loaded. <button type="button" onClick={() => void refetch()} className="font-black underline">Retry</button>
+                </td>
+              </tr>
             ) : notes.length === 0 ? (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No welfare notes yet. Create one when you notice a student welfare concern.</td></tr>
             ) : (
@@ -144,7 +167,7 @@ export function WelfareNotesWorkspace() {
                   <td className="px-4 py-3"><StatusChip label={n.status} tone={getStatusTone(n.status)} /></td>
                   <td className="px-4 py-3 text-[#64748B]">{n.created_at}</td>
                   <td className="px-4 py-3 text-right">
-                    {n.status === "Open" && (
+                    {canWrite && n.status === "Open" && (
                       <button
                         disabled={actionLoading === n.id}
                         onClick={() => handleEscalate(n.id)}
@@ -167,9 +190,34 @@ export function WelfareNotesWorkspace() {
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
             <h3 className="text-lg font-black text-[#071D49] mb-4">New Welfare Note</h3>
             <div className="space-y-3">
-              <input type="text" placeholder="Student name" value={form.student_name} onChange={(e) => setForm({ ...form, student_name: e.target.value })}
-                className="w-full rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
+              <select
+                aria-label="Assigned learner"
+                value={form.student_id}
+                onChange={(e) => setForm({ ...form, student_id: e.target.value })}
+                disabled={learnersLoading || Boolean(learnersError) || (learnerOptions?.learners.length ?? 0) === 0}
+                className="w-full rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
+              >
+                <option value="">
+                  {learnersLoading
+                    ? "Loading assigned learners..."
+                    : learnersError
+                      ? "Assigned learners could not be loaded"
+                      : learnerOptions?.learners.length
+                      ? "Select an assigned learner..."
+                      : "No learners are assigned to your class"}
+                </option>
+                {(learnerOptions?.learners ?? []).map((learner) => (
+                  <option key={learner.id} value={learner.id}>
+                    {learner.full_name} ({learner.admission_no})
+                  </option>
+                ))}
+              </select>
+              {learnersError ? (
+                <button type="button" onClick={() => void refetchLearners()} className="text-left text-sm font-black text-rose-700 underline">
+                  Retry assigned learners
+                </button>
+              ) : null}
+              <select aria-label="Welfare category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
                 className="w-full rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">Select category...</option>
                 <option value="Family">Family</option>
@@ -180,18 +228,18 @@ export function WelfareNotesWorkspace() {
                 <option value="Bereavement">Bereavement</option>
                 <option value="Other">Other</option>
               </select>
-              <select value={form.severity} onChange={(e) => setForm({ ...form, severity: e.target.value })}
+              <select aria-label="Welfare severity" value={form.severity} onChange={(e) => setForm({ ...form, severity: e.target.value })}
                 className="w-full rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="Low">Low</option>
                 <option value="Medium">Medium</option>
                 <option value="High">High</option>
               </select>
-              <textarea placeholder="Describe the welfare concern..." value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })}
+              <textarea aria-label="Welfare note" placeholder="Describe the welfare concern..." value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })}
                 className="w-full rounded-lg border border-[#D8E0EC] p-3 text-sm h-28 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div className="mt-4 flex justify-end gap-3">
               <button onClick={() => setShowAdd(false)} className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#64748B] hover:bg-slate-50">Cancel</button>
-              <button disabled={saving} onClick={handleCreate} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50">
+              <button disabled={saving || Boolean(learnersError) || !form.student_id} onClick={handleCreate} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50">
                 {saving ? "Saving..." : "Create Note"}
               </button>
             </div>

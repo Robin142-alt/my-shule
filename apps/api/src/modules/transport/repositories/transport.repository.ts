@@ -17,6 +17,12 @@ export interface TransportManifestReferenceCheck {
   student_count: number;
 }
 
+export interface TransportGuardianRecipient {
+  student_id: string;
+  guardian_id: string;
+  user_id: string;
+}
+
 @Injectable()
 export class TransportRepository {
 
@@ -203,6 +209,43 @@ export class TransportRepository {
       academic_term_exists: false,
       student_count: 0,
     };
+  }
+
+  async listActiveGuardianRecipients(
+    tenantId: string,
+    studentIds: string[],
+  ): Promise<TransportGuardianRecipient[]> {
+    if (studentIds.length === 0) return [];
+
+    const result = await this.executeSql<TransportGuardianRecipient>(
+      `
+        SELECT DISTINCT
+          student.id::text AS student_id,
+          guardian.id::text AS guardian_id,
+          guardian.user_id::text AS user_id
+        FROM students student
+        INNER JOIN student_guardians guardian
+          ON guardian.tenant_id = student.tenant_id
+         AND guardian.student_id = student.id
+         AND LOWER(guardian.status) = 'active'
+         AND guardian.user_id IS NOT NULL
+        INNER JOIN tenant_memberships membership
+          ON membership.tenant_id = guardian.tenant_id
+         AND membership.user_id = guardian.user_id
+         AND LOWER(membership.status) = 'active'
+        WHERE student.tenant_id = $1
+          AND student.id::text IN (
+            SELECT jsonb_array_elements_text($2::jsonb)
+          )
+          AND LOWER(COALESCE(student.status, 'active')) NOT IN (
+            'archived', 'transferred', 'graduated'
+          )
+        ORDER BY student.id::text, guardian.id::text
+      `,
+      [tenantId, JSON.stringify(studentIds)],
+    );
+
+    return result.rows;
   }
 
   async getDashboard(tenantId: string) {

@@ -23,7 +23,7 @@ type AllocationData = {
 };
 
 export function AllocationWorkspace() {
-  const { data, isLoading } = useSchoolQuery<AllocationData>('/admin-command/boarding-master/allocation');
+  const { data, error, isLoading, refetch } = useSchoolQuery<AllocationData>('/admin-command/boarding-master/allocation');
   const items = data?.allocationList || [];
 
   const getStatusTone = (st: string): Tone => {
@@ -33,6 +33,18 @@ export function AllocationWorkspace() {
     if (st === "Issued" || st === "Checked In" || st === "Submitted" || st === "Booked" || st === "Sent" || st === "On Leave") return "info";
     return "neutral";
   };
+
+  if (error) {
+    return (
+      <Panel title="Student Allocation" description="Allocate students to hostels and rooms." icon={UserPlus}>
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <p className="font-black">Boarding allocations could not be loaded.</p>
+          <p className="mt-1">{error.message}</p>
+          <button type="button" onClick={() => void refetch()} className="mt-3 font-black underline">Retry</button>
+        </div>
+      </Panel>
+    );
+  }
 
   return (
     <Panel title="Student Allocation" description="Allocate students to hostels and rooms." icon={UserPlus}>

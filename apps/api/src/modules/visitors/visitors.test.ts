@@ -19,6 +19,7 @@ test('VisitorsSchemaService creates tenant-safe visitors registry tables', async
   }
   assert.match(schemaSql, /CREATE OR REPLACE VIEW visitor_checkins/);
   assert.match(schemaSql, /FROM visitors_logs/);
+  assert.match(schemaSql, /ALTER TABLE visitors_logs ADD COLUMN IF NOT EXISTS id_number text/);
 });
 
 test('VisitorsController is gated by visitor management module and permissions', () => {

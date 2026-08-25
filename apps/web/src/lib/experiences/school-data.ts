@@ -236,6 +236,7 @@ const schoolNavMap: Record<SchoolExperienceRole | PortalViewer, ExperienceNavIte
     { id: "welfare-notes", label: "Welfare Notes", href: toSchoolPath("welfare-notes"), icon: FileSpreadsheet },
     { id: "parent-engagement", label: "Parent Engagement", href: toSchoolPath("parent-engagement"), icon: MessageSquareText },
     { id: "reports", label: "Reports", href: toSchoolPath("reports"), icon: FileSpreadsheet },
+    { id: "settings", label: "Settings", href: toSchoolPath("settings"), icon: Settings },
     ...supportSidebarItems,
   ],
   "nurse": [

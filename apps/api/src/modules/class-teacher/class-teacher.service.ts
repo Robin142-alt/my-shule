@@ -1518,57 +1518,224 @@ export class ClassTeacherService {
     const subjectId = this.requireText(payload?.subjectId, 'Assigned subject');
     const dueDate = this.requireText(payload?.dueDate, 'Due date');
     const description = typeof payload?.description === 'string' ? payload.description.trim() : '';
+    const sourceRole = this.isClassTeacherMode() ? 'class_teacher' : 'teacher';
 
     await this.assertTeacherAssignedClassSubject(tenantId, userId, classId, subjectId);
 
-    const query = `
-      INSERT INTO academics_assignments (tenant_id, title, description, class_id, subject_id, due_date, teacher_id, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, 'Published')
-      RETURNING id
-    `;
-    const { rows } = await this.executeSql(query, [
-      tenantId,
-      title,
-      description,
-      classId,
-      subjectId,
-      dueDate,
-      userId
-    ]);
-
-    const assignmentId = rows[0]?.id ?? null;
-
-    await this.executeSql(
+    const { rows } = await this.executeSql<{
+      assignment_id: string | null;
+      workflow_event_id: string | null;
+      student_notification_count: number;
+      guardian_notification_count: number;
+      audits_created: number;
+    }>(
       `
-        INSERT INTO workflow_events (
-          tenant_id,
-          source_user_id,
-          entity_id,
-          event_type,
-          entity_type,
-          title,
-          message,
-          payload,
-          status,
-          priority,
-          target_roles
+        WITH authorized_assignment AS (
+          SELECT assignment.id
+          FROM teacher_subject_assignments assignment
+          WHERE assignment.tenant_id = $1
+            AND assignment.teacher_user_id = $7::uuid
+            AND assignment.class_section_id::text = $4
+            AND assignment.subject_id::text = $5
+            AND LOWER(assignment.status) = 'active'
+            AND assignment.effective_from <= CURRENT_DATE
+            AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
+          LIMIT 1
+        ), inserted_assignment AS (
+          INSERT INTO academics_assignments (
+            tenant_id, title, description, class_id, subject_id, due_date, teacher_id, status
+          )
+          SELECT $1, $2, $3, $4, $5, $6::timestamptz, $7::uuid, 'Published'
+          FROM authorized_assignment
+          RETURNING id, tenant_id, class_id, subject_id, due_date
+        ), assigned_students AS (
+          SELECT DISTINCT student.id
+          FROM inserted_assignment homework
+          INNER JOIN student_class_assignments class_assignment
+            ON class_assignment.tenant_id = homework.tenant_id
+           AND class_assignment.class_section_id::text = homework.class_id
+           AND LOWER(class_assignment.status) = 'active'
+          INNER JOIN students student
+            ON student.tenant_id = class_assignment.tenant_id
+           AND student.id::text = class_assignment.student_id::text
+           AND student.deleted_at IS NULL
+           AND LOWER(COALESCE(student.status, 'active')) IN ('active', 'admitted', 'enrolled')
+        ), student_recipients AS (
+          SELECT DISTINCT portal.user_id, student.id AS student_id
+          FROM assigned_students student
+          INNER JOIN student_portal_access portal
+            ON portal.tenant_id = $1
+           AND portal.student_id::text = student.id::text
+           AND LOWER(portal.status) = 'active'
+          INNER JOIN tenant_memberships membership
+            ON membership.tenant_id = portal.tenant_id
+           AND membership.user_id = portal.user_id
+           AND LOWER(membership.status) = 'active'
+          WHERE portal.user_id IS NOT NULL
+        ), guardian_recipients AS (
+          SELECT DISTINCT ON (guardian.user_id)
+            guardian.id AS guardian_id,
+            guardian.user_id
+          FROM assigned_students student
+          INNER JOIN student_guardians guardian
+            ON guardian.tenant_id = $1
+           AND guardian.student_id::text = student.id::text
+           AND LOWER(guardian.status) = 'active'
+           AND guardian.user_id IS NOT NULL
+          INNER JOIN tenant_memberships membership
+            ON membership.tenant_id = guardian.tenant_id
+           AND membership.user_id = guardian.user_id
+           AND LOWER(membership.status) = 'active'
+          ORDER BY guardian.user_id, guardian.is_primary DESC, guardian.created_at ASC
+        ), inserted_event AS (
+          INSERT INTO workflow_events (
+            tenant_id, source_user_id, source_role, target_roles, event_type,
+            entity_type, entity_id, title, message, payload, status, priority
+          )
+          SELECT
+            homework.tenant_id,
+            $7::uuid,
+            $8,
+            '[]'::jsonb,
+            'class_teacher.homework_published',
+            'assignment',
+            homework.id::text,
+            'Homework assignment published',
+            'A homework assignment was published to exact active class recipients.',
+            jsonb_build_object(
+              'assignment_id', homework.id::text,
+              'class_id', homework.class_id,
+              'subject_id', homework.subject_id,
+              'due_date', homework.due_date,
+              'recipient_scope', 'exact_active_class_accounts',
+              'student_recipient_count', (SELECT COUNT(*) FROM student_recipients),
+              'guardian_recipient_count', (SELECT COUNT(*) FROM guardian_recipients),
+              'source_dashboard', 'class-teacher-homework'
+            ),
+            'published',
+            'normal'
+          FROM inserted_assignment homework
+          RETURNING id, entity_id
+        ), inserted_student_notifications AS (
+          INSERT INTO notifications (
+            tenant_id, notification_key, recipient_user_id, type, title, body,
+            status, priority, source_module, source_record_id, metadata
+          )
+          SELECT
+            $1,
+            'class-teacher-homework-' || event.entity_id || '-student-' || recipient.user_id::text,
+            recipient.user_id,
+            'class_teacher.homework_published',
+            $2,
+            $2 || ' is due on ' || $6 || '.',
+            'unread',
+            'normal',
+            'class-teacher-homework',
+            event.entity_id,
+            jsonb_build_object(
+              'assignment_id', event.entity_id,
+              'student_id', recipient.student_id::text,
+              'recipient_scope', 'exact_active_student_account',
+              'source_dashboard', 'class-teacher-homework'
+            )
+          FROM inserted_event event
+          CROSS JOIN student_recipients recipient
+          ON CONFLICT (tenant_id, notification_key)
+          DO UPDATE SET
+            recipient_user_id = EXCLUDED.recipient_user_id,
+            title = EXCLUDED.title,
+            body = EXCLUDED.body,
+            status = 'unread',
+            metadata = EXCLUDED.metadata,
+            updated_at = NOW()
+          RETURNING id
+        ), inserted_guardian_notifications AS (
+          INSERT INTO notifications (
+            tenant_id, notification_key, recipient_user_id, recipient_guardian_id,
+            type, title, body, status, priority, source_module, source_record_id, metadata
+          )
+          SELECT
+            $1,
+            'class-teacher-homework-' || event.entity_id || '-guardian-' || recipient.user_id::text,
+            recipient.user_id,
+            recipient.guardian_id,
+            'class_teacher.homework_published',
+            $2,
+            $2 || ' is due on ' || $6 || '.',
+            'unread',
+            'normal',
+            'class-teacher-homework',
+            event.entity_id,
+            jsonb_build_object(
+              'assignment_id', event.entity_id,
+              'recipient_scope', 'exact_active_linked_guardian_account',
+              'source_dashboard', 'class-teacher-homework'
+            )
+          FROM inserted_event event
+          CROSS JOIN guardian_recipients recipient
+          ON CONFLICT (tenant_id, notification_key)
+          DO UPDATE SET
+            recipient_user_id = EXCLUDED.recipient_user_id,
+            recipient_guardian_id = EXCLUDED.recipient_guardian_id,
+            title = EXCLUDED.title,
+            body = EXCLUDED.body,
+            status = 'unread',
+            metadata = EXCLUDED.metadata,
+            updated_at = NOW()
+          RETURNING id
+        ), action_audit AS (
+          INSERT INTO audit_logs (
+            tenant_id, actor_user_id, request_id, action, resource_type, resource_id, metadata
+          )
+          SELECT
+            $1,
+            $7::uuid,
+            current_setting('app.request_id', true),
+            'class_teacher.homework_published',
+            'assignment',
+            homework.id::text,
+            jsonb_build_object(
+              'class_id', homework.class_id,
+              'subject_id', homework.subject_id,
+              'recipient_scope', 'exact_active_class_accounts',
+              'student_notification_count', (SELECT COUNT(*) FROM inserted_student_notifications),
+              'guardian_notification_count', (SELECT COUNT(*) FROM inserted_guardian_notifications),
+              'source_role', $8::text
+            )
+          FROM inserted_assignment homework
+          RETURNING id
         )
-        VALUES ($1, $2, $3, 'class_teacher.homework_published', 'assignment', $4, $5, $6::jsonb, 'published', 'normal', $7::jsonb)
+        SELECT
+          homework.id::text AS assignment_id,
+          (SELECT id::text FROM inserted_event LIMIT 1) AS workflow_event_id,
+          (SELECT COUNT(*)::int FROM inserted_student_notifications) AS student_notification_count,
+          (SELECT COUNT(*)::int FROM inserted_guardian_notifications) AS guardian_notification_count,
+          (SELECT COUNT(*)::int FROM action_audit) AS audits_created
+        FROM inserted_assignment homework
       `,
       [
         tenantId,
+        title,
+        description,
+        classId,
+        subjectId,
+        dueDate,
         userId,
-        assignmentId ?? classId,
-        'Homework assignment published',
-        `${title} was published for the selected class and subject.`,
-        JSON.stringify({ assignment_id: assignmentId, class_id: classId, subject_id: subjectId, due_date: dueDate }),
-        JSON.stringify(['class_teacher', 'student', 'parent']),
+        sourceRole,
       ],
-    ).catch((error) => {
-      this.logger.warn(`Could not record homework workflow event: ${error?.message ?? error}`);
-    });
+    );
 
-    return { success: true, assignmentId };
+    const persisted = rows[0];
+    if (!persisted?.assignment_id || !persisted.workflow_event_id || Number(persisted.audits_created) !== 1) {
+      throw new ForbiddenException('This class and subject are no longer active in your teaching assignments.');
+    }
+
+    return {
+      success: true,
+      assignmentId: persisted.assignment_id,
+      studentNotificationCount: Number(persisted.student_notification_count ?? 0),
+      guardianNotificationCount: Number(persisted.guardian_notification_count ?? 0),
+    };
   }
 
   async getLessonLogs(tenantId: string, userId: string, streamId?: string) {
@@ -1647,19 +1814,52 @@ export class ClassTeacherService {
   }
 
   async getMeetings(tenantId: string, userId: string, streamId: string) {
+    await this.assertActiveClassTeacherClass(tenantId, userId, streamId);
+
     const query = `
+      WITH active_class_scope AS (
+        SELECT DISTINCT appointment.class_section_id::text AS class_section_id
+        FROM academics_class_teachers appointment
+        WHERE appointment.tenant_id = $1
+          AND appointment.teacher_user_id = $2::uuid
+          AND appointment.is_active = TRUE
+          AND LOWER(COALESCE(appointment.status, 'active')) = 'active'
+          AND COALESCE(appointment.effective_from, CURRENT_DATE) <= CURRENT_DATE
+          AND (appointment.effective_to IS NULL OR appointment.effective_to >= CURRENT_DATE)
+      )
       SELECT 
-        id,
-        start_time as date,
-        to_char(start_time, 'HH24:MI') as time,
-        'N/A' as parent,
-        title as agenda,
-        status
-      FROM school_meetings
-      WHERE tenant_id = $1 AND organizer_id = $2
-      ORDER BY start_time DESC
+        meeting.id,
+        meeting.start_time as date,
+        to_char(meeting.start_time, 'HH24:MI') as time,
+        COALESCE(NULLIF(TRIM(meeting.description), ''), 'Meeting context was not recorded') as parent,
+        meeting.title as agenda,
+        meeting.status
+      FROM school_meetings meeting
+      LEFT JOIN LATERAL (
+        SELECT event.payload
+        FROM workflow_events event
+        WHERE event.tenant_id = meeting.tenant_id
+          AND event.entity_type = 'school_meeting'
+          AND event.entity_id = meeting.id::text
+          AND event.event_type = 'class_teacher.meeting_scheduled'
+        ORDER BY event.created_at DESC
+        LIMIT 1
+      ) meeting_scope ON TRUE
+      WHERE meeting.tenant_id = $1
+        AND meeting.organizer_id = $2::uuid
+        AND (
+          meeting_scope.payload->>'class_section_id' = $3
+          OR (
+            NULLIF(meeting_scope.payload->>'class_section_id', '') IS NULL
+            AND (SELECT COUNT(*) FROM active_class_scope) = 1
+            AND EXISTS (
+              SELECT 1 FROM active_class_scope scope WHERE scope.class_section_id = $3
+            )
+          )
+        )
+      ORDER BY meeting.start_time DESC
     `;
-    const { rows } = await this.executeSql(query, [tenantId, userId]);
+    const { rows } = await this.executeSql(query, [tenantId, userId, streamId]);
     return rows.map(r => ({ ...r, date: new Date(r.date).toLocaleDateString() }));
   }
 

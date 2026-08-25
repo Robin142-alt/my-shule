@@ -156,6 +156,16 @@ export class TransportManagerCommandController {
     return this.service.sendNotice(dto);
   }
 
+  @Get('notices')
+  getNotices() {
+    return this.service.getNotices();
+  }
+
+  @Get('incidents')
+  getIncidents() {
+    return this.service.getIncidents();
+  }
+
   @Post('actions')
   @Permissions('transport:write')
   recordAction(@Body() dto: any) {

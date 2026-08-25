@@ -148,12 +148,32 @@ describe("principal and deputy academic foundation workspace", () => {
     expect(workspaceSource).not.toMatch(/Kisumu Boys|demo data/i);
   });
 
-  it("renders the shared operational workspace for both leadership routes", () => {
-    for (const tab of ["calendar", "classes", "subjects", "allocations"]) {
-      expect(principalSource).toContain(`initialTab="${tab}"`);
+  it("routes each Principal academic section to its dedicated live contract and keeps Deputy on the shared foundation", () => {
+    for (const [section, component] of [
+      ["academic-setup", "PrincipalAcademicSetupWorkspace"],
+      ["classes-streams", "PrincipalClassesStreamsWorkspace"],
+      ["subjects-departments", "PrincipalSubjectsDepartmentsWorkspace"],
+      ["academics", "PrincipalAcademicsWorkspace"],
+    ]) {
+      expect(principalSource).toContain(`activeWorkspace === "${section}"`);
+      expect(principalSource).toContain(`<${component} />`);
     }
+
+    for (const [file, endpoint] of [
+      ["academic-setup-workspace.tsx", "/admin-command/principal/academic-setup"],
+      ["classes-streams-workspace.tsx", "/admin-command/principal/classes"],
+      ["subjects-departments-workspace.tsx", "/admin-command/principal/subjects"],
+      ["academics-workspace.tsx", "/admin-command/principal/academics"],
+    ]) {
+      const source = fs.readFileSync(
+        path.join(process.cwd(), "src/components/school/principal-dashboard", file),
+        "utf8",
+      );
+      expect(source).toContain(`useSchoolQuery`);
+      expect(source).toContain(endpoint);
+    }
+
     expect(deputySource).toContain('<AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName={schoolName} tenantId={schoolId} />');
-    expect(principalSource).toContain('tenantId={schoolId}');
     expect(deputySource).toContain('label: "Academic Foundation"');
   });
 });

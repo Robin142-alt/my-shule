@@ -154,10 +154,10 @@ export function PlatformSmsSettingsWorkspace() {
     setStatusMessage(null);
     try {
       await testPlatformSmsProvider(provider.id);
-      setStatusMessage(`${provider.provider_name} test passed.`);
+      setStatusMessage(`${provider.provider_name} configuration is valid. No live SMS was sent.`);
       await refetch();
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "SMS provider test failed.");
+      setStatusMessage(error instanceof Error ? error.message : "SMS provider configuration validation failed.");
     } finally {
       setBusyProviderId(null);
     }
@@ -240,7 +240,7 @@ export function PlatformSmsSettingsWorkspace() {
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap gap-2">
                             <Button variant="ghost" size="sm" onClick={() => openEditProvider(p)}>Edit</Button>
-                            <Button variant="ghost" size="sm" onClick={() => runProviderTest(p)} disabled={busyProviderId === p.id}>{busyProviderId === p.id ? "Testing..." : "Test"}</Button>
+                            <Button variant="ghost" size="sm" onClick={() => runProviderTest(p)} disabled={busyProviderId === p.id}>{busyProviderId === p.id ? "Validating..." : "Validate config"}</Button>
                             {!p.is_default ? <Button variant="ghost" size="sm" onClick={() => makeDefaultProvider(p)} disabled={busyProviderId === p.id}>Set default</Button> : null}
                           </div>
                         </td>

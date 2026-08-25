@@ -549,15 +549,43 @@ export class ExamsService {
     };
   }
 
-  createSeries(dto: CreateExamSeriesDto) {
-    return this.repository.createSeries({
+  async createSeries(dto: CreateExamSeriesDto) {
+    const startsOn = this.optionalDate(this.requireText(dto.starts_on, 'Exam start date'), 'Exam start date');
+    const endsOn = this.optionalDate(this.requireText(dto.ends_on, 'Exam end date'), 'Exam end date');
+    if (!startsOn || !endsOn || startsOn > endsOn) {
+      throw new BadRequestException('Exam end date must be on or after the start date');
+    }
+    const series = await this.repository.createSeries({
       tenant_id: this.requireTenantId(),
-      created_by_user_id: this.currentUserId(),
+      created_by_user_id: this.requireUserId(),
       academic_term_id: this.requireText(dto.academic_term_id, 'Academic term'),
       name: this.requireText(dto.name, 'Exam series name'),
-      starts_on: dto.starts_on,
-      ends_on: dto.ends_on,
+      starts_on: startsOn,
+      ends_on: endsOn,
     });
+    if (!series) {
+      throw new NotFoundException('Active academic term was not found in this school or the exam dates fall outside it');
+    }
+    await this.schoolEvents?.recordSchoolOperation({
+      event: {
+        id: String(series.id),
+        type: 'exam.series_created',
+        module: 'exams',
+        actorRole: this.currentRole(),
+        title: 'Exam series created',
+        body: `${series.name} was scheduled for ${startsOn} to ${endsOn}.`,
+        entityId: String(series.id),
+        severity: 'info',
+        payload: {
+          exam_series_id: String(series.id),
+          academic_term_id: String(series.academic_term_id),
+          starts_on: startsOn,
+          ends_on: endsOn,
+        },
+      },
+      notifications: [],
+    });
+    return series;
   }
 
   createAssessment(dto: CreateExamAssessmentDto) {

@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { AlertCircle, BarChart3, FileText, Download, Star, Plus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { useVerifiedPrincipalDashboardApi } from "./verified-tenant-api";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -21,6 +21,7 @@ type PrincipalReportsData = {
 
 export function PrincipalReportsWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalReportsData>('/admin-command/principal/reports');
+  const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
   const { hasPermission } = usePermissions();
 
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -33,7 +34,7 @@ export function PrincipalReportsWorkspace() {
     setIsSubmittingCat(true);
     const formData = new FormData(e.currentTarget);
     try {
-      await requestDashboardApi('/admin-command/reports/categories', {
+      await requestPrincipalApi('/admin-command/reports/categories', {
         method: "POST",
         body: { name: formData.get("name") }
       });
@@ -51,7 +52,7 @@ export function PrincipalReportsWorkspace() {
     setIsSubmittingSched(true);
     const formData = new FormData(e.currentTarget);
     try {
-      await requestDashboardApi('/admin-command/reports/schedule', {
+      await requestPrincipalApi('/admin-command/reports/schedule', {
         method: "POST",
         body: { title: formData.get("title"), schedule: formData.get("schedule") }
       });

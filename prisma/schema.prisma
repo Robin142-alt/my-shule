@@ -4342,38 +4342,45 @@ model ExamGradingPolicies {
 }
 
 model EventConsumerRuns {
-  attempt_count   Int
+  attempt_count   Int      @default(0)
   consumer_name   String
   created_at      DateTime @default(now())
   event_key       String
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  last_error      String?
   outbox_event_id String   @db.Uuid
-  status          String
-  tenant_id       String   @db.Uuid
+  processed_at    DateTime?
+  school_id       String
+  status          String   @default("processing")
+  tenant_id       String
   updated_at      DateTime @updatedAt
 
   @@index([tenant_id])
+  @@index([school_id])
   @@map("event_consumer_runs")
 }
 
 model OutboxEvents {
-  aggregate_id   String   @db.Uuid
-  aggregate_type String
-  available_at   DateTime
-  created_at     DateTime @default(now())
-  event_key      String
-  event_name     String
-  headers        String
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  payload        Json
-  status         String
-  tenant_id      String   @db.Uuid
-  school_id      String   @db.Uuid
-  actor_user_id  String?  @db.Uuid
-  actor_role     String?
+  actor_role       String?
+  actor_user_id    String?  @db.Uuid
+  aggregate_id     String   @db.Uuid
+  aggregate_type   String
+  attempt_count    Int      @default(0)
+  available_at     DateTime @default(now())
+  correlation_id   String?  @db.Uuid
+  created_at       DateTime @default(now())
+  event_key        String
+  event_name       String
+  headers          Json     @default("{}")
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  last_error       String?
+  payload          Json
+  published_at     DateTime?
+  school_id        String
   source_dashboard String?
-  correlation_id String?  @db.Uuid
-  updated_at     DateTime @updatedAt
+  status           String   @default("pending")
+  tenant_id        String
+  updated_at       DateTime @updatedAt
 
   @@index([tenant_id])
   @@index([school_id])
@@ -4381,18 +4388,18 @@ model OutboxEvents {
 }
 
 model Tasks {
-  assigned_to_role    String
-  assigned_to_user_id String   @db.Uuid
+  assigned_to_role    String?
+  assigned_to_user_id String?  @db.Uuid
   created_at          DateTime @default(now())
-  created_by_user_id  String   @db.Uuid
-  description         String
+  created_by_user_id  String?  @db.Uuid
+  description         String?
   id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   metadata            Json
-  module              String
+  module              String?
   priority            String
-  record_id           String   @db.Uuid
+  record_id           String?
   task_key            String
-  tenant_id           String   @db.Uuid
+  tenant_id           String
   title               String
   updated_at          DateTime @updatedAt
 
@@ -4702,17 +4709,18 @@ model TeacherAttendanceLogs {
 }
 
 model BoardingReferrals {
-  created_at DateTime @default(now())
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  reason     String
-  school_id  String   @db.Uuid
-  status     String
-  student_id String   @db.Uuid
-  tenant_id  String   @db.Uuid
-  updated_at DateTime @updatedAt
+  created_at  DateTime @default(now())
+  created_by  String   @db.Uuid
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reason      String
+  referred_to String
+  status      String   @default("PENDING")
+  student_id  String   @db.Uuid
+  tenant_id   String
+  updated_at  DateTime @updatedAt
 
   @@index([tenant_id])
-  @@index([school_id])
+  @@index([tenant_id, status])
   @@map("boarding_referrals")
 }
 
@@ -4895,16 +4903,33 @@ model ClinicStockMovements {
 }
 
 model CommunicationSmsOutbox {
-  created_at      DateTime @default(now())
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  message         String
-  recipient_phone String
-  sent_by         String
-  status          String
-  tenant_id       String   @db.Uuid
-  updated_at      DateTime @updatedAt
+  attempt_count        Int       @default(0)
+  available_at         DateTime  @default(now())
+  created_at           DateTime  @default(now())
+  delivery_unknown_at  DateTime?
+  dispatch_started_at  DateTime?
+  dispatch_key         String    @default(dbgenerated("('communication-sms:'::text || (gen_random_uuid())::text)"))
+  failed_at            DateTime?
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  last_attempt_at      DateTime?
+  last_error           String?
+  lease_expires_at     DateTime?
+  lease_token          String?   @db.Uuid
+  message              String
+  provider_accepted_at DateTime?
+  provider_code        String?
+  provider_id          String?   @db.Uuid
+  provider_reference   String?
+  recipient_phone      String
+  sent_at              DateTime?
+  sent_by              String?   @db.Uuid
+  status               String    @default("Pending")
+  tenant_id            String
+  updated_at           DateTime  @updatedAt
 
+  @@unique([tenant_id, dispatch_key])
   @@index([tenant_id])
+  @@index([status, available_at, lease_expires_at, created_at])
   @@map("communication_sms_outbox")
 }
 
@@ -6841,17 +6866,19 @@ model DashboardTasks {
 
 model WorkflowEvents {
   created_at     DateTime @default(now())
-  entity_id      String   @db.Uuid
+  entity_id      String?
   entity_type    String
   event_type     String
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  message        String
+  message        String?
   payload        Json
   priority       String
-  source_role    String
-  source_user_id String   @db.Uuid
-  target_roles   String
-  tenant_id      String   @db.Uuid
+  source_role    String?
+  source_user_id String?  @db.Uuid
+  status         String   @default("pending")
+  handled_by_user_id String? @db.Uuid
+  target_roles   Json
+  tenant_id      String
   title          String
   updated_at     DateTime @updatedAt
 
@@ -6886,8 +6913,8 @@ model NotificationTemplate {
 
 model Notification {
   id           String                 @id @default(uuid())
-  schoolId     String                 @map("school_id")
-  school       School                 @relation(fields: [schoolId], references: [id])
+  schoolId     String?                @map("school_id")
+  school       School?                @relation(fields: [schoolId], references: [id])
   actorUserId  String?                @map("actor_user_id")
   targetUserId String?                @map("target_user_id")
   targetRole   String?                @map("target_role")
@@ -6898,8 +6925,8 @@ model Notification {
   channel      NotificationChannel
   title        String
   message      String
-  priority     NotificationPriority
-  status       NotificationStatus     @default(UNREAD)
+  priority     String
+  status       String                 @default("unread")
   actionUrl    String?                @map("action_url")
   actionLabel  String?                @map("action_label")
   metadataJson Json?                  @map("metadata_json")

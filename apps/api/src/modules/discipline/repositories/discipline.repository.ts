@@ -43,6 +43,72 @@ export interface CreateIncidentInput {
 export class DisciplineRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  async listIncidentOptions(tenantId: string): Promise<{
+    students: Array<{ id: string; label: string; class_id: string | null }>;
+    classes: Array<{ id: string; label: string }>;
+    terms: Array<{ id: string; label: string }>;
+    years: Array<{ id: string; label: string }>;
+  }> {
+    const [students, classes, terms, years] = await Promise.all([
+      this.executeSql<{ id: string; label: string; class_id: string | null }>(tenantId, `
+        SELECT
+          student.id::text,
+          CONCAT_WS(
+            ' - ',
+            NULLIF(TRIM(CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name)), ''),
+            NULLIF(student.admission_number, '')
+          ) AS label,
+          student.current_class_id::text AS class_id
+        FROM students student
+        WHERE student.tenant_id = $1
+          AND student.deleted_at IS NULL
+          AND lower(COALESCE(student.status::text, 'active')) IN ('active', 'admitted', 'enrolled')
+        ORDER BY student.last_name ASC, student.first_name ASC, student.admission_number ASC
+        LIMIT 500
+      `, [tenantId]),
+      this.executeSql<{ id: string; label: string }>(tenantId, `
+        SELECT
+          section.id::text,
+          COALESCE(
+            NULLIF(section.custom_label, ''),
+            NULLIF(TRIM(CONCAT_WS(' ', section.grade_level, section.stream)), ''),
+            NULLIF(section.name, ''),
+            section.id::text
+          ) AS label
+        FROM class_sections section
+        WHERE section.tenant_id = $1
+          AND COALESCE(section.is_active, true) = true
+        ORDER BY section.grade_level ASC, section.stream ASC, section.name ASC
+        LIMIT 200
+      `, [tenantId]),
+      this.executeSql<{ id: string; label: string }>(tenantId, `
+        SELECT
+          term.id::text,
+          CONCAT(term.name, ' (', term.starts_on::text, ' to ', term.ends_on::text, ')') AS label
+        FROM academic_terms term
+        WHERE term.tenant_id = $1
+          AND lower(term.status::text) = 'active'
+        ORDER BY term.starts_on DESC
+        LIMIT 12
+      `, [tenantId]),
+      this.executeSql<{ id: string; label: string }>(tenantId, `
+        SELECT year.id::text, year.name AS label
+        FROM academic_years year
+        WHERE year.tenant_id = $1
+          AND lower(year.status::text) = 'active'
+        ORDER BY year.starts_on DESC
+        LIMIT 4
+      `, [tenantId]),
+    ]);
+
+    return {
+      students: students.rows,
+      classes: classes.rows,
+      terms: terms.rows,
+      years: years.rows,
+    };
+  }
+
   async findTenantSchoolId(tenantId: string): Promise<string | null> {
     const result = await this.executeSql<{ id: string }>(tenantId, 
       `

@@ -69,6 +69,7 @@ export class VisitorsSchemaService implements OnModuleInit {
         visitor_id uuid REFERENCES visitors_registry(id),
         visitor_name text NOT NULL,
         phone_number text,
+        id_number text,
         purpose text NOT NULL,
         host_user_id text,
         badge_number text,
@@ -94,6 +95,8 @@ export class VisitorsSchemaService implements OnModuleInit {
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW()
       );
+
+      ALTER TABLE visitors_logs ADD COLUMN IF NOT EXISTS id_number text;
 
       DO $$
       BEGIN

@@ -60,10 +60,16 @@ export function ParentMessagesWorkspace() {
   };
 
   const handleReply = async (id: string) => {
+    const reply = window.prompt("Write the reply that should be delivered to this student's linked guardian:");
+    if (reply === null) return;
+    if (!reply.trim()) {
+      toast.error("Reply message is required.");
+      return;
+    }
     setActionId(id);
     try {
-      await replyToMessage(id, { reply: "" });
-      toast.success("Reply sent to parent.");
+      await replyToMessage(id, { reply: reply.trim() });
+      toast.success("Reply delivered to the linked guardian.");
       refetch();
     } catch {
       toast.error("Failed to send reply.");

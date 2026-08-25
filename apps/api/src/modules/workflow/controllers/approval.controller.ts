@@ -27,7 +27,7 @@ export class ApprovalController {
     private readonly requestContext: RequestContextService,
   ) {}
 
-  @Permissions('auth:read')
+  @Permissions('events:read')
   @Get()
   async getApprovals() {
     const principal = this.requirePrincipal();
@@ -70,7 +70,7 @@ export class ApprovalController {
     });
   }
 
-  @Permissions('auth:read')
+  @Permissions('events:write')
   @Post(':id/approve')
   async approve(@Param('id') id: string, @Body() body: Record<string, unknown>) {
     const principal = this.requirePrincipal();
@@ -85,7 +85,7 @@ export class ApprovalController {
     });
   }
 
-  @Permissions('auth:read')
+  @Permissions('events:write')
   @Post(':id/reject')
   async reject(@Param('id') id: string, @Body() body: Record<string, unknown>) {
     const principal = this.requirePrincipal();

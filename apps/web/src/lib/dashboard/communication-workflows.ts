@@ -13,10 +13,13 @@ export type CommunicationRecipient = {
 };
 
 export type BulkSmsResult = {
-  sent_count: number;
+  provider_accepted_count: number;
+  delivery_unknown_count: number;
   failed_count: number;
   skipped_count: number;
-  failures: Array<{ recipient_id: string; reason: string }>;
+  provider_accepted: Array<{ recipient_id: string; status: "provider_accepted" }>;
+  delivery_unknown: Array<{ recipient_id: string; status: "delivery_unknown"; reason: string }>;
+  failed: Array<{ recipient_id: string; reason: string }>;
   skipped: Array<{ recipient_id: string; reason: string }>;
 };
 
@@ -36,5 +39,5 @@ export function splitSmsRecipients(recipients: CommunicationRecipient[]) {
 }
 
 export function smsResultSummary(result: BulkSmsResult) {
-  return `SMS queued: ${result.sent_count} sent, ${result.failed_count} failed, ${result.skipped_count} skipped.`;
+  return `SMS provider accepted: ${result.provider_accepted_count}; needs delivery review: ${result.delivery_unknown_count}; failed: ${result.failed_count}; skipped: ${result.skipped_count}.`;
 }

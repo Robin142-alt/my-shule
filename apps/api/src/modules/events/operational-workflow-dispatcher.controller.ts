@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Post, UseGuards, InternalServerErrorException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  GoneException,
+  Param,
+  Post,
+  UseGuards,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
 import { RbacGuard } from '../../guards/rbac.guard';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
@@ -9,7 +18,6 @@ import {
   OperationalWorkflowDispatcherService,
   OperationalActionDispatchRequest,
 } from './operational-workflow-dispatcher.service';
-import { ApprovalChainService } from './approval-chain.service';
 
 @UseGuards(JwtAuthGuard, RbacGuard)
 @Controller('operational-workflows')
@@ -17,7 +25,6 @@ export class OperationalWorkflowDispatcherController {
   constructor(
     private readonly operationalWorkflowDispatcher: OperationalWorkflowDispatcherService,
     private readonly requestContext: RequestContextService,
-    private readonly approvalChainService: ApprovalChainService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -52,20 +59,18 @@ export class OperationalWorkflowDispatcherController {
 
   @Post('approvals/:approvalId/decide')
   @Permissions('platform:operational-execute')
-  async decideApproval(
-    @Param('approvalId') approvalId: string,
-    @Body() body: { decision: 'APPROVED' | 'REJECTED'; decision_note?: string }
+  decideApproval(
+    @Param('approvalId') _approvalId: string,
+    @Body() _body: { decision: 'APPROVED' | 'REJECTED'; decision_note?: string }
   ) {
-    const store = this.requestContext.requireStore();
-    await this.approvalChainService.processApproval({
-      tenant_id: store.tenant_id!,
-      approval_id: approvalId,
-      approver_user_id: store.user_id,
-      approver_role: store.role || 'UNKNOWN',
-      decision: body.decision,
-      decision_note: body.decision_note,
+    throw new GoneException({
+      code: 'LEGACY_APPROVAL_ROUTE_DISABLED',
+      message: 'This legacy approval route is disabled. Use the canonical approval approve or reject route.',
+      canonical_routes: [
+        'POST /approvals/:id/approve',
+        'POST /approvals/:id/reject',
+      ],
     });
-    return { status: 'success' };
   }
 
   @Post('offline-sync')
@@ -104,11 +109,13 @@ export class OperationalWorkflowDispatcherController {
     }
 
     try {
-      const result = await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT COUNT(*)::int as count FROM sync_operation_logs WHERE tenant_id = $1::uuid`,
-        tenantId
+      const result = await this.prisma.query<{ count: number }>(
+        `SELECT COUNT(*)::int AS count
+         FROM sync_operation_logs
+         WHERE tenant_id::text = $1::text`,
+        [tenantId],
       );
-      const syncedCount = result[0]?.count ?? 0;
+      const syncedCount = result.rows[0]?.count ?? 0;
       return {
         pending: 0,
         synced: syncedCount,

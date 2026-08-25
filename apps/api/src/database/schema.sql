@@ -344,6 +344,17 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION sync_event_school_columns()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.tenant_id = COALESCE(NULLIF(NEW.tenant_id::text, ''), NULLIF(NEW.school_id, ''));
+  NEW.school_id = NEW.tenant_id::text;
+  RETURN NEW;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION app.prevent_append_only_mutation()
   RETURNS trigger
   LANGUAGE plpgsql
@@ -627,6 +638,7 @@ CREATE TABLE audit_logs (
 CREATE TABLE outbox_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id tenant_key NOT NULL,
+  school_id text NOT NULL,
   event_key text NOT NULL,
   event_name text NOT NULL,
   aggregate_type text NOT NULL,
@@ -638,9 +650,14 @@ CREATE TABLE outbox_events (
   available_at timestamptz NOT NULL DEFAULT NOW(),
   published_at timestamptz,
   last_error text,
+  actor_user_id uuid,
+  actor_role text,
+  source_dashboard text,
+  correlation_id uuid,
   created_at timestamptz NOT NULL DEFAULT NOW(),
   updated_at timestamptz NOT NULL DEFAULT NOW(),
   CONSTRAINT ck_outbox_events_tenant_id_non_global CHECK (tenant_id <> 'global'),
+  CONSTRAINT ck_outbox_events_school_matches_tenant CHECK (school_id = tenant_id::text),
   CONSTRAINT ck_outbox_events_event_key_not_blank CHECK (btrim(event_key) <> ''),
   CONSTRAINT ck_outbox_events_event_name_not_blank CHECK (btrim(event_name) <> ''),
   CONSTRAINT ck_outbox_events_aggregate_type_not_blank CHECK (btrim(aggregate_type) <> ''),
@@ -653,6 +670,7 @@ CREATE TABLE outbox_events (
 CREATE TABLE event_consumer_runs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id tenant_key NOT NULL,
+  school_id text NOT NULL,
   outbox_event_id uuid NOT NULL,
   event_key text NOT NULL,
   consumer_name text NOT NULL,
@@ -663,6 +681,7 @@ CREATE TABLE event_consumer_runs (
   created_at timestamptz NOT NULL DEFAULT NOW(),
   updated_at timestamptz NOT NULL DEFAULT NOW(),
   CONSTRAINT ck_event_consumer_runs_tenant_id_non_global CHECK (tenant_id <> 'global'),
+  CONSTRAINT ck_event_consumer_runs_school_matches_tenant CHECK (school_id = tenant_id::text),
   CONSTRAINT ck_event_consumer_runs_event_key_not_blank CHECK (btrim(event_key) <> ''),
   CONSTRAINT ck_event_consumer_runs_consumer_name_not_blank CHECK (btrim(consumer_name) <> ''),
   CONSTRAINT ck_event_consumer_runs_status CHECK (status IN ('processing', 'completed', 'failed')),
@@ -1841,10 +1860,20 @@ BEFORE UPDATE ON outbox_events
 FOR EACH ROW
 EXECUTE FUNCTION app.set_updated_at();
 
+CREATE TRIGGER trg_outbox_events_sync_school_columns
+BEFORE INSERT OR UPDATE ON outbox_events
+FOR EACH ROW
+EXECUTE FUNCTION sync_event_school_columns();
+
 CREATE TRIGGER trg_event_consumer_runs_set_updated_at
 BEFORE UPDATE ON event_consumer_runs
 FOR EACH ROW
 EXECUTE FUNCTION app.set_updated_at();
+
+CREATE TRIGGER trg_event_consumer_runs_sync_school_columns
+BEFORE INSERT OR UPDATE ON event_consumer_runs
+FOR EACH ROW
+EXECUTE FUNCTION sync_event_school_columns();
 
 CREATE TRIGGER trg_idempotency_keys_set_updated_at
 BEFORE UPDATE ON idempotency_keys
@@ -2834,8 +2863,22 @@ CREATE TABLE IF NOT EXISTS communication_sms_outbox (
   recipient_phone text NOT NULL,
   message text NOT NULL,
   status text NOT NULL DEFAULT 'Pending',
+  attempt_count integer NOT NULL DEFAULT 0,
+  available_at timestamptz NOT NULL DEFAULT NOW(),
+  last_attempt_at timestamptz,
+  dispatch_started_at timestamptz,
+  lease_expires_at timestamptz,
+  lease_token uuid,
+  last_error text,
+  provider_id uuid,
+  provider_code text,
   provider_reference text,
-  sent_by uuid NOT NULL,
+  provider_accepted_at timestamptz,
+  sent_at timestamptz,
+  failed_at timestamptz,
+  delivery_unknown_at timestamptz,
+  dispatch_key text NOT NULL DEFAULT ('communication-sms:' || gen_random_uuid()::text),
+  sent_by uuid,
   created_at timestamptz NOT NULL DEFAULT NOW(),
   updated_at timestamptz NOT NULL DEFAULT NOW(),
   CONSTRAINT ck_communication_sms_outbox_tenant CHECK (tenant_id <> 'global')
@@ -3297,7 +3340,7 @@ CREATE TRIGGER trg_notifications_updated_at BEFORE UPDATE ON notifications FOR E
 CREATE TABLE IF NOT EXISTS tasks (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id text NOT NULL,
-    task_key text,
+    task_key text NOT NULL,
     assigned_to_user_id uuid,
     assigned_to_role text,
     created_by_user_id uuid,
@@ -3306,9 +3349,9 @@ CREATE TABLE IF NOT EXISTS tasks (
     module text,
     record_id text,
     status text NOT NULL DEFAULT 'OPEN',
-    priority text,
+    priority text NOT NULL DEFAULT 'normal',
     due_date timestamptz,
-    metadata jsonb DEFAULT '{}'::jsonb,
+    metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
     completed_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT NOW(),
     updated_at timestamptz NOT NULL DEFAULT NOW(),
@@ -3326,16 +3369,16 @@ CREATE INDEX IF NOT EXISTS idx_tasks_tenant_status ON tasks(tenant_id, status);
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tasks FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tasks_tenant_policy ON tasks;
-CREATE POLICY tasks_tenant_policy ON tasks FOR ALL USING (tenant_id = current_setting('app.tenant_id', true)) WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+CREATE POLICY tasks_tenant_policy ON tasks FOR ALL USING (tenant_id::text = current_setting('app.tenant_id', true)) WITH CHECK (tenant_id::text = current_setting('app.tenant_id', true));
 
 DROP TRIGGER IF EXISTS trg_tasks_updated_at ON tasks;
 CREATE TRIGGER trg_tasks_updated_at BEFORE UPDATE ON tasks FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
--- 3. Approval Requests
-CREATE TABLE IF NOT EXISTS approval_requests (
+-- 3. Cross-dashboard approval projections
+CREATE TABLE IF NOT EXISTS dashboard_approval_requests (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id text NOT NULL,
-    approval_key text,
+    approval_key text NOT NULL,
     requested_by_user_id uuid,
     approver_role text,
     approver_user_id uuid,
@@ -3345,28 +3388,28 @@ CREATE TABLE IF NOT EXISTS approval_requests (
     reason text,
     status text NOT NULL DEFAULT 'PENDING',
     decision_note text,
-    metadata jsonb DEFAULT '{}'::jsonb,
+    metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
     decided_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT NOW(),
     updated_at timestamptz NOT NULL DEFAULT NOW(),
-    CONSTRAINT fk_approvals_requested_user
+    CONSTRAINT fk_dashboard_approvals_requested_user
         FOREIGN KEY (requested_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
-    CONSTRAINT fk_approvals_approver_user
+    CONSTRAINT fk_dashboard_approvals_approver_user
         FOREIGN KEY (approver_user_id) REFERENCES users (id) ON DELETE SET NULL,
-    CONSTRAINT uq_approvals_tenant_key UNIQUE (tenant_id, approval_key)
+    CONSTRAINT uq_dashboard_approvals_tenant_key UNIQUE (tenant_id, approval_key)
 );
 
-CREATE INDEX IF NOT EXISTS idx_approvals_tenant_approver ON approval_requests(tenant_id, approver_user_id);
-CREATE INDEX IF NOT EXISTS idx_approvals_tenant_role ON approval_requests(tenant_id, approver_role);
-CREATE INDEX IF NOT EXISTS idx_approvals_tenant_status ON approval_requests(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_dashboard_approvals_tenant_approver ON dashboard_approval_requests(tenant_id, approver_user_id);
+CREATE INDEX IF NOT EXISTS idx_dashboard_approvals_tenant_role ON dashboard_approval_requests(tenant_id, approver_role);
+CREATE INDEX IF NOT EXISTS idx_dashboard_approvals_tenant_status ON dashboard_approval_requests(tenant_id, status);
 
-ALTER TABLE approval_requests ENABLE ROW LEVEL SECURITY;
-ALTER TABLE approval_requests FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS approval_requests_tenant_policy ON approval_requests;
-CREATE POLICY approval_requests_tenant_policy ON approval_requests FOR ALL USING (tenant_id = current_setting('app.tenant_id', true)) WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+ALTER TABLE dashboard_approval_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE dashboard_approval_requests FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS dashboard_approval_requests_tenant_policy ON dashboard_approval_requests;
+CREATE POLICY dashboard_approval_requests_tenant_policy ON dashboard_approval_requests FOR ALL USING (tenant_id::text = current_setting('app.tenant_id', true)) WITH CHECK (tenant_id::text = current_setting('app.tenant_id', true));
 
-DROP TRIGGER IF EXISTS trg_approval_requests_updated_at ON approval_requests;
-CREATE TRIGGER trg_approval_requests_updated_at BEFORE UPDATE ON approval_requests FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+DROP TRIGGER IF EXISTS trg_dashboard_approval_requests_updated_at ON dashboard_approval_requests;
+CREATE TRIGGER trg_dashboard_approval_requests_updated_at BEFORE UPDATE ON dashboard_approval_requests FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- Migration: 002_finance_projections
 -- Description: Creates projection tables for Finance Overview dashboard
@@ -3656,9 +3699,13 @@ CREATE TABLE IF NOT EXISTS workflow_events (
 
 ALTER TABLE workflow_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workflow_events FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS workflow_events_tenant_policy ON workflow_events;
 CREATE POLICY workflow_events_tenant_policy ON workflow_events FOR ALL USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
 CREATE INDEX IF NOT EXISTS idx_workflow_events_tenant_id ON workflow_events(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_workflow_events_status ON workflow_events(tenant_id, status);
+
+DROP TRIGGER IF EXISTS trg_workflow_events_updated_at ON workflow_events;
+CREATE TRIGGER trg_workflow_events_updated_at BEFORE UPDATE ON workflow_events FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- Tasks, approval requests, and notifications use the canonical event-consumer
 -- contracts declared above. Runtime bootstrap migrates records from the former
@@ -4187,13 +4234,28 @@ CREATE TABLE IF NOT EXISTS report_readiness_reviews (
 
 CREATE TABLE IF NOT EXISTS communication_sms_outbox (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  tenant_id TEXT NOT NULL,
   recipient_phone VARCHAR(50) NOT NULL,
   message TEXT NOT NULL,
-  status VARCHAR(50) DEFAULT 'Pending',
+  status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  available_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  last_attempt_at TIMESTAMP WITH TIME ZONE,
+  dispatch_started_at TIMESTAMP WITH TIME ZONE,
+  lease_expires_at TIMESTAMP WITH TIME ZONE,
+  lease_token UUID,
+  last_error TEXT,
+  provider_id UUID,
+  provider_code TEXT,
+  provider_reference TEXT,
+  provider_accepted_at TIMESTAMP WITH TIME ZONE,
   sent_at TIMESTAMP WITH TIME ZONE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  failed_at TIMESTAMP WITH TIME ZONE,
+  delivery_unknown_at TIMESTAMP WITH TIME ZONE,
+  dispatch_key TEXT NOT NULL DEFAULT ('communication-sms:' || gen_random_uuid()::text),
+  sent_by UUID,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS admin_incidents (

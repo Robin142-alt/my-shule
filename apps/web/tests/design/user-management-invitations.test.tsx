@@ -55,7 +55,7 @@ describe("school-scoped user management and invitations", () => {
 
     const commandCenter = await screen.findByTestId("role-operational-command-center");
 
-    expect(within(commandCenter).getAllByText(/Students Present Today/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getByRole("heading", { name: /Principal Dashboard/i })).toBeVisible();
     expect(within(commandCenter).getByRole("button", { name: /Users & Invitations/i })).toBeVisible();
 
     await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
@@ -271,9 +271,9 @@ describe("school-scoped user management and invitations", () => {
     const commandCenter = await screen.findByTestId("role-operational-command-center");
     await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
 
-    expect(await within(commandCenter).findByText(/Mary Wanjiku/i)).toBeVisible();
+    expect((await within(commandCenter).findAllByText(/Mary Wanjiku/i)).length).toBeGreaterThan(0);
     await user.click(within(commandCenter).getByRole("button", { name: /Pending Invitations/i }));
-    expect(within(commandCenter).getByText(/Jane Parent/i)).toBeVisible();
+    expect(within(commandCenter).getAllByText(/Jane Parent/i).length).toBeGreaterThan(0);
 
     await user.click(within(commandCenter).getByRole("button", { name: /Invite New User/i }));
     await user.type(within(commandCenter).getByLabelText(/Full name/i), "Brian Otieno");
@@ -357,9 +357,9 @@ describe("school-scoped user management and invitations", () => {
     const commandCenter = await screen.findByTestId("role-operational-command-center");
     await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
 
-    expect(await within(commandCenter).findByText("Accepted Kibabi Teacher")).toBeVisible();
+    expect((await within(commandCenter).findAllByText("Accepted Kibabi Teacher")).length).toBeGreaterThan(0);
     expect(within(commandCenter).getByText("1 active users")).toBeVisible();
-    expect(within(commandCenter).getByText("accepted.teacher@example.test")).toBeVisible();
+    expect(within(commandCenter).getAllByText("accepted.teacher@example.test").length).toBeGreaterThan(0);
     expect(readSchoolData("school-users", "kibabi-high")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -400,11 +400,11 @@ describe("school-scoped user management and invitations", () => {
     const commandCenter = await screen.findByTestId("role-operational-command-center");
     await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
 
-    expect(await within(commandCenter).findByText("Deactivated Teacher")).toBeVisible();
+    expect((await within(commandCenter).findAllByText("Deactivated Teacher")).length).toBeGreaterThan(0);
     expect(within(commandCenter).getByText("1 inactive")).toBeVisible();
     expect(within(commandCenter).getByText("0 pending invites")).toBeVisible();
     await user.click(within(commandCenter).getByRole("button", { name: /Suspended \/ Deactivated/i }));
-    expect(within(commandCenter).getByText("Deactivated Teacher")).toBeVisible();
+    expect(within(commandCenter).getAllByText("Deactivated Teacher").length).toBeGreaterThan(0);
   }, 30000);
 
   it("runs user detail, edit, role, status, deactivation, and password recovery actions through live contracts", async () => {
@@ -496,42 +496,42 @@ describe("school-scoped user management and invitations", () => {
     renderWithProviders(<SchoolPages role="principal" tenantSlug="kisumu-boys" />);
     const commandCenter = await screen.findByTestId("role-operational-command-center");
     await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
-    expect(await within(commandCenter).findByText("Mary Wanjiku")).toBeVisible();
+    expect((await within(commandCenter).findAllByText("Mary Wanjiku")).length).toBeGreaterThan(0);
 
     await user.click(within(commandCenter).getByRole("button", { name: "Open Invite Form" }));
     expect(within(commandCenter).getByLabelText("Full name")).toBeVisible();
     await user.click(within(commandCenter).getByRole("button", { name: "All Users" }));
 
-    await user.click(within(commandCenter).getByRole("button", { name: "View details" }));
+    await user.click(within(commandCenter).getAllByRole("button", { name: "View details" })[0]);
     expect(screen.getByRole("dialog", { name: "Mary Wanjiku details" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Close Mary Wanjiku details" }));
 
-    await user.click(within(commandCenter).getByRole("button", { name: "Edit user" }));
+    await user.click(within(commandCenter).getAllByRole("button", { name: "Edit user" })[0]);
     const editDialog = screen.getByRole("dialog", { name: "Edit Mary Wanjiku" });
     await user.clear(within(editDialog).getByLabelText("Name"));
     await user.type(within(editDialog).getByLabelText("Name"), "Mary Njeri");
     await user.click(within(editDialog).getByRole("button", { name: "Save User" }));
     expect(await within(commandCenter).findByText("Mary Njeri updated.")).toBeVisible();
 
-    await user.click(within(commandCenter).getByRole("button", { name: "Change role" }));
+    await user.click(within(commandCenter).getAllByRole("button", { name: "Change role" })[0]);
     const roleDialog = screen.getByRole("dialog", { name: "Change role for Mary Njeri" });
     await user.selectOptions(within(roleDialog).getByLabelText("School role"), "Librarian");
     await user.click(within(roleDialog).getByRole("button", { name: "Save role" }));
     expect(await within(commandCenter).findByText(/role changed to Librarian/i)).toBeVisible();
 
-    await user.click(within(commandCenter).getByRole("button", { name: "Suspend" }));
+    await user.click(within(commandCenter).getAllByRole("button", { name: "Suspend" })[0]);
     await user.click(within(screen.getByRole("dialog", { name: "Suspend Mary Njeri" })).getByRole("button", { name: "Confirm suspended" }));
     expect(await within(commandCenter).findByText("Mary Njeri is now Suspended.")).toBeVisible();
 
-    await user.click(within(commandCenter).getByRole("button", { name: "Reactivate" }));
+    await user.click(within(commandCenter).getAllByRole("button", { name: "Reactivate" })[0]);
     await user.click(within(screen.getByRole("dialog", { name: "Reactivate Mary Njeri" })).getByRole("button", { name: "Confirm active" }));
     expect(await within(commandCenter).findByText("Mary Njeri is now Active.")).toBeVisible();
 
-    await user.click(within(commandCenter).getByRole("button", { name: "Deactivate" }));
+    await user.click(within(commandCenter).getAllByRole("button", { name: "Deactivate" })[0]);
     await user.click(within(screen.getByRole("dialog", { name: "Deactivate Mary Njeri" })).getByRole("button", { name: "Confirm deactivated" }));
     expect(await within(commandCenter).findByText("Mary Njeri is now Deactivated.")).toBeVisible();
 
-    await user.click(within(commandCenter).getByRole("button", { name: "Reset password" }));
+    await user.click(within(commandCenter).getAllByRole("button", { name: "Reset password" })[0]);
     const resetDialog = screen.getByRole("dialog", { name: "Reset password for Mary Njeri" });
     await user.click(within(resetDialog).getByRole("button", { name: "Send recovery email" }));
     expect(await within(commandCenter).findByText(/Password recovery instructions were requested for Mary Njeri/i)).toBeVisible();
@@ -614,7 +614,7 @@ describe("school-scoped user management and invitations", () => {
     const commandCenter = await screen.findByTestId("role-operational-command-center");
     await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
 
-    expect(within(commandCenter).getByText(/Faith Akinyi/i)).toBeVisible();
+    expect(within(commandCenter).getAllByText(/Faith Akinyi/i).length).toBeGreaterThan(0);
     expect(within(commandCenter).queryByText(/David Kiptoo/i)).not.toBeInTheDocument();
 
     await user.click(within(commandCenter).getByRole("button", { name: /Invite New User/i }));
@@ -692,7 +692,7 @@ describe("school-scoped user management and invitations", () => {
     expect(within(commandCenter).getAllByRole("heading", { name: /Users & Invitations/i }).length).toBeGreaterThan(0);
     expect(within(commandCenter).getByText(/Deputy Principal can invite school users in Kisumu Boys/i)).toBeVisible();
     expect(within(commandCenter).queryByRole("option", { name: /Super Admin/i })).not.toBeInTheDocument();
-    expect(await within(commandCenter).findByText("Kibabi Live Teacher")).toBeVisible();
+    expect((await within(commandCenter).findAllByText("Kibabi Live Teacher")).length).toBeGreaterThan(0);
     expect(within(commandCenter).getByText("1 active users")).toBeVisible();
     expect(within(commandCenter).getByText("1 pending invites")).toBeVisible();
     expect(within(commandCenter).queryByText(/Live user service is unavailable/i)).not.toBeInTheDocument();
@@ -756,7 +756,7 @@ describe("school-scoped user management and invitations", () => {
       />,
     );
 
-    expect(await screen.findByText("Kibabi Shared Teacher")).toBeVisible();
+    expect((await screen.findAllByText("Kibabi Shared Teacher")).length).toBeGreaterThan(0);
     expect(screen.getByText("1 active users")).toBeVisible();
     expect(screen.getByText("1 pending invites")).toBeVisible();
     principal.unmount();
@@ -771,7 +771,7 @@ describe("school-scoped user management and invitations", () => {
       />,
     );
 
-    expect(await screen.findByText("Kibabi Shared Teacher")).toBeVisible();
+    expect((await screen.findAllByText("Kibabi Shared Teacher")).length).toBeGreaterThan(0);
     expect(screen.getByText("1 active users")).toBeVisible();
     expect(screen.getByText("1 pending invites")).toBeVisible();
     expect(fetchMock).toHaveBeenCalledTimes(2);

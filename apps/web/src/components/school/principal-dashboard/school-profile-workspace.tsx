@@ -4,8 +4,8 @@ import { AlertCircle, Building2, CheckCircle2, Loader2, Save, Upload } from "luc
 import { useEffect, useRef, useState } from "react";
 
 import { Card } from "@/components/ui/card";
-import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useVerifiedPrincipalDashboardApi } from "./verified-tenant-api";
 
 type SchoolProfileData = {
   status: "active" | "degraded" | "setup_required";
@@ -54,8 +54,20 @@ const emptyForm: SchoolProfileForm = {
 
 const fieldClass = "mt-1 w-full rounded-lg border border-white/15 bg-[#071D49] px-3 py-2.5 text-sm font-semibold text-white outline-none transition focus:border-cyan-300";
 
+function SchoolProfileHeading() {
+  return (
+    <header>
+      <h2 className="text-2xl font-black text-white">School Profile</h2>
+      <p className="mt-1 text-sm font-semibold text-white/70">
+        Maintain the tenant-scoped identity, contacts, location, branding, and curriculum used across MyShule.
+      </p>
+    </header>
+  );
+}
+
 export function PrincipalSchoolProfileWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<SchoolProfileData>("/admin-command/principal/school-profile");
+  const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
   const [form, setForm] = useState<SchoolProfileForm>(emptyForm);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -93,7 +105,7 @@ export function PrincipalSchoolProfileWorkspace() {
     setActionError(null);
     setSuccessMessage(null);
     try {
-      await requestDashboardApi("/admin-command/principal/school-profile", {
+      await requestPrincipalApi("/admin-command/principal/school-profile", {
         method: "POST",
         body: {
           ...form,
@@ -119,7 +131,7 @@ export function PrincipalSchoolProfileWorkspace() {
     const body = new FormData();
     body.append("logo", file);
     try {
-      const uploaded = await requestDashboardApi<{ url: string }>("/admin-command/principal/school-profile/logo", {
+      const uploaded = await requestPrincipalApi<{ url: string }>("/admin-command/principal/school-profile/logo", {
         method: "POST",
         body,
         timeoutMs: 60_000,
@@ -140,20 +152,29 @@ export function PrincipalSchoolProfileWorkspace() {
   };
 
   if (isLoading) {
-    return <Card className="border-white/10 bg-white/5 p-8 text-center font-bold text-white/70">Loading school profile...</Card>;
+    return (
+      <div className="space-y-5">
+        <SchoolProfileHeading />
+        <Card className="border-white/10 bg-white/5 p-8 text-center font-bold text-white/70">Loading school profile...</Card>
+      </div>
+    );
   }
 
   if (error || !data) {
     return (
-      <Card className="border border-red-500/20 bg-red-500/10 p-6 text-red-100">
-        <div className="flex items-center gap-3"><AlertCircle className="h-6 w-6" /><h2 className="text-xl font-bold">Failed to load School Profile</h2></div>
-        <p className="mt-2 text-sm font-semibold">Retry this workspace before continuing school activation.</p>
-      </Card>
+      <div className="space-y-5">
+        <SchoolProfileHeading />
+        <Card className="border border-red-500/20 bg-red-500/10 p-6 text-red-100">
+          <div className="flex items-center gap-3"><AlertCircle className="h-6 w-6" /><h3 className="text-xl font-bold">Failed to load School Profile</h3></div>
+          <p className="mt-2 text-sm font-semibold">Retry this workspace before continuing school activation.</p>
+        </Card>
+      </div>
     );
   }
 
   return (
     <form onSubmit={handleSave} className="space-y-5">
+      <SchoolProfileHeading />
       <Card className="border border-white/10 bg-white/5 p-5 text-white">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-4">
@@ -164,7 +185,7 @@ export function PrincipalSchoolProfileWorkspace() {
               <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/5"><Building2 className="h-10 w-10 text-cyan-200" /></div>
             )}
             <div className="min-w-0">
-              <h2 className="truncate text-2xl font-black">{data.schoolName}</h2>
+              <h3 className="truncate text-2xl font-black">{data.schoolName}</h3>
               <p className="mt-1 text-sm font-semibold text-white/60">School tenant: {data.subdomain}</p>
               <span className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-cyan-300/25 bg-cyan-300/10 px-2.5 py-1 text-xs font-black text-cyan-100">
                 <CheckCircle2 className="h-3.5 w-3.5" /> {data.status === "active" ? "Profile complete" : "Profile setup required"}

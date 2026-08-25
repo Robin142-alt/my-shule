@@ -1,9 +1,10 @@
 "use client";
 import { useState } from "react";
-import { FileText, Download, Printer, Plus } from "lucide-react";
+import { FileText, Download, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { downloadBase64File, openPrintDocument } from "@/lib/dashboard/export";
 import { downloadDocument, printDocument } from "./api-client";
 
 type DocumentRecord = {
@@ -28,8 +29,26 @@ type DocumentsData = {
   documents: DocumentRecord[];
 };
 
+type DocumentArtifactResponse = {
+  document?: {
+    title?: string;
+    message?: string;
+    created_at?: string;
+    payload?: {
+      recipient?: string;
+      type?: string;
+      body?: string;
+    };
+  };
+  artifact?: {
+    filename?: string;
+    content_type?: string;
+    content_base64?: string;
+  };
+};
+
 export function LettersDocumentsWorkspace() {
-  const { data, isLoading, refetch } = useSchoolQuery<DocumentsData>('/admin-command/secretary/letters-documents');
+  const { data, isLoading } = useSchoolQuery<DocumentsData>('/admin-command/secretary/letters-documents');
   const [actionId, setActionId] = useState<string | null>(null);
 
   const documents = data?.documents || [];
@@ -59,10 +78,18 @@ export function LettersDocumentsWorkspace() {
   const handleDownload = async (id: string) => {
     setActionId(id);
     try {
-      await downloadDocument(id);
-      toast.success("Document download started.");
-    } catch {
-      toast.error("Failed to download document.");
+      const response = await downloadDocument(id) as DocumentArtifactResponse;
+      if (!response.artifact?.filename || !response.artifact.content_type || !response.artifact.content_base64) {
+        throw new Error("The stored document artifact is incomplete.");
+      }
+      downloadBase64File({
+        filename: response.artifact.filename,
+        contentBase64: response.artifact.content_base64,
+        mimeType: response.artifact.content_type,
+      });
+      toast.success("Document downloaded from the stored artifact.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to download document.");
     } finally {
       setActionId(null);
     }
@@ -71,10 +98,24 @@ export function LettersDocumentsWorkspace() {
   const handlePrint = async (id: string) => {
     setActionId(id);
     try {
-      await printDocument(id);
-      toast.success("Document sent to printer.");
-    } catch {
-      toast.error("Failed to print document.");
+      const response = await printDocument(id) as DocumentArtifactResponse;
+      if (!response.document || !response.artifact?.content_base64) {
+        throw new Error("The stored document artifact is incomplete.");
+      }
+      openPrintDocument({
+        eyebrow: "Secretary office document",
+        title: response.document.title || "School document",
+        subtitle: `Prepared ${response.document.created_at || "for the current school"}`,
+        rows: [
+          { label: "Recipient", value: response.document.payload?.recipient || "Not recorded" },
+          { label: "Document type", value: response.document.payload?.type || "Document" },
+          { label: "Content", value: response.document.payload?.body || response.document.message || "" },
+        ],
+        footer: "Print preview generated from the stored tenant-scoped document artifact.",
+      });
+      toast.success("Document print preview opened.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to open document print preview.");
     } finally {
       setActionId(null);
     }

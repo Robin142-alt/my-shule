@@ -4,8 +4,8 @@ import { createElement } from "react";
 import { ExamsMarksWorkspace } from "@/components/school/teacher-dashboard/exams-marks-workspace";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import {
-  fetchClassRegisterLive,
   fetchPendingMarksLive,
+  fetchTeacherMarkSheetLive,
   saveExamMarksLive,
 } from "@/lib/modules/teacher-live";
 
@@ -16,8 +16,8 @@ jest.mock("@/hooks/use-live-tenant-session", () => ({
 }));
 
 jest.mock("@/lib/modules/teacher-live", () => ({
-  fetchClassRegisterLive: jest.fn(),
   fetchPendingMarksLive: jest.fn(),
+  fetchTeacherMarkSheetLive: jest.fn(),
   saveExamMarksLive: jest.fn(),
 }));
 
@@ -53,10 +53,14 @@ describe("teacher exams and marks workspace", () => {
       windows: [
         {
           id: "window-1",
+          examSeriesId: "series-1",
+          academicTermId: "term-2",
           examName: "Term 2 Opener",
           className: "Form 2 Blue",
           classSectionId: "class-2-blue",
+          subjectId: "subject-maths",
           subjectName: "Mathematics",
+          assessmentId: "assessment-paper-1",
           paperName: "Paper 1",
           outOf: 80,
           deadline: "2026-07-20",
@@ -66,22 +70,58 @@ describe("teacher exams and marks workspace", () => {
         },
       ],
     });
-    (fetchClassRegisterLive as jest.Mock).mockResolvedValue([
+    (fetchTeacherMarkSheetLive as jest.Mock).mockResolvedValue([
       {
-        id: "student-1",
-        admissionNo: "ADM-001",
-        name: "Asha Njeri",
-        gender: "Female",
-        parentPhone: "0700000001",
-        status: "active",
+        id: null,
+        mark_entry_window_id: "window-1",
+        exam_series_id: "series-1",
+        exam_series_name: "Term 2 Opener",
+        academic_term_id: "term-2",
+        assessment_id: "assessment-paper-1",
+        assessment_name: "Paper 1",
+        max_score: 80,
+        assessment_weight: 100,
+        class_section_id: "class-2-blue",
+        class_name: "Form 2 Blue",
+        subject_id: "subject-maths",
+        subject_name: "Mathematics",
+        student_id: "student-1",
+        admission_number: "ADM-001",
+        student_name: "Asha Njeri",
+        score: null,
+        score_status: "entered",
+        remarks: null,
+        status: "draft",
+        entered_by_user_id: null,
+        updated_at: null,
+        opens_at: "2026-07-01T06:00:00.000Z",
+        closes_at: "2026-07-20T14:00:00.000Z",
       },
       {
-        id: "student-2",
-        admissionNo: "ADM-002",
-        name: "Brian Otieno",
-        gender: "Male",
-        parentPhone: "0700000002",
-        status: "active",
+        id: null,
+        mark_entry_window_id: "window-1",
+        exam_series_id: "series-1",
+        exam_series_name: "Term 2 Opener",
+        academic_term_id: "term-2",
+        assessment_id: "assessment-paper-1",
+        assessment_name: "Paper 1",
+        max_score: 80,
+        assessment_weight: 100,
+        class_section_id: "class-2-blue",
+        class_name: "Form 2 Blue",
+        subject_id: "subject-maths",
+        subject_name: "Mathematics",
+        student_id: "student-2",
+        admission_number: "ADM-002",
+        student_name: "Brian Otieno",
+        score: null,
+        score_status: "entered",
+        remarks: null,
+        status: "draft",
+        entered_by_user_id: null,
+        updated_at: null,
+        opens_at: "2026-07-01T06:00:00.000Z",
+        closes_at: "2026-07-20T14:00:00.000Z",
       },
     ]);
     (saveExamMarksLive as jest.Mock).mockResolvedValue({ success: true });
@@ -100,9 +140,11 @@ describe("teacher exams and marks workspace", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Open markbook for Term 2 Opener/i }));
 
-    const ashaInput = await screen.findByLabelText(/Asha Njeri score/i);
-    expect(screen.getByText(/Brian Otieno/i)).toBeVisible();
+    await screen.findAllByLabelText(/Asha Njeri score/i);
+    expect(screen.getAllByText(/Brian Otieno/i).length).toBeGreaterThan(0);
 
+    fireEvent.change(screen.getAllByLabelText(/Asha Njeri evidence status/i)[0]!, { target: { value: "entered" } });
+    const ashaInput = screen.getAllByLabelText(/Asha Njeri score/i)[0]!;
     fireEvent.change(ashaInput, { target: { value: "74" } });
     fireEvent.click(screen.getByRole("button", { name: /Save draft/i }));
 
@@ -113,12 +155,20 @@ describe("teacher exams and marks workspace", () => {
           action: "draft",
           examId: "window-1",
           classSectionId: "class-2-blue",
-          scores: expect.objectContaining({ "student-1": "74" }),
+          marks: expect.objectContaining({
+            "student-1": expect.objectContaining({ score: 74, score_status: "entered" }),
+          }),
         }),
       );
     });
 
-    fireEvent.change(screen.getByLabelText(/Brian Otieno score/i), { target: { value: "68" } });
+    await waitFor(() => {
+      expect(screen.getAllByLabelText(/Asha Njeri score/i)[0]).toBeDisabled();
+    });
+    fireEvent.change(screen.getAllByLabelText(/Asha Njeri evidence status/i)[0]!, { target: { value: "entered" } });
+    fireEvent.change(screen.getAllByLabelText(/Asha Njeri score/i)[0]!, { target: { value: "74" } });
+    fireEvent.change(screen.getAllByLabelText(/Brian Otieno evidence status/i)[0]!, { target: { value: "entered" } });
+    fireEvent.change(screen.getAllByLabelText(/Brian Otieno score/i)[0]!, { target: { value: "68" } });
     fireEvent.click(screen.getByRole("button", { name: /Submit for moderation/i }));
 
     await waitFor(() => {
@@ -127,7 +177,10 @@ describe("teacher exams and marks workspace", () => {
         expect.objectContaining({
           action: "submit",
           examId: "window-1",
-          scores: expect.objectContaining({ "student-1": "74", "student-2": "68" }),
+          marks: expect.objectContaining({
+            "student-1": expect.objectContaining({ score: 74, score_status: "entered" }),
+            "student-2": expect.objectContaining({ score: 68, score_status: "entered" }),
+          }),
         }),
       );
     });

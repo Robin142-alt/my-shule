@@ -4,9 +4,31 @@ import { useState } from "react";
 import { Panel, RecordTable } from "./shared-components";
 import { TeacherAction, TeacherView } from "./types";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
-import { fetchSentMessagesLive } from "@/lib/modules/teacher-live";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { toast } from "sonner";
+
+type ParentMessageRecipientOptions = {
+  classes: Array<{
+    class_section_id: string;
+    class_name: string;
+    sms_available: boolean;
+  }>;
+  guardians: Array<{
+    guardian_id: string;
+    guardian_name: string;
+    student_name: string;
+    class_name: string;
+    sms_available: boolean;
+  }>;
+};
+
+type SentParentMessage = {
+  id: string;
+  date: string;
+  recipient: string;
+  message: string;
+  status: string;
+};
 
 export function ParentCommunicationWorkspace({
   onStartAction,
@@ -19,18 +41,23 @@ export function ParentCommunicationWorkspace({
   
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["sent-messages", liveSession.session?.tenantId, liveSession.session?.user.user_id],
-    queryFn: () => fetchSentMessagesLive(liveSession.session!),
+    queryFn: () => requestDashboardApi<{ items: SentParentMessage[] }>("/admin-command/teacher/messages"),
+    enabled: !!liveSession.session,
+  });
+  const recipientOptions = useQuery({
+    queryKey: ["teacher-parent-message-recipients", liveSession.session?.tenantId, liveSession.session?.user.user_id],
+    queryFn: () => requestDashboardApi<ParentMessageRecipientOptions>("/admin-command/teacher/message-recipients"),
     enabled: !!liveSession.session,
   });
 
-  const rows = data?.map(msg => [
+  const rows = (data?.items || []).map(msg => [
     msg.date,
     msg.recipient,
     msg.message,
     <span key={msg.id} className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
       {msg.status}
     </span>,
-  ]) || [];
+  ]);
 
   const openComposer = (audience: "individual_parent" | "class_parents") => {
     setComposerAudience(audience);
@@ -49,7 +76,7 @@ export function ParentCommunicationWorkspace({
     setIsSubmitting(true);
     try {
       const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
-      await requestDashboardApi("/admin-command/teacher/messages", {
+      const result = await requestDashboardApi<{ message?: string }>("/admin-command/teacher/messages", {
         method: "POST",
         body: {
           audience: String(payload.audience || composerAudience),
@@ -58,7 +85,7 @@ export function ParentCommunicationWorkspace({
           message: String(payload.message || "").trim(),
         },
       });
-      toast.success("Parent message queued for delivery.");
+      toast.success(result.message || "Parent message queued for exact linked guardians.");
       setComposerAudience(null);
       refetch();
     } catch (error) {
@@ -82,20 +109,53 @@ export function ParentCommunicationWorkspace({
           <div className="grid gap-3 md:grid-cols-2">
             <label className="text-sm font-bold text-[#071D49]">
               Recipient
-              <input name="recipient" required={composerAudience === "individual_parent"} className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49]" placeholder={composerAudience === "class_parents" ? "Class/Form or stream" : "Parent phone, email, or guardian ID"} />
+              <select name="recipient" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49]" defaultValue="">
+                <option value="" disabled>
+                  {recipientOptions.isLoading
+                    ? "Loading assigned recipients..."
+                    : composerAudience === "class_parents"
+                      ? "Select an assigned class"
+                      : "Select a linked guardian"}
+                </option>
+                {composerAudience === "class_parents"
+                  ? (recipientOptions.data?.classes || []).map((item) => (
+                      <option key={item.class_section_id} value={item.class_section_id}>
+                        {item.class_name}
+                      </option>
+                    ))
+                  : (recipientOptions.data?.guardians || []).map((item) => (
+                      <option key={item.guardian_id} value={item.guardian_id}>
+                        {item.guardian_name} — {item.student_name} ({item.class_name})
+                      </option>
+                    ))}
+              </select>
             </label>
             <label className="text-sm font-bold text-[#071D49]">
               Subject
               <input name="subject" className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49]" placeholder="e.g. Homework follow-up" />
             </label>
           </div>
+          {recipientOptions.isError ? (
+            <p className="mt-3 text-sm font-semibold text-red-700">
+              Assigned guardian recipients could not be loaded. Retry before sending.
+            </p>
+          ) : null}
+          {!recipientOptions.isLoading && !recipientOptions.isError && (
+            composerAudience === "class_parents"
+              ? (recipientOptions.data?.classes.length ?? 0) === 0
+              : (recipientOptions.data?.guardians.length ?? 0) === 0
+          ) ? (
+            <p className="mt-3 text-sm font-semibold text-amber-700">
+              No active guardian accounts are linked to learners in your current teaching assignments.
+            </p>
+          ) : null}
           <label className="mt-3 block text-sm font-bold text-[#071D49]">
             Message
             <textarea name="message" required rows={4} className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Write a clear parent message linked to the learner or class context." />
           </label>
           <div className="mt-4 flex justify-end gap-2">
             <button type="button" onClick={closeComposer} className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49]">Cancel</button>
-            <button type="submit" disabled={isSubmitting} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+            <button type="submit" disabled={isSubmitting || recipientOptions.isLoading || recipientOptions.isError} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
               {isSubmitting ? "Queueing..." : "Queue Message"}
             </button>
           </div>

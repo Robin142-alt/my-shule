@@ -22,7 +22,7 @@ type RoomsBedsData = {
 };
 
 export function RoomsBedsWorkspace() {
-  const { data, isLoading } = useSchoolQuery<RoomsBedsData>('/admin-command/boarding-master/rooms-beds');
+  const { data, error, isLoading, refetch } = useSchoolQuery<RoomsBedsData>('/admin-command/boarding-master/rooms-beds');
   const items = data?.roomsbedsList || [];
 
   const getStatusTone = (st: string): Tone => {
@@ -32,6 +32,18 @@ export function RoomsBedsWorkspace() {
     if (st === "Issued" || st === "Checked In" || st === "Submitted" || st === "Booked" || st === "Sent" || st === "On Leave") return "info";
     return "neutral";
   };
+
+  if (error) {
+    return (
+      <Panel title="Rooms & Beds" description="Manage rooms and bed assignments." icon={BedDouble}>
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <p className="font-black">Rooms and beds could not be loaded.</p>
+          <p className="mt-1">{error.message}</p>
+          <button type="button" onClick={() => void refetch()} className="mt-3 font-black underline">Retry</button>
+        </div>
+      </Panel>
+    );
+  }
 
   return (
     <Panel title="Rooms & Beds" description="Manage rooms and bed assignments." icon={BedDouble}>

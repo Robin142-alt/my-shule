@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { Logger } from '@nestjs/common';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
+import { SmsProviderDispatchError } from '../integrations/sms-dispatch.service';
 import { SupportNotificationDeliveryService } from './support-notification-delivery.service';
 
 Logger.overrideLogger(false);
@@ -145,7 +146,7 @@ test('SupportNotificationDeliveryService sends support SMS notifications through
     { get: () => undefined } as never,
     {} as never,
     {
-      markNotificationDelivery: async (id: string, status: string) => {
+      markNotificationDelivery: async (_tenantId: string, id: string, status: string) => {
         deliveryUpdates.push({ id, status });
       },
     } as never,
@@ -154,7 +155,7 @@ test('SupportNotificationDeliveryService sends support SMS notifications through
       send: async (input: Record<string, unknown>) => {
         dispatched.push(input);
         return {
-          status: 'sent',
+          status: 'provider_accepted',
           provider_id: 'provider-1',
           provider_code: 'africas_talking',
           provider_message_id: 'message-1',
@@ -186,7 +187,47 @@ test('SupportNotificationDeliveryService sends support SMS notifications through
   assert.equal(dispatched[0]?.message, 'School Alpha reported admission import failures.');
   assert.equal(dispatched[0]?.source, 'support_notification');
   assert.equal(dispatched[0]?.tenant_id, 'tenant-a');
-  assert.deepEqual(deliveryUpdates, [{ id: 'notification-platform-sms-1', status: 'sent' }]);
+  assert.deepEqual(deliveryUpdates, [{ id: 'notification-platform-sms-1', status: 'provider_accepted' }]);
+});
+
+test('SupportNotificationDeliveryService marks ambiguous provider timeouts for review without retry', async () => {
+  const deliveryUpdates: Array<{ id: string; status: string; details?: Record<string, unknown> }> = [];
+  const service = new SupportNotificationDeliveryService(
+    { get: () => undefined } as never,
+    {} as never,
+    {
+      markNotificationDelivery: async (
+        _tenantId: string,
+        id: string,
+        status: string,
+        details?: Record<string, unknown>,
+      ) => deliveryUpdates.push({ id, status, details }),
+    } as never,
+    undefined,
+    {
+      send: async () => {
+        throw new SmsProviderDispatchError('provider timeout', false, null, true);
+      },
+    } as never,
+  );
+
+  await service.deliverCreatedNotifications([{
+    id: 'notification-platform-sms-unknown',
+    tenant_id: 'tenant-a',
+    ticket_id: 'ticket-1',
+    recipient_user_id: null,
+    recipient_type: 'support',
+    channel: 'sms',
+    title: 'Critical support ticket',
+    body: 'Provider timeout scenario.',
+    delivery_status: 'queued',
+    metadata: { recipient_phone: '+254700000003' },
+    created_at: '2026-05-12T09:00:00.000Z',
+  }]);
+
+  assert.equal(deliveryUpdates.length, 1);
+  assert.equal(deliveryUpdates[0]?.status, 'delivery_unknown');
+  assert.equal(deliveryUpdates[0]?.details?.nextAttemptAt, null);
 });
 
 test('SupportNotificationDeliveryService sends support email notifications to configured recipients', async () => {
@@ -208,7 +249,7 @@ test('SupportNotificationDeliveryService sends support email notifications to co
       },
     } as never,
     {
-      markNotificationDelivery: async (id: string, status: string) => {
+      markNotificationDelivery: async (_tenantId: string, id: string, status: string) => {
         deliveryUpdates.push({ id, status });
       },
     } as never,
@@ -270,7 +311,7 @@ test('SupportNotificationDeliveryService sends support SMS notifications through
       } as never,
       {} as never,
       {
-        markNotificationDelivery: async (id: string, status: string) => {
+        markNotificationDelivery: async (_tenantId: string, id: string, status: string) => {
           deliveryUpdates.push({ id, status });
         },
       } as never,
@@ -298,7 +339,57 @@ test('SupportNotificationDeliveryService sends support SMS notifications through
     assert.equal((requests[0]?.init?.headers as Record<string, string>)?.Authorization, 'Bearer sms-secret-token');
     assert.match(String(requests[0]?.init?.body), /"\+254700000001"/);
     assert.match(String(requests[0]?.init?.body), /SUP-2026-000150/);
-    assert.deepEqual(deliveryUpdates, [{ id: 'notification-sms-1', status: 'sent' }]);
+    assert.deepEqual(deliveryUpdates, [{ id: 'notification-sms-1', status: 'provider_accepted' }]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('SupportNotificationDeliveryService treats a 502 SMS relay response as delivery unknown without retry', async () => {
+  const deliveryUpdates: Array<{
+    tenantId: string;
+    id: string;
+    status: string;
+    details?: Record<string, unknown>;
+  }> = [];
+  globalThis.fetch = (async () => new Response('bad gateway', { status: 502 })) as typeof fetch;
+
+  try {
+    const service = new SupportNotificationDeliveryService(
+      {
+        get: (key: string) => key === 'support.notificationSmsWebhookUrl'
+          ? 'https://sms-gateway.test/send'
+          : undefined,
+      } as never,
+      {} as never,
+      {
+        markNotificationDelivery: async (
+          tenantId: string,
+          id: string,
+          status: string,
+          details?: Record<string, unknown>,
+        ) => deliveryUpdates.push({ tenantId, id, status, details }),
+      } as never,
+    );
+
+    await service.deliverCreatedNotifications([{
+      id: 'notification-sms-502',
+      tenant_id: 'tenant-slug',
+      ticket_id: 'ticket-502',
+      recipient_user_id: null,
+      recipient_type: 'support',
+      channel: 'sms',
+      title: 'Provider ambiguity',
+      body: 'Do not retry an ambiguous relay response.',
+      delivery_status: 'queued',
+      metadata: { recipient_phone: '+254700000099' },
+      created_at: '2026-05-12T09:00:00.000Z',
+    }]);
+
+    assert.equal(deliveryUpdates.length, 1);
+    assert.equal(deliveryUpdates[0]?.tenantId, 'tenant-slug');
+    assert.equal(deliveryUpdates[0]?.status, 'delivery_unknown');
+    assert.equal(deliveryUpdates[0]?.details?.nextAttemptAt, null);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -318,7 +409,7 @@ test('SupportNotificationDeliveryService marks email notifications failed when n
     } as never,
     {
       findUserEmailForNotification: async () => null,
-      markNotificationDelivery: async (id: string, status: string) => {
+      markNotificationDelivery: async (_tenantId: string, id: string, status: string) => {
         deliveryUpdates.push({ id, status });
       },
       createNotifications: async (inputs: Array<Record<string, unknown>>) => {
@@ -380,6 +471,7 @@ test('SupportNotificationDeliveryService keeps provider failures queued until re
     } as never,
     {
       markNotificationDelivery: async (
+        _tenantId: string,
         id: string,
         status: string,
         details?: {
@@ -450,6 +542,7 @@ test('SupportNotificationDeliveryService creates an in-app support alert when em
     } as never,
     {
       markNotificationDelivery: async (
+        _tenantId: string,
         id: string,
         status: string,
         details?: {
@@ -509,6 +602,7 @@ test('SupportNotificationDeliveryService creates an in-app support alert when em
 test('SupportNotificationDeliveryService claims due queued email notifications before retry delivery', async () => {
   const requestContext = new RequestContextService();
   const claimedLimits: Array<{ limit: number; leaseMs: number }> = [];
+  let notificationClaimed = false;
   const sent: Array<{ to: string; title: string; body: string }> = [];
   const deliveryUpdates: Array<{ id: string; status: string }> = [];
   const service = new SupportNotificationDeliveryService(
@@ -542,6 +636,12 @@ test('SupportNotificationDeliveryService claims due queued email notifications b
         claimedLimits.push({ limit, leaseMs });
         assert.deepEqual(channels, ['email', 'sms']);
 
+        if (notificationClaimed) {
+          return [];
+        }
+
+        notificationClaimed = true;
+
         return [
           {
             id: 'notification-4',
@@ -561,7 +661,7 @@ test('SupportNotificationDeliveryService claims due queued email notifications b
           },
         ];
       },
-      markNotificationDelivery: async (id: string, status: string) => {
+      markNotificationDelivery: async (_tenantId: string, id: string, status: string) => {
         deliveryUpdates.push({ id, status });
       },
     } as never,
@@ -571,7 +671,10 @@ test('SupportNotificationDeliveryService claims due queued email notifications b
   const processed = await service.processDueQueuedEmailNotifications();
 
   assert.equal(processed, 1);
-  assert.deepEqual(claimedLimits, [{ limit: 25, leaseMs: 120000 }]);
+  assert.deepEqual(claimedLimits, [
+    { limit: 1, leaseMs: 120000 },
+    { limit: 1, leaseMs: 120000 },
+  ]);
   assert.deepEqual(sent, [
     {
       to: 'lead@myshule.test',

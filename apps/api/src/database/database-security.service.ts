@@ -21,6 +21,7 @@ interface ManagedFunctionState {
 
 const MANAGED_SECURITY_DEFINER_FUNCTIONS = [
   'app.claim_outbox_events(integer,integer)',
+  'app.claim_communication_sms_outbox(integer,integer)',
   'app.find_user_by_email_for_auth(text)',
   'app.find_active_memberships_by_user_for_auth(uuid)',
   'app.find_platform_owner_by_email_for_auth(text)',
@@ -35,6 +36,11 @@ const MANAGED_SECURITY_DEFINER_FUNCTIONS = [
   'app.consume_invite_acceptance_action(text,text,text,text)',
   'app.find_daraja_integration_by_id_for_callback(uuid)',
   'app.find_parent_auth_subject_for_otp(text,text)',
+] as const;
+
+const WORKER_ONLY_SECURITY_DEFINER_FUNCTIONS = [
+  'app.claim_outbox_events(integer,integer)',
+  'app.claim_communication_sms_outbox(integer,integer)',
 ] as const;
 
 @Injectable()
@@ -159,6 +165,19 @@ export class DatabaseSecurityService implements OnModuleInit, OnApplicationBoots
         runtimeRoleName,
       ),
     );
+
+    for (const functionSignature of WORKER_ONLY_SECURITY_DEFINER_FUNCTIONS) {
+      const existingFunction = await this.pool.query<{ signature: string }>(
+        'SELECT to_regprocedure($1)::text AS signature WHERE to_regprocedure($1) IS NOT NULL',
+        [functionSignature],
+      );
+
+      if (existingFunction.rows[0]) {
+        await this.pool.query(
+          format('REVOKE EXECUTE ON FUNCTION %s FROM %I', functionSignature, runtimeRoleName),
+        );
+      }
+    }
   }
 
   private async repairManagedFunctionOwnership(): Promise<void> {

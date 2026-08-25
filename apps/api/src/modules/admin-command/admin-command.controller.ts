@@ -144,6 +144,27 @@ export class AdminCommandController {
     return this.adminCommandService.getPrincipalOverview();
   }
 
+  @Get('principal/visitors')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read')
+  getPrincipalVisitorsOverview() {
+    return this.adminCommandService.getPrincipalVisitorsOverview();
+  }
+
+  @Get('principal/health')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read', 'clinic:reports')
+  getPrincipalHealthOverview() {
+    return this.adminCommandService.getPrincipalHealthOverview();
+  }
+
+  @Get('principal/audit-logs')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:read')
+  getPrincipalAuditOverview() {
+    return this.adminCommandService.getPrincipalAuditOverview();
+  }
+
   @Get('principal/school-profile')
   @RequiresModule('admin_command_centers', 'principal_dashboard')
   @Permissions('principal:read')
@@ -200,6 +221,16 @@ export class AdminCommandController {
   @Permissions('principal:read')
   getPrincipalSettings() {
     return this.adminCommandService.getPrincipalSettings();
+  }
+
+  @Patch('principal/settings/preferences')
+  @RequiresModule('admin_command_centers', 'principal_dashboard')
+  @Permissions('principal:write')
+  updatePrincipalSettings(@Body() dto: {
+    notifications: { emailAlerts: boolean; smsAlerts: boolean; dailyDigest: boolean };
+    dashboard: { theme: string; defaultView: string };
+  }) {
+    return this.adminCommandService.updatePrincipalSettings(dto);
   }
 
   @Post('principal/settings/action')
@@ -429,32 +460,7 @@ export class AdminCommandController {
   @RequiresModule('admin_command_centers', 'principal_dashboard')
   @Permissions('principal:write', 'exams:write')
   publishPrincipalReportCards(@Param('examId') examId: string) {
-    return this.adminCommandService.recordPrincipalWorkflowAction({
-      action: 'principal.report_cards_publish_requested',
-      entityType: 'exam',
-      entityId: examId,
-      title: 'Report cards publish requested',
-      message: `Principal requested report card publication for exam ${examId}.`,
-      payload: { examId },
-      targetRoles: ['exams_manager', 'principal'],
-      status: 'submitted',
-    });
-  }
-
-  @Post('principal/exams-report-cards/:examId/approve')
-  @RequiresModule('admin_command_centers', 'principal_dashboard')
-  @Permissions('principal:write', 'exams:write')
-  approvePrincipalExamResults(@Param('examId') examId: string) {
-    return this.adminCommandService.recordPrincipalWorkflowAction({
-      action: 'principal.exam_results_approved',
-      entityType: 'exam',
-      entityId: examId,
-      title: 'Exam results approved',
-      message: `Principal approved exam results for ${examId}.`,
-      payload: { examId },
-      targetRoles: ['exams_manager', 'principal'],
-      status: 'approved',
-    });
+    return this.adminCommandService.publishPrincipalExamSeries(examId);
   }
 
   @Post('principal/finance-overview/:expenseId/approve')
@@ -477,17 +483,7 @@ export class AdminCommandController {
   @RequiresModule('admin_command_centers', 'principal_dashboard')
   @Permissions('principal:write')
   actionPrincipalApproval(@Param('approvalId') approvalId: string, @Body() dto: any) {
-    const action = String(dto?.action || 'reviewed');
-    return this.adminCommandService.recordPrincipalWorkflowAction({
-      action: `principal.approval_${action}`,
-      entityType: 'approval',
-      entityId: approvalId,
-      title: `Approval ${action}`,
-      message: `Principal ${action} approval ${approvalId}.`,
-      payload: { ...dto, approvalId },
-      targetRoles: ['principal'],
-      status: action,
-    });
+    return this.adminCommandService.actionPrincipalApproval(approvalId, dto ?? {});
   }
 
   @Post('principal/communication/announcement')
@@ -607,7 +603,12 @@ export class AdminCommandController {
 
   @Post('exams/cycles')
   @Permissions('exams:write')
-  async createExamCycle(@Body() dto: { name: string; academicYearId: string; termId: string; examType: any }) {
+  async createExamCycle(@Body() dto: {
+    name: string;
+    academic_term_id: string;
+    starts_on: string;
+    ends_on: string;
+  }) {
     return this.adminCommandService.createExamCycle(dto);
   }
 

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import 'reflect-metadata';
@@ -7,10 +8,12 @@ import { firstValueFrom, of } from 'rxjs';
 import { PERMISSIONS_KEY, ROLES_KEY } from '../../auth/auth.constants';
 import { MODULE_ACCESS_KEY } from '../module-access/module-access.decorator';
 import { AdminCommandController } from './admin-command.controller';
+import { AdminCommandOperationsService } from './admin-command-operations.service';
 import { AdminCommandSchemaService } from './admin-command-schema.service';
 import { AdminCommandService } from './admin-command.service';
 import { AccountantCommandService } from './accountant-command.service';
 import { BoardingMasterCommandService } from './boarding-master-command.service';
+import { ClassTeacherCommandService } from './class-teacher-command.service';
 import { PrincipalInsightsCacheService } from './principal-insights-cache.service';
 import { PRINCIPAL_INSIGHT_PROVIDERS } from './principal-insights.providers';
 import { PrincipalInsightsService } from './principal-insights.service';
@@ -22,6 +25,8 @@ import { IctManagerCommandService } from './ict-manager-command.service';
 import { GuidanceCounsellingCommandService } from './guidance-counselling-command.service';
 import { HodCommandService } from './hod-command.service';
 import { LibrarianCommandService } from './librarian-command.service';
+import { LaboratoryTechnicianCommandService } from './laboratory-technician-command.service';
+import { NurseCommandService } from './nurse-command.service';
 import { ParentCommandService } from './parent-command.service';
 import { ProcurementOfficerCommandService } from './procurement-officer-command.service';
 import { StudentCommandService } from './student-command.service';
@@ -33,6 +38,37 @@ import { DeputyCommandService } from './deputy-command.service';
 import { DeputyCommandController } from './deputy-command.controller';
 import { AdmissionsCommandService } from './admissions-command.service';
 import { AdmissionsCommandRepository } from './repositories/admissions-command.repository';
+
+test('live role command reads surface database failures instead of fabricating empty school data', async () => {
+  const requestContext = {
+    getStore: () => ({
+      tenant_id: 'tenant-a',
+      user_id: '11111111-1111-4111-8111-111111111111',
+    }),
+  };
+  const prisma = {
+    query: async () => {
+      throw new Error('database unavailable');
+    },
+  };
+  const operations = {};
+  const reads: Array<[string, () => Promise<unknown>]> = [
+    ['boarding', () => new BoardingMasterCommandService(requestContext as never, prisma as never, operations as never).getHostels()],
+    ['class teacher', () => new ClassTeacherCommandService(requestContext as never, prisma as never, operations as never).getMyClass()],
+    ['counselling', () => new GuidanceCounsellingCommandService(requestContext as never, prisma as never, operations as never).getSessions()],
+    ['ICT', () => new IctManagerCommandService(requestContext as never, prisma as never, operations as never).getAssets()],
+    ['laboratory', () => new LaboratoryTechnicianCommandService(requestContext as never, prisma as never, operations as never).getLabInventory()],
+    ['library', () => new LibrarianCommandService(requestContext as never, prisma as never, operations as never).getBooks()],
+    ['nurse', () => new NurseCommandService(requestContext as never, prisma as never, operations as never).getVisits()],
+    ['secretary', () => new SecretaryCommandService(requestContext as never, prisma as never, operations as never).getVisitors()],
+    ['security', () => new SecurityOfficerCommandService(requestContext as never, prisma as never, operations as never).getVisitors()],
+    ['transport', () => new TransportManagerCommandService(requestContext as never, prisma as never, operations as never).getVehicles()],
+  ];
+
+  for (const [role, read] of reads) {
+    await assert.rejects(read, /database unavailable/, `${role} reads must not hide database failures`);
+  }
+});
 
 test('AdminCommandSchemaService creates leadership workflow tables with tenant RLS', async () => {
   let schemaSql = '';
@@ -67,7 +103,7 @@ test('AdminCommandSchemaService creates leadership workflow tables with tenant R
   );
 });
 
-test('AdminCommandRepository builds principal teaching schedule from tenant timetable records', async () => {
+test('AdminCommandRepository builds principal teaching schedule only from the authenticated actor assignments', async () => {
   const queries: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new AdminCommandRepository({
     query: async (sql: string, params: unknown[]) => {
@@ -87,12 +123,18 @@ test('AdminCommandRepository builds principal teaching schedule from tenant time
     },
   } as never);
 
-  const result = await repository.getPrincipalTeachingSchedule('tenant-a');
+  const actorUserId = '11111111-1111-4111-8111-111111111111';
+  const result = await repository.getPrincipalTeachingSchedule('tenant-a', actorUserId);
 
   assert.equal(queries.length, 2);
   assert.match(queries[0].sql, /WHERE lesson\.tenant_id = \$1/);
   assert.match(queries[1].sql, /WHERE lesson\.tenant_id = \$1/);
-  assert.equal(queries[0].params[0], 'tenant-a');
+  assert.match(queries[0].sql, /staff\.user_id = \$2::uuid/);
+  assert.match(queries[1].sql, /staff\.user_id = \$2::uuid/);
+  assert.match(queries[0].sql, /INNER JOIN tenant_memberships membership/);
+  assert.doesNotMatch(queries[0].sql, /full_name ILIKE '%principal%'/);
+  assert.deepEqual(queries[0].params, ['tenant-a', actorUserId]);
+  assert.deepEqual(queries[1].params, ['tenant-a', actorUserId]);
   assert.equal(result.totalClasses, 1);
   assert.deepEqual(result.subjects, ['Integrated Science']);
   assert.deepEqual(result.upcomingClasses, [{
@@ -102,6 +144,343 @@ test('AdminCommandRepository builds principal teaching schedule from tenant time
     room: 'Science Lab',
   }]);
   assert.equal(result.pendingGrading, 2);
+});
+
+test('AdminCommandRepository keeps fresh-school finance, discipline, and activity trends empty', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new AdminCommandRepository({
+    query: async (sql: string, params: unknown[]) => {
+      queries.push({ sql, params });
+      return { rows: [], rowCount: 0 };
+    },
+  } as never);
+
+  const [finance, discipline, principal] = await Promise.all([
+    repository.getFinanceOverview('tenant-a'),
+    repository.getDisciplineOverview('tenant-a'),
+    repository.getPrincipalOverview('tenant-a'),
+  ]);
+
+  assert.deepEqual(finance.collectionData, []);
+  assert.deepEqual(discipline.incidentTrend, []);
+  assert.deepEqual(principal.recentActivity, []);
+  assert.equal(
+    JSON.stringify({ finance, discipline, principal }).includes('Welcome to the Principal Dashboard'),
+    false,
+  );
+  assert.ok(queries.length > 0);
+  assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
+});
+
+test('AdminCommandRepository reads Principal visitor, health, and audit oversight from tenant-scoped canonical records', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new AdminCommandRepository({
+    query: async (sql: string, params: unknown[]) => {
+      queries.push({ sql, params });
+      if (/AS currently_on_premises/.test(sql)) {
+        return { rows: [{ checked_in_today: 3, currently_on_premises: 1, checked_out_today: 2, flagged: 1 }], rowCount: 1 };
+      }
+      if (/FROM visitors_logs visitor/.test(sql)) {
+        return {
+          rows: [{
+            id: 'visitor-1',
+            name: 'Jane Guest',
+            purpose: 'Parent meeting',
+            host: 'Teacher A',
+            checked_in_at: '2026-08-22 08:00:00+03',
+            checked_out_at: null,
+            status: 'Active',
+          }],
+          rowCount: 1,
+        };
+      }
+      if (/AS visits_today/.test(sql)) {
+        return {
+          rows: [{
+            visits_today: 4,
+            open_cases: 1,
+            referred_today: 1,
+            low_stock_medicines: 2,
+            out_of_stock_medicines: 1,
+            expiring_soon: 1,
+          }],
+          rowCount: 1,
+        };
+      }
+      if (/medicine_name[\s\S]*Out of stock/.test(sql)) {
+        return {
+          rows: [{
+            id: 'medicine-1',
+            medicine_name: 'Paracetamol',
+            quantity_available: '0',
+            reorder_level: '20',
+            earliest_expiry: '2026-10-01',
+            status: 'Out of stock',
+          }],
+          rowCount: 1,
+        };
+      }
+      if (/AS sensitive_changes/.test(sql)) {
+        return { rows: [{ actions_today: 8, sensitive_changes: 2, failed_actions: 1 }], rowCount: 1 };
+      }
+      if (/FROM audit_logs audit/.test(sql)) {
+        return {
+          rows: [{
+            id: 'audit-1',
+            action: 'approval.rejected',
+            actor: 'Principal A',
+            resource_type: 'approval_request',
+            created_at: '2026-08-22 09:00:00+03',
+            result: 'Rejected',
+          }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    },
+  } as never);
+
+  const [visitors, health, audit] = await Promise.all([
+    repository.getPrincipalVisitorsOverview('tenant-a'),
+    repository.getPrincipalHealthOverview('tenant-a'),
+    repository.getPrincipalAuditOverview('tenant-a'),
+  ]);
+
+  assert.equal(visitors.metrics.currentlyOnPremises, 1);
+  assert.equal(visitors.visitors[0]?.name, 'Jane Guest');
+  assert.equal(health.metrics.outOfStockMedicines, 1);
+  assert.equal(health.stockAlerts[0]?.medicine, 'Paracetamol');
+  assert.equal(audit.metrics.sensitiveChanges, 2);
+  assert.equal(audit.events[0]?.result, 'Rejected');
+  assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
+  assert.ok(queries.every((query) => !/confidential_notes|diagnosis_summary|phone_number|id_number/.test(query.sql)));
+  assert.ok(queries.some((query) => /membership\.tenant_id = visitor\.tenant_id/.test(query.sql)));
+  assert.ok(queries.some((query) => /membership\.tenant_id = audit\.tenant_id/.test(query.sql)));
+});
+
+test('AdminCommandRepository derives principal finance metrics from canonical fee records without fabricated percentages', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new AdminCommandRepository({
+    query: async (sql: string, params: unknown[]) => {
+      queries.push({ sql, params });
+      if (/AS collections_today_minor/.test(sql)) {
+        return { rows: [{ collections_today_minor: '250000', outstanding_balance_minor: '875000' }], rowCount: 1 };
+      }
+      if (/FROM dashboard_approval_requests approval/.test(sql)) {
+        return {
+          rows: [{
+            id: 'approval-1',
+            student: 'Amina Otieno',
+            class: 'Grade 8 East',
+            amount_minor: '15000',
+            reason: 'Scholarship',
+            date: '2026-08-22T08:00:00.000Z',
+          }],
+          rowCount: 1,
+        };
+      }
+      return {
+        rows: [
+          { label: '27 Jul', total_minor: '50000' },
+          { label: '03 Aug', total_minor: '100000' },
+        ],
+        rowCount: 2,
+      };
+    },
+  } as never);
+
+  const result = await repository.getFinanceOverview('tenant-a');
+
+  assert.equal(result.collectionsToday, 'KES 2,500');
+  assert.equal(result.outstandingInvoices, 'KES 8,750');
+  assert.deepEqual(result.collectionData.map((row) => row.value), [50, 100]);
+  assert.equal(result.pendingWaivers[0]?.amount, 'KES 150');
+  assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
+  assert.ok(queries.some((query) => /FROM manual_fee_payments payment/.test(query.sql)));
+  assert.ok(queries.some((query) => /NULLIF\(invoice\.metadata ->> 'student_id'/.test(query.sql)));
+  assert.ok(queries.some((query) => /FROM dashboard_approval_requests approval/.test(query.sql)));
+  assert.ok(queries.every((query) => !/tenant_finance_summary|tenant_pending_waivers/.test(query.sql)));
+});
+
+test('AdminCommandRepository reconciles live and offline attendance without invented history', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new AdminCommandRepository({
+    query: async (sql: string, params: unknown[]) => {
+      queries.push({ sql, params });
+      if (/AS chronic_absenteeism/.test(sql)) {
+        return { rows: [{ present_today: 21, absent_today: 3, late_today: 2, chronic_absenteeism: 8 }], rowCount: 1 };
+      }
+      if (/attendance\.notes AS reason/.test(sql)) {
+        return {
+          rows: [{ id: 'absence-1', student_id: 'student-1', student_name: 'Amina Otieno', admission_number: 'ADM-1', date: '2026-08-22', status: 'excused', reason: 'Clinic visit' }],
+          rowCount: 1,
+        };
+      }
+      if (/ORDER BY s\.first_name ASC/.test(sql)) {
+        return { rows: [{ id: 'student-1', name: 'Amina Otieno', admission_number: 'ADM-1', class: 'Grade 8 East' }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    },
+  } as never);
+
+  const result = await repository.getAttendanceOverview('tenant-a');
+
+  assert.equal(result.present, 21);
+  assert.equal(result.absent, 3);
+  assert.equal(result.late, 2);
+  assert.equal(result.chronicAbsenteeism, 8);
+  assert.deepEqual(result.attendanceTrend, []);
+  assert.equal(result.recentAbsences[0]?.status, 'excused');
+  assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
+  assert.ok(queries.some((query) => /FROM attendance_records record/.test(query.sql) && /FROM academics_attendance live/.test(query.sql)));
+  assert.ok(queries.every((query) => !/s\.school_id|LEFT JOIN classes/.test(query.sql)));
+  assert.equal(JSON.stringify(result).includes('Historical'), false);
+});
+
+test('AdminCommandRepository uses real communication history and atomically queues broadcasts', async () => {
+  const reads: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new AdminCommandRepository({
+    query: async (sql: string, params: unknown[]) => {
+      reads.push({ sql, params });
+      if (/AS provider_accepted_today/.test(sql)) {
+        return {
+          rows: [{
+            provider_accepted_today: 12,
+            failed_messages: 1,
+            pending_messages: 4,
+            delivery_unknown: 2,
+          }],
+          rowCount: 1,
+        };
+      }
+      if (/date_trunc\('day', created_at\)/.test(sql)) {
+        return { rows: [{ label: 'Fri', value: 7 }, { label: 'Sat', value: 5 }], rowCount: 2 };
+      }
+      if (/FROM workflow_events event/.test(sql)) {
+        return { rows: [{ id: 'event-1', title: 'Broadcast to parents', body: 'School closes at noon', status: 'pending', audience: 'parents', channels: ['sms'], time: '2026-08-22 10:00' }], rowCount: 1 };
+      }
+      return {
+        rows: [{
+          id: 'event-2',
+          title: 'Broadcast to parents',
+          status: 'pending',
+          created_at: '2026-08-22T10:00:00.000Z',
+          sms_recipient_count: 3,
+          in_app_recipient_count: 2,
+        }],
+        rowCount: 1,
+      };
+    },
+  } as never);
+
+  const overview = await repository.getCommunicationOverview('tenant-a');
+  const broadcast = await repository.createCommunicationBroadcast({
+    tenant_id: 'tenant-a',
+    user_id: '11111111-1111-4111-8111-111111111111',
+    audience: 'parents',
+    message: 'School closes at noon',
+    channels: ['sms', 'in_app'],
+  });
+
+  assert.equal(overview.smsBalance, null);
+  assert.equal(overview.providerAcceptedToday, 12);
+  assert.equal(overview.deliveryUnknown, 2);
+  assert.deepEqual(overview.communicationTrend, [{ label: 'Fri', value: 7 }, { label: 'Sat', value: 5 }]);
+  assert.equal(overview.recentBroadcasts[0]?.id, 'event-1');
+  assert.equal(broadcast.smsRecipientCount, 3);
+  assert.equal(broadcast.inAppRecipientCount, 2);
+  const broadcastWrite = reads.at(-1)!;
+  assert.match(broadcastWrite.sql, /WITH sms_recipients AS/);
+  assert.match(broadcastWrite.sql, /INSERT INTO workflow_events/);
+  assert.match(broadcastWrite.sql, /INSERT INTO communication_sms_outbox/);
+  assert.match(broadcastWrite.sql, /INSERT INTO notifications/);
+  assert.match(broadcastWrite.sql, /JOIN tenant_memberships membership/);
+  assert.match(broadcastWrite.sql, /lower\(membership\.status::text\) = 'active'/);
+  assert.doesNotMatch(broadcastWrite.sql, /communication_broadcasts|FROM guardians/);
+  assert.equal(broadcastWrite.params[0], 'tenant-a');
+  assert.equal(broadcastWrite.params[6], JSON.stringify(['principal']));
+  const overviewRead = reads.find((read) => /AS provider_accepted_today/.test(read.sql))!;
+  assert.match(overviewRead.sql, /lower\(status\) = 'accepted'/);
+  assert.match(overviewRead.sql, /provider_accepted_at IS NOT NULL/);
+  assert.match(overviewRead.sql, /lower\(status\) IN \('pending', 'queued', 'processing'\)/);
+  assert.match(overviewRead.sql, /lower\(status\) = 'deliveryunknown'/);
+  assert.doesNotMatch(overviewRead.sql, /lower\(status\) = 'sent'/);
+});
+
+test('AdminCommandService rejects a Principal broadcast when no tenant-scoped recipient exists', async () => {
+  let auditCalled = false;
+  const service = new AdminCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      createCommunicationBroadcast: async () => ({
+        broadcast: undefined,
+        event: undefined,
+        smsRecipientCount: 0,
+        inAppRecipientCount: 0,
+      }),
+      appendAuditLog: async () => {
+        auditCalled = true;
+      },
+    } as never,
+    {} as never,
+  );
+
+  await assert.rejects(
+    () => service.createCommunicationBroadcast({
+      audience: 'parents',
+      message: 'School closes at noon',
+      channels: ['in_app'],
+    }),
+    (error: unknown) => error instanceof BadRequestException
+      && /No active tenant-scoped recipients/.test(error.message),
+  );
+  assert.equal(auditCalled, false);
+});
+
+test('AdminCommandRepository upserts valid tenant attendance and propagates database failures', async () => {
+  const writes: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new AdminCommandRepository({
+    query: async (sql: string, params: unknown[]) => {
+      writes.push({ sql, params });
+      return { rows: [{ id: 'attendance-1', status: params[3], notes: params[4] }], rowCount: 1 };
+    },
+  } as never);
+
+  const attendance = await repository.logAbsence({
+    tenant_id: 'tenant-a',
+    user_id: '11111111-1111-4111-8111-111111111111',
+    student_id: '22222222-2222-4222-8222-222222222222',
+    date: '2026-08-22',
+    reason: 'Clinic visit',
+    is_excused: true,
+  });
+
+  assert.equal(attendance.status, 'excused');
+  assert.equal(attendance.notes, 'Clinic visit');
+  assert.match(writes[0].sql, /ON CONFLICT \(tenant_id, student_id, attendance_date\)/);
+  assert.match(writes[0].sql, /student\.tenant_id = \$1/);
+  assert.equal(writes[0].params[0], 'tenant-a');
+
+  const failingRepository = new AdminCommandRepository({
+    query: async () => {
+      const error = new Error('principal database unavailable') as Error & { code: string };
+      error.code = '42P01';
+      throw error;
+    },
+  } as never);
+  await assert.rejects(
+    () => failingRepository.getStudentsOverview('tenant-a'),
+    /principal database unavailable/,
+  );
+  await assert.rejects(
+    () => failingRepository.getPrincipalOverviewSnapshot('tenant-a'),
+    /principal database unavailable/,
+  );
 });
 
 test('Leadership attendance summaries tolerate legacy text and date column variants', async () => {
@@ -445,10 +824,9 @@ test('DeputyCommandRepository discipline and welfare reads do not hide tenant qu
 
 test('BoardingMasterCommandService persists leave requests in tenant-scoped boarding_exeats', async () => {
   const writes: Array<{ sql: string; params: unknown[] }> = [];
-  const audits: string[] = [];
   const service = new BoardingMasterCommandService(
     {
-      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111', role: 'boarding_master' }),
     } as never,
     { query: async () => ({ rows: [], rowCount: 0 }) } as never,
     {
@@ -465,9 +843,6 @@ test('BoardingMasterCommandService persists leave requests in tenant-scoped boar
           rowCount: 1,
         };
       },
-      recordAudit: async (_tenantId: string, action: string) => {
-        audits.push(action);
-      },
       requiredText: (value: unknown, label: string) => {
         const text = String(value ?? '').trim();
         if (!text) throw new Error(`${label} is required`);
@@ -480,6 +855,7 @@ test('BoardingMasterCommandService persists leave requests in tenant-scoped boar
 
   const result = await service.createLeaveRequest({
     student_id: '33333333-3333-4333-8333-333333333333',
+    guardian_id: '44444444-4444-4444-8444-444444444444',
     student_name: 'Brian Otieno',
     hostel: 'St. Joseph',
     leave_type: 'Medical Leave',
@@ -491,9 +867,65 @@ test('BoardingMasterCommandService persists leave requests in tenant-scoped boar
 
   assert.equal(result.leave.student_name, 'Brian Otieno');
   assert.match(writes[0].sql, /INSERT INTO boarding_exeats/);
-  assert.doesNotMatch(writes[0].sql, /INSERT INTO workflow_events/);
+  assert.match(writes[0].sql, /INSERT INTO workflow_events/);
+  assert.match(writes[0].sql, /INSERT INTO audit_logs/);
+  assert.match(writes[0].sql, /FROM inserted_leave leave/);
   assert.equal(writes[0].params[0], 'tenant-a');
-  assert.equal(audits.includes('boarding.exeat_requested'), true);
+  assert.equal(writes[0].params.at(-1), 'boarding_master');
+});
+
+test('BoardingMasterCommandService reads house-level roll calls from the canonical tenant-scoped check table', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new BoardingMasterCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        if (/AS checks_today/.test(sql)) {
+          return {
+            rows: [{ checks_today: 2, clear: 1, attention_required: 1 }],
+            rowCount: 1,
+          };
+        }
+        return {
+          rows: [{
+            id: '22222222-2222-4222-8222-222222222222',
+            house_id: '33333333-3333-4333-8333-333333333333',
+            house_name: 'Elgon House',
+            checked_at: '2026-08-22 18:30:00+03',
+            status: 'attention_required',
+            notes: 'One learner is late returning.',
+          }],
+          rowCount: 1,
+        };
+      },
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.getBoardingAttendance();
+
+  assert.deepEqual(result, {
+    metrics: { checks_today: 2, clear: 1, attention_required: 1 },
+    boardingattendanceList: [{
+      id: '22222222-2222-4222-8222-222222222222',
+      house_id: '33333333-3333-4333-8333-333333333333',
+      house_name: 'Elgon House',
+      checked_at: '2026-08-22 18:30:00+03',
+      status: 'attention_required',
+      notes: 'One learner is late returning.',
+    }],
+  });
+  assert.equal(queries.length, 2);
+  assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
+  assert.ok(queries.every((query) => /boarding_dormitory_checks/.test(query.sql)));
+  assert.ok(queries.every((query) => !/boarding_attendance_logs/.test(query.sql)));
+  const listQuery = queries.find((query) => /LEFT JOIN boarding_houses house/.test(query.sql));
+  assert.ok(listQuery);
+  assert.match(listQuery.sql, /house\.tenant_id = dormitory_check\.tenant_id/);
+  assert.match(listQuery.sql, /dormitory_check\.tenant_id = \$1/);
 });
 
 test('BoardingMasterCommandService approves leave requests on boarding_exeats only inside the current tenant', async () => {
@@ -531,8 +963,10 @@ test('BoardingMasterCommandService approves leave requests on boarding_exeats on
 
   assert.equal(result.leave.status, 'Approved');
   assert.match(writes[0].sql, /UPDATE boarding_exeats/);
-  assert.doesNotMatch(writes[0].sql, /UPDATE workflow_events/);
+  assert.match(writes[0].sql, /INSERT INTO workflow_events/);
+  assert.match(writes[0].sql, /INSERT INTO audit_logs/);
   assert.match(writes[0].sql, /WHERE tenant_id = \$1/);
+  assert.match(writes[0].sql, /status = 'pending'/);
   assert.equal(writes[0].params[0], 'tenant-a');
 });
 
@@ -572,12 +1006,14 @@ test('BoardingMasterCommandService checks out approved boarders through boarding
   assert.equal(result.leave.status, 'Checked Out');
   assert.match(writes[0].sql, /checked_out_at = NOW\(\)/);
   assert.match(writes[0].sql, /UPDATE boarding_exeats/);
+  assert.match(writes[0].sql, /INSERT INTO workflow_events/);
+  assert.match(writes[0].sql, /INSERT INTO audit_logs/);
+  assert.match(writes[0].sql, /status = 'approved'/);
   assert.equal(writes[0].params[0], 'tenant-a');
 });
 
-test('AccountantCommandService records arrears reminders and queues tenant-scoped notifications', async () => {
-  const workflowCalls: any[] = [];
-  const notificationCalls: any[] = [];
+test('AccountantCommandService queues arrears reminders only for exact active same-tenant guardians', async () => {
+  const writes: Array<{ sql: string; params: unknown[] }> = [];
   const service = new AccountantCommandService(
     {
       getStore: () => ({
@@ -588,12 +1024,20 @@ test('AccountantCommandService records arrears reminders and queues tenant-scope
     } as never,
     {} as never,
     {
-      recordWorkflowAction: async (input: any) => {
-        workflowCalls.push(input);
-        return { id: 'event-1', ...input };
-      },
-      notifyRoles: async (tenantId: string, input: any) => {
-        notificationCalls.push({ tenantId, input });
+      uuidOrNull: (value: unknown) => value ? String(value) : null,
+      writeSql: async (sql: string, params: unknown[]) => {
+        writes.push({ sql, params });
+        return {
+          rows: [{
+            requested_student_count: 2,
+            eligible_student_count: 2,
+            covered_student_count: 2,
+            guardian_notification_count: 2,
+            staff_notification_count: 4,
+            event_id: '44444444-4444-4444-8444-444444444444',
+          }],
+          rowCount: 1,
+        };
       },
     } as never,
   );
@@ -607,20 +1051,60 @@ test('AccountantCommandService records arrears reminders and queues tenant-scope
     payload: {
       recipient_scope: 'linked_guardians',
       arrears_count: 2,
+      students: [
+        { student_id: '22222222-2222-4222-8222-222222222222', student_name: 'Learner A', balance_amount_minor: '50000' },
+        { student_id: '33333333-3333-4333-8333-333333333333', student_name: 'Learner B', balance_amount_minor: '75000' },
+      ],
     },
   });
 
   assert.equal(result.success, true);
-  assert.equal(workflowCalls.length, 1);
-  assert.equal(workflowCalls[0].tenantId, 'tenant-a');
-  assert.equal(workflowCalls[0].eventType, 'accountant.arrears_reminders_requested');
-  assert.deepEqual(workflowCalls[0].targetRoles, ['accountant', 'principal', 'deputy_principal', 'secretary', 'parent']);
-  assert.equal(notificationCalls.length, 1);
-  assert.equal(notificationCalls[0].tenantId, 'tenant-a');
-  assert.deepEqual(notificationCalls[0].input.targetRoles, ['accountant', 'principal', 'deputy_principal', 'secretary', 'parent']);
-  assert.match(notificationCalls[0].input.type, /accountant\.arrears_reminders_requested/);
-  assert.equal(notificationCalls[0].input.metadata.recipient_scope, 'linked_guardians');
-  assert.deepEqual(notificationCalls[0].input.metadata.authorized_follow_up_roles, ['accountant', 'principal', 'deputy_principal', 'secretary']);
+  assert.equal(result.delivery.student_count, 2);
+  assert.equal(result.delivery.guardian_notification_count, 2);
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].params[0], 'tenant-a');
+  assert.deepEqual(writes[0].params[2], [
+    '22222222-2222-4222-8222-222222222222',
+    '33333333-3333-4333-8333-333333333333',
+  ]);
+  assert.deepEqual(JSON.parse(String(writes[0].params[3])), ['accountant', 'principal', 'deputy_principal', 'secretary']);
+  assert.deepEqual(writes[0].params[6], ['accountant', 'principal', 'deputy_principal', 'secretary']);
+  assert.match(writes[0].sql, /INNER JOIN students student\s+ON student\.tenant_id = \$1/);
+  assert.match(writes[0].sql, /INNER JOIN student_guardians guardian/);
+  assert.match(writes[0].sql, /INNER JOIN tenant_memberships membership/);
+  assert.match(writes[0].sql, /recipient_user_id, recipient_guardian_id/);
+  assert.match(writes[0].sql, /coverage\.covered_student_count = coverage\.eligible_student_count/);
+});
+
+test('AccountantCommandService rejects client-selected notification roles outside finance governance', async () => {
+  let workflowRecorded = false;
+  const service = new AccountantCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+        role: 'accountant',
+      }),
+    } as never,
+    {} as never,
+    {
+      recordWorkflowAction: async () => {
+        workflowRecorded = true;
+        return {};
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    () => service.recordAction({
+      action: 'finance_note',
+      title: 'Finance note',
+      message: 'Internal finance note',
+      target_roles: ['parent'],
+    }),
+    /authorized school finance or leadership roles/i,
+  );
+  assert.equal(workflowRecorded, false);
 });
 
 test('AccountantCommandService builds a live tenant-scoped overview without demo defaults', async () => {
@@ -826,11 +1310,14 @@ test('GuidanceCounsellingCommandService creates real tenant-scoped counselling r
     {
       getStore: () => ({
         tenant_id: 'tenant-a',
-        school_id: '22222222-2222-4222-8222-222222222222',
         user_id: '11111111-1111-4111-8111-111111111111',
       }),
     } as never,
-    { query: async () => ({ rows: [], rowCount: 0 }) } as never,
+    {
+      query: async (sql: string) => /FROM tenants/.test(sql)
+        ? { rows: [{ school_id: '22222222-2222-4222-8222-222222222222' }], rowCount: 1 }
+        : { rows: [], rowCount: 0 },
+    } as never,
     {
       writeSql: async (sql: string, params: unknown[]) => {
         writes.push({ sql, params });
@@ -872,6 +1359,11 @@ test('GuidanceCounsellingCommandService creates real tenant-scoped counselling r
   assert.equal(result.referral.id, '99999999-9999-4999-8999-999999999999');
   assert.match(writes[0].sql, /INSERT INTO counselling_referrals/);
   assert.match(writes[0].sql, /tenant_id,\s*school_id,\s*student_id/s);
+  assert.match(writes[0].sql, /class_section\.tenant_id = student\.tenant_id/);
+  assert.match(writes[0].sql, /academic_term\.tenant_id = student\.tenant_id/);
+  assert.match(writes[0].sql, /academic_year\.tenant_id = student\.tenant_id/);
+  assert.match(writes[0].sql, /incident\.tenant_id = student\.tenant_id/);
+  assert.match(writes[0].sql, /counsellor_membership\.tenant_id = student\.tenant_id/);
   assert.equal(writes[0].params[0], 'tenant-a');
   assert.equal(writes[0].params[1], '22222222-2222-4222-8222-222222222222');
   assert.equal(writes[0].params[7], '11111111-1111-4111-8111-111111111111');
@@ -936,6 +1428,69 @@ test('GuidanceCounsellingCommandService returns tenant-scoped referral options f
   assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
 });
 
+test('GuidanceCounsellingCommandService returns the tenant-scoped referrals workspace contract', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new GuidanceCounsellingCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        return {
+          rows: [
+            {
+              id: 'referral-open',
+              student_name: 'Amina Otieno',
+              class: 'Grade 8 East',
+              referred_by: 'Jane Wanjiku',
+              reason: 'Academic stress check-in',
+              risk_level: 'high',
+              date: '2026-08-22',
+              status: 'Open',
+            },
+            {
+              id: 'referral-accepted',
+              student_name: 'Brian Ouma',
+              class: 'Grade 9 West',
+              referred_by: 'Jane Wanjiku',
+              reason: 'Peer support follow-up',
+              risk_level: 'critical',
+              date: '2026-08-21',
+              status: 'Accepted',
+            },
+          ],
+          rowCount: 2,
+        };
+      },
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.getReferrals();
+
+  assert.deepEqual(result.metrics, {
+    pending_referrals: 1,
+    accepted: 1,
+    external: 0,
+  });
+  assert.equal(result.referralsList.length, 2);
+  assert.equal(result.referralsList[0]?.student_name, 'Amina Otieno');
+  assert.equal(result.referralsList[0]?.risk_level, 'high');
+  assert.equal(result.referralsList[1]?.risk_level, 'critical');
+  assert.equal(queries.length, 1);
+  assert.deepEqual(queries[0].params, ['tenant-a']);
+  assert.match(queries[0].sql, /WHERE referral\.tenant_id = \$1/);
+  assert.match(queries[0].sql, /student\.tenant_id = referral\.tenant_id/);
+  assert.match(queries[0].sql, /student\.id::text = referral\.student_id::text/);
+  assert.match(queries[0].sql, /section\.tenant_id = referral\.tenant_id/);
+  assert.match(queries[0].sql, /section\.id::text = referral\.class_id::text/);
+  assert.match(queries[0].sql, /membership\.tenant_id = referral\.tenant_id/);
+});
+
 test('GuidanceCounsellingCommandService updates counselling referral status inside the current tenant', async () => {
   const writes: Array<{ sql: string; params: unknown[] }> = [];
   const workflowCalls: any[] = [];
@@ -980,11 +1535,50 @@ test('GuidanceCounsellingCommandService updates counselling referral status insi
 
   assert.equal(result.referral.status, 'accepted');
   assert.match(writes[0].sql, /UPDATE counselling_referrals/);
-  assert.match(writes[0].sql, /WHERE tenant_id = \$1/);
+  assert.match(writes[0].sql, /WHERE referral\.tenant_id = \$1/);
   assert.equal(writes[0].params[0], 'tenant-a');
   assert.equal(writes[0].params[1], '99999999-9999-4999-8999-999999999999');
   assert.equal(workflowCalls[0].eventType, 'counselling.referral.status_updated');
   assert.equal(workflowCalls[0].entityType, 'counselling_referral');
+});
+
+test('GuidanceCounsellingCommandService keeps exact guardian engagement notices out of the role-wide parent feed', async () => {
+  const writes: Array<{ sql: string; params: unknown[] }> = [];
+  const workflowCalls: any[] = [];
+  const service = new GuidanceCounsellingCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {} as never,
+    {
+      uuidOrNull: (value: unknown) => (value ? String(value) : null),
+      writeSql: async (sql: string, params: unknown[]) => {
+        writes.push({ sql, params });
+        return {
+          rows: [{ id: '22222222-2222-4222-8222-222222222222' }],
+          rowCount: 1,
+        };
+      },
+      recordWorkflowAction: async (input: any) => {
+        workflowCalls.push(input);
+        return { id: 'workflow-1', ...input };
+      },
+    } as never,
+  );
+
+  const result = await service.notifyParentEngagement(
+    '33333333-3333-4333-8333-333333333333',
+    { message: 'Please review the agreed learner support plan.' },
+  );
+
+  assert.equal(result.delivery_state, 'queued');
+  assert.match(writes[0].sql, /guardian\.tenant_id = engagement\.tenant_id::text/);
+  assert.match(writes[0].sql, /recipient_user_id, recipient_guardian_id, recipient_role/);
+  assert.deepEqual(workflowCalls[0].targetRoles, ['counsellor']);
+  assert.equal(workflowCalls[0].eventType, 'counselling.parent_engagement.notification_queued');
 });
 
 test('GuidanceCounsellingCommandService saves counsellor settings as tenant-scoped workflow state', async () => {
@@ -1279,7 +1873,7 @@ test('LibrarianCommandService lists and creates tenant-scoped reservation workfl
   assert.equal(created.success, true);
 });
 
-test('LibrarianCommandService sends library notices through tenant-scoped notifications', async () => {
+test('LibrarianCommandService sends only non-person-specific notices through verified in-app role notifications', async () => {
   const workflowCalls: any[] = [];
   const notificationCalls: any[] = [];
   const service = new LibrarianCommandService(
@@ -1307,11 +1901,11 @@ test('LibrarianCommandService sends library notices through tenant-scoped notifi
   );
 
   const result = await service.sendNotice({
-    title: 'Overdue book reminder',
-    message: 'Please return overdue library books by Friday.',
-    notice_type: 'overdue',
-    target_roles: ['parent', 'class_teacher'],
-    channels: ['in_app', 'sms'],
+    title: 'New set books available',
+    message: 'The new set books are now available from the library desk.',
+    notice_type: 'new_arrival',
+    target_roles: ['parent', 'student'],
+    channels: ['in_app'],
   });
 
   assert.equal(result.success, true);
@@ -1319,11 +1913,119 @@ test('LibrarianCommandService sends library notices through tenant-scoped notifi
   assert.equal(workflowCalls[0].tenantId, 'tenant-a');
   assert.equal(workflowCalls[0].entityType, 'library_notice');
   assert.equal(workflowCalls[0].eventType, 'library.notice_sent');
-  assert.deepEqual(workflowCalls[0].targetRoles, ['parent', 'class_teacher']);
+  assert.deepEqual(workflowCalls[0].targetRoles, ['parent', 'student']);
   assert.equal(notificationCalls.length, 1);
   assert.equal(notificationCalls[0].tenantId, 'tenant-a');
-  assert.deepEqual(notificationCalls[0].input.targetRoles, ['parent', 'class_teacher']);
+  assert.deepEqual(notificationCalls[0].input.targetRoles, ['parent', 'student']);
   assert.equal(notificationCalls[0].input.type, 'library.notice_sent');
+  assert.deepEqual(result.recipientRoles, ['parent', 'student']);
+  assert.deepEqual(result.channels, ['in_app']);
+});
+
+test('LibrarianCommandService rejects sensitive borrower broadcasts and unverified delivery channels', async () => {
+  let eventCreated = false;
+  let notificationCreated = false;
+  const service = new LibrarianCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {} as never,
+    {
+      requiredText: (value: unknown, label: string) => {
+        const text = String(value ?? '').trim();
+        if (!text) throw new Error(`${label} is required`);
+        return text;
+      },
+      recordWorkflowAction: async () => {
+        eventCreated = true;
+        return {};
+      },
+      notifyRoles: async () => {
+        notificationCreated = true;
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    () => service.sendNotice({
+      title: 'Overdue book reminder',
+      message: 'Please return the named overdue book.',
+      notice_type: 'overdue',
+      target_roles: ['parent'],
+      channels: ['in_app'],
+    }),
+    /must be sent from the exact borrower record/i,
+  );
+  await assert.rejects(
+    () => service.sendNotice({
+      title: 'Library hours',
+      message: 'The library closes at 4pm.',
+      notice_type: 'general',
+      target_roles: ['student'],
+      channels: ['sms'],
+    }),
+    /verified in-app delivery only/i,
+  );
+
+  assert.equal(eventCreated, false);
+  assert.equal(notificationCreated, false);
+});
+
+test('LibrarianCommandService queues overdue reminders only for exact active borrower or linked guardian accounts', async () => {
+  const writes: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new LibrarianCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {} as never,
+    {
+      uuidOrNull: (value: unknown) => value ? String(value) : null,
+      writeSql: async (sql: string, params: unknown[]) => {
+        writes.push({ sql, params });
+        return {
+          rows: [{
+            overdue_count: 1,
+            recipient_count: 2,
+            notification_count: 2,
+            event_id: 'event-overdue-1',
+            borrower_id: 'borrower-1',
+            book_title: 'Biology Reference',
+            audits_created: 1,
+          }],
+          rowCount: 1,
+        };
+      },
+    } as never,
+  );
+
+  const result = await service.remindOverdueBorrower('22222222-2222-4222-8222-222222222222');
+
+  assert.equal(result.success, true);
+  assert.equal(result.recipientCount, 2);
+  assert.equal(result.notificationCount, 2);
+  assert.equal(writes.length, 1);
+  assert.deepEqual(writes[0].params, [
+    'tenant-a',
+    '22222222-2222-4222-8222-222222222222',
+    '11111111-1111-4111-8111-111111111111',
+  ]);
+  assert.match(writes[0].sql, /issue\.id = \$2::uuid/);
+  assert.match(writes[0].sql, /issue\.metadata->>'due_on' < CURRENT_DATE::text/);
+  assert.match(writes[0].sql, /student_portal_access/);
+  assert.match(writes[0].sql, /student_guardians/);
+  assert.match(writes[0].sql, /staff_profiles/);
+  assert.match(writes[0].sql, /tenant_memberships/);
+  assert.match(writes[0].sql, /recipient_user_id, recipient_guardian_id/);
+  assert.match(writes[0].sql, /'\["librarian"\]'::jsonb/);
+  assert.doesNotMatch(writes[0].sql, /recipient_role/);
+  assert.doesNotMatch(writes[0].sql, /\["librarian","class_teacher","parent"\]/);
+  assert.match(writes[0].sql, /INSERT INTO audit_logs/);
 });
 
 test('LibrarianCommandService checks out library visits through tenant-scoped workflow events', async () => {
@@ -1417,6 +2119,129 @@ test('ProcurementOfficerCommandService records budget actions with live tenant m
   assert.deepEqual(workflowCalls[0].targetRoles, ['procurement_officer', 'principal', 'storekeeper', 'accountant']);
   assert.equal(notificationCalls.length, 1);
   assert.equal(notificationCalls[0].tenantId, 'tenant-a');
+});
+
+test('SecurityOfficerCommandService returns canonical tenant-scoped visitor and student-pass workspace contracts', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new SecurityOfficerCommandService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }) } as never,
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        if (/AS checked_in/.test(sql)) {
+          return { rows: [{ checked_in: 1, checked_out_today: 2, flagged: 0 }], rowCount: 1 };
+        }
+        if (/visitor_log\.id::text/.test(sql)) {
+          return {
+            rows: [{ id: 'visitor-1', name: 'John Kamau', id_number: '12345678', purpose: 'Meeting', host: 'Jane Wanjiku', check_in: '2026-08-22', check_out: '', status: 'Active' }],
+            rowCount: 1,
+          };
+        }
+        if (/AS active_passes/.test(sql)) {
+          return { rows: [{ active_passes: 1, pending_verification: 0, returned_today: 0 }], rowCount: 1 };
+        }
+        if (/AS currently_out/.test(sql)) {
+          return { rows: [{ currently_out: 1, departed_today: 1, returned_today: 0 }], rowCount: 1 };
+        }
+        if (/movement\.id::text/.test(sql)) {
+          return { rows: [{ id: 'movement-1', staff_name: 'Jane Wanjiku', department: 'Administration', departed_at: '2026-08-22', expected_return: '', status: 'Departed' }], rowCount: 1 };
+        }
+        if (/AS open_incidents/.test(sql)) {
+          return { rows: [{ open_incidents: 1, resolved_today: 0, escalated: 0 }], rowCount: 1 };
+        }
+        if (/FROM security_incidents/.test(sql)) {
+          return { rows: [{ id: 'incident-1', title: 'Gate alarm', date: '2026-08-22', description: 'Alarm triggered', location: 'Main gate', severity: 'High', status: 'Reported' }], rowCount: 1 };
+        }
+        return {
+          rows: [{ id: 'pass-1', student_name: 'Amina Otieno', class: 'Grade 8 East', authorized_by: 'Jane Wanjiku', exit_time: '2026-08-22', return_time: '', status: 'Out' }],
+          rowCount: 1,
+        };
+      },
+    } as never,
+    {} as never,
+  );
+
+  const [visitors, passes, staffMovement, incidents] = await Promise.all([
+    service.getVisitors(),
+    service.getStudentExitPasses(),
+    service.getStaffMovement(),
+    service.getIncidents(),
+  ]);
+
+  assert.equal(visitors.metrics.checked_in, 1);
+  assert.equal(visitors.visitorsList[0]?.id_number, '12345678');
+  assert.equal(passes.metrics.active_passes, 1);
+  assert.equal(passes.studentexitpassesList[0]?.class, 'Grade 8 East');
+  assert.equal(staffMovement.metrics.currently_out, 1);
+  assert.equal(staffMovement.staffmovementList[0]?.staff_name, 'Jane Wanjiku');
+  assert.equal(incidents.metrics.open_incidents, 1);
+  assert.equal(incidents.incidentsList[0]?.title, 'Gate alarm');
+  assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
+  assert.ok(queries.every((query) => /tenant_id = \$1/.test(query.sql)));
+  const passListQuery = queries.find((query) => /exit_pass\.id::text/.test(query.sql));
+  assert.ok(passListQuery);
+  assert.match(passListQuery.sql, /exit_pass\.time_out::text AS exit_time/);
+  assert.doesNotMatch(passListQuery.sql, /ORDER BY exit_time/);
+  assert.match(passListQuery.sql, /student\.tenant_id = exit_pass\.tenant_id/);
+  assert.match(passListQuery.sql, /membership\.tenant_id = exit_pass\.tenant_id/);
+});
+
+test('SecurityOfficerCommandService generates and downloads tenant-scoped report artifacts from live workspace sections', async () => {
+  const generatedInputs: any[] = [];
+  const reads: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new SecurityOfficerCommandService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }) } as never,
+    { query: async () => ({ rows: [], rowCount: 0 }) } as never,
+    {
+      listReportSnapshots: async (tenantId: string, module: string) => {
+        assert.equal(tenantId, 'tenant-a');
+        assert.equal(module, 'security-officer-command');
+        return [{ id: 'row-1', snapshotId: 'security-snapshot-1', reportName: 'Security operations report', generatedDate: '2026-08-22T09:00:00.000Z', type: 'csv', status: 'Ready' }];
+      },
+      generateReportSnapshot: async (input: any) => {
+        generatedInputs.push(input);
+        return { success: true, snapshotId: 'security-snapshot-2', artifact: { content_base64: 'U2VjdGlvbg==' } };
+      },
+      readSql: async (sql: string, params: unknown[]) => {
+        reads.push({ sql, params });
+        return {
+          rows: [{
+            snapshotId: 'security-snapshot-1',
+            title: 'Security operations report',
+            format: 'csv',
+            artifact: { filename: 'security.csv', content_type: 'text/csv', content_base64: 'U2VjdGlvbg==' },
+            manifest: { sections: { overview: { metrics: { visitors_today: 1 } } } },
+            generatedDate: '2026-08-22T09:00:00.000Z',
+          }],
+          rowCount: 1,
+        };
+      },
+      requiredText: (value: unknown) => String(value ?? '').trim(),
+      uuidOrNull: (value: unknown) => String(value || ''),
+    } as never,
+  );
+
+  (service as any).getOverview = async () => ({ metrics: { visitors_today: 1 } });
+  (service as any).getVisitors = async () => ({ visitorsList: [{ id: 'visitor-1' }] });
+  (service as any).getGateRegister = async () => ({ gateregisterList: [{ id: 'gate-1' }] });
+  (service as any).getStudentExitPasses = async () => ({ studentexitpassesList: [{ id: 'pass-1' }] });
+  (service as any).getStaffMovement = async () => ({ staffmovementList: [{ id: 'movement-1' }] });
+  (service as any).getIncidents = async () => ({ incidentsList: [{ id: 'incident-1' }] });
+
+  const reports = await service.getReports();
+  const generated = await service.generateReport({ title: 'Security operations report', format: 'csv' });
+  const downloaded = await service.downloadReport('security-snapshot-1');
+
+  assert.equal(reports.reportsList[0].id, 'security-snapshot-1');
+  assert.equal(generated.success, true);
+  assert.equal(generatedInputs[0].tenantId, 'tenant-a');
+  assert.equal(generatedInputs[0].module, 'security-officer-command');
+  assert.equal(generatedInputs[0].sections.visitors.visitorsList[0].id, 'visitor-1');
+  assert.equal(generatedInputs[0].sections.incidents.incidentsList[0].id, 'incident-1');
+  assert.equal(downloaded.report.artifact.filename, 'security.csv');
+  assert.equal(reads[0].params[0], 'tenant-a');
+  assert.equal(reads[0].params[1], 'security-snapshot-1');
+  assert.match(reads[0].sql, /module = 'security-officer-command'/);
 });
 
 test('SecurityOfficerCommandService records and claims lost items in the current tenant', async () => {
@@ -1808,6 +2633,7 @@ test('SecurityOfficerCommandService records vehicle gate entry and exit in the c
 
 test('SecurityOfficerCommandService records deliveries, notifies recipients, and marks collection in the current tenant', async () => {
   const writes: Array<{ sql: string; params: unknown[] }> = [];
+  const reads: Array<{ sql: string; params: unknown[] }> = [];
   const audits: string[] = [];
   const notifications: Array<{ tenantId: string; input: any }> = [];
   const service = new SecurityOfficerCommandService(
@@ -1828,17 +2654,36 @@ test('SecurityOfficerCommandService records deliveries, notifies recipients, and
         if (/UPDATE workflow_events/i.test(sql)) {
           return { rows: [{ id: '22222222-2222-4222-8222-222222222222', tenant_id: 'tenant-a', event_type: 'delivery.recorded' }], rowCount: 1 };
         }
+        if (/INSERT INTO notifications/i.test(sql)) {
+          return { rows: [{ recipient_user_id: '33333333-3333-4333-8333-333333333333' }], rowCount: 1 };
+        }
         return { rows: [], rowCount: 0 };
       },
-      readSql: async () => ({
-        rows: [{
-          id: '22222222-2222-4222-8222-222222222222',
-          tenant_id: 'tenant-a',
-          event_type: 'delivery.recorded',
-          payload: { recipient: 'Principal', delivery_type: 'Office Document' },
-        }],
-        rowCount: 1,
-      }),
+      readSql: async (sql: string, params: unknown[]) => {
+        reads.push({ sql, params });
+        if (/FROM workflow_events/i.test(sql)) {
+          return {
+            rows: [{
+              id: '22222222-2222-4222-8222-222222222222',
+              tenant_id: 'tenant-a',
+              event_type: 'delivery.recorded',
+              payload: { recipient: 'P-001', delivery_type: 'Office Document' },
+            }],
+            rowCount: 1,
+          };
+        }
+        if (/FROM staff_profiles/i.test(sql)) {
+          return {
+            rows: [{
+              staff_profile_id: '44444444-4444-4444-8444-444444444444',
+              user_id: '33333333-3333-4333-8333-333333333333',
+              staff_name: 'Jane Njeri',
+            }],
+            rowCount: 1,
+          };
+        }
+        return { rows: [], rowCount: 0 };
+      },
       recordAudit: async (_tenantId: string, action: string) => {
         audits.push(action);
       },
@@ -1854,25 +2699,78 @@ test('SecurityOfficerCommandService records deliveries, notifies recipients, and
     } as never,
   );
 
-  const delivery = await service.recordDelivery({ delivery_type: 'Office Document', recipient: 'Principal', sender: 'Courier' });
+  const delivery = await service.recordDelivery({ delivery_type: 'Office Document', recipient: 'P-001', sender: 'Courier' });
   const notice = await service.notifyDeliveryRecipient('22222222-2222-4222-8222-222222222222');
   const collected = await service.markDeliveryCollected('22222222-2222-4222-8222-222222222222');
 
   assert.equal(delivery.delivery.event_type, 'delivery.recorded');
   assert.equal(notice.success, true);
+  assert.equal(notice.recipient.user_id, '33333333-3333-4333-8333-333333333333');
   assert.equal(collected.delivery.event_type, 'delivery.recorded');
   assert.match(writes[0].sql, /INSERT INTO workflow_events/);
-  assert.match(writes[1].sql, /UPDATE workflow_events/);
+  const recipientNotice = writes.find((call) => /INSERT INTO notifications/i.test(call.sql));
+  assert.ok(recipientNotice);
+  assert.match(recipientNotice.sql, /recipient_user_id/);
+  assert.doesNotMatch(recipientNotice.sql, /recipient_role/);
+  assert.match(recipientNotice.sql, /membership\.tenant_id = \$1/);
+  assert.equal(recipientNotice.params[0], 'tenant-a');
+  assert.equal(recipientNotice.params[7], '33333333-3333-4333-8333-333333333333');
+  assert.equal(reads.some((call) => /FROM staff_profiles/i.test(call.sql) && call.params[0] === 'tenant-a'), true);
+  assert.equal(writes.some((call) => /UPDATE workflow_events/i.test(call.sql) && call.params[0] === 'tenant-a'), true);
   assert.equal(writes[0].params[0], 'tenant-a');
-  assert.equal(writes[1].params[0], 'tenant-a');
   assert.equal(audits.includes('security.delivery_recorded'), true);
   assert.equal(audits.includes('security.delivery_recipient_notified'), true);
   assert.equal(audits.includes('security.delivery_collected'), true);
-  assert.equal(notifications.some((call) => call.input.type === 'security.delivery_recipient_notified'), true);
+  assert.equal(notifications.some((call) => call.input.type === 'security.delivery_recipient_notified'), false);
+});
+
+test('SecurityOfficerCommandService refuses a delivery notice when the exact same-tenant staff recipient cannot be resolved', async () => {
+  const reads: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new SecurityOfficerCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+        role: 'security_officer',
+      }),
+    } as never,
+    { query: async () => ({ rows: [], rowCount: 0 }) } as never,
+    {
+      readSql: async (sql: string, params: unknown[]) => {
+        reads.push({ sql, params });
+        if (/FROM workflow_events/i.test(sql)) {
+          return {
+            rows: [{
+              id: '22222222-2222-4222-8222-222222222222',
+              tenant_id: 'tenant-a',
+              event_type: 'delivery.recorded',
+              payload: { recipient: 'Principal office', delivery_type: 'Office Document' },
+            }],
+            rowCount: 1,
+          };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+      writeSql: async () => {
+        throw new Error('A notification must not be inserted without an exact tenant recipient');
+      },
+      requiredText: (value: unknown) => String(value ?? '').trim(),
+    } as never,
+  );
+
+  await assert.rejects(
+    () => service.notifyDeliveryRecipient('22222222-2222-4222-8222-222222222222'),
+    /not an active staff account in this school/,
+  );
+  assert.equal(reads.length, 2);
+  assert.ok(reads.every((call) => call.params[0] === 'tenant-a'));
+  assert.match(reads[1].sql, /FROM staff_profiles/);
+  assert.match(reads[1].sql, /membership\.tenant_id = profile\.tenant_id/);
 });
 
 test('SecurityOfficerCommandService records late arrivals and queues parent notices in the current tenant', async () => {
   const writes: Array<{ sql: string; params: unknown[] }> = [];
+  const reads: Array<{ sql: string; params: unknown[] }> = [];
   const audits: string[] = [];
   const notifications: Array<{ tenantId: string; input: any }> = [];
   const service = new SecurityOfficerCommandService(
@@ -1890,17 +2788,33 @@ test('SecurityOfficerCommandService records late arrivals and queues parent noti
         if (/INSERT INTO workflow_events/i.test(sql)) {
           return { rows: [{ id: '22222222-2222-4222-8222-222222222222', tenant_id: 'tenant-a', event_type: 'student.late_arrival_recorded' }], rowCount: 1 };
         }
+        if (/INSERT INTO notifications/i.test(sql)) {
+          return { rows: [{ recipient_user_id: '33333333-3333-4333-8333-333333333333' }], rowCount: 1 };
+        }
         return { rows: [], rowCount: 0 };
       },
-      readSql: async () => ({
-        rows: [{
-          id: '22222222-2222-4222-8222-222222222222',
-          tenant_id: 'tenant-a',
-          event_type: 'student.late_arrival_recorded',
-          payload: { student_name: 'Mike Omondi', reason: 'Transport Delay' },
-        }],
-        rowCount: 1,
-      }),
+      readSql: async (sql: string, params: unknown[]) => {
+        reads.push({ sql, params });
+        if (/FROM students student/i.test(sql)) {
+          return {
+            rows: [{ id: '44444444-4444-4444-8444-444444444444', admission_number: 'ADM-004', student_name: 'Mike Omondi' }],
+            rowCount: 1,
+          };
+        }
+        if (/FROM workflow_events/i.test(sql)) {
+          return {
+            rows: [{
+              id: '22222222-2222-4222-8222-222222222222',
+              tenant_id: 'tenant-a',
+              entity_id: '44444444-4444-4444-8444-444444444444',
+              event_type: 'student.late_arrival_recorded',
+              payload: { student_id: '44444444-4444-4444-8444-444444444444', student_name: 'Mike Omondi', reason: 'Transport Delay' },
+            }],
+            rowCount: 1,
+          };
+        }
+        return { rows: [], rowCount: 0 };
+      },
       recordAudit: async (_tenantId: string, action: string) => {
         audits.push(action);
       },
@@ -1921,15 +2835,28 @@ test('SecurityOfficerCommandService records late arrivals and queues parent noti
 
   assert.equal(arrival.arrival.event_type, 'student.late_arrival_recorded');
   assert.equal(notice.success, true);
-  assert.match(writes[0].sql, /INSERT INTO workflow_events/);
-  assert.equal(writes[0].params[0], 'tenant-a');
+  assert.equal(notice.guardianNotificationCount, 1);
+  const arrivalWrite = writes.find((call) => /INSERT INTO workflow_events/i.test(call.sql));
+  const guardianNotice = writes.find((call) => /INSERT INTO notifications/i.test(call.sql));
+  assert.ok(arrivalWrite);
+  assert.ok(guardianNotice);
+  assert.equal(arrivalWrite.params[0], 'tenant-a');
+  assert.equal(arrivalWrite.params[3], '44444444-4444-4444-8444-444444444444');
+  assert.doesNotMatch(String(arrivalWrite.params[2]), /parent/i);
+  assert.match(guardianNotice.sql, /FROM student_guardians guardian/);
+  assert.match(guardianNotice.sql, /recipient_user_id/);
+  assert.doesNotMatch(guardianNotice.sql, /recipient_role/);
+  assert.equal(guardianNotice.params[0], 'tenant-a');
+  assert.equal(guardianNotice.params[8], '44444444-4444-4444-8444-444444444444');
+  assert.equal(reads.filter((call) => /FROM students student/i.test(call.sql)).every((call) => call.params[0] === 'tenant-a'), true);
   assert.equal(audits.includes('security.late_arrival_recorded'), true);
   assert.equal(audits.includes('security.late_arrival_parent_notified'), true);
-  assert.equal(notifications.some((call) => call.input.type === 'security.late_arrival_parent_notified'), true);
+  assert.equal(notifications.some((call) => call.input.targetRoles?.includes('parent')), false);
 });
 
 test('SecurityOfficerCommandService records early departures and returns in the current tenant', async () => {
   const writes: Array<{ sql: string; params: unknown[] }> = [];
+  const reads: Array<{ sql: string; params: unknown[] }> = [];
   const audits: string[] = [];
   const notifications: Array<{ tenantId: string; input: any }> = [];
   const service = new SecurityOfficerCommandService(
@@ -1945,14 +2872,32 @@ test('SecurityOfficerCommandService records early departures and returns in the 
       writeSql: async (sql: string, params: unknown[]) => {
         writes.push({ sql, params });
         if (/INSERT INTO workflow_events/i.test(sql)) {
-          return { rows: [{ id: '22222222-2222-4222-8222-222222222222', tenant_id: 'tenant-a', event_type: 'student.early_departure_recorded' }], rowCount: 1 };
+          return { rows: [{ id: '22222222-2222-4222-8222-222222222222', tenant_id: 'tenant-a', entity_id: '44444444-4444-4444-8444-444444444444', event_type: 'student.early_departure_recorded', payload: { student_id: '44444444-4444-4444-8444-444444444444', student_name: 'Sarah Lee' } }], rowCount: 1 };
         }
         if (/UPDATE workflow_events/i.test(sql)) {
-          return { rows: [{ id: '22222222-2222-4222-8222-222222222222', tenant_id: 'tenant-a', event_type: 'student.early_departure_recorded' }], rowCount: 1 };
+          return { rows: [{ id: '22222222-2222-4222-8222-222222222222', tenant_id: 'tenant-a', entity_id: '44444444-4444-4444-8444-444444444444', event_type: 'student.early_departure_recorded', payload: { student_id: '44444444-4444-4444-8444-444444444444', student_name: 'Sarah Lee', returned_at: '2026-08-22T10:00:00.000Z' } }], rowCount: 1 };
+        }
+        if (/INSERT INTO notifications/i.test(sql)) {
+          return { rows: [{ recipient_user_id: '33333333-3333-4333-8333-333333333333' }], rowCount: 1 };
         }
         return { rows: [], rowCount: 0 };
       },
-      readSql: async () => ({ rows: [], rowCount: 0 }),
+      readSql: async (sql: string, params: unknown[]) => {
+        reads.push({ sql, params });
+        if (/FROM students student/i.test(sql)) {
+          return {
+            rows: [{ id: '44444444-4444-4444-8444-444444444444', admission_number: 'ADM-005', student_name: 'Sarah Lee' }],
+            rowCount: 1,
+          };
+        }
+        if (/FROM workflow_events/i.test(sql)) {
+          return {
+            rows: [{ id: '22222222-2222-4222-8222-222222222222', entity_id: '44444444-4444-4444-8444-444444444444', payload: { student_id: '44444444-4444-4444-8444-444444444444', student_name: 'Sarah Lee' } }],
+            rowCount: 1,
+          };
+        }
+        return { rows: [], rowCount: 0 };
+      },
       recordAudit: async (_tenantId: string, action: string) => {
         audits.push(action);
       },
@@ -1972,15 +2917,32 @@ test('SecurityOfficerCommandService records early departures and returns in the 
   const returned = await service.recordEarlyDepartureReturn('22222222-2222-4222-8222-222222222222');
 
   assert.equal(departure.departure.event_type, 'student.early_departure_recorded');
+  assert.equal(departure.guardianNotificationStatus, 'queued');
   assert.equal(returned.departure.event_type, 'student.early_departure_recorded');
-  assert.match(writes[0].sql, /INSERT INTO workflow_events/);
-  assert.match(writes[1].sql, /UPDATE workflow_events/);
-  assert.equal(writes[0].params[0], 'tenant-a');
-  assert.equal(writes[1].params[0], 'tenant-a');
+  assert.equal(returned.guardianNotificationStatus, 'queued');
+  const departureWrite = writes.find((call) => /INSERT INTO workflow_events/i.test(call.sql));
+  const returnWrite = writes.find((call) => /UPDATE workflow_events/i.test(call.sql));
+  const guardianNotices = writes.filter((call) => /INSERT INTO notifications/i.test(call.sql));
+  assert.ok(departureWrite);
+  assert.ok(returnWrite);
+  assert.equal(departureWrite.params[0], 'tenant-a');
+  assert.equal(departureWrite.params[3], '44444444-4444-4444-8444-444444444444');
+  assert.doesNotMatch(String(departureWrite.params[2]), /parent/i);
+  assert.equal(returnWrite.params[0], 'tenant-a');
+  assert.equal(guardianNotices.length, 2);
+  guardianNotices.forEach((notice) => {
+    assert.match(notice.sql, /FROM student_guardians guardian/);
+    assert.match(notice.sql, /recipient_user_id/);
+    assert.doesNotMatch(notice.sql, /recipient_role/);
+    assert.equal(notice.params[0], 'tenant-a');
+    assert.equal(notice.params[8], '44444444-4444-4444-8444-444444444444');
+  });
+  assert.equal(reads.every((call) => call.params[0] === 'tenant-a'), true);
   assert.equal(audits.includes('security.early_departure_recorded'), true);
   assert.equal(audits.includes('security.early_departure_return_recorded'), true);
   assert.equal(notifications.some((call) => call.input.type === 'security.early_departure_recorded'), true);
   assert.equal(notifications.some((call) => call.input.type === 'security.early_departure_return_recorded'), true);
+  assert.equal(notifications.some((call) => call.input.targetRoles?.includes('parent')), false);
 });
 
 test('SecurityOfficerCommandService records and acknowledges watchlist entries in the current tenant', async () => {
@@ -2435,6 +3397,355 @@ test('AdminCommandService exposes a tenant-scoped principal dashboard event stre
   });
 });
 
+test('AdminCommandService delegates principal approval reads and decisions with the exact tenant actor and role', async () => {
+  const store = {
+    tenant_id: 'tenant-a',
+    user_id: '11111111-1111-4111-8111-111111111111',
+    role: 'principal',
+    request_id: 'request-77',
+  };
+  const listCalls: Array<Record<string, unknown>> = [];
+  const decisionCalls: Array<Record<string, unknown>> = [];
+  const historyCalls: unknown[][] = [];
+  const service = new AdminCommandService(
+    {
+      getStore: () => store,
+      requireStore: () => store,
+    } as never,
+    {
+      getPrincipalApprovalHistory: async (...args: unknown[]) => {
+        historyCalls.push(args);
+        return [{ id: 'approval-old', title: 'Prior request', status: 'approved' }];
+      },
+    } as never,
+    {} as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    {
+      listPendingForApprover: async (input: Record<string, unknown>) => {
+        listCalls.push(input);
+        return [{
+          id: 'approval-1',
+          module: 'procurement',
+          approval_type: 'purchase_order',
+          priority: 'urgent',
+        }];
+      },
+      decideRequest: async (input: Record<string, unknown>) => {
+        decisionCalls.push(input);
+        return { id: input.approvalId, status: input.decision };
+      },
+    } as never,
+  );
+
+  const overview = await service.getApprovalsOverview();
+
+  assert.deepEqual(listCalls, [{
+    tenantId: 'tenant-a',
+    actorUserId: '11111111-1111-4111-8111-111111111111',
+    actorRole: 'principal',
+  }]);
+  assert.deepEqual(historyCalls, [[
+    'tenant-a',
+    '11111111-1111-4111-8111-111111111111',
+    'principal',
+  ]]);
+  assert.equal(overview.pendingTotal, 1);
+  assert.equal(overview.urgentApprovals, 1);
+  assert.deepEqual(overview.categories, [{ name: 'Procurement', pending: 1, urgent: 1 }]);
+
+  await assert.rejects(
+    () => service.actionPrincipalApproval('approval-1', { action: 'reject' }),
+    /A rejection reason is required/,
+  );
+  await assert.rejects(
+    () => service.actionPrincipalApproval('approval-1', { action: 'forward' }),
+    /Approval action must be approve or reject/,
+  );
+  assert.equal(decisionCalls.length, 0, 'invalid decisions must not reach the governed workflow');
+
+  const rejected = await service.actionPrincipalApproval(' approval-1 ', {
+    action: 'REJECT',
+    reason: '  Budget evidence is incomplete.  ',
+  });
+
+  assert.equal(rejected.success, true);
+  assert.deepEqual(decisionCalls, [{
+    tenantId: 'tenant-a',
+    approvalId: 'approval-1',
+    actorUserId: '11111111-1111-4111-8111-111111111111',
+    actorRole: 'principal',
+    requestId: 'request-77',
+    decision: 'REJECTED',
+    note: 'Budget evidence is incomplete.',
+  }]);
+});
+
+test('AdminCommandRepository reads Principal settings from the exact tenant user and active assignments', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new AdminCommandRepository({
+    query: async (sql: string, params: unknown[]) => {
+      queries.push({ sql, params });
+      if (/FROM workflow_events/.test(sql)) {
+        return {
+          rows: [{
+            payload: {
+              notifications: { emailAlerts: false, smsAlerts: true, dailyDigest: false },
+              dashboard: { theme: 'dark', defaultView: 'attendance' },
+            },
+            updated_at: '2026-08-22T08:00:00.000Z',
+          }],
+          rowCount: 1,
+        };
+      }
+      return {
+        rows: [{
+          mfa_enabled: true,
+          password_changed_at: '2026-08-01T07:00:00.000Z',
+          teaching_workspace_available: true,
+        }],
+        rowCount: 1,
+      };
+    },
+  } as never);
+
+  const result = await repository.getPrincipalSettings(
+    'tenant-a',
+    '11111111-1111-4111-8111-111111111111',
+  );
+
+  assert.equal(result.accountLinked, true);
+  assert.deepEqual(result.notifications, { emailAlerts: false, smsAlerts: true, dailyDigest: false });
+  assert.deepEqual(result.dashboard, { theme: 'dark', showTeachingWorkspace: true, defaultView: 'attendance' });
+  assert.deepEqual(result.security, {
+    twoFactorAuth: true,
+    lastPasswordChange: '2026-08-01T07:00:00.000Z',
+  });
+  assert.equal(queries.length, 2);
+  for (const query of queries) {
+    assert.deepEqual(query.params, ['tenant-a', '11111111-1111-4111-8111-111111111111']);
+  }
+  assert.match(queries.find((query) => /FROM workflow_events/.test(query.sql))?.sql ?? '', /source_user_id = \$2::uuid/);
+  const accountSql = queries.find((query) => /FROM users user_account/.test(query.sql))?.sql ?? '';
+  assert.match(accountSql, /membership\.tenant_id = \$1/);
+  assert.match(accountSql, /assignment\.tenant_id = membership\.tenant_id/);
+  assert.match(accountSql, /assignment\.teacher_user_id::text = user_account\.id::text/);
+});
+
+test('AdminCommandService persists validated Principal preferences as an audited completed event', async () => {
+  const workflowCalls: Array<Record<string, unknown>> = [];
+  const auditCalls: Array<Record<string, unknown>> = [];
+  const service = new AdminCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+        role: 'principal',
+      }),
+    } as never,
+    {
+      createPrincipalWorkflowAction: async (input: Record<string, unknown>) => {
+        workflowCalls.push(input);
+        return { id: 'event-1', ...input };
+      },
+      appendAuditLog: async (input: Record<string, unknown>) => {
+        auditCalls.push(input);
+      },
+    } as never,
+    {} as never,
+  );
+
+  await assert.rejects(
+    () => service.updatePrincipalSettings({
+      notifications: { emailAlerts: 'yes', smsAlerts: false, dailyDigest: true },
+      dashboard: { theme: 'dark', defaultView: 'overview' },
+    }),
+    /Email alerts must be true or false/,
+  );
+  await assert.rejects(
+    () => service.updatePrincipalSettings({
+      notifications: { emailAlerts: true, smsAlerts: false, dailyDigest: true },
+      dashboard: { theme: 'neon', defaultView: 'overview' },
+    }),
+    /Theme must be system, dark, or light/,
+  );
+  assert.equal(workflowCalls.length, 0);
+
+  const result = await service.updatePrincipalSettings({
+    notifications: { emailAlerts: false, smsAlerts: true, dailyDigest: false },
+    dashboard: { theme: 'dark', defaultView: 'attendance' },
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(workflowCalls.length, 1);
+  assert.deepEqual(workflowCalls[0], {
+    tenant_id: 'tenant-a',
+    user_id: '11111111-1111-4111-8111-111111111111',
+    event_type: 'principal.settings_updated',
+    entity_type: 'principal_preferences',
+    entity_id: '11111111-1111-4111-8111-111111111111',
+    title: 'Principal preferences updated',
+    message: 'Principal dashboard and notification preferences were saved.',
+    payload: {
+      notifications: { emailAlerts: false, smsAlerts: true, dailyDigest: false },
+      dashboard: { theme: 'dark', defaultView: 'attendance' },
+    },
+    target_roles: ['principal'],
+    status: 'completed',
+  });
+  assert.equal(auditCalls.some((call) => call.action === 'principal.settings_updated'), true);
+});
+
+test('AdminCommandService rejects Principal settings reads without an active same-school membership', async () => {
+  const calls: unknown[][] = [];
+  const service = new AdminCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      getPrincipalSettings: async (...args: unknown[]) => {
+        calls.push(args);
+        return { accountLinked: false };
+      },
+    } as never,
+    {} as never,
+  );
+
+  await assert.rejects(
+    () => service.getPrincipalSettings(),
+    /not an active member of this school/,
+  );
+  assert.deepEqual(calls, [['tenant-a', '11111111-1111-4111-8111-111111111111']]);
+});
+
+test('AdminCommandService delegates principal exam creation and publication to the canonical exams workflow', async () => {
+  const examCalls: Array<{ name: string; input: unknown }> = [];
+  const auditCalls: Array<Record<string, unknown>> = [];
+  const service = new AdminCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+        role: 'principal',
+      }),
+    } as never,
+    {
+      appendAuditLog: async (input: Record<string, unknown>) => auditCalls.push(input),
+    } as never,
+    {} as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    {
+      createSeries: async (input: Record<string, unknown>) => {
+        examCalls.push({ name: 'create', input });
+        return {
+          id: '22222222-2222-4222-8222-222222222222',
+          academic_term_id: input.academic_term_id,
+          name: input.name,
+          starts_on: input.starts_on,
+          ends_on: input.ends_on,
+        };
+      },
+      publishExamSeries: async (examSeriesId: string) => {
+        examCalls.push({ name: 'publish', input: examSeriesId });
+        return { success: true, published_report_cards_count: 24 };
+      },
+    } as never,
+  );
+
+  const created = await service.createExamCycle({
+    academic_term_id: '33333333-3333-4333-8333-333333333333',
+    name: '  Term 2 End-Term Examinations  ',
+    starts_on: '2026-08-24',
+    ends_on: '2026-08-28',
+  });
+  const published = await service.publishPrincipalExamSeries(' 22222222-2222-4222-8222-222222222222 ');
+
+  assert.deepEqual(examCalls, [
+    {
+      name: 'create',
+      input: {
+        academic_term_id: '33333333-3333-4333-8333-333333333333',
+        name: 'Term 2 End-Term Examinations',
+        starts_on: '2026-08-24',
+        ends_on: '2026-08-28',
+      },
+    },
+    { name: 'publish', input: '22222222-2222-4222-8222-222222222222' },
+  ]);
+  assert.equal(created.examSeries.id, '22222222-2222-4222-8222-222222222222');
+  assert.equal(published.published_report_cards_count, 24);
+  assert.deepEqual(auditCalls, [{
+    tenant_id: 'tenant-a',
+    actor_user_id: '11111111-1111-4111-8111-111111111111',
+    action: 'exam.series_created',
+    entity_type: 'exam_series',
+    entity_id: '22222222-2222-4222-8222-222222222222',
+    metadata: {
+      academic_term_id: '33333333-3333-4333-8333-333333333333',
+      starts_on: '2026-08-24',
+      ends_on: '2026-08-28',
+      source_dashboard: 'principal-command',
+    },
+  }]);
+});
+
+test('AdminCommandRepository derives principal exam readiness from canonical report cards only', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new AdminCommandRepository({
+    query: async (sql: string, params: unknown[]) => {
+      queries.push({ sql, params });
+      if (/activeExams|COUNT\(\*\)::int AS count[\s\S]*FROM exam_series/i.test(sql)) {
+        return { rows: [{ count: 1 }], rowCount: 1 };
+      }
+      if (/missing_windows/.test(sql)) {
+        return { rows: [{ count: 2 }], rowCount: 1 };
+      }
+      if (/AS average_score/.test(sql)) {
+        return { rows: [{ average_score: '72.50' }], rowCount: 1 };
+      }
+      if (/series\.id::text AS exam_id/.test(sql)) {
+        return {
+          rows: [{
+            id: 'series-1',
+            exam_id: 'series-1',
+            title: 'Term 2',
+            status: 'reviewed',
+            starts_on: '2026-08-01',
+            ends_on: '2026-08-10',
+            total_report_cards: 2,
+            approved_report_cards: 2,
+            published_report_cards: 0,
+            blocked_report_cards: 0,
+          }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [{ label: 'Term 2', value: '72.50' }], rowCount: 1 };
+    },
+  } as never);
+
+  const result = await repository.getExamsOverview('tenant-a');
+
+  assert.equal(result.activeExams, 1);
+  assert.equal(result.missingMarksAlerts, 2);
+  assert.equal(result.averageScore, 72.5);
+  assert.equal(result.reportsPending, 1);
+  assert.equal(result.recentResults[0]?.canPublish, true);
+  assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
+  assert.ok(queries.some((query) => /LEFT JOIN student_report_cards card/.test(query.sql)));
+  assert.ok(queries.some((query) => /card\.is_current = TRUE/.test(query.sql)));
+  assert.ok(queries.every((query) => !/report_readiness_reviews/i.test(query.sql)));
+});
+
 test('AdminCommandService creates incidents with audit trail', async () => {
   const calls: string[] = [];
   const service = new AdminCommandService(
@@ -2627,6 +3938,95 @@ test('IctManagerCommandService records asset management requests as tenant-scope
   assert.equal(workflowCalls[0].payload.action, 'Schedule maintenance');
   assert.equal(workflowCalls[0].payload.condition, 'needs_maintenance');
   assert.equal(result.eventType, 'ict.asset.management_requested');
+});
+
+test('IctManagerCommandService reads the shared tenant asset model instead of phantom ICT tables', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new IctManagerCommandService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }) } as never,
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        if (/COUNT\(\*\)::int AS total_assets/.test(sql)) {
+          return { rows: [{ total_assets: 1, active: 1, in_repair: 0, disposed: 0 }], rowCount: 1 };
+        }
+        if (/title AS asset_name/.test(sql)) {
+          return {
+            rows: [{
+              id: '22222222-2222-4222-8222-222222222222',
+              asset_name: 'ICT Lab Projector',
+              asset_tag: 'ICT-001',
+              category: 'projector',
+              location: 'ICT Lab',
+              purchase_date: '2026-01-15',
+              status: 'Available',
+            }],
+            rowCount: 1,
+          };
+        }
+        if (/FROM tenant_memberships membership/.test(sql)) {
+          return { rows: [{ id: '33333333-3333-4333-8333-333333333333', label: 'Jane Wanjiku' }], rowCount: 1 };
+        }
+        return { rows: [{ id: '22222222-2222-4222-8222-222222222222', label: 'ICT Lab Projector - ICT-001' }], rowCount: 1 };
+      },
+    } as never,
+    {} as never,
+  );
+
+  const [assets, options] = await Promise.all([service.getAssets(), service.getOptions()]);
+
+  assert.equal(assets.metrics.total_assets, 1);
+  assert.equal(assets.assetsList[0]?.asset_tag, 'ICT-001');
+  assert.equal(options.assets.length, 1);
+  assert.equal(options.staff[0]?.label, 'Jane Wanjiku');
+  assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
+  assert.ok(queries.every((query) => !/\bict_(?:assets|asset_assignments|asset_loans|maintenance_logs)\b/.test(query.sql)));
+  assert.ok(queries.every((query) => /\b(?:assets|tenant_memberships)\b/.test(query.sql)));
+});
+
+test('IctManagerCommandService persists a validated asset before audit and cross-dashboard notification', async () => {
+  const writes: Array<{ sql: string; params: unknown[] }> = [];
+  const audits: any[] = [];
+  const notifications: any[] = [];
+  const service = new IctManagerCommandService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }) } as never,
+    {} as never,
+    {
+      uuidOrNull: (value: unknown) => typeof value === 'string' && /^[0-9a-f-]{36}$/i.test(value) ? value : null,
+      requiredText: (value: unknown, label: string) => {
+        const normalized = String(value ?? '').trim();
+        if (!normalized) throw new Error(`${label} is required`);
+        return normalized;
+      },
+      writeSql: async (sql: string, params: unknown[]) => {
+        writes.push({ sql, params });
+        return {
+          rows: [{ id: '22222222-2222-4222-8222-222222222222', title: 'ICT Lab Projector' }],
+          rowCount: 1,
+        };
+      },
+      recordAudit: async (...args: unknown[]) => { audits.push(args); },
+      notifyRoles: async (...args: unknown[]) => { notifications.push(args); },
+    } as never,
+  );
+
+  const result = await service.createAsset({
+    asset_name: 'ICT Lab Projector',
+    asset_tag: 'ICT-001',
+    category: 'projector',
+    location: 'ICT Lab',
+    purchase_date: '2026-01-15',
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(writes.length, 1);
+  assert.match(writes[0].sql, /INSERT INTO assets/);
+  assert.match(writes[0].sql, /existing\.tenant_id = \$1/);
+  assert.equal(writes[0].params[0], 'tenant-a');
+  assert.equal(audits.length, 1);
+  assert.equal(audits[0][1], 'ict.asset_created');
+  assert.equal(notifications.length, 1);
+  assert.deepEqual(notifications[0][1].targetRoles, ['ict_manager', 'principal', 'system_monitor']);
 });
 
 test('HodCommandService routes roster review requests as tenant-scoped workflow events', async () => {
@@ -3361,29 +4761,43 @@ test('TeacherCommandService creates tenant-scoped store requests for the storeke
   assert.equal(workflowCalls[0].entityType, 'inventory_request');
 });
 
-test('TransportManagerCommandService sends transport notices through tenant-scoped notifications', async () => {
-  const workflowCalls: any[] = [];
-  const notificationCalls: any[] = [];
+test('TransportManagerCommandService queues notices only for selected same-tenant transport guardians', async () => {
+  const writes: Array<{ sql: string; params: unknown[] }> = [];
   const service = new TransportManagerCommandService(
     {
       getStore: () => ({
         tenant_id: 'tenant-a',
         user_id: '11111111-1111-4111-8111-111111111111',
+        role: 'transport_manager',
       }),
     } as never,
     {} as never,
     {
+      uuidOrNull: (value: unknown) => {
+        const text = String(value ?? '').trim();
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text)
+          ? text
+          : null;
+      },
       requiredText: (value: unknown, label: string) => {
         const text = String(value ?? '').trim();
         if (!text) throw new Error(`${label} is required`);
         return text;
       },
-      recordWorkflowAction: async (input: any) => {
-        workflowCalls.push(input);
-        return { id: 'transport-notice-event-1', ...input };
-      },
-      notifyRoles: async (tenantId: string, input: any) => {
-        notificationCalls.push({ tenantId, input });
+      writeSql: async (sql: string, params: unknown[]) => {
+        writes.push({ sql, params });
+        return {
+          rows: [{
+            id: 'transport-notice-event-1',
+            targeted_students: 1,
+            sms_queued: 1,
+            in_app_notifications_created: 1,
+            delivery_status: 'queued',
+            workflow_status: 'pending',
+            audits_created: 1,
+          }],
+          rowCount: 1,
+        };
       },
     } as never,
   );
@@ -3392,20 +4806,29 @@ test('TransportManagerCommandService sends transport notices through tenant-scop
     title: 'Bus delayed',
     message: 'Bus 11 is delayed by 14 minutes.',
     notice_type: 'delay',
-    target_roles: ['parent', 'class_teacher'],
+    route_id: '22222222-2222-4222-8222-222222222222',
+    student_ids: ['33333333-3333-4333-8333-333333333333'],
     channels: ['in_app', 'sms'],
   });
 
   assert.equal(result.success, true);
-  assert.equal(workflowCalls.length, 1);
-  assert.equal(workflowCalls[0].tenantId, 'tenant-a');
-  assert.equal(workflowCalls[0].entityType, 'transport_notice');
-  assert.equal(workflowCalls[0].eventType, 'transport.notice_sent');
-  assert.deepEqual(workflowCalls[0].targetRoles, ['parent', 'class_teacher']);
-  assert.equal(notificationCalls.length, 1);
-  assert.equal(notificationCalls[0].tenantId, 'tenant-a');
-  assert.deepEqual(notificationCalls[0].input.targetRoles, ['parent', 'class_teacher']);
-  assert.equal(notificationCalls[0].input.type, 'transport.notice_sent');
+  assert.equal(result.status, 'queued');
+  assert.equal(result.sms_queued, 1);
+  assert.equal(result.in_app_notifications_created, 1);
+  assert.equal(result.event.type, 'transport.notice_queued');
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].params[0], 'tenant-a');
+  assert.equal(writes[0].params[1], '22222222-2222-4222-8222-222222222222');
+  assert.deepEqual(writes[0].params[2], ['33333333-3333-4333-8333-333333333333']);
+  assert.match(writes[0].sql, /FROM transport_manifest_students manifest_student/);
+  assert.match(writes[0].sql, /manifest_student\.tenant_id = \$1/);
+  assert.match(writes[0].sql, /LEFT JOIN student_guardians guardian/);
+  assert.match(writes[0].sql, /INSERT INTO notifications/);
+  assert.match(writes[0].sql, /INSERT INTO communication_sms_outbox/);
+  assert.match(writes[0].sql, /INSERT INTO workflow_events/);
+  assert.match(writes[0].sql, /'transport\.notice_queued'/);
+  assert.match(writes[0].sql, /INSERT INTO audit_logs/);
+  assert.doesNotMatch(writes[0].sql, /transport\.notice_sent/);
 });
 
 test('TransportManagerCommandService returns tenant-scoped assignment options for transport dropdowns', async () => {
@@ -3452,9 +4875,64 @@ test('TransportManagerCommandService returns tenant-scoped assignment options fo
   assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
 });
 
-test('TransportManagerCommandService assigns learners by route and prepares an active manifest', async () => {
+test('TransportManagerCommandService returns route metrics and rows from tenant-scoped route relationships', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new TransportManagerCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        return {
+          rows: [
+            {
+              id: 'route-a',
+              route_name: 'Town Route',
+              pickup_points: 4,
+              students_count: 32,
+              driver: 'John Kamau',
+              vehicle: 'KDA 123A',
+              status: 'Active',
+            },
+            {
+              id: 'route-b',
+              route_name: 'Hill Route',
+              pickup_points: 2,
+              students_count: 0,
+              driver: '',
+              vehicle: '',
+              status: 'Paused',
+            },
+          ],
+          rowCount: 2,
+        };
+      },
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.getRoutes();
+
+  assert.deepEqual(result.metrics, { total_routes: 2, active_routes: 1 });
+  assert.equal(result.routesList.length, 2);
+  assert.equal(result.routesList[0]?.students_count, 32);
+  assert.equal(queries.length, 1);
+  assert.deepEqual(queries[0].params, ['tenant-a']);
+  assert.match(queries[0].sql, /WHERE route\.tenant_id = \$1/);
+  assert.match(queries[0].sql, /stop\.tenant_id = route\.tenant_id/);
+  assert.match(queries[0].sql, /manifest\.tenant_id = route\.tenant_id/);
+  assert.match(queries[0].sql, /manifest_student\.tenant_id = manifest\.tenant_id/);
+  assert.match(queries[0].sql, /trip\.tenant_id = route\.tenant_id/);
+  assert.match(queries[0].sql, /vehicle\.tenant_id = trip\.tenant_id/);
+  assert.match(queries[0].sql, /driver\.tenant_id = trip\.tenant_id/);
+});
+
+test('TransportManagerCommandService assigns same-tenant learners by route in one governed mutation', async () => {
   const writes: Array<{ sql: string; params: unknown[] }> = [];
-  const audits: any[] = [];
   const service = new TransportManagerCommandService(
     {
       getStore: () => ({
@@ -3474,13 +4952,18 @@ test('TransportManagerCommandService assigns learners by route and prepares an a
       },
       writeSql: async (sql: string, params: unknown[]) => {
         writes.push({ sql, params });
-        if (/INSERT INTO transport_manifests/.test(sql)) {
-          return { rows: [{ id: 'manifest-created' }], rowCount: 1 };
-        }
-        return { rows: [{ id: 'assignment-a', manifest_id: params[1], student_id: params[2] }], rowCount: 1 };
-      },
-      recordAudit: async (...args: any[]) => {
-        audits.push(args);
+        return {
+          rows: [{
+            id: 'assignment-a',
+            manifest_id: 'manifest-created',
+            route_id: params[2],
+            student_id: params[3],
+            workflow_event_id: 'event-a',
+            audits_created: 1,
+            notifications_created: 3,
+          }],
+          rowCount: 1,
+        };
       },
     } as never,
   );
@@ -3494,15 +4977,25 @@ test('TransportManagerCommandService assigns learners by route and prepares an a
   });
 
   assert.equal(result.success, true);
+  assert.equal(writes.length, 1);
+  assert.match(writes[0].sql, /WITH selected_student AS/);
+  assert.match(writes[0].sql, /student\.tenant_id = \$1/);
+  assert.match(writes[0].sql, /INNER JOIN transport_routes route[\s\S]*route\.tenant_id = manifest\.tenant_id/);
+  assert.match(writes[0].sql, /pickup_stop\.tenant_id = candidate_route\.tenant_id/);
   assert.match(writes[0].sql, /INSERT INTO transport_manifests/);
+  assert.match(writes[0].sql, /INSERT INTO transport_manifest_students/);
+  assert.match(writes[0].sql, /INSERT INTO workflow_events/);
+  assert.match(writes[0].sql, /INSERT INTO audit_logs/);
+  assert.match(writes[0].sql, /INSERT INTO notifications/);
   assert.equal(writes[0].params[0], 'tenant-a');
-  assert.equal(writes[0].params[1], 'route-a');
-  assert.match(writes[1].sql, /INSERT INTO transport_manifest_students/);
-  assert.equal(writes[1].params[1], 'manifest-created');
-  assert.equal(writes[1].params[2], 'student-a');
-  assert.equal(audits.length, 1);
-  assert.equal(audits[0][0], 'tenant-a');
-  assert.equal(audits[0][1], 'transport.student_assigned');
+  assert.equal(writes[0].params[1], null);
+  assert.equal(writes[0].params[2], 'route-a');
+  assert.equal(writes[0].params[3], 'student-a');
+  assert.equal(writes[0].params[4], 'stop-a');
+  assert.equal(writes[0].params[5], 'stop-b');
+  assert.equal(result.assignment.route_id, 'route-a');
+  assert.equal(result.assignment.student_id, 'student-a');
+  assert.equal(result.assignment.audits_created, 1);
 });
 
 test('ExamsManagerCommandService reads fresh-school overview from tenant-scoped exam series only', async () => {
@@ -4257,6 +5750,35 @@ test('ParentCommandService keeps database failures visible to the portal', async
   await assert.rejects(service.getFees(), /parent finance read failed/i);
 });
 
+test('ParentCommandService reads canonical role-array notifications without exposing another explicit user', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new ParentCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+  );
+
+  await service.getNotifications();
+
+  assert.deepEqual(queries[0].params, [
+    'tenant-a',
+    '11111111-1111-4111-8111-111111111111',
+    'parent',
+  ]);
+  assert.match(queries[0].sql, /recipient_user_id::text/);
+  assert.match(queries[0].sql, /metadata->'target_roles'/);
+  assert.match(queries[0].sql, /metadata->'audienceRoles'/);
+});
+
 test('StudentCommandService scopes finance reads to the authenticated student and school', async () => {
   const queries: Array<{ sql: string; params: unknown[] }> = [];
   const service = new StudentCommandService(
@@ -4385,4 +5907,108 @@ test('StudentCommandService keeps database failures visible to the portal', asyn
   );
 
   await assert.rejects(service.getFees(), /student finance read failed/i);
+});
+
+test('StudentCommandService reads canonical role-array notifications without exposing another explicit user', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new StudentCommandService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '11111111-1111-4111-8111-111111111111',
+      }),
+    } as never,
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+  );
+
+  await service.getNotifications();
+
+  assert.deepEqual(queries[0].params, [
+    'tenant-a',
+    '11111111-1111-4111-8111-111111111111',
+    'student',
+  ]);
+  assert.match(queries[0].sql, /recipient_user_id::text/);
+  assert.match(queries[0].sql, /metadata->'target_roles'/);
+  assert.match(queries[0].sql, /metadata->'audienceRoles'/);
+});
+
+test('AdminCommandOperationsService stores a real downloadable report artifact with atomic tenant audit records', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new AdminCommandOperationsService({
+    query: async (sql: string, params: unknown[]) => {
+      queries.push({ sql, params });
+      return { rows: [{ snapshot_id: 'snapshot-a' }], rowCount: 1 };
+    },
+  } as never);
+
+  const result = await service.generateReportSnapshot({
+    tenantId: 'tenant-a',
+    module: 'ict-manager-command',
+    reportId: 'ict-operations',
+    title: 'ICT operations report',
+    format: 'csv',
+    generatedByUserId: '11111111-1111-4111-8111-111111111111',
+    filters: { status: 'active' },
+    sections: {
+      overview: { metrics: { active_assets: 2 } },
+      assets: [{ tag: 'ICT-001', status: 'active' }],
+      repairs: [],
+    },
+  });
+
+  const content = Buffer.from(result.artifact.content_base64, 'base64');
+  assert.equal(result.artifact.kind, 'generated-report');
+  assert.equal(result.artifact.content_type, 'text/csv; charset=utf-8');
+  assert.equal(result.artifact.byte_length, content.length);
+  assert.equal(result.artifact.checksum_sha256, createHash('sha256').update(content).digest('hex'));
+  assert.match(content.toString('utf8'), /^Section,Group,Record,Value\r\n/);
+  assert.match(content.toString('utf8'), /ICT-001/);
+  assert.equal(queries.length, 1);
+  assert.equal(queries[0].params[0], 'tenant-a');
+  assert.match(queries[0].sql, /WITH inserted_snapshot AS/);
+  assert.match(queries[0].sql, /INSERT INTO report_snapshot_audit_logs/);
+  assert.match(queries[0].sql, /INSERT INTO audit_logs/);
+  assert.equal(JSON.parse(String(queries[0].params[6])).content_base64, result.artifact.content_base64);
+});
+
+test('AdminCommandOperationsService never labels JSON metadata as a PDF artifact', async () => {
+  const service = new AdminCommandOperationsService({
+    query: async () => ({ rows: [{ snapshot_id: 'snapshot-b' }], rowCount: 1 }),
+  } as never);
+
+  const result = await service.generateReportSnapshot({
+    tenantId: 'tenant-a',
+    module: 'security-officer-command',
+    title: 'Security operations report',
+    format: 'json',
+    sections: { incidents: [{ title: 'Gate alarm', status: 'resolved' }] },
+  });
+  const content = Buffer.from(result.artifact.content_base64, 'base64');
+
+  assert.equal(result.report.format, 'pdf');
+  assert.equal(result.artifact.content_type, 'application/pdf');
+  assert.equal(content.subarray(0, 4).toString('ascii'), '%PDF');
+});
+
+test('AdminCommandOperationsService surfaces report and audit database failures', async () => {
+  const service = new AdminCommandOperationsService({
+    query: async () => {
+      throw new Error('database unavailable');
+    },
+  } as never);
+
+  await assert.rejects(
+    () => service.readSql('SELECT * FROM report_snapshots WHERE tenant_id = $1', ['tenant-a']),
+    (error: any) => error?.getResponse?.()?.detail === 'database unavailable',
+  );
+  await assert.rejects(
+    () => service.recordAudit('tenant-a', 'report.generated', 'report_snapshot', 'not-a-uuid', {}),
+    (error: any) => error?.getResponse?.()?.detail === 'database unavailable',
+  );
 });

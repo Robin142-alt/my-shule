@@ -1361,6 +1361,120 @@ test('Laboratory home flags a chemical approaching expiry even when its quantity
   assert.match(home.attention[0]?.detail, /Expires on/);
 });
 
+test('LabsRepository dashboard metrics keep slug school tenants as text across every query', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new LabsRepository({
+    query: async (sql: string, params: unknown[]) => {
+      queries.push({ sql, params });
+      return { rows: [{ count: 1 }], rowCount: 1 };
+    },
+  } as never);
+
+  const dashboard = await repository.getDashboard('kibabi-high');
+
+  assert.equal(dashboard.todaysSessions, 1);
+  assert.equal(queries.length, 6);
+  assert.ok(queries.every(({ params }) => params[0] === 'kibabi-high'));
+  assert.ok(queries.every(({ sql }) => /tenant_id::text\s*=\s*\$1::text/i.test(sql)));
+  assert.ok(queries.every(({ sql }) => !/\$1::uuid/i.test(sql)));
+});
+
+test('LabsRepository maintenance isolates slug schools in separate tenant transactions', async () => {
+  const enumerationQueries: Array<{ sql: string; params: unknown[] }> = [];
+  const tenantExecutions: Array<{ tenantId: string; sql: string; params: unknown[] }> = [];
+  const candidates = [
+    { tenant_id: 'moi-girls' },
+    { tenant_id: 'global' },
+    { tenant_id: '  ' },
+    { tenant_id: 'kibabi-high' },
+    { tenant_id: 'kibabi-high' },
+  ];
+  const repository = new LabsRepository({
+    query: async (sql: string, params: unknown[]) => {
+      enumerationQueries.push({ sql, params });
+      return { rows: candidates, rowCount: candidates.length };
+    },
+    executeWithTenant: async (
+      tenantId: string,
+      _userId: string | null,
+      callback: (transaction: {
+        $queryRawUnsafe: (sql: string, ...params: unknown[]) => Promise<unknown[]>;
+      }) => Promise<unknown>,
+    ) => callback({
+      $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+        tenantExecutions.push({ tenantId, sql, params });
+        const multiplier = tenantId === 'kibabi-high' ? 1 : 10;
+        if (sql.includes('WITH completed_sessions AS')) {
+          return [{
+            auto_absent: String(multiplier),
+            behavior_events: String(multiplier * 2),
+            participation_metrics: String(multiplier * 3),
+          }];
+        }
+        if (sql.includes('WITH expired AS')) {
+          return [{ expired: String(multiplier * 4), near_expiry: String(multiplier * 5) }];
+        }
+        if (sql.includes('WITH overdue_usage AS')) {
+          return [{ unreconciled: String(multiplier * 6) }];
+        }
+        throw new Error(`Unexpected maintenance query: ${sql}`);
+      },
+    }),
+  } as never);
+
+  const attendance = await repository.flagMandatoryAttendanceDisciplineGaps({ lookback_days: 4 });
+  const chemicals = await repository.refreshChemicalExpiryStatuses({ near_expiry_days: 21 });
+  const equipment = await repository.flagOverdueEquipmentUsage({ overdue_hours: 6 });
+
+  assert.deepEqual(attendance, { auto_absent: 11, behavior_events: 22, participation_metrics: 33 });
+  assert.deepEqual(chemicals, { expired: 44, near_expiry: 55 });
+  assert.deepEqual(equipment, { unreconciled: 66 });
+  assert.equal(enumerationQueries.length, 3);
+  assert.ok(enumerationQueries.every(({ sql }) => /^\s*SELECT DISTINCT/i.test(sql)));
+  assert.ok(enumerationQueries.every(({ sql }) => !/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)));
+  assert.deepEqual(
+    tenantExecutions.map(({ tenantId }) => tenantId),
+    ['kibabi-high', 'moi-girls', 'kibabi-high', 'moi-girls', 'kibabi-high', 'moi-girls'],
+  );
+  assert.ok(tenantExecutions.every(({ tenantId, params }) => params[0] === tenantId));
+  assert.ok(tenantExecutions.every(({ tenantId }) => tenantId !== 'global'));
+
+  const attendanceExecutions = tenantExecutions.filter(({ sql }) => sql.includes('WITH completed_sessions AS'));
+  const chemicalExecutions = tenantExecutions.filter(({ sql }) => sql.includes('WITH expired AS'));
+  const equipmentExecutions = tenantExecutions.filter(({ sql }) => sql.includes('WITH overdue_usage AS'));
+  assert.ok(attendanceExecutions.every(({ sql }) => /WHERE session\.tenant_id = \$1/i.test(sql)));
+  assert.ok(chemicalExecutions.every(({ sql }) => (sql.match(/WHERE tenant_id = \$1/gi) ?? []).length === 2));
+  assert.ok(equipmentExecutions.every(({ sql }) => /WHERE usage\.tenant_id = \$1/i.test(sql)));
+});
+
+test('LabsRepository maintenance never opens a write transaction for global or blank tenants', async () => {
+  let tenantTransactions = 0;
+  const repository = new LabsRepository({
+    query: async () => ({
+      rows: [{ tenant_id: 'global' }, { tenant_id: '' }, { tenant_id: '   ' }],
+      rowCount: 3,
+    }),
+    executeWithTenant: async () => {
+      tenantTransactions += 1;
+      throw new Error('Global maintenance must not execute');
+    },
+  } as never);
+
+  assert.deepEqual(
+    await repository.flagMandatoryAttendanceDisciplineGaps({ lookback_days: 4 }),
+    { auto_absent: 0, behavior_events: 0, participation_metrics: 0 },
+  );
+  assert.deepEqual(
+    await repository.refreshChemicalExpiryStatuses({ near_expiry_days: 21 }),
+    { expired: 0, near_expiry: 0 },
+  );
+  assert.deepEqual(
+    await repository.flagOverdueEquipmentUsage({ overdue_hours: 6 }),
+    { unreconciled: 0 },
+  );
+  assert.equal(tenantTransactions, 0);
+});
+
 test('LabsService rejects expired chemical issue before repository mutation', async () => {
   const calls: string[] = [];
   const service = new LabsService(

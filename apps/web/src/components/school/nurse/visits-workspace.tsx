@@ -22,8 +22,12 @@ type VisitsData = {
   visits: VisitRecord[];
 };
 
+function failureMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message.trim() ? error.message : fallback;
+}
+
 export function VisitsWorkspace() {
-  const { data, isLoading, refetch } = useSchoolQuery<VisitsData>('/admin-command/nurse/visits');
+  const { data, isLoading, error, refetch } = useSchoolQuery<VisitsData>('/admin-command/nurse/visits');
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -50,7 +54,7 @@ export function VisitsWorkspace() {
       toast.success("Visit recorded successfully.");
       setShowForm(false);
       setForm({ student_name: "", class_name: "", complaint: "", diagnosis: "", treatment: "" });
-    } catch (e: any) { toast.error(e.message || "Failed to record visit."); }
+    } catch (error: unknown) { toast.error(failureMessage(error, "Failed to record visit.")); }
     finally { setIsSubmitting(false); }
   };
 
@@ -59,7 +63,7 @@ export function VisitsWorkspace() {
       await closeVisit(id);
       await refetch();
       toast.success("Visit closed.");
-    } catch (e: any) { toast.error(e.message || "Failed to close visit."); }
+    } catch (error: unknown) { toast.error(failureMessage(error, "Failed to close visit.")); }
   };
 
   const handleRefer = async (id: string) => {
@@ -67,8 +71,38 @@ export function VisitsWorkspace() {
       await referVisit(id, { reason: "Requires specialist attention" });
       await refetch();
       toast.success("Student referred for further treatment.");
-    } catch (e: any) { toast.error(e.message || "Failed to refer visit."); }
+    } catch (error: unknown) { toast.error(failureMessage(error, "Failed to refer visit.")); }
   };
+
+  if (error && !data) {
+    return (
+      <Panel
+        title="Health Visits"
+        description="Record and manage student health visits."
+        icon={Stethoscope}
+        actions={(
+          <button
+            type="button"
+            disabled
+            className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white opacity-50"
+          >
+            <PlusCircle className="w-4 h-4" /> New Visit
+          </button>
+        )}
+      >
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-800">
+          <p>Health visits could not be loaded. Existing records were not changed.</p>
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            className="mt-3 min-h-10 rounded-lg border border-rose-300 bg-white px-4 text-rose-900"
+          >
+            Retry health visits
+          </button>
+        </div>
+      </Panel>
+    );
+  }
 
   return (
     <Panel title="Health Visits" description="Record and manage student health visits." icon={Stethoscope} actions={

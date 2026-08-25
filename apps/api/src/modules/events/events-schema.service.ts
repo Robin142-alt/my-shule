@@ -60,8 +60,8 @@ export class EventsSchemaService implements OnModuleInit {
       CREATE OR REPLACE FUNCTION sync_event_school_columns()
       RETURNS trigger AS $$
       BEGIN
-        NEW.tenant_id = COALESCE(NULLIF(NEW.tenant_id, ''), NULLIF(NEW.school_id, ''));
-        NEW.school_id = COALESCE(NULLIF(NEW.school_id, ''), NULLIF(NEW.tenant_id, ''));
+        NEW.tenant_id = COALESCE(NULLIF(NEW.tenant_id::text, ''), NULLIF(NEW.school_id, ''));
+        NEW.school_id = NEW.tenant_id::text;
         RETURN NEW;
       END;
       $$ LANGUAGE plpgsql;
@@ -255,9 +255,6 @@ export class EventsSchemaService implements OnModuleInit {
       END;
       $$;
 
-      DROP TABLE IF EXISTS event_consumer_runs CASCADE;
-      DROP TABLE IF EXISTS outbox_events CASCADE;
-
       CREATE TABLE IF NOT EXISTS outbox_events (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
@@ -290,6 +287,195 @@ export class EventsSchemaService implements OnModuleInit {
         CONSTRAINT uq_outbox_events_tenant_id_id UNIQUE (tenant_id, id)
       );
 
+      -- Older installations were created from database/schema.sql before the
+      -- school/actor event envelope was added. CREATE TABLE IF NOT EXISTS does
+      -- not add columns to those installations, so keep this migration
+      -- additive and complete before any dependent indexes, functions, or
+      -- triggers are created.
+      ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS id uuid DEFAULT gen_random_uuid();
+      ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS tenant_id text;
+      ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS school_id text;
+      ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS event_key text;
+      ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS event_name text;
+      ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS aggregate_type text;
+      ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS aggregate_id uuid;
+      ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS payload jsonb DEFAULT '{}'::jsonb;
+      ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS headers jsonb DEFAULT '{}'::jsonb;
+      ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS status text DEFAULT 'pending';
+      ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS attempt_count integer DEFAULT 0;
+      ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS available_at timestamptz DEFAULT NOW();
+      ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS published_at timestamptz;
+      ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS last_error text;
+      ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS actor_user_id uuid;
+      ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS actor_role text;
+      ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS source_dashboard text;
+      ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS correlation_id uuid;
+      ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT NOW();
+      ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT NOW();
+
+      UPDATE outbox_events
+      SET tenant_id = NULLIF(school_id, '')
+      WHERE (tenant_id IS NULL OR btrim(tenant_id::text) = '')
+        AND NULLIF(school_id, '') IS NOT NULL;
+
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM outbox_events
+          WHERE tenant_id IS NULL OR btrim(tenant_id::text) = ''
+        ) THEN
+          RAISE EXCEPTION 'Cannot migrate outbox_events without a tenant_id or school_id ownership key';
+        END IF;
+      END;
+      $$;
+
+      UPDATE outbox_events
+      SET id = gen_random_uuid()
+      WHERE id IS NULL;
+
+      UPDATE outbox_events
+      SET school_id = tenant_id::text
+      WHERE school_id IS DISTINCT FROM tenant_id::text;
+
+      UPDATE outbox_events
+      SET event_key = 'legacy-outbox:' || id::text
+      WHERE event_key IS NULL OR btrim(event_key) = '';
+
+      UPDATE outbox_events
+      SET event_name = 'legacy.event'
+      WHERE event_name IS NULL OR btrim(event_name) = '';
+
+      UPDATE outbox_events
+      SET aggregate_type = 'legacy'
+      WHERE aggregate_type IS NULL OR btrim(aggregate_type) = '';
+
+      UPDATE outbox_events
+      SET aggregate_id = id
+      WHERE aggregate_id IS NULL;
+
+      UPDATE outbox_events
+      SET payload = COALESCE(payload, '{}'::jsonb),
+          headers = COALESCE(headers, '{}'::jsonb),
+          status = CASE
+            WHEN lower(COALESCE(status, '')) IN ('pending', 'processing', 'published', 'failed', 'discarded')
+              THEN lower(status)
+            ELSE 'pending'
+          END,
+          attempt_count = GREATEST(COALESCE(attempt_count, 0), 0),
+          available_at = COALESCE(available_at, created_at, NOW()),
+          created_at = COALESCE(created_at, NOW()),
+          updated_at = COALESCE(updated_at, created_at, NOW());
+
+      ALTER TABLE outbox_events ALTER COLUMN id SET DEFAULT gen_random_uuid();
+      ALTER TABLE outbox_events ALTER COLUMN id SET NOT NULL;
+      ALTER TABLE outbox_events ALTER COLUMN tenant_id SET NOT NULL;
+      ALTER TABLE outbox_events ALTER COLUMN school_id SET NOT NULL;
+      ALTER TABLE outbox_events ALTER COLUMN event_key SET NOT NULL;
+      ALTER TABLE outbox_events ALTER COLUMN event_name SET NOT NULL;
+      ALTER TABLE outbox_events ALTER COLUMN aggregate_type SET NOT NULL;
+      ALTER TABLE outbox_events ALTER COLUMN aggregate_id SET NOT NULL;
+      ALTER TABLE outbox_events ALTER COLUMN payload SET DEFAULT '{}'::jsonb;
+      ALTER TABLE outbox_events ALTER COLUMN payload SET NOT NULL;
+      ALTER TABLE outbox_events ALTER COLUMN headers SET DEFAULT '{}'::jsonb;
+      ALTER TABLE outbox_events ALTER COLUMN headers SET NOT NULL;
+      ALTER TABLE outbox_events ALTER COLUMN status SET DEFAULT 'pending';
+      ALTER TABLE outbox_events ALTER COLUMN status SET NOT NULL;
+      ALTER TABLE outbox_events ALTER COLUMN attempt_count SET DEFAULT 0;
+      ALTER TABLE outbox_events ALTER COLUMN attempt_count SET NOT NULL;
+      ALTER TABLE outbox_events ALTER COLUMN available_at SET DEFAULT NOW();
+      ALTER TABLE outbox_events ALTER COLUMN available_at SET NOT NULL;
+      ALTER TABLE outbox_events ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE outbox_events ALTER COLUMN created_at SET NOT NULL;
+      ALTER TABLE outbox_events ALTER COLUMN updated_at SET DEFAULT NOW();
+      ALTER TABLE outbox_events ALTER COLUMN updated_at SET NOT NULL;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'outbox_events'::regclass AND contype = 'p'
+        ) THEN
+          ALTER TABLE outbox_events
+            ADD CONSTRAINT outbox_events_pkey PRIMARY KEY (id);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'outbox_events'::regclass
+            AND conname = 'ck_outbox_events_school_matches_tenant'
+        ) THEN
+          ALTER TABLE outbox_events
+            ADD CONSTRAINT ck_outbox_events_school_matches_tenant
+            CHECK (school_id = tenant_id::text);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'outbox_events'::regclass
+            AND conname = 'ck_outbox_events_event_key_not_blank'
+        ) THEN
+          ALTER TABLE outbox_events
+            ADD CONSTRAINT ck_outbox_events_event_key_not_blank CHECK (btrim(event_key) <> '');
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'outbox_events'::regclass
+            AND conname = 'ck_outbox_events_event_name_not_blank'
+        ) THEN
+          ALTER TABLE outbox_events
+            ADD CONSTRAINT ck_outbox_events_event_name_not_blank CHECK (btrim(event_name) <> '');
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'outbox_events'::regclass
+            AND conname = 'ck_outbox_events_aggregate_type_not_blank'
+        ) THEN
+          ALTER TABLE outbox_events
+            ADD CONSTRAINT ck_outbox_events_aggregate_type_not_blank CHECK (btrim(aggregate_type) <> '');
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'outbox_events'::regclass
+            AND conname = 'ck_outbox_events_status'
+        ) THEN
+          ALTER TABLE outbox_events
+            ADD CONSTRAINT ck_outbox_events_status
+            CHECK (status IN ('pending', 'processing', 'published', 'failed', 'discarded'));
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'outbox_events'::regclass
+            AND conname = 'ck_outbox_events_attempt_count_non_negative'
+        ) THEN
+          ALTER TABLE outbox_events
+            ADD CONSTRAINT ck_outbox_events_attempt_count_non_negative CHECK (attempt_count >= 0);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'outbox_events'::regclass
+            AND conname = 'uq_outbox_events_tenant_event_key'
+        ) THEN
+          ALTER TABLE outbox_events
+            ADD CONSTRAINT uq_outbox_events_tenant_event_key UNIQUE (tenant_id, event_key);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'outbox_events'::regclass
+            AND conname = 'uq_outbox_events_tenant_id_id'
+        ) THEN
+          ALTER TABLE outbox_events
+            ADD CONSTRAINT uq_outbox_events_tenant_id_id UNIQUE (tenant_id, id);
+        END IF;
+      END;
+      $$;
+
       CREATE TABLE IF NOT EXISTS event_consumer_runs (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
@@ -316,6 +502,181 @@ export class EventsSchemaService implements OnModuleInit {
           REFERENCES outbox_events (tenant_id, id)
           ON DELETE CASCADE
       );
+
+      ALTER TABLE event_consumer_runs ADD COLUMN IF NOT EXISTS id uuid DEFAULT gen_random_uuid();
+      ALTER TABLE event_consumer_runs ADD COLUMN IF NOT EXISTS tenant_id text;
+      ALTER TABLE event_consumer_runs ADD COLUMN IF NOT EXISTS school_id text;
+      ALTER TABLE event_consumer_runs ADD COLUMN IF NOT EXISTS outbox_event_id uuid;
+      ALTER TABLE event_consumer_runs ADD COLUMN IF NOT EXISTS event_key text;
+      ALTER TABLE event_consumer_runs ADD COLUMN IF NOT EXISTS consumer_name text;
+      ALTER TABLE event_consumer_runs ADD COLUMN IF NOT EXISTS status text DEFAULT 'processing';
+      ALTER TABLE event_consumer_runs ADD COLUMN IF NOT EXISTS attempt_count integer DEFAULT 0;
+      ALTER TABLE event_consumer_runs ADD COLUMN IF NOT EXISTS last_error text;
+      ALTER TABLE event_consumer_runs ADD COLUMN IF NOT EXISTS processed_at timestamptz;
+      ALTER TABLE event_consumer_runs ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT NOW();
+      ALTER TABLE event_consumer_runs ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT NOW();
+
+      UPDATE event_consumer_runs
+      SET tenant_id = NULLIF(school_id, '')
+      WHERE (tenant_id IS NULL OR btrim(tenant_id::text) = '')
+        AND NULLIF(school_id, '') IS NOT NULL;
+
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM event_consumer_runs
+          WHERE tenant_id IS NULL OR btrim(tenant_id::text) = ''
+        ) THEN
+          RAISE EXCEPTION 'Cannot migrate event_consumer_runs without a tenant_id or school_id ownership key';
+        END IF;
+      END;
+      $$;
+
+      UPDATE event_consumer_runs
+      SET id = gen_random_uuid()
+      WHERE id IS NULL;
+
+      UPDATE event_consumer_runs
+      SET school_id = tenant_id::text
+      WHERE school_id IS DISTINCT FROM tenant_id::text;
+
+      UPDATE event_consumer_runs AS consumer
+      SET event_key = outbox.event_key
+      FROM outbox_events AS outbox
+      WHERE consumer.outbox_event_id = outbox.id
+        AND consumer.tenant_id::text = outbox.tenant_id::text
+        AND (consumer.event_key IS NULL OR btrim(consumer.event_key) = '');
+
+      UPDATE event_consumer_runs
+      SET status = CASE
+            WHEN lower(COALESCE(status, '')) IN ('processing', 'completed', 'failed')
+              THEN lower(status)
+            ELSE 'processing'
+          END,
+          attempt_count = GREATEST(COALESCE(attempt_count, 0), 0),
+          created_at = COALESCE(created_at, NOW()),
+          updated_at = COALESCE(updated_at, created_at, NOW());
+
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM event_consumer_runs
+          WHERE outbox_event_id IS NULL
+            OR event_key IS NULL OR btrim(event_key) = ''
+            OR consumer_name IS NULL OR btrim(consumer_name) = ''
+        ) THEN
+          RAISE EXCEPTION 'Cannot migrate event_consumer_runs with an unlinked or unaddressed legacy consumer record';
+        END IF;
+      END;
+      $$;
+
+      ALTER TABLE event_consumer_runs ALTER COLUMN id SET DEFAULT gen_random_uuid();
+      ALTER TABLE event_consumer_runs ALTER COLUMN id SET NOT NULL;
+      ALTER TABLE event_consumer_runs ALTER COLUMN tenant_id SET NOT NULL;
+      ALTER TABLE event_consumer_runs ALTER COLUMN school_id SET NOT NULL;
+      ALTER TABLE event_consumer_runs ALTER COLUMN outbox_event_id SET NOT NULL;
+      ALTER TABLE event_consumer_runs ALTER COLUMN event_key SET NOT NULL;
+      ALTER TABLE event_consumer_runs ALTER COLUMN consumer_name SET NOT NULL;
+      ALTER TABLE event_consumer_runs ALTER COLUMN status SET DEFAULT 'processing';
+      ALTER TABLE event_consumer_runs ALTER COLUMN status SET NOT NULL;
+      ALTER TABLE event_consumer_runs ALTER COLUMN attempt_count SET DEFAULT 0;
+      ALTER TABLE event_consumer_runs ALTER COLUMN attempt_count SET NOT NULL;
+      ALTER TABLE event_consumer_runs ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE event_consumer_runs ALTER COLUMN created_at SET NOT NULL;
+      ALTER TABLE event_consumer_runs ALTER COLUMN updated_at SET DEFAULT NOW();
+      ALTER TABLE event_consumer_runs ALTER COLUMN updated_at SET NOT NULL;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'event_consumer_runs'::regclass AND contype = 'p'
+        ) THEN
+          ALTER TABLE event_consumer_runs
+            ADD CONSTRAINT event_consumer_runs_pkey PRIMARY KEY (id);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'event_consumer_runs'::regclass
+            AND conname = 'ck_event_consumer_runs_school_matches_tenant'
+        ) THEN
+          ALTER TABLE event_consumer_runs
+            ADD CONSTRAINT ck_event_consumer_runs_school_matches_tenant
+            CHECK (school_id = tenant_id::text);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'event_consumer_runs'::regclass
+            AND conname = 'ck_event_consumer_runs_event_key_not_blank'
+        ) THEN
+          ALTER TABLE event_consumer_runs
+            ADD CONSTRAINT ck_event_consumer_runs_event_key_not_blank CHECK (btrim(event_key) <> '');
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'event_consumer_runs'::regclass
+            AND conname = 'ck_event_consumer_runs_consumer_name_not_blank'
+        ) THEN
+          ALTER TABLE event_consumer_runs
+            ADD CONSTRAINT ck_event_consumer_runs_consumer_name_not_blank CHECK (btrim(consumer_name) <> '');
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'event_consumer_runs'::regclass
+            AND conname = 'ck_event_consumer_runs_status'
+        ) THEN
+          ALTER TABLE event_consumer_runs
+            ADD CONSTRAINT ck_event_consumer_runs_status CHECK (status IN ('processing', 'completed', 'failed'));
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'event_consumer_runs'::regclass
+            AND conname = 'ck_event_consumer_runs_attempt_count_non_negative'
+        ) THEN
+          ALTER TABLE event_consumer_runs
+            ADD CONSTRAINT ck_event_consumer_runs_attempt_count_non_negative CHECK (attempt_count >= 0);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'event_consumer_runs'::regclass
+            AND conname = 'uq_event_consumer_runs_tenant_outbox_consumer'
+        ) THEN
+          ALTER TABLE event_consumer_runs
+            ADD CONSTRAINT uq_event_consumer_runs_tenant_outbox_consumer
+            UNIQUE (tenant_id, outbox_event_id, consumer_name);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'event_consumer_runs'::regclass
+            AND conname = 'uq_event_consumer_runs_tenant_consumer_event_key'
+        ) THEN
+          ALTER TABLE event_consumer_runs
+            ADD CONSTRAINT uq_event_consumer_runs_tenant_consumer_event_key
+            UNIQUE (tenant_id, consumer_name, event_key);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'event_consumer_runs'::regclass
+            AND conname = 'fk_event_consumer_runs_outbox_event'
+        ) THEN
+          ALTER TABLE event_consumer_runs
+            ADD CONSTRAINT fk_event_consumer_runs_outbox_event
+            FOREIGN KEY (tenant_id, outbox_event_id)
+            REFERENCES outbox_events (tenant_id, id)
+            ON DELETE CASCADE;
+        END IF;
+      END;
+      $$;
 
       CREATE TABLE IF NOT EXISTS notifications (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -415,7 +776,12 @@ export class EventsSchemaService implements OnModuleInit {
           SET recipient_user_id = target_user_id::text::uuid
           WHERE recipient_user_id IS NULL
             AND target_user_id IS NOT NULL
-            AND target_user_id::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+            AND target_user_id::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+            AND EXISTS (
+              SELECT 1
+              FROM users recipient
+              WHERE recipient.id::text = target_user_id::text
+            );
         END IF;
 
         IF EXISTS (
@@ -475,6 +841,28 @@ export class EventsSchemaService implements OnModuleInit {
           UPDATE notifications
           SET metadata = COALESCE(NULLIF(metadata, '{}'::jsonb), metadata_json, '{}'::jsonb)
           WHERE metadata IS NULL OR metadata = '{}'::jsonb;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'notifications'
+            AND column_name = 'target_user_id'
+        ) THEN
+          -- A malformed or orphaned legacy explicit target must not broaden to
+          -- the row's role audience. Preserve it in the canonical metadata
+          -- field so recipient matching fails closed for every other user.
+          UPDATE notifications
+          SET metadata = jsonb_set(
+            COALESCE(metadata, '{}'::jsonb),
+            '{targetUserId}',
+            to_jsonb(target_user_id::text),
+            true
+          )
+          WHERE recipient_user_id IS NULL
+            AND target_user_id IS NOT NULL
+            AND btrim(target_user_id::text) <> '';
         END IF;
 
         IF EXISTS (
@@ -590,6 +978,37 @@ export class EventsSchemaService implements OnModuleInit {
         updated_at timestamptz NOT NULL DEFAULT NOW()
       );
 
+      DROP POLICY IF EXISTS tasks_rls_policy ON tasks;
+      DROP POLICY IF EXISTS tasks_tenant_policy ON tasks;
+
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'tasks'
+            AND column_name = 'tenant_id'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE tasks
+            ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'tasks'
+            AND column_name = 'record_id'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE tasks
+            ALTER COLUMN record_id TYPE text USING record_id::text;
+        END IF;
+      END;
+      $$;
+
       ALTER TABLE tasks ADD COLUMN IF NOT EXISTS task_key text;
       ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_to_user_id uuid;
       ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_to_role text;
@@ -603,6 +1022,13 @@ export class EventsSchemaService implements OnModuleInit {
       ALTER TABLE tasks ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
       ALTER TABLE tasks ADD COLUMN IF NOT EXISTS completed_at timestamptz;
       ALTER TABLE tasks ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT NOW();
+
+      ALTER TABLE tasks ALTER COLUMN assigned_to_user_id DROP NOT NULL;
+      ALTER TABLE tasks ALTER COLUMN assigned_to_role DROP NOT NULL;
+      ALTER TABLE tasks ALTER COLUMN created_by_user_id DROP NOT NULL;
+      ALTER TABLE tasks ALTER COLUMN description DROP NOT NULL;
+      ALTER TABLE tasks ALTER COLUMN module DROP NOT NULL;
+      ALTER TABLE tasks ALTER COLUMN record_id DROP NOT NULL;
 
       DO $$
       BEGIN
@@ -649,7 +1075,7 @@ export class EventsSchemaService implements OnModuleInit {
           WHERE NOT EXISTS (
             SELECT 1
             FROM tasks canonical
-            WHERE canonical.tenant_id = legacy.tenant_id::text
+            WHERE canonical.tenant_id::text = legacy.tenant_id::text
               AND canonical.task_key = 'legacy-dashboard:' || legacy.id::text
           );
         END IF;
@@ -698,7 +1124,7 @@ export class EventsSchemaService implements OnModuleInit {
       CREATE INDEX IF NOT EXISTS ix_tasks_tenant_role_status_created
         ON tasks (tenant_id, assigned_to_role, status, created_at DESC);
 
-      CREATE TABLE IF NOT EXISTS approval_requests (
+      CREATE TABLE IF NOT EXISTS dashboard_approval_requests (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
         approval_key text NOT NULL,
@@ -717,18 +1143,49 @@ export class EventsSchemaService implements OnModuleInit {
         updated_at timestamptz NOT NULL DEFAULT NOW()
       );
 
-      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS approval_key text;
-      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS requested_by_user_id uuid;
-      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS approver_role text;
-      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS approver_user_id uuid;
-      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS module text;
-      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS record_id text;
-      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS approval_type text;
-      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS reason text;
-      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS decision_note text;
-      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
-      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS decided_at timestamptz;
-      ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT NOW();
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_dashboard_approvals_tenant_key
+        ON dashboard_approval_requests (tenant_id, approval_key);
+      CREATE INDEX IF NOT EXISTS ix_dashboard_approvals_tenant_user_status_created
+        ON dashboard_approval_requests (tenant_id, approver_user_id, status, created_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_dashboard_approvals_tenant_role_status_created
+        ON dashboard_approval_requests (tenant_id, approver_role, status, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS workflow_events (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        source_user_id uuid,
+        source_role text,
+        target_roles jsonb NOT NULL DEFAULT '[]'::jsonb,
+        event_type text NOT NULL,
+        entity_type text NOT NULL,
+        entity_id text,
+        title text NOT NULL,
+        message text,
+        priority text NOT NULL DEFAULT 'normal',
+        payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+        status text NOT NULL DEFAULT 'pending',
+        handled_by_user_id uuid,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      );
+
+      DROP POLICY IF EXISTS workflow_events_rls_policy ON workflow_events;
+      DROP POLICY IF EXISTS workflow_events_tenant_policy ON workflow_events;
+
+      ALTER TABLE workflow_events ADD COLUMN IF NOT EXISTS source_user_id uuid;
+      ALTER TABLE workflow_events ADD COLUMN IF NOT EXISTS source_role text;
+      ALTER TABLE workflow_events ADD COLUMN IF NOT EXISTS target_roles jsonb DEFAULT '[]'::jsonb;
+      ALTER TABLE workflow_events ADD COLUMN IF NOT EXISTS event_type text;
+      ALTER TABLE workflow_events ADD COLUMN IF NOT EXISTS entity_type text;
+      ALTER TABLE workflow_events ADD COLUMN IF NOT EXISTS entity_id text;
+      ALTER TABLE workflow_events ADD COLUMN IF NOT EXISTS title text;
+      ALTER TABLE workflow_events ADD COLUMN IF NOT EXISTS message text;
+      ALTER TABLE workflow_events ADD COLUMN IF NOT EXISTS priority text DEFAULT 'normal';
+      ALTER TABLE workflow_events ADD COLUMN IF NOT EXISTS payload jsonb DEFAULT '{}'::jsonb;
+      ALTER TABLE workflow_events ADD COLUMN IF NOT EXISTS status text DEFAULT 'pending';
+      ALTER TABLE workflow_events ADD COLUMN IF NOT EXISTS handled_by_user_id uuid;
+      ALTER TABLE workflow_events ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT NOW();
+      ALTER TABLE workflow_events ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT NOW();
 
       DO $$
       BEGIN
@@ -736,100 +1193,79 @@ export class EventsSchemaService implements OnModuleInit {
           SELECT 1
           FROM information_schema.columns
           WHERE table_schema = 'public'
-            AND table_name = 'approval_requests'
-            AND column_name = 'status'
+            AND table_name = 'workflow_events'
+            AND column_name = 'tenant_id'
             AND data_type <> 'text'
         ) THEN
-          ALTER TABLE approval_requests ALTER COLUMN status DROP DEFAULT;
-          ALTER TABLE approval_requests ALTER COLUMN status TYPE text USING upper(status::text);
+          ALTER TABLE workflow_events
+            ALTER COLUMN tenant_id TYPE text USING tenant_id::text;
         END IF;
 
         IF EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'title'
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'workflow_events'
+            AND column_name = 'target_roles'
+            AND data_type <> 'jsonb'
         ) THEN
-          EXECUTE $migration$
-            UPDATE approval_requests
-            SET metadata = COALESCE(metadata, '{}'::jsonb)
-              || jsonb_build_object('title', COALESCE(NULLIF(title, ''), 'Approval request'))
-          $migration$;
-          ALTER TABLE approval_requests ALTER COLUMN title DROP NOT NULL;
+          ALTER TABLE workflow_events
+            ALTER COLUMN target_roles DROP DEFAULT;
+          ALTER TABLE workflow_events
+            ALTER COLUMN target_roles TYPE jsonb
+            USING CASE
+              WHEN target_roles IS NULL OR btrim(target_roles::text) = '' THEN '[]'::jsonb
+              WHEN left(btrim(target_roles::text), 1) = '[' THEN target_roles::text::jsonb
+              ELSE jsonb_build_array(target_roles::text)
+            END;
         END IF;
 
         IF EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'requested_by_role'
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'workflow_events'
+            AND column_name = 'entity_id'
+            AND data_type <> 'text'
         ) THEN
-          EXECUTE $migration$
-            UPDATE approval_requests
-            SET metadata = COALESCE(metadata, '{}'::jsonb)
-              || jsonb_build_object('requestedByRole', requested_by_role)
-            WHERE requested_by_role IS NOT NULL
-          $migration$;
-          ALTER TABLE approval_requests ALTER COLUMN requested_by_role DROP NOT NULL;
+          ALTER TABLE workflow_events
+            ALTER COLUMN entity_id TYPE text USING entity_id::text;
         END IF;
-
-        IF EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'approver_roles'
-        ) THEN
-          EXECUTE $migration$
-            UPDATE approval_requests
-            SET approver_role = COALESCE(
-              approver_role,
-              NULLIF(approver_roles ->> 0, '')
-            )
-            WHERE approver_role IS NULL
-          $migration$;
-          ALTER TABLE approval_requests ALTER COLUMN approver_roles DROP NOT NULL;
-        END IF;
-
-        IF EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'entity_id'
-        ) THEN
-          EXECUTE $migration$
-            UPDATE approval_requests
-            SET record_id = COALESCE(record_id, NULLIF(entity_id, ''))
-            WHERE record_id IS NULL
-          $migration$;
-          ALTER TABLE approval_requests ALTER COLUMN entity_id DROP NOT NULL;
-        END IF;
-
-        IF EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'entity_type'
-        ) THEN
-          ALTER TABLE approval_requests ALTER COLUMN entity_type DROP NOT NULL;
-        END IF;
-
-        ALTER TABLE approval_requests ALTER COLUMN requested_by_user_id DROP NOT NULL;
-
-        UPDATE approval_requests
-        SET approval_key = 'legacy-approval:' || id::text
-        WHERE approval_key IS NULL OR btrim(approval_key) = '';
-
-        UPDATE approval_requests
-        SET status = upper(COALESCE(NULLIF(status, ''), 'PENDING')),
-            metadata = COALESCE(metadata, '{}'::jsonb),
-            updated_at = COALESCE(updated_at, created_at, NOW());
-
-        ALTER TABLE approval_requests ALTER COLUMN approval_key SET NOT NULL;
-        ALTER TABLE approval_requests ALTER COLUMN status SET DEFAULT 'PENDING';
-        ALTER TABLE approval_requests ALTER COLUMN status SET NOT NULL;
-        ALTER TABLE approval_requests ALTER COLUMN metadata SET DEFAULT '{}'::jsonb;
-        ALTER TABLE approval_requests ALTER COLUMN metadata SET NOT NULL;
-        ALTER TABLE approval_requests ALTER COLUMN updated_at SET DEFAULT NOW();
-        ALTER TABLE approval_requests ALTER COLUMN updated_at SET NOT NULL;
       END;
       $$;
 
-      CREATE UNIQUE INDEX IF NOT EXISTS ux_approval_requests_tenant_approval_key
-        ON approval_requests (tenant_id, approval_key);
-      CREATE INDEX IF NOT EXISTS ix_approval_requests_tenant_user_status_created
-        ON approval_requests (tenant_id, approver_user_id, status, created_at DESC);
-      CREATE INDEX IF NOT EXISTS ix_approval_requests_tenant_role_status_created
-        ON approval_requests (tenant_id, approver_role, status, created_at DESC);
+      UPDATE workflow_events
+      SET target_roles = '[]'::jsonb
+      WHERE target_roles IS NULL OR jsonb_typeof(target_roles) <> 'array';
+
+      UPDATE workflow_events
+      SET payload = '{}'::jsonb
+      WHERE payload IS NULL;
+
+      UPDATE workflow_events
+      SET status = COALESCE(NULLIF(status, ''), 'pending'),
+          priority = COALESCE(NULLIF(priority, ''), 'normal'),
+          updated_at = COALESCE(updated_at, created_at, NOW());
+
+      ALTER TABLE workflow_events ALTER COLUMN source_user_id DROP NOT NULL;
+      ALTER TABLE workflow_events ALTER COLUMN source_role DROP NOT NULL;
+      ALTER TABLE workflow_events ALTER COLUMN entity_id DROP NOT NULL;
+      ALTER TABLE workflow_events ALTER COLUMN message DROP NOT NULL;
+      ALTER TABLE workflow_events ALTER COLUMN target_roles SET DEFAULT '[]'::jsonb;
+      ALTER TABLE workflow_events ALTER COLUMN target_roles SET NOT NULL;
+      ALTER TABLE workflow_events ALTER COLUMN payload SET DEFAULT '{}'::jsonb;
+      ALTER TABLE workflow_events ALTER COLUMN payload SET NOT NULL;
+      ALTER TABLE workflow_events ALTER COLUMN priority SET DEFAULT 'normal';
+      ALTER TABLE workflow_events ALTER COLUMN priority SET NOT NULL;
+      ALTER TABLE workflow_events ALTER COLUMN status SET DEFAULT 'pending';
+      ALTER TABLE workflow_events ALTER COLUMN status SET NOT NULL;
+      ALTER TABLE workflow_events ALTER COLUMN updated_at SET DEFAULT NOW();
+      ALTER TABLE workflow_events ALTER COLUMN updated_at SET NOT NULL;
+
+      CREATE INDEX IF NOT EXISTS idx_workflow_events_tenant_id
+        ON workflow_events (tenant_id);
+      CREATE INDEX IF NOT EXISTS idx_workflow_events_status
+        ON workflow_events (tenant_id, status);
 
       CREATE OR REPLACE FUNCTION app.claim_outbox_events(
         batch_size integer,
@@ -935,8 +1371,10 @@ export class EventsSchemaService implements OnModuleInit {
       ALTER TABLE notifications FORCE ROW LEVEL SECURITY;
       ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
       ALTER TABLE tasks FORCE ROW LEVEL SECURITY;
-      ALTER TABLE approval_requests ENABLE ROW LEVEL SECURITY;
-      ALTER TABLE approval_requests FORCE ROW LEVEL SECURITY;
+      ALTER TABLE dashboard_approval_requests ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE dashboard_approval_requests FORCE ROW LEVEL SECURITY;
+      ALTER TABLE workflow_events ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE workflow_events FORCE ROW LEVEL SECURITY;
 
       DROP POLICY IF EXISTS audit_logs_rls_policy ON audit_logs;
       CREATE POLICY audit_logs_rls_policy ON audit_logs
@@ -966,12 +1404,17 @@ export class EventsSchemaService implements OnModuleInit {
       DROP POLICY IF EXISTS tasks_tenant_policy ON tasks;
       CREATE POLICY tasks_rls_policy ON tasks
       FOR ALL
-      USING (tenant_id = current_setting('app.tenant_id', true))
-      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+      USING (tenant_id::text = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id::text = current_setting('app.tenant_id', true));
 
-      DROP POLICY IF EXISTS approval_requests_rls_policy ON approval_requests;
-      DROP POLICY IF EXISTS approval_requests_tenant_policy ON approval_requests;
-      CREATE POLICY approval_requests_rls_policy ON approval_requests
+      DROP POLICY IF EXISTS dashboard_approval_requests_rls_policy ON dashboard_approval_requests;
+      CREATE POLICY dashboard_approval_requests_rls_policy ON dashboard_approval_requests
+      FOR ALL
+      USING (tenant_id::text = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id::text = current_setting('app.tenant_id', true));
+
+      DROP POLICY IF EXISTS workflow_events_rls_policy ON workflow_events;
+      CREATE POLICY workflow_events_rls_policy ON workflow_events
       FOR ALL
       USING (tenant_id = current_setting('app.tenant_id', true))
       WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
@@ -1019,10 +1462,15 @@ export class EventsSchemaService implements OnModuleInit {
       FOR EACH ROW
       EXECUTE FUNCTION set_updated_at();
 
-      DROP TRIGGER IF EXISTS trg_approval_requests_set_updated_at ON approval_requests;
-      DROP TRIGGER IF EXISTS trg_approval_requests_updated_at ON approval_requests;
-      CREATE TRIGGER trg_approval_requests_set_updated_at
-      BEFORE UPDATE ON approval_requests
+      DROP TRIGGER IF EXISTS trg_dashboard_approvals_updated_at ON dashboard_approval_requests;
+      CREATE TRIGGER trg_dashboard_approvals_updated_at
+      BEFORE UPDATE ON dashboard_approval_requests
+      FOR EACH ROW
+      EXECUTE FUNCTION set_updated_at();
+
+      DROP TRIGGER IF EXISTS trg_workflow_events_updated_at ON workflow_events;
+      CREATE TRIGGER trg_workflow_events_updated_at
+      BEFORE UPDATE ON workflow_events
       FOR EACH ROW
       EXECUTE FUNCTION set_updated_at();
     `);

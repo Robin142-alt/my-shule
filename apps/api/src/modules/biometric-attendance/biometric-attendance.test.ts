@@ -135,13 +135,71 @@ query: async (sql: string, params: unknown[]) => {
   assert.equal(calls[1]!.params[2], 0);
 });
 
+test('BiometricAttendanceRepository enumerates active schools then applies rules in a slug tenant context', async () => {
+  const tenantContexts: string[] = [];
+  const roleStatements: string[] = [];
+  const calls: Array<{ tenantId: string; sql: string; params: unknown[] }> = [];
+  const repository = new BiometricAttendanceRepository({
+    executeWithTenant: async (
+      tenantId: string,
+      _userId: unknown,
+      callback: (tx: unknown) => unknown,
+    ) => {
+      tenantContexts.push(tenantId);
+      return callback({
+        $executeRawUnsafe: async (sql: string) => {
+          roleStatements.push(sql);
+          return 0;
+        },
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          calls.push({ tenantId, sql, params });
+
+          if (sql.includes('FROM tenants')) {
+            return [
+              { tenant_id: 'kisumu-school' },
+              { tenant_id: 'nairobi-school' },
+              { tenant_id: 'kisumu-school' },
+              { tenant_id: 'global' },
+            ];
+          }
+
+          return [{ absent_marked: '3', half_day_marked: '1' }];
+        },
+      });
+    },
+  } as never);
+
+  const tenantIds = await repository.listDailyAttendanceRuleTenantIds();
+  const result = await repository.applyDailyAttendanceRules({
+    tenant_id: 'kisumu-school',
+    attendance_date: '2026-05-19',
+    absence_cutoff_time: '09:00',
+  });
+
+  assert.deepEqual(tenantIds, ['kisumu-school', 'nairobi-school']);
+  assert.deepEqual(tenantContexts, ['global', 'kisumu-school']);
+  assert.deepEqual(roleStatements, [
+    'SET LOCAL row_security = on',
+    "SET LOCAL app.role = 'platform_owner'",
+  ]);
+  assert.match(calls[0]!.sql, /WHERE status = 'active'/);
+  assert.match(calls[0]!.sql, /tenant_id <> 'global'/);
+  assert.match(calls[1]!.sql, /memberships\.tenant_id = \$1/);
+  assert.match(calls[1]!.sql, /rules\.tenant_id = \$1/);
+  assert.deepEqual(calls[1]!.params, ['kisumu-school', '2026-05-19', '09:00']);
+  assert.deepEqual(result, { absent_marked: 3, half_day_marked: 1 });
+});
+
 test('BiometricAttendanceProcessor runs daily absence and half-day rule checks', async () => {
   const calls: Array<Record<string, unknown>> = [];
   const contexts: Array<Record<string, unknown>> = [];
   const processor = new BiometricAttendanceProcessor({
+    listDailyAttendanceRuleTenantIds: async () => ['tenant-a', 'tenant-b'],
     applyDailyAttendanceRules: async (input: Record<string, unknown>) => {
       calls.push(input);
-      return { absent_marked: 5, half_day_marked: 2 };
+      return input.tenant_id === 'tenant-a'
+        ? { absent_marked: 2, half_day_marked: 1 }
+        : { absent_marked: 3, half_day_marked: 1 };
     },
   } as never, undefined, {
     getStore: () => undefined,
@@ -164,12 +222,23 @@ test('BiometricAttendanceProcessor runs daily absence and half-day rule checks',
   });
   assert.deepEqual(calls, [
     {
+      tenant_id: 'tenant-a',
+      attendance_date: '2026-05-19',
+      absence_cutoff_time: '09:00',
+    },
+    {
+      tenant_id: 'tenant-b',
       attendance_date: '2026-05-19',
       absence_cutoff_time: '09:00',
     },
   ]);
-  assert.equal(contexts[0]?.role, 'system');
-  assert.equal(contexts[0]?.path, '/internal/biometric-attendance/rule-check');
+  assert.deepEqual(
+    contexts.map((context) => context.tenant_id),
+    ['global', 'tenant-a', 'tenant-b'],
+  );
+  assert.equal(contexts.every((context) => context.role === 'system'), true);
+  assert.equal(contexts[0]?.path, '/internal/biometric-attendance/rule-check/tenants');
+  assert.equal(contexts[1]?.path, '/internal/biometric-attendance/rule-check');
 });
 
 test('BiometricAttendanceService deduplicates offline device events by event hash', async () => {

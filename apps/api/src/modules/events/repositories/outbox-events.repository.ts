@@ -84,6 +84,7 @@ export class OutboxEventsRepository {
 
   async createEvent<TName extends DomainEvent['event_name']>(
     input: PublishDomainEventInput<TName>,
+    tx?: any,
   ): Promise<DomainEvent<TName>> {
     const result = await this.executeSql<OutboxEventRow>(
       `
@@ -148,6 +149,7 @@ export class OutboxEventsRepository {
         input.source_dashboard ?? null,
         input.correlation_id ?? null,
       ],
+      tx,
     );
 
     return this.mapRow(result.rows[0]) as DomainEvent<TName>;

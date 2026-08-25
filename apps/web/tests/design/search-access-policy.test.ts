@@ -1,5 +1,110 @@
 import { resolveOperationalSearch } from "@/lib/search/operational-search-resolver";
+import type { OperationalSearchRecord } from "@/lib/search/operational-search-registry";
 import { resolveSearchPolicy } from "@/lib/search/search-access-policy";
+
+const action = (label: string, capability?: string) => ({
+  label,
+  href: "/test-only",
+  auditEvent: `TEST_${label.toUpperCase().replace(/\s+/g, "_")}`,
+  capability,
+});
+
+const tenantRecords: OperationalSearchRecord[] = [
+  {
+    id: "student-1",
+    type: "student",
+    typeLabel: "Student",
+    title: "Brian Otieno",
+    detail: "Admission MYS/2026/001",
+    keywords: "Brian student learner",
+    scopeTags: [
+      "school-wide",
+      "executive",
+      "operations",
+      "front-office",
+      "finance",
+      "teacher-assigned",
+      "class-teacher-owned",
+      "grade-owned",
+      "own-child",
+    ],
+    actions: [action("View Profile", "students:view"), action("View Fee Balance", "finance:view")],
+  },
+  {
+    id: "receipt-1",
+    type: "receipt",
+    typeLabel: "Receipt",
+    title: "QEX7ABC123 fee receipt",
+    detail: "KES 18,500",
+    keywords: "QEX7ABC123 receipt",
+    scopeTags: ["finance"],
+    actions: [action("View Receipt", "finance:view")],
+  },
+  {
+    id: "mpesa-1",
+    type: "mpesa",
+    typeLabel: "M-Pesa",
+    title: "QEX7ABC123 callback",
+    detail: "Matched payment",
+    keywords: "QEX7ABC123 mpesa",
+    scopeTags: ["finance"],
+    actions: [action("Open Reconciliation", "finance:reconcile")],
+  },
+  {
+    id: "health-1",
+    type: "healthCase",
+    typeLabel: "Health",
+    title: "Clinic follow-up",
+    detail: "Fever review",
+    keywords: "clinic follow-up",
+    scopeTags: ["clinic-permitted"],
+    actions: [action("Open Clinic Case", "clinic:view")],
+  },
+  {
+    id: "discipline-1",
+    type: "disciplineCase",
+    typeLabel: "Discipline",
+    title: "Bullying investigation",
+    detail: "Parent meeting pending",
+    keywords: "bullying investigation",
+    scopeTags: ["discipline-permitted"],
+    actions: [action("Open Case", "discipline:view")],
+  },
+  {
+    id: "assignment-1",
+    type: "assignment",
+    typeLabel: "Assignment",
+    title: "Fractions assignment",
+    detail: "Due Friday",
+    keywords: "assignment homework",
+    scopeTags: ["self", "own-child", "teacher-assigned"],
+    actions: [action("Open Assignment", "assignments:view")],
+  },
+  {
+    id: "tenant-1",
+    type: "platformTenant",
+    typeLabel: "Tenant",
+    title: "Greenfield Academy",
+    detail: "Active",
+    keywords: "Greenfield tenant",
+    scopeTags: ["platform"],
+    actions: [action("Open Tenant", "platform:view")],
+  },
+  {
+    id: "job-1",
+    type: "systemJob",
+    typeLabel: "System Job",
+    title: "Event replay worker",
+    detail: "Healthy",
+    keywords: "event replay",
+    scopeTags: ["platform-health"],
+    actions: [action("Open Job", "system:view")],
+  },
+];
+
+function search(query: string, role: string) {
+  return resolveOperationalSearch(query, { role, records: tenantRecords });
+}
 
 describe("Implementation 142 role-aware search access policy", () => {
   it("allows full global search only for principal, deputy, secretary, and accountant families", () => {
@@ -17,8 +122,8 @@ describe("Implementation 142 role-aware search access policy", () => {
   });
 
   it("keeps finance-wide results out of teacher search", () => {
-    const teacherResults = resolveOperationalSearch("QEX7ABC123", { role: "teacher" });
-    const accountantResults = resolveOperationalSearch("QEX7ABC123", { role: "accountant" });
+    const teacherResults = search("QEX7ABC123", "teacher");
+    const accountantResults = search("QEX7ABC123", "accountant");
 
     expect(teacherResults).toHaveLength(0);
     expect(accountantResults.map((result) => result.type)).toEqual(
@@ -28,21 +133,23 @@ describe("Implementation 142 role-aware search access policy", () => {
 
   it("removes fee-balance actions from teacher, class-teacher, and grade-master student search", () => {
     for (const role of ["teacher", "class-teacher", "grade-master"]) {
-      const student = resolveOperationalSearch("Brian", { role })[0];
-      expect(student?.actions.map((action) => action.label)).not.toContain("View Fee Balance");
+      const student = search("Brian", role)[0];
+      expect(student).toBeDefined();
+      expect(student.actions.map((item) => item.label)).not.toContain("View Fee Balance");
     }
 
     for (const role of ["principal", "deputy-principal", "secretary", "accountant"]) {
-      const student = resolveOperationalSearch("Brian", { role })[0];
-      expect(student?.actions.map((action) => action.label)).toContain("View Fee Balance");
+      const student = search("Brian", role)[0];
+      expect(student).toBeDefined();
+      expect(student.actions.map((item) => item.label)).toContain("View Fee Balance");
     }
   });
 
   it("keeps sensitive case searches inside sensitive role scopes", () => {
-    const accountantResults = resolveOperationalSearch("clinic follow-up", { role: "accountant" });
-    const nurseResults = resolveOperationalSearch("clinic follow-up", { role: "nurse" });
-    const counsellorResults = resolveOperationalSearch("bullying investigation", { role: "guidance-counselling" });
-    const disciplineResults = resolveOperationalSearch("bullying investigation", { role: "discipline-master" });
+    const accountantResults = search("clinic follow-up", "accountant");
+    const nurseResults = search("clinic follow-up", "nurse");
+    const counsellorResults = search("bullying investigation", "guidance-counselling");
+    const disciplineResults = search("bullying investigation", "discipline-master");
 
     expect(accountantResults).toHaveLength(0);
     expect(nurseResults.map((result) => result.type)).toContain("healthCase");
@@ -51,10 +158,10 @@ describe("Implementation 142 role-aware search access policy", () => {
   });
 
   it("limits parent and student portals to self-owned records", () => {
-    const parentResults = resolveOperationalSearch("Brian", { role: "parent" });
-    const parentPlatformResults = resolveOperationalSearch("Greenfield", { role: "parent" });
-    const studentFeeResults = resolveOperationalSearch("QEX7ABC123", { role: "student" });
-    const studentAssignmentResults = resolveOperationalSearch("assignment", { role: "student" });
+    const parentResults = search("Brian", "parent");
+    const parentPlatformResults = search("Greenfield", "parent");
+    const studentFeeResults = search("QEX7ABC123", "student");
+    const studentAssignmentResults = search("assignment", "student");
 
     expect(parentResults.map((result) => result.type)).toContain("student");
     expect(parentPlatformResults).toHaveLength(0);
@@ -63,10 +170,15 @@ describe("Implementation 142 role-aware search access policy", () => {
   });
 
   it("keeps platform health search focused on operational infrastructure", () => {
-    const monitorResults = resolveOperationalSearch("event replay", { role: "system-monitor" });
-    const monitorStudentResults = resolveOperationalSearch("Brian", { role: "system-monitor" });
+    const monitorResults = search("event replay", "system-monitor");
+    const monitorStudentResults = search("Brian", "system-monitor");
 
     expect(monitorResults.map((result) => result.type)).toContain("systemJob");
     expect(monitorStudentResults).toHaveLength(0);
+  });
+
+  it("does not invent school records when no tenant-scoped search response is supplied", () => {
+    expect(resolveOperationalSearch("Brian", { role: "principal" })).toEqual([]);
+    expect(resolveOperationalSearch("QEX7ABC123", { role: "accountant" })).toEqual([]);
   });
 });

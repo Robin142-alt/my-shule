@@ -3,6 +3,27 @@ import { RequestContextService } from '../../common/request-context/request-cont
 import { PrismaService } from '../../database/prisma.service';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
 
+const LIBRARY_WORKFLOW_TARGET_ROLES = new Set([
+  'librarian',
+  'principal',
+  'deputy_principal',
+  'class_teacher',
+  'accountant',
+  'storekeeper',
+  'procurement_officer',
+]);
+
+const LIBRARY_GENERAL_NOTICE_TARGET_ROLES = new Set([
+  'librarian',
+  'principal',
+  'class_teacher',
+  'teacher',
+  'parent',
+  'student',
+]);
+
+const LIBRARY_GENERAL_NOTICE_TYPES = new Set(['general', 'new_arrival']);
+
 @Injectable()
 export class LibrarianCommandService {
   constructor(
@@ -28,11 +49,7 @@ export class LibrarianCommandService {
   }
 
   private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
-    try {
-      return await this.prisma.query<T>(query, params);
-    } catch (e) {
-      return { rows: [], rowCount: 0 };
-    }
+    return this.prisma.query<T>(query, params);
   }
 
   async getOverview() {
@@ -440,8 +457,11 @@ export class LibrarianCommandService {
     const title = this.operations.requiredText(dto?.title || `Library ${action.replace(/_/g, ' ')}`, 'Library action title');
     const message = this.operations.requiredText(dto?.description || dto?.message || title, 'Library action description');
     const targetRoles = Array.isArray(dto?.target_roles)
-      ? dto.target_roles.map((role: unknown) => String(role).trim()).filter(Boolean).slice(0, 8)
+      ? [...new Set<string>(dto.target_roles.map((role: unknown) => String(role).trim().toLowerCase()).filter(Boolean))]
       : ['librarian', 'principal', 'class_teacher'];
+    if (targetRoles.length === 0 || targetRoles.some((role) => !LIBRARY_WORKFLOW_TARGET_ROLES.has(role))) {
+      throw new BadRequestException('Library workflow actions may target only governed library, leadership, class, finance, stores, or procurement roles.');
+    }
     return this.operations.recordWorkflowAction({
       tenantId,
       actorUserId: this.requestContext.getStore()?.user_id,
@@ -456,6 +476,7 @@ export class LibrarianCommandService {
       payload: {
         ...dto,
         action,
+        target_roles: targetRoles,
         source_dashboard: 'librarian-dashboard',
       },
     });
@@ -466,15 +487,21 @@ export class LibrarianCommandService {
     const title = this.operations.requiredText(dto?.title, 'Notice title');
     const message = this.operations.requiredText(dto?.message || dto?.body, 'Notice message');
     const noticeType = String(dto?.notice_type || 'general').trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_') || 'general';
+    if (!LIBRARY_GENERAL_NOTICE_TYPES.has(noticeType)) {
+      throw new BadRequestException('Borrower-specific overdue, fine, and lost-book notices must be sent from the exact borrower record.');
+    }
     const targetRoles = Array.isArray(dto?.target_roles)
-      ? dto.target_roles.map((role: unknown) => String(role).trim()).filter(Boolean).slice(0, 8)
+      ? [...new Set<string>(dto.target_roles.map((role: unknown) => String(role).trim().toLowerCase()).filter(Boolean))]
       : ['parent', 'student'];
-    if (targetRoles.length === 0) {
-      throw new BadRequestException('At least one recipient role is required');
+    if (targetRoles.length === 0 || targetRoles.some((role) => !LIBRARY_GENERAL_NOTICE_TARGET_ROLES.has(role))) {
+      throw new BadRequestException('General library notices may target only approved school library audiences.');
     }
     const channels = Array.isArray(dto?.channels)
-      ? dto.channels.map((channel: unknown) => String(channel).trim()).filter(Boolean)
+      ? [...new Set<string>(dto.channels.map((channel: unknown) => String(channel).trim().toLowerCase()).filter(Boolean))]
       : ['in_app'];
+    if (channels.length !== 1 || channels[0] !== 'in_app') {
+      throw new BadRequestException('General library notices currently support verified in-app delivery only.');
+    }
 
     const event = await this.operations.recordWorkflowAction({
       tenantId,
@@ -509,7 +536,12 @@ export class LibrarianCommandService {
       },
     });
 
-    return { success: true, event };
+    return {
+      success: true,
+      event,
+      recipientRoles: targetRoles,
+      channels,
+    };
   }
 
   async checkoutLibraryVisit(dto: any) {
@@ -719,16 +751,239 @@ export class LibrarianCommandService {
 
   async remindOverdueBorrower(id: string) {
     const tenantId = this.requireTenantId();
-    await this.operations.notifyRoles(tenantId, {
-      key: `library-overdue-${id}-${Date.now()}`,
-      type: 'library.overdue.reminder',
-      title: 'Library overdue reminder',
-      body: 'A library borrower has an overdue book requiring follow-up.',
-      targetRoles: ['librarian', 'class_teacher', 'parent'],
-      metadata: { borrower_id: id },
-    });
-    await this.operations.recordAudit(tenantId, 'library.overdue.reminder_sent', 'library_borrower', id, {}, this.requireUserId());
-    return { success: true };
+    const actorUserId = this.requireUserId();
+    const result = await this.operations.writeSql<{
+      overdue_count: number;
+      recipient_count: number;
+      notification_count: number;
+      event_id: string | null;
+      borrower_id: string | null;
+      book_title: string | null;
+      audits_created: number;
+    }>(
+      `
+        WITH selected_overdue AS (
+          SELECT
+            issue.id,
+            issue.borrower_id,
+            issue.copy_id,
+            issue.metadata->>'due_on' AS due_on,
+            borrower.borrower_type,
+            borrower.subject_id,
+            item.title AS book_title,
+            student.id AS student_id,
+            staff.user_id AS staff_user_id
+          FROM library_circulation_ledger issue
+          INNER JOIN library_borrowers borrower
+            ON borrower.tenant_id = issue.tenant_id
+           AND borrower.id = issue.borrower_id
+          INNER JOIN library_copies copy
+            ON copy.tenant_id = issue.tenant_id
+           AND copy.id = issue.copy_id
+          INNER JOIN library_catalog_items item
+            ON item.tenant_id = copy.tenant_id
+           AND item.id = copy.catalog_item_id
+          LEFT JOIN students student
+            ON student.tenant_id = borrower.tenant_id
+           AND student.id::text = borrower.subject_id::text
+           AND LOWER(borrower.borrower_type) = 'student'
+           AND student.deleted_at IS NULL
+          LEFT JOIN staff_profiles staff
+            ON staff.tenant_id = borrower.tenant_id
+           AND staff.id::text = borrower.subject_id::text
+           AND LOWER(borrower.borrower_type) = 'staff'
+          WHERE issue.tenant_id = $1
+            AND issue.id = $2::uuid
+            AND issue.action = 'issue'
+            AND issue.metadata->>'due_on' < CURRENT_DATE::text
+            AND NOT EXISTS (
+              SELECT 1
+              FROM library_circulation_ledger returned
+              WHERE returned.tenant_id = issue.tenant_id
+                AND returned.copy_id = issue.copy_id
+                AND returned.borrower_id = issue.borrower_id
+                AND returned.action = 'return'
+                AND returned.created_at >= issue.created_at
+            )
+          LIMIT 1
+        ), recipient_candidates AS (
+          SELECT
+            portal.user_id,
+            NULL::uuid AS guardian_id,
+            'student'::text AS recipient_kind
+          FROM selected_overdue overdue
+          INNER JOIN student_portal_access portal
+            ON portal.tenant_id = $1
+           AND portal.student_id::text = overdue.student_id::text
+           AND LOWER(portal.status) = 'active'
+           AND portal.user_id IS NOT NULL
+          INNER JOIN tenant_memberships membership
+            ON membership.tenant_id = portal.tenant_id
+           AND membership.user_id = portal.user_id
+           AND LOWER(membership.status) = 'active'
+
+          UNION ALL
+
+          SELECT
+            guardian.user_id,
+            guardian.id AS guardian_id,
+            'guardian'::text AS recipient_kind
+          FROM selected_overdue overdue
+          INNER JOIN student_guardians guardian
+            ON guardian.tenant_id = $1
+           AND guardian.student_id::text = overdue.student_id::text
+           AND LOWER(guardian.status) = 'active'
+           AND guardian.user_id IS NOT NULL
+          INNER JOIN tenant_memberships membership
+            ON membership.tenant_id = guardian.tenant_id
+           AND membership.user_id = guardian.user_id
+           AND LOWER(membership.status) = 'active'
+
+          UNION ALL
+
+          SELECT
+            overdue.staff_user_id AS user_id,
+            NULL::uuid AS guardian_id,
+            'staff'::text AS recipient_kind
+          FROM selected_overdue overdue
+          INNER JOIN tenant_memberships membership
+            ON membership.tenant_id = $1
+           AND membership.user_id = overdue.staff_user_id
+           AND LOWER(membership.status) = 'active'
+          WHERE overdue.staff_user_id IS NOT NULL
+        ), recipients AS (
+          SELECT DISTINCT ON (candidate.user_id)
+            candidate.user_id,
+            candidate.guardian_id,
+            candidate.recipient_kind
+          FROM recipient_candidates candidate
+          ORDER BY
+            candidate.user_id,
+            CASE candidate.recipient_kind WHEN 'guardian' THEN 1 WHEN 'student' THEN 2 ELSE 3 END
+        ), delivery AS (
+          SELECT
+            (SELECT COUNT(*)::int FROM selected_overdue) AS overdue_count,
+            (SELECT COUNT(*)::int FROM recipients) AS recipient_count
+        ), inserted_event AS (
+          INSERT INTO workflow_events (
+            tenant_id, source_user_id, source_role, target_roles, event_type,
+            entity_type, entity_id, title, message, priority, payload, status
+          )
+          SELECT
+            $1,
+            $3::uuid,
+            'librarian',
+            '["librarian"]'::jsonb,
+            'library.overdue.reminder_sent',
+            'library_circulation_ledger',
+            overdue.id::text,
+            'Library overdue reminder queued',
+            delivery.recipient_count::text || ' exact borrower or linked guardian account(s) were queued.',
+            'normal',
+            jsonb_build_object(
+              'issue_id', overdue.id::text,
+              'borrower_id', overdue.borrower_id::text,
+              'recipient_scope', 'exact_active_borrower_accounts',
+              'recipient_count', delivery.recipient_count,
+              'source_dashboard', 'librarian-overdue-loans'
+            ),
+            'published'
+          FROM selected_overdue overdue
+          CROSS JOIN delivery
+          WHERE delivery.recipient_count > 0
+          RETURNING id, entity_id
+        ), inserted_notifications AS (
+          INSERT INTO notifications (
+            tenant_id, notification_key, recipient_user_id, recipient_guardian_id,
+            type, title, body, status, priority, source_module, source_record_id, metadata
+          )
+          SELECT
+            $1,
+            'library-overdue-' || event.entity_id || '-' || recipient.user_id::text,
+            recipient.user_id,
+            recipient.guardian_id,
+            'library.overdue.reminder',
+            'Library overdue reminder',
+            overdue.book_title || ' was due on ' || overdue.due_on || '. Please arrange its return.',
+            'unread',
+            'normal',
+            'library',
+            event.entity_id,
+            jsonb_build_object(
+              'event_id', event.id::text,
+              'issue_id', overdue.id::text,
+              'borrower_id', overdue.borrower_id::text,
+              'recipient_kind', recipient.recipient_kind,
+              'recipient_scope', 'exact_active_borrower_account',
+              'source_dashboard', 'librarian-overdue-loans'
+            )
+          FROM inserted_event event
+          CROSS JOIN selected_overdue overdue
+          CROSS JOIN recipients recipient
+          ON CONFLICT (tenant_id, notification_key)
+          DO UPDATE SET
+            recipient_user_id = EXCLUDED.recipient_user_id,
+            recipient_guardian_id = EXCLUDED.recipient_guardian_id,
+            title = EXCLUDED.title,
+            body = EXCLUDED.body,
+            status = 'unread',
+            metadata = EXCLUDED.metadata,
+            updated_at = NOW()
+          RETURNING id
+        ), action_audit AS (
+          INSERT INTO audit_logs (
+            tenant_id, actor_user_id, request_id, action, resource_type, resource_id, metadata
+          )
+          SELECT
+            $1,
+            $3::uuid,
+            current_setting('app.request_id', true),
+            'library.overdue.reminder_sent',
+            'library_circulation_ledger',
+            overdue.id::text,
+            jsonb_build_object(
+              'borrower_id', overdue.borrower_id::text,
+              'recipient_scope', 'exact_active_borrower_accounts',
+              'notification_count', (SELECT COUNT(*) FROM inserted_notifications)
+            )
+          FROM selected_overdue overdue
+          WHERE EXISTS (SELECT 1 FROM inserted_event)
+          RETURNING id
+        )
+        SELECT
+          delivery.overdue_count,
+          delivery.recipient_count,
+          (SELECT COUNT(*)::int FROM inserted_notifications) AS notification_count,
+          (SELECT id::text FROM inserted_event LIMIT 1) AS event_id,
+          (SELECT borrower_id::text FROM selected_overdue LIMIT 1) AS borrower_id,
+          (SELECT book_title FROM selected_overdue LIMIT 1) AS book_title,
+          (SELECT COUNT(*)::int FROM action_audit) AS audits_created
+        FROM delivery
+      `,
+      [tenantId, id, actorUserId],
+    );
+
+    const delivery = result.rows[0];
+    if (!delivery || Number(delivery.overdue_count) !== 1) {
+      throw new NotFoundException('The active overdue library loan was not found in this school.');
+    }
+    const recipientCount = Number(delivery.recipient_count ?? 0);
+    const notificationCount = Number(delivery.notification_count ?? 0);
+    if (!delivery.event_id || recipientCount === 0) {
+      throw new BadRequestException('No active borrower or linked guardian account can receive this overdue reminder.');
+    }
+    if (notificationCount !== recipientCount || Number(delivery.audits_created) !== 1) {
+      throw new BadRequestException('The overdue reminder could not be recorded for every exact recipient.');
+    }
+
+    return {
+      success: true,
+      borrowerId: delivery.borrower_id,
+      bookTitle: delivery.book_title,
+      recipientCount,
+      notificationCount,
+      eventId: delivery.event_id,
+    };
   }
 
   async createFine(dto: any) {

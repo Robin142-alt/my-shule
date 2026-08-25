@@ -85,7 +85,7 @@ export function OperationalQueue({
       notifications: /sms|notify|alert|reminder|approve|reject|assign|escalate/.test(normalized)
         ? [
             {
-              audienceRoles: ["Principal", "Deputy Principal", "System Monitor"],
+              audienceRoles: ["Principal", "Deputy Principal"],
               title: `${contract.title}: ${action.label}`,
               body: `${action.label} was recorded for ${targetItems.length} ${targetItems.length === 1 ? "queue item" : "queue items"}.`,
               severity: /reject|escalate|failed/.test(normalized) ? "warning" : "info",

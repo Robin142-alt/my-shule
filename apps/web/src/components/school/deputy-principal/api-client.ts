@@ -108,12 +108,25 @@ export async function flagExamDelay(id: string) {
   return requestDashboardApi(`/admin-command/deputy/exams/${id}/flag-delay`, { method: 'POST' });
 }
 
-export async function actionApproval(id: string, action: string) {
-  return requestDashboardApi(`/admin-command/deputy/approvals/${id}/action`, { method: 'POST', body: { action } });
+export async function actionApproval(
+  id: string,
+  action: 'approve' | 'reject',
+  comment?: string,
+) {
+  return requestDashboardApi(`/admin-command/deputy/approvals/${id}/action`, {
+    method: 'POST',
+    body: { action, comment },
+  });
 }
 
 export async function generateReport(data: any) {
   return requestDashboardApi('/admin-command/deputy/reports/generate', { method: 'POST', body: data });
+}
+
+export async function downloadReportArtifact(id: string) {
+  return requestDashboardApi(`/admin-command/deputy/reports/${encodeURIComponent(id)}/download`, {
+    method: 'POST',
+  });
 }
 
 export async function assignRole(data: any) {

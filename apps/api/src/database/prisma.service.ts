@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { Pool } from 'pg';
 import { RequestContextService } from '../common/request-context/request-context.service';
 import type { RequestContextState } from '../common/request-context/request-context.types';
+import { DatabaseSecurityService } from './database-security.service';
 
 const DEFAULT_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/shule_hub';
 
@@ -41,7 +42,10 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   private static schemaBootstrapByHash = new Map<string, Promise<void>>();
   private static schemaBootstrapPool: Pool | null = null;
 
-  constructor(private readonly requestContext: RequestContextService) {
+  constructor(
+    private readonly requestContext: RequestContextService,
+    private readonly databaseSecurityService: DatabaseSecurityService,
+  ) {
     super({
       adapter: new PrismaPg(process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL),
     });
@@ -64,6 +68,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     callback: (tx: Prisma.TransactionClient) => Promise<T>
   ): Promise<T> {
     return this.$transaction(async (tx) => {
+      await this.applyRuntimeRole(tx);
       await tx.$queryRaw(buildTenantSessionSettingsQuery(tenantId, userId));
       return callback(tx);
     }, {
@@ -74,12 +79,12 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   async query<T = any>(sql: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
     const requestContext = this.requestContext?.getStore();
-    const firstParam = params[0];
-    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
+    const inferredTenantId = this.inferFirstParameterTenantId(sql, params[0]);
     const expectsRows = this.rawSqlReturnsRows(sql);
 
     if (requestContext) {
       return this.$transaction(async (tx) => {
+        await this.applyRuntimeRole(tx);
         await tx.$queryRaw(buildRequestSessionSettingsQuery(requestContext));
         return this.executeRawQuery<T>(tx, sql, params, expectsRows);
       }, {
@@ -88,13 +93,39 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       });
     }
 
-    if (isUuid) {
-      return this.executeWithTenant(firstParam, null, async (tx: any) => {
+    if (inferredTenantId) {
+      return this.executeWithTenant(inferredTenantId, null, async (tx: any) => {
         return this.executeRawQuery<T>(tx, sql, params, expectsRows);
       });
     }
 
     return this.executeRawQuery<T>(this, sql, params, expectsRows);
+  }
+
+  private async applyRuntimeRole(
+    client: Pick<Prisma.TransactionClient, '$executeRawUnsafe'>,
+  ): Promise<void> {
+    const runtimeRoleName = this.databaseSecurityService?.getRuntimeRoleName();
+
+    if (!runtimeRoleName) {
+      return;
+    }
+
+    const quotedRoleName = `"${runtimeRoleName.replace(/"/g, '""')}"`;
+    await client.$executeRawUnsafe(`SET LOCAL ROLE ${quotedRoleName}`);
+  }
+
+  private inferFirstParameterTenantId(sql: string, firstParam: unknown): string | null {
+    if (typeof firstParam !== 'string' || !firstParam.trim()) {
+      return null;
+    }
+
+    const firstParameterIsTenant =
+      /\b(?:[a-z_][a-z0-9_]*\.)?tenant_id(?:::text)?\s*=\s*\$1(?:::text)?\b/i.test(sql)
+      || /\$1(?:::text)?\s*=\s*(?:[a-z_][a-z0-9_]*\.)?tenant_id(?:::text)?\b/i.test(sql)
+      || /\bINSERT\s+INTO\s+(?:[a-z_][a-z0-9_]*\.)?[a-z_][a-z0-9_]*\s*\(\s*tenant_id\b[\s\S]*?\)\s*(?:OVERRIDING\s+\w+\s+VALUE\s*)?VALUES\s*\(\s*\$1\b/i.test(sql);
+
+    return firstParameterIsTenant ? firstParam.trim() : null;
   }
 
   private async executeRawQuery<T>(

@@ -139,12 +139,37 @@ export class TransportService {
       created_by_user_id: this.requireUserId(),
     });
 
+    const guardianRecipients = await this.repository.listActiveGuardianRecipients(
+      tenantId,
+      studentIds,
+    );
+
     await this.audit('transport.manifest.created', 'transport_manifest', manifest?.id, {
       route_id: routeId,
       learner_count: studentIds.length,
     });
 
     for (const studentId of studentIds) {
+      const exactGuardianNotifications = guardianRecipients
+        .filter((recipient) => recipient.student_id === studentId)
+        .map((recipient) => ({
+          id: `transport-assign-${manifest.id}-${studentId}-${recipient.guardian_id}`,
+          schoolId: tenantId,
+          // The exact target user takes precedence in both the inbox and
+          // realtime routing while the role retains the recipient's semantics.
+          audienceRoles: ['parent'],
+          targetUserId: recipient.user_id,
+          recipientGuardianId: recipient.guardian_id,
+          recipientScope: 'exact_active_guardian_account',
+          title: 'Transport Route Assigned',
+          body: `Your linked learner has been assigned to transport route ${routeId}.`,
+          sourceModule: 'transport',
+          relatedModule: 'transport',
+          relatedRecordId: manifest.id,
+          priority: 'normal',
+          read: false,
+          createdAt: new Date().toISOString(),
+        }));
       await this.schoolEvents.recordSchoolOperation({
         event: {
           id: `${manifest.id}-${studentId}`,
@@ -159,9 +184,9 @@ export class TransportService {
         },
         notifications: [
           {
-            id: `transport-assign-${manifest.id}-${studentId}`,
-            schoolId: this.requireTenantId(),
-            audienceRoles: ['accountant', 'finance', 'parent'],
+            id: `transport-assign-finance-${manifest.id}-${studentId}`,
+            schoolId: tenantId,
+            audienceRoles: ['accountant', 'finance'],
             title: 'Transport Route Assigned',
             body: `Student ${studentId} has been assigned to transport route ${routeId}. Transport fees may apply.`,
             sourceModule: 'transport',
@@ -171,6 +196,7 @@ export class TransportService {
             read: false,
             createdAt: new Date().toISOString(),
           },
+          ...exactGuardianNotifications,
         ],
       });
     }

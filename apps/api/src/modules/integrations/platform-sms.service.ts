@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PiiEncryptionService } from '../security/pii-encryption.service';
@@ -11,6 +12,11 @@ import type {
   PlatformSmsProviderRecord,
   PlatformSmsProviderResponse,
 } from './integrations.types';
+import {
+  assertSafeSmsProviderUrl,
+  parseAdditionalSmsProviderHosts,
+  UnsafeSmsProviderUrlError,
+} from './sms-provider-url';
 
 @Injectable()
 export class PlatformSmsService {
@@ -18,6 +24,7 @@ export class PlatformSmsService {
     private readonly platformSmsRepository: PlatformSmsRepository,
     private readonly piiEncryptionService: PiiEncryptionService,
     private readonly requestContext: RequestContextService,
+    @Optional() private readonly configService?: ConfigService,
   ) {}
 
   async listProviders(): Promise<PlatformSmsProviderResponse[]> {
@@ -27,6 +34,7 @@ export class PlatformSmsService {
 
   async createProvider(dto: CreatePlatformSmsProviderDto): Promise<PlatformSmsProviderResponse> {
     const actorUserId = this.getActorUserId();
+    const baseUrl = this.validateProviderBaseUrl(dto.base_url, dto.provider_code);
     const provider = await this.platformSmsRepository.createProvider({
       provider_name: dto.provider_name.trim(),
       provider_code: dto.provider_code,
@@ -41,7 +49,7 @@ export class PlatformSmsService {
           )
         : null,
       sender_id: dto.sender_id.trim(),
-      base_url: dto.base_url?.trim() || null,
+      base_url: baseUrl,
       is_active: dto.is_active ?? true,
       is_default: dto.is_default ?? false,
       actor_user_id: actorUserId,
@@ -55,13 +63,23 @@ export class PlatformSmsService {
     providerId: string,
     dto: UpdatePlatformSmsProviderDto,
   ): Promise<PlatformSmsProviderResponse> {
+    const existingProvider = (await this.platformSmsRepository.listProviders())
+      .find((provider) => provider.id === providerId);
+
+    if (!existingProvider) {
+      throw new BadRequestException('SMS provider was not found');
+    }
+
+    const baseUrl = dto.base_url === undefined
+      ? undefined
+      : this.validateProviderBaseUrl(dto.base_url, existingProvider.provider_code);
     const provider = await this.platformSmsRepository.updateProvider({
       provider_id: providerId,
       provider_name: dto.provider_name?.trim(),
       api_key_ciphertext: dto.api_key?.trim()
         ? this.piiEncryptionService.encrypt(
             dto.api_key.trim(),
-            `platform-sms:${providerId}:api-key`,
+            `platform-sms:${existingProvider.provider_code}:api-key`,
           )
         : undefined,
       username_ciphertext: dto.username === undefined
@@ -69,11 +87,11 @@ export class PlatformSmsService {
         : dto.username.trim()
           ? this.piiEncryptionService.encrypt(
               dto.username.trim(),
-              `platform-sms:${providerId}:username`,
+              `platform-sms:${existingProvider.provider_code}:username`,
             )
           : null,
       sender_id: dto.sender_id?.trim(),
-      base_url: dto.base_url === undefined ? undefined : dto.base_url.trim() || null,
+      base_url: baseUrl,
       is_active: dto.is_active,
       actor_user_id: this.getActorUserId(),
     });
@@ -91,7 +109,11 @@ export class PlatformSmsService {
     return this.toProviderResponse(provider);
   }
 
-  async testProvider(providerId: string): Promise<{ status: 'ok'; provider_id: string }> {
+  async testProvider(providerId: string): Promise<{
+    status: 'configuration_valid';
+    provider_id: string;
+    connectivity_tested: false;
+  }> {
     const providers = await this.platformSmsRepository.listProviders();
     const provider = providers.find((item) => item.id === providerId);
 
@@ -99,10 +121,7 @@ export class PlatformSmsService {
       throw new BadRequestException('SMS provider was not found');
     }
 
-    const apiKey = this.piiEncryptionService.decrypt(
-      provider.api_key_ciphertext,
-      `platform-sms:${provider.provider_code}:api-key`,
-    );
+    const apiKey = this.decryptProviderCredential(provider, 'api-key');
 
     if (!apiKey.trim() || !provider.sender_id.trim()) {
       await this.platformSmsRepository.markProviderTest(providerId, 'failed');
@@ -110,10 +129,14 @@ export class PlatformSmsService {
       throw new BadRequestException('SMS provider credentials are incomplete');
     }
 
-    await this.platformSmsRepository.markProviderTest(providerId, 'ok');
-    await this.safePlatformLog('platform_sms_provider_tested', 'ok');
+    if (provider.base_url) {
+      this.validateProviderBaseUrl(provider.base_url, provider.provider_code);
+    }
 
-    return { status: 'ok', provider_id: providerId };
+    await this.platformSmsRepository.markProviderTest(providerId, 'configuration_valid');
+    await this.safePlatformLog('platform_sms_provider_configuration_validated', 'configuration_valid');
+
+    return { status: 'configuration_valid', provider_id: providerId, connectivity_tested: false };
   }
 
   async getDefaultProviderForDispatch(): Promise<{
@@ -129,15 +152,9 @@ export class PlatformSmsService {
 
     return {
       provider,
-      api_key: this.piiEncryptionService.decrypt(
-        provider.api_key_ciphertext,
-        `platform-sms:${provider.provider_code}:api-key`,
-      ),
+      api_key: this.decryptProviderCredential(provider, 'api-key'),
       username: provider.username_ciphertext
-        ? this.piiEncryptionService.decrypt(
-            provider.username_ciphertext,
-            `platform-sms:${provider.provider_code}:username`,
-          )
+        ? this.decryptProviderCredential(provider, 'username')
         : null,
     };
   }
@@ -205,6 +222,61 @@ export class PlatformSmsService {
   private getActorUserId(): string | null {
     const userId = this.requestContext.getStore()?.user_id;
     return userId && userId !== 'anonymous' ? userId : null;
+  }
+
+  private decryptProviderCredential(
+    provider: PlatformSmsProviderRecord,
+    field: 'api-key' | 'username',
+  ): string {
+    const ciphertext = field === 'api-key'
+      ? provider.api_key_ciphertext
+      : provider.username_ciphertext;
+
+    if (!ciphertext) {
+      return '';
+    }
+
+    try {
+      return this.piiEncryptionService.decrypt(
+        ciphertext,
+        `platform-sms:${provider.provider_code}:${field}`,
+      );
+    } catch (canonicalError) {
+      try {
+        return this.piiEncryptionService.decrypt(
+          ciphertext,
+          `platform-sms:${provider.id}:${field}`,
+        );
+      } catch {
+        throw canonicalError;
+      }
+    }
+  }
+
+  private validateProviderBaseUrl(
+    value: string | null | undefined,
+    providerCode: PlatformSmsProviderRecord['provider_code'],
+  ): string | null {
+    const normalized = value?.trim() || null;
+
+    if (!normalized) {
+      return null;
+    }
+
+    try {
+      return assertSafeSmsProviderUrl(
+        normalized,
+        providerCode,
+        parseAdditionalSmsProviderHosts(
+          this.configService?.get<string>('communication.smsProviderAllowedHosts'),
+        ),
+      ).toString();
+    } catch (error) {
+      if (error instanceof UnsafeSmsProviderUrlError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
   }
 
   private formatNullableDate(value: string | Date | null): string | null {

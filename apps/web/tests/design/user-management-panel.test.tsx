@@ -352,7 +352,7 @@ describe("school user management", () => {
     expect(screen.getAllByDisplayValue("Teacher").length).toBeGreaterThan(0);
   });
 
-  it("exposes user invitations from school settings", async () => {
+  it("keeps invitation mutation out of the generic Admin command center", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ users: [] }));
 
     renderWithProviders(
@@ -363,12 +363,11 @@ describe("school user management", () => {
       }),
     );
 
-    expect(screen.getByRole("heading", { name: /invite user/i })).toBeVisible();
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/auth/invitations?limit=50&offset=0",
-        expect.objectContaining({ method: "GET" }),
-      ),
+    expect(await screen.findByRole("heading", { name: /Admin Dashboard/i })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: /invite user/i })).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/auth/invitations?limit=50&offset=0",
+      expect.objectContaining({ method: "GET" }),
     );
   });
 });

@@ -319,17 +319,26 @@ test('ClassTeacherService rejects homework for classes or subjects not assigned 
   assert.equal(queries.some((query) => /INSERT INTO academics_assignments/.test(query.sql)), false);
 });
 
-test('ClassTeacherService persists homework only for the teacher assigned class-subject pair', async () => {
+test('ClassTeacherService atomically persists homework, audit, event, and exact active class notifications', async () => {
   const queries: Array<{ sql: string; params: unknown[] }> = [];
   const service = new ClassTeacherService(
     {
       query: async (sql: string, params: unknown[]) => {
         queries.push({ sql, params });
-        if (/FROM teacher_subject_assignments/.test(sql)) {
+        if (/^\s*SELECT id[\s\S]*FROM teacher_subject_assignments/.test(sql)) {
           return { rows: [{ id: 'assignment-link-a' }], rowCount: 1 };
         }
-        if (/INSERT INTO academics_assignments/.test(sql)) {
-          return { rows: [{ id: 'homework-a' }], rowCount: 1 };
+        if (/WITH authorized_assignment/.test(sql)) {
+          return {
+            rows: [{
+              assignment_id: 'homework-a',
+              workflow_event_id: 'event-a',
+              student_notification_count: 18,
+              guardian_notification_count: 17,
+              audits_created: 1,
+            }],
+            rowCount: 1,
+          };
         }
         return { rows: [], rowCount: 0 };
       },
@@ -347,12 +356,94 @@ test('ClassTeacherService persists homework only for the teacher assigned class-
 
   assert.equal(result.success, true);
   assert.equal(result.assignmentId, 'homework-a');
+  assert.equal(result.studentNotificationCount, 18);
+  assert.equal(result.guardianNotificationCount, 17);
   const insertQuery = queries.find((query) => /INSERT INTO academics_assignments/.test(query.sql));
   assert.ok(insertQuery);
   assert.equal(insertQuery.params[0], 'tenant-a');
   assert.equal(insertQuery.params[3], 'stream-a');
   assert.equal(insertQuery.params[4], 'subject-a');
   assert.equal(insertQuery.params[6], 'teacher-a');
+  assert.equal(insertQuery.params[7], 'teacher');
+  assert.match(insertQuery.sql, /WITH authorized_assignment/);
+  assert.match(insertQuery.sql, /student_portal_access/);
+  assert.match(insertQuery.sql, /student_guardians/);
+  assert.match(insertQuery.sql, /tenant_memberships/);
+  assert.match(insertQuery.sql, /recipient_user_id/);
+  assert.match(insertQuery.sql, /recipient_guardian_id/);
+  assert.match(insertQuery.sql, /INSERT INTO audit_logs/);
+  assert.match(insertQuery.sql, /'\[\]'::jsonb/);
+  assert.doesNotMatch(insertQuery.sql, /\["class_teacher","student","parent"\]/);
+});
+
+test('ClassTeacherService fails closed when the teaching assignment ends before the atomic homework write', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new ClassTeacherService(
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        if (/^\s*SELECT id[\s\S]*FROM teacher_subject_assignments/.test(sql)) {
+          return { rows: [{ id: 'assignment-link-a' }], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+    {} as never,
+  );
+
+  await assert.rejects(
+    () => service.saveHomework('tenant-a', 'teacher-a', {
+      title: 'Algebra Chapter 4',
+      classId: 'stream-a',
+      subjectId: 'subject-a',
+      dueDate: '2026-07-20',
+    }),
+    /no longer active in your teaching assignments/,
+  );
+
+  assert.equal(queries.length, 2);
+  assert.match(queries[1].sql, /INSERT INTO academics_assignments/);
+  assert.match(queries[1].sql, /FROM authorized_assignment/);
+});
+
+test('ClassTeacherService returns persisted guardian meeting context only after an active class appointment check', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new ClassTeacherService(
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        if (/FROM school_meetings/.test(sql)) {
+          return {
+            rows: [{
+              id: 'meeting-a',
+              date: '2026-08-24T08:30:00.000Z',
+              time: '11:30',
+              parent: 'Guardian: Amina Kamau; learner: Njeri Kamau. Progress review',
+              agenda: 'Term progress review',
+              status: 'SCHEDULED',
+            }],
+            rowCount: 1,
+          };
+        }
+        if (/FROM academics_class_teachers/.test(sql)) {
+          return { rows: [{ id: 'appointment-a' }], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+    {} as never,
+  );
+
+  const meetings = await service.getMeetings('tenant-a', 'teacher-a', 'stream-a');
+
+  assert.equal(meetings[0].parent, 'Guardian: Amina Kamau; learner: Njeri Kamau. Progress review');
+  assert.deepEqual(queries[0].params, ['tenant-a', 'teacher-a', 'stream-a']);
+  assert.match(queries[0].sql, /FROM academics_class_teachers/);
+  assert.deepEqual(queries[1].params, ['tenant-a', 'teacher-a', 'stream-a']);
+  assert.match(queries[1].sql, /NULLIF\(TRIM\(meeting\.description\), ''\)/);
+  assert.match(queries[1].sql, /meeting_scope\.payload->>'class_section_id' = \$3/);
+  assert.match(queries[1].sql, /COUNT\(\*\) FROM active_class_scope/);
+  assert.doesNotMatch(queries[1].sql, /'N\/A' as parent/);
 });
 
 test('ClassTeacherService dashboard overview counts teacher inventory requests from tenant data', async () => {

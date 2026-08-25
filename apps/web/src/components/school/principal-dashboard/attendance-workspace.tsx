@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Loader2 } from "lucide-react";
 import { usePermissions } from "@/components/providers/permission-context";
-import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { useVerifiedPrincipalDashboardApi } from "./verified-tenant-api";
 
 type PrincipalAttendanceData = {
   status: "active" | "degraded" | "setup_required";
@@ -23,6 +23,7 @@ type PrincipalAttendanceData = {
 
 export function PrincipalAttendanceWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalAttendanceData>('/admin-command/principal/attendance');
+  const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
   const { hasPermission } = usePermissions();
   
   const [isAbsenceModalOpen, setIsAbsenceModalOpen] = useState(false);
@@ -36,7 +37,7 @@ export function PrincipalAttendanceWorkspace() {
     const formData = new FormData(e.currentTarget);
     
     try {
-      await requestDashboardApi('/admin-command/attendance/absences', {
+      await requestPrincipalApi('/admin-command/attendance/absences', {
         method: "POST",
         body: {
           studentId: formData.get("studentId"),

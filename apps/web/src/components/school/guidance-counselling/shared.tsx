@@ -1,6 +1,6 @@
 
 import { type ReactNode } from "react";
-import { LucideIcon } from "lucide-react";
+import { type LucideIcon } from "lucide-react";
 
 export type Tone = "success" | "info" | "warning" | "danger" | "neutral";
 
@@ -49,6 +49,54 @@ export function StatusChip({ label, tone = "neutral" }: { label: string; tone?: 
     </span>
   );
 }
+
+export function toneForStatus(status: string): Tone {
+  const normalized = status.trim().toLowerCase();
+  if (["active", "accepted", "closed", "completed", "done", "notified", "resolved"].includes(normalized)) return "success";
+  if (["open", "pending", "scheduled", "logged", "in progress"].includes(normalized)) return "warning";
+  if (["critical", "declined", "flagged", "missed", "overdue"].includes(normalized)) return "danger";
+  if (["queued", "submitted", "sent"].includes(normalized)) return "info";
+  return "neutral";
+}
+
+export function MetricCard({ label, value, tone = "neutral" }: { label: string; value: ReactNode; tone?: Tone }) {
+  return (
+    <div className={cn("rounded-xl border p-4", toneClasses[tone].card)}>
+      <div className="text-sm font-semibold opacity-80">{label}</div>
+      <div className="mt-1 text-lg font-black">{value}</div>
+    </div>
+  );
+}
+
+export function WorkspaceFailure({
+  title,
+  error,
+  onRetry,
+}: {
+  title: string;
+  error: Error;
+  onRetry: () => void;
+}) {
+  return (
+    <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+      <p className="font-black">{title}</p>
+      <p className="mt-1 break-words">{error.message}</p>
+      <button type="button" onClick={onRetry} className="mt-3 font-black underline underline-offset-2">
+        Retry
+      </button>
+    </div>
+  );
+}
+
+export function WorkspaceEmpty({ children }: { children: ReactNode }) {
+  return (
+    <div className="rounded-xl border border-dashed border-[#C8D5EA] bg-[#F8FAFC] px-5 py-8 text-center text-sm leading-6 text-[#64748B]">
+      {children}
+    </div>
+  );
+}
+
+export const fieldClassName = "mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm text-[#071D49] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
 
 export function Panel({
   title,

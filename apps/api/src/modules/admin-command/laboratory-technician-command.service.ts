@@ -20,11 +20,7 @@ export class LaboratoryTechnicianCommandService {
   }
 
   private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
-    try {
-      return await this.prisma.query<T>(query, params);
-    } catch (e) {
-      return { rows: [], rowCount: 0 };
-    }
+    return this.prisma.query<T>(query, params);
   }
 
   async getOverview() {

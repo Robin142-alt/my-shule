@@ -44,22 +44,45 @@ export class EventPublisherService {
       source_dashboard?: string | null;
       correlation_id?: string | null;
     },
+    tx?: any,
   ): Promise<DomainEvent<TName>> {
     const requestContext = this.requestContext.requireStore();
-    const schoolId = input.school_id ?? input.tenant_id ?? requestContext.tenant_id;
+    const hasAuthenticatedPrincipal = Boolean(
+      requestContext.is_authenticated
+      && requestContext.tenant_id
+      && requestContext.user_id
+      && requestContext.user_id !== AUTH_ANONYMOUS_USER_ID,
+    );
+    const requestedSchoolId = input.school_id ?? input.tenant_id;
+    const schoolId = hasAuthenticatedPrincipal
+      ? requestContext.tenant_id
+      : requestedSchoolId ?? requestContext.tenant_id;
 
     if (!schoolId) {
       throw new BadRequestException('Tenant context is required for domain event publishing');
     }
+    if (hasAuthenticatedPrincipal && requestedSchoolId && requestedSchoolId !== schoolId) {
+      throw new BadRequestException('Domain event tenant does not match the authenticated school');
+    }
 
-    const actorUserId = input.actor_user_id ?? (
-      requestContext.user_id && requestContext.user_id !== AUTH_ANONYMOUS_USER_ID
+    const actorUserId = hasAuthenticatedPrincipal
+      ? requestContext.user_id
+      : input.actor_user_id ?? (
+        requestContext.user_id && requestContext.user_id !== AUTH_ANONYMOUS_USER_ID
         ? requestContext.user_id
         : null
+      );
+    const actorRole = hasAuthenticatedPrincipal
+      ? requestContext.role ?? null
+      : input.actor_role ?? requestContext.role ?? null;
+    const sourceDashboard = hasAuthenticatedPrincipal
+      ? requestContext.role ?? 'school'
+      : input.source_dashboard ?? requestContext.role ?? 'system';
+    const correlationId = this.normalizeUuidOrNull(
+      hasAuthenticatedPrincipal
+        ? requestContext.trace_id
+        : input.correlation_id ?? requestContext.trace_id,
     );
-    const actorRole = input.actor_role ?? requestContext.role ?? null;
-    const sourceDashboard = input.source_dashboard ?? requestContext.role ?? 'system';
-    const correlationId = this.normalizeUuidOrNull(input.correlation_id ?? requestContext.trace_id);
 
     return this.outboxEventsRepository.createEvent({
       tenant_id: schoolId,
@@ -70,6 +93,7 @@ export class EventPublisherService {
       aggregate_id: this.requireNonEmptyText(input.aggregate_id, 'aggregate_id'),
       payload: input.payload,
       headers: {
+        ...input.headers,
         request_id: requestContext.request_id,
         trace_id: requestContext.trace_id,
         span_id: requestContext.span_id,
@@ -77,14 +101,19 @@ export class EventPublisherService {
         user_id: actorUserId,
         role: actorRole,
         session_id: requestContext.session_id,
-        ...input.headers,
+        tenant_id: schoolId,
+        school_id: schoolId,
+        actor_user_id: actorUserId,
+        actor_role: actorRole,
+        source_dashboard: sourceDashboard,
+        correlation_id: correlationId,
       },
       available_at: input.available_at,
       actor_user_id: actorUserId,
       actor_role: actorRole,
       source_dashboard: sourceDashboard,
       correlation_id: correlationId,
-    }) as Promise<DomainEvent<TName>>;
+    }, tx) as Promise<DomainEvent<TName>>;
   }
 
   async publishStudentCreated(payload: StudentCreatedPayload): Promise<DomainEvent<'student.created'>> {
@@ -337,6 +366,7 @@ export class EventPublisherService {
 
   async publishProcurementRequestSubmitted(
     payload: ProcurementRequestSubmittedPayload,
+    tx?: any,
   ): Promise<DomainEvent<'procurement.request.submitted'>> {
     return this.publish({
       event_key: `procurement.request.submitted:${payload.request_id}`,
@@ -344,7 +374,7 @@ export class EventPublisherService {
       aggregate_type: 'procurement_request',
       aggregate_id: payload.request_id,
       payload,
-    });
+    }, tx);
   }
 
   private requireNonEmptyText(value: string, fieldName: string): string {

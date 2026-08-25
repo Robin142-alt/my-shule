@@ -170,6 +170,120 @@ test('ExamsService rejects invalid exam settings payloads', async () => {
   );
 });
 
+test('ExamsRepository creates a series only from an active same-tenant term whose dates contain the exam', async () => {
+  const calls: Array<{ tenantId: string; sql: string; params: unknown[] }> = [];
+  const repository = new ExamsRepository({
+    executeWithTenant: async (
+      tenantId: string,
+      _context: unknown,
+      callback: (tx: { $queryRawUnsafe: (sql: string, ...params: unknown[]) => Promise<unknown[]> }) => Promise<unknown>,
+    ) => callback({
+      $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+        calls.push({ tenantId, sql, params });
+        return [{ id: 'series-1', academic_term_id: params[1], tenant_id: params[0] }];
+      },
+    }),
+  } as never);
+
+  const series = await repository.createSeries({
+    tenant_id: 'tenant-a',
+    academic_term_id: '11111111-1111-4111-8111-111111111111',
+    name: 'Term 2 End-Term',
+    starts_on: '2026-08-24',
+    ends_on: '2026-08-28',
+    created_by_user_id: '22222222-2222-4222-8222-222222222222',
+  });
+
+  assert.equal(series.id, 'series-1');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].tenantId, 'tenant-a');
+  assert.deepEqual(calls[0].params, [
+    'tenant-a',
+    '11111111-1111-4111-8111-111111111111',
+    'Term 2 End-Term',
+    '2026-08-24',
+    '2026-08-28',
+    '22222222-2222-4222-8222-222222222222',
+  ]);
+  assert.match(calls[0].sql, /INSERT INTO exam_series/);
+  assert.match(calls[0].sql, /SELECT \$1, term\.id/);
+  assert.match(calls[0].sql, /term\.tenant_id::text = \$1::text/);
+  assert.match(calls[0].sql, /term\.id = \$2::uuid/);
+  assert.match(calls[0].sql, /lower\(COALESCE\(term\.status, 'active'\)\) = 'active'/);
+  assert.match(calls[0].sql, /term\.archived_at IS NULL/);
+  assert.match(calls[0].sql, /\$4::date >= term\.starts_on/);
+  assert.match(calls[0].sql, /\$5::date <= term\.ends_on/);
+});
+
+test('ExamsService validates series dates and fails closed when the scoped academic term is unavailable', async () => {
+  const persisted: Array<Record<string, unknown>> = [];
+  const events: Array<Record<string, unknown>> = [];
+  const service = new ExamsService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '22222222-2222-4222-8222-222222222222',
+        role: 'principal',
+      }),
+    } as never,
+    {
+      createSeries: async (input: Record<string, unknown>) => {
+        persisted.push(input);
+        if (input.academic_term_id === '33333333-3333-4333-8333-333333333333') {
+          return undefined;
+        }
+        return { id: 'series-1', ...input };
+      },
+    } as never,
+    undefined,
+    undefined,
+    {
+      recordSchoolOperation: async (input: Record<string, unknown>) => events.push(input),
+    } as never,
+  );
+
+  const created = await service.createSeries({
+    academic_term_id: '11111111-1111-4111-8111-111111111111',
+    name: 'Term 2 End-Term',
+    starts_on: '2026-08-24',
+    ends_on: '2026-08-28',
+  });
+
+  assert.equal(created.id, 'series-1');
+  assert.deepEqual(persisted[0], {
+    tenant_id: 'tenant-a',
+    created_by_user_id: '22222222-2222-4222-8222-222222222222',
+    academic_term_id: '11111111-1111-4111-8111-111111111111',
+    name: 'Term 2 End-Term',
+    starts_on: '2026-08-24',
+    ends_on: '2026-08-28',
+  });
+  assert.equal((events[0].event as Record<string, unknown>).type, 'exam.series_created');
+
+  await assert.rejects(
+    () => service.createSeries({
+      academic_term_id: '11111111-1111-4111-8111-111111111111',
+      name: 'Invalid dates',
+      starts_on: '2026-08-30',
+      ends_on: '2026-08-20',
+    }),
+    /Exam end date must be on or after the start date/,
+  );
+  assert.equal(persisted.length, 1, 'invalid dates must be rejected before persistence');
+
+  await assert.rejects(
+    () => service.createSeries({
+      academic_term_id: '33333333-3333-4333-8333-333333333333',
+      name: 'Another school term',
+      starts_on: '2026-08-24',
+      ends_on: '2026-08-28',
+    }),
+    (error: unknown) => error instanceof NotFoundException
+      && /not found in this school|dates fall outside/i.test(error.message),
+  );
+  assert.equal(events.length, 1, 'failed term scope checks must not emit a creation event');
+});
+
 test('ExamsService rejects student exam cases outside the current tenant scope', async () => {
   const service = new ExamsService(
     { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,

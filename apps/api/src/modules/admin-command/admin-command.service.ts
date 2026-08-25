@@ -3,6 +3,7 @@ import { UploadFileMetadata } from '../../common/uploads/upload-policy';
 import {
   BadRequestException,
   Injectable,
+  InternalServerErrorException,
   MessageEvent,
   NotFoundException,
   Optional,
@@ -50,6 +51,8 @@ import {
 } from '@prisma/client';
 import * as crypto from 'crypto';
 import type { AccountCategory, EntryDirection } from '../finance/finance.types';
+import { ApprovalService } from '../workflow/services/approval.service';
+import { ExamsService } from '../exams/exams.service';
 
 @Injectable()
 export class AdminCommandService {
@@ -63,6 +66,10 @@ export class AdminCommandService {
     private readonly principalInsights?: PrincipalInsightsService,
     @Optional()
     private readonly prisma?: PrismaService,
+    @Optional()
+    private readonly approvalService?: ApprovalService,
+    @Optional()
+    private readonly examsService?: ExamsService,
   ) {}
 
   getPrincipalDashboard() {
@@ -134,16 +141,52 @@ export class AdminCommandService {
     return this.repository.getCommunicationTemplates(this.requireTenantId());
   }
 
-  createCommunicationTemplate(dto: any) {
-    return this.repository.createCommunicationTemplate(this.requireTenantId(), dto);
+  async createCommunicationTemplate(dto: any) {
+    const tenantId = this.requireTenantId();
+    const name = this.requireText(dto?.name, 'Template name');
+    const body = this.requireText(dto?.body ?? dto?.content, 'Template body');
+    const type = this.requireCommunicationTemplateType(dto?.type);
+    const template = await this.repository.createCommunicationTemplate(tenantId, {
+      name,
+      body,
+      type,
+      subject: dto?.subject,
+      variables: Array.isArray(dto?.variables) ? dto.variables : [],
+    });
+    if (!template) {
+      throw new ServiceUnavailableException('Communication template could not be created');
+    }
+    await this.audit('admin_command.communication_template_created', 'communication_template', template.id, { name, type });
+    return template;
   }
 
-  updateCommunicationTemplate(id: string, dto: any) {
-    return this.repository.updateCommunicationTemplate(this.requireTenantId(), id, dto);
+  async updateCommunicationTemplate(id: string, dto: any) {
+    const templateId = this.requireText(id, 'Template ID');
+    const update = {
+      name: dto?.name === undefined ? undefined : this.requireText(dto.name, 'Template name'),
+      body: dto?.body === undefined && dto?.content === undefined
+        ? undefined
+        : this.requireText(dto?.body ?? dto?.content, 'Template body'),
+      type: dto?.type === undefined ? undefined : this.requireCommunicationTemplateType(dto.type),
+      subject: dto?.subject,
+      variables: dto?.variables,
+    };
+    const template = await this.repository.updateCommunicationTemplate(this.requireTenantId(), templateId, update);
+    if (!template) {
+      throw new NotFoundException('Communication template was not found in this school');
+    }
+    await this.audit('admin_command.communication_template_updated', 'communication_template', template.id, update);
+    return template;
   }
 
-  deleteCommunicationTemplate(id: string) {
-    return this.repository.deleteCommunicationTemplate(this.requireTenantId(), id);
+  async deleteCommunicationTemplate(id: string) {
+    const templateId = this.requireText(id, 'Template ID');
+    const template = await this.repository.deleteCommunicationTemplate(this.requireTenantId(), templateId);
+    if (!template) {
+      throw new NotFoundException('Communication template was not found in this school');
+    }
+    await this.audit('admin_command.communication_template_archived', 'communication_template', template.id, {});
+    return template;
   }
 
   getPrincipalClassesOverview() {
@@ -174,6 +217,18 @@ export class AdminCommandService {
     return this.repository.getPrincipalOverview(this.requireTenantId());
   }
 
+  getPrincipalVisitorsOverview() {
+    return this.repository.getPrincipalVisitorsOverview(this.requireTenantId());
+  }
+
+  getPrincipalHealthOverview() {
+    return this.repository.getPrincipalHealthOverview(this.requireTenantId());
+  }
+
+  getPrincipalAuditOverview() {
+    return this.repository.getPrincipalAuditOverview(this.requireTenantId());
+  }
+
   getSchoolProfile() {
     if (this.principalInsights) {
       return this.principalInsights.getSchoolProfile(this.requireTenantId());
@@ -181,11 +236,86 @@ export class AdminCommandService {
     return this.repository.getSchoolProfile(this.requireTenantId());
   }
 
-  getApprovalsOverview() {
-    if (this.principalInsights) {
-      return this.principalInsights.getApprovalsOverview(this.requireTenantId());
+  async getApprovalsOverview() {
+    if (!this.approvalService) {
+      throw new ServiceUnavailableException('The governed approval workflow is not available');
     }
-    return this.repository.getApprovalsOverview(this.requireTenantId());
+
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    const actorRole = this.requestContext.getStore()?.role?.trim();
+    if (!actorRole) {
+      throw new UnauthorizedException('An active school role is required to review approvals');
+    }
+
+    const [requests, recentApprovals] = await Promise.all([
+      this.approvalService.listPendingForApprover({ tenantId, actorUserId, actorRole }),
+      this.repository.getPrincipalApprovalHistory(tenantId, actorUserId, actorRole),
+    ]);
+    const categoryMap = new Map<string, { name: string; pending: number; urgent: number }>();
+    for (const request of requests) {
+      const rawName = request.module || request.approval_type || 'other';
+      const name = rawName
+        .replace(/[_-]+/g, ' ')
+        .replace(/\b\w/g, (character) => character.toUpperCase());
+      const category = categoryMap.get(name) ?? { name, pending: 0, urgent: 0 };
+      category.pending += 1;
+      if (['urgent', 'critical', 'high'].includes(String(request.priority ?? '').toLowerCase())) {
+        category.urgent += 1;
+      }
+      categoryMap.set(name, category);
+    }
+
+    const urgentApprovals = requests.filter((request) =>
+      ['urgent', 'critical', 'high'].includes(String(request.priority ?? '').toLowerCase()),
+    ).length;
+
+    return {
+      status: 'active',
+      pendingTotal: requests.length,
+      urgentApprovals,
+      categories: Array.from(categoryMap.values()),
+      requests,
+      recentApprovals,
+    };
+  }
+
+  async actionPrincipalApproval(approvalIdValue: string, dto: Record<string, unknown>) {
+    if (!this.approvalService) {
+      throw new ServiceUnavailableException('The governed approval workflow is not available');
+    }
+
+    const approvalId = this.requireText(approvalIdValue, 'Approval ID');
+    const action = String(dto.action ?? '').trim().toLowerCase();
+    if (action !== 'approve' && action !== 'reject') {
+      throw new BadRequestException('Approval action must be approve or reject');
+    }
+    const noteValue = dto.comment ?? dto.reason;
+    const note = typeof noteValue === 'string' ? noteValue.trim() : '';
+    if (action === 'reject' && !note) {
+      throw new BadRequestException('A rejection reason is required');
+    }
+
+    const store = this.requestContext.requireStore();
+    const actorRole = store.role?.trim();
+    if (!actorRole) {
+      throw new UnauthorizedException('An active school role is required to decide approvals');
+    }
+    const approval = await this.approvalService.decideRequest({
+      tenantId: this.requireTenantId(),
+      approvalId,
+      actorUserId: this.requireUserId(),
+      actorRole,
+      requestId: store.request_id,
+      decision: action === 'approve' ? 'APPROVED' : 'REJECTED',
+      note: note || null,
+    });
+
+    return {
+      success: true,
+      message: `Approval ${action === 'approve' ? 'approved' : 'rejected'}`,
+      approval,
+    };
   }
 
   getPrincipalReportsOverview() {
@@ -209,18 +339,77 @@ export class AdminCommandService {
     return this.repository.getAcademicSetupOverview(this.requireTenantId());
   }
 
-  getPrincipalSettings() {
-    if (this.principalInsights) {
-      return this.principalInsights.getPrincipalSettings(this.requireTenantId());
+  async getPrincipalSettings() {
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    const settings = this.principalInsights
+      ? await this.principalInsights.getPrincipalSettings(tenantId, actorUserId)
+      : await this.repository.getPrincipalSettings(tenantId, actorUserId);
+    if (!settings.accountLinked) {
+      throw new UnauthorizedException('The authenticated Principal is not an active member of this school');
     }
-    return this.repository.getPrincipalSettings(this.requireTenantId());
+
+    const { accountLinked: _accountLinked, ...response } = settings;
+    return response;
+  }
+
+  async updatePrincipalSettings(dto: any) {
+    const notifications = dto?.notifications;
+    const dashboard = dto?.dashboard;
+    if (!notifications || typeof notifications !== 'object' || Array.isArray(notifications)) {
+      throw new BadRequestException('Notification preferences are required');
+    }
+    if (!dashboard || typeof dashboard !== 'object' || Array.isArray(dashboard)) {
+      throw new BadRequestException('Dashboard preferences are required');
+    }
+
+    const requireBoolean = (value: unknown, fieldName: string) => {
+      if (typeof value !== 'boolean') throw new BadRequestException(`${fieldName} must be true or false`);
+      return value;
+    };
+    const theme = String(dashboard.theme ?? '').trim().toLowerCase();
+    if (!['system', 'dark', 'light'].includes(theme)) {
+      throw new BadRequestException('Theme must be system, dark, or light');
+    }
+    const defaultView = String(dashboard.defaultView ?? '').trim().toLowerCase();
+    if (!['overview', 'academics', 'attendance', 'fees'].includes(defaultView)) {
+      throw new BadRequestException('Default view is invalid');
+    }
+
+    const preferences = {
+      notifications: {
+        emailAlerts: requireBoolean(notifications.emailAlerts, 'Email alerts'),
+        smsAlerts: requireBoolean(notifications.smsAlerts, 'SMS alerts'),
+        dailyDigest: requireBoolean(notifications.dailyDigest, 'Daily digest'),
+      },
+      dashboard: { theme, defaultView },
+    };
+    const result = await this.recordPrincipalWorkflowAction({
+      action: 'principal.settings_updated',
+      entityType: 'principal_preferences',
+      entityId: this.requireUserId(),
+      title: 'Principal preferences updated',
+      message: 'Principal dashboard and notification preferences were saved.',
+      payload: preferences,
+      targetRoles: ['principal'],
+      status: 'completed',
+    });
+
+    return {
+      success: true,
+      message: 'Principal preferences saved',
+      preferences,
+      eventId: result.event.id,
+    };
   }
 
   getPrincipalTeachingSchedule() {
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
     if (this.principalInsights) {
-      return this.principalInsights.getPrincipalTeachingSchedule(this.requireTenantId());
+      return this.principalInsights.getPrincipalTeachingSchedule(tenantId, actorUserId);
     }
-    return this.repository.getPrincipalTeachingSchedule(this.requireTenantId());
+    return this.repository.getPrincipalTeachingSchedule(tenantId, actorUserId);
   }
 
   getDeputyDashboard() {
@@ -262,38 +451,91 @@ export class AdminCommandService {
   }
 
   async createCommunicationBroadcast(dto: any) {
-    const audience = this.requireText(dto.audience, 'Broadcast audience');
+    const requestedAudience = this.requireText(dto.audience, 'Broadcast audience').toLowerCase();
+    const audienceAliases: Record<string, 'parents' | 'staff' | 'class'> = {
+      parents: 'parents',
+      all_parents: 'parents',
+      guardians: 'parents',
+      staff: 'staff',
+      all_staff: 'staff',
+      teachers: 'staff',
+      class: 'class',
+      specific_class: 'class',
+    };
+    const audience = audienceAliases[requestedAudience];
+    if (!audience) {
+      throw new BadRequestException('Broadcast audience must be parents, staff, or a specific class');
+    }
     const message = this.requireText(dto.message, 'Broadcast message');
+    const targetClass = audience === 'class'
+      ? this.requireText(dto.targetClass ?? dto.target_class, 'Target class')
+      : null;
+    const requestedChannels: string[] = Array.isArray(dto.channels) && dto.channels.length > 0
+      ? dto.channels.map((channel: unknown) => String(channel).trim().toLowerCase())
+      : ['in_app'];
+    const channels = [...new Set<string>(requestedChannels)];
+    if (channels.some((channel) => channel !== 'sms' && channel !== 'in_app')) {
+      throw new BadRequestException('Broadcast channels currently support SMS and in-app delivery');
+    }
+    if (audience === 'staff' && channels.includes('sms')) {
+      throw new BadRequestException('Staff SMS is unavailable until staff contact numbers are configured; use in-app delivery');
+    }
     const broadcast = await this.repository.createCommunicationBroadcast({
       tenant_id: this.requireTenantId(),
       user_id: this.requireUserId(),
       audience,
+      target_class: targetClass,
       message,
-      channels: Array.isArray(dto.channels) && dto.channels.length > 0 ? dto.channels : ['in_app'],
+      channels,
     });
     if (!broadcast?.event) {
-      throw new ServiceUnavailableException('Communication broadcast could not be created');
+      throw new BadRequestException(
+        'No active tenant-scoped recipients are available for the requested audience and channels. No broadcast was created.',
+      );
     }
+    const smsQueuedCount = Number(broadcast.smsQueuedCount ?? broadcast.smsRecipientCount ?? 0);
+    const smsProcessingCount = Number(broadcast.smsProcessingCount ?? 0);
+    const smsAcceptedCount = Number(broadcast.smsAcceptedCount ?? 0);
+    const smsNeedsReviewCount = Number(broadcast.smsNeedsReviewCount ?? 0);
+    const smsOutboxCount = Number(broadcast.smsOutboxCount ?? broadcast.smsRecipientCount ?? 0);
     await this.audit('admin_command.communication_broadcast_created', 'communication_broadcast', broadcast.event.id, {
       audience,
-      channels: dto.channels,
+      targetClass,
+      channels,
       smsRecipientCount: broadcast.smsRecipientCount,
+      smsQueuedCount,
+      smsProcessingCount,
+      smsAcceptedCount,
+      smsNeedsReviewCount,
+      smsOutboxCount,
+      inAppRecipientCount: broadcast.inAppRecipientCount,
     });
-    return { success: true, message: 'Broadcast created and routed', broadcast };
+    return {
+      success: true,
+      message: `Broadcast recorded with ${broadcast.inAppRecipientCount} in-app recipient${broadcast.inAppRecipientCount === 1 ? '' : 's'}; SMS: ${smsQueuedCount} queued, ${smsProcessingCount} dispatching, ${smsAcceptedCount} provider-accepted, ${smsNeedsReviewCount} requiring review.`,
+      broadcast,
+    };
   }
 
   async logAbsence(dto: any) {
+    const reason = this.requireText(dto.reason, 'Absence reason');
     const attendance = await this.repository.logAbsence({
       tenant_id: this.requireTenantId(),
       user_id: this.requireUserId(),
       student_id: this.requireText(dto.studentId, 'Student ID'),
       date: this.requireText(dto.date, 'Absence date'),
+      reason,
       is_excused: dto.isExcused,
     });
     if (!attendance) {
       throw new BadRequestException('Student was not found in this school; absence was not logged');
     }
-    await this.audit('admin_command.absence_logged', 'attendance_record', attendance.id, dto);
+    await this.audit('admin_command.absence_logged', 'attendance_record', attendance.id, {
+      studentId: dto.studentId,
+      date: dto.date,
+      reason,
+      isExcused: Boolean(dto.isExcused),
+    });
     return { success: true, message: 'Absence logged', attendance };
   }
 
@@ -511,6 +753,16 @@ export class AdminCommandService {
     return normalized;
   }
 
+  private requireCommunicationTemplateType(value: unknown): 'email' | 'sms' | 'push' | 'letter' {
+    const normalized = String(value ?? '').trim().toLowerCase();
+
+    if (normalized === 'email' || normalized === 'sms' || normalized === 'push' || normalized === 'letter') {
+      return normalized;
+    }
+
+    throw new BadRequestException('Template type must be email, SMS, push, or letter');
+  }
+
   private generateReference(prefix: string, seed?: unknown): string {
     const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const digest = crypto
@@ -693,12 +945,18 @@ export class AdminCommandService {
       }
     });
 
-    let categories = [];
+    let categories: Array<Record<string, unknown>> = [];
     if (existing) {
       try {
-        categories = JSON.parse(existing.content);
-      } catch {
-        categories = [];
+        const parsed = JSON.parse(existing.content);
+        if (!Array.isArray(parsed)) {
+          throw new Error('Stored report categories are not an array');
+        }
+        categories = parsed;
+      } catch (error) {
+        throw new InternalServerErrorException(
+          `Stored report categories are invalid and were not overwritten: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
 
@@ -730,6 +988,11 @@ export class AdminCommandService {
       });
     }
 
+    await this.audit('admin_command.report_category_created', 'report_category', newCategory.id, {
+      name,
+      description,
+    });
+
     return {
       success: true,
       message: 'Report category created successfully',
@@ -738,33 +1001,37 @@ export class AdminCommandService {
   }
 
   async createExamCycle(dto: any) {
-    if (!this.prisma) {
-      throw new ServiceUnavailableException('Prisma is not available');
+    if (!this.examsService) {
+      throw new ServiceUnavailableException('The canonical exams workflow is not available');
     }
-    const tenantId = this.requireTenantId();
-    const userId = this.requireUserId();
-    const name = this.requireText(dto.name, 'Exam cycle name');
-    const academicYearId = this.requireText(dto.academicYearId, 'Academic year ID');
-    const termId = this.requireText(dto.termId, 'Term ID');
-    const examType = dto.examType ?? 'ENDTERM';
-
-    const examCycle = await this.prisma.examCycle.create({
-      data: {
-        schoolId: tenantId,
-        academicYearId,
-        termId,
-        name,
-        examType,
-        status: 'DRAFT',
-        createdByUserId: userId,
-      }
+    const series = await this.examsService.createSeries({
+      academic_term_id: this.requireText(dto.academic_term_id ?? dto.termId, 'Academic term ID'),
+      name: this.requireText(dto.name, 'Exam series name'),
+      starts_on: this.requireText(dto.starts_on, 'Exam start date'),
+      ends_on: this.requireText(dto.ends_on, 'Exam end date'),
+    });
+    if (!series) {
+      throw new ServiceUnavailableException('Exam series could not be created');
+    }
+    await this.audit('exam.series_created', 'exam_series', String(series.id), {
+      academic_term_id: series.academic_term_id,
+      starts_on: series.starts_on,
+      ends_on: series.ends_on,
+      source_dashboard: 'principal-command',
     });
 
     return {
       success: true,
-      message: 'Exam cycle created successfully',
-      examCycle,
+      message: 'Exam series created successfully',
+      examSeries: series,
     };
+  }
+
+  publishPrincipalExamSeries(examSeriesId: string) {
+    if (!this.examsService) {
+      throw new ServiceUnavailableException('The canonical exams workflow is not available');
+    }
+    return this.examsService.publishExamSeries(this.requireText(examSeriesId, 'Exam series ID'));
   }
 
   async logDepartmentMeeting(dto: any) {

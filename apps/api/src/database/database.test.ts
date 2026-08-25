@@ -221,11 +221,42 @@ test('buildRequestSessionSettingsQuery carries the guarded route into Prisma tra
   assert.equal(statement.values.includes('POST'), true);
 });
 
+test('PrismaService.executeWithTenant assumes the non-bypass runtime role before setting tenant GUCs', async () => {
+  const calls: string[] = [];
+  const prisma = Object.create(PrismaService.prototype) as any;
+  prisma.databaseSecurityService = {
+    getRuntimeRoleName: () => 'my_shule_runtime',
+  };
+  prisma.$transaction = async (callback: (tx: any) => Promise<unknown>) => callback({
+    $executeRawUnsafe: async (sql: string) => {
+      calls.push(normalizeSql(sql));
+      return 0;
+    },
+    $queryRaw: async () => {
+      calls.push('TENANT SETTINGS');
+      return [];
+    },
+  });
+
+  await prisma.executeWithTenant('homabay-high', null, async () => {
+    calls.push('WORK');
+  });
+
+  assert.deepEqual(calls, [
+    'SET LOCAL ROLE "my_shule_runtime"',
+    'TENANT SETTINGS',
+    'WORK',
+  ]);
+});
+
 test('PrismaService.query applies request path before guarded parent login lookup', async () => {
   const requestContext = new RequestContextService();
   const calls: Array<{ kind: string; value: unknown }> = [];
   const prisma = Object.create(PrismaService.prototype) as any;
   prisma.requestContext = requestContext;
+  prisma.databaseSecurityService = {
+    getRuntimeRoleName: () => 'my_shule_runtime',
+  };
   prisma.$transaction = async (callback: (tx: any) => Promise<unknown>) => callback({
     $queryRaw: async (statement: any) => {
       calls.push({ kind: 'settings', value: statement.values });
@@ -235,7 +266,10 @@ test('PrismaService.query applies request path before guarded parent login looku
       calls.push({ kind: 'query', value: [normalizeSql(sql), ...params] });
       return [];
     },
-    $executeRawUnsafe: async () => 0,
+    $executeRawUnsafe: async (sql: string) => {
+      calls.push({ kind: 'role', value: normalizeSql(sql) });
+      return 0;
+    },
   });
 
   await requestContext.run(
@@ -261,9 +295,10 @@ test('PrismaService.query applies request path before guarded parent login looku
     },
   );
 
-  assert.equal(calls[0]?.kind, 'settings');
-  assert.equal((calls[0]?.value as unknown[]).includes('/auth/parent/login'), true);
-  assert.deepEqual(calls[1], {
+  assert.deepEqual(calls[0], { kind: 'role', value: 'SET LOCAL ROLE "my_shule_runtime"' });
+  assert.equal(calls[1]?.kind, 'settings');
+  assert.equal((calls[1]?.value as unknown[]).includes('/auth/parent/login'), true);
+  assert.deepEqual(calls[2], {
     kind: 'query',
     value: [
       'SELECT * FROM app.find_linked_parent_password_auth_subject($1, $2)',
@@ -419,7 +454,17 @@ test('DatabaseService.runSchemaBootstrap serializes concurrent schema bootstraps
 
 test('PrismaService.query uses executeRaw for non-returning mutations and reports row count', async () => {
   const calls: string[] = [];
+  const tenantCalls: Array<[string, string | null]> = [];
   const prisma = Object.create(PrismaService.prototype) as any;
+
+  prisma.executeWithTenant = async (
+    tenantId: string,
+    userId: string | null,
+    callback: (tx: unknown) => Promise<unknown>,
+  ) => {
+    tenantCalls.push([tenantId, userId]);
+    return callback(prisma);
+  };
 
   prisma.$executeRawUnsafe = async (sql: string, ...params: unknown[]) => {
     calls.push(`execute:${normalizeSql(sql)}:${params.join(',')}`);
@@ -440,13 +485,24 @@ test('PrismaService.query uses executeRaw for non-returning mutations and report
   );
 
   assert.deepEqual(result, { rows: [], rowCount: 2 });
+  assert.deepEqual(tenantCalls, [['homabay-high', null]]);
   assert.equal(calls.length, 1);
   assert.match(calls[0] ?? '', /^execute:UPDATE subscriptions/);
 });
 
 test('PrismaService.query keeps returning mutations on queryRaw', async () => {
   const calls: string[] = [];
+  const tenantCalls: Array<[string, string | null]> = [];
   const prisma = Object.create(PrismaService.prototype) as any;
+
+  prisma.executeWithTenant = async (
+    tenantId: string,
+    userId: string | null,
+    callback: (tx: unknown) => Promise<unknown>,
+  ) => {
+    tenantCalls.push([tenantId, userId]);
+    return callback(prisma);
+  };
 
   prisma.$executeRawUnsafe = async (sql: string, ...params: unknown[]) => {
     calls.push(`execute:${normalizeSql(sql)}:${params.join(',')}`);
@@ -467,8 +523,28 @@ test('PrismaService.query keeps returning mutations on queryRaw', async () => {
   );
 
   assert.deepEqual(result, { rows: [{ id: 'sub-1' }], rowCount: 1 });
+  assert.deepEqual(tenantCalls, [['homabay-high', null]]);
   assert.equal(calls.length, 1);
   assert.match(calls[0] ?? '', /^query:INSERT INTO subscriptions/);
+});
+
+test('PrismaService.query does not mistake an arbitrary string record id for a tenant', async () => {
+  const tenantCalls: string[] = [];
+  const prisma = Object.create(PrismaService.prototype) as any;
+
+  prisma.executeWithTenant = async (tenantId: string) => {
+    tenantCalls.push(tenantId);
+    throw new Error('unexpected tenant inference');
+  };
+  prisma.$queryRawUnsafe = async () => [{ id: 'record-a' }];
+
+  const result = await prisma.query(
+    'SELECT id FROM documents WHERE id = $1 AND tenant_id = $2',
+    ['record-a', 'homabay-high'],
+  );
+
+  assert.deepEqual(result, { rows: [{ id: 'record-a' }], rowCount: 1 });
+  assert.deepEqual(tenantCalls, []);
 });
 
 test('DatabaseService.runSchemaBootstrap reuses identical schema bootstraps inside one process', async () => {

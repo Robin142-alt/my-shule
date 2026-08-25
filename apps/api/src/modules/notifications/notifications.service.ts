@@ -3,6 +3,7 @@ import { NotificationPriority } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 
 import { PrismaService } from '../../database/prisma.service';
+import { notificationRecipientPredicate } from './notification-recipient-predicate';
 
 export interface CreateNotificationDto {
   schoolId: string;
@@ -204,7 +205,7 @@ export class NotificationsService {
           notification.updated_at
         FROM notifications notification
         WHERE notification.tenant_id = $1
-          AND ${this.recipientPredicate('notification', '$2', '$3')}
+          AND ${notificationRecipientPredicate('notification', '$2', '$3')}
           AND (
             $4::text IS NULL
             OR notification.source_module = $4
@@ -244,7 +245,7 @@ export class NotificationsService {
           notification.priority
         FROM notifications notification
         WHERE notification.tenant_id = $1
-          AND ${this.recipientPredicate('notification', '$2', '$3')}
+          AND ${notificationRecipientPredicate('notification', '$2', '$3')}
           AND notification.status IN ('unread', 'action_required')
       `,
       [schoolId, userId, role],
@@ -286,7 +287,7 @@ export class NotificationsService {
           read_at = COALESCE(notification.read_at, NOW()),
           updated_at = NOW()
         WHERE notification.tenant_id = $1
-          AND ${this.recipientPredicate('notification', '$2', '$3')}
+          AND ${notificationRecipientPredicate('notification', '$2', '$3')}
           AND notification.status IN ('unread', 'action_required')
         RETURNING notification.id::text
       `,
@@ -346,7 +347,7 @@ export class NotificationsService {
         UPDATE notifications notification
         SET ${updateSql}
         WHERE notification.tenant_id = $1
-          AND ${this.recipientPredicate('notification', '$2', '$3')}
+          AND ${notificationRecipientPredicate('notification', '$2', '$3')}
           AND notification.id::text = $4::text
         RETURNING
           notification.id::text,
@@ -386,62 +387,6 @@ export class NotificationsService {
       const result = await tx.$queryRawUnsafe<T[]>(sql, ...params);
       return Array.isArray(result) ? result : [result];
     });
-  }
-
-  private recipientPredicate(alias: string, userParameter: string, roleParameter: string): string {
-    return `(
-      (
-        COALESCE(
-          ${alias}.recipient_user_id::text,
-          NULLIF(${alias}.metadata->>'targetUserId', ''),
-          NULLIF(${alias}.metadata->>'recipientUserId', '')
-        ) IS NOT NULL
-        AND COALESCE(
-          ${alias}.recipient_user_id::text,
-          NULLIF(${alias}.metadata->>'targetUserId', ''),
-          NULLIF(${alias}.metadata->>'recipientUserId', '')
-        ) = ${userParameter}::text
-      )
-      OR (
-        COALESCE(
-          ${alias}.recipient_user_id::text,
-          NULLIF(${alias}.metadata->>'targetUserId', ''),
-          NULLIF(${alias}.metadata->>'recipientUserId', '')
-        ) IS NULL
-        AND (
-          regexp_replace(lower(btrim(COALESCE(${alias}.recipient_role, ''))), '[^a-z0-9]+', '_', 'g')
-            = regexp_replace(lower(btrim(${roleParameter}::text)), '[^a-z0-9]+', '_', 'g')
-          OR regexp_replace(lower(btrim(COALESCE(${alias}.metadata->>'recipientRole', ''))), '[^a-z0-9]+', '_', 'g')
-            = regexp_replace(lower(btrim(${roleParameter}::text)), '[^a-z0-9]+', '_', 'g')
-          OR regexp_replace(lower(btrim(COALESCE(${alias}.metadata->>'targetRole', ''))), '[^a-z0-9]+', '_', 'g')
-            = regexp_replace(lower(btrim(${roleParameter}::text)), '[^a-z0-9]+', '_', 'g')
-          OR EXISTS (
-            SELECT 1
-            FROM jsonb_array_elements_text(
-              CASE
-                WHEN jsonb_typeof(${alias}.metadata->'target_roles') = 'array'
-                  THEN ${alias}.metadata->'target_roles'
-                ELSE '[]'::jsonb
-              END
-            ) target_role(value)
-            WHERE regexp_replace(lower(btrim(target_role.value)), '[^a-z0-9]+', '_', 'g')
-              = regexp_replace(lower(btrim(${roleParameter}::text)), '[^a-z0-9]+', '_', 'g')
-          )
-          OR EXISTS (
-            SELECT 1
-            FROM jsonb_array_elements_text(
-              CASE
-                WHEN jsonb_typeof(${alias}.metadata->'audienceRoles') = 'array'
-                  THEN ${alias}.metadata->'audienceRoles'
-                ELSE '[]'::jsonb
-              END
-            ) audience_role(value)
-            WHERE regexp_replace(lower(btrim(audience_role.value)), '[^a-z0-9]+', '_', 'g')
-              = regexp_replace(lower(btrim(${roleParameter}::text)), '[^a-z0-9]+', '_', 'g')
-          )
-        )
-      )
-    )`;
   }
 
   private buildNotificationKey(data: CreateNotificationDto): string {
@@ -538,8 +483,16 @@ export class NotificationsService {
     return {
       id: String(row.id),
       schoolId: row.tenant_id,
-      targetUserId: this.optionalText(row.recipient_user_id) ?? this.optionalText(metadata.targetUserId),
-      targetRole: this.optionalText(row.recipient_role) ?? this.optionalText(metadata.targetRole),
+      targetUserId: this.optionalText(row.recipient_user_id)
+        ?? this.optionalText(metadata.targetUserId)
+        ?? this.optionalText(metadata.recipientUserId)
+        ?? this.optionalText(metadata.target_user_id)
+        ?? this.optionalText(metadata.recipient_user_id),
+      targetRole: this.optionalText(row.recipient_role)
+        ?? this.optionalText(metadata.targetRole)
+        ?? this.optionalText(metadata.recipientRole)
+        ?? this.optionalText(metadata.target_role)
+        ?? this.optionalText(metadata.recipient_role),
       module: moduleName,
       eventType: row.type,
       entityType: this.optionalText(metadata.entityType),

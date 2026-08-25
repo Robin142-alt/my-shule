@@ -128,7 +128,7 @@ describe("school finance bulk billing", () => {
   it("requires selecting billable roster learners before generating bulk invoices", async () => {
     const user = userEvent.setup();
 
-    renderWithProviders(<SchoolPages role="accountant" section="finance" tenantSlug="kisumu-boys" liveDataEnabled={false} />);
+    renderWithProviders(<SchoolPages role="accountant" section="fee-structures" tenantSlug="kisumu-boys" liveDataEnabled={false} />);
 
     await screen.findByRole("heading", { name: /collections desk/i });
     await user.selectOptions(await screen.findByLabelText(/bulk billing fee structure/i), "fee-term-2");

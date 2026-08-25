@@ -508,60 +508,94 @@ export class AdminCommandRepository {
     const summaryResult = await this.executeSql(
       `
         SELECT
-          total_collections_minor,
-          total_arrears_minor
-        FROM tenant_finance_summary
-        WHERE tenant_id = $1 AND current_term = 'Term 2'
+          COALESCE((
+            SELECT SUM(payment.amount_minor)
+            FROM manual_fee_payments payment
+            WHERE payment.tenant_id = $1
+              AND lower(payment.status) NOT IN ('bounced', 'reversed')
+              AND timezone('Africa/Nairobi', payment.received_at)::date = timezone('Africa/Nairobi', NOW())::date
+          ), 0)::bigint AS collections_today_minor,
+          COALESCE((
+            SELECT SUM(GREATEST(invoice.total_amount_minor - invoice.amount_paid_minor, 0))
+            FROM invoices invoice
+            WHERE invoice.tenant_id = $1
+              AND NULLIF(invoice.metadata ->> 'student_id', '') IS NOT NULL
+              AND lower(invoice.status) NOT IN ('paid', 'void')
+          ), 0)::bigint AS outstanding_balance_minor
       `,
       [tenantId],
-    ).catch(() => ({ rows: [] }));
+    );
 
     const waiversResult = await this.executeSql(
       `
         SELECT
-          waiver_number AS id,
-          student_name AS student,
-          class_name AS class,
-          amount_minor AS amount,
-          reason,
-          requested_at AS date
-        FROM tenant_pending_waivers
-        WHERE tenant_id = $1 AND status = 'pending'
-        ORDER BY requested_at DESC
+          approval.id::text,
+          COALESCE(
+            NULLIF(approval.metadata ->> 'studentName', ''),
+            NULLIF(approval.metadata ->> 'student_name', ''),
+            NULLIF(student.first_name || ' ' || student.last_name, ' '),
+            approval.record_id,
+            'Unknown student'
+          ) AS student,
+          COALESCE(
+            NULLIF(approval.metadata ->> 'className', ''),
+            NULLIF(approval.metadata ->> 'class_name', ''),
+            'Unassigned'
+          ) AS class,
+          CASE
+            WHEN COALESCE(approval.metadata ->> 'amountMinor', approval.metadata ->> 'amount_minor', '') ~ '^[0-9]+$'
+              THEN COALESCE(approval.metadata ->> 'amountMinor', approval.metadata ->> 'amount_minor')::bigint
+            ELSE 0::bigint
+          END AS amount_minor,
+          COALESCE(NULLIF(approval.reason, ''), 'Fee waiver approval request') AS reason,
+          approval.created_at AS date
+        FROM dashboard_approval_requests approval
+        LEFT JOIN students student
+          ON student.tenant_id = approval.tenant_id
+         AND student.id::text = approval.record_id
+        WHERE approval.tenant_id = $1
+          AND upper(approval.status) = 'PENDING'
+          AND lower(COALESCE(approval.module, '')) = 'finance'
+          AND lower(COALESCE(approval.approval_type, '')) IN ('fee_waiver', 'waiver')
+        ORDER BY approval.created_at DESC
         LIMIT 5
       `,
       [tenantId],
-    ).catch(() => ({ rows: [] }));
+    );
 
-    const collectionsMinor = summaryResult.rows[0]?.total_collections_minor || 0;
-    const arrearsMinor = summaryResult.rows[0]?.total_arrears_minor || 0;
+    const collectionsMinor = Number(summaryResult.rows[0]?.collections_today_minor ?? 0);
+    const arrearsMinor = Number(summaryResult.rows[0]?.outstanding_balance_minor ?? 0);
 
     const trendResult = await this.executeSql(
-      `SELECT
-         'Week ' || extract(week from paid_at) as label,
-         SUM(amount_paid_minor) as total
-       FROM invoices
-       WHERE tenant_id = $1 AND paid_at >= CURRENT_DATE - INTERVAL '35 days'
-       GROUP BY extract(week from paid_at)
-       ORDER BY extract(week from paid_at) ASC
-       LIMIT 5`,
-      [tenantId]
-    ).catch(() => ({ rows: [] }));
+      `
+        SELECT
+          to_char(date_trunc('week', payment.received_at), 'DD Mon') AS label,
+          SUM(payment.amount_minor)::bigint AS total_minor
+        FROM manual_fee_payments payment
+        WHERE payment.tenant_id = $1
+          AND lower(payment.status) NOT IN ('bounced', 'reversed')
+          AND payment.received_at >= date_trunc('week', NOW()) - INTERVAL '4 weeks'
+        GROUP BY date_trunc('week', payment.received_at)
+        ORDER BY date_trunc('week', payment.received_at) ASC
+        LIMIT 5
+      `,
+      [tenantId],
+    );
 
-    const collectionData = trendResult.rows.length > 0 ? trendResult.rows.map((row: any) => {
-      const amount = Number(row.total);
+    const maximumCollectionMinor = trendResult.rows.reduce(
+      (maximum: number, row: any) => Math.max(maximum, Number(row.total_minor ?? 0)),
+      0,
+    );
+    const collectionData = trendResult.rows.map((row: any) => {
+      const amountMinor = Number(row.total_minor ?? 0);
       return {
         label: row.label,
-        value: amount > 0 ? 100 : 0, // In a real scenario, this would be a percentage against a target
-        amount: `${(amount / 100000).toFixed(0)}K`
+        value: maximumCollectionMinor > 0
+          ? Math.round((amountMinor / maximumCollectionMinor) * 100)
+          : 0,
+        amount: `KES ${(amountMinor / 100).toLocaleString()}`,
       };
-    }) : [
-      { label: "Week 1", value: 10, amount: "10%" },
-      { label: "Week 2", value: 20, amount: "20%" },
-      { label: "Week 3", value: 30, amount: "30%" },
-      { label: "Week 4", value: 40, amount: "40%" },
-      { label: "Week 5", value: collectionsMinor > 0 ? 100 : 0, amount: "Current" },
-    ];
+    });
 
     return {
       status: "active",
@@ -570,7 +604,7 @@ export class AdminCommandRepository {
       collectionData,
       pendingWaivers: waiversResult.rows.map(row => ({
         ...row,
-        amount: `KES ${(row.amount / 100).toLocaleString()}`,
+        amount: `KES ${(Number(row.amount_minor ?? 0) / 100).toLocaleString()}`,
         date: new Date(row.date).toLocaleDateString(),
       }))
     };
@@ -580,31 +614,42 @@ export class AdminCommandRepository {
     const summaryResult = await this.executeSql(
       `
         SELECT
-          COUNT(*) FILTER (WHERE student_status = 'ACTIVE')::int AS total_students,
-          COUNT(*) FILTER (WHERE gender ILIKE 'male')::int AS boys,
-          COUNT(*) FILTER (WHERE gender ILIKE 'female')::int AS girls
+          COUNT(*) FILTER (WHERE lower(status) = 'active')::int AS total_students,
+          COUNT(*) FILTER (WHERE lower(status) = 'active' AND lower(gender) = 'male')::int AS boys,
+          COUNT(*) FILTER (WHERE lower(status) = 'active' AND lower(gender) = 'female')::int AS girls
         FROM students
-              WHERE school_id = $1
+        WHERE tenant_id = $1
       `,
       [tenantId],
-    ).catch(() => ({ rows: [] }));
+    );
 
     const recentAdmissionsResult = await this.executeSql(
       `
         SELECT
           s.admission_number AS id,
-          s.first_name || ' ' || s.last_name AS name,
-          COALESCE(s.gender, 'Not Specified') AS gender,
-          COALESCE(c.name, 'Unassigned') AS class,
+          CONCAT_WS(' ', s.first_name, NULLIF(s.middle_name, ''), s.last_name) AS name,
+          COALESCE(initcap(s.gender), 'Not Specified') AS gender,
+          COALESCE((
+            SELECT section.name
+            FROM student_class_assignments assignment
+            JOIN class_sections section
+              ON section.tenant_id = assignment.tenant_id
+             AND section.id::text = assignment.class_section_id::text
+            WHERE assignment.tenant_id = s.tenant_id
+              AND assignment.student_id::text = s.id::text
+              AND assignment.status = 'active'
+            ORDER BY assignment.updated_at DESC
+            LIMIT 1
+          ), 'Unassigned') AS class,
           to_char(s.created_at, 'YYYY-MM-DD') AS admission_date
         FROM students s
-        LEFT JOIN classes c ON s.current_class_id = c.id
-              WHERE s.school_id = $1
+        WHERE s.tenant_id = $1
+          AND lower(s.status) = 'active'
         ORDER BY s.created_at DESC
         LIMIT 5
       `,
       [tenantId],
-    ).catch(() => ({ rows: [] }));
+    );
 
     const totalStudents = summaryResult.rows[0]?.total_students || 0;
     const boys = summaryResult.rows[0]?.boys || 0;
@@ -615,25 +660,19 @@ export class AdminCommandRepository {
          to_char(date_trunc('month', created_at), 'Mon YYYY') as label,
          COUNT(*)::int as value
        FROM students
-       WHERE school_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '3 months'
+       WHERE tenant_id = $1
+         AND lower(status) = 'active'
+         AND created_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '2 months'
        GROUP BY date_trunc('month', created_at)
        ORDER BY date_trunc('month', created_at) ASC
        LIMIT 3`,
       [tenantId]
-    ).catch(() => ({ rows: [] }));
+    );
 
-    let populationTrend = trendResult.rows.map((row: any) => ({
+    const populationTrend = trendResult.rows.map((row: any) => ({
       label: row.label,
-      value: row.value
+      value: Number(row.value ?? 0),
     }));
-
-    if (populationTrend.length === 0) {
-      populationTrend = [
-        { label: "Historical", value: totalStudents > 0 ? Math.max(0, totalStudents - 5) : 0 },
-        { label: "Previous", value: totalStudents > 0 ? Math.max(0, totalStudents - 2) : 0 },
-        { label: "Current", value: totalStudents }
-      ];
-    }
 
     return {
       status: "active",
@@ -649,14 +688,17 @@ export class AdminCommandRepository {
     const summaryResult = await this.executeSql(
       `
         SELECT
-          COUNT(*) FILTER (WHERE status IN ('reported', 'reviewed', 'escalated'))::int AS open_cases,
-          COUNT(*) FILTER (WHERE severity = 'critical')::int AS critical_cases,
-          COUNT(*) FILTER (WHERE status = 'escalated')::int AS escalations
+          COUNT(*) FILTER (WHERE lower(status) IN ('reported', 'reviewed', 'escalated'))::int AS open_cases,
+          COUNT(*) FILTER (
+            WHERE lower(severity) = 'critical'
+              AND lower(status) IN ('reported', 'reviewed', 'escalated')
+          )::int AS critical_cases,
+          COUNT(*) FILTER (WHERE lower(status) = 'escalated')::int AS escalations
         FROM admin_incidents
         WHERE tenant_id = $1
       `,
       [tenantId],
-    ).catch(() => ({ rows: [] }));
+    );
 
     const recentIncidentsResult = await this.executeSql(
       `
@@ -672,23 +714,34 @@ export class AdminCommandRepository {
         LIMIT 5
       `,
       [tenantId],
-    ).catch(() => ({ rows: [] }));
+    );
 
     const studentsResult = await this.executeSql(
       `
         SELECT
           s.id,
-          CONCAT_WS(' ', s.first_name, s.last_name) AS name,
+          CONCAT_WS(' ', s.first_name, NULLIF(s.middle_name, ''), s.last_name) AS name,
           s.admission_number,
-          COALESCE(c.name, 'Unassigned') AS class
+          COALESCE((
+            SELECT section.name
+            FROM student_class_assignments assignment
+            JOIN class_sections section
+              ON section.tenant_id = assignment.tenant_id
+             AND section.id::text = assignment.class_section_id::text
+            WHERE assignment.tenant_id = s.tenant_id
+              AND assignment.student_id::text = s.id::text
+              AND assignment.status = 'active'
+            ORDER BY assignment.updated_at DESC
+            LIMIT 1
+          ), 'Unassigned') AS class
         FROM students s
-        LEFT JOIN classes c ON s.current_class_id = c.id
-        WHERE s.school_id = $1
+        WHERE s.tenant_id = $1
+          AND lower(s.status) = 'active'
         ORDER BY s.first_name ASC, s.last_name ASC
         LIMIT 250
       `,
       [tenantId],
-    ).catch(() => ({ rows: [] }));
+    );
 
     const openCases = summaryResult.rows[0]?.open_cases || 0;
     const criticalCases = summaryResult.rows[0]?.critical_cases || 0;
@@ -702,22 +755,14 @@ export class AdminCommandRepository {
        WHERE tenant_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '28 days'
        GROUP BY extract(week from created_at)
        ORDER BY extract(week from created_at) ASC
-       LIMIT 4`,
+      LIMIT 4`,
       [tenantId]
-    ).catch(() => ({ rows: [] }));
+    );
 
-    let incidentTrend = trendResult.rows.map((row: any) => ({
+    const incidentTrend = trendResult.rows.map((row: any) => ({
       label: row.label,
-      value: row.value
+      value: Number(row.value ?? 0),
     }));
-
-    if (incidentTrend.length === 0) {
-      incidentTrend = [
-        { label: "Historical", value: Math.max(0, openCases - 2) },
-        { label: "Recent", value: Math.max(0, openCases - 1) },
-        { label: "Current", value: openCases }
-      ];
-    }
 
     return {
       status: "active",
@@ -733,88 +778,179 @@ export class AdminCommandRepository {
   async getAttendanceOverview(tenantId: string) {
     const summaryResult = await this.executeSql(
       `
+        WITH canonical_attendance AS (
+          SELECT
+            record.student_id::text AS student_id,
+            record.attendance_date,
+            lower(record.status) AS status
+          FROM attendance_records record
+          WHERE record.tenant_id = $1
+
+          UNION ALL
+
+          SELECT
+            live.student_id::text AS student_id,
+            live.attendance_date,
+            lower(live.status) AS status
+          FROM academics_attendance live
+          WHERE live.tenant_id = $1
+            AND NOT EXISTS (
+              SELECT 1
+              FROM attendance_records record
+              WHERE record.tenant_id = live.tenant_id
+                AND record.student_id::text = live.student_id::text
+                AND record.attendance_date = live.attendance_date
+            )
+        ), chronic_students AS (
+          SELECT attendance.student_id
+          FROM canonical_attendance attendance
+          WHERE attendance.attendance_date >= CURRENT_DATE - INTERVAL '29 days'
+            AND attendance.status IN ('absent', 'excused')
+          GROUP BY attendance.student_id
+          HAVING COUNT(*) >= 3
+        )
         SELECT
-          COUNT(*) FILTER (WHERE status = 'Present')::int AS present_today,
-          COUNT(*) FILTER (WHERE status = 'Absent')::int AS absent_today,
-          COUNT(*) FILTER (WHERE status = 'Late')::int AS late_today
-        FROM academics_attendance
-        WHERE tenant_id = $1
-          AND attendance_date::text = CURRENT_DATE::text
+          (SELECT COUNT(*)::int FROM canonical_attendance WHERE attendance_date = CURRENT_DATE AND status = 'present') AS present_today,
+          (SELECT COUNT(*)::int FROM canonical_attendance WHERE attendance_date = CURRENT_DATE AND status IN ('absent', 'excused')) AS absent_today,
+          (SELECT COUNT(*)::int FROM canonical_attendance WHERE attendance_date = CURRENT_DATE AND status = 'late') AS late_today,
+          COALESCE(ROUND(
+            100.0 * (SELECT COUNT(*) FROM chronic_students)
+            / NULLIF((SELECT COUNT(*) FROM students WHERE tenant_id = $1 AND lower(status) = 'active'), 0),
+            0
+          ), 0)::int AS chronic_absenteeism
       `,
       [tenantId],
-    ).catch(() => ({ rows: [] }));
+    );
 
-    const present = summaryResult.rows[0]?.present_today || 0;
-    const absent = summaryResult.rows[0]?.absent_today || 0;
-    const late = summaryResult.rows[0]?.late_today || 0;
+    const present = Number(summaryResult.rows[0]?.present_today ?? 0);
+    const absent = Number(summaryResult.rows[0]?.absent_today ?? 0);
+    const late = Number(summaryResult.rows[0]?.late_today ?? 0);
+    const chronicAbsenteeism = Number(summaryResult.rows[0]?.chronic_absenteeism ?? 0);
 
     const recentAbsencesResult = await this.executeSql(
       `
+        WITH canonical_attendance AS (
+          SELECT
+            record.id::text AS id,
+            record.student_id::text AS student_id,
+            record.attendance_date,
+            lower(record.status) AS status,
+            record.notes,
+            record.created_at
+          FROM attendance_records record
+          WHERE record.tenant_id = $1
+
+          UNION ALL
+
+          SELECT
+            live.id::text AS id,
+            live.student_id::text AS student_id,
+            live.attendance_date,
+            lower(live.status) AS status,
+            NULL::text AS notes,
+            live.created_at
+          FROM academics_attendance live
+          WHERE live.tenant_id = $1
+            AND NOT EXISTS (
+              SELECT 1
+              FROM attendance_records record
+              WHERE record.tenant_id = live.tenant_id
+                AND record.student_id::text = live.student_id::text
+                AND record.attendance_date = live.attendance_date
+            )
+        )
         SELECT
-          ar.id,
-          ar.student_id,
+          attendance.id,
+          attendance.student_id,
           CONCAT_WS(' ', s.first_name, s.last_name) AS student_name,
           s.admission_number,
-          to_char(ar.attendance_date, 'YYYY-MM-DD') AS date,
-          ar.status,
-          ar.notes AS reason
-        FROM attendance_records ar
-        JOIN students s ON s.id = ar.student_id AND s.school_id = ar.tenant_id
-        WHERE ar.tenant_id = $1
-          AND ar.status IN ('absent', 'excused_absent')
-        ORDER BY ar.attendance_date DESC, ar.created_at DESC
+          to_char(attendance.attendance_date, 'YYYY-MM-DD') AS date,
+          attendance.status,
+          attendance.notes AS reason
+        FROM canonical_attendance attendance
+        JOIN students s
+          ON s.tenant_id = $1
+         AND s.id::text = attendance.student_id
+        WHERE attendance.status IN ('absent', 'excused')
+        ORDER BY attendance.attendance_date DESC, attendance.created_at DESC
         LIMIT 10
       `,
       [tenantId],
-    ).catch(() => ({ rows: [] }));
+    );
 
     const studentsResult = await this.executeSql(
       `
         SELECT
           s.id,
-          CONCAT_WS(' ', s.first_name, s.last_name) AS name,
+          CONCAT_WS(' ', s.first_name, NULLIF(s.middle_name, ''), s.last_name) AS name,
           s.admission_number,
-          COALESCE(c.name, 'Unassigned') AS class
+          COALESCE((
+            SELECT section.name
+            FROM student_class_assignments assignment
+            JOIN class_sections section
+              ON section.tenant_id = assignment.tenant_id
+             AND section.id::text = assignment.class_section_id::text
+            WHERE assignment.tenant_id = s.tenant_id
+              AND assignment.student_id::text = s.id::text
+              AND assignment.status = 'active'
+            ORDER BY assignment.updated_at DESC
+            LIMIT 1
+          ), 'Unassigned') AS class
         FROM students s
-        LEFT JOIN classes c ON s.current_class_id = c.id
-        WHERE s.school_id = $1
+        WHERE s.tenant_id = $1
+          AND lower(s.status) = 'active'
         ORDER BY s.first_name ASC, s.last_name ASC
         LIMIT 250
       `,
       [tenantId],
-    ).catch(() => ({ rows: [] }));
+    );
 
     const trendResult = await this.executeSql(
-      `SELECT
-         to_char(attendance_date, 'Dy') as label,
-         ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'Present') / NULLIF(COUNT(*), 0), 0)::int as value
-       FROM academics_attendance
-       WHERE tenant_id = $1 AND attendance_date::text >= (CURRENT_DATE - INTERVAL '5 days')::date::text
+      `
+       WITH canonical_attendance AS (
+         SELECT record.student_id::text AS student_id, record.attendance_date, lower(record.status) AS status
+         FROM attendance_records record
+         WHERE record.tenant_id = $1
+
+         UNION ALL
+
+         SELECT live.student_id::text AS student_id, live.attendance_date, lower(live.status) AS status
+         FROM academics_attendance live
+         WHERE live.tenant_id = $1
+           AND NOT EXISTS (
+             SELECT 1
+             FROM attendance_records record
+             WHERE record.tenant_id = live.tenant_id
+               AND record.student_id::text = live.student_id::text
+               AND record.attendance_date = live.attendance_date
+           )
+       )
+       SELECT
+         to_char(attendance_date, 'Dy') AS label,
+         ROUND(
+           100.0 * COUNT(*) FILTER (WHERE status IN ('present', 'late'))
+           / NULLIF(COUNT(*), 0),
+           0
+         )::int AS value
+       FROM canonical_attendance
+       WHERE attendance_date >= CURRENT_DATE - INTERVAL '6 days'
        GROUP BY attendance_date
        ORDER BY attendance_date ASC
-       LIMIT 5`,
+       LIMIT 7`,
       [tenantId]
-    ).catch(() => ({ rows: [] }));
+    );
 
-    let attendanceTrend = trendResult.rows.map((row: any) => ({
+    const attendanceTrend = trendResult.rows.map((row: any) => ({
       label: row.label,
-      value: row.value
+      value: Number(row.value ?? 0),
     }));
-
-    if (attendanceTrend.length === 0) {
-      attendanceTrend = [
-        { label: "Historical", value: present > 0 ? 95 : 0 },
-        { label: "Recent", value: present > 0 ? 98 : 0 },
-        { label: "Current", value: present > 0 ? 100 : 0 }
-      ];
-    }
 
     return {
       status: "active",
       present,
       absent,
       late,
-      chronicAbsenteeism: 0, // Requires deeper historical aggregation
+      chronicAbsenteeism,
       attendanceTrend,
       recentAbsences: recentAbsencesResult.rows,
       students: studentsResult.rows
@@ -825,86 +961,258 @@ export class AdminCommandRepository {
     const summaryResult = await this.executeSql(
       `
         SELECT
-          COUNT(*)::int AS active_assignments,
-          COUNT(*) FILTER (WHERE status = 'Draft')::int AS draft_assignments
+          COUNT(*) FILTER (
+            WHERE lower(status) IN ('draft', 'published')
+              AND due_date >= CURRENT_DATE
+          )::int AS active_assignments
         FROM academics_assignments
         WHERE tenant_id = $1
-          AND due_date >= CURRENT_DATE
       `,
       [tenantId],
-    ).catch(() => ({ rows: [] }));
+    );
 
-    const activeAssignments = summaryResult.rows[0]?.active_assignments || 0;
+    const activeAssignments = Number(summaryResult.rows[0]?.active_assignments ?? 0);
 
     const avgScoreRes = await this.executeSql(
-      `SELECT COALESCE(ROUND(AVG(score), 2), 0)::numeric as avg FROM exam_marks WHERE tenant_id = $1`,
+      `
+        SELECT COALESCE(
+          ROUND(AVG((mark.score / NULLIF(assessment.max_score, 0)) * 100), 2),
+          0
+        )::numeric AS average_score
+        FROM exam_marks mark
+        JOIN exam_assessments assessment
+          ON assessment.tenant_id = mark.tenant_id
+         AND assessment.id = mark.assessment_id
+        WHERE mark.tenant_id = $1
+          AND mark.score_status = 'entered'
+          AND mark.status IN ('submitted', 'reviewed', 'locked', 'published')
+      `,
       [tenantId]
-    ).catch(() => ({ rows: [{ avg: 0 }] }));
-    const averageScore = Number(avgScoreRes.rows[0]?.avg || 0);
+    );
+    const averageScore = Number(avgScoreRes.rows[0]?.average_score ?? 0);
+
+    const coverageResult = await this.executeSql(
+      `
+        SELECT COALESCE(
+          ROUND(
+            100.0 * COUNT(DISTINCT log.plan_id) FILTER (WHERE log.id IS NOT NULL)
+            / NULLIF(COUNT(DISTINCT plan.id), 0),
+            0
+          ),
+          0
+        )::int AS syllabus_coverage
+        FROM academics_lesson_plans plan
+        LEFT JOIN academics_lesson_logs log
+          ON log.tenant_id::text = plan.tenant_id::text
+         AND log.plan_id = plan.id
+        WHERE plan.tenant_id = $1
+      `,
+      [tenantId],
+    );
+
+    const performanceTrendResult = await this.executeSql(
+      `
+        SELECT
+          series.name AS label,
+          COALESCE(
+            ROUND(AVG((mark.score / NULLIF(assessment.max_score, 0)) * 100), 2),
+            0
+          )::numeric AS value
+        FROM exam_series series
+        JOIN exam_marks mark
+          ON mark.tenant_id = series.tenant_id
+         AND mark.exam_series_id = series.id
+        JOIN exam_assessments assessment
+          ON assessment.tenant_id = mark.tenant_id
+         AND assessment.id = mark.assessment_id
+        WHERE series.tenant_id = $1
+          AND mark.score_status = 'entered'
+          AND mark.status IN ('submitted', 'reviewed', 'locked', 'published')
+        GROUP BY series.id, series.name, series.created_at
+        ORDER BY series.created_at DESC
+        LIMIT 5
+      `,
+      [tenantId],
+    );
+
+    const departmentPerformanceResult = await this.executeSql(
+      `
+        SELECT
+          COALESCE(department.name, 'Unassigned') AS department,
+          COALESCE(
+            ROUND(AVG((mark.score / NULLIF(assessment.max_score, 0)) * 100), 2),
+            0
+          )::numeric AS score
+        FROM exam_marks mark
+        JOIN exam_assessments assessment
+          ON assessment.tenant_id = mark.tenant_id
+         AND assessment.id = mark.assessment_id
+        LEFT JOIN subjects subject
+          ON subject.tenant_id = mark.tenant_id
+         AND subject.id::text = mark.subject_id::text
+        LEFT JOIN academics_departments department
+          ON department.tenant_id = subject.tenant_id
+         AND department.id::text = subject.department_id::text
+        WHERE mark.tenant_id = $1
+          AND mark.score_status = 'entered'
+          AND mark.status IN ('submitted', 'reviewed', 'locked', 'published')
+        GROUP BY department.name
+        ORDER BY score DESC, department
+      `,
+      [tenantId],
+    );
 
     return {
       status: "active",
       activeAssignments,
-      syllabusCoverage: 0,
+      syllabusCoverage: Number(coverageResult.rows[0]?.syllabus_coverage ?? 0),
       averageScore,
-      performanceTrend: [],
-      departmentPerformance: []
+      performanceTrend: performanceTrendResult.rows.reverse().map((row: any) => ({
+        label: row.label,
+        value: Number(row.value ?? 0),
+      })),
+      departmentPerformance: departmentPerformanceResult.rows.map((row: any) => ({
+        department: row.department,
+        score: Number(row.score ?? 0),
+      })),
     };
   }
 
   async getExamsOverview(tenantId: string) {
-    const summaryResult = await this.executeSql(
-      `
-        SELECT
-          COUNT(*)::int AS pending_reviews,
-          COUNT(*) FILTER (WHERE status = 'Approved')::int AS approved_reviews
-        FROM report_readiness_reviews
-        WHERE tenant_id = $1
-      `,
-      [tenantId],
-    ).catch(() => ({ rows: [] }));
-
     const activeExamsRes = await this.executeSql(
-      `SELECT count(*)::int as count FROM exam_series WHERE tenant_id = $1 AND ends_on >= CURRENT_DATE`,
+      `
+        SELECT COUNT(*)::int AS count
+        FROM exam_series
+        WHERE tenant_id = $1
+          AND lower(status) IN ('draft', 'submitted', 'reviewed', 'locked')
+          AND ends_on >= CURRENT_DATE
+      `,
       [tenantId]
-    ).catch(() => ({ rows: [{ count: 0 }] }));
+    );
 
     const missingMarksRes = await this.executeSql(
-      `SELECT count(*)::int as count FROM exam_marks WHERE tenant_id = $1 AND status = 'draft'`,
+      `
+        SELECT COUNT(*)::int AS count
+        FROM (
+          SELECT entry_window.id
+          FROM exam_mark_entry_windows entry_window
+          LEFT JOIN exam_marks mark
+            ON mark.tenant_id = entry_window.tenant_id
+           AND mark.exam_series_id = entry_window.exam_series_id
+           AND mark.subject_id = entry_window.subject_id
+           AND mark.class_section_id = entry_window.class_section_id
+          WHERE entry_window.tenant_id = $1
+            AND lower(entry_window.status) IN ('open', 'submitted', 'returned')
+          GROUP BY entry_window.id
+          HAVING COUNT(mark.id) = 0
+             OR COUNT(mark.id) FILTER (WHERE mark.status = 'draft') > 0
+        ) missing_windows
+      `,
       [tenantId]
-    ).catch(() => ({ rows: [{ count: 0 }] }));
+    );
 
     const avgScoreRes = await this.executeSql(
-      `SELECT COALESCE(ROUND(AVG(score), 2), 0)::numeric as avg FROM exam_marks WHERE tenant_id = $1 AND status != 'draft'`,
+      `
+        SELECT COALESCE(
+          ROUND(AVG((mark.score / NULLIF(assessment.max_score, 0)) * 100), 2),
+          0
+        )::numeric AS average_score
+        FROM exam_marks mark
+        JOIN exam_assessments assessment
+          ON assessment.tenant_id = mark.tenant_id
+         AND assessment.id = mark.assessment_id
+        WHERE mark.tenant_id = $1
+          AND mark.score_status = 'entered'
+          AND mark.status IN ('submitted', 'reviewed', 'locked', 'published')
+      `,
       [tenantId]
-    ).catch(() => ({ rows: [{ avg: 0 }] }));
+    );
 
-    const averageScore = Number(avgScoreRes.rows[0]?.avg || 0);
+    const averageScore = Number(avgScoreRes.rows[0]?.average_score ?? 0);
 
     const performanceTrendResult = await this.executeSql(
       `SELECT
          e.name as label,
-         COALESCE(ROUND(AVG(m.score), 2), 0)::numeric as value
+         COALESCE(
+           ROUND(AVG((m.score / NULLIF(assessment.max_score, 0)) * 100), 2),
+           0
+         )::numeric as value
        FROM exam_series e
        JOIN exam_marks m ON m.exam_series_id = e.id AND m.tenant_id = e.tenant_id
-       WHERE e.tenant_id = $1 AND m.status != 'draft'
+       JOIN exam_assessments assessment
+         ON assessment.tenant_id = m.tenant_id
+        AND assessment.id = m.assessment_id
+       WHERE e.tenant_id = $1
+         AND m.score_status = 'entered'
+         AND m.status IN ('submitted', 'reviewed', 'locked', 'published')
        GROUP BY e.id, e.name, e.created_at
        ORDER BY e.created_at DESC
        LIMIT 5`,
       [tenantId]
-    ).catch(() => ({ rows: [] }));
+    );
+
+    const recentSeriesResult = await this.executeSql(
+      `
+        SELECT
+          series.id::text,
+          series.id::text AS exam_id,
+          series.name AS title,
+          lower(series.status) AS status,
+          to_char(series.starts_on, 'YYYY-MM-DD') AS starts_on,
+          to_char(series.ends_on, 'YYYY-MM-DD') AS ends_on,
+          COUNT(card.id)::int AS total_report_cards,
+          COUNT(card.id) FILTER (WHERE card.status = 'approved')::int AS approved_report_cards,
+          COUNT(card.id) FILTER (WHERE card.status = 'published')::int AS published_report_cards,
+          COUNT(card.id) FILTER (WHERE card.status NOT IN ('approved', 'published'))::int AS blocked_report_cards
+        FROM exam_series series
+        LEFT JOIN student_report_cards card
+          ON card.tenant_id = series.tenant_id
+         AND card.exam_series_id = series.id
+         AND card.is_current = TRUE
+        WHERE series.tenant_id = $1
+          AND lower(series.status) <> 'archived'
+        GROUP BY series.id, series.name, series.status, series.starts_on, series.ends_on, series.created_at
+        ORDER BY series.created_at DESC
+        LIMIT 10
+      `,
+      [tenantId],
+    );
+
+    const recentResults = recentSeriesResult.rows.map((row: any) => {
+      const totalReportCards = Number(row.total_report_cards ?? 0);
+      const approvedReportCards = Number(row.approved_report_cards ?? 0);
+      const publishedReportCards = Number(row.published_report_cards ?? 0);
+      const blockedReportCards = Number(row.blocked_report_cards ?? 0);
+      return {
+        id: row.id,
+        exam_id: row.exam_id,
+        title: row.title,
+        status: row.status,
+        startsOn: row.starts_on,
+        endsOn: row.ends_on,
+        totalReportCards,
+        approvedReportCards,
+        publishedReportCards,
+        blockedReportCards,
+        canPublish: totalReportCards > 0
+          && approvedReportCards > 0
+          && blockedReportCards === 0
+          && row.status !== 'published',
+      };
+    });
+    const reportsPending = recentResults.filter((result) => result.canPublish).length;
 
     return {
       status: "active",
       activeExams: activeExamsRes.rows[0]?.count || 0,
-      reportsPending: summaryResult.rows[0]?.pending_reviews || 0,
+      reportsPending,
       missingMarksAlerts: missingMarksRes.rows[0]?.count || 0,
       averageScore,
       performanceTrend: performanceTrendResult.rows.reverse().map((r: any) => ({
         label: r.label,
         value: Number(r.value)
       })),
-      recentResults: []
+      recentResults,
     };
   }
 
@@ -912,44 +1220,69 @@ export class AdminCommandRepository {
     const summaryResult = await this.executeSql(
       `
         SELECT
-          COUNT(*)::int AS total_sent,
-          COUNT(*) FILTER (WHERE status = 'Failed')::int AS failed_messages,
-          COUNT(*) FILTER (WHERE status = 'Pending')::int AS pending_messages
+          COUNT(*) FILTER (
+            WHERE lower(status) = 'accepted'
+              AND provider_accepted_at IS NOT NULL
+              AND timezone('Africa/Nairobi', provider_accepted_at)::date = timezone('Africa/Nairobi', NOW())::date
+          )::int AS provider_accepted_today,
+          COUNT(*) FILTER (WHERE lower(status) = 'failed')::int AS failed_messages,
+          COUNT(*) FILTER (WHERE lower(status) IN ('pending', 'queued', 'processing'))::int AS pending_messages,
+          COUNT(*) FILTER (WHERE lower(status) = 'deliveryunknown')::int AS delivery_unknown
         FROM communication_sms_outbox
         WHERE tenant_id = $1
       `,
       [tenantId],
-    ).catch(() => ({ rows: [] }));
+    );
 
-    const totalSent = summaryResult.rows[0]?.total_sent || 0;
-    const failed = summaryResult.rows[0]?.failed_messages || 0;
-    const pending = summaryResult.rows[0]?.pending_messages || 0;
+    const providerAcceptedToday = Number(summaryResult.rows[0]?.provider_accepted_today ?? 0);
+    const failed = Number(summaryResult.rows[0]?.failed_messages ?? 0);
+    const pending = Number(summaryResult.rows[0]?.pending_messages ?? 0);
+    const deliveryUnknown = Number(summaryResult.rows[0]?.delivery_unknown ?? 0);
+
+    const communicationTrendResult = await this.executeSql(
+      `
+        SELECT
+          to_char(date_trunc('day', created_at), 'Dy') AS label,
+          COUNT(*)::int AS value
+        FROM communication_sms_outbox
+        WHERE tenant_id = $1
+          AND created_at >= date_trunc('day', NOW()) - INTERVAL '6 days'
+        GROUP BY date_trunc('day', created_at)
+        ORDER BY date_trunc('day', created_at)
+      `,
+      [tenantId],
+    );
 
     const recentBroadcastsResult = await this.executeSql(
-      `SELECT
-         message as body,
-         status,
-         to_char(created_at, 'YYYY-MM-DD HH24:MI') as time
-       FROM communication_sms_outbox
-       WHERE tenant_id = $1
-       ORDER BY created_at DESC
-       LIMIT 5`,
+      `
+        SELECT
+          event.id::text,
+          event.title,
+          event.message AS body,
+          event.status,
+          event.payload ->> 'audience' AS audience,
+          event.payload -> 'channels' AS channels,
+          to_char(event.created_at, 'YYYY-MM-DD HH24:MI') AS time
+        FROM workflow_events event
+        WHERE event.tenant_id = $1
+          AND event.event_type = 'communication.broadcast_created'
+        ORDER BY event.created_at DESC
+        LIMIT 5
+      `,
       [tenantId]
-    ).catch(() => ({ rows: [] }));
+    );
 
     return {
       status: "active",
-      smsBalance: 0,
-      messagesSentToday: totalSent,
+      smsBalance: null,
+      providerAcceptedToday,
       failedDeliveries: failed,
       pendingMessages: pending,
-      communicationTrend: [
-        { label: "Mon", value: 120 },
-        { label: "Tue", value: 85 },
-        { label: "Wed", value: 95 },
-        { label: "Thu", value: 150 },
-        { label: "Fri", value: totalSent }
-      ],
+      deliveryUnknown,
+      communicationTrend: communicationTrendResult.rows.map((row: any) => ({
+        label: row.label,
+        value: Number(row.value ?? 0),
+      })),
       recentBroadcasts: recentBroadcastsResult.rows
     };
   }
@@ -958,26 +1291,26 @@ export class AdminCommandRepository {
     const result = await this.executeSql(
       `SELECT * FROM communication_templates WHERE tenant_id = $1 AND is_active = true ORDER BY name ASC`,
       [tenantId]
-    ).catch(() => ({ rows: [] }));
+    );
     return result.rows;
   }
 
   async createCommunicationTemplate(tenantId: string, dto: any) {
     const result = await this.executeSql(
       `INSERT INTO communication_templates (tenant_id, name, type, subject, body, variables)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+       VALUES ($1, $2, lower($3), $4, $5, $6::jsonb) RETURNING *`,
       [tenantId, dto.name, dto.type, dto.subject || null, dto.body, JSON.stringify(dto.variables || [])]
-    ).catch(() => ({ rows: [] }));
+    );
     return result.rows[0];
   }
 
   async updateCommunicationTemplate(tenantId: string, id: string, dto: any) {
     const result = await this.executeSql(
       `UPDATE communication_templates 
-       SET name = COALESCE($1, name), type = COALESCE($2, type), subject = COALESCE($3, subject), body = COALESCE($4, body), variables = COALESCE($5::jsonb, variables), updated_at = NOW()
+       SET name = COALESCE($1, name), type = COALESCE(lower($2), type), subject = COALESCE($3, subject), body = COALESCE($4, body), variables = COALESCE($5::jsonb, variables), updated_at = NOW()
        WHERE tenant_id = $6 AND id = $7::uuid RETURNING *`,
       [dto.name, dto.type, dto.subject, dto.body, dto.variables ? JSON.stringify(dto.variables) : null, tenantId, id]
-    ).catch(() => ({ rows: [] }));
+    );
     return result.rows[0];
   }
 
@@ -985,7 +1318,7 @@ export class AdminCommandRepository {
     const result = await this.executeSql(
       `UPDATE communication_templates SET is_active = false, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
       [tenantId, id]
-    ).catch(() => ({ rows: [] }));
+    );
     return result.rows[0];
   }
 
@@ -1053,20 +1386,75 @@ export class AdminCommandRepository {
 
   async getSubjectsOverview(tenantId: string) {
     const subjectsQuery = await this.executeSql(
-      `SELECT count(*)::int as count FROM subjects WHERE tenant_id = $1`,
-      [tenantId]
-    ).catch(() => ({ rows: [{ count: 0 }] }));
-    
-    const totalSubjects = subjectsQuery.rows[0]?.count || 0;
+      `
+        SELECT
+          COUNT(*) FILTER (WHERE lower(subject.status) = 'active')::int AS total_subjects,
+          COUNT(*) FILTER (
+            WHERE lower(subject.status) = 'active'
+              AND COALESCE(subject.is_compulsory, TRUE) = TRUE
+          )::int AS core_subjects,
+          COUNT(*) FILTER (
+            WHERE lower(subject.status) = 'active'
+              AND COALESCE(subject.is_compulsory, TRUE) = FALSE
+          )::int AS elective_subjects,
+          COUNT(DISTINCT department.id) FILTER (WHERE department.is_active = TRUE)::int AS departments
+        FROM subjects subject
+        LEFT JOIN academics_departments department
+          ON department.tenant_id = subject.tenant_id
+         AND department.id::text = subject.department_id::text
+        WHERE subject.tenant_id = $1
+      `,
+      [tenantId],
+    );
+
+    const distributionResult = await this.executeSql(
+      `
+        SELECT
+          COALESCE(department.name, 'Unassigned') AS label,
+          COUNT(subject.id)::int AS value
+        FROM subjects subject
+        LEFT JOIN academics_departments department
+          ON department.tenant_id = subject.tenant_id
+         AND department.id::text = subject.department_id::text
+        WHERE subject.tenant_id = $1
+          AND lower(subject.status) = 'active'
+        GROUP BY department.name
+        ORDER BY label
+      `,
+      [tenantId],
+    );
+
+    const departmentHeadsResult = await this.executeSql(
+      `
+        SELECT
+          department.id::text,
+          department.name,
+          department.head_of_department_user_id::text AS user_id,
+          COALESCE(profile.display_name, 'Not assigned') AS head
+        FROM academics_departments department
+        LEFT JOIN staff_profiles profile
+          ON profile.tenant_id = department.tenant_id
+         AND profile.user_id = department.head_of_department_user_id
+        WHERE department.tenant_id = $1
+          AND department.is_active = TRUE
+        ORDER BY department.name
+      `,
+      [tenantId],
+    );
+
+    const totalSubjects = Number(subjectsQuery.rows[0]?.total_subjects ?? 0);
 
     return {
       status: totalSubjects > 0 ? "active" : "setup_required",
       totalSubjects,
-      coreSubjects: totalSubjects,
-      electiveSubjects: 0,
-      departments: 0,
-      subjectDistribution: [],
-      departmentHeads: []
+      coreSubjects: Number(subjectsQuery.rows[0]?.core_subjects ?? 0),
+      electiveSubjects: Number(subjectsQuery.rows[0]?.elective_subjects ?? 0),
+      departments: Number(subjectsQuery.rows[0]?.departments ?? 0),
+      subjectDistribution: distributionResult.rows.map((row: any) => ({
+        label: row.label,
+        value: Number(row.value ?? 0),
+      })),
+      departmentHeads: departmentHeadsResult.rows,
     };
   }
 
@@ -1074,57 +1462,136 @@ export class AdminCommandRepository {
     const summaryResult = await this.executeSql(
       `
         SELECT
-          COUNT(*)::int AS total_staff,
-          COUNT(*) FILTER (WHERE status = 'active')::int AS active_staff
-        FROM tenant_memberships
-        WHERE tenant_id = $1
+          COUNT(*) FILTER (WHERE profile.status IN ('active', 'on_leave', 'reactivated'))::int AS total_staff,
+          COUNT(*) FILTER (
+            WHERE profile.status IN ('active', 'on_leave', 'reactivated')
+              AND (
+                EXISTS (
+                  SELECT 1
+                  FROM staff_contracts contract
+                  WHERE contract.tenant_id = profile.tenant_id
+                    AND contract.staff_profile_id = profile.id
+                    AND contract.approval_state = 'approved'
+                    AND contract.role_title ILIKE '%teacher%'
+                )
+                OR EXISTS (
+                  SELECT 1
+                  FROM teacher_subject_assignments assignment
+                  WHERE assignment.tenant_id = profile.tenant_id
+                    AND assignment.teacher_user_id = profile.user_id
+                    AND assignment.status = 'active'
+                )
+              )
+          )::int AS teaching_staff,
+          COUNT(*) FILTER (
+            WHERE profile.status IN ('active', 'on_leave', 'reactivated')
+              AND NOT EXISTS (
+                SELECT 1
+                FROM staff_contracts contract
+                WHERE contract.tenant_id = profile.tenant_id
+                  AND contract.staff_profile_id = profile.id
+                  AND contract.approval_state = 'approved'
+                  AND contract.role_title ILIKE '%teacher%'
+              )
+              AND NOT EXISTS (
+                SELECT 1
+                FROM teacher_subject_assignments assignment
+                WHERE assignment.tenant_id = profile.tenant_id
+                  AND assignment.teacher_user_id = profile.user_id
+                  AND assignment.status = 'active'
+              )
+          )::int AS support_staff,
+          COUNT(*) FILTER (WHERE profile.status = 'on_leave')::int AS on_leave
+        FROM staff_profiles profile
+        WHERE profile.tenant_id = $1
       `,
       [tenantId],
-    ).catch(() => ({ rows: [] }));
+    );
 
-    const totalStaff = summaryResult.rows[0]?.total_staff || 0;
-    const activeStaff = summaryResult.rows[0]?.active_staff || 0;
+    const distributionResult = await this.executeSql(
+      `
+        SELECT
+          COALESCE(department.name, 'Unassigned') AS label,
+          COUNT(profile.id)::int AS value
+        FROM staff_profiles profile
+        LEFT JOIN staff_departments department
+          ON department.tenant_id = profile.tenant_id
+         AND department.id = profile.department_id
+        WHERE profile.tenant_id = $1
+          AND profile.status IN ('active', 'on_leave', 'reactivated')
+        GROUP BY department.name
+        ORDER BY label
+      `,
+      [tenantId],
+    );
+
+    const onboardingResult = await this.executeSql(
+      `
+        SELECT
+          profile.id::text,
+          profile.display_name AS name,
+          profile.staff_number,
+          profile.status,
+          to_char(profile.created_at, 'YYYY-MM-DD') AS date
+        FROM staff_profiles profile
+        WHERE profile.tenant_id = $1
+        ORDER BY profile.created_at DESC
+        LIMIT 5
+      `,
+      [tenantId],
+    );
+
+    const totalStaff = Number(summaryResult.rows[0]?.total_staff ?? 0);
 
     return {
-      status: "active",
-      totalStaff: activeStaff,
-      teachingStaff: activeStaff,
-      supportStaff: 0,
-      onLeave: 0,
-      staffDistribution: [],
-      recentOnboarding: []
+      status: totalStaff > 0 ? "active" : "setup_required",
+      totalStaff,
+      teachingStaff: Number(summaryResult.rows[0]?.teaching_staff ?? 0),
+      supportStaff: Number(summaryResult.rows[0]?.support_staff ?? 0),
+      onLeave: Number(summaryResult.rows[0]?.on_leave ?? 0),
+      staffDistribution: distributionResult.rows.map((row: any) => ({
+        label: row.label,
+        value: Number(row.value ?? 0),
+      })),
+      recentOnboarding: onboardingResult.rows,
     };
   }
 
   async getPrincipalOverview(tenantId: string) {
-    const studentCountResult = await this.executeSql(
-      `SELECT COUNT(*)::int AS count FROM students WHERE tenant_id = $1 AND status = 'active'`,
-      [tenantId]
-    ).catch(() => ({ rows: [] }));
-    const totalStudents = studentCountResult.rows[0]?.count || 0;
-
-    const staffCountResult = await this.executeSql(
-      `SELECT COUNT(*)::int AS count FROM tenant_memberships WHERE tenant_id = $1 AND status = 'active'`,
-      [tenantId]
-    ).catch(() => ({ rows: [] }));
-    const totalStaff = staffCountResult.rows[0]?.count || 0;
-
-    const activeIssuesResult = await this.executeSql(
-      `SELECT COUNT(*)::int AS count FROM admin_incidents WHERE tenant_id = $1 AND status IN ('reported', 'escalated')`,
-      [tenantId]
-    ).catch(() => ({ rows: [] }));
-    const activeIssues = activeIssuesResult.rows[0]?.count || 0;
-
-    const pendingApprovalsResult = await this.executeSql(
-      `SELECT COUNT(*)::int AS count FROM report_readiness_reviews WHERE tenant_id = $1`,
-      [tenantId]
-    ).catch(() => ({ rows: [] }));
-    const pendingApprovals = pendingApprovalsResult.rows[0]?.count || 0;
+    const metricsResult = await this.executeSql(
+      `
+        SELECT
+          (SELECT COUNT(*)::int FROM students WHERE tenant_id = $1 AND lower(status) = 'active') AS total_students,
+          (
+            SELECT COUNT(*)::int
+            FROM staff_profiles
+            WHERE tenant_id = $1
+              AND status IN ('active', 'on_leave', 'reactivated')
+          ) AS total_staff,
+          (
+            SELECT COUNT(*)::int
+            FROM admin_incidents
+            WHERE tenant_id = $1
+              AND lower(status) IN ('reported', 'reviewed', 'escalated')
+          ) AS active_issues,
+          (
+            SELECT COUNT(*)::int
+            FROM dashboard_approval_requests
+            WHERE tenant_id = $1
+              AND upper(status) = 'PENDING'
+          ) AS pending_approvals
+      `,
+      [tenantId],
+    );
+    const totalStudents = Number(metricsResult.rows[0]?.total_students ?? 0);
+    const totalStaff = Number(metricsResult.rows[0]?.total_staff ?? 0);
+    const activeIssues = Number(metricsResult.rows[0]?.active_issues ?? 0);
+    const pendingApprovals = Number(metricsResult.rows[0]?.pending_approvals ?? 0);
 
     const recentActivityResult = await this.executeSql(
       `SELECT action as label, created_at as time FROM audit_logs WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5`,
       [tenantId]
-    ).catch(() => ({ rows: [] }));
+    );
     
     const recentActivity = recentActivityResult.rows.map((r: any) => ({
       label: r.label || 'System Action',
@@ -1137,9 +1604,237 @@ export class AdminCommandRepository {
       totalStaff,
       activeIssues,
       pendingApprovals,
-      recentActivity: recentActivity.length > 0 ? recentActivity : [
-        { label: "Welcome to the Principal Dashboard", time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
-      ]
+      recentActivity
+    };
+  }
+
+  async getPrincipalVisitorsOverview(tenantId: string) {
+    const [summaryResult, visitorsResult] = await Promise.all([
+      this.executeSql(
+        `
+          SELECT
+            COUNT(*) FILTER (WHERE time_in::date = CURRENT_DATE)::int AS checked_in_today,
+            COUNT(*) FILTER (
+              WHERE time_out IS NULL
+                AND lower(status) IN ('active', 'flagged')
+            )::int AS currently_on_premises,
+            COUNT(*) FILTER (WHERE time_out::date = CURRENT_DATE)::int AS checked_out_today,
+            COUNT(*) FILTER (WHERE lower(status) = 'flagged')::int AS flagged
+          FROM visitors_logs
+          WHERE tenant_id = $1
+        `,
+        [tenantId],
+      ),
+      this.executeSql(
+        `
+          SELECT
+            visitor.id::text,
+            visitor.visitor_name AS name,
+            visitor.purpose,
+            COALESCE(NULLIF(host.full_name, ''), '') AS host,
+            visitor.time_in::text AS checked_in_at,
+            visitor.time_out::text AS checked_out_at,
+            INITCAP(REPLACE(visitor.status, '_', ' ')) AS status
+          FROM visitors_logs visitor
+          LEFT JOIN users host
+            ON host.id::text = visitor.host_user_id::text
+           AND EXISTS (
+             SELECT 1
+             FROM tenant_memberships membership
+             WHERE membership.tenant_id = visitor.tenant_id
+               AND membership.user_id = host.id
+               AND lower(membership.status) = 'active'
+           )
+          WHERE visitor.tenant_id = $1
+          ORDER BY visitor.time_in DESC
+          LIMIT 50
+        `,
+        [tenantId],
+      ),
+    ]);
+
+    const metrics = summaryResult.rows[0] ?? {};
+    return {
+      status: visitorsResult.rows.length > 0 ? 'active' : 'setup_required',
+      metrics: {
+        checkedInToday: Number(metrics.checked_in_today ?? 0),
+        currentlyOnPremises: Number(metrics.currently_on_premises ?? 0),
+        checkedOutToday: Number(metrics.checked_out_today ?? 0),
+        flagged: Number(metrics.flagged ?? 0),
+      },
+      visitors: visitorsResult.rows.map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        purpose: row.purpose,
+        host: row.host,
+        checkedInAt: row.checked_in_at,
+        checkedOutAt: row.checked_out_at ?? null,
+        status: row.status,
+      })),
+    };
+  }
+
+  async getPrincipalHealthOverview(tenantId: string) {
+    const [metricsResult, stockAlertsResult] = await Promise.all([
+      this.executeSql(
+        `
+          WITH medicine_inventory AS (
+            SELECT
+              batch.medicine_id,
+              COALESCE(SUM(batch.quantity_available) FILTER (
+                WHERE batch.status IN ('active', 'near_expiry')
+              ), 0)::numeric AS quantity_available,
+              COALESCE(MAX(batch.minimum_stock_threshold), 0)::numeric AS reorder_level,
+              MIN(batch.expiry_date) FILTER (
+                WHERE batch.status IN ('active', 'near_expiry')
+              ) AS earliest_expiry
+            FROM clinic_medicine_batches batch
+            WHERE batch.tenant_id = $1
+            GROUP BY batch.medicine_id
+          )
+          SELECT
+            (SELECT COUNT(*)::int FROM clinic_visits WHERE tenant_id = $1 AND visit_date = CURRENT_DATE) AS visits_today,
+            (SELECT COUNT(*)::int FROM clinic_visits WHERE tenant_id = $1 AND status IN ('open', 'isolation')) AS open_cases,
+            (SELECT COUNT(*)::int FROM clinic_visits WHERE tenant_id = $1 AND visit_date = CURRENT_DATE AND status = 'referred') AS referred_today,
+            COUNT(*) FILTER (
+              WHERE quantity_available > 0
+                AND quantity_available <= reorder_level
+            )::int AS low_stock_medicines,
+            COUNT(*) FILTER (WHERE quantity_available <= 0)::int AS out_of_stock_medicines,
+            COUNT(*) FILTER (
+              WHERE earliest_expiry BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '90 days'
+            )::int AS expiring_soon
+          FROM medicine_inventory
+        `,
+        [tenantId],
+      ),
+      this.executeSql(
+        `
+          WITH medicine_inventory AS (
+            SELECT
+              medicine.id,
+              medicine.medicine_name,
+              COALESCE(SUM(batch.quantity_available) FILTER (
+                WHERE batch.status IN ('active', 'near_expiry')
+              ), 0)::numeric AS quantity_available,
+              COALESCE(MAX(batch.minimum_stock_threshold), 0)::numeric AS reorder_level,
+              MIN(batch.expiry_date) FILTER (
+                WHERE batch.status IN ('active', 'near_expiry')
+              ) AS earliest_expiry
+            FROM clinic_medicines medicine
+            LEFT JOIN clinic_medicine_batches batch
+              ON batch.tenant_id = medicine.tenant_id
+             AND batch.medicine_id = medicine.id
+            WHERE medicine.tenant_id = $1
+              AND medicine.is_active = TRUE
+            GROUP BY medicine.id, medicine.medicine_name
+          )
+          SELECT
+            id::text,
+            medicine_name,
+            quantity_available,
+            reorder_level,
+            earliest_expiry::text,
+            CASE
+              WHEN quantity_available <= 0 THEN 'Out of stock'
+              WHEN quantity_available <= reorder_level THEN 'Low stock'
+              ELSE 'Expiring soon'
+            END AS status
+          FROM medicine_inventory
+          WHERE quantity_available <= reorder_level
+             OR earliest_expiry BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '90 days'
+          ORDER BY
+            CASE WHEN quantity_available <= 0 THEN 0 WHEN quantity_available <= reorder_level THEN 1 ELSE 2 END,
+            medicine_name
+          LIMIT 50
+        `,
+        [tenantId],
+      ),
+    ]);
+
+    const metrics = metricsResult.rows[0] ?? {};
+    return {
+      status: Number(metrics.visits_today ?? 0) > 0 || stockAlertsResult.rows.length > 0 ? 'active' : 'setup_required',
+      metrics: {
+        visitsToday: Number(metrics.visits_today ?? 0),
+        openCases: Number(metrics.open_cases ?? 0),
+        referredToday: Number(metrics.referred_today ?? 0),
+        lowStockMedicines: Number(metrics.low_stock_medicines ?? 0),
+        outOfStockMedicines: Number(metrics.out_of_stock_medicines ?? 0),
+        expiringSoon: Number(metrics.expiring_soon ?? 0),
+      },
+      stockAlerts: stockAlertsResult.rows.map((row: any) => ({
+        id: row.id,
+        medicine: row.medicine_name,
+        quantity: Number(row.quantity_available ?? 0),
+        reorderLevel: Number(row.reorder_level ?? 0),
+        expiryDate: row.earliest_expiry ?? null,
+        status: row.status,
+      })),
+    };
+  }
+
+  async getPrincipalAuditOverview(tenantId: string) {
+    const [metricsResult, eventsResult] = await Promise.all([
+      this.executeSql(
+        `
+          SELECT
+            COUNT(*) FILTER (WHERE created_at::date = CURRENT_DATE)::int AS actions_today,
+            COUNT(*) FILTER (
+              WHERE action ~* '(role|permission|fee|payment|mark|report|approval|waiver|reversal)'
+            )::int AS sensitive_changes,
+            COUNT(*) FILTER (WHERE action ~* '(fail|error|reject|deny)')::int AS failed_actions
+          FROM audit_logs
+          WHERE tenant_id = $1
+        `,
+        [tenantId],
+      ),
+      this.executeSql(
+        `
+          SELECT
+            audit.id::text,
+            audit.action,
+            COALESCE(NULLIF(actor.full_name, ''), 'System') AS actor,
+            COALESCE(NULLIF(audit.resource_type, ''), NULLIF(audit.entity_type, ''), 'unknown') AS resource_type,
+            audit.created_at::text,
+            CASE
+              WHEN audit.action ~* '(fail|error)' THEN 'Failed'
+              WHEN audit.action ~* '(reject|deny)' THEN 'Rejected'
+              ELSE 'Recorded'
+            END AS result
+          FROM audit_logs audit
+          LEFT JOIN users actor
+            ON actor.id = audit.actor_user_id
+           AND EXISTS (
+             SELECT 1
+             FROM tenant_memberships membership
+             WHERE membership.tenant_id = audit.tenant_id
+               AND membership.user_id = actor.id
+           )
+          WHERE audit.tenant_id = $1
+          ORDER BY audit.created_at DESC
+          LIMIT 100
+        `,
+        [tenantId],
+      ),
+    ]);
+
+    const metrics = metricsResult.rows[0] ?? {};
+    return {
+      status: eventsResult.rows.length > 0 ? 'active' : 'setup_required',
+      metrics: {
+        actionsToday: Number(metrics.actions_today ?? 0),
+        sensitiveChanges: Number(metrics.sensitive_changes ?? 0),
+        failedActions: Number(metrics.failed_actions ?? 0),
+      },
+      events: eventsResult.rows.map((row: any) => ({
+        id: row.id,
+        action: row.action,
+        actor: row.actor,
+        resourceType: row.resource_type,
+        createdAt: row.created_at,
+        result: row.result,
+      })),
     };
   }
 
@@ -1245,23 +1940,163 @@ export class AdminCommandRepository {
   }
 
   async getApprovalsOverview(tenantId: string) {
+    const summaryResult = await this.executeSql(
+      `
+        SELECT
+          COUNT(*) FILTER (WHERE upper(status) = 'PENDING')::int AS pending_total,
+          COUNT(*) FILTER (
+            WHERE upper(status) = 'PENDING'
+              AND lower(COALESCE(metadata ->> 'priority', 'normal')) IN ('urgent', 'critical', 'high')
+          )::int AS urgent_approvals
+        FROM dashboard_approval_requests
+        WHERE tenant_id = $1
+      `,
+      [tenantId],
+    );
+
+    const categoriesResult = await this.executeSql(
+      `
+        SELECT
+          initcap(replace(COALESCE(NULLIF(module, ''), NULLIF(approval_type, ''), 'other'), '_', ' ')) AS name,
+          COUNT(*)::int AS pending,
+          COUNT(*) FILTER (
+            WHERE lower(COALESCE(metadata ->> 'priority', 'normal')) IN ('urgent', 'critical', 'high')
+          )::int AS urgent
+        FROM dashboard_approval_requests
+        WHERE tenant_id = $1
+          AND upper(status) = 'PENDING'
+        GROUP BY COALESCE(NULLIF(module, ''), NULLIF(approval_type, ''), 'other')
+        ORDER BY pending DESC, name
+      `,
+      [tenantId],
+    );
+
+    const recentApprovalsResult = await this.executeSql(
+      `
+        SELECT
+          COALESCE(
+            NULLIF(metadata ->> 'title', ''),
+            initcap(replace(COALESCE(NULLIF(approval_type, ''), 'approval'), '_', ' '))
+          ) AS title,
+          to_char(COALESCE(decided_at, updated_at), 'YYYY-MM-DD') AS date
+        FROM dashboard_approval_requests
+        WHERE tenant_id = $1
+          AND upper(status) IN ('APPROVED', 'REJECTED', 'CANCELLED', 'EXPIRED')
+        ORDER BY COALESCE(decided_at, updated_at) DESC
+        LIMIT 8
+      `,
+      [tenantId],
+    );
+
     return {
       status: "active",
-      pendingTotal: 0,
-      urgentApprovals: 0,
-      categories: [],
-      recentApprovals: []
+      pendingTotal: Number(summaryResult.rows[0]?.pending_total ?? 0),
+      urgentApprovals: Number(summaryResult.rows[0]?.urgent_approvals ?? 0),
+      categories: categoriesResult.rows.map((row: any) => ({
+        name: row.name,
+        pending: Number(row.pending ?? 0),
+        urgent: Number(row.urgent ?? 0),
+      })),
+      recentApprovals: recentApprovalsResult.rows,
     };
   }
 
+  async getPrincipalApprovalHistory(tenantId: string, actorUserId: string, actorRole: string) {
+    const result = await this.executeSql(
+      `
+        SELECT
+          approval.id::text,
+          COALESCE(
+            NULLIF(approval.metadata ->> 'title', ''),
+            initcap(replace(COALESCE(NULLIF(approval.approval_type, ''), NULLIF(approval.module, ''), 'approval'), '_', ' '))
+          ) AS title,
+          lower(approval.status) AS status,
+          approval.decision_note AS note,
+          approval.module,
+          approval.record_id,
+          to_char(COALESCE(approval.decided_at, approval.updated_at), 'YYYY-MM-DD') AS date
+        FROM dashboard_approval_requests approval
+        WHERE approval.tenant_id::text = $1::text
+          AND approval.approver_user_id = $2::uuid
+          AND lower(approval.status) IN ('approved', 'rejected')
+          AND regexp_replace(
+            lower(btrim(COALESCE(approval.metadata ->> 'decisionByRole', approval.approver_role, ''))),
+            '[^a-z0-9]+',
+            '_',
+            'g'
+          ) = regexp_replace(lower(btrim($3)), '[^a-z0-9]+', '_', 'g')
+        ORDER BY COALESCE(approval.decided_at, approval.updated_at) DESC
+        LIMIT 10
+      `,
+      [tenantId, actorUserId, actorRole],
+    );
+
+    return result.rows;
+  }
+
   async getPrincipalReportsOverview(tenantId: string) {
+    const metricsResult = await this.executeSql(
+      `
+        SELECT
+          COUNT(DISTINCT report_id)::int AS available_reports,
+          COUNT(*) FILTER (WHERE filters @> '{"favorite": true}'::jsonb)::int AS favorite_reports,
+          COUNT(*) FILTER (WHERE created_at >= date_trunc('month', NOW()))::int AS recently_generated
+        FROM report_snapshots
+        WHERE tenant_id = $1
+      `,
+      [tenantId],
+    );
+
+    const categoriesResult = await this.executeSql(
+      `
+        WITH configured_categories AS (
+          SELECT NULLIF(category ->> 'name', '') AS name, 0::int AS count
+          FROM operations_reports report
+          CROSS JOIN LATERAL jsonb_array_elements(report.content::jsonb) category
+          WHERE report.tenant_id = $1
+            AND report.title = 'Report Categories'
+        ), generated_categories AS (
+          SELECT
+            initcap(replace(module, '-', ' ')) AS name,
+            COUNT(DISTINCT report_id)::int AS count
+          FROM report_snapshots
+          WHERE tenant_id = $1
+          GROUP BY module
+        )
+        SELECT name, SUM(count)::int AS count
+        FROM (
+          SELECT name, count FROM configured_categories WHERE name IS NOT NULL
+          UNION ALL
+          SELECT name, count FROM generated_categories
+        ) categories
+        GROUP BY name
+        ORDER BY name
+      `,
+      [tenantId],
+    );
+
+    const scheduledReportsResult = await this.executeSql(
+      `
+        SELECT title, schedule
+        FROM report_schedule_requests
+        WHERE tenant_id = $1
+          AND status = 'scheduled'
+        ORDER BY created_at DESC
+        LIMIT 10
+      `,
+      [tenantId],
+    );
+
     return {
       status: "active",
-      availableReports: 0,
-      favoriteReports: 0,
-      recentlyGenerated: 0,
-      categories: [],
-      scheduledReports: []
+      availableReports: Number(metricsResult.rows[0]?.available_reports ?? 0),
+      favoriteReports: Number(metricsResult.rows[0]?.favorite_reports ?? 0),
+      recentlyGenerated: Number(metricsResult.rows[0]?.recently_generated ?? 0),
+      categories: categoriesResult.rows.map((row: any) => ({
+        name: row.name,
+        count: Number(row.count ?? 0),
+      })),
+      scheduledReports: scheduledReportsResult.rows,
     };
   }
 
@@ -1281,29 +2116,38 @@ export class AdminCommandRepository {
     );
     
     const staffComplete = await this.executeSql(
-      `SELECT count(*)::int as count FROM tenant_memberships WHERE tenant_id = $1 AND role IN ('principal', 'deputy_principal', 'school_admin')`,
+      `
+        SELECT COUNT(*)::int AS count
+        FROM tenant_memberships membership
+        JOIN roles role
+          ON role.tenant_id = membership.tenant_id
+         AND role.id = membership.role_id
+        WHERE membership.tenant_id = $1
+          AND membership.status = 'active'
+          AND role.code IN ('principal', 'deputy_principal', 'school_admin')
+      `,
       [tenantId]
-    ).catch(() => ({ rows: [{ count: 0 }] }));
+    );
 
     const termsComplete = await this.executeSql(
       `SELECT count(*)::int as count FROM academic_terms WHERE tenant_id = $1`,
       [tenantId]
-    ).catch(() => ({ rows: [{ count: 0 }] }));
+    );
 
     const gradesComplete = await this.executeSql(
       `SELECT count(*)::int as count FROM academics_grading_systems WHERE tenant_id = $1`,
       [tenantId]
-    ).catch(() => ({ rows: [{ count: 0 }] }));
+    );
 
     const subjectsComplete = await this.executeSql(
       `SELECT count(*)::int as count FROM subjects WHERE tenant_id = $1`,
       [tenantId]
-    ).catch(() => ({ rows: [{ count: 0 }] }));
+    );
 
     const studentsComplete = await this.executeSql(
       `SELECT count(*)::int as count FROM students WHERE tenant_id = $1 AND status = 'active'`,
       [tenantId]
-    ).catch(() => ({ rows: [{ count: 0 }] }));
+    );
 
     const hasProfile = (profileComplete.rows[0]?.count || 0) > 0;
     const hasStaff = (staffComplete.rows[0]?.count || 0) > 0;
@@ -1331,9 +2175,18 @@ export class AdminCommandRepository {
 
   async getAcademicSetupOverview(tenantId: string) {
     const termsQuery = await this.executeSql(
-      `SELECT name, ends_on FROM academic_terms WHERE tenant_id = $1 AND ends_on > NOW() ORDER BY starts_on ASC LIMIT 1`,
+      `
+        SELECT name, ends_on
+        FROM academic_terms
+        WHERE tenant_id = $1
+          AND status = 'active'
+          AND archived_at IS NULL
+          AND ends_on >= CURRENT_DATE
+        ORDER BY starts_on ASC
+        LIMIT 1
+      `,
       [tenantId]
-    ).catch(() => ({ rows: [] }));
+    );
     
     const activeTermName = termsQuery.rows[0]?.name || "Not Configured";
     let weeksRemaining = 0;
@@ -1345,17 +2198,17 @@ export class AdminCommandRepository {
     const gradings = await this.executeSql(
       `SELECT count(*)::int as count FROM academics_grading_systems WHERE tenant_id = $1`,
       [tenantId]
-    ).catch(() => ({ rows: [{ count: 0 }] }));
+    );
 
     const subjects = await this.executeSql(
       `SELECT count(*)::int as count FROM subjects WHERE tenant_id = $1`,
       [tenantId]
-    ).catch(() => ({ rows: [{ count: 0 }] }));
+    );
 
     const teachers = await this.executeSql(
       `SELECT count(DISTINCT teacher_user_id)::int as count FROM teacher_subject_assignments WHERE tenant_id = $1`,
       [tenantId]
-    ).catch(() => ({ rows: [{ count: 0 }] }));
+    );
 
     return {
       status: activeTermName !== "Not Configured" ? "active" : "setup_required",
@@ -1369,27 +2222,86 @@ export class AdminCommandRepository {
     };
   }
 
-  async getPrincipalSettings(tenantId: string) {
+  async getPrincipalSettings(tenantId: string, actorUserId: string) {
+    const [preferencesResult, accountResult] = await Promise.all([
+      this.executeSql(
+        `
+          SELECT payload, created_at::text AS updated_at
+          FROM workflow_events
+          WHERE tenant_id = $1
+            AND source_user_id = $2::uuid
+            AND event_type = 'principal.settings_updated'
+            AND entity_type = 'principal_preferences'
+            AND status = 'completed'
+          ORDER BY created_at DESC
+          LIMIT 1
+        `,
+        [tenantId, actorUserId],
+      ),
+      this.executeSql(
+        `
+          SELECT
+            user_account.mfa_enabled,
+            user_account.password_changed_at::text,
+            EXISTS (
+              SELECT 1
+              FROM teacher_subject_assignments assignment
+              WHERE assignment.tenant_id = membership.tenant_id
+                AND assignment.teacher_user_id::text = user_account.id::text
+                AND assignment.status = 'active'
+                AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
+            ) AS teaching_workspace_available
+          FROM users user_account
+          JOIN tenant_memberships membership
+            ON membership.user_id = user_account.id
+           AND membership.tenant_id = $1
+           AND membership.status = 'active'
+          WHERE user_account.id = $2::uuid
+            AND user_account.status = 'active'
+          LIMIT 1
+        `,
+        [tenantId, actorUserId],
+      ),
+    ]);
+
+    const preferencePayload = preferencesResult.rows[0]?.payload;
+    const stored = preferencePayload && typeof preferencePayload === 'object' && !Array.isArray(preferencePayload)
+      ? preferencePayload as Record<string, any>
+      : {};
+    const storedNotifications = stored.notifications && typeof stored.notifications === 'object' && !Array.isArray(stored.notifications)
+      ? stored.notifications as Record<string, unknown>
+      : {};
+    const storedDashboard = stored.dashboard && typeof stored.dashboard === 'object' && !Array.isArray(stored.dashboard)
+      ? stored.dashboard as Record<string, unknown>
+      : {};
+    const account = accountResult.rows[0];
+    const requestedTheme = String(storedDashboard.theme ?? 'system').toLowerCase();
+    const requestedDefaultView = String(storedDashboard.defaultView ?? 'overview').toLowerCase();
+
     return {
-      status: "active",
+      status: account ? "active" : "degraded",
+      accountLinked: Boolean(account),
+      updatedAt: preferencesResult.rows[0]?.updated_at ?? null,
       notifications: {
-        emailAlerts: true,
-        smsAlerts: false,
-        dailyDigest: true
+        emailAlerts: typeof storedNotifications.emailAlerts === 'boolean' ? storedNotifications.emailAlerts : true,
+        smsAlerts: typeof storedNotifications.smsAlerts === 'boolean' ? storedNotifications.smsAlerts : false,
+        dailyDigest: typeof storedNotifications.dailyDigest === 'boolean' ? storedNotifications.dailyDigest : true,
       },
       dashboard: {
-        theme: "system",
-        showTeachingWorkspace: true,
-        defaultView: "overview"
+        theme: ['system', 'dark', 'light'].includes(requestedTheme) ? requestedTheme : 'system',
+        showTeachingWorkspace: Boolean(account?.teaching_workspace_available),
+        defaultView: ['overview', 'academics', 'attendance', 'fees'].includes(requestedDefaultView)
+          ? requestedDefaultView
+          : 'overview',
       },
       security: {
-        twoFactorAuth: false,
-        lastPasswordChange: "2026-01-15"
-      }
+        twoFactorAuth: Boolean(account?.mfa_enabled),
+        lastPasswordChange: account?.password_changed_at ?? null,
+      },
     };
   }
 
-  async getPrincipalTeachingSchedule(tenantId: string) {
+  async getPrincipalTeachingSchedule(tenantId: string, actorUserId: string) {
     const metrics = await this.executeSql(
       `
         SELECT
@@ -1398,22 +2310,20 @@ export class AdminCommandRepository {
             WHERE COALESCE((lesson.metadata->>'grading_status'), 'pending') IN ('pending', 'missing', 'due')
           )::int AS pending_grading
         FROM timetable_lessons lesson
-        LEFT JOIN class_subject_assignments assignment
+        INNER JOIN class_subject_assignments assignment
           ON assignment.tenant_id = lesson.tenant_id
          AND assignment.id = lesson.class_subject_assignment_id
-        LEFT JOIN staff_members staff
+        INNER JOIN staff_members staff
           ON staff.tenant_id = assignment.tenant_id
          AND staff.id = assignment.staff_member_id
+        INNER JOIN tenant_memberships membership
+          ON membership.tenant_id = staff.tenant_id
+         AND membership.user_id = staff.user_id
+         AND lower(membership.status) = 'active'
         WHERE lesson.tenant_id = $1
-          AND (
-            staff.metadata->>'primary_role' = 'principal'
-            OR staff.metadata->>'role' = 'principal'
-            OR staff.metadata->>'position' ILIKE '%principal%'
-            OR staff.full_name ILIKE '%principal%'
-            OR lesson.metadata->>'assigned_role' = 'principal'
-          )
+          AND staff.user_id = $2::uuid
       `,
-      [tenantId],
+      [tenantId, actorUserId],
     );
     const lessons = await this.executeSql(
       `
@@ -1429,30 +2339,28 @@ export class AdminCommandRepository {
         LEFT JOIN class_sections section
           ON section.tenant_id = lesson.tenant_id
          AND section.id = lesson.stream_id
-        LEFT JOIN class_subject_assignments assignment
+        INNER JOIN class_subject_assignments assignment
           ON assignment.tenant_id = lesson.tenant_id
          AND assignment.id = lesson.class_subject_assignment_id
         LEFT JOIN subjects subject
           ON subject.tenant_id = assignment.tenant_id
          AND subject.id = assignment.subject_id
-        LEFT JOIN staff_members staff
+        INNER JOIN staff_members staff
           ON staff.tenant_id = assignment.tenant_id
          AND staff.id = assignment.staff_member_id
+        INNER JOIN tenant_memberships membership
+          ON membership.tenant_id = staff.tenant_id
+         AND membership.user_id = staff.user_id
+         AND lower(membership.status) = 'active'
         WHERE lesson.tenant_id = $1
-          AND (
-            staff.metadata->>'primary_role' = 'principal'
-            OR staff.metadata->>'role' = 'principal'
-            OR staff.metadata->>'position' ILIKE '%principal%'
-            OR staff.full_name ILIKE '%principal%'
-            OR lesson.metadata->>'assigned_role' = 'principal'
-          )
+          AND staff.user_id = $2::uuid
         ORDER BY
           CASE WHEN lesson.weekday >= EXTRACT(ISODOW FROM CURRENT_DATE)::int THEN 0 ELSE 1 END,
           lesson.weekday ASC,
           lesson.period_number ASC
         LIMIT 10
       `,
-      [tenantId],
+      [tenantId, actorUserId],
     );
     const upcomingClasses = lessons.rows.map((row: any) => ({
       class: row.class_name,
@@ -1627,7 +2535,7 @@ export class AdminCommandRepository {
         input.entity_id ?? null,
         JSON.stringify(input.metadata ?? {}),
       ],
-    ).catch(() => undefined);
+    );
   }
 
   private async insertReturning(sql: string, values: unknown[]) {
@@ -1646,22 +2554,12 @@ export class AdminCommandRepository {
   private async safeQuery<T>(
     sql: string,
     values: unknown[],
-    fallback: T,
+    _fallback: T,
     mapper: (row: Record<string, unknown> | undefined) => T,
   ): Promise<T> {
-    try {
-      const result = await this.executeSql(sql, values);
+    const result = await this.executeSql(sql, values);
 
-      return mapper(result.rows[0] as Record<string, unknown> | undefined);
-    } catch (error) {
-      const code = typeof error === 'object' && error ? (error as { code?: string }).code : undefined;
-
-      if (code === '42P01' || code === '42703') {
-        return fallback;
-      }
-
-      throw error;
-    }
+    return mapper(result.rows[0] as Record<string, unknown> | undefined);
   }
 
   private toMetricObject(row: Record<string, unknown>): Record<string, number | string> {
@@ -1760,88 +2658,239 @@ export class AdminCommandRepository {
     return result.rows[0];
   }
 
-  async createCommunicationBroadcast(data: { tenant_id: string; user_id: string; audience: string; message: string; channels?: string[] }) {
+  async createCommunicationBroadcast(data: { tenant_id: string; user_id: string; audience: string; target_class?: string | null; message: string; channels?: string[] }) {
     const normalizedChannels = (data.channels ?? ['in_app']).map((channel) => String(channel).toLowerCase());
-    const smsRecipients = await this.executeSql<{ phone: string }>(
+    const result = await this.executeSql(
       `
-        SELECT DISTINCT phone
-        FROM (
-          SELECT phone FROM student_guardians WHERE tenant_id = $1 AND phone IS NOT NULL AND ($2 IN ('parents', 'guardians', 'all'))
-          UNION ALL
-          SELECT phone_number AS phone FROM guardians WHERE tenant_id = $1 AND phone_number IS NOT NULL AND ($2 IN ('parents', 'guardians', 'all'))
-          UNION ALL
-          SELECT phone FROM staff_profiles WHERE tenant_id = $1 AND phone IS NOT NULL AND ($2 IN ('staff', 'teachers', 'all'))
-        ) recipients
-        WHERE phone IS NOT NULL AND btrim(phone) <> ''
-        LIMIT 500
-      `,
-      [data.tenant_id, data.audience],
-    ).catch(() => ({ rows: [], rowCount: 0 }));
-    const broadcastStatus = normalizedChannels.includes('sms') ? 'PENDING' : 'SENT';
-    const broadcast = await this.executeSql(
-      `
-        INSERT INTO communication_broadcasts (
-          school_id, user_id, audience, message, channels, status
+        WITH sms_recipients AS (
+          SELECT
+            guardian.phone,
+            MIN(guardian.id::text) AS recipient_identity
+          FROM student_guardians guardian
+          JOIN students student
+            ON student.tenant_id = guardian.tenant_id
+           AND student.id::text = guardian.student_id::text
+          LEFT JOIN student_class_assignments assignment
+            ON assignment.tenant_id = student.tenant_id
+           AND assignment.student_id::text = student.id::text
+           AND assignment.status = 'active'
+          LEFT JOIN class_sections section
+            ON section.tenant_id = assignment.tenant_id
+           AND section.id::text = assignment.class_section_id::text
+          WHERE guardian.tenant_id = $1
+            AND guardian.status = 'active'
+            AND guardian.phone IS NOT NULL
+            AND btrim(guardian.phone) <> ''
+            AND (
+              $3 = 'parents'
+              OR (
+                $3 = 'class'
+                AND lower(btrim(COALESCE(section.custom_label, section.name, section.grade_level, ''))) = lower(btrim($6))
+              )
+            )
+          GROUP BY guardian.phone
+          ORDER BY guardian.phone
+          LIMIT 500
+        ), notification_recipients AS (
+          SELECT DISTINCT guardian.user_id
+          FROM student_guardians guardian
+          JOIN students student
+            ON student.tenant_id = guardian.tenant_id
+           AND student.id::text = guardian.student_id::text
+          JOIN tenant_memberships membership
+            ON membership.tenant_id = guardian.tenant_id
+           AND membership.user_id = guardian.user_id
+           AND lower(membership.status::text) = 'active'
+          LEFT JOIN student_class_assignments assignment
+            ON assignment.tenant_id = student.tenant_id
+           AND assignment.student_id::text = student.id::text
+           AND assignment.status = 'active'
+          LEFT JOIN class_sections section
+            ON section.tenant_id = assignment.tenant_id
+           AND section.id::text = assignment.class_section_id::text
+          WHERE guardian.tenant_id = $1
+            AND guardian.status = 'active'
+            AND guardian.user_id IS NOT NULL
+            AND (
+              $3 = 'parents'
+              OR (
+                $3 = 'class'
+                AND lower(btrim(COALESCE(section.custom_label, section.name, section.grade_level, ''))) = lower(btrim($6))
+              )
+            )
+
+          UNION
+
+          SELECT DISTINCT profile.user_id
+          FROM staff_profiles profile
+          WHERE profile.tenant_id = $1
+            AND $3 = 'staff'
+            AND profile.user_id IS NOT NULL
+            AND profile.status IN ('active', 'on_leave', 'reactivated')
+        ), sms_insert AS (
+          INSERT INTO communication_sms_outbox (
+            message,
+            recipient_phone,
+            sent_by,
+            status,
+            tenant_id,
+            updated_at,
+            dispatch_key
+          )
+          SELECT
+            $4,
+            recipient.phone,
+            $2::uuid,
+            'Pending',
+            $1,
+            NOW(),
+            'principal-broadcast:'
+              || NULLIF(current_setting('app.request_id', true), '')
+              || ':' || recipient.recipient_identity
+          FROM sms_recipients recipient
+          WHERE 'sms' = ANY($5::text[])
+          ON CONFLICT (tenant_id, dispatch_key) DO UPDATE
+          SET dispatch_key = EXCLUDED.dispatch_key
+          WHERE communication_sms_outbox.recipient_phone = EXCLUDED.recipient_phone
+            AND communication_sms_outbox.message = EXCLUDED.message
+            AND communication_sms_outbox.sent_by IS NOT DISTINCT FROM EXCLUDED.sent_by
+          RETURNING id, status
+        ), sms_outcome AS (
+          SELECT
+            COUNT(*)::int AS outbox_count,
+            (COUNT(*) FILTER (WHERE LOWER(status) IN ('pending', 'queued')))::int AS queued_count,
+            (COUNT(*) FILTER (WHERE LOWER(status) = 'processing'))::int AS processing_count,
+            (COUNT(*) FILTER (WHERE LOWER(status) IN ('accepted', 'sent', 'provider_accepted')))::int AS accepted_count,
+            (COUNT(*) FILTER (WHERE LOWER(status) NOT IN (
+              'pending', 'queued', 'processing', 'accepted', 'sent', 'provider_accepted'
+            )))::int AS needs_review_count
+          FROM sms_insert
+        ), event_insert AS (
+          INSERT INTO workflow_events (
+            tenant_id,
+            source_user_id,
+            source_role,
+            target_roles,
+            event_type,
+            entity_type,
+            title,
+            message,
+            priority,
+            status,
+            payload
+          )
+          SELECT
+            $1,
+            $2::uuid,
+            'principal',
+            $7::jsonb,
+            'communication.broadcast_created',
+            'communication_broadcast',
+            'Broadcast to ' || $3,
+            $4,
+            'normal',
+            CASE
+              WHEN (SELECT needs_review_count FROM sms_outcome) > 0 THEN 'needs_review'
+              WHEN (SELECT queued_count FROM sms_outcome) > 0 THEN 'pending'
+              WHEN (SELECT processing_count FROM sms_outcome) > 0 THEN 'processing'
+              WHEN (SELECT accepted_count FROM sms_outcome) > 0 THEN 'provider_accepted'
+              ELSE 'sent'
+            END,
+            $8::jsonb || jsonb_build_object(
+              'sms_queued_count', (SELECT queued_count FROM sms_outcome),
+              'sms_processing_count', (SELECT processing_count FROM sms_outcome),
+              'sms_accepted_count', (SELECT accepted_count FROM sms_outcome),
+              'sms_needs_review_count', (SELECT needs_review_count FROM sms_outcome),
+              'sms_outbox_count', (SELECT outbox_count FROM sms_outcome)
+            )
+          WHERE (
+            ('sms' = ANY($5::text[]) AND (SELECT outbox_count FROM sms_outcome) > 0)
+            OR ('in_app' = ANY($5::text[]) AND EXISTS (SELECT 1 FROM notification_recipients))
+          )
+          RETURNING *
+        ), notification_insert AS (
+          INSERT INTO notifications (
+            tenant_id,
+            notification_key,
+            recipient_user_id,
+            type,
+            title,
+            body,
+            status,
+            source_module,
+            source_record_id,
+            metadata
+          )
+          SELECT
+            $1,
+            'principal-broadcast-' || event.id::text || '-' || recipient.user_id::text,
+            recipient.user_id,
+            'communication.broadcast_created',
+            event.title,
+            $4,
+            'unread',
+            'admin-command',
+            event.id::text,
+            $8::jsonb
+          FROM notification_recipients recipient
+          CROSS JOIN event_insert event
+          WHERE 'in_app' = ANY($5::text[])
+          ON CONFLICT (tenant_id, notification_key) DO NOTHING
+          RETURNING id
         )
-        VALUES ($1, $2::uuid, $3, $4, $5::text[], $6)
-        RETURNING *
-      `,
-      [data.tenant_id, data.user_id, data.audience, data.message, normalizedChannels, broadcastStatus],
-    );
-    const broadcastId = broadcast.rows[0]?.id;
-    const event = await this.executeSql(
-      `
-        INSERT INTO workflow_events (
-          tenant_id, source_user_id, source_role, target_roles, event_type, entity_type, entity_id, title, message, priority, payload
-        )
-        VALUES ($1, $2::uuid, 'principal', $3::jsonb, 'communication.broadcast_created', 'communication_broadcast', $4, $5, $6, 'normal', $7::jsonb)
-        RETURNING *
+        SELECT
+          event.*,
+          (SELECT outbox_count FROM sms_outcome) AS sms_recipient_count,
+          (SELECT queued_count FROM sms_outcome) AS sms_queued_count,
+          (SELECT processing_count FROM sms_outcome) AS sms_processing_count,
+          (SELECT accepted_count FROM sms_outcome) AS sms_accepted_count,
+          (SELECT needs_review_count FROM sms_outcome) AS sms_needs_review_count,
+          (SELECT outbox_count FROM sms_outcome) AS sms_outbox_count,
+          (SELECT COUNT(*)::int FROM notification_insert) AS in_app_recipient_count
+        FROM event_insert event
       `,
       [
         data.tenant_id,
         data.user_id,
-        JSON.stringify([data.audience]),
-        broadcastId,
-        `Broadcast to ${data.audience}`,
-        data.message,
-        JSON.stringify({ audience: data.audience, channels: normalizedChannels, broadcast_id: broadcastId, source_dashboard: 'principal-command' }),
-      ],
-    );
-
-    if (normalizedChannels.includes('sms') && smsRecipients.rows.length > 0) {
-      await this.executeSql(
-        `
-          INSERT INTO communication_sms_outbox (message, recipient_phone, sent_by, status, tenant_id, updated_at)
-          SELECT $1, phone, $2::uuid, 'Pending', $3, NOW()
-          FROM unnest($4::text[]) AS phone
-        `,
-        [data.message, data.user_id, data.tenant_id, smsRecipients.rows.map((row) => row.phone)],
-      );
-    }
-
-    await this.executeSql(
-      `
-        INSERT INTO notifications (
-          tenant_id, notification_key, recipient_role, type, title, body, status, metadata
-        )
-        VALUES ($1, $2, $3, 'communication.broadcast_created', $4, $5, 'unread', $6::jsonb)
-        ON CONFLICT (tenant_id, notification_key)
-        DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, metadata = EXCLUDED.metadata, updated_at = NOW()
-      `,
-      [
-        data.tenant_id,
-        `principal-broadcast-${broadcastId ?? event.rows[0]?.id ?? Date.now()}`,
         data.audience,
-        `Broadcast to ${data.audience}`,
         data.message,
-        JSON.stringify({ audience: data.audience, channels: normalizedChannels, broadcast_id: broadcastId, sms_recipient_count: smsRecipients.rows.length }),
+        normalizedChannels,
+        data.target_class ?? null,
+        // The exact users above receive the broadcast. Keeping the shared event
+        // Principal-only prevents a class/parent broadcast from reappearing in
+        // every user inbox through the role-wide workflow feed.
+        JSON.stringify(['principal']),
+        JSON.stringify({
+          audience: data.audience,
+          channels: normalizedChannels,
+          target_class: data.target_class ?? null,
+          source_dashboard: 'principal-command',
+        }),
       ],
     );
-
-    return { broadcast: broadcast.rows[0], event: event.rows[0], smsRecipientCount: smsRecipients.rows.length };
+    const event = result.rows[0];
+    return {
+      broadcast: event ? {
+        id: event.id,
+        audience: data.audience,
+        target_class: data.target_class ?? null,
+        message: data.message,
+        channels: normalizedChannels,
+        status: event.status,
+        created_at: event.created_at,
+      } : undefined,
+      event,
+      smsRecipientCount: Number(event?.sms_recipient_count ?? 0),
+      smsQueuedCount: Number(event?.sms_queued_count ?? event?.sms_recipient_count ?? 0),
+      smsProcessingCount: Number(event?.sms_processing_count ?? 0),
+      smsAcceptedCount: Number(event?.sms_accepted_count ?? 0),
+      smsNeedsReviewCount: Number(event?.sms_needs_review_count ?? 0),
+      smsOutboxCount: Number(event?.sms_outbox_count ?? event?.sms_recipient_count ?? 0),
+      inAppRecipientCount: Number(event?.in_app_recipient_count ?? 0),
+    };
   }
 
-  async logAbsence(data: { tenant_id: string; user_id: string; student_id: string; date: string; is_excused: boolean }) {
+  async logAbsence(data: { tenant_id: string; user_id: string; student_id: string; date: string; reason: string; is_excused: boolean }) {
     const result = await this.executeSql(
       `
         INSERT INTO attendance_records (
@@ -1851,14 +2900,22 @@ export class AdminCommandRepository {
         FROM students student
         WHERE student.tenant_id = $1
           AND student.id = $2::uuid
+          AND lower(student.status) = 'active'
+        ON CONFLICT (tenant_id, student_id, attendance_date)
+        DO UPDATE SET
+          status = EXCLUDED.status,
+          notes = EXCLUDED.notes,
+          metadata = attendance_records.metadata || EXCLUDED.metadata,
+          last_modified_at = NOW(),
+          updated_at = NOW()
         RETURNING *
       `,
       [
         data.tenant_id,
         data.student_id,
         data.date,
-        data.is_excused ? 'excused_absent' : 'absent',
-        data.is_excused ? 'Logged as excused by principal command center' : 'Logged by principal command center',
+        data.is_excused ? 'excused' : 'absent',
+        data.reason,
         JSON.stringify({ source_dashboard: 'principal-command', logged_by: data.user_id }),
       ],
     );

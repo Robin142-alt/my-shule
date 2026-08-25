@@ -5536,7 +5536,7 @@ function GenericRoleOperationalCommandCenter({
           message,
         },
         notifications: [
-          { audienceRoles: ["system-monitor", "principal", role], title: "Action saved for retry", severity: "warning" },
+          { audienceRoles: ["principal", role], title: "Action saved for retry", severity: "warning" },
         ],
       });
     }
@@ -5883,7 +5883,7 @@ function GenericRoleOperationalCommandCenter({
       title: `Admissions pipeline print preview ready for ${schoolId}`,
       body: `${admissionApplicants.length} applicant records prepared for printing.`,
       severity: "success",
-      notifications: [{ audienceRoles: ["admissions", "principal"], title: "Admissions pipeline printed" }],
+      notifications: [{ audienceRoles: ["admissions_officer", "principal"], title: "Admissions pipeline printed" }],
     });
     addAdmissionsExecutionLog("Admissions pipeline preview ready", ["Application pipeline prepared", "Print preview ready"]);
     setAdmissionsNotice(`Admissions pipeline print preview ready for ${schoolId}: ${admissionApplicants.length} applicant records, Admissions/Principal notified.`);
@@ -6683,7 +6683,7 @@ function GenericRoleOperationalCommandCenter({
         body: `${updatedVehicle.vehicle} on ${updatedVehicle.route} needs maintenance follow-up.`,
         entityId: id,
         severity: "warning",
-        notifications: [{ audienceRoles: ["principal", "accountant", "system-monitor"], title: "Transport vehicle maintenance issue", severity: "warning" }],
+        notifications: [{ audienceRoles: ["principal", "accountant"], title: "Transport vehicle maintenance issue", severity: "warning" }],
       });
     }
     addTransportExecutionLog(`${vehicle?.vehicle ?? "Vehicle"} issue reported`, ["Vehicle issue saved", "Principal transport alert ready"]);
@@ -6736,7 +6736,7 @@ function GenericRoleOperationalCommandCenter({
         entityId: id,
         severity: "warning",
         notifications: [{
-          audienceRoles: ["principal", "accountant", "system-monitor"],
+          audienceRoles: ["principal", "accountant"],
           title: "Transport maintenance scheduled",
           severity: "warning",
         }],
@@ -6837,12 +6837,12 @@ function GenericRoleOperationalCommandCenter({
       },
       notifications: newRecord.status === "Hazard" || newRecord.status === "Low Stock"
         ? [{
-            audienceRoles: ["principal", "dean-academics", "laboratory-technician"],
+            audienceRoles: ["principal", "dean-academics", "lab_technician"],
             title: newRecord.status === "Hazard" ? "Lab hazard stock added" : "Lab low stock added",
             body: `${record.item} needs ${newRecord.status === "Hazard" ? "safety control" : "reorder follow-up"}.`,
             severity: newRecord.status === "Hazard" ? "critical" : "warning",
           }]
-        : [{ audienceRoles: ["laboratory-technician"], title: "Lab stock added" }],
+        : [{ audienceRoles: ["lab_technician"], title: "Lab stock added" }],
     });
     addLabExecutionLog(`${record.item} stock added`, ["Lab inventory updated", "Safety level recorded"]);
     setLabNotice(`${record.item} added to lab inventory with ${record.hazard.toLowerCase()} hazard level.`);
@@ -6874,7 +6874,7 @@ function GenericRoleOperationalCommandCenter({
         requestedFor: record.requestedFor,
       },
       notifications: [
-        { audienceRoles: ["laboratory-technician"], title: "New lab practical request", severity: "warning" },
+        { audienceRoles: ["lab_technician"], title: "New lab practical request", severity: "warning" },
         { audienceRoles: ["dean-academics", "hod"], title: "Lab practical request visible", severity: "info" },
       ],
     });
@@ -6991,7 +6991,7 @@ function GenericRoleOperationalCommandCenter({
       body: `${issue?.item ?? "Apparatus"} returned from ${issue?.teacher ?? "teacher"} and inventory restored.`,
       entityId: issueId,
       severity: "success",
-      notifications: [{ audienceRoles: ["laboratory-technician", "hod"], title: "Lab apparatus returned" }],
+      notifications: [{ audienceRoles: ["lab_technician", "hod"], title: "Lab apparatus returned" }],
     });
     addLabExecutionLog(`${issue?.item ?? "Apparatus"} returned`, ["Return saved", "Inventory restored"]);
     setLabNotice(`${issue?.item ?? "Apparatus"} returned and stock restored.`);
@@ -7072,7 +7072,7 @@ function GenericRoleOperationalCommandCenter({
       title: "Lab practical checklist printed",
       body: `${labRequests.length} practical requests and ${labInventory.length} lab stock records were prepared for printing.`,
       severity: "success",
-      notifications: [{ audienceRoles: ["laboratory-technician", "dean-academics"], title: "Lab practical checklist printed" }],
+      notifications: [{ audienceRoles: ["lab_technician", "dean-academics"], title: "Lab practical checklist printed" }],
     });
     addLabExecutionLog("Practical checklist preview ready", ["Lab checklist prepared", "Print preview ready"]);
     setLabNotice(`Practical checklist print preview ready for ${schoolId}: ${labRequests.length} practical requests and ${labInventory.length} lab stock records, Lab/Dean notified.`);
@@ -7673,7 +7673,7 @@ function GenericRoleOperationalCommandCenter({
       severity: "warning",
       notifications: [
         {
-          audienceRoles: ["guidance-counselling", "school-counsellor", "deputy-principal", "principal"],
+          audienceRoles: ["school_counsellor", "deputy-principal", "principal"],
           title: "Counsellor referral created",
           body: `${disciplineCase?.student ?? "Student"} needs counselling follow-up.`,
           severity: "warning",
@@ -7847,7 +7847,7 @@ function GenericRoleOperationalCommandCenter({
         recipient: session.guardianPhone,
         message: `MyShule counselling update: ${session.student} has a ${session.sessionType.toLowerCase()} follow-up scheduled. Please contact the school counsellor if needed.`,
       }] : undefined,
-      notifications: [{ audienceRoles: ["guidance-counselling", "class-teacher", "deputy-principal"], title: "Counselling guardian SMS queued" }],
+      notifications: [{ audienceRoles: ["school_counsellor", "class-teacher", "deputy-principal"], title: "Counselling guardian SMS queued" }],
     });
     addCounsellingExecutionLog(`${session?.student ?? "Student"} guardian SMS queued`, ["Guardian SMS queued", "Communication record updated"]);
     setCounsellingNotice(`${session?.student ?? "Student"} guardian SMS queued.`);
@@ -7874,7 +7874,7 @@ function GenericRoleOperationalCommandCenter({
       body: `${session?.student ?? "Student"} follow-up was scheduled for ${session?.followUpDate ?? "the next available date"}.`,
       entityId: id,
       severity: "warning",
-      notifications: [{ audienceRoles: ["guidance-counselling", "class-teacher", "deputy-principal"], title: "Counselling follow-up scheduled" }],
+      notifications: [{ audienceRoles: ["school_counsellor", "class-teacher", "deputy-principal"], title: "Counselling follow-up scheduled" }],
     });
     addCounsellingExecutionLog(`${session?.student ?? "Student"} follow-up scheduled`, ["Follow-up calendar updated", "Class teacher notified"]);
     setCounsellingNotice(`${session?.student ?? "Student"} follow-up scheduled.`);
@@ -7892,7 +7892,7 @@ function GenericRoleOperationalCommandCenter({
       severity: "critical",
       notifications: [
         {
-          audienceRoles: ["deputy-principal", "principal", "guidance-counselling"],
+          audienceRoles: ["deputy-principal", "principal", "school_counsellor"],
           title: "Counselling case escalated",
           body: `${session?.student ?? "Student"} needs deputy welfare action.`,
           severity: "critical",
@@ -7924,7 +7924,7 @@ function GenericRoleOperationalCommandCenter({
       body: `Counselling summary prepared for ${session?.student ?? "student"}.`,
       entityId: id,
       severity: "success",
-      notifications: [{ audienceRoles: ["guidance-counselling", "deputy-principal"], title: "Counselling summary printed" }],
+      notifications: [{ audienceRoles: ["school_counsellor", "deputy-principal"], title: "Counselling summary printed" }],
     });
     addCounsellingExecutionLog(`${session?.student ?? "Student"} counselling summary preview ready`, ["Print preview prepared", "Document record saved"]);
     setCounsellingNotice(
@@ -7958,7 +7958,7 @@ function GenericRoleOperationalCommandCenter({
       body: `${session?.student ?? "Student"} counselling follow-up marked closed.`,
       entityId: id,
       severity: "success",
-      notifications: [{ audienceRoles: ["guidance-counselling", "class-teacher", "deputy-principal"], title: "Counselling follow-up closed" }],
+      notifications: [{ audienceRoles: ["school_counsellor", "class-teacher", "deputy-principal"], title: "Counselling follow-up closed" }],
     });
     addCounsellingExecutionLog(`${session?.student ?? "Student"} follow-up closed`, ["Case closed", "Follow-up record saved"]);
     setCounsellingNotice(`${session?.student ?? "Student"} follow-up closed.`);

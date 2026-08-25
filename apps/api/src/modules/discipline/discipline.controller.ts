@@ -2,7 +2,6 @@
 import { Inject } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 
 import {
   Body,
@@ -71,14 +70,8 @@ export class DisciplineController {
   }
 
 
-  @Inject(PrismaService)
-  private readonly db!: PrismaService;
-
   @Inject(RequestContextService)
   private readonly requestContext!: RequestContextService;
-
-  @Inject(SchoolOperationalEventsService)
-  private readonly events!: SchoolOperationalEventsService;
 
   @Inject(ApprovalsService)
   private readonly approvals!: ApprovalsService;
@@ -95,6 +88,12 @@ export class DisciplineController {
   @Permissions('discipline:read')
   listOffenseCategories() {
     return this.disciplineService.listOffenseCategories();
+  }
+
+  @Get('incident-options')
+  @Permissions('discipline:read')
+  getIncidentOptions() {
+    return this.disciplineService.getIncidentOptions();
   }
 
   @Post('offense-categories')
@@ -115,11 +114,11 @@ export class DisciplineController {
     return this.disciplineService.listParentIncidents(query);
   }
 
-  /* @Post('incidents')
+  @Post('incidents')
   @Permissions('discipline:write')
   createIncident(@Body() dto: CreateDisciplineIncidentDto) {
     return this.disciplineService.createIncident(dto);
-  } */
+  }
 
   @Get('incidents/:incidentId')
   @Permissions('discipline:read')
@@ -354,31 +353,6 @@ export class DisciplineController {
   ) {
     return this.disciplineService.generateDocument(incidentId, dto);
   }
-
-  @Post('incidents')
-  @Permissions('discipline:write')
-  async createIncidentPhase5(@Body() body: any) {
-    const store = this.requestContext.requireStore();
-    const result = await this.db.query(
-      `INSERT INTO discipline_incidents (tenant_id, school_id, incident_number, title, description, severity, status) 
-       VALUES ($1, $1, $2, $3, $4, $5, $6) RETURNING *`,
-      [store.tenant_id, store.tenant_id, Date.now().toString(), body.title || 'Incident', body.description || 'Desc', 'moderate', 'reported']
-    );
-    await this.events.recordSchoolOperation({
-      schoolId: store.tenant_id,
-      event: { 
-        id: result.rows[0].id,
-        type: 'discipline.incident.reported', 
-        module: 'discipline', 
-        title: 'New Incident', 
-        body: 'A discipline incident was reported', 
-        actorRole: store.role || 'system',
-        createdAt: new Date().toISOString()
-      }
-    });
-    return result.rows[0];
-  }
-
 
   @Get('cases')
   @Permissions('discipline:read')

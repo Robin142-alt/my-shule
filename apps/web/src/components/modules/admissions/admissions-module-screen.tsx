@@ -662,7 +662,7 @@ export function AdmissionsModuleScreen({
       },
       notifications: [
         {
-          audienceRoles: ["Principal", "Admissions Officer", "System Monitor"],
+          audienceRoles: ["Principal", "Admissions Officer"],
           title: `Admissions local action: ${action}`,
           body: "A local admissions workspace action was recorded while live API persistence was unavailable.",
           severity: "warning",

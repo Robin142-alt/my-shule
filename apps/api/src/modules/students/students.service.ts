@@ -26,24 +26,6 @@ import { StudentsRepository } from './repositories/students.repository';
 
 @Injectable()
 export class StudentsService {
-
-  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
-    const firstParam = params[0];
-    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
-    
-    if (isUuid) {
-      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
-        const result = await tx.$queryRawUnsafe(query, ...params);
-        const arr = Array.isArray(result) ? result : [result];
-        return { rows: arr, rowCount: arr.length };
-      });
-    } else {
-      const result = await this.prisma.$queryRawUnsafe(query, ...params);
-      const arr = Array.isArray(result) ? result : [result];
-        return { rows: arr, rowCount: arr.length };
-    }
-  }
-
   constructor(
     private readonly requestContext: RequestContextService,
     private readonly prisma: PrismaService,
@@ -295,40 +277,56 @@ export class StudentsService {
     return parsedValue > 0n ? parsedValue : null;
   }
 
-  async getSummary(tenantId: string) {
-    const [
-      totalRes,
-      activeRes,
-      newAdmissionsRes,
-      boysRes,
-      girlsRes,
-    ] = await Promise.all([
-      this.executeSql('SELECT COUNT(*) as count FROM students WHERE tenant_id = $1', [tenantId]),
-      this.executeSql('SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND status = \'active\'', [tenantId]),
-      this.executeSql('SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND created_at >= date_trunc(\'month\', CURRENT_DATE)', [tenantId]),
-      this.executeSql('SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND gender ILIKE \'male\'', [tenantId]),
-      this.executeSql('SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND gender ILIKE \'female\'', [tenantId]),
-    ]);
+  async getSummary() {
+    const tenantId = this.requireTenantId();
+    const [summary] = await this.prisma.executeWithTenant(tenantId, null, (tx) =>
+      tx.$queryRawUnsafe<Array<{
+        total_students: bigint | number | string;
+        absent_today: bigint | number | string;
+        new_enrollments: bigint | number | string;
+        boys_count: bigint | number | string;
+        girls_count: bigint | number | string;
+      }>>(
+        `SELECT
+           COUNT(*)::bigint AS total_students,
+           COUNT(*) FILTER (
+             WHERE student.created_at >= date_trunc('month', CURRENT_DATE)
+           )::bigint AS new_enrollments,
+           COUNT(*) FILTER (WHERE lower(COALESCE(student.gender, '')) = 'male')::bigint AS boys_count,
+           COUNT(*) FILTER (WHERE lower(COALESCE(student.gender, '')) = 'female')::bigint AS girls_count,
+           (
+             SELECT COUNT(*)::bigint
+             FROM attendance_records attendance
+             WHERE attendance.tenant_id = $1
+               AND attendance.attendance_date = CURRENT_DATE
+               AND lower(attendance.status) = 'absent'
+           ) AS absent_today
+         FROM students student
+         WHERE student.tenant_id = $1`,
+        tenantId,
+      ),
+    );
 
-    const totalStudents = Number(totalRes.rows[0]?.count || 0);
-    const newEnrollments = Number(newAdmissionsRes.rows[0]?.count || 0);
-    const boysCount = Number(boysRes.rows[0]?.count || 0);
-    const girlsCount = Number(girlsRes.rows[0]?.count || 0);
-    
-    // We compute percentage if there are students, else default to 50/50 visual stub
+    const totalStudents = Number(summary?.total_students ?? 0);
+    const absentToday = Number(summary?.absent_today ?? 0);
+    const newEnrollments = Number(summary?.new_enrollments ?? 0);
+    const boysCount = Number(summary?.boys_count ?? 0);
+    const girlsCount = Number(summary?.girls_count ?? 0);
+
     const totalGender = boysCount + girlsCount;
-    const boysPct = totalGender > 0 ? Math.round((boysCount / totalGender) * 100) : 50;
-    const girlsPct = totalGender > 0 ? Math.round((girlsCount / totalGender) * 100) : 50;
+    const demographics = totalGender > 0
+      ? [
+          { label: 'Boys', value: Math.round((boysCount / totalGender) * 100) },
+          { label: 'Girls', value: Math.round((girlsCount / totalGender) * 100) },
+        ]
+      : [];
 
     return {
       totalStudents: totalStudents.toString(),
-      absentToday: '0', // Stubbable until attendance module is linked
+      absentToday: absentToday.toString(),
       newEnrollments: newEnrollments.toString(),
-      trendLabel: newEnrollments > 0 ? `+${newEnrollments} this month` : 'Stable',
-      demographics: [
-        { label: 'Boys', value: boysPct },
-        { label: 'Girls', value: girlsPct },
-      ]
+      trendLabel: newEnrollments > 0 ? `+${newEnrollments} this month` : 'No enrollments this month',
+      demographics,
     };
   }
 

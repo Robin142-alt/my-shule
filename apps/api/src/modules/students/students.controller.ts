@@ -61,12 +61,7 @@ export class StudentsController {
   @Get('summary/dashboard')
   @Permissions('students:read')
   async getSummary(): Promise<StudentsWidgetDataDto> {
-    const store = this.requestContext.requireStore();
-    const tenantId = store.tenant_id;
-    if (!tenantId) {
-      throw new Error('Tenant context required');
-    }
-    return this.studentsService.getSummary(tenantId);
+    return this.studentsService.getSummary();
   }
 
   @Post('guardians')

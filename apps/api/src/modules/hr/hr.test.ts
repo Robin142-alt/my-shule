@@ -141,6 +141,13 @@ test('HrRepository builds staff dashboard metrics from current-school canonical 
   }
   assert.ok(queries.some(({ sql, params }) =>
     /teacher_id::text = \$2/.test(sql) && params[1] === 'user-a'));
+  const notificationQuery = queries.find(({ sql }) => /FROM notifications notification/.test(sql));
+  assert.ok(notificationQuery);
+  assert.deepEqual(notificationQuery.params, ['school-a', 'user-a', 'teacher']);
+  assert.match(notificationQuery.sql, /recipient_user_id::text/);
+  assert.match(notificationQuery.sql, /recipient_user_id IS NULL|\) IS NULL/);
+  assert.match(notificationQuery.sql, /metadata->'target_roles'/);
+  assert.match(notificationQuery.sql, /metadata->'audienceRoles'/);
 });
 
 test('HrRepository returns truthful zero availability without querying other staff when no profile is linked', async () => {
@@ -199,41 +206,80 @@ test('HrSchemaService creates staff management tables with forced RLS', async ()
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_staff_profiles_tenant_status_display_name/);
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_staff_profiles_display_name_trgm/);
   assert.doesNotMatch(schemaSql, /UNIQUE \(tenant_id, lower\(name\)\)/);
-  assert.match(schemaSql, /INSERT INTO staff_profiles[\s\S]+FROM tenant_memberships membership/);
-  assert.match(schemaSql, /JOIN users user_account[\s\S]+membership\.user_id/);
-  assert.match(schemaSql, /JOIN roles role[\s\S]+role\.tenant_id = membership\.tenant_id/);
-  assert.match(schemaSql, /role\.code = ANY \(ARRAY\[[\s\S]+'teacher'[\s\S]+'admissions_officer'/);
-  assert.match(schemaSql, /ON CONFLICT \(tenant_id, user_id\)[\s\S]+DO UPDATE SET/);
-  assert.doesNotMatch(schemaSql, /role\.code = ANY \(ARRAY\[[^\]]*'(?:parent|student)'/);
+  assert.doesNotMatch(schemaSql, /INSERT INTO staff_profiles[\s\S]+FROM tenant_memberships membership/);
   assert.match(schemaSql, /ALTER TABLE staff_profiles FORCE ROW LEVEL SECURITY/);
 });
 
-test('HrSchemaService reconciles accepted memberships into the shared staff directory', async () => {
-  let reconciliationSql = '';
+test('HrSchemaService reconciles staff memberships one tenant-scoped transaction at a time', async () => {
+  const executeScopes: Array<{ tenantId: string; userId: string | null }> = [];
+  const sessionStatements: Array<{ tenantId: string; sql: string }> = [];
+  const reconciliationQueries: Array<{ tenantId: string; sql: string; params: unknown[] }> = [];
   const service = new HrSchemaService({
-    query: async (sql: string) => {
-      reconciliationSql = sql;
-      return {
-        rows: [
-          { tenant_id: 'school-a', user_id: 'user-a' },
-          { tenant_id: 'school-a', user_id: 'user-b' },
-        ],
-        rowCount: 2,
+    executeWithTenant: async (
+      tenantId: string,
+      userId: string | null,
+      callback: (tx: {
+        $executeRawUnsafe: (sql: string) => Promise<number>;
+        $queryRawUnsafe: (sql: string, ...params: unknown[]) => Promise<unknown[]>;
+      }) => Promise<unknown>,
+    ) => {
+      executeScopes.push({ tenantId, userId });
+      const tx = {
+        $executeRawUnsafe: async (sql: string) => {
+          sessionStatements.push({ tenantId, sql });
+          return 0;
+        },
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          if (tenantId === 'global') {
+            assert.match(sql, /FROM tenants tenant/);
+            assert.match(sql, /lower\(btrim\(tenant\.tenant_id\)\) <> 'global'/);
+            return [
+              { tenant_id: 'school-a' },
+              { tenant_id: 'school-a' },
+              { tenant_id: 'global' },
+              { tenant_id: ' ' },
+              { tenant_id: 'school-b' },
+            ];
+          }
+
+          reconciliationQueries.push({ tenantId, sql, params });
+          return [{ tenant_id: tenantId, user_id: `user-${tenantId}` }];
+        },
       };
+
+      return callback(tx);
     },
   } as never);
 
   await service.onApplicationBootstrap();
 
-  assert.match(reconciliationSql, /INSERT INTO staff_profiles/);
-  assert.match(reconciliationSql, /FROM tenant_memberships membership/);
-  assert.match(reconciliationSql, /membership\.status = 'active'/);
-  assert.match(reconciliationSql, /user_account\.status = 'active'/);
-  assert.match(reconciliationSql, /ON CONFLICT \(tenant_id, user_id\)/);
-  assert.doesNotMatch(
-    reconciliationSql,
-    /role\.code = ANY \(ARRAY\[[^\]]*'(?:parent|student)'/,
-  );
+  assert.deepEqual(executeScopes, [
+    { tenantId: 'global', userId: null },
+    { tenantId: 'school-a', userId: null },
+    { tenantId: 'school-b', userId: null },
+  ]);
+  assert.ok(sessionStatements.some(({ tenantId, sql }) =>
+    tenantId === 'global' && sql === 'SET LOCAL row_security = on'));
+  assert.ok(sessionStatements.some(({ tenantId, sql }) =>
+    tenantId === 'global' && sql === `SET LOCAL app.role = 'platform_owner'`));
+  assert.equal(reconciliationQueries.length, 2);
+
+  for (const { tenantId, sql, params } of reconciliationQueries) {
+    assert.ok(sessionStatements.some((statement) =>
+      statement.tenantId === tenantId && statement.sql === 'SET LOCAL row_security = on'));
+    assert.ok(sessionStatements.some((statement) =>
+      statement.tenantId === tenantId
+      && statement.sql === `SET LOCAL app.role = 'platform_owner'`));
+    assert.deepEqual(params, [tenantId]);
+    assert.match(sql, /INSERT INTO staff_profiles/);
+    assert.match(sql, /SELECT\s+\$1::text,/);
+    assert.match(sql, /FROM tenant_memberships membership/);
+    assert.match(sql, /membership\.tenant_id = \$1/);
+    assert.match(sql, /membership\.status = 'active'/);
+    assert.match(sql, /user_account\.status = 'active'/);
+    assert.match(sql, /ON CONFLICT \(tenant_id, user_id\)/);
+    assert.doesNotMatch(sql, /role\.code = ANY \(ARRAY\[[^\]]*'(?:parent|student)'/);
+  }
 });
 
 test('HrService prevents overlapping active contracts for the same staff member', async () => {

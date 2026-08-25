@@ -1,6 +1,14 @@
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 
+import { createCsvReportArtifact } from '../../common/reports/report-csv-artifact';
+import { createXlsxReportArtifact } from '../../common/reports/report-excel-artifact';
+import { createPdfReportArtifact } from '../../common/reports/report-pdf-artifact';
+import type {
+  ReportArtifact,
+  ReportArtifactInput,
+  ReportArtifactValue,
+} from '../../common/reports/report-artifact';
 import { PrismaService } from '../../database/prisma.service';
 
 type ReportFormat = 'csv' | 'xlsx' | 'pdf';
@@ -23,8 +31,11 @@ export class AdminCommandOperationsService {
   async readSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[]; rowCount: number }> {
     try {
       return await this.query<T>(query, params);
-    } catch {
-      return { rows: [], rowCount: 0 };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        message: 'The requested school data could not be loaded.',
+        detail: error instanceof Error ? error.message : 'Unknown database error',
+      });
     }
   }
 
@@ -37,9 +48,7 @@ export class AdminCommandOperationsService {
           title AS "reportName",
           created_at::text AS "generatedDate",
           format AS type,
-          'Ready' AS status,
-          artifact,
-          manifest
+          'Ready' AS status
         FROM report_snapshots
         WHERE tenant_id = $1
           AND module = $2
@@ -76,24 +85,82 @@ export class AdminCommandOperationsService {
       filters: input.filters ?? {},
     };
     const manifestJson = JSON.stringify(manifest);
-    const checksum = createHash('sha256').update(manifestJson).digest('hex');
+    const manifestChecksum = createHash('sha256').update(manifestJson).digest('hex');
     const snapshotId = `${module}-${Date.now()}-${randomUUID()}`;
+    const reportRows = this.buildReportRows(input.sections);
+    const generatedArtifact = await this.createReportArtifact(format, {
+      reportId,
+      module,
+      title,
+      filename: `${reportId}-${generatedAt.replace(/\D/g, '').slice(0, 14)}.${format}`,
+      generatedAt,
+      filters: input.filters ?? {},
+      headers: ['Section', 'Group', 'Record', 'Value'],
+      rows: reportRows,
+    });
     const artifact = {
-      kind: 'compiled-json-report',
-      filename: `${reportId}-${Date.now()}.${format}`,
-      content_type: this.contentTypeFor(format),
-      row_count: this.countRows(input.sections),
-      checksum_sha256: checksum,
-      generated_at: generatedAt,
+      kind: 'generated-report',
+      filename: generatedArtifact.filename,
+      content_type: generatedArtifact.contentType,
+      byte_length: generatedArtifact.byteLength,
+      row_count: generatedArtifact.rowCount,
+      checksum_sha256: generatedArtifact.checksumSha256,
+      generated_at: generatedArtifact.generatedAt,
       section_count: Object.keys(input.sections).length,
+      encoding: 'base64',
+      content_base64: generatedArtifact.content.toString('base64'),
     };
+    const auditMetadata = JSON.stringify({
+      title,
+      format,
+      snapshot_id: snapshotId,
+      report_id: reportId,
+      manifest_checksum_sha256: manifestChecksum,
+      artifact_checksum_sha256: generatedArtifact.checksumSha256,
+      byte_length: generatedArtifact.byteLength,
+      section_count: Object.keys(input.sections).length,
+    });
+    const actorUserId = this.uuidOrNull(input.generatedByUserId);
+    const auditAction = `${module}.report.generated`;
 
     await this.writeSql(
       `
-        INSERT INTO report_snapshots (
-          tenant_id, snapshot_id, module, report_id, title, format, artifact, filters, generated_by_user_id, manifest, manifest_checksum_sha256
+        WITH inserted_snapshot AS (
+          INSERT INTO report_snapshots (
+            tenant_id, snapshot_id, module, report_id, title, format, artifact, filters,
+            generated_by_user_id, manifest, manifest_checksum_sha256
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::text, $10::jsonb, $11)
+          RETURNING tenant_id, snapshot_id
+        ), snapshot_audit AS (
+          INSERT INTO report_snapshot_audit_logs (
+            tenant_id, snapshot_id, action, actor_user_id, request_id, metadata
+          )
+          SELECT
+            tenant_id,
+            snapshot_id,
+            'report.snapshot.created',
+            $9::text,
+            current_setting('app.request_id', true),
+            $12::jsonb
+          FROM inserted_snapshot
+          RETURNING id
+        ), general_audit AS (
+          INSERT INTO audit_logs (
+            tenant_id, actor_user_id, request_id, action, resource_type, resource_id, metadata
+          )
+          SELECT
+            tenant_id,
+            $9::uuid,
+            current_setting('app.request_id', true),
+            $13,
+            'report_snapshot',
+            NULL,
+            $12::jsonb
+          FROM inserted_snapshot
+          RETURNING id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10::jsonb, $11)
+        SELECT snapshot_id FROM inserted_snapshot
       `,
       [
         input.tenantId,
@@ -104,18 +171,13 @@ export class AdminCommandOperationsService {
         format,
         JSON.stringify(artifact),
         JSON.stringify(input.filters ?? {}),
-        input.generatedByUserId || null,
+        actorUserId,
         manifestJson,
-        checksum,
+        manifestChecksum,
+        auditMetadata,
+        auditAction,
       ],
     );
-
-    await this.recordAudit(input.tenantId, `${module}.report.generated`, 'report_snapshot', snapshotId, {
-      title,
-      format,
-      checksum,
-      section_count: Object.keys(input.sections).length,
-    });
 
     if (input.targetRoles?.length) {
       await this.notifyRoles(input.tenantId, {
@@ -124,13 +186,20 @@ export class AdminCommandOperationsService {
         title: `${title} generated`,
         body: `A ${format.toUpperCase()} ${title} was compiled from live school records.`,
         targetRoles: input.targetRoles,
-        metadata: { snapshotId, module, reportId, format, checksum },
+        metadata: {
+          snapshotId,
+          module,
+          reportId,
+          format,
+          manifest_checksum_sha256: manifestChecksum,
+          artifact_checksum_sha256: generatedArtifact.checksumSha256,
+        },
       });
     }
 
     return {
       success: true,
-      message: 'Report compiled and stored',
+      message: 'Report generated and stored',
       snapshotId,
       report: manifest,
       artifact,
@@ -190,14 +259,14 @@ export class AdminCommandOperationsService {
     metadata: Record<string, unknown>,
     actorUserId?: string | null,
   ) {
-    await this.readSql(
+    await this.writeSql(
       `
         INSERT INTO audit_logs (
           tenant_id, actor_user_id, request_id, action, resource_type, resource_id, metadata
         )
         VALUES ($1, $2, current_setting('app.request_id', true), $3, $4, $5, $6::jsonb)
       `,
-      [tenantId, this.uuidOrNull(actorUserId), action, resourceType, resourceId, JSON.stringify(metadata)],
+      [tenantId, this.uuidOrNull(actorUserId), action, resourceType, this.uuidOrNull(resourceId), JSON.stringify(metadata)],
     );
   }
 
@@ -272,20 +341,113 @@ export class AdminCommandOperationsService {
     return normalized === 'csv' || normalized === 'xlsx' || normalized === 'pdf' ? normalized : 'pdf';
   }
 
-  private contentTypeFor(format: ReportFormat): string {
-    if (format === 'csv') return 'text/csv';
-    if (format === 'xlsx') return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-    return 'application/pdf';
+  private async createReportArtifact(
+    format: ReportFormat,
+    input: ReportArtifactInput,
+  ): Promise<ReportArtifact> {
+    if (format === 'xlsx') {
+      return createXlsxReportArtifact(input);
+    }
+
+    if (format === 'pdf') {
+      return createPdfReportArtifact(input);
+    }
+
+    const csvArtifact = createCsvReportArtifact({
+      reportId: input.reportId,
+      title: input.title,
+      filename: input.filename ?? `${input.reportId}.csv`,
+      headers: input.headers,
+      rows: input.rows,
+      generatedAt: new Date(input.generatedAt ?? Date.now()),
+    });
+    const content = Buffer.from(csvArtifact.csv, 'utf8');
+
+    return {
+      filename: csvArtifact.filename,
+      contentType: csvArtifact.content_type,
+      byteLength: content.length,
+      checksumSha256: csvArtifact.checksum_sha256,
+      generatedAt: csvArtifact.generated_at,
+      rowCount: csvArtifact.row_count,
+      content,
+    };
   }
 
-  private countRows(sections: Record<string, unknown>): number {
-    return Object.values(sections).reduce<number>((count, section) => {
-      if (Array.isArray(section)) return count + section.length;
-      if (section && typeof section === 'object' && Array.isArray((section as any).rows)) {
-        return count + (section as any).rows.length;
+  private buildReportRows(sections: Record<string, unknown>): ReportArtifactValue[][] {
+    const rows: ReportArtifactValue[][] = [];
+
+    for (const [sectionName, section] of Object.entries(sections)) {
+      if (Array.isArray(section)) {
+        this.appendReportArray(rows, sectionName, 'records', section);
+        continue;
       }
-      return count + 1;
-    }, 0);
+
+      if (section && typeof section === 'object' && !(section instanceof Date)) {
+        const entries = Object.entries(section as Record<string, unknown>);
+        if (entries.length === 0) {
+          rows.push([sectionName, 'summary', '', 'No records']);
+          continue;
+        }
+
+        for (const [groupName, value] of entries) {
+          if (Array.isArray(value)) {
+            this.appendReportArray(rows, sectionName, groupName, value);
+            continue;
+          }
+
+          if (value && typeof value === 'object' && !(value instanceof Date)) {
+            const fields = Object.entries(value as Record<string, unknown>);
+            if (fields.length === 0) {
+              rows.push([sectionName, groupName, '', 'No records']);
+              continue;
+            }
+            for (const [fieldName, fieldValue] of fields) {
+              rows.push([sectionName, groupName, fieldName, this.serializeReportValue(fieldValue)]);
+            }
+            continue;
+          }
+
+          rows.push([sectionName, 'summary', groupName, this.serializeReportValue(value)]);
+        }
+        continue;
+      }
+
+      rows.push([sectionName, 'summary', '', this.serializeReportValue(section)]);
+    }
+
+    return rows;
+  }
+
+  private appendReportArray(
+    rows: ReportArtifactValue[][],
+    sectionName: string,
+    groupName: string,
+    records: unknown[],
+  ): void {
+    if (records.length === 0) {
+      rows.push([sectionName, groupName, '', 'No records']);
+      return;
+    }
+
+    records.forEach((record, index) => {
+      rows.push([sectionName, groupName, index + 1, this.serializeReportValue(record)]);
+    });
+  }
+
+  private serializeReportValue(value: unknown): ReportArtifactValue {
+    if (
+      value === null
+      || value === undefined
+      || typeof value === 'string'
+      || typeof value === 'number'
+      || typeof value === 'boolean'
+      || value instanceof Date
+    ) {
+      return value;
+    }
+
+    return JSON.stringify(value);
   }
 
   private safeIdentifier(value: string, fallback: string): string {

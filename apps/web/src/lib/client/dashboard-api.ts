@@ -31,7 +31,7 @@ export const DashboardApi = {
     ),
 
   getSummary: (role: string) =>
-    requestSessionApi<unknown>(`/api/dashboard/summary?role=${encodeURIComponent(role)}`),
+    requestSessionApi<unknown>(`/api/dashboard/communication-summary?role=${encodeURIComponent(role)}`),
 
   getNotifications: (status?: string) =>
     requestSessionApi<unknown>(notificationPath(status)),

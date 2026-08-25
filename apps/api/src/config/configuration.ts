@@ -333,6 +333,24 @@ export default () => ({
     retryDelayMs: parseNumber(process.env.EVENTS_RETRY_DELAY_MS, 5000),
     maxAttempts: parseNumber(process.env.EVENTS_MAX_ATTEMPTS, 25),
   },
+  communication: {
+    smsOutboxWorkerEnabled: parseBoolean(
+      process.env.COMMUNICATION_SMS_OUTBOX_WORKER_ENABLED,
+      false,
+    ),
+    smsOutboxWorkerIntervalMs: parseNumber(
+      process.env.COMMUNICATION_SMS_OUTBOX_WORKER_INTERVAL_MS,
+      5000,
+    ),
+    smsOutboxBatchSize: parseNumber(process.env.COMMUNICATION_SMS_OUTBOX_BATCH_SIZE, 25),
+    smsOutboxConcurrency: parseNumber(process.env.COMMUNICATION_SMS_OUTBOX_CONCURRENCY, 5),
+    smsOutboxLeaseMs: parseNumber(process.env.COMMUNICATION_SMS_OUTBOX_LEASE_MS, 120000),
+    smsOutboxMaxAttempts: parseNumber(process.env.COMMUNICATION_SMS_OUTBOX_MAX_ATTEMPTS, 8),
+    smsOutboxRetryBaseMs: parseNumber(process.env.COMMUNICATION_SMS_OUTBOX_RETRY_BASE_MS, 60000),
+    smsOutboxRetryMaxMs: parseNumber(process.env.COMMUNICATION_SMS_OUTBOX_RETRY_MAX_MS, 3600000),
+    smsProviderRequestTimeoutMs: parseNumber(process.env.SMS_PROVIDER_REQUEST_TIMEOUT_MS, 10000),
+    smsProviderAllowedHosts: process.env.SMS_PROVIDER_ALLOWED_HOSTS ?? '',
+  },
   observability: {
     sloWindowSeconds: parseNumber(process.env.OBSERVABILITY_SLO_WINDOW_SECONDS, 900),
     sloBackgroundEnabled: parseBoolean(

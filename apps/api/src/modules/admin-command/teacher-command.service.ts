@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
+import { notificationRecipientPredicate } from '../notifications/notification-recipient-predicate';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
 
 @Injectable()
@@ -731,15 +732,33 @@ export class TeacherCommandService {
     const res = await this.executeSql(
       `
         SELECT
-          message.id::text,
+          notification.id::text,
           'You'::text AS "from",
-          'Parent communication'::text AS subject,
-          message.created_at::date::text AS date,
-          INITCAP(message.status) AS status
-        FROM communication_sms_outbox message
-        WHERE message.tenant_id = $1
-          AND message.sent_by::text = $2
-        ORDER BY message.created_at DESC
+          notification.title AS subject,
+          guardian.display_name AS recipient,
+          notification.body AS message,
+          notification.created_at::date::text AS date,
+          CASE
+            WHEN LOWER(notification.status) = 'failed' THEN 'Failed'
+            WHEN LOWER(notification.status) = 'read' THEN 'Read in portal'
+            ELSE 'Available in portal'
+          END AS status
+        FROM notifications notification
+        INNER JOIN workflow_events event
+          ON event.tenant_id = notification.tenant_id
+         AND event.id::text = notification.source_record_id
+         AND event.event_type = 'teacher.parent_message_sent'
+         AND event.source_user_id::text = $2
+        INNER JOIN student_guardians guardian
+          ON guardian.tenant_id = notification.tenant_id
+         AND guardian.id = notification.recipient_guardian_id
+         AND guardian.user_id = notification.recipient_user_id
+        WHERE notification.tenant_id = $1
+          AND notification.type = 'teacher.parent_message_sent'
+          AND notification.source_module = 'teacher-command'
+          AND notification.recipient_user_id IS NOT NULL
+          AND notification.recipient_guardian_id IS NOT NULL
+        ORDER BY notification.created_at DESC
         LIMIT 100
       `,
       [tenantId, userId]
@@ -754,57 +773,113 @@ export class TeacherCommandService {
     };
   }
 
-  private async resolveParentMessageRecipients(
-    tenantId: string,
-    userId: string,
-    audience: 'individual_parent' | 'class_parents',
-    recipient: string,
-  ): Promise<string[]> {
-    const audienceFilter =
-      audience === 'class_parents'
-        ? `AND (
-             class_section.id::text = $3
-             OR LOWER(class_section.name) = LOWER($3)
-           )`
-        : `AND (
-             student.id::text = $3
-             OR student.admission_number = $3
-             OR guardian.id::text = $3
-             OR guardian.user_id::text = $3
-             OR LOWER(COALESCE(guardian.email, '')) = LOWER($3)
-             OR COALESCE(guardian.phone, student.primary_guardian_phone, '') = $3
-           )`;
-    const result = await this.executeSql<{ phone: string }>(
+  async getParentMessageRecipients() {
+    const tenantId = this.requireTenantId();
+    const userId = this.requireUserId();
+    const result = await this.executeSql<{
+      kind: 'class' | 'guardian';
+      recipient_id: string;
+      label: string;
+      student_name: string | null;
+      class_name: string;
+      sms_available: boolean;
+    }>(
       `
-        SELECT DISTINCT COALESCE(NULLIF(guardian.phone, ''), NULLIF(student.primary_guardian_phone, '')) AS phone
-        FROM teacher_subject_assignments assignment
+        WITH current_assignments AS (
+          SELECT DISTINCT assignment.class_section_id::text AS class_section_id
+          FROM teacher_subject_assignments assignment
+          WHERE assignment.tenant_id = $1
+            AND assignment.teacher_user_id::text = $2
+            AND LOWER(assignment.status) = 'active'
+            AND assignment.effective_from <= CURRENT_DATE
+            AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
+        ), assigned_students AS (
+          SELECT DISTINCT
+            student.id::text AS student_id,
+            student_assignment.class_section_id::text AS class_section_id,
+            COALESCE(
+              NULLIF(TRIM(CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name)), ''),
+              student.admission_number,
+              'Learner'
+            ) AS student_name
+          FROM current_assignments assignment
+          INNER JOIN student_class_assignments student_assignment
+            ON student_assignment.tenant_id = $1
+           AND student_assignment.class_section_id::text = assignment.class_section_id
+           AND LOWER(student_assignment.status) = 'active'
+          INNER JOIN students student
+            ON student.tenant_id = student_assignment.tenant_id
+           AND student.id::text = student_assignment.student_id::text
+           AND student.deleted_at IS NULL
+           AND LOWER(COALESCE(student.status, 'active')) IN ('active', 'admitted', 'enrolled')
+        ), guardian_options AS (
+          SELECT DISTINCT
+            guardian.id::text AS guardian_id,
+            guardian.display_name AS guardian_name,
+            assigned.student_name,
+            assigned.class_section_id,
+            COALESCE(guardian.can_receive_sms, TRUE)
+              AND NULLIF(TRIM(COALESCE(guardian.phone, '')), '') IS NOT NULL AS sms_available
+          FROM assigned_students assigned
+          INNER JOIN student_guardians guardian
+            ON guardian.tenant_id = $1
+           AND guardian.student_id::text = assigned.student_id
+           AND LOWER(guardian.status) = 'active'
+           AND guardian.user_id IS NOT NULL
+          INNER JOIN tenant_memberships membership
+            ON membership.tenant_id = guardian.tenant_id
+           AND membership.user_id = guardian.user_id
+           AND LOWER(membership.status) = 'active'
+        )
+        SELECT
+          'class'::text AS kind,
+          class_section.id::text AS recipient_id,
+          class_section.name AS label,
+          NULL::text AS student_name,
+          class_section.name AS class_name,
+          BOOL_OR(guardian.sms_available) AS sms_available
+        FROM current_assignments assignment
         INNER JOIN class_sections class_section
-          ON class_section.tenant_id = assignment.tenant_id
-         AND class_section.id::text = assignment.class_section_id::text
-        INNER JOIN student_class_assignments student_assignment
-          ON student_assignment.tenant_id = assignment.tenant_id
-         AND student_assignment.class_section_id::text = assignment.class_section_id::text
-         AND student_assignment.status = 'active'
-        INNER JOIN students student
-          ON student.tenant_id = student_assignment.tenant_id
-         AND student.id::text = student_assignment.student_id::text
-        LEFT JOIN student_guardians guardian
-          ON guardian.tenant_id = student.tenant_id
-         AND guardian.student_id::text = student.id::text
-         AND guardian.status <> 'revoked'
-         AND COALESCE(guardian.can_receive_sms, TRUE) = TRUE
-        WHERE assignment.tenant_id = $1
-          AND assignment.teacher_user_id::text = $2
-          AND assignment.status = 'active'
-          AND assignment.effective_from <= CURRENT_DATE
-          AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
-          ${audienceFilter}
-          AND COALESCE(NULLIF(guardian.phone, ''), NULLIF(student.primary_guardian_phone, '')) IS NOT NULL
+          ON class_section.tenant_id = $1
+         AND class_section.id::text = assignment.class_section_id
+        INNER JOIN guardian_options guardian
+          ON guardian.class_section_id = assignment.class_section_id
+        GROUP BY class_section.id, class_section.name
+        UNION ALL
+        SELECT
+          'guardian'::text AS kind,
+          guardian.guardian_id AS recipient_id,
+          guardian.guardian_name AS label,
+          guardian.student_name,
+          class_section.name AS class_name,
+          guardian.sms_available
+        FROM guardian_options guardian
+        INNER JOIN class_sections class_section
+          ON class_section.tenant_id = $1
+         AND class_section.id::text = guardian.class_section_id
+        ORDER BY kind, label, student_name
       `,
-      [tenantId, userId, recipient],
+      [tenantId, userId],
     );
 
-    return [...new Set(result.rows.map((row) => String(row.phone).trim()).filter(Boolean))];
+    return {
+      classes: result.rows
+        .filter((row) => row.kind === 'class')
+        .map((row) => ({
+          class_section_id: row.recipient_id,
+          class_name: row.class_name,
+          sms_available: Boolean(row.sms_available),
+        })),
+      guardians: result.rows
+        .filter((row) => row.kind === 'guardian')
+        .map((row) => ({
+          guardian_id: row.recipient_id,
+          guardian_name: row.label,
+          student_name: row.student_name ?? 'Learner',
+          class_name: row.class_name,
+          sms_available: Boolean(row.sms_available),
+        })),
+    };
   }
 
   async sendParentMessage(dto: any = {}) {
@@ -820,54 +895,261 @@ export class TeacherCommandService {
       dto?.recipient,
       audience === 'class_parents' ? 'Assigned class' : 'Linked learner or guardian',
     );
-    const subject = String(dto?.subject ?? 'Teacher parent communication').trim();
-    const recipientPhones = await this.resolveParentMessageRecipients(
-      tenantId,
-      userId,
-      audience,
-      recipient,
+    const subject = String(dto?.subject ?? '').trim() || 'Teacher parent communication';
+    if (subject.length > 160) {
+      throw new BadRequestException('Subject must be 160 characters or fewer');
+    }
+    if (message.length > 1600) {
+      throw new BadRequestException('Message must be 1600 characters or fewer');
+    }
+
+    const deliveryResult = await this.operations.writeSql<{
+      assigned_scope_count: number;
+      guardian_count: number;
+      portal_notification_count: number;
+      sms_queue_count: number;
+      sms_processing_count: number;
+      sms_accepted_count: number;
+      sms_needs_review_count: number;
+      sms_outbox_count: number;
+      event_id: string | null;
+    }>(
+      `
+        WITH assigned_scope AS (
+          SELECT DISTINCT assignment.class_section_id::text AS class_section_id
+          FROM teacher_subject_assignments assignment
+          WHERE assignment.tenant_id = $1
+            AND assignment.teacher_user_id::text = $2
+            AND LOWER(assignment.status) = 'active'
+            AND assignment.effective_from <= CURRENT_DATE
+            AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
+            AND (
+              ($3 = 'class_parents' AND assignment.class_section_id::text = $4)
+              OR (
+                $3 = 'individual_parent'
+                AND EXISTS (
+                  SELECT 1
+                  FROM student_class_assignments selected_assignment
+                  INNER JOIN student_guardians selected_guardian
+                    ON selected_guardian.tenant_id = selected_assignment.tenant_id
+                   AND selected_guardian.student_id::text = selected_assignment.student_id::text
+                   AND selected_guardian.id::text = $4
+                   AND LOWER(selected_guardian.status) = 'active'
+                  WHERE selected_assignment.tenant_id = assignment.tenant_id
+                    AND selected_assignment.class_section_id::text = assignment.class_section_id::text
+                    AND LOWER(selected_assignment.status) = 'active'
+                )
+              )
+            )
+        ), assigned_students AS (
+          SELECT DISTINCT
+            student.id::text AS student_id,
+            student_assignment.class_section_id::text AS class_section_id
+          FROM assigned_scope scope
+          INNER JOIN student_class_assignments student_assignment
+            ON student_assignment.tenant_id = $1
+           AND student_assignment.class_section_id::text = scope.class_section_id
+           AND LOWER(student_assignment.status) = 'active'
+          INNER JOIN students student
+            ON student.tenant_id = student_assignment.tenant_id
+           AND student.id::text = student_assignment.student_id::text
+           AND student.deleted_at IS NULL
+           AND LOWER(COALESCE(student.status, 'active')) IN ('active', 'admitted', 'enrolled')
+        ), guardian_recipients AS (
+          SELECT DISTINCT ON (guardian.user_id)
+            guardian.id AS guardian_id,
+            guardian.user_id,
+            NULLIF(TRIM(COALESCE(guardian.phone, '')), '') AS phone,
+            COALESCE(guardian.can_receive_sms, TRUE) AS can_receive_sms
+          FROM assigned_students assigned
+          INNER JOIN student_guardians guardian
+            ON guardian.tenant_id = $1
+           AND guardian.student_id::text = assigned.student_id
+           AND LOWER(guardian.status) = 'active'
+           AND guardian.user_id IS NOT NULL
+           AND ($3 = 'class_parents' OR guardian.id::text = $4)
+          INNER JOIN tenant_memberships membership
+            ON membership.tenant_id = guardian.tenant_id
+           AND membership.user_id = guardian.user_id
+           AND LOWER(membership.status) = 'active'
+          ORDER BY guardian.user_id, guardian.is_primary DESC, guardian.created_at ASC
+        ), delivery AS (
+          SELECT
+            (SELECT COUNT(*)::int FROM assigned_scope) AS assigned_scope_count,
+            (SELECT COUNT(*)::int FROM guardian_recipients) AS guardian_count
+        ), batch AS (
+          SELECT gen_random_uuid() AS id
+        ), inserted_event AS (
+          INSERT INTO workflow_events (
+            tenant_id, source_user_id, source_role, target_roles, event_type,
+            entity_type, entity_id, title, message, priority, payload
+          )
+          SELECT
+            $1,
+            $2::uuid,
+            'teacher',
+            '["class_teacher","secretary","principal"]'::jsonb,
+            'teacher.parent_message_sent',
+            'parent_message',
+            batch.id::text,
+            'Teacher guardian communication queued',
+            delivery.guardian_count::text || ' exact linked guardian delivery record(s) queued.',
+            'normal',
+            jsonb_build_object(
+              'audience', $3::text,
+              'recipient_scope', 'exact_linked_guardian_users',
+              'recipient_count', delivery.guardian_count,
+              'source_dashboard', 'teacher-parent-communication'
+            )
+          FROM delivery
+          CROSS JOIN batch
+          WHERE delivery.assigned_scope_count > 0
+            AND delivery.guardian_count > 0
+          RETURNING id
+        ), inserted_guardian_notifications AS (
+          INSERT INTO notifications (
+            tenant_id, notification_key, recipient_user_id, recipient_guardian_id,
+            type, title, body, status, priority, source_module, source_record_id, metadata
+          )
+          SELECT
+            $1,
+            'teacher-parent-message-' || event.id::text || '-' || recipient.guardian_id::text,
+            recipient.user_id,
+            recipient.guardian_id,
+            'teacher.parent_message_sent',
+            $5,
+            $6,
+            'unread',
+            'normal',
+            'teacher-command',
+            event.id::text,
+            jsonb_build_object(
+              'event_id', event.id::text,
+              'audience', $3::text,
+              'recipient_scope', 'exact_linked_guardian_user',
+              'source_dashboard', 'teacher-parent-communication'
+            )
+          FROM inserted_event event
+          CROSS JOIN guardian_recipients recipient
+          ON CONFLICT (tenant_id, notification_key)
+          DO UPDATE SET
+            recipient_user_id = EXCLUDED.recipient_user_id,
+            recipient_guardian_id = EXCLUDED.recipient_guardian_id,
+            title = EXCLUDED.title,
+            body = EXCLUDED.body,
+            status = 'unread',
+            metadata = EXCLUDED.metadata,
+            updated_at = NOW()
+          RETURNING id
+        ), inserted_sms AS (
+          INSERT INTO communication_sms_outbox (
+            tenant_id, sent_by, recipient_phone, message, status, dispatch_key
+          )
+          SELECT
+            $1,
+            $2::uuid,
+            recipient.phone,
+            $6,
+            'Pending',
+            'teacher-parent-message:'
+              || NULLIF(current_setting('app.request_id', true), '')
+              || ':' || recipient.guardian_id::text
+          FROM inserted_event event
+          CROSS JOIN guardian_recipients recipient
+          WHERE recipient.can_receive_sms = TRUE
+            AND recipient.phone IS NOT NULL
+          ON CONFLICT (tenant_id, dispatch_key) DO UPDATE
+          SET dispatch_key = EXCLUDED.dispatch_key
+          WHERE communication_sms_outbox.recipient_phone = EXCLUDED.recipient_phone
+            AND communication_sms_outbox.message = EXCLUDED.message
+            AND communication_sms_outbox.sent_by IS NOT DISTINCT FROM EXCLUDED.sent_by
+          RETURNING id, status
+        ), sms_outcome AS (
+          SELECT
+            COUNT(*)::int AS outbox_count,
+            (COUNT(*) FILTER (WHERE LOWER(status) IN ('pending', 'queued')))::int AS queued_count,
+            (COUNT(*) FILTER (WHERE LOWER(status) = 'processing'))::int AS processing_count,
+            (COUNT(*) FILTER (WHERE LOWER(status) IN ('accepted', 'sent', 'provider_accepted')))::int AS accepted_count,
+            (COUNT(*) FILTER (WHERE LOWER(status) NOT IN (
+              'pending', 'queued', 'processing', 'accepted', 'sent', 'provider_accepted'
+            )))::int AS needs_review_count
+          FROM inserted_sms
+        ), action_audit AS (
+          INSERT INTO audit_logs (
+            tenant_id, actor_user_id, request_id, action, resource_type, resource_id, metadata
+          )
+          SELECT
+            $1,
+            $2::uuid,
+            current_setting('app.request_id', true),
+            'teacher.parent_message_sent',
+            'parent_message',
+            event.id,
+            jsonb_build_object(
+              'audience', $3::text,
+              'recipient_scope', 'exact_linked_guardian_users',
+              'guardian_count', delivery.guardian_count,
+              'portal_notification_count', (SELECT COUNT(*) FROM inserted_guardian_notifications),
+              'sms_queue_count', (SELECT queued_count FROM sms_outcome),
+              'sms_processing_count', (SELECT processing_count FROM sms_outcome),
+              'sms_accepted_count', (SELECT accepted_count FROM sms_outcome),
+              'sms_needs_review_count', (SELECT needs_review_count FROM sms_outcome)
+            )
+          FROM inserted_event event
+          CROSS JOIN delivery
+          RETURNING id
+        )
+        SELECT
+          delivery.assigned_scope_count,
+          delivery.guardian_count,
+          (SELECT COUNT(*)::int FROM inserted_guardian_notifications) AS portal_notification_count,
+          (SELECT queued_count FROM sms_outcome) AS sms_queue_count,
+          (SELECT processing_count FROM sms_outcome) AS sms_processing_count,
+          (SELECT accepted_count FROM sms_outcome) AS sms_accepted_count,
+          (SELECT needs_review_count FROM sms_outcome) AS sms_needs_review_count,
+          (SELECT outbox_count FROM sms_outcome) AS sms_outbox_count,
+          (SELECT id::text FROM inserted_event LIMIT 1) AS event_id
+        FROM delivery
+      `,
+      [tenantId, userId, audience, recipient, subject, message],
     );
-    if (recipientPhones.length === 0) {
+    const delivery = deliveryResult.rows[0];
+    if (!delivery || Number(delivery.assigned_scope_count) === 0) {
       throw new ForbiddenException(
         audience === 'class_parents'
           ? 'You can message only parents in an active class teaching assignment.'
           : 'The selected parent is not linked to a learner in your active teaching assignments.',
       );
     }
-
-    const queued = await this.operations.writeSql(
-      `
-        INSERT INTO communication_sms_outbox (tenant_id, sent_by, recipient_phone, message, status)
-        SELECT $1, $2::uuid, phone, $3, 'Pending'
-        FROM unnest($4::text[]) AS phone
-        RETURNING id::text, recipient_phone, status
-      `,
-      [tenantId, userId, message, recipientPhones],
+    const guardianCount = Number(delivery.guardian_count ?? 0);
+    const portalNotificationCount = Number(delivery.portal_notification_count ?? 0);
+    const smsQueueCount = Number(delivery.sms_queue_count ?? 0);
+    const smsProcessingCount = Number(delivery.sms_processing_count ?? 0);
+    const smsAcceptedCount = Number(delivery.sms_accepted_count ?? 0);
+    const smsNeedsReviewCount = Number(delivery.sms_needs_review_count ?? 0);
+    const smsOutboxCount = Number(
+      delivery.sms_outbox_count
+        ?? smsQueueCount + smsProcessingCount + smsAcceptedCount + smsNeedsReviewCount,
     );
-    const event = await this.operations.recordWorkflowAction({
-      tenantId,
-      actorUserId: userId,
-      sourceRole: 'teacher',
-      targetRoles: ['parent', 'class_teacher', 'secretary', 'principal'],
-      eventType: 'teacher.parent_message_sent',
-      entityType: 'parent_message',
-      entityId: queued.rows[0]?.id ?? null,
-      title: subject,
-      message,
-      priority: audience === 'class_parents' ? 'normal' : 'low',
-      payload: {
-        audience,
-        recipient,
-        recipient_count: recipientPhones.length,
-        source_dashboard: 'teacher-parent-communication',
-      },
-    });
+    if (!delivery.event_id || guardianCount === 0 || portalNotificationCount !== guardianCount) {
+      throw new BadRequestException('No active linked guardian account could receive this message');
+    }
 
     return {
       success: true,
-      message: `Parent message queued for ${recipientPhones.length} recipient${recipientPhones.length === 1 ? '' : 's'}`,
-      queuedCount: recipientPhones.length,
-      event,
+      message: `Parent portal message queued for ${guardianCount} exact guardian account${guardianCount === 1 ? '' : 's'} (${portalNotificationCount} portal; SMS: ${smsQueueCount} queued, ${smsProcessingCount} dispatching, ${smsAcceptedCount} provider-accepted, ${smsNeedsReviewCount} requiring review).`,
+      queuedCount: guardianCount,
+      delivery: {
+        event_id: delivery.event_id,
+        guardian_count: guardianCount,
+        portal_notification_count: portalNotificationCount,
+        sms_queue_count: smsQueueCount,
+        sms_processing_count: smsProcessingCount,
+        sms_accepted_count: smsAcceptedCount,
+        sms_needs_review_count: smsNeedsReviewCount,
+        sms_outbox_count: smsOutboxCount,
+        recipient_scope: 'exact_linked_guardian_users',
+      },
     };
   }
 
@@ -884,11 +1166,11 @@ export class TeacherCommandService {
           INITCAP(COALESCE(notification.status, 'unread')) AS status
         FROM notifications notification
         WHERE notification.tenant_id = $1
-          AND notification.recipient_user_id::text = $2
+          AND ${notificationRecipientPredicate('notification', '$2', '$3')}
         ORDER BY notification.created_at DESC
         LIMIT 100
       `,
-      [tenantId, userId]
+      [tenantId, userId, 'teacher']
     );
     const items = res.rows as any[];
     return {

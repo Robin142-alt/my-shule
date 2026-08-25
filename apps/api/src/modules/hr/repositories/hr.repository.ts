@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../../database/prisma.service';
+import { notificationRecipientPredicate } from '../../notifications/notification-recipient-predicate';
 import type {
   ApproveLeaveRequestDto,
   ApproveStaffContractDto,
@@ -129,14 +130,8 @@ export class HrRepository {
             SELECT COUNT(*)::int AS count
             FROM notifications notification
             WHERE notification.tenant_id = $1
-              AND notification.status = 'unread'
-              AND (
-                notification.recipient_user_id::text = $2
-                OR (
-                  notification.recipient_user_id IS NULL
-                  AND notification.recipient_role = NULLIF($3, '')
-                )
-              )
+              AND LOWER(notification.status) = 'unread'
+              AND ${notificationRecipientPredicate('notification', '$2', '$3')}
           `,
           tenantId,
           userId,

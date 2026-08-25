@@ -441,7 +441,7 @@ export function InventoryModuleScreen({
       },
       notifications: [
         {
-          audienceRoles: ["Principal", "Storekeeper", "System Monitor"],
+          audienceRoles: ["Principal", "Storekeeper"],
           title: `Inventory local action: ${action}`,
           body: "A local inventory workspace action was recorded while live API persistence was unavailable.",
           severity: "warning",

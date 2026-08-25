@@ -7,21 +7,31 @@ import { toast } from "sonner";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
-import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { useVerifiedPrincipalDashboardApi } from "./verified-tenant-api";
 import { usePermissions } from "@/components/providers/permission-context";
 
 type PrincipalCommunicationData = {
   status: "active" | "degraded" | "setup_required";
-  smsBalance: number;
-  messagesSentToday: number;
+  smsBalance: number | null;
+  providerAcceptedToday: number;
   failedDeliveries: number;
   pendingMessages: number;
+  deliveryUnknown: number;
   communicationTrend: Array<{ label: string; value: number }>;
-  recentBroadcasts: Array<any>;
+  recentBroadcasts: Array<{
+    id: string;
+    title: string;
+    body: string;
+    status: string;
+    audience?: string | null;
+    channels?: string[] | null;
+    time: string;
+  }>;
 };
 
 export function PrincipalCommunicationWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalCommunicationData>('/admin-command/principal/communication');
+  const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
   const { data: templatesData } = useSchoolQuery<any[]>('/admin-command/communication-templates');
   const { hasPermission } = usePermissions();
 
@@ -32,7 +42,7 @@ export function PrincipalCommunicationWorkspace() {
   const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
   const [isSubmittingBroadcast, setIsSubmittingBroadcast] = useState(false);
   const [broadcastFormError, setBroadcastFormError] = useState("");
-  const [broadcastAudience, setBroadcastAudience] = useState("ALL_PARENTS");
+  const [broadcastAudience, setBroadcastAudience] = useState("parents");
 
   const handleCreateTemplate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -40,12 +50,12 @@ export function PrincipalCommunicationWorkspace() {
     setFormError("");
     const formData = new FormData(e.currentTarget);
     try {
-      await requestDashboardApi('/admin-command/communication-templates', {
+      await requestPrincipalApi('/admin-command/communication-templates', {
         method: "POST",
         body: {
           name: formData.get("name"),
           type: formData.get("type"),
-          content: formData.get("content"),
+          body: formData.get("content"),
         }
       });
       setIsTemplateModalOpen(false);
@@ -64,7 +74,7 @@ export function PrincipalCommunicationWorkspace() {
     const formData = new FormData(e.currentTarget);
     const channels = [];
     if (formData.get("channel_sms") === "on") channels.push("SMS");
-    if (formData.get("channel_email") === "on") channels.push("EMAIL");
+    if (formData.get("channel_in_app") === "on") channels.push("IN_APP");
 
     if (channels.length === 0) {
       setBroadcastFormError("Please select at least one channel");
@@ -73,7 +83,7 @@ export function PrincipalCommunicationWorkspace() {
     }
 
     try {
-      await requestDashboardApi('/admin-command/communication-broadcasts', {
+      await requestPrincipalApi('/admin-command/communication-broadcasts', {
         method: "POST",
         body: {
           audience: formData.get("audience"),
@@ -94,7 +104,7 @@ export function PrincipalCommunicationWorkspace() {
   const handleArchiveTemplate = async (id: string) => {
     if (!confirm("Are you sure you want to archive this template?")) return;
     try {
-      await requestDashboardApi(`/admin-command/communication-templates/${id}`, { method: "DELETE" });
+      await requestPrincipalApi(`/admin-command/communication-templates/${id}`, { method: "DELETE" });
       refetch();
     } catch (err: any) {
       toast.error(err.message || "Failed to archive template");
@@ -123,12 +133,21 @@ export function PrincipalCommunicationWorkspace() {
     );
   }
 
+  const maximumBroadcastVolume = Math.max(
+    0,
+    ...(data.communicationTrend ?? []).map((item) => Number(item.value) || 0),
+  );
+
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Messages Sent Today</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.messagesSentToday}</div>
+          <div className="text-sm font-semibold text-white/70">Provider accepted today</div>
+          <div className="mt-2 text-2xl font-black text-white">{data.providerAcceptedToday}</div>
+        </Card>
+        <Card className="border border-white/10 bg-white/5 p-5">
+          <div className="text-sm font-semibold text-white/70">Needs delivery review</div>
+          <div className="mt-2 text-2xl font-black text-orange-400">{data.deliveryUnknown}</div>
         </Card>
         <Card className="border border-white/10 bg-white/5 p-5">
           <div className="text-sm font-semibold text-white/70">Failed Deliveries</div>
@@ -140,7 +159,9 @@ export function PrincipalCommunicationWorkspace() {
         </Card>
         <Card className="border border-white/10 bg-white/5 p-5">
           <div className="text-sm font-semibold text-white/70">SMS Balance</div>
-          <div className="mt-2 text-2xl font-black text-green-500">{data.smsBalance}</div>
+          <div className="mt-2 text-2xl font-black text-green-500">
+            {data.smsBalance === null ? "Not available" : data.smsBalance}
+          </div>
         </Card>
       </div>
 
@@ -153,7 +174,7 @@ export function PrincipalCommunicationWorkspace() {
                 <div className="w-full relative bg-white/5 rounded-t-sm" style={{ height: "150px" }}>
                   <div 
                     className="absolute bottom-0 w-full bg-cyan-500/50 rounded-t-sm transition-all duration-500 group-hover:bg-cyan-400/60"
-                    style={{ height: `${Math.min(item.value, 150)}%` }} // Max height cap for chart aesthetics
+                    style={{ height: `${maximumBroadcastVolume > 0 ? Math.round((item.value / maximumBroadcastVolume) * 100) : 0}%` }}
                   >
                     <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity">
                       {item.value}
@@ -189,7 +210,22 @@ export function PrincipalCommunicationWorkspace() {
             </div>
           ) : (
             <div className="space-y-3 flex-1 overflow-y-auto pr-2">
-              <div className="text-white/60 text-sm py-4">Broadcasts will appear here.</div>
+              {data.recentBroadcasts.map((broadcast) => (
+                <div key={broadcast.id} className="rounded-lg border border-white/10 bg-white/5 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-white">{broadcast.title}</p>
+                      <p className="mt-1 text-sm text-white/70">{broadcast.body}</p>
+                      <p className="mt-2 text-xs text-white/45">
+                        {broadcast.audience ? `Audience: ${broadcast.audience} - ` : ""}{broadcast.time}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-cyan-500/15 px-2 py-1 text-xs font-semibold capitalize text-cyan-200">
+                      {broadcast.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </Card>
@@ -199,9 +235,11 @@ export function PrincipalCommunicationWorkspace() {
         <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full mt-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-white">Communication Templates</h2>
-            <Button size="sm" variant="outline" onClick={() => setIsTemplateModalOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" /> Add Template
-            </Button>
+            {hasPermission('communication:write') && (
+              <Button size="sm" variant="outline" onClick={() => setIsTemplateModalOpen(true)}>
+                <Plus className="h-4 w-4 mr-1" /> Add Template
+              </Button>
+            )}
           </div>
           {!templatesData || templatesData.length === 0 ? (
             <div className="text-white/60 text-sm py-4 text-center">No communication templates configured yet.</div>
@@ -214,9 +252,11 @@ export function PrincipalCommunicationWorkspace() {
                     <div className="text-xs text-white/50">{template.type}</div>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline" className="text-red-400 border-red-500/20 hover:bg-red-500/20" onClick={() => handleArchiveTemplate(template.id)}>
-                      Archive
-                    </Button>
+                    {hasPermission('communication:write') && (
+                      <Button size="sm" variant="outline" className="text-red-400 border-red-500/20 hover:bg-red-500/20" onClick={() => handleArchiveTemplate(template.id)}>
+                        Archive
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -239,8 +279,8 @@ export function PrincipalCommunicationWorkspace() {
           <div className="space-y-2">
             <label className="text-sm font-medium">Type</label>
             <select name="type" required className="w-full border rounded p-2 text-sm bg-white text-black">
-              <option value="SMS">SMS</option>
-              <option value="EMAIL">Email</option>
+              <option value="sms">SMS</option>
+              <option value="email">Email</option>
             </select>
           </div>
           <div className="space-y-2">
@@ -272,12 +312,12 @@ export function PrincipalCommunicationWorkspace() {
               onChange={e => setBroadcastAudience(e.target.value)}
               className="w-full border border-slate-200 rounded p-2 text-sm bg-white text-black focus:outline-none focus:ring-1 focus:ring-slate-950"
             >
-              <option value="ALL_PARENTS">All Parents</option>
-              <option value="ALL_STAFF">All Staff</option>
-              <option value="SPECIFIC_CLASS">Specific Class</option>
+              <option value="parents">All Parents</option>
+              <option value="staff">All Staff</option>
+              <option value="class">Specific Class</option>
             </select>
           </div>
-          {broadcastAudience === "SPECIFIC_CLASS" && (
+          {broadcastAudience === "class" && (
             <div className="space-y-2">
               <label className="text-sm font-medium">Class / Grade Name</label>
               <input type="text" name="targetClass" placeholder="e.g. Form 1A" required className="w-full border border-slate-200 rounded p-2 text-sm bg-white text-black focus:outline-none focus:ring-1 focus:ring-slate-950" />
@@ -287,12 +327,12 @@ export function PrincipalCommunicationWorkspace() {
             <label className="text-sm font-medium">Channels</label>
             <div className="flex gap-4">
               <label className="flex items-center gap-2">
-                <input type="checkbox" name="channel_sms" defaultChecked className="rounded" />
+                <input type="checkbox" name="channel_sms" defaultChecked disabled={broadcastAudience === "staff"} className="rounded disabled:opacity-50" />
                 <span className="text-sm">SMS</span>
               </label>
               <label className="flex items-center gap-2">
-                <input type="checkbox" name="channel_email" defaultChecked className="rounded" />
-                <span className="text-sm">Email</span>
+                <input type="checkbox" name="channel_in_app" defaultChecked className="rounded" />
+                <span className="text-sm">In-app</span>
               </label>
             </div>
           </div>

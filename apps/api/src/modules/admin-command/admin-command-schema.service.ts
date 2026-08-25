@@ -151,6 +151,7 @@ export class AdminCommandSchemaService implements OnModuleInit {
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
         student_id uuid,
+        guardian_id uuid,
         student_name text NOT NULL,
         hostel text,
         leave_type text NOT NULL,
@@ -276,6 +277,7 @@ export class AdminCommandSchemaService implements OnModuleInit {
       ALTER TABLE announcements ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'draft';
       ALTER TABLE duty_rosters ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'scheduled';
       ALTER TABLE boarding_exeats ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'pending';
+      ALTER TABLE boarding_exeats ADD COLUMN IF NOT EXISTS guardian_id uuid;
       ALTER TABLE security_lost_found ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'found';
       ALTER TABLE principal_alerts ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'open';
       ALTER TABLE principal_alerts ADD COLUMN IF NOT EXISTS severity text NOT NULL DEFAULT 'info';
@@ -301,6 +303,8 @@ export class AdminCommandSchemaService implements OnModuleInit {
         ON duty_rosters (tenant_id, duty_date, status);
       CREATE INDEX IF NOT EXISTS ix_boarding_exeats_status
         ON boarding_exeats (tenant_id, status, from_date DESC, created_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_boarding_exeats_guardian
+        ON boarding_exeats (tenant_id, guardian_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS ix_principal_dashboard_snapshots_expiry
         ON principal_dashboard_snapshots (tenant_id, enabled_module_hash, filter_hash, expires_at DESC);
       CREATE INDEX IF NOT EXISTS ix_principal_alerts_status

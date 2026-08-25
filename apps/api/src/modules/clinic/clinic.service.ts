@@ -94,47 +94,94 @@ export class ClinicService {
 
   async recordVisit(dto: RecordClinicVisitDto) {
     this.assertPermission('clinic:write');
+    const tenantId = this.requireTenantId();
+    const userId = this.requireUserId();
+    const studentId = this.requireText(dto.student_id, 'Student');
     const visit = await this.repository.createVisit({
       ...dto,
-      tenant_id: this.requireTenantId(),
-      recorded_by_user_id: this.requireUserId(),
+      student_id: studentId,
+      tenant_id: tenantId,
+      recorded_by_user_id: userId,
       visit_date: dto.visit_date ? this.requireDate(dto.visit_date, 'Visit date') : null,
     });
-    await this.audit('clinic.visit_recorded', 'clinic_visit', visit?.id, {
-      student_id: dto.student_id,
-      status: dto.status ?? 'open',
-    });
+    if (!visit) {
+      throw new BadRequestException('The selected learner is not active in this school');
+    }
 
-    await this.schoolEvents?.recordSchoolOperation({
-      event: {
-        id: visit?.id,
-        type: 'clinic.visit_recorded',
-        module: 'clinic',
-        actorRole: this.requestContext.requireStore().role || 'staff',
-        title: 'Clinic Visit Recorded',
-        body: `Clinic visit recorded for student ${dto.student_id}`,
-        entityId: visit?.id,
-        severity: 'info',
-        payload: { student_id: dto.student_id },
+    const studentName = String(visit.student_name ?? 'your learner').trim() || 'your learner';
+    const deliveryReasons: string[] = [];
+    let guardianCount = 0;
+    let guardianNotificationCount = 0;
+    try {
+      const guardianDelivery = await this.repository.notifyVisitGuardians({
+        tenant_id: tenantId,
+        student_id: studentId,
+        visit_id: String(visit.id),
+        title: 'School clinic visit recorded',
+        body: `A clinic visit was recorded for ${studentName}. Sign in to the parent portal or contact the school clinic if you need more information.`,
+      });
+      guardianCount = Number(guardianDelivery.guardian_count ?? 0);
+      guardianNotificationCount = Number(guardianDelivery.notification_count ?? 0);
+      if (guardianCount === 0) {
+        deliveryReasons.push('no_active_guardian_account');
+      } else if (guardianNotificationCount !== guardianCount) {
+        deliveryReasons.push('guardian_notification_incomplete');
+      }
+    } catch {
+      deliveryReasons.push('guardian_notification_failed');
+    }
+
+    let staffEventStatus: 'accepted' | 'failed' | 'unavailable' = 'unavailable';
+    if (this.schoolEvents) {
+      try {
+        await this.schoolEvents.recordSchoolOperation({
+          event: {
+            id: visit.id,
+            type: 'clinic.visit_recorded',
+            module: 'clinic',
+            actorRole: this.requestContext.requireStore().role || 'staff',
+            title: 'Clinic Visit Recorded',
+            body: `Clinic visit recorded for ${studentName}.`,
+            entityId: visit.id,
+            severity: 'info',
+            payload: { student_id: studentId },
+          },
+          notifications: [
+            {
+              id: `clinic-staff-notification-${visit.id}`,
+              schoolId: tenantId,
+              title: 'Clinic Visit Recorded',
+              body: `Clinic visit recorded for ${studentName}.`,
+              audienceRoles: ['nurse', 'boarding_master'],
+              priority: 'normal',
+              sourceModule: 'clinic',
+              relatedModule: 'clinic',
+              relatedRecordId: visit.id,
+              read: false,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        });
+        staffEventStatus = 'accepted';
+      } catch {
+        staffEventStatus = 'failed';
+        deliveryReasons.push('staff_event_failed');
+      }
+    } else {
+      deliveryReasons.push('staff_event_unavailable');
+    }
+
+    return {
+      ...visit,
+      delivery: {
+        status: deliveryReasons.length === 0 ? 'complete' : 'degraded',
+        guardian_count: guardianCount,
+        guardian_notification_count: guardianNotificationCount,
+        guardian_recipient_scope: 'exact_linked_guardian_users',
+        staff_event_status: staffEventStatus,
+        reasons: deliveryReasons,
       },
-      notifications: [
-        {
-          id: `clinic-notification-${visit?.id}`,
-          schoolId: this.requireTenantId(),
-          title: 'Clinic Visit Recorded',
-          body: `Clinic visit recorded for student ${dto.student_id}`,
-          audienceRoles: ['parent', 'boarding-master'],
-          priority: 'normal',
-          sourceModule: 'clinic',
-          relatedModule: 'clinic',
-          relatedRecordId: visit?.id,
-          read: false,
-          createdAt: new Date().toISOString(),
-        }
-      ]
-    });
-
-    return visit;
+    };
   }
 
   async dispenseMedicine(visitId: string, dto: DispenseMedicineDto) {

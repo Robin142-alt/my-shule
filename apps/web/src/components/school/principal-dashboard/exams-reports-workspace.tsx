@@ -1,14 +1,45 @@
 "use client";
 
-import { Card } from "@/components/ui/card";
-import { AlertCircle, FileText, CheckCircle2 } from "lucide-react";
-import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { requestDashboardApi } from "@/lib/dashboard/api-client";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Modal } from "@/components/ui/modal";
-import { Loader2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AlertCircle, CheckCircle2, FileText, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { usePermissions } from "@/components/providers/permission-context";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Modal } from "@/components/ui/modal";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useVerifiedPrincipalDashboardApi } from "./verified-tenant-api";
+
+type AcademicYear = {
+  id: string;
+  name: string;
+  starts_on: string;
+  ends_on: string;
+  is_current?: boolean;
+};
+
+type AcademicTerm = {
+  id: string;
+  academic_year_id: string;
+  name: string;
+  starts_on: string;
+  ends_on: string;
+  is_current?: boolean;
+};
+
+type ExamSeriesResult = {
+  id: string;
+  exam_id: string;
+  title: string;
+  status: string;
+  startsOn: string;
+  endsOn: string;
+  totalReportCards: number;
+  approvedReportCards: number;
+  publishedReportCards: number;
+  blockedReportCards: number;
+  canPublish: boolean;
+};
 
 type PrincipalExamsData = {
   status: "active" | "degraded" | "setup_required";
@@ -17,63 +48,120 @@ type PrincipalExamsData = {
   missingMarksAlerts: number;
   averageScore: number;
   performanceTrend: Array<{ label: string; value: number }>;
-  recentResults: Array<any>;
+  recentResults: ExamSeriesResult[];
 };
 
+function toDateLabel(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString();
+}
+
 export function PrincipalExamsReportsWorkspace() {
-  const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalExamsData>('/admin-command/principal/exams');
-  const academicSetupData: any = { academicYears: [], terms: [] };
+  const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalExamsData>("/admin-command/principal/exams");
+  const {
+    data: academicYears,
+    isLoading: yearsLoading,
+    error: yearsError,
+    refetch: refetchYears,
+  } = useSchoolQuery<AcademicYear[]>("/academics/academic-years");
+  const {
+    data: academicTerms,
+    isLoading: termsLoading,
+    error: termsError,
+    refetch: refetchTerms,
+  } = useSchoolQuery<AcademicTerm[]>("/academics/academic-terms");
+  const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
   const { hasPermission } = usePermissions();
-  
+
   const [isExamModalOpen, setIsExamModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [publishingSeriesId, setPublishingSeriesId] = useState<string | null>(null);
   const [formError, setFormError] = useState("");
+  const [examName, setExamName] = useState("");
+  const [selectedYearId, setSelectedYearId] = useState("");
+  const [selectedTermId, setSelectedTermId] = useState("");
+  const [startsOn, setStartsOn] = useState("");
+  const [endsOn, setEndsOn] = useState("");
 
-  const handleApproveAllReports = async () => {
-    const results = Array.isArray(data?.recentResults) ? data.recentResults : [];
-    const examIds = results
-      .map((result: any) => result.exam_id ?? result.examId ?? result.id)
-      .filter(Boolean);
+  const years = Array.isArray(academicYears) ? academicYears : [];
+  const terms = Array.isArray(academicTerms) ? academicTerms : [];
+  const results = Array.isArray(data?.recentResults) ? data.recentResults : [];
+  const trend = Array.isArray(data?.performanceTrend) ? data.performanceTrend : [];
+  const filteredTerms = useMemo(
+    () => terms.filter((term) => term.academic_year_id === selectedYearId),
+    [selectedYearId, terms],
+  );
 
-    if (examIds.length === 0) {
-      setFormError("No report-card batch is available for approval.");
+  const applyTerm = (termId: string) => {
+    setSelectedTermId(termId);
+    const term = terms.find((candidate) => candidate.id === termId);
+    setStartsOn(term?.starts_on?.slice(0, 10) ?? "");
+    setEndsOn(term?.ends_on?.slice(0, 10) ?? "");
+  };
+
+  const applyYear = (yearId: string) => {
+    setSelectedYearId(yearId);
+    const yearTerms = terms.filter((term) => term.academic_year_id === yearId);
+    const term = yearTerms.find((candidate) => candidate.is_current) ?? yearTerms[0];
+    applyTerm(term?.id ?? "");
+  };
+
+  const openExamModal = () => {
+    const year = years.find((candidate) => candidate.is_current) ?? years[0];
+    setExamName("");
+    setFormError("");
+    setIsExamModalOpen(true);
+    applyYear(year?.id ?? "");
+  };
+
+  const handleCreateExam = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const term = terms.find((candidate) => candidate.id === selectedTermId);
+    if (!term) {
+      setFormError("Select an active academic term before creating the exam series.");
+      return;
+    }
+    const termStart = term.starts_on.slice(0, 10);
+    const termEnd = term.ends_on.slice(0, 10);
+    if (!startsOn || !endsOn || startsOn > endsOn || startsOn < termStart || endsOn > termEnd) {
+      setFormError(`Exam dates must fall within ${term.name} (${toDateLabel(termStart)} - ${toDateLabel(termEnd)}).`);
       return;
     }
 
     setIsSubmitting(true);
     setFormError("");
     try {
-      await Promise.all(examIds.map((examId: string) => requestDashboardApi(`/admin-command/principal/exams-report-cards/${examId}/approve`, { method: "POST" })));
+      await requestPrincipalApi("/admin-command/exams/cycles", {
+        method: "POST",
+        body: {
+          name: examName.trim(),
+          academic_term_id: term.id,
+          starts_on: startsOn,
+          ends_on: endsOn,
+        },
+      });
+      toast.success("Exam series created.");
+      setIsExamModalOpen(false);
       await refetch();
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to approve report-card batches.");
+    } catch (submissionError) {
+      setFormError(submissionError instanceof Error ? submissionError.message : "The exam series could not be created.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleCreateExam = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsSubmitting(true);
+  const publishSeries = async (series: ExamSeriesResult) => {
+    if (!series.canPublish) return;
+    setPublishingSeriesId(series.id);
     setFormError("");
-    const formData = new FormData(e.currentTarget);
-    
     try {
-      await requestDashboardApi('/admin-command/exams/cycles', {
-        method: "POST",
-        body: {
-          name: formData.get("name"),
-          academicYearId: formData.get("academicYearId"),
-          termId: formData.get("termId"),
-          examType: formData.get("examType"),
-        }
-      });
-      setIsExamModalOpen(false);
-      refetch();
-    } catch (err: any) {
-      setFormError(err.message || "Failed to create exam series");
+      await requestPrincipalApi(`/admin-command/principal/exams-report-cards/${series.id}/publish`, { method: "POST" });
+      toast.success(`${series.title} report cards published.`);
+      await refetch();
+    } catch (publishError) {
+      toast.error(publishError instanceof Error ? publishError.message : "The report cards could not be published.");
     } finally {
-      setIsSubmitting(false);
+      setPublishingSeriesId(null);
     }
   };
 
@@ -81,8 +169,8 @@ export function PrincipalExamsReportsWorkspace() {
     return (
       <div className="space-y-6">
         <div className="animate-pulse space-y-4">
-          <div className="h-24 bg-white/5 rounded-xl border border-white/10" />
-          <div className="h-64 bg-white/5 rounded-xl border border-white/10" />
+          <div className="h-24 rounded-xl border border-white/10 bg-white/5" />
+          <div className="h-64 rounded-xl border border-white/10 bg-white/5" />
         </div>
       </div>
     );
@@ -91,19 +179,23 @@ export function PrincipalExamsReportsWorkspace() {
   if (error || !data) {
     return (
       <Card className="border border-red-500/20 bg-red-500/10 p-6">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <AlertCircle className="h-6 w-6 text-red-500" />
           <h2 className="text-xl font-bold text-red-500">Failed to load Exams Overview</h2>
+          <Button type="button" size="sm" variant="outline" onClick={() => refetch()}>Retry</Button>
         </div>
       </Card>
     );
   }
 
+  const setupLoading = yearsLoading || termsLoading;
+  const setupUnavailable = setupLoading || Boolean(yearsError || termsError) || years.length === 0 || terms.length === 0;
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Reports Pending Approval</div>
+          <div className="text-sm font-semibold text-white/70">Reports Ready to Publish</div>
           <div className="mt-2 text-2xl font-black text-yellow-500">{data.reportsPending}</div>
         </Card>
         <Card className="border border-white/10 bg-white/5 p-5">
@@ -115,109 +207,158 @@ export function PrincipalExamsReportsWorkspace() {
           <div className="mt-2 text-2xl font-black text-white">{data.averageScore}%</div>
         </Card>
         <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="flex justify-between items-start">
+          <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-sm font-semibold text-white/70">Active Exams</div>
               <div className="mt-2 text-2xl font-black text-white">{data.activeExams}</div>
             </div>
-            {hasPermission('exams:write') && (
-              <Button size="sm" variant="outline" className="text-xs bg-white/10 text-white" onClick={() => setIsExamModalOpen(true)}>
+            {hasPermission("exams:write") ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="bg-white/10 text-xs text-white"
+                onClick={openExamModal}
+                disabled={setupUnavailable}
+                title={setupUnavailable ? "Configure an academic year and term before creating an exam series" : undefined}
+              >
                 + New Exam
               </Button>
-            )}
+            ) : null}
           </div>
         </Card>
       </div>
+
+      {(yearsError || termsError) ? (
+        <Card className="border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span>Academic setup could not be loaded, so new exam creation is temporarily unavailable.</span>
+            <Button type="button" size="sm" variant="outline" onClick={() => Promise.all([refetchYears(), refetchTerms()])}>Retry setup</Button>
+          </div>
+        </Card>
+      ) : (!setupLoading && (years.length === 0 || terms.length === 0)) ? (
+        <Card className="border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+          Create an active academic year and term in Academic Setup before opening an exam series.
+        </Card>
+      ) : null}
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
-          <h2 className="text-xl font-bold text-white mb-6">Exam Performance Trend</h2>
-          <div className="flex-1 flex items-end gap-2 mt-4 min-h-[200px]">
-            {data.performanceTrend?.map((item) => (
-              <div key={item.label} className="flex-1 flex flex-col items-center gap-2 group">
-                <div className="w-full relative bg-white/5 rounded-t-sm" style={{ height: "150px" }}>
-                  <div 
-                    className="absolute bottom-0 w-full bg-purple-500/50 rounded-t-sm transition-all duration-500 group-hover:bg-purple-400/60"
-                    style={{ height: `${item.value}%` }}
-                  >
-                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                      {item.value}%
-                    </div>
-                  </div>
-                </div>
-                <span className="text-xs text-white/50">{item.label}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white">Pending Reports Action</h2>
-            <button type="button" disabled={isSubmitting} onClick={handleApproveAllReports} className="text-xs bg-white/10 text-white px-3 py-1.5 rounded hover:bg-white/20 transition-colors flex items-center gap-1 disabled:opacity-50">
-              <CheckCircle2 className="h-3 w-3" />
-              {isSubmitting ? "Approving..." : "Approve All"}
-            </button>
-          </div>
-          
-          {(!data.recentResults || data.recentResults.length === 0) ? (
-            <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5">
-              <FileText className="h-10 w-10 text-white/20 mb-3" />
-              <p className="text-white/60">No recent exam results to review</p>
+        <Card className="flex h-full flex-col border border-white/10 bg-white/5 p-6">
+          <h2 className="mb-6 text-xl font-bold text-white">Exam Performance Trend</h2>
+          {trend.length === 0 ? (
+            <div className="flex min-h-[200px] flex-1 flex-col items-center justify-center rounded-lg border border-white/5 bg-white/5 px-4 text-center">
+              <FileText className="mb-3 h-10 w-10 text-white/20" />
+              <p className="text-white/60">No reviewed marks are available for a performance trend yet.</p>
             </div>
           ) : (
-            <div className="space-y-3 flex-1 overflow-y-auto pr-2">
-              {/* Report tasks will go here */}
+            <div className="mt-4 flex min-h-[200px] flex-1 items-end gap-2">
+              {trend.map((item) => (
+                <div key={item.label} className="group flex flex-1 flex-col items-center gap-2">
+                  <div className="relative h-[150px] w-full rounded-t-sm bg-white/5">
+                    <div
+                      className="absolute bottom-0 w-full rounded-t-sm bg-purple-500/50 transition-all duration-500 group-hover:bg-purple-400/60"
+                      style={{ height: `${Math.max(0, Math.min(100, item.value))}%` }}
+                    >
+                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
+                        {item.value}%
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-xs text-white/50">{item.label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card className="flex h-full flex-col border border-white/10 bg-white/5 p-6">
+          <div className="mb-4 border-b border-white/10 pb-4">
+            <h2 className="text-xl font-bold text-white">Report-card publication</h2>
+            <p className="mt-1 text-sm text-white/60">Dean and Exams Manager review remains separate. Principal publication is enabled only when the persisted report-card batch is approved and unblocked.</p>
+          </div>
+
+          {results.length === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center rounded-lg border border-white/5 bg-white/5 px-4 py-8 text-center">
+              <FileText className="mb-3 h-10 w-10 text-white/20" />
+              <p className="text-white/60">No exam series or report-card batches are available yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-3 overflow-y-auto pr-1">
+              {results.map((series) => {
+                const isPublished = series.status.toLowerCase() === "published" || series.publishedReportCards === series.totalReportCards && series.totalReportCards > 0;
+                const guidance = series.totalReportCards === 0
+                  ? "Generate report cards in the Exams Manager workspace."
+                  : series.blockedReportCards > 0
+                    ? `${series.blockedReportCards} report card${series.blockedReportCards === 1 ? " is" : "s are"} awaiting review or approval.`
+                    : series.approvedReportCards === 0 && !isPublished
+                      ? "No approved report cards are ready for publication."
+                      : `${series.publishedReportCards} of ${series.totalReportCards} report cards published.`;
+                return (
+                  <div key={series.id} className="rounded-lg border border-white/10 bg-white/5 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-white">{series.title}</p>
+                        <p className="mt-1 text-xs text-white/50">{toDateLabel(series.startsOn)} - {toDateLabel(series.endsOn)}</p>
+                        <p className="mt-2 text-sm text-white/60">{guidance}</p>
+                      </div>
+                      {isPublished ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Published
+                        </span>
+                      ) : series.canPublish && hasPermission("exams:write") ? (
+                        <Button type="button" size="sm" disabled={publishingSeriesId === series.id} onClick={() => publishSeries(series)}>
+                          {publishingSeriesId === series.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                          Publish approved cards
+                        </Button>
+                      ) : (
+                        <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-200">Not ready</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </Card>
       </div>
 
-      <Modal open={isExamModalOpen} onClose={() => setIsExamModalOpen(false)} title="Create Exam Series">
+      <Modal open={isExamModalOpen} onClose={() => !isSubmitting && setIsExamModalOpen(false)} title="Create Exam Series">
         <form onSubmit={handleCreateExam} className="space-y-4">
-          {formError && (
-            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded text-sm">
-              {formError}
-            </div>
-          )}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Exam Name</label>
-            <input type="text" name="name" required className="w-full border rounded p-2 text-sm" placeholder="e.g. Term 1 Midterms" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Academic Year</label>
-            <select name="academicYearId" required className="w-full border rounded p-2 text-sm bg-white text-black">
-              <option value="">Select Academic Year</option>
-              {/* @ts-ignore */}
-              {academicSetupData?.academicYears?.map((y: any) => (
-                <option key={y.id} value={y.id}>{y.name}</option>
-              ))}
+          {formError ? (
+            <div role="alert" className="rounded border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-600">{formError}</div>
+          ) : null}
+          <label className="block space-y-2 text-sm font-medium">
+            Exam name
+            <input value={examName} onChange={(event) => setExamName(event.target.value)} required className="w-full rounded border p-2 text-sm" placeholder="e.g. Term 1 Midterm" />
+          </label>
+          <label className="block space-y-2 text-sm font-medium">
+            Academic year
+            <select value={selectedYearId} onChange={(event) => applyYear(event.target.value)} required className="w-full rounded border bg-white p-2 text-sm text-black">
+              <option value="">Select academic year</option>
+              {years.map((year) => <option key={year.id} value={year.id}>{year.name}</option>)}
             </select>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Term / Semester</label>
-            <select name="termId" required className="w-full border rounded p-2 text-sm bg-white text-black">
-              <option value="">Select Term</option>
-              {/* @ts-ignore */}
-              {academicSetupData?.terms?.map((t: any) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
+          </label>
+          <label className="block space-y-2 text-sm font-medium">
+            Term / semester
+            <select value={selectedTermId} onChange={(event) => applyTerm(event.target.value)} required className="w-full rounded border bg-white p-2 text-sm text-black">
+              <option value="">Select term</option>
+              {filteredTerms.map((term) => <option key={term.id} value={term.id}>{term.name}</option>)}
             </select>
+          </label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block space-y-2 text-sm font-medium">
+              Starts on
+              <input type="date" value={startsOn} onChange={(event) => setStartsOn(event.target.value)} required className="w-full rounded border p-2 text-sm" />
+            </label>
+            <label className="block space-y-2 text-sm font-medium">
+              Ends on
+              <input type="date" value={endsOn} onChange={(event) => setEndsOn(event.target.value)} required className="w-full rounded border p-2 text-sm" />
+            </label>
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Exam Type</label>
-            <select name="examType" required className="w-full border rounded p-2 text-sm bg-white text-black">
-              <option value="OPENER">Opener Exam</option>
-              <option value="MIDTERM">Midterm</option>
-              <option value="ENDTERM">End of Term</option>
-              <option value="MOCK">Mock Exam</option>
-              <option value="CAT">Continuous Assessment</option>
-              <option value="PROJECT">Project Work</option>
-            </select>
-          </div>
-          <div className="pt-4 flex justify-end">
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          <div className="flex justify-end gap-2 pt-4">
+            <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => setIsExamModalOpen(false)}>Cancel</Button>
+            <Button type="submit" disabled={isSubmitting || !selectedTermId || !examName.trim()}>
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Create Exam Series
             </Button>
           </div>

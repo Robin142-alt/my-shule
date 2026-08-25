@@ -69,3 +69,7 @@ export async function resolveFacilitiesIssue(id: string) {
 export async function generateIctReport(data: any) {
   return requestDashboardApi('/admin-command/ict-manager/reports/generate', { method: 'POST', body: data });
 }
+
+export async function downloadIctReport(id: string) {
+  return requestDashboardApi(`/admin-command/ict-manager/reports/${id}/download`, { method: 'POST' });
+}

@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
+import { notificationRecipientPredicate } from '../notifications/notification-recipient-predicate';
 
 type ParentIdentity = {
   tenantId: string;
@@ -104,10 +105,10 @@ export class ParentCommandService {
           SELECT COUNT(*)::int AS unread
           FROM notifications notification
           WHERE notification.tenant_id = $1
-            AND notification.recipient_user_id = $2::uuid
-            AND notification.status = 'unread'
+            AND ${notificationRecipientPredicate('notification', '$2', '$3')}
+            AND LOWER(notification.status) = 'unread'
         `,
-        [identity.tenantId, identity.userId],
+        [identity.tenantId, identity.userId, 'parent'],
       ),
     ]);
 
@@ -631,7 +632,7 @@ export class ParentCommandService {
           notification.status
         FROM notifications notification
         WHERE notification.tenant_id = $1
-          AND notification.recipient_user_id = $2::uuid
+          AND ${notificationRecipientPredicate('notification', '$2', '$3')}
           AND (
             notification.type ILIKE '%message%'
             OR notification.type ILIKE '%communication%'
@@ -640,7 +641,7 @@ export class ParentCommandService {
         ORDER BY notification.created_at DESC
         LIMIT 100
       `,
-      [identity.tenantId, identity.userId],
+      [identity.tenantId, identity.userId, 'parent'],
     );
 
     return {
@@ -674,11 +675,11 @@ export class ParentCommandService {
           notification.priority
         FROM notifications notification
         WHERE notification.tenant_id = $1
-          AND notification.recipient_user_id = $2::uuid
+          AND ${notificationRecipientPredicate('notification', '$2', '$3')}
         ORDER BY notification.created_at DESC
         LIMIT 100
       `,
-      [identity.tenantId, identity.userId],
+      [identity.tenantId, identity.userId, 'parent'],
     );
 
     return {

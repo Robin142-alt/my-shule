@@ -24,7 +24,7 @@ type TripsData = {
 };
 
 export function TripsWorkspace() {
-  const { data, isLoading } = useSchoolQuery<TripsData>('/admin-command/transport-manager/trips');
+  const { data, error, isLoading, refetch } = useSchoolQuery<TripsData>('/admin-command/transport-manager/trips');
   const items = data?.tripsList || [];
 
   const getStatusTone = (st: string): Tone => {
@@ -34,6 +34,18 @@ export function TripsWorkspace() {
     if (st === "Issued" || st === "Checked In" || st === "Submitted" || st === "Booked" || st === "Sent" || st === "On Leave") return "info";
     return "neutral";
   };
+
+  if (error) {
+    return (
+      <Panel title="Trips" description="Track scheduled and completed transport trips." icon={Navigation}>
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <p className="font-black">Trips could not be loaded.</p>
+          <p className="mt-1">{error.message}</p>
+          <button type="button" onClick={() => void refetch()} className="mt-3 font-black underline">Retry</button>
+        </div>
+      </Panel>
+    );
+  }
 
   return (
     <Panel title="Trip Log" description="Log and track daily transport trips." icon={Navigation}>

@@ -131,6 +131,92 @@ test('SyncService pull returns ordered finance operations', async () => {
   );
 });
 
+test('SyncService retains the school admin conflict audience and reports degraded alert delivery', async () => {
+  const requestContext = new RequestContextService();
+  let operationalEvent: Record<string, unknown> | null = null;
+  const service = new SyncService(
+    requestContext,
+    { withRequestTransaction: async <T>(callback: () => Promise<T>): Promise<T> => callback() } as never,
+    {
+      upsertDevice: async () => ({
+        id: 'device-row',
+        tenant_id: 'tenant-a',
+        device_id: 'device-conflict',
+        platform: 'android',
+        app_version: '1.0.0',
+        metadata: {},
+        last_seen_at: new Date(),
+        last_push_at: null,
+        last_pull_at: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      }),
+      markPush: async () => undefined,
+    } as never,
+    { upsertCursor: async () => undefined } as never,
+    { findByOpId: async () => null } as never,
+    {
+      ensureSupportedEntity: () => undefined,
+      getLatestCursors: async () => [],
+    } as never,
+    {} as AttendanceSyncConflictResolverService,
+    new FinanceSyncConflictResolverService(),
+    {} as never,
+    undefined,
+    {
+      recordSchoolOperation: async (input: Record<string, unknown>) => {
+        operationalEvent = input;
+        throw new Error('sync alert outbox unavailable');
+      },
+    } as never,
+  );
+
+  const response = await requestContext.run(
+      {
+        request_id: 'req-sync-conflict',
+        tenant_id: 'tenant-a',
+        user_id: '00000000-0000-4000-8000-000000000001',
+        role: 'admin',
+        session_id: 'session-sync-conflict',
+        permissions: ['events:write'],
+        is_authenticated: true,
+        client_ip: '127.0.0.1',
+        user_agent: 'test-suite',
+        method: 'POST',
+        path: '/sync/push',
+        started_at: '2026-08-15T08:00:00.000Z',
+      },
+      () => service.push({
+        device_id: 'device-conflict',
+        platform: 'android',
+        app_version: '1.0.0',
+        operations: [{
+          op_id: '00000000-0000-4000-8000-000000000401',
+          entity: 'finance',
+          action: 'posted',
+          createdAtLocal: '2026-08-15T08:00:00.000Z',
+          version: 1,
+          payload: {
+            action: 'posted',
+            transaction_id: '00000000-0000-4000-8000-000000000501',
+            reference: 'TX-1',
+            description: 'Ledger tx',
+            total_amount_minor: '10000',
+            currency_code: 'KES',
+            entry_count: 2,
+            posted_at: '2026-08-15T08:00:00.000Z',
+          },
+        }],
+      }),
+  );
+
+  assert.ok(operationalEvent);
+  const notification = (operationalEvent as { notifications: Array<Record<string, unknown>> }).notifications[0];
+  assert.deepEqual(notification.audienceRoles, ['admin']);
+  assert.equal(response.communication?.status, 'degraded');
+  assert.match(response.communication?.message ?? '', /recorded.*alert/i);
+});
+
 test('SyncOperationLogsRepository caps offline pull scans per tenant', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new SyncOperationLogsRepository({

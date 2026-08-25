@@ -38,6 +38,7 @@ import { ParentEngagementWorkspace } from "@/components/school/guidance-counsell
 import { ReferralsWorkspace } from "@/components/school/guidance-counselling/referrals-workspace";
 import { ReportsWorkspace as CounsellingReportsWorkspace } from "@/components/school/guidance-counselling/reports-workspace";
 import { SessionsWorkspace } from "@/components/school/guidance-counselling/sessions-workspace";
+import { SettingsWorkspace as CounsellingSettingsWorkspace } from "@/components/school/guidance-counselling/settings-workspace";
 import { WelfareNotesWorkspace } from "@/components/school/guidance-counselling/welfare-notes-workspace";
 import { AssetAssignmentWorkspace } from "@/components/school/ict-manager/asset-assignment-workspace";
 import { AssetsWorkspace as IctAssetsWorkspace } from "@/components/school/ict-manager/assets-workspace";
@@ -270,9 +271,13 @@ const LIVE_ROLE_CONFIG: Record<LiveRole, RoleCommandConfig> = {
       referrals: ReferralsWorkspace,
       sessions: SessionsWorkspace,
       "follow-ups": FollowUpsWorkspace,
+      followups: FollowUpsWorkspace,
       "welfare-notes": WelfareNotesWorkspace,
+      welfare: WelfareNotesWorkspace,
       "parent-engagement": ParentEngagementWorkspace,
+      parents: ParentEngagementWorkspace,
       reports: CounsellingReportsWorkspace,
+      settings: CounsellingSettingsWorkspace,
     },
   },
   "discipline-master": {

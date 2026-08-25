@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { PublicSchoolLoginView } from "@/components/auth/public-school-login-view";
@@ -55,11 +55,12 @@ describe("enterprise authentication flows", () => {
     expect(screen.queryByText(/system\.owner@example\.invalid/i)).toBeNull();
     expect(screen.queryByText(/managed-by-vault/i)).toBeNull();
 
-    await user.type(screen.getByLabelText(/^email$/i), "system.owner@example.invalid");
-    await user.type(
-      screen.getByLabelText(/^password$/i),
-      "managed-by-vault",
-    );
+    fireEvent.change(screen.getByLabelText(/^email$/i), {
+      target: { value: "system.owner@example.invalid" },
+    });
+    fireEvent.change(screen.getByLabelText(/^password$/i), {
+      target: { value: "managed-by-vault" },
+    });
     await user.click(
       screen.getByRole("button", { name: /continue securely/i }),
     );
@@ -99,8 +100,12 @@ describe("enterprise authentication flows", () => {
 
     renderWithProviders(<SuperadminLoginView />);
 
-    await user.type(screen.getByLabelText(/^email$/i), "owner@example.invalid");
-    await user.type(screen.getByLabelText(/^password$/i), "ManagedByVault!2026");
+    fireEvent.change(screen.getByLabelText(/^email$/i), {
+      target: { value: "owner@example.invalid" },
+    });
+    fireEvent.change(screen.getByLabelText(/^password$/i), {
+      target: { value: "ManagedByVault!2026" },
+    });
     await user.click(screen.getByRole("button", { name: /continue securely/i }));
 
     await waitFor(() =>
@@ -312,6 +317,7 @@ describe("enterprise authentication flows", () => {
         mode="parent"
         initialEmail="parent.invited@example.test"
         initialTenantSlug="kisumu-boys"
+        acceptedInvite
       />,
     );
 

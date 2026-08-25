@@ -175,24 +175,40 @@ test('ModuleAccessGuard rejects disabled tenant modules gracefully', async () =>
 
 test('ModuleAccessRepository clears stale expiry and trial gates when superadmin replaces school modules', async () => {
   const queries: Array<{ sql: string; values: unknown[] }> = [];
+  let transactionScope: { tenantId: string; userId: string | null } | undefined;
+  const query = async (sql: string, values: unknown[] = []) => {
+    queries.push({ sql, values });
+
+    if (sql.includes('SELECT code') && sql.includes('FROM module_registry')) {
+      return { rows: [{ code: 'principal_dashboard' }] };
+    }
+
+    return { rows: [] };
+  };
   const repository = new ModuleAccessRepository({
-    withRequestTransaction: async <T>(callback: () => Promise<T>) => callback(),
-        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
-      return cb({
-        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
-          const res = await (this as any).query(sql, params);
-          return res.rows || res;
-        }
+    query,
+    executeWithTenant: async (
+      tenantId: string,
+      userId: string | null,
+      callback: (tx: unknown) => Promise<unknown>,
+    ) => {
+      transactionScope = { tenantId, userId };
+      return callback({
+        $queryRawUnsafe: async (sql: string, ...values: unknown[]) => {
+          const result = await query(sql, values);
+          return result.rows;
+        },
+        $executeRawUnsafe: async (sql: string, ...values: unknown[]) => {
+          await query(sql, values);
+          if (sql.includes('INSERT INTO school_module_access')) {
+            return 1;
+          }
+          if (sql.includes('INSERT INTO audit_logs')) {
+            return 1;
+          }
+          return 0;
+        },
       });
-    },
-query: async (sql: string, values: unknown[] = []) => {
-      queries.push({ sql, values });
-
-      if (sql.includes('SELECT code') && sql.includes('FROM module_registry')) {
-        return { rows: [{ code: 'principal_dashboard' }] };
-      }
-
-      return { rows: [] };
     },
   } as never);
 
@@ -210,6 +226,136 @@ query: async (sql: string, values: unknown[] = []) => {
   assert.match(upsertQuery?.sql ?? '', /access_level = EXCLUDED\.access_level/);
   assert.match(upsertQuery?.sql ?? '', /trial_ends_at = EXCLUDED\.trial_ends_at/);
   assert.match(upsertQuery?.sql ?? '', /expires_at = EXCLUDED\.expires_at/);
+  assert.deepEqual(transactionScope, {
+    tenantId: 'school-a',
+    userId: '00000000-0000-0000-0000-000000000001',
+  });
+  assert.ok(
+    queries.some((query) => query.sql.includes('INSERT INTO audit_logs')),
+    'module replacement must append its audit record in the tenant transaction',
+  );
+});
+
+test('ModuleAccessRepository rolls back a toggle when its mandatory audit insert fails', async () => {
+  let committedEnabled = false;
+  let listReads = 0;
+  let transactionScope: { tenantId: string; userId: string | null } | undefined;
+  const auditFailure = new Error('audit store unavailable');
+  const repository = new ModuleAccessRepository({
+    executeWithTenant: async (
+      tenantId: string,
+      userId: string | null,
+      callback: (tx: unknown) => Promise<unknown>,
+    ) => {
+      transactionScope = { tenantId, userId };
+      let pendingEnabled = committedEnabled;
+      const result = await callback({
+        $queryRawUnsafe: async (sql: string) => {
+          if (sql.includes('SELECT code') && sql.includes('FROM module_registry')) {
+            return [{ code: 'finance' }];
+          }
+          if (sql.includes('LEFT JOIN school_module_access')) {
+            listReads += 1;
+            return [];
+          }
+          return [];
+        },
+        $executeRawUnsafe: async (sql: string, ...values: unknown[]) => {
+          if (sql.includes('INSERT INTO school_module_access')) {
+            pendingEnabled = Boolean(values[2]);
+            return 1;
+          }
+          if (sql.includes('INSERT INTO audit_logs')) {
+            throw auditFailure;
+          }
+          return 0;
+        },
+      });
+      committedEnabled = pendingEnabled;
+      return result;
+    },
+  } as never);
+
+  await assert.rejects(
+    () =>
+      repository.toggleSchoolModule({
+        tenantId: 'school-a',
+        moduleCode: 'finance',
+        enabled: true,
+        updatedBy: '00000000-0000-0000-0000-000000000001',
+      }),
+    auditFailure,
+  );
+
+  assert.equal(committedEnabled, false, 'failed audit must prevent the module toggle from committing');
+  assert.equal(listReads, 0, 'a failed transaction must not build a success response');
+  assert.deepEqual(transactionScope, {
+    tenantId: 'school-a',
+    userId: '00000000-0000-0000-0000-000000000001',
+  });
+});
+
+test('ModuleAccessRepository rolls back a bulk replacement when its mandatory audit insert fails', async () => {
+  let committedCodes = new Set(['legacy_module']);
+  let listReads = 0;
+  const auditFailure = new Error('audit store unavailable');
+  const repository = new ModuleAccessRepository({
+    query: async () => ({ rows: [] }),
+    executeWithTenant: async (
+      _tenantId: string,
+      _userId: string | null,
+      callback: (tx: unknown) => Promise<unknown>,
+    ) => {
+      const pendingCodes = new Set(committedCodes);
+      const result = await callback({
+        $queryRawUnsafe: async (sql: string, ...values: unknown[]) => {
+          if (sql.includes('SELECT code') && sql.includes('FROM module_registry')) {
+            return (values[0] as string[]).map((code) => ({ code }));
+          }
+          if (sql.includes('LEFT JOIN school_module_access')) {
+            listReads += 1;
+            return [];
+          }
+          return [];
+        },
+        $executeRawUnsafe: async (sql: string, ...values: unknown[]) => {
+          if (sql.includes('UPDATE school_module_access')) {
+            const selectedCodes = new Set(values[2] as string[]);
+            for (const code of pendingCodes) {
+              if (!selectedCodes.has(code)) {
+                pendingCodes.delete(code);
+              }
+            }
+            return 1;
+          }
+          if (sql.includes('INSERT INTO school_module_access')) {
+            const selectedCodes = values[1] as string[];
+            selectedCodes.forEach((code) => pendingCodes.add(code));
+            return selectedCodes.length;
+          }
+          if (sql.includes('INSERT INTO audit_logs')) {
+            throw auditFailure;
+          }
+          return 0;
+        },
+      });
+      committedCodes = pendingCodes;
+      return result;
+    },
+  } as never);
+
+  await assert.rejects(
+    () =>
+      repository.setSchoolModules({
+        tenantId: 'school-a',
+        moduleCodes: ['principal_dashboard'],
+        updatedBy: '00000000-0000-0000-0000-000000000001',
+      }),
+    auditFailure,
+  );
+
+  assert.deepEqual([...committedCodes], ['legacy_module']);
+  assert.equal(listReads, 0, 'a failed transaction must not build a success response');
 });
 
 test('ModuleAccessRepository reads enabled modules inside the tenant transaction', async () => {

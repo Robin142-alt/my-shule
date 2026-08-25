@@ -104,6 +104,32 @@ query: async (text: string, values: unknown[] = []) => {
   ]);
 });
 
+test('SupportRepository uses slug tenant context for tenant-owned reads', async () => {
+  const tenantContexts: string[] = [];
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const repository = new SupportRepository({
+    executeWithTenant: async (
+      tenantId: string,
+      _userId: unknown,
+      callback: (tx: unknown) => unknown,
+    ) => {
+      tenantContexts.push(tenantId);
+      return callback({
+        $queryRawUnsafe: async (text: string, ...values: unknown[]) => {
+          queries.push({ text, values });
+          return [];
+        },
+      });
+    },
+  } as never);
+
+  await repository.listCategories('kisumu-day-school');
+
+  assert.deepEqual(tenantContexts, ['kisumu-day-school']);
+  assert.match(queries[0]?.text ?? '', /tenant_id IN \(\$1, 'global'\)/);
+  assert.deepEqual(queries[0]?.values, ['kisumu-day-school']);
+});
+
 test('SupportRepository hides internal-note attachments unless explicitly requested', async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new SupportRepository({
@@ -162,6 +188,97 @@ query: async (text: string, values: unknown[] = []) => {
   assert.match(claimQuery, /FOR UPDATE SKIP LOCKED/);
   assert.match(claimQuery, /channel = ANY\(\$3::text\[\]\)/);
   assert.deepEqual(queries[0]?.values, [25, 120000, ['email', 'sms']]);
+});
+
+test('SupportRepository claims globally then reloads notification payloads in each slug tenant', async () => {
+  const tenantContexts: string[] = [];
+  const roleStatements: string[] = [];
+  const queries: Array<{ tenantId: string; text: string; values: unknown[] }> = [];
+  const notificationId = '00000000-0000-0000-0000-00000000aaa1';
+  const repository = new SupportRepository({
+    executeWithTenant: async (
+      tenantId: string,
+      _userId: unknown,
+      callback: (tx: unknown) => unknown,
+    ) => {
+      tenantContexts.push(tenantId);
+      return callback({
+        $executeRawUnsafe: async (text: string) => {
+          roleStatements.push(text);
+          return 0;
+        },
+        $queryRawUnsafe: async (text: string, ...values: unknown[]) => {
+          queries.push({ tenantId, text, values });
+
+          if (text.includes('WITH due AS')) {
+            return [{ id: notificationId, tenant_id: 'nairobi-school' }];
+          }
+
+          return [{
+            id: notificationId,
+            tenant_id: 'nairobi-school',
+            ticket_id: null,
+            recipient_user_id: null,
+            recipient_type: 'support',
+            channel: 'email',
+            title: 'Ticket update',
+            body: 'A ticket changed.',
+            delivery_status: 'queued',
+            delivery_attempts: 0,
+            last_delivery_error: null,
+            next_delivery_attempt_at: null,
+            delivered_at: null,
+            metadata: {},
+            created_at: '2026-08-25T00:00:00.000Z',
+          }];
+        },
+      });
+    },
+  } as never);
+
+  const notifications = await repository.claimDueQueuedNotifications(10, 60000, ['email']);
+
+  assert.deepEqual(tenantContexts, ['global', 'nairobi-school']);
+  assert.deepEqual(roleStatements, [
+    'SET LOCAL row_security = on',
+    "SET LOCAL app.role = 'system'",
+  ]);
+  assert.match(queries[0]?.text ?? '', /FOR UPDATE SKIP LOCKED/);
+  assert.equal(queries[1]?.tenantId, 'nairobi-school');
+  assert.match(queries[1]?.text ?? '', /WHERE tenant_id = \$1/);
+  assert.deepEqual(queries[1]?.values, ['nairobi-school', notificationId]);
+  assert.equal(notifications[0]?.tenant_id, 'nairobi-school');
+});
+
+test('SupportRepository scopes notification delivery updates to slug tenants', async () => {
+  const tenantContexts: string[] = [];
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const repository = new SupportRepository({
+    executeWithTenant: async (tenantId: string, _userId: unknown, callback: (tx: unknown) => unknown) => {
+      tenantContexts.push(tenantId);
+      return callback({
+        $queryRawUnsafe: async (text: string, ...values: unknown[]) => {
+          queries.push({ text, values });
+          return [];
+        },
+      });
+    },
+  } as never);
+
+  await repository.markNotificationDelivery(
+    'tenant-a',
+    '00000000-0000-0000-0000-00000000aaa1',
+    'provider_accepted',
+  );
+
+  assert.deepEqual(tenantContexts, ['tenant-a']);
+  assert.match(queries[0]?.text ?? '', /WHERE tenant_id = \$1/);
+  assert.match(queries[0]?.text ?? '', /AND id = \$2::uuid/);
+  assert.deepEqual(queries[0]?.values.slice(0, 3), [
+    'tenant-a',
+    '00000000-0000-0000-0000-00000000aaa1',
+    'provider_accepted',
+  ]);
 });
 
 test('SupportRepository lists failed notification deliveries for dead-letter review', async () => {
@@ -292,19 +409,23 @@ query: async (text: string) => {
 });
 
 test('SupportRepository clears resolved and closed timestamps when tickets reopen', async () => {
+  const tenantContexts: string[] = [];
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const repository = new SupportRepository({
-        executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
-      return cb({
-        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
-          const res = await (this as any).query(sql, params);
-          return res.rows || res;
-        }
+    executeWithTenant: async (
+      tenantId: string,
+      _userId: unknown,
+      callback: (tx: unknown) => unknown,
+    ) => {
+      tenantContexts.push(tenantId);
+      return callback({
+        $queryRawUnsafe: async (text: string, ...values: unknown[]) => {
+          queries.push({ text, values });
+          return text.includes('SELECT tenant_id')
+            ? [{ tenant_id: 'nakuru-school' }]
+            : [];
+        },
       });
-    },
-query: async (text: string, values: unknown[] = []) => {
-      queries.push({ text, values });
-      return { rows: [] };
     },
   } as never);
 
@@ -314,12 +435,15 @@ query: async (text: string, values: unknown[] = []) => {
     '00000000-0000-0000-0000-000000000999',
   );
 
-  const updateQuery = queries[0]?.text ?? '';
+  const updateQuery = queries[1]?.text ?? '';
+  assert.deepEqual(tenantContexts, ['global', 'nakuru-school']);
   assert.match(updateQuery, /WHEN \$2 NOT IN \('Resolved', 'Closed'\) THEN NULL/);
   assert.match(updateQuery, /WHEN \$2 <> 'Closed' THEN NULL/);
-  assert.deepEqual(queries[0]?.values, [
+  assert.match(updateQuery, /AND tenant_id = \$4/);
+  assert.deepEqual(queries[1]?.values, [
     '00000000-0000-0000-0000-00000000aaa1',
     'In Progress',
     '00000000-0000-0000-0000-000000000999',
+    'nakuru-school',
   ]);
 });

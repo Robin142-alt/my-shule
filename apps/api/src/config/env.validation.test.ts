@@ -142,6 +142,22 @@ test('configuration treats Railway as a long-running worker runtime even when ge
   assert.equal(railwayConfig.events.workerEnabled, true);
 });
 
+test('configuration requires explicit SMS outbox worker enablement outside the events worker entrypoint', () => {
+  const genericWorkerConfig = loadConfigurationWithEnv({
+    APP_RUNTIME: 'worker',
+    COMMUNICATION_SMS_OUTBOX_WORKER_ENABLED: undefined,
+  });
+
+  assert.equal(genericWorkerConfig.communication.smsOutboxWorkerEnabled, false);
+
+  const smsWorkerConfig = loadConfigurationWithEnv({
+    APP_RUNTIME: 'worker',
+    COMMUNICATION_SMS_OUTBOX_WORKER_ENABLED: 'true',
+  });
+
+  assert.equal(smsWorkerConfig.communication.smsOutboxWorkerEnabled, true);
+});
+
 test('validateEnv requires a trusted tenant header signing secret', () => {
   const { APP_TRUSTED_TENANT_HEADER_SECRET, ...envWithoutTrustedTenantSecret } = requiredEnvironment;
 

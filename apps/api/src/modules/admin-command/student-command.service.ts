@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
+import { notificationRecipientPredicate } from '../notifications/notification-recipient-predicate';
 
 type StudentIdentity = {
   tenantId: string;
@@ -645,7 +646,7 @@ export class StudentCommandService {
           notification.status
         FROM notifications notification
         WHERE notification.tenant_id = $1
-          AND notification.recipient_user_id = $2::uuid
+          AND ${notificationRecipientPredicate('notification', '$2', '$3')}
           AND (
             notification.type ILIKE '%message%'
             OR notification.type ILIKE '%communication%'
@@ -654,7 +655,7 @@ export class StudentCommandService {
         ORDER BY notification.created_at DESC
         LIMIT 100
       `,
-      [identity.tenantId, identity.userId],
+      [identity.tenantId, identity.userId, 'student'],
     );
 
     return {
@@ -688,11 +689,11 @@ export class StudentCommandService {
           notification.priority
         FROM notifications notification
         WHERE notification.tenant_id = $1
-          AND notification.recipient_user_id = $2::uuid
+          AND ${notificationRecipientPredicate('notification', '$2', '$3')}
         ORDER BY notification.created_at DESC
         LIMIT 100
       `,
-      [identity.tenantId, identity.userId],
+      [identity.tenantId, identity.userId, 'student'],
     );
 
     return {

@@ -29,7 +29,7 @@ describe("experience shells", () => {
     platformRender.unmount();
 
     const schoolRender = renderWithProviders(
-      createElement(SchoolPages, { role: "bursar" }),
+      createElement(SchoolPages, { role: "bursar", tenantSlug: "lakeview-school" }),
     );
     expect(await screen.findByTestId("accountant-command-center")).toBeVisible();
     expect(screen.getByRole("heading", { name: /bursar dashboard/i })).toBeVisible();
@@ -45,8 +45,8 @@ describe("experience shells", () => {
     }));
     expect(screen.getByTestId("live-role-command-center")).toHaveAttribute("data-role", "parent");
     expect(screen.getAllByRole("heading", { name: /parent dashboard/i }).length).toBeGreaterThan(0);
-    expect(screen.getByRole("option", { name: /^fees$/i })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: /^inventory$/i })).toBeNull();
+    expect(screen.getByRole("button", { name: /^fees\b/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^inventory\b/i })).toBeNull();
   });
 
   it("scopes school command-center actions by role instead of showing the same global action list to everyone", async () => {
@@ -66,13 +66,13 @@ describe("experience shells", () => {
       }),
     } as Response);
 
-    renderWithProviders(createElement(SchoolPages, { role: "secretary" }));
+    renderWithProviders(createElement(SchoolPages, { role: "secretary", tenantSlug: "lakeview-school" }));
 
     const commandCenter = await screen.findByTestId("live-role-command-center");
     expect(commandCenter).toHaveAttribute("data-role", "secretary");
     expect(within(commandCenter).getByRole("heading", { name: /secretary dashboard/i })).toBeVisible();
     expect(within(commandCenter).getByRole("button", { name: /open reception queue/i })).toBeVisible();
-    expect(within(commandCenter).getByRole("option", { name: /letters.*documents/i })).toBeInTheDocument();
+    expect(within(commandCenter).getByRole("button", { name: /^letters.*documents\b/i })).toBeVisible();
     expect(within(commandCenter).queryByText(/\b5 parents waiting\b|\b9 documents requested\b/i)).not.toBeInTheDocument();
   });
 });

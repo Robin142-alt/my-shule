@@ -209,13 +209,6 @@ export function SupportCenterWorkspace({
         priority: scopedTicket.priority,
         moduleAffected: scopedTicket.moduleAffected,
       },
-      notifications: [
-        {
-          audienceRoles: ["superadmin", "support"],
-          title: "School support ticket created",
-          body: `${scopedTicket.schoolName} created ${scopedTicket.ticketNumber}: ${scopedTicket.subject}`,
-        },
-      ],
     });
 
     return scopedTicket;

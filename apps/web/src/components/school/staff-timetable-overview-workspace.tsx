@@ -14,9 +14,9 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
 import { getDashboardApiBaseUrl } from "@/lib/dashboard/api-client";
 import { openPrintDocument } from "@/lib/dashboard/export";
-import { getCurrentSchoolId } from "@/lib/school/school-operational-store";
 
 type TimetableView = "master" | "class" | "teacher" | "resource";
 
@@ -103,6 +103,7 @@ export function StaffTimetableOverviewWorkspace({
   description?: string;
   theme?: "light" | "dark";
 }) {
+  const tenantId = useOptionalSchoolTenantId();
   const [view, setView] = useState<TimetableView>("master");
   const [selectedDay, setSelectedDay] = useState(currentSchoolDay());
   const [search, setSearch] = useState("");
@@ -143,7 +144,9 @@ export function StaffTimetableOverviewWorkspace({
   async function downloadCsv() {
     setExporting(true);
     try {
-      const tenantId = getCurrentSchoolId();
+      if (!tenantId) {
+        throw new Error("School context is unavailable. Sign in again before exporting the timetable.");
+      }
       const exportQuery = new URLSearchParams({ view });
       if (selectedDay > 0) exportQuery.set("day_of_week", String(selectedDay));
       const response = await fetch(`${getDashboardApiBaseUrl(tenantId)}/timetable/export/csv?${exportQuery.toString()}`, {

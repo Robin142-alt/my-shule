@@ -227,13 +227,23 @@ export function CommunicationWorkspace({ model }: { model: unknown }) {
   async function createBroadcast(draft: BroadcastDraft) {
     setSavingAction("create-broadcast");
     try {
-      const result = await requestDashboardApi<{ broadcast?: { smsRecipientCount?: number } }>("/api/admin-command/communication-broadcasts", {
+      const result = await requestDashboardApi<{ broadcast?: {
+        smsQueuedCount?: number;
+        smsProcessingCount?: number;
+        smsAcceptedCount?: number;
+        smsNeedsReviewCount?: number;
+      } }>("/api/admin-command/communication-broadcasts", {
         method: "POST",
         body: { ...draft },
       });
       await refetch();
-      const smsRecipientCount = result.broadcast?.smsRecipientCount ?? 0;
-      setNotice(`Broadcast created for ${draft.audience}${draft.channels.includes("sms") ? `; ${smsRecipientCount} SMS recipient${smsRecipientCount === 1 ? "" : "s"} queued` : ""}.`);
+      const smsQueuedCount = result.broadcast?.smsQueuedCount ?? 0;
+      const smsProcessingCount = result.broadcast?.smsProcessingCount ?? 0;
+      const smsAcceptedCount = result.broadcast?.smsAcceptedCount ?? 0;
+      const smsNeedsReviewCount = result.broadcast?.smsNeedsReviewCount ?? 0;
+      setNotice(`Broadcast recorded for ${draft.audience}${draft.channels.includes("sms")
+        ? `; SMS: ${smsQueuedCount} queued, ${smsProcessingCount} dispatching, ${smsAcceptedCount} provider-accepted, ${smsNeedsReviewCount} requiring review`
+        : ""}.`);
     } finally {
       setSavingAction(null);
     }

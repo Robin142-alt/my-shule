@@ -947,51 +947,6 @@ function ReportsDownloadsWorkspace() {
   );
 }
 
-function NoticesCommunicationWorkspace() {
-  const [isNoticeOpen, setIsNoticeOpen] = useState(false);
-  const messages = [
-    { title: "Form 2 Overdue Reminder", target: "Students & Parents", method: "SMS, In-app", date: "10 Jun 2026", status: "Sent (45)" },
-    { title: "New Set Books Arrival", target: "Language Dept", method: "In-app", date: "08 Jun 2026", status: "Sent (8)" },
-  ];
-
-  return (
-    <>
-    <Panel title="Notices & Communication" description="Send library notices, overdue reminders, fine alerts, and lost book notices." icon={MessageCircle} actions={
-      <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => setIsNoticeOpen(true)}>Compose Notice</button>
-    }>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
-        <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
-            <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Message Title</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Recipient Type</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Method</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Sent Date</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
-            {messages.map((m, i) => (
-              <tr key={i} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{m.title}</td>
-                <td className="px-4 py-3 text-[#64748B]">{m.target}</td>
-                <td className="px-4 py-3 text-[#64748B]">{m.method}</td>
-                <td className="px-4 py-3 text-[#64748B]">{m.date}</td>
-                <td className="px-4 py-3"><StatusChip label={m.status} tone="success" /></td>
-                <td className="px-4 py-3 text-right">
-                  <button type="button" className="text-blue-600 hover:underline font-semibold" onClick={() => openLibraryRecord("Library notice", [["Title", m.title], ["Recipients", m.target], ["Method", m.method], ["Sent date", m.date], ["Status", m.status]])}>View</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Panel>
-    <ComposeLibraryNoticeModal open={isNoticeOpen} onClose={() => setIsNoticeOpen(false)} />
-    </>
-  );
-}
 type LibraryWorkspaceContract = {
   endpoint: string;
   dataKeys: string[];
@@ -1095,8 +1050,8 @@ const libraryWorkspaceContracts: Partial<Record<LibrarianView, LibraryWorkspaceC
     dataKeys: ["items"],
     columns: ["title", "body", "recipientRole", "status", "createdAt"],
     title: "Notices & Communication",
-    description: "Send and review tenant-scoped library notices for overdue, fine, lost-book, and new-arrival communication.",
-    emptyText: "No library notices have been sent yet. Use Compose Notice to notify the right roles.",
+    description: "Send and review general or new-arrival notices. Borrower-specific reminders are sent from the exact overdue loan record.",
+    emptyText: "No library notices have been sent yet. Compose a general notice or use Loans & Overdues for an exact borrower reminder.",
   },
   settings: {
     endpoint: "/api/admin-command/librarian/overview",
@@ -1657,7 +1612,6 @@ function ComposeLibraryNoticeModal({
     const noticeType = String(form.get("notice_type") ?? "general").trim();
     const priority = String(form.get("priority") ?? "normal").trim();
     const targetRoles = form.getAll("target_roles").map((value) => String(value).trim()).filter(Boolean);
-    const channels = form.getAll("channels").map((value) => String(value).trim()).filter(Boolean);
 
     if (!title || !message || targetRoles.length === 0) {
       toast.error("Title, message, and at least one recipient role are required.");
@@ -1674,7 +1628,7 @@ function ComposeLibraryNoticeModal({
           notice_type: noticeType,
           priority,
           target_roles: targetRoles,
-          channels: channels.length > 0 ? channels : ["in_app"],
+          channels: ["in_app"],
         },
       });
       toast.success("Library notice sent", {
@@ -1703,15 +1657,12 @@ function ComposeLibraryNoticeModal({
       <form onSubmit={handleSendLibraryNotice} className="space-y-4 p-6">
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-sm font-bold text-[#071D49]">Notice title
-            <input name="title" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Overdue book reminder" />
+            <input name="title" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Library opening hours" />
           </label>
           <label className="text-sm font-bold text-[#071D49]">Notice type
-            <select name="notice_type" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" defaultValue="overdue">
-              <option value="overdue">Overdue reminder</option>
-              <option value="fine">Fine alert</option>
-              <option value="lost_book">Lost book notice</option>
-              <option value="new_arrival">New arrival</option>
+            <select name="notice_type" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" defaultValue="general">
               <option value="general">General</option>
+              <option value="new_arrival">New arrival</option>
             </select>
           </label>
         </div>
@@ -1736,14 +1687,9 @@ function ComposeLibraryNoticeModal({
           </div>
         </fieldset>
         <div className="grid gap-4 sm:grid-cols-2">
-          <fieldset className="rounded-lg border border-[#D8E0EC] p-3">
-            <legend className="px-1 text-sm font-bold text-[#071D49]">Channels</legend>
-            <div className="mt-2 space-y-2">
-              <label className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><input type="checkbox" name="channels" value="in_app" defaultChecked /> In-app</label>
-              <label className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><input type="checkbox" name="channels" value="sms" /> SMS queue</label>
-              <label className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><input type="checkbox" name="channels" value="email" /> Email queue</label>
-            </div>
-          </fieldset>
+          <div className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-3 text-sm font-semibold text-[#64748B]">
+            Delivery channel: verified in-app notification.
+          </div>
           <label className="text-sm font-bold text-[#071D49]">Priority
             <select name="priority" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" defaultValue="normal">
               <option value="normal">Normal</option>
@@ -1752,7 +1698,7 @@ function ComposeLibraryNoticeModal({
           </label>
         </div>
         <p className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-3 text-sm font-semibold text-[#64748B]">
-          Notices create tenant-scoped notifications for selected recipient roles and record an auditable library notice event.
+          This composer is for non-person-specific notices. Send overdue reminders from Loans &amp; Overdues so only the exact borrower and linked guardians receive the details.
         </p>
         <div className="flex justify-end gap-2 border-t border-[#D8E0EC] pt-4">
           <button type="button" className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]" onClick={onClose} disabled={submitting}>Cancel</button>
@@ -1776,6 +1722,7 @@ function DataBackedLibraryWorkspace({ viewId }: { viewId: LibrarianView }) {
   const [isRequestOpen, setIsRequestOpen] = useState(false);
   const [isNoticeOpen, setIsNoticeOpen] = useState(false);
   const [pendingVisitCheckout, setPendingVisitCheckout] = useState<string | null>(null);
+  const [pendingOverdueReminder, setPendingOverdueReminder] = useState<string | null>(null);
   const rows = getRowsFromResponse(data, contract.dataKeys).filter((row) =>
     JSON.stringify(row).toLowerCase().includes(search.toLowerCase()),
   );
@@ -1817,6 +1764,41 @@ function DataBackedLibraryWorkspace({ viewId }: { viewId: LibrarianView }) {
       setPendingVisitCheckout(null);
     }
   }
+
+  async function handleOverdueReminder(row: Record<string, unknown>) {
+    const loanId = valueText(row.id);
+    const learnerName = valueText(row.student_name ?? "Borrower");
+    if (!loanId || loanId === "-") {
+      toast.error("Overdue reminder was not sent", { description: "The loan record does not have a valid identifier." });
+      return;
+    }
+
+    setPendingOverdueReminder(loanId);
+    try {
+      const response = await requestDashboardApi<{ recipientCount?: number }>(
+        `/api/admin-command/librarian/overdue-books/${encodeURIComponent(loanId)}/remind`,
+        { method: "POST" },
+      );
+      const recipientCount = Number(response?.recipientCount ?? 0);
+      toast.success("Overdue reminder queued", {
+        description: `${recipientCount} exact active borrower or linked guardian account${recipientCount === 1 ? "" : "s"} will receive the reminder for ${learnerName}.`,
+      });
+      publishSchoolOperationalEvent({
+        type: "library.overdue.reminder_sent",
+        module: "library",
+        actorRole: "librarian",
+        title: "Library overdue reminder queued",
+        body: `${recipientCount} exact recipient account${recipientCount === 1 ? "" : "s"} queued.`,
+      });
+      void refetch?.();
+    } catch (error) {
+      toast.error("Overdue reminder was not sent", {
+        description: error instanceof Error ? error.message : "No exact active borrower or linked guardian account could receive the reminder.",
+      });
+    } finally {
+      setPendingOverdueReminder(null);
+    }
+  }
   const visitRowActions = viewId === "visits"
     ? (row: Record<string, unknown>) => {
         const status = valueText(row.status).toLowerCase();
@@ -1835,6 +1817,21 @@ function DataBackedLibraryWorkspace({ viewId }: { viewId: LibrarianView }) {
         );
       }
     : undefined;
+  const workspaceRowActions = viewId === "loans"
+    ? (row: Record<string, unknown>) => {
+        const loanId = valueText(row.id);
+        return (
+          <button
+            type="button"
+            className="mr-3 text-blue-700 hover:underline font-semibold disabled:opacity-60"
+            disabled={pendingOverdueReminder === loanId}
+            onClick={() => void handleOverdueReminder(row)}
+          >
+            {pendingOverdueReminder === loanId ? "Queuing..." : "Send exact reminder"}
+          </button>
+        );
+      }
+    : visitRowActions;
 
   return (
     <>
@@ -1882,7 +1879,7 @@ function DataBackedLibraryWorkspace({ viewId }: { viewId: LibrarianView }) {
             className="w-full rounded-xl border border-[#D8E0EC] py-2 pl-9 pr-3 text-sm focus:border-[#071D49] focus:outline-none focus:ring-1 focus:ring-[#071D49]"
           />
         </div>
-          <EndpointTable isLoading={isLoading} rows={rows} emptyText={contract.emptyText} columns={contract.columns} title={contract.title} rowActions={visitRowActions} />
+          <EndpointTable isLoading={isLoading} rows={rows} emptyText={contract.emptyText} columns={contract.columns} title={contract.title} rowActions={workspaceRowActions} />
       </Panel>
           {isAddBookOpen && <AddBookModal onClose={() => setIsAddBookOpen(false)} />}
           <CreateLibraryReservationModal open={isReservationOpen} onClose={() => setIsReservationOpen(false)} onCreated={() => void refetch?.()} />

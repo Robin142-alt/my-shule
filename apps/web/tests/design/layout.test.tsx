@@ -63,7 +63,7 @@ describe("STEP 1: Layout tests", () => {
 
     firstRender.unmount();
     const secondRender = renderWithProviders(
-      createElement(SchoolPages, { role: "bursar" }),
+      createElement(SchoolPages, { role: "bursar", tenantSlug: "lakeview-school" }),
     );
     expect(await screen.findByTestId("accountant-command-center")).toBeVisible();
     expect(screen.getByRole("heading", { name: /bursar dashboard/i })).toBeVisible();

@@ -157,12 +157,15 @@ describe("dashboard production readiness safety", () => {
     expect(recipients.missingPhone).toHaveLength(1);
     expect(
       smsResultSummary({
-        sent_count: 1,
+        provider_accepted_count: 1,
+        delivery_unknown_count: 0,
         failed_count: 0,
         skipped_count: 1,
-        failures: [],
+        provider_accepted: [{ recipient_id: "parent-1", status: "provider_accepted" }],
+        delivery_unknown: [],
+        failed: [],
         skipped: [{ recipient_id: "parent-2", reason: "Missing phone number" }],
       }),
-    ).toBe("SMS queued: 1 sent, 0 failed, 1 skipped.");
+    ).toBe("SMS provider accepted: 1; needs delivery review: 0; failed: 0; skipped: 1.");
   });
 });

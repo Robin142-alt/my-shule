@@ -4,6 +4,7 @@ import { LogOut } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { approveLeaveRequest, checkoutLeaveRequest, createLeaveRequest, rejectLeaveRequest } from "./api-client";
+import type { BoardingReferenceData } from "./api-client";
 import { toast } from "sonner";
 
 type LeaveExitRecord = {
@@ -30,9 +31,21 @@ type LeaveExitData = {
 
 export function LeaveExitWorkspace() {
   const { data, error, isLoading, refetch } = useSchoolQuery<LeaveExitData>('/admin-command/boarding-master/leave-exit');
+  const {
+    data: references,
+    error: referencesError,
+    isLoading: referencesLoading,
+  } = useSchoolQuery<BoardingReferenceData>('/admin-command/boarding-master/references');
   const [isCreating, setIsCreating] = useState(false);
   const [pendingActionId, setPendingActionId] = useState<string | null>(null);
+  const [selectedStudentId, setSelectedStudentId] = useState("");
   const items = data?.leaveexitList || [];
+  const students = Array.isArray(references?.students) ? references.students : [];
+  const guardians = Array.isArray(references?.guardians) ? references.guardians : [];
+  const referencesIncomplete = references != null
+    && (!Array.isArray(references.students) || !Array.isArray(references.guardians));
+  const selectedStudent = students.find((student) => student.id === selectedStudentId);
+  const linkedGuardians = guardians.filter((guardian) => guardian.student_id === selectedStudentId);
 
   const getStatusTone = (st: string): Tone => {
     if (st === "Active" || st === "Available" || st === "Approved" || st === "Completed" || st === "Resolved" || st === "Present" || st === "Functional" || st === "On Track" || st === "Cleared") return "success";
@@ -46,18 +59,20 @@ export function LeaveExitWorkspace() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const payload = {
-      student_name: String(form.get("student_name") || "").trim(),
-      hostel: String(form.get("hostel") || "").trim(),
+      student_id: String(form.get("student_id") || "").trim(),
+      guardian_id: String(form.get("guardian_id") || "").trim(),
       leave_type: String(form.get("leave_type") || "").trim(),
       from_date: String(form.get("from_date") || "").trim(),
       to_date: String(form.get("to_date") || "").trim(),
-      guardian_name: String(form.get("guardian_name") || "").trim(),
-      guardian_phone: String(form.get("guardian_phone") || "").trim(),
       reason: String(form.get("reason") || "").trim(),
     };
 
-    if (!payload.student_name || !payload.leave_type || !payload.from_date || !payload.to_date || !payload.reason) {
-      toast.error("Student, leave type, dates, and reason are required.");
+    if (!payload.student_id || !payload.guardian_id || !payload.leave_type || !payload.from_date || !payload.to_date || !payload.reason) {
+      toast.error("Select an active boarder and linked guardian, then complete the leave details.");
+      return;
+    }
+    if (payload.to_date < payload.from_date) {
+      toast.error("The return date cannot be before the departure date.");
       return;
     }
 
@@ -66,6 +81,7 @@ export function LeaveExitWorkspace() {
       await createLeaveRequest(payload);
       toast.success("Leave request created");
       event.currentTarget.reset();
+      setSelectedStudentId("");
       await refetch();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Leave request could not be created");
@@ -94,17 +110,69 @@ export function LeaveExitWorkspace() {
 
   return (
     <Panel title="Leave & Exeat" description="Manage student leave and exeat requests." icon={LogOut}>
+      {referencesError ? (
+        <div role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          Boarder and guardian references could not be loaded: {referencesError.message}
+        </div>
+      ) : null}
+      {!referencesLoading && !referencesError && referencesIncomplete ? (
+        <div role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Boarder and guardian references are incomplete. Refresh this workspace before creating a leave request.
+        </div>
+      ) : null}
+      {!referencesLoading && !referencesError && !referencesIncomplete && students.length === 0 ? (
+        <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+          No active boarders are available. Allocate a learner to boarding before creating a leave request.
+        </div>
+      ) : null}
+      {!referencesLoading && !referencesError && !referencesIncomplete && students.length > 0 && guardians.length === 0 ? (
+        <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+          No active guardian links are available for these boarders. Link a guardian before creating a leave request.
+        </div>
+      ) : null}
       <form onSubmit={handleCreateLeaveRequest} className="mb-6 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-2 xl:grid-cols-4">
-        <input name="student_name" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Student name" />
-        <input name="hostel" className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Hostel / dorm" />
+        <label className="text-xs font-bold text-[#334155]">
+          Active boarder
+          <select
+            name="student_id"
+            required
+            disabled={referencesLoading || Boolean(referencesError) || referencesIncomplete || students.length === 0}
+            value={selectedStudentId}
+            onChange={(event) => setSelectedStudentId(event.target.value)}
+            className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm"
+          >
+            <option value="">Select a boarder</option>
+            {students.map((student) => (
+              <option key={student.id} value={student.id}>{student.student_name} · {student.admission_number}</option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs font-bold text-[#334155]">
+          Linked guardian
+          <select name="guardian_id" required disabled={!selectedStudentId || linkedGuardians.length === 0} className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm disabled:bg-slate-100">
+            <option value="">Select a guardian</option>
+            {linkedGuardians.map((guardian) => (
+              <option key={guardian.id} value={guardian.id}>{guardian.display_name}{guardian.phone ? ` · ${guardian.phone}` : ""}</option>
+            ))}
+          </select>
+          {selectedStudentId && linkedGuardians.length === 0 ? (
+            <span className="mt-1 block text-[11px] font-semibold text-rose-700">This boarder has no active linked guardian.</span>
+          ) : null}
+        </label>
         <input name="leave_type" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Leave type" />
-        <input name="guardian_name" className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Guardian / parent" />
-        <input name="guardian_phone" className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Guardian phone" />
+        <div className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm text-[#64748B]">
+          <span className="block text-[11px] font-bold uppercase tracking-wide">Assigned hostel</span>
+          {selectedStudent?.hostel_name || "Select a boarder"}
+        </div>
         <input name="from_date" required type="date" className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" aria-label="From date" />
         <input name="to_date" required type="date" className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" aria-label="To date" />
         <textarea name="reason" required rows={2} className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm md:col-span-2 xl:col-span-3" placeholder="Reason and handover notes" />
-        <button type="submit" disabled={isCreating} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
-          {isCreating ? "Creating..." : "Create Leave Request"}
+        <button
+          type="submit"
+          disabled={isCreating || referencesLoading || Boolean(referencesError) || referencesIncomplete || !selectedStudentId || linkedGuardians.length === 0}
+          className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50"
+        >
+          {isCreating ? "Creating..." : referencesLoading ? "Loading boarders..." : "Create Leave Request"}
         </button>
       </form>
       <div className="grid gap-4 md:grid-cols-3 mb-6">

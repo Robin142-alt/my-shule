@@ -4,7 +4,9 @@ import test from 'node:test';
 import {
   DEFAULT_PERMISSION_CATALOG,
   DEFAULT_ROLE_CATALOG,
+  PERMISSIONS_KEY,
 } from '../../auth/auth.constants';
+import { PATH_METADATA } from '@nestjs/common/constants';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { CounsellingNoteEncryptionService } from './counselling-note-encryption.service';
 import { CounsellingService } from './counselling.service';
@@ -58,6 +60,178 @@ test('DisciplineController cases endpoint requires tenant context', async () => 
   (controller as any).requestContext = { requireStore: () => ({ user_id: 'user-1' }) };
 
   await assert.rejects(() => controller.getCases(), /Tenant context is required/);
+});
+
+test('DisciplineController exposes one canonical typed incident creation route and delegates to DisciplineService', async () => {
+  const calls: unknown[] = [];
+  const service = {
+    createIncident: async (dto: unknown) => {
+      calls.push(dto);
+      return { incident: { id: uuid('101') } };
+    },
+  };
+  const controller = new DisciplineController({} as never, service as never);
+  const dto = {
+    student_id: uuid('301'),
+    class_id: uuid('401'),
+    academic_term_id: uuid('501'),
+    academic_year_id: uuid('601'),
+    offense_category_id: uuid('701'),
+    title: 'Fighting',
+    occurred_at: '2026-05-16T09:00:00.000Z',
+    description: 'Student was involved in a fight during break.',
+  };
+
+  const result = await controller.createIncident(dto as never);
+  const handler = Object.getOwnPropertyDescriptor(
+    DisciplineController.prototype,
+    'createIncident',
+  )?.value;
+
+  assert.deepEqual(result, { incident: { id: uuid('101') } });
+  assert.deepEqual(calls, [dto]);
+  assert.ok(handler);
+  assert.equal(Reflect.getMetadata(PATH_METADATA, handler), 'incidents');
+  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, handler), ['discipline:write']);
+  assert.equal(
+    Object.getOwnPropertyDescriptor(DisciplineController.prototype, 'createIncidentPhase5'),
+    undefined,
+  );
+});
+
+test('DisciplineController exposes tenant-scoped incident form options under discipline read permission', async () => {
+  const service = {
+    getIncidentOptions: async () => ({
+      students: [{ id: uuid('301'), label: 'Amina Otieno - ADM001', class_id: uuid('401') }],
+      classes: [{ id: uuid('401'), label: 'Grade 8 East' }],
+      terms: [{ id: uuid('501'), label: 'Term 2 (2026-05-01 to 2026-08-01)' }],
+      years: [{ id: uuid('601'), label: '2026' }],
+      offense_categories: [{ id: uuid('701'), label: 'Fighting' }],
+    }),
+  };
+  const controller = new DisciplineController({} as never, service as never);
+
+  const result = await controller.getIncidentOptions();
+  const handler = Object.getOwnPropertyDescriptor(
+    DisciplineController.prototype,
+    'getIncidentOptions',
+  )?.value;
+
+  assert.equal(result.students[0]?.id, uuid('301'));
+  assert.equal(result.offense_categories[0]?.label, 'Fighting');
+  assert.ok(handler);
+  assert.equal(Reflect.getMetadata(PATH_METADATA, handler), 'incident-options');
+  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, handler), ['discipline:read']);
+});
+
+test('DisciplineService returns active tenant incident options and excludes disabled offense categories', async () => {
+  const requestContext = new RequestContextService();
+  const observedTenants: string[] = [];
+  const repository = {
+    listIncidentOptions: async (tenantId: string) => {
+      observedTenants.push(tenantId);
+      return {
+        students: [{ id: uuid('301'), label: 'Amina Otieno - ADM001', class_id: uuid('401') }],
+        classes: [{ id: uuid('401'), label: 'Grade 8 East' }],
+        terms: [{ id: uuid('501'), label: 'Term 2' }],
+        years: [{ id: uuid('601'), label: '2026' }],
+      };
+    },
+    listOffenseCategories: async (tenantId: string) => {
+      observedTenants.push(tenantId);
+      return [
+        {
+          id: uuid('701'),
+          name: 'Fighting',
+          default_severity: 'high',
+          default_points: -15,
+          notify_parent_by_default: true,
+          is_active: true,
+        },
+        {
+          id: uuid('702'),
+          name: 'Retired category',
+          default_severity: 'low',
+          default_points: 0,
+          notify_parent_by_default: false,
+          is_active: false,
+        },
+      ];
+    },
+  };
+  const service = new DisciplineService(
+    requestContext,
+    {} as never,
+    {} as never,
+    repository as never,
+  );
+
+  const result = await requestContext.run(
+    {
+      tenant_id: 'tenant-a',
+      user_id: uuid('801'),
+      role: 'discipline_master',
+      permissions: ['discipline:read'],
+      request_id: 'request-incident-options',
+      session_id: null,
+      client_ip: '127.0.0.1',
+      user_agent: 'node-test',
+      method: 'GET',
+      path: '/discipline/incident-options',
+      started_at: '2026-08-22T10:00:00.000Z',
+      is_authenticated: true,
+    },
+    () => service.getIncidentOptions(),
+  );
+
+  assert.equal(observedTenants.length, 2);
+  assert.ok(observedTenants.every((tenantId) => tenantId === 'tenant-a'));
+  assert.equal(result.students[0]?.id, uuid('301'));
+  assert.deepEqual(result.offense_categories, [{
+    id: uuid('701'),
+    label: 'Fighting',
+    default_severity: 'high',
+    default_points: -15,
+    notify_parent_by_default: true,
+  }]);
+});
+
+test('DisciplineRepository reads every incident option through tenant-scoped queries', async () => {
+  const queries: Array<{ tenantId: string; sql: string; params: unknown[] }> = [];
+  const repository = new DisciplineRepository({
+    executeWithTenant: async (
+      tenantId: string,
+      _actorUserId: string | null,
+      callback: (tx: unknown) => Promise<unknown>,
+    ) => callback({
+      $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+        queries.push({ tenantId, sql, params });
+        if (/FROM students student/.test(sql)) {
+          return [{ id: uuid('301'), label: 'Amina Otieno - ADM001', class_id: uuid('401') }];
+        }
+        if (/FROM class_sections section/.test(sql)) {
+          return [{ id: uuid('401'), label: 'Grade 8 East' }];
+        }
+        if (/FROM academic_terms term/.test(sql)) {
+          return [{ id: uuid('501'), label: 'Term 2' }];
+        }
+        return [{ id: uuid('601'), label: '2026' }];
+      },
+    }),
+  } as never);
+
+  const result = await repository.listIncidentOptions('tenant-a');
+
+  assert.equal(result.students.length, 1);
+  assert.equal(result.classes.length, 1);
+  assert.equal(result.terms.length, 1);
+  assert.equal(result.years.length, 1);
+  assert.equal(queries.length, 4);
+  assert.ok(queries.every((query) => query.tenantId === 'tenant-a'));
+  assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
+  assert.ok(queries.every((query) => /\.tenant_id = \$1/.test(query.sql)));
+  assert.match(queries.find((query) => /FROM academic_terms term/.test(query.sql))?.sql ?? '', /lower\(term\.status::text\) = 'active'/);
+  assert.match(queries.find((query) => /FROM academic_years year/.test(query.sql))?.sql ?? '', /lower\(year\.status::text\) = 'active'/);
 });
 
 test('default auth catalog exposes discipline and counselling permissions to operational roles', () => {

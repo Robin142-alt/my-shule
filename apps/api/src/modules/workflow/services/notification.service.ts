@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+
 import { PrismaService } from '../../../database/prisma.service';
 
 export interface NotifyRolesInput {
@@ -27,75 +29,83 @@ export interface NotifyUserInput {
 
 @Injectable()
 export class NotificationService {
+  constructor(private readonly prisma: PrismaService) {}
 
-  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
-    const firstParam = params[0];
-    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
-
-    if ((this.prisma as any).query) {
-      return (this.prisma as any).query(query, params);
-    }
-
-    
-    if (isUuid) {
-      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
-        const result = await tx.$queryRawUnsafe(query, ...params);
-        const arr = Array.isArray(result) ? result : [result];
-        return { rows: arr, rowCount: arr.length };
-      });
-    } else {
-      const result = await this.prisma.$queryRawUnsafe(query, ...params);
-      const arr = Array.isArray(result) ? result : [result];
-        return { rows: arr, rowCount: arr.length };
-    }
-  }
-
-  constructor(private readonly prisma: PrismaService, private readonly db: PrismaService) {}
-
-  async notifyRoles(input: NotifyRolesInput) {
-    // In a real system, you might look up the user IDs that have this role in this school.
-    // For now, we store the target_role, and the frontend queries by user's role.
-    const promises = input.targetRoles.map((role) =>
-      this.db.query(
-        `INSERT INTO notifications (
-          tenant_id, target_role, title, message, type, priority, entity_type, entity_id, action_url
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-        [
-          input.schoolId,
-          role,
-          input.title,
-          input.message,
-          input.type,
-          input.priority || 'normal',
-          input.entityType || null,
-          input.entityId || null,
-          input.actionUrl || null,
-        ]
-      )
-    );
-
-    const results = await Promise.all(promises);
-    return results.map(r => r.rows[0]);
-  }
-
-  async notifyUser(input: NotifyUserInput) {
-    const result = await this.db.query(
-      `INSERT INTO notifications (
-        tenant_id, user_id, title, message, type, priority, entity_type, entity_id, action_url
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [
+  notifyRoles(input: NotifyRolesInput) {
+    return this.prisma.executeWithTenant(input.schoolId, null, async (tx) => {
+      const notifications = [];
+      for (const role of input.targetRoles) {
+        const rows = await tx.$queryRawUnsafe<Record<string, unknown>[]>(`
+          INSERT INTO notifications (
+            tenant_id,
+            notification_key,
+            recipient_role,
+            type,
+            title,
+            body,
+            status,
+            priority,
+            source_record_id,
+            metadata
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, 'unread', $7, $8, $9::jsonb)
+          RETURNING *
+        `,
         input.schoolId,
-        input.userId,
+        `workflow-role:${randomUUID()}`,
+        this.normalizeRole(role),
+        input.type,
         input.title,
         input.message,
-        input.type,
-        input.priority || 'normal',
-        input.entityType || null,
-        input.entityId || null,
-        input.actionUrl || null,
-      ]
-    );
+        input.priority ?? 'normal',
+        input.entityId ?? null,
+        JSON.stringify({
+          entityType: input.entityType ?? null,
+          actionUrl: input.actionUrl ?? null,
+        }),
+        );
+        if (rows[0]) notifications.push(rows[0]);
+      }
+      return notifications;
+    });
+  }
 
-    return result.rows[0];
+  notifyUser(input: NotifyUserInput) {
+    return this.prisma.executeWithTenant(input.schoolId, null, async (tx) => {
+      const rows = await tx.$queryRawUnsafe<Record<string, unknown>[]>(`
+        INSERT INTO notifications (
+          tenant_id,
+          notification_key,
+          recipient_user_id,
+          type,
+          title,
+          body,
+          status,
+          priority,
+          source_record_id,
+          metadata
+        )
+        VALUES ($1, $2, $3::uuid, $4, $5, $6, 'unread', $7, $8, $9::jsonb)
+        RETURNING *
+      `,
+      input.schoolId,
+      `workflow-user:${randomUUID()}`,
+      input.userId,
+      input.type,
+      input.title,
+      input.message,
+      input.priority ?? 'normal',
+      input.entityId ?? null,
+      JSON.stringify({
+        entityType: input.entityType ?? null,
+        actionUrl: input.actionUrl ?? null,
+      }),
+      );
+      return rows[0];
+    });
+  }
+
+  private normalizeRole(value: string): string {
+    return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
   }
 }

@@ -14,10 +14,13 @@ test('AssetsSchemaService creates tenant-safe assets tables', async () => {
 
   await service.onModuleInit();
 
-  for (const table of ['assets', 'asset_assignments', 'asset_repairs', 'asset_depreciation_entries']) {
+  for (const table of ['assets', 'asset_assignments', 'asset_repairs', 'asset_depreciation_entries', 'facility_issues']) {
     assert.match(schemaSql, new RegExp(`CREATE TABLE IF NOT EXISTS "?${table}"?`));
     assert.match(schemaSql, new RegExp(`ALTER TABLE "?${table}"? FORCE ROW LEVEL SECURITY`));
   }
+  assert.match(schemaSql, /ALTER TABLE asset_assignments ADD COLUMN IF NOT EXISTS due_at timestamptz/);
+  assert.match(schemaSql, /ALTER TABLE asset_repairs ADD COLUMN IF NOT EXISTS completed_at timestamptz/);
+  assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_facility_issues_status/);
 });
 
 test('AssetsController is gated by asset tracking module and permissions', () => {
@@ -47,4 +50,35 @@ test('AssetsService creates auditable assets records', async () => {
 
   assert.equal(dashboard.total_records, 1);
   assert.deepEqual(calls.map((call) => call.method), ['createRecord', 'appendAuditLog', 'updateStatus', 'appendAuditLog', 'getDashboard']);
+});
+
+test('AssetsService routes fault alerts to school roles and reports degraded delivery after persistence', async () => {
+  let operationalEvent: Record<string, unknown> | null = null;
+  const service = new AssetsService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: 'user-1',
+        role: 'staff',
+        permissions: ['assets:*'],
+      }),
+    } as never,
+    {
+      createRecord: async (input: Record<string, unknown>) => ({ id: 'asset-fault-1', title: input.title }),
+      appendAuditLog: async () => undefined,
+    } as never,
+    {
+      recordSchoolOperation: async (input: Record<string, unknown>) => {
+        operationalEvent = input;
+        throw new Error('outbox unavailable');
+      },
+    } as never,
+  );
+
+  const result = await service.createRecord({ title: 'Faulty projector', category: 'fault' });
+  assert.ok(operationalEvent);
+  const notification = (operationalEvent as { notifications: Array<Record<string, unknown>> }).notifications[0];
+  assert.deepEqual(notification.audienceRoles, ['ict_manager', 'admin']);
+  assert.equal(result.communication.status, 'degraded');
+  assert.match(result.communication.message ?? '', /saved.*alert/i);
 });

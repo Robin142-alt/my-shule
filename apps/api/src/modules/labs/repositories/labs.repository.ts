@@ -52,6 +52,32 @@ export class LabsRepository {
       this.transactionContext.run(transaction, callback));
   }
 
+  private async listMaintenanceTenantIds(query: string, params: unknown[] = []): Promise<string[]> {
+    const result = await this.executeSql<{ tenant_id: string }>(query, params);
+    const tenantIds = result.rows
+      .map((row) => typeof row.tenant_id === 'string' ? row.tenant_id.trim() : '')
+      .filter((tenantId) => tenantId.length > 0 && tenantId !== 'global');
+
+    return [...new Set(tenantIds)].sort();
+  }
+
+  private async executeMaintenanceForTenant<T>(
+    tenantId: string,
+    query: string,
+    params: unknown[],
+  ): Promise<{ rows: T[]; rowCount: number }> {
+    const normalizedTenantId = tenantId.trim();
+    if (!normalizedTenantId || normalizedTenantId === 'global') {
+      throw new BadRequestException('A school tenant is required for laboratory maintenance');
+    }
+
+    return this.prisma.executeWithTenant(normalizedTenantId, null, async (transaction: any) => {
+      const result = await transaction.$queryRawUnsafe(query, ...params);
+      const rows = (Array.isArray(result) ? result : [result]) as T[];
+      return { rows, rowCount: rows.length };
+    });
+  }
+
   createDepartment(input: Record<string, unknown>) {
     return this.insertReturning(
       `
@@ -573,12 +599,33 @@ export class LabsRepository {
   }
 
   async flagMandatoryAttendanceDisciplineGaps(input: { lookback_days: number }) {
-    const result = await this.executeSql<{
-      auto_absent: string;
-      behavior_events: string;
-      participation_metrics: string;
-    }>(
+    const tenantIds = await this.listMaintenanceTenantIds(
       `
+        SELECT DISTINCT session.tenant_id
+        FROM lab_sessions session
+        WHERE btrim(session.tenant_id) <> ''
+          AND session.tenant_id <> 'global'
+          AND session.is_mandatory = TRUE
+          AND session.status = 'completed'
+          AND session.session_date >= CURRENT_DATE - ($1::integer * INTERVAL '1 day')
+        ORDER BY session.tenant_id
+      `,
+      [input.lookback_days],
+    );
+    const totals = {
+      auto_absent: 0,
+      behavior_events: 0,
+      participation_metrics: 0,
+    };
+
+    for (const tenantId of tenantIds) {
+      const result = await this.executeMaintenanceForTenant<{
+        auto_absent: string;
+        behavior_events: string;
+        participation_metrics: string;
+      }>(
+        tenantId,
+        `
         WITH completed_sessions AS (
           SELECT
             session.id,
@@ -588,9 +635,10 @@ export class LabsRepository {
             session.session_date,
             session.teacher_id
           FROM lab_sessions session
-          WHERE session.is_mandatory = TRUE
+          WHERE session.tenant_id = $1
+            AND session.is_mandatory = TRUE
             AND session.status = 'completed'
-            AND session.session_date >= CURRENT_DATE - ($1::integer * INTERVAL '1 day')
+            AND session.session_date >= CURRENT_DATE - ($2::integer * INTERVAL '1 day')
         ),
         auto_absent_rows AS (
           INSERT INTO lab_attendance (
@@ -732,27 +780,51 @@ export class LabsRepository {
           (SELECT COUNT(*)::text FROM behavior_rows) AS behavior_events,
           (SELECT COUNT(*)::text FROM metric_rows) AS participation_metrics
       `,
-      [input.lookback_days],
-    );
+        [tenantId, input.lookback_days],
+      );
 
-    return {
-      auto_absent: Number(result.rows[0]?.auto_absent ?? 0),
-      behavior_events: Number(result.rows[0]?.behavior_events ?? 0),
-      participation_metrics: Number(result.rows[0]?.participation_metrics ?? 0),
-    };
+      totals.auto_absent += Number(result.rows[0]?.auto_absent ?? 0);
+      totals.behavior_events += Number(result.rows[0]?.behavior_events ?? 0);
+      totals.participation_metrics += Number(result.rows[0]?.participation_metrics ?? 0);
+    }
+
+    return totals;
   }
 
   async refreshChemicalExpiryStatuses(input: { near_expiry_days: number }) {
-    const result = await this.executeSql<{
-      expired: string;
-      near_expiry: string;
-    }>(
+    const tenantIds = await this.listMaintenanceTenantIds(
       `
+        SELECT DISTINCT tenant_id
+        FROM chemical_items
+        WHERE btrim(tenant_id) <> ''
+          AND tenant_id <> 'global'
+          AND (
+            (status NOT IN ('expired', 'quarantined', 'disposed') AND expiry_date < CURRENT_DATE)
+            OR (
+              status = 'active'
+              AND expiry_date >= CURRENT_DATE
+              AND expiry_date <= CURRENT_DATE + ($1::integer * INTERVAL '1 day')
+            )
+          )
+        ORDER BY tenant_id
+      `,
+      [input.near_expiry_days],
+    );
+    const totals = { expired: 0, near_expiry: 0 };
+
+    for (const tenantId of tenantIds) {
+      const result = await this.executeMaintenanceForTenant<{
+        expired: string;
+        near_expiry: string;
+      }>(
+        tenantId,
+        `
         WITH expired AS (
           UPDATE chemical_items
           SET status = 'expired',
               updated_at = NOW()
-          WHERE status NOT IN ('expired', 'quarantined', 'disposed')
+          WHERE tenant_id = $1
+            AND status NOT IN ('expired', 'quarantined', 'disposed')
             AND expiry_date < CURRENT_DATE
           RETURNING id
         ),
@@ -760,27 +832,50 @@ export class LabsRepository {
           UPDATE chemical_items
           SET status = 'near_expiry',
               updated_at = NOW()
-          WHERE status = 'active'
+          WHERE tenant_id = $1
+            AND status = 'active'
             AND expiry_date >= CURRENT_DATE
-            AND expiry_date <= CURRENT_DATE + ($1::integer * INTERVAL '1 day')
+            AND expiry_date <= CURRENT_DATE + ($2::integer * INTERVAL '1 day')
           RETURNING id
         )
         SELECT
           (SELECT COUNT(*)::text FROM expired) AS expired,
           (SELECT COUNT(*)::text FROM near_expiry) AS near_expiry
       `,
-      [input.near_expiry_days],
-    );
+        [tenantId, input.near_expiry_days],
+      );
 
-    return {
-      expired: Number(result.rows[0]?.expired ?? 0),
-      near_expiry: Number(result.rows[0]?.near_expiry ?? 0),
-    };
+      totals.expired += Number(result.rows[0]?.expired ?? 0);
+      totals.near_expiry += Number(result.rows[0]?.near_expiry ?? 0);
+    }
+
+    return totals;
   }
 
   async flagOverdueEquipmentUsage(input: { overdue_hours: number }) {
-    const result = await this.executeSql<{ unreconciled: string }>(
+    const tenantIds = await this.listMaintenanceTenantIds(
       `
+        SELECT DISTINCT usage.tenant_id
+        FROM lab_session_equipment_usage usage
+        INNER JOIN lab_sessions session
+          ON session.tenant_id = usage.tenant_id
+         AND session.id = usage.session_id
+        WHERE btrim(usage.tenant_id) <> ''
+          AND usage.tenant_id <> 'global'
+          AND usage.reconciled_at IS NULL
+          AND usage.returned_quantity < usage.quantity_used
+          AND session.status <> 'cancelled'
+          AND (session.session_date + session.end_time + ($1::integer * INTERVAL '1 hour')) < NOW()
+        ORDER BY usage.tenant_id
+      `,
+      [input.overdue_hours],
+    );
+    let unreconciled = 0;
+
+    for (const tenantId of tenantIds) {
+      const result = await this.executeMaintenanceForTenant<{ unreconciled: string }>(
+        tenantId,
+        `
         WITH overdue_usage AS (
           SELECT
             usage.id,
@@ -793,10 +888,11 @@ export class LabsRepository {
           INNER JOIN lab_sessions session
             ON session.tenant_id = usage.tenant_id
            AND session.id = usage.session_id
-          WHERE usage.reconciled_at IS NULL
+          WHERE usage.tenant_id = $1
+            AND usage.reconciled_at IS NULL
             AND usage.returned_quantity < usage.quantity_used
             AND session.status <> 'cancelled'
-            AND (session.session_date + session.end_time + ($1::integer * INTERVAL '1 hour')) < NOW()
+            AND (session.session_date + session.end_time + ($2::integer * INTERVAL '1 hour')) < NOW()
         ),
         audit_rows AS (
           INSERT INTO academic_audit_logs (
@@ -813,7 +909,7 @@ export class LabsRepository {
               'equipment_id', equipment_id,
               'quantity_used', quantity_used,
               'returned_quantity', returned_quantity,
-              'overdue_hours', $1::integer
+              'overdue_hours', $2::integer
             )
           FROM overdue_usage
           RETURNING 1
@@ -821,12 +917,13 @@ export class LabsRepository {
         SELECT COUNT(*)::text AS unreconciled
         FROM overdue_usage
       `,
-      [input.overdue_hours],
-    );
+        [tenantId, input.overdue_hours],
+      );
 
-    return {
-      unreconciled: Number(result.rows[0]?.unreconciled ?? 0),
-    };
+      unreconciled += Number(result.rows[0]?.unreconciled ?? 0);
+    }
+
+    return { unreconciled };
   }
 
   async appendAuditLog(input: Record<string, unknown>) {
@@ -858,37 +955,37 @@ export class LabsRepository {
     try {
       const todayStr = new Date().toISOString().split('T')[0];
       const todaySessionsRes = await this.executeSql(
-        `SELECT COUNT(*)::int as count FROM lab_sessions WHERE tenant_id = $1::uuid AND session_date = $2::date`,
+        `SELECT COUNT(*)::int as count FROM lab_sessions WHERE tenant_id::text = $1::text AND session_date = $2::date`,
         [tenantId, todayStr]
       );
       const todaysSessionsCount = Number(todaySessionsRes.rows[0]?.count ?? 0);
 
       const pendingRes = await this.executeSql(
-        `SELECT COUNT(*)::int as count FROM lab_sessions WHERE tenant_id = $1::uuid AND (status = 'PENDING' OR status = 'SCHEDULED')`,
+        `SELECT COUNT(*)::int as count FROM lab_sessions WHERE tenant_id::text = $1::text AND (status = 'PENDING' OR status = 'SCHEDULED')`,
         [tenantId]
       );
       const pendingRequestsCount = Number(pendingRes.rows[0]?.count ?? 0);
 
       const lowStockRes = await this.executeSql(
-        `SELECT COUNT(*)::int as count FROM chemical_items WHERE tenant_id = $1::uuid AND (quantity_available <= 5 OR expiry_date <= NOW() + INTERVAL '30 days')`,
+        `SELECT COUNT(*)::int as count FROM chemical_items WHERE tenant_id::text = $1::text AND (quantity_available <= 5 OR expiry_date <= NOW() + INTERVAL '30 days')`,
         [tenantId]
       );
       const lowStockOrExpiringCount = Number(lowStockRes.rows[0]?.count ?? 0);
 
       const unreturnedRes = await this.executeSql(
-        `SELECT COUNT(*)::int as count FROM lab_session_equipment_usage WHERE tenant_id = $1::uuid`,
+        `SELECT COUNT(*)::int as count FROM lab_session_equipment_usage WHERE tenant_id::text = $1::text`,
         [tenantId]
       );
       const unreturnedItemsCount = Number(unreturnedRes.rows[0]?.count ?? 0);
 
       const breakagesRes = await this.executeSql(
-        `SELECT COUNT(*)::int as count FROM lab_session_equipment_usage WHERE tenant_id = $1::uuid AND condition_after_use = 'BROKEN'`,
+        `SELECT COUNT(*)::int as count FROM lab_session_equipment_usage WHERE tenant_id::text = $1::text AND condition_after_use = 'BROKEN'`,
         [tenantId]
       );
       const activeBreakagesCount = Number(breakagesRes.rows[0]?.count ?? 0);
 
       const lowStockChemRes = await this.executeSql(
-        `SELECT COUNT(*)::int as count FROM chemical_items WHERE tenant_id = $1::uuid AND quantity_available <= 5`,
+        `SELECT COUNT(*)::int as count FROM chemical_items WHERE tenant_id::text = $1::text AND quantity_available <= 5`,
         [tenantId]
       );
       const lowStockChemicalsCount = Number(lowStockChemRes.rows[0]?.count ?? 0);
@@ -916,11 +1013,11 @@ export class LabsRepository {
   async getInventory(tenantId: string) {
     try {
       const equipment = await this.executeSql(
-        `SELECT id, name, quantity_available, is_consumable FROM lab_equipment WHERE tenant_id = $1::uuid`,
+        `SELECT id, name, quantity_available, is_consumable FROM lab_equipment WHERE tenant_id::text = $1::text`,
         [tenantId]
       );
       const chemicals = await this.executeSql(
-        `SELECT id, name, quantity_available, unit, hazard_class FROM chemical_items WHERE tenant_id = $1::uuid`,
+        `SELECT id, name, quantity_available, unit, hazard_class FROM chemical_items WHERE tenant_id::text = $1::text`,
         [tenantId]
       );
 
@@ -961,7 +1058,7 @@ export class LabsRepository {
       const sessions = await this.executeSql(
         `SELECT s.id, s.subject_name, s.session_date, s.start_time, s.end_time, s.teacher_id, s.class_section_id, s.is_mandatory
          FROM lab_sessions s
-         WHERE s.tenant_id = $1::uuid`,
+         WHERE s.tenant_id::text = $1::text`,
         [tenantId]
       );
 
@@ -1012,14 +1109,14 @@ export class LabsRepository {
       const eqUsages = await this.executeSql(
         `SELECT u.id, u.equipment_id, u.quantity_used, u.condition_after_use, u.session_id
          FROM lab_session_equipment_usage u
-         WHERE u.tenant_id = $1::uuid`,
+         WHERE u.tenant_id::text = $1::text`,
         [tenantId]
       );
 
       const chemUsages = await this.executeSql(
         `SELECT u.id, u.chemical_id, u.quantity_used, u.session_id
          FROM lab_session_chemical_usage u
-         WHERE u.tenant_id = $1::uuid`,
+         WHERE u.tenant_id::text = $1::text`,
         [tenantId]
       );
 

@@ -288,6 +288,7 @@ const PLAN_OPERATIONS: DemoSeedOperation[] = [
   { moduleCode: 'transport', table: 'transport_trips', tenantScoped: true },
   { moduleCode: 'transport', table: 'transport_trip_events', tenantScoped: true },
   { moduleCode: 'transport', table: 'transport_alerts', tenantScoped: true },
+  { moduleCode: 'transport', table: 'vehicle_fuel_logs', tenantScoped: true },
   { moduleCode: 'transport', table: 'vehicle_service_logs', tenantScoped: true },
   { moduleCode: 'transport', table: 'transport_audit_logs', tenantScoped: true },
   { moduleCode: 'procurement', table: 'procurement_suppliers', tenantScoped: true },

@@ -18,13 +18,17 @@ import {
 } from './dto/procurement.dto';
 import { ProcurementRepository } from './repositories/procurement.repository';
 import { EventPublisherService } from '../events/event-publisher.service';
+import { PrismaService } from '../../database/prisma.service';
+import { ApprovalService } from '../workflow/services/approval.service';
 
 @Injectable()
 export class ProcurementService {
   constructor(
     private readonly requestContext: RequestContextService,
     private readonly repository: ProcurementRepository,
+    private readonly approvalService: ApprovalService,
     @Optional() private readonly eventPublisher?: EventPublisherService,
+    @Optional() private readonly prisma?: PrismaService,
   ) {}
 
   getDashboard() {
@@ -54,40 +58,66 @@ export class ProcurementService {
   async createRequest(dto: CreateProcurementRequestDto) {
     this.assertPermission('procurement:write');
     const items = this.normalizeRequestItems(dto.items);
-    const request = await this.repository.createRequest({
+    const tenantId = this.requireTenantId();
+    const requestedByUserId = this.requireUserId();
+    const requestInput = {
       ...dto,
       title: this.requireText(dto.title, 'Procurement request title'),
       department: this.requireText(dto.department, 'Department'),
       items,
-      tenant_id: this.requireTenantId(),
-      requested_by_user_id: this.requireUserId(),
-    });
-
-    await this.audit('procurement.request.created', 'procurement_request', request?.id, {
+      tenant_id: tenantId,
+      requested_by_user_id: requestedByUserId,
+    };
+    const auditMetadata = {
       title: dto.title,
       line_count: items.length,
       budget_code: dto.budget_code ?? null,
-    });
+    };
+
+    if (this.prisma && this.eventPublisher) {
+      return this.prisma.executeWithTenant(tenantId, requestedByUserId, async (tx) => {
+        const request = await this.repository.createRequest(requestInput, tx);
+        await this.audit(
+          'procurement.request.created',
+          'procurement_request',
+          request?.id,
+          auditMetadata,
+          tx,
+        );
+        await this.eventPublisher!.publishProcurementRequestSubmitted(
+          this.procurementSubmittedPayload(tenantId, requestedByUserId, request?.id, items),
+          tx,
+        );
+        return request;
+      });
+    }
+
+    const request = await this.repository.createRequest(requestInput);
+    await this.audit('procurement.request.created', 'procurement_request', request?.id, auditMetadata);
+    if (this.eventPublisher) {
+      await this.eventPublisher.publishProcurementRequestSubmitted(
+        this.procurementSubmittedPayload(tenantId, requestedByUserId, request?.id, items),
+      );
+    }
 
     return request;
   }
 
   async recordApproval(requestId: string, dto: RecordProcurementApprovalDto) {
     this.assertPermission('procurement:approve');
-    const approval = await this.repository.recordApproval({
-      ...dto,
-      request_id: this.requireText(requestId, 'Request id'),
-      decision: this.requireDecision(dto.decision),
-      tenant_id: this.requireTenantId(),
-      approver_user_id: this.requireUserId(),
-    });
+    const tenantId = this.requireTenantId();
+    const approverUserId = this.requireUserId();
+    const decision = this.requireDecision(dto.decision);
 
-    await this.audit('procurement.request.approval_recorded', 'procurement_approval', approval?.id, {
-      request_id: requestId,
-      decision: dto.decision,
+    return this.approvalService.decideProcurementRequest({
+      tenantId,
+      procurementRequestId: this.requireText(requestId, 'Request id'),
+      actorUserId: approverUserId,
+      actorRole: this.requireRole(),
+      requestId: this.requireRequestId(),
+      decision: decision === 'approved' ? 'APPROVED' : 'REJECTED',
+      note: dto.reason ?? null,
     });
-
-    return approval;
   }
 
   async createPurchaseOrder(dto: CreatePurchaseOrderDto) {
@@ -169,9 +199,15 @@ export class ProcurementService {
     return normalized;
   }
 
-  private requireDecision(value: string): string {
-    if (['approved', 'rejected', 'returned'].includes(value)) {
+  private requireDecision(value: string): 'approved' | 'rejected' {
+    if (value === 'approved' || value === 'rejected') {
       return value;
+    }
+
+    if (value === 'returned') {
+      throw new BadRequestException(
+        'Returning a procurement request requires a dedicated correction workflow and cannot be recorded as an approval decision',
+      );
     }
 
     throw new BadRequestException('Procurement approval decision is invalid');
@@ -182,6 +218,7 @@ export class ProcurementService {
     resourceType: string,
     resourceId: string | undefined,
     metadata: unknown,
+    tx?: any,
   ) {
     await this.repository.appendAuditLog({
       tenant_id: this.requireTenantId(),
@@ -190,7 +227,36 @@ export class ProcurementService {
       resource_type: resourceType,
       resource_id: resourceId ?? null,
       metadata: metadata && typeof metadata === 'object' ? metadata : {},
-    });
+    }, tx);
+  }
+
+  private procurementSubmittedPayload(
+    tenantId: string,
+    requestedByUserId: string,
+    requestId: string | undefined,
+    items: ProcurementRequestItemDto[],
+  ) {
+    if (!requestId) {
+      throw new BadRequestException('Procurement request persistence returned no identifier');
+    }
+
+    const estimatedCost = items.reduce(
+      (sum, item) => sum + Number(item.quantity) * Number(item.estimated_unit_cost_minor),
+      0,
+    );
+    const quantity = items.reduce((sum, item) => sum + Number(item.quantity), 0);
+    const firstItem = items[0]?.item_name ?? 'procurement items';
+
+    return {
+      tenant_id: tenantId,
+      request_id: requestId,
+      requested_by_user_id: requestedByUserId,
+      requested_at: new Date().toISOString(),
+      item_name: items.length > 1 ? `${firstItem} and ${items.length - 1} more` : firstItem,
+      quantity,
+      estimated_cost: estimatedCost,
+      status: 'submitted',
+    };
   }
 
   private assertPermission(permission: string): void {
@@ -230,6 +296,22 @@ export class ProcurementService {
     }
 
     return userId;
+  }
+
+  private requireRole(): string {
+    const role = this.requestContext.getStore()?.role;
+    if (!role) {
+      throw new UnauthorizedException('Active school role is required for procurement approval');
+    }
+    return role;
+  }
+
+  private requireRequestId(): string {
+    const requestId = this.requestContext.getStore()?.request_id;
+    if (!requestId) {
+      throw new UnauthorizedException('Request context is required for procurement approval');
+    }
+    return requestId;
   }
 
   private requireText(value: string | undefined, fieldName: string): string {

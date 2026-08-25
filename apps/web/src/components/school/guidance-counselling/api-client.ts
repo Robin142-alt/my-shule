@@ -5,14 +5,18 @@ export async function fetchCounsellingOverview() {
   return requestDashboardApi('/admin-command/guidance-counselling/overview');
 }
 
+export async function fetchCounsellingOptions() {
+  return requestDashboardApi('/admin-command/guidance-counselling/options');
+}
+
 // ── Sessions ──
 export async function fetchSessions() {
   return requestDashboardApi('/admin-command/guidance-counselling/sessions');
 }
-export async function createSession(data: any) {
+export async function createSession(data: Record<string, unknown>) {
   return requestDashboardApi('/admin-command/guidance-counselling/sessions', { method: 'POST', body: data });
 }
-export async function completeSession(id: string, data: any) {
+export async function completeSession(id: string, data: Record<string, unknown>) {
   return requestDashboardApi(`/admin-command/guidance-counselling/sessions/${id}/complete`, { method: 'POST', body: data });
 }
 
@@ -20,7 +24,7 @@ export async function completeSession(id: string, data: any) {
 export async function fetchFollowUps() {
   return requestDashboardApi('/admin-command/guidance-counselling/follow-ups');
 }
-export async function createFollowUp(data: any) {
+export async function createFollowUp(data: Record<string, unknown>) {
   return requestDashboardApi('/admin-command/guidance-counselling/follow-ups', { method: 'POST', body: data });
 }
 export async function markFollowUpDone(id: string) {
@@ -31,7 +35,7 @@ export async function markFollowUpDone(id: string) {
 export async function fetchReferrals() {
   return requestDashboardApi('/admin-command/guidance-counselling/referrals');
 }
-export async function createReferral(data: any) {
+export async function createReferral(data: Record<string, unknown>) {
   return requestDashboardApi('/admin-command/guidance-counselling/referrals', { method: 'POST', body: data });
 }
 export async function updateReferralStatus(id: string, status: string) {
@@ -42,7 +46,7 @@ export async function updateReferralStatus(id: string, status: string) {
 export async function fetchParentEngagements() {
   return requestDashboardApi('/admin-command/guidance-counselling/parent-engagement');
 }
-export async function createParentMeeting(data: any) {
+export async function createParentMeeting(data: Record<string, unknown>) {
   return requestDashboardApi('/admin-command/guidance-counselling/parent-engagement', { method: 'POST', body: data });
 }
 export async function sendParentNotification(id: string) {
@@ -53,7 +57,7 @@ export async function sendParentNotification(id: string) {
 export async function fetchWelfareNotes() {
   return requestDashboardApi('/admin-command/guidance-counselling/welfare-notes');
 }
-export async function createWelfareNote(data: any) {
+export async function createWelfareNote(data: Record<string, unknown>) {
   return requestDashboardApi('/admin-command/guidance-counselling/welfare-notes', { method: 'POST', body: data });
 }
 export async function flagWelfareNote(id: string) {
@@ -64,6 +68,19 @@ export async function flagWelfareNote(id: string) {
 export async function fetchCounsellingReports() {
   return requestDashboardApi('/admin-command/guidance-counselling/reports');
 }
-export async function generateCounsellingReport(data: any) {
+export async function generateCounsellingReport(data: Record<string, unknown>) {
   return requestDashboardApi('/admin-command/guidance-counselling/reports/generate', { method: 'POST', body: data });
+}
+
+export async function fetchCounsellingReportArtifact(snapshotId: string) {
+  return requestDashboardApi(`/admin-command/guidance-counselling/reports/${encodeURIComponent(snapshotId)}/download`);
+}
+
+// ── Settings ──
+export async function fetchCounsellingSettings() {
+  return requestDashboardApi('/admin-command/guidance-counselling/settings');
+}
+
+export async function saveCounsellingSettings(data: Record<string, unknown>) {
+  return requestDashboardApi('/admin-command/guidance-counselling/settings', { method: 'POST', body: data });
 }

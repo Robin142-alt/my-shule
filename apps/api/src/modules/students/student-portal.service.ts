@@ -2,12 +2,14 @@ import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class StudentPortalService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly requestContext: RequestContextService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   private requireUserId(): string {
@@ -194,7 +196,7 @@ export class StudentPortalService {
     const userId = this.requireUserId();
     const studentId = await this.resolveStudentId(tenantId, userId);
 
-    const [portalData, pendingAssignments] = await Promise.all([
+    const [portalData, pendingAssignments, notificationBadges] = await Promise.all([
       this.prisma.executeWithTenant(tenantId, userId, async (tx) => {
         const student = await tx.student.findUnique({
           where: { id: studentId, schoolId: tenantId },
@@ -208,7 +210,7 @@ export class StudentPortalService {
           throw new UnauthorizedException('Student not found in this school');
         }
 
-        const [attendanceRecords, latestReportCard, unreadMessages] = await Promise.all([
+        const [attendanceRecords, latestReportCard] = await Promise.all([
           tx.attendanceRecord.findMany({
             where: { studentId, schoolId: tenantId },
             orderBy: { createdAt: 'desc' },
@@ -230,20 +232,15 @@ export class StudentPortalService {
               { term: { termNumber: 'desc' } },
             ],
           }),
-          tx.notification.count({
-            where: {
-              schoolId: tenantId,
-              targetUserId: userId,
-              status: 'UNREAD',
-            },
-          }),
         ]);
 
-        return { student, attendanceRecords, latestReportCard, unreadMessages };
+        return { student, attendanceRecords, latestReportCard };
       }),
       this.countPendingAssignments(tenantId, userId, studentId),
+      this.notificationsService.getBadges(tenantId, userId, 'student'),
     ]);
-    const { student, attendanceRecords, latestReportCard, unreadMessages } = portalData;
+    const { student, attendanceRecords, latestReportCard } = portalData;
+    const unreadMessages = notificationBadges.unreadCount;
 
     const attendanceSummary = attendanceRecords.reduce(
       (summary, record) => {

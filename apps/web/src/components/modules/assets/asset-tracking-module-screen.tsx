@@ -144,7 +144,7 @@ export function AssetTrackingModuleScreen({
     entityId,
     severity = "info",
     payload,
-    audienceRoles = ["ict", "principal"],
+    audienceRoles = ["ict_manager", "principal"],
   }: {
     type: string;
     title: string;
@@ -156,7 +156,7 @@ export function AssetTrackingModuleScreen({
   }) {
     publishSchoolOperationalEvent({
       schoolId,
-      actorRole: "ict",
+      actorRole: "ict_manager",
       type,
       module: "assets",
       title,
@@ -198,7 +198,7 @@ export function AssetTrackingModuleScreen({
       entityId: record.id,
       severity: "success",
       payload: { asset: record },
-      audienceRoles: ["ict", "storekeeper", "principal"],
+      audienceRoles: ["ict_manager", "storekeeper", "principal"],
     });
     setMessage(`${assetName} registered with asset tag ${assetTag}.`);
   }
@@ -227,7 +227,7 @@ export function AssetTrackingModuleScreen({
       entityId: id,
       severity: "warning",
       payload: { asset },
-      audienceRoles: ["ict", "storekeeper", "principal"],
+      audienceRoles: ["ict_manager", "storekeeper", "principal"],
     });
     setMessage(`${asset?.asset ?? "Asset"} issued and movement history updated.`);
   }
@@ -256,7 +256,7 @@ export function AssetTrackingModuleScreen({
       entityId: id,
       severity: "success",
       payload: { asset },
-      audienceRoles: ["ict", "storekeeper"],
+      audienceRoles: ["ict_manager", "storekeeper"],
     });
     setMessage(`${asset?.asset ?? "Asset"} returned to ICT store.`);
   }
@@ -284,7 +284,7 @@ export function AssetTrackingModuleScreen({
       entityId: id,
       severity: "critical",
       payload: { asset },
-      audienceRoles: ["ict", "principal", "system-monitor"],
+      audienceRoles: ["ict_manager", "principal"],
     });
     setMessage(`${asset?.asset ?? "Asset"} fault reported and repair history updated.`);
   }
@@ -300,7 +300,7 @@ export function AssetTrackingModuleScreen({
       entityId: id,
       severity: "success",
       payload: { asset },
-      audienceRoles: ["ict", "principal"],
+      audienceRoles: ["ict_manager", "principal"],
     });
     setMessage(`${asset?.asset ?? "Asset"} marked repaired and available.`);
   }
@@ -325,7 +325,7 @@ export function AssetTrackingModuleScreen({
       entityId: booking.id,
       severity: "warning",
       payload: { booking },
-      audienceRoles: ["ict", "teacher"],
+      audienceRoles: ["ict_manager", "teacher"],
     });
     setMessage(`${bookingClass} computer lab booking saved for ${bookingTime}.`);
   }
@@ -341,7 +341,7 @@ export function AssetTrackingModuleScreen({
       entityId: id,
       severity: "success",
       payload: { booking },
-      audienceRoles: ["ict", "teacher", "principal"],
+      audienceRoles: ["ict_manager", "teacher", "principal"],
     });
     setMessage(`${booking?.className ?? "Class"} lab booking approved and teacher notified.`);
   }
@@ -353,7 +353,7 @@ export function AssetTrackingModuleScreen({
       body: `${visibleAssets.length} visible ICT asset tag(s) prepared for printing.`,
       severity: "success",
       payload: { visibleAssetTags: visibleAssets.map((asset) => asset.tag) },
-      audienceRoles: ["ict", "storekeeper"],
+      audienceRoles: ["ict_manager", "storekeeper"],
     });
     setMessage(`ICT asset tag print preview ready with ${visibleAssets.length} visible tag(s).`);
     openPrintDocument({

@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, GoneException } from '@nestjs/common';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
+import { OperationalWorkflowDispatcherController } from './operational-workflow-dispatcher.controller';
 import { OperationalWorkflowDispatcherService } from './operational-workflow-dispatcher.service';
 
 const UUID_PATTERN =
@@ -145,6 +146,67 @@ test('OperationalWorkflowDispatcherService dispatches runtime role actions from 
   assert.equal(payload.action_id, 'class-teacher-attendance-submit');
   assert.equal(payload.capability_required, 'CAN_SUBMIT_ATTENDANCE');
   assert.equal(payload.audit_action, 'audit.class-teacher.submit-attendance');
+});
+
+test('OperationalWorkflowDispatcherController disables the legacy split-brain approval decision route', () => {
+  const requestContext = new RequestContextService();
+  const controller = new OperationalWorkflowDispatcherController(
+    {} as never,
+    requestContext,
+    {} as never,
+  );
+
+  assert.throws(
+    () => controller.decideApproval(
+      '00000000-0000-4000-8000-000000000410',
+      { decision: 'APPROVED', decision_note: 'Must use the canonical workflow' },
+    ),
+    (error: unknown) => {
+      assert.ok(error instanceof GoneException);
+      assert.deepEqual(error.getResponse(), {
+        code: 'LEGACY_APPROVAL_ROUTE_DISABLED',
+        message: 'This legacy approval route is disabled. Use the canonical approval approve or reject route.',
+        canonical_routes: [
+          'POST /approvals/:id/approve',
+          'POST /approvals/:id/reject',
+        ],
+      });
+      return true;
+    },
+  );
+});
+
+test('OperationalWorkflowDispatcherController reads offline sync metrics with a slug tenant boundary', async () => {
+  const requestContext = new RequestContextService();
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const controller = new OperationalWorkflowDispatcherController(
+    {} as never,
+    requestContext,
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        return { rows: [{ count: 7 }], rowCount: 1 };
+      },
+    } as never,
+  );
+
+  await requestContext.run(
+    { ...buildContext(['platform:operational-execute']), tenant_id: 'kibabi-high' },
+    async () => {
+      assert.deepEqual(await controller.getOfflineSync(), {
+        pending: 0,
+        synced: 7,
+        failed: 0,
+        conflicts: 0,
+        status: 'operational',
+      });
+    },
+  );
+
+  assert.equal(queries.length, 1);
+  assert.deepEqual(queries[0]?.params, ['kibabi-high']);
+  assert.match(queries[0]?.sql ?? '', /tenant_id::text\s*=\s*\$1::text/i);
+  assert.doesNotMatch(queries[0]?.sql ?? '', /\$1::uuid/i);
 });
 
 function buildContext(permissions: string[]) {

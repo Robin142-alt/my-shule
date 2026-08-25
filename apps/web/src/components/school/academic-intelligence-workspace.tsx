@@ -92,6 +92,39 @@ function scopeLabel(level: LiveExamsAnalyticsResponse["scope"]["level"] | undefi
   return "Whole school";
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+export function isLiveExamsAnalyticsResponse(
+  value: unknown,
+): value is LiveExamsAnalyticsResponse {
+  if (!isRecord(value) || !isRecord(value.scope) || !isRecord(value.kpis)) {
+    return false;
+  }
+
+  const studentProgress = value.studentProgress;
+  const dataQuality = value.data_quality;
+
+  return (
+    ["school", "department", "assignment"].includes(String(value.scope.level))
+    && Array.isArray(value.trends)
+    && Array.isArray(value.subjectPerformance)
+    && isRecord(studentProgress)
+    && Array.isArray(studentProgress.topPerformers)
+    && Array.isArray(studentProgress.topImprovers)
+    && Array.isArray(studentProgress.atRiskStudents)
+    && isRecord(dataQuality)
+    && typeof dataQuality.final_mark_count === "number"
+    && typeof dataQuality.explicit_evidence_count === "number"
+    && typeof dataQuality.missing_or_incomplete_count === "number"
+    && (typeof value.kpis.school_average === "number" || value.kpis.school_average === null)
+    && typeof value.kpis.pending_reviews === "number"
+    && typeof value.kpis.missing_marks_alerts === "number"
+    && typeof value.kpis.active_exams === "number"
+  );
+}
+
 function Metric({
   label,
   value,
@@ -184,13 +217,15 @@ export function AcademicIntelligenceWorkspace({
     staleTime: 30_000,
   });
 
-  const dataQuality = data?.data_quality ?? {
+  const analytics = isLiveExamsAnalyticsResponse(data) ? data : undefined;
+  const malformedResponse = Boolean(data && !analytics);
+  const dataQuality = analytics?.data_quality ?? {
     final_mark_count: 0,
     explicit_evidence_count: 0,
     missing_or_incomplete_count: 0,
   };
   const hasApprovedResults = Number(dataQuality.final_mark_count) > 0;
-  const topSubject = [...(data?.subjectPerformance ?? [])].sort(
+  const topSubject = [...(analytics?.subjectPerformance ?? [])].sort(
     (left, right) => right.mean_score - left.mean_score,
   )[0];
 
@@ -215,7 +250,7 @@ export function AcademicIntelligenceWorkspace({
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex min-h-9 items-center gap-2 rounded-full border border-[#A7F3D0] bg-[#ECFDF5] px-3 text-xs font-bold text-[#047857]">
               <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-              {scopeLabel(data?.scope?.level)}
+              {scopeLabel(analytics?.scope.level)}
             </span>
             <button
               type="button"
@@ -233,7 +268,7 @@ export function AcademicIntelligenceWorkspace({
         </div>
       </div>
 
-      {error && (
+      {(error || malformedResponse) && (
         <div
           role="alert"
           className="rounded-lg border border-[#FCA5A5] bg-[#FEF2F2] p-4"
@@ -245,7 +280,10 @@ export function AcademicIntelligenceWorkspace({
                 Academic intelligence could not be loaded
               </h3>
               <p className="mt-1 text-sm font-medium text-[#7F1D1D]">
-                {error.message || "The live exams service did not respond."}
+                {error?.message
+                  || (malformedResponse
+                    ? "The live exams service returned an incomplete analytics response. No values were displayed as real school data."
+                    : "The live exams service did not respond.")}
               </p>
               <button
                 type="button"
@@ -268,30 +306,30 @@ export function AcademicIntelligenceWorkspace({
             />
           ))}
         </div>
-      ) : data ? (
+      ) : analytics ? (
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <Metric
-              label={data.scope.level === "school" ? "School average" : "Scoped average"}
-              value={formatPercent(data.kpis.school_average)}
+              label={analytics.scope.level === "school" ? "School average" : "Scoped average"}
+              value={formatPercent(analytics.kpis.school_average)}
               helper="Approved numeric evidence only; missing work is never treated as zero."
-              tone={data.kpis.school_average !== null ? "success" : "neutral"}
+              tone={analytics.kpis.school_average !== null ? "success" : "neutral"}
             />
             <Metric
               label="Pending moderation"
-              value={String(data.kpis.pending_reviews)}
+              value={String(analytics.kpis.pending_reviews)}
               helper="Submitted marks still waiting for an authorized academic reviewer."
-              tone={data.kpis.pending_reviews > 0 ? "warning" : "success"}
+              tone={analytics.kpis.pending_reviews > 0 ? "warning" : "success"}
             />
             <Metric
               label="Missing evidence"
-              value={String(data.kpis.missing_marks_alerts)}
+              value={String(analytics.kpis.missing_marks_alerts)}
               helper="Expected marks that are absent, incomplete, or explicitly not assessed."
-              tone={data.kpis.missing_marks_alerts > 0 ? "warning" : "success"}
+              tone={analytics.kpis.missing_marks_alerts > 0 ? "warning" : "success"}
             />
             <Metric
               label="Active exam cycles"
-              value={String(data.kpis.active_exams)}
+              value={String(analytics.kpis.active_exams)}
               helper="Current draft, submitted, or reviewed exam cycles in this authorized scope."
             />
           </div>
@@ -303,7 +341,7 @@ export function AcademicIntelligenceWorkspace({
             />
           ) : (
             <>
-              <AnalyticsDashboard liveData={data} />
+              <AnalyticsDashboard liveData={analytics} />
 
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.7fr)]">
                 <div className="overflow-hidden rounded-lg border border-[#D8E0EC] bg-white">
@@ -327,7 +365,7 @@ export function AcademicIntelligenceWorkspace({
                         </tr>
                       </thead>
                       <tbody>
-                        {data.subjectPerformance.map((subject) => (
+                        {analytics.subjectPerformance.map((subject) => (
                           <tr
                             key={subject.subject_id}
                             className="border-t border-[#E5EAF1] text-[#233A5E]"
@@ -397,7 +435,7 @@ export function AcademicIntelligenceWorkspace({
                   icon={Users}
                   title="Top performers"
                   empty="No ranked performance evidence is available."
-                  rows={data.studentProgress.topPerformers.map((student) => ({
+                  rows={analytics.studentProgress.topPerformers.map((student) => ({
                     id: student.student_id,
                     title: student.student_name,
                     detail: `${student.admission_number} / ${student.assessments_taken} assessments`,
@@ -408,7 +446,7 @@ export function AcademicIntelligenceWorkspace({
                   icon={TrendingUp}
                   title="Top improvers"
                   empty="Two approved exam cycles are required to measure improvement."
-                  rows={data.studentProgress.topImprovers.map((student) => ({
+                  rows={analytics.studentProgress.topImprovers.map((student) => ({
                     id: student.student_id,
                     title: student.student_name,
                     detail: `${student.previous_exam_series} to ${student.latest_exam_series}`,
@@ -419,7 +457,7 @@ export function AcademicIntelligenceWorkspace({
                   icon={AlertTriangle}
                   title="Needs intervention"
                   empty="No learners currently fall below the configured 50% risk threshold."
-                  rows={data.studentProgress.atRiskStudents.map((student) => ({
+                  rows={analytics.studentProgress.atRiskStudents.map((student) => ({
                     id: student.student_id,
                     title: student.student_name,
                     detail: `${student.admission_number} / ${student.assessments_taken} assessments`,

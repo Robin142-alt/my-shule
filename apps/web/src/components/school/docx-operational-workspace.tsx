@@ -172,7 +172,7 @@ async function postWorkflowEvent(input: {
       title: `${input.moduleTitle}: ${input.action}`,
       message: `${input.action} was recorded for ${input.moduleTitle}.`,
       priority: /urgent|critical|failed|reject|delay/i.test(input.action) ? "high" : "normal",
-      targetRoles: ["principal", "deputy_principal", "system_monitor"],
+      targetRoles: ["principal", "deputy_principal"],
       payload: input.payload,
     }),
   });

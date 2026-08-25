@@ -554,7 +554,7 @@ export function OperationalTable({
             ))}
           </tbody>
         </table>
-        {visibleRows.length === 0 ? (
+        {visibleRows.length === 0 && (rows.length > 0 || !showStatePanels) ? (
           <div className="border-t border-border bg-surface px-4 py-8 text-center text-sm font-semibold text-muted">
             {rows.length === 0
               ? emptyMessage

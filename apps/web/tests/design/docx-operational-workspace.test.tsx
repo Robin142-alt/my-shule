@@ -53,6 +53,13 @@ describe("DocxOperationalWorkspace", () => {
         }),
       }),
     );
+    const workflowRequest = (global.fetch as jest.Mock).mock.calls.find(
+      ([url]) => url === "/api/workflow/events",
+    );
+    expect(JSON.parse(workflowRequest?.[1]?.body ?? "{}").targetRoles).toEqual([
+      "principal",
+      "deputy_principal",
+    ]);
     expect(await screen.findByText(/create school was recorded in the workflow event log/i)).toBeVisible();
   });
 });

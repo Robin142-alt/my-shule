@@ -104,12 +104,12 @@ export class PrincipalInsightsService {
     return this.repository.getAcademicSetupOverview(tenantId);
   }
 
-  async getPrincipalSettings(tenantId: string) {
-    return this.repository.getPrincipalSettings(tenantId);
+  async getPrincipalSettings(tenantId: string, actorUserId: string) {
+    return this.repository.getPrincipalSettings(tenantId, actorUserId);
   }
 
-  async getPrincipalTeachingSchedule(tenantId: string) {
-    return this.repository.getPrincipalTeachingSchedule(tenantId);
+  async getPrincipalTeachingSchedule(tenantId: string, actorUserId: string) {
+    return this.repository.getPrincipalTeachingSchedule(tenantId, actorUserId);
   }
 
   async buildDashboardForTenant(

@@ -9,7 +9,9 @@ import {
 } from './dto/integrations.dto';
 import { PlatformSmsService } from './platform-sms.service';
 import { SchoolSmsWalletRepository } from './school-sms-wallet.repository';
-import { SmsDispatchService } from './sms-dispatch.service';
+import { SmsDispatchService, SmsProviderDispatchError } from './sms-dispatch.service';
+
+class SmsDeliveryUnknownException extends BadRequestException {}
 
 @Injectable()
 export class SchoolSmsWalletService {
@@ -78,6 +80,11 @@ export class SchoolSmsWalletService {
     const recipient = dto.recipient.trim();
     const message = dto.message.trim();
     const creditCost = this.calculateCreditCost(message);
+
+    if (!this.smsDispatchService) {
+      throw new BadRequestException('SMS dispatch service is unavailable; no credits were reserved');
+    }
+
     const dispatchReadiness = await this.smsDispatchService?.getReadiness();
 
     if (dispatchReadiness && dispatchReadiness.status !== 'configured') {
@@ -102,54 +109,69 @@ export class SchoolSmsWalletService {
       throw new BadRequestException(reserved.reason ?? 'SMS balance exhausted');
     }
 
-    let dispatchStatus: 'sent' | 'queued' = 'queued';
+    let dispatchResult: Awaited<ReturnType<SmsDispatchService['send']>>;
+    try {
+      dispatchResult = await this.smsDispatchService.send({
+        tenant_id: tenantId,
+        to: recipient,
+        message,
+        source: dto.message_type?.trim() || 'school_sms',
+        metadata: { dispatch_key: `sms-wallet:${tenantId}:${reserved.log_id}` },
+      });
+    } catch (error) {
+      const failureReason = error instanceof Error ? error.message : 'SMS dispatch failed';
 
-    if (this.smsDispatchService) {
-      try {
-        const dispatchResult = await this.smsDispatchService.send({
-          tenant_id: tenantId,
-          to: recipient,
-          message,
-          source: dto.message_type?.trim() || 'school_sms',
-        });
-
-        await this.schoolSmsWalletRepository.markSmsLogSent?.({
-          tenant_id: tenantId,
-          log_id: reserved.log_id,
-          provider_id: dispatchResult.provider_id,
-          provider_message_id: dispatchResult.provider_message_id
-            ?? `${dispatchResult.provider_code}:${reserved.log_id}`,
-        });
-        dispatchStatus = 'sent';
-      } catch (error) {
-        const failureReason = error instanceof Error ? error.message : 'SMS dispatch failed';
-        await this.schoolSmsWalletRepository.markSmsLogFailed?.({
+      if (error instanceof SmsProviderDispatchError && error.acceptanceUnknown) {
+        await this.schoolSmsWalletRepository.markSmsLogDeliveryUnknown?.({
           tenant_id: tenantId,
           log_id: reserved.log_id,
           failure_reason: failureReason,
         });
-        await this.schoolSmsWalletRepository.refundSmsCredits?.({
-          tenant_id: tenantId,
-          log_id: reserved.log_id,
-          credit_cost: reserved.credit_cost ?? creditCost,
-          reason: 'sms_dispatch_failed',
-          actor_user_id: this.getActorUserId(),
-        });
-        throw new BadRequestException('SMS provider could not send the message. Credits were not used.');
+        throw new SmsDeliveryUnknownException(
+          'SMS provider outcome is unknown. Credits remain reserved and the message requires delivery review.',
+        );
       }
-    } else {
-      const provider = await this.platformSmsService?.getDefaultProviderForDispatch?.();
-      await this.schoolSmsWalletRepository.markSmsLogSent?.({
+
+      await this.schoolSmsWalletRepository.markSmsLogFailedAndRefund({
         tenant_id: tenantId,
         log_id: reserved.log_id,
-        provider_id: provider?.provider.id ?? null,
-        provider_message_id: provider ? `${provider.provider.provider_code}:${reserved.log_id}` : `local:${reserved.log_id}`,
+        credit_cost: reserved.credit_cost ?? creditCost,
+        failure_reason: failureReason,
+        reason: 'sms_dispatch_failed',
+        actor_user_id: this.getActorUserId(),
       });
-      dispatchStatus = provider ? 'sent' : 'queued';
+      throw new BadRequestException('SMS provider rejected the message. Credits were not used.');
+    }
+
+    const providerMessageId = dispatchResult.provider_message_id
+      ?? `${dispatchResult.provider_code}:${reserved.log_id}`;
+
+    try {
+      await this.schoolSmsWalletRepository.markSmsLogProviderAccepted({
+        tenant_id: tenantId,
+        log_id: reserved.log_id,
+        provider_id: dispatchResult.provider_id,
+        provider_message_id: providerMessageId,
+      });
+    } catch (error) {
+      const failureReason = error instanceof Error
+        ? `Provider accepted SMS but receipt persistence failed: ${error.message}`
+        : 'Provider accepted SMS but receipt persistence failed';
+
+      await this.schoolSmsWalletRepository.markSmsLogDeliveryUnknown({
+        tenant_id: tenantId,
+        log_id: reserved.log_id,
+        provider_id: dispatchResult.provider_id,
+        provider_message_id: providerMessageId,
+        failure_reason: failureReason,
+      });
+      throw new SmsDeliveryUnknownException(
+        'SMS was accepted by the provider, but receipt persistence failed. Credits remain reserved and delivery requires review.',
+      );
     }
 
     return {
-      status: dispatchStatus,
+      status: 'provider_accepted',
       log_id: reserved.log_id,
       balance_after: reserved.balance_after,
       credit_cost: reserved.credit_cost ?? creditCost,
@@ -160,7 +182,8 @@ export class SchoolSmsWalletService {
   async sendBulkSms(dto: SendBulkSmsDto): Promise<Record<string, unknown>> {
     const message = dto.message.trim();
     const messageType = dto.message_type?.trim() || 'bulk';
-    const sent: Array<Record<string, unknown>> = [];
+    const providerAccepted: Array<Record<string, unknown>> = [];
+    const deliveryUnknown: Array<Record<string, unknown>> = [];
     const failed: Array<Record<string, unknown>> = [];
     const skipped: Array<Record<string, unknown>> = [];
 
@@ -184,7 +207,7 @@ export class SchoolSmsWalletService {
           message_type: messageType,
         });
 
-        sent.push({
+        providerAccepted.push({
           recipient_id: recipientId,
           name: recipientInput.name?.trim() || null,
           recipient_last4: this.last4(recipient),
@@ -193,6 +216,17 @@ export class SchoolSmsWalletService {
           credit_cost: result.credit_cost,
         });
       } catch (error) {
+        if (error instanceof SmsDeliveryUnknownException) {
+          deliveryUnknown.push({
+            recipient_id: recipientId,
+            name: recipientInput.name?.trim() || null,
+            recipient_last4: this.last4(recipient),
+            status: 'delivery_unknown',
+            reason: error.message,
+          });
+          continue;
+        }
+
         failed.push({
           recipient_id: recipientId,
           name: recipientInput.name?.trim() || null,
@@ -203,13 +237,19 @@ export class SchoolSmsWalletService {
     }
 
     return {
-      status: failed.length ? (sent.length ? 'partial' : 'failed') : 'processed',
+      status: failed.length
+        ? (providerAccepted.length || deliveryUnknown.length ? 'partial' : 'failed')
+        : deliveryUnknown.length
+          ? (providerAccepted.length ? 'partial' : 'review_required')
+          : 'processed',
       message_type: messageType,
       total: dto.recipients.length,
-      sent_count: sent.length,
+      provider_accepted_count: providerAccepted.length,
+      delivery_unknown_count: deliveryUnknown.length,
       failed_count: failed.length,
       skipped_count: skipped.length,
-      sent,
+      provider_accepted: providerAccepted,
+      delivery_unknown: deliveryUnknown,
       failed,
       skipped,
     };

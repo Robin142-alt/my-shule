@@ -5,6 +5,7 @@ import type { ComponentType } from "react";
 import { AlertTriangle, CheckCircle2, Clock3, Lock, RotateCcw, ShieldCheck, WifiOff } from "lucide-react";
 
 import { Modal } from "@/components/ui/modal";
+import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
 import {
   getCurrentSchoolId,
   publishSchoolOperationalEvent,
@@ -130,11 +131,11 @@ function actionEventType(action: OperationalActionContract) {
   return `operational_action.${action.label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "run"}`;
 }
 
-function publishDefaultAction(action: OperationalActionContract) {
+function publishDefaultAction(action: OperationalActionContract, tenantId: string | null) {
   const normalized = action.label.toLowerCase();
 
   publishSchoolOperationalEvent({
-    schoolId: getCurrentSchoolId(),
+    schoolId: getCurrentSchoolId(tenantId),
     type: action.auditEvent || actionEventType(action),
     module: action.workflowBinding || "operational-action",
     actorRole: "school-staff",
@@ -154,7 +155,7 @@ function publishDefaultAction(action: OperationalActionContract) {
     notifications: /sms|notify|alert|reminder|approve|reject|assign|escalate/.test(normalized)
       ? [
           {
-            audienceRoles: ["Principal", "Deputy Principal", "System Monitor"],
+            audienceRoles: ["Principal", "Deputy Principal"],
             title: action.label,
             body: `${action.label} was recorded and queued for follow-up.`,
             severity: /reject|escalate|failed/.test(normalized) ? "warning" : "info",
@@ -188,6 +189,7 @@ export function OperationalActionButton({
   compact?: boolean;
   showDiagnostics?: boolean;
 }) {
+  const tenantId = useOptionalSchoolTenantId();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const Icon = isSubmitting ? Clock3 : action.icon ?? healthIcon[action.health];
   const disabled = action.health === "LOADING" || isSubmitting;
@@ -204,7 +206,7 @@ export function OperationalActionButton({
     try {
       const executionResult = normalizeExecutionResult(
         action,
-        onExecute ? await onExecute(action) : publishDefaultAction(action),
+        onExecute ? await onExecute(action) : publishDefaultAction(action, tenantId),
       );
       setLocalNoticeTone(executionResult.tone ?? "success");
       setLocalNotice(executionResult.message);

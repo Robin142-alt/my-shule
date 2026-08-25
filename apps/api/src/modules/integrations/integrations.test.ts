@@ -20,7 +20,7 @@ import { PlatformSmsController } from './platform-sms.controller';
 import { PlatformSmsService } from './platform-sms.service';
 import { SchoolSmsWalletService } from './school-sms-wallet.service';
 import { SchoolSmsWalletRepository } from './school-sms-wallet.repository';
-import { SmsDispatchService } from './sms-dispatch.service';
+import { SmsDispatchService, SmsProviderDispatchError } from './sms-dispatch.service';
 import { DarajaIntegrationService } from './daraja-integration.service';
 import { ParentPortalAuthRepository } from './parent-portal-auth.repository';
 import { ParentPortalAuthService } from './parent-portal-auth.service';
@@ -163,6 +163,9 @@ test('SchoolSmsWalletService rejects SMS sends when balance is exhausted', async
         balance_after: 0,
       }),
     } as never,
+    undefined,
+    undefined,
+    { getReadiness: async () => ({ status: 'configured' }) } as never,
   );
 
   await assert.rejects(
@@ -178,9 +181,9 @@ test('SchoolSmsWalletService rejects SMS sends when balance is exhausted', async
   );
 });
 
-test('SchoolSmsWalletService bulk send returns real sent, failed, and skipped evidence', async () => {
+test('SchoolSmsWalletService bulk send returns provider-accepted, failed, and skipped evidence', async () => {
   const reservations: Record<string, unknown>[] = [];
-  const markedSent: Record<string, unknown>[] = [];
+  const markedAccepted: Record<string, unknown>[] = [];
   let reserveCount = 0;
   const service = new SchoolSmsWalletService(
     { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'principal-1' }) } as never,
@@ -205,9 +208,20 @@ test('SchoolSmsWalletService bulk send returns real sent, failed, and skipped ev
           credit_cost: 1,
         };
       },
-      markSmsLogSent: async (input: Record<string, unknown>) => {
-        markedSent.push(input);
+      markSmsLogProviderAccepted: async (input: Record<string, unknown>) => {
+        markedAccepted.push(input);
       },
+    } as never,
+    undefined,
+    undefined,
+    {
+      getReadiness: async () => ({ status: 'configured' }),
+      send: async () => ({
+        status: 'provider_accepted',
+        provider_id: '00000000-0000-4000-8000-000000000040',
+        provider_code: 'africas_talking',
+        provider_message_id: 'provider-message-1',
+      }),
     } as never,
   );
 
@@ -222,11 +236,11 @@ test('SchoolSmsWalletService bulk send returns real sent, failed, and skipped ev
   });
 
   assert.equal(result.status, 'partial');
-  assert.equal(result.sent_count, 1);
+  assert.equal(result.provider_accepted_count, 1);
   assert.equal(result.failed_count, 1);
   assert.equal(result.skipped_count, 1);
   assert.equal(reservations.length, 2);
-  assert.equal(markedSent.length, 1);
+  assert.equal(markedAccepted.length, 1);
   assert.equal(reservations[0]?.tenant_id, 'tenant-a');
   assert.equal(reservations[0]?.message_type, 'absence_notice');
   const skipped = result.skipped as Record<string, unknown>[];
@@ -339,6 +353,10 @@ test('SmsDispatchService maps Africa Talking provider dispatch without logging s
         api_key: 'live-api-key-secret',
         username: 'MYSHULE',
       }),
+    } as never, {
+      get: (key: string) => key === 'communication.smsProviderAllowedHosts'
+        ? 'sms.example.test'
+        : undefined,
     } as never);
 
     const result = await service.send({
@@ -351,6 +369,7 @@ test('SmsDispatchService maps Africa Talking provider dispatch without logging s
     assert.equal(result.provider_id, 'provider-1');
     assert.equal(result.provider_message_id, 'ATX-123');
     assert.equal(requests[0]?.url, 'https://sms.example.test/send');
+    assert.equal(requests[0]?.init?.redirect, 'error');
     assert.equal((requests[0]?.init?.headers as Record<string, string>)?.apiKey, 'live-api-key-secret');
     assert.equal(String(requests[0]?.init?.body).includes('Fee+balance+reminder'), true);
     assert.equal(JSON.stringify(result).includes('live-api-key-secret'), false);
@@ -582,6 +601,131 @@ test('ParentPortalAuthService creates a generic OTP challenge without exposing t
   assert.equal(response.challenge_id, 'challenge-1');
   assert.equal(JSON.stringify(response).includes('000000'), false);
   assert.equal(JSON.stringify(response).includes('123456'), false);
+});
+
+test('SchoolSmsWalletService keeps credits reserved when provider acceptance is unknown', async () => {
+  const unknown: Record<string, unknown>[] = [];
+  let refunded = false;
+  const service = new SchoolSmsWalletService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'principal-1' }) } as never,
+    {
+      reserveSmsCredits: async () => ({
+        accepted: true,
+        log_id: 'sms-log-unknown',
+        balance_after: 9,
+        credit_cost: 1,
+      }),
+      markSmsLogDeliveryUnknown: async (input: Record<string, unknown>) => unknown.push(input),
+      markSmsLogFailedAndRefund: async () => { refunded = true; },
+    } as never,
+    undefined,
+    undefined,
+    {
+      getReadiness: async () => ({ status: 'configured' }),
+      send: async () => {
+        throw new SmsProviderDispatchError('provider timeout', false, null, true);
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    () => service.sendSms({ recipient: '+254700000001', message: 'Notice' }),
+    /requires delivery review/,
+  );
+  assert.equal(unknown.length, 1);
+  assert.equal(refunded, false);
+});
+
+test('SchoolSmsWalletService retains provider evidence and does not refund after accepted receipt persistence fails', async () => {
+  const unknown: Record<string, unknown>[] = [];
+  let failedAndRefunded = false;
+  const service = new SchoolSmsWalletService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'principal-1' }) } as never,
+    {
+      reserveSmsCredits: async () => ({
+        accepted: true,
+        log_id: 'sms-log-persistence-unknown',
+        balance_after: 9,
+        credit_cost: 1,
+      }),
+      markSmsLogProviderAccepted: async () => {
+        throw new Error('database receipt write failed');
+      },
+      markSmsLogDeliveryUnknown: async (input: Record<string, unknown>) => unknown.push(input),
+      markSmsLogFailedAndRefund: async () => { failedAndRefunded = true; },
+    } as never,
+    undefined,
+    undefined,
+    {
+      getReadiness: async () => ({ status: 'configured' }),
+      send: async () => ({
+        status: 'provider_accepted',
+        provider_id: '00000000-0000-4000-8000-000000000040',
+        provider_code: 'africas_talking',
+        provider_message_id: 'provider-message-persisted-remotely',
+      }),
+    } as never,
+  );
+
+  await assert.rejects(
+    () => service.sendSms({ recipient: '+254700000001', message: 'Notice' }),
+    /receipt persistence failed.*delivery requires review/i,
+  );
+  assert.equal(failedAndRefunded, false);
+  assert.deepEqual(unknown, [{
+    tenant_id: 'tenant-a',
+    log_id: 'sms-log-persistence-unknown',
+    provider_id: '00000000-0000-4000-8000-000000000040',
+    provider_message_id: 'provider-message-persisted-remotely',
+    failure_reason: 'Provider accepted SMS but receipt persistence failed: database receipt write failed',
+  }]);
+});
+
+test('SchoolSmsWalletService bulk send reports ambiguous provider outcomes for review, not as failures', async () => {
+  const service = new SchoolSmsWalletService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'principal-1' }) } as never,
+    {
+      reserveSmsCredits: async () => ({
+        accepted: true,
+        log_id: 'sms-log-bulk-unknown',
+        balance_after: 9,
+        credit_cost: 1,
+      }),
+      markSmsLogDeliveryUnknown: async () => undefined,
+    } as never,
+    undefined,
+    undefined,
+    {
+      getReadiness: async () => ({ status: 'configured' }),
+      send: async () => {
+        throw new SmsProviderDispatchError('provider timeout', false, null, true);
+      },
+    } as never,
+  );
+
+  const result = await service.sendBulkSms({
+    message: 'Notice',
+    recipients: [{ recipient_id: 'guardian-1', recipient: '+254700000001' }],
+  });
+
+  assert.equal(result.status, 'review_required');
+  assert.equal(result.delivery_unknown_count, 1);
+  assert.equal(result.failed_count, 0);
+  assert.equal((result.delivery_unknown as Array<Record<string, unknown>>)[0]?.status, 'delivery_unknown');
+});
+
+test('SchoolSmsWalletService fails before reserving credits when dispatch service is absent', async () => {
+  let reserved = false;
+  const service = new SchoolSmsWalletService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'principal-1' }) } as never,
+    { reserveSmsCredits: async () => { reserved = true; return {}; } } as never,
+  );
+
+  await assert.rejects(
+    () => service.sendSms({ recipient: '+254700000001', message: 'Notice' }),
+    /no credits were reserved/,
+  );
+  assert.equal(reserved, false);
 });
 
 test('ParentPortalAuthService enforces tenant-bound OTP resend cooldown before creating a challenge', async () => {
@@ -1045,6 +1189,7 @@ test('SchoolSmsWalletRepository reserves SMS credits transactionally with condit
       return callback();
     },
         executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      usedTransaction = true;
       return cb({
         $queryRawUnsafe: async (sql: string, ...params: any[]) => {
           const res = await (this as any).query(sql, params);
@@ -1100,6 +1245,7 @@ test('SchoolSmsWalletRepository makes SMS credit refunds idempotent', async () =
       return callback();
     },
         executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      usedTransaction = true;
       return cb({
         $queryRawUnsafe: async (sql: string, ...params: any[]) => {
           const res = await (this as any).query(sql, params);
@@ -1135,6 +1281,94 @@ query: async (sql: string) => {
     queries.some((sql) => sql.includes('SET sms_balance = sms_balance + $2')),
     false,
   );
+});
+
+test('SchoolSmsWalletRepository executes slug-tenant wallet SQL inside tenant context', async () => {
+  const tenantContexts: string[] = [];
+  let globalRawUsed = false;
+  const repository = new SchoolSmsWalletRepository({
+    executeWithTenant: async (
+      tenantId: string,
+      _userId: unknown,
+      callback: (tx: unknown) => Promise<unknown>,
+    ) => {
+      tenantContexts.push(tenantId);
+      return callback({
+        $queryRawUnsafe: async () => [{
+          id: 'wallet-tenant-a',
+          tenant_id: tenantId,
+          sms_balance: 10,
+          monthly_used: 0,
+          monthly_limit: null,
+          sms_plan: 'starter',
+          low_balance_threshold: 5,
+          allow_negative_balance: false,
+          billing_status: 'active',
+          last_reset_at: null,
+          created_at: '2026-05-16T00:00:00.000Z',
+          updated_at: '2026-05-16T00:00:00.000Z',
+        }],
+      });
+    },
+    $queryRawUnsafe: async () => {
+      globalRawUsed = true;
+      return [];
+    },
+  } as never);
+
+  const wallet = await repository.getOrCreateWallet('tenant-a');
+
+  assert.equal(wallet.tenant_id, 'tenant-a');
+  assert.deepEqual(tenantContexts, ['tenant-a']);
+  assert.equal(globalRawUsed, false);
+});
+
+test('SchoolSmsWalletRepository marks explicit rejection and refunds credits atomically', async () => {
+  const queries: string[] = [];
+  let tenantTransactions = 0;
+  const repository = new SchoolSmsWalletRepository({
+    executeWithTenant: async (
+      tenantId: string,
+      _userId: unknown,
+      callback: (tx: unknown) => Promise<unknown>,
+    ) => {
+      assert.equal(tenantId, 'tenant-a');
+      tenantTransactions += 1;
+      return callback({
+        $queryRawUnsafe: async (sql: string) => {
+          queries.push(sql);
+
+          if (sql.includes("SET status = 'failed'")) {
+            return [{ id: 'sms-log-rejected' }];
+          }
+
+          if (sql.includes('FROM sms_wallet_transactions')) {
+            return [];
+          }
+
+          if (sql.includes('SET sms_balance = sms_balance + $2')) {
+            return [{ sms_balance: 10, monthly_used: 0 }];
+          }
+
+          return [];
+        },
+      });
+    },
+  } as never);
+
+  await repository.markSmsLogFailedAndRefund({
+    tenant_id: 'tenant-a',
+    log_id: '00000000-0000-4000-8000-000000000041',
+    credit_cost: 1,
+    failure_reason: 'provider rejected recipient',
+    reason: 'sms_dispatch_failed',
+    actor_user_id: 'principal-1',
+  });
+
+  assert.equal(tenantTransactions, 1);
+  assert.equal(queries.some((sql) => sql.includes("SET status = 'failed'")), true);
+  assert.equal(queries.some((sql) => sql.includes('SET sms_balance = sms_balance + $2')), true);
+  assert.equal(queries.some((sql) => sql.includes("VALUES ($1, 'refund'")), true);
 });
 
 test('Integrations providers expose concrete Nest dependency metadata', () => {

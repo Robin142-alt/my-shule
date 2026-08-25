@@ -34,7 +34,14 @@ export class ExamsRepository {
           ends_on,
           created_by_user_id
         )
-        VALUES ($1, $2::uuid, $3, $4::date, $5::date, $6::uuid)
+        SELECT $1, term.id, $3, $4::date, $5::date, $6::uuid
+        FROM academic_terms term
+        WHERE term.tenant_id::text = $1::text
+          AND term.id = $2::uuid
+          AND lower(COALESCE(term.status, 'active')) = 'active'
+          AND term.archived_at IS NULL
+          AND $4::date >= term.starts_on
+          AND $5::date <= term.ends_on
         RETURNING *
       `,
       [

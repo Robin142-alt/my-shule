@@ -96,7 +96,8 @@ export function PortalLoginView({
   const [passwordSetupRequired, setPasswordSetupRequired] = useState(false);
   const [otpMessage, setOtpMessage] = useState<string | null>(null);
   const [otpError, setOtpError] = useState<string | null>(null);
-  const usesLinkedAccess = mode === "parent" || mode === "student";
+  const usesInvitationCredentials = mode === "parent" && acceptedInvite;
+  const usesLinkedAccess = (mode === "parent" || mode === "student") && !usesInvitationCredentials;
   const copy = portalCopy[mode];
   const {
     register,
@@ -317,7 +318,13 @@ export function PortalLoginView({
 
         <div className="space-y-4">
           <AuthField
-            label={usesLinkedAccess ? (mode === "student" ? "Admission number" : "Child admission number") : loginMode === "otp" ? "Phone number or email" : copy.identifierLabel}
+            label={usesInvitationCredentials && loginMode === "password"
+              ? "Parent email address"
+              : usesLinkedAccess
+                ? (mode === "student" ? "Admission number" : "Child admission number")
+                : loginMode === "otp"
+                  ? "Phone number or email"
+                  : copy.identifierLabel}
             autoComplete={loginMode === "otp" ? "username" : "email"}
             {...register("identifier")}
             error={errors.identifier?.message}

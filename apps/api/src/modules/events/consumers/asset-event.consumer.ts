@@ -15,7 +15,7 @@ export class AssetEventConsumer implements EventConsumerDescriptor<'asset.reques
     await this.workflowRepository.createTask({
       tenant_id: event.tenant_id,
       task_key: `asset-request-${payload.request_id}`,
-      assigned_to_role: 'SYSTEM_MONITOR', // Or Maintenance Manager
+      assigned_to_role: 'PRINCIPAL',
       created_by_user_id: payload.requested_by_user_id,
       title: 'New Asset Request/Report',
       description: `Asset type: ${payload.asset_type}. Reason: ${payload.reason}.`,
@@ -27,7 +27,7 @@ export class AssetEventConsumer implements EventConsumerDescriptor<'asset.reques
     await this.workflowRepository.createNotification({
       tenant_id: event.tenant_id,
       notification_key: `asset-request-notification-${payload.request_id}`,
-      recipient_role: 'SYSTEM_MONITOR',
+      recipient_role: 'PRINCIPAL',
       type: 'ASSET_REQUEST',
       title: 'New Asset Request',
       body: `A new asset request or issue report has been submitted.`,

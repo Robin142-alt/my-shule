@@ -1,5 +1,23 @@
 import { requestDashboardApi } from '@/lib/dashboard/api-client';
 
+export type BoardingReferenceData = {
+  houses: Array<{ id: string; title: string }>;
+  students: Array<{
+    id: string;
+    admission_number: string;
+    student_name: string;
+    house_id: string | null;
+    house_name: string | null;
+    hostel_name: string | null;
+  }>;
+  guardians: Array<{ id: string; student_id: string; display_name: string; phone: string | null }>;
+  wardens: Array<{ id: string; display_name: string }>;
+};
+
+export async function fetchBoardingReferences() {
+  return requestDashboardApi('/admin-command/boarding-master/references');
+}
+
 // ── Overview ──
 export async function fetchBoardingOverview() {
   return requestDashboardApi('/admin-command/boarding-master/overview');
@@ -83,4 +101,7 @@ export async function fetchBoardingReports() {
 }
 export async function generateBoardingReport(data: any) {
   return requestDashboardApi('/admin-command/boarding-master/reports/generate', { method: 'POST', body: data });
+}
+export async function downloadBoardingReport(id: string) {
+  return requestDashboardApi(`/admin-command/boarding-master/reports/${encodeURIComponent(id)}/download`, { method: 'POST' });
 }

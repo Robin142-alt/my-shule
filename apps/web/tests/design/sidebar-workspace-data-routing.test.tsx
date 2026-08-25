@@ -1,5 +1,5 @@
 import React from "react";
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
@@ -35,15 +35,15 @@ describe("sidebar workspace data routing", () => {
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
 
-  it("allows principal workspaces to load through the session proxy when client school storage is empty", async () => {
+  it("fails closed when no verified tenant scope is available", async () => {
     (getCurrentSchoolId as jest.Mock).mockReturnValue("");
     (requestDashboardApi as jest.Mock).mockResolvedValue({ status: "active" });
 
     const { result } = renderHook(() => useSchoolQuery("/admin-command/principal/overview"), { wrapper });
 
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-    expect(requestDashboardApi).toHaveBeenCalledWith("/admin-command/principal/overview", {});
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(result.current.isSuccess).toBe(false);
+    expect(requestDashboardApi).not.toHaveBeenCalled();
   });
 
   it("normalizes callers that include the Next API prefix before hitting fetch", async () => {

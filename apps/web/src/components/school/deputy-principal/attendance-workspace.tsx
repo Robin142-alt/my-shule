@@ -36,11 +36,13 @@ export function DeputyAttendanceWorkspace() {
   const handleNotifyParent = async (id: string, studentName: string) => {
     setIsSubmittingId(id);
     try {
-      await notifyParentAttendance(id);
-      toast.success(`Parent of ${studentName} has been notified.`);
-      refetch();
-    } catch {
-      toast.error("Failed to notify parent");
+      const result = await notifyParentAttendance(id) as { message?: string };
+      toast.success(result.message || `Attendance notice queued for linked guardians of ${studentName}.`);
+      await refetch();
+    } catch (notificationError) {
+      toast.error("No guardian notice was sent", {
+        description: notificationError instanceof Error ? notificationError.message : "No active linked guardian account could be verified.",
+      });
     } finally {
       setIsSubmittingId(null);
     }

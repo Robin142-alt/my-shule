@@ -6,7 +6,12 @@ import { firstValueFrom, take, toArray } from 'rxjs';
 import '../../interceptors/school-mutation-event.interceptor.test';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { PERMISSIONS_KEY } from '../../auth/auth.constants';
+import {
+  PERMISSIONS_KEY,
+  ROLES_KEY,
+  SCHOOL_EVENT_PUBLISHER_ROLE_CODES,
+  SCHOOL_STAFF_ROLE_CODES,
+} from '../../auth/auth.constants';
 import { DashboardRealtimeController } from './dashboard-realtime.controller';
 import { DashboardRealtimeService } from './dashboard-realtime.service';
 import { AuditTrailService } from './audit-trail.service';
@@ -14,7 +19,10 @@ import { EventConsumerRegistryService } from './event-consumer-registry.service'
 import { EventConsumerService } from './event-consumer.service';
 import { EventPublisherService } from './event-publisher.service';
 import { EventsSchemaService } from './events-schema.service';
+import { NotificationRouterController } from './notification-router.controller';
+import { NotificationRouterService } from './notification-router.service';
 import { OutboxDispatcherService } from './outbox-dispatcher.service';
+import { WorkflowRepository } from './repositories/workflow.repository';
 import { EventsConsumerWorker } from './queue/events-consumer.worker';
 import { SchoolOperationalEventsController } from './school-operational-events.controller';
 import { SchoolOperationalEventsService } from './school-operational-events.service';
@@ -97,6 +105,9 @@ test('EventsSchemaService repairs legacy notifications table for tenant-scoped d
   assert.match(bootstrapSql, /ALTER TABLE notifications\s+ALTER COLUMN school_id DROP NOT NULL;/);
   assert.match(bootstrapSql, /ALTER TABLE notifications\s+ALTER COLUMN status TYPE text USING lower\(status::text\);/);
   assert.match(bootstrapSql, /SET recipient_user_id = target_user_id::text::uuid/);
+  assert.match(bootstrapSql, /FROM users recipient\s+WHERE recipient\.id::text = target_user_id::text/);
+  assert.match(bootstrapSql, /'\{targetUserId\}'/);
+  assert.match(bootstrapSql, /WHERE recipient_user_id IS NULL\s+AND target_user_id IS NOT NULL\s+AND btrim\(target_user_id::text\) <> ''/);
   assert.match(bootstrapSql, /SET recipient_role = COALESCE\(NULLIF\(recipient_role, ''\), NULLIF\(target_role, ''\)\)/);
   assert.match(bootstrapSql, /SET source_module = COALESCE\(NULLIF\(source_module, ''\), NULLIF\(module, ''\)\)/);
   assert.match(bootstrapSql, /SET source_record_id = COALESCE\(NULLIF\(source_record_id, ''\), NULLIF\(entity_id::text, ''\)\)/);
@@ -131,8 +142,97 @@ test('EventsSchemaService migrates dashboard tasks without assuming optional leg
   assert.match(bootstrapSql, /'legacyDueDate', to_jsonb\(legacy\) -> 'due_date'/);
   assert.match(bootstrapSql, /FROM tasks canonical/);
   assert.match(bootstrapSql, /ROW_NUMBER\(\) OVER \(/);
+  assert.match(bootstrapSql, /ALTER TABLE tasks ALTER COLUMN assigned_to_user_id DROP NOT NULL/);
+  assert.match(bootstrapSql, /ALTER COLUMN tenant_id TYPE text USING tenant_id::text/);
+  assert.match(bootstrapSql, /ALTER COLUMN record_id TYPE text USING record_id::text/);
+  assert.match(bootstrapSql, /USING \(tenant_id::text = current_setting\('app\.tenant_id', true\)\)/);
+  assert.match(bootstrapSql, /CREATE TABLE IF NOT EXISTS dashboard_approval_requests/);
+  assert.match(bootstrapSql, /CREATE TABLE IF NOT EXISTS workflow_events/);
+  assert.match(bootstrapSql, /ALTER COLUMN target_roles TYPE jsonb/);
+  assert.match(bootstrapSql, /ALTER TABLE workflow_events FORCE ROW LEVEL SECURITY/);
+  assert.match(bootstrapSql, /CREATE POLICY workflow_events_rls_policy ON workflow_events/);
   assert.doesNotMatch(bootstrapSql, /legacy\.assigned_to_user_id/);
   assert.doesNotMatch(bootstrapSql, /ON CONFLICT \(tenant_id, task_key\)/);
+  assert.doesNotMatch(bootstrapSql, /ALTER TABLE approval_requests/);
+  assert.doesNotMatch(bootstrapSql, /DROP TABLE IF EXISTS (?:outbox_events|event_consumer_runs)/);
+});
+
+test('EventsSchemaService additively upgrades legacy outbox and consumer tables before their dependants', async () => {
+  let bootstrapSql = '';
+  const service = new EventsSchemaService(
+    {
+      runSchemaBootstrap: async (sql: string) => {
+        bootstrapSql = sql;
+      },
+    } as never,
+    { onModuleInit: async () => undefined } as never,
+  );
+
+  await service.onModuleInit();
+
+  const requiredOutboxColumns = [
+    'school_id text',
+    'event_key text',
+    'event_name text',
+    'aggregate_type text',
+    'aggregate_id uuid',
+    "payload jsonb DEFAULT '{}'::jsonb",
+    "headers jsonb DEFAULT '{}'::jsonb",
+    "status text DEFAULT 'pending'",
+    'attempt_count integer DEFAULT 0',
+    'available_at timestamptz DEFAULT NOW()',
+    'published_at timestamptz',
+    'last_error text',
+    'actor_user_id uuid',
+    'actor_role text',
+    'source_dashboard text',
+    'correlation_id uuid',
+    'created_at timestamptz DEFAULT NOW()',
+    'updated_at timestamptz DEFAULT NOW()',
+  ];
+  for (const column of requiredOutboxColumns) {
+    assert.ok(
+      bootstrapSql.includes(`ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS ${column};`),
+      `missing additive outbox migration for ${column}`,
+    );
+  }
+
+  const requiredConsumerColumns = [
+    'school_id text',
+    'outbox_event_id uuid',
+    'event_key text',
+    'consumer_name text',
+    "status text DEFAULT 'processing'",
+    'attempt_count integer DEFAULT 0',
+    'last_error text',
+    'processed_at timestamptz',
+    'created_at timestamptz DEFAULT NOW()',
+    'updated_at timestamptz DEFAULT NOW()',
+  ];
+  for (const column of requiredConsumerColumns) {
+    assert.ok(
+      bootstrapSql.includes(`ALTER TABLE event_consumer_runs ADD COLUMN IF NOT EXISTS ${column};`),
+      `missing additive consumer migration for ${column}`,
+    );
+  }
+
+  assert.match(bootstrapSql, /UPDATE outbox_events\s+SET school_id = tenant_id::text/);
+  assert.match(bootstrapSql, /UPDATE event_consumer_runs\s+SET school_id = tenant_id::text/);
+  assert.match(bootstrapSql, /ck_outbox_events_school_matches_tenant/);
+  assert.match(bootstrapSql, /ck_event_consumer_runs_school_matches_tenant/);
+  assert.match(bootstrapSql, /ADD CONSTRAINT fk_event_consumer_runs_outbox_event/);
+
+  const outboxBackfill = bootstrapSql.indexOf('UPDATE outbox_events\n      SET school_id = tenant_id::text');
+  const consumerBackfill = bootstrapSql.indexOf('UPDATE event_consumer_runs\n      SET school_id = tenant_id::text');
+  const claimFunction = bootstrapSql.indexOf('CREATE OR REPLACE FUNCTION app.claim_outbox_events');
+  const dispatchIndex = bootstrapSql.indexOf('CREATE INDEX IF NOT EXISTS ix_outbox_events_dispatch');
+  const syncTrigger = bootstrapSql.indexOf('CREATE TRIGGER trg_outbox_events_sync_school_columns');
+
+  assert.ok(outboxBackfill >= 0 && outboxBackfill < claimFunction);
+  assert.ok(consumerBackfill >= 0 && consumerBackfill < claimFunction);
+  assert.ok(claimFunction < dispatchIndex);
+  assert.ok(dispatchIndex < syncTrigger);
+  assert.doesNotMatch(bootstrapSql, /DROP TABLE IF EXISTS (?:outbox_events|event_consumer_runs)/);
 });
 
 test('EventsSchemaService preserves outbox claim function identity across bootstraps', async () => {
@@ -154,6 +254,76 @@ test('EventsSchemaService preserves outbox claim function identity across bootst
     bootstrapSql,
     /ALTER FUNCTION app\.claim_outbox_events\(integer, integer\) OWNER TO CURRENT_USER/,
   );
+});
+
+test('WorkflowRepository persists generic approvals in the dashboard projection under a slug tenant session', async () => {
+  const calls: Array<{ tenantId: string; sql: string; params: unknown[] }> = [];
+  const repository = new WorkflowRepository({
+    executeWithTenant: async (tenantId: string, _userId: string | null, callback: (tx: unknown) => Promise<unknown>) => callback({
+      $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+        calls.push({ tenantId, sql, params });
+        return [];
+      },
+    }),
+  } as never);
+
+  await repository.createApprovalRequest({
+    tenant_id: 'kibabi-high',
+    approval_key: 'procurement:request-a',
+    approver_role: 'principal',
+    approval_type: 'procurement',
+  });
+
+  assert.equal(calls[0].tenantId, 'kibabi-high');
+  assert.match(calls[0].sql, /INSERT INTO dashboard_approval_requests/);
+  assert.doesNotMatch(calls[0].sql, /INSERT INTO approval_requests/);
+});
+
+test('NotificationRouterService applies explicit-recipient precedence and rejects an unaddressed task mutation', async () => {
+  const calls: Array<{ tenantId: string; userId: string; sql: string; params: unknown[] }> = [];
+  const prisma = {
+    executeWithTenant: async (tenantId: string, userId: string, callback: (tx: unknown) => Promise<unknown>) => callback({
+      $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+        calls.push({ tenantId, userId, sql, params });
+        return [];
+      },
+    }),
+  };
+  const notifications = {
+    getUserNotifications: async () => [],
+    safeMarkAsRead: async () => ({}),
+  };
+  const service = new NotificationRouterService(prisma as never, notifications as never);
+  const userId = '00000000-0000-4000-8000-000000000001';
+
+  await service.getPendingApprovals('kibabi-high', userId, 'Deputy Principal');
+  assert.match(calls[0].sql, /FROM dashboard_approval_requests approval/);
+  assert.match(calls[0].sql, /approver_user_id IS NULL/);
+  assert.deepEqual(calls[0].params, ['kibabi-high', userId, 'deputy_principal']);
+
+  await assert.rejects(
+    () => service.markTaskCompleted('kibabi-high', userId, 'Deputy Principal', 'task-a'),
+    /not found for the active school role/i,
+  );
+  assert.match(calls[1].sql, /task\.tenant_id::text = \$1::text/);
+  assert.match(calls[1].sql, /task\.assigned_to_user_id IS NULL/);
+  assert.deepEqual(calls[1].params, ['kibabi-high', 'task-a', userId, 'deputy_principal']);
+});
+
+test('NotificationRouterController uses catalogued personal-inbox read and write capabilities', () => {
+  assert.equal(Reflect.getMetadata(PATH_METADATA, NotificationRouterController), 'workflow/inbox');
+  for (const method of ['getNotifications', 'getTasks', 'getApprovals'] as const) {
+    assert.deepEqual(
+      Reflect.getMetadata(PERMISSIONS_KEY, NotificationRouterController.prototype[method]),
+      ['events:read'],
+    );
+  }
+  for (const method of ['markNotificationRead', 'markTaskCompleted'] as const) {
+    assert.deepEqual(
+      Reflect.getMetadata(PERMISSIONS_KEY, NotificationRouterController.prototype[method]),
+      ['events:write'],
+    );
+  }
 });
 
 test('EventsSchemaService uses a single bootstrap promise for concurrent startup callers', async () => {
@@ -388,6 +558,98 @@ test('EventPublisherService writes student.created events with request headers',
   assert.equal(writtenEvent.available_at, undefined);
 });
 
+test('EventPublisherService gives authenticated tenant and actor context precedence over forged event identity', async () => {
+  const requestContext = new RequestContextService();
+  let written: Record<string, unknown> | null = null;
+  const service = new EventPublisherService(requestContext, {
+    createEvent: async (input: Record<string, unknown>) => {
+      written = input;
+      return input;
+    },
+  } as never);
+  const actorUserId = '00000000-0000-4000-8000-000000000001';
+
+  await requestContext.run(
+    {
+      request_id: 'req-authoritative-event',
+      tenant_id: 'tenant-a',
+      user_id: actorUserId,
+      role: 'teacher',
+      session_id: 'session-authoritative-event',
+      permissions: ['events:write'],
+      is_authenticated: true,
+      client_ip: '127.0.0.1',
+      user_agent: 'test-suite',
+      method: 'POST',
+      path: '/workflow/events',
+      started_at: '2026-08-15T08:00:00.000Z',
+    },
+    async () => {
+      await service.publish({
+        tenant_id: 'tenant-a',
+        actor_user_id: '00000000-0000-4000-8000-000000000999',
+        actor_role: 'platform_owner',
+        source_dashboard: 'superadmin',
+        event_key: 'student.created:authoritative-context',
+        event_name: 'student.created',
+        aggregate_type: 'student',
+        aggregate_id: '00000000-0000-4000-8000-000000000101',
+        payload: {
+          tenant_id: 'tenant-a',
+          student_id: '00000000-0000-4000-8000-000000000101',
+          created_at: '2026-08-15T08:00:00.000Z',
+          created_by_user_id: actorUserId,
+        },
+        headers: {
+          source: 'server.test',
+          request_id: 'forged-request',
+          user_id: 'forged-user',
+          role: 'platform_owner',
+          session_id: 'forged-session',
+          tenant_id: 'tenant-b',
+          actor_role: 'platform_owner',
+          source_dashboard: 'superadmin',
+        },
+      });
+
+      await assert.rejects(
+        () => service.publish({
+          tenant_id: 'tenant-b',
+          event_key: 'student.created:wrong-tenant',
+          event_name: 'student.created',
+          aggregate_type: 'student',
+          aggregate_id: '00000000-0000-4000-8000-000000000102',
+          payload: {
+            tenant_id: 'tenant-b',
+            student_id: '00000000-0000-4000-8000-000000000102',
+            created_at: '2026-08-15T08:00:00.000Z',
+            created_by_user_id: actorUserId,
+          },
+        }),
+        /does not match the authenticated school/i,
+      );
+    },
+  );
+
+  assert.ok(written);
+  const event = written as Record<string, unknown>;
+  assert.equal(event.tenant_id, 'tenant-a');
+  assert.equal(event.school_id, 'tenant-a');
+  assert.equal(event.actor_user_id, actorUserId);
+  assert.equal(event.actor_role, 'teacher');
+  assert.equal(event.source_dashboard, 'teacher');
+  const headers = event.headers as Record<string, unknown>;
+  assert.equal(headers.source, 'server.test');
+  assert.equal(headers.request_id, 'req-authoritative-event');
+  assert.equal(headers.user_id, actorUserId);
+  assert.equal(headers.role, 'teacher');
+  assert.equal(headers.session_id, 'session-authoritative-event');
+  assert.equal(headers.tenant_id, 'tenant-a');
+  assert.equal(headers.school_id, 'tenant-a');
+  assert.equal(headers.actor_role, 'teacher');
+  assert.equal(headers.source_dashboard, 'teacher');
+});
+
 test('EventPublisherService keeps attendance aggregate IDs valid for the UUID outbox contract', async () => {
   const requestContext = new RequestContextService();
   let publishedEvent: Record<string, unknown> | null = null;
@@ -487,12 +749,26 @@ test('SchoolOperationalEventsService records frontend school operations inside t
           schoolId: 'tenant-a',
           type: 'FEE_REVERSAL_REQUESTED',
           module: 'finance',
-          actorRole: 'accountant',
+          actorRole: 'platform_owner',
           title: 'Fee reversal requested',
           body: 'Receipt KBI-RCPT-400 needs approval.',
           entityId: 'approval-400',
           severity: 'warning',
-          payload: { amount: 'KSh 4,500' },
+          payload: {
+            amount: 'KSh 4,500',
+            schoolId: 'tenant-b',
+            school_id: 'tenant-b',
+            tenantId: 'tenant-b',
+            tenant_id: 'tenant-b',
+            actorRole: 'platform_owner',
+            actor_role: 'platform_owner',
+            sourceDashboard: 'superadmin',
+            source_dashboard: 'superadmin',
+            targetUserId: '00000000-0000-4000-8000-000000000999',
+            target_user_id: '00000000-0000-4000-8000-000000000999',
+            audienceRoles: ['system_monitor'],
+            audience_roles: ['system_monitor'],
+          },
           createdAt: '2026-05-31T06:30:00.000Z',
         },
         notifications: [
@@ -501,13 +777,38 @@ test('SchoolOperationalEventsService records frontend school operations inside t
             schoolId: 'tenant-a',
             title: 'Fee reversal requested',
             body: 'Receipt KBI-RCPT-400 needs approval.',
-            audienceRoles: ['principal', 'deputy-principal'],
+            audienceRoles: [
+              'principal',
+              'deputy-principal',
+              'finance',
+              'admissions',
+              'facility-manager',
+              'system-monitor',
+              'superadmin',
+              'support',
+            ],
             priority: 'urgent',
             sourceModule: 'finance',
             relatedModule: 'finance',
             relatedRecordId: 'approval-400',
             read: false,
             createdAt: '2026-05-31T06:30:00.000Z',
+          },
+          {
+            id: 'notification-exact-parent',
+            schoolId: 'tenant-a',
+            title: 'Learner-specific update',
+            body: 'A private update is ready for your linked learner.',
+            audienceRoles: ['parent'],
+            targetUserId: '00000000-0000-4000-8000-000000000123',
+            sourceModule: 'finance',
+            relatedRecordId: 'approval-400',
+          },
+          {
+            id: 'notification-platform-only',
+            audienceRoles: ['system-monitor', 'superadmin', 'support'],
+            title: 'Platform-only alert',
+            body: 'This must not be routed through a school notification projection.',
           },
         ],
         sms: [],
@@ -536,7 +837,19 @@ test('SchoolOperationalEventsService records frontend school operations inside t
   assert.equal(payload.operation_id, 'event-local-1');
   assert.equal(payload.module, 'finance');
   assert.equal(payload.entity_id, 'approval-400');
-  assert.deepEqual(payload.target_roles, ['principal', 'deputy-principal']);
+  assert.deepEqual(payload.target_roles, [
+    'principal',
+    'deputy_principal',
+    'accountant',
+    'bursar',
+    'admissions_officer',
+    'ict_manager',
+  ]);
+  assert.deepEqual(payload.target_user_ids, [
+    '00000000-0000-4000-8000-000000000123',
+  ]);
+  assert.deepEqual(payload.payload, { amount: 'KSh 4,500' });
+  assert.equal(payload.notifications.length, 2);
   assert.deepEqual(materializedNotifications, [
     {
       tenantId: 'tenant-a',
@@ -546,13 +859,34 @@ test('SchoolOperationalEventsService records frontend school operations inside t
         schoolId: 'tenant-a',
         title: 'Fee reversal requested',
         body: 'Receipt KBI-RCPT-400 needs approval.',
-        audienceRoles: ['principal', 'deputy-principal'],
+        audienceRoles: [
+          'principal',
+          'deputy_principal',
+          'accountant',
+          'bursar',
+          'admissions_officer',
+          'ict_manager',
+        ],
         priority: 'urgent',
         sourceModule: 'finance',
         relatedModule: 'finance',
         relatedRecordId: 'approval-400',
         read: false,
         createdAt: '2026-05-31T06:30:00.000Z',
+      },
+    },
+    {
+      tenantId: 'tenant-a',
+      operationId: 'event-local-1',
+      notification: {
+        id: 'notification-exact-parent',
+        schoolId: 'tenant-a',
+        title: 'Learner-specific update',
+        body: 'A private update is ready for your linked learner.',
+        audienceRoles: ['parent'],
+        targetUserId: '00000000-0000-4000-8000-000000000123',
+        sourceModule: 'finance',
+        relatedRecordId: 'approval-400',
       },
     },
   ]);
@@ -607,6 +941,59 @@ test('SchoolOperationalEventsService rejects school operations posted to another
   );
 });
 
+test('SchoolOperationalEventsService rejects malformed exact recipients instead of falling back to a role broadcast', async () => {
+  const requestContext = new RequestContextService();
+  let published = false;
+  const service = new SchoolOperationalEventsService(requestContext, {
+    publish: async () => {
+      published = true;
+      throw new Error('malformed exact recipients must fail before publish');
+    },
+  } as never, {
+    upsertFromSchoolOperation: async () => {
+      throw new Error('malformed exact recipients must not materialize');
+    },
+  } as never);
+
+  await assert.rejects(
+    requestContext.run(
+      {
+        request_id: 'req-school-operation-malformed-recipient',
+        tenant_id: 'tenant-a',
+        user_id: '00000000-0000-4000-8000-000000000010',
+        role: 'principal',
+        session_id: 'session-school-operation-malformed-recipient',
+        permissions: ['auth:read'],
+        is_authenticated: true,
+        client_ip: '127.0.0.1',
+        user_agent: 'test-suite',
+        method: 'POST',
+        path: '/events/school-operations',
+        started_at: '2026-08-22T08:00:00.000Z',
+      },
+      () => service.recordSchoolOperation({
+        event: {
+          id: 'event-malformed-recipient',
+          type: 'PRIVATE_PARENT_UPDATE',
+          module: 'communication',
+          title: 'Private parent update',
+          body: 'A linked learner update is ready.',
+        },
+        notifications: [{
+          id: 'notification-malformed-recipient',
+          audienceRoles: ['parent'],
+          targetUserId: '   ',
+          title: 'Private parent update',
+          body: 'A linked learner update is ready.',
+        }],
+      }),
+    ),
+    /targetUserId must be a non-empty string/,
+  );
+
+  assert.equal(published, false);
+});
+
 test('SchoolOperationNotificationsRepository lists unread notifications for the current tenant role', async () => {
   const queries: Array<{ sql: string; values: unknown[] }> = [];
   const { SchoolOperationNotificationsRepository } = await import(
@@ -651,16 +1038,20 @@ query: async (sql: string, values: unknown[] = []) => {
     },
   } as never);
 
-  const result = await repository.listForTenantRole('tenant-a', 'principal', {
-    limit: 8,
-  });
+  const userId = '00000000-0000-4000-8000-000000000010';
+  const result = await repository.listForTenantRole('tenant-a', userId, 'principal', { limit: 8 });
 
   assert.equal(queries.length, 1);
   assert.match(queries[0].sql, /FROM notifications/);
   assert.match(queries[0].sql, /tenant_id = \$1/);
+  assert.match(queries[0].sql, /notification_key LIKE 'school-operation:%'/);
+  assert.match(queries[0].sql, /recipient_user_id::text/);
+  assert.match(queries[0].sql, /metadata->>'targetUserId'/);
+  assert.match(queries[0].sql, /IS NULL/);
   assert.match(queries[0].sql, /target_roles/);
-  assert.match(queries[0].sql, /LIMIT \$3::integer/);
-  assert.deepEqual(queries[0].values, ['tenant-a', 'principal', 8]);
+  assert.match(queries[0].sql, /audienceRoles/);
+  assert.match(queries[0].sql, /LIMIT \$4::integer/);
+  assert.deepEqual(queries[0].values, ['tenant-a', userId, 'principal', 8]);
   assert.deepEqual(result, [
     {
       id: '00000000-0000-4000-8000-000000000401',
@@ -726,6 +1117,7 @@ query: async (sql: string, values: unknown[] = []) => {
 
   const result = await repository.markReadForTenantRole(
     'tenant-a',
+    '00000000-0000-4000-8000-000000000010',
     'principal',
     '00000000-0000-4000-8000-000000000401',
   );
@@ -734,10 +1126,15 @@ query: async (sql: string, values: unknown[] = []) => {
   assert.match(queries[0].sql, /UPDATE notifications/);
   assert.match(queries[0].sql, /tenant_id = \$1/);
   assert.match(queries[0].sql, /id::text = \$2::text/);
+  assert.match(queries[0].sql, /notification_key LIKE 'school-operation:%'/);
+  assert.match(queries[0].sql, /recipient_user_id::text/);
+  assert.match(queries[0].sql, /metadata->>'targetUserId'/);
+  assert.match(queries[0].sql, /IS NULL/);
   assert.match(queries[0].sql, /target_roles/);
   assert.deepEqual(queries[0].values, [
     'tenant-a',
     '00000000-0000-4000-8000-000000000401',
+    '00000000-0000-4000-8000-000000000010',
     'principal',
   ]);
   assert.equal(result?.status, 'read');
@@ -753,8 +1150,8 @@ test('SchoolOperationalEventsService exposes notification inbox and read updates
     },
   } as never, {
     upsertFromSchoolOperation: async () => undefined,
-    listForTenantRole: async (tenantId: string, role: string, options: { limit: number }) => {
-      repositoryCalls.push({ action: 'list', tenantId, role, limit: options.limit });
+    listForTenantRole: async (tenantId: string, userId: string, role: string, options: { limit: number }) => {
+      repositoryCalls.push({ action: 'list', tenantId, userId, role, limit: options.limit });
       return [
         {
           id: 'notification-1',
@@ -771,8 +1168,8 @@ test('SchoolOperationalEventsService exposes notification inbox and read updates
         },
       ];
     },
-    markReadForTenantRole: async (tenantId: string, role: string, notificationId: string) => {
-      repositoryCalls.push({ action: 'mark-read', tenantId, role, notificationId });
+    markReadForTenantRole: async (tenantId: string, userId: string, role: string, notificationId: string) => {
+      repositoryCalls.push({ action: 'mark-read', tenantId, userId, role, notificationId });
       return {
         id: notificationId,
         title: 'Store request approved',
@@ -811,8 +1208,20 @@ test('SchoolOperationalEventsService exposes notification inbox and read updates
   );
 
   assert.deepEqual(repositoryCalls, [
-    { action: 'list', tenantId: 'tenant-a', role: 'teacher', limit: 8 },
-    { action: 'mark-read', tenantId: 'tenant-a', role: 'teacher', notificationId: 'notification-1' },
+    {
+      action: 'list',
+      tenantId: 'tenant-a',
+      userId: '00000000-0000-0000-0000-000000000010',
+      role: 'teacher',
+      limit: 8,
+    },
+    {
+      action: 'mark-read',
+      tenantId: 'tenant-a',
+      userId: '00000000-0000-0000-0000-000000000010',
+      role: 'teacher',
+      notificationId: 'notification-1',
+    },
   ]);
   assert.equal(result.inbox.data[0].title, 'Store request approved');
   assert.equal(result.read.data.status, 'read');
@@ -1157,6 +1566,66 @@ test('DashboardRealtimeService maps frontend school operations into role-specifi
     'Receipt KBI-RCPT-400 needs approval.',
   );
   assert.equal(dashboardEvent?.notification.tone, 'warning');
+});
+
+test('DashboardRealtimeService routes exact school-operation recipients by user without a role-wide broadcast', () => {
+  const service = new DashboardRealtimeService(
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+  const exactUserId = '00000000-0000-4000-8000-000000000123';
+  const event: DomainEvent<'school.operation.recorded'> = {
+    id: 'event-school-operation-exact-1',
+    tenant_id: 'tenant-a',
+    event_key: 'school.operation.recorded:tenant-a:event-exact-1',
+    event_name: 'school.operation.recorded',
+    aggregate_type: 'school_operation',
+    aggregate_id: '00000000-0000-4000-8000-000000000780',
+    payload: {
+      tenant_id: 'tenant-a',
+      school_id: 'tenant-a',
+      operation_id: 'event-exact-1',
+      operation_type: 'TRANSPORT_ROUTE_ASSIGNED',
+      module: 'transport',
+      actor_role: 'transport_manager',
+      title: 'Transport route assigned',
+      body: 'Your linked learner has a transport route.',
+      entity_id: 'manifest-1',
+      severity: 'info',
+      target_roles: [],
+      target_user_ids: [exactUserId],
+      notifications: [],
+      sms: [],
+      payload: {},
+      occurred_at: '2026-08-22T08:00:00.000Z',
+    },
+    headers: {},
+    status: 'published',
+    attempt_count: 0,
+    available_at: '2026-08-22T08:00:00.000Z',
+    published_at: '2026-08-22T08:00:01.000Z',
+    last_error: null,
+    created_at: '2026-08-22T08:00:00.000Z',
+    updated_at: '2026-08-22T08:00:01.000Z',
+  };
+
+  const exactRecipientEvent = service.toDashboardEvent(event, {
+    enabledModules: ['transport'],
+    permissions: ['auth:read'],
+    role: 'parent',
+    userId: exactUserId,
+  });
+  const otherParentEvent = service.toDashboardEvent(event, {
+    enabledModules: ['transport'],
+    permissions: ['auth:read'],
+    role: 'parent',
+    userId: '00000000-0000-4000-8000-000000000124',
+  });
+
+  assert.ok(exactRecipientEvent?.channels.includes(`user:${exactUserId}`));
+  assert.ok(!exactRecipientEvent?.channels.includes('role:parent'));
+  assert.equal(otherParentEvent, null);
 });
 
 test('DashboardRealtimeService exposes system refresh events to authenticated tenant roles', () => {
@@ -1662,7 +2131,8 @@ test('SchoolOperationalEventsController exposes authenticated operation and noti
   assert.ok(recordDescriptor?.value);
   assert.ok(listDescriptor?.value);
   assert.ok(markReadDescriptor?.value);
-  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, recordDescriptor.value), ['auth:read']);
-  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, listDescriptor.value), ['auth:read']);
-  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, markReadDescriptor.value), ['auth:read']);
+  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, recordDescriptor.value), ['events:publish']);
+  assert.deepEqual(Reflect.getMetadata(ROLES_KEY, recordDescriptor.value), [...SCHOOL_EVENT_PUBLISHER_ROLE_CODES]);
+  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, listDescriptor.value), ['events:read']);
+  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, markReadDescriptor.value), ['events:write']);
 });

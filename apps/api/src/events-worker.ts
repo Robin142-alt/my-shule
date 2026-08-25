@@ -4,6 +4,8 @@ process.env.APP_RUNTIME = process.env.APP_RUNTIME ?? 'worker';
 process.env.EVENTS_DISPATCHER_ENABLED =
   process.env.EVENTS_DISPATCHER_ENABLED ?? 'true';
 process.env.EVENTS_WORKER_ENABLED = process.env.EVENTS_WORKER_ENABLED ?? 'true';
+process.env.COMMUNICATION_SMS_OUTBOX_WORKER_ENABLED =
+  process.env.COMMUNICATION_SMS_OUTBOX_WORKER_ENABLED ?? 'true';
 process.env.OBSERVABILITY_SLO_BACKGROUND_ENABLED =
   process.env.OBSERVABILITY_SLO_BACKGROUND_ENABLED ?? 'false';
 

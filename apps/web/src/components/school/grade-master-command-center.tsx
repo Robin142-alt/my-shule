@@ -11,6 +11,7 @@ import {
   CalendarDays,
   CheckSquare,
   ClipboardCheck,
+  Download,
   FileText,
   HeartPulse,
   LayoutDashboard,
@@ -31,7 +32,7 @@ import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
-import { getCurrentSchoolId, publishSchoolOperationalEvent } from "@/lib/school/school-operational-store";
+import { getCurrentSchoolId } from "@/lib/school/school-operational-store";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { usePermissions } from "@/components/providers/permission-context";
@@ -59,6 +60,9 @@ type GradeOverviewData = {
 
 type GradeLearnerRow = {
   id: string;
+  class_section_id: string;
+  stream_id: string | null;
+  class_teacher_user_id: string | null;
   admission_number: string;
   learner: string;
   stream: string;
@@ -69,6 +73,9 @@ type GradeLearnerRow = {
 
 type GradeStreamRow = {
   id: string;
+  class_section_id: string;
+  stream_id: string | null;
+  class_teacher_user_id: string | null;
   stream: string;
   class_teacher: string;
   learners: string | number;
@@ -79,6 +86,9 @@ type GradeStreamRow = {
 
 type GradeAttendanceRow = {
   id: string;
+  class_section_id: string;
+  stream_id: string | null;
+  class_teacher_user_id: string | null;
   learner: string;
   stream: string;
   status: string;
@@ -88,6 +98,10 @@ type GradeAttendanceRow = {
 
 type GradeAcademicRow = {
   id: string;
+  subject_id: string;
+  class_section_id: string;
+  stream_id: string | null;
+  teacher_user_id: string | null;
   subject: string;
   teacher: string;
   average: string;
@@ -97,14 +111,22 @@ type GradeAcademicRow = {
 
 type GradeReportReadinessRow = {
   id: string;
+  class_section_id: string;
+  stream_id: string | null;
+  class_teacher_user_id: string | null;
   stream: string;
   status: string;
   comments_ready: string | number;
+  report_cards_generated: string | number;
+  report_cards_ready: string | number;
   total_learners: string | number;
 };
 
 type GradeDisciplineRow = {
   id: string;
+  learner_id: string;
+  class_section_id: string;
+  stream_id: string | null;
   case_no: string;
   learner: string;
   stream: string;
@@ -114,6 +136,10 @@ type GradeDisciplineRow = {
 
 type GradeWelfareRow = {
   id: string;
+  learner_id: string;
+  class_section_id: string;
+  stream_id: string | null;
+  class_teacher_user_id: string | null;
   learner: string;
   stream: string;
   concern_type: string;
@@ -124,6 +150,10 @@ type GradeWelfareRow = {
 
 type GradeCommunicationRow = {
   id: string;
+  learner_id: string;
+  guardian_id: string;
+  class_section_id: string;
+  stream_id: string | null;
   learner: string;
   guardian: string;
   last_contacted: string;
@@ -133,6 +163,10 @@ type GradeCommunicationRow = {
 
 type GradeMeetingRow = {
   id: string;
+  learner_id: string;
+  guardian_id: string;
+  class_section_id: string;
+  stream_id: string | null;
   meeting_title: string;
   learner: string;
   date: string;
@@ -151,6 +185,9 @@ type GradeAssignmentRow = {
 
 type GradeRequestRow = {
   id: string;
+  learner_id: string | null;
+  class_section_id: string | null;
+  stream_id: string | null;
   request_no: string;
   type: string;
   learner_or_stream: string;
@@ -166,6 +203,18 @@ type GradeReportRow = {
   generated_at: string;
   status: string;
   download_url: string;
+};
+
+type GradeReportArtifact = {
+  filename?: string;
+  content_type?: string;
+  content_base64?: string;
+};
+
+type GradeReportDownloadResponse = {
+  artifact?: GradeReportArtifact;
+  format?: string;
+  title?: string;
 };
 
 type GradeNotificationRow = {
@@ -392,13 +441,6 @@ async function recordGradeAction(title: string, body: string, tone: GradeActionT
 
   const notify = tone === "danger" ? toast.error : tone === "success" ? toast.success : toast.info;
   notify(title, { description: body });
-  publishSchoolOperationalEvent({
-    type: "grade_master.workflow_action",
-    module: "grade_master",
-    actorRole: "grade_master",
-    title,
-    body,
-  });
   return true;
 }
 
@@ -411,7 +453,7 @@ async function sendGradeNotification(input: {
   payload?: Record<string, unknown>;
 }) {
   try {
-    await submitGradeWorkflowAction({
+    const result = await submitGradeWorkflowAction({
       action: input.action,
       title: input.title,
       message: input.message,
@@ -419,13 +461,8 @@ async function sendGradeNotification(input: {
       priority: input.priority ?? "normal",
       payload: { source: "grade-master-dashboard", ...(input.payload ?? {}) },
     });
-    toast.success(input.title, { description: input.message });
-    publishSchoolOperationalEvent({
-      type: `grade_master.${input.action}`,
-      module: "grade_master",
-      actorRole: "grade_master",
-      title: input.title,
-      body: input.message,
+    toast.success(input.title, {
+      description: typeof result?.message === "string" ? result.message : input.message,
     });
     return true;
   } catch (error) {
@@ -468,7 +505,12 @@ async function submitGradeWorkflowAction(input: {
   priority?: "normal" | "high" | "urgent";
   payload?: Record<string, unknown>;
 }) {
-  return requestDashboardApi("/api/grade-master/actions", {
+  return requestDashboardApi<{
+    success: boolean;
+    message?: string;
+    guardian_notification_count?: number;
+    staff_notification_count?: number;
+  }>("/api/grade-master/actions", {
     method: "POST",
     body: input,
   });
@@ -524,13 +566,6 @@ async function submitPromptedGradeWorkflowAction(input: PromptedGradeWorkflowInp
       },
     });
     toast.success(input.successTitle, successDescription ? { description: successDescription } : undefined);
-    publishSchoolOperationalEvent({
-      type: `grade_master.${input.action}`,
-      module: "grade_master",
-      actorRole: "grade_master",
-      title: input.title,
-      body: message,
-    });
     return true;
   } catch (error) {
     toast.error(`${input.title} failed`, {
@@ -569,12 +604,11 @@ function LearnerProfileDrawer({ learner, onClose }: { learner: GradeLearnerRow |
         action: "learner_concern_recorded",
         title: "Learner concern recorded",
         message: `${learnerLabel} concern was recorded for ${riskCategory}.`,
-        targetRoles: ["grade_master", "class_teacher", "deputy_principal"],
+        targetRoles: ["grade_master", ...(learner.class_teacher_user_id ? ["class_teacher"] : []), "deputy_principal"],
         priority: "high",
         payload: {
           learnerId: learner.id,
-          admissionNumber: learner.admission_number,
-          stream: learner.stream,
+          ...(learner.class_teacher_user_id ? { recipientUserId: learner.class_teacher_user_id } : {}),
           riskCategory,
           notes,
           ownerRole: "grade_master",
@@ -582,13 +616,6 @@ function LearnerProfileDrawer({ learner, onClose }: { learner: GradeLearnerRow |
         },
       });
       toast.success("Learner concern saved", { description: `${learnerLabel} follow-up is now in the grade workflow queue.` });
-      publishSchoolOperationalEvent({
-        type: "grade_master.learner_concern_recorded",
-        module: "grade_master",
-        actorRole: "grade_master",
-        title: "Learner concern recorded",
-        body: `${learnerLabel} concern was recorded for ${riskCategory}.`,
-      });
     } catch (error) {
       toast.error("Learner concern was not saved", {
         description: error instanceof Error ? error.message : "The concern could not be persisted.",
@@ -599,15 +626,19 @@ function LearnerProfileDrawer({ learner, onClose }: { learner: GradeLearnerRow |
   };
 
   const handleScheduleLearnerMeeting = async () => {
-    const guardian = window.prompt("Guardian or parent to meet")?.trim();
-    if (!guardian) {
-      toast.error("Guardian name is required before scheduling a meeting.");
+    const meetingDate = window.prompt("Meeting date (YYYY-MM-DD)")?.trim();
+    if (!meetingDate) {
+      toast.error("Meeting date is required.");
       return;
     }
-
-    const meetingDate = window.prompt("Meeting date and time, for example 2026-06-30 10:00")?.trim();
-    if (!meetingDate) {
-      toast.error("Meeting date and time are required.");
+    const startTime = window.prompt("Start time (HH:MM)", "10:00")?.trim();
+    if (!startTime) {
+      toast.error("Meeting start time is required.");
+      return;
+    }
+    const endTime = window.prompt("End time (HH:MM)", "10:30")?.trim();
+    if (!endTime) {
+      toast.error("Meeting end time is required.");
       return;
     }
 
@@ -622,27 +653,19 @@ function LearnerProfileDrawer({ learner, onClose }: { learner: GradeLearnerRow |
       await submitGradeWorkflowAction({
         action: "learner_meeting_scheduled",
         title: "Learner meeting scheduled",
-        message: `${learnerLabel} meeting with ${guardian} was scheduled for ${meetingDate}.`,
-        targetRoles: ["parent", "grade_master", "class_teacher", "secretary"],
+        message: `${learnerLabel} guardian meeting was scheduled for ${meetingDate} at ${startTime}.`,
+        targetRoles: ["grade_master", "secretary"],
         priority: "normal",
         payload: {
           learnerId: learner.id,
-          admissionNumber: learner.admission_number,
-          stream: learner.stream,
-          guardian,
           meetingDate,
+          startTime,
+          endTime,
           agenda,
           ownerRole: "grade_master",
         },
       });
-      toast.success("Meeting scheduled", { description: `${guardian} and the school follow-up roles were notified.` });
-      publishSchoolOperationalEvent({
-        type: "grade_master.learner_meeting_scheduled",
-        module: "grade_master",
-        actorRole: "grade_master",
-        title: "Learner meeting scheduled",
-        body: `${learnerLabel} meeting with ${guardian} was scheduled for ${meetingDate}.`,
-      });
+      toast.success("Meeting scheduled", { description: "The linked guardian account and authorised school follow-up roles were notified." });
     } catch (error) {
       toast.error("Meeting was not scheduled", {
         description: error instanceof Error ? error.message : "The meeting action could not be persisted.",
@@ -671,25 +694,17 @@ function LearnerProfileDrawer({ learner, onClose }: { learner: GradeLearnerRow |
         action: "deputy_escalation_requested",
         title: "Deputy escalation requested",
         message: `${learnerLabel} was escalated to the Deputy Principal for review.`,
-        targetRoles: ["grade_master", "class_teacher", "deputy_principal"],
+        targetRoles: ["grade_master", ...(learner.class_teacher_user_id ? ["class_teacher"] : []), "deputy_principal"],
         priority: "urgent",
         payload: {
           learnerId: learner.id,
-          admissionNumber: learner.admission_number,
-          stream: learner.stream,
+          ...(learner.class_teacher_user_id ? { recipientUserId: learner.class_teacher_user_id } : {}),
           evidence,
           requestedAction,
           ownerRole: "grade_master",
         },
       });
       toast.success("Escalation sent", { description: "Deputy Principal review has been queued with learner context." });
-      publishSchoolOperationalEvent({
-        type: "grade_master.deputy_escalation_requested",
-        module: "grade_master",
-        actorRole: "grade_master",
-        title: "Deputy escalation requested",
-        body: `${learnerLabel} was escalated to the Deputy Principal for review.`,
-      });
     } catch (error) {
       toast.error("Escalation was not sent", {
         description: error instanceof Error ? error.message : "The escalation could not be persisted.",
@@ -718,7 +733,7 @@ function LearnerProfileDrawer({ learner, onClose }: { learner: GradeLearnerRow |
         </header>
         <div className="p-4 space-y-6">
           <section className="flex flex-wrap gap-2">
-            <button type="button" className="rounded-full bg-[#071D49] px-3 py-1.5 text-xs font-black text-white" onClick={() => sendGradeNotification({ action: "parent_message_sent", title: "Parent message queued", message: `${learnerLabel} needs a grade-master follow-up covering attendance, academics, welfare, or discipline.`, targetRoles: ["parent", "grade_master", "secretary"], priority: "normal", payload: { learnerId: learner.id, admissionNumber: learner.admission_number, stream: learner.stream } })}>Message Parent</button>
+            <button type="button" className="rounded-full bg-[#071D49] px-3 py-1.5 text-xs font-black text-white" onClick={() => sendGradeNotification({ action: "parent_message_sent", title: "Guardian follow-up queued", message: `${learnerLabel} needs a grade-master follow-up covering attendance, academics, welfare, or discipline.`, targetRoles: ["grade_master", "secretary"], priority: "normal", payload: { learnerId: learner.id } })}>Message Guardian</button>
             <button type="button" disabled={pendingAction !== null} className="rounded-full border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49] disabled:opacity-60" onClick={handleRecordLearnerConcern}>{pendingAction === "concern" ? "Saving..." : "Record Concern"}</button>
             <button type="button" disabled={pendingAction !== null} className="rounded-full border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49] disabled:opacity-60" onClick={handleScheduleLearnerMeeting}>{pendingAction === "meeting" ? "Scheduling..." : "Schedule Meeting"}</button>
             <button type="button" disabled={pendingAction !== null} className="rounded-full border border-rose-200 text-rose-700 bg-rose-50 px-3 py-1.5 text-xs font-black disabled:opacity-60" onClick={handleEscalateLearnerToDeputy}>{pendingAction === "deputy" ? "Escalating..." : "Escalate to Deputy"}</button>
@@ -761,24 +776,27 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (view: GradeView) => vo
   const { data: learners = [] } = useSchoolQuery<GradeLearnerRow[]>("/api/grade-master/learners", { enabled: !!liveSession.session });
   const [pendingAction, setPendingAction] = useState<string | null>(null);
 
-  const handleRecordWatchlistFollowUp = async () => {
+  const handleRecordWatchlistFollowUp = async (learner: GradeLearnerRow) => {
     setPendingAction("learner_follow_up_recorded");
     try {
       await submitPromptedGradeWorkflowAction({
         action: "learner_follow_up_recorded",
         title: "Learner follow-up recorded",
-        message: (values) => `${values.learner} follow-up recorded for ${values.reason}.`,
-        targetRoles: ["grade_master", "class_teacher", "parent"],
+        message: (values) => `${learner.learner} follow-up recorded for ${values.reason}.`,
+        targetRoles: ["grade_master", ...(learner.class_teacher_user_id ? ["class_teacher"] : [])],
         priority: "high",
-        payload: { workflow: "urgent_watchlist_follow_up" },
+        payload: {
+          workflow: "urgent_watchlist_follow_up",
+          learnerId: learner.id,
+          ...(learner.class_teacher_user_id ? { recipientUserId: learner.class_teacher_user_id } : {}),
+        },
         prompts: [
-          { key: "learner", label: "Learner name or ADM", requiredMessage: "Learner is required." },
           { key: "reason", label: "Follow-up reason", requiredMessage: "Follow-up reason is required." },
           { key: "actionTaken", label: "Action taken", requiredMessage: "Action taken is required." },
           { key: "parentContactStatus", label: "Parent contact status", requiredMessage: "Parent contact status is required." },
         ],
         successTitle: "Follow-up recorded",
-        successDescription: "Class teacher and parent follow-up roles were queued.",
+        successDescription: "Linked guardian accounts and the scoped class-teacher queue were updated.",
       });
     } finally {
       setPendingAction(null);
@@ -830,7 +848,7 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (view: GradeView) => vo
                 <StatusChip key={`risk-${learner.id}`} label={learner.risk} tone={riskTone(learner.risk)} />,
                 index === 0
                   ? <button key={`profile-${learner.id}`} type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => openGradeRecord("Learner risk profile", [["Learner", learner.learner], ["ADM", learner.admission_number], ["Stream", learner.stream], ["Risk", learner.risk]])}>Open Profile</button>
-                  : <button key={`follow-${learner.id}`} type="button" disabled={pendingAction !== null} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={handleRecordWatchlistFollowUp}>{pendingAction === "learner_follow_up_recorded" ? "Saving..." : "Record Follow-up"}</button>,
+                  : <button key={`follow-${learner.id}`} type="button" disabled={pendingAction !== null} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={() => handleRecordWatchlistFollowUp(learner)}>{pendingAction === "learner_follow_up_recorded" ? "Saving..." : "Record Follow-up"}</button>,
               ])}
           />
         </Panel>
@@ -858,25 +876,33 @@ function LearnersWorkspace({ onSelectLearner }: { onSelectLearner: (learner: Gra
   const liveSession = useLiveTenantSession("school");
   const { data: learners = [] } = useSchoolQuery<GradeLearnerRow[]>("/api/grade-master/learners", { enabled: !!liveSession.session });
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [selectedLearnerId, setSelectedLearnerId] = useState("");
 
   const handleAddGradeNote = async () => {
+    const learner = learners.find((candidate) => candidate.id === selectedLearnerId);
+    if (!learner) {
+      toast.error("Select a learner from the assigned grade before adding a note.");
+      return;
+    }
     setPendingAction("grade_note_added");
     try {
       await submitPromptedGradeWorkflowAction({
         action: "grade_note_added",
         title: "Grade note added",
-        message: (values) => `Grade note saved for ${values.learner || values.stream}.`,
-        targetRoles: ["grade_master", "class_teacher"],
+        message: () => `Grade note saved for ${learner.learner}.`,
+        targetRoles: ["grade_master", ...(learner.class_teacher_user_id ? ["class_teacher"] : [])],
         priority: "normal",
-        payload: { workflow: "learner_note" },
+        payload: {
+          workflow: "learner_note",
+          learnerId: learner.id,
+          ...(learner.class_teacher_user_id ? { recipientUserId: learner.class_teacher_user_id } : {}),
+        },
         prompts: [
-          { key: "stream", label: "Stream", requiredMessage: "Stream is required before saving a grade note." },
-          { key: "learner", label: "Learner name or ADM", requiredMessage: "Learner is required before saving a grade note." },
           { key: "note", label: "Note and follow-up action", requiredMessage: "Note details are required." },
           { key: "followUpDate", label: "Follow-up date", requiredMessage: "Follow-up date is required." },
         ],
         successTitle: "Grade note saved",
-        successDescription: (values) => `${values.learner} is now in the grade follow-up queue.`,
+        successDescription: `${learner.learner} is now in the grade follow-up queue.`,
       });
     } finally {
       setPendingAction(null);
@@ -891,7 +917,12 @@ function LearnersWorkspace({ onSelectLearner }: { onSelectLearner: (learner: Gra
       actions={
         <div className="flex gap-2">
            <button type="button" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-black text-[#071D49]" onClick={() => exportGradeCsv("grade-master-learners.csv", ["ADM", "Learner", "Stream", "Attendance", "Average", "Risk"], learners.map((learner) => [learner.admission_number, learner.learner, learner.stream, learner.attendance, learner.average, learner.risk]), "Learner list")}>Export</button>
-           <button type="button" disabled={pendingAction !== null} className="rounded-xl bg-[#071D49] px-3 py-2 text-sm font-black text-white disabled:opacity-60" onClick={handleAddGradeNote}>{pendingAction === "grade_note_added" ? "Saving..." : "Add Note"}</button>
+           <label className="sr-only" htmlFor="grade-note-learner">Learner for grade note</label>
+           <select id="grade-note-learner" aria-label="Learner for grade note" value={selectedLearnerId} onChange={(event) => setSelectedLearnerId(event.target.value)} className="rounded-xl border border-[#D8E0EC] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]">
+             <option value="">Select learner</option>
+             {learners.map((learner) => <option key={learner.id} value={learner.id}>{learner.learner} ({learner.admission_number})</option>)}
+           </select>
+           <button type="button" disabled={pendingAction !== null || !selectedLearnerId} className="rounded-xl bg-[#071D49] px-3 py-2 text-sm font-black text-white disabled:opacity-60" onClick={handleAddGradeNote}>{pendingAction === "grade_note_added" ? "Saving..." : "Add Note"}</button>
         </div>
       }
     >
@@ -920,14 +951,23 @@ function StreamsWorkspace() {
   const liveSession = useLiveTenantSession("school");
   const { data: streams = [] } = useSchoolQuery<GradeStreamRow[]>("/api/grade-master/streams", { enabled: !!liveSession.session });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const handleMessageTeacher = async () => {
+  const handleMessageTeacher = async (stream: GradeStreamRow) => {
+    if (!stream.class_teacher_user_id) {
+      toast.error("Assign a class teacher before sending a stream message.");
+      return;
+    }
     setIsSubmitting(true);
     try {
       await submitGradeWorkflowAction({
         action: "teacher_message",
         title: "Grade master teacher message",
         message: "Grade master requested a stream update from a class teacher.",
-        targetRoles: ["class_teacher", "teacher", "grade_master"],
+        targetRoles: ["class_teacher"],
+        payload: {
+          classSectionId: stream.class_section_id,
+          streamId: stream.stream_id,
+          recipientUserId: stream.class_teacher_user_id,
+        },
       });
       toast.success("Message queued for the selected staff roles.");
     } catch (err: unknown) {
@@ -948,7 +988,7 @@ function StreamsWorkspace() {
           String(stream.present),
           String(stream.open_concerns),
           stream.last_update,
-          <button key={`message-${stream.id}`} type="button" onClick={handleMessageTeacher} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">{isSubmitting ? "Sending..." : stream.class_teacher === "Unassigned" ? "Request Update" : "Message Teacher"}</button>,
+          <button key={`message-${stream.id}`} type="button" onClick={() => handleMessageTeacher(stream)} disabled={isSubmitting || !stream.class_teacher_user_id} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">{isSubmitting ? "Sending..." : stream.class_teacher_user_id ? "Message Teacher" : "Teacher Unassigned"}</button>,
         ])}
       />
     </Panel>
@@ -963,20 +1003,21 @@ function AttendanceWorkspace() {
   const unmarkedCount = attendanceRows.filter((row) => String(row.status).toLowerCase() === "unmarked").length;
   const [pendingAction, setPendingAction] = useState<string | null>(null);
 
-  const handleRecordAttendanceReason = async () => {
+  const handleRecordAttendanceReason = async (row: GradeAttendanceRow) => {
     setPendingAction("attendance_reason_recorded");
     try {
       await submitPromptedGradeWorkflowAction({
         action: "attendance_reason_recorded",
         title: "Attendance reason recorded",
-        message: (values) => `${values.learner} ${values.status} reason recorded: ${values.reason}.`,
-        targetRoles: ["grade_master", "class_teacher", "secretary"],
+        message: (values) => `${row.learner} ${row.status} reason recorded: ${values.reason}.`,
+        targetRoles: ["grade_master", ...(row.class_teacher_user_id ? ["class_teacher"] : []), "secretary"],
         priority: "normal",
-        payload: { workflow: "attendance_follow_up" },
+        payload: {
+          workflow: "attendance_follow_up",
+          learnerId: row.id,
+          ...(row.class_teacher_user_id ? { recipientUserId: row.class_teacher_user_id } : {}),
+        },
         prompts: [
-          { key: "learner", label: "Learner name or ADM", requiredMessage: "Learner is required before recording an attendance reason." },
-          { key: "stream", label: "Stream", requiredMessage: "Stream is required." },
-          { key: "status", label: "Attendance status", requiredMessage: "Attendance status is required." },
           { key: "reason", label: "Reason and evidence", requiredMessage: "Reason is required before saving." },
         ],
         successTitle: "Attendance reason saved",
@@ -996,15 +1037,16 @@ function AttendanceWorkspace() {
       </div>
       <DataTable 
         columns={["Learner", "Stream", "Status", "Reason", "Absence Count", "Actions"]}
-        rows={attendanceRows.map((row, index) => [
+        rows={attendanceRows.map((row) => [
           row.learner,
           row.stream,
           <StatusChip key={`status-${row.id}`} label={row.status} tone={statusTone(row.status)} />,
           row.reason,
           String(row.absence_count),
-          index === 0
-            ? <button key={`parent-${row.id}`} type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => sendGradeNotification({ action: "parent_attendance_message_sent", title: "Parent attendance message queued", message: `${row.learner} has ${row.status} attendance requiring guardian follow-up.`, targetRoles: ["parent", "grade_master", "secretary"], priority: "high", payload: { learner: row.learner, stream: row.stream, reason: row.reason } })}>Message Parent</button>
-            : <button key={`reason-${row.id}`} type="button" disabled={pendingAction !== null} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={handleRecordAttendanceReason}>{pendingAction === "attendance_reason_recorded" ? "Saving..." : "Record Reason"}</button>,
+          <div key={`attendance-actions-${row.id}`} className="flex gap-2">
+            <button type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => sendGradeNotification({ action: "parent_attendance_message_sent", title: "Guardian attendance follow-up queued", message: `${row.learner} has ${row.status} attendance requiring guardian follow-up.`, targetRoles: ["grade_master", "secretary"], priority: "high", payload: { learnerId: row.id } })}>Message Guardian</button>
+            <button type="button" disabled={pendingAction !== null} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={() => handleRecordAttendanceReason(row)}>{pendingAction === "attendance_reason_recorded" ? "Saving..." : "Record Reason"}</button>
+          </div>,
         ])}
       />
     </Panel>
@@ -1020,24 +1062,32 @@ function AcademicsWorkspace() {
   const highestRisk = [...academics].sort((a, b) => Number(b.at_risk) - Number(a.at_risk))[0];
   const [pendingAction, setPendingAction] = useState<string | null>(null);
 
-  const handleRequestAcademicIntervention = async () => {
+  const handleRequestAcademicIntervention = async (row: GradeAcademicRow) => {
+    if (!row.teacher_user_id) {
+      toast.error("Assign a subject teacher before requesting an intervention.");
+      return;
+    }
     setPendingAction("academic_intervention_requested");
     try {
       await submitPromptedGradeWorkflowAction({
         action: "academic_intervention_requested",
         title: "Academic intervention requested",
-        message: (values) => `${values.subject} intervention requested for ${values.stream} with ${values.owner}.`,
-        targetRoles: ["grade_master", "teacher", "hod", "dean_of_academics"],
+        message: () => `${row.subject} intervention requested for ${row.stream_id ? "the selected stream" : "the assigned class"} with ${row.teacher}.`,
+        targetRoles: ["teacher"],
         priority: "high",
-        payload: { workflow: "academic_intervention" },
+        payload: {
+          workflow: "academic_intervention",
+          subjectId: row.subject_id,
+          classSectionId: row.class_section_id,
+          streamId: row.stream_id,
+          recipientUserId: row.teacher_user_id,
+        },
         prompts: [
-          { key: "subject", label: "Subject", requiredMessage: "Subject is required." },
-          { key: "stream", label: "Stream", requiredMessage: "Stream is required." },
-          { key: "owner", label: "Teacher or HOD owner", requiredMessage: "Owner is required for intervention." },
+          { key: "intervention", label: "Intervention required", requiredMessage: "Intervention details are required." },
           { key: "targetDate", label: "Target review date", requiredMessage: "Target date is required." },
         ],
         successTitle: "Intervention requested",
-        successDescription: "Teacher, HOD, and Dean follow-up roles were queued.",
+        successDescription: `The request was delivered to ${row.teacher}.`,
       });
     } finally {
       setPendingAction(null);
@@ -1060,15 +1110,16 @@ function AcademicsWorkspace() {
       </div>
       <DataTable 
         columns={["Subject", "Teacher", "Average", "Missing Marks", "At-Risk", "Actions"]}
-        rows={academics.map((row, index) => [
+        rows={academics.map((row) => [
           row.subject,
           row.teacher,
           row.average,
           String(row.missing_marks),
           String(row.at_risk),
-          index === 0
-            ? <button key={`intervention-${row.id}`} type="button" disabled={pendingAction !== null} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={handleRequestAcademicIntervention}>{pendingAction === "academic_intervention_requested" ? "Requesting..." : "Request Intervention"}</button>
-            : <button key={`view-${row.id}`} type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => openGradeRecord(`${row.subject} at-risk learners`, [["Subject", row.subject], ["Teacher", row.teacher], ["Average", row.average], ["At-risk", String(row.at_risk)]])}>View Learners</button>,
+          <div key={`academic-actions-${row.id}`} className="flex gap-2">
+            <button type="button" disabled={pendingAction !== null || !row.teacher_user_id} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={() => handleRequestAcademicIntervention(row)}>{pendingAction === "academic_intervention_requested" ? "Requesting..." : row.teacher_user_id ? "Request Intervention" : "Teacher Unassigned"}</button>
+            <button type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => openGradeRecord(`${row.subject} at-risk learners`, [["Subject", row.subject], ["Teacher", row.teacher], ["Average", row.average], ["At-risk", String(row.at_risk)]])}>View Learners</button>
+          </div>,
         ])}
       />
     </Panel>
@@ -1081,15 +1132,27 @@ function ExamsWorkspace() {
   const { data: readiness = [] } = useSchoolQuery<GradeReportReadinessRow[]>("/api/grade-master/report-readiness", { enabled: !!liveSession.session });
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const handleAction = async (action: string) => {
+  const handleAction = async (action: "request_comments" | "message_teacher" | "report_approval_requested", row: GradeReportReadinessRow) => {
+    const isExactTeacherMessage = action === "request_comments" || action === "message_teacher";
+    if (isExactTeacherMessage && !row.class_teacher_user_id) {
+      toast.error("Assign a class teacher before sending this report-readiness request.");
+      return;
+    }
     setIsSubmitting(true);
     try {
       await submitGradeWorkflowAction({
         action,
         title: "Grade report readiness action",
         message: `Grade master requested ${action} for the report-readiness workflow.`,
-        targetRoles: ["class_teacher", "teacher", "exams_manager", "grade_master"],
+        targetRoles: isExactTeacherMessage ? ["class_teacher"] : ["exams_manager", "grade_master"],
         priority: action === "message_teacher" ? "high" : "normal",
+        payload: {
+          classSectionId: row.class_section_id,
+          streamId: row.stream_id,
+          ...(isExactTeacherMessage && row.class_teacher_user_id
+            ? { recipientUserId: row.class_teacher_user_id }
+            : {}),
+        },
       });
       toast.success("Report-readiness workflow saved.");
     } catch (err: unknown) {
@@ -1102,19 +1165,19 @@ function ExamsWorkspace() {
   return (
     <Panel title="Exams & Report Readiness" description="Monitor whether report cards are ready for their grade/form." icon={ClipboardCheck}>
       <DataTable 
-        columns={["Stream", "Marks Status", "Teacher Comments", "Class Teacher", "Readiness", "Actions"]}
+        columns={["Stream", "Report Cards", "Teacher Comments", "Learners", "Readiness", "Actions"]}
         rows={readiness.map((row) => {
           const commentsPercent = Number(row.total_learners) > 0 ? Math.round((Number(row.comments_ready) / Number(row.total_learners)) * 100) : 0;
-          const ready = String(row.status).toLowerCase().includes("ready") || commentsPercent === 100;
+          const ready = String(row.status).toLowerCase() === "ready";
           return [
             row.stream,
-            ready ? "100%" : "In progress",
+            `${row.report_cards_ready}/${row.total_learners} approved`,
             `${commentsPercent}%`,
-            `${commentsPercent}%`,
-            <StatusChip key={`ready-${row.id}`} label={ready ? "Ready" : row.status} tone={statusTone(ready ? "Ready" : row.status)} />,
-            ready && hasPermission('school_reports:write')
-              ? <button key={`approve-${row.id}`} type="button" onClick={() => handleAction('approve_reports')} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs bg-[#EEF5FF] px-2 py-1 rounded disabled:opacity-50">{isSubmitting ? "Approving..." : "Approve Reports"}</button>
-              : <button key={`request-${row.id}`} type="button" onClick={() => handleAction(ready ? 'message_teacher' : 'request_comments')} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">{isSubmitting ? "Processing..." : ready ? "Message Teacher" : "Request Comments"}</button>,
+            String(row.total_learners),
+            <StatusChip key={`ready-${row.id}`} label={ready ? "Ready" : String(row.status).replaceAll("_", " ")} tone={statusTone(ready ? "Ready" : row.status)} />,
+            ready && hasPermission('reports:read')
+              ? <button key={`approve-${row.id}`} type="button" onClick={() => handleAction('report_approval_requested', row)} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs bg-[#EEF5FF] px-2 py-1 rounded disabled:opacity-50">{isSubmitting ? "Requesting..." : "Request Approval"}</button>
+              : <button key={`request-${row.id}`} type="button" onClick={() => handleAction(ready ? 'message_teacher' : 'request_comments', row)} disabled={isSubmitting || !row.class_teacher_user_id} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">{isSubmitting ? "Processing..." : row.class_teacher_user_id ? (ready ? "Message Teacher" : "Request Comments") : "Teacher Unassigned"}</button>,
           ];
         })}
       />
@@ -1125,73 +1188,74 @@ function ExamsWorkspace() {
 function DisciplineWorkspace() {
   const liveSession = useLiveTenantSession("school");
   const { data: disciplineRows = [] } = useSchoolQuery<GradeDisciplineRow[]>("/api/grade-master/discipline", { enabled: !!liveSession.session });
+  const { data: learners = [] } = useSchoolQuery<GradeLearnerRow[]>("/api/grade-master/learners", { enabled: !!liveSession.session });
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [selectedLearnerId, setSelectedLearnerId] = useState("");
 
   const handleRecordDisciplineIncident = async () => {
-    setPendingAction("discipline_incident_recorded");
+    const learner = learners.find((candidate) => candidate.id === selectedLearnerId);
+    if (!learner) {
+      toast.error("Select a learner from the assigned grade before referring an incident.");
+      return;
+    }
+    setPendingAction("discipline_incident_referral_requested");
     try {
       await submitPromptedGradeWorkflowAction({
-        action: "discipline_incident_recorded",
-        title: "Discipline incident recorded",
-        message: (values) => `${values.incidentType} incident recorded for ${values.learner} in ${values.stream}.`,
-        targetRoles: ["grade_master", "discipline_master", "deputy_principal", "class_teacher"],
+        action: "discipline_incident_referral_requested",
+        title: "Discipline incident referral requested",
+        message: (values) => `${values.incidentType} incident referral requested for ${learner.learner}.`,
+        targetRoles: ["grade_master", "discipline_master", "deputy_principal"],
         priority: "high",
-        payload: { workflow: "discipline_case" },
+        payload: { workflow: "discipline_case_referral", learnerId: learner.id },
         prompts: [
-          { key: "learner", label: "Learner name or ADM", requiredMessage: "Learner is required before recording an incident." },
-          { key: "stream", label: "Stream", requiredMessage: "Stream is required." },
           { key: "incidentType", label: "Incident type", requiredMessage: "Incident type is required." },
           { key: "evidence", label: "Evidence or witness notes", requiredMessage: "Evidence is required before saving." },
         ],
-        successTitle: "Discipline incident saved",
-        successDescription: "Discipline Master and Deputy Principal follow-up roles were queued.",
+        successTitle: "Discipline referral saved",
+        successDescription: "The referral was queued for the Discipline Master to create or link a governed incident record.",
       });
     } finally {
       setPendingAction(null);
     }
   };
 
-  const handleResolveDisciplineCase = async () => {
-    setPendingAction("discipline_resolution_recorded");
+  const handleResolveDisciplineCase = async (row: GradeDisciplineRow) => {
+    setPendingAction("discipline_resolution_requested");
     try {
       await submitPromptedGradeWorkflowAction({
-        action: "discipline_resolution_recorded",
-        title: "Discipline resolution recorded",
-        message: (values) => `${values.caseNo} resolution was recorded for ${values.learner}.`,
-        targetRoles: ["grade_master", "discipline_master", "class_teacher"],
+        action: "discipline_resolution_requested",
+        title: "Discipline resolution requested",
+        message: () => `Resolution review was requested for discipline case ${row.case_no} involving ${row.learner}.`,
+        targetRoles: ["grade_master", "discipline_master"],
         priority: "normal",
-        payload: { workflow: "discipline_resolution" },
+        payload: { workflow: "discipline_resolution_request", caseId: row.id },
         prompts: [
-          { key: "caseNo", label: "Case number", requiredMessage: "Case number is required." },
-          { key: "learner", label: "Learner", requiredMessage: "Learner is required." },
           { key: "resolution", label: "Resolution notes", requiredMessage: "Resolution notes are required." },
         ],
-        successTitle: "Discipline resolution saved",
-        successDescription: "The case resolution was queued for the discipline record.",
+        successTitle: "Resolution review requested",
+        successDescription: "The governed discipline owner must confirm the final case status.",
       });
     } finally {
       setPendingAction(null);
     }
   };
 
-  const handleEscalateDisciplineCase = async () => {
-    setPendingAction("discipline_case_escalated");
+  const handleEscalateDisciplineCase = async (row: GradeDisciplineRow) => {
+    setPendingAction("discipline_escalation_requested");
     try {
       await submitPromptedGradeWorkflowAction({
-        action: "discipline_case_escalated",
-        title: "Discipline case escalated",
-        message: (values) => `${values.caseNo} for ${values.learner} was escalated to Deputy Principal.`,
+        action: "discipline_escalation_requested",
+        title: "Discipline escalation requested",
+        message: () => `Deputy Principal escalation was requested for discipline case ${row.case_no} involving ${row.learner}.`,
         targetRoles: ["grade_master", "discipline_master", "deputy_principal"],
         priority: "urgent",
-        payload: { workflow: "discipline_escalation" },
+        payload: { workflow: "discipline_escalation_request", caseId: row.id },
         prompts: [
-          { key: "caseNo", label: "Case number", requiredMessage: "Case number is required." },
-          { key: "learner", label: "Learner", requiredMessage: "Learner is required." },
           { key: "evidence", label: "Escalation evidence", requiredMessage: "Escalation evidence is required." },
           { key: "requestedAction", label: "Requested deputy action", requiredMessage: "Requested deputy action is required." },
         ],
-        successTitle: "Case escalated",
-        successDescription: "Deputy Principal review was queued with discipline context.",
+        successTitle: "Escalation requested",
+        successDescription: "Deputy Principal review was queued with the canonical discipline case context.",
       });
     } finally {
       setPendingAction(null);
@@ -1200,20 +1264,26 @@ function DisciplineWorkspace() {
 
   return (
     <Panel title="Discipline & Behaviour" description="Monitors discipline issues within the form/grade." icon={ShieldAlert}>
-       <div className="mb-4 flex gap-2">
-           <button type="button" disabled={pendingAction !== null} className="rounded-xl bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 text-sm font-black disabled:opacity-60" onClick={handleRecordDisciplineIncident}>{pendingAction === "discipline_incident_recorded" ? "Saving..." : "Record Incident"}</button>
+       <div className="mb-4 flex flex-wrap gap-2">
+           <label className="sr-only" htmlFor="discipline-referral-learner">Learner for discipline referral</label>
+           <select id="discipline-referral-learner" aria-label="Learner for discipline referral" value={selectedLearnerId} onChange={(event) => setSelectedLearnerId(event.target.value)} className="rounded-xl border border-[#D8E0EC] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]">
+             <option value="">Select learner</option>
+             {learners.map((learner) => <option key={learner.id} value={learner.id}>{learner.learner} ({learner.admission_number})</option>)}
+           </select>
+           <button type="button" disabled={pendingAction !== null || !selectedLearnerId} className="rounded-xl bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 text-sm font-black disabled:opacity-60" onClick={handleRecordDisciplineIncident}>{pendingAction === "discipline_incident_referral_requested" ? "Saving..." : "Refer Incident"}</button>
        </div>
        <DataTable 
         columns={["Case No.", "Learner", "Stream", "Severity", "Status", "Actions"]}
-        rows={disciplineRows.map((row, index) => [
+        rows={disciplineRows.map((row) => [
           row.case_no,
           row.learner,
           row.stream,
           <StatusChip key={`severity-${row.id}`} label={row.severity} tone={riskTone(row.severity)} />,
           row.status,
-          index === 0
-            ? <button key={`escalate-${row.id}`} type="button" disabled={pendingAction !== null} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={handleEscalateDisciplineCase}>{pendingAction === "discipline_case_escalated" ? "Escalating..." : "Escalate to Deputy"}</button>
-            : <button key={`resolve-${row.id}`} type="button" disabled={pendingAction !== null} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={handleResolveDisciplineCase}>{pendingAction === "discipline_resolution_recorded" ? "Saving..." : "Mark Resolved"}</button>,
+          <div key={`discipline-actions-${row.id}`} className="flex gap-2">
+            <button type="button" disabled={pendingAction !== null} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={() => handleEscalateDisciplineCase(row)}>{pendingAction === "discipline_escalation_requested" ? "Requesting..." : "Request Escalation"}</button>
+            <button type="button" disabled={pendingAction !== null} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={() => handleResolveDisciplineCase(row)}>{pendingAction === "discipline_resolution_requested" ? "Saving..." : "Request Resolution"}</button>
+          </div>,
         ])}
       />
     </Panel>
@@ -1234,7 +1304,7 @@ function WelfareWorkspace() {
           <StatusChip key={`priority-${row.id}`} label={row.priority} tone={riskTone(row.priority)} />,
           row.assigned_to,
           row.status,
-          <button key={`notify-${row.id}`} type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => sendGradeNotification({ action: "class_teacher_welfare_notification_sent", title: "Class teacher welfare notification queued", message: `${row.learner} needs a welfare follow-up. Sensitive counselling notes remain restricted.`, targetRoles: ["class_teacher", "grade_master"], priority: "normal", payload: { learner: row.learner, stream: row.stream, concern: row.concern_type } })}>Notify Class Teacher</button>,
+          <button key={`notify-${row.id}`} type="button" disabled={!row.class_teacher_user_id} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50" onClick={() => row.class_teacher_user_id && sendGradeNotification({ action: "class_teacher_welfare_notification_sent", title: "Class teacher welfare notification queued", message: `${row.learner} needs a welfare follow-up. Sensitive counselling notes remain restricted.`, targetRoles: ["class_teacher"], priority: "normal", payload: { learnerId: row.learner_id, recipientUserId: row.class_teacher_user_id, concern: row.concern_type } })}>{row.class_teacher_user_id ? "Notify Class Teacher" : "Teacher Unassigned"}</button>,
         ])}
       />
     </Panel>
@@ -1244,17 +1314,31 @@ function WelfareWorkspace() {
 function CommunicationWorkspace() {
   const liveSession = useLiveTenantSession("school");
   const { data: communicationRows = [] } = useSchoolQuery<GradeCommunicationRow[]>("/api/grade-master/communications", { enabled: !!liveSession.session });
+  const { data: streams = [] } = useSchoolQuery<GradeStreamRow[]>("/api/grade-master/streams", { enabled: !!liveSession.session });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const handleSendMessage = async () => {
+  const [selectedScopeId, setSelectedScopeId] = useState("");
+  const handleSendMessage = async (recipient?: GradeCommunicationRow) => {
+    const scope = recipient ? undefined : streams.find((candidate) => candidate.id === selectedScopeId);
+    if (!recipient && !scope) {
+      toast.error("Select an assigned class or stream before sending a bulk notice.");
+      return;
+    }
+    const message = window.prompt(recipient ? `Message for ${recipient.guardian}` : `Notice for ${scope?.stream}`)?.trim();
+    if (!message) {
+      toast.error("A message is required before delivery.");
+      return;
+    }
     setIsSubmitting(true);
     try {
-      await submitGradeWorkflowAction({
-        action: "bulk_notice",
-        title: "Grade bulk notice",
-        message: "Grade master sent a bulk parent/class notice workflow.",
-        targetRoles: ["parent", "class_teacher", "grade_master"],
+      await sendGradeNotification({
+        action: recipient ? "parent_message_sent" : "bulk_notice",
+        title: recipient ? "Guardian message queued" : "Grade bulk notice queued",
+        message,
+        targetRoles: ["grade_master"],
+        payload: recipient
+          ? { learnerId: recipient.learner_id, guardianId: recipient.guardian_id }
+          : { classSectionId: scope?.class_section_id, streamId: scope?.stream_id },
       });
-      toast.success("Message queued for the selected recipients.");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to send message.");
     } finally {
@@ -1264,8 +1348,13 @@ function CommunicationWorkspace() {
 
   return (
     <Panel title="Parent Communication" description="Where the Grade/Form Master communicates with parents." icon={MessageCircle}>
-       <div className="mb-4 flex gap-2">
-           <button type="button" onClick={handleSendMessage} disabled={isSubmitting} className="rounded-xl bg-[#071D49] px-3 py-2 text-sm font-black text-white disabled:opacity-50">{isSubmitting ? "Sending..." : "Send Bulk Notice"}</button>
+       <div className="mb-4 flex flex-wrap gap-2">
+           <label className="sr-only" htmlFor="bulk-notice-scope">Class or stream for bulk notice</label>
+           <select id="bulk-notice-scope" aria-label="Class or stream for bulk notice" value={selectedScopeId} onChange={(event) => setSelectedScopeId(event.target.value)} className="rounded-xl border border-[#D8E0EC] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]">
+             <option value="">Select class or stream</option>
+             {streams.map((stream) => <option key={stream.id} value={stream.id}>{stream.stream}</option>)}
+           </select>
+           <button type="button" onClick={() => handleSendMessage()} disabled={isSubmitting || !selectedScopeId} className="rounded-xl bg-[#071D49] px-3 py-2 text-sm font-black text-white disabled:opacity-50">{isSubmitting ? "Sending..." : "Send Bulk Notice"}</button>
            <button type="button" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-black text-[#071D49]" onClick={() => openGradeRecord("Grade message templates", [["Template", "Attendance concern"], ["Template", "Meeting reminder"], ["Template", "Academic intervention"], ["Template", "Welfare follow-up"]])}>Message Templates</button>
        </div>
        <DataTable 
@@ -1276,7 +1365,7 @@ function CommunicationWorkspace() {
           row.last_contacted,
           row.last_message_type,
           <StatusChip key={`communication-${row.id}`} label={row.status} tone={statusTone(row.status)} />,
-          <button key={`send-${row.id}`} type="button" onClick={handleSendMessage} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">{isSubmitting ? "Sending..." : "Send Message"}</button>,
+          <button key={`send-${row.id}`} type="button" onClick={() => handleSendMessage(row)} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">{isSubmitting ? "Sending..." : "Send Message"}</button>,
         ])}
       />
     </Panel>
@@ -1288,20 +1377,20 @@ function MeetingsWorkspace() {
   const { data: meetings = [] } = useSchoolQuery<GradeMeetingRow[]>("/api/grade-master/meetings", { enabled: !!liveSession.session });
   const [pendingAction, setPendingAction] = useState<string | null>(null);
 
-  const handleRescheduleMeeting = async () => {
+  const handleRescheduleMeeting = async (meeting: GradeMeetingRow) => {
     setPendingAction("learner_meeting_rescheduled");
     try {
       await submitPromptedGradeWorkflowAction({
         action: "learner_meeting_rescheduled",
         title: "Learner meeting rescheduled",
-        message: (values) => `${values.meetingTitle} for ${values.learner} was moved to ${values.newDateTime}.`,
-        targetRoles: ["parent", "grade_master", "class_teacher", "secretary"],
+        message: (values) => `${meeting.meeting_title} for ${meeting.learner} was moved to ${values.meetingDate} at ${values.startTime}.`,
+        targetRoles: ["grade_master", "secretary"],
         priority: "normal",
-        payload: { workflow: "meeting_follow_up" },
+        payload: { workflow: "meeting_follow_up", meetingId: meeting.id },
         prompts: [
-          { key: "meetingTitle", label: "Meeting title", requiredMessage: "Meeting title is required." },
-          { key: "learner", label: "Learner", requiredMessage: "Learner is required." },
-          { key: "newDateTime", label: "New date and time", requiredMessage: "New meeting date and time are required." },
+          { key: "meetingDate", label: "New meeting date (YYYY-MM-DD)", requiredMessage: "New meeting date is required." },
+          { key: "startTime", label: "New start time (HH:MM)", requiredMessage: "New start time is required.", defaultValue: meeting.time },
+          { key: "endTime", label: "New end time (HH:MM)", requiredMessage: "New end time is required." },
           { key: "reason", label: "Reason for reschedule", requiredMessage: "Reschedule reason is required." },
         ],
         successTitle: "Meeting rescheduled",
@@ -1322,7 +1411,7 @@ function MeetingsWorkspace() {
           row.date,
           row.time,
           <StatusChip key={`meeting-${row.id}`} label={row.status} tone={statusTone(row.status)} />,
-          <button key={`reschedule-${row.id}`} type="button" disabled={pendingAction !== null} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={handleRescheduleMeeting}>{pendingAction === "learner_meeting_rescheduled" ? "Saving..." : "Reschedule"}</button>,
+          <button key={`reschedule-${row.id}`} type="button" disabled={pendingAction !== null} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={() => handleRescheduleMeeting(row)}>{pendingAction === "learner_meeting_rescheduled" ? "Saving..." : "Reschedule"}</button>,
         ])}
       />
     </Panel>
@@ -1362,14 +1451,20 @@ function RequestsWorkspace() {
   const liveSession = useLiveTenantSession("school");
   const { data: requests = [] } = useSchoolQuery<GradeRequestRow[]>("/api/grade-master/requests", { enabled: !!liveSession.session });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const handleAddComment = async () => {
+  const handleAddComment = async (request: GradeRequestRow) => {
+    const comment = window.prompt(`Comment for request ${request.request_no}`)?.trim();
+    if (!comment) {
+      toast.error("A request comment is required before saving.");
+      return;
+    }
     setIsSubmitting(true);
     try {
       await submitGradeWorkflowAction({
         action: "add_comment",
         title: "Grade master comment added",
-        message: "Grade master added a request comment for the receiving role.",
+        message: comment,
         targetRoles: ["deputy_principal", "grade_master"],
+        payload: { requestId: request.id, comment },
       });
       toast.success("Comment queued for the request workflow.");
     } catch (err: unknown) {
@@ -1389,7 +1484,7 @@ function RequestsWorkspace() {
           row.learner_or_stream,
           row.assigned_to,
           <StatusChip key={`request-${row.id}`} label={row.status} tone={statusTone(row.status)} />,
-          <button key={`comment-${row.id}`} type="button" onClick={handleAddComment} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">{isSubmitting ? "Processing..." : "Add Comment"}</button>,
+          <button key={`comment-${row.id}`} type="button" onClick={() => handleAddComment(row)} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">{isSubmitting ? "Processing..." : "Add Comment"}</button>,
         ])}
       />
     </Panel>
@@ -1399,12 +1494,46 @@ function RequestsWorkspace() {
 function ReportsWorkspace() {
   const liveSession = useLiveTenantSession("school");
   const { data: reports = [] } = useSchoolQuery<GradeReportRow[]>("/api/grade-master/reports", { enabled: !!liveSession.session });
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const downloadReport = async (report: GradeReportRow) => {
+    setDownloadingId(report.id);
+    try {
+      const response = await requestDashboardApi<GradeReportDownloadResponse>(report.download_url);
+      const artifact = response.artifact;
+      if (!artifact?.content_base64) {
+        throw new Error("The stored report does not contain a downloadable artifact.");
+      }
+      const binary = window.atob(artifact.content_base64);
+      const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+      const objectUrl = URL.createObjectURL(new Blob([bytes], {
+        type: artifact.content_type || "application/octet-stream",
+      }));
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = artifact.filename || `${report.report_name}.${response.format || report.type || "bin"}`;
+      link.click();
+      URL.revokeObjectURL(objectUrl);
+      toast.success("Verified grade report downloaded.");
+    } catch (error) {
+      toast.error("Grade report download failed", {
+        description: error instanceof Error ? error.message : "The stored artifact could not be decoded.",
+      });
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   return (
     <Panel title="Reports & Downloads" description="Printable and exportable grade/form reports." icon={FileText}>
        <div className="grid gap-4 md:grid-cols-3">
          {reports.map((report) => (
-           <button key={report.id} type="button" className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left font-bold text-[#071D49] hover:border-[#071D49] transition" onClick={() => openGradeRecord(report.report_name, [["Report", report.report_name], ["Format", report.type], ["Status", report.status], ["Download", report.download_url]])}>{report.report_name}</button>
+           <button key={report.id} type="button" disabled={downloadingId !== null} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left font-bold text-[#071D49] hover:border-[#071D49] transition disabled:opacity-60" onClick={() => void downloadReport(report)}>
+             <span className="flex items-center gap-2"><Download className="h-4 w-4" />{downloadingId === report.id ? "Preparing..." : report.report_name}</span>
+             <span className="mt-2 block text-xs font-semibold uppercase text-[#64748B]">{report.type} · {report.status}</span>
+           </button>
          ))}
+         {reports.length === 0 ? <p className="text-sm text-[#64748B]">No scoped grade report artifact has been generated yet.</p> : null}
        </div>
     </Panel>
   );
@@ -1412,25 +1541,18 @@ function ReportsWorkspace() {
 
 function NotificationsWorkspace() {
   const liveSession = useLiveTenantSession("school");
-  const { data: notifications = [] } = useSchoolQuery<GradeNotificationRow[]>("/api/grade-master/notifications", { enabled: !!liveSession.session });
+  const { data: notifications = [], refetch } = useSchoolQuery<GradeNotificationRow[]>("/api/grade-master/notifications", { enabled: !!liveSession.session });
   const [pendingAction, setPendingAction] = useState<string | null>(null);
 
-  const handleResolveNotification = async () => {
-    setPendingAction("notification_resolution_recorded");
+  const handleResolveNotification = async (notification: GradeNotificationRow) => {
+    setPendingAction(notification.id);
     try {
-      await submitPromptedGradeWorkflowAction({
-        action: "notification_resolution_recorded",
-        title: "Notification resolution recorded",
-        message: (values) => `Notification resolved with action: ${values.resolution}.`,
-        targetRoles: ["grade_master", "deputy_principal"],
-        priority: "high",
-        payload: { workflow: "notification_resolution" },
-        prompts: [
-          { key: "resolution", label: "Resolution action taken", requiredMessage: "Resolution action is required before closing the alert." },
-          { key: "owner", label: "Owner for any remaining follow-up", defaultValue: "Grade Master", requiredMessage: "Follow-up owner is required." },
-        ],
-        successTitle: "Notification resolved",
-        successDescription: "The resolution was saved to the grade workflow queue.",
+      await requestDashboardApi(`/api/notifications/${encodeURIComponent(notification.id)}/read`, { method: "PATCH" });
+      await refetch();
+      toast.success("Notification marked as read.");
+    } catch (error) {
+      toast.error("Notification was not updated", {
+        description: error instanceof Error ? error.message : "The notification could not be marked as read.",
       });
     } finally {
       setPendingAction(null);
@@ -1446,7 +1568,7 @@ function NotificationsWorkspace() {
           row.message || row.title,
           <StatusChip key={`priority-${row.id}`} label={row.priority} tone={riskTone(row.priority)} />,
           row.status,
-          <button key={`resolve-${row.id}`} type="button" disabled={pendingAction !== null} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={handleResolveNotification}>{pendingAction === "notification_resolution_recorded" ? "Saving..." : "Resolve"}</button>,
+          <button key={`resolve-${row.id}`} type="button" disabled={pendingAction !== null || String(row.status).toLowerCase() === "read"} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={() => handleResolveNotification(row)}>{pendingAction === row.id ? "Saving..." : String(row.status).toLowerCase() === "read" ? "Read" : "Mark Read"}</button>,
         ])}
       />
     </Panel>

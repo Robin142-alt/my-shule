@@ -22,7 +22,7 @@ type IncidentsData = {
 };
 
 export function IncidentsWorkspace() {
-  const { data, isLoading } = useSchoolQuery<IncidentsData>('/admin-command/boarding-master/incidents');
+  const { data, error, isLoading, refetch } = useSchoolQuery<IncidentsData>('/admin-command/boarding-master/incidents');
   const items = data?.incidentsList || [];
 
   const getStatusTone = (st: string): Tone => {
@@ -32,6 +32,18 @@ export function IncidentsWorkspace() {
     if (st === "Issued" || st === "Checked In" || st === "Submitted" || st === "Booked" || st === "Sent" || st === "On Leave") return "info";
     return "neutral";
   };
+
+  if (error) {
+    return (
+      <Panel title="Boarding Incidents" description="Log and manage boarding-related incidents." icon={AlertTriangle}>
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <p className="font-black">Boarding incidents could not be loaded.</p>
+          <p className="mt-1">{error.message}</p>
+          <button type="button" onClick={() => void refetch()} className="mt-3 font-black underline">Retry</button>
+        </div>
+      </Panel>
+    );
+  }
 
   return (
     <Panel title="Boarding Incidents" description="Log and manage boarding-related incidents." icon={AlertTriangle}>

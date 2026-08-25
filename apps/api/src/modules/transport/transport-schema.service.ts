@@ -12,6 +12,7 @@ const TRANSPORT_TABLES = [
   'transport_trips',
   'transport_trip_events',
   'transport_alerts',
+  'vehicle_fuel_logs',
   'vehicle_service_logs',
   'transport_audit_logs',
 ] as const;
@@ -57,6 +58,9 @@ export class TransportSchemaService implements OnModuleInit {
         direction text NOT NULL DEFAULT 'round_trip',
         zone text,
         fare_amount_minor bigint NOT NULL DEFAULT 0,
+        assigned_vehicle_id uuid,
+        vehicle_assigned_at timestamptz,
+        vehicle_assigned_by_user_id uuid,
         status text NOT NULL DEFAULT 'active',
         created_by_user_id uuid,
         created_at timestamptz NOT NULL DEFAULT NOW(),
@@ -262,6 +266,28 @@ export class TransportSchemaService implements OnModuleInit {
         CONSTRAINT ck_transport_alerts_status CHECK (status IN ('open', 'acknowledged', 'resolved'))
       );
 
+      CREATE TABLE IF NOT EXISTS vehicle_fuel_logs (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        vehicle_id uuid NOT NULL,
+        fuel_date date NOT NULL DEFAULT CURRENT_DATE,
+        litres numeric(12, 3) NOT NULL,
+        cost_minor bigint NOT NULL DEFAULT 0,
+        odometer_reading integer,
+        station text,
+        receipt_reference text,
+        recorded_by_user_id uuid,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        audit_log_reference uuid,
+        CONSTRAINT fk_vehicle_fuel_logs_vehicle
+          FOREIGN KEY (tenant_id, vehicle_id)
+          REFERENCES transport_vehicles (tenant_id, id)
+          ON DELETE CASCADE,
+        CONSTRAINT ck_vehicle_fuel_logs_litres CHECK (litres > 0),
+        CONSTRAINT ck_vehicle_fuel_logs_cost CHECK (cost_minor >= 0)
+      );
+
       CREATE TABLE IF NOT EXISTS vehicle_service_logs (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
@@ -309,6 +335,7 @@ export class TransportSchemaService implements OnModuleInit {
           'transport_trips',
           'transport_trip_events',
           'transport_alerts',
+          'vehicle_fuel_logs',
           'vehicle_service_logs',
           'transport_audit_logs'
         ] LOOP
@@ -336,9 +363,80 @@ export class TransportSchemaService implements OnModuleInit {
         END LOOP;
       END $$;
 
+      ALTER TABLE vehicle_fuel_logs ADD COLUMN IF NOT EXISTS fuel_date date NOT NULL DEFAULT CURRENT_DATE;
+      ALTER TABLE vehicle_fuel_logs ADD COLUMN IF NOT EXISTS litres numeric(12, 3);
+      ALTER TABLE vehicle_fuel_logs ADD COLUMN IF NOT EXISTS cost_minor bigint NOT NULL DEFAULT 0;
+      ALTER TABLE vehicle_fuel_logs ADD COLUMN IF NOT EXISTS odometer_reading integer;
+      ALTER TABLE vehicle_fuel_logs ADD COLUMN IF NOT EXISTS station text;
+      ALTER TABLE vehicle_fuel_logs ADD COLUMN IF NOT EXISTS receipt_reference text;
+      ALTER TABLE vehicle_fuel_logs ADD COLUMN IF NOT EXISTS recorded_by_user_id uuid;
+
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = current_schema()
+            AND table_name = 'vehicle_fuel_logs'
+            AND column_name = 'school_id'
+        ) THEN
+          EXECUTE '
+            UPDATE vehicle_fuel_logs
+            SET tenant_id = COALESCE(NULLIF(school_id::text, ''''), NULLIF(tenant_id, ''''))
+            WHERE tenant_id IS NULL
+               OR tenant_id = ''''
+               OR tenant_id = ''00000000-0000-0000-0000-000000000000''
+          ';
+          EXECUTE 'ALTER TABLE vehicle_fuel_logs ALTER COLUMN school_id DROP NOT NULL';
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = current_schema()
+            AND table_name = 'vehicle_fuel_logs'
+            AND column_name = 'amount'
+        ) THEN
+          EXECUTE '
+            UPDATE vehicle_fuel_logs
+            SET cost_minor = ROUND(amount::numeric * 100)::bigint
+            WHERE cost_minor = 0 AND COALESCE(amount::numeric, 0) > 0
+          ';
+          EXECUTE 'ALTER TABLE vehicle_fuel_logs ALTER COLUMN amount SET DEFAULT 0';
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = current_schema()
+            AND table_name = 'vehicle_fuel_logs'
+            AND column_name = 'recorded_by_user_id'
+            AND data_type <> 'uuid'
+        ) THEN
+          EXECUTE 'ALTER TABLE vehicle_fuel_logs ALTER COLUMN recorded_by_user_id DROP NOT NULL';
+          EXECUTE '
+            UPDATE vehicle_fuel_logs
+            SET recorded_by_user_id = NULL
+            WHERE recorded_by_user_id IS NOT NULL
+              AND recorded_by_user_id::text !~* ''^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$''
+          ';
+          EXECUTE '
+            ALTER TABLE vehicle_fuel_logs
+            ALTER COLUMN recorded_by_user_id TYPE uuid
+            USING NULLIF(recorded_by_user_id::text, '''')::uuid
+          ';
+        END IF;
+      END $$;
+
+      ALTER TABLE vehicle_fuel_logs ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE vehicle_fuel_logs ALTER COLUMN updated_at SET DEFAULT NOW();
+
       ALTER TABLE transport_routes ADD COLUMN IF NOT EXISTS name text NOT NULL DEFAULT 'Transport route';
       ALTER TABLE transport_routes ADD COLUMN IF NOT EXISTS direction text NOT NULL DEFAULT 'round_trip';
       ALTER TABLE transport_routes ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+      ALTER TABLE transport_routes ADD COLUMN IF NOT EXISTS assigned_vehicle_id uuid;
+      ALTER TABLE transport_routes ADD COLUMN IF NOT EXISTS vehicle_assigned_at timestamptz;
+      ALTER TABLE transport_routes ADD COLUMN IF NOT EXISTS vehicle_assigned_by_user_id uuid;
 
       ALTER TABLE transport_route_stops ADD COLUMN IF NOT EXISTS route_id uuid;
       ALTER TABLE transport_route_stops ADD COLUMN IF NOT EXISTS name text NOT NULL DEFAULT 'Route stop';
@@ -384,6 +482,12 @@ export class TransportSchemaService implements OnModuleInit {
 
       ALTER TABLE vehicle_service_logs ADD COLUMN IF NOT EXISTS vehicle_id uuid;
       ALTER TABLE vehicle_service_logs ADD COLUMN IF NOT EXISTS service_date date NOT NULL DEFAULT CURRENT_DATE;
+      ALTER TABLE vehicle_service_logs ADD COLUMN IF NOT EXISTS odometer_reading integer;
+      ALTER TABLE vehicle_service_logs ADD COLUMN IF NOT EXISTS next_service_date date;
+      ALTER TABLE vehicle_service_logs ADD COLUMN IF NOT EXISTS cost_minor bigint NOT NULL DEFAULT 0;
+      ALTER TABLE vehicle_service_logs ADD COLUMN IF NOT EXISTS service_provider text;
+      ALTER TABLE vehicle_service_logs ADD COLUMN IF NOT EXISTS notes text;
+      ALTER TABLE vehicle_service_logs ADD COLUMN IF NOT EXISTS recorded_by_user_id uuid;
 
       ALTER TABLE transport_audit_logs ADD COLUMN IF NOT EXISTS actor_user_id uuid;
       ALTER TABLE transport_audit_logs ADD COLUMN IF NOT EXISTS action text NOT NULL DEFAULT 'transport.audit';
@@ -393,6 +497,11 @@ export class TransportSchemaService implements OnModuleInit {
 
       CREATE UNIQUE INDEX IF NOT EXISTS transport_routes_name
         ON transport_routes (tenant_id, lower(name));
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_transport_vehicles_tenant_id_id
+        ON transport_vehicles (tenant_id, id);
+      CREATE INDEX IF NOT EXISTS ix_transport_routes_assigned_vehicle
+        ON transport_routes (tenant_id, assigned_vehicle_id)
+        WHERE assigned_vehicle_id IS NOT NULL;
       CREATE INDEX IF NOT EXISTS ix_transport_route_stops_route_sequence
         ON transport_route_stops (tenant_id, route_id, stop_sequence);
       CREATE INDEX IF NOT EXISTS ix_transport_manifest_students_student
@@ -403,8 +512,26 @@ export class TransportSchemaService implements OnModuleInit {
         ON transport_trip_events (tenant_id, trip_id, event_time DESC);
       CREATE INDEX IF NOT EXISTS ix_transport_alerts_open
         ON transport_alerts (tenant_id, status, severity, created_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_vehicle_fuel_logs_vehicle
+        ON vehicle_fuel_logs (tenant_id, vehicle_id, fuel_date DESC);
       CREATE INDEX IF NOT EXISTS ix_vehicle_service_logs_vehicle
         ON vehicle_service_logs (tenant_id, vehicle_id, service_date DESC);
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'fk_transport_routes_assigned_vehicle'
+            AND conrelid = 'transport_routes'::regclass
+        ) THEN
+          ALTER TABLE transport_routes
+            ADD CONSTRAINT fk_transport_routes_assigned_vehicle
+            FOREIGN KEY (tenant_id, assigned_vehicle_id)
+            REFERENCES transport_vehicles (tenant_id, id)
+            ON DELETE RESTRICT;
+        END IF;
+      END $$;
 
       ${TRANSPORT_TABLES.map((table) => `
         ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;

@@ -10,6 +10,7 @@ const BOARDING_TABLES = [
   'boarding_dormitory_checks',
   'boarding_incidents',
   'boarding_reports',
+  'boarding_referrals',
   'boarding_audit_logs',
 ] as const;
 
@@ -78,6 +79,7 @@ export class BoardingSchemaService implements OnModuleInit {
           checked_by_user_id uuid,
           check_status text NOT NULL DEFAULT 'clear',
           notes text,
+          metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
           checked_at timestamptz NOT NULL DEFAULT NOW(),
           created_at timestamptz NOT NULL DEFAULT NOW(),
           updated_at timestamptz NOT NULL DEFAULT NOW(),
@@ -107,11 +109,39 @@ export class BoardingSchemaService implements OnModuleInit {
           updated_at timestamptz NOT NULL DEFAULT NOW(),
           audit_log_reference uuid
         );
+        CREATE TABLE IF NOT EXISTS boarding_referrals (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          tenant_id text NOT NULL,
+          student_id uuid NOT NULL,
+          reason text NOT NULL,
+          referred_to text NOT NULL,
+          status text NOT NULL DEFAULT 'PENDING',
+          created_by uuid NOT NULL,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        );
       `,
       indexesSql: `
+        ALTER TABLE boarding_dormitory_checks
+          ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+        ALTER TABLE boarding_referrals
+          ADD COLUMN IF NOT EXISTS referred_to text;
+        ALTER TABLE boarding_referrals
+          ADD COLUMN IF NOT EXISTS created_by uuid;
+        ALTER TABLE boarding_referrals
+          ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
+        ALTER TABLE boarding_referrals
+          ALTER COLUMN school_id DROP NOT NULL;
+        UPDATE boarding_referrals
+        SET referred_to = 'boarding_master'
+        WHERE referred_to IS NULL OR btrim(referred_to) = '';
+        ALTER TABLE boarding_referrals
+          ALTER COLUMN referred_to SET NOT NULL;
         CREATE INDEX IF NOT EXISTS ix_boarding_students_house ON boarding_students (tenant_id, house_id, status);
         CREATE INDEX IF NOT EXISTS ix_boarding_meals_date ON boarding_meals (tenant_id, meal_date, meal_type);
         CREATE INDEX IF NOT EXISTS ix_boarding_reports_tenant_status ON boarding_reports (tenant_id, status, created_at DESC);
+        CREATE INDEX IF NOT EXISTS ix_boarding_referrals_tenant_status
+          ON boarding_referrals (tenant_id, status, created_at DESC);
       `,
     }));
 

@@ -74,7 +74,7 @@ Attach the same repository to all five services.
 
 - Config file: `/deploy/railway/api.railway.json`
 - Build command: `npm run build`
-- Start command: `node dist/main.js`
+- Start command: `node dist/apps/api/src/main.js`
 - Healthcheck path: `/health/ready`
 
 ### Payments worker service
@@ -157,11 +157,16 @@ Set service-specific variables:
   - `APP_RUNTIME=worker`
   - `EVENTS_DISPATCHER_ENABLED=false`
   - `EVENTS_WORKER_ENABLED=false`
+  - `COMMUNICATION_SMS_OUTBOX_WORKER_ENABLED=false`
   - `OBSERVABILITY_SLO_BACKGROUND_ENABLED=false`
 - Events worker:
   - `APP_RUNTIME=worker`
   - `EVENTS_DISPATCHER_ENABLED=true`
   - `EVENTS_WORKER_ENABLED=true`
+  - `COMMUNICATION_SMS_OUTBOX_WORKER_ENABLED=true`
+  - `COMMUNICATION_SMS_OUTBOX_CONCURRENCY=5`
+  - `SMS_PROVIDER_REQUEST_TIMEOUT_MS=10000`
+  - `SMS_PROVIDER_ALLOWED_HOSTS` when a provider uses an approved non-default host
   - `OBSERVABILITY_SLO_BACKGROUND_ENABLED=false`
 
 ## CI/CD

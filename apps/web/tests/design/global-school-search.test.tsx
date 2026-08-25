@@ -39,7 +39,7 @@ describe("global school search", () => {
     ).toBe("/school/principal/students/MYS-2026-001");
   });
 
-  it("surfaces operational entity results with context actions, not only navigation links", async () => {
+  it("does not surface fabricated operational entities when no live tenant records are supplied", async () => {
     const user = userEvent.setup();
 
     renderWithProviders(
@@ -66,13 +66,12 @@ describe("global school search", () => {
     await user.type(screen.getByLabelText("Search"), "Brian");
 
     const panel = await screen.findByTestId("workspace-search-panel");
-    expect(within(panel).getByText("Brian Otieno")).toBeVisible();
-    expect(within(panel).getByText("Admission No: MYS/2026/001")).toBeVisible();
-    expect(within(panel).getByRole("button", { name: /View Fee Balance/i })).toBeVisible();
-    expect(within(panel).getByRole("button", { name: /Send Parent SMS/i })).toBeVisible();
+    expect(within(panel).getByText(/No results for “Brian”/i)).toBeVisible();
+    expect(within(panel).queryByText("Brian Otieno")).not.toBeInTheDocument();
+    expect(within(panel).queryByText("Admission No: MYS/2026/001")).not.toBeInTheDocument();
   });
 
-  it("executes the first school record action when pressing enter on an entity-only search", async () => {
+  it("does not navigate to a fabricated school record when pressing enter without live tenant data", async () => {
     const user = userEvent.setup();
 
     renderWithProviders(
@@ -97,7 +96,7 @@ describe("global school search", () => {
 
     await user.type(screen.getByLabelText("Search"), "Brian{enter}");
 
-    expect(routerPushMock).toHaveBeenCalledWith("/students/MYS-2026-001");
+    expect(routerPushMock).not.toHaveBeenCalled();
   });
 
   it("renders the operational shell controls required by the ERP docx", async () => {

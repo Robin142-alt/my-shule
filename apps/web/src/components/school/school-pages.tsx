@@ -766,6 +766,7 @@ const principalCommandCenterSectionIds = new Set([
   "approvals",
   "reports",
   "audit-logs",
+  "settings",
 ]);
 
 const nurseCommandCenterSectionIds = new Set([
@@ -913,10 +914,24 @@ const sharedOperationalFallbackRoleIds = new Set<SchoolExperienceRole>([
   "admin",
 ]);
 
+const dedicatedLiveModuleSectionIds = new Set([
+  "transport",
+  "procurement",
+  "hostel",
+  "boarding",
+  "cbt",
+  "lms",
+  "ai-insights",
+  "visitors",
+  "assets",
+  "iot",
+]);
+
 function shouldRenderRoleOperationalWorkspace(role: SchoolExperienceRole, section: string) {
   if (
     sharedOperationalFallbackRoleIds.has(role)
     && roleOperationalWorkspaceSectionIds.has(section)
+    && !dedicatedLiveModuleSectionIds.has(section)
     && !supportWorkspaceSectionIds.has(section)
   ) {
     return true;

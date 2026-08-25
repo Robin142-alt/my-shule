@@ -1,7 +1,17 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
-import { createHash, randomUUID } from 'crypto';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { createHash, randomUUID } from 'node:crypto';
 
+import { createCsvReportArtifact } from '../../../common/reports/report-csv-artifact';
+import { createXlsxReportArtifact } from '../../../common/reports/report-excel-artifact';
+import { createPdfReportArtifact } from '../../../common/reports/report-pdf-artifact';
+import type {
+  ReportArtifact,
+  ReportArtifactInput,
+  ReportArtifactValue,
+} from '../../../common/reports/report-artifact';
 import { PrismaService } from '../../../database/prisma.service';
+
+type DeputyReportFormat = 'csv' | 'xlsx' | 'pdf';
 
 @Injectable()
 export class DeputyCommandRepository {
@@ -31,7 +41,7 @@ export class DeputyCommandRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async getOverview(tenantId: string) {
-    const metrics = await this.safeQuery(
+    const metrics = await this.queryOne(
       `
         SELECT
           (SELECT COUNT(*)::int FROM students WHERE tenant_id = $1 AND status = 'active') AS total_students,
@@ -62,35 +72,82 @@ export class DeputyCommandRepository {
   }
 
   async getDailyOperations(tenantId: string) {
-    const metrics = await this.safeQuery(
+    const metrics = await this.queryOne(
       `
         SELECT
           (SELECT COUNT(*)::int FROM teacher_attendance_logs WHERE tenant_id = $1 AND attendance_date::text = CURRENT_DATE::text AND status = 'absent') AS absent_teachers,
           (SELECT COUNT(*)::int FROM teacher_attendance_logs WHERE tenant_id = $1 AND attendance_date::text = CURRENT_DATE::text AND status = 'late') AS late_teachers,
           (SELECT COUNT(*)::int FROM staff_profiles WHERE tenant_id = $1 AND status = 'active') AS total_staff,
-          (SELECT COUNT(*)::int FROM teacher_attendance_logs WHERE tenant_id = $1 AND attendance_date::text = CURRENT_DATE::text AND status = 'present') AS present_staff
+          (SELECT COUNT(*)::int FROM teacher_attendance_logs WHERE tenant_id = $1 AND attendance_date::text = CURRENT_DATE::text AND status = 'present') AS present_staff,
+          COALESCE((
+            SELECT INITCAP(REPLACE(incident.status, '_', ' '))
+            FROM admin_incidents incident
+            WHERE incident.tenant_id = $1
+              AND incident.title = 'Daily Operation Note'
+              AND incident.created_at::date = CURRENT_DATE
+              AND lower(COALESCE(incident.involved_parties::text, '')) LIKE '%morning%parade%'
+            ORDER BY incident.created_at DESC
+            LIMIT 1
+          ), 'No Report') AS morning_parade_status,
+          COALESCE((
+            SELECT CASE
+              WHEN event.event_type = 'security.shift_started' THEN 'Shift Active'
+              WHEN event.event_type = 'security.shift_ended' THEN 'Shift Closed'
+              ELSE INITCAP(REPLACE(event.event_type, '_', ' '))
+            END
+            FROM workflow_events event
+            WHERE event.tenant_id = $1
+              AND event.event_type IN ('security.shift_started', 'security.shift_ended')
+              AND event.created_at::date = CURRENT_DATE
+            ORDER BY event.created_at DESC
+            LIMIT 1
+          ), 'No Report') AS gate_security_status
       `,
       [tenantId],
-      { absent_teachers: 0, late_teachers: 0, total_staff: 0, present_staff: 0 }
+      {
+        absent_teachers: 0,
+        late_teachers: 0,
+        total_staff: 0,
+        present_staff: 0,
+        morning_parade_status: 'No Report',
+        gate_security_status: 'No Report',
+      }
     );
 
     const notesResult = await this.executeSql(
-      `SELECT * FROM admin_incidents WHERE tenant_id = $1 AND title ILIKE '%operation%' ORDER BY created_at DESC LIMIT 10`,
+      `
+        SELECT
+          id::text,
+          created_at,
+          COALESCE(
+            NULLIF(involved_parties ->> 'area', ''),
+            NULLIF(involved_parties ->> 'name', ''),
+            NULLIF(involved_parties #>> '{}', ''),
+            'General'
+          ) AS area,
+          description,
+          status
+        FROM admin_incidents
+        WHERE tenant_id = $1
+          AND title ILIKE '%operation%'
+        ORDER BY created_at DESC
+        LIMIT 10
+      `,
       [tenantId]
     );
 
     return {
       metrics: {
-        morning_parade_status: "Completed",
+        morning_parade_status: metrics.morning_parade_status,
         staff_on_duty_present: metrics.present_staff,
         staff_on_duty_total: metrics.total_staff,
-        gate_security_status: "Report Received",
+        gate_security_status: metrics.gate_security_status,
         classes_not_started: metrics.absent_teachers,
       },
       notes: notesResult.rows.map((row: any) => ({
         id: row.id,
         time: new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        area: row.involved_parties || "General",
+        area: row.area || row.involved_parties || "General",
         issue: row.description,
         status: row.status === 'resolved' ? 'Resolved' : 'Active'
       }))
@@ -98,18 +155,21 @@ export class DeputyCommandRepository {
   }
 
   async createDailyOperationNote(tenantId: string, userId: string, dto: { area: string, issue: string }) {
+    const involvedParties = JSON.stringify({
+      area: String(dto?.area ?? 'General').trim() || 'General',
+    });
     return this.executeSql(
       `
         INSERT INTO admin_incidents (tenant_id, title, description, involved_parties, severity, status, created_by)
-        VALUES ($1, $2, $3, $4, 'low', 'reported', $5)
+        VALUES ($1, $2, $3, $4::jsonb, 'low', 'reported', $5)
         RETURNING *
       `,
-      [tenantId, 'Daily Operation Note', dto.issue, dto.area, userId]
+      [tenantId, 'Daily Operation Note', dto.issue, involvedParties, userId]
     );
   }
 
   async getAttendance(tenantId: string) {
-    const metrics = await this.safeQuery(
+    const metrics = await this.queryOne(
       `
         SELECT
           (SELECT COUNT(*)::int FROM student_attendance_logs WHERE tenant_id = $1 AND attendance_date = CURRENT_DATE AND status = 'absent') AS absent_students,
@@ -170,41 +230,172 @@ export class DeputyCommandRepository {
   }
 
   async notifyParent(tenantId: string, actorUserId: string | null, logId: string) {
-    const attendance = await this.executeSql(
+    const result = await this.executeSql(
       `
+        WITH attendance AS (
+          SELECT
+            log.tenant_id,
+            log.id,
+            log.student_id,
+            log.status,
+            log.reason,
+            COALESCE(NULLIF(TRIM(CONCAT_WS(' ', student.first_name, student.last_name)), ''), 'Learner') AS student_name,
+            COALESCE(section.name, 'Class not linked') AS class_name
+          FROM student_attendance_logs log
+          INNER JOIN students student
+            ON student.tenant_id = log.tenant_id
+           AND student.id = log.student_id
+          LEFT JOIN class_sections section
+            ON section.tenant_id = log.tenant_id
+           AND section.id = log.class_id
+          WHERE log.tenant_id = $1
+            AND log.id::text = $2
+          LIMIT 1
+        ), linked_guardians AS (
+          SELECT
+            guardian.id AS guardian_id,
+            guardian.user_id
+          FROM attendance
+          INNER JOIN student_guardians guardian
+            ON guardian.tenant_id = attendance.tenant_id
+           AND guardian.student_id = attendance.student_id
+          INNER JOIN tenant_memberships membership
+            ON membership.tenant_id = guardian.tenant_id
+           AND membership.user_id = guardian.user_id
+           AND lower(membership.status) = 'active'
+          WHERE guardian.user_id IS NOT NULL
+            AND lower(guardian.status) = 'active'
+        ), inserted_event AS (
+          INSERT INTO workflow_events (
+            tenant_id, source_user_id, source_role, target_roles, event_type,
+            entity_type, entity_id, title, message, priority, payload
+          )
+          SELECT
+            attendance.tenant_id,
+            $3::uuid,
+            'deputy_principal',
+            '[]'::jsonb,
+            'deputy.attendance_parent.notified',
+            'student_attendance_log',
+            attendance.id::text,
+            'Guardian attendance notice queued',
+            'Attendance notice queued for linked guardian accounts.',
+            'normal',
+            jsonb_build_object(
+              'attendance_log_id', attendance.id::text,
+              'student_id', attendance.student_id::text,
+              'recipient_scope', 'linked_guardian_users',
+              'source_dashboard', 'deputy-command'
+            )
+          FROM attendance
+          WHERE EXISTS (SELECT 1 FROM linked_guardians)
+            AND NOT EXISTS (
+              SELECT 1
+              FROM workflow_events existing
+              WHERE existing.tenant_id = attendance.tenant_id
+                AND existing.event_type = 'deputy.attendance_parent.notified'
+                AND existing.entity_type = 'student_attendance_log'
+                AND existing.entity_id = attendance.id::text
+            )
+          RETURNING id::text
+        ), inserted_notifications AS (
+          INSERT INTO notifications (
+            tenant_id, notification_key, recipient_user_id, recipient_guardian_id,
+            type, title, body, status, priority, source_module, source_record_id, metadata
+          )
+          SELECT
+            attendance.tenant_id,
+            'deputy-attendance-parent-notified-' || attendance.id::text || '-' || guardian.guardian_id::text,
+            guardian.user_id,
+            guardian.guardian_id,
+            'deputy.attendance_parent.notified',
+            'Attendance follow-up: ' || attendance.student_name,
+            attendance.student_name || ' (' || attendance.class_name || ') was marked ' ||
+              lower(attendance.status) || '. Reason: ' || COALESCE(NULLIF(attendance.reason, ''), 'Unexplained') || '.',
+            'unread',
+            CASE WHEN lower(attendance.status) = 'absent' THEN 'high' ELSE 'normal' END,
+            'deputy-command',
+            attendance.id::text,
+            jsonb_build_object(
+              'attendance_log_id', attendance.id::text,
+              'student_id', attendance.student_id::text,
+              'recipient_scope', 'linked_guardian_users',
+              'source_dashboard', 'deputy-command'
+            )
+          FROM attendance
+          CROSS JOIN linked_guardians guardian
+          ON CONFLICT (tenant_id, notification_key)
+          DO UPDATE SET
+            recipient_user_id = EXCLUDED.recipient_user_id,
+            recipient_guardian_id = EXCLUDED.recipient_guardian_id,
+            title = EXCLUDED.title,
+            body = EXCLUDED.body,
+            status = 'unread',
+            priority = EXCLUDED.priority,
+            metadata = EXCLUDED.metadata,
+            updated_at = NOW()
+          RETURNING recipient_user_id::text
+        ), action_audit AS (
+          INSERT INTO audit_logs (
+            tenant_id, actor_user_id, request_id, action, resource_type, resource_id, metadata
+          )
+          SELECT
+            attendance.tenant_id,
+            $3::uuid,
+            current_setting('app.request_id', true),
+            'deputy.attendance_parent.notified',
+            'student_attendance_log',
+            attendance.id,
+            jsonb_build_object(
+              'attendance_log_id', attendance.id::text,
+              'student_id', attendance.student_id::text,
+              'guardian_notification_count', (SELECT COUNT(*) FROM inserted_notifications)
+            )
+          FROM attendance
+          WHERE EXISTS (SELECT 1 FROM linked_guardians)
+          RETURNING id
+        )
         SELECT
-          l.id::text,
-          l.status,
-          l.reason,
-          COALESCE(NULLIF(TRIM(CONCAT_WS(' ', s.first_name, s.last_name)), ''), 'Learner not linked') AS student_name,
-          COALESCE(c.name, 'Class not linked') AS class_name
-        FROM student_attendance_logs l
-        LEFT JOIN students s ON s.tenant_id = l.tenant_id AND s.id = l.student_id
-        LEFT JOIN class_sections c ON c.tenant_id = l.tenant_id AND c.id = l.class_id
-        WHERE l.tenant_id = $1
-          AND l.id::text = $2
-        LIMIT 1
+          attendance.id::text,
+          attendance.student_id::text,
+          attendance.student_name,
+          attendance.class_name,
+          attendance.status,
+          attendance.reason,
+          (SELECT COUNT(*)::int FROM inserted_notifications) AS guardian_notification_count,
+          COALESCE(
+            (SELECT id FROM inserted_event LIMIT 1),
+            (
+              SELECT existing.id::text
+              FROM workflow_events existing
+              WHERE existing.tenant_id = attendance.tenant_id
+                AND existing.event_type = 'deputy.attendance_parent.notified'
+                AND existing.entity_type = 'student_attendance_log'
+                AND existing.entity_id = attendance.id::text
+              ORDER BY existing.created_at DESC
+              LIMIT 1
+            )
+          ) AS event_id
+        FROM attendance
       `,
-      [tenantId, logId],
-    ).catch(() => ({ rows: [] as any[] }));
-    const row = attendance.rows[0] ?? {
-      id: logId,
-      status: 'attendance',
-      reason: 'Follow-up requested',
-      student_name: 'Learner not linked',
-      class_name: 'Class not linked',
+      [tenantId, logId, this.uuidOrNull(actorUserId)],
+    );
+    const row = result.rows[0];
+    if (!row) {
+      throw new NotFoundException('Attendance log was not found for this school.');
+    }
+    const guardianNotificationCount = Number(row.guardian_notification_count ?? 0);
+    if (guardianNotificationCount === 0) {
+      throw new BadRequestException(
+        'No active linked guardian account is available for this student. The attendance record remains unchanged and no parent notice was sent.',
+      );
+    }
+    return {
+      success: true,
+      message: `Attendance notice queued for ${guardianNotificationCount} linked guardian account${guardianNotificationCount === 1 ? '' : 's'}`,
+      guardianNotificationCount,
+      eventId: row.event_id,
     };
-    const event = await this.createDeputyWorkflowEvent(tenantId, actorUserId, {
-      type: 'deputy.attendance_parent.notified',
-      entityType: 'student_attendance_log',
-      entityId: logId,
-      title: `Parent attendance follow-up: ${row.student_name}`,
-      body: `${row.class_name} ${row.student_name} has an attendance follow-up for ${row.status}. Reason: ${row.reason || 'Unexplained'}.`,
-      targetRoles: ['parent', 'class_teacher', 'deputy_principal'],
-      metadata: { attendanceLogId: logId, status: row.status, className: row.class_name, studentName: row.student_name },
-    });
-    await this.appendDeputyAudit(tenantId, 'deputy.attendance_parent.notified', 'student_attendance_log', { logId, actorUserId, eventId: event?.id });
-    return { success: true, message: 'Parent attendance follow-up routed', event };
   }
 
   async createFollowUpList(tenantId: string, userId: string, dto: any) {
@@ -243,7 +434,7 @@ export class DeputyCommandRepository {
         LIMIT 50
       `,
       [tenantId, attendanceDate],
-    ).catch(() => ({ rows: [] as any[] }));
+    );
     const classNames = unmarkedResult.rows.map((row: any) => row.name).filter(Boolean);
     const body = classNames.length
       ? `Attendance registers are still unmarked for: ${classNames.join(', ')}.`
@@ -264,7 +455,18 @@ export class DeputyCommandRepository {
   async getDiscipline(tenantId: string) {
     const result = await this.executeSql(
       `
-        SELECT id, case_no as "caseNo", involved_parties as "studentName", description as "incidentType", severity, status
+        SELECT
+          id::text,
+          CONCAT('CAS-', UPPER(LEFT(REPLACE(id::text, '-', ''), 8))) AS "caseNo",
+          COALESCE(
+            NULLIF(involved_parties ->> 'student_name', ''),
+            NULLIF(involved_parties ->> 'studentName', ''),
+            NULLIF(involved_parties ->> 'name', ''),
+            NULLIF(involved_parties #>> '{}', '')
+          ) AS "studentName",
+          description AS "incidentType",
+          severity,
+          status
         FROM admin_incidents 
         WHERE tenant_id = $1 AND title ILIKE '%discipline%'
         ORDER BY created_at DESC LIMIT 20
@@ -283,13 +485,16 @@ export class DeputyCommandRepository {
   }
 
   async createDisciplineIncident(tenantId: string, userId: string, dto: any) {
+    const involvedParties = JSON.stringify({
+      student_name: String(dto?.studentName ?? dto?.student_name ?? '').trim(),
+    });
     return this.executeSql(
       `
         INSERT INTO admin_incidents (tenant_id, title, description, involved_parties, severity, status, created_by)
-        VALUES ($1, 'Discipline Case', $2, $3, $4, 'reported', $5)
+        VALUES ($1, 'Discipline Case', $2, $3::jsonb, $4, 'reported', $5)
         RETURNING *
       `,
-      [tenantId, dto.incidentType, dto.studentName, dto.severity?.toLowerCase() || 'medium', userId]
+      [tenantId, dto.incidentType, involvedParties, dto.severity?.toLowerCase() || 'medium', userId]
     );
   }
 
@@ -301,7 +506,7 @@ export class DeputyCommandRepository {
   }
 
   async getWelfare(tenantId: string) {
-    const metrics = await this.safeQuery(
+    const metrics = await this.queryOne(
       `
         SELECT
           (SELECT COUNT(*)::int FROM clinic_visits WHERE tenant_id = $1 AND visit_date = CURRENT_DATE) AS clinic_visits_today
@@ -312,10 +517,35 @@ export class DeputyCommandRepository {
 
     const result = await this.executeSql(
       `
-        SELECT id, involved_parties as "studentName", description as "concern", 'School Counsellor' as "assignedTo", status
-        FROM admin_incidents 
-        WHERE tenant_id = $1 AND title ILIKE '%welfare%'
-        ORDER BY created_at DESC LIMIT 20
+        SELECT
+          incident.id,
+          COALESCE(
+            NULLIF(incident.involved_parties ->> 'student_name', ''),
+            NULLIF(incident.involved_parties ->> 'studentName', ''),
+            NULLIF(incident.involved_parties ->> 'name', ''),
+            NULLIF(incident.involved_parties #>> '{}', '')
+          ) AS "studentName",
+          incident.description AS concern,
+          COALESCE(assignment.assigned_to, 'Not assigned') AS "assignedTo",
+          incident.status
+        FROM admin_incidents incident
+        LEFT JOIN LATERAL (
+          SELECT COALESCE(
+            NULLIF(event.payload->>'assignedTo', ''),
+            NULLIF(event.payload->>'assigned_to', ''),
+            NULLIF(event.payload->>'assignee', '')
+          ) AS assigned_to
+          FROM workflow_events event
+          WHERE event.tenant_id = incident.tenant_id
+            AND event.entity_type = 'admin_incident'
+            AND event.entity_id = incident.id::text
+            AND event.event_type = 'deputy.welfare.assigned'
+          ORDER BY event.created_at DESC
+          LIMIT 1
+        ) assignment ON TRUE
+        WHERE incident.tenant_id = $1 AND incident.title ILIKE '%welfare%'
+        ORDER BY incident.created_at DESC
+        LIMIT 20
       `,
       [tenantId]
     );
@@ -333,14 +563,39 @@ export class DeputyCommandRepository {
   }
 
   async createWelfareCase(tenantId: string, userId: string, dto: any) {
-    return this.executeSql(
+    const involvedParties = JSON.stringify({
+      student_name: String(dto?.studentName ?? dto?.student_name ?? '').trim(),
+    });
+    const result = await this.executeSql(
       `
         INSERT INTO admin_incidents (tenant_id, title, description, involved_parties, severity, status, created_by)
-        VALUES ($1, 'Welfare Case', $2, $3, 'low', 'reported', $4)
+        VALUES ($1, 'Welfare Case', $2, $3::jsonb, 'low', 'reported', $4)
         RETURNING *
       `,
-      [tenantId, dto.concern, dto.studentName, userId]
+      [tenantId, dto.concern, involvedParties, userId]
     );
+    const welfareCase = result.rows[0] as any;
+    if (!welfareCase) {
+      throw new Error('Welfare case could not be created for this school.');
+    }
+    const assignedTo = String(dto?.assignedTo ?? dto?.assigned_to ?? 'Not assigned').trim() || 'Not assigned';
+    const targetRole = this.welfareAssigneeRole(assignedTo);
+    const event = await this.createDeputyWorkflowEvent(tenantId, userId, {
+      type: 'deputy.welfare.assigned',
+      entityType: 'admin_incident',
+      entityId: String(welfareCase.id),
+      title: `Welfare case assigned to ${assignedTo}`,
+      body: `${dto.studentName} was referred for ${dto.concern}.`,
+      targetRoles: Array.from(new Set([targetRole, 'deputy_principal'])),
+      metadata: { assignedTo, welfareCaseId: welfareCase.id, studentName: dto.studentName },
+    });
+    await this.appendDeputyAudit(tenantId, 'deputy.welfare.assigned', 'admin_incident', {
+      userId,
+      welfareCaseId: welfareCase.id,
+      assignedTo,
+      eventId: event?.id,
+    });
+    return result;
   }
 
   async openWelfareCase(tenantId: string, id: string) {
@@ -351,7 +606,7 @@ export class DeputyCommandRepository {
   }
 
   async getStaffDuty(tenantId: string) {
-    const metrics = await this.safeQuery(
+    const metrics = await this.queryOne(
       `
         SELECT
           (SELECT COUNT(*)::int FROM staff_profiles WHERE tenant_id = $1 AND status = 'active') AS total_staff
@@ -477,34 +732,59 @@ export class DeputyCommandRepository {
   }
 
   async getTeaching(tenantId: string) {
-    const metrics = await this.safeQuery(
+    const metrics = await this.queryOne(
       `SELECT COUNT(*)::int AS total_lessons FROM timetable_lessons WHERE tenant_id = $1`,
       [tenantId],
       { total_lessons: 0 },
     );
     const lessonsResult = await this.executeSql(
       `
+        WITH attendance_summary AS (
+          SELECT
+            attendance.tenant_id,
+            attendance.class_id,
+            attendance.attendance_date,
+            CASE
+              WHEN COUNT(*) FILTER (WHERE lower(attendance.status) IN ('absent', 'late')) > 0 THEN 'Exceptions'
+              WHEN COUNT(*) > 0 THEN 'Marked'
+              ELSE 'Pending'
+            END AS status
+          FROM student_attendance_logs attendance
+          WHERE attendance.tenant_id = $1
+            AND attendance.attendance_date = CURRENT_DATE
+          GROUP BY attendance.tenant_id, attendance.class_id, attendance.attendance_date
+        ), lesson_log_summary AS (
+          SELECT
+            lesson_log.tenant_id,
+            lesson_log.class_id,
+            lesson_log.log_date,
+            COUNT(*)::int AS log_count
+          FROM academics_lesson_logs lesson_log
+          WHERE lesson_log.tenant_id = $1
+            AND lesson_log.log_date = CURRENT_DATE
+          GROUP BY lesson_log.tenant_id, lesson_log.class_id, lesson_log.log_date
+        )
         SELECT
           lesson.id::text,
           COALESCE(section.name, stream.name, 'Class not set') AS "className",
           COALESCE(subject.name, subject.code, 'Subject not set') AS subject,
           CONCAT(lesson.starts_at::text, ' - ', lesson.ends_at::text) AS "lessonTime",
           COALESCE(att.status, 'Pending') AS "attendanceStatus",
-          CASE WHEN log.id IS NULL THEN 'Pending' ELSE 'Submitted' END AS "logStatus"
+          CASE WHEN log.log_count IS NULL THEN 'Pending' ELSE 'Submitted' END AS "logStatus"
         FROM timetable_lessons lesson
         LEFT JOIN class_streams stream ON stream.tenant_id = lesson.tenant_id AND stream.id = lesson.stream_id
         LEFT JOIN class_sections section ON section.tenant_id = lesson.tenant_id AND section.id = lesson.stream_id
         LEFT JOIN class_subject_assignments assignment ON assignment.tenant_id = lesson.tenant_id AND assignment.id = lesson.class_subject_assignment_id
         LEFT JOIN subjects subject ON subject.tenant_id = lesson.tenant_id AND subject.id = assignment.subject_id
-        LEFT JOIN student_attendance_logs att ON att.tenant_id = lesson.tenant_id AND att.class_id = lesson.stream_id AND att.attendance_date = CURRENT_DATE
-        LEFT JOIN academics_lesson_logs log ON log.tenant_id = lesson.tenant_id AND log.class_id = lesson.stream_id AND log.log_date = CURRENT_DATE
+        LEFT JOIN attendance_summary att ON att.tenant_id = lesson.tenant_id AND att.class_id = lesson.stream_id AND att.attendance_date = CURRENT_DATE
+        LEFT JOIN lesson_log_summary log ON log.tenant_id = lesson.tenant_id AND log.class_id = lesson.stream_id AND log.log_date = CURRENT_DATE
         WHERE lesson.tenant_id = $1
           AND lesson.weekday = EXTRACT(ISODOW FROM CURRENT_DATE)::int
         ORDER BY lesson.period_number ASC
         LIMIT 25
       `,
       [tenantId],
-    ).catch(() => ({ rows: [] }));
+    );
     return { metrics, lessons: lessonsResult.rows };
   }
 
@@ -583,7 +863,7 @@ export class DeputyCommandRepository {
   }
 
   async getTimetable(tenantId: string) {
-    const metrics = await this.safeQuery(
+    const metrics = await this.queryOne(
       `
         SELECT
           (SELECT COUNT(*)::int FROM timetable_periods WHERE tenant_id = $1) AS total_periods
@@ -615,7 +895,7 @@ export class DeputyCommandRepository {
         LIMIT 25
       `,
       [tenantId],
-    ).catch(() => ({ rows: [] }));
+    );
 
     return {
       metrics,
@@ -655,19 +935,10 @@ export class DeputyCommandRepository {
         SELECT * FROM updated
       `,
       [tenantId, id, teacherLookup],
-    ).catch(() => ({ rows: [], rowCount: 0 }));
+    );
     const assignment = result.rows[0];
     if (!assignment) {
-      const event = await this.createDeputyWorkflowEvent(tenantId, actorUserId, {
-        type: 'deputy.relief_teacher.assignment_verification_required',
-        entityType: 'lesson_substitution',
-        entityId: id,
-        title: 'Relief assignment needs verification',
-        body: `Could not directly assign ${teacherLookup}; timetable office needs to verify the substitution.`,
-        targetRoles: ['dean_academics', 'timetable_manager', 'principal'],
-        metadata: { id, teacherLookup },
-      });
-      return { success: true, message: 'Relief assignment routed for verification', event };
+      throw new NotFoundException('Relief lesson or teacher was not found for this school.');
     }
     await this.createDeputyNotification(tenantId, {
       key: `deputy-relief-assigned-${id}-${Date.now()}`,
@@ -708,7 +979,7 @@ export class DeputyCommandRepository {
         RETURNING relief.id::text, relief.assigned_teacher_id::text, relief.status
       `,
       [tenantId],
-    ).catch(() => ({ rows: [], rowCount: 0 }));
+    );
     await this.createDeputyWorkflowEvent(tenantId, actorUserId, {
       type: 'deputy.relief_teacher.auto_assigned',
       entityType: 'lesson_substitution',
@@ -723,7 +994,7 @@ export class DeputyCommandRepository {
   }
 
   async getAcademics(tenantId: string) {
-    const metrics = await this.safeQuery(
+    const metrics = await this.queryOne(
       `
         SELECT
           (SELECT COUNT(*)::int FROM subjects WHERE tenant_id = $1 AND status = 'active') AS active_subjects
@@ -755,7 +1026,7 @@ export class DeputyCommandRepository {
         LIMIT 25
       `,
       [tenantId],
-    ).catch(() => ({ rows: [] }));
+    );
 
     return {
       metrics,
@@ -781,7 +1052,7 @@ export class DeputyCommandRepository {
         LIMIT 1
       `,
       [tenantId, id],
-    ).catch(() => ({ rows: [] as any[] }));
+    );
     const row = intervention.rows[0];
     if (!row) {
       throw new Error('Academic intervention was not found for this school.');
@@ -817,7 +1088,7 @@ export class DeputyCommandRepository {
   }
 
   async getExams(tenantId: string) {
-    const metrics = await this.safeQuery(
+    const metrics = await this.queryOne(
       `
         SELECT
           (SELECT COUNT(*)::int FROM exam_marks WHERE tenant_id = $1 AND status = 'draft') AS draft_marks
@@ -847,7 +1118,7 @@ export class DeputyCommandRepository {
         LIMIT 25
       `,
       [tenantId],
-    ).catch(() => ({ rows: [] }));
+    );
 
     return {
       metrics,
@@ -866,7 +1137,7 @@ export class DeputyCommandRepository {
         RETURNING id::text, status, remarks
       `,
       [tenantId, id],
-    ).catch(() => ({ rows: [] as any[] }));
+    );
     if (!updateResult.rows[0]) {
       throw new Error('Exam mark batch was not found for this school.');
     }
@@ -903,7 +1174,10 @@ export class DeputyCommandRepository {
           section.name,
           COALESCE(class_teacher.teacher_name, 'Class teacher not assigned') AS "classTeacher",
           COALESCE(student_counts.count, 0)::int AS "studentCount",
-          'Active' AS status
+          INITCAP(COALESCE(
+            NULLIF(section.status, ''),
+            CASE WHEN COALESCE(section.is_active, TRUE) THEN 'active' ELSE 'inactive' END
+          )) AS status
         FROM class_sections section
         LEFT JOIN LATERAL (
           SELECT COALESCE(staff.display_name, staff.staff_number) AS teacher_name
@@ -1075,68 +1349,41 @@ export class DeputyCommandRepository {
     return { success: true, message: 'Stream configuration updated', stream };
   }
 
-  async getApprovals(tenantId: string) {
-    const metrics = await this.safeQuery(
+  async getDeputyApprovalHistory(tenantId: string, actorUserId: string, actorRole: string) {
+    const result = await this.executeSql(
       `
         SELECT
-          (SELECT COUNT(*)::int FROM operational_requests WHERE tenant_id = $1 AND status IN ('PENDING', 'REQUESTED', 'pending', 'requested')) AS pending_approvals
+          approval.id::text,
+          COALESCE(
+            NULLIF(approval.metadata ->> 'title', ''),
+            initcap(replace(COALESCE(NULLIF(approval.approval_type, ''), NULLIF(approval.module, ''), 'approval'), '_', ' '))
+          ) AS title,
+          lower(approval.status) AS status,
+          approval.decision_note AS note,
+          approval.module,
+          approval.record_id,
+          to_char(COALESCE(approval.decided_at, approval.updated_at), 'YYYY-MM-DD') AS date
+        FROM dashboard_approval_requests approval
+        WHERE approval.tenant_id::text = $1::text
+          AND approval.approver_user_id = $2::uuid
+          AND lower(approval.status) IN ('approved', 'rejected')
+          AND regexp_replace(
+            lower(btrim(COALESCE(approval.metadata ->> 'decisionByRole', approval.approver_role, ''))),
+            '[^a-z0-9]+',
+            '_',
+            'g'
+          ) = regexp_replace(lower(btrim($3)), '[^a-z0-9]+', '_', 'g')
+        ORDER BY COALESCE(approval.decided_at, approval.updated_at) DESC
+        LIMIT 10
       `,
-      [tenantId],
-      { pending_approvals: 0 }
+      [tenantId, actorUserId, actorRole],
     );
 
-    const approvalsResult = await this.executeSql(
-      `
-        SELECT
-          id::text,
-          COALESCE(action_type, type, 'Approval') AS type,
-          COALESCE(origin_role, requester_role, created_by, 'Requester not recorded') AS "raisedBy",
-          COALESCE(related_record_id::text, title, 'Record not linked') AS "affectedPerson",
-          COALESCE(status, 'Pending Approval') AS status
-        FROM operational_requests
-        WHERE tenant_id = $1
-        ORDER BY created_at DESC
-        LIMIT 25
-      `,
-      [tenantId],
-    ).catch(() => ({ rows: [] }));
-
-    return {
-      metrics,
-      approvalsList: approvalsResult.rows
-    };
-  }
-
-  async actionApproval(tenantId: string, id: string, action: string) {
-    const normalizedAction = String(action || '').toLowerCase() === 'reject' ? 'REJECTED' : 'APPROVED';
-    const updateResult = await this.executeSql(
-      `
-        UPDATE operational_requests
-        SET
-          status = $3,
-          status_detail = concat('Deputy Principal ', lower($3), ' this request.'),
-          updated_at = NOW()
-        WHERE tenant_id = $1 AND id::text = $2
-        RETURNING id::text, title, status
-      `,
-      [tenantId, id, normalizedAction],
-    ).catch(() => ({ rows: [] as any[] }));
-    await this.createDeputyNotification(tenantId, {
-      key: `deputy-approval-${id}-${normalizedAction}-${Date.now()}`,
-      type: 'deputy.approval.action_recorded',
-      title: `Approval ${normalizedAction.toLowerCase()}`,
-      body: updateResult.rows[0]
-        ? `${updateResult.rows[0].title ?? 'Approval request'} was ${normalizedAction.toLowerCase()} by the Deputy Principal.`
-        : `Approval action ${normalizedAction.toLowerCase()} was requested for ${id}, but the request row needs verification.`,
-      targetRoles: ['principal', 'system_monitor'],
-      metadata: { approvalId: id, action: normalizedAction, updated: Boolean(updateResult.rows[0]) },
-    });
-    await this.appendDeputyAudit(tenantId, 'deputy.approval.action_recorded', 'operational_request', { id, action: normalizedAction, updated: Boolean(updateResult.rows[0]) });
-    return { success: true, message: updateResult.rows[0] ? `Approval ${normalizedAction.toLowerCase()} and notification sent` : 'Approval action routed for verification' };
+    return result.rows;
   }
 
   async getCommunication(tenantId: string) {
-    return this.safeQuery(
+    return this.queryOne(
       `
         SELECT
           (SELECT COUNT(*)::int FROM announcements WHERE tenant_id = $1) AS total_announcements
@@ -1147,7 +1394,7 @@ export class DeputyCommandRepository {
   }
 
   async getReports(tenantId: string) {
-    const metrics = await this.safeQuery(
+    const metrics = await this.queryOne(
       `
         SELECT
           (SELECT COUNT(*)::int FROM report_snapshots WHERE tenant_id = $1 AND module = 'deputy-command') AS generated_reports
@@ -1163,7 +1410,8 @@ export class DeputyCommandRepository {
           title AS "reportName",
           created_at::text AS "generatedDate",
           format AS type,
-          'Ready' AS status
+          artifact,
+          manifest
         FROM report_snapshots
         WHERE tenant_id = $1
           AND module = 'deputy-command'
@@ -1171,20 +1419,110 @@ export class DeputyCommandRepository {
         LIMIT 25
       `,
       [tenantId],
-    ).catch(() => ({ rows: [] }));
+    );
 
     return {
       metrics,
-      reportsList: reportsResult.rows
+      reportsList: reportsResult.rows.map((report: any) => ({
+        id: report.id,
+        reportName: report.reportName,
+        generatedDate: report.generatedDate,
+        type: report.type,
+        status: this.reportArtifactStatus(report.type, report.artifact, report.manifest),
+      })),
     };
   }
 
-  async generateReport(tenantId: string, name: string, format: string) {
-    const normalizedFormat = ['csv', 'xlsx', 'pdf'].includes(String(format || '').toLowerCase())
-      ? String(format).toLowerCase()
+  async downloadReportArtifact(tenantId: string, reportId: string, actorUserId: string | null) {
+    const result = await this.executeSql(
+      `
+        WITH selected_report AS (
+          SELECT
+            tenant_id,
+            snapshot_id,
+            id::text,
+            title,
+            format,
+            artifact,
+            manifest,
+            created_at::text AS "generatedDate"
+          FROM report_snapshots
+          WHERE tenant_id = $1
+            AND module = 'deputy-command'
+            AND (id::text = $2 OR snapshot_id = $2)
+          LIMIT 1
+        ), snapshot_audit AS (
+          INSERT INTO report_snapshot_audit_logs (
+            tenant_id, snapshot_id, action, actor_user_id, request_id, metadata
+          )
+          SELECT
+            tenant_id,
+            snapshot_id,
+            'report.snapshot.downloaded',
+            $3,
+            current_setting('app.request_id', true),
+            jsonb_build_object(
+              'module', 'deputy-command',
+              'format', format,
+              'artifact_checksum_sha256', artifact->>'checksum_sha256'
+            )
+          FROM selected_report
+          RETURNING id
+        ), general_audit AS (
+          INSERT INTO audit_logs (
+            tenant_id, actor_user_id, request_id, action, resource_type, resource_id, metadata
+          )
+          SELECT
+            tenant_id,
+            $3::uuid,
+            current_setting('app.request_id', true),
+            'deputy.report.downloaded',
+            'report_snapshot',
+            id::uuid,
+            jsonb_build_object(
+              'snapshot_id', snapshot_id,
+              'format', format,
+              'artifact_checksum_sha256', artifact->>'checksum_sha256'
+            )
+          FROM selected_report
+          RETURNING id
+        )
+        SELECT id, snapshot_id AS "snapshotId", title, format, artifact, manifest, "generatedDate"
+        FROM selected_report
+      `,
+      [tenantId, reportId, this.uuidOrNull(actorUserId)],
+    );
+    const report = result.rows[0] as Record<string, any> | undefined;
+    if (!report) {
+      throw new NotFoundException('Deputy report was not found in this school.');
+    }
+    if (this.reportArtifactStatus(report.format, report.artifact, report.manifest) !== 'Ready') {
+      throw new ConflictException('The stored Deputy report artifact failed integrity verification.');
+    }
+    return {
+      success: true,
+      message: 'Verified Deputy report artifact is ready',
+      report,
+    };
+  }
+
+  async generateReport(
+    tenantId: string,
+    name: string,
+    format: string,
+    actorUserId: string | null = null,
+    approvalSnapshot: unknown = {
+      metrics: { pending_approvals: 0, urgent_approvals: 0 },
+      approvalsList: [],
+      recentApprovals: [],
+    },
+  ) {
+    const requestedFormat = String(format || '').trim().toLowerCase();
+    const normalizedFormat: DeputyReportFormat = requestedFormat === 'csv' || requestedFormat === 'xlsx' || requestedFormat === 'pdf'
+      ? requestedFormat
       : 'pdf';
     const reportName = String(name || 'Deputy Principal operational report').trim();
-    const [overview, dailyOperations, attendance, discipline, welfare, teaching, timetable, academics, exams, classes, approvals, staff] = await Promise.all([
+    const [overview, dailyOperations, attendance, discipline, welfare, teaching, timetable, academics, exams, classes, staff] = await Promise.all([
       this.getOverview(tenantId),
       this.getDailyOperations(tenantId),
       this.getAttendance(tenantId),
@@ -1195,15 +1533,17 @@ export class DeputyCommandRepository {
       this.getAcademics(tenantId),
       this.getExams(tenantId),
       this.getClasses(tenantId),
-      this.getApprovals(tenantId),
       this.getStaff(tenantId),
     ]);
+    const approvals = approvalSnapshot;
+    const generatedAt = new Date().toISOString();
     const snapshotId = `deputy-${Date.now()}-${randomUUID()}`;
+    const reportId = `deputy-${this.stableKey(reportName).replace(/attendance/g, 'attn')}`;
     const manifest = {
       module: 'deputy-command',
       reportName,
       format: normalizedFormat,
-      generatedAt: new Date().toISOString(),
+      generatedAt,
       sections: {
         overview,
         dailyOperations,
@@ -1220,51 +1560,125 @@ export class DeputyCommandRepository {
       },
     };
     const manifestJson = JSON.stringify(manifest);
-    const checksum = createHash('sha256').update(manifestJson).digest('hex');
+    const manifestChecksum = createHash('sha256').update(manifestJson).digest('hex');
+    const generatedArtifact = await this.createReportArtifact(normalizedFormat, {
+      reportId,
+      module: 'deputy-command',
+      title: reportName,
+      filename: `${reportId}-${generatedAt.replace(/\D/g, '').slice(0, 14)}.${normalizedFormat}`,
+      generatedAt,
+      filters: { requested_from: 'deputy-principal-dashboard' },
+      headers: ['Section', 'Group', 'Record', 'Value'],
+      rows: this.buildReportRows(manifest.sections),
+    });
+    const artifact = {
+      kind: 'generated-report',
+      filename: generatedArtifact.filename,
+      content_type: generatedArtifact.contentType,
+      byte_length: generatedArtifact.byteLength,
+      row_count: generatedArtifact.rowCount,
+      checksum_sha256: generatedArtifact.checksumSha256,
+      generated_at: generatedArtifact.generatedAt,
+      section_count: Object.keys(manifest.sections).length,
+      encoding: 'base64',
+      content_base64: generatedArtifact.content.toString('base64'),
+    };
+    const actorId = this.uuidOrNull(actorUserId);
+    const auditMetadata = {
+      reportName,
+      format: normalizedFormat,
+      snapshot_id: snapshotId,
+      report_id: reportId,
+      manifest_checksum_sha256: manifestChecksum,
+      artifact_checksum_sha256: generatedArtifact.checksumSha256,
+      byte_length: generatedArtifact.byteLength,
+      row_count: generatedArtifact.rowCount,
+      section_count: Object.keys(manifest.sections).length,
+    };
 
-    await this.executeSql(
+    const snapshotResult = await this.executeSql(
       `
-        INSERT INTO report_snapshots (
-          tenant_id, snapshot_id, module, report_id, title, format, artifact, filters, generated_by_user_id, manifest, manifest_checksum_sha256
+        WITH inserted_snapshot AS (
+          INSERT INTO report_snapshots (
+            tenant_id, snapshot_id, module, report_id, title, format, artifact, filters,
+            generated_by_user_id, manifest, manifest_checksum_sha256
+          )
+          VALUES (
+            $1, $2, 'deputy-command', $3, $4, $5, $6::jsonb,
+            '{"requested_from":"deputy-principal-dashboard"}'::jsonb, $7::text, $8::jsonb, $9
+          )
+          RETURNING tenant_id, snapshot_id
+        ), snapshot_audit AS (
+          INSERT INTO report_snapshot_audit_logs (
+            tenant_id, snapshot_id, action, actor_user_id, request_id, metadata
+          )
+          SELECT
+            tenant_id,
+            snapshot_id,
+            'report.snapshot.created',
+            $7::text,
+            current_setting('app.request_id', true),
+            $10::jsonb
+          FROM inserted_snapshot
+          RETURNING id
+        ), general_audit AS (
+          INSERT INTO audit_logs (
+            tenant_id, actor_user_id, request_id, action, resource_type, resource_id, metadata
+          )
+          SELECT
+            tenant_id,
+            $7::uuid,
+            current_setting('app.request_id', true),
+            'deputy.report.generated',
+            'report_snapshot',
+            NULL,
+            $10::jsonb
+          FROM inserted_snapshot
+          RETURNING id
         )
-        VALUES ($1, $2, 'deputy-command', $3, $4, $5, $6::jsonb, '{}'::jsonb, NULL, $7::jsonb, $8)
+        SELECT snapshot_id FROM inserted_snapshot
       `,
       [
         tenantId,
         snapshotId,
-        `deputy-${this.stableKey(reportName).replace(/attendance/g, 'attn')}`,
+        reportId,
         reportName,
         normalizedFormat,
-        JSON.stringify({
-          kind: 'compiled-json-report',
-          filename: `deputy-${this.stableKey(reportName).replace(/attendance/g, 'attn')}.${normalizedFormat}`,
-          section_count: Object.keys(manifest.sections).length,
-        }),
+        JSON.stringify(artifact),
+        actorId,
         manifestJson,
-        checksum,
+        manifestChecksum,
+        JSON.stringify(auditMetadata),
       ],
     );
-    await this.executeSql(
-      `
-        INSERT INTO report_snapshot_audit_logs (tenant_id, snapshot_id, action, actor_user_id, request_id, metadata)
-        VALUES ($1, $2, 'deputy.report.generated', NULL, current_setting('app.request_id', true), $3::jsonb)
-      `,
-      [tenantId, snapshotId, JSON.stringify({ reportName, format: normalizedFormat, checksum })],
-    ).catch(() => undefined);
+    if (!snapshotResult.rows[0]) {
+      throw new Error('Deputy report artifact could not be stored for this school.');
+    }
     await this.createDeputyNotification(tenantId, {
       key: `deputy-report-generated-${snapshotId}`,
       type: 'deputy.report.generated',
       title: `${reportName} generated`,
-      body: `Deputy Principal report was compiled with ${Object.keys(manifest.sections).length} operational sections.`,
+      body: `Deputy Principal ${normalizedFormat.toUpperCase()} report was generated with ${Object.keys(manifest.sections).length} operational sections.`,
       targetRoles: ['principal', 'deputy_principal', 'system_monitor'],
-      metadata: { snapshotId, reportName, format: normalizedFormat, checksum },
+      metadata: {
+        snapshotId,
+        reportName,
+        format: normalizedFormat,
+        manifest_checksum_sha256: manifestChecksum,
+        artifact_checksum_sha256: generatedArtifact.checksumSha256,
+      },
     });
-    await this.appendDeputyAudit(tenantId, 'deputy.report.generated', 'report_snapshot', { snapshotId, reportName, format: normalizedFormat, checksum });
-    return { success: true, message: 'Report compiled and stored', snapshotId, report: manifest };
+    return {
+      success: true,
+      message: 'Report generated and stored',
+      snapshotId,
+      report: manifest,
+      artifact,
+    };
   }
 
   async getStaff(tenantId: string) {
-    const metrics = await this.safeQuery(
+    const metrics = await this.queryOne(
       `
         SELECT
           (SELECT COUNT(*)::int FROM staff_profiles WHERE tenant_id = $1 AND status = 'active') AS active_staff
@@ -1280,7 +1694,7 @@ export class DeputyCommandRepository {
           COALESCE(staff.full_name, staff.display_name, 'Unnamed staff') AS name,
           COALESCE(role.name, staff.role, staff.job_title, 'Role not assigned') AS role,
           COALESCE(department.name, staff.department, 'Department not assigned') AS department,
-          COALESCE(staff.status, 'active') AS status
+          COALESCE(NULLIF(staff.status, ''), 'Status not recorded') AS status
         FROM staff_profiles staff
         LEFT JOIN user_roles user_role
           ON user_role.tenant_id = staff.tenant_id
@@ -1296,7 +1710,7 @@ export class DeputyCommandRepository {
         LIMIT 50
       `,
       [tenantId],
-    ).catch(() => ({ rows: [] }));
+    );
 
     return {
       metrics,
@@ -1417,7 +1831,7 @@ export class DeputyCommandRepository {
         VALUES ($1, NULL, current_setting('app.request_id', true), $2, $3, NULL, $4::jsonb)
       `,
       [tenantId, action, resourceType, JSON.stringify(metadata)],
-    ).catch(() => undefined);
+    );
   }
 
   private async createDeputyNotification(
@@ -1442,15 +1856,25 @@ export class DeputyCommandRepository {
         INSERT INTO notifications (
           tenant_id,
           notification_key,
-          recipient_user_id,
-          recipient_guardian_id,
+          recipient_role,
           type,
           title,
           body,
           status,
+          source_module,
           metadata
         )
-        VALUES ($1, $2, NULL, NULL, $3, $4, $5, 'unread', $6::jsonb)
+        SELECT
+          $1,
+          $2 || '-' || role_name,
+          role_name,
+          $3,
+          $4,
+          $5,
+          'unread',
+          'deputy-command',
+          $6::jsonb
+        FROM unnest($7::text[]) AS role_name
         ON CONFLICT (tenant_id, notification_key)
         DO UPDATE SET
           title = EXCLUDED.title,
@@ -1458,54 +1882,8 @@ export class DeputyCommandRepository {
           metadata = EXCLUDED.metadata,
           updated_at = NOW()
       `,
-      [tenantId, input.key, input.type, input.title, input.body, JSON.stringify(metadata)],
-    ).catch(async () => {
-      await this.executeSql(
-        `
-          INSERT INTO notifications (
-            school_id,
-            target_role,
-            module,
-            event_type,
-            entity_type,
-            entity_id,
-            channel,
-            title,
-            message,
-            priority,
-            status,
-            action_url,
-            action_label,
-            metadata_json
-          )
-          SELECT
-            $1,
-            role_name,
-            'deputy-command',
-            $2,
-            'deputy-action',
-            $3,
-            'IN_APP',
-            $4,
-            $5,
-            'HIGH',
-            'UNREAD',
-            '/school/deputy-principal/approvals',
-            'Open deputy workspace',
-            $6::jsonb
-          FROM unnest($7::text[]) AS role_name
-        `,
-        [
-          tenantId,
-          input.type,
-          input.key,
-          input.title,
-          input.body,
-          JSON.stringify(metadata),
-          input.targetRoles,
-        ],
-      ).catch(() => undefined);
-    });
+      [tenantId, input.key, input.type, input.title, input.body, JSON.stringify(metadata), input.targetRoles],
+    );
   }
 
   private async createDeputyWorkflowEvent(
@@ -1571,12 +1949,166 @@ export class DeputyCommandRepository {
     return result.rows[0];
   }
 
+  private async createReportArtifact(
+    format: DeputyReportFormat,
+    input: ReportArtifactInput,
+  ): Promise<ReportArtifact> {
+    if (format === 'xlsx') {
+      return createXlsxReportArtifact(input);
+    }
+
+    if (format === 'pdf') {
+      return createPdfReportArtifact(input);
+    }
+
+    const csvArtifact = createCsvReportArtifact({
+      reportId: input.reportId,
+      title: input.title,
+      filename: input.filename ?? `${input.reportId}.csv`,
+      headers: input.headers,
+      rows: input.rows,
+      generatedAt: new Date(input.generatedAt ?? Date.now()),
+    });
+    const content = Buffer.from(csvArtifact.csv, 'utf8');
+
+    return {
+      filename: csvArtifact.filename,
+      contentType: csvArtifact.content_type,
+      byteLength: content.length,
+      checksumSha256: csvArtifact.checksum_sha256,
+      generatedAt: csvArtifact.generated_at,
+      rowCount: csvArtifact.row_count,
+      content,
+    };
+  }
+
+  private buildReportRows(sections: Record<string, unknown>): ReportArtifactValue[][] {
+    const rows: ReportArtifactValue[][] = [];
+
+    for (const [sectionName, section] of Object.entries(sections)) {
+      if (Array.isArray(section)) {
+        this.appendReportArray(rows, sectionName, 'records', section);
+        continue;
+      }
+
+      if (section && typeof section === 'object' && !(section instanceof Date)) {
+        const entries = Object.entries(section as Record<string, unknown>);
+        if (entries.length === 0) {
+          rows.push([sectionName, 'summary', '', 'No records']);
+          continue;
+        }
+
+        for (const [groupName, value] of entries) {
+          if (Array.isArray(value)) {
+            this.appendReportArray(rows, sectionName, groupName, value);
+            continue;
+          }
+
+          if (value && typeof value === 'object' && !(value instanceof Date)) {
+            const fields = Object.entries(value as Record<string, unknown>);
+            if (fields.length === 0) {
+              rows.push([sectionName, groupName, '', 'No records']);
+              continue;
+            }
+            for (const [fieldName, fieldValue] of fields) {
+              rows.push([sectionName, groupName, fieldName, this.serializeReportValue(fieldValue)]);
+            }
+            continue;
+          }
+
+          rows.push([sectionName, 'summary', groupName, this.serializeReportValue(value)]);
+        }
+        continue;
+      }
+
+      rows.push([sectionName, 'summary', '', this.serializeReportValue(section)]);
+    }
+
+    return rows;
+  }
+
+  private appendReportArray(
+    rows: ReportArtifactValue[][],
+    sectionName: string,
+    groupName: string,
+    records: unknown[],
+  ): void {
+    if (records.length === 0) {
+      rows.push([sectionName, groupName, '', 'No records']);
+      return;
+    }
+
+    records.forEach((record, index) => {
+      rows.push([sectionName, groupName, index + 1, this.serializeReportValue(record)]);
+    });
+  }
+
+  private serializeReportValue(value: unknown): ReportArtifactValue {
+    if (
+      value === null
+      || value === undefined
+      || typeof value === 'string'
+      || typeof value === 'number'
+      || typeof value === 'boolean'
+      || value instanceof Date
+    ) {
+      return value;
+    }
+
+    return JSON.stringify(value);
+  }
+
+  private reportArtifactStatus(format: unknown, artifactValue: unknown, manifestValue: unknown): 'Ready' | 'Failed' {
+    if (!manifestValue || typeof manifestValue !== 'object' || Array.isArray(manifestValue)) {
+      return 'Failed';
+    }
+    if (!artifactValue || typeof artifactValue !== 'object' || Array.isArray(artifactValue)) {
+      return 'Failed';
+    }
+
+    const artifact = artifactValue as Record<string, unknown>;
+    const normalizedFormat = String(format ?? '').trim().toLowerCase() as DeputyReportFormat;
+    const contentBase64 = typeof artifact.content_base64 === 'string'
+      ? artifact.content_base64.replace(/\s+/g, '')
+      : '';
+    const expectedContentTypes: Record<DeputyReportFormat, string> = {
+      csv: 'text/csv; charset=utf-8',
+      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      pdf: 'application/pdf',
+    };
+
+    if (!(normalizedFormat in expectedContentTypes)) return 'Failed';
+    if (artifact.kind !== 'generated-report' || artifact.encoding !== 'base64') return 'Failed';
+    if (artifact.content_type !== expectedContentTypes[normalizedFormat]) return 'Failed';
+    if (!String(artifact.filename ?? '').toLowerCase().endsWith(`.${normalizedFormat}`)) return 'Failed';
+    if (!contentBase64 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(contentBase64)) {
+      return 'Failed';
+    }
+
+    const content = Buffer.from(contentBase64, 'base64');
+    if (content.length === 0 || Number(artifact.byte_length) !== content.length) return 'Failed';
+    if (artifact.checksum_sha256 !== createHash('sha256').update(content).digest('hex')) return 'Failed';
+    if (normalizedFormat === 'pdf' && content.subarray(0, 4).toString('ascii') !== '%PDF') return 'Failed';
+    if (normalizedFormat === 'xlsx' && content.subarray(0, 2).toString('ascii') !== 'PK') return 'Failed';
+    if (normalizedFormat === 'csv' && !content.toString('utf8').startsWith('Section,Group,Record,Value')) return 'Failed';
+
+    return 'Ready';
+  }
+
   private stableKey(value: string) {
     return value
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .slice(0, 80) || 'deputy-report';
+  }
+
+  private welfareAssigneeRole(value: string) {
+    const normalized = value.trim().toLowerCase();
+    if (normalized.includes('class teacher')) return 'class_teacher';
+    if (normalized.includes('nurse')) return 'nurse';
+    if (normalized.includes('counsell')) return 'guidance_counselling';
+    return 'deputy_principal';
   }
 
   private uuidOrNull(value: unknown) {
@@ -1602,20 +2134,12 @@ export class DeputyCommandRepository {
     };
   }
 
-  private async safeQuery<T>(
+  private async queryOne<T>(
     sql: string,
     values: unknown[],
     fallback: T
   ): Promise<T> {
-    try {
-      const result = await this.executeSql(sql, values);
-      return (result.rows[0] as T) || fallback;
-    } catch (error) {
-      const code = typeof error === 'object' && error ? (error as { code?: string }).code : undefined;
-      if (code === '42P01' || code === '42703') {
-        return fallback;
-      }
-      throw error;
-    }
+    const result = await this.executeSql(sql, values);
+    return (result.rows[0] as T) ?? fallback;
   }
 }

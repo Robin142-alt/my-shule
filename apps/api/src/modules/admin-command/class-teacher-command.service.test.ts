@@ -3,27 +3,29 @@ import test from 'node:test';
 
 import { ClassTeacherCommandService } from './class-teacher-command.service';
 
-function createService(operations: any) {
+const TEACHER_ID = '11111111-1111-4111-8111-111111111111';
+
+function createService(operations: any, prisma: any = {
+  query: async () => ({ rows: [{ id: 'appointment-a' }], rowCount: 1 }),
+}) {
   return new ClassTeacherCommandService(
     {
-      getStore: () => ({ tenant_id: 'tenant-a', user_id: 'teacher-a' }),
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: TEACHER_ID, role: 'class_teacher', is_authenticated: true }),
     } as never,
-    {} as never,
+    prisma,
     operations,
   );
 }
 
 test('ClassTeacherCommandService exposes download URLs for generated class reports', async () => {
   const service = createService({
-    listReportSnapshots: async () => [
-      {
-        id: 'row-a',
-        snapshotId: 'snapshot-a',
-        reportName: 'Class register',
-        type: 'pdf',
-        generatedDate: '2026-06-20T09:15:00.000Z',
-      },
-    ],
+    readSql: async () => ({ rows: [{
+      id: 'row-a',
+      snapshotId: 'snapshot-a',
+      reportName: 'Class register',
+      type: 'pdf',
+      generatedDate: '2026-06-20T09:15:00.000Z',
+    }], rowCount: 1 }),
   });
 
   const result = await service.getReports();
@@ -63,6 +65,8 @@ test('ClassTeacherCommandService downloads report snapshots through tenant and m
   assert.match(reads[0].sql, /FROM report_snapshots/);
   assert.match(reads[0].sql, /tenant_id = \$1/);
   assert.match(reads[0].sql, /module = 'class-teacher-command'/);
+  assert.match(reads[0].sql, /generated_by_user_id::text = \$3/);
   assert.equal(reads[0].params[0], 'tenant-a');
   assert.equal(reads[0].params[1], 'snapshot-a');
+  assert.equal(reads[0].params[2], TEACHER_ID);
 });

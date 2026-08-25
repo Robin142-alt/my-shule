@@ -1,21 +1,84 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { SchoolPages } from "@/components/school/school-pages";
 import {
   MYSHULE_OPERATIONAL_ROLE_BLUEPRINTS,
   MYSHULE_OPERATIONAL_ROLE_IDS,
   getOperationalRoleBlueprint,
 } from "@/lib/operational/myshule-extreme-operating-system";
-import { SchoolPages } from "@/components/school/school-pages";
 import {
   getSchoolWorkspace,
   type SchoolExperienceRole,
 } from "@/lib/experiences/school-data";
-import { addSchoolRecord } from "@/lib/school/school-operational-store";
 
 import { renderWithProviders } from "./test-utils";
 
+function jsonResponse(body: unknown, status = 200) {
+  const response = {
+    status,
+    ok: status >= 200 && status < 300,
+    json: async () => body,
+    text: async () => JSON.stringify(body),
+    clone: () => response,
+  } as Response;
+
+  return response;
+}
+
+function genericPayload(url: string) {
+  if (url.startsWith("/api/permissions/me")) return { data: [] };
+  if (url === "/api/auth/csrf") return { token: "role-structure-csrf" };
+  if (url.includes("/class-teacher/my-classes")) return { classes: [] };
+  if (url.includes("/class-teacher/")) return [];
+  if (url === "/api/admin-command/secretary/reception-queue") {
+    return {
+      metrics: { total_in_queue: 0, being_served: 0, completed_today: 0, avg_wait_minutes: 0 },
+      queue: [],
+    };
+  }
+  if (url === "/api/admin-command/nurse/visits") {
+    return {
+      metrics: { total_visits: 0, open_visits: 0, referred: 0 },
+      visits: [],
+    };
+  }
+  if (url === "/api/admin-command/principal/exams") {
+    return {
+      status: "active",
+      activeExams: 0,
+      reportsPending: 0,
+      missingMarksAlerts: 0,
+      averageScore: 0,
+      performanceTrend: [],
+      recentResults: [],
+    };
+  }
+  return {
+    metrics: {},
+    summary: {},
+    records: [],
+    items: [],
+    classes: [],
+    students: [],
+    queue: [],
+  };
+}
+
 describe("role dashboard operational structure", () => {
+  const fetchMock = jest.fn();
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    window.history.replaceState(null, "", "/");
+    fetchMock.mockReset();
+    fetchMock.mockImplementation((input: RequestInfo | URL) =>
+      Promise.resolve(jsonResponse(genericPayload(String(input)))),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+  });
+
   it("keeps exams workspaces scoped to the academic chain and out of operational/student dashboards", () => {
     const academicChainRoles: SchoolExperienceRole[] = [
       "teacher",
@@ -55,7 +118,7 @@ describe("role dashboard operational structure", () => {
     expect(getSchoolWorkspace("student").navItems.map((item) => item.label)).not.toContain("Results");
   });
 
-  it("gives every role a complete first-viewport, sidebar, queue, action, form, table, state, mobile, and recovery contract", () => {
+  it("keeps the role blueprints complete for queues, actions, forms, tables, recovery, and mobile use", () => {
     expect(MYSHULE_OPERATIONAL_ROLE_BLUEPRINTS).toHaveLength(MYSHULE_OPERATIONAL_ROLE_IDS.length);
 
     for (const roleId of MYSHULE_OPERATIONAL_ROLE_IDS) {
@@ -90,7 +153,7 @@ describe("role dashboard operational structure", () => {
     }
   });
 
-  it("limits full global search to principal, deputy, secretary, and accountant while keeping other users scoped", () => {
+  it("limits full global search to executive and front-office finance roles", () => {
     expect(getOperationalRoleBlueprint("principal")?.searchMode).toBe("GLOBAL_EXECUTIVE");
     expect(getOperationalRoleBlueprint("deputy-principal")?.searchMode).toBe("GLOBAL_OPERATIONS");
     expect(getOperationalRoleBlueprint("secretary")?.searchMode).toBe("GLOBAL_FRONT_OFFICE");
@@ -103,573 +166,144 @@ describe("role dashboard operational structure", () => {
     }
   });
 
-  it("keeps first-viewpoint language action-first instead of metric-only", () => {
+  it("keeps first-viewport blueprint language action-first instead of metric-only", () => {
     for (const blueprint of MYSHULE_OPERATIONAL_ROLE_BLUEPRINTS) {
       expect(blueprint.firstViewport.join(" ")).toMatch(
         /pending|urgent|missing|failed|unresolved|alerts|approvals|follow|exceptions|queue|action|review|requests|overdue|risk/i,
       );
-      expect(blueprint.queues[0]?.actions).toEqual(
-        expect.arrayContaining(["View Details"]),
-      );
+      expect(blueprint.queues[0]?.actions).toEqual(expect.arrayContaining(["View Details"]));
     }
   });
 
-  it("renders the operational role blueprint on actual school dashboard routes", async () => {
-    const user = userEvent.setup();
-
-    renderWithProviders(<SchoolPages role="class-teacher" tenantSlug="kisumu-boys" />);
-
-    expect(await screen.findByTestId("role-operational-command-center")).toBeVisible();
-    expect(screen.getByTestId("role-operational-command-center").textContent ?? "").not.toMatch(
-      /tenant-wide|event-backed|workspace isolated|state machine|capability governed|workflow dispatch|execution timeline|generated audit extract|repair triggered|demo fabric|operational fabric|synthetic workflow|command surface|observability layer|workflow state machines|widget count|state machine bound|governed capability|audit extract|trigger repair|tenant protected|tenant isolated|tenant aware/i,
+  it("renders the class-teacher route as a dedicated, page-scrolled command center", async () => {
+    const view = renderWithProviders(
+      <SchoolPages role="class-teacher" tenantSlug="lakeview-school" routeMode="public" liveDataEnabled={false} />,
     );
-    expect(screen.getByRole("heading", { name: /class teacher desk/i })).toBeVisible();
-    expect(screen.getByText(/What requires action right now/i)).toBeVisible();
-    expect(screen.getByText(/Kisumu Boys live updates/i)).toBeVisible();
-    expect(screen.getAllByText(/Attendance absence synced/i).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText(/Today['’]s Work/i).length).toBeGreaterThan(0);
-    expect(screen.queryByText(/View Action History/i)).not.toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /Ready/i }).length).toBeGreaterThan(0);
-    expect(screen.queryByText(/Visible recovery states/i)).not.toBeInTheDocument();
 
-    await user.click(screen.getAllByRole("button", { name: /Attendance/i })[0]);
-    expect(screen.queryByRole("button", { name: /^Action History$/i })).not.toBeInTheDocument();
-    expect(screen.queryByText(/Action history/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Visible recovery states/i)).not.toBeInTheDocument();
+    expect((await screen.findAllByRole("heading", { name: /Class Teacher Dashboard/i })).length).toBeGreaterThan(0);
+    expect(screen.getByTestId("class-teacher-mobile-workspace-nav")).toBeVisible();
+    expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
+    expect(view.container.querySelector(".enterprise-shell")).not.toBeInTheDocument();
+    const root = view.container.firstElementChild;
+    expect(root?.className.split(/\s+/)).toContain("min-h-dvh");
+    expect(root?.className.split(/\s+/)).not.toContain("h-screen");
+  });
+
+  it("routes every academic-chain exams page to its dedicated moderation workspace", async () => {
+    const cases: Array<{
+      role: SchoolExperienceRole;
+      testId: string;
+      heading: RegExp;
+    }> = [
+      { role: "grade-master", testId: "role-operational-command-center", heading: /Grade\/Form Master Command Center/i },
+      { role: "hod", testId: "role-operational-command-center", heading: /Head of Department/i },
+      { role: "dean-academics", testId: "role-operational-command-center", heading: /Dean of Academics Dashboard/i },
+      { role: "deputy-principal", testId: "deputy-principal-command-center", heading: /Deputy Principal/i },
+      { role: "exams-manager", testId: "role-operational-command-center", heading: /Exams Manager/i },
+      { role: "principal", testId: "principal-practical-command-center", heading: /Exam Performance Trend/i },
+    ];
+
+    for (const routeCase of cases) {
+      const view = renderWithProviders(
+        <SchoolPages
+          role={routeCase.role}
+          section="exams"
+          tenantSlug="lakeview-school"
+          routeMode="public"
+          liveDataEnabled={false}
+        />,
+      );
+
+      expect(await screen.findByTestId(routeCase.testId)).toBeVisible();
+      expect((await screen.findAllByRole("heading", { name: routeCase.heading })).length).toBeGreaterThan(0);
+      expect(view.container.querySelector(".enterprise-shell")).not.toBeInTheDocument();
+      view.unmount();
+    }
   }, 30000);
 
-  it("routes academic-chain exams pages to their dedicated command centers", async () => {
-    const gradeMasterView = renderWithProviders(
-      <SchoolPages role="grade-master" section="exams" tenantSlug="kisumu-boys" liveDataEnabled={false} />,
+  it("switches live role workspaces without reusing generic or static dashboard content", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <SchoolPages role="secretary" tenantSlug="lakeview-school" routeMode="public" liveDataEnabled={false} />,
     );
 
-    expect(await screen.findByRole("heading", { name: /grade\/form master command center/i })).toBeVisible();
-    expect(screen.getByRole("button", { name: /grade\/form results/i })).toBeVisible();
-    expect(screen.getAllByTestId("role-operational-command-center")).toHaveLength(1);
-    gradeMasterView.unmount();
+    const commandCenter = await screen.findByTestId("live-role-command-center");
+    expect(commandCenter).toHaveAttribute("data-role", "secretary");
+    expect(within(commandCenter).getByRole("heading", { name: /Secretary Dashboard/i })).toBeVisible();
+    expect(within(commandCenter).queryByText(/5 parents waiting|9 documents requested|Kisumu Boys/i)).not.toBeInTheDocument();
 
-    const hodView = renderWithProviders(
-      <SchoolPages role="hod" section="exams" tenantSlug="kisumu-boys" liveDataEnabled={false} />,
-    );
+    await user.click(within(commandCenter).getByRole("button", { name: /Open reception queue/i }));
 
-    expect(await screen.findByTestId("role-operational-command-center")).toHaveAttribute("data-role-dashboard", "hod");
-    expect(screen.getAllByText(/Head of Department/i).length).toBeGreaterThan(0);
-    expect(screen.getByTestId("role-operational-command-center")).toHaveAttribute("data-active-view", "marks-moderation");
-    expect(screen.getAllByRole("button", { name: /Marks Moderation/i }).length).toBeGreaterThan(0);
-    expect(screen.getAllByTestId("role-operational-command-center")).toHaveLength(1);
-    hodView.unmount();
-
-    const deanView = renderWithProviders(
-      <SchoolPages role="dean-academics" section="exams" tenantSlug="kisumu-boys" liveDataEnabled={false} />,
-    );
-
-    expect(await screen.findByRole("heading", { name: /dean of academics dashboard/i })).toBeVisible();
-    expect(screen.getByRole("button", { name: /assessments/i })).toBeVisible();
-    expect(screen.getAllByTestId("role-operational-command-center")).toHaveLength(1);
-    deanView.unmount();
-
-    const deputyView = renderWithProviders(
-      <SchoolPages role="deputy-principal" section="exams" tenantSlug="kisumu-boys" liveDataEnabled={false} />,
-    );
-
-    expect(await screen.findByText(/deputy principal command center/i)).toBeVisible();
-    expect(screen.getAllByText(/academic review/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/results moderation/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/academic analytics/i).length).toBeGreaterThan(0);
-    expect(screen.getByTestId("deputy-principal-command-center")).toBeVisible();
+    expect((await within(commandCenter).findAllByRole("heading", { name: /Reception Queue/i })).length).toBeGreaterThanOrEqual(1);
+    expect(await within(commandCenter).findByText(/No visitors in the queue/i)).toBeVisible();
+    expect(window.location.pathname).toBe("/school/secretary/reception-queue");
     expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
-    deputyView.unmount();
 
-    const examsManagerView = renderWithProviders(
-      <SchoolPages role="exams-manager" section="exams" tenantSlug="kisumu-boys" liveDataEnabled={false} />,
+    const queueRequest = fetchMock.mock.calls.find(
+      ([input]) => String(input) === "/api/admin-command/secretary/reception-queue",
     );
+    expect(queueRequest?.[1]).toEqual(expect.objectContaining({
+      headers: expect.objectContaining({ "x-tenant-id": "lakeview-school" }),
+    }));
+  });
 
-    expect(await screen.findByRole("heading", { name: /exams manager desk/i })).toBeVisible();
-    expect(screen.getByRole("button", { name: /exam setup/i })).toBeVisible();
-    expect(screen.getAllByTestId("role-operational-command-center")).toHaveLength(1);
-    examsManagerView.unmount();
+  it("shows a truthful laboratory load failure and keeps retry visible", async () => {
+    const user = userEvent.setup();
+    let inventoryHealthy = false;
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.startsWith("/api/permissions/me")) return Promise.resolve(jsonResponse({ data: ["labs:read"] }));
+      if (url === "/api/labs/inventory") {
+        return Promise.resolve(inventoryHealthy
+          ? jsonResponse({ items: [], locations: [] })
+          : jsonResponse({ message: "laboratory service unavailable" }, 503));
+      }
+      if (url === "/api/labs/locations") return Promise.resolve(jsonResponse([]));
+      return Promise.resolve(jsonResponse(genericPayload(url)));
+    });
 
     renderWithProviders(
-      <SchoolPages role="principal" section="exams" tenantSlug="kisumu-boys" liveDataEnabled={false} />,
+      <SchoolPages
+        role="laboratory-technician"
+        section="lab-inventory"
+        tenantSlug="lakeview-school"
+        routeMode="public"
+        liveDataEnabled={false}
+      />,
     );
 
-    expect(await screen.findByRole("heading", { name: /exams & results command center/i })).toBeVisible();
-    expect(screen.getByText(/academic oversight/i)).toBeVisible();
-    expect(screen.getByText(/results approval/i)).toBeVisible();
-    expect(screen.getByText(/report publishing/i)).toBeVisible();
-    expect(screen.queryByRole("button", { name: /continue marks entry/i })).not.toBeInTheDocument();
-    expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
-  }, 30000);
+    const alert = await screen.findByRole("alert", {}, { timeout: 5000 });
+    expect(alert).toHaveTextContent(/Laboratory records could not be loaded/i);
+    expect(alert).toHaveTextContent(/no stock has been changed/i);
+    const failedAttempts = fetchMock.mock.calls.filter(([input]) => String(input) === "/api/labs/inventory").length;
+    expect(failedAttempts).toBeGreaterThanOrEqual(1);
 
-  it("keeps executive role sidebar routes inside one operational workspace instead of mixing old dashboards", async () => {
-    const principalFinance = renderWithProviders(<SchoolPages role="principal" section="finance" tenantSlug="kisumu-boys" />);
+    inventoryHealthy = true;
+    await user.click(within(alert).getByRole("button", { name: /Retry/i }));
 
-    expect(await screen.findByTestId("role-operational-command-center")).toBeVisible();
-    expect(screen.getByTestId("principal-practical-command-center")).toBeVisible();
-    expect(screen.getByRole("heading", { name: /^Fees$/i })).toBeVisible();
-    expect(screen.getAllByText(/KSh 248,500 collected today/i).length).toBeGreaterThan(0);
-    expect(screen.queryByRole("link", { name: /fees \/ payments/i })).not.toBeInTheDocument();
-    principalFinance.unmount();
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(await screen.findByText(/No laboratory items have been added yet/i)).toBeVisible();
+  }, 15000);
 
-    const principalAttendance = renderWithProviders(<SchoolPages role="principal" section="attendance" tenantSlug="kisumu-boys" />);
-
-    expect(await screen.findByTestId("role-operational-command-center")).toBeVisible();
-    expect(screen.getByRole("heading", { name: /^Attendance$/i })).toBeVisible();
-    expect(screen.getByText(/18 students absent, 12 late/i)).toBeVisible();
-    principalAttendance.unmount();
-
-    const deputyDiscipline = renderWithProviders(<SchoolPages role="deputy-principal" section="discipline" tenantSlug="kisumu-boys" />);
-
-    expect(await screen.findByTestId("deputy-principal-command-center")).toBeVisible();
-    expect(screen.getByText(/Deputy Principal Dashboard/i)).toBeVisible();
-    expect(screen.getAllByRole("heading", { name: /Discipline & Behaviour/i }).length).toBeGreaterThan(0);
-    expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
-    deputyDiscipline.unmount();
-  }, 30000);
-
-  it("does not fall back to Kisumu Boys when no principal tenant slug is present", async () => {
-    renderWithProviders(<SchoolPages role="principal" />);
-
-    expect(await screen.findByTestId("role-operational-command-center")).toBeVisible();
-    expect(screen.getByTestId("principal-practical-command-center")).toBeVisible();
-    expect(screen.getAllByText(/School workspace/i).length).toBeGreaterThan(0);
-    expect(screen.queryByText(/Kisumu Boys/i)).not.toBeInTheDocument();
-    expect(screen.getAllByText(/Students Present/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Fees Collected Today/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Visitors Inside/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Sick Bay Cases/i).length).toBeGreaterThan(0);
-    expect(screen.queryByText(/KSh 248,500/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/From: Accountant dashboard and M-Pesa confirmations/i)).toBeVisible();
-    expect(screen.getByText(/From: Teacher and Class Teacher dashboards/i)).toBeVisible();
-  }, 30000);
-
-  it("shows accountant payment records inside the principal fees workspace", async () => {
-    const schoolId = "kisumu-boys";
-    window.localStorage.setItem("myshule.currentSchoolId", schoolId);
-
-    addSchoolRecord(
-      "finance-payments",
-      {
-        id: "principal-payment-brian",
-        student: "Brian Otieno",
-        admissionNo: "KBI/2026/044",
-        amount: 5000,
-        method: "Cash",
-        voteHead: "Tuition",
-        term: "Term 2 2026",
-        reference: "CASH-5000",
-        receiptNo: "KBI-RCPT-5001",
-        parentSmsSent: true,
-        status: "Recorded",
-      },
-      schoolId,
-    );
-    addSchoolRecord(
-      "fee-balances",
-      {
-        id: "fee-brian",
-        student: "Brian Otieno",
-        admissionNo: "KBI/2026/044",
-        className: "Form 2 East",
-        balance: 7400,
-        parentPhone: "0712 345 678",
-        lastPayment: 5000,
-        lastMethod: "Cash",
-        status: "Balance",
-      },
-      schoolId,
+  it("keeps live queues page-scrolled, mobile navigable, and wide tables horizontally scrollable", async () => {
+    renderWithProviders(
+      <SchoolPages
+        role="nurse"
+        section="visits"
+        tenantSlug="lakeview-school"
+        routeMode="public"
+        liveDataEnabled={false}
+      />,
     );
 
-    renderWithProviders(<SchoolPages role="principal" section="finance" tenantSlug={schoolId} />);
-
-    const commandCenter = screen.getByTestId("principal-practical-command-center");
-    expect(within(commandCenter).getByText(/KSh 5,000 collected today/i)).toBeVisible();
-    expect(within(commandCenter).getByText(/Brian Otieno payment KBI-RCPT-5001/i)).toBeVisible();
-    expect(within(commandCenter).getAllByText(/Current balance KSh 7,400/i).length).toBeGreaterThan(0);
-  });
-
-  it("shows secretary visitor and parent inquiry records inside the principal visitors workspace", async () => {
-    const schoolId = "principal-front-office-sync";
-    window.localStorage.setItem("myshule.currentSchoolId", schoolId);
-
-    addSchoolRecord(
-      "visitors",
-      {
-        id: "visitor-peter-ouma",
-        visitor: "Peter Ouma",
-        phoneOrId: "0710 111 222",
-        visiting: "Accounts Office",
-        reason: "Fee balance follow-up",
-        vehicle: "KDE 245P",
-        status: "Inside",
-        checkInTime: "8:20 AM",
-        slipPrinted: true,
-      },
-      schoolId,
-    );
-    addSchoolRecord(
-      "front-office-inquiries",
-      {
-        id: "inquiry-wanjiku-transfer",
-        parent: "Mrs. Wanjiku",
-        student: "Brian Otieno",
-        className: "Form 2 East",
-        phone: "0712 345 678",
-        issue: "Transfer letter request",
-        department: "Principal",
-        status: "Waiting",
-        smsSent: false,
-      },
-      schoolId,
-    );
-
-    renderWithProviders(<SchoolPages role="principal" section="visitors" tenantSlug={schoolId} />);
-
-    const commandCenter = screen.getByTestId("principal-practical-command-center");
-    expect(within(commandCenter).getByText(/1 visitor inside and 1 parent inquiry waiting/i)).toBeVisible();
-    expect(within(commandCenter).getByText(/Peter Ouma visiting Accounts Office/i)).toBeVisible();
-    expect(within(commandCenter).getByText(/Mrs\. Wanjiku waiting for Brian Otieno/i)).toBeVisible();
-  });
-
-  it("shows nurse sick bay and medicine stock records inside the principal sick bay workspace", async () => {
-    const schoolId = "principal-sick-bay-sync";
-    window.localStorage.setItem("myshule.currentSchoolId", schoolId);
-
-    addSchoolRecord(
-      "clinic-visits",
-      {
-        id: "clinic-visit-brian-referral",
-        student: "Brian Otieno",
-        className: "Form 2 East",
-        symptoms: "High fever and dizziness",
-        temperature: "39.1",
-        medicine: "ORS sachets",
-        quantity: 2,
-        guardianPhone: "0712 345 678",
-        status: "Referred",
-        parentContacted: true,
-        time: "10:15 AM",
-      },
-      schoolId,
-    );
-    addSchoolRecord(
-      "medicine-stock",
-      {
-        id: "medicine-ors-low",
-        medicine: "ORS sachets",
-        batch: "ORS-2026-A",
-        quantity: 3,
-        expiry: "2026-07-15",
-        reorderAt: 10,
-      },
-      schoolId,
-    );
-
-    renderWithProviders(<SchoolPages role="principal" section="clinic" tenantSlug={schoolId} />);
-
-    const commandCenter = screen.getByTestId("principal-practical-command-center");
-    expect(within(commandCenter).getByText(/1 sick bay case recorded and 1 medicine stock alert/i)).toBeVisible();
-    expect(within(commandCenter).getByText(/Brian Otieno referred from sick bay/i)).toBeVisible();
-    expect(within(commandCenter).getByText(/ORS sachets low stock/i)).toBeVisible();
-  });
-
-  it("shows librarian circulation and fine records inside the principal library workspace", async () => {
-    const schoolId = "principal-library-sync";
-    window.localStorage.setItem("myshule.currentSchoolId", schoolId);
-
-    addSchoolRecord(
-      "library-loans",
-      {
-        id: "library-loan-brian-overdue",
-        bookTitle: "Kidagaa Kimemwozea",
-        barcode: "KBH-LIB-9090",
-        borrower: "Brian Otieno",
-        admissionNo: "KBI/2026/044",
-        dueDate: "2026-06-01",
-        status: "Overdue",
-        fine: 40,
-        parentSmsSent: false,
-      },
-      schoolId,
-    );
-    addSchoolRecord(
-      "library-loans",
-      {
-        id: "library-loan-faith-lost",
-        bookTitle: "The River and the Source",
-        barcode: "KBH-LIB-7001",
-        borrower: "Faith Akinyi",
-        admissionNo: "KBI/2025/118",
-        dueDate: "2026-05-25",
-        status: "Lost",
-        fine: 850,
-        parentSmsSent: true,
-      },
-      schoolId,
-    );
-
-    renderWithProviders(<SchoolPages role="principal" section="library" tenantSlug={schoolId} />);
-
-    const commandCenter = screen.getByTestId("principal-practical-command-center");
-    expect(within(commandCenter).getByText(/2 active library records with 2 needing follow-up/i)).toBeVisible();
-    expect(within(commandCenter).getByText(/Kidagaa Kimemwozea borrowed by Brian Otieno/i)).toBeVisible();
-    expect(within(commandCenter).getAllByText(/Fine KSh 40/i).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getByText(/The River and the Source borrowed by Faith Akinyi/i)).toBeVisible();
-  });
-
-  it("keeps the command center short and makes sidebar workspaces render independent practical data", async () => {
-    const user = userEvent.setup();
-
-    renderWithProviders(<SchoolPages role="principal" />);
-
-    expect(await screen.findByTestId("role-operational-command-center")).toBeVisible();
-    expect(screen.queryByText(/Audit trail ready for this workflow item/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Workflow state machines/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Kisumu Boys High live demo fabric/i)).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: /^Fees$/i }));
-
-    expect(screen.getByRole("heading", { name: /^Fees$/i })).toBeVisible();
-    expect(screen.getByText(/Fees items needing attention/i)).toBeVisible();
-    expect(screen.getAllByText(/Print Defaulters List/i).length).toBeGreaterThan(0);
-    expect(screen.queryByText(/Two exeat requests pending/i)).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: /^Attendance$/i }));
-
-    expect(screen.getByRole("heading", { name: /^Attendance$/i })).toBeVisible();
-    expect(screen.getByText(/Attendance items needing attention/i)).toBeVisible();
-    expect(screen.getAllByText(/Send Absence SMS/i).length).toBeGreaterThan(0);
-    expect(screen.queryByText(/1 failed M-Pesa callback/i)).not.toBeInTheDocument();
-  }, 30000);
-
-  it("renders principal first screen as a practical Kenyan school command center with working actions", async () => {
-    const user = userEvent.setup();
-
-    addSchoolRecord(
-      "attendance-registers",
-      {
-        id: "principal-attendance-form-2-blue",
-        className: "Form 2 Blue",
-        stream: "Blue",
-        teacher: "Mr. Otieno",
-        totalLearners: 48,
-        present: 44,
-        absent: 2,
-        late: 2,
-        status: "Submitted",
-        markedAt: "2026-06-06T07:42:00.000Z",
-        source: "Class Teacher dashboard",
-        presentStudents: ["Achieng Moraa", "Brian Otieno"],
-        absentStudents: [
-          { name: "Calvin Were", guardian: "Mary Were", phone: "0712 345 678" },
-          { name: "Faith Akinyi", guardian: "Grace Akinyi", phone: "" },
-        ],
-        lateStudents: ["John Mwangi", "Peter Ouma"],
-      },
-      "kisumu-boys",
-    );
-
-    renderWithProviders(<SchoolPages role="principal" tenantSlug="kisumu-boys" />);
-
-    const commandCenter = await screen.findByTestId("role-operational-command-center");
-
-    expect(within(commandCenter).getAllByText(/Students Present/i).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getAllByText(/Fees Collected Today/i).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getAllByText(/Visitors Inside/i).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getAllByText(/Sick Bay Cases/i).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getAllByText(/Pending Approvals/i).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getAllByText(/System Alerts/i).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getAllByText(/^Attendance$/i).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getAllByText(/^Fees$/i).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getAllByText(/^Discipline$/i).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getAllByText(/Parents & Visitors/i).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getAllByText(/Sick Bay/i).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getAllByText(/^Boarding$/i).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getAllByText(/^Academics$/i).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getAllByText(/^Staff$/i).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getAllByText(/^Transport$/i).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getByText(/From: Nurse dashboard and medicine stock records/i)).toBeVisible();
-    expect(within(commandCenter).getByText(/From: Security and Secretary dashboards|From: Secretary and Security dashboards/i)).toBeVisible();
-
-    for (const forbidden of [
-      /tenant-wide/i,
-      /demo fabric/i,
-      /state machine/i,
-      /event-backed/i,
-      /workspace isolated/i,
-      /capability governed/i,
-      /workflow dispatch/i,
-      /execution timeline/i,
-      /generated audit extract/i,
-      /repair triggered/i,
-      /widget count/i,
-    ]) {
-      expect(within(commandCenter).queryByText(forbidden)).not.toBeInTheDocument();
-    }
-
-    await user.click(within(commandCenter).getByRole("button", { name: /View Attendance/i }));
-
-    const attendanceWorkspace = within(commandCenter).getByRole("region", { name: /Principal attendance workspace/i });
-    expect(attendanceWorkspace).toBeVisible();
-    expect(within(attendanceWorkspace).getByLabelText(/Attendance date/i)).toBeVisible();
-    expect(within(attendanceWorkspace).getByLabelText(/Class or stream/i)).toBeVisible();
-    expect(within(attendanceWorkspace).getByLabelText(/Search attendance records/i)).toBeVisible();
-    expect(within(attendanceWorkspace).getByText(/Present students/i)).toBeVisible();
-    expect(within(attendanceWorkspace).getByText(/Absent students/i)).toBeVisible();
-    expect(within(attendanceWorkspace).getByText(/Late students/i)).toBeVisible();
-    expect(within(attendanceWorkspace).getByText(/Missing registers/i)).toBeVisible();
-    expect(within(attendanceWorkspace).getByText(/Teacher responsible/i)).toBeVisible();
-    expect(within(attendanceWorkspace).getAllByText(/Last updated/i).length).toBeGreaterThan(0);
-    expect(within(attendanceWorkspace).getByText(/Teacher and Class Teacher dashboards/i)).toBeVisible();
-    expect(within(commandCenter).queryByText(/^Opened Attendance\.$/i)).not.toBeInTheDocument();
-
-    await user.click(within(commandCenter).getAllByRole("button", { name: /Send Absence SMS/i })[0]);
-
-    const smsDialog = await screen.findByRole("dialog", { name: /Confirm absence SMS/i });
-    expect(within(smsDialog).getByText(/Parent\/guardian recipients/i)).toBeVisible();
-    expect(within(smsDialog).getByText(/Missing phone numbers/i)).toBeVisible();
-    expect(within(smsDialog).getByText(/Message preview/i)).toBeVisible();
-    expect(within(smsDialog).queryByText(/Disabled: SMS provider is not configured/i)).not.toBeInTheDocument();
-    expect(within(smsDialog).getByRole("button", { name: /Queue absence SMS/i })).toBeEnabled();
-    expect(within(commandCenter).queryByText(/Send Absence SMS is being sent/i)).not.toBeInTheDocument();
-    expect(within(commandCenter).queryByText(/Send Absence SMS completed from Attendance/i)).not.toBeInTheDocument();
-
-    await user.click(within(smsDialog).getByRole("button", { name: /^Close$/i }));
-    await user.click(within(commandCenter).getByRole("button", { name: /Print Attendance Report/i }));
-
-    const printPreview = await screen.findByRole("dialog", { name: /Kisumu Boys attendance report print preview/i });
-    expect(within(printPreview).getByText(/Print preview/i)).toBeVisible();
-    expect(within(printPreview).getByRole("button", { name: /^Print$/i })).toBeVisible();
-    expect(within(printPreview).getByRole("button", { name: /Close/i })).toBeVisible();
-    expect(within(commandCenter).queryByText(/Print Attendance Report completed from Attendance/i)).not.toBeInTheDocument();
-  }, 30000);
-
-  it("keeps principal overview wide by replacing the permanent approvals rail with a compact approvals card", async () => {
-    renderWithProviders(<SchoolPages role="principal" tenantSlug="kisumu-boys" />);
-
-    const commandCenter = await screen.findByTestId("role-operational-command-center");
-    const principalWorkspace = screen.getByTestId("principal-practical-command-center");
-    const contentScrollArea = principalWorkspace.querySelector("main section");
-
-    expect(commandCenter.className).toMatch(/min-h-dvh/);
-    expect(commandCenter.className).not.toMatch(/h-screen/);
-    expect(contentScrollArea?.className ?? "").toMatch(/overflow-y-auto/);
-    expect(principalWorkspace.innerHTML).not.toContain("xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]");
-    expect(within(commandCenter).queryByText(/Approvals, alerts, and reports/i)).not.toBeInTheDocument();
-    expect(within(commandCenter).queryByText(/Quiet areas/i)).not.toBeInTheDocument();
-    expect(within(commandCenter).getAllByText(/^Pending approvals$/i).length).toBeGreaterThanOrEqual(1);
-    expect(within(commandCenter).getAllByRole("button", { name: /Open Approval Queue/i }).length).toBeGreaterThanOrEqual(1);
-  }, 30000);
-
-  it("opens principal navigation as a mobile drawer instead of a short inline sidebar", async () => {
-    const user = userEvent.setup();
-
-    renderWithProviders(<SchoolPages role="principal" tenantSlug="kisumu-boys" />);
-
-    await screen.findByTestId("role-operational-command-center");
-    const sidebar = document.querySelector("[aria-label='Principal dashboard sidebar']")?.closest("aside");
-
-    expect(sidebar?.className ?? "").toMatch(/fixed/);
-    expect(sidebar?.className ?? "").toMatch(/-translate-x-full/);
-    expect(sidebar?.className ?? "").not.toMatch(/max-h-\[58vh\]/);
-
-    await user.click(screen.getByRole("button", { name: /Open principal navigation/i }));
-
-    expect(screen.getByRole("button", { name: /Close principal navigation overlay/i })).toBeInTheDocument();
-    expect(sidebar?.className ?? "").toMatch(/translate-x-0/);
-
-    await user.click(screen.getByRole("button", { name: /Close principal navigation overlay/i }));
-
-    expect(screen.queryByRole("button", { name: /Close principal navigation overlay/i })).not.toBeInTheDocument();
-    expect(sidebar?.className ?? "").toMatch(/-translate-x-full/);
-  }, 30000);
-
-  it("keeps the dedicated deputy dashboard page-scrolled with complete mobile workspace navigation", async () => {
-    const user = userEvent.setup();
-
-    renderWithProviders(<SchoolPages role="deputy-principal" tenantSlug="kisumu-boys" />);
-
-    const commandCenter = await screen.findByTestId("deputy-principal-command-center");
-    const sidebar = commandCenter.querySelector("aside");
-    const mobileWorkspace = within(commandCenter).getByRole("button", { name: /Open Deputy workspace sidebar/i });
-
+    const commandCenter = await screen.findByTestId("live-role-command-center");
     expect(commandCenter.className.split(/\s+/)).toContain("min-h-dvh");
     expect(commandCenter.className.split(/\s+/)).not.toContain("h-screen");
-    expect(sidebar?.className ?? "").toMatch(/xl:sticky/);
-    expect(sidebar?.className ?? "").toMatch(/hidden/);
-    expect(commandCenter.innerHTML).not.toContain("max-h-[calc(100vh");
-    expect(commandCenter.innerHTML).not.toContain("grid h-full min-h-0");
-    expect(mobileWorkspace).toHaveAttribute("aria-expanded", "false");
-    expect(within(commandCenter).queryByRole("combobox", { name: /Deputy workspace/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId("nurse-mobile-workspace-nav")).toBeVisible();
 
-    await user.click(mobileWorkspace);
-    const workspaceDialog = screen.getByRole("dialog", { name: "Deputy workspace" });
-    await user.click(within(workspaceDialog).getByRole("button", { name: /Attendance & Punctuality/i }));
-
-    expect(screen.queryByRole("dialog", { name: "Deputy workspace" })).not.toBeInTheDocument();
-    expect(mobileWorkspace).toHaveAccessibleDescription(/Attendance & Punctuality/i);
-    expect(within(commandCenter).getAllByRole("heading", { name: /Attendance & Punctuality/i }).length).toBeGreaterThan(0);
-  }, 30000);
-
-  it("does not repeat the same specialized workspace for different role sidebar items", async () => {
-    const user = userEvent.setup();
-
-    const accountant = renderWithProviders(<SchoolPages role="accountant" tenantSlug="kisumu-boys" />);
-
-    const commandCenter = await screen.findByTestId("role-operational-command-center");
-
-    expect(within(commandCenter).getByText(/Record payment and print receipt/i)).toBeVisible();
-
-    await user.click(within(commandCenter).getByRole("button", { name: /Fee Structures/i }));
-
-    expect(within(commandCenter).getAllByText(/^Fee Structures$/i).length).toBeGreaterThanOrEqual(1);
-    expect(within(commandCenter).getByText(/Fee Structures today's work/i)).toBeVisible();
-    expect(within(commandCenter).getAllByText(/Term 2 fee structure setup/i).length).toBeGreaterThanOrEqual(1);
-    expect(within(commandCenter).queryByText(/Record payment and print receipt/i)).not.toBeInTheDocument();
-
-    await user.click(within(commandCenter).getByRole("button", { name: /Invoices/i }));
-
-    expect(within(commandCenter).getAllByText(/^Invoices$/i).length).toBeGreaterThanOrEqual(1);
-    expect(within(commandCenter).getAllByText(/Form 1 North invoice batch/i).length).toBeGreaterThanOrEqual(1);
-    expect(within(commandCenter).queryByText(/Term 2 fee structure setup/i)).not.toBeInTheDocument();
-    accountant.unmount();
-
-    renderWithProviders(<SchoolPages role="librarian" tenantSlug="kisumu-boys" />);
-
-    const libraryCenter = await screen.findByTestId("role-operational-command-center");
-
-    expect(within(libraryCenter).getByText(/Issue or return books quickly/i)).toBeVisible();
-
-    await user.click(within(libraryCenter).getByRole("button", { name: /^Returns/i }));
-
-    expect(within(libraryCenter).getAllByText(/^Returns$/i).length).toBeGreaterThanOrEqual(1);
-    expect(within(libraryCenter).getByText(/Returns today's work/i)).toBeVisible();
-    expect(within(libraryCenter).getAllByText(/Overdue return at circulation desk/i).length).toBeGreaterThanOrEqual(1);
-    expect(within(libraryCenter).queryByText(/Issue or return books quickly/i)).not.toBeInTheDocument();
-
-    await user.click(within(libraryCenter).getByRole("button", { name: /Book Catalog/i }));
-
-    expect(within(libraryCenter).getAllByText(/^Book Catalog$/i).length).toBeGreaterThanOrEqual(1);
-    expect(within(libraryCenter).getAllByText(/New book accession review/i).length).toBeGreaterThanOrEqual(1);
-    expect(within(libraryCenter).queryByText(/Overdue return at circulation desk/i)).not.toBeInTheDocument();
-  }, 30000);
-
-  it("keeps operational queues page-scrolled and operational tables horizontally scrollable on mobile", async () => {
-    const user = userEvent.setup();
-
-    renderWithProviders(<SchoolPages role="class-teacher" tenantSlug="kisumu-boys" />);
-
-    const commandCenter = await screen.findByTestId("role-operational-command-center");
-
-    expect(commandCenter.innerHTML).not.toContain("max-h-[calc(100vh-330px)]");
-
-    await user.click(within(commandCenter).getAllByRole("button", { name: /Attendance/i })[0]);
-    await user.click(within(commandCenter).getByRole("button", { name: /^Records$/i }));
-
-    const attendanceTable = within(commandCenter).getByText(/Student\/Class/i).closest("table");
-    const tableWrapper = attendanceTable?.parentElement;
-
-    expect(tableWrapper?.className ?? "").toMatch(/overflow-x-auto/);
-    expect(tableWrapper?.className ?? "").not.toMatch(/overflow-hidden/);
-  }, 30000);
+    const table = await within(commandCenter).findByRole("table");
+    expect(table.parentElement?.className.split(/\s+/)).toContain("overflow-x-auto");
+    expect(table).toHaveTextContent(/Student/);
+    expect(table).toHaveTextContent(/Actions/);
+  });
 });

@@ -10,7 +10,45 @@ type SetupChecklistData = {
   tasks: Array<{ id: string; title: string; completed: boolean; group: string }>;
 };
 
-export function PrincipalSetupChecklistWorkspace() {
+type SetupWorkspaceTarget =
+  | "school-profile"
+  | "users-invitations"
+  | "academic-setup"
+  | "subjects-departments"
+  | "visitors";
+
+type SetupTaskAction = {
+  actionLabel: string;
+  target: SetupWorkspaceTarget;
+};
+
+function actionForSetupTask(task: SetupChecklistData["tasks"][number]): SetupTaskAction | null {
+  const title = task.title.trim().toLowerCase();
+
+  if (title.includes("school profile")) {
+    return { actionLabel: "Open School Profile", target: "school-profile" };
+  }
+  if (title.includes("principal") || title.includes("deputy") || title.includes("staff")) {
+    return { actionLabel: "Open Users & Invitations", target: "users-invitations" };
+  }
+  if (title.includes("subject")) {
+    return { actionLabel: "Open Subjects & Departments", target: "subjects-departments" };
+  }
+  if (title.includes("term") || title.includes("grading") || title.includes("academic")) {
+    return { actionLabel: "Open Academic Setup", target: "academic-setup" };
+  }
+  if (title.includes("student") || title.includes("learner") || title.includes("admission")) {
+    return { actionLabel: "Open Admission Handoff", target: "visitors" };
+  }
+
+  return null;
+}
+
+export function PrincipalSetupChecklistWorkspace({
+  onNavigate,
+}: {
+  onNavigate?: (target: SetupWorkspaceTarget) => void;
+}) {
   const { data, isLoading, error } = useSchoolQuery<SetupChecklistData>('/admin-command/principal/setup-checklist');
 
   if (isLoading) {
@@ -80,18 +118,33 @@ export function PrincipalSetupChecklistWorkspace() {
               </div>
               
               <div className="space-y-3">
-                {tasks.map(task => (
-                  <div key={task.id} className="flex items-center gap-3 p-2 rounded hover:bg-white/5 transition cursor-pointer">
-                    {task.completed ? (
-                      <CheckCircle2 className="h-5 w-5 text-emerald-400 flex-shrink-0" />
-                    ) : (
-                      <Circle className="h-5 w-5 text-white/20 flex-shrink-0" />
-                    )}
-                    <span className={`font-medium ${task.completed ? 'text-white/60 line-through decoration-white/30' : 'text-white'}`}>
-                      {task.title}
-                    </span>
-                  </div>
-                ))}
+                {tasks.map(task => {
+                  const action = actionForSetupTask(task);
+
+                  return (
+                    <div key={task.id} className="flex flex-col gap-3 rounded p-2 transition hover:bg-white/5 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex min-w-0 items-center gap-3">
+                        {task.completed ? (
+                          <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-emerald-400" />
+                        ) : (
+                          <Circle className="h-5 w-5 flex-shrink-0 text-white/20" />
+                        )}
+                        <span className={`font-medium ${task.completed ? 'text-white/60 line-through decoration-white/30' : 'text-white'}`}>
+                          {task.title}
+                        </span>
+                      </div>
+                      {action && onNavigate ? (
+                        <button
+                          type="button"
+                          onClick={() => onNavigate(action.target)}
+                          className="min-h-10 shrink-0 rounded-lg border border-cyan-200/30 bg-cyan-200/10 px-3 py-2 text-sm font-black text-cyan-100 transition hover:bg-cyan-200/20"
+                        >
+                          {action.actionLabel}
+                        </button>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
             </Card>
           );

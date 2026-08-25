@@ -1,12 +1,14 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { RequestContextService } from '../common/request-context/request-context.service';
+import { NotificationsService } from '../modules/notifications/notifications.service';
 
 @Injectable()
 export class ParentPortalService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly requestContext: RequestContextService
+    private readonly requestContext: RequestContextService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   private requireContext() {
@@ -439,17 +441,12 @@ export class ParentPortalService {
     }));
 
     // Notifications for this specific parent user or global parent role
-    const notificationsRaw = await this.prisma.notification.findMany({
-      where: {
-        schoolId: tenantId,
-        OR: [
-          { targetUserId: userId },
-          { targetRole: 'PARENT' }
-        ]
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
-    });
+    const notificationsRaw = await this.notificationsService.getUserNotifications(
+      tenantId,
+      userId,
+      'parent',
+      { limit: 20 },
+    );
 
     const notifications = notificationsRaw.map(n => ({
       id: n.id,
@@ -569,13 +566,9 @@ export class ParentPortalService {
     } : null;
 
     // Count of unread notifications for parent
-    const unreadCount = await this.prisma.notification.count({
-      where: {
-        schoolId: tenantId,
-        targetUserId: userId,
-        status: 'UNREAD',
-      }
-    });
+    const unreadCount = (
+      await this.notificationsService.getBadges(tenantId, userId, 'parent')
+    ).unreadCount;
 
     // Action required (e.g. overdue invoices for active child)
     const overdueInvoices = await this.prisma.invoice.findMany({

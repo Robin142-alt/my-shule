@@ -27,28 +27,6 @@ const HR_TABLES = [
 
 @Injectable()
 export class HrSchemaService implements OnModuleInit, OnApplicationBootstrap {
-
-  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
-    const firstParam = params[0];
-    const isUuid = typeof firstParam === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firstParam);
-
-    if ((this.prisma as any).query) {
-      return (this.prisma as any).query(query, params);
-    }
-
-    if (isUuid) {
-      return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
-        const result = await tx.$queryRawUnsafe(query, ...params);
-        const arr = Array.isArray(result) ? result : [result];
-        return { rows: arr, rowCount: arr.length };
-      });
-    } else {
-      const result = await this.prisma.$queryRawUnsafe(query, ...params);
-      const arr = Array.isArray(result) ? result : [result];
-        return { rows: arr, rowCount: arr.length };
-    }
-  }
-
   private readonly logger = new Logger(HrSchemaService.name);
 
   constructor(private readonly prisma: PrismaService) {}
@@ -265,11 +243,53 @@ export class HrSchemaService implements OnModuleInit, OnApplicationBootstrap {
         ALTER TABLE ${table} ALTER COLUMN tenant_id SET NOT NULL;
       `).join('\n')}
 
-      DO $$
-      BEGIN
-        IF to_regclass('public.tenant_memberships') IS NOT NULL
-          AND to_regclass('public.users') IS NOT NULL
-          AND to_regclass('public.roles') IS NOT NULL THEN
+      ${HR_TABLES.map((table) => `
+        ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS ${table}_rls_policy ON ${table};
+        CREATE POLICY ${table}_rls_policy ON ${table}
+        FOR ALL
+        USING (tenant_id::text = current_setting('app.tenant_id', true))
+        WITH CHECK (tenant_id::text = current_setting('app.tenant_id', true));
+      `).join('\n')}
+    `);
+
+    this.logger.log('HR staff management schema verified');
+  }
+
+  async onApplicationBootstrap(): Promise<void> {
+    const tenantRows = await this.prisma.executeWithTenant('global', null, async (tx) => {
+      await tx.$executeRawUnsafe('SET LOCAL row_security = on');
+      await tx.$executeRawUnsafe(`SET LOCAL app.role = 'platform_owner'`);
+
+      return tx.$queryRawUnsafe<Array<{ tenant_id: string }>>(`
+        SELECT tenant.tenant_id
+        FROM tenants tenant
+        WHERE btrim(tenant.tenant_id) <> ''
+          AND lower(btrim(tenant.tenant_id)) <> 'global'
+        ORDER BY tenant.tenant_id
+      `);
+    });
+    const tenantIds = [...new Set(
+      tenantRows
+        .map((row) => row.tenant_id?.trim())
+        .filter((tenantId): tenantId is string =>
+          typeof tenantId === 'string'
+          && tenantId.length > 0
+          && tenantId.toLowerCase() !== 'global'),
+    )];
+    let reconciledMembershipCount = 0;
+
+    for (const tenantId of tenantIds) {
+      const reconciledRows = await this.prisma.executeWithTenant(tenantId, null, async (tx) => {
+        await tx.$executeRawUnsafe('SET LOCAL row_security = on');
+        // Accepted staff identities are global accounts linked through a
+        // tenant membership. Platform read visibility is required to resolve
+        // the account name, while the projection write remains constrained by
+        // the tenant GUC and the explicit membership tenant predicate below.
+        await tx.$executeRawUnsafe(`SET LOCAL app.role = 'platform_owner'`);
+
+        return tx.$queryRawUnsafe<Array<{ tenant_id: string; user_id: string }>>(`
           INSERT INTO staff_profiles (
             tenant_id,
             user_id,
@@ -279,7 +299,7 @@ export class HrSchemaService implements OnModuleInit, OnApplicationBootstrap {
             updated_at
           )
           SELECT
-            membership.tenant_id,
+            $1::text,
             membership.user_id,
             COALESCE(
               NULLIF(user_account.display_name, ''),
@@ -296,7 +316,8 @@ export class HrSchemaService implements OnModuleInit, OnApplicationBootstrap {
           JOIN roles role
             ON role.id = membership.role_id
            AND role.tenant_id = membership.tenant_id
-          WHERE membership.status = 'active'
+          WHERE membership.tenant_id = $1
+            AND membership.status = 'active'
             AND user_account.status = 'active'
             AND role.code = ANY (ARRAY[${SCHOOL_STAFF_ROLE_SQL}]::text[])
           ON CONFLICT (tenant_id, user_id)
@@ -312,75 +333,16 @@ export class HrSchemaService implements OnModuleInit, OnApplicationBootstrap {
               ) THEN staff_profiles.status
               ELSE 'active'
             END,
-            updated_at = NOW();
-        END IF;
-      END;
-      $$;
+            updated_at = NOW()
+          RETURNING tenant_id, user_id
+        `, tenantId);
+      });
 
-      ${HR_TABLES.map((table) => `
-        ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;
-        ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;
-        DROP POLICY IF EXISTS ${table}_rls_policy ON ${table};
-        CREATE POLICY ${table}_rls_policy ON ${table}
-        FOR ALL
-        USING (tenant_id::text = current_setting('app.tenant_id', true))
-        WITH CHECK (tenant_id::text = current_setting('app.tenant_id', true));
-      `).join('\n')}
-    `);
-
-    this.logger.log('HR staff management schema verified');
-  }
-
-  async onApplicationBootstrap(): Promise<void> {
-    const result = await this.executeSql<{ tenant_id: string; user_id: string }>(`
-      INSERT INTO staff_profiles (
-        tenant_id,
-        user_id,
-        display_name,
-        status,
-        created_at,
-        updated_at
-      )
-      SELECT
-        membership.tenant_id,
-        membership.user_id,
-        COALESCE(
-          NULLIF(user_account.display_name, ''),
-          NULLIF(user_account.full_name, ''),
-          user_account.email,
-          membership.user_id::text
-        ),
-        'active',
-        NOW(),
-        NOW()
-      FROM tenant_memberships membership
-      JOIN users user_account
-        ON user_account.id = membership.user_id
-      JOIN roles role
-        ON role.id = membership.role_id
-       AND role.tenant_id = membership.tenant_id
-      WHERE membership.status = 'active'
-        AND user_account.status = 'active'
-        AND role.code = ANY (ARRAY[${SCHOOL_STAFF_ROLE_SQL}]::text[])
-      ON CONFLICT (tenant_id, user_id)
-        WHERE user_id IS NOT NULL
-      DO UPDATE SET
-        display_name = EXCLUDED.display_name,
-        status = CASE
-          WHEN staff_profiles.status IN (
-            'on_leave',
-            'exiting',
-            'exited',
-            'archived'
-          ) THEN staff_profiles.status
-          ELSE 'active'
-        END,
-        updated_at = NOW()
-      RETURNING tenant_id, user_id
-    `);
+      reconciledMembershipCount += reconciledRows.length;
+    }
 
     this.logger.log(
-      `HR staff directory projection reconciled for ${result.rowCount} active school membership(s)`,
+      `HR staff directory projection reconciled for ${reconciledMembershipCount} active school membership(s) across ${tenantIds.length} school tenant(s)`,
     );
   }
 }

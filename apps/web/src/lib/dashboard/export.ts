@@ -37,6 +37,24 @@ function buildDownloadUrl(content: string, mimeType: string) {
   };
 }
 
+function buildBinaryDownloadUrl(content: Uint8Array, mimeType: string, contentBase64: string) {
+  if (typeof window !== "undefined" && typeof window.URL?.createObjectURL === "function") {
+    const contentBuffer = new ArrayBuffer(content.byteLength);
+    new Uint8Array(contentBuffer).set(content);
+    const blob = new Blob([contentBuffer], { type: mimeType });
+    const url = window.URL.createObjectURL(blob);
+    return {
+      url,
+      revoke: () => window.URL.revokeObjectURL?.(url),
+    };
+  }
+
+  return {
+    url: `data:${mimeType};base64,${contentBase64}`,
+    revoke: () => undefined,
+  };
+}
+
 function triggerDownload(link: HTMLAnchorElement) {
   const userAgent = window.navigator?.userAgent?.toLowerCase() ?? "";
   if (!userAgent.includes("jsdom")) {
@@ -86,6 +104,43 @@ export function downloadTextFile({
   }
 
   const download = buildDownloadUrl(content, mimeType);
+  const link = window.document.createElement("a");
+
+  link.href = download.url;
+  link.download = filename;
+  window.document.body.appendChild(link);
+  triggerDownload(link);
+  window.document.body.removeChild(link);
+  download.revoke();
+}
+
+export function downloadBase64File({
+  filename,
+  contentBase64,
+  mimeType = "application/octet-stream",
+}: {
+  filename: string;
+  contentBase64: string;
+  mimeType?: string;
+}) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const normalizedContent = contentBase64.replace(/\s+/g, "");
+  if (!normalizedContent) {
+    throw new Error("The report artifact does not contain downloadable content.");
+  }
+
+  let binary: string;
+  try {
+    binary = window.atob(normalizedContent);
+  } catch {
+    throw new Error("The report artifact is not valid base64 content.");
+  }
+
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  const download = buildBinaryDownloadUrl(bytes, mimeType, normalizedContent);
   const link = window.document.createElement("a");
 
   link.href = download.url;
@@ -156,17 +211,23 @@ function openInlinePrintPreview(html: string, title: string) {
 
   overlay.querySelector("[data-myshule-print]")?.addEventListener("click", () => {
     const userAgent = window.navigator?.userAgent?.toLowerCase() ?? "";
-    if (!userAgent.includes("jsdom")) {
-      iframe?.contentWindow?.focus();
-      iframe?.contentWindow?.print?.();
+    if (userAgent.includes("jsdom")) {
+      window.print?.();
+      return;
     }
+
+    iframe?.contentWindow?.focus();
+    iframe?.contentWindow?.print?.();
   });
   overlay.querySelector("[data-myshule-download-pdf]")?.addEventListener("click", () => {
     const userAgent = window.navigator?.userAgent?.toLowerCase() ?? "";
-    if (!userAgent.includes("jsdom")) {
-      iframe?.contentWindow?.focus();
-      iframe?.contentWindow?.print?.();
+    if (userAgent.includes("jsdom")) {
+      window.print?.();
+      return;
     }
+
+    iframe?.contentWindow?.focus();
+    iframe?.contentWindow?.print?.();
   });
   overlay.querySelector("[data-myshule-close]")?.addEventListener("click", () => overlay.remove());
   overlay.querySelector("[data-myshule-cancel]")?.addEventListener("click", () => overlay.remove());

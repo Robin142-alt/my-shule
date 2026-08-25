@@ -83,6 +83,7 @@ type ClassTeacherCommunicationInput = {
   message: string;
   subject?: string;
   learnerId?: string;
+  classSectionId?: string;
   sendSms?: boolean;
   source?: string;
 };
@@ -102,6 +103,7 @@ export async function sendClassTeacherCommunication(input: ClassTeacherCommunica
         message,
         subject: input.subject,
         learnerId: input.learnerId,
+        classSectionId: input.classSectionId,
         sendSms: Boolean(input.sendSms),
         source: input.source ?? "class-teacher-dashboard",
       },

@@ -33,6 +33,11 @@ export type ClinicVisitListItem = {
   student_name: string;
 };
 
+export type ClinicGuardianDelivery = {
+  guardian_count: number;
+  notification_count: number;
+};
+
 @Injectable()
 export class ClinicRepository {
 
@@ -265,13 +270,62 @@ export class ClinicRepository {
   async createVisit(input: Record<string, unknown>) {
     const result = await this.executeSql(
       `
-        INSERT INTO clinic_visits (
-          tenant_id, student_id, clinic_location_id, visit_date, symptoms_summary,
-          diagnosis_summary, confidential_notes, treatment_summary, status,
-          recorded_by_user_id
+        WITH selected_student AS (
+          SELECT
+            student.id,
+            COALESCE(
+              NULLIF(TRIM(CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name)), ''),
+              student.admission_number,
+              'Learner'
+            ) AS student_name
+          FROM students student
+          WHERE student.tenant_id = $1
+            AND student.id::text = $2
+            AND student.deleted_at IS NULL
+            AND LOWER(COALESCE(student.status::text, 'active')) IN ('active', 'admitted', 'enrolled')
+          LIMIT 1
+        ), inserted_visit AS (
+          INSERT INTO clinic_visits (
+            tenant_id, student_id, clinic_location_id, visit_date, symptoms_summary,
+            diagnosis_summary, confidential_notes, treatment_summary, status,
+            recorded_by_user_id
+          )
+          SELECT
+            $1,
+            student.id,
+            $3::uuid,
+            COALESCE($4::date, CURRENT_DATE),
+            $5,
+            $6,
+            $7,
+            $8,
+            $9,
+            $10::uuid
+          FROM selected_student student
+          RETURNING *
+        ), inserted_audit AS (
+          INSERT INTO clinic_audit_logs (
+            tenant_id, actor_user_id, action, resource_type, resource_id, metadata
+          )
+          SELECT
+            $1,
+            $10::uuid,
+            'clinic.visit_recorded',
+            'clinic_visit',
+            visit.id,
+            jsonb_build_object(
+              'student_id', visit.student_id,
+              'status', visit.status
+            )
+          FROM inserted_visit visit
+          RETURNING id
         )
-        VALUES ($1, $2::uuid, $3::uuid, COALESCE($4::date, CURRENT_DATE), $5, $6, $7, $8, $9, $10::uuid)
-        RETURNING *
+        SELECT
+          visit.*,
+          student.student_name,
+          (SELECT COUNT(*)::int FROM inserted_audit) AS audit_count
+        FROM inserted_visit visit
+        INNER JOIN selected_student student ON student.id = visit.student_id
       `,
       [
         input.tenant_id,
@@ -288,6 +342,74 @@ export class ClinicRepository {
     );
 
     return result.rows[0];
+  }
+
+  async notifyVisitGuardians(input: {
+    tenant_id: string;
+    student_id: string;
+    visit_id: string;
+    title: string;
+    body: string;
+  }): Promise<ClinicGuardianDelivery> {
+    const result = await this.executeSql<ClinicGuardianDelivery>(
+      `
+        WITH guardian_recipients AS (
+          SELECT DISTINCT ON (guardian.user_id)
+            guardian.id AS guardian_id,
+            guardian.user_id
+          FROM student_guardians guardian
+          INNER JOIN tenant_memberships membership
+            ON membership.tenant_id = guardian.tenant_id
+           AND membership.user_id = guardian.user_id
+           AND LOWER(membership.status) = 'active'
+          WHERE guardian.tenant_id = $1
+            AND guardian.student_id::text = $2
+            AND LOWER(guardian.status) = 'active'
+            AND guardian.user_id IS NOT NULL
+          ORDER BY guardian.user_id, guardian.is_primary DESC, guardian.created_at ASC
+        ), inserted_notifications AS (
+          INSERT INTO notifications (
+            tenant_id, notification_key, recipient_user_id, recipient_guardian_id,
+            type, title, body, status, priority, source_module, source_record_id, metadata
+          )
+          SELECT
+            $1,
+            'clinic-visit-' || $3 || '-' || recipient.guardian_id::text,
+            recipient.user_id,
+            recipient.guardian_id,
+            'clinic.visit_recorded',
+            $4,
+            $5,
+            'unread',
+            'normal',
+            'clinic',
+            $3,
+            jsonb_build_object(
+              'student_id', $2,
+              'visit_id', $3,
+              'recipient_scope', 'exact_linked_guardian_user'
+            )
+          FROM guardian_recipients recipient
+          ON CONFLICT (tenant_id, notification_key)
+          DO UPDATE SET
+            recipient_user_id = EXCLUDED.recipient_user_id,
+            recipient_guardian_id = EXCLUDED.recipient_guardian_id,
+            title = EXCLUDED.title,
+            body = EXCLUDED.body,
+            status = 'unread',
+            priority = EXCLUDED.priority,
+            metadata = EXCLUDED.metadata,
+            updated_at = NOW()
+          RETURNING id
+        )
+        SELECT
+          (SELECT COUNT(*)::int FROM guardian_recipients) AS guardian_count,
+          (SELECT COUNT(*)::int FROM inserted_notifications) AS notification_count
+      `,
+      [input.tenant_id, input.student_id, input.visit_id, input.title, input.body],
+    );
+
+    return result.rows[0] ?? { guardian_count: 0, notification_count: 0 };
   }
 
   async listVisits(tenantId: string): Promise<ClinicVisitListItem[]> {

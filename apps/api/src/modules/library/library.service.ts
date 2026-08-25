@@ -48,7 +48,7 @@ export class LibraryService {
   }
 
   constructor(private readonly prisma: PrismaService, private readonly requestContext: RequestContextService,
-    private readonly libraryRepository: LibraryRepository,
+      private readonly libraryRepository: LibraryRepository,
       private readonly db: PrismaService,
       @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
     @Optional() private readonly billingService?: LibraryBillingHandoff,
@@ -217,33 +217,11 @@ export class LibraryService {
         reason: 'overdue',
       });
 
-      await this.schoolEvents?.recordSchoolOperation({
-        event: {
-          id: fine.id,
-          type: 'library.overdue_fine_created',
-          module: 'library',
-          actorRole: this.requestContext.requireStore().role || 'staff',
-          title: 'Library Overdue Fine',
-          body: `Overdue fine of ${fineAmount} charged to ${loan.borrower_id}`,
-          entityId: loan.borrower_id,
-          severity: 'warning',
-          payload: { fineAmount, borrowerId: loan.borrower_id },
-        },
-        notifications: [
-          {
-            id: `lib-overdue-${fine.id}`,
-            schoolId: tenantId,
-            title: 'Overdue Book Returned',
-            body: `An overdue book was returned with a fine of ${fineAmount}`,
-            audienceRoles: ['parent', 'student'],
-            priority: 'normal',
-            sourceModule: 'library',
-            relatedModule: 'finance',
-            relatedRecordId: fine.id,
-            read: false,
-            createdAt: new Date().toISOString(),
-          }
-        ]
+      await this.recordOverdueFineOperation({
+        tenantId,
+        fineId: fine.id,
+        borrowerId: loan.borrower_id,
+        fineAmount,
       });
     }
 
@@ -304,33 +282,11 @@ export class LibraryService {
         reason: 'overdue',
       });
 
-      await this.schoolEvents?.recordSchoolOperation({
-        event: {
-          id: fine.id,
-          type: 'library.overdue_fine_created',
-          module: 'library',
-          actorRole: this.requestContext.requireStore().role || 'staff',
-          title: 'Library Overdue Fine',
-          body: `Overdue fine of ${fineAmount} charged to ${loan.borrower_id}`,
-          entityId: loan.borrower_id,
-          severity: 'warning',
-          payload: { fineAmount, borrowerId: loan.borrower_id },
-        },
-        notifications: [
-          {
-            id: `lib-overdue-${fine.id}`,
-            schoolId: tenantId,
-            title: 'Overdue Book Returned',
-            body: `An overdue book was returned with a fine of ${fineAmount}`,
-            audienceRoles: ['parent', 'student'],
-            priority: 'normal',
-            sourceModule: 'library',
-            relatedModule: 'finance',
-            relatedRecordId: fine.id,
-            read: false,
-            createdAt: new Date().toISOString(),
-          }
-        ]
+      await this.recordOverdueFineOperation({
+        tenantId,
+        fineId: fine.id,
+        borrowerId: loan.borrower_id,
+        fineAmount,
       });
     }
 
@@ -450,6 +406,77 @@ export class LibraryService {
     return { items };
   }
 
+  private async recordOverdueFineOperation(input: {
+    tenantId: string;
+    fineId: string;
+    borrowerId: string;
+    fineAmount: number;
+  }): Promise<void> {
+    if (!this.schoolEvents) return;
+
+    const recipients = await this.libraryRepository.listActiveNotificationRecipientsForBorrower(
+      input.tenantId,
+      input.borrowerId,
+    );
+    const exactNotifications = recipients.map((recipient) => ({
+      id: `lib-overdue-${input.fineId}-${recipient.user_id}`,
+      schoolId: input.tenantId,
+      // Exact user targeting wins in both the inbox and realtime routing while
+      // the role retains the recipient's semantics.
+      audienceRoles: [recipient.recipient_kind === 'guardian'
+        ? 'parent'
+        : recipient.recipient_kind === 'student'
+          ? 'student'
+          : 'staff'],
+      targetUserId: recipient.user_id,
+      recipientGuardianId: recipient.guardian_id,
+      recipientScope: `exact_active_${recipient.recipient_kind}_account`,
+      title: 'Overdue Book Returned',
+      body: `An overdue book was returned with a fine of ${input.fineAmount}.`,
+      priority: 'normal',
+      sourceModule: 'library',
+      relatedModule: 'finance',
+      relatedRecordId: input.fineId,
+      read: false,
+      createdAt: new Date().toISOString(),
+    }));
+
+    await this.schoolEvents.recordSchoolOperation({
+      event: {
+        id: input.fineId,
+        type: 'library.overdue_fine_created',
+        module: 'library',
+        actorRole: this.requestContext.requireStore().role || 'staff',
+        title: 'Library Overdue Fine',
+        body: `Overdue fine of ${input.fineAmount} charged to ${input.borrowerId}`,
+        entityId: input.borrowerId,
+        severity: 'warning',
+        payload: {
+          fineAmount: input.fineAmount,
+          borrowerId: input.borrowerId,
+          recipientScope: 'exact_active_borrower_accounts',
+          recipientCount: recipients.length,
+        },
+      },
+      notifications: [
+        {
+          id: `lib-overdue-finance-${input.fineId}`,
+          schoolId: input.tenantId,
+          title: 'Library overdue fine created',
+          body: `A library overdue fine of ${input.fineAmount} was created for borrower ${input.borrowerId}.`,
+          audienceRoles: ['accountant', 'bursar'],
+          priority: 'normal',
+          sourceModule: 'library',
+          relatedModule: 'finance',
+          relatedRecordId: input.fineId,
+          read: false,
+          createdAt: new Date().toISOString(),
+        },
+        ...exactNotifications,
+      ],
+    });
+  }
+
   async getVisits() {
     const tenantId = this.requireTenantId();
     const result = await this.executeSql(
@@ -542,13 +569,39 @@ export class LibraryService {
 
   async getNotices() {
     const tenantId = this.requireTenantId();
-    if (!this.prisma?.notification) throw new InternalServerErrorException('Prisma is not available');
-    const items = await this.prisma.notification.findMany({
-      where: { schoolId: tenantId, module: 'library' },
-      orderBy: { createdAt: 'desc' },
-      take: 20
-    });
-    return { items };
+    const result = await this.executeSql(
+      `
+        SELECT
+          event.id::text,
+          event.title,
+          event.message AS body,
+          CASE
+            WHEN event.event_type = 'library.overdue.reminder_sent'
+              THEN 'Exact borrower and linked guardian accounts'
+            ELSE COALESCE(
+              NULLIF(
+                array_to_string(
+                  ARRAY(SELECT jsonb_array_elements_text(COALESCE(event.target_roles, '[]'::jsonb))),
+                  ', '
+                ),
+                ''
+              ),
+              'No recipients recorded'
+            )
+          END AS "recipientRole",
+          event.status,
+          event.created_at::text AS "createdAt",
+          event.payload
+        FROM workflow_events event
+        WHERE event.tenant_id = $1
+          AND event.source_role = 'librarian'
+          AND event.event_type IN ('library.notice_sent', 'library.overdue.reminder_sent')
+        ORDER BY event.created_at DESC
+        LIMIT 50
+      `,
+      [tenantId],
+    );
+    return { items: result.rows };
   }
 
   async getReturns() {

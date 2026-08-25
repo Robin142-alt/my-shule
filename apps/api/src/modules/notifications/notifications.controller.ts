@@ -7,7 +7,7 @@ import { Permissions } from '../../auth/decorators/permissions.decorator';
 
 @Controller('v1/notifications')
 @UseGuards(JwtAuthGuard)
-@Permissions('notifications:*')
+@Permissions('events:read')
 export class NotificationsController {
   constructor(
     private readonly notificationsService: NotificationsService,
@@ -39,6 +39,7 @@ export class NotificationsController {
   }
 
   @Patch('read-all')
+  @Permissions('events:write')
   async markAllAsRead() {
     const principal = this.requirePrincipal();
 
@@ -46,6 +47,7 @@ export class NotificationsController {
   }
 
   @Patch(':id/read')
+  @Permissions('events:write')
   async markAsRead(@Param('id') id: string) {
     const principal = this.requirePrincipal();
 
@@ -58,6 +60,7 @@ export class NotificationsController {
   }
 
   @Patch(':id/dismiss')
+  @Permissions('events:write')
   async dismiss(@Param('id') id: string) {
     const principal = this.requirePrincipal();
 
@@ -65,6 +68,7 @@ export class NotificationsController {
   }
 
   @Patch(':id/action-taken')
+  @Permissions('events:write')
   async markActionTaken(@Param('id') id: string) {
     const principal = this.requirePrincipal();
 

@@ -18,7 +18,7 @@ export class NotificationController {
     private readonly requestContext: RequestContextService,
   ) {}
 
-  @Permissions('auth:read')
+  @Permissions('events:read')
   @Get()
   async getNotifications(
     @Query('status') status?: string,
@@ -35,7 +35,7 @@ export class NotificationController {
     );
   }
 
-  @Permissions('auth:read')
+  @Permissions('events:write')
   @Patch(':id/read')
   async markAsRead(@Param('id') id: string) {
     const principal = this.requirePrincipal();

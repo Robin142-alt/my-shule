@@ -179,10 +179,16 @@ const eventConfigs: Partial<Record<SupportedDomainEventName, DashboardEventConfi
     roleChannels: (event) => {
       const payload = payloadRecord(event);
       const roles = Array.isArray(payload.target_roles) ? payload.target_roles : [];
+      const userIds = Array.isArray(payload.target_user_ids) ? payload.target_user_ids : [];
 
-      return roles
-        .filter((role): role is string => typeof role === 'string' && role.trim().length > 0)
-        .map((role) => `role:${role.trim()}`);
+      return [
+        ...roles
+          .filter((role): role is string => typeof role === 'string' && role.trim().length > 0)
+          .map((role) => `role:${role.trim()}`),
+        ...userIds
+          .filter((userId): userId is string => typeof userId === 'string' && userId.trim().length > 0)
+          .map((userId) => `user:${userId.trim()}`),
+      ];
     },
     title: (event) => {
       const payload = payloadRecord(event);
@@ -293,6 +299,20 @@ const eventConfigs: Partial<Record<SupportedDomainEventName, DashboardEventConfi
       return `Procurement request for ${payload.quantity} ${payload.item_name}.`;
     },
   },
+  'procurement.request.approved': schoolDataChangedConfig(
+    'Procurement request approved',
+    'procurement',
+    ['procurement:read', 'procurement:approve'],
+    ['principal', 'deputy-principal', 'procurement-officer', 'storekeeper', 'accountant', 'bursar'],
+    'ok',
+  ),
+  'procurement.request.rejected': schoolDataChangedConfig(
+    'Procurement request rejected',
+    'procurement',
+    ['procurement:read', 'procurement:approve'],
+    ['principal', 'deputy-principal', 'procurement-officer', 'storekeeper', 'accountant', 'bursar'],
+    'warning',
+  ),
   'lab.request.submitted': {
     type: 'LAB_REQUEST_SUBMITTED',
     sourceModule: 'lab',
@@ -376,6 +396,27 @@ const eventConfigs: Partial<Record<SupportedDomainEventName, DashboardEventConfi
     ['school_sms:send', 'principal:read', 'deputy:read'],
     ['principal', 'deputy-principal', 'secretary', 'system-monitor'],
   ),
+  'communication.sms.provider_accepted': schoolDataChangedConfig(
+    'School message accepted by SMS provider',
+    'communication',
+    ['school_sms:read', 'principal:read', 'deputy:read'],
+    ['principal', 'deputy-principal', 'secretary', 'system-monitor'],
+    'ok',
+  ),
+  'communication.sms.delivery_failed': schoolDataChangedConfig(
+    'School message delivery failed',
+    'communication',
+    ['school_sms:read', 'principal:read', 'deputy:read'],
+    ['principal', 'deputy-principal', 'secretary', 'system-monitor'],
+    'warning',
+  ),
+  'communication.sms.delivery_unknown': schoolDataChangedConfig(
+    'School message delivery requires reconciliation',
+    'communication',
+    ['school_sms:read', 'principal:read', 'deputy:read'],
+    ['principal', 'deputy-principal', 'secretary', 'system-monitor'],
+    'warning',
+  ),
   'admissions.cleared': schoolDataChangedConfig(
     'Admission cleared',
     'admissions',
@@ -458,7 +499,15 @@ export class DashboardRealtimeService {
       return null;
     }
 
-    if (!this.hasPermission(filter.permissions, requiredPermission)) {
+    const isExactUserTarget = this.isExactUserTarget(filter.userId, roleChannels);
+    if (
+      !this.hasPermission(filter.permissions, requiredPermission)
+      && !(
+        event.event_name === 'school.operation.recorded'
+        && isExactUserTarget
+        && this.hasPermission(filter.permissions, 'auth:read')
+      )
+    ) {
       return null;
     }
 
@@ -592,6 +641,18 @@ export class DashboardRealtimeService {
       (normalizedRoleChannel && normalizedChannels.includes(normalizedRoleChannel))
       || (normalizedUserChannel && normalizedChannels.includes(normalizedUserChannel)),
     );
+  }
+
+  private isExactUserTarget(
+    userId: string | null | undefined,
+    targetChannels: string[],
+  ): boolean {
+    if (!userId) {
+      return false;
+    }
+
+    const expectedChannel = `user:${userId.trim().toLowerCase()}`;
+    return targetChannels.some((channel) => channel.trim().toLowerCase() === expectedChannel);
   }
 
   private entityIdForDashboard(event: DomainEvent): string {

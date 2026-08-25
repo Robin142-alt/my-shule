@@ -22,7 +22,7 @@ type StudentTransportListData = {
 };
 
 export function StudentTransportListWorkspace() {
-  const { data, isLoading } = useSchoolQuery<StudentTransportListData>('/admin-command/transport-manager/student-transport-list');
+  const { data, error, isLoading, refetch } = useSchoolQuery<StudentTransportListData>('/admin-command/transport-manager/student-transport-list');
   const items = data?.studenttransportlistList || [];
 
   const getStatusTone = (st: string): Tone => {
@@ -32,6 +32,18 @@ export function StudentTransportListWorkspace() {
     if (st === "Issued" || st === "Checked In" || st === "Submitted" || st === "Booked" || st === "Sent" || st === "On Leave") return "info";
     return "neutral";
   };
+
+  if (error) {
+    return (
+      <Panel title="Student Transport List" description="Manage students assigned to transport routes." icon={ClipboardList}>
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <p className="font-black">Student transport assignments could not be loaded.</p>
+          <p className="mt-1">{error.message}</p>
+          <button type="button" onClick={() => void refetch()} className="mt-3 font-black underline">Retry</button>
+        </div>
+      </Panel>
+    );
+  }
 
   return (
     <Panel title="Student Transport List" description="Manage students assigned to transport routes." icon={ClipboardList}>

@@ -128,6 +128,28 @@ export class DisciplineService {
     return this.disciplineRepository.listOffenseCategories(tenantId);
   }
 
+  async getIncidentOptions() {
+    this.assertPermission('discipline:read');
+    const tenantId = this.requireTenantId();
+    const [options, offenseCategories] = await Promise.all([
+      this.disciplineRepository.listIncidentOptions(tenantId),
+      this.listOffenseCategories(),
+    ]);
+
+    return {
+      ...options,
+      offense_categories: offenseCategories
+        .filter((category) => category.is_active)
+        .map((category) => ({
+          id: category.id,
+          label: category.name,
+          default_severity: category.default_severity,
+          default_points: category.default_points,
+          notify_parent_by_default: category.notify_parent_by_default,
+        })),
+    };
+  }
+
   async upsertOffenseCategory(dto: CreateOffenseCategoryDto) {
     this.assertPermission('discipline:manage');
     const tenantId = this.requireTenantId();

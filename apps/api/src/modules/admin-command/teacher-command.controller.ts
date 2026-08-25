@@ -97,6 +97,11 @@ export class TeacherCommandController {
     return this.service.getMessages();
   }
 
+  @Get('message-recipients')
+  getMessageRecipients() {
+    return this.service.getParentMessageRecipients();
+  }
+
   @Post('messages')
   @Permissions('teacher:write')
   sendMessage(@Body() dto: any) {

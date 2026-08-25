@@ -93,14 +93,59 @@ describe("principal school profile", () => {
     }
   });
 
-  it("links the school setup checklist to the real profile workspace", async () => {
-    const source = await import("node:fs/promises").then((fs) => fs.readFile(
-      "src/components/school/principal-command-center.tsx",
-      "utf8",
-    ));
+  it("opens the real school profile from the setup checklist", async () => {
+    const user = userEvent.setup();
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/admin-command/principal/setup-checklist")) {
+        return jsonResponse({
+          status: "setup_required",
+          overallProgress: 0,
+          tasks: [
+            {
+              id: "profile",
+              title: "Complete School Profile",
+              completed: false,
+              group: "General",
+            },
+          ],
+        });
+      }
+      if (url.includes("/api/admin-command/principal/school-profile")) {
+        return jsonResponse({
+          status: "setup_required",
+          schoolName: "Maranda High",
+          subdomain: "maranda-high",
+          motto: "",
+          county: "",
+          subCounty: "",
+          ward: "",
+          address: "",
+          website: "",
+          registrationStatus: "active",
+          curriculum: "",
+          schoolType: "",
+          logoUrl: null,
+          contactInfo: { email: "", phone: "" },
+        });
+      }
+      return jsonResponse({});
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
 
-    expect(source).toContain('actionLabel: "Open School Profile"');
-    expect(source).toContain('target: "school-profile"');
-    expect(source).toContain('<PrincipalSchoolProfileWorkspace />');
+    try {
+      renderWithProviders(
+        <SchoolPages role="principal" section="setup-checklist" tenantSlug="maranda-high" userLabel="Principal Wanjiku" />,
+      );
+
+      await user.click(await screen.findByRole("button", { name: "Open School Profile" }));
+
+      expect(await screen.findByRole("region", { name: /Principal school profile workspace/i })).toBeVisible();
+      expect(screen.getByRole("heading", { name: /^School Profile$/i })).toBeVisible();
+      expect(window.location.pathname).toMatch(/\/school-profile$/);
+    } finally {
+      global.fetch = originalFetch;
+    }
   });
 });

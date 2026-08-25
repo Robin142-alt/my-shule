@@ -1,7 +1,13 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Optional, ServiceUnavailableException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 import { PlatformSmsService } from './platform-sms.service';
 import type { PlatformSmsProviderRecord } from './integrations.types';
+import {
+  assertSafeSmsProviderUrl,
+  parseAdditionalSmsProviderHosts,
+  UnsafeSmsProviderUrlError,
+} from './sms-provider-url';
 
 export type SmsDispatchReadinessStatus =
   | 'configured'
@@ -35,10 +41,21 @@ export interface SmsDispatchInput {
 }
 
 export interface SmsDispatchResult {
-  status: 'sent';
+  status: 'provider_accepted';
   provider_id: string;
   provider_code: string;
   provider_message_id: string | null;
+}
+
+export class SmsProviderDispatchError extends ServiceUnavailableException {
+  constructor(
+    message: string,
+    readonly retryable: boolean,
+    readonly providerStatusCode: number | null = null,
+    readonly acceptanceUnknown = false,
+  ) {
+    super(message);
+  }
 }
 
 type DispatchProvider = {
@@ -49,7 +66,10 @@ type DispatchProvider = {
 
 @Injectable()
 export class SmsDispatchService {
-  constructor(private readonly platformSmsService: PlatformSmsService) {}
+  constructor(
+    private readonly platformSmsService: PlatformSmsService,
+    @Optional() private readonly configService?: ConfigService,
+  ) {}
 
   async getReadiness(): Promise<SmsDispatchReadiness> {
     const dispatchProvider = await this.platformSmsService.getDefaultProviderForDispatch();
@@ -102,9 +122,10 @@ export class SmsDispatchService {
     }
 
     const responsePayload = await this.callProvider(dispatchProvider, input);
+    this.assertProviderAccepted(responsePayload);
 
     return {
-      status: 'sent',
+      status: 'provider_accepted',
       provider_id: dispatchProvider.provider.id,
       provider_code: dispatchProvider.provider.provider_code,
       provider_message_id: this.extractProviderMessageId(responsePayload),
@@ -122,13 +143,42 @@ export class SmsDispatchService {
       throw new ServiceUnavailableException('Platform SMS provider endpoint is not configured');
     }
 
-    const response = await fetch(url, this.buildProviderRequest(dispatchProvider, input));
+    this.assertSafeProviderUrl(url, provider.provider_code);
 
-    if (!response.ok) {
-      throw new ServiceUnavailableException(`SMS provider returned ${response.status}`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.getRequestTimeoutMs());
+
+    try {
+      const request = this.buildProviderRequest(dispatchProvider, input);
+      const response = await fetch(url, {
+        ...request,
+        redirect: 'error',
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new SmsProviderDispatchError(
+          `SMS provider returned ${response.status}`,
+          response.status === 408 || response.status === 425 || response.status === 429 || response.status >= 500,
+          response.status,
+          response.status === 408 || response.status >= 500,
+        );
+      }
+
+      return this.readResponsePayload(response);
+    } catch (error) {
+      if (error instanceof SmsProviderDispatchError) {
+        throw error;
+      }
+
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new SmsProviderDispatchError('SMS provider request timed out', false, null, true);
+      }
+
+      throw new SmsProviderDispatchError('SMS provider request failed', false, null, true);
+    } finally {
+      clearTimeout(timeout);
     }
-
-    return this.readResponsePayload(response);
   }
 
   private buildProviderRequest(
@@ -139,6 +189,12 @@ export class SmsDispatchService {
     const message = input.message.trim();
     const to = input.to.trim();
     const senderId = provider.sender_id.trim();
+    const idempotencyKey = typeof input.metadata?.dispatch_key === 'string'
+      ? input.metadata.dispatch_key.trim()
+      : '';
+    const idempotencyHeaders: Record<string, string> = idempotencyKey
+      ? { 'Idempotency-Key': idempotencyKey }
+      : {};
 
     if (provider.provider_code === 'africas_talking') {
       const body = new URLSearchParams();
@@ -156,6 +212,7 @@ export class SmsDispatchService {
           Accept: 'application/json',
           'Content-Type': 'application/x-www-form-urlencoded',
           apiKey: dispatchProvider.api_key,
+          ...idempotencyHeaders,
         },
         body,
       };
@@ -176,6 +233,7 @@ export class SmsDispatchService {
           Accept: 'application/json',
           'Content-Type': 'application/x-www-form-urlencoded',
           Authorization: `Basic ${authToken}`,
+          ...idempotencyHeaders,
         },
         body,
       };
@@ -187,6 +245,7 @@ export class SmsDispatchService {
         Accept: 'application/json',
         'Content-Type': 'application/json',
         Authorization: `Bearer ${dispatchProvider.api_key}`,
+        ...idempotencyHeaders,
       },
       body: JSON.stringify({
         to,
@@ -241,6 +300,107 @@ export class SmsDispatchService {
     }
 
     return null;
+  }
+
+  private assertProviderAccepted(payload: unknown): void {
+    if (typeof payload === 'string') {
+      if (/^\s*(?:error|failed|rejected|invalid)\b/i.test(payload)) {
+        throw new SmsProviderDispatchError('SMS provider rejected the message', false);
+      }
+      return;
+    }
+
+    if (!payload || typeof payload !== 'object') {
+      return;
+    }
+
+    const record = payload as Record<string, unknown>;
+
+    if (
+      record.success === false
+      || record.accepted === false
+      || record.error
+      || (Array.isArray(record.errors) && record.errors.length > 0)
+    ) {
+      throw new SmsProviderDispatchError('SMS provider rejected the message', false);
+    }
+
+    const statuses: unknown[] = [record.status, record.delivery_status];
+    const statusCodes: unknown[] = [record.statusCode, record.status_code, record.error_code];
+    const smsMessageData = record.SMSMessageData;
+
+    if (smsMessageData && typeof smsMessageData === 'object') {
+      const recipients = (smsMessageData as Record<string, unknown>).Recipients;
+
+      if (Array.isArray(recipients)) {
+        for (const recipient of recipients) {
+          if (!recipient || typeof recipient !== 'object') {
+            continue;
+          }
+
+          const recipientRecord = recipient as Record<string, unknown>;
+          if (recipientRecord.success === false || recipientRecord.accepted === false) {
+            throw new SmsProviderDispatchError('SMS provider rejected the message', false);
+          }
+          statuses.push(recipientRecord.status);
+          statusCodes.push(
+            recipientRecord.statusCode,
+            recipientRecord.status_code,
+            recipientRecord.errorCode,
+          );
+        }
+      }
+    }
+
+    const explicitlyRejected = statuses.some(
+      (status) => typeof status === 'string'
+        && /(?:fail|reject|invalid|undeliver|not[ _-]?sent|error)/i.test(status),
+    );
+    const rejectedCode = statusCodes.some((statusCode) => {
+      if (statusCode === null || statusCode === undefined || statusCode === '') {
+        return false;
+      }
+
+      const parsed = Number(statusCode);
+      return Number.isFinite(parsed) && parsed >= 400;
+    });
+
+    if (explicitlyRejected || rejectedCode) {
+      throw new SmsProviderDispatchError('SMS provider rejected the message', false);
+    }
+  }
+
+  private getRequestTimeoutMs(): number {
+    const configured = Number(
+      this.configService?.get<number | string>('communication.smsProviderRequestTimeoutMs')
+        ?? 10_000,
+    );
+
+    if (!Number.isFinite(configured)) {
+      return 10_000;
+    }
+
+    return Math.min(Math.max(Math.trunc(configured), 1_000), 60_000);
+  }
+
+  private assertSafeProviderUrl(
+    value: string,
+    providerCode: PlatformSmsProviderRecord['provider_code'],
+  ): void {
+    try {
+      assertSafeSmsProviderUrl(
+        value,
+        providerCode,
+        parseAdditionalSmsProviderHosts(
+          this.configService?.get<string>('communication.smsProviderAllowedHosts'),
+        ),
+      );
+    } catch (error) {
+      if (error instanceof UnsafeSmsProviderUrlError) {
+        throw new SmsProviderDispatchError(error.message, false);
+      }
+      throw error;
+    }
   }
 
   private getMissingDispatchFields(dispatchProvider: DispatchProvider): string[] {

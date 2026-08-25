@@ -8,14 +8,14 @@ type FuelMaintenanceRecord = {
   vehicle: string;
   type: string;
   description: string;
-  cost: string;
+  cost_minor: string;
   date: string;
   status: string;
 };
 
 type FuelMaintenanceData = {
   metrics: {
-    fuel_cost_this_month: number;
+    maintenance_cost_this_month_minor: string;
     pending_maintenance: number;
     overdue_service: number;
   };
@@ -23,8 +23,9 @@ type FuelMaintenanceData = {
 };
 
 export function FuelMaintenanceWorkspace() {
-  const { data, isLoading } = useSchoolQuery<FuelMaintenanceData>('/admin-command/transport-manager/fuel-maintenance');
+  const { data, error, isLoading, refetch } = useSchoolQuery<FuelMaintenanceData>('/admin-command/transport-manager/fuel-maintenance');
   const items = data?.fuelmaintenanceList || [];
+  const maintenanceCostMinor = Number(data?.metrics?.maintenance_cost_this_month_minor ?? 0);
 
   const getStatusTone = (st: string): Tone => {
     if (st === "Active" || st === "Available" || st === "Approved" || st === "Completed" || st === "Resolved" || st === "Present" || st === "Functional" || st === "On Track" || st === "Cleared") return "success";
@@ -34,12 +35,26 @@ export function FuelMaintenanceWorkspace() {
     return "neutral";
   };
 
+  if (error) {
+    return (
+      <Panel title="Vehicle Maintenance" description="Track service history and vehicles that require maintenance." icon={Fuel}>
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <p className="font-black">Vehicle maintenance could not be loaded.</p>
+          <p className="mt-1">{error.message}</p>
+          <button type="button" onClick={() => void refetch()} className="mt-3 font-black underline">Retry</button>
+        </div>
+      </Panel>
+    );
+  }
+
   return (
-    <Panel title="Fuel & Maintenance" description="Track fuel consumption and vehicle maintenance." icon={Fuel}>
+    <Panel title="Vehicle Maintenance" description="Track service history and vehicles that require maintenance." icon={Fuel}>
       <div className="grid gap-4 md:grid-cols-3 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Fuel Cost This Month</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.fuel_cost_this_month ?? 0}</div>
+          <div className="text-sm font-semibold text-[#64748B]">Maintenance Cost This Month</div>
+          <div className="mt-1 text-lg font-black text-[#071D49]">
+            {isLoading ? "..." : `KES ${(Number.isFinite(maintenanceCostMinor) ? maintenanceCostMinor / 100 : 0).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          </div>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="text-sm font-semibold text-[#64748B]">Pending Maintenance</div>
@@ -73,7 +88,7 @@ export function FuelMaintenanceWorkspace() {
                   <td className="px-4 py-3 text-[#64748B]">{row.vehicle}</td>
                   <td className="px-4 py-3 text-[#64748B]">{row.type}</td>
                   <td className="px-4 py-3 text-[#64748B]">{row.description}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.cost}</td>
+                  <td className="px-4 py-3 text-[#64748B]">KES {(Number(row.cost_minor || 0) / 100).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                   <td className="px-4 py-3 text-[#64748B]">{row.date}</td>
                   <td className="px-4 py-3"><StatusChip label={row.status} tone={getStatusTone(row.status)} /></td>
                 </tr>

@@ -28,11 +28,7 @@ export class NurseCommandService {
   }
 
   private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
-    try {
-      return await this.prisma.query<T>(query, params);
-    } catch (e) {
-      return { rows: [], rowCount: 0 };
-    }
+    return this.prisma.query<T>(query, params);
   }
 
   async getOverview() {
@@ -207,31 +203,97 @@ export class NurseCommandService {
 
   async getParentNotifications() {
     const tenantId = this.requireTenantId();
-    const res = await this.executeSql(
-      `
+    const [notificationResult, recipientResult] = await Promise.all([
+      this.executeSql(
+        `
         SELECT
-          id::text,
-          payload #>> '{student_name}' AS student_name,
-          payload #>> '{parent_name}' AS parent_name,
-          payload #>> '{parent_phone}' AS parent_phone,
-          message,
-          COALESCE(payload #>> '{channel}', 'in-app') AS channel,
-          CASE WHEN status IN ('dispatched', 'handled') THEN 'Sent' ELSE 'Pending' END AS status,
-          created_at::text AS sent_at
-        FROM workflow_events
-        WHERE tenant_id = $1
-          AND event_type = 'clinic.parent_notification'
-        ORDER BY created_at DESC
-      `,
-      [tenantId]
-    );
+          notification.id::text,
+          COALESCE(
+            NULLIF(TRIM(CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name)), ''),
+            student.admission_number,
+            'Learner'
+          ) AS student_name,
+          guardian.display_name AS parent_name,
+          CASE
+            WHEN NULLIF(TRIM(COALESCE(guardian.phone, '')), '') IS NULL THEN 'Not available'
+            ELSE CONCAT('***', RIGHT(TRIM(guardian.phone), 4))
+          END AS parent_phone,
+          notification.body AS message,
+          CASE
+            WHEN COALESCE(notification.metadata #>> '{channel}', 'in-app') = 'sms' THEN 'sms + in-app'
+            ELSE 'in-app'
+          END AS channel,
+          CASE
+            WHEN LOWER(notification.status) = 'failed' THEN 'Failed'
+            WHEN COALESCE(notification.metadata #>> '{channel}', 'in-app') = 'sms' THEN 'Queued'
+            ELSE 'Sent'
+          END AS status,
+          notification.created_at::text AS queued_at
+        FROM notifications notification
+        INNER JOIN student_guardians guardian
+          ON guardian.tenant_id = notification.tenant_id
+         AND guardian.id = notification.recipient_guardian_id
+         AND guardian.user_id = notification.recipient_user_id
+        INNER JOIN students student
+          ON student.tenant_id = notification.tenant_id
+         AND student.id::text = notification.metadata #>> '{student_id}'
+        WHERE notification.tenant_id = $1
+          AND notification.type = 'clinic.parent_notification'
+          AND notification.source_module = 'nurse-command'
+          AND notification.recipient_user_id IS NOT NULL
+          AND notification.recipient_guardian_id IS NOT NULL
+        ORDER BY notification.created_at DESC
+        `,
+        [tenantId],
+      ),
+      this.executeSql<{
+        student_id: string;
+        student_name: string;
+        guardian_id: string;
+        guardian_name: string;
+        relationship: string;
+        sms_available: boolean;
+      }>(
+        `
+          SELECT DISTINCT
+            student.id::text AS student_id,
+            COALESCE(
+              NULLIF(TRIM(CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name)), ''),
+              student.admission_number,
+              'Learner'
+            ) AS student_name,
+            guardian.id::text AS guardian_id,
+            guardian.display_name AS guardian_name,
+            guardian.relationship,
+            COALESCE(guardian.can_receive_sms, TRUE)
+              AND NULLIF(TRIM(COALESCE(guardian.phone, '')), '') IS NOT NULL AS sms_available
+          FROM students student
+          INNER JOIN student_guardians guardian
+            ON guardian.tenant_id = student.tenant_id
+           AND guardian.student_id::text = student.id::text
+           AND LOWER(guardian.status) = 'active'
+           AND guardian.user_id IS NOT NULL
+          INNER JOIN tenant_memberships membership
+            ON membership.tenant_id = guardian.tenant_id
+           AND membership.user_id = guardian.user_id
+           AND LOWER(membership.status) = 'active'
+          WHERE student.tenant_id = $1
+            AND student.deleted_at IS NULL
+            AND LOWER(COALESCE(student.status, 'active')) IN ('active', 'admitted', 'enrolled')
+          ORDER BY student_name, guardian_name
+        `,
+        [tenantId],
+      ),
+    ]);
+    const notifications = notificationResult.rows as any[];
     return {
       metrics: {
-        sent_today: res.rows.filter((row: any) => String(row.sent_at).slice(0, 10) === new Date().toISOString().slice(0, 10)).length,
-        pending: res.rows.filter((row: any) => row.status === 'Pending').length,
-        failed: 0,
+        queued_today: notifications.filter((row: any) => String(row.queued_at).slice(0, 10) === new Date().toISOString().slice(0, 10)).length,
+        pending: notifications.filter((row: any) => row.status === 'Queued').length,
+        failed: notifications.filter((row: any) => row.status === 'Failed').length,
       },
-      notifications: res.rows,
+      notifications,
+      recipients: recipientResult.rows,
     };
   }
 
@@ -464,52 +526,450 @@ export class NurseCommandService {
   async sendParentNotification(dto: any) {
     const tenantId = this.requireTenantId();
     const userId = this.requireUserId();
+    const studentId = this.operations.requiredText(dto?.student_id, 'Student');
+    const guardianId = dto?.guardian_id == null || String(dto.guardian_id).trim() === ''
+      ? null
+      : String(dto.guardian_id).trim();
     const message = this.operations.requiredText(dto.message, 'Message');
-    const result = await this.operations.writeSql(
+    if (message.length > 1600) {
+      throw new BadRequestException('Message must be 1600 characters or fewer');
+    }
+    const channel = String(dto?.channel ?? 'in-app').trim().toLowerCase();
+    if (channel !== 'sms' && channel !== 'in-app') {
+      throw new BadRequestException('Channel must be SMS or in-app');
+    }
+
+    const result = await this.operations.writeSql<{
+      student_count: number;
+      guardian_count: number;
+      sms_eligible_count: number;
+      portal_notification_count: number;
+      sms_queue_count: number;
+      sms_processing_count: number;
+      sms_accepted_count: number;
+      sms_needs_review_count: number;
+      sms_outbox_count: number;
+      event_id: string | null;
+    }>(
       `
-        INSERT INTO workflow_events (
-          tenant_id, source_user_id, source_role, target_roles, event_type, entity_type,
-          entity_id, title, message, priority, payload
+        WITH selected_student AS (
+          SELECT student.id::text AS student_id
+          FROM students student
+          WHERE student.tenant_id = $1
+            AND student.id::text = $3
+            AND student.deleted_at IS NULL
+            AND LOWER(COALESCE(student.status, 'active')) IN ('active', 'admitted', 'enrolled')
+        ), guardian_recipients AS (
+          SELECT DISTINCT ON (guardian.user_id)
+            guardian.id AS guardian_id,
+            guardian.user_id,
+            NULLIF(TRIM(COALESCE(guardian.phone, '')), '') AS phone,
+            COALESCE(guardian.can_receive_sms, TRUE) AS can_receive_sms
+          FROM selected_student student
+          INNER JOIN student_guardians guardian
+            ON guardian.tenant_id = $1
+           AND guardian.student_id::text = student.student_id
+           AND LOWER(guardian.status) = 'active'
+           AND guardian.user_id IS NOT NULL
+           AND ($4::text IS NULL OR guardian.id::text = $4)
+          INNER JOIN tenant_memberships membership
+            ON membership.tenant_id = guardian.tenant_id
+           AND membership.user_id = guardian.user_id
+           AND LOWER(membership.status) = 'active'
+          ORDER BY guardian.user_id, guardian.is_primary DESC, guardian.created_at ASC
+        ), delivery AS (
+          SELECT
+            (SELECT COUNT(*)::int FROM selected_student) AS student_count,
+            (SELECT COUNT(*)::int FROM guardian_recipients) AS guardian_count,
+            (
+              SELECT COUNT(*)::int
+              FROM guardian_recipients recipient
+              WHERE recipient.can_receive_sms = TRUE
+                AND recipient.phone IS NOT NULL
+            ) AS sms_eligible_count
+        ), batch AS (
+          SELECT gen_random_uuid() AS id
+        ), inserted_event AS (
+          INSERT INTO workflow_events (
+            tenant_id, source_user_id, source_role, target_roles, event_type, entity_type,
+            entity_id, title, message, priority, payload
+          )
+          SELECT
+            $1,
+            $2::uuid,
+            'nurse',
+            '["nurse","principal","deputy_principal"]'::jsonb,
+            'clinic.parent_notification',
+            'clinic_parent_notification',
+            batch.id::text,
+            'Guardian health alert queued',
+            delivery.guardian_count::text || ' exact linked guardian delivery record(s) queued by the clinic.',
+            'high',
+            jsonb_build_object(
+              'channel', $5::text,
+              'recipient_scope', 'exact_linked_guardian_users',
+              'recipient_count', delivery.guardian_count,
+              'source_dashboard', 'nurse-parent-notifications'
+            )
+          FROM delivery
+          CROSS JOIN batch
+          WHERE delivery.student_count = 1
+            AND delivery.guardian_count > 0
+            AND ($5 <> 'sms' OR delivery.sms_eligible_count = delivery.guardian_count)
+          RETURNING id
+        ), inserted_guardian_notifications AS (
+          INSERT INTO notifications (
+            tenant_id, notification_key, recipient_user_id, recipient_guardian_id,
+            type, title, body, status, priority, source_module, source_record_id, metadata
+          )
+          SELECT
+            $1,
+            'nurse-parent-notification-' || event.id::text || '-' || recipient.guardian_id::text,
+            recipient.user_id,
+            recipient.guardian_id,
+            'clinic.parent_notification',
+            'School clinic health alert',
+            $6,
+            'unread',
+            'high',
+            'nurse-command',
+            event.id::text,
+            jsonb_build_object(
+              'event_id', event.id::text,
+              'student_id', $3::text,
+              'channel', $5::text,
+              'recipient_scope', 'exact_linked_guardian_user',
+              'source_dashboard', 'nurse-parent-notifications'
+            )
+          FROM inserted_event event
+          CROSS JOIN guardian_recipients recipient
+          ON CONFLICT (tenant_id, notification_key)
+          DO UPDATE SET
+            recipient_user_id = EXCLUDED.recipient_user_id,
+            recipient_guardian_id = EXCLUDED.recipient_guardian_id,
+            body = EXCLUDED.body,
+            status = 'unread',
+            priority = EXCLUDED.priority,
+            metadata = EXCLUDED.metadata,
+            updated_at = NOW()
+          RETURNING id
+        ), inserted_sms AS (
+          INSERT INTO communication_sms_outbox (
+            tenant_id, sent_by, recipient_phone, message, status, dispatch_key
+          )
+          SELECT
+            $1,
+            $2::uuid,
+            recipient.phone,
+            $6,
+            'Pending',
+            'nurse-parent-notification:'
+              || NULLIF(current_setting('app.request_id', true), '')
+              || ':' || recipient.guardian_id::text
+          FROM inserted_event event
+          CROSS JOIN guardian_recipients recipient
+          WHERE $5 = 'sms'
+            AND recipient.can_receive_sms = TRUE
+            AND recipient.phone IS NOT NULL
+          ON CONFLICT (tenant_id, dispatch_key) DO UPDATE
+          SET dispatch_key = EXCLUDED.dispatch_key
+          WHERE communication_sms_outbox.recipient_phone = EXCLUDED.recipient_phone
+            AND communication_sms_outbox.message = EXCLUDED.message
+            AND communication_sms_outbox.sent_by IS NOT DISTINCT FROM EXCLUDED.sent_by
+          RETURNING id, status
+        ), sms_outcome AS (
+          SELECT
+            COUNT(*)::int AS outbox_count,
+            (COUNT(*) FILTER (WHERE LOWER(status) IN ('pending', 'queued')))::int AS queued_count,
+            (COUNT(*) FILTER (WHERE LOWER(status) = 'processing'))::int AS processing_count,
+            (COUNT(*) FILTER (WHERE LOWER(status) IN ('accepted', 'sent', 'provider_accepted')))::int AS accepted_count,
+            (COUNT(*) FILTER (WHERE LOWER(status) NOT IN (
+              'pending', 'queued', 'processing', 'accepted', 'sent', 'provider_accepted'
+            )))::int AS needs_review_count
+          FROM inserted_sms
+        ), action_audit AS (
+          INSERT INTO audit_logs (
+            tenant_id, actor_user_id, request_id, action, resource_type, resource_id, metadata
+          )
+          SELECT
+            $1,
+            $2::uuid,
+            current_setting('app.request_id', true),
+            'clinic.parent_notification.sent',
+            'clinic_parent_notification',
+            event.id,
+            jsonb_build_object(
+              'channel', $5::text,
+              'recipient_scope', 'exact_linked_guardian_users',
+              'guardian_count', delivery.guardian_count,
+              'portal_notification_count', (SELECT COUNT(*) FROM inserted_guardian_notifications),
+              'sms_queue_count', (SELECT queued_count FROM sms_outcome),
+              'sms_processing_count', (SELECT processing_count FROM sms_outcome),
+              'sms_accepted_count', (SELECT accepted_count FROM sms_outcome),
+              'sms_needs_review_count', (SELECT needs_review_count FROM sms_outcome)
+            )
+          FROM inserted_event event
+          CROSS JOIN delivery
+          RETURNING id
         )
-        VALUES ($1, $2::uuid, 'nurse', $3::jsonb, 'clinic.parent_notification', 'clinic_parent_notification',
-          gen_random_uuid(), 'Parent health notification', $4, 'high', $5::jsonb)
-        RETURNING *
+        SELECT
+          delivery.student_count,
+          delivery.guardian_count,
+          delivery.sms_eligible_count,
+          (SELECT COUNT(*)::int FROM inserted_guardian_notifications) AS portal_notification_count,
+          (SELECT queued_count FROM sms_outcome) AS sms_queue_count,
+          (SELECT processing_count FROM sms_outcome) AS sms_processing_count,
+          (SELECT accepted_count FROM sms_outcome) AS sms_accepted_count,
+          (SELECT needs_review_count FROM sms_outcome) AS sms_needs_review_count,
+          (SELECT outbox_count FROM sms_outcome) AS sms_outbox_count,
+          (SELECT id::text FROM inserted_event LIMIT 1) AS event_id
+        FROM delivery
       `,
-      [
-        tenantId,
-        userId,
-        JSON.stringify(['parent', 'principal']),
-        message,
-        JSON.stringify({
-          student_name: dto.student_name,
-          parent_name: dto.parent_name,
-          parent_phone: dto.parent_phone,
-          channel: dto.channel ?? 'sms',
-        }),
-      ],
+      [tenantId, userId, studentId, guardianId, channel, message],
     );
-    await this.operations.recordAudit(tenantId, 'clinic.parent_notification.sent', 'workflow_event', result.rows[0]?.id ?? null, {
-      student_name: dto.student_name,
-      channel: dto.channel ?? 'sms',
-    }, userId);
-    return result.rows[0];
+    const delivery = result.rows[0];
+    if (!delivery || Number(delivery.student_count) !== 1) {
+      throw new BadRequestException('The selected learner is not an active learner in this school');
+    }
+    const guardianCount = Number(delivery.guardian_count ?? 0);
+    if (guardianCount === 0) {
+      throw new BadRequestException('The selected learner has no active linked guardian account');
+    }
+    if (channel === 'sms' && Number(delivery.sms_eligible_count ?? 0) !== guardianCount) {
+      throw new BadRequestException('Every selected guardian must have an active SMS-enabled phone number');
+    }
+    const portalNotificationCount = Number(delivery.portal_notification_count ?? 0);
+    const smsQueueCount = Number(delivery.sms_queue_count ?? 0);
+    const smsProcessingCount = Number(delivery.sms_processing_count ?? 0);
+    const smsAcceptedCount = Number(delivery.sms_accepted_count ?? 0);
+    const smsNeedsReviewCount = Number(delivery.sms_needs_review_count ?? 0);
+    const smsOutboxCount = Number(
+      delivery.sms_outbox_count
+        ?? smsQueueCount + smsProcessingCount + smsAcceptedCount + smsNeedsReviewCount,
+    );
+    if (!delivery.event_id || portalNotificationCount !== guardianCount || (channel === 'sms' && smsOutboxCount !== guardianCount)) {
+      throw new BadRequestException('The guardian health alert could not be queued completely');
+    }
+    return {
+      success: true,
+      message: `Health alert recorded for ${guardianCount} exact guardian account${guardianCount === 1 ? '' : 's'} (${portalNotificationCount} portal${channel === 'sms' ? `; SMS: ${smsQueueCount} queued, ${smsProcessingCount} dispatching, ${smsAcceptedCount} provider-accepted, ${smsNeedsReviewCount} requiring review` : ''}).`,
+      delivery: {
+        event_id: delivery.event_id,
+        guardian_count: guardianCount,
+        portal_notification_count: portalNotificationCount,
+        sms_queue_count: smsQueueCount,
+        sms_processing_count: smsProcessingCount,
+        sms_accepted_count: smsAcceptedCount,
+        sms_needs_review_count: smsNeedsReviewCount,
+        sms_outbox_count: smsOutboxCount,
+        recipient_scope: 'exact_linked_guardian_users',
+      },
+    };
   }
 
   async resendParentNotification(id: string) {
     const tenantId = this.requireTenantId();
-    const result = await this.operations.writeSql(
+    const userId = this.requireUserId();
+    const notificationId = this.operations.requiredText(id, 'Notification');
+    const result = await this.operations.writeSql<{
+      notification_id: string;
+      channel: string;
+      portal_notification_count: number;
+      sms_queue_count: number;
+      sms_processing_count: number;
+      sms_accepted_count: number;
+      sms_needs_review_count: number;
+      sms_outbox_count: number;
+      event_id: string;
+    }>(
       `
-        UPDATE workflow_events
-        SET status = 'dispatched', updated_at = NOW()
-        WHERE tenant_id = $1
-          AND id = $2::uuid
-          AND event_type = 'clinic.parent_notification'
-        RETURNING *
+        WITH exact_original AS (
+          SELECT DISTINCT ON (notification.id)
+            notification.id,
+            notification.recipient_user_id,
+            notification.recipient_guardian_id,
+            notification.body,
+            COALESCE(notification.metadata #>> '{channel}', 'in-app') AS channel,
+            notification.metadata #>> '{student_id}' AS student_id,
+            NULLIF(TRIM(COALESCE(guardian.phone, '')), '') AS phone,
+            COALESCE(guardian.can_receive_sms, TRUE) AS can_receive_sms
+          FROM notifications notification
+          INNER JOIN student_guardians guardian
+            ON guardian.tenant_id = notification.tenant_id
+           AND guardian.id = notification.recipient_guardian_id
+           AND guardian.user_id = notification.recipient_user_id
+           AND LOWER(guardian.status) = 'active'
+          INNER JOIN students student
+            ON student.tenant_id = notification.tenant_id
+           AND student.id::text = notification.metadata #>> '{student_id}'
+           AND student.id::text = guardian.student_id::text
+           AND student.deleted_at IS NULL
+           AND LOWER(COALESCE(student.status, 'active')) IN ('active', 'admitted', 'enrolled')
+          INNER JOIN tenant_memberships membership
+            ON membership.tenant_id = guardian.tenant_id
+           AND membership.user_id = guardian.user_id
+           AND LOWER(membership.status) = 'active'
+          WHERE notification.tenant_id = $1
+            AND notification.id::text = $3
+            AND notification.type = 'clinic.parent_notification'
+            AND notification.source_module = 'nurse-command'
+            AND notification.recipient_user_id IS NOT NULL
+            AND notification.recipient_guardian_id IS NOT NULL
+          ORDER BY notification.id
+        ), eligible_original AS (
+          SELECT *
+          FROM exact_original
+          WHERE channel IN ('in-app', 'sms')
+            AND (
+              channel <> 'sms'
+              OR (can_receive_sms = TRUE AND phone IS NOT NULL)
+            )
+        ), batch AS (
+          SELECT gen_random_uuid() AS id
+        ), inserted_event AS (
+          INSERT INTO workflow_events (
+            tenant_id, source_user_id, source_role, target_roles, event_type, entity_type,
+            entity_id, title, message, priority, payload
+          )
+          SELECT
+            $1,
+            $2::uuid,
+            'nurse',
+            '["nurse","principal","deputy_principal"]'::jsonb,
+            'clinic.parent_notification.resent',
+            'clinic_parent_notification',
+            batch.id::text,
+            'Guardian health alert requeued',
+            'One exact linked guardian delivery record was requeued by the clinic.',
+            'high',
+            jsonb_build_object(
+              'channel', original.channel,
+              'recipient_scope', 'exact_linked_guardian_user',
+              'recipient_count', 1,
+              'source_dashboard', 'nurse-parent-notifications'
+            )
+          FROM eligible_original original
+          CROSS JOIN batch
+          RETURNING id
+        ), updated_notification AS (
+          UPDATE notifications notification
+          SET status = 'unread',
+              metadata = notification.metadata
+                || jsonb_build_object(
+                  'last_resent_at', NOW(),
+                  'resend_count',
+                    CASE
+                      WHEN COALESCE(notification.metadata #>> '{resend_count}', '') ~ '^[0-9]+$'
+                        THEN (notification.metadata #>> '{resend_count}')::int + 1
+                      ELSE 1
+                    END
+                ),
+              updated_at = NOW()
+          FROM eligible_original original
+          CROSS JOIN inserted_event event
+          WHERE notification.tenant_id = $1
+            AND notification.id = original.id
+          RETURNING notification.id
+        ), inserted_sms AS (
+          INSERT INTO communication_sms_outbox (
+            tenant_id, sent_by, recipient_phone, message, status, dispatch_key
+          )
+          SELECT
+            $1,
+            $2::uuid,
+            original.phone,
+            original.body,
+            'Pending',
+            'nurse-parent-notification-resend:'
+              || NULLIF(current_setting('app.request_id', true), '')
+              || ':' || original.id::text
+          FROM eligible_original original
+          CROSS JOIN inserted_event event
+          WHERE original.channel = 'sms'
+          ON CONFLICT (tenant_id, dispatch_key) DO UPDATE
+          SET dispatch_key = EXCLUDED.dispatch_key
+          WHERE communication_sms_outbox.recipient_phone = EXCLUDED.recipient_phone
+            AND communication_sms_outbox.message = EXCLUDED.message
+            AND communication_sms_outbox.sent_by IS NOT DISTINCT FROM EXCLUDED.sent_by
+          RETURNING id, status
+        ), sms_outcome AS (
+          SELECT
+            COUNT(*)::int AS outbox_count,
+            (COUNT(*) FILTER (WHERE LOWER(status) IN ('pending', 'queued')))::int AS queued_count,
+            (COUNT(*) FILTER (WHERE LOWER(status) = 'processing'))::int AS processing_count,
+            (COUNT(*) FILTER (WHERE LOWER(status) IN ('accepted', 'sent', 'provider_accepted')))::int AS accepted_count,
+            (COUNT(*) FILTER (WHERE LOWER(status) NOT IN (
+              'pending', 'queued', 'processing', 'accepted', 'sent', 'provider_accepted'
+            )))::int AS needs_review_count
+          FROM inserted_sms
+        ), action_audit AS (
+          INSERT INTO audit_logs (
+            tenant_id, actor_user_id, request_id, action, resource_type, resource_id, metadata
+          )
+          SELECT
+            $1,
+            $2::uuid,
+            current_setting('app.request_id', true),
+            'clinic.parent_notification.resent',
+            'clinic_parent_notification',
+            event.id,
+            jsonb_build_object(
+              'channel', original.channel,
+              'recipient_scope', 'exact_linked_guardian_user',
+              'portal_notification_count', (SELECT COUNT(*) FROM updated_notification),
+              'sms_queue_count', (SELECT queued_count FROM sms_outcome),
+              'sms_processing_count', (SELECT processing_count FROM sms_outcome),
+              'sms_accepted_count', (SELECT accepted_count FROM sms_outcome),
+              'sms_needs_review_count', (SELECT needs_review_count FROM sms_outcome)
+            )
+          FROM eligible_original original
+          CROSS JOIN inserted_event event
+          RETURNING id
+        )
+        SELECT
+          original.id::text AS notification_id,
+          original.channel,
+          (SELECT COUNT(*)::int FROM updated_notification) AS portal_notification_count,
+          (SELECT queued_count FROM sms_outcome) AS sms_queue_count,
+          (SELECT processing_count FROM sms_outcome) AS sms_processing_count,
+          (SELECT accepted_count FROM sms_outcome) AS sms_accepted_count,
+          (SELECT needs_review_count FROM sms_outcome) AS sms_needs_review_count,
+          (SELECT outbox_count FROM sms_outcome) AS sms_outbox_count,
+          event.id::text AS event_id
+        FROM eligible_original original
+        CROSS JOIN inserted_event event
       `,
-      [tenantId, id],
+      [tenantId, userId, notificationId],
     );
-    if (!result.rows[0]) throw new NotFoundException('Parent notification was not found');
-    return result.rows[0];
+    const delivery = result.rows[0];
+    if (!delivery) throw new NotFoundException('An active exact guardian notification was not found');
+    const portalNotificationCount = Number(delivery.portal_notification_count ?? 0);
+    const smsQueueCount = Number(delivery.sms_queue_count ?? 0);
+    const smsProcessingCount = Number(delivery.sms_processing_count ?? 0);
+    const smsAcceptedCount = Number(delivery.sms_accepted_count ?? 0);
+    const smsNeedsReviewCount = Number(delivery.sms_needs_review_count ?? 0);
+    const smsOutboxCount = Number(
+      delivery.sms_outbox_count
+        ?? smsQueueCount + smsProcessingCount + smsAcceptedCount + smsNeedsReviewCount,
+    );
+    if (portalNotificationCount !== 1 || (delivery.channel === 'sms' && smsOutboxCount !== 1)) {
+      throw new BadRequestException('The guardian health alert could not be requeued completely');
+    }
+    return {
+      success: true,
+      message: `Health alert portal record refreshed for the exact guardian (${portalNotificationCount} portal${delivery.channel === 'sms' ? `; SMS: ${smsQueueCount} queued, ${smsProcessingCount} dispatching, ${smsAcceptedCount} provider-accepted, ${smsNeedsReviewCount} requiring review` : ''}).`,
+      delivery: {
+        event_id: delivery.event_id,
+        notification_id: delivery.notification_id,
+        portal_notification_count: portalNotificationCount,
+        sms_queue_count: smsQueueCount,
+        sms_processing_count: smsProcessingCount,
+        sms_accepted_count: smsAcceptedCount,
+        sms_needs_review_count: smsNeedsReviewCount,
+        sms_outbox_count: smsOutboxCount,
+        recipient_scope: 'exact_linked_guardian_user',
+      },
+    };
   }
 
   private async updateVisitStatus(id: string, status: string, auditAction: string, dto: any = {}) {

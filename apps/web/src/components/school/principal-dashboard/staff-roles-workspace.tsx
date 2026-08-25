@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
-import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { useVerifiedPrincipalDashboardApi } from "./verified-tenant-api";
 import { UserManagementPanel } from "@/components/school/user-management-panel";
 import { usePermissions } from "@/components/providers/permission-context";
 
@@ -35,6 +35,7 @@ type TeacherOption = {
 
 export function PrincipalStaffRolesWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalStaffData>('/admin-command/principal/staff');
+  const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
   const { data: termsData } = useSchoolQuery<any[]>('/academics/academic-terms');
   const { data: yearsData } = useSchoolQuery<any[]>('/academics/academic-years');
   const { data: classesData } = useSchoolQuery<any[]>('/academics/class-sections');
@@ -100,7 +101,7 @@ export function PrincipalStaffRolesWorkspace() {
     setFormError("");
     const formData = new FormData(e.currentTarget);
     try {
-      await requestDashboardApi('/academics/teacher-assignments', {
+      await requestPrincipalApi('/academics/teacher-assignments', {
         method: "POST",
         body: {
           academic_term_id: formData.get("academic_term_id"),
@@ -124,7 +125,7 @@ export function PrincipalStaffRolesWorkspace() {
     setCtFormError("");
     const formData = new FormData(e.currentTarget);
     try {
-      await requestDashboardApi('/academics/class-teachers', {
+      await requestPrincipalApi('/academics/class-teachers', {
         method: "POST",
         body: {
           academic_year_id: formData.get("academic_year_id"),
@@ -144,7 +145,7 @@ export function PrincipalStaffRolesWorkspace() {
   const handleArchiveClassTeacher = async (id: string) => {
     if (!confirm("Are you sure you want to remove this class teacher assignment?")) return;
     try {
-      await requestDashboardApi(`/academics/class-teachers/${id}`, { method: "DELETE" });
+      await requestPrincipalApi(`/academics/class-teachers/${id}`, { method: "DELETE" });
       refetch();
     } catch (err: any) {
       toast.error(err.message || "Failed to archive class teacher");

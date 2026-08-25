@@ -10,6 +10,7 @@ import {
   Car,
   Clock,
   ClockAlert,
+  Download,
   FileText,
   Home,
   LayoutDashboard,
@@ -36,7 +37,7 @@ import { WorkflowToast } from "@/components/shared/workflow-toast";
 import { Modal } from "@/components/ui/modal";
 import { toast } from "sonner";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
-import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
+import { downloadBase64File, downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
 import {
   getCurrentSchoolId,
   publishSchoolOperationalEvent,
@@ -95,12 +96,15 @@ type SecurityTransportTrip = {
 };
 type SecurityStaffMovement = {
   id: string;
-  title?: string | null;
-  message?: string | null;
-  event_type?: string | null;
-  entity_id?: string | null;
-  created_at?: string | null;
-  payload?: { staffId?: string; notes?: string; returned_at?: string } | null;
+  staff_name: string;
+  department?: string | null;
+  departed_at?: string | null;
+  expected_return?: string | null;
+  status: string;
+};
+type SecurityStaffMovementData = {
+  metrics: { currently_out: number; departed_today: number; returned_today: number };
+  staffmovementList: SecurityStaffMovement[];
 };
 type SecurityVehicleLog = {
   id: string;
@@ -171,6 +175,53 @@ type SecurityNotification = {
   created_at?: string | null;
   is_read?: boolean | null;
   read_at?: string | null;
+};
+type SecurityIncident = {
+  id: string;
+  title?: string | null;
+  date?: string | null;
+  description?: string | null;
+  location?: string | null;
+  severity?: string | null;
+  status: string;
+};
+type SecurityIncidentsData = {
+  metrics: { open_incidents: number; resolved_today: number; escalated: number };
+  incidentsList: SecurityIncident[];
+};
+type SecurityVisitorLog = {
+  id: string;
+  visitor_name: string;
+  phone_number?: string | null;
+  purpose?: string | null;
+  host_user_id?: string | null;
+  time_in?: string | null;
+};
+type SecurityReportRecord = {
+  id: string;
+  title: string;
+  generated_at: string;
+  type: string;
+  status: string;
+};
+type SecurityReportsData = {
+  metrics: { reports_generated: number };
+  reportsList: SecurityReportRecord[];
+};
+type SecurityReportArtifactResponse = {
+  report: {
+    format?: string;
+    artifact?: {
+      filename?: string;
+      content_type?: string;
+      content_base64?: string;
+    };
+  };
+};
+type GuardianNotificationResult = {
+  message: string;
+  guardianNotificationCount: number;
+  guardianNotificationStatus?: "queued" | "follow_up_required";
 };
 type SecuritySearchResult = {
   id: string;
@@ -967,7 +1018,7 @@ function LateArrivalsWorkspace() {
 
   const handleRecordLateArrival = async () => {
     if (!draft.student_name.trim()) {
-      toast.error("Student name is required before recording a late arrival.");
+      toast.error("Student name or admission number is required before recording a late arrival.");
       return;
     }
     if (!draft.reason.trim()) {
@@ -1002,8 +1053,8 @@ function LateArrivalsWorkspace() {
   const handleNotifyLateArrivalParent = async (arrival: SecurityLateArrival) => {
     setSavingAction(`notify-${arrival.id}`);
     try {
-      await requestDashboardApi(`/api/admin-command/security-officer/late-arrivals/${arrival.id}/notify-parent`, { method: "POST" });
-      toast.success("Parent notice queued for the late-arrival record.");
+      const result = await requestDashboardApi<GuardianNotificationResult>(`/api/admin-command/security-officer/late-arrivals/${arrival.id}/notify-parent`, { method: "POST" });
+      toast.success(result.message);
       await refetch();
       publishSchoolOperationalEvent({
         type: "security.late_arrival_parent_notified",
@@ -1028,8 +1079,8 @@ function LateArrivalsWorkspace() {
       </button>
     }>
       <div className="mb-4 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-3">
-        <label className="text-sm font-bold text-[#071D49]">Student name
-          <input value={draft.student_name} onChange={(event) => setDraft({ ...draft, student_name: event.target.value })} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Student full name" />
+        <label className="text-sm font-bold text-[#071D49]">Student name or admission number
+          <input value={draft.student_name} onChange={(event) => setDraft({ ...draft, student_name: event.target.value })} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Exact full name or admission number" />
         </label>
         <label className="text-sm font-bold text-[#071D49]">Reason
           <input value={draft.reason} onChange={(event) => setDraft({ ...draft, reason: event.target.value })} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Transport delay, illness..." />
@@ -1079,7 +1130,7 @@ function EarlyDeparturesWorkspace() {
 
   const handleRecordEarlyDeparture = async () => {
     if (!draft.student_name.trim()) {
-      toast.error("Student name is required before recording an early departure.");
+      toast.error("Student name or admission number is required before recording an early departure.");
       return;
     }
     if (!draft.reason.trim()) {
@@ -1088,11 +1139,15 @@ function EarlyDeparturesWorkspace() {
     }
     setSavingAction("record");
     try {
-      await requestDashboardApi("/api/admin-command/security-officer/early-departures", {
+      const result = await requestDashboardApi<GuardianNotificationResult>("/api/admin-command/security-officer/early-departures", {
         method: "POST",
         body: draft,
       });
-      toast.success("Early departure recorded and routed to authorized roles.");
+      if (result.guardianNotificationStatus === "follow_up_required") {
+        toast.warning("Early departure recorded, but guardian follow-up is required", { description: result.message });
+      } else {
+        toast.success(result.message);
+      }
       setDraft({ student_name: "", reason: "Medical", status: "Awaiting Return" });
       await refetch();
       publishSchoolOperationalEvent({
@@ -1114,8 +1169,12 @@ function EarlyDeparturesWorkspace() {
   const handleRecordEarlyDepartureReturn = async (departure: SecurityEarlyDeparture) => {
     setSavingAction(`return-${departure.id}`);
     try {
-      await requestDashboardApi(`/api/admin-command/security-officer/early-departures/${departure.id}/return`, { method: "POST" });
-      toast.success("Early departure return recorded.");
+      const result = await requestDashboardApi<GuardianNotificationResult>(`/api/admin-command/security-officer/early-departures/${departure.id}/return`, { method: "POST" });
+      if (result.guardianNotificationStatus === "follow_up_required") {
+        toast.warning("Return recorded, but guardian follow-up is required", { description: result.message });
+      } else {
+        toast.success(result.message);
+      }
       await refetch();
       publishSchoolOperationalEvent({
         type: "security.early_departure_return_recorded",
@@ -1140,8 +1199,8 @@ function EarlyDeparturesWorkspace() {
       </button>
     }>
       <div className="mb-4 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-3">
-        <label className="text-sm font-bold text-[#071D49]">Student name
-          <input value={draft.student_name} onChange={(event) => setDraft({ ...draft, student_name: event.target.value })} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Student full name" />
+        <label className="text-sm font-bold text-[#071D49]">Student name or admission number
+          <input value={draft.student_name} onChange={(event) => setDraft({ ...draft, student_name: event.target.value })} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Exact full name or admission number" />
         </label>
         <label className="text-sm font-bold text-[#071D49]">Reason
           <input value={draft.reason} onChange={(event) => setDraft({ ...draft, reason: event.target.value })} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Medical, parent pickup..." />
@@ -1201,7 +1260,8 @@ function StaffMovementWorkspace() {
   const [isSubmittingExit, setIsSubmittingExit] = useState(false);
   const [returningId, setReturningId] = useState<string | null>(null);
   const [staffDraft, setStaffDraft] = useState({ staffId: "", notes: "" });
-  const { data: movements = [], isLoading, refetch } = useSchoolQuery<SecurityStaffMovement[]>("/api/admin-command/security-officer/staff-movement");
+  const { data, error, isLoading, refetch } = useSchoolQuery<SecurityStaffMovementData>("/api/admin-command/security-officer/staff-movement");
+  const movements = data?.staffmovementList ?? [];
 
   const handleRecordStaffEntry = async () => {
     if (!staffDraft.staffId.trim()) {
@@ -1274,7 +1334,7 @@ function StaffMovementWorkspace() {
         module: "security",
         actorRole: "security_officer",
         title: "Staff return recorded",
-        body: `${movement.title || movement.entity_id || "Staff movement"} was closed at the gate.`,
+        body: `${movement.staff_name || "Staff movement"} was closed at the gate.`,
       });
     } catch (error) {
       toast.error("Staff return was not recorded", {
@@ -1310,31 +1370,34 @@ function StaffMovementWorkspace() {
             <tr>
               <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Time</th>
               <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Staff Name</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Type</th>
+              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Department</th>
               <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
               <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
+            {error ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-rose-700">Staff movements could not be loaded. <button type="button" onClick={() => void refetch()} className="font-bold underline">Retry</button></td></tr>
+            ) : null}
             {isLoading ? (
               <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading staff movement records...</td></tr>
-            ) : movements.length ? movements.map((movement) => (
+            ) : !error && movements.length ? movements.map((movement) => (
               <tr key={movement.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 text-[#64748B]">{movement.created_at ? new Date(movement.created_at).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }) : "Today"}</td>
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{movement.payload?.staffId || movement.entity_id || movement.title || "Staff member"}</td>
-                <td className="px-4 py-3 text-[#64748B]">{movement.event_type === "staff.entry_logged" ? "Entry" : "Exit"}</td>
-                <td className="px-4 py-3"><StatusChip label={movement.event_type === "staff.entry_logged" ? "Entered" : movement.payload?.returned_at ? "Returned" : "Out"} tone={movement.event_type === "staff.entry_logged" || movement.payload?.returned_at ? "success" : "warning"} /></td>
+                <td className="px-4 py-3 text-[#64748B]">{movement.departed_at ? new Date(movement.departed_at).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }) : "Recorded"}</td>
+                <td className="px-4 py-3 font-semibold text-[#071D49]">{movement.staff_name || "Staff member"}</td>
+                <td className="px-4 py-3 text-[#64748B]">{movement.department || "Not recorded"}</td>
+                <td className="px-4 py-3"><StatusChip label={movement.status} tone={String(movement.status).toLowerCase() === "returned" ? "success" : "warning"} /></td>
                 <td className="px-4 py-3 text-right">
-                  {movement.event_type === "staff.entry_logged" || movement.payload?.returned_at ? (
+                  {String(movement.status).toLowerCase() === "returned" ? (
                     <span className="text-xs font-semibold text-[#64748B]">Closed</span>
                   ) : (
                     <button type="button" onClick={() => handleStaffReturn(movement)} disabled={returningId === movement.id} className="text-emerald-600 hover:underline font-semibold text-xs disabled:cursor-not-allowed disabled:opacity-50">{returningId === movement.id ? "Saving..." : "Record Return"}</button>
                   )}
                 </td>
               </tr>
-            )) : (
+            )) : !error && !isLoading ? (
               <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No open staff movements. Record a staff exit to track the return at the gate.</td></tr>
-            )}
+            ) : null}
           </tbody>
         </table>
       </div>
@@ -1450,7 +1513,7 @@ function VehicleLogWorkspace() {
 
 function DeliveriesWorkspace() {
   const { data: deliveries = [], isLoading, refetch } = useSchoolQuery<SecurityDelivery[]>("/api/admin-command/security-officer/deliveries");
-  const [draft, setDraft] = useState({ delivery_type: "Office Document", recipient: "Principal", sender: "" });
+  const [draft, setDraft] = useState({ delivery_type: "Office Document", recipient: "", sender: "" });
   const [savingAction, setSavingAction] = useState<string | null>(null);
 
   const handleRecordDelivery = async () => {
@@ -1465,7 +1528,7 @@ function DeliveriesWorkspace() {
         body: draft,
       });
       toast.success("Delivery recorded.");
-      setDraft({ delivery_type: "Office Document", recipient: "Principal", sender: "" });
+      setDraft({ delivery_type: "Office Document", recipient: "", sender: "" });
       await refetch();
       publishSchoolOperationalEvent({
         type: "security.delivery_recorded",
@@ -1486,8 +1549,8 @@ function DeliveriesWorkspace() {
   const handleNotifyDeliveryRecipient = async (delivery: SecurityDelivery) => {
     setSavingAction(`notify-${delivery.id}`);
     try {
-      await requestDashboardApi(`/api/admin-command/security-officer/deliveries/${delivery.id}/notify-recipient`, { method: "POST" });
-      toast.success(`Recipient notified for ${delivery.payload?.delivery_type || "delivery"}.`);
+      const result = await requestDashboardApi<{ message: string; recipient: { staff_name: string } }>(`/api/admin-command/security-officer/deliveries/${delivery.id}/notify-recipient`, { method: "POST" });
+      toast.success(result.message);
       await refetch();
       publishSchoolOperationalEvent({
         type: "security.delivery_recipient_notified",
@@ -1528,14 +1591,14 @@ function DeliveriesWorkspace() {
   };
 
   return (
-    <Panel title="Deliveries & Parcels" description="Tracks parcels, supplies, exam materials." icon={Package} actions={
+    <Panel title="Deliveries & Parcels" description="Tracks parcels and notifies an exact active staff recipient in this school." icon={Package} actions={
       <button type="button" onClick={handleRecordDelivery} disabled={savingAction === "record"} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
         {savingAction === "record" ? "Recording..." : "Record Delivery"}
       </button>
     }>
       <div className="mb-4 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 sm:grid-cols-3">
         <input value={draft.delivery_type} onChange={(event) => setDraft((current) => ({ ...current, delivery_type: event.target.value }))} placeholder="Delivery type" className="rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
-        <input value={draft.recipient} onChange={(event) => setDraft((current) => ({ ...current, recipient: event.target.value }))} placeholder="Recipient / office" className="rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+        <input value={draft.recipient} onChange={(event) => setDraft((current) => ({ ...current, recipient: event.target.value }))} placeholder="Exact staff name, staff number, or account ID" aria-label="Exact staff recipient" className="rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
         <input value={draft.sender} onChange={(event) => setDraft((current) => ({ ...current, sender: event.target.value }))} placeholder="Sender / courier" className="rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
       </div>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
@@ -1578,7 +1641,8 @@ function DeliveriesWorkspace() {
 }
 
 function IncidentsWorkspace() {
-  const { data: incidents, isLoading, refetch } = useSchoolQuery<any[]>("/api/admin-command/security-officer/incidents");
+  const { data, error, isLoading, refetch } = useSchoolQuery<SecurityIncidentsData>("/api/admin-command/security-officer/incidents");
+  const incidents = data?.incidentsList ?? [];
   const [showIncidentModal, setShowIncidentModal] = useState(false);
   const [isSubmittingIncident, setIsSubmittingIncident] = useState(false);
   const [escalatingId, setEscalatingId] = useState<string | null>(null);
@@ -1642,19 +1706,20 @@ function IncidentsWorkspace() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
+            {error ? <tr><td colSpan={5} className="px-4 py-8 text-center text-rose-700">Security incidents could not be loaded. <button type="button" onClick={() => void refetch()} className="font-bold underline">Retry</button></td></tr> : null}
             {isLoading ? <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading incidents...</td></tr> : null}
-            {!isLoading && !incidents?.length ? <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No security incidents. Use Report Incident to create the first record.</td></tr> : null}
-            {incidents?.map((incident) => (
+            {!isLoading && !error && !incidents.length ? <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No security incidents. Use Report Incident to create the first record.</td></tr> : null}
+            {incidents.map((incident) => (
               <tr key={incident.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 text-[#64748B]">{new Date(incident.created_at).toLocaleString()}</td>
-                <td className="px-4 py-3"><StatusChip label={incident.severity || "medium"} tone={incident.severity === "high" || incident.severity === "critical" ? "danger" : "warning"} /></td>
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{incident.title}</td>
+                <td className="px-4 py-3 text-[#64748B]">{incident.date ? new Date(incident.date).toLocaleString("en-KE") : "Recorded"}</td>
+                <td className="px-4 py-3"><StatusChip label={incident.severity || "Medium"} tone={["high", "critical"].includes(String(incident.severity).toLowerCase()) ? "danger" : "warning"} /></td>
+                <td className="px-4 py-3 font-semibold text-[#071D49]">{incident.title || incident.description || "Security incident"}</td>
                 <td className="px-4 py-3"><StatusChip label={incident.status} tone={String(incident.status).toLowerCase() === "resolved" ? "success" : "warning"} /></td>
                 <td className="px-4 py-3 text-right">
                   {String(incident.status).toLowerCase() !== "resolved" && String(incident.status).toLowerCase() !== "escalated" ? (
                     <button type="button" onClick={() => escalateIncident(incident.id)} disabled={escalatingId === incident.id} className="text-blue-600 hover:underline font-semibold text-xs mr-3 disabled:opacity-50">{escalatingId === incident.id ? "Escalating..." : "Escalate"}</button>
                   ) : null}
-                  <button type="button" onClick={() => openPrintDocument({ eyebrow: "Security incident", title: incident.title, subtitle: incident.status, rows: [{ label: "Severity", value: incident.severity }, { label: "Location", value: incident.location }, { label: "Description", value: incident.description }], footer: "Incident preview generated from the current school's security register." })} className="text-blue-600 hover:underline font-semibold text-xs">View</button>
+                  <button type="button" onClick={() => openPrintDocument({ eyebrow: "Security incident", title: incident.title || incident.description || "Security incident", subtitle: incident.status, rows: [{ label: "Severity", value: incident.severity || "Not recorded" }, { label: "Location", value: incident.location || "Not recorded" }, { label: "Description", value: incident.description || "Not recorded" }], footer: "Incident preview generated from the current school's security register." })} className="text-blue-600 hover:underline font-semibold text-xs">View</button>
                 </td>
               </tr>
             ))}
@@ -1806,54 +1871,67 @@ function WatchlistWorkspace() {
 }
 
 function FrequentVisitorsWorkspace({ onNavigate }: { onNavigate: (view: ViewId) => void }) {
-  const mutation = useSchoolMutation("/api/visitors/logs");
+  const { data: visitorLogs = [], error, isLoading, refetch } = useSchoolQuery<SecurityVisitorLog[]>("/api/visitors/logs");
+  const frequentVisitors = Array.from(visitorLogs.reduce((groups, log) => {
+    const visitorName = String(log.visitor_name || "").trim();
+    if (!visitorName) return groups;
+    const key = `${visitorName.toLocaleLowerCase()}|${String(log.phone_number || "").trim()}`;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.visitCount += 1;
+      return groups;
+    }
+    groups.set(key, {
+      id: log.id,
+      visitorName,
+      visitCount: 1,
+      recentPurpose: log.purpose || "Not recorded",
+      recentHost: log.host_user_id || "Not recorded",
+      lastVisit: log.time_in || null,
+    });
+    return groups;
+  }, new Map<string, {
+    id: string;
+    visitorName: string;
+    visitCount: number;
+    recentPurpose: string;
+    recentHost: string;
+    lastVisit: string | null;
+  }>()).values())
+    .filter((visitor) => visitor.visitCount > 1)
+    .sort((first, second) => second.visitCount - first.visitCount);
 
-  const handleAddFrequentVisitor = () => {
+  const handleOpenVisitorCheckIn = () => {
     onNavigate("check-in");
-    toast.info("Opened visitor check-in. Enter the repeat visitor details and save them against the gate register.");
-  };
-
-  const handleQuickFrequentVisitorCheckIn = async () => {
-    await mutation.mutateAsync({
-      visitor_name: "Mary Wanjiru",
-      phone_number: "",
-      purpose: "Supplier visit",
-      host_user_id: "Storekeeper",
-      status: "active",
-    });
-    toast.success("Mary Wanjiru checked in from frequent visitor profile.");
-    publishSchoolOperationalEvent({
-      type: "security.frequent_visitor_checked_in",
-      module: "security",
-      actorRole: "security_officer",
-      title: "Frequent visitor checked in",
-      body: "Mary Wanjiru checked in for Storekeeper.",
-    });
+    toast.info("Opened visitor check-in. Verify the visitor and host before saving a new gate entry.");
   };
 
   return (
-    <Panel title="Frequent Visitors" description="Repeat visitors for quick check-in." icon={UsersRound} actions={
-      <button type="button" onClick={handleAddFrequentVisitor} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Add Visitor</button>
+    <Panel title="Frequent Visitors" description="Repeat visitors derived from this school's live gate register." icon={UsersRound} actions={
+      <button type="button" onClick={handleOpenVisitorCheckIn} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Open Visitor Check-In</button>
     }>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
         <table className="w-full text-sm text-left whitespace-nowrap">
           <thead className="bg-[#F8FAFC] text-[#071D49]">
             <tr>
               <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Name</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Type</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Usual Host</th>
+              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Visits</th>
+              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Recent Purpose / Host</th>
               <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#D8E0EC]">
-            <tr className="hover:bg-[#F8FAFC]">
-              <td className="px-4 py-3 font-semibold text-[#071D49]">Mary Wanjiru</td>
-              <td className="px-4 py-3 text-[#64748B]">Supplier</td>
-              <td className="px-4 py-3 text-[#64748B]">Storekeeper</td>
-              <td className="px-4 py-3 text-right">
-                <button type="button" onClick={handleQuickFrequentVisitorCheckIn} disabled={mutation.isPending} className="text-emerald-600 hover:underline font-semibold text-xs mr-3 disabled:cursor-not-allowed disabled:opacity-50">{mutation.isPending ? "Checking In..." : "Quick Check In"}</button>
-              </td>
-            </tr>
+            {error ? <tr><td colSpan={4} className="px-4 py-8 text-center text-rose-700">Frequent visitors could not be derived from the gate register. <button type="button" onClick={() => void refetch()} className="font-bold underline">Retry</button></td></tr> : null}
+            {isLoading ? <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">Loading live visitor history...</td></tr> : null}
+            {!isLoading && !error && frequentVisitors.length === 0 ? <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">No repeat visitors are present in this school&apos;s gate history. Use Visitor Check-In for each verified arrival; repeat profiles will appear after multiple recorded visits.</td></tr> : null}
+            {frequentVisitors.map((visitor) => (
+              <tr key={`${visitor.id}-${visitor.visitorName}`} className="hover:bg-[#F8FAFC]">
+                <td className="px-4 py-3 font-semibold text-[#071D49]">{visitor.visitorName}</td>
+                <td className="px-4 py-3 text-[#64748B]">{visitor.visitCount}</td>
+                <td className="px-4 py-3 text-[#64748B]">{visitor.recentPurpose} / {visitor.recentHost}</td>
+                <td className="px-4 py-3 text-right"><button type="button" onClick={handleOpenVisitorCheckIn} className="text-emerald-600 hover:underline font-semibold text-xs">Verify &amp; Check In</button></td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -2177,37 +2255,88 @@ function TransportClearanceWorkspace() {
 }
 
 function ReportsWorkspace() {
-  const reports = ["Daily Visitor Register", "Late Arrival Report", "Incident Report", "Vehicle Movement Report", "Shift Handover Report"];
+  const { data, error, isLoading, refetch } = useSchoolQuery<SecurityReportsData>("/api/admin-command/security-officer/reports");
+  const [format, setFormat] = useState("pdf");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const reports = data?.reportsList ?? [];
 
-  const openReportPreview = (reportTitle: string) => {
-    openPrintDocument({
-      eyebrow: "MyShule Security Desk",
-      title: reportTitle,
-      subtitle: "Security report print preview generated from the gate workspace.",
-      rows: [
-        { label: "Generated at", value: new Date().toLocaleString("en-KE") },
-        { label: "Prepared by", value: "Security Officer" },
-        { label: "Scope", value: "Current school only" },
-        { label: "Status", value: "Preview ready for print or PDF download" },
-      ],
-      footer: "This report must be checked against live gate records before filing.",
-    });
-    toast.success(`${reportTitle} print preview ready.`);
+  const generateSecurityReport = async () => {
+    setIsGenerating(true);
+    try {
+      await requestDashboardApi("/api/admin-command/security-officer/reports/generate", {
+        method: "POST",
+        body: { title: "Security operations report", format },
+      });
+      toast.success("Security report generated from live school gate records.");
+      await refetch();
+    } catch (generationError) {
+      toast.error("Security report was not generated", {
+        description: generationError instanceof Error ? generationError.message : "The live report artifact could not be stored.",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const downloadSecurityReport = async (report: SecurityReportRecord) => {
+    setDownloadingId(report.id);
+    try {
+      const response = await requestDashboardApi<SecurityReportArtifactResponse>(`/api/admin-command/security-officer/reports/${encodeURIComponent(report.id)}/download`, { method: "POST" });
+      const artifact = response.report?.artifact;
+      if (!artifact?.content_base64) {
+        throw new Error("The stored security report has no downloadable artifact.");
+      }
+      downloadBase64File({
+        filename: artifact.filename || `security-report-${report.id}.${response.report.format || report.type || "pdf"}`,
+        mimeType: artifact.content_type || "application/octet-stream",
+        contentBase64: artifact.content_base64,
+      });
+      toast.success("Security report download prepared.");
+    } catch (downloadError) {
+      toast.error("Security report could not be downloaded", {
+        description: downloadError instanceof Error ? downloadError.message : "The stored artifact could not be decoded.",
+      });
+    } finally {
+      setDownloadingId(null);
+    }
   };
 
   return (
-    <Panel title="Reports & Downloads" description="Printable gate records and summaries." icon={PieChart}>
-      <div className="grid gap-4 md:grid-cols-3">
-        {reports.map(r => (
-          <button
-            key={r}
-            type="button"
-            onClick={() => openReportPreview(r)}
-            className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left font-bold text-[#071D49] transition hover:border-[#071D49]"
-          >
-            {r}
-          </button>
-        ))}
+    <Panel title="Reports & Downloads" description="Generate auditable artifacts from live tenant-scoped gate, visitor, movement, and incident records." icon={PieChart} actions={
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="text-xs font-bold text-[#334155]">Format
+          <select aria-label="Security report format" value={format} onChange={(event) => setFormat(event.target.value)} className="ml-2 rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm">
+            <option value="pdf">PDF</option>
+            <option value="csv">CSV</option>
+            <option value="xlsx">Excel</option>
+          </select>
+        </label>
+        <button type="button" onClick={() => void generateSecurityReport()} disabled={isGenerating} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{isGenerating ? "Generating..." : "Generate Live Report"}</button>
+      </div>
+    }>
+      <div className="mb-4 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 sm:max-w-xs">
+        <div className="text-sm font-semibold text-[#64748B]">Reports generated</div>
+        <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : data?.metrics.reports_generated ?? 0}</div>
+      </div>
+      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+        <table className="w-full whitespace-nowrap text-left text-sm">
+          <thead className="bg-[#F8FAFC] text-[#071D49]"><tr><th className="px-4 py-3 font-bold">Title</th><th className="px-4 py-3 font-bold">Generated</th><th className="px-4 py-3 font-bold">Format</th><th className="px-4 py-3 font-bold">Status</th><th className="px-4 py-3 font-bold text-right">Artifact</th></tr></thead>
+          <tbody className="divide-y divide-[#D8E0EC]">
+            {error ? <tr><td colSpan={5} className="px-4 py-8 text-center text-rose-700">Security reports could not be loaded. <button type="button" onClick={() => void refetch()} className="font-bold underline">Retry</button></td></tr> : null}
+            {isLoading ? <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading stored security reports...</td></tr> : null}
+            {!isLoading && !error && reports.length === 0 ? <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No security report has been generated for this school. Choose a format and generate the first artifact from live operational records.</td></tr> : null}
+            {reports.map((report) => (
+              <tr key={report.id} className="hover:bg-[#F8FAFC]">
+                <td className="px-4 py-3 font-semibold text-[#071D49]">{report.title}</td>
+                <td className="px-4 py-3 text-[#64748B]">{report.generated_at ? new Date(report.generated_at).toLocaleString("en-KE") : "Generated"}</td>
+                <td className="px-4 py-3 uppercase text-[#64748B]">{report.type}</td>
+                <td className="px-4 py-3"><StatusChip label={report.status || "Ready"} tone="success" /></td>
+                <td className="px-4 py-3 text-right"><button type="button" onClick={() => void downloadSecurityReport(report)} disabled={downloadingId === report.id} className="inline-flex items-center gap-1 font-black text-blue-700 underline disabled:opacity-50"><Download className="h-4 w-4" />{downloadingId === report.id ? "Preparing..." : "Download"}</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </Panel>
   );

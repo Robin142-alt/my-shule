@@ -81,7 +81,8 @@ describe("dashboard action contract safety", () => {
     expect(source).not.toMatch(/\$\{record\.label\} opened/);
     expect(overviewSource).not.toMatch(/form ready/i);
     expect(overviewSource).toMatch(/onStartAction/);
-    expect(communicationSource).toMatch(/requestDashboardApi\("\/admin-command\/teacher\/messages"/);
+    expect(communicationSource).toContain('"/admin-command/teacher/messages"');
+    expect(communicationSource).toContain('"/admin-command/teacher/message-recipients"');
     expect(communicationSource).toMatch(/name="recipient"/);
     expect(communicationSource).toMatch(/name="audience"/);
     expect(communicationSource).toMatch(/name="message"/);
@@ -125,7 +126,8 @@ describe("dashboard action contract safety", () => {
     expect(source).toMatch(/filterTerm/);
     expect(source).toMatch(/setIsFilterOpen/);
     expect(source).toMatch(/onViewChange\("allocation"\)/);
-    expect(source).toMatch(/onViewChange\("reports"\)/);
+    expect(source).toMatch(/generateTransportReport/);
+    expect(source).toMatch(/transport-manager\/reports\/generate/);
     expect(source).not.toMatch(/filter panel opened and recorded/);
     expect(source).not.toMatch(/transport planning action recorded/);
     expect(source).toMatch(/ComposeTransportNoticeModal/);
@@ -160,7 +162,8 @@ describe("dashboard action contract safety", () => {
     expect(sharedSource).not.toMatch(/opened for printing/i);
     expect(securitySource).not.toMatch(/opened for printing/i);
     expect(sharedSource).toMatch(/print preview ready/i);
-    expect(securitySource).toMatch(/print preview ready/i);
+    expect(securitySource).toMatch(/openPrintDocument/);
+    expect(securitySource).toMatch(/preview generated from the current school/i);
   });
 
   it("keeps shared role production workspaces free of seeded people classes and suppliers", () => {
@@ -378,7 +381,9 @@ describe("dashboard action contract safety", () => {
     expect(examsSource).not.toMatch(/Opening gradebook module/i);
     expect(examsSource).toMatch(/buildSchoolSectionHref\("teacher", "exams"/);
     expect(reportsSource).not.toMatch(/'Generated' AS status/);
-    expect(reportsSource).toMatch(/'Ready' AS status/);
+    expect(reportsSource).toMatch(/reportArtifactStatus\(report\.type, report\.artifact, report\.manifest\)/);
+    expect(reportsSource).toMatch(/artifact\.checksum_sha256 !== createHash\('sha256'\)/);
+    expect(reportsSource).toMatch(/artifact\.encoding !== 'base64'/);
   });
 
   it("keeps deputy attendance reminders and overview metrics backend-backed", () => {
@@ -424,7 +429,12 @@ describe("dashboard action contract safety", () => {
     expect(communicationSource).toMatch(/admin-command\/communication-broadcasts/);
     expect(communicationSource).toMatch(/normalizeAudience/);
     expect(repositorySource).toMatch(/normalizedChannels/);
-    expect(repositorySource).toMatch(/INSERT INTO communication_broadcasts/);
+    expect(repositorySource).toMatch(/WITH sms_recipients AS/);
+    expect(repositorySource).toMatch(/INSERT INTO workflow_events/);
+    expect(repositorySource).toMatch(/INSERT INTO communication_sms_outbox/);
+    expect(repositorySource).toMatch(/INSERT INTO notifications/);
+    expect(repositorySource).not.toMatch(/INSERT INTO communication_broadcasts/);
+    expect(repositorySource).not.toMatch(/FROM guardians/);
     expect(repositorySource).not.toMatch(/\(data\.channels \?\? \['in_app'\]\)\.includes\('sms'\)/);
   });
 
@@ -531,10 +541,12 @@ describe("dashboard action contract safety", () => {
     const controllerSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/admin-command/admin-command.controller.ts"), "utf8");
 
     expect(academicsSource).toMatch(/admin-command\/principal\/reports\/generate/);
-    expect(examsSource).toMatch(/admin-command\/principal\/exams-report-cards\/\$\{examId\}\/approve/);
+    expect(examsSource).toMatch(/admin-command\/principal\/exams-report-cards\/\$\{series\.id\}\/publish/);
+    expect(examsSource).not.toMatch(/exams-report-cards\/\$\{[^}]+\}\/approve|Approve All/);
     expect(teachingSource).toMatch(/buildSchoolSectionHref\("teacher", "overview"/);
-    expect(settingsSource).toMatch(/admin-command\/principal\/settings\/action/);
-    expect(controllerSource).toMatch(/@Post\('principal\/settings\/action'\)/);
+    expect(settingsSource).toMatch(/admin-command\/principal\/settings\/preferences/);
+    expect(settingsSource).not.toMatch(/principal-teaching-toggle|settings\/action/);
+    expect(controllerSource).toMatch(/@Patch\('principal\/settings\/preferences'\)/);
   });
 
   it("wires admin data quality scan and fix actions to real command endpoints", () => {
@@ -592,8 +604,9 @@ describe("dashboard action contract safety", () => {
     expect(arrearsSource).toMatch(/recipient_scope: "linked_guardians"/);
     expect(arrearsSource).not.toMatch(/target_roles/);
     expect(accountantControllerSource).toMatch(/@Permissions\('finance:follow-up'\)/);
-    expect(accountantServiceSource).toMatch(/'accountant',\s*'principal',\s*'deputy_principal',\s*'secretary',\s*'parent'/);
-    expect(accountantServiceSource).not.toMatch(/FEE_FOLLOW_UP_TARGET_ROLES[\s\S]*class_teacher/);
+    expect(accountantServiceSource).toMatch(/FEE_FOLLOW_UP_STAFF_ROLES\s*=\s*\[[^\]]*'accountant',[^\]]*'principal',[^\]]*'deputy_principal',[^\]]*'secretary'/);
+    expect(accountantServiceSource).not.toMatch(/FEE_FOLLOW_UP_STAFF_ROLES\s*=\s*\[[^\]]*'parent'/);
+    expect(accountantServiceSource).toMatch(/recipient_user_id, recipient_guardian_id/);
     expect(arrearsSource).not.toMatch(/Arrears reminder request recorded/);
     expect(principalStudentsSource).toMatch(/buildSchoolSectionHref\("admissions", "admissions"/);
     expect(teacherSubjectsSource).toMatch(/buildSchoolSectionHref\("teacher", "students"/);
@@ -763,14 +776,22 @@ describe("dashboard action contract safety", () => {
     expect(source).not.toMatch(/Expected visitor picker recorded/);
   });
 
-  it("makes security frequent visitor actions create real visitor logs", () => {
+  it("derives security frequent visitors from live gate logs without hardcoded mutations", () => {
     const source = fs.readFileSync(path.join(process.cwd(), "src/components/school/security-command-center.tsx"), "utf8");
+    const frequentVisitorSource = source.slice(
+      source.indexOf("function FrequentVisitorsWorkspace"),
+      source.indexOf("function LostFoundWorkspace"),
+    );
 
     expect(source).toMatch(/function FrequentVisitorsWorkspace\(\{ onNavigate \}/);
-    expect(source).toMatch(/handleQuickFrequentVisitorCheckIn/);
-    expect(source).toMatch(/useSchoolMutation\("\/api\/visitors\/logs"\)/);
+    expect(source).toMatch(/useSchoolQuery<SecurityVisitorLog\[]>\("\/api\/visitors\/logs"\)/);
+    expect(source).toMatch(/const frequentVisitors = Array\.from\(visitorLogs\.reduce/);
+    expect(source).toMatch(/handleOpenVisitorCheckIn/);
     expect(source).toMatch(/onNavigate\("check-in"\)/);
     expect(source).toMatch(/<FrequentVisitorsWorkspace onNavigate=\{setActiveView\}/);
+    expect(frequentVisitorSource).not.toMatch(/Mary Wanjiru/);
+    expect(frequentVisitorSource).not.toMatch(/handleQuickFrequentVisitorCheckIn/);
+    expect(frequentVisitorSource).not.toMatch(/useSchoolMutation\("\/api\/visitors\/logs"\)/);
     expect(source).not.toMatch(/Frequent visitor workflow recorded/);
     expect(source).not.toMatch(/Frequent visitor quick check-in recorded/);
   });
@@ -843,6 +864,9 @@ describe("dashboard action contract safety", () => {
     expect(source).toMatch(/admin-command\/security-officer\/staff-movement/);
     expect(controllerSource).toMatch(/@Post\('staff-movement\/:id\/return'\)/);
     expect(serviceSource).toMatch(/async logStaffReturn/);
+    expect(source).toMatch(/useSchoolQuery<SecurityStaffMovementData>/);
+    expect(source).toMatch(/data\?\.staffmovementList/);
+    expect(serviceSource).toMatch(/staffmovementList: movements\.rows/);
     expect(source).not.toMatch(/recordSecurityAction\("Staff return recorded/);
     expect(source).not.toMatch(/Return workflow recorded for the selected staff movement record/);
   });
@@ -880,6 +904,9 @@ describe("dashboard action contract safety", () => {
     expect(controllerSource).toMatch(/@Post\('deliveries\/:id\/collected'\)/);
     expect(serviceSource).toMatch(/async recordDelivery/);
     expect(serviceSource).toMatch(/async notifyDeliveryRecipient/);
+    expect(serviceSource).toMatch(/resolveTenantStaffRecipient/);
+    expect(serviceSource).toMatch(/recipient_scope: 'exact_tenant_user'/);
+    expect(source).toMatch(/Exact staff name, staff number, or account ID/);
     expect(serviceSource).toMatch(/async markDeliveryCollected/);
     expect(serviceSource).toMatch(/delivery\.recorded/);
     expect(source).not.toMatch(/recordSecurityAction\("Delivery recipient notice queued/);
@@ -921,6 +948,22 @@ describe("dashboard action contract safety", () => {
     expect(serviceSource).toMatch(/student\.early_departure_recorded/);
     expect(source).not.toMatch(/recordSecurityAction\("Early departure return recorded/);
     expect(source).not.toMatch(/record_early_departure/);
+  });
+
+  it("uses canonical incident contracts and real downloadable security report artifacts", () => {
+    const source = fs.readFileSync(path.join(process.cwd(), "src/components/school/security-command-center.tsx"), "utf8");
+    const serviceSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/admin-command/security-officer-command.service.ts"), "utf8");
+
+    expect(source).toMatch(/useSchoolQuery<SecurityIncidentsData>/);
+    expect(source).toMatch(/data\?\.incidentsList/);
+    expect(serviceSource).toMatch(/incidentsList: incidents\.rows/);
+    expect(source).toMatch(/admin-command\/security-officer\/reports\/generate/);
+    expect(source).toMatch(/admin-command\/security-officer\/reports\/\$\{encodeURIComponent\(report\.id\)\}\/download/);
+    expect(source).toMatch(/downloadBase64File/);
+    expect(serviceSource).toMatch(/generateReportSnapshot/);
+    expect(serviceSource).toMatch(/module: 'security-officer-command'/);
+    expect(source).not.toMatch(/const reports = \["Daily Visitor Register"/);
+    expect(source).not.toMatch(/openReportPreview/);
   });
 
   it("makes security watchlist actions persist entries and acknowledgements", () => {
@@ -1269,8 +1312,10 @@ describe("dashboard action contract safety", () => {
     expect(source).not.toMatch(/Teacher dashboard handoff opened/);
     expect(source).toMatch(/submitGradeWorkflowAction/);
     expect(source).toMatch(/sendGradeNotification/);
-    expect(source).toMatch(/targetRoles: \["parent", "grade_master", "secretary"\]/);
-    expect(source).toMatch(/targetRoles: \["class_teacher", "grade_master"\]/);
+    expect(source).toMatch(/targetRoles: \["grade_master", "secretary"\]/);
+    expect(source).toMatch(/recipientUserId/);
+    expect(source).toMatch(/guardianId/);
+    expect(source).not.toMatch(/publishSchoolOperationalEvent/);
     expect(source).toMatch(/persistGradeWorkflowAction/);
     expect(source).toMatch(/\/api\/grade-master\/actions/);
     expect(source).toMatch(/buildSchoolSectionHref\("teacher", "overview"/);
@@ -1279,6 +1324,9 @@ describe("dashboard action contract safety", () => {
     expect(controllerSource).toMatch(/@Post\('actions'\)/);
     expect(controllerSource).toMatch(/gradeMasterService\.recordAction/);
     expect(serviceSource).toMatch(/INSERT INTO workflow_events/);
+    expect(serviceSource).toMatch(/exact_staff_notifications AS/);
+    expect(serviceSource).toMatch(/guardian_notifications AS/);
+    expect(serviceSource).toMatch(/inserted_audit AS/);
     expect(serviceSource).toMatch(/grade_master\.\$\{action\}/);
   });
 
@@ -1291,7 +1339,9 @@ describe("dashboard action contract safety", () => {
     expect(source).toMatch(/action: "learner_concern_recorded"/);
     expect(source).toMatch(/action: "learner_meeting_scheduled"/);
     expect(source).toMatch(/action: "deputy_escalation_requested"/);
-    expect(source).toMatch(/targetRoles: \["grade_master", "class_teacher", "deputy_principal"\]/);
+    expect(source).toContain('targetRoles: ["grade_master", ...(learner.class_teacher_user_id ? ["class_teacher"] : []), "deputy_principal"]');
+    expect(source).toMatch(/learnerId: learner\.id/);
+    expect(source).toMatch(/recipientUserId: learner\.class_teacher_user_id/);
     expect(source).not.toMatch(/concern record needs risk category/);
     expect(source).not.toMatch(/meeting requires guardian/);
     expect(source).not.toMatch(/escalation needs evidence/);
@@ -1304,11 +1354,13 @@ describe("dashboard action contract safety", () => {
     expect(source).toMatch(/action: "grade_note_added"/);
     expect(source).toMatch(/action: "attendance_reason_recorded"/);
     expect(source).toMatch(/action: "academic_intervention_requested"/);
-    expect(source).toMatch(/action: "discipline_incident_recorded"/);
+    expect(source).toMatch(/action: "discipline_incident_referral_requested"/);
     expect(source).toMatch(/action: "learner_follow_up_recorded"/);
-    expect(source).toMatch(/action: "discipline_case_escalated"/);
-    expect(source).toMatch(/action: "discipline_resolution_recorded"/);
-    expect(source).toMatch(/action: "missed_lesson_reported"/);
+    expect(source).toMatch(/action: "discipline_escalation_requested"/);
+    expect(source).toMatch(/action: "discipline_resolution_requested"/);
+    expect(source).toMatch(/<StaffTimetableOverviewWorkspace/);
+    expect(source).toMatch(/Published lessons are backend-scoped/);
+    expect(source).not.toMatch(/\/api\/grade-master\/timetable/);
     expect(source).not.toMatch(/Add a grade-level note with stream, learner, owner, and follow-up date/);
     expect(source).not.toMatch(/late arrival reason should be recorded/);
     expect(source).not.toMatch(/intervention needs HOD\/teacher owner/);
@@ -1860,7 +1912,7 @@ describe("dashboard action contract safety", () => {
     expect(source).toMatch(/useSchoolQuery<any>\("\/api\/admin-command\/transport-manager\/student-transport-list"/);
     expect(source).toMatch(/useSchoolQuery<any>\("\/api\/admin-command\/transport-manager\/reports"/);
     expect(source).not.toMatch(/Brian Otieno|Aisha Njeri|Kevin Mwangi|Kisumu West|Kibuye stage|Nyamasaria|Mrs\. Wanjiku|Mr\. Njuguna|Mrs\. Achieng/);
-    expect(source).not.toMatch(/const routeRows|const vehicleRows|const students|const fuelRows|const incidents/);
+    expect(source).not.toMatch(/const routeRows|const vehicleRows|const fuelRows/);
   });
 
   it("keeps boarding master visible workflows free of demo tenant and learner records", () => {

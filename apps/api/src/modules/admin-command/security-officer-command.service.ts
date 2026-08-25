@@ -24,39 +24,348 @@ export class SecurityOfficerCommandService {
   }
 
   private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
-    try {
-      return await this.prisma.query<T>(query, params);
-    } catch (e) {
-      return { rows: [], rowCount: 0 };
+    return this.prisma.query<T>(query, params);
+  }
+
+  private uuidOrNull(value: unknown): string | null {
+    const candidate = String(value ?? '').trim();
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidate)
+      ? candidate
+      : null;
+  }
+
+  private async resolveTenantStudent(tenantId: string, dto: any) {
+    const rawStudentId = dto?.student_id ?? dto?.studentId;
+    const hasStudentId = rawStudentId !== undefined
+      && rawStudentId !== null
+      && Boolean(String(rawStudentId).trim());
+    const studentId = hasStudentId ? this.uuidOrNull(rawStudentId) : null;
+    if (hasStudentId && !studentId) {
+      throw new BadRequestException('Student ID must be a valid UUID');
     }
+
+    const reference = String(
+      dto?.student_reference
+        ?? dto?.studentReference
+        ?? dto?.student_name
+        ?? dto?.studentName
+        ?? dto?.name
+        ?? '',
+    ).trim();
+    if (!studentId && !reference) {
+      throw new BadRequestException('Student name or admission number is required');
+    }
+
+    const result = await this.operations.readSql(
+      `
+        SELECT
+          student.id::text,
+          student.admission_number,
+          btrim(concat_ws(' ', student.first_name, student.middle_name, student.last_name)) AS student_name
+        FROM students student
+        WHERE student.tenant_id = $1
+          AND lower(COALESCE(student.status, 'active')) IN ('active', 'admitted', 'enrolled')
+          AND (
+            ($2::uuid IS NOT NULL AND student.id = $2::uuid)
+            OR (
+              $2::uuid IS NULL
+              AND (
+                lower(btrim(concat_ws(' ', student.first_name, student.middle_name, student.last_name))) = lower(btrim($3))
+                OR lower(btrim(student.admission_number)) = lower(btrim($3))
+              )
+            )
+          )
+        ORDER BY student.admission_number, student.id
+        LIMIT 2
+      `,
+      [tenantId, studentId, reference],
+    );
+    if (result.rows.length === 0) {
+      throw new NotFoundException('An active student matching that reference was not found in this school');
+    }
+    if (!studentId && result.rows.length > 1) {
+      throw new BadRequestException('More than one active student has that name. Use the admission number instead');
+    }
+
+    return result.rows[0] as { id: string; admission_number: string; student_name: string };
+  }
+
+  private async notifyLinkedGuardians(input: {
+    tenantId: string;
+    studentId: string;
+    notificationKey: string;
+    type: string;
+    title: string;
+    body: string;
+    sourceRecordId: string;
+    priority?: 'normal' | 'high';
+    metadata?: Record<string, unknown>;
+  }) {
+    const result = await this.operations.writeSql(
+      `
+        INSERT INTO notifications (
+          tenant_id, notification_key, recipient_user_id, recipient_guardian_id,
+          type, title, body, status, priority, source_module, source_record_id, metadata
+        )
+        SELECT
+          $1,
+          $2 || '-' || guardian.id::text,
+          guardian.user_id,
+          guardian.id,
+          $3,
+          $4,
+          $5,
+          'unread',
+          $6,
+          'security',
+          $7,
+          $8::jsonb
+        FROM student_guardians guardian
+        INNER JOIN tenant_memberships membership
+          ON membership.tenant_id = guardian.tenant_id
+         AND membership.user_id = guardian.user_id
+         AND lower(membership.status) = 'active'
+        WHERE guardian.tenant_id = $1
+          AND guardian.student_id = $9::uuid
+          AND guardian.user_id IS NOT NULL
+          AND lower(guardian.status) = 'active'
+        ON CONFLICT (tenant_id, notification_key)
+        DO UPDATE SET
+          recipient_user_id = EXCLUDED.recipient_user_id,
+          recipient_guardian_id = EXCLUDED.recipient_guardian_id,
+          type = EXCLUDED.type,
+          title = EXCLUDED.title,
+          body = EXCLUDED.body,
+          status = 'unread',
+          priority = EXCLUDED.priority,
+          metadata = EXCLUDED.metadata,
+          updated_at = NOW()
+        RETURNING recipient_user_id::text
+      `,
+      [
+        input.tenantId,
+        input.notificationKey,
+        input.type,
+        input.title,
+        input.body,
+        input.priority ?? 'normal',
+        input.sourceRecordId,
+        JSON.stringify({
+          ...(input.metadata ?? {}),
+          student_id: input.studentId,
+          recipient_scope: 'linked_guardian_users',
+          source_dashboard: 'security-officer',
+        }),
+        input.studentId,
+      ],
+    );
+
+    return result.rows.length;
+  }
+
+  private async resolveTenantStaffRecipient(tenantId: string, referenceValue: unknown) {
+    const reference = this.operations.requiredText(referenceValue, 'Delivery recipient');
+    const referenceUuid = this.uuidOrNull(reference);
+    const result = await this.operations.readSql(
+      `
+        SELECT DISTINCT
+          profile.id::text AS staff_profile_id,
+          profile.user_id::text AS user_id,
+          COALESCE(NULLIF(profile.display_name, ''), NULLIF(account.full_name, ''), profile.staff_number) AS staff_name
+        FROM staff_profiles profile
+        INNER JOIN tenant_memberships membership
+          ON membership.tenant_id = profile.tenant_id
+         AND membership.user_id = profile.user_id
+         AND lower(membership.status) = 'active'
+        INNER JOIN users account
+          ON account.id = profile.user_id
+        WHERE profile.tenant_id = $1
+          AND profile.user_id IS NOT NULL
+          AND lower(COALESCE(profile.status, 'active')) IN ('active', 'on_leave', 'reactivated')
+          AND (
+            ($2::uuid IS NOT NULL AND (profile.id = $2::uuid OR profile.user_id = $2::uuid))
+            OR (
+              $2::uuid IS NULL
+              AND (
+                lower(btrim(COALESCE(profile.display_name, ''))) = lower(btrim($3))
+                OR lower(btrim(COALESCE(profile.staff_number, ''))) = lower(btrim($3))
+                OR lower(btrim(COALESCE(account.full_name, ''))) = lower(btrim($3))
+              )
+            )
+          )
+        ORDER BY profile.id
+        LIMIT 2
+      `,
+      [tenantId, referenceUuid, reference],
+    );
+    if (result.rows.length === 0) {
+      throw new BadRequestException('The delivery recipient is not an active staff account in this school. Record the exact staff name, staff number, or account ID');
+    }
+    if (!referenceUuid && result.rows.length > 1) {
+      throw new BadRequestException('More than one active staff member matches this recipient. Use the staff number or account ID');
+    }
+
+    return result.rows[0] as { staff_profile_id: string; user_id: string; staff_name: string };
+  }
+
+  private async notifyExactUser(input: {
+    tenantId: string;
+    recipientUserId: string;
+    notificationKey: string;
+    type: string;
+    title: string;
+    body: string;
+    sourceRecordId: string;
+    metadata?: Record<string, unknown>;
+  }) {
+    const result = await this.operations.writeSql(
+      `
+        INSERT INTO notifications (
+          tenant_id, notification_key, recipient_user_id, type, title, body,
+          status, priority, source_module, source_record_id, metadata
+        )
+        SELECT $1, $2, membership.user_id, $3, $4, $5, 'unread', 'normal', 'security', $6, $7::jsonb
+        FROM tenant_memberships membership
+        WHERE membership.tenant_id = $1
+          AND membership.user_id = $8::uuid
+          AND lower(membership.status) = 'active'
+        ON CONFLICT (tenant_id, notification_key)
+        DO UPDATE SET
+          recipient_user_id = EXCLUDED.recipient_user_id,
+          type = EXCLUDED.type,
+          title = EXCLUDED.title,
+          body = EXCLUDED.body,
+          status = 'unread',
+          metadata = EXCLUDED.metadata,
+          updated_at = NOW()
+        RETURNING recipient_user_id::text
+      `,
+      [
+        input.tenantId,
+        input.notificationKey,
+        input.type,
+        input.title,
+        input.body,
+        input.sourceRecordId,
+        JSON.stringify({
+          ...(input.metadata ?? {}),
+          recipient_scope: 'exact_tenant_user',
+          source_dashboard: 'security-officer',
+        }),
+        input.recipientUserId,
+      ],
+    );
+    if (result.rows.length === 0) {
+      throw new BadRequestException('The selected recipient no longer has an active account in this school');
+    }
+    return result.rows[0];
   }
 
   async getOverview() {
     const tenantId = this.requireTenantId();
-    const metrics = await this.executeSql(`
-      SELECT 
-        (SELECT COUNT(*)::int FROM visitors_logs WHERE tenant_id = $1 AND time_in::date = CURRENT_DATE AND status = 'active') as "activeVisitors",
-        (SELECT COUNT(*)::int FROM security_incidents WHERE tenant_id = $1 AND lower(status) IN ('open', 'reported', 'active')) as "activeIncidents"
+    const metrics = await this.executeSql<{
+      visitors_today: number;
+      incidents_open: number;
+      staff_out: number;
+      passes_active: number;
+    }>(`
+      SELECT
+        (SELECT COUNT(*)::int FROM visitors_logs WHERE tenant_id = $1 AND time_in::date = CURRENT_DATE) AS visitors_today,
+        (SELECT COUNT(*)::int FROM security_incidents WHERE tenant_id = $1 AND lower(status) IN ('open', 'reported', 'active', 'escalated')) AS incidents_open,
+        (
+          SELECT COUNT(*)::int
+          FROM (
+            SELECT DISTINCT ON (entity_id) event_type, payload
+            FROM workflow_events
+            WHERE tenant_id = $1
+              AND event_type IN ('staff.entry_logged', 'staff.departure_logged')
+            ORDER BY entity_id, created_at DESC, id DESC
+          ) latest_staff_movement
+          WHERE latest_staff_movement.event_type = 'staff.departure_logged'
+            AND NULLIF(latest_staff_movement.payload->>'returned_at', '') IS NULL
+        ) AS staff_out,
+        (
+          SELECT COUNT(*)::int
+          FROM student_exits
+          WHERE tenant_id = $1
+            AND lower(status) IN ('pending', 'verified', 'out')
+            AND time_in IS NULL
+        ) AS passes_active
     `, [tenantId]);
 
-    const row = metrics.rows[0] || { activeVisitors: 0, activeIncidents: 0 };
+    const row = metrics.rows[0] ?? {
+      visitors_today: 0,
+      incidents_open: 0,
+      staff_out: 0,
+      passes_active: 0,
+    };
     return {
-      metrics: {
-        activeVisitors: row.activeVisitors || 0,
-        activeIncidents: row.activeIncidents || 0,
-        unauthorizedExits: 0,
-      },
-      gateLogs: []
+      metrics: row,
+      overviewList: [
+        { id: 'visitors-today', metric: 'Visitors today', value: String(row.visitors_today) },
+        { id: 'incidents-open', metric: 'Open incidents', value: String(row.incidents_open) },
+        { id: 'staff-out', metric: 'Staff currently out', value: String(row.staff_out) },
+        { id: 'passes-active', metric: 'Active student passes', value: String(row.passes_active) },
+      ],
     };
   }
 
   async getVisitors() {
     const tenantId = this.requireTenantId();
-    const res = await this.executeSql(
-      `SELECT * FROM visitors_logs WHERE tenant_id = $1 ORDER BY time_in DESC LIMIT 100`,
-      [tenantId]
-    );
-    return res.rows;
+    const [summary, res] = await Promise.all([
+      this.executeSql<{ checked_in: number; checked_out_today: number; flagged: number }>(
+        `
+          SELECT
+            COUNT(*) FILTER (WHERE lower(status) IN ('active', 'flagged') AND time_out IS NULL)::int AS checked_in,
+            COUNT(*) FILTER (WHERE time_out::date = CURRENT_DATE)::int AS checked_out_today,
+            COUNT(*) FILTER (WHERE lower(status) = 'flagged')::int AS flagged
+          FROM visitors_logs
+          WHERE tenant_id = $1
+        `,
+        [tenantId],
+      ),
+      this.executeSql<{
+      id: string;
+      name: string;
+      id_number: string;
+      purpose: string;
+      host: string;
+      check_in: string;
+      check_out: string;
+      status: string;
+      }>(
+      `
+        SELECT
+          visitor_log.id::text,
+          visitor_log.visitor_name AS name,
+          COALESCE(NULLIF(visitor_log.id_number, ''), NULLIF(registry.id_number, ''), '') AS id_number,
+          visitor_log.purpose,
+          COALESCE(NULLIF(host.full_name, ''), NULLIF(visitor_log.host_user_id, ''), '') AS host,
+          visitor_log.time_in::text AS check_in,
+          COALESCE(visitor_log.time_out::text, '') AS check_out,
+          INITCAP(REPLACE(visitor_log.status, '_', ' ')) AS status
+        FROM visitors_logs visitor_log
+        LEFT JOIN visitors_registry registry
+          ON registry.tenant_id = visitor_log.tenant_id
+         AND registry.id = visitor_log.visitor_id
+        LEFT JOIN users host
+          ON host.id::text = visitor_log.host_user_id::text
+         AND EXISTS (
+           SELECT 1 FROM tenant_memberships membership
+           WHERE membership.tenant_id = visitor_log.tenant_id
+             AND membership.user_id = host.id
+         )
+        WHERE visitor_log.tenant_id = $1
+        ORDER BY visitor_log.time_in DESC
+        LIMIT 100
+      `,
+        [tenantId],
+      ),
+    ]);
+    return {
+      metrics: summary.rows[0] ?? { checked_in: 0, checked_out_today: 0, flagged: 0 },
+      visitorsList: res.rows,
+    };
   }
 
   async checkInExpectedVisitor(id: string) {
@@ -109,15 +418,16 @@ export class SecurityOfficerCommandService {
     const result = await this.operations.writeSql(
       `
         INSERT INTO visitors_logs (
-          tenant_id, visitor_name, phone_number, purpose, host_user_id, badge_number, logged_by_user_id
+          tenant_id, visitor_name, phone_number, id_number, purpose, host_user_id, badge_number, logged_by_user_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *
       `,
       [
         tenantId,
         visitorName,
         dto?.phone_number ?? dto?.phone ?? null,
+        dto?.id_number ?? dto?.idNumber ?? null,
         purpose,
         dto?.host_user_id ?? dto?.hostUserId ?? null,
         dto?.badge_number ?? dto?.badgeNumber ?? null,
@@ -146,7 +456,7 @@ export class SecurityOfficerCommandService {
         SET time_out = NOW(), status = 'checked_out', updated_at = NOW()
         WHERE tenant_id = $1
           AND id = $2::uuid
-          AND status = 'active'
+          AND lower(status) IN ('active', 'flagged')
         RETURNING *
       `,
       [tenantId, this.operations.requiredText(id, 'Visitor log ID')],
@@ -160,21 +470,43 @@ export class SecurityOfficerCommandService {
   async flagVisitor(id: string, dto: any) {
     const tenantId = this.requireTenantId();
     const userId = this.currentUserId();
-    const visitor = await this.operations.readSql(
-      `SELECT * FROM visitors_logs WHERE tenant_id = $1 AND id = $2::uuid LIMIT 1`,
-      [tenantId, this.operations.requiredText(id, 'Visitor log ID')],
-    );
-    const row = visitor.rows[0];
-    if (!row) throw new NotFoundException('Visitor was not found in this school');
+    const actorUserId = this.operations.uuidOrNull(userId);
+    if (!actorUserId) throw new UnauthorizedException('A valid user is required to flag a visitor');
     const reason = this.operations.requiredText(dto?.reason, 'Flag reason');
-    const incident = await this.reportIncident({
-      title: `Flagged visitor: ${row.visitor_name}`,
-      description: reason,
-      severity: 'medium',
-      location: 'School gate',
+    const result = await this.operations.writeSql(
+      `
+        WITH flagged_visitor AS (
+          UPDATE visitors_logs
+          SET status = 'flagged', updated_at = NOW()
+          WHERE tenant_id = $1
+            AND id = $2::uuid
+            AND lower(status) IN ('active', 'flagged')
+          RETURNING *
+        ), incident AS (
+          INSERT INTO security_incidents (
+            tenant_id, title, description, severity, location, status, reported_by
+          )
+          SELECT $1, 'Flagged visitor: ' || visitor_name, $3, 'medium', 'School gate', 'Reported', $4::uuid
+          FROM flagged_visitor
+          RETURNING *
+        )
+        SELECT row_to_json(flagged_visitor) AS visitor, row_to_json(incident) AS incident
+        FROM flagged_visitor CROSS JOIN incident
+      `,
+      [tenantId, this.operations.requiredText(id, 'Visitor log ID'), reason, actorUserId],
+    );
+    const record = result.rows[0] as { visitor?: any; incident?: any } | undefined;
+    if (!record?.visitor || !record.incident) throw new NotFoundException('Active visitor was not found in this school');
+    await this.operations.recordAudit(tenantId, 'security.visitor_flagged', 'visitor_log', record.visitor.id, { ...record, reason }, userId);
+    await this.operations.notifyRoles(tenantId, {
+      key: `security-visitor-flagged-${record.incident.id}`,
+      type: 'security.visitor_flagged',
+      title: `Flagged visitor: ${record.visitor.visitor_name}`,
+      body: reason,
+      targetRoles: ['principal', 'deputy_principal', 'security'],
+      metadata: record,
     });
-    await this.operations.recordAudit(tenantId, 'security.visitor_flagged', 'visitor_log', row.id, { visitor: row, reason, incident }, userId);
-    return { success: true, message: 'Visitor flagged and incident created', visitor: row, incident: incident.incident };
+    return { success: true, message: 'Visitor flagged and incident created', ...record };
   }
 
   async printVisitorBadge(id: string) {
@@ -299,20 +631,116 @@ export class SecurityOfficerCommandService {
 
   async getGateRegister() {
     const tenantId = this.requireTenantId();
-    const res = await this.executeSql(
-      `SELECT * FROM visitors_logs WHERE tenant_id = $1 ORDER BY time_in DESC LIMIT 200`,
-      [tenantId]
-    );
-    return res.rows;
+    const [summary, entries] = await Promise.all([
+      this.executeSql<{ entries_today: number; exits_today: number; pending_verification: number }>(
+        `
+          SELECT
+            COUNT(*) FILTER (WHERE time_in::date = CURRENT_DATE)::int AS entries_today,
+            COUNT(*) FILTER (WHERE time_out::date = CURRENT_DATE)::int AS exits_today,
+            COUNT(*) FILTER (WHERE time_out IS NULL AND lower(status) IN ('active', 'flagged'))::int AS pending_verification
+          FROM visitors_logs
+          WHERE tenant_id = $1
+        `,
+        [tenantId],
+      ),
+      this.executeSql<{
+        id: string;
+        time: string;
+        name: string;
+        type: string;
+        id_number: string;
+        purpose: string;
+        status: string;
+      }>(
+        `
+          SELECT
+            visitor_log.id::text,
+            visitor_log.time_in::text AS time,
+            visitor_log.visitor_name AS name,
+            INITCAP(COALESCE(NULLIF(registry.visitor_type, ''), 'visitor')) AS type,
+            COALESCE(NULLIF(visitor_log.id_number, ''), NULLIF(registry.id_number, ''), '') AS id_number,
+            visitor_log.purpose,
+            INITCAP(REPLACE(visitor_log.status, '_', ' ')) AS status
+          FROM visitors_logs visitor_log
+          LEFT JOIN visitors_registry registry
+            ON registry.tenant_id = visitor_log.tenant_id
+           AND registry.id = visitor_log.visitor_id
+          WHERE visitor_log.tenant_id = $1
+          ORDER BY visitor_log.time_in DESC
+          LIMIT 200
+        `,
+        [tenantId],
+      ),
+    ]);
+    return {
+      metrics: summary.rows[0] ?? { entries_today: 0, exits_today: 0, pending_verification: 0 },
+      gateregisterList: entries.rows,
+    };
   }
 
   async getStudentExitPasses() {
     const tenantId = this.requireTenantId();
-    const res = await this.executeSql(
-      `SELECT * FROM student_exits WHERE tenant_id = $1 ORDER BY exit_time DESC, created_at DESC LIMIT 100`,
-      [tenantId]
-    );
-    return res.rows;
+    const [summary, passes] = await Promise.all([
+      this.executeSql<{ active_passes: number; pending_verification: number; returned_today: number }>(
+        `
+          SELECT
+            COUNT(*) FILTER (WHERE lower(status) IN ('pending', 'verified', 'out') AND time_in IS NULL)::int AS active_passes,
+            COUNT(*) FILTER (WHERE lower(status) = 'pending')::int AS pending_verification,
+            COUNT(*) FILTER (WHERE time_in::date = CURRENT_DATE)::int AS returned_today
+          FROM student_exits
+          WHERE tenant_id = $1
+        `,
+        [tenantId],
+      ),
+      this.executeSql<{
+        id: string;
+        student_name: string;
+        class: string;
+        authorized_by: string;
+        exit_time: string;
+        return_time: string;
+        status: string;
+      }>(
+        `
+          SELECT
+            exit_pass.id::text,
+            COALESCE(NULLIF(TRIM(CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name)), ''), exit_pass.student_id) AS student_name,
+            COALESCE(
+              NULLIF(section.custom_label, ''),
+              NULLIF(TRIM(CONCAT_WS(' ', section.grade_level, section.stream)), ''),
+              NULLIF(section.name, ''),
+              ''
+            ) AS class,
+            COALESCE(NULLIF(authorizer.full_name, ''), exit_pass.authorized_by_user_id) AS authorized_by,
+            exit_pass.time_out::text AS exit_time,
+            COALESCE(exit_pass.time_in::text, '') AS return_time,
+            INITCAP(REPLACE(exit_pass.status, '_', ' ')) AS status
+          FROM student_exits exit_pass
+          LEFT JOIN students student
+            ON student.tenant_id = exit_pass.tenant_id
+           AND student.id::text = exit_pass.student_id
+           AND student.deleted_at IS NULL
+          LEFT JOIN class_sections section
+            ON section.tenant_id = student.tenant_id
+           AND section.id = student.current_class_id
+          LEFT JOIN users authorizer
+            ON authorizer.id::text = exit_pass.authorized_by_user_id
+           AND EXISTS (
+             SELECT 1 FROM tenant_memberships membership
+             WHERE membership.tenant_id = exit_pass.tenant_id
+               AND membership.user_id = authorizer.id
+           )
+          WHERE exit_pass.tenant_id = $1
+          ORDER BY exit_pass.time_out DESC, exit_pass.created_at DESC
+          LIMIT 100
+        `,
+        [tenantId],
+      ),
+    ]);
+    return {
+      metrics: summary.rows[0] ?? { active_passes: 0, pending_verification: 0, returned_today: 0 },
+      studentexitpassesList: passes.rows,
+    };
   }
 
   async flagUnauthorizedExit(dto: any) {
@@ -618,18 +1046,63 @@ export class SecurityOfficerCommandService {
 
   async getStaffMovement() {
     const tenantId = this.requireTenantId();
-    const res = await this.executeSql(
-      `
-        SELECT *
-        FROM workflow_events
-        WHERE tenant_id = $1
-          AND event_type IN ('staff.entry_logged', 'staff.departure_logged')
-        ORDER BY created_at DESC
-        LIMIT 100
-      `,
-      [tenantId]
-    );
-    return res.rows;
+    const [summary, movements] = await Promise.all([
+      this.executeSql<{ currently_out: number; departed_today: number; returned_today: number }>(
+        `
+          SELECT
+            COUNT(*) FILTER (
+              WHERE NULLIF(payload->>'returned_at', '') IS NULL
+            )::int AS currently_out,
+            COUNT(*) FILTER (WHERE created_at::date = CURRENT_DATE)::int AS departed_today,
+            COUNT(*) FILTER (
+              WHERE NULLIF(payload->>'returned_at', '') IS NOT NULL
+                AND (payload->>'returned_at')::timestamptz::date = CURRENT_DATE
+            )::int AS returned_today
+          FROM workflow_events
+          WHERE tenant_id = $1
+            AND event_type = 'staff.departure_logged'
+        `,
+        [tenantId],
+      ),
+      this.executeSql<{
+        id: string;
+        staff_name: string;
+        department: string;
+        departed_at: string;
+        expected_return: string;
+        status: string;
+      }>(
+        `
+          SELECT
+            movement.id::text,
+            COALESCE(NULLIF(movement.payload->>'staff_name', ''), NULLIF(staff.full_name, ''), movement.entity_id) AS staff_name,
+            COALESCE(NULLIF(movement.payload->>'department', ''), '') AS department,
+            movement.created_at::text AS departed_at,
+            COALESCE(NULLIF(movement.payload->>'expected_return', ''), '') AS expected_return,
+            CASE
+              WHEN NULLIF(movement.payload->>'returned_at', '') IS NOT NULL THEN 'Returned'
+              ELSE 'Departed'
+            END AS status
+          FROM workflow_events movement
+          LEFT JOIN users staff
+            ON staff.id::text = movement.entity_id
+           AND EXISTS (
+             SELECT 1 FROM tenant_memberships membership
+             WHERE membership.tenant_id = movement.tenant_id
+               AND membership.user_id = staff.id
+           )
+          WHERE movement.tenant_id = $1
+            AND movement.event_type = 'staff.departure_logged'
+          ORDER BY movement.created_at DESC
+          LIMIT 100
+        `,
+        [tenantId],
+      ),
+    ]);
+    return {
+      metrics: summary.rows[0] ?? { currently_out: 0, departed_today: 0, returned_today: 0 },
+      staffmovementList: movements.rows,
+    };
   }
 
   async logStaffEntry(dto: any) {
@@ -689,7 +1162,14 @@ export class SecurityOfficerCommandService {
         staffId,
         'Staff departure logged',
         String(dto?.notes || `Staff member ${staffId} departed through the gate.`),
-        JSON.stringify({ staffId, logged_at: new Date().toISOString(), source_dashboard: 'security-officer' }),
+        JSON.stringify({
+          staffId,
+          staff_name: dto?.staff_name ?? dto?.staffName ?? null,
+          department: dto?.department ?? null,
+          expected_return: dto?.expected_return ?? dto?.expectedReturn ?? null,
+          logged_at: new Date().toISOString(),
+          source_dashboard: 'security-officer',
+        }),
       ],
     );
     const movement = result.rows[0];
@@ -966,16 +1446,38 @@ export class SecurityOfficerCommandService {
     );
     const delivery = result.rows[0];
     if (!delivery) throw new NotFoundException('Delivery was not found in this school');
-    await this.operations.recordAudit(tenantId, 'security.delivery_recipient_notified', 'workflow_event', delivery.id, { delivery }, userId);
-    await this.operations.notifyRoles(tenantId, {
-      key: `security-delivery-recipient-notified-${delivery.id}`,
+    const recipient = await this.resolveTenantStaffRecipient(
+      tenantId,
+      delivery.payload?.recipient_user_id ?? delivery.payload?.recipient ?? delivery.entity_id,
+    );
+    const notification = await this.notifyExactUser({
+      tenantId,
+      recipientUserId: recipient.user_id,
+      notificationKey: `security-delivery-recipient-notified-${delivery.id}-${recipient.user_id}`,
       type: 'security.delivery_recipient_notified',
-      title: `Delivery awaiting collection: ${delivery.payload?.recipient || delivery.entity_id || 'recipient'}`,
+      title: `Delivery awaiting collection: ${recipient.staff_name}`,
       body: `${delivery.payload?.delivery_type || 'Delivery'} is waiting at the gate.`,
-      targetRoles: ['secretary', 'principal', 'security'],
-      metadata: { delivery },
+      sourceRecordId: String(delivery.id),
+      metadata: {
+        delivery_id: delivery.id,
+        staff_profile_id: recipient.staff_profile_id,
+      },
     });
-    return { success: true, message: 'Delivery recipient notified', delivery };
+    await this.operations.recordAudit(
+      tenantId,
+      'security.delivery_recipient_notified',
+      'workflow_event',
+      delivery.id,
+      { delivery, recipient_user_id: recipient.user_id, staff_profile_id: recipient.staff_profile_id },
+      userId,
+    );
+    return {
+      success: true,
+      message: `Delivery notification queued for ${recipient.staff_name}`,
+      delivery,
+      recipient,
+      notification,
+    };
   }
 
   async markDeliveryCollected(id: string) {
@@ -1034,10 +1536,13 @@ export class SecurityOfficerCommandService {
   async recordLateArrival(dto: any) {
     const tenantId = this.requireTenantId();
     const userId = this.currentUserId();
-    const studentName = this.operations.requiredText(dto?.student_name ?? dto?.studentName ?? dto?.name, 'Student name');
+    const student = await this.resolveTenantStudent(tenantId, dto);
+    const studentName = student.student_name;
     const reason = this.operations.requiredText(dto?.reason ?? dto?.late_reason ?? dto?.lateReason, 'Late arrival reason');
     const actionTaken = String(dto?.action_taken ?? dto?.actionTaken ?? 'Allowed to Class').trim() || 'Allowed to Class';
     const payload = {
+      student_id: student.id,
+      admission_number: student.admission_number,
       student_name: studentName,
       reason,
       action_taken: actionTaken,
@@ -1056,7 +1561,7 @@ export class SecurityOfficerCommandService {
         tenantId,
         this.operations.uuidOrNull(userId),
         JSON.stringify(['security', 'class_teacher', 'principal']),
-        studentName,
+        student.id,
         `Late arrival: ${studentName}`,
         `${studentName} arrived late. Reason: ${reason}.`,
         JSON.stringify(payload),
@@ -1091,16 +1596,38 @@ export class SecurityOfficerCommandService {
     );
     const arrival = result.rows[0];
     if (!arrival) throw new NotFoundException('Late arrival record was not found in this school');
-    await this.operations.recordAudit(tenantId, 'security.late_arrival_parent_notified', 'workflow_event', arrival.id, { arrival }, userId);
-    await this.operations.notifyRoles(tenantId, {
-      key: `security-late-arrival-parent-notified-${arrival.id}`,
-      type: 'security.late_arrival_parent_notified',
-      title: `Parent notice queued: ${arrival.payload?.student_name || arrival.entity_id || 'student'}`,
-      body: `${arrival.payload?.student_name || 'A student'} arrived late. Reason: ${arrival.payload?.reason || 'Not recorded'}.`,
-      targetRoles: ['parent', 'class_teacher', 'principal', 'security'],
-      metadata: { arrival },
+    const storedStudentId = this.uuidOrNull(arrival.payload?.student_id ?? arrival.entity_id);
+    const student = await this.resolveTenantStudent(tenantId, {
+      student_id: storedStudentId ?? undefined,
+      student_name: arrival.payload?.student_name,
     });
-    return { success: true, message: 'Late arrival parent notice queued', arrival };
+    const guardianNotificationCount = await this.notifyLinkedGuardians({
+      tenantId,
+      studentId: student.id,
+      notificationKey: `security-late-arrival-parent-notified-${arrival.id}`,
+      type: 'security.late_arrival_parent_notified',
+      title: `Late arrival recorded: ${student.student_name}`,
+      body: `${student.student_name} arrived late. Reason: ${arrival.payload?.reason || 'Not recorded'}.`,
+      sourceRecordId: String(arrival.id),
+      metadata: { arrival_id: arrival.id },
+    });
+    if (guardianNotificationCount === 0) {
+      throw new BadRequestException('No active linked guardian account is available for this student. The late arrival remains recorded, but no parent notice was sent');
+    }
+    await this.operations.recordAudit(
+      tenantId,
+      'security.late_arrival_parent_notified',
+      'workflow_event',
+      arrival.id,
+      { arrival, student_id: student.id, guardian_notification_count: guardianNotificationCount },
+      userId,
+    );
+    return {
+      success: true,
+      message: `Late arrival notice queued for ${guardianNotificationCount} linked guardian account${guardianNotificationCount === 1 ? '' : 's'}`,
+      arrival,
+      guardianNotificationCount,
+    };
   }
 
   async getEarlyDepartures() {
@@ -1128,10 +1655,13 @@ export class SecurityOfficerCommandService {
   async recordEarlyDeparture(dto: any) {
     const tenantId = this.requireTenantId();
     const userId = this.currentUserId();
-    const studentName = this.operations.requiredText(dto?.student_name ?? dto?.studentName ?? dto?.name, 'Student name');
+    const student = await this.resolveTenantStudent(tenantId, dto);
+    const studentName = student.student_name;
     const reason = this.operations.requiredText(dto?.reason ?? dto?.departure_reason ?? dto?.departureReason, 'Early departure reason');
     const status = String(dto?.status ?? 'Awaiting Return').trim() || 'Awaiting Return';
     const payload = {
+      student_id: student.id,
+      admission_number: student.admission_number,
       student_name: studentName,
       reason,
       status,
@@ -1149,8 +1679,8 @@ export class SecurityOfficerCommandService {
       [
         tenantId,
         this.operations.uuidOrNull(userId),
-        JSON.stringify(['security', 'class_teacher', 'principal', 'parent']),
-        studentName,
+        JSON.stringify(['security', 'class_teacher', 'principal']),
+        student.id,
         `Early departure: ${studentName}`,
         `${studentName} left school early. Reason: ${reason}.`,
         JSON.stringify(payload),
@@ -1163,15 +1693,56 @@ export class SecurityOfficerCommandService {
       type: 'security.early_departure_recorded',
       title: `Early departure recorded: ${studentName}`,
       body: `${studentName} left school early. Reason: ${reason}.`,
-      targetRoles: ['security', 'class_teacher', 'principal', 'parent'],
+      targetRoles: ['security', 'class_teacher', 'principal'],
       metadata: { departure },
     });
-    return { success: true, message: 'Early departure recorded', departure };
+    const guardianNotificationCount = await this.notifyLinkedGuardians({
+      tenantId,
+      studentId: student.id,
+      notificationKey: `security-early-departure-guardian-${departure.id}`,
+      type: 'security.early_departure_recorded',
+      title: `Early departure recorded: ${studentName}`,
+      body: `${studentName} left school early. Reason: ${reason}.`,
+      sourceRecordId: String(departure.id),
+      priority: 'high',
+      metadata: { departure_id: departure.id },
+    });
+    return {
+      success: true,
+      message: guardianNotificationCount > 0
+        ? 'Early departure recorded and linked guardians notified'
+        : 'Early departure recorded, but no active linked guardian account was available',
+      departure,
+      guardianNotificationCount,
+      guardianNotificationStatus: guardianNotificationCount > 0 ? 'queued' : 'follow_up_required',
+    };
   }
 
   async recordEarlyDepartureReturn(id: string) {
     const tenantId = this.requireTenantId();
     const userId = this.currentUserId();
+    const departureId = this.operations.requiredText(id, 'Early departure ID');
+    const existingResult = await this.operations.readSql(
+      `
+        SELECT id::text, entity_id, payload
+        FROM workflow_events
+        WHERE tenant_id = $1
+          AND id = $2::uuid
+          AND event_type = 'student.early_departure_recorded'
+          AND NOT (payload ? 'returned_at')
+        LIMIT 1
+      `,
+      [tenantId, departureId],
+    );
+    const existingDeparture = existingResult.rows[0];
+    if (!existingDeparture) {
+      throw new NotFoundException('Early departure record was not found, already returned, or belongs to another school');
+    }
+    const storedStudentId = this.uuidOrNull(existingDeparture.payload?.student_id ?? existingDeparture.entity_id);
+    const student = await this.resolveTenantStudent(tenantId, {
+      student_id: storedStudentId ?? undefined,
+      student_name: existingDeparture.payload?.student_name,
+    });
     const result = await this.operations.writeSql(
       `
         UPDATE workflow_events
@@ -1186,7 +1757,7 @@ export class SecurityOfficerCommandService {
       `,
       [
         tenantId,
-        this.operations.requiredText(id, 'Early departure ID'),
+        departureId,
         JSON.stringify({ returned_at: new Date().toISOString(), status: 'Returned' }),
       ],
     );
@@ -1198,10 +1769,28 @@ export class SecurityOfficerCommandService {
       type: 'security.early_departure_return_recorded',
       title: `Early departure return recorded: ${departure.payload?.student_name || departure.entity_id || 'student'}`,
       body: `${departure.payload?.student_name || 'A student'} returned after an early departure.`,
-      targetRoles: ['security', 'class_teacher', 'principal', 'parent'],
+      targetRoles: ['security', 'class_teacher', 'principal'],
       metadata: { departure },
     });
-    return { success: true, message: 'Early departure return recorded', departure };
+    const guardianNotificationCount = await this.notifyLinkedGuardians({
+      tenantId,
+      studentId: student.id,
+      notificationKey: `security-early-departure-return-guardian-${departure.id}`,
+      type: 'security.early_departure_return_recorded',
+      title: `Early departure return recorded: ${student.student_name}`,
+      body: `${student.student_name} returned after an early departure.`,
+      sourceRecordId: String(departure.id),
+      metadata: { departure_id: departure.id },
+    });
+    return {
+      success: true,
+      message: guardianNotificationCount > 0
+        ? 'Early departure return recorded and linked guardians notified'
+        : 'Early departure return recorded, but no active linked guardian account was available',
+      departure,
+      guardianNotificationCount,
+      guardianNotificationStatus: guardianNotificationCount > 0 ? 'queued' : 'follow_up_required',
+    };
   }
 
   async getWatchlistEntries() {
@@ -1390,11 +1979,48 @@ export class SecurityOfficerCommandService {
 
   async getIncidents() {
     const tenantId = this.requireTenantId();
-    const res = await this.executeSql(
-      `SELECT * FROM security_incidents WHERE tenant_id = $1 ORDER BY created_at DESC`,
-      [tenantId]
-    );
-    return res.rows;
+    const [summary, incidents] = await Promise.all([
+      this.executeSql<{ open_incidents: number; resolved_today: number; escalated: number }>(
+        `
+          SELECT
+            COUNT(*) FILTER (WHERE lower(status) IN ('open', 'reported', 'active'))::int AS open_incidents,
+            COUNT(*) FILTER (WHERE lower(status) = 'resolved' AND updated_at::date = CURRENT_DATE)::int AS resolved_today,
+            COUNT(*) FILTER (WHERE lower(status) = 'escalated')::int AS escalated
+          FROM security_incidents
+          WHERE tenant_id = $1
+        `,
+        [tenantId],
+      ),
+      this.executeSql<{
+        id: string;
+        title: string;
+        date: string;
+        description: string;
+        location: string;
+        severity: string;
+        status: string;
+      }>(
+        `
+          SELECT
+            id::text,
+            title,
+            created_at::text AS date,
+            description,
+            location,
+            INITCAP(REPLACE(severity, '_', ' ')) AS severity,
+            INITCAP(REPLACE(status, '_', ' ')) AS status
+          FROM security_incidents
+          WHERE tenant_id = $1
+          ORDER BY created_at DESC
+          LIMIT 200
+        `,
+        [tenantId],
+      ),
+    ]);
+    return {
+      metrics: summary.rows[0] ?? { open_incidents: 0, resolved_today: 0, escalated: 0 },
+      incidentsList: incidents.rows,
+    };
   }
 
   async reportIncident(dto: any) {
@@ -1481,7 +2107,17 @@ export class SecurityOfficerCommandService {
 
   async getReports() {
     const tenantId = this.requireTenantId();
-    return this.operations.listReportSnapshots(tenantId, 'security-officer-command');
+    const reports = await this.operations.listReportSnapshots(tenantId, 'security-officer-command');
+    return {
+      metrics: { reports_generated: reports.length },
+      reportsList: reports.map((report: any) => ({
+        id: report.snapshotId ?? report.id,
+        title: report.reportName,
+        generated_at: report.generatedDate,
+        type: report.type,
+        status: report.status,
+      })),
+    };
   }
 
   async generateReport(dto: any) {

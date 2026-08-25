@@ -30,6 +30,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { EventPublisherService } from '../events/event-publisher.service';
 import { AgpExecutionService } from '../../common/platform-governance/agp-execution.service';
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
+import { CommunicationSmsService } from '../communication/communication-sms.service';
 import { CreateApplicationDto, UpdateApplicationDto } from './dto/create-application.dto';
 import { ListAdmissionsQueryDto } from './dto/list-admissions-query.dto';
 import {
@@ -84,6 +85,20 @@ interface AcademicClassSectionRecord {
   academic_year: string;
   capacity?: number | string | null;
   current_enrollments?: number | string | null;
+}
+
+interface AdmissionGuardianSmsDelivery {
+  status: 'queued' | 'degraded' | 'not_requeued';
+  queue_id: string | null;
+  recipient_phone_last4: string;
+  reason: string | null;
+  provider_status?: string | null;
+}
+
+interface AdmissionOperationEventDelivery {
+  status: 'recorded' | 'degraded' | 'not_replayed';
+  event_key: string | null;
+  reason: string | null;
 }
 
 type AdmissionsReportExportDefinition = {
@@ -312,6 +327,7 @@ export class AdmissionsService {
     @Optional() private readonly schoolOperationalEventsService?: SchoolOperationalEventsService,
     @Optional() private readonly uploadMalwareScan?: UploadMalwareScanService,
     @Optional() private readonly authorizationRepository?: AuthorizationRepository,
+    @Optional() private readonly communicationSmsService?: CommunicationSmsService,
   ) {}
 
   async getSummary() {
@@ -643,7 +659,8 @@ export class AdmissionsService {
   }
 
   async registerApprovedApplication(applicationId: string, dto: RegisterApplicationDto) {
-    return this.prisma.withRequestTransaction(async () => {
+    const command = async () => this.prisma.withRequestTransaction(async () => {
+      const context = this.requestContext.requireStore();
       const tenantId = this.requireTenantId();
       const application = await this.admissionsRepository.findApplicationByIdForUpdate(
         tenantId,
@@ -672,12 +689,31 @@ export class AdmissionsService {
           fee_assignment: null,
           fee_invoice: null,
           application_status: 'registered',
+          notification_delivery: {
+            guardian_sms: {
+              status: 'not_requeued',
+              queue_id: null,
+              recipient_phone_last4: application.parent_phone.trim().slice(-4),
+              reason: 'application_already_registered',
+            } satisfies AdmissionGuardianSmsDelivery,
+          },
+          operation_event: {
+            status: 'not_replayed',
+            event_key: null,
+            reason: 'application_already_registered',
+          } satisfies AdmissionOperationEventDelivery,
+          idempotent_replay: true,
         };
       }
 
       if (application.status !== 'approved') {
         throw new BadRequestException('Only approved applications can be registered');
       }
+
+      // This tenant-scoped application is the only authority for the guardian
+      // recipient. Normalize before any write so student, guardian, and SMS
+      // records cannot diverge on legacy Kenyan phone formats.
+      const guardianPhone = normalizeKenyanPhone(application.parent_phone);
 
       const className = dto.class_name.trim();
       const streamName = dto.stream_name.trim();
@@ -702,7 +738,7 @@ export class AdmissionsService {
         date_of_birth: application.date_of_birth ?? undefined,
         gender: this.mapApplicationGender(application.gender),
         primary_guardian_name: application.parent_name,
-        primary_guardian_phone: application.parent_phone,
+        primary_guardian_phone: guardianPhone,
         metadata: {
           admissions: {
             application_id: application.id,
@@ -761,7 +797,7 @@ export class AdmissionsService {
       const guardianLink = await this.linkParentGuardian(
         tenantId,
         student.id,
-        application,
+        { ...application, parent_phone: guardianPhone },
         parentInvitation,
       );
       const feeRegistration = await this.assignRegistrationFees(
@@ -771,60 +807,90 @@ export class AdmissionsService {
         dto.class_name.trim(),
       );
 
+      // A Pending outbox row is only a truthful queued state. It is not proof
+      // of provider dispatch or delivery.
+      const guardianSmsDelivery = await this.queueAdmissionGuardianSms({
+        tenantId,
+        actorUserId: context.user_id,
+        idempotencyKey: `admission-guardian:${application.id}:${student.id}`,
+        recipientPhone: guardianPhone,
+        message: `Dear parent, ${application.full_name} has been admitted to ${canonicalClassName}. Admission Number: ${student.admission_number}.`,
+      });
+
+      let operationEvent: AdmissionOperationEventDelivery;
+
       if (this.schoolOperationalEventsService) {
-        await this.schoolOperationalEventsService.recordSchoolOperation({
-          schoolId: tenantId,
-          event: {
-            id: randomUUID(),
-            type: 'admission.application.registered',
-            module: 'admissions',
-            actorRole: 'admissions',
-            title: 'Application Registered',
-            body: `Admission application for ${application.full_name} has been completed.`,
-            entityId: application.id,
-            severity: 'success',
-            payload: {
-              application_id: application.id,
-              student_id: student.id,
-              admission_number: dto.admission_number,
-              class_name: dto.class_name,
+        try {
+          const recordedOperation = await this.schoolOperationalEventsService.recordSchoolOperation({
+            schoolId: tenantId,
+            event: {
+              id: `admission-registration-${application.id}`,
+              type: 'admission.application.registered',
+              module: 'admissions',
+              actorRole: context.role ?? 'admissions_officer',
+              title: 'Application Registered',
+              body: `Admission application for ${application.full_name} has been completed.`,
+              entityId: application.id,
+              severity: 'success',
+              payload: {
+                application_id: application.id,
+                student_id: student.id,
+                admission_number: student.admission_number,
+                class_name: canonicalClassName,
+                guardian_sms_status: guardianSmsDelivery.status,
+                guardian_sms_queue_id: guardianSmsDelivery.queue_id,
+                guardian_sms_recipient_last4: guardianSmsDelivery.recipient_phone_last4,
+              },
             },
-          },
-          notifications: [
-            {
-              id: `admission-finance-${student.id}`,
-              school_id: tenantId,
-              audienceRoles: ['accountant', 'finance', 'principal'],
-              title: 'Fee Collection Required',
-              body: `Registration fees for newly admitted student ${application.full_name} (${dto.admission_number}) require collection.`,
-              sourceModule: 'admissions',
-              relatedModule: 'finance',
-              relatedRecordId: student.id,
-              priority: 'high',
-              read: false,
-              created_at: new Date().toISOString(),
-            },
-            {
-              id: `admission-teacher-${student.id}`,
-              school_id: tenantId,
-              audienceRoles: ['class-teacher', 'teacher'],
-              title: 'New Student Admitted',
-              body: `${application.full_name} has been admitted to your class ${dto.class_name}.`,
-              sourceModule: 'admissions',
-              relatedModule: 'academics',
-              relatedRecordId: student.id,
-              priority: 'normal',
-              read: false,
-              created_at: new Date().toISOString(),
-            }
-          ],
-          sms: [
-            {
-              phone: application.parent_phone,
-              message: `Dear parent, ${application.full_name} has been successfully admitted to ${dto.class_name}. Admission Number: ${dto.admission_number}.`,
-            }
-          ]
-        }).catch(() => undefined);
+            notifications: [
+              {
+                id: `admission-finance-${student.id}`,
+                school_id: tenantId,
+                audienceRoles: ['accountant', 'finance', 'principal'],
+                title: 'Fee Collection Required',
+                body: `Registration fees for newly admitted student ${application.full_name} (${student.admission_number}) require collection.`,
+                sourceModule: 'admissions',
+                relatedModule: 'finance',
+                relatedRecordId: student.id,
+                priority: 'high',
+                read: false,
+                created_at: new Date().toISOString(),
+              },
+              {
+                id: `admission-teacher-${student.id}`,
+                school_id: tenantId,
+                audienceRoles: ['class-teacher', 'teacher'],
+                title: 'New Student Admitted',
+                body: `${application.full_name} has been admitted to your class ${canonicalClassName}.`,
+                sourceModule: 'admissions',
+                relatedModule: 'academics',
+                relatedRecordId: student.id,
+                priority: 'normal',
+                read: false,
+                created_at: new Date().toISOString(),
+              },
+            ],
+          });
+          operationEvent = {
+            status: 'recorded',
+            event_key: typeof recordedOperation?.event_key === 'string'
+              ? recordedOperation.event_key
+              : null,
+            reason: null,
+          };
+        } catch {
+          operationEvent = {
+            status: 'degraded',
+            event_key: null,
+            reason: 'operation_event_recording_failed',
+          };
+        }
+      } else {
+        operationEvent = {
+          status: 'degraded',
+          event_key: null,
+          reason: 'operation_event_service_unavailable',
+        };
       }
 
       return {
@@ -838,7 +904,19 @@ export class AdmissionsService {
         fee_assignment: feeRegistration?.assignment ?? null,
         fee_invoice: feeRegistration?.invoice ?? null,
         application_status: 'registered',
+        notification_delivery: { guardian_sms: guardianSmsDelivery },
+        operation_event: operationEvent,
+        idempotent_replay: false,
       };
+    });
+
+    if (!this.agp) return command();
+    return this.agp.execute({
+      actionName: 'APPROVED_APPLICATION_REGISTERED',
+      requiredCapability: 'admissions:write',
+      aggregateType: 'ADMISSION',
+      aggregateId: applicationId,
+      handler: command,
     });
   }
 
@@ -1606,6 +1684,73 @@ export class AdmissionsService {
       display_name: application.parent_name.trim(),
       role_code: 'parent',
     });
+  }
+
+  private async queueAdmissionGuardianSms(input: {
+    tenantId: string;
+    actorUserId: string;
+    idempotencyKey: string;
+    recipientPhone: string;
+    message: string;
+  }): Promise<AdmissionGuardianSmsDelivery> {
+    const recipientPhoneLast4 = input.recipientPhone.slice(-4);
+
+    if (!this.communicationSmsService) {
+      return {
+        status: 'degraded',
+        queue_id: null,
+        recipient_phone_last4: recipientPhoneLast4,
+        reason: 'sms_queue_service_unavailable',
+      };
+    }
+
+    if (!input.actorUserId?.trim()) {
+      return {
+        status: 'degraded',
+        queue_id: null,
+        recipient_phone_last4: recipientPhoneLast4,
+        reason: 'sms_queue_actor_unavailable',
+      };
+    }
+
+    try {
+      const result = await this.communicationSmsService.sendSms({
+        tenantId: input.tenantId,
+        userId: input.actorUserId,
+        idempotencyKey: input.idempotencyKey,
+        recipientPhone: input.recipientPhone,
+        message: input.message,
+      });
+      const providerStatus = typeof result?.status === 'string' ? result.status : null;
+      const queueId = typeof result?.messageId === 'string' && result.messageId !== 'FALLBACK'
+        ? result.messageId
+        : null;
+
+      if (result?.success === true && queueId && /^(pending|queued)$/i.test(providerStatus ?? '')) {
+        return {
+          status: 'queued',
+          queue_id: queueId,
+          recipient_phone_last4: recipientPhoneLast4,
+          reason: null,
+          provider_status: providerStatus,
+        };
+      }
+
+      return {
+        status: 'degraded',
+        queue_id: queueId,
+        recipient_phone_last4: recipientPhoneLast4,
+        reason: 'sms_queue_rejected',
+        provider_status: providerStatus,
+      };
+    } catch {
+      return {
+        status: 'degraded',
+        queue_id: null,
+        recipient_phone_last4: recipientPhoneLast4,
+        reason: 'sms_queue_failed',
+      };
+    }
   }
 
   private async linkParentGuardian(

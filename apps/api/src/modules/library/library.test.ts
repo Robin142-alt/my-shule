@@ -83,7 +83,11 @@ test('LibraryService preserves reservation order when reserving unavailable copi
 
 test('LibraryService creates billing handoff for overdue fines during return', async () => {
   const calls: string[] = [];
-  const service = new LibraryService({} as never, { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+  const requestStore = { tenant_id: 'tenant-a', user_id: 'user-1', role: 'librarian' };
+  const service = new LibraryService({} as never, {
+    getStore: () => requestStore,
+    requireStore: () => requestStore,
+  } as never,
     {
       findLoanForReturn: async () => ({
         id: 'loan-1',
@@ -120,6 +124,63 @@ test('LibraryService creates billing handoff for overdue fines during return', a
 
   assert.equal(returned.status, 'returned');
   assert.deepEqual(calls, ['return', 'fine', 'billing', 'ledger']);
+});
+
+test('LibraryService sends overdue-fine details only to exact active borrower accounts and finance staff', async () => {
+  const operations: Array<Record<string, any>> = [];
+  const requestStore = { tenant_id: 'tenant-a', user_id: 'librarian-1', role: 'librarian' };
+  const service = new LibraryService(
+    {} as never,
+    {
+      getStore: () => requestStore,
+      requireStore: () => requestStore,
+    } as never,
+    {
+      findLoanForReturn: async () => ({
+        id: 'loan-1',
+        copy_id: 'copy-1',
+        borrower_id: 'borrower-1',
+        due_on: '2026-05-01',
+      }),
+      returnCopy: async () => ({ id: 'loan-1', status: 'returned' }),
+      createFine: async () => ({ id: 'fine-1', amount_minor: 5000 }),
+      listActiveNotificationRecipientsForBorrower: async (tenantId: string, borrowerId: string) => {
+        assert.equal(tenantId, 'tenant-a');
+        assert.equal(borrowerId, 'borrower-1');
+        return [
+          { user_id: 'guardian-user-1', guardian_id: 'guardian-1', recipient_kind: 'guardian' },
+          { user_id: 'student-user-1', guardian_id: null, recipient_kind: 'student' },
+        ];
+      },
+      appendLedger: async () => undefined,
+    } as never,
+    {} as never,
+    {
+      recordSchoolOperation: async (input: Record<string, unknown>) => {
+        operations.push(input);
+      },
+    } as never,
+    { createLibraryFineCharge: async () => undefined } as never,
+  );
+
+  await service.returnCopy({
+    loan_id: 'loan-1',
+    returned_on: '2026-05-06',
+    daily_fine_minor: 1000,
+  });
+
+  assert.equal(operations.length, 1);
+  const notifications = operations[0].notifications as Array<Record<string, unknown>>;
+  assert.deepEqual(notifications[0].audienceRoles, ['accountant', 'bursar']);
+  assert.deepEqual(
+    notifications.slice(1).map((notification) => notification.targetUserId),
+    ['guardian-user-1', 'student-user-1'],
+  );
+  assert.equal(notifications[1].recipientGuardianId, 'guardian-1');
+  assert.deepEqual(notifications[1].audienceRoles, ['parent']);
+  assert.deepEqual(notifications[2].audienceRoles, ['student']);
+  assert.ok(notifications.slice(1).every((notification) =>
+    String(notification.recipientScope).startsWith('exact_active_')));
 });
 
 test('LibraryController exposes circulation ledger as a read endpoint', () => {
@@ -324,6 +385,44 @@ test('LibraryService lists tenant-scoped library request workflow events', async
   });
 });
 
+test('LibraryService lists the tenant-scoped sent-notice ledger instead of only the librarian own inbox', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new LibraryService(
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        return {
+          rows: [{
+            id: 'notice-event-1',
+            title: 'New set books available',
+            body: 'The books are available from the library desk.',
+            recipientRole: 'parent, student',
+            status: 'published',
+            createdAt: '2026-08-22T10:00:00.000Z',
+            payload: { notice_type: 'new_arrival' },
+          }],
+          rowCount: 1,
+        };
+      },
+    } as never,
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'librarian-1', role: 'librarian' }) } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+
+  const result = await service.getNotices();
+
+  assert.equal(result.items[0].id, 'notice-event-1');
+  assert.equal(result.items[0].recipientRole, 'parent, student');
+  assert.deepEqual(queries[0].params, ['tenant-a']);
+  assert.match(queries[0].sql, /FROM workflow_events event/);
+  assert.match(queries[0].sql, /event\.tenant_id = \$1/);
+  assert.match(queries[0].sql, /library\.overdue\.reminder_sent/);
+  assert.match(queries[0].sql, /Exact borrower and linked guardian accounts/);
+  assert.doesNotMatch(queries[0].sql, /recipient_user_id\s*=\s*\$2/);
+});
+
 test('LibraryService issues a book by scanner codes using ordinary keyboard input values', async () => {
   const calls: string[] = [];
   const service = new LibraryService({} as never, { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'librarian-1' }) } as never,
@@ -353,7 +452,11 @@ test('LibraryService issues a book by scanner codes using ordinary keyboard inpu
 
 test('LibraryService returns a book by scanned accession and calculates overdue fine', async () => {
   const calls: string[] = [];
-  const service = new LibraryService({} as never, { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'librarian-1' }) } as never,
+  const requestStore = { tenant_id: 'tenant-a', user_id: 'librarian-1', role: 'librarian' };
+  const service = new LibraryService({} as never, {
+    getStore: () => requestStore,
+    requireStore: () => requestStore,
+  } as never,
     {
       findCopyByScanCodeForUpdate: async () => ({ id: 'copy-1', status: 'issued', accession_number: 'ACC-001' }),
       findActiveLoanByCopyId: async () => ({
@@ -430,6 +533,33 @@ query: async (sql: string) => {
 
   assert.doesNotMatch(combinedSql, /SELECT\s+(?:\w+\.)?\*/i);
   assert.match(combinedSql, /WHERE\s+tenant_id = \$1/i);
+});
+
+test('LibraryRepository resolves fine recipients only through active same-tenant borrower links and memberships', async () => {
+  let capturedSql = '';
+  let capturedValues: unknown[] = [];
+  const repository = new LibraryRepository({
+    query: async (sql: string, values: unknown[]) => {
+      capturedSql = sql;
+      capturedValues = values;
+      return {
+        rows: [{ user_id: 'guardian-user-1', guardian_id: 'guardian-1', recipient_kind: 'guardian' }],
+        rowCount: 1,
+      };
+    },
+  } as never);
+
+  const recipients = await repository.listActiveNotificationRecipientsForBorrower('tenant-a', 'borrower-1');
+
+  assert.deepEqual(capturedValues, ['tenant-a', 'borrower-1']);
+  assert.match(capturedSql, /FROM library_borrowers/);
+  assert.match(capturedSql, /WHERE tenant_id = \$1/);
+  assert.match(capturedSql, /guardian\.tenant_id = \$1/);
+  assert.match(capturedSql, /membership\.tenant_id = guardian\.tenant_id/);
+  assert.match(capturedSql, /LOWER\(membership\.status\) = 'active'/);
+  assert.match(capturedSql, /portal\.tenant_id = \$1/);
+  assert.match(capturedSql, /staff\.tenant_id = \$1/);
+  assert.equal(recipients[0].user_id, 'guardian-user-1');
 });
 
 test('LibraryRepository bounds circulation ledger reads with normalized pagination', async () => {

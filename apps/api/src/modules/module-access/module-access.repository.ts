@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../database/prisma.service';
 import {
@@ -194,42 +195,9 @@ export class ModuleAccessRepository {
   }
 
   async listSchoolModules(tenantId: string): Promise<SchoolModuleAccessResponseDto[]> {
-    return this.withTenantScope(tenantId, async () => {
-      const result = await this.executeSql<ModuleRegistryRow>(
-        `
-          SELECT
-            mr.id::text,
-            mr.code,
-            mr.name,
-            mr.description,
-            mr.feature_flags,
-            mr.status,
-            mr.base_price_cents,
-            mr.per_student_price_cents,
-            mr.billing_metadata,
-            mr.category,
-            mr.route_segment,
-            mr.permission_scopes,
-            COALESCE(sma.enabled, false) AS enabled,
-            sma.enabled_at,
-            sma.disabled_at,
-            sma.updated_by::text,
-            sma.access_level,
-            sma.trial_ends_at,
-            sma.expires_at,
-            sma.billing_plan_code,
-            sma.feature_flags AS assignment_feature_flags
-          FROM module_registry mr
-          LEFT JOIN school_module_access sma
-            ON sma.module_id = mr.id
-           AND sma.tenant_id = $1
-          ORDER BY mr.name ASC
-        `,
-        [tenantId],
-      );
-
-      return result.rows.map((row) => this.mapSchoolModuleRow(row));
-    });
+    return this.prisma.executeWithTenant(tenantId, null, (tx) =>
+      this.listSchoolModulesInTransaction(tx, tenantId),
+    );
   }
 
   async listEnabledModuleCodes(tenantId: string): Promise<string[]> {
@@ -300,114 +268,100 @@ export class ModuleAccessRepository {
     moduleCodes: string[];
     updatedBy: string | null;
   }): Promise<SchoolModuleAccessResponseDto[]> {
-    return this.withTenantScope(input.tenantId, async () => {
-      await this.seedRegistry();
-      await this.assertKnownActiveModules(input.moduleCodes);
+    await this.seedRegistry();
 
-      await this.executeSql(
-        `
-          UPDATE school_module_access sma
-          SET enabled = false,
-              disabled_at = NOW(),
-              updated_by = $2::uuid,
-              updated_at = NOW()
-          FROM module_registry mr
-          WHERE sma.module_id = mr.id
-            AND sma.tenant_id = $1
-            AND sma.enabled = true
-            AND NOT (mr.code = ANY($3::text[]))
-        `,
-        [input.tenantId, input.updatedBy, input.moduleCodes],
-      );
+    const modules = await this.prisma.executeWithTenant(
+      input.tenantId,
+      input.updatedBy,
+      async (tx) => {
+        await this.assertKnownActiveModulesInTransaction(tx, input.moduleCodes);
 
-      // First, update existing ones that should be enabled
-      await this.executeSql(
-        `
-          UPDATE school_module_access sma
-          SET enabled = true,
-              enabled_at = COALESCE(sma.enabled_at, NOW()),
-              disabled_at = NULL,
-              access_level = 'standard',
-              trial_ends_at = NULL,
-              expires_at = NULL,
-              billing_plan_code = NULL,
-              feature_flags = '{}'::jsonb,
-              activation_reason = 'superadmin_bulk_allocation',
-              updated_by = $3::uuid,
-              updated_at = NOW()
-          FROM module_registry mr
-          WHERE sma.module_id = mr.id
-            AND sma.tenant_id = $1
-            AND (mr.code = ANY($2::text[]))
-        `,
-        [input.tenantId, input.moduleCodes, input.updatedBy],
-      );
+        await tx.$executeRawUnsafe(
+          `
+            UPDATE school_module_access sma
+            SET enabled = false,
+                disabled_at = NOW(),
+                updated_by = $2::uuid,
+                updated_at = NOW()
+            FROM module_registry mr
+            WHERE sma.module_id = mr.id
+              AND sma.tenant_id = $1
+              AND sma.enabled = true
+              AND NOT (mr.code = ANY($3::text[]))
+          `,
+          input.tenantId,
+          input.updatedBy,
+          input.moduleCodes,
+        );
 
-      // Then insert the missing ones
-      await this.executeSql(
-        `
-          INSERT INTO school_module_access (
-            tenant_id,
-            module_id,
-            enabled,
-            enabled_at,
-            disabled_at,
-            updated_by,
-            access_level,
-            trial_ends_at,
-            expires_at,
-            billing_plan_code,
-            feature_flags,
-            activation_reason
-          )
-          SELECT
-            $1,
-            id,
-            true,
-            NOW(),
-            NULL,
-            $3::uuid,
-            'standard',
-            NULL::timestamptz,
-            NULL::timestamptz,
-            NULL::text,
-            '{}'::jsonb,
-            'superadmin_bulk_allocation'
-          FROM module_registry mr
-          WHERE code = ANY($2::text[])
-            AND status = 'active'
-            AND NOT EXISTS (
-              SELECT 1 FROM school_module_access sma
-              WHERE sma.module_id = mr.id AND sma.tenant_id = $1
+        const upsertedCount = await tx.$executeRawUnsafe(
+          `
+            INSERT INTO school_module_access (
+              tenant_id,
+              module_id,
+              enabled,
+              enabled_at,
+              disabled_at,
+              updated_by,
+              access_level,
+              trial_ends_at,
+              expires_at,
+              billing_plan_code,
+              feature_flags,
+              activation_reason
             )
-          ON CONFLICT (tenant_id, module_id)
-          DO UPDATE SET
-            enabled = EXCLUDED.enabled,
-            enabled_at = COALESCE(school_module_access.enabled_at, NOW()),
-            disabled_at = NULL,
-            updated_by = EXCLUDED.updated_by,
-            access_level = EXCLUDED.access_level,
-            trial_ends_at = EXCLUDED.trial_ends_at,
-            expires_at = EXCLUDED.expires_at,
-            billing_plan_code = EXCLUDED.billing_plan_code,
-            feature_flags = EXCLUDED.feature_flags,
-            activation_reason = EXCLUDED.activation_reason,
-            updated_at = NOW()
-        `,
-        [input.tenantId, input.moduleCodes, input.updatedBy],
-      );
+            SELECT
+              $1,
+              id,
+              true,
+              NOW(),
+              NULL,
+              $3::uuid,
+              'standard',
+              NULL::timestamptz,
+              NULL::timestamptz,
+              NULL::text,
+              '{}'::jsonb,
+              'superadmin_bulk_allocation'
+            FROM module_registry mr
+            WHERE code = ANY($2::text[])
+              AND status = 'active'
+            ON CONFLICT (tenant_id, module_id)
+            DO UPDATE SET
+              enabled = EXCLUDED.enabled,
+              enabled_at = COALESCE(school_module_access.enabled_at, NOW()),
+              disabled_at = NULL,
+              updated_by = EXCLUDED.updated_by,
+              access_level = EXCLUDED.access_level,
+              trial_ends_at = EXCLUDED.trial_ends_at,
+              expires_at = EXCLUDED.expires_at,
+              billing_plan_code = EXCLUDED.billing_plan_code,
+              feature_flags = EXCLUDED.feature_flags,
+              activation_reason = EXCLUDED.activation_reason,
+              updated_at = NOW()
+          `,
+          input.tenantId,
+          input.moduleCodes,
+          input.updatedBy,
+        );
 
-      await this.appendAuditLog({
-        tenantId: input.tenantId,
-        actorUserId: input.updatedBy,
-        action: 'module_access.school_modules_replaced',
-        metadata: { module_codes: input.moduleCodes },
-      });
+        if (upsertedCount !== input.moduleCodes.length) {
+          throw new Error('Module allocation could not be applied completely.');
+        }
 
-      this.invalidateEnabledModules(input.tenantId);
+        await this.appendAuditLog(tx, {
+          tenantId: input.tenantId,
+          actorUserId: input.updatedBy,
+          action: 'module_access.school_modules_replaced',
+          metadata: { module_codes: input.moduleCodes },
+        });
 
-      return this.listSchoolModules(input.tenantId);
-    });
+        return this.listSchoolModulesInTransaction(tx, input.tenantId);
+      },
+    );
+
+    this.invalidateEnabledModules(input.tenantId);
+    return modules;
   }
 
   async toggleSchoolModule(input: {
@@ -422,56 +376,58 @@ export class ModuleAccessRepository {
     featureFlags?: Record<string, unknown>;
     activationReason?: string | null;
   }): Promise<SchoolModuleAccessResponseDto[]> {
-    return this.withTenantScope(input.tenantId, async () => {
-      await this.assertKnownActiveModules([input.moduleCode]);
+    const modules = await this.prisma.executeWithTenant(
+      input.tenantId,
+      input.updatedBy,
+      async (tx) => {
+        await this.assertKnownActiveModulesInTransaction(tx, [input.moduleCode]);
 
-      await this.executeSql(
-        `
-          INSERT INTO school_module_access (
-            tenant_id,
-            module_id,
-            enabled,
-            enabled_at,
-            disabled_at,
-            updated_by,
-            access_level,
-            trial_ends_at,
-            expires_at,
-            billing_plan_code,
-            feature_flags,
-            activation_reason
-          )
-          SELECT
-            $1,
-            id,
-            $3,
-            CASE WHEN $3 THEN NOW() ELSE NULL END,
-            CASE WHEN $3 THEN NULL ELSE NOW() END,
-            $4::uuid,
-            $5,
-            $6::timestamptz,
-            $7::timestamptz,
-            $8,
-            $9::jsonb,
-            $10
-          FROM module_registry
-          WHERE code = $2
-            AND status = 'active'
-          ON CONFLICT (tenant_id, module_id)
-          DO UPDATE SET
-            enabled = EXCLUDED.enabled,
-            enabled_at = CASE WHEN EXCLUDED.enabled THEN COALESCE(school_module_access.enabled_at, NOW()) ELSE NULL END,
-            disabled_at = CASE WHEN EXCLUDED.enabled THEN NULL ELSE NOW() END,
-            updated_by = EXCLUDED.updated_by,
-            access_level = EXCLUDED.access_level,
-            trial_ends_at = EXCLUDED.trial_ends_at,
-            expires_at = EXCLUDED.expires_at,
-            billing_plan_code = EXCLUDED.billing_plan_code,
-            feature_flags = EXCLUDED.feature_flags,
-            activation_reason = EXCLUDED.activation_reason,
-            updated_at = NOW()
-        `,
-        [
+        const upsertedCount = await tx.$executeRawUnsafe(
+          `
+            INSERT INTO school_module_access (
+              tenant_id,
+              module_id,
+              enabled,
+              enabled_at,
+              disabled_at,
+              updated_by,
+              access_level,
+              trial_ends_at,
+              expires_at,
+              billing_plan_code,
+              feature_flags,
+              activation_reason
+            )
+            SELECT
+              $1,
+              id,
+              $3,
+              CASE WHEN $3 THEN NOW() ELSE NULL END,
+              CASE WHEN $3 THEN NULL ELSE NOW() END,
+              $4::uuid,
+              $5,
+              $6::timestamptz,
+              $7::timestamptz,
+              $8,
+              $9::jsonb,
+              $10
+            FROM module_registry
+            WHERE code = $2
+              AND status = 'active'
+            ON CONFLICT (tenant_id, module_id)
+            DO UPDATE SET
+              enabled = EXCLUDED.enabled,
+              enabled_at = CASE WHEN EXCLUDED.enabled THEN COALESCE(school_module_access.enabled_at, NOW()) ELSE NULL END,
+              disabled_at = CASE WHEN EXCLUDED.enabled THEN NULL ELSE NOW() END,
+              updated_by = EXCLUDED.updated_by,
+              access_level = EXCLUDED.access_level,
+              trial_ends_at = EXCLUDED.trial_ends_at,
+              expires_at = EXCLUDED.expires_at,
+              billing_plan_code = EXCLUDED.billing_plan_code,
+              feature_flags = EXCLUDED.feature_flags,
+              activation_reason = EXCLUDED.activation_reason,
+              updated_at = NOW()
+          `,
           input.tenantId,
           input.moduleCode,
           input.enabled,
@@ -482,22 +438,27 @@ export class ModuleAccessRepository {
           input.billingPlanCode ?? null,
           JSON.stringify(input.featureFlags ?? {}),
           input.activationReason ?? null,
-        ],
-      );
+        );
 
-      await this.appendAuditLog({
-        tenantId: input.tenantId,
-        actorUserId: input.updatedBy,
-        action: input.enabled
-          ? 'module_access.school_module_enabled'
-          : 'module_access.school_module_disabled',
-        metadata: { module_code: input.moduleCode, enabled: input.enabled },
-      });
+        if (upsertedCount !== 1) {
+          throw new Error('Module access change could not be applied.');
+        }
 
-      this.invalidateEnabledModules(input.tenantId);
+        await this.appendAuditLog(tx, {
+          tenantId: input.tenantId,
+          actorUserId: input.updatedBy,
+          action: input.enabled
+            ? 'module_access.school_module_enabled'
+            : 'module_access.school_module_disabled',
+          metadata: { module_code: input.moduleCode, enabled: input.enabled },
+        });
 
-      return this.listSchoolModules(input.tenantId);
-    });
+        return this.listSchoolModulesInTransaction(tx, input.tenantId);
+      },
+    );
+
+    this.invalidateEnabledModules(input.tenantId);
+    return modules;
   }
 
   async listModulePackages(): Promise<Record<string, unknown>[]> {
@@ -680,6 +641,46 @@ export class ModuleAccessRepository {
     });
   }
 
+  private async listSchoolModulesInTransaction(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+  ): Promise<SchoolModuleAccessResponseDto[]> {
+    const result = await tx.$queryRawUnsafe<ModuleRegistryRow[]>(
+      `
+        SELECT
+          mr.id::text,
+          mr.code,
+          mr.name,
+          mr.description,
+          mr.feature_flags,
+          mr.status,
+          mr.base_price_cents,
+          mr.per_student_price_cents,
+          mr.billing_metadata,
+          mr.category,
+          mr.route_segment,
+          mr.permission_scopes,
+          COALESCE(sma.enabled, false) AS enabled,
+          sma.enabled_at,
+          sma.disabled_at,
+          sma.updated_by::text,
+          sma.access_level,
+          sma.trial_ends_at,
+          sma.expires_at,
+          sma.billing_plan_code,
+          sma.feature_flags AS assignment_feature_flags
+        FROM module_registry mr
+        LEFT JOIN school_module_access sma
+          ON sma.module_id = mr.id
+         AND sma.tenant_id = $1
+        ORDER BY mr.name ASC
+      `,
+      tenantId,
+    );
+
+    return (Array.isArray(result) ? result : []).map((row) => this.mapSchoolModuleRow(row));
+  }
+
   private async assertKnownActiveModules(moduleCodes: string[]): Promise<void> {
     const result = await this.executeSql<{ code: string }>(
       `
@@ -698,13 +699,37 @@ export class ModuleAccessRepository {
     }
   }
 
-  private async appendAuditLog(input: {
-    tenantId: string;
-    actorUserId: string | null;
-    action: string;
-    metadata: Record<string, unknown>;
-  }): Promise<void> {
-    await this.executeSql(
+  private async assertKnownActiveModulesInTransaction(
+    tx: Prisma.TransactionClient,
+    moduleCodes: string[],
+  ): Promise<void> {
+    const result = await tx.$queryRawUnsafe<Array<{ code: string }>>(
+      `
+        SELECT code
+        FROM module_registry
+        WHERE code = ANY($1::text[])
+          AND status = 'active'
+      `,
+      moduleCodes,
+    );
+    const knownCodes = new Set((Array.isArray(result) ? result : []).map((row) => row.code));
+    const missing = moduleCodes.find((code) => !knownCodes.has(code));
+
+    if (missing) {
+      throw new Error(`Unknown or inactive module code: ${missing}`);
+    }
+  }
+
+  private async appendAuditLog(
+    tx: Prisma.TransactionClient,
+    input: {
+      tenantId: string;
+      actorUserId: string | null;
+      action: string;
+      metadata: Record<string, unknown>;
+    },
+  ): Promise<void> {
+    const insertedCount = await tx.$executeRawUnsafe(
       `
         INSERT INTO audit_logs (
           tenant_id,
@@ -717,13 +742,15 @@ export class ModuleAccessRepository {
         )
         VALUES ($1, $2::uuid, current_setting('app.request_id', true), $3, 'school_module_access', NULL, $4::jsonb)
       `,
-      [
-        input.tenantId,
-        input.actorUserId,
-        input.action,
-        JSON.stringify(input.metadata),
-      ],
-    ).catch(() => undefined);
+      input.tenantId,
+      input.actorUserId,
+      input.action,
+      JSON.stringify(input.metadata),
+    );
+
+    if (insertedCount !== 1) {
+      throw new Error('Module access audit record could not be persisted.');
+    }
   }
 
   private mapRegistryRow(row: ModuleRegistryRow): ModuleRegistryResponseDto {

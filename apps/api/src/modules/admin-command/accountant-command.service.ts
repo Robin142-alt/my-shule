@@ -5,12 +5,18 @@ import { AdminCommandOperationsService } from './admin-command-operations.servic
 import { CreateAccountantExpenseDto } from './dto/create-accountant-expense.dto';
 import { CreateFeeFollowUpDto } from './dto/create-fee-follow-up.dto';
 
-const FEE_FOLLOW_UP_TARGET_ROLES = [
+const ACCOUNTANT_WORKFLOW_TARGET_ROLES: ReadonlySet<string> = new Set([
   'accountant',
   'principal',
   'deputy_principal',
   'secretary',
-  'parent',
+]);
+
+const FEE_FOLLOW_UP_STAFF_ROLES = [
+  'accountant',
+  'principal',
+  'deputy_principal',
+  'secretary',
 ] as const;
 
 type AccountantOverviewMetricRow = {
@@ -387,7 +393,16 @@ export class AccountantCommandService {
     const message = String(dto?.message || 'A finance workflow action was saved.').trim().slice(0, 500);
     const entityType = String(dto?.entity_type || 'finance_workflow').trim().slice(0, 80);
     const entityId = dto?.entity_id ? String(dto.entity_id).trim().slice(0, 120) : null;
-    const targetRoles = Array.isArray(dto?.target_roles) ? dto.target_roles.map(String) : ['accountant', 'principal'];
+    const requestedTargetRoles: string[] = Array.isArray(dto?.target_roles)
+      ? [...new Set<string>(dto.target_roles.map((role: unknown): string => String(role).trim().toLowerCase()))]
+      : ['accountant', 'principal'];
+    if (
+      requestedTargetRoles.length === 0
+      || requestedTargetRoles.some((role) => !ACCOUNTANT_WORKFLOW_TARGET_ROLES.has(role))
+    ) {
+      throw new BadRequestException('Finance workflow recipients must be authorized school finance or leadership roles');
+    }
+    const targetRoles = requestedTargetRoles;
     const eventType = `accountant.${action}`;
 
     const event = await this.operations.recordWorkflowAction({
@@ -425,14 +440,266 @@ export class AccountantCommandService {
   }
 
   async recordFeeFollowUp(dto: CreateFeeFollowUpDto) {
-    return this.recordAction({
-      ...dto,
-      target_roles: [...FEE_FOLLOW_UP_TARGET_ROLES],
-      payload: {
-        ...dto.payload,
-        recipient_scope: 'linked_guardians',
-        authorized_follow_up_roles: FEE_FOLLOW_UP_TARGET_ROLES.slice(0, 4),
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.operations.uuidOrNull(this.requestContext.getStore()?.user_id);
+    if (!actorUserId) {
+      throw new UnauthorizedException('Authenticated user is required for fee follow-up');
+    }
+
+    const suppliedStudents = Array.isArray(dto.payload?.students) ? dto.payload.students : [];
+    const studentIds = [...new Set(suppliedStudents.map((student: unknown) => {
+      const candidate = student && typeof student === 'object'
+        ? (student as Record<string, unknown>).student_id
+        : null;
+      return this.operations.uuidOrNull(candidate);
+    }))];
+    if (
+      studentIds.length === 0
+      || studentIds.length > 200
+      || studentIds.some((studentId) => !studentId)
+      || studentIds.length !== suppliedStudents.length
+    ) {
+      throw new BadRequestException('Select between 1 and 200 unique learners for fee follow-up');
+    }
+
+    const result = await this.operations.writeSql<{
+      requested_student_count: number;
+      eligible_student_count: number;
+      covered_student_count: number;
+      guardian_notification_count: number;
+      staff_notification_count: number;
+      event_id: string | null;
+    }>(
+      `
+        WITH requested_students AS (
+          SELECT DISTINCT requested.student_id
+          FROM unnest($3::uuid[]) AS requested(student_id)
+        ), invoice_balances AS (
+          SELECT
+            invoice.metadata->>'student_id' AS student_id,
+            COALESCE(SUM(invoice.total_amount_minor - invoice.amount_paid_minor), 0)::bigint AS balance_minor
+          FROM invoices invoice
+          WHERE invoice.tenant_id = $1
+            AND NULLIF(invoice.metadata->>'student_id', '') IS NOT NULL
+          GROUP BY invoice.metadata->>'student_id'
+        ), unapplied_credits AS (
+          SELECT
+            payment.student_id::text AS student_id,
+            COALESCE(SUM(payment.amount_minor), 0)::bigint AS credit_minor
+          FROM manual_fee_payments payment
+          WHERE payment.tenant_id = $1
+            AND payment.status = 'cleared'
+            AND payment.student_id IS NOT NULL
+            AND payment.invoice_id IS NULL
+          GROUP BY payment.student_id
+        ), candidate_students AS (
+          SELECT
+            student.id AS student_id,
+            COALESCE(
+              NULLIF(TRIM(CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name)), ''),
+              student.admission_number,
+              'Learner'
+            ) AS student_name,
+            GREATEST(
+              COALESCE(invoice_balance.balance_minor, 0) - COALESCE(credit.credit_minor, 0),
+              0
+            )::bigint AS balance_minor
+          FROM requested_students requested
+          INNER JOIN students student
+            ON student.tenant_id = $1
+           AND student.id = requested.student_id
+           AND student.deleted_at IS NULL
+           AND LOWER(COALESCE(student.status, 'active')) IN ('active', 'admitted', 'enrolled')
+          LEFT JOIN invoice_balances invoice_balance
+            ON invoice_balance.student_id = student.id::text
+          LEFT JOIN unapplied_credits credit
+            ON credit.student_id = student.id::text
+        ), eligible_students AS (
+          SELECT *
+          FROM candidate_students
+          WHERE balance_minor > 0
+        ), linked_guardians AS (
+          SELECT DISTINCT
+            eligible.student_id,
+            guardian.id AS guardian_id,
+            guardian.user_id
+          FROM eligible_students eligible
+          INNER JOIN student_guardians guardian
+            ON guardian.tenant_id = $1
+           AND guardian.student_id = eligible.student_id
+           AND LOWER(guardian.status) = 'active'
+           AND guardian.user_id IS NOT NULL
+          INNER JOIN tenant_memberships membership
+            ON membership.tenant_id = guardian.tenant_id
+           AND membership.user_id = guardian.user_id
+           AND LOWER(membership.status) = 'active'
+        ), coverage AS (
+          SELECT
+            (SELECT COUNT(*)::int FROM requested_students) AS requested_student_count,
+            (SELECT COUNT(*)::int FROM eligible_students) AS eligible_student_count,
+            (SELECT COUNT(DISTINCT student_id)::int FROM linked_guardians) AS covered_student_count
+        ), batch AS (
+          SELECT gen_random_uuid() AS id
+        ), inserted_event AS (
+          INSERT INTO workflow_events (
+            tenant_id, source_user_id, source_role, target_roles, event_type,
+            entity_type, entity_id, title, message, priority, payload
+          )
+          SELECT
+            $1,
+            $2::uuid,
+            'accountant',
+            $4::jsonb,
+            $5,
+            'student_arrears_batch',
+            batch.id::text,
+            'Fee arrears guardian follow-up queued',
+            coverage.eligible_student_count::text || ' learner fee reminder(s) queued for exact linked guardians.',
+            'normal',
+            jsonb_build_object(
+              'recipient_scope', 'linked_guardian_users',
+              'student_count', coverage.eligible_student_count,
+              'source_dashboard', $6::text
+            )
+          FROM coverage
+          CROSS JOIN batch
+          WHERE coverage.requested_student_count > 0
+            AND coverage.eligible_student_count = coverage.requested_student_count
+            AND coverage.covered_student_count = coverage.eligible_student_count
+          RETURNING id, entity_id
+        ), inserted_staff_notifications AS (
+          INSERT INTO notifications (
+            tenant_id, notification_key, recipient_role, type, title, body,
+            status, priority, source_module, source_record_id, metadata
+          )
+          SELECT
+            $1,
+            'accountant-fee-follow-up-' || event.id::text || '-' || role_name,
+            role_name,
+            $5,
+            'Fee arrears guardian follow-up queued',
+            coverage.eligible_student_count::text || ' learner fee reminder(s) were queued for exact linked guardians.',
+            'unread',
+            'normal',
+            'accountant-command',
+            event.id::text,
+            jsonb_build_object(
+              'event_id', event.id::text,
+              'recipient_scope', 'authorized_staff_summary',
+              'student_count', coverage.eligible_student_count,
+              'source_dashboard', $6::text
+            )
+          FROM inserted_event event
+          CROSS JOIN coverage
+          CROSS JOIN unnest($7::text[]) AS role_name
+          ON CONFLICT (tenant_id, notification_key)
+          DO UPDATE SET
+            title = EXCLUDED.title,
+            body = EXCLUDED.body,
+            status = 'unread',
+            metadata = EXCLUDED.metadata,
+            updated_at = NOW()
+          RETURNING id
+        ), inserted_guardian_notifications AS (
+          INSERT INTO notifications (
+            tenant_id, notification_key, recipient_user_id, recipient_guardian_id,
+            type, title, body, status, priority, source_module, source_record_id, metadata
+          )
+          SELECT
+            $1,
+            'accountant-fee-follow-up-' || event.id::text || '-' || guardian.guardian_id::text || '-' || student.student_id::text,
+            guardian.user_id,
+            guardian.guardian_id,
+            $5,
+            'Fee balance follow-up: ' || student.student_name,
+            student.student_name || ' has an outstanding school fee balance. Please review the fee statement in the parent portal or contact the accounts office.',
+            'unread',
+            'high',
+            'accountant-command',
+            event.id::text,
+            jsonb_build_object(
+              'event_id', event.id::text,
+              'student_id', student.student_id::text,
+              'recipient_scope', 'linked_guardian_users',
+              'source_dashboard', $6::text
+            )
+          FROM inserted_event event
+          CROSS JOIN eligible_students student
+          INNER JOIN linked_guardians guardian
+            ON guardian.student_id = student.student_id
+          ON CONFLICT (tenant_id, notification_key)
+          DO UPDATE SET
+            recipient_user_id = EXCLUDED.recipient_user_id,
+            recipient_guardian_id = EXCLUDED.recipient_guardian_id,
+            title = EXCLUDED.title,
+            body = EXCLUDED.body,
+            status = 'unread',
+            priority = EXCLUDED.priority,
+            metadata = EXCLUDED.metadata,
+            updated_at = NOW()
+          RETURNING id
+        ), action_audit AS (
+          INSERT INTO audit_logs (
+            tenant_id, actor_user_id, request_id, action, resource_type, resource_id, metadata
+          )
+          SELECT
+            $1,
+            $2::uuid,
+            current_setting('app.request_id', true),
+            $5,
+            'student_arrears_batch',
+            event.id,
+            jsonb_build_object(
+              'student_ids', to_jsonb($3::uuid[]),
+              'guardian_notification_count', (SELECT COUNT(*) FROM inserted_guardian_notifications),
+              'staff_notification_count', (SELECT COUNT(*) FROM inserted_staff_notifications),
+              'recipient_scope', 'linked_guardian_users'
+            )
+          FROM inserted_event event
+          RETURNING id
+        )
+        SELECT
+          coverage.requested_student_count,
+          coverage.eligible_student_count,
+          coverage.covered_student_count,
+          (SELECT COUNT(*)::int FROM inserted_guardian_notifications) AS guardian_notification_count,
+          (SELECT COUNT(*)::int FROM inserted_staff_notifications) AS staff_notification_count,
+          (SELECT id::text FROM inserted_event LIMIT 1) AS event_id
+        FROM coverage
+      `,
+      [
+        tenantId,
+        actorUserId,
+        studentIds,
+        JSON.stringify(FEE_FOLLOW_UP_STAFF_ROLES),
+        `accountant.${dto.action}`,
+        dto.source_dashboard,
+        [...FEE_FOLLOW_UP_STAFF_ROLES],
+      ],
+    );
+
+    const delivery = result.rows[0];
+    if (!delivery || Number(delivery.eligible_student_count) !== studentIds.length) {
+      throw new BadRequestException('Every selected learner must be an active arrears account in this school');
+    }
+    if (Number(delivery.covered_student_count) !== studentIds.length) {
+      throw new BadRequestException('Every selected learner must have an active linked guardian account before reminders can be queued');
+    }
+    const guardianNotificationCount = Number(delivery.guardian_notification_count ?? 0);
+    if (!delivery.event_id || guardianNotificationCount < studentIds.length) {
+      throw new BadRequestException('Guardian fee reminders could not be queued for every selected learner');
+    }
+
+    return {
+      success: true,
+      message: `${guardianNotificationCount} guardian reminder${guardianNotificationCount === 1 ? '' : 's'} queued for ${studentIds.length} learner${studentIds.length === 1 ? '' : 's'}.`,
+      delivery: {
+        event_id: delivery.event_id,
+        student_count: studentIds.length,
+        guardian_notification_count: guardianNotificationCount,
+        staff_notification_count: Number(delivery.staff_notification_count ?? 0),
+        recipient_scope: 'linked_guardian_users',
       },
-    });
+    };
   }
 }

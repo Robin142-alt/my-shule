@@ -98,6 +98,24 @@ test('buildRoleGovernancePolicy limits fee follow-up to school office roles', ()
   ]);
 });
 
+test('buildRoleGovernancePolicy separates school inbox acknowledgements from staff event publishing', () => {
+  const policy = buildRoleGovernancePolicy({
+    activeModules: ['academics', 'admissions', 'boarding', 'clinic_health', 'discipline', 'exams', 'finance', 'inventory', 'lab_management', 'library', 'parent_portal', 'procurement', 'staff', 'transport', 'visitor_management'],
+  });
+
+  for (const roleCode of ['teacher', 'parent', 'principal']) {
+    const role = policy.roles.find((candidate) => candidate.code === roleCode);
+    assert.equal(role?.permissions.includes('events:read'), true);
+    assert.equal(role?.permissions.includes('events:write'), true);
+  }
+  assert.equal(policy.roles.find((role) => role.code === 'teacher')?.permissions.includes('events:publish'), false);
+  assert.equal(policy.roles.find((role) => role.code === 'principal')?.permissions.includes('events:publish'), true);
+  assert.equal(policy.roles.find((role) => role.code === 'parent')?.permissions.includes('events:publish'), false);
+  assert.equal(policy.roles.find((role) => role.code === 'student')?.permissions.includes('events:publish'), false);
+  assert.equal(policy.roles.find((role) => role.code === 'principal')?.permissions.includes('procurement:approve'), true);
+  assert.equal(policy.roles.find((role) => role.code === 'platform_support')?.permissions.includes('events:read'), false);
+});
+
 test('evaluateRoleAssignment rejects cross-tenant global roles and unsafe school assignments', () => {
   const policy = buildRoleGovernancePolicy({
     activeModules: ['finance'],

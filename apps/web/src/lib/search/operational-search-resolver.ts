@@ -12,6 +12,7 @@ export type OperationalSearchContext = {
   role: string | null | undefined;
   capabilities?: readonly string[];
   workspaceScopeTags?: readonly string[];
+  records?: readonly OperationalSearchRecord[];
 };
 
 export type ResolvedOperationalSearchRecord = OperationalSearchRecord & {
@@ -61,7 +62,9 @@ export function resolveOperationalSearch(
   const forbiddenEntitySet = new Set(policy.forbiddenEntities);
   const workspaceScopeTags = context.workspaceScopeTags ?? [];
 
-  return operationalSearchRegistry
+  const records = context.records ?? operationalSearchRegistry;
+
+  return records
     .filter((record) => matchesQuery(record, query))
     .filter((record) => allowedEntitySet.has(record.type))
     .filter((record) => !forbiddenEntitySet.has(record.type))

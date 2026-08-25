@@ -7,6 +7,12 @@ import type {
   ReturnLibraryCopyDto,
 } from '../dto/library.dto';
 
+export interface LibraryBorrowerNotificationRecipient {
+  user_id: string;
+  guardian_id: string | null;
+  recipient_kind: 'guardian' | 'student' | 'staff';
+}
+
 @Injectable()
 export class LibraryRepository {
 
@@ -220,6 +226,86 @@ export class LibraryRepository {
     );
 
     return result.rows[0] ?? null;
+  }
+
+  async listActiveNotificationRecipientsForBorrower(
+    tenantId: string,
+    borrowerId: string,
+  ): Promise<LibraryBorrowerNotificationRecipient[]> {
+    const result = await this.executeSql<LibraryBorrowerNotificationRecipient>(
+      `
+        WITH selected_borrower AS (
+          SELECT borrower_type, subject_id
+          FROM library_borrowers
+          WHERE tenant_id = $1
+            AND id = $2::uuid
+          LIMIT 1
+        ), recipient_candidates AS (
+          SELECT
+            portal.user_id,
+            NULL::uuid AS guardian_id,
+            'student'::text AS recipient_kind
+          FROM selected_borrower borrower
+          INNER JOIN student_portal_access portal
+            ON portal.tenant_id = $1
+           AND portal.student_id = borrower.subject_id
+           AND LOWER(portal.status) = 'active'
+           AND portal.user_id IS NOT NULL
+          INNER JOIN tenant_memberships membership
+            ON membership.tenant_id = portal.tenant_id
+           AND membership.user_id = portal.user_id
+           AND LOWER(membership.status) = 'active'
+          WHERE LOWER(borrower.borrower_type) = 'student'
+
+          UNION ALL
+
+          SELECT
+            guardian.user_id,
+            guardian.id AS guardian_id,
+            'guardian'::text AS recipient_kind
+          FROM selected_borrower borrower
+          INNER JOIN student_guardians guardian
+            ON guardian.tenant_id = $1
+           AND guardian.student_id = borrower.subject_id
+           AND LOWER(guardian.status) = 'active'
+           AND guardian.user_id IS NOT NULL
+          INNER JOIN tenant_memberships membership
+            ON membership.tenant_id = guardian.tenant_id
+           AND membership.user_id = guardian.user_id
+           AND LOWER(membership.status) = 'active'
+          WHERE LOWER(borrower.borrower_type) = 'student'
+
+          UNION ALL
+
+          SELECT
+            staff.user_id,
+            NULL::uuid AS guardian_id,
+            'staff'::text AS recipient_kind
+          FROM selected_borrower borrower
+          INNER JOIN staff_profiles staff
+            ON staff.tenant_id = $1
+           AND staff.id = borrower.subject_id
+           AND LOWER(staff.status) = 'active'
+           AND staff.user_id IS NOT NULL
+          INNER JOIN tenant_memberships membership
+            ON membership.tenant_id = staff.tenant_id
+           AND membership.user_id = staff.user_id
+           AND LOWER(membership.status) = 'active'
+          WHERE LOWER(borrower.borrower_type) = 'staff'
+        )
+        SELECT DISTINCT ON (user_id)
+          user_id::text,
+          guardian_id::text,
+          recipient_kind
+        FROM recipient_candidates
+        ORDER BY
+          user_id,
+          CASE recipient_kind WHEN 'guardian' THEN 1 WHEN 'student' THEN 2 ELSE 3 END
+      `,
+      [tenantId, borrowerId],
+    );
+
+    return result.rows;
   }
 
   async returnCopy(input: ReturnLibraryCopyDto & {

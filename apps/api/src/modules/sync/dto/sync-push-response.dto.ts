@@ -30,4 +30,8 @@ export class SyncPushResponseDto {
     entity: string;
     last_version: string;
   }>;
+  communication?: {
+    status: 'not_required' | 'sent' | 'degraded';
+    message?: string;
+  };
 }

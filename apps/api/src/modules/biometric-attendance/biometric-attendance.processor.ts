@@ -43,33 +43,50 @@ export class BiometricAttendanceProcessor implements OnModuleInit, OnModuleDestr
   }
 
   async runDailyAttendanceRuleCheck(input: DailyAttendanceRuleCheckInput = {}) {
+    const attendanceDate = this.resolveAttendanceDate(input.attendanceDate);
+
     if (this.tickInProgress) {
       return {
-        attendance_date: this.resolveAttendanceDate(input.attendanceDate),
+        attendance_date: attendanceDate,
         absent_marked: 0,
         half_day_marked: 0,
       };
     }
 
-    return this.runWithSystemContext('/internal/biometric-attendance/rule-check', async () => {
-      const attendanceDate = this.resolveAttendanceDate(input.attendanceDate);
-      this.tickInProgress = true;
+    this.tickInProgress = true;
 
-      try {
-        const result = await this.repository.applyDailyAttendanceRules({
-          attendance_date: attendanceDate,
-          absence_cutoff_time: input.absenceCutoffTime?.trim() || null,
-        });
+    try {
+      const tenantIds = await this.runWithSystemContext(
+        '/internal/biometric-attendance/rule-check/tenants',
+        'global',
+        () => this.repository.listDailyAttendanceRuleTenantIds(),
+      );
+      let absentMarked = 0;
+      let halfDayMarked = 0;
 
-        return {
-          attendance_date: attendanceDate,
-          absent_marked: Number(result.absent_marked ?? 0),
-          half_day_marked: Number(result.half_day_marked ?? 0),
-        };
-      } finally {
-        this.tickInProgress = false;
+      for (const tenantId of tenantIds) {
+        const result = await this.runWithSystemContext(
+          '/internal/biometric-attendance/rule-check',
+          tenantId,
+          () => this.repository.applyDailyAttendanceRules({
+            tenant_id: tenantId,
+            attendance_date: attendanceDate,
+            absence_cutoff_time: input.absenceCutoffTime?.trim() || null,
+          }),
+        );
+
+        absentMarked += Number(result.absent_marked ?? 0);
+        halfDayMarked += Number(result.half_day_marked ?? 0);
       }
-    });
+
+      return {
+        attendance_date: attendanceDate,
+        absent_marked: absentMarked,
+        half_day_marked: halfDayMarked,
+      };
+    } finally {
+      this.tickInProgress = false;
+    }
   }
 
   private resolveAttendanceDate(value?: string): string {
@@ -98,15 +115,19 @@ export class BiometricAttendanceProcessor implements OnModuleInit, OnModuleDestr
     return Math.min(Math.max(Math.floor(configured), 60_000), 24 * 60 * 60_000);
   }
 
-  private runWithSystemContext<T>(path: string, callback: () => Promise<T>): Promise<T> {
-    if (!this.requestContext || this.requestContext.getStore()) {
+  private runWithSystemContext<T>(
+    path: string,
+    tenantId: string,
+    callback: () => Promise<T>,
+  ): Promise<T> {
+    if (!this.requestContext) {
       return callback();
     }
 
     return this.requestContext.run(
       {
         request_id: `biometric-attendance-rule-check:${Date.now()}`,
-        tenant_id: null,
+        tenant_id: tenantId,
         user_id: 'system',
         role: 'system',
         session_id: null,

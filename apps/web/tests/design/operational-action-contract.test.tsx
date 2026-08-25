@@ -5,6 +5,7 @@ import {
   OperationalActionButton,
   type OperationalActionContract,
 } from "@/components/operational/operational-action-button";
+import { SchoolTenantScopeProvider } from "@/lib/data/school-tenant-scope";
 
 import { renderWithProviders } from "./test-utils";
 
@@ -145,15 +146,17 @@ describe("OperationalActionButton", () => {
     const user = userEvent.setup();
 
     renderWithProviders(
-      <OperationalActionButton
-        action={{
-          ...baseAction,
-          actionId: "delete-visitor",
-          label: "Delete Visitor Record",
-          confirmation: "DANGER_CONFIRM",
-          health: "ACTIVE",
-        }}
-      />,
+      <SchoolTenantScopeProvider tenantId="barakaacademy">
+        <OperationalActionButton
+          action={{
+            ...baseAction,
+            actionId: "delete-visitor",
+            label: "Delete Visitor Record",
+            confirmation: "DANGER_CONFIRM",
+            health: "ACTIVE",
+          }}
+        />
+      </SchoolTenantScopeProvider>,
     );
 
     await user.click(screen.getByRole("button", { name: /delete visitor record ready/i }));

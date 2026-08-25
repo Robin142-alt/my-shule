@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 
 import { AuthEmailService } from '../../auth/auth-email.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
-import { SmsDispatchService } from '../integrations/sms-dispatch.service';
+import { SmsDispatchService, SmsProviderDispatchError } from '../integrations/sms-dispatch.service';
 import { SupportRepository } from './repositories/support.repository';
 
 export interface SupportNotificationDeliveryRecord {
@@ -59,6 +59,8 @@ export type SupportNotificationProviderStatus = {
     max_attempts: number;
   };
 };
+
+class SupportSmsAcceptanceUnknownError extends Error {}
 
 @Injectable()
 export class SupportNotificationDeliveryService implements OnModuleInit, OnModuleDestroy {
@@ -163,13 +165,25 @@ export class SupportNotificationDeliveryService implements OnModuleInit, OnModul
   async processDueQueuedEmailNotifications(limit = this.getRetryBatchSize()): Promise<number> {
     const leaseMs = this.getRetryLeaseMs();
     const execute = async () => {
-      const notifications = await this.supportRepository.claimDueQueuedNotifications(
-        limit,
-        leaseMs,
-        ['email', 'sms'],
-      );
-      await this.deliverCreatedNotifications(notifications);
-      return notifications.length;
+      const safeLimit = Math.min(Math.max(Math.floor(limit), 1), 500);
+      let processed = 0;
+
+      while (processed < safeLimit) {
+        const notifications = await this.supportRepository.claimDueQueuedNotifications(
+          1,
+          leaseMs,
+          ['email', 'sms'],
+        );
+
+        if (notifications.length === 0) {
+          break;
+        }
+
+        await this.deliverCreatedNotifications(notifications);
+        processed += notifications.length;
+      }
+
+      return processed;
     };
 
     if (!this.requestContext || this.requestContext.getStore()) {
@@ -236,7 +250,7 @@ export class SupportNotificationDeliveryService implements OnModuleInit, OnModul
         });
       }
 
-      await this.supportRepository.markNotificationDelivery(notification.id, 'sent', {
+      await this.supportRepository.markNotificationDelivery(notification.tenant_id, notification.id, 'sent', {
         deliveryAttempts: this.nextAttemptCount(notification),
         deliveredAt: new Date().toISOString(),
         lastError: null,
@@ -253,6 +267,8 @@ export class SupportNotificationDeliveryService implements OnModuleInit, OnModul
   private async deliverSmsNotification(
     notification: SupportNotificationDeliveryRecord,
   ): Promise<void> {
+    let acceptedRecipients = 0;
+
     try {
       const recipients = this.resolveSmsRecipients(notification);
 
@@ -261,17 +277,38 @@ export class SupportNotificationDeliveryService implements OnModuleInit, OnModul
         return;
       }
 
-      for (const recipient of recipients) {
-        await this.sendSupportSms(recipient, notification);
+      for (const [recipientIndex, recipient] of recipients.entries()) {
+        await this.sendSupportSms(recipient, notification, recipientIndex);
+        acceptedRecipients += 1;
       }
 
-      await this.supportRepository.markNotificationDelivery(notification.id, 'sent', {
+      await this.supportRepository.markNotificationDelivery(notification.tenant_id, notification.id, 'provider_accepted', {
         deliveryAttempts: this.nextAttemptCount(notification),
-        deliveredAt: new Date().toISOString(),
         lastError: null,
         nextAttemptAt: null,
       });
     } catch (error) {
+      if (
+        acceptedRecipients > 0
+        || error instanceof SupportSmsAcceptanceUnknownError
+        || (error instanceof SmsProviderDispatchError && error.acceptanceUnknown)
+      ) {
+        await this.supportRepository.markNotificationDelivery(
+          notification.tenant_id,
+          notification.id,
+          'delivery_unknown',
+          {
+            deliveryAttempts: this.nextAttemptCount(notification),
+            lastError: error instanceof Error ? error.message : String(error),
+            nextAttemptAt: null,
+          },
+        );
+        this.logger.error(
+          `Support notification ${notification.id} SMS provider outcome is unknown and requires review`,
+        );
+        return;
+      }
+
       await this.markRetryableFailure(notification, error);
       this.logger.error(
         `Support notification ${notification.id} SMS delivery failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -282,6 +319,7 @@ export class SupportNotificationDeliveryService implements OnModuleInit, OnModul
   private async sendSupportSms(
     recipient: string,
     notification: SupportNotificationDeliveryRecord,
+    recipientIndex: number,
   ): Promise<void> {
     if (this.smsDispatchService) {
       await this.smsDispatchService.send({
@@ -289,7 +327,10 @@ export class SupportNotificationDeliveryService implements OnModuleInit, OnModul
         to: recipient,
         title: notification.title,
         message: notification.body,
-        metadata: notification.metadata,
+        metadata: {
+          ...notification.metadata,
+          dispatch_key: `support-sms:${notification.id}:${recipientIndex}`,
+        },
         source: 'support_notification',
       });
       return;
@@ -310,21 +351,36 @@ export class SupportNotificationDeliveryService implements OnModuleInit, OnModul
       headers.Authorization = `Bearer ${token}`;
     }
 
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        to: recipient,
-        title: notification.title,
-        message: notification.body,
-        tenant_id: notification.tenant_id,
-        ticket_id: notification.ticket_id,
-        notification_id: notification.id,
-        metadata: notification.metadata ?? {},
-      }),
-    });
+    let response: Response;
+
+    try {
+      response = await fetch(webhookUrl, {
+        method: 'POST',
+        redirect: 'error',
+        headers: {
+          ...headers,
+          'Idempotency-Key': `support-sms:${notification.id}:${recipientIndex}`,
+        },
+        body: JSON.stringify({
+          to: recipient,
+          title: notification.title,
+          message: notification.body,
+          tenant_id: notification.tenant_id,
+          ticket_id: notification.ticket_id,
+          notification_id: notification.id,
+          metadata: notification.metadata ?? {},
+        }),
+      });
+    } catch {
+      throw new SupportSmsAcceptanceUnknownError('Support SMS relay outcome is unknown');
+    }
 
     if (!response.ok) {
+      if (response.status >= 500) {
+        throw new SupportSmsAcceptanceUnknownError(
+          `Support SMS relay outcome is unknown after status ${response.status}`,
+        );
+      }
       throw new Error(`SMS provider returned ${response.status}`);
     }
   }
@@ -349,6 +405,7 @@ export class SupportNotificationDeliveryService implements OnModuleInit, OnModul
     const exhausted = deliveryAttempts >= maxAttempts;
 
     await this.supportRepository.markNotificationDelivery(
+      notification.tenant_id,
       notification.id,
       exhausted ? 'failed' : 'queued',
       {
@@ -369,7 +426,7 @@ export class SupportNotificationDeliveryService implements OnModuleInit, OnModul
   ): Promise<void> {
     const deliveryAttempts = this.nextAttemptCount(notification);
 
-    await this.supportRepository.markNotificationDelivery(notification.id, 'failed', {
+    await this.supportRepository.markNotificationDelivery(notification.tenant_id, notification.id, 'failed', {
       deliveryAttempts,
       lastError,
       nextAttemptAt: null,

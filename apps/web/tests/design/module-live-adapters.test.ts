@@ -1161,10 +1161,14 @@ describe("module live adapters", () => {
               generated_at: "2026-05-20T10:00:00.000Z",
             },
             report_card: {
-              learner_name: "Aisha Njeri",
-              class_name: "Grade 8 Unity",
-              total_score: 412,
-              mean_score: 82.4,
+              template_fields: {
+                learner_name: "Aisha Njeri",
+                class_stream: "Grade 8 Unity",
+              },
+              totals: {
+                total_score: 412,
+                mean_score: 82.4,
+              },
             },
           },
           published_at: null,

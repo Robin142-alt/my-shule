@@ -1,4 +1,4 @@
-import { Injectable, Optional, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, Optional, UnauthorizedException } from '@nestjs/common';
 import { performance } from 'node:perf_hooks';
 
 import { PrismaService } from '../../database/prisma.service';
@@ -27,6 +27,7 @@ import { SyncValidationService } from './sync-validation.service';
 
 @Injectable()
 export class SyncService {
+  private readonly logger = new Logger(SyncService.name);
 
   private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
     const firstParam = params[0];
@@ -158,40 +159,61 @@ export class SyncService {
         await this.syncDevicesRepository.markPush(tenantId, dto.device_id);
 
         const conflicts = results.filter(r => r.status === 'rejected');
+        let communication: SyncPushResponseDto['communication'] = { status: 'not_required' };
         if (conflicts.length > 0) {
-          await this.schoolEvents?.recordSchoolOperation({
-            event: {
-              id: `sync-conflict-${dto.device_id}-${Date.now()}`,
-              type: 'sync.conflict_detected',
-              module: 'sync',
-              actorRole: 'system',
-              title: 'Offline Sync Conflicts Detected',
-              body: `Device ${dto.device_id} pushed ${conflicts.length} conflicting operations.`,
-              entityId: dto.device_id,
-              severity: 'warning',
-              payload: { device_id: dto.device_id, conflict_count: conflicts.length },
-            },
-            notifications: [
-              {
-                id: `sync-admin-notify-${dto.device_id}-${Date.now()}`,
-                schoolId: tenantId,
-                audienceRoles: ['system_admin', 'admin', 'platform_owner'],
-                title: 'Offline Sync Retry Queue Action Needed',
-                body: `Offline sync from device ${dto.device_id} resulted in ${conflicts.length} conflict(s) or error(s) that require administrative review.`,
-                sourceModule: 'sync',
-                relatedModule: 'sync',
-                relatedRecordId: dto.device_id,
-                priority: 'high',
-                read: false,
-                createdAt: new Date().toISOString(),
-              }
-            ]
-          }).catch(() => undefined);
+          if (!this.schoolEvents) {
+            communication = {
+              status: 'degraded',
+              message: 'Conflicts were recorded, but the school alert service is unavailable.',
+            };
+          } else {
+            try {
+              await this.schoolEvents.recordSchoolOperation({
+                event: {
+                  id: `sync-conflict-${dto.device_id}-${Date.now()}`,
+                  type: 'sync.conflict_detected',
+                  module: 'sync',
+                  actorRole: 'system',
+                  title: 'Offline Sync Conflicts Detected',
+                  body: `Device ${dto.device_id} pushed ${conflicts.length} conflicting operations.`,
+                  entityId: dto.device_id,
+                  severity: 'warning',
+                  payload: { device_id: dto.device_id, conflict_count: conflicts.length },
+                },
+                notifications: [
+                  {
+                    id: `sync-admin-notify-${dto.device_id}-${Date.now()}`,
+                    schoolId: tenantId,
+                    audienceRoles: ['admin'],
+                    title: 'Offline Sync Retry Queue Action Needed',
+                    body: `Offline sync from device ${dto.device_id} resulted in ${conflicts.length} conflict(s) or error(s) that require administrative review.`,
+                    sourceModule: 'sync',
+                    relatedModule: 'sync',
+                    relatedRecordId: dto.device_id,
+                    priority: 'high',
+                    read: false,
+                    createdAt: new Date().toISOString(),
+                  },
+                ],
+              });
+              communication = { status: 'sent' };
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              this.logger.warn(
+                `Offline-sync conflicts for device ${dto.device_id} were recorded, but the alert could not be queued: ${message}`,
+              );
+              communication = {
+                status: 'degraded',
+                message: 'Conflicts were recorded, but their cross-dashboard alert could not be queued.',
+              };
+            }
+          }
         }
 
         return Object.assign(new SyncPushResponseDto(), {
           device: this.mapDevice(device),
           results,
+          communication,
           cursors: await this.syncOperationLogService.getLatestCursors(
             tenantId,
             [...SYNC_SUPPORTED_ENTITIES],

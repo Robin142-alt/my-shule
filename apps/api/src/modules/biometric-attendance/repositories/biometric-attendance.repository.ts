@@ -27,6 +27,40 @@ export class BiometricAttendanceRepository {
     }
   }
 
+  private async executeTenantSql<T = any>(
+    tenantId: string,
+    query: string,
+    params: any[] = [],
+  ): Promise<{ rows: T[], rowCount: number }> {
+    const normalizedTenantId = tenantId.trim();
+
+    if (!normalizedTenantId || normalizedTenantId === 'global') {
+      throw new Error('Biometric attendance writes require a school tenant identifier');
+    }
+
+    return this.prisma.executeWithTenant(normalizedTenantId, null, async (tx: any) => {
+      const result = await tx.$queryRawUnsafe(query, ...params);
+      const rows = Array.isArray(result) ? result : [result];
+      return { rows: rows as T[], rowCount: rows.length };
+    });
+  }
+
+  private async executeTenantEnumerationSql<T = any>(
+    query: string,
+    params: any[] = [],
+  ): Promise<{ rows: T[], rowCount: number }> {
+    return this.prisma.executeWithTenant('global', null, async (tx: any) => {
+      if (typeof tx.$executeRawUnsafe === 'function') {
+        await tx.$executeRawUnsafe('SET LOCAL row_security = on');
+        await tx.$executeRawUnsafe(`SET LOCAL app.role = 'platform_owner'`);
+      }
+
+      const result = await tx.$queryRawUnsafe(query, ...params);
+      const rows = Array.isArray(result) ? result : [result];
+      return { rows: rows as T[], rowCount: rows.length };
+    });
+  }
+
   constructor(private readonly prisma: PrismaService) {}
 
   registerDevice(input: Record<string, unknown>) {
@@ -273,14 +307,35 @@ export class BiometricAttendanceRepository {
     return result.rows;
   }
 
+  async listDailyAttendanceRuleTenantIds(): Promise<string[]> {
+    const result = await this.executeTenantEnumerationSql<{ tenant_id: string }>(
+      `
+        SELECT tenant_id
+        FROM tenants
+        WHERE status = 'active'
+          AND tenant_id <> 'global'
+        ORDER BY tenant_id ASC
+      `,
+    );
+
+    return Array.from(new Set(
+      result.rows
+        .map((row) => row.tenant_id?.trim())
+        .filter((tenantId): tenantId is string => Boolean(tenantId) && tenantId !== 'global'),
+    ));
+  }
+
   async applyDailyAttendanceRules(input: {
+    tenant_id: string;
     attendance_date: string;
     absence_cutoff_time?: string | null;
   }) {
-    const result = await this.executeSql<{
+    const tenantId = input.tenant_id.trim();
+    const result = await this.executeTenantSql<{
       absent_marked: string;
       half_day_marked: string;
     }>(
+      tenantId,
       `
         WITH active_teachers AS (
           SELECT
@@ -290,7 +345,8 @@ export class BiometricAttendanceRepository {
           INNER JOIN roles
             ON roles.tenant_id = memberships.tenant_id
            AND roles.id = memberships.role_id
-          WHERE memberships.status = 'active'
+          WHERE memberships.tenant_id = $1
+            AND memberships.status = 'active'
             AND roles.code IN ('teacher', 'staff', 'staff_teacher')
         ),
         rules AS (
@@ -299,7 +355,7 @@ export class BiometricAttendanceRepository {
             active_teachers.teacher_user_id,
             COALESCE(attendance_rules.default_start_time, '07:30'::time) AS default_start_time,
             COALESCE(attendance_rules.grace_period_minutes, 10) AS grace_period_minutes,
-            COALESCE($2::time, attendance_rules.absence_cutoff_time, '09:00'::time) AS absence_cutoff_time,
+            COALESCE($3::time, attendance_rules.absence_cutoff_time, '09:00'::time) AS absence_cutoff_time,
             COALESCE(attendance_rules.half_day_checkout_cutoff, '12:30'::time) AS half_day_checkout_cutoff
           FROM active_teachers
           LEFT JOIN attendance_rules
@@ -317,9 +373,9 @@ export class BiometricAttendanceRepository {
             rule_snapshot
           )
           SELECT
-            rules.tenant_id,
+            $1::text,
             rules.teacher_user_id,
-            $1::date,
+            $2::date,
             'absence_mark',
             NOW(),
             'absent',
@@ -331,13 +387,14 @@ export class BiometricAttendanceRepository {
               'source', 'biometric_attendance_rule_worker'
             )
           FROM rules
-          WHERE rules.absence_cutoff_time <= LOCALTIME
+          WHERE rules.tenant_id = $1
+            AND rules.absence_cutoff_time <= LOCALTIME
             AND NOT EXISTS (
               SELECT 1
               FROM teacher_attendance_logs existing
               WHERE existing.tenant_id = rules.tenant_id
                 AND existing.teacher_user_id = rules.teacher_user_id
-                AND existing.attendance_date = $1::date
+                AND existing.attendance_date = $2::date
                 AND existing.status IN ('present', 'late', 'absent', 'half_day', 'excused', 'manual_override')
             )
           RETURNING 1
@@ -353,9 +410,9 @@ export class BiometricAttendanceRepository {
             rule_snapshot
           )
           SELECT DISTINCT ON (rules.tenant_id, rules.teacher_user_id)
-            rules.tenant_id,
+            $1::text,
             rules.teacher_user_id,
-            $1::date,
+            $2::date,
             'absence_mark',
             NOW(),
             'half_day',
@@ -370,16 +427,17 @@ export class BiometricAttendanceRepository {
           INNER JOIN teacher_attendance_logs check_in
             ON check_in.tenant_id = rules.tenant_id
            AND check_in.teacher_user_id = rules.teacher_user_id
-           AND check_in.attendance_date = $1::date
+           AND check_in.attendance_date = $2::date
            AND check_in.event_type = 'check_in'
            AND check_in.status IN ('present', 'late')
-          WHERE rules.half_day_checkout_cutoff <= LOCALTIME
+          WHERE rules.tenant_id = $1
+            AND rules.half_day_checkout_cutoff <= LOCALTIME
             AND NOT EXISTS (
               SELECT 1
               FROM teacher_attendance_logs check_out
               WHERE check_out.tenant_id = rules.tenant_id
                 AND check_out.teacher_user_id = rules.teacher_user_id
-                AND check_out.attendance_date = $1::date
+                AND check_out.attendance_date = $2::date
                 AND check_out.event_type = 'check_out'
             )
             AND NOT EXISTS (
@@ -387,7 +445,7 @@ export class BiometricAttendanceRepository {
               FROM teacher_attendance_logs existing
               WHERE existing.tenant_id = rules.tenant_id
                 AND existing.teacher_user_id = rules.teacher_user_id
-                AND existing.attendance_date = $1::date
+                AND existing.attendance_date = $2::date
                 AND existing.status IN ('half_day', 'absent', 'excused', 'manual_override')
             )
           ORDER BY rules.tenant_id, rules.teacher_user_id
@@ -397,7 +455,7 @@ export class BiometricAttendanceRepository {
           (SELECT COUNT(*)::text FROM absent_inserted) AS absent_marked,
           (SELECT COUNT(*)::text FROM half_day_inserted) AS half_day_marked
       `,
-      [input.attendance_date, input.absence_cutoff_time ?? null],
+      [tenantId, input.attendance_date, input.absence_cutoff_time ?? null],
     );
 
     return {

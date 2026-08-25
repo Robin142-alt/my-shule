@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, Query, UnauthorizedException, UseGuards } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
+import { Roles } from '../../auth/decorators/roles.decorator';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
 import { RbacGuard } from '../../guards/rbac.guard';
@@ -10,6 +11,7 @@ import { GradeMasterService } from './grade-master.service';
 @Controller('grade-master')
 @UseGuards(JwtAuthGuard, RbacGuard)
 @RequiresModule('academics')
+@Roles('grade_master')
 export class GradeMasterController {
   constructor(
     private readonly gradeMasterService: GradeMasterService,
@@ -128,8 +130,8 @@ export class GradeMasterController {
   @Get('reports/:snapshotId/download')
   @Permissions('reports:read')
   downloadReport(@Param('snapshotId') snapshotId: string) {
-    const { tenantId } = this.context();
-    return this.gradeMasterService.downloadReport(tenantId, snapshotId);
+    const { tenantId, userId } = this.context();
+    return this.gradeMasterService.downloadReport(tenantId, userId, snapshotId);
   }
 
   @Get('notifications')
@@ -140,7 +142,7 @@ export class GradeMasterController {
   }
 
   @Post('actions')
-  @Permissions('academics:write')
+  @Permissions('academics:read')
   recordAction(@Body() body: any) {
     const { tenantId, userId } = this.context();
     return this.gradeMasterService.recordAction(tenantId, userId, body);

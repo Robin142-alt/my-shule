@@ -554,10 +554,10 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
           class="dashboard-card  overflow-hidden"
         >
           <div
-            class="border-b border-border bg-surface px-5 py-3.5"
+            class="border-b border-border bg-surface px-4 py-3.5 sm:px-5"
           >
             <div
-              class="flex items-center justify-between gap-4"
+              class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
             >
               <div
                 class="min-w-0"

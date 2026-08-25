@@ -1,8 +1,16 @@
-import { BadRequestException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Optional,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { SCHOOL_STAFF_ROLE_CODES } from '../../auth/auth.constants';
 import { TENANT_INVITABLE_ROLE_CODES } from '../../auth/dto/tenant-invitation.dto';
 import { ExamsService } from '../exams/exams.service';
+import { ApprovalService } from '../workflow/services/approval.service';
 import { AssignDeputyStaffRoleDto } from './dto/deputy-staff-role.dto';
 import { DeputyCommandRepository } from './repositories/deputy-command.repository';
 
@@ -28,6 +36,7 @@ export class DeputyCommandService {
     private readonly requestContext: RequestContextService,
     private readonly repository: DeputyCommandRepository,
     private readonly examsService: ExamsService,
+    @Optional() private readonly approvalService?: ApprovalService,
   ) {}
 
   private requireTenantId(): string {
@@ -134,12 +143,100 @@ export class DeputyCommandService {
   getClasses() { return this.repository.getClasses(this.requireTenantId()); }
   manageStreams(dto: any) { return this.repository.manageStreams(this.requireTenantId(), this.requestContext.getStore()?.user_id || 'system', dto); }
   
-  getApprovals() { return this.repository.getApprovals(this.requireTenantId()); }
-  actionApproval(id: string, action: string) { return this.repository.actionApproval(this.requireTenantId(), id, action); }
+  async getApprovals() {
+    if (!this.approvalService) {
+      throw new ServiceUnavailableException('The governed approval workflow is not available');
+    }
+    const tenantId = this.requireTenantId();
+    const store = this.requestContext.requireStore();
+    const actorUserId = stringOrUndefined(store?.user_id);
+    const actorRole = stringOrUndefined(store?.role);
+    if (!actorUserId || !actorRole) {
+      throw new UnauthorizedException('An authenticated Deputy Principal role is required to review approvals');
+    }
+
+    const [approvalsList, recentApprovals] = await Promise.all([
+      this.approvalService.listPendingForApprover({ tenantId, actorUserId, actorRole }),
+      this.repository.getDeputyApprovalHistory(tenantId, actorUserId, actorRole),
+    ]);
+    const urgentApprovals = approvalsList.filter((approval) =>
+      ['urgent', 'critical', 'high'].includes(String(approval.priority ?? '').toLowerCase()),
+    ).length;
+
+    return {
+      metrics: {
+        pending_approvals: approvalsList.length,
+        urgent_approvals: urgentApprovals,
+      },
+      approvalsList,
+      recentApprovals,
+    };
+  }
+
+  async actionApproval(idValue: string, dto: Record<string, unknown>) {
+    if (!this.approvalService) {
+      throw new ServiceUnavailableException('The governed approval workflow is not available');
+    }
+    const approvalId = stringOrUndefined(idValue);
+    if (!approvalId) {
+      throw new BadRequestException('Approval ID is required');
+    }
+    const action = String(dto.action ?? '').trim().toLowerCase();
+    if (action !== 'approve' && action !== 'reject') {
+      throw new BadRequestException('Approval action must be approve or reject');
+    }
+    const noteValue = dto.comment ?? dto.reason;
+    const note = typeof noteValue === 'string' ? noteValue.trim() : '';
+    if (action === 'reject' && !note) {
+      throw new BadRequestException('A rejection reason is required');
+    }
+
+    const store = this.requestContext.requireStore();
+    const actorUserId = stringOrUndefined(store?.user_id);
+    const actorRole = stringOrUndefined(store?.role);
+    if (!actorUserId || !actorRole) {
+      throw new UnauthorizedException('An authenticated Deputy Principal role is required to decide approvals');
+    }
+    const approval = await this.approvalService.decideRequest({
+      tenantId: this.requireTenantId(),
+      approvalId,
+      actorUserId,
+      actorRole,
+      requestId: store.request_id,
+      decision: action === 'approve' ? 'APPROVED' : 'REJECTED',
+      note: note || null,
+    });
+
+    return {
+      success: true,
+      message: `Approval ${action === 'approve' ? 'approved' : 'rejected'}`,
+      approval,
+    };
+  }
   
   getCommunication() { return this.repository.getCommunication(this.requireTenantId()); }
   getReports() { return this.repository.getReports(this.requireTenantId()); }
-  generateReport(dto: any) { return this.repository.generateReport(this.requireTenantId(), dto.name, dto.format); }
+  downloadReportArtifact(idValue: string) {
+    const reportId = stringOrUndefined(idValue);
+    if (!reportId) {
+      throw new BadRequestException('Report ID is required');
+    }
+    const actorUserId = stringOrUndefined(this.requestContext.requireStore()?.user_id);
+    if (!actorUserId) {
+      throw new UnauthorizedException('An authenticated Deputy Principal is required to download reports');
+    }
+    return this.repository.downloadReportArtifact(this.requireTenantId(), reportId, actorUserId);
+  }
+  async generateReport(dto: any) {
+    const approvals = await this.getApprovals();
+    return this.repository.generateReport(
+      this.requireTenantId(),
+      dto.name,
+      dto.format,
+      this.requestContext.getStore()?.user_id || null,
+      approvals,
+    );
+  }
   
   getStaff() { return this.repository.getStaff(this.requireTenantId()); }
   async assignRole(dto: AssignDeputyStaffRoleDto) {

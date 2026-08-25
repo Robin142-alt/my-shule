@@ -23,7 +23,7 @@ type HostelsData = {
 };
 
 export function HostelsWorkspace() {
-  const { data, isLoading } = useSchoolQuery<HostelsData>('/admin-command/boarding-master/hostels');
+  const { data, error, isLoading, refetch } = useSchoolQuery<HostelsData>('/admin-command/boarding-master/hostels');
   const items = data?.hostelsList || [];
 
   const getStatusTone = (st: string): Tone => {
@@ -33,6 +33,18 @@ export function HostelsWorkspace() {
     if (st === "Issued" || st === "Checked In" || st === "Submitted" || st === "Booked" || st === "Sent" || st === "On Leave") return "info";
     return "neutral";
   };
+
+  if (error) {
+    return (
+      <Panel title="Hostels" description="Manage school hostels." icon={Building2}>
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <p className="font-black">Hostels could not be loaded.</p>
+          <p className="mt-1">{error.message}</p>
+          <button type="button" onClick={() => void refetch()} className="mt-3 font-black underline">Retry</button>
+        </div>
+      </Panel>
+    );
+  }
 
   return (
     <Panel title="Hostels" description="Manage school hostels." icon={Building2}>

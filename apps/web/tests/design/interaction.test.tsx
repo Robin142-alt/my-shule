@@ -111,7 +111,7 @@ describe("STEP 5: Interaction tests", () => {
 
     expect(screen.getByTestId("live-role-command-center")).toHaveAttribute("data-role", "parent");
     expect(screen.getAllByRole("heading", { name: /parent dashboard/i }).length).toBeGreaterThan(0);
-    expect(screen.getByRole("option", { name: /^fees$/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^fees\b/i })).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /record payment/i }),
     ).not.toBeInTheDocument();

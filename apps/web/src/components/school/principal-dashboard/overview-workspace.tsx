@@ -1,12 +1,13 @@
 "use client";
 
+import { DashboardEngine } from "@/components/dashboard/dashboard-engine";
 import { Card } from "@/components/ui/card";
-import { AlertCircle, Activity, Users, FileText } from "lucide-react";
 import { isSchoolQueryForPath, useSchoolQuery } from "@/lib/data/school-hooks";
 import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
 import { useDashboardEventBus } from "@/lib/dashboard-communication/dashboard-communication-provider";
+import { useQueryClient } from "@tanstack/react-query";
+import { AlertCircle } from "lucide-react";
 import { useEffect } from "react";
-import { DashboardEngine } from "@/components/dashboard/dashboard-engine";
 
 type PrincipalOverviewData = {
   status: "active" | "degraded" | "setup_required";
@@ -17,9 +18,35 @@ type PrincipalOverviewData = {
   recentActivity: Array<{ label: string; time: string }>;
 };
 
-import { useQueryClient } from "@tanstack/react-query";
+export type PrincipalDashboardAlert = {
+  id: string;
+  module_code: string;
+  title: string;
+  message: string;
+  severity: "warning" | "critical";
+  action_hint?: string;
+};
 
-export function PrincipalOverviewWorkspace() {
+export type PrincipalExecutiveDashboardSummary = {
+  tenant_id: string;
+  generated_at: string;
+  enabled_modules: string[];
+  alerts: PrincipalDashboardAlert[];
+  notifications: PrincipalDashboardAlert[];
+  realtime_channels: string[];
+};
+
+export function PrincipalOverviewWorkspace({
+  executiveDashboard,
+  executiveDashboardLoading = false,
+  executiveDashboardStreamDegraded = false,
+  riskCenterLabel = "Alerts and risk center",
+}: {
+  executiveDashboard?: PrincipalExecutiveDashboardSummary | null;
+  executiveDashboardLoading?: boolean;
+  executiveDashboardStreamDegraded?: boolean;
+  riskCenterLabel?: string;
+}) {
   const { data, isLoading, error } = useSchoolQuery<PrincipalOverviewData>('/admin-command/principal/overview');
   const queryClient = useQueryClient();
   const eventBus = useDashboardEventBus();
@@ -87,6 +114,12 @@ export function PrincipalOverviewWorkspace() {
   const totalStaff = Number(data.totalStaff ?? 0);
   const pendingApprovals = Number(data.pendingApprovals ?? 0);
   const activeIssues = Number(data.activeIssues ?? 0);
+  const enabledModules = Array.isArray(executiveDashboard?.enabled_modules)
+    ? executiveDashboard.enabled_modules
+    : [];
+  const riskAlerts = Array.isArray(executiveDashboard?.alerts)
+    ? executiveDashboard.alerts
+    : [];
 
   return (
     <div className="space-y-6">
@@ -112,6 +145,65 @@ export function PrincipalOverviewWorkspace() {
           <div className="mt-2 text-2xl font-black text-yellow-500">{activeIssues}</div>
         </Card>
       </div>
+      <Card className="border border-white/10 bg-white/5 p-5 text-white">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h3 className="text-base font-black">{riskCenterLabel}</h3>
+            <p className="mt-1 text-xs font-semibold text-white/65">
+              Module-aware executive signals from this school&apos;s enabled services.
+            </p>
+          </div>
+          <span className="w-fit rounded-full border border-cyan-200/30 bg-cyan-200/10 px-3 py-1 text-xs font-black text-cyan-100">
+            {executiveDashboardStreamDegraded
+              ? "Live updates reconnecting"
+              : executiveDashboardLoading && !executiveDashboard
+                ? "Loading modules"
+                : `${enabledModules.length} modules enabled`}
+          </span>
+        </div>
+
+        {executiveDashboard ? (
+          <p className="mt-3 text-xs font-semibold text-white/65">
+            Enabled modules: {enabledModules.join(", ") || "No optional insight modules enabled"}
+          </p>
+        ) : null}
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {riskAlerts.length > 0 ? (
+            riskAlerts.slice(0, 4).map((alert) => (
+              <div key={alert.id} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-black">{alert.title}</p>
+                  <span
+                    className={
+                      alert.severity === "critical"
+                        ? "rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-black uppercase text-red-200"
+                        : "rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-black uppercase text-amber-200"
+                    }
+                  >
+                    {alert.severity}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs font-semibold text-white/65">{alert.message}</p>
+                <p className="mt-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
+                  {alert.module_code}
+                </p>
+                {alert.action_hint ? (
+                  <p className="mt-2 text-xs font-semibold text-white/75">Next: {alert.action_hint}</p>
+                ) : null}
+              </div>
+            ))
+          ) : (
+            <div className="md:col-span-2 rounded-xl border border-dashed border-white/15 bg-white/[0.03] px-4 py-4 text-sm font-semibold text-white/65">
+              {executiveDashboardLoading && !executiveDashboard
+                ? "Loading live executive risk signals."
+                : executiveDashboard
+                  ? "No current warning or critical risk alerts for this school."
+                  : "Executive risk signals are temporarily unavailable; operational metrics remain visible."}
+            </div>
+          )}
+        </div>
+      </Card>
       <div className="mt-8">
         <h2 className="text-xl font-bold text-white mb-6">Operational Dashboard</h2>
         <DashboardEngine role="principal" />

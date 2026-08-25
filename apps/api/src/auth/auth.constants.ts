@@ -71,6 +71,13 @@ export const SCHOOL_STAFF_ROLE_CODES = [
   DEFAULT_ROLE_ICT_MANAGER,
 ] as const;
 
+export const SCHOOL_EVENT_PUBLISHER_ROLE_CODES = [
+  DEFAULT_ROLE_OWNER,
+  DEFAULT_ROLE_ADMIN,
+  DEFAULT_ROLE_PRINCIPAL,
+  DEFAULT_ROLE_DEPUTY_PRINCIPAL,
+] as const;
+
 export const ACADEMIC_TEACHING_ROLE_CODES = [
   DEFAULT_ROLE_OWNER,
   DEFAULT_ROLE_PRINCIPAL,
@@ -86,9 +93,15 @@ export const ACADEMIC_TEACHING_ROLE_CODES = [
   DEFAULT_ROLE_BOARDING_MASTER,
 ] as const;
 
+const SCHOOL_INBOX_PERMISSIONS = ['events:read', 'events:write'] as const;
+const SCHOOL_EVENT_PUBLISH_PERMISSIONS = ['events:publish'] as const;
+
 export const DEFAULT_PERMISSION_CATALOG = [
   { resource: '*', action: '*', description: 'Full tenant access' },
   { resource: 'auth', action: 'read', description: 'Read authenticated identity context' },
+  { resource: 'events', action: 'read', description: 'Read the authenticated user and role school workflow inbox' },
+  { resource: 'events', action: 'write', description: 'Acknowledge addressed school workflow inbox items' },
+  { resource: 'events', action: 'publish', description: 'Publish school-scoped operational events as authorized school leadership' },
   { resource: 'users', action: 'read', description: 'View tenant users' },
   { resource: 'users', action: 'write', description: 'Manage tenant users' },
   { resource: 'roles', action: 'read', description: 'View tenant roles' },
@@ -127,6 +140,7 @@ export const DEFAULT_PERMISSION_CATALOG = [
   { resource: 'timetable', action: 'write', description: 'Manage timetable drafts and published versions' },
   { resource: 'procurement', action: 'read', description: 'View procurement workflows' },
   { resource: 'procurement', action: 'write', description: 'Manage procurement workflows' },
+  { resource: 'procurement', action: 'approve', description: 'Approve or return school procurement requests' },
   { resource: 'payments', action: 'create', description: 'Initiate tenant payment requests' },
   { resource: 'school_sms', action: 'read', description: 'View tenant SMS balance, quota, and logs' },
   { resource: 'school_sms', action: 'send', description: 'Send SMS through the tenant SMS wallet' },
@@ -194,7 +208,7 @@ export const DEFAULT_PERMISSION_CATALOG = [
   { resource: 'visitors', action: 'write', description: 'Manage visitor records and gate check-ins' },
 ] as const;
 
-export const DEFAULT_ROLE_CATALOG = [
+const DEFAULT_ROLE_CATALOG_BASE = [
   {
     code: DEFAULT_ROLE_OWNER,
     name: 'Owner',
@@ -207,6 +221,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Operational access for tenant administration',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'users:read',
       'users:write',
       'roles:read',
@@ -238,6 +253,7 @@ export const DEFAULT_ROLE_CATALOG = [
       'timetable:write',
       'procurement:read',
       'procurement:write',
+      'procurement:approve',
       'payments:create',
       'school_sms:read',
       'school_sms:send',
@@ -296,6 +312,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Standard tenant access',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'users:read',
       'students:read',
       'support:view',
@@ -309,6 +326,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Academic classroom access for teachers',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'students:read',
       'academics:read',
       'teacher:read',
@@ -333,6 +351,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Academic quality assurance, exam moderation, report card review, grading integrity checks, and curriculum compliance approval',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'students:read',
       'academics:read',
       'timetable:read',
@@ -354,6 +373,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Academic data production, exam setup, timetable scheduling, marks entry coordination, grade processing, and draft report card generation',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'students:read',
       'academics:read',
       'timetable:read',
@@ -375,6 +395,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Department-level academic oversight for teachers, subjects, syllabus coverage, exams, lesson plans, and curriculum compliance',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'students:read',
       'academics:read',
       'academics:assign-teachers',
@@ -396,6 +417,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Class-level attendance, welfare, parent communication, and academic oversight',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'students:read',
       'academics:read',
       'teacher:read',
@@ -420,6 +442,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Multi-stream grade oversight for attendance, discipline, academics, class teachers, welfare, and parent escalations',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'students:read',
       'academics:read',
       'academics:assign-teachers',
@@ -444,6 +467,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Finance and billing operations access',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'finance:read',
       'finance:follow-up',
       'finance:write',
@@ -468,6 +492,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'General school staff access',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'students:read',
       'discipline:read',
       'discipline:write',
@@ -482,6 +507,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Strategic school leadership access with governance and read-only finance oversight',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'users:read',
       'users:write',
       'tenant_memberships:read',
@@ -516,6 +542,7 @@ export const DEFAULT_ROLE_CATALOG = [
       'clinic:reports',
       'inventory:read',
       'procurement:read',
+      'procurement:approve',
       'school_sms:read',
       'school_sms:send',
       'transport:read',
@@ -537,6 +564,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Daily operations, discipline, duty roster, and timetable execution access',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       // The Deputy Users & Invitations workspace reads and manages the same
       // tenant-scoped membership projection as the Principal workspace.
       // Target-role checks in TenantInvitationsService keep this from granting
@@ -583,6 +611,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Administration, admissions, communications, records, meetings, and report exports',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'secretary:read',
       'secretary:write',
       'admissions:read',
@@ -605,6 +634,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'School finance, fee reconciliation, payments, billing, and SMS balance oversight',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'students:read',
       'finance:read',
       'finance:follow-up',
@@ -631,6 +661,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Parent portal access for invited guardians',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'payments:create',
       'portal:read_own_children',
       'portal:message_school',
@@ -646,6 +677,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Student portal access for invited learners',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'student-portal:read',
       'student-portal:write',
       'support:view',
@@ -659,6 +691,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Library operations access',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'library:read',
       'library:write',
       'support:view',
@@ -672,6 +705,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'School clinic, student health notes, medicine dispensing, and health follow-up access',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'students:read',
       'clinic:read',
       'clinic:write',
@@ -691,6 +725,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'School clinic medicine inventory, visits, dispensing, and confidential health operations',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'students:read',
       'clinic:read',
       'clinic:write',
@@ -710,6 +745,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Dean of students access for discipline case management and parent workflows',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'students:read',
       'discipline:read',
       'discipline:write',
@@ -729,6 +765,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Confidential counselling, referrals, sessions, and behavior improvement planning',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'students:read',
       'discipline:read',
       'counselling:read',
@@ -747,6 +784,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Inventory-only stock receiving, issuing, transfers, and reports',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'inventory:read',
       'inventory:write',
       'procurement:read',
@@ -767,6 +805,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Boarding, hostel, welfare, evening movement, and dorm incident operations access',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'students:read',
       'discipline:read',
       'discipline:write',
@@ -789,6 +828,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Visitor logs, gate records, movement visibility, and incident reporting access',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'students:read',
       'visitors:read',
       'visitors:write',
@@ -804,6 +844,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Fleet, routes, drivers, student allocation, GPS, fuel, and transport compliance access',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'students:read',
       'transport:read',
       'transport:write',
@@ -820,6 +861,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Laboratory safety, chemical control, equipment tracking, practical preparation, and audit logs access',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'labs:read',
       'labs:request',
       'labs:write',
@@ -839,6 +881,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'Admissions inquiries, applications, document checks, onboarding, and parent handoff access',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'admissions:read',
       'admissions:write',
       'students:read',
@@ -858,6 +901,7 @@ export const DEFAULT_ROLE_CATALOG = [
     description: 'ICT assets, lab devices, repairs, software licenses, and device support access',
     permissions: [
       'auth:read',
+      ...SCHOOL_INBOX_PERMISSIONS,
       'assets:read',
       'inventory:read',
       'procurement:read',
@@ -899,3 +943,10 @@ export const DEFAULT_ROLE_CATALOG = [
     ],
   },
 ] as const;
+
+export const DEFAULT_ROLE_CATALOG = DEFAULT_ROLE_CATALOG_BASE.map((role) => ({
+  ...role,
+  permissions: (SCHOOL_EVENT_PUBLISHER_ROLE_CODES as readonly string[]).includes(role.code)
+    ? [...role.permissions, ...SCHOOL_EVENT_PUBLISH_PERMISSIONS]
+    : [...role.permissions],
+}));

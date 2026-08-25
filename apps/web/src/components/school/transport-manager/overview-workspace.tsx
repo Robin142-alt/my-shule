@@ -1,6 +1,6 @@
 "use client";
 import { Bus } from "lucide-react";
-import { Panel, StatusChip, Tone } from "./shared";
+import { Panel } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 type OverviewRecord = {
@@ -20,16 +20,20 @@ type OverviewData = {
 };
 
 export function OverviewWorkspace() {
-  const { data, isLoading } = useSchoolQuery<OverviewData>('/admin-command/transport-manager/overview');
+  const { data, error, isLoading, refetch } = useSchoolQuery<OverviewData>('/admin-command/transport-manager/overview');
   const items = data?.overviewList || [];
 
-  const getStatusTone = (st: string): Tone => {
-    if (st === "Active" || st === "Available" || st === "Approved" || st === "Completed" || st === "Resolved" || st === "Present" || st === "Functional" || st === "On Track" || st === "Cleared") return "success";
-    if (st === "Pending" || st === "In Progress" || st === "Pending Approval" || st === "Scheduled" || st === "On Loan" || st === "Behind" || st === "Departed" || st === "Warning" || st === "Pending Review") return "warning";
-    if (st === "Overdue" || st === "Critical" || st === "Rejected" || st === "Escalated" || st === "Expired" || st === "Damaged" || st === "Flagged" || st === "Absent" || st === "Blacklisted" || st === "Disposed" || st === "Unauthorized") return "danger";
-    if (st === "Issued" || st === "Checked In" || st === "Submitted" || st === "Booked" || st === "Sent" || st === "On Leave") return "info";
-    return "neutral";
-  };
+  if (error) {
+    return (
+      <Panel title="Transport Overview" description="High-level transport operations dashboard." icon={Bus}>
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <p className="font-black">Transport overview could not be loaded.</p>
+          <p className="mt-1">{error.message}</p>
+          <button type="button" onClick={() => void refetch()} className="mt-3 font-black underline">Retry</button>
+        </div>
+      </Panel>
+    );
+  }
 
   return (
     <Panel title="Transport Overview" description="High-level transport operations dashboard." icon={Bus}>

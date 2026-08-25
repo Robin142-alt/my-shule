@@ -14,7 +14,7 @@ const FOREIGN_ROUTE_ID = '00000000-0000-4000-8000-000000000102';
 const STUDENT_ONE_ID = '00000000-0000-4000-8000-000000000201';
 const STUDENT_TWO_ID = '00000000-0000-4000-8000-000000000202';
 
-test('TransportSchemaService creates tenant-safe routes, vehicles, manifests, trips, alerts, and service logs', async () => {
+test('TransportSchemaService creates tenant-safe routes, vehicles, manifests, trips, alerts, fuel, and service logs', async () => {
   let schemaSql = '';
   const service = new TransportSchemaService({
     runSchemaBootstrap: async (sql: string) => {
@@ -34,6 +34,7 @@ test('TransportSchemaService creates tenant-safe routes, vehicles, manifests, tr
     'transport_trips',
     'transport_trip_events',
     'transport_alerts',
+    'vehicle_fuel_logs',
     'vehicle_service_logs',
   ]) {
     assert.match(schemaSql, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
@@ -44,6 +45,11 @@ test('TransportSchemaService creates tenant-safe routes, vehicles, manifests, tr
   assert.match(schemaSql, /NULLIF\(current_setting\('app\.role'/);
   assert.match(schemaSql, /transport_routes_name/);
   assert.match(schemaSql, /ix_transport_trips_route_date/);
+  assert.match(schemaSql, /assigned_vehicle_id uuid/);
+  assert.match(schemaSql, /fk_transport_routes_assigned_vehicle/);
+  assert.match(schemaSql, /ix_vehicle_fuel_logs_vehicle/);
+  assert.match(schemaSql, /ALTER TABLE vehicle_fuel_logs ADD COLUMN IF NOT EXISTS cost_minor bigint/);
+  assert.match(schemaSql, /ALTER TABLE vehicle_service_logs ADD COLUMN IF NOT EXISTS next_service_date date/);
 });
 
 test('TransportController is gated by transport module and transport permissions', () => {
@@ -111,6 +117,31 @@ test('TransportRepository vehicle and trip reads retain the current tenant in SQ
   assert.match(queries[1].sql, /student\.tenant_id = manifest_student\.tenant_id/);
 });
 
+test('TransportRepository resolves manifest guardians only through active same-tenant links and memberships', async () => {
+  let capturedSql = '';
+  let capturedParams: unknown[] = [];
+  const repository = new TransportRepository({
+    query: async (sql: string, params: unknown[]) => {
+      capturedSql = sql;
+      capturedParams = params;
+      return {
+        rows: [{ student_id: STUDENT_ONE_ID, guardian_id: 'guardian-1', user_id: 'guardian-user-1' }],
+        rowCount: 1,
+      };
+    },
+  } as never);
+
+  const recipients = await repository.listActiveGuardianRecipients('tenant-a', [STUDENT_ONE_ID]);
+
+  assert.deepEqual(capturedParams, ['tenant-a', JSON.stringify([STUDENT_ONE_ID])]);
+  assert.match(capturedSql, /student\.tenant_id = \$1/);
+  assert.match(capturedSql, /guardian\.tenant_id = student\.tenant_id/);
+  assert.match(capturedSql, /membership\.tenant_id = guardian\.tenant_id/);
+  assert.match(capturedSql, /LOWER\(guardian\.status\) = 'active'/);
+  assert.match(capturedSql, /LOWER\(membership\.status\) = 'active'/);
+  assert.equal(recipients[0].user_id, 'guardian-user-1');
+});
+
 test('TransportController assignment endpoint delegates to manifest assignment semantics', async () => {
   const calls: unknown[] = [];
   const controller = new TransportController({
@@ -149,6 +180,10 @@ test('TransportService creates auditable routes, vehicles, manifests, trips, eve
       validateManifestReferences: async (input: Record<string, unknown>) => {
         calls.push({ method: 'validateManifestReferences', ...input });
         return { route_exists: true, academic_term_exists: true, student_count: 2 };
+      },
+      listActiveGuardianRecipients: async (tenantId: string, studentIds: string[]) => {
+        calls.push({ method: 'listActiveGuardianRecipients', tenant_id: tenantId, student_ids: studentIds });
+        return [{ student_id: STUDENT_ONE_ID, guardian_id: 'guardian-1', user_id: 'guardian-user-1' }];
       },
       createManifest: async (input: Record<string, unknown>) => {
         calls.push({ method: 'createManifest', ...input });
@@ -222,6 +257,7 @@ test('TransportService creates auditable routes, vehicles, manifests, trips, eve
     'appendAuditLog',
     'validateManifestReferences',
     'createManifest',
+    'listActiveGuardianRecipients',
     'appendAuditLog',
     'startTrip',
     'appendAuditLog',
@@ -234,6 +270,51 @@ test('TransportService creates auditable routes, vehicles, manifests, trips, eve
   assert.equal(calls[2]?.registration_number, 'KDA 123A');
   assert.deepEqual(calls[4]?.student_ids, [STUDENT_ONE_ID, STUDENT_TWO_ID]);
   assert.deepEqual(calls[5]?.student_ids, [STUDENT_ONE_ID, STUDENT_TWO_ID]);
+  assert.deepEqual(calls[6]?.student_ids, [STUDENT_ONE_ID, STUDENT_TWO_ID]);
+});
+
+test('TransportService addresses learner assignment notices to exact active guardian accounts', async () => {
+  const operations: Array<Record<string, any>> = [];
+  const service = new TransportService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: 'transport-user-1',
+        role: 'transport_manager',
+        permissions: ['transport:*'],
+      }),
+    } as never,
+    {} as never,
+    {
+      validateManifestReferences: async () => ({
+        route_exists: true,
+        academic_term_exists: true,
+        student_count: 1,
+      }),
+      createManifest: async () => ({ id: 'manifest-1', status: 'active' }),
+      listActiveGuardianRecipients: async (tenantId: string, studentIds: string[]) => {
+        assert.equal(tenantId, 'tenant-a');
+        assert.deepEqual(studentIds, [STUDENT_ONE_ID]);
+        return [{ student_id: STUDENT_ONE_ID, guardian_id: 'guardian-1', user_id: 'guardian-user-1' }];
+      },
+      appendAuditLog: async () => undefined,
+    } as never,
+    {
+      recordSchoolOperation: async (input: Record<string, unknown>) => {
+        operations.push(input);
+      },
+    } as never,
+  );
+
+  await service.createManifest({ route_id: ROUTE_ID, student_ids: [STUDENT_ONE_ID] });
+
+  assert.equal(operations.length, 1);
+  const notifications = operations[0].notifications as Array<Record<string, unknown>>;
+  assert.deepEqual(notifications[0].audienceRoles, ['accountant', 'finance']);
+  assert.equal(notifications[1].targetUserId, 'guardian-user-1');
+  assert.equal(notifications[1].recipientGuardianId, 'guardian-1');
+  assert.deepEqual(notifications[1].audienceRoles, ['parent']);
+  assert.equal(notifications[1].recipientScope, 'exact_active_guardian_account');
 });
 
 test('TransportService rejects foreign assignment references before persistence', async () => {
@@ -268,6 +349,7 @@ test('TransportService propagates assignment audit and event failures', async ()
       student_count: 1,
     }),
     createManifest: async () => ({ id: 'manifest-1', status: 'active' }),
+    listActiveGuardianRecipients: async () => [],
   };
   const context = {
     getStore: () => ({

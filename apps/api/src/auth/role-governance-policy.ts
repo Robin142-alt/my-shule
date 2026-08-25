@@ -128,15 +128,21 @@ const ROLE_PERMISSION_EXCLUSIONS: Partial<Record<BlueprintUserRole, readonly str
   school_admin: ['finance:follow-up'],
 };
 
+const SCHOOL_INBOX_PERMISSIONS = ['events:read', 'events:write'] as const;
+const SCHOOL_EVENT_PRODUCER_ROLES = new Set<BlueprintUserRole>(
+  ['school_admin', 'principal', 'deputy_principal'],
+);
+
 const ROLE_PERMISSIONS: Partial<Record<BlueprintUserRole, readonly string[]>> = {
   super_admin: ['*:*'],
   platform_support: ['support:view', 'support:manage', 'reports:read'],
   finance_admin: ['billing:read', 'billing:write', 'reports:read'],
   school_admin: ['users:read', 'users:write', 'roles:read', 'roles:write', 'students:read', 'reports:read',
-    'academics:read', 'academics:write', 'academics:assign-teachers', 'academics:manage-lifecycle', 'academics:merge'],
+    'academics:read', 'academics:write', 'academics:assign-teachers', 'academics:manage-lifecycle', 'academics:merge',
+    'procurement:approve'],
   principal: ['principal:read', 'principal:write', 'students:read', 'finance:read', 'finance:follow-up', 'reports:read',
     'academics:read', 'academics:write', 'academics:assign-teachers', 'academics:manage-lifecycle', 'academics:merge',
-    'exams:read', 'exams:publish'],
+    'exams:read', 'exams:publish', 'procurement:approve'],
   deputy_principal: [
     'deputy:read',
     'deputy:write',
@@ -279,7 +285,11 @@ function expandedPermissions(role: BlueprintUserRole, seen = new Set<BlueprintUs
 
   seen.add(role);
 
-  const own = ROLE_PERMISSIONS[role] ?? [];
+  const own = [
+    ...(ROLE_PERMISSIONS[role] ?? []),
+    ...((SCHOOL_ROLES as readonly BlueprintUserRole[]).includes(role) ? SCHOOL_INBOX_PERMISSIONS : []),
+    ...(SCHOOL_EVENT_PRODUCER_ROLES.has(role) ? ['events:publish'] : []),
+  ];
   const inherited = (ROLE_INHERITANCE[role] ?? [])
     .flatMap((parentRole) => expandedPermissions(parentRole, seen));
 

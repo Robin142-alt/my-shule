@@ -2,6 +2,7 @@
 import { Monitor } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { WorkspaceQueryFailure } from "@/components/school/workspace-query-failure";
 
 type OverviewRecord = {
   id: string;
@@ -20,8 +21,16 @@ type OverviewData = {
 };
 
 export function OverviewWorkspace() {
-  const { data, isLoading } = useSchoolQuery<OverviewData>('/admin-command/ict-manager/overview');
+  const { data, error, isLoading, refetch } = useSchoolQuery<OverviewData>('/admin-command/ict-manager/overview');
   const items = data?.overviewList || [];
+
+  if (error) {
+    return (
+      <Panel title="ICT Overview" description="High-level ICT operations dashboard." icon={Monitor}>
+        <WorkspaceQueryFailure title="ICT operations could not be loaded." error={error} onRetry={() => void refetch()} />
+      </Panel>
+    );
+  }
 
   const getStatusTone = (st: string): Tone => {
     if (st === "Active" || st === "Available" || st === "Approved" || st === "Completed" || st === "Resolved" || st === "Present" || st === "Functional" || st === "On Track" || st === "Cleared") return "success";

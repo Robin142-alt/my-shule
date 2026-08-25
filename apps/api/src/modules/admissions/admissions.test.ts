@@ -76,6 +76,8 @@ test('AdmissionsSchemaService adds a full-text index for application search', as
 test('AdmissionsService registers an approved application into the student directory', async () => {
   const requestContext = new RequestContextService();
   let applicationRegistered = false;
+  const deliveryCallOrder: string[] = [];
+  let failedOperation: any = null;
 
   const service = new AdmissionsService(
     requestContext,
@@ -98,6 +100,7 @@ test('AdmissionsService registers an approved application into the student direc
       }),
       markApplicationRegistered: async () => {
         applicationRegistered = true;
+        deliveryCallOrder.push('application-registered');
         return {
           id: '00000000-0000-0000-0000-000000000701',
           status: 'registered',
@@ -141,7 +144,7 @@ test('AdmissionsService registers an approved application into the student direc
       },
     } as never,
     {
-      createStudent: async () => ({
+      createStudent: async (input: any) => ({
         id: '00000000-0000-0000-0000-000000000702',
         tenant_id: 'tenant-a',
         admission_number: 'ADM-G7-118',
@@ -152,12 +155,30 @@ test('AdmissionsService registers an approved application into the student direc
         date_of_birth: '2014-02-19',
         gender: 'female',
         primary_guardian_name: 'Janet Atieno',
-        primary_guardian_phone: '254712300401',
+        primary_guardian_phone: input.primary_guardian_phone,
         metadata: {},
         created_by_user_id: '00000000-0000-0000-0000-000000000001',
         created_at: new Date('2026-05-04T10:00:00.000Z'),
         updated_at: new Date('2026-05-04T10:00:00.000Z'),
       }),
+    } as never,
+    undefined,
+    undefined,
+    undefined,
+    {
+      recordSchoolOperation: async (operation: any) => {
+        deliveryCallOrder.push('operation-event');
+        failedOperation = operation;
+        throw new Error('event outbox unavailable');
+      },
+    } as never,
+    undefined,
+    undefined,
+    {
+      sendSms: async () => {
+        deliveryCallOrder.push('sms-queue');
+        throw new Error('SMS outbox unavailable');
+      },
     } as never,
   );
 
@@ -187,8 +208,20 @@ test('AdmissionsService registers an approved application into the student direc
   );
 
   assert.equal(response.student.admission_number, 'ADM-G7-118');
+  assert.equal(response.student.primary_guardian_phone, '+254712300401');
   assert.equal(response.application_status, 'registered');
   assert.equal(applicationRegistered, true);
+  assert.deepEqual(deliveryCallOrder, [
+    'application-registered',
+    'sms-queue',
+    'operation-event',
+  ]);
+  assert.equal(response.notification_delivery.guardian_sms.status, 'degraded');
+  assert.equal(response.notification_delivery.guardian_sms.reason, 'sms_queue_failed');
+  assert.equal(response.operation_event.status, 'degraded');
+  assert.equal(response.operation_event.reason, 'operation_event_recording_failed');
+  assert.equal(failedOperation.event.payload.guardian_sms_status, 'degraded');
+  assert.equal('sms' in failedOperation, false);
 });
 
 test('AdmissionsService rejects foreign or inactive class selections before creating a student', async () => {
@@ -272,6 +305,8 @@ test('AdmissionsService completes approved application enrolment with guardian, 
     parentInvites: [],
     events: [],
     schoolOperations: [],
+    smsQueue: [],
+    agpIntents: [],
   };
 
   const service = new AdmissionsService(
@@ -433,11 +468,27 @@ test('AdmissionsService completes approved application enrolment with guardian, 
         return { id: 'event-1', ...event };
       },
     } as never,
-    undefined,
+    {
+      execute: async (intent: { handler: () => Promise<unknown> }) => {
+        calls.agpIntents.push(intent);
+        return intent.handler();
+      },
+    } as never,
     {
       recordSchoolOperation: async (operation: any) => {
         calls.schoolOperations.push(operation);
-        return { id: 'school-operation-1' };
+        return {
+          id: 'school-operation-1',
+          event_key: 'school.operation.recorded:tenant-a:admission-registration-00000000-0000-0000-0000-000000000731',
+        };
+      },
+    } as never,
+    undefined,
+    undefined,
+    {
+      sendSms: async (input: any) => {
+        calls.smsQueue.push(input);
+        return { success: true, messageId: 'sms-outbox-731', status: 'Pending' };
       },
     } as never,
   );
@@ -481,6 +532,8 @@ test('AdmissionsService completes approved application enrolment with guardian, 
   assert.equal(calls.subjectTimetableEnrollments[0].school_id, 'tenant-a');
   assert.equal(calls.guardianLinks[0].school_id, 'tenant-a');
   assert.equal(calls.guardianLinks[0].email, 'janet.njeri@example.test');
+  assert.equal(calls.guardianLinks[0].phone, '+254712300401');
+  assert.equal(calls.studentCreates[0].primary_guardian_phone, '+254712300401');
   assert.equal(calls.feeAssignments[0].school_id, 'tenant-a');
   assert.match(calls.feeAssignments[0].invoice_number, /^SF-\d{8}-[0-9A-F]{8}$/);
   assert.deepEqual(calls.parentInvites[0], {
@@ -492,8 +545,30 @@ test('AdmissionsService completes approved application enrolment with guardian, 
   assert.equal(calls.events[0].payload.tenant_id, 'tenant-a');
   assert.equal(calls.schoolOperations[0].schoolId, 'tenant-a');
   assert.equal(calls.schoolOperations[0].event.type, 'admission.application.registered');
+  assert.equal(
+    calls.schoolOperations[0].event.id,
+    'admission-registration-00000000-0000-0000-0000-000000000731',
+  );
   assert.equal(calls.schoolOperations[0].notifications.length, 2);
-  assert.equal(calls.schoolOperations[0].sms[0].phone, '254712300401');
+  assert.equal('sms' in calls.schoolOperations[0], false);
+  assert.deepEqual(calls.smsQueue, [{
+    tenantId: 'tenant-a',
+    userId: '00000000-0000-0000-0000-000000000001',
+    idempotencyKey: 'admission-guardian:00000000-0000-0000-0000-000000000731:00000000-0000-0000-0000-000000000733',
+    recipientPhone: '+254712300401',
+    message: 'Dear parent, Amina Wairimu Njeri has been admitted to Grade 7. Admission Number: ADM-G7-731.',
+  }]);
+  assert.equal(response.notification_delivery.guardian_sms.status, 'queued');
+  assert.equal(response.notification_delivery.guardian_sms.queue_id, 'sms-outbox-731');
+  assert.equal(response.notification_delivery.guardian_sms.recipient_phone_last4, '0401');
+  assert.equal(response.operation_event.status, 'recorded');
+  assert.equal(response.idempotent_replay, false);
+  assert.equal(calls.schoolOperations[0].event.payload.guardian_sms_status, 'queued');
+  assert.equal(calls.schoolOperations[0].event.payload.guardian_sms_queue_id, 'sms-outbox-731');
+  assert.equal(calls.schoolOperations[0].event.payload.guardian_sms_recipient_last4, '0401');
+  assert.equal(calls.agpIntents[0].actionName, 'APPROVED_APPLICATION_REGISTERED');
+  assert.equal(calls.agpIntents[0].requiredCapability, 'admissions:write');
+  assert.equal(calls.agpIntents[0].aggregateId, '00000000-0000-0000-0000-000000000731');
 });
 
 test('AdmissionsService exports applications as a server-side CSV artifact with checksum', async () => {
@@ -1247,7 +1322,7 @@ test('AdmissionsService invites the parent portal user when registration has a p
       invitation_id: '00000000-0000-0000-0000-000000000715',
       display_name: 'Miriam Odhiambo',
       email: 'miriam.parent@example.test',
-      phone: '254712300499',
+      phone: '+254712300499',
       relationship: 'Mother',
     },
   ]);
@@ -2226,6 +2301,8 @@ test('AdmissionsService registration is idempotent for an already registered app
   const requestContext = new RequestContextService();
   let createStudentCalls = 0;
   let inviteParentCalls = 0;
+  let smsQueueCalls = 0;
+  let schoolOperationCalls = 0;
 
   const service = new AdmissionsService(
     requestContext,
@@ -2318,6 +2395,22 @@ test('AdmissionsService registration is idempotent for an already registered app
         throw new Error('parent should not be reinvited');
       },
     } as never,
+    undefined,
+    undefined,
+    {
+      recordSchoolOperation: async () => {
+        schoolOperationCalls += 1;
+        throw new Error('operation event should not be replayed');
+      },
+    } as never,
+    undefined,
+    undefined,
+    {
+      sendSms: async () => {
+        smsQueueCalls += 1;
+        throw new Error('SMS should not be requeued');
+      },
+    } as never,
   );
 
   const response = await requestContext.run(
@@ -2347,8 +2440,14 @@ test('AdmissionsService registration is idempotent for an already registered app
   assert.equal(response.allocation?.stream_name, 'East');
   assert.equal(response.application_status, 'registered');
   assert.equal(response.parent_invitation, null);
+  assert.equal(response.idempotent_replay, true);
+  assert.equal(response.notification_delivery.guardian_sms.status, 'not_requeued');
+  assert.equal(response.notification_delivery.guardian_sms.reason, 'application_already_registered');
+  assert.equal(response.operation_event.status, 'not_replayed');
   assert.equal(createStudentCalls, 0);
   assert.equal(inviteParentCalls, 0);
+  assert.equal(smsQueueCalls, 0);
+  assert.equal(schoolOperationCalls, 0);
 });
 
 test('AdmissionsService stores uploaded document metadata with pending verification', async () => {
