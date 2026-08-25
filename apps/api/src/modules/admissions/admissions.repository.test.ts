@@ -190,6 +190,30 @@ test('AdmissionsSchemaService creates academic enrollment and capacity tables', 
   assert.match(bootstrapSql, /FROM public\.class_sections section/);
   assert.match(bootstrapSql, /FROM academic_class_sections legacy_section/);
   assert.match(bootstrapSql, /CREATE TRIGGER trg_student_academic_enrollments_validate_section/);
+
+  const enrollmentTriggerDrop = bootstrapSql.indexOf(
+    'DROP TRIGGER IF EXISTS trg_student_academic_enrollments_validate_section',
+  );
+  const lifecycleTriggerDrop = bootstrapSql.indexOf(
+    'DROP TRIGGER IF EXISTS trg_student_academic_lifecycle_validate_section',
+  );
+  const legacyTypeNormalizer = bootstrapSql.indexOf(
+    "EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id TYPE text USING tenant_id::text', target_table)",
+  );
+  const enrollmentTriggerCreate = bootstrapSql.indexOf(
+    'CREATE TRIGGER trg_student_academic_enrollments_validate_section',
+  );
+  const lifecycleTriggerCreate = bootstrapSql.indexOf(
+    'CREATE TRIGGER trg_student_academic_lifecycle_validate_section',
+  );
+
+  assert.ok(enrollmentTriggerDrop >= 0);
+  assert.ok(lifecycleTriggerDrop >= 0);
+  assert.ok(legacyTypeNormalizer >= 0);
+  assert.ok(enrollmentTriggerDrop < legacyTypeNormalizer);
+  assert.ok(lifecycleTriggerDrop < legacyTypeNormalizer);
+  assert.ok(legacyTypeNormalizer < enrollmentTriggerCreate);
+  assert.ok(legacyTypeNormalizer < lifecycleTriggerCreate);
 });
 
 test('AdmissionsRepository resolves registration capacity from the canonical tenant class registry', async () => {

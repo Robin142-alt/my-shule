@@ -454,21 +454,15 @@ export class AdmissionsSchemaService implements OnModuleInit {
       END;
       $$ LANGUAGE plpgsql;
 
+      -- PostgreSQL does not allow a column type change while an UPDATE OF
+      -- trigger depends on that column. Drop both validators before the legacy
+      -- tenant/student type normalizer below and restore them after every type
+      -- alteration has completed. The schema bootstrap transaction guarantees
+      -- the existing triggers are restored by rollback if normalization fails.
       DROP TRIGGER IF EXISTS trg_student_academic_enrollments_validate_section
         ON student_academic_enrollments;
-      CREATE TRIGGER trg_student_academic_enrollments_validate_section
-        BEFORE INSERT OR UPDATE OF tenant_id, class_section_id
-        ON student_academic_enrollments
-        FOR EACH ROW
-        EXECUTE FUNCTION validate_admissions_class_section_reference();
-
       DROP TRIGGER IF EXISTS trg_student_academic_lifecycle_validate_section
         ON student_academic_lifecycle_events;
-      CREATE TRIGGER trg_student_academic_lifecycle_validate_section
-        BEFORE INSERT OR UPDATE OF tenant_id, to_class_section_id
-        ON student_academic_lifecycle_events
-        FOR EACH ROW
-        EXECUTE FUNCTION validate_admissions_class_section_reference();
 
       CREATE TABLE IF NOT EXISTS academic_subject_offerings (
         id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -841,6 +835,18 @@ export class AdmissionsSchemaService implements OnModuleInit {
           END IF;
         END IF;
       END $$;
+
+      CREATE TRIGGER trg_student_academic_enrollments_validate_section
+        BEFORE INSERT OR UPDATE OF tenant_id, class_section_id
+        ON student_academic_enrollments
+        FOR EACH ROW
+        EXECUTE FUNCTION validate_admissions_class_section_reference();
+
+      CREATE TRIGGER trg_student_academic_lifecycle_validate_section
+        BEFORE INSERT OR UPDATE OF tenant_id, to_class_section_id
+        ON student_academic_lifecycle_events
+        FOR EACH ROW
+        EXECUTE FUNCTION validate_admissions_class_section_reference();
 
       DO $$
       BEGIN
