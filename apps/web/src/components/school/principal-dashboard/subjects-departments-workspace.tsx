@@ -35,8 +35,8 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalSubjectsData>('/admin-command/principal/subjects');
   const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
   const { data: yearsData } = useSchoolQuery<any[]>('/academics/academic-years');
-  const { data: subjectsData } = useSchoolQuery<any[]>('/academics/subjects');
-  const { data: departmentsData } = useSchoolQuery<any[]>('/academics/departments');
+  const { data: subjectsData, refetch: refetchSubjects } = useSchoolQuery<any[]>('/academics/subjects');
+  const { data: departmentsData, refetch: refetchDepartments } = useSchoolQuery<any[]>('/academics/departments');
   const { data: staffData } = useSchoolQuery<StaffOption[]>('/academics/teachers');
   const { hasPermission } = usePermissions();
 
@@ -72,7 +72,7 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
         }
       });
       setIsSubjectModalOpen(false);
-      refetch();
+      await Promise.all([refetch(), refetchSubjects()]);
     } catch (err: any) {
       setFormError(err.message || "Failed to create subject");
     } finally {
@@ -84,7 +84,7 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
     if (!confirm("Are you sure you want to archive this subject?")) return;
     try {
       await requestPrincipalApi(`/academics/subjects/${id}`, { method: "DELETE" });
-      refetch();
+      await Promise.all([refetch(), refetchSubjects()]);
     } catch (err: any) {
       toast.error(err.message || "Failed to archive subject");
     }
@@ -126,7 +126,7 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
         }
       });
       setIsDepartmentModalOpen(false);
-      refetch();
+      await Promise.all([refetch(), refetchDepartments()]);
     } catch (err: any) {
       setDeptFormError(err.message || "Failed to create department");
     } finally {
@@ -138,7 +138,7 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
     if (!confirm("Are you sure you want to archive this department?")) return;
     try {
       await requestPrincipalApi(`/academics/departments/${id}`, { method: "DELETE" });
-      refetch();
+      await Promise.all([refetch(), refetchDepartments()]);
     } catch (err: any) {
       toast.error(err.message || "Failed to archive department");
     }

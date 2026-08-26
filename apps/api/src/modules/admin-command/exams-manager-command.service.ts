@@ -189,20 +189,20 @@ export class ExamsManagerCommandService {
         SELECT
           $1::uuid,
           $2::uuid,
-          subject.id,
+          subject.id::uuid,
           CONCAT(subject.name, ' Main Paper'),
           $4::numeric,
           100,
           $5::uuid
         FROM subjects subject
         WHERE subject.tenant_id = $1
-          AND subject.id = ANY($3::uuid[])
+          AND subject.id::text = ANY($3::text[])
           AND NOT EXISTS (
             SELECT 1
             FROM exam_assessments existing
             WHERE existing.tenant_id = $1
               AND existing.exam_series_id = $2::uuid
-              AND existing.subject_id = subject.id
+              AND existing.subject_id::text = subject.id
           )
         RETURNING id::text, subject_id::text
       `,
@@ -227,8 +227,8 @@ export class ExamsManagerCommandService {
         SELECT
           $1::uuid,
           $2::uuid,
-          subject.id,
-          section.id,
+          subject.id::uuid,
+          section.id::uuid,
           $5::date,
           ($6::date + INTERVAL '1 day' - INTERVAL '1 second'),
           $7
@@ -236,16 +236,16 @@ export class ExamsManagerCommandService {
         CROSS JOIN class_sections section
         WHERE subject.tenant_id = $1
           AND section.tenant_id = $1
-          AND subject.id = ANY($3::uuid[])
-          AND section.id = ANY($4::uuid[])
+          AND subject.id::text = ANY($3::text[])
+          AND section.id::text = ANY($4::text[])
           AND LOWER(COALESCE(section.status, 'active')) = 'active'
           AND NOT EXISTS (
             SELECT 1
             FROM exam_mark_entry_windows existing
             WHERE existing.tenant_id = $1
               AND existing.exam_series_id = $2::uuid
-              AND existing.subject_id = subject.id
-              AND existing.class_section_id = section.id
+              AND existing.subject_id::text = subject.id
+              AND existing.class_section_id::text = section.id
           )
         RETURNING id::text, subject_id::text, class_section_id::text
       `,

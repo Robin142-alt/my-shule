@@ -5273,11 +5273,22 @@ test('ExamsManagerCommandService persists selected exam subjects and class mark-
     '44444444-4444-4444-8444-444444444444',
     '55555555-5555-4555-8555-555555555555',
   ]);
+  assert.match(writes[1].sql, /subject\.id::uuid/i);
+  assert.match(writes[1].sql, /subject\.id::text\s*=\s*ANY\(\$3::text\[\]\)/i);
+  assert.match(writes[1].sql, /existing\.subject_id::text\s*=\s*subject\.id/i);
+  assert.doesNotMatch(writes[1].sql, /subject\.id\s*=\s*ANY\(\$3::uuid\[\]\)/i);
   assert.match(writes[2].sql, /INSERT INTO exam_mark_entry_windows/i);
   assert.deepEqual(writes[2].params[3], [
     '66666666-6666-4666-8666-666666666666',
     '77777777-7777-4777-8777-777777777777',
   ]);
+  assert.match(writes[2].sql, /subject\.id::uuid/i);
+  assert.match(writes[2].sql, /section\.id::uuid/i);
+  assert.match(writes[2].sql, /subject\.id::text\s*=\s*ANY\(\$3::text\[\]\)/i);
+  assert.match(writes[2].sql, /section\.id::text\s*=\s*ANY\(\$4::text\[\]\)/i);
+  assert.match(writes[2].sql, /existing\.subject_id::text\s*=\s*subject\.id/i);
+  assert.match(writes[2].sql, /existing\.class_section_id::text\s*=\s*section\.id/i);
+  assert.doesNotMatch(writes[2].sql, /(?:subject|section)\.id\s*=\s*ANY\(\$[34]::uuid\[\]\)/i);
   assert.equal(workflowCalls[0].payload.subjectsConfigured, 2);
   assert.equal(workflowCalls[0].payload.markEntryWindowsConfigured, 4);
 });

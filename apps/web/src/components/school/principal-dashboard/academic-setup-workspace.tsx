@@ -24,7 +24,7 @@ export function PrincipalAcademicSetupWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<AcademicSetupData>('/admin-command/principal/academic-setup');
   const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
   const { hasPermission } = usePermissions();
-  const { data: yearsData } = useSchoolQuery<any[]>('/academics/academic-years');
+  const { data: yearsData, refetch: refetchYears } = useSchoolQuery<any[]>('/academics/academic-years');
 
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -50,7 +50,7 @@ export function PrincipalAcademicSetupWorkspace() {
         }
       });
       setIsYearModalOpen(false);
-      refetch();
+      await Promise.all([refetch(), refetchYears()]);
     } catch (err: any) {
       setFormError(err.message || "Failed to create academic year");
     } finally {
@@ -74,7 +74,7 @@ export function PrincipalAcademicSetupWorkspace() {
         }
       });
       setIsTermModalOpen(false);
-      refetch();
+      await Promise.all([refetch(), refetchYears()]);
     } catch (err: any) {
       setFormError(err.message || "Failed to create academic term");
     } finally {
@@ -87,13 +87,13 @@ export function PrincipalAcademicSetupWorkspace() {
     setActionError(null);
     try {
       await requestPrincipalApi(`/academics/years/${id}`, { method: "DELETE" });
-      refetch();
+      await Promise.all([refetch(), refetchYears()]);
     } catch (err: any) {
       setActionError(err.message || "Failed to archive year");
     }
   };
 
-  const { data: gradingData } = useSchoolQuery<any[]>('/academics/grading-systems');
+  const { data: gradingData, refetch: refetchGradingSystems } = useSchoolQuery<any[]>('/academics/grading-systems');
   const { data: attendanceData } = useSchoolQuery<any[]>('/academics/attendance-settings');
   const { data: reportCardData } = useSchoolQuery<any[]>('/academics/report-card-settings');
 
@@ -123,7 +123,7 @@ export function PrincipalAcademicSetupWorkspace() {
         }
       });
       setIsGradingModalOpen(false);
-      refetch();
+      await Promise.all([refetch(), refetchGradingSystems()]);
     } catch (err: any) {
       setGradingFormError(err.message || "Failed to create grading system");
     } finally {
@@ -182,7 +182,7 @@ export function PrincipalAcademicSetupWorkspace() {
     setActionError(null);
     try {
       await requestPrincipalApi(`/academics/grading-systems/${id}`, { method: "DELETE" });
-      refetch();
+      await Promise.all([refetch(), refetchGradingSystems()]);
     } catch (err: any) {
       setActionError(err.message || "Failed to archive grading system");
     }
