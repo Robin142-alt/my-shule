@@ -71,7 +71,12 @@ function toggleSelection(values: string[], value: string) {
 
 export function ExamSetupWorkspace() {
   const { data, isLoading, refetch } = useSchoolQuery<ExamSetupData>("/admin-command/exams-manager/exam-setup");
-  const { data: options, isLoading: optionsLoading, refetch: refetchOptions } = useSchoolQuery<ExamManagerOptions>("/admin-command/exams-manager/options");
+  const {
+    data: options,
+    isLoading: optionsLoading,
+    error: optionsError,
+    refetch: refetchOptions,
+  } = useSchoolQuery<ExamManagerOptions>("/admin-command/exams-manager/options");
   const [isCreating, setIsCreating] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [configuringExam, setConfiguringExam] = useState<ExamConfig | null>(null);
@@ -214,7 +219,7 @@ export function ExamSetupWorkspace() {
     }
   };
 
-  const setupWarning = !optionsLoading && !setupReady ? (
+  const setupWarning = !optionsLoading && !optionsError && !setupReady ? (
     <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
       Exam setup needs school data first:
       {!hasTerms ? " add an academic term;" : ""}
@@ -380,12 +385,25 @@ export function ExamSetupWorkspace() {
       description="Configure exam cycles, terms, subjects, classes, max marks, grading policy, and mark-entry readiness."
       icon={ClipboardList}
       actions={
-        <button type="button" onClick={openCreateForm} disabled={isCreating || optionsLoading} className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white transition hover:bg-blue-900 disabled:opacity-50">
+        <button type="button" onClick={openCreateForm} disabled={isCreating || optionsLoading || Boolean(optionsError)} className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white transition hover:bg-blue-900 disabled:opacity-50">
           <Plus className="w-4 h-4" /> New Exam
         </button>
       }
     >
       {setupWarning}
+
+      {optionsError ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">
+          <span>School setup options could not be loaded. Your saved configuration has not been removed.</span>
+          <button
+            type="button"
+            onClick={() => void refetchOptions()}
+            className="rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-black text-rose-800 hover:bg-rose-100"
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
 
       <div className="mb-6 grid gap-4 md:grid-cols-4">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">

@@ -318,7 +318,7 @@ export class ExamsManagerCommandService {
           SELECT
             id::text,
             user_id::text,
-            COALESCE(full_name, preferred_name, staff_number, email, id::text) AS label,
+            COALESCE(NULLIF(display_name, ''), staff_number, user_id::text, id::text) AS label,
             staff_number,
             COALESCE(status, 'active') AS status
           FROM staff_profiles

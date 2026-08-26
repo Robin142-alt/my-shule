@@ -88,6 +88,9 @@ describe("exams manager human workflow contracts", () => {
     expect(backendSource).toMatch(/WHERE tenant_id = \$1/);
     expect(activeSetupSource).toMatch(/gradingSystems/);
     expect(activeSetupSource).toMatch(/No grading systems configured/);
+    expect(activeSetupSource).toMatch(/error:\s*optionsError/);
+    expect(activeSetupSource).toMatch(/School setup options could not be loaded/);
+    expect(activeSetupSource).toMatch(/refetchOptions\(\)/);
     expect(activeSetupSource).toMatch(/gradingSystemOptions\.map/);
     expect(activeSetupSource).not.toMatch(/const gradingOptions/);
   });

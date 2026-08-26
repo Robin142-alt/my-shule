@@ -5055,6 +5055,34 @@ test('ExamsManagerCommandService returns clean exam setup and marks entry for a 
   assert.equal(reads.every((read) => /tenant_id = \$1/.test(read.sql)), true);
 });
 
+test('ExamsManagerCommandService loads exam setup options from the canonical staff profile contract', async () => {
+  const reads: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new ExamsManagerCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {} as never,
+    {
+      readSql: async (sql: string, params: unknown[]) => {
+        reads.push({ sql, params });
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+  );
+
+  const options = await service.getExamSetupOptions();
+  const staffRead = reads.find((read) => /FROM staff_profiles/i.test(read.sql));
+
+  assert.deepEqual(options.subjects, []);
+  assert.deepEqual(options.classes, []);
+  assert.deepEqual(options.gradingSystems, []);
+  assert.equal(reads.length, 7);
+  assert.equal(reads.every((read) => read.params[0] === 'tenant-a'), true);
+  assert.ok(staffRead);
+  assert.match(staffRead.sql, /NULLIF\(display_name, ''\)/i);
+  assert.doesNotMatch(staffRead.sql, /\bfull_name\b|\bpreferred_name\b|\bemail\b/i);
+});
+
 test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped exam series', async () => {
   const writes: Array<{ sql: string; params: unknown[] }> = [];
   const workflowCalls: any[] = [];
