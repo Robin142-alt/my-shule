@@ -5072,6 +5072,7 @@ test('ExamsManagerCommandService loads exam setup options from the canonical sta
 
   const options = await service.getExamSetupOptions();
   const staffRead = reads.find((read) => /FROM staff_profiles/i.test(read.sql));
+  const assessmentRead = reads.find((read) => /FROM exam_assessments assessment/i.test(read.sql));
 
   assert.deepEqual(options.subjects, []);
   assert.deepEqual(options.classes, []);
@@ -5081,6 +5082,56 @@ test('ExamsManagerCommandService loads exam setup options from the canonical sta
   assert.ok(staffRead);
   assert.match(staffRead.sql, /NULLIF\(display_name, ''\)/i);
   assert.doesNotMatch(staffRead.sql, /\bfull_name\b|\bpreferred_name\b|\bemail\b/i);
+  assert.ok(assessmentRead);
+  assert.deepEqual(assessmentRead.params, ['tenant-a']);
+  assert.match(assessmentRead.sql, /subject\.id::text\s*=\s*assessment\.subject_id::text/i);
+  assert.match(assessmentRead.sql, /WHERE assessment\.tenant_id = \$1/i);
+  assert.doesNotMatch(assessmentRead.sql, /subject\.id\s*=\s*assessment\.subject_id/i);
+});
+
+test('ExamsManagerCommandService reads timetable with canonical staff fields and schema-compatible joins', async () => {
+  const reads: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new ExamsManagerCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {} as never,
+    {
+      readSql: async (sql: string, params: unknown[]) => {
+        reads.push({ sql, params });
+        return {
+          rows: [{
+            id: 'slot-1',
+            exam_name: 'Term 1 Opener',
+            subject: 'Mathematics',
+            class_name: 'All assigned learners',
+            date: '2026-01-12',
+            start_time: '08:00:00',
+            end_time: '10:00:00',
+            venue: 'Room 1',
+            invigilator: 'Amina Otieno',
+            status: 'Scheduled',
+          }],
+          rowCount: 1,
+        };
+      },
+    } as never,
+  );
+
+  const timetable = await service.getExamTimetable();
+
+  assert.equal(timetable.metrics.total_slots, 1);
+  assert.equal(timetable.metrics.scheduled, 1);
+  assert.equal(reads.length, 1);
+  assert.deepEqual(reads[0].params, ['tenant-a']);
+  assert.match(reads[0].sql, /staff\.display_name/i);
+  assert.match(reads[0].sql, /staff\.staff_number/i);
+  assert.doesNotMatch(reads[0].sql, /\bstaff\.(?:full_name|preferred_name|email)\b/i);
+  assert.match(reads[0].sql, /series\.id::text\s*=\s*slot\.exam_series_id::text/i);
+  assert.match(reads[0].sql, /assessment\.id::text\s*=\s*slot\.assessment_id::text/i);
+  assert.match(reads[0].sql, /invigilator\.timetable_slot_id::text\s*=\s*slot\.id::text/i);
+  assert.match(reads[0].sql, /staff\.user_id::text\s*=\s*invigilator\.staff_user_id::text/i);
+  assert.match(reads[0].sql, /WHERE slot\.tenant_id = \$1/i);
 });
 
 test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped exam series', async () => {

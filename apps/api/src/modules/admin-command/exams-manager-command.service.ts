@@ -354,7 +354,7 @@ export class ExamsManagerCommandService {
           FROM exam_assessments assessment
           LEFT JOIN subjects subject
             ON subject.tenant_id = assessment.tenant_id
-           AND subject.id = assessment.subject_id
+           AND subject.id::text = assessment.subject_id::text
           WHERE assessment.tenant_id = $1
           ORDER BY label ASC
           LIMIT 300
@@ -687,7 +687,7 @@ export class ExamsManagerCommandService {
           COALESCE(
             NULLIF(
               STRING_AGG(
-                DISTINCT COALESCE(staff.full_name, staff.preferred_name, staff.staff_number, staff.email, invigilator.staff_user_id::text),
+                DISTINCT COALESCE(NULLIF(staff.display_name, ''), staff.staff_number, invigilator.staff_user_id::text),
                 ', '
               ) FILTER (WHERE invigilator.id IS NOT NULL),
               ''
@@ -698,17 +698,17 @@ export class ExamsManagerCommandService {
         FROM exam_timetable_slots slot
         LEFT JOIN exam_series series
           ON series.tenant_id = slot.tenant_id
-         AND series.id = slot.exam_series_id
+         AND series.id::text = slot.exam_series_id::text
         LEFT JOIN exam_assessments assessment
           ON assessment.tenant_id = slot.tenant_id
-         AND assessment.id = slot.assessment_id
+         AND assessment.id::text = slot.assessment_id::text
         LEFT JOIN exam_invigilators invigilator
           ON invigilator.tenant_id = slot.tenant_id
-         AND invigilator.timetable_slot_id = slot.id
+         AND invigilator.timetable_slot_id::text = slot.id::text
          AND LOWER(COALESCE(invigilator.status, 'assigned')) = 'assigned'
         LEFT JOIN staff_profiles staff
           ON staff.tenant_id = slot.tenant_id
-         AND staff.user_id = invigilator.staff_user_id
+         AND staff.user_id::text = invigilator.staff_user_id::text
         WHERE slot.tenant_id = $1
         GROUP BY slot.id, series.name, assessment.name, slot.assessment_id, slot.date, slot.start_time, slot.end_time, slot.room_name, slot.status
         ORDER BY slot.date ASC, slot.start_time ASC
