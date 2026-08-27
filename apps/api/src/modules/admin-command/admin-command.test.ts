@@ -5184,6 +5184,8 @@ test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped e
     starts_on: '2026-01-12',
     ends_on: '2026-01-16',
     status: 'scheduled',
+    subject_ids: ['44444444-4444-4444-8444-444444444444'],
+    class_section_ids: ['55555555-5555-4555-8555-555555555555'],
   });
 
   assert.equal(result.success, true);
@@ -5204,6 +5206,40 @@ test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped e
   assert.equal(schoolEventCalls[0].event.type, 'exam.series_created');
   assert.equal(schoolEventCalls[0].event.entityId, '22222222-2222-4222-8222-222222222222');
   assert.deepEqual(schoolEventCalls[0].notifications[0].audienceRoles, ['principal', 'dean_academics', 'hod', 'teacher']);
+});
+
+test('ExamsManagerCommandService rejects unscoped exam setup before persistence', async () => {
+  let writeCount = 0;
+  const service = new ExamsManagerCommandService(
+    {
+      getStore: () => ({ tenant_id: 'kibabi-high', user_id: '11111111-1111-4111-8111-111111111111' }),
+    } as never,
+    {} as never,
+    {
+      writeSql: async () => {
+        writeCount += 1;
+        return { rows: [], rowCount: 0 };
+      },
+      readSql: async () => ({ rows: [], rowCount: 0 }),
+      recordWorkflowAction: async () => ({ id: 'workflow-1' }),
+      requiredText: (value: unknown, label: string) => {
+        const text = String(value ?? '').trim();
+        if (!text) throw new Error(`${label} is required`);
+        return text;
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    service.createExamSetup({
+      name: 'Unscoped exam',
+      starts_on: '2026-01-12',
+      ends_on: '2026-01-16',
+      status: 'draft',
+    }),
+    /Choose at least one subject and one class/i,
+  );
+  assert.equal(writeCount, 0);
 });
 
 test('ExamsManagerCommandService persists selected exam subjects and class mark-entry windows', async () => {
@@ -5478,6 +5514,8 @@ test('ExamsManagerCommandService configures an existing exam setup inside the cu
     starts_on: '2026-02-02',
     ends_on: '2026-02-06',
     status: 'submitted',
+    subject_ids: ['44444444-4444-4444-8444-444444444444'],
+    class_section_ids: ['55555555-5555-4555-8555-555555555555'],
   });
 
   assert.equal(result.success, true);

@@ -204,6 +204,20 @@ export class ExamsManagerCommandService {
     return unique;
   }
 
+  private requireExamScopeSelection(dto: any) {
+    const subjectIds = this.uniqueUuidArray(dto?.subject_ids ?? dto?.subjectIds, 'Subjects');
+    const classSectionIds = this.uniqueUuidArray(
+      dto?.class_section_ids ?? dto?.classSectionIds ?? dto?.class_ids ?? dto?.classIds,
+      'Classes',
+    );
+    if (subjectIds.length === 0 || classSectionIds.length === 0) {
+      throw new BadRequestException(
+        'Choose at least one subject and one class before creating or configuring an exam cycle.',
+      );
+    }
+    return { subjectIds, classSectionIds };
+  }
+
   private positiveNumber(value: unknown, fallback: number, label: string) {
     const numberValue = Number(value ?? fallback);
     if (!Number.isFinite(numberValue) || numberValue <= 0) {
@@ -219,14 +233,7 @@ export class ExamsManagerCommandService {
     startsOn: string,
     endsOn: string,
   ) {
-    const subjectIds = this.uniqueUuidArray(dto?.subject_ids ?? dto?.subjectIds, 'Subjects');
-    const classSectionIds = this.uniqueUuidArray(dto?.class_section_ids ?? dto?.classSectionIds ?? dto?.class_ids ?? dto?.classIds, 'Classes');
-    if (subjectIds.length === 0 && classSectionIds.length === 0) {
-      return { subjectsConfigured: 0, markEntryWindowsConfigured: 0 };
-    }
-    if (subjectIds.length === 0 || classSectionIds.length === 0) {
-      throw new BadRequestException('Choose both subjects and classes before configuring exam mark-entry readiness.');
-    }
+    const { subjectIds, classSectionIds } = this.requireExamScopeSelection(dto);
 
     const actorUserId = this.actorUserId();
     if (!actorUserId) {
@@ -585,6 +592,7 @@ export class ExamsManagerCommandService {
     if (new Date(endsOn) < new Date(startsOn)) {
       throw new BadRequestException('End date cannot be before start date');
     }
+    this.requireExamScopeSelection(dto);
 
     const columns = await this.examSeriesColumns();
     const supportsAcademicTerm = columns.has('academic_term_id');
@@ -680,6 +688,7 @@ export class ExamsManagerCommandService {
     if (new Date(endsOn) < new Date(startsOn)) {
       throw new BadRequestException('End date cannot be before start date');
     }
+    this.requireExamScopeSelection(dto);
 
     const updated = await this.operations.writeSql<{
       id: string;

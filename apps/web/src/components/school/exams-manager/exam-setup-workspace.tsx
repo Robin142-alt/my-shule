@@ -144,10 +144,14 @@ export function ExamSetupWorkspace() {
     if (!form.starts_on || !form.ends_on) return "Start and end dates are required.";
     if (new Date(form.ends_on) < new Date(form.starts_on)) return "End date cannot be before start date.";
     if (!Number.isFinite(maxMarks) || maxMarks <= 0) return "Max marks must be a positive number.";
-    if (hasTerms && !form.academic_term_id) return "Choose the academic term for this exam.";
-    if (hasGradingSystems && !form.grading_system) return "Choose the school grading system for this exam.";
-    if (hasSubjects && form.subject_ids.length === 0) return "Choose at least one subject for this exam.";
-    if (hasClasses && form.class_section_ids.length === 0) return "Choose at least one class for this exam.";
+    if (!hasTerms) return "The Principal must configure an academic term before an exam can be created.";
+    if (!hasGradingSystems) return "The Principal must configure a grading system before an exam can be created.";
+    if (!hasSubjects) return "The Principal must add subjects in Subjects & Departments before an exam can be created.";
+    if (!hasClasses) return "The Principal must add classes and streams before an exam can be created.";
+    if (!form.academic_term_id) return "Choose the academic term for this exam.";
+    if (!form.grading_system) return "Choose the school grading system for this exam.";
+    if (form.subject_ids.length === 0) return "Choose at least one subject for this exam.";
+    if (form.class_section_ids.length === 0) return "Choose at least one class for this exam.";
     return null;
   };
 
@@ -385,7 +389,7 @@ export function ExamSetupWorkspace() {
       description="Configure exam cycles, terms, subjects, classes, max marks, grading policy, and mark-entry readiness."
       icon={ClipboardList}
       actions={
-        <button type="button" onClick={openCreateForm} disabled={isCreating || optionsLoading || Boolean(optionsError)} className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white transition hover:bg-blue-900 disabled:opacity-50">
+        <button type="button" onClick={openCreateForm} disabled={isCreating || optionsLoading || Boolean(optionsError) || !setupReady} title={!setupReady ? "Complete term, subject, class, and grading setup first" : undefined} className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white transition hover:bg-blue-900 disabled:opacity-50">
           <Plus className="w-4 h-4" /> New Exam
         </button>
       }
@@ -456,7 +460,9 @@ export function ExamSetupWorkspace() {
                     <button
                       type="button"
                       onClick={openCreateForm}
-                      className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-xs font-black text-white hover:bg-blue-900"
+                      disabled={!setupReady || optionsLoading || Boolean(optionsError)}
+                      title={!setupReady ? "Complete term, subject, class, and grading setup first" : undefined}
+                      className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-xs font-black text-white hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Plus className="h-4 w-4" />
                       Create first exam cycle
