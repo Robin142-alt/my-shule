@@ -16,6 +16,7 @@ test('notification recipient predicate never broadens an exact guardian notice t
   assert.match(predicate, /notification\.recipient_guardian_id IS NOT NULL/);
   assert.match(predicate, /FROM student_guardians recipient_guardian/);
   assert.match(predicate, /recipient_guardian\.tenant_id = notification\.tenant_id/);
+  assert.match(predicate, /recipient_guardian\.id::text = notification\.recipient_guardian_id::text/);
   assert.match(predicate, /recipient_guardian\.user_id::text = \$2::text/);
   assert.match(predicate, /recipient_guardian\.status = 'active'/);
   assert.match(predicate, /notification\.recipient_guardian_id IS NULL\s+AND \(/);
@@ -405,7 +406,9 @@ test('NotificationsService isolates two tenants and authorizes user or active-ro
   assert.match(readSql, /recipient_user_id/);
   assert.match(readSql, /target_user_id/);
   assert.match(readSql, /recipient_role/);
+  assert.match(readSql, /recipient_guardian\.id::text = notification\.recipient_guardian_id::text/);
   assert.match(mutationSql, /notification\.tenant_id = \$1/);
   assert.match(mutationSql, /recipient_user_id/);
   assert.match(mutationSql, /recipient_role/);
+  assert.match(mutationSql, /recipient_guardian\.id::text = notification\.recipient_guardian_id::text/);
 });

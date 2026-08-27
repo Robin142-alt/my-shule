@@ -38,7 +38,7 @@ export function notificationRecipientPredicate(
         SELECT 1
         FROM student_guardians recipient_guardian
         WHERE recipient_guardian.tenant_id = ${alias}.tenant_id
-          AND recipient_guardian.id = ${alias}.recipient_guardian_id
+          AND recipient_guardian.id::text = ${alias}.recipient_guardian_id::text
           AND recipient_guardian.user_id::text = ${userParameter}::text
           AND recipient_guardian.status = 'active'
       )

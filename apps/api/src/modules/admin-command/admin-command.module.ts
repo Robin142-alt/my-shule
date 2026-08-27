@@ -53,10 +53,11 @@ import { ParentCommandService } from './parent-command.service';
 import { AccountantCommandController } from './accountant-command.controller';
 import { AccountantCommandService } from './accountant-command.service';
 import { ExamsModule } from '../exams/exams.module';
+import { EventsModule } from '../events/events.module';
 import { WorkflowModule } from '../workflow/workflow.module';
 
 @Module({
-  imports: [ExamsModule, WorkflowModule],
+  imports: [EventsModule, ExamsModule, WorkflowModule],
   controllers: [
     AdminCommandController,
     DeputyCommandController,

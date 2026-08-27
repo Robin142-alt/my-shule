@@ -206,9 +206,10 @@ test('ExamsRepository creates a series only from an active same-tenant term whos
     '22222222-2222-4222-8222-222222222222',
   ]);
   assert.match(calls[0].sql, /INSERT INTO exam_series/);
-  assert.match(calls[0].sql, /SELECT \$1, term\.id/);
+  assert.match(calls[0].sql, /SELECT \$1, term\.id::uuid/);
   assert.match(calls[0].sql, /term\.tenant_id::text = \$1::text/);
-  assert.match(calls[0].sql, /term\.id = \$2::uuid/);
+  assert.match(calls[0].sql, /term\.id::text = \$2::text/);
+  assert.doesNotMatch(calls[0].sql, /term\.id = \$2::uuid/);
   assert.match(calls[0].sql, /lower\(COALESCE\(term\.status, 'active'\)\) = 'active'/);
   assert.match(calls[0].sql, /term\.archived_at IS NULL/);
   assert.match(calls[0].sql, /\$4::date >= term\.starts_on/);
@@ -3373,7 +3374,7 @@ query: async (text: string, values: unknown[]) => {
   );
   assert.match(
     reportCardsQuery,
-    /term\.tenant_id = series\.tenant_id[\s\S]*term\.id = series\.academic_term_id/,
+    /term\.tenant_id = series\.tenant_id[\s\S]*term\.id::text = series\.academic_term_id::text/,
   );
   assert.match(
     reportCardsQuery,
@@ -3535,6 +3536,7 @@ query: async (text: string, values: unknown[]) => {
   assert.match(sql, /INNER JOIN student_guardians guardian/);
   assert.match(sql, /guardian\.user_id = \$2::uuid/);
   assert.match(sql, /guardian\.status = 'active'/);
+  assert.match(sql, /term\.id::text = series\.academic_term_id::text/);
   assert.match(sql, /card\.status = 'published'/);
   assert.match(sql, /card\.tenant_id = \$1/);
   assert.deepEqual(queries[0]?.values, [
@@ -3574,6 +3576,7 @@ query: async (text: string, values: unknown[]) => {
   assert.match(sql, /INNER JOIN students student/);
   assert.match(sql, /card\.student_id = \$2::uuid/);
   assert.match(sql, /card\.status = 'published'/);
+  assert.match(sql, /term\.id::text = series\.academic_term_id::text/);
   assert.match(sql, /card\.tenant_id = \$1/);
   assert.deepEqual(queries[0]?.values, [
     'tenant-a',

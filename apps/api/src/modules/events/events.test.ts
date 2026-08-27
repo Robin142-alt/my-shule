@@ -1047,6 +1047,7 @@ query: async (sql: string, values: unknown[] = []) => {
   assert.match(queries[0].sql, /notification_key LIKE 'school-operation:%'/);
   assert.match(queries[0].sql, /recipient_user_id::text/);
   assert.match(queries[0].sql, /metadata->>'targetUserId'/);
+  assert.match(queries[0].sql, /recipient_guardian\.id::text = notification\.recipient_guardian_id::text/);
   assert.match(queries[0].sql, /IS NULL/);
   assert.match(queries[0].sql, /target_roles/);
   assert.match(queries[0].sql, /audienceRoles/);

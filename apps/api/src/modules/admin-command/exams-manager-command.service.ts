@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import { ExamsService } from '../exams/exams.service';
+import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
 
 type SqlResult<T> = { rows: T[]; rowCount: number };
@@ -13,7 +14,71 @@ export class ExamsManagerCommandService {
     private readonly prisma: PrismaService,
     private readonly operations: AdminCommandOperationsService,
     private readonly examsService?: ExamsService,
+    @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
   ) {}
+
+  private async emitExamSetupOperation(input: {
+    operation: 'created' | 'configured';
+    exam: Record<string, unknown>;
+    name: string;
+    startsOn: string;
+    endsOn: string;
+    status: string;
+    scope: Record<string, unknown>;
+  }) {
+    if (!this.schoolEvents) {
+      return;
+    }
+
+    const examSeriesId = String(input.exam.id ?? '').trim();
+    if (!examSeriesId) {
+      throw new BadRequestException('Exam event requires a persisted exam cycle.');
+    }
+
+    const targetRoles = ['principal', 'dean_academics', 'hod', 'teacher'];
+    const timestamp = String(
+      input.exam.updated_at
+      ?? input.exam.created_at
+      ?? new Date().toISOString(),
+    );
+    const actionLabel = input.operation === 'created' ? 'created' : 'configured';
+    const title = input.operation === 'created' ? 'Exam Cycle Created' : 'Exam Cycle Configured';
+    const body = `${input.name} was ${actionLabel} for ${input.startsOn} to ${input.endsOn}.`;
+
+    await this.schoolEvents.recordSchoolOperation({
+      event: {
+        id: `exam-series-${input.operation}-${examSeriesId}-${timestamp}`,
+        type: `exam.series_${input.operation}`,
+        module: 'exams',
+        actorRole: 'exams_manager',
+        title,
+        body,
+        entityId: examSeriesId,
+        severity: 'info',
+        createdAt: timestamp,
+        payload: {
+          exam_series_id: examSeriesId,
+          name: input.name,
+          starts_on: input.startsOn,
+          ends_on: input.endsOn,
+          status: input.status,
+          ...input.scope,
+        },
+      },
+      notifications: [{
+        id: `exam-series-${input.operation}-${examSeriesId}-${timestamp}`,
+        audienceRoles: targetRoles,
+        title,
+        body,
+        sourceModule: 'exams',
+        relatedModule: 'exams',
+        relatedRecordId: examSeriesId,
+        priority: input.status === 'submitted' ? 'high' : 'normal',
+        read: false,
+        createdAt: timestamp,
+      }],
+    });
+  }
 
   private requireTenantId(): string {
     const tenantId = this.requestContext.getStore()?.tenant_id;
@@ -170,7 +235,7 @@ export class ExamsManagerCommandService {
 
     const maxMarks = this.positiveNumber(dto?.max_marks ?? dto?.maxMarks, 100, 'Max marks');
     const status = this.normalizeStatus(dto?.status);
-    const windowStatus = status === 'submitted' ? 'open' : 'draft';
+    const windowStatus = status === 'submitted' ? 'open' : 'closed';
 
     const assessments = await this.operations.writeSql<{
       id: string;
@@ -187,7 +252,7 @@ export class ExamsManagerCommandService {
           created_by_user_id
         )
         SELECT
-          $1::uuid,
+          $1,
           $2::uuid,
           subject.id::uuid,
           CONCAT(subject.name, ' Main Paper'),
@@ -197,13 +262,10 @@ export class ExamsManagerCommandService {
         FROM subjects subject
         WHERE subject.tenant_id = $1
           AND subject.id::text = ANY($3::text[])
-          AND NOT EXISTS (
-            SELECT 1
-            FROM exam_assessments existing
-            WHERE existing.tenant_id = $1
-              AND existing.exam_series_id = $2::uuid
-              AND existing.subject_id::text = subject.id
-          )
+        ON CONFLICT (tenant_id, exam_series_id, subject_id, name) DO UPDATE
+        SET max_score = EXCLUDED.max_score,
+            weight = EXCLUDED.weight,
+            updated_at = NOW()
         RETURNING id::text, subject_id::text
       `,
       [tenantId, examSeriesId, subjectIds, maxMarks, actorUserId],
@@ -225,7 +287,7 @@ export class ExamsManagerCommandService {
           status
         )
         SELECT
-          $1::uuid,
+          $1,
           $2::uuid,
           subject.id::uuid,
           section.id::uuid,
@@ -239,21 +301,18 @@ export class ExamsManagerCommandService {
           AND subject.id::text = ANY($3::text[])
           AND section.id::text = ANY($4::text[])
           AND LOWER(COALESCE(section.status, 'active')) = 'active'
-          AND NOT EXISTS (
-            SELECT 1
-            FROM exam_mark_entry_windows existing
-            WHERE existing.tenant_id = $1
-              AND existing.exam_series_id = $2::uuid
-              AND existing.subject_id::text = subject.id
-              AND existing.class_section_id::text = section.id
-          )
+        ON CONFLICT (tenant_id, exam_series_id, subject_id, class_section_id) DO UPDATE
+        SET opens_at = EXCLUDED.opens_at,
+            closes_at = EXCLUDED.closes_at,
+            status = EXCLUDED.status,
+            updated_at = NOW()
         RETURNING id::text, subject_id::text, class_section_id::text
       `,
       [tenantId, examSeriesId, subjectIds, classSectionIds, startsOn, endsOn, windowStatus],
     );
 
     return {
-      subjectsConfigured: subjectIds.length,
+      subjectsConfigured: assessments.rowCount,
       markEntryWindowsConfigured: windows.rowCount,
       assessmentsInserted: assessments.rowCount,
     };
@@ -531,7 +590,7 @@ export class ExamsManagerCommandService {
     const supportsAcademicTerm = columns.has('academic_term_id');
     const supportsCreatedBy = columns.has('created_by_user_id');
     const insertColumns = ['tenant_id', 'name', 'starts_on', 'ends_on', 'status'];
-    const placeholders = ['$1::uuid', '$2', '$3::date', '$4::date', '$5'];
+    const placeholders = ['$1', '$2', '$3::date', '$4::date', '$5'];
     const params: any[] = [tenantId, name, startsOn, endsOn, status];
 
     if (supportsAcademicTerm) {
@@ -574,6 +633,9 @@ export class ExamsManagerCommandService {
     );
 
     const exam = created.rows[0];
+    if (!exam) {
+      throw new BadRequestException('The exam cycle could not be created for this school.');
+    }
     const scope = exam?.id
       ? await this.syncExamScope(tenantId, exam.id, dto, startsOn, endsOn)
       : { subjectsConfigured: 0, markEntryWindowsConfigured: 0 };
@@ -581,14 +643,23 @@ export class ExamsManagerCommandService {
       tenantId,
       actorUserId: this.actorUserId(),
       sourceRole: 'exams_manager',
-      targetRoles: ['principal', 'dean_academics', 'teacher'],
+      targetRoles: ['principal', 'dean_academics', 'hod', 'teacher'],
       eventType: 'exams.exam-setup.created',
       entityType: 'exam_series',
       entityId: exam?.id ?? null,
       title: 'Exams: Exam Setup Created',
       message: `${name} created for ${startsOn} to ${endsOn}`,
       priority: 'normal',
-      payload: { name, starts_on: startsOn, ends_on: endsOn, status, ...scope },
+      payload: { exam_series_id: exam.id, name, starts_on: startsOn, ends_on: endsOn, status, ...scope },
+    });
+    await this.emitExamSetupOperation({
+      operation: 'created',
+      exam,
+      name,
+      startsOn,
+      endsOn,
+      status,
+      scope,
     });
 
     return {
@@ -650,6 +721,15 @@ export class ExamsManagerCommandService {
       message: `${name} configured for ${startsOn} to ${endsOn}`,
       priority: 'normal',
       payload: { name, starts_on: startsOn, ends_on: endsOn, status, ...scope },
+    });
+    await this.emitExamSetupOperation({
+      operation: 'configured',
+      exam,
+      name,
+      startsOn,
+      endsOn,
+      status,
+      scope,
     });
 
     return {
@@ -846,27 +926,104 @@ export class ExamsManagerCommandService {
     }>(
       `
         SELECT
-          MIN(mark.id)::text AS id,
-          COALESCE(series.name, 'Unlinked exam') AS exam_name,
-          mark.subject_id::text AS subject,
-          mark.class_section_id::text AS class_name,
-          'Assigned teacher' AS teacher,
-          COUNT(DISTINCT mark.student_id)::int AS total_students,
-          COUNT(mark.id)::int AS entered,
-          COUNT(mark.id) FILTER (WHERE LOWER(COALESCE(mark.status, 'draft')) IN ('draft', 'pending', 'overdue'))::int AS missing,
+          mark_window.id::text AS id,
+          series.name AS exam_name,
+          COALESCE(subject.name, mark_window.subject_id::text) AS subject,
+          COALESCE(class_section.name, mark_window.class_section_id::text) AS class_name,
+          COALESCE(teacher_assignments.teacher_names, 'Unassigned') AS teacher,
+          COALESCE(student_counts.expected_count, 0)::int AS total_students,
+          COUNT(DISTINCT mark.student_id) FILTER (
+            WHERE COALESCE(mark.score_status, CASE WHEN mark.score IS NOT NULL THEN 'entered' END) = 'entered'
+          )::int AS entered,
+          GREATEST(
+            COALESCE(student_counts.expected_count, 0)
+            - COUNT(DISTINCT mark.student_id) FILTER (
+                WHERE COALESCE(mark.score_status, CASE WHEN mark.score IS NOT NULL THEN 'entered' END) = 'entered'
+              ),
+            0
+          )::int AS missing,
           CASE
-            WHEN BOOL_AND(LOWER(COALESCE(mark.status, '')) = 'locked') THEN 'Locked'
-            WHEN COUNT(mark.id) FILTER (WHERE LOWER(COALESCE(mark.status, 'draft')) IN ('draft', 'pending', 'overdue')) > 0 THEN 'Pending'
-            ELSE 'Completed'
+            WHEN LOWER(COALESCE(series.status, 'draft')) = 'draft' THEN 'Draft'
+            WHEN mark_window.status = 'closed' THEN 'Locked'
+            WHEN mark_window.closes_at < NOW() THEN 'Overdue'
+            WHEN COALESCE(student_counts.expected_count, 0) > 0
+             AND COUNT(DISTINCT mark.student_id) FILTER (
+                   WHERE mark.status IN ('submitted', 'reviewed', 'locked', 'published')
+                     AND COALESCE(mark.score_status, CASE WHEN mark.score IS NOT NULL THEN 'entered' END) = 'entered'
+                 ) >= COALESCE(student_counts.expected_count, 0) THEN 'Completed'
+            WHEN COUNT(DISTINCT mark.student_id) FILTER (
+                   WHERE COALESCE(mark.score_status, CASE WHEN mark.score IS NOT NULL THEN 'entered' END) = 'entered'
+                 ) > 0 THEN 'In_progress'
+            ELSE 'Pending'
           END AS status,
-          COALESCE(series.ends_on::text, '') AS deadline
-        FROM exam_marks mark
-        LEFT JOIN exam_series series
-          ON series.tenant_id = mark.tenant_id
-         AND series.id = mark.exam_series_id
-        WHERE mark.tenant_id = $1
-        GROUP BY series.name, series.ends_on, mark.exam_series_id, mark.subject_id, mark.class_section_id
-        ORDER BY COALESCE(series.ends_on, NOW()::date) DESC
+          mark_window.closes_at::text AS deadline
+        FROM exam_mark_entry_windows mark_window
+        JOIN exam_series series
+          ON series.tenant_id = mark_window.tenant_id
+         AND series.id = mark_window.exam_series_id
+        LEFT JOIN subjects subject
+          ON subject.tenant_id = mark_window.tenant_id
+         AND subject.id::text = mark_window.subject_id::text
+        LEFT JOIN class_sections class_section
+          ON class_section.tenant_id = mark_window.tenant_id
+         AND class_section.id::text = mark_window.class_section_id::text
+        LEFT JOIN LATERAL (
+          SELECT COUNT(*)::int AS expected_count
+          FROM students student
+          WHERE student.tenant_id = mark_window.tenant_id
+            AND student.status = 'active'
+            AND EXISTS (
+              SELECT 1
+              FROM student_class_assignments class_assignment
+              WHERE class_assignment.tenant_id = student.tenant_id
+                AND class_assignment.student_id = student.id::text
+                AND class_assignment.class_section_id = mark_window.class_section_id::text
+                AND class_assignment.status = 'active'
+            )
+            AND EXISTS (
+              SELECT 1
+              FROM student_subject_enrollments subject_enrollment
+              WHERE subject_enrollment.tenant_id = student.tenant_id
+                AND subject_enrollment.student_id = student.id::text
+                AND subject_enrollment.class_section_id = mark_window.class_section_id::text
+                AND subject_enrollment.subject_id = mark_window.subject_id::text
+                AND subject_enrollment.status = 'active'
+            )
+        ) student_counts ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT STRING_AGG(
+            DISTINCT COALESCE(NULLIF(staff.display_name, ''), staff.staff_number, assignment.teacher_user_id::text),
+            ', '
+          ) AS teacher_names
+          FROM teacher_subject_assignments assignment
+          LEFT JOIN staff_profiles staff
+            ON staff.tenant_id = assignment.tenant_id
+           AND staff.user_id::text = assignment.teacher_user_id::text
+          WHERE assignment.tenant_id = mark_window.tenant_id
+            AND assignment.academic_term_id = series.academic_term_id::text
+            AND assignment.class_section_id = mark_window.class_section_id::text
+            AND assignment.subject_id = mark_window.subject_id::text
+            AND assignment.status = 'active'
+        ) teacher_assignments ON TRUE
+        LEFT JOIN exam_marks mark
+          ON mark.tenant_id = mark_window.tenant_id
+         AND mark.exam_series_id = mark_window.exam_series_id
+         AND mark.subject_id = mark_window.subject_id
+         AND mark.class_section_id = mark_window.class_section_id
+        WHERE mark_window.tenant_id = $1
+        GROUP BY
+          mark_window.id,
+          mark_window.subject_id,
+          mark_window.class_section_id,
+          mark_window.status,
+          mark_window.closes_at,
+          series.name,
+          series.status,
+          subject.name,
+          class_section.name,
+          teacher_assignments.teacher_names,
+          student_counts.expected_count
+        ORDER BY mark_window.closes_at DESC, series.name, subject.name, class_section.name
       `,
       [tenantId],
     );
@@ -891,22 +1048,54 @@ export class ExamsManagerCommandService {
 
   async lockMarksEntry(id: string, dto: any = {}) {
     const tenantId = this.requireTenantId();
+    const actorUserId = this.actorUserId();
     const result = await this.operations.writeSql(
       `
-        UPDATE exam_marks
-        SET status = 'locked', locked_at = COALESCE(locked_at, NOW()), updated_at = NOW()
-        WHERE tenant_id = $1
-          AND id = $2::uuid
-        RETURNING id::text, status
+        WITH locked_window AS (
+          UPDATE exam_mark_entry_windows
+          SET status = 'closed',
+              last_action = 'locked',
+              last_action_at = NOW(),
+              last_action_by_user_id = $3::uuid,
+              updated_at = NOW()
+          WHERE tenant_id = $1
+            AND id = $2::uuid
+          RETURNING id, tenant_id, exam_series_id, subject_id, class_section_id, status
+        ), locked_marks AS (
+          UPDATE exam_marks mark
+          SET status = 'locked',
+              locked_at = COALESCE(mark.locked_at, NOW()),
+              updated_at = NOW()
+          FROM locked_window mark_window
+          WHERE mark.tenant_id = mark_window.tenant_id
+            AND mark.exam_series_id = mark_window.exam_series_id
+            AND mark.subject_id = mark_window.subject_id
+            AND mark.class_section_id = mark_window.class_section_id
+          RETURNING mark.id
+        )
+        SELECT
+          mark_window.id::text,
+          mark_window.status,
+          (SELECT COUNT(*)::int FROM locked_marks) AS marks_locked
+        FROM locked_window mark_window
       `,
-      [tenantId, id],
+      [tenantId, id, actorUserId],
     );
 
-    await this.recordExamAction('marks-entry.locked', { ...dto, status: 'locked' }, id);
+    if (result.rowCount === 0) {
+      throw new BadRequestException('No matching mark-entry window was found for this school.');
+    }
+
+    const entry = result.rows[0] as { marks_locked?: number } | undefined;
+    await this.recordExamAction(
+      'marks-entry.locked',
+      { ...dto, status: 'locked', marks_locked: Number(entry?.marks_locked ?? 0) },
+      id,
+    );
     return {
       success: true,
-      message: result.rowCount > 0 ? 'Marks entry locked' : 'No matching marks entry found for this tenant',
-      entry: result.rows[0] ?? null,
+      message: 'Marks entry window locked',
+      entry: entry ?? null,
     };
   }
 

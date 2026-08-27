@@ -34,10 +34,10 @@ export class ExamsRepository {
           ends_on,
           created_by_user_id
         )
-        SELECT $1, term.id, $3, $4::date, $5::date, $6::uuid
+        SELECT $1, term.id::uuid, $3, $4::date, $5::date, $6::uuid
         FROM academic_terms term
         WHERE term.tenant_id::text = $1::text
-          AND term.id = $2::uuid
+          AND term.id::text = $2::text
           AND lower(COALESCE(term.status, 'active')) = 'active'
           AND term.archived_at IS NULL
           AND $4::date >= term.starts_on
@@ -1713,7 +1713,7 @@ export class ExamsRepository {
         FROM exam_series series
         LEFT JOIN academic_terms term
           ON term.tenant_id = series.tenant_id
-         AND term.id = series.academic_term_id
+         AND term.id::text = series.academic_term_id::text
         LEFT JOIN academic_years year
           ON year.tenant_id = term.tenant_id
          AND year.id = term.academic_year_id
@@ -1913,7 +1913,7 @@ export class ExamsRepository {
          AND series.id = card.exam_series_id
         LEFT JOIN academic_terms term
           ON term.tenant_id = series.tenant_id
-         AND term.id = series.academic_term_id
+         AND term.id::text = series.academic_term_id::text
         LEFT JOIN academic_years year
           ON year.tenant_id = term.tenant_id
          AND year.id = term.academic_year_id
@@ -1984,7 +1984,7 @@ export class ExamsRepository {
          AND series.id = card.exam_series_id
         LEFT JOIN academic_terms term
           ON term.tenant_id = series.tenant_id
-         AND term.id = series.academic_term_id
+         AND term.id::text = series.academic_term_id::text
         LEFT JOIN academic_years year
           ON year.tenant_id = term.tenant_id
          AND year.id = term.academic_year_id
@@ -2046,7 +2046,7 @@ export class ExamsRepository {
          AND series.id = card.exam_series_id
         LEFT JOIN academic_terms term
           ON term.tenant_id = series.tenant_id
-         AND term.id = series.academic_term_id
+         AND term.id::text = series.academic_term_id::text
         LEFT JOIN academic_years year
           ON year.tenant_id = term.tenant_id
          AND year.id = term.academic_year_id

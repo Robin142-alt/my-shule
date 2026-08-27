@@ -5051,7 +5051,8 @@ test('ExamsManagerCommandService returns clean exam setup and marks entry for a 
   assert.equal(reads.length, 2);
   assert.equal(reads.every((read) => read.params[0] === 'tenant-fresh'), true);
   assert.equal(reads.some((read) => /FROM exam_series series/i.test(read.sql)), true);
-  assert.equal(reads.some((read) => /FROM exam_marks mark/i.test(read.sql)), true);
+  assert.equal(reads.some((read) => /FROM exam_mark_entry_windows mark_window/i.test(read.sql)), true);
+  assert.equal(reads.some((read) => /LEFT JOIN exam_marks mark/i.test(read.sql)), true);
   assert.equal(reads.every((read) => /tenant_id = \$1/.test(read.sql)), true);
 });
 
@@ -5137,6 +5138,7 @@ test('ExamsManagerCommandService reads timetable with canonical staff fields and
 test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped exam series', async () => {
   const writes: Array<{ sql: string; params: unknown[] }> = [];
   const workflowCalls: any[] = [];
+  const schoolEventCalls: any[] = [];
   const service = new ExamsManagerCommandService(
     {
       getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
@@ -5168,6 +5170,13 @@ test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped e
         return text;
       },
     } as never,
+    undefined,
+    {
+      recordSchoolOperation: async (input: any) => {
+        schoolEventCalls.push(input);
+        return { status: 'accepted' };
+      },
+    } as never,
   );
 
   const result = await service.createExamSetup({
@@ -5180,6 +5189,7 @@ test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped e
   assert.equal(result.success, true);
   assert.equal(result.exam.name, 'Term 1 Opener');
   assert.match(writes[0].sql, /INSERT INTO exam_series/i);
+  assert.doesNotMatch(writes[0].sql, /\$1::uuid/i);
   assert.equal(writes[0].params[0], 'tenant-a');
   assert.equal(writes[0].params[1], 'Term 1 Opener');
   assert.equal(writes[0].params[4], 'draft');
@@ -5188,6 +5198,12 @@ test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped e
   assert.equal(workflowCalls[0].eventType, 'exams.exam-setup.created');
   assert.equal(workflowCalls[0].entityType, 'exam_series');
   assert.equal(workflowCalls[0].entityId, '22222222-2222-4222-8222-222222222222');
+  assert.deepEqual(workflowCalls[0].targetRoles, ['principal', 'dean_academics', 'hod', 'teacher']);
+  assert.equal(workflowCalls[0].payload.exam_series_id, '22222222-2222-4222-8222-222222222222');
+  assert.equal(schoolEventCalls.length, 1);
+  assert.equal(schoolEventCalls[0].event.type, 'exam.series_created');
+  assert.equal(schoolEventCalls[0].event.entityId, '22222222-2222-4222-8222-222222222222');
+  assert.deepEqual(schoolEventCalls[0].notifications[0].audienceRoles, ['principal', 'dean_academics', 'hod', 'teacher']);
 });
 
 test('ExamsManagerCommandService persists selected exam subjects and class mark-entry windows', async () => {
@@ -5195,7 +5211,7 @@ test('ExamsManagerCommandService persists selected exam subjects and class mark-
   const workflowCalls: any[] = [];
   const service = new ExamsManagerCommandService(
     {
-      getStore: () => ({ tenant_id: '11111111-1111-4111-8111-111111111111', user_id: '22222222-2222-4222-8222-222222222222' }),
+      getStore: () => ({ tenant_id: 'kibabi-high', user_id: '22222222-2222-4222-8222-222222222222' }),
     } as never,
     {} as never,
     {
@@ -5267,16 +5283,19 @@ test('ExamsManagerCommandService persists selected exam subjects and class mark-
   assert.equal((result as any).scope.subjectsConfigured, 2);
   assert.equal((result as any).scope.markEntryWindowsConfigured, 4);
   assert.match(writes[1].sql, /INSERT INTO exam_assessments/i);
-  assert.equal(writes[1].params[0], '11111111-1111-4111-8111-111111111111');
+  assert.equal(writes[1].params[0], 'kibabi-high');
   assert.equal(writes[1].params[1], '33333333-3333-4333-8333-333333333333');
   assert.deepEqual(writes[1].params[2], [
     '44444444-4444-4444-8444-444444444444',
     '55555555-5555-4555-8555-555555555555',
   ]);
   assert.match(writes[1].sql, /subject\.id::uuid/i);
+  assert.doesNotMatch(writes[1].sql, /\$1::uuid/i);
   assert.match(writes[1].sql, /subject\.id::text\s*=\s*ANY\(\$3::text\[\]\)/i);
-  assert.match(writes[1].sql, /existing\.subject_id::text\s*=\s*subject\.id/i);
+  assert.doesNotMatch(writes[1].sql, /NOT EXISTS/i);
   assert.doesNotMatch(writes[1].sql, /subject\.id\s*=\s*ANY\(\$3::uuid\[\]\)/i);
+  assert.match(writes[1].sql, /ON CONFLICT\s*\(tenant_id, exam_series_id, subject_id, name\)\s*DO UPDATE/i);
+  assert.match(writes[1].sql, /max_score\s*=\s*EXCLUDED\.max_score/i);
   assert.match(writes[2].sql, /INSERT INTO exam_mark_entry_windows/i);
   assert.deepEqual(writes[2].params[3], [
     '66666666-6666-4666-8666-666666666666',
@@ -5284,18 +5303,137 @@ test('ExamsManagerCommandService persists selected exam subjects and class mark-
   ]);
   assert.match(writes[2].sql, /subject\.id::uuid/i);
   assert.match(writes[2].sql, /section\.id::uuid/i);
+  assert.doesNotMatch(writes[2].sql, /\$1::uuid/i);
   assert.match(writes[2].sql, /subject\.id::text\s*=\s*ANY\(\$3::text\[\]\)/i);
   assert.match(writes[2].sql, /section\.id::text\s*=\s*ANY\(\$4::text\[\]\)/i);
-  assert.match(writes[2].sql, /existing\.subject_id::text\s*=\s*subject\.id/i);
-  assert.match(writes[2].sql, /existing\.class_section_id::text\s*=\s*section\.id/i);
+  assert.doesNotMatch(writes[2].sql, /NOT EXISTS/i);
   assert.doesNotMatch(writes[2].sql, /(?:subject|section)\.id\s*=\s*ANY\(\$[34]::uuid\[\]\)/i);
+  assert.match(writes[2].sql, /ON CONFLICT\s*\(tenant_id, exam_series_id, subject_id, class_section_id\)\s*DO UPDATE/i);
+  assert.match(writes[2].sql, /status\s*=\s*EXCLUDED\.status/i);
+  assert.equal(writes[2].params[6], 'open');
   assert.equal(workflowCalls[0].payload.subjectsConfigured, 2);
   assert.equal(workflowCalls[0].payload.markEntryWindowsConfigured, 4);
+});
+
+test('ExamsManagerCommandService keeps draft mark-entry windows closed using the database lifecycle', async () => {
+  const writes: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new ExamsManagerCommandService(
+    {
+      getStore: () => ({ tenant_id: 'kibabi-high', user_id: '22222222-2222-4222-8222-222222222222' }),
+    } as never,
+    {} as never,
+    {
+      writeSql: async (sql: string, params: unknown[]) => {
+        writes.push({ sql, params });
+        return { rows: [{ id: 'saved-row' }], rowCount: 1 };
+      },
+    } as never,
+  );
+
+  await (service as unknown as {
+    syncExamScope: (
+      tenantId: string,
+      examSeriesId: string,
+      dto: Record<string, unknown>,
+      startsOn: string,
+      endsOn: string,
+    ) => Promise<unknown>;
+  }).syncExamScope(
+    'kibabi-high',
+    '33333333-3333-4333-8333-333333333333',
+    {
+      status: 'draft',
+      subject_ids: ['44444444-4444-4444-8444-444444444444'],
+      class_section_ids: ['66666666-6666-4666-8666-666666666666'],
+    },
+    '2026-01-12',
+    '2026-01-16',
+  );
+
+  assert.equal(writes.length, 2);
+  assert.equal(writes[1].params[6], 'closed');
+});
+
+test('ExamsManagerCommandService reads configured windows before teachers enter the first mark', async () => {
+  const reads: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new ExamsManagerCommandService(
+    {
+      getStore: () => ({ tenant_id: 'kibabi-high', user_id: '22222222-2222-4222-8222-222222222222' }),
+    } as never,
+    {} as never,
+    {
+      readSql: async (sql: string, params: unknown[]) => {
+        reads.push({ sql, params });
+        return {
+          rows: [{
+            id: '77777777-7777-4777-8777-777777777777',
+            exam_name: 'Term 1 Opener',
+            subject: 'Mathematics',
+            class_name: 'Form 1 East',
+            teacher: 'Amina Otieno',
+            total_students: 35,
+            entered: 0,
+            missing: 35,
+            status: 'Pending',
+            deadline: '2026-01-16',
+          }],
+          rowCount: 1,
+        };
+      },
+    } as never,
+  );
+
+  const result = await service.getMarksEntry();
+
+  assert.equal(result.metrics.total_entries, 1);
+  assert.equal(result.metrics.pending, 1);
+  assert.equal(result.entries[0]?.exam_name, 'Term 1 Opener');
+  assert.deepEqual(reads[0].params, ['kibabi-high']);
+  assert.match(reads[0].sql, /FROM exam_mark_entry_windows mark_window/i);
+  assert.match(reads[0].sql, /LEFT JOIN exam_marks mark/i);
+  assert.match(reads[0].sql, /LEFT JOIN subjects subject/i);
+  assert.match(reads[0].sql, /LEFT JOIN class_sections class_section/i);
+  assert.match(reads[0].sql, /WHERE mark_window\.tenant_id = \$1/i);
+});
+
+test('ExamsManagerCommandService locks a whole tenant-scoped mark-entry window and its marks', async () => {
+  const writes: Array<{ sql: string; params: unknown[] }> = [];
+  const workflowCalls: any[] = [];
+  const service = new ExamsManagerCommandService(
+    {
+      getStore: () => ({ tenant_id: 'kibabi-high', user_id: '22222222-2222-4222-8222-222222222222' }),
+    } as never,
+    {} as never,
+    {
+      writeSql: async (sql: string, params: unknown[]) => {
+        writes.push({ sql, params });
+        return { rows: [{ id: params[1], status: 'closed', marks_locked: 35 }], rowCount: 1 };
+      },
+      recordWorkflowAction: async (input: any) => {
+        workflowCalls.push(input);
+        return { id: 'workflow-1', ...input };
+      },
+    } as never,
+  );
+
+  const result = await service.lockMarksEntry('77777777-7777-4777-8777-777777777777');
+
+  assert.equal(result.success, true);
+  assert.deepEqual(writes[0].params, [
+    'kibabi-high',
+    '77777777-7777-4777-8777-777777777777',
+    '22222222-2222-4222-8222-222222222222',
+  ]);
+  assert.match(writes[0].sql, /UPDATE exam_mark_entry_windows/i);
+  assert.match(writes[0].sql, /UPDATE exam_marks mark/i);
+  assert.match(writes[0].sql, /WHERE tenant_id = \$1/i);
+  assert.equal(workflowCalls[0].eventType, 'exams.marks-entry.locked');
 });
 
 test('ExamsManagerCommandService configures an existing exam setup inside the current tenant', async () => {
   const writes: Array<{ sql: string; params: unknown[] }> = [];
   const workflowCalls: any[] = [];
+  const schoolEventCalls: any[] = [];
   const service = new ExamsManagerCommandService(
     {
       getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
@@ -5326,6 +5464,13 @@ test('ExamsManagerCommandService configures an existing exam setup inside the cu
         return text;
       },
     } as never,
+    undefined,
+    {
+      recordSchoolOperation: async (input: any) => {
+        schoolEventCalls.push(input);
+        return { status: 'accepted' };
+      },
+    } as never,
   );
 
   const result = await service.configureExamSetup('22222222-2222-4222-8222-222222222222', {
@@ -5346,6 +5491,9 @@ test('ExamsManagerCommandService configures an existing exam setup inside the cu
   assert.equal(workflowCalls[0].eventType, 'exams.exam-setup.configured');
   assert.equal(workflowCalls[0].entityType, 'exam_series');
   assert.equal(workflowCalls[0].entityId, '22222222-2222-4222-8222-222222222222');
+  assert.equal(schoolEventCalls.length, 1);
+  assert.equal(schoolEventCalls[0].event.type, 'exam.series_configured');
+  assert.equal(schoolEventCalls[0].event.entityId, '22222222-2222-4222-8222-222222222222');
 });
 
 test('ExamsManagerCommandService returns tenant-scoped exam setup options for human dropdowns', async () => {
