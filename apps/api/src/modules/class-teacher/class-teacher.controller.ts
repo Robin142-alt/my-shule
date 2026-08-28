@@ -57,6 +57,7 @@ export class ClassTeacherController {
   }
 
   @Get('pending-marks')
+  @RequiresModule('exams')
   getPendingMarks() {
     const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getPendingMarks(tenantId, userId);
@@ -122,6 +123,7 @@ export class ClassTeacherController {
   }
 
   @Post('marks')
+  @RequiresModule('exams')
   @Permissions('teacher:write', 'exams:enter-marks')
   saveMarks(@Body() body: SaveTeacherMarksDto) {
     const { tenantId, userId } = this.currentScope();

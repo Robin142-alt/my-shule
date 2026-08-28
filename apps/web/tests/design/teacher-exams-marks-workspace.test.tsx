@@ -135,7 +135,7 @@ describe("teacher exams and marks workspace", () => {
     );
 
     expect((await screen.findAllByText(/Teacher markbook/i)).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Moderation readiness/i)).toBeVisible();
+    expect(await screen.findByText(/Moderation readiness/i)).toBeVisible();
     expect(await screen.findByText(/50% complete/i)).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: /Open markbook for Term 2 Opener/i }));
@@ -184,5 +184,47 @@ describe("teacher exams and marks workspace", () => {
         }),
       );
     });
+  });
+
+  it("shows one retryable recovery state without misleading zero or empty markbooks when loading fails", async () => {
+    (fetchPendingMarksLive as jest.Mock).mockRejectedValueOnce(
+      new Error("Request failed: 500 — Internal server error"),
+    );
+
+    renderWithProviders(
+      createElement(ExamsMarksWorkspace, {
+        onStartAction: jest.fn(),
+      }),
+    );
+
+    expect(await screen.findByText(/We couldn.t load your assigned markbooks/i)).toBeVisible();
+    expect(screen.getByText(/Request failed: 500/i)).toBeVisible();
+    expect(screen.queryByText(/No open exam markbooks yet/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Open a markbook to start entering scores/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Retry loading markbooks/i }));
+
+    await waitFor(() => {
+      expect(fetchPendingMarksLive).toHaveBeenCalledTimes(2);
+    });
+    expect((await screen.findAllByText(/Term 2 Opener/i)).length).toBeGreaterThan(0);
+  });
+
+  it("shows one actionable empty state only after markbooks load successfully", async () => {
+    (fetchPendingMarksLive as jest.Mock).mockResolvedValueOnce({
+      stats: { totalWindows: 0, nearingDeadline: 0 },
+      windows: [],
+    });
+
+    renderWithProviders(
+      createElement(ExamsMarksWorkspace, {
+        onStartAction: jest.fn(),
+      }),
+    );
+
+    expect(await screen.findByText(/No markbooks assigned yet/i)).toBeVisible();
+    expect(screen.getByText(/active class and subject allocation/i)).toBeVisible();
+    expect(screen.queryByText(/We couldn.t load your assigned markbooks/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Open a markbook to start entering scores/i)).not.toBeInTheDocument();
   });
 });

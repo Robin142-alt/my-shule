@@ -158,6 +158,9 @@ export class ExamsRepository {
           AND class_section_id = $4::text
           AND subject_id = $5::text
           AND status = 'active'
+          AND mark_entry_allowed = TRUE
+          AND effective_from <= CURRENT_DATE
+          AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
         LIMIT 1
       `,
       [
@@ -214,7 +217,7 @@ export class ExamsRepository {
           AND mark_window.class_section_id = $4::uuid
           AND mark_window.subject_id = $5::uuid
           AND mark_window.status = 'open'
-          AND mark_window.opens_at <= NOW()
+          AND (mark_window.opens_at <= NOW() OR mark_window.last_action = 'opened')
           AND mark_window.closes_at >= NOW()
         ORDER BY mark_window.created_at DESC
         LIMIT 1
@@ -340,7 +343,7 @@ export class ExamsRepository {
               AND mark_window.class_section_id = source.class_section_id
               AND mark_window.subject_id = source.subject_id
               AND mark_window.status = 'open'
-              AND mark_window.opens_at <= NOW()
+              AND (mark_window.opens_at <= NOW() OR mark_window.last_action = 'opened')
               AND mark_window.closes_at >= NOW()
              JOIN exam_series series
                ON series.tenant_id = mark_window.tenant_id
@@ -367,6 +370,9 @@ export class ExamsRepository {
                  AND assignment.class_section_id = source.class_section_id::text
                  AND assignment.subject_id = source.subject_id::text
                  AND assignment.status = 'active'
+                 AND assignment.mark_entry_allowed = TRUE
+                 AND assignment.effective_from <= CURRENT_DATE
+                 AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
              )
                AND EXISTS (
                  SELECT 1
@@ -529,7 +535,7 @@ export class ExamsRepository {
              AND mark_window.class_section_id = $6::uuid
              AND mark_window.subject_id = $7::uuid
              AND mark_window.status = 'open'
-             AND mark_window.opens_at <= NOW()
+             AND (mark_window.opens_at <= NOW() OR mark_window.last_action = 'opened')
              AND mark_window.closes_at >= NOW()`,
           input.tenant_id,
           input.actor_user_id,
@@ -2495,6 +2501,7 @@ export class ExamsRepository {
        )
        UPDATE exam_mark_entry_windows mark_window
        SET status = CASE WHEN $4 = 'lock' THEN 'closed' ELSE 'open' END,
+           opens_at = CASE WHEN $4 = 'open' THEN LEAST(mark_window.opens_at, NOW()) ELSE mark_window.opens_at END,
            last_action = CASE WHEN $4 = 'return' THEN 'returned' WHEN $4 = 'lock' THEN 'locked' ELSE 'opened' END,
            last_action_at = NOW(),
            last_action_by_user_id = $2::uuid,
@@ -4440,7 +4447,7 @@ export class ExamsRepository {
         AND ($8::uuid IS NULL OR mark_window.subject_id = $8::uuid)
         AND ($9::uuid IS NULL OR assessment.id = $9::uuid)
         AND mark_window.status = 'open'
-        AND mark_window.opens_at <= NOW()
+        AND (mark_window.opens_at <= NOW() OR mark_window.last_action = 'opened')
         AND mark_window.closes_at >= NOW()
       ORDER BY
         class_section.name NULLS LAST,

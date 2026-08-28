@@ -639,8 +639,8 @@ export class ClassTeacherService {
         w.status as window_status
       FROM exam_mark_entry_windows w
       JOIN exam_series es ON es.id = w.exam_series_id AND es.tenant_id = w.tenant_id
-      JOIN class_sections cs ON cs.id = w.class_section_id AND cs.tenant_id = w.tenant_id
-      JOIN subjects s ON s.id = w.subject_id AND s.tenant_id = w.tenant_id
+      JOIN class_sections cs ON cs.id = w.class_section_id::text AND cs.tenant_id = w.tenant_id
+      JOIN subjects s ON s.id = w.subject_id::text AND s.tenant_id = w.tenant_id
       JOIN LATERAL (
         SELECT ea.id, ea.name, ea.max_score
         FROM exam_assessments ea
@@ -650,8 +650,8 @@ export class ClassTeacherService {
         ORDER BY ea.created_at ASC
         LIMIT 1
       ) assessment ON TRUE
-      JOIN teacher_subject_assignments tsa ON tsa.class_section_id = w.class_section_id 
-        AND tsa.subject_id = w.subject_id 
+      JOIN teacher_subject_assignments tsa ON tsa.class_section_id = w.class_section_id::text
+        AND tsa.subject_id = w.subject_id::text
         AND tsa.tenant_id = w.tenant_id
         AND tsa.academic_term_id = es.academic_term_id::text
         AND tsa.status = 'active'
@@ -661,7 +661,7 @@ export class ClassTeacherService {
       WHERE w.tenant_id = $1 
         AND tsa.teacher_user_id = $2
         AND w.status = 'open'
-        AND w.opens_at <= NOW()
+        AND (w.opens_at <= NOW() OR w.last_action = 'opened')
         AND w.closes_at >= NOW()
       ORDER BY w.closes_at ASC
     `;
@@ -1163,10 +1163,10 @@ export class ClassTeacherService {
         ON es.id = w.exam_series_id
        AND es.tenant_id = w.tenant_id
       JOIN class_sections cs
-        ON cs.id = w.class_section_id
+        ON cs.id = w.class_section_id::text
        AND cs.tenant_id = w.tenant_id
       JOIN subjects subject
-        ON subject.id = w.subject_id
+        ON subject.id = w.subject_id::text
        AND subject.tenant_id = w.tenant_id
       JOIN teacher_subject_assignments tsa
         ON tsa.tenant_id = w.tenant_id
@@ -1191,7 +1191,7 @@ export class ClassTeacherService {
         AND w.tenant_id = $2
         AND w.class_section_id = $4
         AND w.status = 'open'
-        AND w.opens_at <= NOW()
+        AND (w.opens_at <= NOW() OR w.last_action = 'opened')
         AND w.closes_at >= NOW()
       LIMIT 1
     `;

@@ -1,7 +1,75 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import 'reflect-metadata';
 
+import { MODULE_ACCESS_KEY } from '../module-access/module-access.decorator';
+import { ClassTeacherController } from './class-teacher.controller';
 import { ClassTeacherService } from './class-teacher.service';
+
+test('ClassTeacherController gates teacher mark-entry reads and writes with the exams module', () => {
+  const pendingMarksHandler = Object.getOwnPropertyDescriptor(
+    ClassTeacherController.prototype,
+    'getPendingMarks',
+  )?.value;
+  const saveMarksHandler = Object.getOwnPropertyDescriptor(
+    ClassTeacherController.prototype,
+    'saveMarks',
+  )?.value;
+
+  assert.deepEqual(Reflect.getMetadata(MODULE_ACCESS_KEY, pendingMarksHandler), ['exams']);
+  assert.deepEqual(Reflect.getMetadata(MODULE_ACCESS_KEY, saveMarksHandler), ['exams']);
+});
+
+test('ClassTeacherService loads open teacher markbooks across text and uuid academic identifiers', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new ClassTeacherService(
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        return {
+          rows: [{
+            window_id: 'window-a',
+            exam_series_id: 'series-a',
+            academic_term_id: 'term-a',
+            exam_name: 'Term 3 Opener',
+            class_name: 'Form 2 Blue',
+            class_section_id: 'class-a',
+            subject_id: 'subject-a',
+            subject_name: 'Mathematics',
+            assessment_id: 'assessment-a',
+            paper_name: 'Main Paper',
+            out_of: '100',
+            deadline: '2026-09-05T14:00:00.000Z',
+            entered_count: '4',
+            total_students: '30',
+            window_status: 'open',
+          }],
+          rowCount: 1,
+        };
+      },
+    } as never,
+    {} as never,
+  );
+
+  const result = await service.getPendingMarks('tenant-a', 'teacher-a');
+
+  assert.equal(result.stats.totalWindows, 1);
+  assert.equal(result.windows[0].classSectionId, 'class-a');
+  assert.equal(result.windows[0].subjectId, 'subject-a');
+  assert.equal(result.windows[0].status, 'Pending');
+  assert.deepEqual(queries[0].params, ['tenant-a', 'teacher-a']);
+  assert.match(queries[0].sql, /cs\.id\s*=\s*w\.class_section_id::text/);
+  assert.match(queries[0].sql, /s\.id\s*=\s*w\.subject_id::text/);
+  assert.match(queries[0].sql, /tsa\.class_section_id\s*=\s*w\.class_section_id::text/);
+  assert.match(queries[0].sql, /tsa\.subject_id\s*=\s*w\.subject_id::text/);
+  assert.match(queries[0].sql, /tsa\.academic_term_id\s*=\s*es\.academic_term_id::text/);
+  assert.match(queries[0].sql, /w\.tenant_id\s*=\s*\$1/);
+  assert.match(queries[0].sql, /tsa\.teacher_user_id\s*=\s*\$2/);
+  assert.match(queries[0].sql, /tsa\.mark_entry_allowed\s*=\s*TRUE/);
+  assert.match(queries[0].sql, /w\.status\s*=\s*'open'/);
+  assert.match(queries[0].sql, /w\.opens_at\s*<=\s*NOW\(\)\s+OR\s+w\.last_action\s*=\s*'opened'/);
+  assert.match(queries[0].sql, /w\.closes_at\s*>=\s*NOW\(\)/);
+});
 
 test('ClassTeacherService saves class-teacher settings as tenant and stream scoped workflow event', async () => {
   const queries: Array<{ sql: string; params: unknown[] }> = [];
@@ -159,6 +227,15 @@ test('ClassTeacherService saves teacher mark drafts with current exam mark schem
   assert.equal(savedSheets[0].rows[0].score, 74);
   assert.equal(savedSheets[0].rows[0].score_status, 'entered');
   assert.equal(savedSheets[0].rows[0].student_id, 'student-a');
+  const markWindowQuery = queries.find((query) => /FROM exam_mark_entry_windows/.test(query.sql));
+  assert.ok(markWindowQuery);
+  assert.match(markWindowQuery.sql, /cs\.id\s*=\s*w\.class_section_id::text/);
+  assert.match(markWindowQuery.sql, /subject\.id\s*=\s*w\.subject_id::text/);
+  assert.match(markWindowQuery.sql, /tsa\.class_section_id\s*=\s*w\.class_section_id::text/);
+  assert.match(markWindowQuery.sql, /tsa\.subject_id\s*=\s*w\.subject_id::text/);
+  assert.match(markWindowQuery.sql, /tsa\.teacher_user_id\s*=\s*\$3/);
+  assert.match(markWindowQuery.sql, /w\.tenant_id\s*=\s*\$2/);
+  assert.match(markWindowQuery.sql, /w\.opens_at\s*<=\s*NOW\(\)\s+OR\s+w\.last_action\s*=\s*'opened'/);
   assert.equal(
     queries.some((query) => /INSERT INTO exam_marks/.test(query.sql)),
     false,

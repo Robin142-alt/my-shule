@@ -852,6 +852,169 @@ test('ExamsService transitions mark windows with tenant actor and correction rea
   assert.equal(result.data.workflow_status, 'returned');
 });
 
+test('ExamsRepository opening a scheduled mark window makes it available immediately', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new ExamsRepository({
+    executeWithTenant: async function(_tenantId: string, _context: unknown, callback: (tx: unknown) => Promise<unknown>) {
+      return callback({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          calls.push({ sql, params });
+          return [{
+            id: '00000000-0000-0000-0000-000000000095',
+            status: 'open',
+            workflow_status: 'opened',
+            affected_marks: 0,
+          }];
+        },
+      });
+    },
+  } as never);
+
+  const result = await repository.transitionMarkWindow({
+    tenant_id: 'tenant-a',
+    actor_user_id: '00000000-0000-0000-0000-000000000801',
+    mark_window_id: '00000000-0000-0000-0000-000000000095',
+    action: 'open',
+  });
+
+  assert.equal(result.workflow_status, 'opened');
+  assert.match(calls[0].sql, /opens_at = CASE WHEN \$4 = 'open' THEN LEAST\(mark_window\.opens_at, NOW\(\)\)/);
+  assert.match(calls[0].sql, /WHERE mark_window\.tenant_id = \$1/);
+  assert.deepEqual(calls[0].params, [
+    'tenant-a',
+    '00000000-0000-0000-0000-000000000801',
+    '00000000-0000-0000-0000-000000000095',
+    'open',
+    null,
+  ]);
+});
+
+test('ExamsRepository accepts only current mark-enabled teacher assignments', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new ExamsRepository({
+    executeWithTenant: async function(_tenantId: string, _context: unknown, callback: (tx: unknown) => Promise<unknown>) {
+      return callback({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          calls.push({ sql, params });
+          return [];
+        },
+      });
+    },
+  } as never);
+
+  await repository.findTeacherAssignment({
+    tenant_id: 'tenant-a',
+    teacher_user_id: 'teacher-1',
+    academic_term_id: 'term-1',
+    class_section_id: 'class-1',
+    subject_id: 'subject-1',
+  });
+
+  assert.match(calls[0].sql, /tenant_id = \$1/);
+  assert.match(calls[0].sql, /teacher_user_id = \$2::text/);
+  assert.match(calls[0].sql, /status = 'active'/);
+  assert.match(calls[0].sql, /mark_entry_allowed = TRUE/);
+  assert.match(calls[0].sql, /effective_from <= CURRENT_DATE/);
+  assert.match(calls[0].sql, /effective_to IS NULL OR effective_to >= CURRENT_DATE/);
+  assert.deepEqual(calls[0].params, [
+    'tenant-a',
+    'teacher-1',
+    'term-1',
+    'class-1',
+    'subject-1',
+  ]);
+});
+
+test('ExamsRepository treats an explicitly opened future mark window as open for validation', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new ExamsRepository({
+    executeWithTenant: async function(_tenantId: string, _context: unknown, callback: (tx: unknown) => Promise<unknown>) {
+      return callback({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          calls.push({ sql, params });
+          return [{ id: '00000000-0000-0000-0000-000000000401', status: 'open' }];
+        },
+      });
+    },
+  } as never);
+
+  const result = await repository.findOpenMarkEntryWindow({
+    tenant_id: 'tenant-a',
+    exam_series_id: '00000000-0000-0000-0000-000000000101',
+    academic_term_id: '00000000-0000-0000-0000-000000000103',
+    class_section_id: '00000000-0000-0000-0000-000000000104',
+    subject_id: '00000000-0000-0000-0000-000000000105',
+  });
+
+  assert.equal(result?.status, 'open');
+  assert.match(calls[0].sql, /mark_window\.tenant_id = \$1/);
+  assert.match(calls[0].sql, /mark_window\.opens_at <= NOW\(\) OR mark_window\.last_action = 'opened'/);
+  assert.match(calls[0].sql, /mark_window\.closes_at >= NOW\(\)/);
+  assert.deepEqual(calls[0].params, [
+    'tenant-a',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000103',
+    '00000000-0000-0000-0000-000000000104',
+    '00000000-0000-0000-0000-000000000105',
+  ]);
+});
+
+test('ExamsRepository saves and submits an explicitly opened future markbook within the current teacher scope', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new ExamsRepository({
+    executeWithTenant: async function(_tenantId: string, _actorUserId: string, callback: (tx: unknown) => Promise<unknown>) {
+      let callIndex = 0;
+      return callback({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          calls.push({ sql, params });
+          callIndex += 1;
+          if (callIndex === 1) return [{ id: '00000000-0000-0000-0000-000000000501' }];
+          if (callIndex === 2) {
+            return [{
+              expected_count: 1,
+              evidence_count: 1,
+              unresolved_count: 0,
+              foreign_owner_count: 0,
+              immutable_count: 0,
+              mark_ids: ['00000000-0000-0000-0000-000000000501'],
+            }];
+          }
+          return [{ id: '00000000-0000-0000-0000-000000000501' }];
+        },
+      });
+    },
+  } as never);
+
+  const result = await repository.saveTeacherMarkSheet({
+    tenant_id: 'tenant-a',
+    actor_user_id: '00000000-0000-0000-0000-000000000201',
+    source_window_id: '00000000-0000-0000-0000-000000000401',
+    submit: true,
+    rows: [{
+      row_number: 1,
+      exam_series_id: '00000000-0000-0000-0000-000000000101',
+      assessment_id: '00000000-0000-0000-0000-000000000102',
+      academic_term_id: '00000000-0000-0000-0000-000000000103',
+      class_section_id: '00000000-0000-0000-0000-000000000104',
+      subject_id: '00000000-0000-0000-0000-000000000105',
+      student_id: '00000000-0000-0000-0000-000000000106',
+      score: 72,
+      score_status: 'entered',
+      remarks: null,
+    }],
+  });
+
+  assert.equal(result.status, 'submitted');
+  assert.equal(calls.length, 3);
+  assert.match(calls[0].sql, /mark_window\.opens_at <= NOW\(\) OR mark_window\.last_action = 'opened'/);
+  assert.match(calls[0].sql, /assignment\.mark_entry_allowed = TRUE/);
+  assert.match(calls[0].sql, /assignment\.effective_from <= CURRENT_DATE/);
+  assert.match(calls[0].sql, /assignment\.effective_to IS NULL OR assignment\.effective_to >= CURRENT_DATE/);
+  assert.match(calls[1].sql, /mark_window\.opens_at <= NOW\(\) OR mark_window\.last_action = 'opened'/);
+  assert.match(calls[0].sql, /mark_window\.tenant_id = \$1/);
+  assert.match(calls[1].sql, /mark_window\.tenant_id = \$1/);
+});
+
 test('ExamsService sends mark-window reminders only to assigned tenant teachers', async () => {
   const notifications: Array<Record<string, unknown>> = [];
   const service = new ExamsService(
@@ -3191,6 +3354,7 @@ test('ExamsRepository derives teacher mark-entry rows from open windows, assessm
   assert.match(calls[0]!.sql, /FROM student_subject_enrollments subject_enrollment/);
   assert.match(calls[0]!.sql, /LEFT JOIN exam_marks mark/);
   assert.match(calls[0]!.sql, /mark_window\.status = 'open'/);
+  assert.match(calls[0]!.sql, /mark_window\.opens_at <= NOW\(\) OR mark_window\.last_action = 'opened'/);
   assert.match(calls[0]!.sql, /assignment\.teacher_user_id = \$4::text/);
   assert.match(calls[0]!.sql, /LIMIT \$6::integer\s+OFFSET \$7::integer/);
   assert.deepEqual(calls[0]!.params, [
