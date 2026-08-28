@@ -436,7 +436,13 @@ export function ExamsMarksWorkspace({
         <button
           type="button"
           onClick={downloadTemplate}
-          disabled={!activeWindow || pendingMarksQuery.isError || pendingMarksQuery.isLoading}
+          disabled={
+            !activeWindow
+            || pendingMarksQuery.isError
+            || pendingMarksQuery.isLoading
+            || markSheetQuery.isError
+            || markSheetQuery.isLoading
+          }
           title={activeWindow ? "Download the active markbook as CSV" : "Load or open a markbook before downloading"}
           className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-60"
         >
@@ -577,7 +583,7 @@ export function ExamsMarksWorkspace({
             </div>
           </div>
 
-          {activeWindow ? (
+          {activeWindow && markSheetQuery.isSuccess ? (
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3">
                 <p className="text-xs font-black uppercase text-[#64748B]">Missing evidence</p>

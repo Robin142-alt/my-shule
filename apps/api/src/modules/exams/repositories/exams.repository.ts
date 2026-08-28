@@ -359,7 +359,7 @@ export class ExamsRepository {
               AND assessment.subject_id = source.subject_id
              JOIN students student
                ON student.tenant_id = mark_window.tenant_id
-              AND student.id = source.student_id
+              AND student.id::text = source.student_id::text
               AND student.status = 'active'
              WHERE EXISTS (
                SELECT 1
@@ -528,7 +528,7 @@ export class ExamsRepository {
             AND mark.assessment_id = $5::uuid
             AND mark.class_section_id = mark_window.class_section_id
             AND mark.subject_id = mark_window.subject_id
-            AND mark.student_id = student.id
+            AND mark.student_id::text = student.id::text
            WHERE mark_window.tenant_id = $1
              AND mark_window.id = $3::uuid
              AND mark_window.exam_series_id = $4::uuid
@@ -2169,7 +2169,7 @@ export class ExamsRepository {
       `SELECT student.id::text
        FROM students student
        WHERE student.tenant_id = $1
-         AND student.id = $2::uuid
+         AND student.id::text = $2::text
          AND student.status = 'active'
          AND EXISTS (
            SELECT 1
@@ -4426,10 +4426,10 @@ export class ExamsRepository {
        AND mark.assessment_id = assessment.id
        AND mark.class_section_id = mark_window.class_section_id
        AND mark.subject_id = mark_window.subject_id
-       AND mark.student_id = student.id
+       AND mark.student_id::text = student.id::text
       WHERE mark_window.tenant_id = $1
         AND ($2::uuid IS NULL OR mark_window.exam_series_id = $2::uuid)
-        AND ($3::uuid IS NULL OR student.id = $3::uuid)
+        AND ($3::text IS NULL OR student.id::text = $3::text)
         AND (
           $4::uuid IS NULL
           OR EXISTS (

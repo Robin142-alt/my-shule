@@ -210,6 +210,35 @@ describe("teacher exams and marks workspace", () => {
     expect((await screen.findAllByText(/Term 2 Opener/i)).length).toBeGreaterThan(0);
   });
 
+  it("shows a retryable markbook error without presenting failed data as valid zero counts", async () => {
+    (fetchTeacherMarkSheetLive as jest.Mock).mockRejectedValueOnce(
+      new Error("Request failed: 500 — Internal server error"),
+    );
+
+    renderWithProviders(
+      createElement(ExamsMarksWorkspace, {
+        onStartAction: jest.fn(),
+      }),
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /Open markbook for Term 2 Opener/i }));
+
+    expect(await screen.findByText(/Request failed: 500/i)).toBeVisible();
+    expect(screen.queryByText(/Missing evidence/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Unresolved evidence/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Validation errors/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Submit status/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Download CSV/i })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /Retry markbook/i }));
+
+    await waitFor(() => {
+      expect(fetchTeacherMarkSheetLive).toHaveBeenCalledTimes(2);
+    });
+    expect((await screen.findAllByText(/Asha Njeri/i)).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Missing evidence/i).length).toBeGreaterThan(0);
+  });
+
   it("shows one actionable empty state only after markbooks load successfully", async () => {
     (fetchPendingMarksLive as jest.Mock).mockResolvedValueOnce({
       stats: { totalWindows: 0, nearingDeadline: 0 },

@@ -1010,7 +1010,9 @@ test('ExamsRepository saves and submits an explicitly opened future markbook wit
   assert.match(calls[0].sql, /assignment\.mark_entry_allowed = TRUE/);
   assert.match(calls[0].sql, /assignment\.effective_from <= CURRENT_DATE/);
   assert.match(calls[0].sql, /assignment\.effective_to IS NULL OR assignment\.effective_to >= CURRENT_DATE/);
+  assert.match(calls[0].sql, /student\.id::text = source\.student_id::text/);
   assert.match(calls[1].sql, /mark_window\.opens_at <= NOW\(\) OR mark_window\.last_action = 'opened'/);
+  assert.match(calls[1].sql, /mark\.student_id::text = student\.id::text/);
   assert.match(calls[0].sql, /mark_window\.tenant_id = \$1/);
   assert.match(calls[1].sql, /mark_window\.tenant_id = \$1/);
 });
@@ -3353,6 +3355,8 @@ test('ExamsRepository derives teacher mark-entry rows from open windows, assessm
   assert.match(calls[0]!.sql, /FROM student_class_assignments class_assignment/);
   assert.match(calls[0]!.sql, /FROM student_subject_enrollments subject_enrollment/);
   assert.match(calls[0]!.sql, /LEFT JOIN exam_marks mark/);
+  assert.match(calls[0]!.sql, /mark\.student_id::text = student\.id::text/);
+  assert.match(calls[0]!.sql, /\$3::text IS NULL OR student\.id::text = \$3::text/);
   assert.match(calls[0]!.sql, /mark_window\.status = 'open'/);
   assert.match(calls[0]!.sql, /mark_window\.opens_at <= NOW\(\) OR mark_window\.last_action = 'opened'/);
   assert.match(calls[0]!.sql, /assignment\.teacher_user_id = \$4::text/);
@@ -3367,6 +3371,38 @@ test('ExamsRepository derives teacher mark-entry rows from open windows, assessm
     0,
     null,
     null,
+  ]);
+});
+
+test('ExamsRepository validates mark eligibility across legacy text and UUID learner identifiers', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new ExamsRepository({
+    executeWithTenant: async function(_tenantId: string, _context: unknown, callback: (tx: unknown) => Promise<unknown>) {
+      return callback({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          calls.push({ sql, params });
+          return [{ id: '00000000-0000-0000-0000-000000000301' }];
+        },
+      });
+    },
+  } as never);
+
+  const learner = await repository.findStudentMarkEligibility({
+    tenant_id: 'tenant-a',
+    student_id: '00000000-0000-0000-0000-000000000301',
+    class_section_id: '00000000-0000-0000-0000-000000000401',
+    subject_id: '00000000-0000-0000-0000-000000000501',
+  });
+
+  assert.equal(learner?.id, '00000000-0000-0000-0000-000000000301');
+  assert.match(calls[0]!.sql, /student\.id::text = \$2::text/);
+  assert.match(calls[0]!.sql, /class_assignment\.student_id = student\.id::text/);
+  assert.match(calls[0]!.sql, /subject_enrollment\.student_id = student\.id::text/);
+  assert.deepEqual(calls[0]!.params, [
+    'tenant-a',
+    '00000000-0000-0000-0000-000000000301',
+    '00000000-0000-0000-0000-000000000401',
+    '00000000-0000-0000-0000-000000000501',
   ]);
 });
 
