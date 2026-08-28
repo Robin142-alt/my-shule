@@ -256,7 +256,9 @@ export class ExamsManagerCommandService {
           name,
           max_score,
           weight,
-          created_by_user_id
+          created_by_user_id,
+          created_at,
+          updated_at
         )
         SELECT
           $1,
@@ -265,7 +267,9 @@ export class ExamsManagerCommandService {
           CONCAT(subject.name, ' Main Paper'),
           $4::numeric,
           100,
-          $5::uuid
+          $5::uuid,
+          NOW(),
+          NOW()
         FROM subjects subject
         WHERE subject.tenant_id = $1
           AND subject.id::text = ANY($3::text[])
@@ -291,7 +295,9 @@ export class ExamsManagerCommandService {
           class_section_id,
           opens_at,
           closes_at,
-          status
+          status,
+          created_at,
+          updated_at
         )
         SELECT
           $1,
@@ -300,7 +306,9 @@ export class ExamsManagerCommandService {
           section.id::uuid,
           $5::date,
           ($6::date + INTERVAL '1 day' - INTERVAL '1 second'),
-          $7
+          $7,
+          NOW(),
+          NOW()
         FROM subjects subject
         CROSS JOIN class_sections section
         WHERE subject.tenant_id = $1
@@ -622,6 +630,15 @@ export class ExamsManagerCommandService {
       insertColumns.push('created_by_user_id');
       params.push(actorUserId);
       placeholders.push(`$${params.length}::uuid`);
+    }
+
+    if (columns.has('created_at')) {
+      insertColumns.push('created_at');
+      placeholders.push('NOW()');
+    }
+    if (columns.has('updated_at')) {
+      insertColumns.push('updated_at');
+      placeholders.push('NOW()');
     }
 
     const created = await this.operations.writeSql<{

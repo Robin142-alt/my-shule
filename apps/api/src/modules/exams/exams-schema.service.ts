@@ -548,6 +548,17 @@ export class ExamsSchemaService implements OnModuleInit {
       ALTER TABLE exam_mark_entry_windows
       ALTER COLUMN updated_at SET DEFAULT NOW();
 
+      -- Legacy Prisma-created exam setup tables kept NOT NULL lifecycle
+      -- columns without defaults. Repair them before command-center inserts run.
+      ALTER TABLE exam_series
+      ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE exam_series
+      ALTER COLUMN updated_at SET DEFAULT NOW();
+      ALTER TABLE exam_assessments
+      ALTER COLUMN created_at SET DEFAULT NOW();
+      ALTER TABLE exam_assessments
+      ALTER COLUMN updated_at SET DEFAULT NOW();
+
       ALTER TABLE exam_grade_boundaries
       ADD COLUMN IF NOT EXISTS exam_series_id uuid;
       ALTER TABLE exam_grade_boundaries
@@ -1395,6 +1406,10 @@ export class ExamsSchemaService implements OnModuleInit {
 
       CREATE INDEX IF NOT EXISTS ix_exam_marks_subject_scope
         ON exam_marks (tenant_id, exam_series_id, academic_term_id, class_section_id, subject_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_exam_assessments_scope
+        ON exam_assessments (tenant_id, exam_series_id, subject_id, name);
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_exam_mark_entry_windows_scope
+        ON exam_mark_entry_windows (tenant_id, exam_series_id, subject_id, class_section_id);
       CREATE INDEX IF NOT EXISTS ix_exam_marks_student
         ON exam_marks (tenant_id, student_id, exam_series_id);
       CREATE INDEX IF NOT EXISTS ix_student_report_cards_student

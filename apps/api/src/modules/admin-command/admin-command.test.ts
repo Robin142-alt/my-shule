@@ -5150,16 +5150,24 @@ test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped e
         return {
           rows: [{
             id: '22222222-2222-4222-8222-222222222222',
-            name: params[1],
-            starts_on: params[2],
-            ends_on: params[3],
-            status: params[4],
+            name: 'Term 1 Opener',
+            starts_on: '2026-01-12',
+            ends_on: '2026-01-16',
+            status: 'draft',
             created_at: '2026-07-13T00:00:00.000Z',
           }],
           rowCount: 1,
         };
       },
-      readSql: async () => ({ rows: [], rowCount: 0 }),
+      readSql: async () => ({
+        rows: [
+          { column_name: 'academic_term_id' },
+          { column_name: 'created_by_user_id' },
+          { column_name: 'created_at' },
+          { column_name: 'updated_at' },
+        ],
+        rowCount: 4,
+      }),
       recordWorkflowAction: async (input: any) => {
         workflowCalls.push(input);
         return { id: 'workflow-1', ...input };
@@ -5181,6 +5189,7 @@ test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped e
 
   const result = await service.createExamSetup({
     name: 'Term 1 Opener',
+    academic_term_id: '33333333-3333-4333-8333-333333333333',
     starts_on: '2026-01-12',
     ends_on: '2026-01-16',
     status: 'scheduled',
@@ -5192,9 +5201,12 @@ test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped e
   assert.equal(result.exam.name, 'Term 1 Opener');
   assert.match(writes[0].sql, /INSERT INTO exam_series/i);
   assert.doesNotMatch(writes[0].sql, /\$1::uuid/i);
+  assert.match(writes[0].sql, /created_at, updated_at/i);
+  assert.match(writes[0].sql, /NOW\(\), NOW\(\)/i);
   assert.equal(writes[0].params[0], 'tenant-a');
-  assert.equal(writes[0].params[1], 'Term 1 Opener');
-  assert.equal(writes[0].params[4], 'draft');
+  assert.equal(writes[0].params[1], '33333333-3333-4333-8333-333333333333');
+  assert.equal(writes[0].params[2], 'Term 1 Opener');
+  assert.equal(writes[0].params[5], 'draft');
   assert.equal(workflowCalls.length, 1);
   assert.equal(workflowCalls[0].tenantId, 'tenant-a');
   assert.equal(workflowCalls[0].eventType, 'exams.exam-setup.created');
@@ -5331,6 +5343,8 @@ test('ExamsManagerCommandService persists selected exam subjects and class mark-
   assert.doesNotMatch(writes[1].sql, /NOT EXISTS/i);
   assert.doesNotMatch(writes[1].sql, /subject\.id\s*=\s*ANY\(\$3::uuid\[\]\)/i);
   assert.match(writes[1].sql, /ON CONFLICT\s*\(tenant_id, exam_series_id, subject_id, name\)\s*DO UPDATE/i);
+  assert.match(writes[1].sql, /created_at,\s*updated_at/i);
+  assert.match(writes[1].sql, /NOW\(\),\s*NOW\(\)/i);
   assert.match(writes[1].sql, /max_score\s*=\s*EXCLUDED\.max_score/i);
   assert.match(writes[2].sql, /INSERT INTO exam_mark_entry_windows/i);
   assert.deepEqual(writes[2].params[3], [
@@ -5345,6 +5359,8 @@ test('ExamsManagerCommandService persists selected exam subjects and class mark-
   assert.doesNotMatch(writes[2].sql, /NOT EXISTS/i);
   assert.doesNotMatch(writes[2].sql, /(?:subject|section)\.id\s*=\s*ANY\(\$[34]::uuid\[\]\)/i);
   assert.match(writes[2].sql, /ON CONFLICT\s*\(tenant_id, exam_series_id, subject_id, class_section_id\)\s*DO UPDATE/i);
+  assert.match(writes[2].sql, /created_at,\s*updated_at/i);
+  assert.match(writes[2].sql, /NOW\(\),\s*NOW\(\)/i);
   assert.match(writes[2].sql, /status\s*=\s*EXCLUDED\.status/i);
   assert.equal(writes[2].params[6], 'open');
   assert.equal(workflowCalls[0].payload.subjectsConfigured, 2);

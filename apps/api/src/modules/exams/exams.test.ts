@@ -112,6 +112,30 @@ test('ExamsSchemaService upgrades legacy Prisma exam tables before evolved colum
   assert.match(schemaSql, /ALTER COLUMN second_approver_user_id DROP NOT NULL/);
 });
 
+test('ExamsSchemaService repairs legacy exam setup write defaults and upsert keys', async () => {
+  let schemaSql = '';
+  const service = new ExamsSchemaService({
+    runSchemaBootstrap: async (sql: string) => {
+      schemaSql += sql;
+    },
+  } as never);
+
+  await service.onModuleInit();
+
+  assert.match(schemaSql, /ALTER TABLE exam_series[\s\S]*ALTER COLUMN created_at SET DEFAULT NOW\(\)/);
+  assert.match(schemaSql, /ALTER TABLE exam_series[\s\S]*ALTER COLUMN updated_at SET DEFAULT NOW\(\)/);
+  assert.match(schemaSql, /ALTER TABLE exam_assessments[\s\S]*ALTER COLUMN created_at SET DEFAULT NOW\(\)/);
+  assert.match(schemaSql, /ALTER TABLE exam_assessments[\s\S]*ALTER COLUMN updated_at SET DEFAULT NOW\(\)/);
+  assert.match(
+    schemaSql,
+    /CREATE UNIQUE INDEX IF NOT EXISTS ux_exam_assessments_scope[\s\S]*tenant_id, exam_series_id, subject_id, name/,
+  );
+  assert.match(
+    schemaSql,
+    /CREATE UNIQUE INDEX IF NOT EXISTS ux_exam_mark_entry_windows_scope[\s\S]*tenant_id, exam_series_id, subject_id, class_section_id/,
+  );
+});
+
 test('ExamsService saves tenant-scoped settings with audit log', async () => {
   const calls: Array<{ name: string; input?: Record<string, unknown> }> = [];
   const service = new ExamsService(
