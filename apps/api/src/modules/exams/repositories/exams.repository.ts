@@ -488,9 +488,6 @@ export class ExamsRepository {
              COUNT(student.id)::integer AS expected_count,
              COUNT(mark.id)::integer AS evidence_count,
              COUNT(mark.id) FILTER (
-               WHERE mark.score_status IN ('not_assessed', 'incomplete')
-             )::integer AS unresolved_count,
-             COUNT(mark.id) FILTER (
                WHERE mark.entered_by_user_id IS DISTINCT FROM $2::uuid
              )::integer AS foreign_owner_count,
              COUNT(mark.id) FILTER (
@@ -548,7 +545,6 @@ export class ExamsRepository {
         const sheetState = (Array.isArray(stateResult) ? stateResult[0] : stateResult) ?? {};
         const expectedCount = Number(sheetState.expected_count ?? 0);
         const evidenceCount = Number(sheetState.evidence_count ?? 0);
-        const unresolvedCount = Number(sheetState.unresolved_count ?? 0);
         const foreignOwnerCount = Number(sheetState.foreign_owner_count ?? 0);
         const immutableCount = Number(sheetState.immutable_count ?? 0);
 
@@ -560,11 +556,6 @@ export class ExamsRepository {
         if (evidenceCount !== expectedCount) {
           throw new ConflictException(
             `${expectedCount - evidenceCount} learner mark entr${expectedCount - evidenceCount === 1 ? 'y is' : 'ies are'} still missing.`,
-          );
-        }
-        if (unresolvedCount > 0) {
-          throw new ConflictException(
-            `${unresolvedCount} learner entr${unresolvedCount === 1 ? 'y is' : 'ies are'} still marked not assessed or incomplete.`,
           );
         }
         if (foreignOwnerCount > 0) {

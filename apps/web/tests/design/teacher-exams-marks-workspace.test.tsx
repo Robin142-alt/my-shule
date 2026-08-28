@@ -143,8 +143,22 @@ describe("teacher exams and marks workspace", () => {
     await screen.findAllByLabelText(/Asha Njeri score/i);
     expect(screen.getAllByText(/Brian Otieno/i).length).toBeGreaterThan(0);
 
-    fireEvent.change(screen.getAllByLabelText(/Asha Njeri evidence status/i)[0]!, { target: { value: "entered" } });
+    const evidenceLabels = Array.from(
+      (screen.getAllByLabelText(/Asha Njeri evidence status/i)[0] as HTMLSelectElement).options,
+    ).map((option) => option.text);
+    expect(evidenceLabels).not.toContain("Score entered");
+    expect(evidenceLabels).toEqual(expect.arrayContaining([
+      "Absent",
+      "Exempt",
+      "Not assessed",
+      "Incomplete",
+      "Withheld",
+      "Medical exception",
+      "Transfer student",
+    ]));
+
     const ashaInput = screen.getAllByLabelText(/Asha Njeri score/i)[0]!;
+    expect(ashaInput).toBeEnabled();
     fireEvent.change(ashaInput, { target: { value: "74" } });
     fireEvent.click(screen.getByRole("button", { name: /Save draft/i }));
 
@@ -163,11 +177,9 @@ describe("teacher exams and marks workspace", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getAllByLabelText(/Asha Njeri score/i)[0]).toBeDisabled();
+      expect(screen.getAllByLabelText(/Asha Njeri score/i)[0]).toBeEnabled();
     });
-    fireEvent.change(screen.getAllByLabelText(/Asha Njeri evidence status/i)[0]!, { target: { value: "entered" } });
     fireEvent.change(screen.getAllByLabelText(/Asha Njeri score/i)[0]!, { target: { value: "74" } });
-    fireEvent.change(screen.getAllByLabelText(/Brian Otieno evidence status/i)[0]!, { target: { value: "entered" } });
     fireEvent.change(screen.getAllByLabelText(/Brian Otieno score/i)[0]!, { target: { value: "68" } });
     fireEvent.click(screen.getByRole("button", { name: /Submit for moderation/i }));
 
@@ -181,6 +193,38 @@ describe("teacher exams and marks workspace", () => {
             "student-1": expect.objectContaining({ score: 74, score_status: "entered" }),
             "student-2": expect.objectContaining({ score: 68, score_status: "entered" }),
           }),
+        }),
+      );
+    });
+  });
+
+  it("requires evidence only for a learner whose score is blank", async () => {
+    renderWithProviders(
+      createElement(ExamsMarksWorkspace, {
+        onStartAction: jest.fn(),
+      }),
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /Open markbook for Term 2 Opener/i }));
+    fireEvent.change((await screen.findAllByLabelText(/Asha Njeri score/i))[0]!, { target: { value: "74" } });
+    fireEvent.click(screen.getByRole("button", { name: /Submit for moderation/i }));
+
+    expect(await screen.findByText(/Enter a valid score or select missing-mark evidence for every learner/i)).toBeVisible();
+    expect(saveExamMarksLive).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getAllByLabelText(/Brian Otieno evidence status/i)[0]!, { target: { value: "absent" } });
+    fireEvent.click(screen.getByRole("button", { name: /Submit for moderation/i }));
+
+    await waitFor(() => {
+      expect(saveExamMarksLive).toHaveBeenCalledWith(
+        mockSession,
+        expect.objectContaining({
+          action: "submit",
+          examId: "window-1",
+          marks: {
+            "student-1": { score: 74, score_status: "entered" },
+            "student-2": { score: null, score_status: "absent" },
+          },
         }),
       );
     });

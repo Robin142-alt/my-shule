@@ -33,11 +33,12 @@ type MarkDraft = {
   remarks: string;
 };
 
+type MissingMarkEvidenceStatus = Exclude<ExamScoreStatus, "entered">;
+
 type DraftsByStudent = Record<string, MarkDraft>;
 type DraftsByWindow = Record<string, DraftsByStudent>;
 
-const SCORE_STATUS_OPTIONS: Array<{ value: ExamScoreStatus; label: string }> = [
-  { value: "entered", label: "Score entered" },
+const MISSING_MARK_EVIDENCE_OPTIONS: Array<{ value: MissingMarkEvidenceStatus; label: string }> = [
   { value: "absent", label: "Absent" },
   { value: "exempt", label: "Exempt" },
   { value: "not_assessed", label: "Not assessed" },
@@ -47,9 +48,12 @@ const SCORE_STATUS_OPTIONS: Array<{ value: ExamScoreStatus; label: string }> = [
   { value: "transfer_student", label: "Transfer student" },
 ];
 
-const SCORE_STATUS_LABELS = Object.fromEntries(
-  SCORE_STATUS_OPTIONS.map((option) => [option.value, option.label]),
-) as Record<ExamScoreStatus, string>;
+const SCORE_STATUS_LABELS: Record<ExamScoreStatus, string> = {
+  entered: "Score entered",
+  ...Object.fromEntries(
+    MISSING_MARK_EVIDENCE_OPTIONS.map((option) => [option.value, option.label]),
+  ) as Record<MissingMarkEvidenceStatus, string>,
+};
 
 const EMPTY_MARK_WINDOWS: PendingMarksWindow[] = [];
 const EMPTY_MARK_ROWS: TeacherMarkSheetRow[] = [];
@@ -58,6 +62,14 @@ function toNumber(value: string) {
   if (value.trim() === "") return null;
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : null;
+}
+
+function effectiveScoreStatus(draft: MarkDraft): ExamScoreStatus | "" {
+  if (draft.scoreStatus && draft.scoreStatus !== "entered") {
+    return draft.scoreStatus;
+  }
+
+  return draft.score.trim() ? "entered" : "";
 }
 
 function getWindowCompletion(windowTask: PendingMarksWindow) {
@@ -70,7 +82,7 @@ function getWindowCompletion(windowTask: PendingMarksWindow) {
 
 function getAverage(drafts: DraftsByStudent, outOf: number) {
   const values = Object.values(drafts)
-    .filter((draft) => draft.scoreStatus === "entered")
+    .filter((draft) => effectiveScoreStatus(draft) === "entered")
     .map((draft) => toNumber(draft.score))
     .filter((score): score is number => score !== null && score >= 0 && score <= outOf);
 
@@ -90,15 +102,13 @@ function draftFromRow(row: TeacherMarkSheetRow): MarkDraft {
 }
 
 function getValidation(draft: MarkDraft, outOf: number) {
-  if (!draft.scoreStatus) {
+  const scoreStatus = effectiveScoreStatus(draft);
+
+  if (!scoreStatus) {
     return { label: "Missing evidence", tone: "warning" as const, resolved: false, submitReady: false };
   }
 
-  if (draft.scoreStatus === "not_assessed" || draft.scoreStatus === "incomplete") {
-    return { label: "Unresolved evidence", tone: "warning" as const, resolved: false, submitReady: false };
-  }
-
-  if (draft.scoreStatus !== "entered") {
+  if (scoreStatus !== "entered") {
     return { label: "Evidence ready", tone: "success" as const, resolved: true, submitReady: true };
   }
 
@@ -131,6 +141,7 @@ function buildTemplateRows(
 
   return rows.map((row) => {
     const draft = drafts[row.student_id] ?? draftFromRow(row);
+    const scoreStatus = effectiveScoreStatus(draft);
     return [
     windowTask.examName,
     windowTask.className,
@@ -139,8 +150,8 @@ function buildTemplateRows(
     row.admission_number ?? "",
     row.student_name ?? "",
     String(windowTask.outOf),
-      draft.scoreStatus === "entered" ? draft.score : "",
-      draft.scoreStatus,
+      scoreStatus === "entered" ? draft.score : "",
+      scoreStatus,
       draft.remarks,
     ];
   });
@@ -267,7 +278,13 @@ export function ExamsMarksWorkspace({
     : [];
   const resolvedCount = validations.filter((validation) => validation.resolved).length;
   const missingCount = validations.filter((validation) => validation.label === "Missing evidence").length;
-  const unresolvedCount = validations.filter((validation) => validation.label === "Unresolved evidence").length;
+  const evidenceSuppliedCount = activeWindow
+    ? markRows.filter((row) => {
+        const draft = activeDrafts[row.student_id] ?? draftFromRow(row);
+        const scoreStatus = effectiveScoreStatus(draft);
+        return Boolean(scoreStatus && scoreStatus !== "entered");
+      }).length
+    : 0;
   const invalidCount = validations.filter((validation) => validation.tone === "danger").length;
   const activeCompletion = activeWindow && markRows.length > 0
     ? Math.round((resolvedCount / markRows.length) * 100)
@@ -320,26 +337,32 @@ export function ExamsMarksWorkspace({
     }
 
     const marks = Object.fromEntries(
-      markRows
-        .map((row) => [row.student_id, activeDrafts[row.student_id] ?? draftFromRow(row)] as const)
-        .filter(([, draft]) => Boolean(draft.scoreStatus))
-        .map(([studentId, draft]) => [
-          studentId,
+      markRows.flatMap((row) => {
+        const draft = activeDrafts[row.student_id] ?? draftFromRow(row);
+        const scoreStatus = effectiveScoreStatus(draft);
+
+        if (!scoreStatus) {
+          return [];
+        }
+
+        return [[
+          row.student_id,
           {
-            score: draft.scoreStatus === "entered" ? toNumber(draft.score) : null,
-            score_status: draft.scoreStatus as ExamScoreStatus,
+            score: scoreStatus === "entered" ? toNumber(draft.score) : null,
+            score_status: scoreStatus,
             ...(draft.remarks.trim() ? { remarks: draft.remarks.trim() } : {}),
           },
-        ]),
+        ] as const];
+      }),
     );
 
     if (Object.keys(marks).length === 0) {
-      setActionError("Enter at least one learner score or select an explicit evidence status before saving marks.");
+      setActionError("Enter at least one learner score or select missing-mark evidence before saving marks.");
       return;
     }
 
     if (action === "submit" && !canSubmit) {
-      setActionError("Resolve every missing, not-assessed, or incomplete learner row before submitting for moderation.");
+      setActionError("Enter a valid score or select missing-mark evidence for every learner before submitting for moderation.");
       return;
     }
 
@@ -412,12 +435,13 @@ export function ExamsMarksWorkspace({
       rows: markRows.map((row) => {
         const draft = activeDrafts[row.student_id] ?? draftFromRow(row);
         const validation = getValidation(draft, activeWindow.outOf);
-        const evidence = draft.scoreStatus
-          ? SCORE_STATUS_LABELS[draft.scoreStatus]
-          : "No evidence";
+        const scoreStatus = effectiveScoreStatus(draft);
+        const evidence = scoreStatus && scoreStatus !== "entered"
+          ? SCORE_STATUS_LABELS[scoreStatus]
+          : "No missing-mark evidence needed";
         return {
           label: `${row.admission_number ?? "No admission number"} - ${row.student_name ?? "Unnamed learner"}`,
-          value: draft.scoreStatus === "entered"
+          value: scoreStatus === "entered"
             ? `${draft.score || "-"}/${activeWindow.outOf} | ${validation.label}${draft.remarks ? ` | ${draft.remarks}` : ""}`
             : `${evidence} | ${validation.label}${draft.remarks ? ` | ${draft.remarks}` : ""}`,
           tone: validation.submitReady ? "default" : "danger",
@@ -586,12 +610,12 @@ export function ExamsMarksWorkspace({
           {activeWindow && markSheetQuery.isSuccess ? (
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3">
-                <p className="text-xs font-black uppercase text-[#64748B]">Missing evidence</p>
+                <p className="text-xs font-black uppercase text-[#64748B]">Missing score evidence</p>
                 <p className="mt-1 text-2xl font-black text-[#071D49]">{markSheetQuery.isLoading ? "..." : missingCount}</p>
               </div>
               <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3">
-                <p className="text-xs font-black uppercase text-[#64748B]">Unresolved evidence</p>
-                <p className="mt-1 text-2xl font-black text-[#071D49]">{markSheetQuery.isLoading ? "..." : unresolvedCount}</p>
+                <p className="text-xs font-black uppercase text-[#64748B]">Evidence supplied</p>
+                <p className="mt-1 text-2xl font-black text-[#071D49]">{markSheetQuery.isLoading ? "..." : evidenceSuppliedCount}</p>
               </div>
               <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3">
                 <p className="text-xs font-black uppercase text-[#64748B]">Validation errors</p>
@@ -681,22 +705,22 @@ export function ExamsMarksWorkspace({
 
                       <div className="mt-4 grid gap-3">
                         <label className="grid gap-1.5 text-xs font-black uppercase tracking-[0.1em] text-[#64748B]">
-                          Evidence
+                          Evidence if score is blank
                           <select
                             aria-label={`${row.student_name ?? "Learner"} evidence status`}
-                            value={draft.scoreStatus}
+                            value={draft.scoreStatus === "entered" ? "" : draft.scoreStatus}
                             disabled={rowReadOnly}
                             onChange={(event) => {
-                              const scoreStatus = event.target.value as ExamScoreStatus;
+                              const scoreStatus = event.target.value as MissingMarkEvidenceStatus | "";
                               updateDraft(row.student_id, {
                                 scoreStatus,
-                                ...(scoreStatus === "entered" ? {} : { score: "" }),
+                                ...(scoreStatus ? { score: "" } : {}),
                               });
                             }}
                             className="min-h-11 w-full rounded-xl border border-[#D8E0EC] bg-white px-3 text-base font-bold normal-case tracking-normal text-[#071D49] outline-none transition focus:border-[#1D4ED8] focus:ring-2 focus:ring-blue-100 disabled:bg-[#F1F5F9]"
                           >
-                            <option value="" disabled>Select evidence</option>
-                            {SCORE_STATUS_OPTIONS.map((option) => (
+                            <option value="">Not needed when scored</option>
+                            {MISSING_MARK_EVIDENCE_OPTIONS.map((option) => (
                               <option key={option.value} value={option.value}>{option.label}</option>
                             ))}
                           </select>
@@ -712,11 +736,14 @@ export function ExamsMarksWorkspace({
                               max={activeWindow.outOf}
                               step="0.01"
                               value={draft.score}
-                              disabled={rowReadOnly || draft.scoreStatus !== "entered"}
-                              onChange={(event) => updateDraft(row.student_id, {
-                                score: event.target.value,
-                                scoreStatus: "entered",
-                              })}
+                              disabled={rowReadOnly || Boolean(draft.scoreStatus && draft.scoreStatus !== "entered")}
+                              onChange={(event) => {
+                                const score = event.target.value;
+                                updateDraft(row.student_id, {
+                                  score,
+                                  scoreStatus: score.trim() ? "entered" : "",
+                                });
+                              }}
                               className={cn(
                                 "min-h-11 min-w-0 w-full rounded-xl border px-3 text-center text-base font-black normal-case tracking-normal text-[#071D49] outline-none transition focus:border-[#1D4ED8] focus:ring-2 focus:ring-blue-100 disabled:bg-[#F1F5F9]",
                                 validation.tone !== "danger" ? "border-[#D8E0EC]" : "border-red-300 bg-red-50",
@@ -741,7 +768,7 @@ export function ExamsMarksWorkspace({
                       <p className="mt-3 rounded-xl bg-[#F8FAFC] px-3 py-2 text-xs font-bold text-[#475569]">
                         Policy result: {rowReadOnly
                           ? row.status.replaceAll("_", " ")
-                          : draft.scoreStatus === "entered"
+                          : effectiveScoreStatus(draft) === "entered"
                             ? "Calculated after grading policy"
                             : draft.scoreStatus
                               ? SCORE_STATUS_LABELS[draft.scoreStatus]
@@ -769,6 +796,7 @@ export function ExamsMarksWorkspace({
                   {markRows.map((row) => {
                     const draft = activeDrafts[row.student_id] ?? draftFromRow(row);
                     const validation = getValidation(draft, activeWindow.outOf);
+                    const scoreStatus = effectiveScoreStatus(draft);
                     const rowReadOnly = Boolean(row.id) && row.status !== "draft";
 
                     return (
@@ -778,19 +806,19 @@ export function ExamsMarksWorkspace({
                         <td className="px-4 py-3">
                           <select
                             aria-label={`${row.student_name ?? "Learner"} evidence status`}
-                            value={draft.scoreStatus}
+                            value={draft.scoreStatus === "entered" ? "" : draft.scoreStatus}
                             disabled={rowReadOnly}
                             onChange={(event) => {
-                              const scoreStatus = event.target.value as ExamScoreStatus;
+                              const scoreStatus = event.target.value as MissingMarkEvidenceStatus | "";
                               updateDraft(row.student_id, {
                                 scoreStatus,
-                                ...(scoreStatus === "entered" ? {} : { score: "" }),
+                                ...(scoreStatus ? { score: "" } : {}),
                               });
                             }}
                             className="h-10 min-w-44 rounded-xl border border-[#D8E0EC] bg-white px-3 text-sm font-bold text-[#071D49] outline-none transition focus:border-[#1D4ED8] focus:ring-2 focus:ring-blue-100 disabled:bg-[#F1F5F9]"
                           >
-                            <option value="" disabled>Select evidence</option>
-                            {SCORE_STATUS_OPTIONS.map((option) => (
+                            <option value="">Not needed when scored</option>
+                            {MISSING_MARK_EVIDENCE_OPTIONS.map((option) => (
                               <option key={option.value} value={option.value}>{option.label}</option>
                             ))}
                           </select>
@@ -803,11 +831,14 @@ export function ExamsMarksWorkspace({
                             max={activeWindow.outOf}
                             step="0.01"
                             value={draft.score}
-                            disabled={rowReadOnly || draft.scoreStatus !== "entered"}
-                            onChange={(event) => updateDraft(row.student_id, {
-                              score: event.target.value,
-                              scoreStatus: "entered",
-                            })}
+                            disabled={rowReadOnly || Boolean(draft.scoreStatus && draft.scoreStatus !== "entered")}
+                            onChange={(event) => {
+                              const score = event.target.value;
+                              updateDraft(row.student_id, {
+                                score,
+                                scoreStatus: score.trim() ? "entered" : "",
+                              });
+                            }}
                             className={cn(
                               "h-10 w-28 rounded-xl border px-3 text-center text-sm font-black text-[#071D49] outline-none transition focus:border-[#1D4ED8] focus:ring-2 focus:ring-blue-100 disabled:bg-[#F1F5F9]",
                               validation.tone !== "danger" ? "border-[#D8E0EC]" : "border-red-300 bg-red-50",

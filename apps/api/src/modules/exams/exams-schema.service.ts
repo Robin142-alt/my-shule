@@ -1406,6 +1406,8 @@ export class ExamsSchemaService implements OnModuleInit {
 
       CREATE INDEX IF NOT EXISTS ix_exam_marks_subject_scope
         ON exam_marks (tenant_id, exam_series_id, academic_term_id, class_section_id, subject_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_exam_marks_scope
+        ON exam_marks (tenant_id, assessment_id, student_id);
       CREATE UNIQUE INDEX IF NOT EXISTS ux_exam_assessments_scope
         ON exam_assessments (tenant_id, exam_series_id, subject_id, name);
       CREATE UNIQUE INDEX IF NOT EXISTS ux_exam_mark_entry_windows_scope

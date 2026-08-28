@@ -161,7 +161,7 @@ test('ClassTeacherService publishes attendance counts from submitted attendance 
   assert.equal(attendanceEvents[0].stream_id, 'stream-a');
 });
 
-test('ClassTeacherService saves teacher mark drafts with current exam mark schema and without false submission events', async () => {
+test('ClassTeacherService normalizes numeric marks without selected evidence to entered drafts', async () => {
   const queries: Array<{ sql: string; params: unknown[] }> = [];
   const submissionEvents: any[] = [];
   const savedSheets: any[] = [];
@@ -217,7 +217,7 @@ test('ClassTeacherService saves teacher mark drafts with current exam mark schem
     action: 'draft',
     examId: 'window-a',
     classSectionId: 'stream-a',
-    scores: { 'student-a': '74' },
+    marks: { 'student-a': { score: '74' } },
   });
 
   assert.equal(result.success, true);
@@ -241,6 +241,99 @@ test('ClassTeacherService saves teacher mark drafts with current exam mark schem
     false,
   );
   assert.equal(submissionEvents.length, 0);
+});
+
+test('ClassTeacherService requires evidence for blank marks and accepts an explicit absent status', async () => {
+  const savedSheets: any[] = [];
+  const submissionEvents: any[] = [];
+  const service = new ClassTeacherService(
+    {
+      query: async (sql: string) => {
+        if (/FROM exam_mark_entry_windows/.test(sql) && /w\.id = \$1/.test(sql)) {
+          return {
+            rows: [{
+              id: 'window-a',
+              exam_series_id: 'series-a',
+              academic_term_id: 'term-a',
+              assessment_id: 'assessment-a',
+              class_section_id: 'stream-a',
+              subject_id: 'subject-a',
+              out_of: 80,
+              exam_name: 'Term 2 Opener',
+              class_name: 'Form 2 Blue',
+              subject_name: 'Mathematics',
+            }],
+            rowCount: 1,
+          };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+    } as never,
+    {
+      publishExamSubmitted: async (input: any) => {
+        submissionEvents.push(input);
+      },
+    } as never,
+    {
+      saveTeacherMarkEntries: async (rows: any[], windowId: string, submit: boolean) => {
+        savedSheets.push({ rows, windowId, submit });
+        return {
+          success: true,
+          data: {
+            status: 'submitted',
+            saved_count: rows.length,
+            submitted_count: rows.length,
+            mark_ids: ['mark-a'],
+          },
+        };
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    () => service.saveMarks('tenant-a', 'teacher-a', {
+      action: 'submit',
+      examId: 'window-a',
+      classSectionId: 'stream-a',
+      marks: { 'student-a': { score: null } },
+    }),
+    /Enter at least one learner score or explicit evidence status/i,
+  );
+  assert.equal(savedSheets.length, 0);
+  assert.equal(submissionEvents.length, 0);
+
+  const result = await service.saveMarks('tenant-a', 'teacher-a', {
+    action: 'submit',
+    examId: 'window-a',
+    classSectionId: 'stream-a',
+    marks: {
+      'student-a': {
+        score: null,
+        score_status: 'absent',
+        remarks: ' Guardian confirmed absence ',
+      },
+    },
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.status, 'submitted');
+  assert.equal(savedSheets.length, 1);
+  assert.equal(savedSheets[0].windowId, 'window-a');
+  assert.equal(savedSheets[0].submit, true);
+  assert.deepEqual(savedSheets[0].rows[0], {
+    row_number: 1,
+    exam_series_id: 'series-a',
+    assessment_id: 'assessment-a',
+    academic_term_id: 'term-a',
+    class_section_id: 'stream-a',
+    subject_id: 'subject-a',
+    student_id: 'student-a',
+    score: null,
+    score_status: 'absent',
+    remarks: 'Guardian confirmed absence',
+  });
+  assert.equal(submissionEvents.length, 1);
+  assert.equal(submissionEvents[0].tenant_id, 'tenant-a');
 });
 
 test('ClassTeacherService submits teacher marks for moderation with tenant scoped completion event', async () => {

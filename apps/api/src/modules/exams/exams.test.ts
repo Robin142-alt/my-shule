@@ -32,6 +32,10 @@ test('ExamsSchemaService creates exam and report-card tables with tenant RLS', a
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS student_report_cards/);
   assert.match(schemaSql, /ALTER TABLE exam_marks FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_exam_marks_subject_scope/);
+  assert.match(
+    schemaSql,
+    /CREATE UNIQUE INDEX IF NOT EXISTS uq_exam_marks_scope[\s\S]*tenant_id, assessment_id, student_id/,
+  );
   assert.match(schemaSql, /CREATE INDEX IF NOT EXISTS ix_student_report_cards_tenant_published/);
   assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_exam_invigilators_tenant_slot_staff/);
   assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_exam_attendance_tenant_slot_student/);
@@ -973,7 +977,6 @@ test('ExamsRepository saves and submits an explicitly opened future markbook wit
             return [{
               expected_count: 1,
               evidence_count: 1,
-              unresolved_count: 0,
               foreign_owner_count: 0,
               immutable_count: 0,
               mark_ids: ['00000000-0000-0000-0000-000000000501'],
@@ -1013,6 +1016,7 @@ test('ExamsRepository saves and submits an explicitly opened future markbook wit
   assert.match(calls[0].sql, /student\.id::text = source\.student_id::text/);
   assert.match(calls[1].sql, /mark_window\.opens_at <= NOW\(\) OR mark_window\.last_action = 'opened'/);
   assert.match(calls[1].sql, /mark\.student_id::text = student\.id::text/);
+  assert.doesNotMatch(calls[1].sql, /mark\.score_status IN \('not_assessed', 'incomplete'\)/);
   assert.match(calls[0].sql, /mark_window\.tenant_id = \$1/);
   assert.match(calls[1].sql, /mark_window\.tenant_id = \$1/);
 });
