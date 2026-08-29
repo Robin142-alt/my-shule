@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Modal } from "@/components/ui/modal";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { useSchoolMutation, useSchoolQuery } from "@/lib/data/school-hooks";
+import { buildSchoolStaffOptions, type SchoolStaffOptionInput } from "@/lib/school/staff-option-label";
 import { Panel, StatusChip, type Tone } from "./shared";
 
 type ClassSection = {
@@ -22,12 +23,7 @@ type Subject = {
   name: string;
 };
 
-type Teacher = {
-  user_id: string;
-  label: string;
-  staff_number?: string;
-  role_code?: string;
-};
+type Teacher = SchoolStaffOptionInput & { user_id: string };
 
 export type AcademicIntervention = {
   id: string;
@@ -182,7 +178,7 @@ export function DeputyAcademicsMonitoringWorkspace() {
   const metrics = data?.metrics;
   const classes = unwrapRows(classesQuery.data);
   const subjects = unwrapRows(subjectsQuery.data);
-  const teachers = unwrapRows(teachersQuery.data);
+  const teachers = buildSchoolStaffOptions(unwrapRows(teachersQuery.data));
   const setupErrors = [
     classesQuery.error?.message,
     subjectsQuery.error?.message,
@@ -495,9 +491,8 @@ export function DeputyAcademicsMonitoringWorkspace() {
             >
               <option value="">Select active teaching staff</option>
               {teachers.map((teacher) => (
-                <option key={teacher.user_id} value={teacher.user_id}>
+                <option key={teacher.value} value={teacher.value}>
                   {teacher.label}
-                  {teacher.staff_number ? ` (${teacher.staff_number})` : ""}
                 </option>
               ))}
             </select>

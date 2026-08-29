@@ -107,4 +107,44 @@ describe("academic foundation saved-record visibility", () => {
     expect(screen.queryByText(/No matching subjects/i)).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /Manage/i })).toHaveLength(2);
   });
+
+  it("disambiguates duplicate staff names with roles and teaching subjects in every person selector", () => {
+    const foundationWithStaff = {
+      ...foundation,
+      teachers: [
+        { user_id: "staff-user-1", label: "Robinson Ondu", role_code: "teacher" },
+        {
+          user_id: "staff-user-1",
+          label: "Robinson Ondu",
+          role_code: "hod",
+          teaching_subjects: ["Mathematics"],
+          hod_departments: ["Sciences"],
+        },
+        { user_id: "staff-user-2", label: "Robinson Ondu", role_code: "deputy_principal" },
+      ],
+    };
+    (useSchoolQuery as jest.Mock).mockReturnValue({
+      data: foundationWithStaff,
+      error: null,
+      isLoading: false,
+      refetch: jest.fn().mockResolvedValue({ data: foundationWithStaff, error: null }),
+    });
+
+    render(
+      <AcademicFoundationWorkspace
+        actorRole="Deputy Principal"
+        schoolName="Maranda High"
+        tenantId="maranda-high"
+        initialTab="subjects"
+      />,
+    );
+
+    expect(screen.getAllByRole("option", {
+      name: "Robinson Ondu — Teacher, Head of Department (Sciences) · Teaches Mathematics",
+    }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("option", {
+      name: "Robinson Ondu — Deputy Principal",
+    }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("option", { name: "Robinson Ondu" })).not.toBeInTheDocument();
+  });
 });

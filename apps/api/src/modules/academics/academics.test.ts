@@ -541,6 +541,11 @@ test('AcademicsService lists tenant-scoped teacher options for human assignment 
             label: 'Amina Otieno',
             staff_number: 'TSC-102',
             status: 'active',
+            role_code: 'teacher',
+            role_codes: ['teacher', 'hod'],
+            role_names: ['Head of Department', 'Teacher'],
+            teaching_subjects: ['Biology'],
+            hod_departments: ['Sciences'],
           },
         ];
       },
@@ -558,6 +563,11 @@ test('AcademicsService lists tenant-scoped teacher options for human assignment 
       label: 'Amina Otieno',
       staff_number: 'TSC-102',
       status: 'active',
+      role_code: 'teacher',
+      role_codes: ['teacher', 'hod'],
+      role_names: ['Head of Department', 'Teacher'],
+      teaching_subjects: ['Biology'],
+      hod_departments: ['Sciences'],
     },
   ]);
 });
@@ -703,6 +713,10 @@ test('AcademicsRepository lists active staff teacher options without cross-tenan
             staff_number: 'TSC-102',
             status: 'active',
             role_code: 'teacher',
+            role_codes: ['teacher', 'hod'],
+            role_names: ['Head of Department', 'Teacher'],
+            teaching_subjects: ['Biology'],
+            hod_departments: ['Sciences'],
           },
         ],
       };
@@ -720,6 +734,21 @@ test('AcademicsRepository lists active staff teacher options without cross-tenan
   assert.match(calls[0]!.sql, /membership\.status = 'active'/i);
   assert.match(calls[0]!.sql, /user_account\.status = 'active'/i);
   assert.match(calls[0]!.sql, /role\.code = ANY/i);
+  assert.match(calls[0]!.sql, /DISTINCT ON \(membership\.user_id\)/i);
+  assert.match(calls[0]!.sql, /FROM user_roles assigned_user_role/i);
+  assert.match(calls[0]!.sql, /FROM academics_role_appointments appointment/i);
+  assert.match(calls[0]!.sql, /FROM teacher_subject_assignments subject_assignment/i);
+  assert.match(calls[0]!.sql, /subject_assignment\.effective_from <= CURRENT_DATE/i);
+  assert.match(calls[0]!.sql, /subject_assignment\.effective_to IS NULL/i);
+  assert.match(calls[0]!.sql, /AS role_codes/i);
+  assert.match(calls[0]!.sql, /AS role_names/i);
+  assert.match(calls[0]!.sql, /AS teaching_subjects/i);
+  assert.match(calls[0]!.sql, /AS hod_departments/i);
+  assert.match(calls[0]!.sql, /FROM academics_department_hod_appointments appointment/i);
+  assert.match(calls[0]!.sql, /appointment\.tenant_id = membership\.tenant_id/i);
+  assert.match(calls[0]!.sql, /appointment\.status = 'active'/i);
+  assert.match(calls[0]!.sql, /appointment\.effective_from IS NULL OR appointment\.effective_from <= CURRENT_DATE/i);
+  assert.match(calls[0]!.sql, /appointment\.effective_to IS NULL OR appointment\.effective_to >= CURRENT_DATE/i);
   assert.match(calls[0]!.sql, /display_name/i);
   assert.match(calls[0]!.sql, /full_name/i);
   assert.deepEqual(calls[0]!.params, ['tenant-a']);
@@ -731,6 +760,10 @@ test('AcademicsRepository lists active staff teacher options without cross-tenan
       staff_number: 'TSC-102',
       status: 'active',
       role_code: 'teacher',
+      role_codes: ['teacher', 'hod'],
+      role_names: ['Head of Department', 'Teacher'],
+      teaching_subjects: ['Biology'],
+      hod_departments: ['Sciences'],
     },
   ]);
 });
@@ -775,6 +808,11 @@ test('AcademicsRepository loads the complete academic foundation in one tenant t
   assert.match(observedSql, /FROM tenant_memberships membership/);
   assert.match(observedSql, /JOIN roles role/);
   assert.match(observedSql, /role\.code = ANY/);
+  assert.match(observedSql, /DISTINCT ON \(membership\.user_id\)/);
+  assert.match(observedSql, /AS role_codes/);
+  assert.match(observedSql, /AS role_names/);
+  assert.match(observedSql, /AS teaching_subjects/);
+  assert.match(observedSql, /AS hod_departments/);
   assert.deepEqual(result.years, [{ id: 'year-1', name: '2026' }]);
 });
 
@@ -802,6 +840,10 @@ test('AcademicsRepository finds active teacher options by tenant and user id', a
             staff_number: 'TSC-102',
             status: 'active',
             role_code: 'teacher',
+            role_codes: ['teacher'],
+            role_names: ['Teacher'],
+            teaching_subjects: ['Biology'],
+            hod_departments: [],
           },
         ],
       };
@@ -818,6 +860,10 @@ test('AcademicsRepository finds active teacher options by tenant and user id', a
   assert.match(calls[0]!.sql, /WHERE membership\.tenant_id = \$1/i);
   assert.match(calls[0]!.sql, /membership\.user_id = \$2::uuid/i);
   assert.match(calls[0]!.sql, /role\.code = ANY/i);
+  assert.match(calls[0]!.sql, /FROM user_roles assigned_user_role/i);
+  assert.match(calls[0]!.sql, /FROM teacher_subject_assignments subject_assignment/i);
+  assert.match(calls[0]!.sql, /subject_assignment\.effective_from <= CURRENT_DATE/i);
+  assert.match(calls[0]!.sql, /AS hod_departments/i);
   assert.deepEqual(calls[0]!.params, ['tenant-a', 'teacher-user-1']);
   assert.deepEqual(result, {
     id: 'staff-1',
@@ -826,6 +872,10 @@ test('AcademicsRepository finds active teacher options by tenant and user id', a
     staff_number: 'TSC-102',
     status: 'active',
     role_code: 'teacher',
+    role_codes: ['teacher'],
+    role_names: ['Teacher'],
+    teaching_subjects: ['Biology'],
+    hod_departments: [],
   });
 });
 

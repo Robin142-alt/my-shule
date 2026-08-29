@@ -8,6 +8,7 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { usePermissions } from "@/components/providers/permission-context";
+import { buildSchoolStaffOptions, type SchoolStaffOptionInput } from "@/lib/school/staff-option-label";
 import { useVerifiedPrincipalDashboardApi } from "./verified-tenant-api";
 
 type PrincipalSubjectsData = {
@@ -20,16 +21,7 @@ type PrincipalSubjectsData = {
   departmentHeads: Array<any>;
 };
 
-type StaffOption = {
-  id?: string;
-  user_id?: string;
-  label?: string;
-  full_name?: string;
-  preferred_name?: string;
-  display_name?: string;
-  staff_number?: string;
-  email?: string;
-};
+type StaffOption = SchoolStaffOptionInput;
 
 export function PrincipalSubjectsDepartmentsWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalSubjectsData>('/admin-command/principal/subjects');
@@ -48,14 +40,7 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
   const [deptFormError, setDeptFormError] = useState("");
 
   const hasYears = yearsData && yearsData.length > 0;
-  const staffOptions = (staffData ?? [])
-    .map((staff) => {
-      const value = staff.user_id || staff.id || "";
-      const label = staff.label || staff.full_name || staff.preferred_name || staff.display_name || staff.staff_number || staff.email || "Unnamed staff member";
-
-      return { value, label };
-    })
-    .filter((staff) => staff.value);
+  const staffOptions = buildSchoolStaffOptions(staffData);
   const staffLabelByUserId = new Map(staffOptions.map((staff) => [staff.value, staff.label]));
 
   const handleCreateSubject = async (e: React.FormEvent<HTMLFormElement>) => {

@@ -30,6 +30,7 @@ import {
 import { AcademicAssignmentEndButton, AcademicRecordManager, AcademicTeacherReassignmentButton } from "@/components/school/academic-record-manager";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { buildSchoolStaffOptions, type SchoolStaffOptionInput } from "@/lib/school/staff-option-label";
 
 export type AcademicFoundationTab = "calendar" | "classes" | "subjects" | "allocations" | "roles-curriculum" | "policies";
 
@@ -52,7 +53,7 @@ type PolicySetting = LifecycleRecord & {
   effective_from?: string | null;
   effective_to?: string | null;
 };
-type TeacherOption = { id?: string; user_id?: string; label?: string; full_name?: string; email?: string; staff_number?: string };
+type TeacherOption = SchoolStaffOptionInput;
 type ClassTeacherAssignment = {
   id: string;
   academic_year_id: string;
@@ -345,10 +346,10 @@ export function AcademicFoundationWorkspace({
   const activeRoleAppointments = roleAppointments.filter(isActive);
   const activeCurriculumConfigurations = curriculumConfigurations.filter(isActive);
   const teachers = useMemo(
-    () => (foundationQuery.data?.teachers ?? []).map((teacher) => ({
-      id: teacher.user_id || teacher.id || "",
-      label: teacher.label || teacher.full_name || teacher.staff_number || teacher.email || "Unnamed staff member",
-    })).filter((teacher) => teacher.id),
+    () => buildSchoolStaffOptions(foundationQuery.data?.teachers).map((teacher) => ({
+      id: teacher.value,
+      label: teacher.label,
+    })),
     [foundationQuery.data?.teachers],
   );
 

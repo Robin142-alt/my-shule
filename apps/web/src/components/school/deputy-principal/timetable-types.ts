@@ -1,3 +1,5 @@
+import { formatSchoolStaffOptionLabel, type SchoolStaffOptionInput } from "@/lib/school/staff-option-label";
+
 export type ReadinessStatus = "READY" | "WARNING" | "BLOCKER";
 export type TimetableView = "class" | "teacher" | "resource" | "master";
 export type SaveState = "idle" | "saving" | "saved" | "queued" | "failed";
@@ -51,13 +53,7 @@ export type ClassSection = {
   archived_at?: string | null;
 };
 export type Subject = { id: string; code?: string; name: string };
-export type Teacher = {
-  user_id?: string;
-  id?: string;
-  label?: string;
-  name?: string;
-  staff_number?: string;
-};
+export type Teacher = SchoolStaffOptionInput;
 export type TeacherAssignment = {
   id: string;
   academic_term_id: string;
@@ -357,7 +353,7 @@ export function teacherId(teacher: Teacher) {
 }
 
 export function teacherLabel(teacher: Teacher) {
-  return teacher.label || teacher.name || teacher.staff_number || teacherId(teacher) || "Teacher";
+  return formatSchoolStaffOptionLabel(teacher);
 }
 
 export function dayLabel(day: number) {

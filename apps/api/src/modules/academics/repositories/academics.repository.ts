@@ -8,6 +8,160 @@ const ACADEMIC_TEACHING_ROLE_SQL = ACADEMIC_TEACHING_ROLE_CODES
   .map((roleCode) => `'${roleCode}'`)
   .join(', ');
 
+const ACADEMIC_STAFF_ROLE_CODES_SQL = `
+  ARRAY(
+    SELECT role_metadata.role_code
+    FROM (
+      SELECT linked_role.code AS role_code
+      FROM tenant_memberships linked_membership
+      JOIN roles linked_role
+        ON linked_role.id = linked_membership.role_id
+       AND linked_role.tenant_id = linked_membership.tenant_id
+      WHERE linked_membership.tenant_id = membership.tenant_id
+        AND linked_membership.user_id = membership.user_id
+        AND linked_membership.status = 'active'
+      UNION
+      SELECT assigned_role.code AS role_code
+      FROM user_roles assigned_user_role
+      JOIN roles assigned_role
+        ON assigned_role.id = assigned_user_role.role_id
+       AND assigned_role.tenant_id = assigned_user_role.tenant_id
+      WHERE assigned_user_role.tenant_id = membership.tenant_id
+        AND assigned_user_role.user_id = membership.user_id
+        AND upper(assigned_user_role.status::text) = 'ACTIVE'
+        AND assigned_user_role.deleted_at IS NULL
+      UNION
+      SELECT appointment.role_type AS role_code
+      FROM academics_role_appointments appointment
+      WHERE appointment.tenant_id = membership.tenant_id
+        AND appointment.teacher_user_id = membership.user_id
+        AND appointment.status = 'active'
+        AND appointment.effective_from <= CURRENT_DATE
+        AND (appointment.effective_to IS NULL OR appointment.effective_to >= CURRENT_DATE)
+    ) role_metadata
+    WHERE NULLIF(btrim(role_metadata.role_code), '') IS NOT NULL
+    ORDER BY role_metadata.role_code
+  )
+`;
+
+const ACADEMIC_STAFF_ROLE_NAMES_SQL = `
+  ARRAY(
+    SELECT role_metadata.role_name
+    FROM (
+      SELECT linked_role.name AS role_name
+      FROM tenant_memberships linked_membership
+      JOIN roles linked_role
+        ON linked_role.id = linked_membership.role_id
+       AND linked_role.tenant_id = linked_membership.tenant_id
+      WHERE linked_membership.tenant_id = membership.tenant_id
+        AND linked_membership.user_id = membership.user_id
+        AND linked_membership.status = 'active'
+      UNION
+      SELECT assigned_role.name AS role_name
+      FROM user_roles assigned_user_role
+      JOIN roles assigned_role
+        ON assigned_role.id = assigned_user_role.role_id
+       AND assigned_role.tenant_id = assigned_user_role.tenant_id
+      WHERE assigned_user_role.tenant_id = membership.tenant_id
+        AND assigned_user_role.user_id = membership.user_id
+        AND upper(assigned_user_role.status::text) = 'ACTIVE'
+        AND assigned_user_role.deleted_at IS NULL
+    ) role_metadata
+    WHERE NULLIF(btrim(role_metadata.role_name), '') IS NOT NULL
+    ORDER BY role_metadata.role_name
+  )
+`;
+
+const ACADEMIC_STAFF_TEACHING_SUBJECTS_SQL = `
+  ARRAY(
+    SELECT DISTINCT subject.name
+    FROM teacher_subject_assignments subject_assignment
+    JOIN subjects subject
+      ON subject.tenant_id = subject_assignment.tenant_id
+     AND subject.id::text = subject_assignment.subject_id::text
+    WHERE subject_assignment.tenant_id = membership.tenant_id
+      AND subject_assignment.teacher_user_id::text = membership.user_id::text
+      AND subject_assignment.status = 'active'
+      AND subject_assignment.effective_from <= CURRENT_DATE
+      AND (subject_assignment.effective_to IS NULL OR subject_assignment.effective_to >= CURRENT_DATE)
+      AND COALESCE(subject.status, 'active') = 'active'
+    ORDER BY subject.name
+  )
+`;
+
+const ACADEMIC_STAFF_HOD_DEPARTMENTS_SQL = `
+  ARRAY(
+    WITH canonical_hod AS (
+      SELECT DISTINCT ON (appointment.department_id)
+        appointment.department_id,
+        appointment.teacher_user_id
+      FROM academics_department_hod_appointments appointment
+      WHERE appointment.tenant_id = membership.tenant_id
+        AND appointment.status = 'active'
+        AND (appointment.effective_from IS NULL OR appointment.effective_from <= CURRENT_DATE)
+        AND (appointment.effective_to IS NULL OR appointment.effective_to >= CURRENT_DATE)
+      ORDER BY appointment.department_id, appointment.effective_from DESC NULLS LAST,
+               appointment.updated_at DESC, appointment.id DESC
+    ), legacy_role_hod AS (
+      SELECT DISTINCT ON (appointment.department_id)
+        appointment.department_id,
+        appointment.teacher_user_id
+      FROM academics_role_appointments appointment
+      WHERE appointment.tenant_id = membership.tenant_id
+        AND appointment.department_id IS NOT NULL
+        AND regexp_replace(lower(btrim(appointment.role_type)), '[ -]+', '_', 'g')
+            IN ('hod', 'head_of_department')
+        AND appointment.status = 'active'
+        AND (appointment.effective_from IS NULL OR appointment.effective_from <= CURRENT_DATE)
+        AND (appointment.effective_to IS NULL OR appointment.effective_to >= CURRENT_DATE)
+        AND NOT EXISTS (
+          SELECT 1
+          FROM academics_department_hod_appointments canonical
+          WHERE canonical.tenant_id = appointment.tenant_id
+            AND canonical.department_id = appointment.department_id
+        )
+      ORDER BY appointment.department_id, appointment.effective_from DESC NULLS LAST,
+               appointment.updated_at DESC, appointment.id DESC
+    ), legacy_pointer_hod AS (
+      SELECT department.id AS department_id,
+             department.head_of_department_user_id AS teacher_user_id
+      FROM academics_departments department
+      WHERE department.tenant_id = membership.tenant_id
+        AND department.head_of_department_user_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM academics_department_hod_appointments canonical
+          WHERE canonical.tenant_id = department.tenant_id
+            AND canonical.department_id = department.id
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM academics_role_appointments appointment
+          WHERE appointment.tenant_id = department.tenant_id
+            AND appointment.department_id = department.id
+            AND regexp_replace(lower(btrim(appointment.role_type)), '[ -]+', '_', 'g')
+                IN ('hod', 'head_of_department')
+        )
+    ), resolved_hod AS (
+      SELECT * FROM canonical_hod
+      UNION ALL
+      SELECT * FROM legacy_role_hod
+      UNION ALL
+      SELECT * FROM legacy_pointer_hod
+    )
+    SELECT DISTINCT department.name
+    FROM resolved_hod resolved
+    JOIN academics_departments department
+      ON department.tenant_id = membership.tenant_id
+     AND department.id = resolved.department_id
+    WHERE resolved.teacher_user_id::text = membership.user_id::text
+      AND COALESCE(department.is_active, true) = true
+      AND COALESCE(department.status, 'active') = 'active'
+      AND department.archived_at IS NULL
+    ORDER BY department.name
+  )
+`;
+
 function normalizeAcademicSystemType(value: unknown) {
   const normalized = String(value ?? '').trim().toLowerCase();
 
@@ -211,7 +365,7 @@ export class AcademicsRepository {
             COALESCE((
               SELECT jsonb_agg(to_jsonb(item) ORDER BY item.label ASC)
               FROM (
-                SELECT
+                SELECT DISTINCT ON (membership.user_id)
                        COALESCE(staff.id, membership.user_id)::text AS id,
                        membership.user_id::text,
                        COALESCE(
@@ -223,7 +377,11 @@ export class AcademicsRepository {
                        ) AS label,
                        staff.staff_number,
                        COALESCE(staff.status, 'active') AS status,
-                       role.code AS role_code
+                       role.code AS role_code,
+                       ${ACADEMIC_STAFF_ROLE_CODES_SQL} AS role_codes,
+                       ${ACADEMIC_STAFF_ROLE_NAMES_SQL} AS role_names,
+                       ${ACADEMIC_STAFF_TEACHING_SUBJECTS_SQL} AS teaching_subjects,
+                       ${ACADEMIC_STAFF_HOD_DEPARTMENTS_SQL} AS hod_departments
                 FROM tenant_memberships membership
                 JOIN users user_account
                   ON user_account.id = membership.user_id
@@ -238,6 +396,7 @@ export class AcademicsRepository {
                   AND user_account.status = 'active'
                   AND COALESCE(staff.status, 'active') IN ('active', 'reactivated')
                   AND role.code = ANY (ARRAY[${ACADEMIC_TEACHING_ROLE_SQL}]::text[])
+                ORDER BY membership.user_id, role.code ASC
                 LIMIT 300
               ) item
             ), '[]'::jsonb) AS teachers,
@@ -958,34 +1117,42 @@ export class AcademicsRepository {
 
   async listTeacherOptions(tenantId: string) {
     const result = await this.executeSql(tenantId, `
-        SELECT
-          COALESCE(staff.id, membership.user_id)::text AS id,
-          membership.user_id::text,
-          COALESCE(
-            NULLIF(staff.display_name, ''),
-            NULLIF(user_account.display_name, ''),
-            NULLIF(user_account.full_name, ''),
-            user_account.email,
-            membership.user_id::text
-          ) AS label,
-          staff.staff_number,
-          COALESCE(staff.status, 'active') AS status,
-          role.code AS role_code
-        FROM tenant_memberships membership
-        JOIN users user_account
-          ON user_account.id = membership.user_id
-        JOIN roles role
-          ON role.id = membership.role_id
-         AND role.tenant_id = membership.tenant_id
-        LEFT JOIN staff_profiles staff
-          ON staff.tenant_id = membership.tenant_id
-         AND staff.user_id = membership.user_id
-        WHERE membership.tenant_id = $1
-          AND membership.status = 'active'
-          AND user_account.status = 'active'
-          AND COALESCE(staff.status, 'active') IN ('active', 'reactivated')
-          AND role.code = ANY (ARRAY[${ACADEMIC_TEACHING_ROLE_SQL}]::text[])
-        ORDER BY label ASC
+        SELECT teacher_option.*
+        FROM (
+          SELECT DISTINCT ON (membership.user_id)
+            COALESCE(staff.id, membership.user_id)::text AS id,
+            membership.user_id::text,
+            COALESCE(
+              NULLIF(staff.display_name, ''),
+              NULLIF(user_account.display_name, ''),
+              NULLIF(user_account.full_name, ''),
+              user_account.email,
+              membership.user_id::text
+            ) AS label,
+            staff.staff_number,
+            COALESCE(staff.status, 'active') AS status,
+            role.code AS role_code,
+            ${ACADEMIC_STAFF_ROLE_CODES_SQL} AS role_codes,
+            ${ACADEMIC_STAFF_ROLE_NAMES_SQL} AS role_names,
+            ${ACADEMIC_STAFF_TEACHING_SUBJECTS_SQL} AS teaching_subjects,
+            ${ACADEMIC_STAFF_HOD_DEPARTMENTS_SQL} AS hod_departments
+          FROM tenant_memberships membership
+          JOIN users user_account
+            ON user_account.id = membership.user_id
+          JOIN roles role
+            ON role.id = membership.role_id
+           AND role.tenant_id = membership.tenant_id
+          LEFT JOIN staff_profiles staff
+            ON staff.tenant_id = membership.tenant_id
+           AND staff.user_id = membership.user_id
+          WHERE membership.tenant_id = $1
+            AND membership.status = 'active'
+            AND user_account.status = 'active'
+            AND COALESCE(staff.status, 'active') IN ('active', 'reactivated')
+            AND role.code = ANY (ARRAY[${ACADEMIC_TEACHING_ROLE_SQL}]::text[])
+          ORDER BY membership.user_id, role.code ASC
+        ) teacher_option
+        ORDER BY teacher_option.label ASC
         LIMIT 300
       `,
       [tenantId]);
@@ -1007,7 +1174,11 @@ export class AcademicsRepository {
           ) AS label,
           staff.staff_number,
           COALESCE(staff.status, 'active') AS status,
-          role.code AS role_code
+          role.code AS role_code,
+          ${ACADEMIC_STAFF_ROLE_CODES_SQL} AS role_codes,
+          ${ACADEMIC_STAFF_ROLE_NAMES_SQL} AS role_names,
+          ${ACADEMIC_STAFF_TEACHING_SUBJECTS_SQL} AS teaching_subjects,
+          ${ACADEMIC_STAFF_HOD_DEPARTMENTS_SQL} AS hod_departments
         FROM tenant_memberships membership
         JOIN users user_account
           ON user_account.id = membership.user_id
@@ -1023,6 +1194,7 @@ export class AcademicsRepository {
           AND user_account.status = 'active'
           AND COALESCE(staff.status, 'active') IN ('active', 'reactivated')
           AND role.code = ANY (ARRAY[${ACADEMIC_TEACHING_ROLE_SQL}]::text[])
+        ORDER BY role.code ASC
         LIMIT 1
       `,
       [tenantId, teacherUserId]);

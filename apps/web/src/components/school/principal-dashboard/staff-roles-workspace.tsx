@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useVerifiedPrincipalDashboardApi } from "./verified-tenant-api";
 import { UserManagementPanel } from "@/components/school/user-management-panel";
 import { usePermissions } from "@/components/providers/permission-context";
+import { buildSchoolStaffOptions, type SchoolStaffOptionInput } from "@/lib/school/staff-option-label";
 
 type PrincipalStaffData = {
   status: "active" | "degraded" | "setup_required";
@@ -21,17 +22,7 @@ type PrincipalStaffData = {
   recentOnboarding: Array<any>;
 };
 
-type TeacherOption = {
-  id?: string;
-  user_id?: string;
-  label?: string;
-  full_name?: string;
-  preferred_name?: string;
-  display_name?: string;
-  staff_number?: string;
-  email?: string;
-  status?: string;
-};
+type TeacherOption = SchoolStaffOptionInput & { status?: string };
 
 export function PrincipalStaffRolesWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalStaffData>('/admin-command/principal/staff');
@@ -52,14 +43,7 @@ export function PrincipalStaffRolesWorkspace() {
   const [isSubmittingCT, setIsSubmittingCT] = useState(false);
   const [ctFormError, setCtFormError] = useState("");
 
-  const teacherOptions = (teachersData ?? [])
-    .map((teacher) => {
-      const value = teacher.user_id || teacher.id || "";
-      const label = teacher.label || teacher.full_name || teacher.preferred_name || teacher.display_name || teacher.staff_number || teacher.email || "Unnamed teacher";
-
-      return { value, label };
-    })
-    .filter((teacher) => teacher.value);
+  const teacherOptions = buildSchoolStaffOptions(teachersData);
 
   const teacherLabelByUserId = new Map(teacherOptions.map((teacher) => [teacher.value, teacher.label]));
   const classLabelById = new Map((classesData ?? []).map((classSection) => [
