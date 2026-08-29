@@ -10,6 +10,7 @@ import { fieldValue, listFromData, metricFromData, Panel, StatusChip, Tone } fro
 
 type AssessmentsRecord = {
   id?: string;
+  mark_ids?: string[];
   title?: string;
   exam?: string;
   subject?: string;
@@ -32,6 +33,24 @@ type AssessmentsData = {
   assessmentsList: AssessmentsRecord[];
 };
 
+function assessmentMarkIds(item: AssessmentsRecord): string[] {
+  return Array.isArray(item.mark_ids)
+    ? item.mark_ids.filter((id): id is string => typeof id === "string" && Boolean(id.trim()))
+    : [];
+}
+
+function displayStatus(value: string): string {
+  return value
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function displayDate(value: string): string {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value || "Not recorded" : parsed.toLocaleString();
+}
+
 export function AssessmentsWorkspace() {
   const { data, isLoading, refetch } = useSchoolQuery<AssessmentsData | AssessmentsRecord[]>('/admin-command/dean-academics/assessments');
   const {
@@ -43,11 +62,13 @@ export function AssessmentsWorkspace() {
   const items = listFromData<AssessmentsRecord>(data, "assessmentsList");
   const [isLocking, setIsLocking] = useState(false);
   const [submittingActionId, setSubmittingActionId] = useState<string | null>(null);
+  const [returningAssessmentId, setReturningAssessmentId] = useState<string | null>(null);
+  const [assessmentReturnReason, setAssessmentReturnReason] = useState("");
   const [recallId, setRecallId] = useState<string | null>(null);
   const [recallReason, setRecallReason] = useState("");
 
   const getStatusTone = (st: string): Tone => {
-    if (st === "Active" || st === "Available" || st === "Approved" || st === "Completed" || st === "Resolved" || st === "Present" || st === "Functional" || st === "On Track" || st === "Cleared") return "success";
+    if (st === "Active" || st === "Available" || st === "Approved" || st === "Reviewed" || st === "Completed" || st === "Resolved" || st === "Present" || st === "Functional" || st === "On Track" || st === "Cleared") return "success";
     if (st === "Pending" || st === "In Progress" || st === "Pending Approval" || st === "Scheduled" || st === "On Loan" || st === "Behind" || st === "Departed" || st === "Warning" || st === "Pending Review") return "warning";
     if (st === "Overdue" || st === "Critical" || st === "Rejected" || st === "Escalated" || st === "Expired" || st === "Damaged" || st === "Flagged" || st === "Absent" || st === "Blacklisted" || st === "Disposed" || st === "Unauthorized") return "danger";
     if (st === "Issued" || st === "Checked In" || st === "Submitted" || st === "Booked" || st === "Sent" || st === "On Leave") return "info";
@@ -58,21 +79,19 @@ export function AssessmentsWorkspace() {
     const status = fieldValue(item, ["status"], "").toLowerCase();
     return status.includes("review") || status.includes("moderation") || status.includes("pending");
   });
+  const lockableMarkIds = [...new Set(lockableItems.flatMap(assessmentMarkIds))];
 
   async function handleLockBatch() {
-    if (isLocking || lockableItems.length === 0) return;
+    if (isLocking || lockableMarkIds.length === 0) return;
 
     setIsLocking(true);
     try {
-      await requestDashboardApi("/admin-command/dean-academics/lock-batch", {
-        method: "POST",
-        body: {
-          markIds: lockableItems.map((item) => item.id).filter(Boolean),
-          title: "Dean assessment batch locked",
-          message: "Dean of Academics locked reviewed assessment marks for the academic review chain.",
-          sourceWorkspace: "assessments",
-        },
-      });
+      for (let index = 0; index < lockableMarkIds.length; index += 500) {
+        await requestDashboardApi("/admin-command/dean-academics/lock-batch", {
+          method: "POST",
+          body: { markIds: lockableMarkIds.slice(index, index + 500) },
+        });
+      }
 
       toast.success("Dean academic workflow saved. Assessment batch was locked for review.");
       await refetch();
@@ -83,26 +102,38 @@ export function AssessmentsWorkspace() {
     }
   }
 
-  async function recordDeanAssessmentAction(item: AssessmentsRecord, action: "return_for_correction" | "request_moderation") {
+  async function recordDeanAssessmentAction(item: AssessmentsRecord, action: "approve" | "return_for_correction") {
     const actionKey = `${item.id ?? "assessment"}-${action}`;
+    const markIds = assessmentMarkIds(item);
+    const reason = assessmentReturnReason.trim();
     if (submittingActionId) return;
+    if (markIds.length === 0) {
+      toast.error("This assessment row has no marks available for moderation. Refresh and try again.");
+      return;
+    }
+    if (action === "return_for_correction" && !reason) {
+      toast.error("Enter the correction reason before returning these marks.");
+      return;
+    }
 
     setSubmittingActionId(actionKey);
     try {
-      await requestDashboardApi("/admin-command/dean-academics/action", {
+      await requestDashboardApi("/exams/marks/moderate", {
         method: "POST",
         body: {
           action,
-          id: item.id ?? null,
-          title: action === "return_for_correction" ? "Assessment returned for correction" : "Assessment moderation requested",
-          message: `${fieldValue(item, ["title", "exam"], "Assessment")} was routed by Dean of Academics.`,
-          workspace: "assessments",
-          subject: fieldValue(item, ["subject", "subject_name"]),
-          classStream: fieldValue(item, ["class", "class_name"]),
+          mark_ids: markIds,
+          ...(action === "return_for_correction" ? { reason } : {}),
         },
       });
 
-      toast.success("Dean academic workflow saved.");
+      toast.success(
+        action === "approve"
+          ? `${markIds.length} mark${markIds.length === 1 ? "" : "s"} approved in moderation.`
+          : `${markIds.length} mark${markIds.length === 1 ? "" : "s"} returned with the correction reason.`,
+      );
+      setReturningAssessmentId(null);
+      setAssessmentReturnReason("");
       await refetch();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Dean assessment action could not be saved.");
@@ -156,7 +187,7 @@ export function AssessmentsWorkspace() {
       description="Manage and monitor school-wide assessments."
       icon={ClipboardList}
       actions={
-        <button type="button" onClick={handleLockBatch} disabled={isLocking || lockableItems.length === 0} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+        <button type="button" onClick={handleLockBatch} disabled={isLocking || lockableMarkIds.length === 0} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
           {isLocking ? "Locking..." : "Lock reviewed batch"}
         </button>
       }
@@ -195,37 +226,79 @@ export function AssessmentsWorkspace() {
             ) : items.length === 0 ? (
               <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">No assessment records found yet. Create exams and submit marks before Dean moderation.</td></tr>
             ) : (
-              items.map(row => (
-                <tr key={row.id ?? fieldValue(row, ["title", "exam"])} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
+              items.map(row => {
+                const rowId = row.id ?? fieldValue(row, ["title", "exam"]);
+                const normalizedStatus = fieldValue(row, ["status"], "").toLowerCase();
+                const returning = returningAssessmentId === rowId;
+                const approveActionId = `${rowId}-approve`;
+                const returnActionId = `${rowId}-return_for_correction`;
+
+                return (
+                <tr key={rowId} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
                   <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["title", "exam", "assessment_name"])}</td>
                   <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["subject", "subject_name"])}</td>
                   <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["class", "class_name", "classStream"])}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["date", "created_at"])}</td>
+                  <td className="px-4 py-3 text-[#64748B]">{displayDate(fieldValue(row, ["date", "created_at"], ""))}</td>
                   <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["total_marks", "max_score"], "0")}</td>
                   <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["submissions", "submission_count"], "0")}</td>
-                  <td className="px-4 py-3"><StatusChip label={fieldValue(row, ["status"], "Pending Review")} tone={getStatusTone(fieldValue(row, ["status"], "Pending Review"))} /></td>
+                  <td className="px-4 py-3"><StatusChip label={displayStatus(fieldValue(row, ["status"], "Pending Review"))} tone={getStatusTone(displayStatus(fieldValue(row, ["status"], "Pending Review")))} /></td>
                   <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-2">
+                    {!returning ? <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        onClick={() => recordDeanAssessmentAction(row, "request_moderation")}
-                        disabled={!!submittingActionId}
+                        onClick={() => recordDeanAssessmentAction(row, "approve")}
+                        disabled={Boolean(submittingActionId) || normalizedStatus !== "submitted"}
                         className="rounded-lg border border-[#BFDBFE] bg-[#EEF5FF] px-3 py-1.5 text-xs font-black text-[#0B63CE] disabled:opacity-50"
                       >
-                        Moderate
+                        {submittingActionId === approveActionId ? "Approving..." : "Moderate & approve"}
                       </button>
                       <button
                         type="button"
-                        onClick={() => recordDeanAssessmentAction(row, "return_for_correction")}
-                        disabled={!!submittingActionId}
+                        onClick={() => {
+                          setReturningAssessmentId(rowId);
+                          setAssessmentReturnReason("");
+                        }}
+                        disabled={Boolean(submittingActionId) || !["submitted", "reviewed"].includes(normalizedStatus)}
                         className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-700 disabled:opacity-50"
                       >
                         Return
                       </button>
-                    </div>
+                    </div> : (
+                      <div className="flex min-w-72 flex-col gap-2">
+                        <label htmlFor={`assessment-return-${rowId}`} className="text-xs font-bold text-[#475569]">Required correction reason</label>
+                        <textarea
+                          id={`assessment-return-${rowId}`}
+                          value={assessmentReturnReason}
+                          onChange={(event) => setAssessmentReturnReason(event.target.value)}
+                          rows={2}
+                          className="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#071D49]"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReturningAssessmentId(null);
+                              setAssessmentReturnReason("");
+                            }}
+                            disabled={submittingActionId === returnActionId}
+                            className="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-xs font-black text-[#475569]"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => recordDeanAssessmentAction(row, "return_for_correction")}
+                            disabled={Boolean(submittingActionId) || !assessmentReturnReason.trim()}
+                            className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
+                          >
+                            {submittingActionId === returnActionId ? "Returning..." : "Confirm return"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </td>
                 </tr>
-              ))
+              );})
             )}
           </tbody>
         </table>
@@ -248,8 +321,11 @@ export function AssessmentsWorkspace() {
         </div>
 
         {reportCardsError ? (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
-            Report-card approvals could not be loaded: {reportCardsError.message}
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+            <span>Report-card approvals could not be loaded: {reportCardsError.message}</span>
+            <button type="button" onClick={() => void refetchReportCards()} className="rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-black text-red-700">
+              Retry queue
+            </button>
           </div>
         ) : null}
 
@@ -265,7 +341,13 @@ export function AssessmentsWorkspace() {
               </tr>
             </thead>
             <tbody>
-              {reportCardsLoading ? (
+              {reportCardsError ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">
+                    The approval queue is temporarily unavailable. Retry above after the connection recovers.
+                  </td>
+                </tr>
+              ) : reportCardsLoading ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">
                     Loading report-card approval queue...

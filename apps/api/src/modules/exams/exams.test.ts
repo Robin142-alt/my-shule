@@ -3610,8 +3610,9 @@ query: async (text: string, values: unknown[]) => {
   );
   assert.match(
     reportCardsQuery,
-    /student\.tenant_id = card\.tenant_id[\s\S]*student\.id = card\.student_id/,
+    /student\.tenant_id = card\.tenant_id[\s\S]*student\.id = card\.student_id::text/,
   );
+  assert.doesNotMatch(reportCardsQuery, /student\.id = card\.student_id(?:\s|$)/);
   assert.match(reportCardsQuery, /card\.is_current = TRUE/);
   assert.match(reportCardsQuery, /LIMIT \$3::integer/);
   assert.match(reportCardsQuery, /OFFSET \$4::integer/);
@@ -3762,6 +3763,8 @@ query: async (text: string, values: unknown[]) => {
 
   const sql = queries[0]?.text ?? '';
   assert.match(sql, /INNER JOIN student_guardians guardian/);
+  assert.match(sql, /guardian\.student_id = card\.student_id::text/);
+  assert.match(sql, /student\.id = card\.student_id::text/);
   assert.match(sql, /guardian\.user_id = \$2::uuid/);
   assert.match(sql, /guardian\.status = 'active'/);
   assert.match(sql, /term\.id::text = series\.academic_term_id::text/);
@@ -3802,6 +3805,7 @@ query: async (text: string, values: unknown[]) => {
 
   const sql = queries[0]?.text ?? '';
   assert.match(sql, /INNER JOIN students student/);
+  assert.match(sql, /student\.id = card\.student_id::text/);
   assert.match(sql, /card\.student_id = \$2::uuid/);
   assert.match(sql, /card\.status = 'published'/);
   assert.match(sql, /term\.id::text = series\.academic_term_id::text/);

@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import { ExamsService } from '../exams/exams.service';
@@ -83,10 +83,87 @@ export class DeanAcademicsCommandService {
   async getAssessments() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM exam_marks WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      `
+        SELECT
+          concat_ws(
+            ':',
+            mark.exam_series_id::text,
+            mark.assessment_id::text,
+            mark.class_section_id::text,
+            mark.status
+          ) AS id,
+          series.name AS title,
+          assessment.name AS assessment_name,
+          COALESCE(subject.name, assessment.name) AS subject,
+          COALESCE(
+            NULLIF(class_section.custom_label, ''),
+            NULLIF(class_section.name, ''),
+            'Unassigned class'
+          ) AS class_name,
+          MAX(mark.updated_at)::text AS date,
+          assessment.max_score::float AS total_marks,
+          COUNT(mark.id)::int AS submissions,
+          mark.status,
+          array_agg(mark.id::text ORDER BY mark.id::text) AS mark_ids
+        FROM exam_marks mark
+        INNER JOIN exam_assessments assessment
+          ON assessment.tenant_id = mark.tenant_id
+         AND assessment.id = mark.assessment_id
+        INNER JOIN exam_series series
+          ON series.tenant_id = mark.tenant_id
+         AND series.id = mark.exam_series_id
+        LEFT JOIN subjects subject
+          ON subject.tenant_id = mark.tenant_id
+         AND subject.id = mark.subject_id::text
+        LEFT JOIN class_sections class_section
+          ON class_section.tenant_id = mark.tenant_id
+         AND class_section.id = mark.class_section_id::text
+        WHERE mark.tenant_id = $1
+          AND mark.status IN ('submitted', 'reviewed')
+        GROUP BY
+          mark.exam_series_id,
+          mark.assessment_id,
+          mark.class_section_id,
+          mark.status,
+          series.name,
+          assessment.name,
+          assessment.max_score,
+          subject.name,
+          class_section.custom_label,
+          class_section.name
+        ORDER BY MAX(mark.updated_at) DESC
+        LIMIT 100
+      `,
       [tenantId]
     );
-    return res.rows;
+    const assessmentsList = res.rows;
+    return {
+      metrics: {
+        active_assessments: assessmentsList.length,
+        pending_marking: assessmentsList.filter((row: any) => row.status === 'submitted').length,
+        completed: assessmentsList.filter((row: any) => row.status === 'reviewed').length,
+      },
+      assessmentsList,
+    };
+  }
+
+  async lockAssessmentBatch(dto: any = {}) {
+    const rawMarkIds: unknown[] = Array.isArray(dto?.markIds)
+      ? dto.markIds
+      : Array.isArray(dto?.mark_ids)
+        ? dto.mark_ids
+        : [];
+    const markIds = [
+      ...new Set(
+        rawMarkIds
+          .filter((id): id is string => typeof id === 'string' && Boolean(id.trim()))
+          .map((id) => id.trim()),
+      ),
+    ];
+    if (markIds.length === 0 || markIds.length > 500) {
+      throw new BadRequestException('Provide between 1 and 500 reviewed mark IDs');
+    }
+    return this.examsService.lockMarks({ mark_ids: markIds });
   }
 
   async getAcademicInterventions() {

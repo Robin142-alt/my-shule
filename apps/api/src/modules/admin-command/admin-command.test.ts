@@ -34,6 +34,7 @@ import { TransportManagerCommandService } from './transport-manager-command.serv
 import { ExamsManagerCommandService } from './exams-manager-command.service';
 import { TeacherCommandService } from './teacher-command.service';
 import { DeanAcademicsCommandService } from './dean-academics-command.service';
+import { DeanAcademicsCommandController } from './dean-academics-command.controller';
 import { DeputyCommandService } from './deputy-command.service';
 import { DeputyCommandController } from './deputy-command.controller';
 import { AdmissionsCommandService } from './admissions-command.service';
@@ -4172,6 +4173,77 @@ test('DeanAcademicsCommandService does not convert tenant query failures into fa
   );
 
   await assert.rejects(() => service.getAssessments(), /dean read failed/);
+});
+
+test('DeanAcademicsCommandService returns a tenant-scoped, actionable moderation queue', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const service = new DeanAcademicsCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: 'dean-a', role: 'dean_academics' }),
+    } as never,
+    {
+      query: async (sql: string, params: unknown[]) => {
+        queries.push({ sql, params });
+        return {
+          rows: [
+            { id: 'series:assessment:class:submitted', status: 'submitted', mark_ids: ['mark-a'] },
+            { id: 'series:assessment:class:reviewed', status: 'reviewed', mark_ids: ['mark-b'] },
+          ],
+          rowCount: 2,
+        };
+      },
+    } as never,
+    {} as never,
+    {} as never,
+  );
+
+  const result = await service.getAssessments();
+
+  assert.deepEqual(result.metrics, {
+    active_assessments: 2,
+    pending_marking: 1,
+    completed: 1,
+  });
+  assert.equal(result.assessmentsList.length, 2);
+  assert.deepEqual(queries[0]?.params, ['tenant-a']);
+  assert.match(queries[0]?.sql ?? '', /FROM exam_marks mark/);
+  assert.match(queries[0]?.sql ?? '', /INNER JOIN exam_assessments assessment/);
+  assert.match(queries[0]?.sql ?? '', /subject\.id = mark\.subject_id::text/);
+  assert.match(queries[0]?.sql ?? '', /class_section\.id = mark\.class_section_id::text/);
+  assert.match(queries[0]?.sql ?? '', /mark\.tenant_id = \$1/);
+  assert.match(queries[0]?.sql ?? '', /mark\.status IN \('submitted', 'reviewed'\)/);
+  assert.match(queries[0]?.sql ?? '', /array_agg\(mark\.id::text/);
+  assert.doesNotMatch(queries[0]?.sql ?? '', /SELECT \* FROM exam_marks/);
+});
+
+test('Dean assessment batch locking uses the real exams workflow with Dean approval permission', async () => {
+  let delegated: Record<string, unknown> | undefined;
+  const service = new DeanAcademicsCommandService(
+    {
+      getStore: () => ({ tenant_id: 'tenant-a', user_id: 'dean-a', role: 'dean_academics' }),
+    } as never,
+    {} as never,
+    {} as never,
+    {
+      lockMarks: async (input: Record<string, unknown>) => {
+        delegated = input;
+        return { success: true, locked_count: 2 };
+      },
+    } as never,
+  );
+
+  const result = await service.lockAssessmentBatch({ markIds: ['mark-a', 'mark-a', 'mark-b'] });
+
+  assert.deepEqual(delegated, { mark_ids: ['mark-a', 'mark-b'] });
+  assert.deepEqual(result, { success: true, locked_count: 2 });
+  assert.deepEqual(
+    Reflect.getMetadata(PERMISSIONS_KEY, DeanAcademicsCommandController.prototype.lockBatch),
+    ['exams:approve'],
+  );
+  assert.deepEqual(
+    Reflect.getMetadata(MODULE_ACCESS_KEY, DeanAcademicsCommandController.prototype.lockBatch),
+    ['exams'],
+  );
 });
 
 test('DeputyCommandService merges school academic summary with the central intervention read model', async () => {

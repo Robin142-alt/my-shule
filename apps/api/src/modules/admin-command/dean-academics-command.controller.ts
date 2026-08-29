@@ -61,9 +61,10 @@ export class DeanAcademicsCommandController {
   }
 
   @Post('lock-batch')
-  @Permissions('academics:write')
+  @RequiresModule('exams')
+  @Permissions('exams:approve')
   lockBatch(@Body() dto: any) {
-    return this.service.recordDeanAction('lock_batch', dto);
+    return this.service.lockAssessmentBatch(dto);
   }
 
   @Post('action')

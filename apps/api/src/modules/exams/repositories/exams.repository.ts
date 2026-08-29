@@ -1661,7 +1661,7 @@ export class ExamsRepository {
          AND card.id = artifact.report_card_id
         JOIN students student
           ON student.tenant_id = card.tenant_id
-         AND student.id = card.student_id
+         AND student.id = card.student_id::text
         JOIN exam_series series
           ON series.tenant_id = card.tenant_id
          AND series.id = card.exam_series_id
@@ -1740,7 +1740,7 @@ export class ExamsRepository {
           ON stream.tenant_id = assignment.tenant_id
          AND stream.id = assignment.stream_id
         WHERE student.tenant_id = $1
-          AND student.id = $2::uuid
+          AND student.id = $2::text
         LIMIT 1
       `,
       [input.tenant_id, input.student_id],
@@ -1916,7 +1916,7 @@ export class ExamsRepository {
          AND year.id = term.academic_year_id
         LEFT JOIN students student
           ON student.tenant_id = card.tenant_id
-         AND student.id = card.student_id
+         AND student.id = card.student_id::text
         WHERE card.tenant_id = $1
           AND ($2::uuid IS NULL OR card.student_id = $2::uuid)
           AND card.is_current = TRUE
@@ -1969,12 +1969,12 @@ export class ExamsRepository {
         FROM student_report_cards card
         INNER JOIN student_guardians guardian
           ON guardian.tenant_id = card.tenant_id
-         AND guardian.student_id = card.student_id
+         AND guardian.student_id = card.student_id::text
          AND guardian.user_id = $2::uuid
          AND guardian.status = 'active'
         INNER JOIN students student
           ON student.tenant_id = card.tenant_id
-         AND student.id = card.student_id
+         AND student.id = card.student_id::text
          AND student.status <> 'archived'
         LEFT JOIN exam_series series
           ON series.tenant_id = card.tenant_id
@@ -2036,7 +2036,7 @@ export class ExamsRepository {
         FROM student_report_cards card
         INNER JOIN students student
           ON student.tenant_id = card.tenant_id
-         AND student.id = card.student_id
+         AND student.id = card.student_id::text
          AND student.status <> 'archived'
         LEFT JOIN exam_series series
           ON series.tenant_id = card.tenant_id
@@ -2072,7 +2072,7 @@ export class ExamsRepository {
         FROM student_report_cards card
         JOIN student_guardians guardian
           ON guardian.tenant_id = card.tenant_id
-         AND guardian.student_id = card.student_id
+         AND guardian.student_id = card.student_id::text
          AND guardian.user_id = $3::uuid
          AND guardian.status = 'active'
         WHERE card.tenant_id = $1
@@ -2102,7 +2102,7 @@ export class ExamsRepository {
         FROM student_report_cards card
         INNER JOIN students student
           ON student.tenant_id = card.tenant_id
-         AND student.id = card.student_id
+         AND student.id = card.student_id::text
          AND student.status <> 'archived'
         WHERE card.tenant_id = $1
           AND card.id = $2::uuid
