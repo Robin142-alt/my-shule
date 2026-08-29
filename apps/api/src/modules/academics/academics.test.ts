@@ -137,6 +137,40 @@ test('AcademicsRepository writes settings across legacy UUID and current text sc
   }
 });
 
+test('AcademicsRepository updates subject departments across legacy text and current UUID schemas', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new AcademicsRepository({
+    executeWithTenant: async (
+      tenantId: string,
+      _userId: string | null,
+      callback: (tx: { $queryRawUnsafe: (sql: string, ...params: unknown[]) => Promise<unknown[]> }) => Promise<unknown>,
+    ) => {
+      assert.equal(tenantId, 'kibabi-high');
+      return callback({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          calls.push({ sql, params });
+          return [{ id: 'subject-1', department_id: 'department-1' }];
+        },
+      });
+    },
+  } as never);
+
+  await repository.updateSubject('kibabi-high', 'subject-1', {
+    department_id: '55aa17ec-c9f8-4ab2-aa9d-54f31f868b18',
+    expected_version: 1,
+  });
+
+  assert.equal(calls.length, 1);
+  assert.match(calls[0]!.sql, /department_id = \$3/);
+  assert.doesNotMatch(calls[0]!.sql, /department_id = \$3::uuid/);
+  assert.deepEqual(calls[0]!.params, [
+    'kibabi-high',
+    'subject-1',
+    '55aa17ec-c9f8-4ab2-aa9d-54f31f868b18',
+    1,
+  ]);
+});
+
 test('AcademicsRepository previews dependencies for many records in one tenant transaction', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   let transactionCount = 0;

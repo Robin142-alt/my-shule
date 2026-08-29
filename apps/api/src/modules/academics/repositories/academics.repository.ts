@@ -1733,7 +1733,10 @@ export class AcademicsRepository {
     let i = 3;
     if (input.code) { fields.push(`code = $${i++}`); values.push(input.code); }
     if (input.name) { fields.push(`name = $${i++}`); values.push(input.name); }
-    if (input.department_id !== undefined) { fields.push(`department_id = $${i++}::uuid`); values.push(input.department_id || null); }
+    // Let PostgreSQL infer the assignment type from the live column. Older
+    // school schemas store subjects.department_id as text, while newer schemas
+    // use uuid; an explicit uuid cast makes valid edits fail on the legacy form.
+    if (input.department_id !== undefined) { fields.push(`department_id = $${i++}`); values.push(input.department_id || null); }
     if (input.abbreviation !== undefined) { fields.push(`abbreviation = $${i++}`); values.push(input.abbreviation || null); }
     if (input.curriculum_model !== undefined) { fields.push(`curriculum_model = $${i++}`); values.push(input.curriculum_model); }
     if (input.subject_type !== undefined) { fields.push(`subject_type = $${i++}`); values.push(input.subject_type); }
