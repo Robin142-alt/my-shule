@@ -5,6 +5,7 @@ import { requestSchoolApiProxy } from "@/lib/dashboard/school-api-proxy-client";
 export interface LiveExamMarkSheet {
   id: string;
   exam_series_id: string;
+  exam_series_name?: string | null;
   academic_term_id?: string | null;
   assessment_id?: string | null;
   subject_id: string;
@@ -15,6 +16,11 @@ export interface LiveExamMarkSheet {
   closes_at?: string | null;
   status: "open" | "closed" | string;
   mark_count: number;
+  draft_mark_count?: number | null;
+  submitted_mark_count?: number | null;
+  reviewed_mark_count?: number | null;
+  locked_mark_count?: number | null;
+  published_mark_count?: number | null;
   learner_count?: number | null;
   last_marked_at?: string | null;
 }

@@ -3643,6 +3643,7 @@ query: async (text: string, values: unknown[]) => {
 
   await repository.listStudentsForReportCardBatch({
     tenant_id: 'tenant-a',
+    exam_series_id: '00000000-0000-0000-0000-000000000201',
     class_section_id: null,
     stream_name: null,
     limit: 1000,
@@ -3651,9 +3652,186 @@ query: async (text: string, values: unknown[]) => {
 
   const studentsQuery = queries[0]?.text ?? '';
   assert.doesNotMatch(studentsQuery, /LIMIT 1000/);
-  assert.match(studentsQuery, /LIMIT \$4::integer/);
-  assert.match(studentsQuery, /OFFSET \$5::integer/);
-  assert.deepEqual(queries[0]?.values, ['tenant-a', null, null, 200, 20]);
+  assert.match(studentsQuery, /FROM exam_marks mark/);
+  assert.match(studentsQuery, /mark\.status IN \('locked', 'published'\)/);
+  assert.match(studentsQuery, /LIMIT \$5::integer/);
+  assert.match(studentsQuery, /OFFSET \$6::integer/);
+  assert.deepEqual(queries[0]?.values, [
+    'tenant-a',
+    '00000000-0000-0000-0000-000000000201',
+    null,
+    null,
+    200,
+    20,
+  ]);
+});
+
+test('ExamsRepository checks complete finalized report-card readiness inside one tenant and exam scope', async () => {
+  const queries: Array<{ text: string; values: unknown[] }> = [];
+  const repository = new ExamsRepository({
+    executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
+      return cb({
+        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
+          const res = await (this as any).query(sql, params);
+          return res.rows || res;
+        },
+      });
+    },
+    query: async (text: string, values: unknown[]) => {
+      queries.push({ text, values });
+      return { rows: [{ expected_mark_count: 2, ready_mark_count: 2, not_ready_mark_count: 0, learner_count: 1 }] };
+    },
+  } as never);
+
+  const readiness = await repository.getReportCardBatchReadiness({
+    tenant_id: 'tenant-a',
+    exam_series_id: '00000000-0000-0000-0000-000000000201',
+    class_section_id: '00000000-0000-0000-0000-000000000202',
+    stream_name: 'North',
+  });
+
+  assert.equal(readiness.not_ready_mark_count, 0);
+  assert.match(queries[0]?.text ?? '', /WHERE mark\.tenant_id = \$1/);
+  assert.match(queries[0]?.text ?? '', /mark\.exam_series_id = \$2::uuid/);
+  assert.match(queries[0]?.text ?? '', /mark\.status IN \('locked', 'published'\)/);
+  assert.deepEqual(queries[0]?.values, [
+    'tenant-a',
+    '00000000-0000-0000-0000-000000000201',
+    '00000000-0000-0000-0000-000000000202',
+    'North',
+  ]);
+});
+
+test('ReportCardGenerationService refuses an empty or unfinalized report-card scope before creating a batch', async () => {
+  let batchCreated = false;
+  const service = new ReportCardGenerationService(
+    {
+      getReportCardBatchReadiness: async () => ({
+        expected_mark_count: 0,
+        ready_mark_count: 0,
+        not_ready_mark_count: 0,
+        learner_count: 0,
+      }),
+      listStudentsForReportCardBatch: async (input: Record<string, unknown>) => {
+        assert.equal(input.exam_series_id, '00000000-0000-0000-0000-000000000201');
+        return [];
+      },
+      createReportCardGenerationBatch: async () => {
+        batchCreated = true;
+        return { id: 'batch-1' };
+      },
+    } as never,
+    {} as never,
+  );
+
+  await assert.rejects(
+    () => service.generateReportCardBatch({
+      tenant_id: 'tenant-a',
+      actor_user_id: '00000000-0000-0000-0000-000000000301',
+      exam_series_id: '00000000-0000-0000-0000-000000000201',
+    }),
+    /No active learner-subject records are available/,
+  );
+  assert.equal(batchCreated, false);
+});
+
+test('ReportCardGenerationService refuses a partially finalized report-card scope', async () => {
+  let studentsListed = false;
+  let batchCreated = false;
+  const service = new ReportCardGenerationService(
+    {
+      getReportCardBatchReadiness: async () => ({
+        expected_mark_count: 3,
+        ready_mark_count: 2,
+        not_ready_mark_count: 1,
+        learner_count: 2,
+      }),
+      listStudentsForReportCardBatch: async () => {
+        studentsListed = true;
+        return [];
+      },
+      createReportCardGenerationBatch: async () => {
+        batchCreated = true;
+        return { id: 'batch-1' };
+      },
+    } as never,
+    {} as never,
+  );
+
+  await assert.rejects(
+    () => service.generateReportCardBatch({
+      tenant_id: 'tenant-a',
+      actor_user_id: '00000000-0000-0000-0000-000000000301',
+      exam_series_id: '00000000-0000-0000-0000-000000000201',
+    }),
+    /1 learner-subject mark must be entered, moderated, and locked/,
+  );
+  assert.equal(studentsListed, false);
+  assert.equal(batchCreated, false);
+});
+
+test('ExamsService exposes one department-scoped workflow projection for HOD handoff', async () => {
+  let capturedInput: Record<string, unknown> | null = null;
+  const service = new ExamsService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: '00000000-0000-0000-0000-000000000401',
+        role: 'hod',
+        permissions: ['exams:read', 'exams:review'],
+      }),
+    } as never,
+    {
+      listDepartmentsLedByUser: async () => ['00000000-0000-0000-0000-000000000501'],
+      getWorkflowOverview: async (input: Record<string, unknown>) => {
+        capturedInput = input;
+        return {
+          series: [{
+            id: 'series-1',
+            name: 'Term 3',
+            status: 'submitted',
+            term_name: 'Term 3',
+            assessment_count: 1,
+            subject_count: 1,
+            entry_window_count: 1,
+            open_window_count: 1,
+            class_count: 1,
+            learner_count: 2,
+            total_marks: 2,
+            draft_marks: 0,
+            submitted_marks: 2,
+            reviewed_marks: 0,
+            locked_marks: 0,
+            published_marks: 0,
+            total_report_cards: 0,
+            draft_report_cards: 0,
+            review_report_cards: 0,
+            approved_report_cards: 0,
+            published_report_cards: 0,
+          }],
+          moderation_batches: [{ id: 'batch-1', mark_ids: ['mark-1', 'mark-2'], mark_count: 2 }],
+        };
+      },
+    } as never,
+  );
+
+  const result = await service.getWorkflowOverview();
+  assert.deepEqual(capturedInput, {
+    tenant_id: 'tenant-a',
+    department_ids: ['00000000-0000-0000-0000-000000000501'],
+    limit: 25,
+  });
+  assert.equal(result.scope.level, 'department');
+  assert.equal(result.series[0]?.stage, 'hod_moderation');
+  assert.equal(result.series[0]?.next_owner, 'Head of Department');
+  assert.equal(result.metrics.marks_awaiting_moderation, 2);
+  assert.deepEqual(result.moderation_batches[0]?.mark_ids, ['mark-1', 'mark-2']);
+});
+
+test('ExamsController exposes the shared workflow as an exams read endpoint', () => {
+  const handler = ExamsController.prototype.getWorkflowOverview as unknown as Function;
+  assert.equal(Reflect.getMetadata(PATH_METADATA, handler), 'workflow');
+  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, handler), ['exams:read']);
 });
 
 test('ExamsService normalizes report-card list pagination before querying', async () => {

@@ -255,6 +255,145 @@ export class ExamsService {
     };
   }
 
+  async getWorkflowOverview(query: Record<string, string | undefined> = {}) {
+    const tenantId = this.requireTenantId();
+    const requestedDepartmentId = this.optionalText(query.department_id);
+    const departmentIds = await this.resolveDepartmentModerationScope(
+      tenantId,
+      requestedDepartmentId,
+    );
+    const data = await this.repository.getWorkflowOverview({
+      tenant_id: tenantId,
+      ...(departmentIds ? { department_ids: departmentIds } : {}),
+      limit: this.parsePageLimit(query.limit, 25, 50),
+    });
+    const numberValue = (value: unknown): number => {
+      const parsed = Number(value ?? 0);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const series = data.series.map((row: any) => {
+      const counts = {
+        assessments: numberValue(row.assessment_count),
+        subjects: numberValue(row.subject_count),
+        entry_windows: numberValue(row.entry_window_count),
+        open_windows: numberValue(row.open_window_count),
+        classes: numberValue(row.class_count),
+        learners: numberValue(row.learner_count),
+        marks: numberValue(row.total_marks),
+        draft_marks: numberValue(row.draft_marks),
+        submitted_marks: numberValue(row.submitted_marks),
+        reviewed_marks: numberValue(row.reviewed_marks),
+        locked_marks: numberValue(row.locked_marks),
+        published_marks: numberValue(row.published_marks),
+        report_cards: numberValue(row.total_report_cards),
+        draft_report_cards: numberValue(row.draft_report_cards),
+        review_report_cards: numberValue(row.review_report_cards),
+        approved_report_cards: numberValue(row.approved_report_cards),
+        published_report_cards: numberValue(row.published_report_cards),
+        failed_generation_batches: numberValue(row.failed_generation_batches),
+      };
+      const finalizedMarks = counts.locked_marks + counts.published_marks;
+      const unresolvedMarks = counts.draft_marks + counts.submitted_marks + counts.reviewed_marks;
+      const finalizedCards = counts.approved_report_cards + counts.published_report_cards;
+      let stage = 'setup';
+      let nextOwner = 'Exams Manager';
+
+      if (counts.draft_marks > 0) {
+        stage = 'mark_entry';
+        nextOwner = 'Teachers';
+      } else if (counts.submitted_marks > 0) {
+        stage = 'hod_moderation';
+        nextOwner = 'Head of Department';
+      } else if (counts.reviewed_marks > 0) {
+        stage = 'dean_lock';
+        nextOwner = 'Dean of Academics';
+      } else if (counts.published_report_cards > 0 && counts.published_report_cards === counts.report_cards) {
+        stage = 'released';
+        nextOwner = 'Released';
+      } else if (counts.approved_report_cards > 0 && finalizedCards === counts.report_cards) {
+        stage = 'principal_release';
+        nextOwner = 'Principal';
+      } else if (counts.review_report_cards > 0) {
+        stage = 'dean_approval';
+        nextOwner = 'Dean of Academics';
+      } else if (counts.draft_report_cards > 0) {
+        stage = 'report_card_handoff';
+        nextOwner = 'Exams Manager';
+      } else if (finalizedMarks > 0 && unresolvedMarks === 0) {
+        stage = 'report_card_generation';
+        nextOwner = 'Exams Manager';
+      } else if (counts.entry_windows > 0 || counts.marks > 0) {
+        stage = 'mark_entry';
+        nextOwner = 'Teachers';
+      }
+
+      const blockers: string[] = [];
+      if (counts.assessments === 0) blockers.push('No assessments configured');
+      if (counts.entry_windows === 0) blockers.push('No mark-entry windows opened');
+      if (counts.draft_marks > 0) blockers.push(`${counts.draft_marks} draft marks need teacher submission`);
+      if (counts.submitted_marks > 0) blockers.push(`${counts.submitted_marks} marks await HOD moderation`);
+      if (counts.reviewed_marks > 0) blockers.push(`${counts.reviewed_marks} reviewed marks await Dean lock`);
+      if (counts.failed_generation_batches > 0) blockers.push('A report-card generation batch needs retry');
+      if (counts.draft_report_cards > 0) blockers.push(`${counts.draft_report_cards} report cards await Exams Manager handoff`);
+      if (counts.review_report_cards > 0) blockers.push(`${counts.review_report_cards} report cards await Dean approval`);
+      if (counts.approved_report_cards > 0) blockers.push(`${counts.approved_report_cards} report cards await Principal release`);
+
+      return {
+        id: row.id,
+        name: row.name,
+        status: row.status,
+        academic_term_id: row.academic_term_id,
+        term_name: row.term_name ?? 'Term not set',
+        academic_year_name: row.academic_year_name ?? null,
+        starts_on: row.starts_on,
+        ends_on: row.ends_on,
+        updated_at: row.report_cards_updated_at ?? row.marks_updated_at ?? row.updated_at,
+        stage,
+        next_owner: nextOwner,
+        blockers,
+        counts,
+        can_generate_report_cards: counts.marks > 0 && finalizedMarks === counts.marks,
+        can_submit_report_cards: counts.draft_report_cards > 0,
+        can_approve_report_cards: counts.review_report_cards > 0,
+        can_publish_report_cards: counts.report_cards > 0
+          && counts.approved_report_cards > 0
+          && finalizedCards === counts.report_cards,
+      };
+    });
+
+    const moderationBatches = data.moderation_batches.map((row: any) => ({
+      ...row,
+      mark_ids: Array.isArray(row.mark_ids) ? row.mark_ids : [],
+      mark_count: numberValue(row.mark_count),
+      submitted_count: numberValue(row.submitted_count),
+      reviewed_count: numberValue(row.reviewed_count),
+      mean_score: row.mean_score == null ? null : numberValue(row.mean_score),
+      highest_score: row.highest_score == null ? null : numberValue(row.highest_score),
+      lowest_score: row.lowest_score == null ? null : numberValue(row.lowest_score),
+    }));
+
+    return {
+      scope: {
+        level: departmentIds ? 'department' : 'school',
+        role: this.currentRole(),
+        department_ids: departmentIds ?? [],
+      },
+      metrics: {
+        exam_series: series.length,
+        active_series: series.filter((item) => item.stage !== 'released').length,
+        marks_awaiting_moderation: series.reduce((sum, item) => sum + item.counts.submitted_marks, 0),
+        marks_awaiting_lock: series.reduce((sum, item) => sum + item.counts.reviewed_marks, 0),
+        report_cards_to_generate: series.filter((item) => item.stage === 'report_card_generation').length,
+        report_cards_awaiting_dean: series.reduce((sum, item) => sum + item.counts.review_report_cards, 0),
+        report_cards_awaiting_principal: series.reduce((sum, item) => sum + item.counts.approved_report_cards, 0),
+        report_cards_released: series.reduce((sum, item) => sum + item.counts.published_report_cards, 0),
+      },
+      series,
+      moderation_batches: moderationBatches,
+    };
+  }
+
   async getAnalytics() {
     const tenantId = this.requireTenantId();
     const role = this.currentRole();

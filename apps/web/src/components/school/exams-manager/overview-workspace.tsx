@@ -4,6 +4,7 @@ import { LayoutDashboard, ClipboardList, Calendar, PenLine, CheckCircle, BarChar
 import { toast } from "sonner";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { ExamWorkflowTracker } from "../exam-workflow-tracker";
 
 type ExamRecord = {
   id: string;
@@ -43,7 +44,9 @@ export function OverviewWorkspace() {
   };
 
   return (
-    <Panel title="Exams Overview" description="Current examination cycle status and key metrics." icon={LayoutDashboard}>
+    <div className="space-y-5">
+      <ExamWorkflowTracker heading="Exam operations workflow" />
+      <Panel title="Exams Overview" description="Current examination cycle status and key metrics." icon={LayoutDashboard}>
       <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><ClipboardList className="w-4 h-4" /> Active Exams</div>
@@ -110,6 +113,7 @@ export function OverviewWorkspace() {
           </tbody>
         </table>
       </div>
-    </Panel>
+      </Panel>
+    </div>
   );
 }

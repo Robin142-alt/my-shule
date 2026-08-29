@@ -38,6 +38,10 @@ type GenerationScope = {
   examSeriesId: string;
   classSectionId: string;
   label: string;
+  ready: boolean;
+  guidance: string;
+  finalizedMarks: number;
+  pendingMarks: number;
 };
 
 const audienceCopy: Record<ReportCardAudience, {
@@ -105,16 +109,40 @@ function buildGenerationScopes(markSheets: LiveExamMarkSheet[]) {
   for (const sheet of markSheets) {
     if (!sheet.exam_series_id || !sheet.class_section_id) continue;
     const key = `${sheet.exam_series_id}:${sheet.class_section_id}`;
-    if (!scopes.has(key)) {
+    const existing = scopes.get(key);
+    const finalizedMarks = Number(sheet.locked_mark_count ?? 0) + Number(sheet.published_mark_count ?? 0);
+    const pendingMarks = Number(sheet.draft_mark_count ?? 0)
+      + Number(sheet.submitted_mark_count ?? 0)
+      + Number(sheet.reviewed_mark_count ?? 0);
+    if (!existing) {
+      const examName = sheet.exam_series_name?.trim() || "Exam cycle";
+      const className = sheet.class_name?.trim() || `Class ${sheet.class_section_id.slice(0, 8)}`;
       scopes.set(key, {
         key,
         examSeriesId: sheet.exam_series_id,
         classSectionId: sheet.class_section_id,
-        label: sheet.class_name?.trim() || `Class ${sheet.class_section_id.slice(0, 8)}`,
+        label: `${examName} - ${className}`,
+        ready: false,
+        guidance: "Marks must be moderated and locked first",
+        finalizedMarks,
+        pendingMarks,
       });
+    } else {
+      existing.finalizedMarks += finalizedMarks;
+      existing.pendingMarks += pendingMarks;
     }
   }
-  return [...scopes.values()].sort((left, right) => left.label.localeCompare(right.label));
+  return [...scopes.values()]
+    .map((scope) => ({
+      ...scope,
+      ready: scope.finalizedMarks > 0 && scope.pendingMarks === 0,
+      guidance: scope.finalizedMarks === 0
+        ? "No locked marks yet"
+        : scope.pendingMarks > 0
+          ? `${scope.pendingMarks} marks still need submission, moderation, or locking`
+          : `${scope.finalizedMarks} finalized marks ready`,
+    }))
+    .sort((left, right) => left.label.localeCompare(right.label));
 }
 
 function reportMatches(report: LiveExamReportCard, search: string, status: string) {
@@ -258,8 +286,11 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
 
   async function generateBatch() {
     const scope = generationScopes.find((candidate) => candidate.key === selectedScopeKey);
-    if (!scope) {
-      setFeedback({ tone: "critical", message: "Select a marked class before generating report cards." });
+    if (!scope?.ready) {
+      setFeedback({
+        tone: "critical",
+        message: scope?.guidance ?? "Select a class whose marks have been moderated and locked.",
+      });
       return;
     }
 
@@ -398,7 +429,9 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
               >
                 <option value="">Select class generation scope</option>
                 {generationScopes.map((scope) => (
-                  <option key={scope.key} value={scope.key}>{scope.label}</option>
+                  <option key={scope.key} value={scope.key} disabled={!scope.ready}>
+                    {scope.label} - {scope.ready ? "Ready" : scope.guidance}
+                  </option>
                 ))}
               </select>
               {!markSheetQuery.isLoading && generationScopes.length === 0 ? (
@@ -406,10 +439,15 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                   No mark sheets are available. Create the exam, assign subjects, enter marks, and lock the mark sheets first.
                 </p>
               ) : null}
+              {!markSheetQuery.isLoading && generationScopes.length > 0 && !generationScopes.some((scope) => scope.ready) ? (
+                <p className="mt-2 text-sm font-semibold text-amber-700">
+                  Mark sheets exist, but none are ready. Teachers submit marks, the HOD moderates them, and the Dean locks them before report cards can be generated.
+                </p>
+              ) : null}
             </div>
             <Button
               onClick={() => void generateBatch()}
-              disabled={!selectedScopeKey || busyAction === "generate-batch"}
+              disabled={!generationScopes.find((scope) => scope.key === selectedScopeKey)?.ready || busyAction === "generate-batch"}
             >
               <FileCheck2 className="h-4 w-4" />
               {busyAction === "generate-batch" ? "Generating..." : "Generate class report cards"}

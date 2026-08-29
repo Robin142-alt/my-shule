@@ -1,6 +1,7 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Optional, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
+import { ExamsService } from '../exams/exams.service';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
 
 @Injectable()
@@ -9,6 +10,7 @@ export class HodCommandService {
     private readonly requestContext: RequestContextService,
     private readonly prisma: PrismaService,
     private readonly operations: AdminCommandOperationsService,
+    @Optional() private readonly examsService?: ExamsService,
   ) {}
 
   private requireTenantId(): string {
@@ -146,12 +148,10 @@ export class HodCommandService {
   }
 
   async getMarksModeration() {
-    const tenantId = this.requireTenantId();
-    const res = await this.executeSql(
-      `SELECT * FROM exam_marks WHERE tenant_id = $1 AND status = 'needs_moderation'`,
-      [tenantId]
-    );
-    return res.rows;
+    if (!this.examsService) {
+      throw new ServiceUnavailableException('The exam moderation workflow is not available');
+    }
+    return this.examsService.getWorkflowOverview();
   }
 
   async getResourceRequests() {

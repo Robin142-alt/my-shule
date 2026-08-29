@@ -458,7 +458,7 @@ export class AdminCommandController {
 
   @Post('principal/exams-report-cards/:examId/publish')
   @RequiresModule('admin_command_centers', 'principal_dashboard')
-  @Permissions('principal:write', 'exams:write')
+  @Permissions('principal:write', 'exams:publish')
   publishPrincipalReportCards(@Param('examId') examId: string) {
     return this.adminCommandService.publishPrincipalExamSeries(examId);
   }

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { ExamWorkflowTracker } from "../exam-workflow-tracker";
 import { useVerifiedPrincipalDashboardApi } from "./verified-tenant-api";
 
 type AcademicYear = {
@@ -193,6 +194,7 @@ export function PrincipalExamsReportsWorkspace() {
 
   return (
     <div className="space-y-6">
+      <ExamWorkflowTracker heading="Exam and report-card release workflow" />
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="border border-white/10 bg-white/5 p-5">
           <div className="text-sm font-semibold text-white/70">Reports Ready to Publish</div>
@@ -305,7 +307,7 @@ export function PrincipalExamsReportsWorkspace() {
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300">
                           <CheckCircle2 className="h-3.5 w-3.5" /> Published
                         </span>
-                      ) : series.canPublish && hasPermission("exams:write") ? (
+                      ) : series.canPublish && hasPermission("exams:publish") ? (
                         <Button type="button" size="sm" disabled={publishingSeriesId === series.id} onClick={() => publishSeries(series)}>
                           {publishingSeriesId === series.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                           Publish approved cards

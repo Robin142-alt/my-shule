@@ -137,7 +137,7 @@ export class DeputyCommandService {
     });
   }
   
-  getExams() { return this.repository.getExams(this.requireTenantId()); }
+  getExams() { return this.examsService.getWorkflowOverview(); }
   flagExamDelay(id: string) { return this.repository.flagExamDelay(this.requireTenantId(), id); }
   
   getClasses() { return this.repository.getClasses(this.requireTenantId()); }

@@ -583,6 +583,7 @@ const DEFAULT_ROLE_CATALOG_BASE = [
       'academics:assign-teachers',
       'academics:manage-lifecycle',
       'academics:merge',
+      'exams:read',
       'discipline:read',
       'discipline:write',
       'discipline:manage',

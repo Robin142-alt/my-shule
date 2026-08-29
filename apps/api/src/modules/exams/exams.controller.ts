@@ -37,6 +37,12 @@ export class ExamsController {
     return this.examsService.getDashboard();
   }
 
+  @Get('workflow')
+  @Permissions('exams:read')
+  getWorkflowOverview(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getWorkflowOverview(query);
+  }
+
   @Post('series')
   @Permissions('exams:write')
   createSeries(@Body() dto: CreateExamSeriesDto) {

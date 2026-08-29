@@ -543,7 +543,7 @@ describe("exams workspace", () => {
     } as never);
   });
 
-  it("opens the new teacher exams markbook from the school workspace", async () => {
+  it("opens the teacher exams workspace with a clear empty markbook state", async () => {
     await act(async () => {
       renderWithProviders(
         createElement(SchoolPages, {
@@ -564,8 +564,8 @@ describe("exams workspace", () => {
       screen.getAllByRole("heading", { name: /Exams & Marks/i }).length,
     ).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /Download CSV/i })).toBeVisible();
-    expect(screen.getByRole("button", { name: /Save draft/i })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Submit for moderation/i })).toBeDisabled();
+    expect(screen.getByRole("heading", { name: /No markbooks assigned yet/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Refresh markbooks/i })).toBeVisible();
   });
 
   it("blocks the exams workspace when the tenant module is disabled", async () => {

@@ -157,13 +157,39 @@ export class ReportCardGenerationService {
   }
 
   async generateReportCardBatch(input: GenerateReportCardBatchInput): Promise<ReportCardBatchStatus> {
+    const readiness = await this.repository.getReportCardBatchReadiness({
+      tenant_id: input.tenant_id,
+      exam_series_id: input.exam_series_id,
+      class_section_id: input.class_section_id ?? null,
+      stream_name: input.stream_name ?? null,
+    });
+    const expectedMarkCount = Number(readiness.expected_mark_count ?? 0);
+    const notReadyMarkCount = Number(readiness.not_ready_mark_count ?? 0);
+
+    if (expectedMarkCount === 0) {
+      throw new BadRequestException(
+        'No active learner-subject records are available for report-card generation in this exam scope',
+      );
+    }
+    if (notReadyMarkCount > 0) {
+      throw new BadRequestException(
+        `${notReadyMarkCount} learner-subject mark${notReadyMarkCount === 1 ? '' : 's'} must be entered, moderated, and locked before report-card generation`,
+      );
+    }
+
     const students = await this.repository.listStudentsForReportCardBatch({
       tenant_id: input.tenant_id,
+      exam_series_id: input.exam_series_id,
       class_section_id: input.class_section_id ?? null,
       stream_name: input.stream_name ?? null,
       limit: input.batch_size,
       offset: input.offset,
     });
+    if (students.length === 0) {
+      throw new BadRequestException(
+        'No learners with locked marks are ready for report-card generation in this exam scope',
+      );
+    }
     const batch = await this.repository.createReportCardGenerationBatch({
       tenant_id: input.tenant_id,
       exam_series_id: input.exam_series_id,

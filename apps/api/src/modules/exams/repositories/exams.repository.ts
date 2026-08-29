@@ -78,6 +78,235 @@ export class ExamsRepository {
     };
   }
 
+  async getWorkflowOverview(input: {
+    tenant_id: string;
+    department_ids?: string[];
+    limit?: number;
+  }) {
+    const departmentIds = Array.isArray(input.department_ids)
+      ? [...new Set(input.department_ids.map((value) => String(value).trim()).filter(Boolean))]
+      : [];
+    const requestedLimit = Number(input.limit ?? 25);
+    const limit = Number.isInteger(requestedLimit) && requestedLimit > 0
+      ? Math.min(requestedLimit, 50)
+      : 25;
+
+    const seriesResult = await this.executeSql(
+      `WITH series_scope AS (
+         SELECT series.*
+         FROM exam_series series
+         WHERE series.tenant_id = $1
+           AND lower(COALESCE(series.status, 'draft')) <> 'archived'
+           AND (
+             $2::text[] IS NULL
+             OR EXISTS (
+               SELECT 1
+               FROM exam_assessments assessment
+               INNER JOIN subjects subject
+                 ON subject.tenant_id = assessment.tenant_id
+                AND subject.id = assessment.subject_id::text
+               WHERE assessment.tenant_id = series.tenant_id
+                 AND assessment.exam_series_id = series.id
+                 AND subject.department_id::text = ANY($2::text[])
+             )
+             OR EXISTS (
+               SELECT 1
+               FROM exam_marks mark
+               INNER JOIN subjects subject
+                 ON subject.tenant_id = mark.tenant_id
+                AND subject.id = mark.subject_id::text
+               WHERE mark.tenant_id = series.tenant_id
+                 AND mark.exam_series_id = series.id
+                 AND subject.department_id::text = ANY($2::text[])
+             )
+           )
+         ORDER BY series.created_at DESC
+         LIMIT $3::integer
+       ), assessment_rollup AS (
+         SELECT
+           assessment.exam_series_id,
+           COUNT(*)::integer AS assessment_count,
+           COUNT(DISTINCT assessment.subject_id)::integer AS subject_count
+         FROM exam_assessments assessment
+         LEFT JOIN subjects subject
+           ON subject.tenant_id = assessment.tenant_id
+          AND subject.id = assessment.subject_id::text
+         WHERE assessment.tenant_id = $1
+           AND ($2::text[] IS NULL OR subject.department_id::text = ANY($2::text[]))
+         GROUP BY assessment.exam_series_id
+       ), window_rollup AS (
+         SELECT
+           mark_window.exam_series_id,
+           COUNT(*)::integer AS entry_window_count,
+           COUNT(*) FILTER (WHERE lower(COALESCE(mark_window.status, 'open')) = 'open')::integer AS open_window_count,
+           COUNT(*) FILTER (WHERE lower(COALESCE(mark_window.status, 'open')) = 'closed')::integer AS closed_window_count,
+           COUNT(DISTINCT mark_window.class_section_id)::integer AS class_count
+         FROM exam_mark_entry_windows mark_window
+         LEFT JOIN subjects subject
+           ON subject.tenant_id = mark_window.tenant_id
+          AND subject.id = mark_window.subject_id::text
+         WHERE mark_window.tenant_id = $1
+           AND ($2::text[] IS NULL OR subject.department_id::text = ANY($2::text[]))
+         GROUP BY mark_window.exam_series_id
+       ), mark_rollup AS (
+         SELECT
+           mark.exam_series_id,
+           COUNT(*)::integer AS total_marks,
+           COUNT(*) FILTER (WHERE mark.status = 'draft')::integer AS draft_marks,
+           COUNT(*) FILTER (WHERE mark.status = 'submitted')::integer AS submitted_marks,
+           COUNT(*) FILTER (WHERE mark.status = 'reviewed')::integer AS reviewed_marks,
+           COUNT(*) FILTER (WHERE mark.status = 'locked')::integer AS locked_marks,
+           COUNT(*) FILTER (WHERE mark.status = 'published')::integer AS published_marks,
+           COUNT(DISTINCT mark.student_id)::integer AS learner_count,
+           COUNT(DISTINCT mark.class_section_id)::integer AS marked_class_count,
+           COUNT(DISTINCT mark.subject_id)::integer AS marked_subject_count,
+           MAX(mark.updated_at)::text AS marks_updated_at
+         FROM exam_marks mark
+         LEFT JOIN subjects subject
+           ON subject.tenant_id = mark.tenant_id
+          AND subject.id = mark.subject_id::text
+         WHERE mark.tenant_id = $1
+           AND ($2::text[] IS NULL OR subject.department_id::text = ANY($2::text[]))
+         GROUP BY mark.exam_series_id
+       ), card_rollup AS (
+         SELECT
+           card.exam_series_id,
+           COUNT(*)::integer AS total_report_cards,
+           COUNT(*) FILTER (WHERE card.status IN ('draft_requested', 'draft_generated', 'draft', 'regeneration_required'))::integer AS draft_report_cards,
+           COUNT(*) FILTER (WHERE card.status = 'under_review')::integer AS review_report_cards,
+           COUNT(*) FILTER (WHERE card.status = 'approved')::integer AS approved_report_cards,
+           COUNT(*) FILTER (WHERE card.status = 'published')::integer AS published_report_cards,
+           COUNT(*) FILTER (WHERE card.status = 'withdrawn')::integer AS withdrawn_report_cards,
+           MAX(card.updated_at)::text AS report_cards_updated_at
+         FROM student_report_cards card
+         WHERE card.tenant_id = $1
+           AND card.is_current = TRUE
+         GROUP BY card.exam_series_id
+       ), generation_rollup AS (
+         SELECT
+           batch.exam_series_id,
+           COUNT(*)::integer AS generation_batch_count,
+           COUNT(*) FILTER (WHERE batch.status = 'failed')::integer AS failed_generation_batches,
+           COALESCE(SUM(batch.completed_students), 0)::integer AS generated_students,
+           COALESCE(SUM(batch.failed_students), 0)::integer AS failed_students,
+           MAX(batch.updated_at)::text AS generation_updated_at
+         FROM report_card_generation_batches batch
+         WHERE batch.tenant_id = $1
+         GROUP BY batch.exam_series_id
+       )
+       SELECT
+         series.id::text,
+         series.name,
+         lower(COALESCE(series.status, 'draft')) AS status,
+         series.academic_term_id::text,
+         term.name AS term_name,
+         year.name AS academic_year_name,
+         series.starts_on::text,
+         series.ends_on::text,
+         series.created_at::text,
+         series.updated_at::text,
+         COALESCE(assessment.assessment_count, 0) AS assessment_count,
+         COALESCE(assessment.subject_count, 0) AS subject_count,
+         COALESCE(mark_window.entry_window_count, 0) AS entry_window_count,
+         COALESCE(mark_window.open_window_count, 0) AS open_window_count,
+         COALESCE(mark_window.closed_window_count, 0) AS closed_window_count,
+         COALESCE(mark_window.class_count, 0) AS class_count,
+         COALESCE(mark.total_marks, 0) AS total_marks,
+         COALESCE(mark.draft_marks, 0) AS draft_marks,
+         COALESCE(mark.submitted_marks, 0) AS submitted_marks,
+         COALESCE(mark.reviewed_marks, 0) AS reviewed_marks,
+         COALESCE(mark.locked_marks, 0) AS locked_marks,
+         COALESCE(mark.published_marks, 0) AS published_marks,
+         COALESCE(mark.learner_count, 0) AS learner_count,
+         COALESCE(mark.marked_class_count, 0) AS marked_class_count,
+         COALESCE(mark.marked_subject_count, 0) AS marked_subject_count,
+         mark.marks_updated_at,
+         COALESCE(card.total_report_cards, 0) AS total_report_cards,
+         COALESCE(card.draft_report_cards, 0) AS draft_report_cards,
+         COALESCE(card.review_report_cards, 0) AS review_report_cards,
+         COALESCE(card.approved_report_cards, 0) AS approved_report_cards,
+         COALESCE(card.published_report_cards, 0) AS published_report_cards,
+         COALESCE(card.withdrawn_report_cards, 0) AS withdrawn_report_cards,
+         card.report_cards_updated_at,
+         COALESCE(generation.generation_batch_count, 0) AS generation_batch_count,
+         COALESCE(generation.failed_generation_batches, 0) AS failed_generation_batches,
+         COALESCE(generation.generated_students, 0) AS generated_students,
+         COALESCE(generation.failed_students, 0) AS failed_students,
+         generation.generation_updated_at
+       FROM series_scope series
+       LEFT JOIN academic_terms term
+         ON term.tenant_id = series.tenant_id
+        AND term.id::text = series.academic_term_id::text
+       LEFT JOIN academic_years year
+         ON year.tenant_id = term.tenant_id
+        AND year.id::text = term.academic_year_id::text
+       LEFT JOIN assessment_rollup assessment ON assessment.exam_series_id = series.id
+       LEFT JOIN window_rollup mark_window ON mark_window.exam_series_id = series.id
+       LEFT JOIN mark_rollup mark ON mark.exam_series_id = series.id
+       LEFT JOIN card_rollup card ON card.exam_series_id = series.id
+       LEFT JOIN generation_rollup generation ON generation.exam_series_id = series.id
+       ORDER BY series.created_at DESC`,
+      [input.tenant_id, departmentIds.length > 0 ? departmentIds : null, limit],
+    );
+
+    const moderationResult = await this.executeSql(
+      `SELECT
+         concat(mark.exam_series_id::text, ':', mark.subject_id::text, ':', mark.class_section_id::text) AS id,
+         mark.exam_series_id::text,
+         COALESCE(series.name, 'Exam series') AS exam_name,
+         mark.subject_id::text,
+         COALESCE(subject.name, subject.code, 'Subject') AS subject_name,
+         mark.class_section_id::text,
+         COALESCE(class_section.custom_label, class_section.name, 'Class') AS class_name,
+         COALESCE(MAX(staff.display_name), 'Assigned teacher') AS teacher_name,
+         jsonb_agg(mark.id::text ORDER BY mark.created_at) AS mark_ids,
+         COUNT(*)::integer AS mark_count,
+         COUNT(*) FILTER (WHERE mark.status = 'submitted')::integer AS submitted_count,
+         COUNT(*) FILTER (WHERE mark.status = 'reviewed')::integer AS reviewed_count,
+         ROUND(AVG(mark.score) FILTER (WHERE mark.score_status = 'entered'), 2)::float AS mean_score,
+         MAX(mark.score) FILTER (WHERE mark.score_status = 'entered')::float AS highest_score,
+         MIN(mark.score) FILTER (WHERE mark.score_status = 'entered')::float AS lowest_score,
+         CASE
+           WHEN COUNT(*) FILTER (WHERE mark.status = 'submitted') > 0 THEN 'submitted'
+           ELSE 'reviewed'
+         END AS status,
+         MAX(mark.updated_at)::text AS updated_at
+       FROM exam_marks mark
+       INNER JOIN exam_series series
+         ON series.tenant_id = mark.tenant_id
+        AND series.id = mark.exam_series_id
+       LEFT JOIN subjects subject
+         ON subject.tenant_id = mark.tenant_id
+        AND subject.id = mark.subject_id::text
+       LEFT JOIN class_sections class_section
+         ON class_section.tenant_id = mark.tenant_id
+        AND class_section.id = mark.class_section_id::text
+       LEFT JOIN staff_profiles staff
+         ON staff.tenant_id = mark.tenant_id
+        AND staff.user_id::text = mark.entered_by_user_id::text
+       WHERE mark.tenant_id = $1
+         AND mark.status IN ('submitted', 'reviewed')
+         AND ($2::text[] IS NULL OR subject.department_id::text = ANY($2::text[]))
+       GROUP BY
+         mark.exam_series_id,
+         series.name,
+         mark.subject_id,
+         subject.name,
+         subject.code,
+         mark.class_section_id,
+         class_section.custom_label,
+         class_section.name
+       ORDER BY MAX(mark.updated_at) DESC
+       LIMIT 100`,
+      [input.tenant_id, departmentIds.length > 0 ? departmentIds : null],
+    );
+
+    return {
+      series: seriesResult.rows,
+      moderation_batches: moderationResult.rows,
+    };
+  }
+
   async createAssessment(input: Record<string, unknown>) {
     const result = await this.executeSql(
       `
@@ -1601,6 +1830,7 @@ export class ExamsRepository {
 
   async listStudentsForReportCardBatch(input: {
     tenant_id: string;
+    exam_series_id: string;
     class_section_id?: string | null;
     stream_name?: string | null;
     limit?: number;
@@ -1614,26 +1844,115 @@ export class ExamsRepository {
     const result = await this.executeSql<{ id: string }>(
       `
         SELECT DISTINCT student.id::text, student.admission_number, student.created_at
-        FROM students student
+        FROM exam_marks mark
+        INNER JOIN students student
+          ON student.tenant_id = mark.tenant_id
+         AND student.id = mark.student_id::text
+         AND student.status = 'active'
         LEFT JOIN student_class_assignments assignment
           ON assignment.tenant_id = student.tenant_id
          AND assignment.student_id = student.id::text
+         AND assignment.class_section_id = mark.class_section_id::text
          AND assignment.status = 'active'
         LEFT JOIN class_streams stream
           ON stream.tenant_id = assignment.tenant_id
          AND stream.id = assignment.stream_id
-        WHERE student.tenant_id = $1
-          AND student.status = 'active'
-          AND ($2::uuid IS NULL OR assignment.class_section_id = $2::text)
-          AND ($3::text IS NULL OR stream.name = $3::text)
+        WHERE mark.tenant_id = $1
+          AND mark.exam_series_id = $2::uuid
+          AND mark.status IN ('locked', 'published')
+          AND ($3::uuid IS NULL OR mark.class_section_id = $3::uuid)
+          AND ($4::text IS NULL OR stream.name = $4::text)
         ORDER BY student.admission_number ASC, student.created_at ASC
-        LIMIT $4::integer
-        OFFSET $5::integer
+        LIMIT $5::integer
+        OFFSET $6::integer
       `,
-      [input.tenant_id, input.class_section_id ?? null, input.stream_name ?? null, limit, offset],
+      [
+        input.tenant_id,
+        input.exam_series_id,
+        input.class_section_id ?? null,
+        input.stream_name ?? null,
+        limit,
+        offset,
+      ],
     );
 
     return result.rows;
+  }
+
+  async getReportCardBatchReadiness(input: {
+    tenant_id: string;
+    exam_series_id: string;
+    class_section_id?: string | null;
+    stream_name?: string | null;
+  }) {
+    const result = await this.executeSql(
+      `WITH selected_windows AS (
+         SELECT class_section_id, subject_id
+         FROM exam_mark_entry_windows
+         WHERE tenant_id = $1
+           AND exam_series_id = $2::uuid
+           AND ($3::uuid IS NULL OR class_section_id = $3::uuid)
+       ), expected AS (
+         SELECT DISTINCT
+           student.id::text AS student_id,
+           mark_window.class_section_id,
+           mark_window.subject_id
+         FROM selected_windows mark_window
+         INNER JOIN student_class_assignments assignment
+           ON assignment.tenant_id = $1
+          AND assignment.class_section_id = mark_window.class_section_id::text
+          AND assignment.status = 'active'
+         INNER JOIN students student
+           ON student.tenant_id = assignment.tenant_id
+          AND student.id::text = assignment.student_id::text
+          AND student.status = 'active'
+         INNER JOIN student_subject_enrollments enrollment
+           ON enrollment.tenant_id = student.tenant_id
+          AND enrollment.student_id::text = student.id::text
+          AND enrollment.class_section_id = mark_window.class_section_id::text
+          AND enrollment.subject_id = mark_window.subject_id::text
+          AND enrollment.status = 'active'
+         LEFT JOIN class_streams stream
+           ON stream.tenant_id = assignment.tenant_id
+          AND stream.id::text = assignment.stream_id::text
+         WHERE ($4::text IS NULL OR stream.name = $4::text)
+       ), readiness AS (
+         SELECT
+           expected.student_id,
+           expected.class_section_id,
+           expected.subject_id,
+           EXISTS (
+             SELECT 1
+             FROM exam_marks mark
+             WHERE mark.tenant_id = $1
+               AND mark.exam_series_id = $2::uuid
+               AND mark.student_id::text = expected.student_id
+               AND mark.class_section_id = expected.class_section_id
+               AND mark.subject_id = expected.subject_id
+               AND mark.status IN ('locked', 'published')
+           ) AS is_ready
+         FROM expected
+       )
+       SELECT
+         COUNT(*)::integer AS expected_mark_count,
+         COUNT(*) FILTER (WHERE is_ready)::integer AS ready_mark_count,
+         COUNT(*) FILTER (WHERE NOT is_ready)::integer AS not_ready_mark_count,
+         COUNT(DISTINCT student_id)::integer AS learner_count
+       FROM readiness`,
+      [
+        input.tenant_id,
+        input.exam_series_id,
+        input.class_section_id ?? null,
+        input.stream_name ?? null,
+      ],
+    );
+
+    return result.rows[0] ?? {
+      expected_mark_count: 0,
+      ready_mark_count: 0,
+      not_ready_mark_count: 0,
+      learner_count: 0,
+    };
   }
 
   async findReportCardArtifactByVerificationCode(input: {
@@ -2260,14 +2579,31 @@ export class ExamsRepository {
         SELECT
           mark_window.id::text,
           mark_window.exam_series_id::text,
+          COALESCE(series.name, 'Exam series') AS exam_series_name,
           mark_window.subject_id::text,
+          COALESCE(subject.name, subject.code, 'Subject') AS subject_name,
           mark_window.class_section_id::text,
+          COALESCE(class_section.custom_label, class_section.name, 'Class') AS class_name,
           mark_window.opens_at::text,
           mark_window.closes_at::text,
           mark_window.status,
           COUNT(mark.id)::int AS mark_count,
+          COUNT(mark.id) FILTER (WHERE mark.status = 'draft')::int AS draft_mark_count,
+          COUNT(mark.id) FILTER (WHERE mark.status = 'submitted')::int AS submitted_mark_count,
+          COUNT(mark.id) FILTER (WHERE mark.status = 'reviewed')::int AS reviewed_mark_count,
+          COUNT(mark.id) FILTER (WHERE mark.status = 'locked')::int AS locked_mark_count,
+          COUNT(mark.id) FILTER (WHERE mark.status = 'published')::int AS published_mark_count,
           MAX(mark.updated_at)::text AS last_marked_at
         FROM exam_mark_entry_windows mark_window
+        INNER JOIN exam_series series
+          ON series.tenant_id = mark_window.tenant_id
+         AND series.id = mark_window.exam_series_id
+        LEFT JOIN subjects subject
+          ON subject.tenant_id = mark_window.tenant_id
+         AND subject.id = mark_window.subject_id::text
+        LEFT JOIN class_sections class_section
+          ON class_section.tenant_id = mark_window.tenant_id
+         AND class_section.id = mark_window.class_section_id::text
         LEFT JOIN exam_marks mark
           ON mark.tenant_id = mark_window.tenant_id
          AND mark.exam_series_id = mark_window.exam_series_id
@@ -2293,7 +2629,8 @@ export class ExamsRepository {
                 AND series.id = mark_window.exam_series_id
             )
           )
-        GROUP BY mark_window.id
+        GROUP BY mark_window.id, series.name, subject.name, subject.code,
+          class_section.custom_label, class_section.name
         ORDER BY mark_window.closes_at DESC, mark_window.opens_at DESC
         LIMIT $6::integer
         OFFSET $7::integer

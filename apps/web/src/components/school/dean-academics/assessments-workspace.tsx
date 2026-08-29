@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import type { LiveExamReportCard } from "@/lib/modules/exams-client";
+import { ExamWorkflowTracker } from "../exam-workflow-tracker";
 import { fieldValue, listFromData, metricFromData, Panel, StatusChip, Tone } from "./shared";
 
 type AssessmentsRecord = {
@@ -182,7 +183,9 @@ export function AssessmentsWorkspace() {
   }
 
   return (
-    <Panel
+    <div className="space-y-5">
+      <ExamWorkflowTracker heading="Academic exam and report-card workflow" />
+      <Panel
       title="Assessments"
       description="Manage and monitor school-wide assessments."
       icon={ClipboardList}
@@ -449,6 +452,7 @@ export function AssessmentsWorkspace() {
           </table>
         </div>
       </section>
-    </Panel>
+      </Panel>
+    </div>
   );
 }
