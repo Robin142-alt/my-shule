@@ -8,6 +8,8 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Max,
+  Min,
 } from 'class-validator';
 
 export const EXAM_SCORE_STATUSES = [
@@ -312,10 +314,26 @@ export class GenerateReportCardDto {
 }
 
 export class GenerateReportCardBatchDto {
+  @IsString()
   exam_series_id!: string;
+
+  @IsOptional()
+  @IsString()
   class_section_id?: string;
+
+  @IsOptional()
+  @IsString()
   stream_name?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(200)
   batch_size?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
   offset?: number;
 }
 

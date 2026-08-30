@@ -7,7 +7,7 @@ import { ForbiddenException, NotFoundException, ValidationPipe } from '@nestjs/c
 import { PERMISSIONS_KEY } from '../../auth/auth.constants';
 import { ParentPortalController } from '../../parent-portal/parent-portal.controller';
 import { ExamsController } from './exams.controller';
-import { ModerateExamMarksDto } from './dto/exams.dto';
+import { GenerateReportCardBatchDto, ModerateExamMarksDto } from './dto/exams.dto';
 import { ExamsRepository } from './repositories/exams.repository';
 import { ExamsSchemaService } from './exams-schema.service';
 import { ExamsService } from './exams.service';
@@ -2662,6 +2662,40 @@ test('ModerateExamMarksDto accepts valid HOD actions through the global validati
   await assert.rejects(() => pipe.transform(
     { mark_ids: [], action: 'approve' },
     { type: 'body', metatype: ModerateExamMarksDto },
+  ));
+});
+
+test('GenerateReportCardBatchDto accepts class generation through the global validation contract', async () => {
+  const pipe = new ValidationPipe({
+    whitelist: true,
+    transform: true,
+    forbidNonWhitelisted: true,
+  });
+  const payload = {
+    exam_series_id: '11111111-1111-4111-8111-111111111111',
+    class_section_id: '22222222-2222-4222-8222-222222222222',
+    stream_name: 'North',
+    batch_size: 200,
+    offset: 0,
+  };
+
+  const validated = await pipe.transform(payload, {
+    type: 'body',
+    metatype: GenerateReportCardBatchDto,
+  });
+  assert.deepEqual({ ...validated }, payload);
+
+  await assert.rejects(() => pipe.transform(
+    { ...payload, unexpected: true },
+    { type: 'body', metatype: GenerateReportCardBatchDto },
+  ));
+  await assert.rejects(() => pipe.transform(
+    { ...payload, batch_size: 201 },
+    { type: 'body', metatype: GenerateReportCardBatchDto },
+  ));
+  await assert.rejects(() => pipe.transform(
+    { ...payload, offset: -1 },
+    { type: 'body', metatype: GenerateReportCardBatchDto },
   ));
 });
 
