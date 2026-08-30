@@ -111,12 +111,12 @@ export function MarksModerationWorkspace() {
                   <p className="text-sm"><span className="font-black">Marks:</span> {batch.mark_count}</p>
                   <p className="text-sm"><span className="font-black">Mean:</span> {batch.mean_score ?? "No numeric scores"}</p>
                   {!returning ? (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                       <button
                         type="button"
                         onClick={() => void moderate(batch, "approve")}
                         disabled={Boolean(busyId) || batch.submitted_count === 0}
-                        className="rounded-lg bg-[#071D49] px-3 py-2 text-xs font-black text-white disabled:opacity-50"
+                        className="min-h-11 w-full touch-manipulation rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50 sm:w-auto"
                       >
                         {busyId === `${batch.id}:approve` ? "Approving..." : "Approve"}
                       </button>
@@ -127,7 +127,7 @@ export function MarksModerationWorkspace() {
                           setReason("");
                         }}
                         disabled={Boolean(busyId) || batch.submitted_count === 0}
-                        className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800 disabled:opacity-50"
+                        className="min-h-11 w-full touch-manipulation rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-black text-amber-800 disabled:opacity-50 sm:w-auto"
                       >
                         Return
                       </button>
@@ -146,13 +146,13 @@ export function MarksModerationWorkspace() {
                       rows={2}
                       className="mt-2 w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm"
                     />
-                    <div className="mt-2 flex justify-end gap-2">
-                      <button type="button" onClick={() => setReturningId("")} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-black">Cancel</button>
+                    <div className="mt-3 grid gap-2 sm:flex sm:justify-end">
+                      <button type="button" onClick={() => setReturningId("")} className="min-h-11 w-full touch-manipulation rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-black sm:w-auto">Cancel</button>
                       <button
                         type="button"
                         onClick={() => void moderate(batch, "return_for_correction")}
                         disabled={Boolean(busyId) || !reason.trim()}
-                        className="rounded-lg bg-amber-700 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
+                        className="min-h-11 w-full touch-manipulation rounded-lg bg-amber-700 px-4 py-2 text-sm font-black text-white disabled:opacity-50 sm:w-auto"
                       >
                         {busyId === `${batch.id}:return_for_correction` ? "Returning..." : "Return to teacher"}
                       </button>

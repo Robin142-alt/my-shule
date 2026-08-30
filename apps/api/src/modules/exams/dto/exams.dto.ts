@@ -1,4 +1,14 @@
-import { IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString } from 'class-validator';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 
 export const EXAM_SCORE_STATUSES = [
   'entered',
@@ -310,8 +320,16 @@ export class GenerateReportCardBatchDto {
 }
 
 export class ModerateExamMarksDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsUUID('4', { each: true })
   mark_ids!: string[];
+
+  @IsIn(['approve', 'return_for_correction'])
   action!: 'approve' | 'return_for_correction';
+
+  @IsOptional()
+  @IsString()
   reason?: string;
 }
 

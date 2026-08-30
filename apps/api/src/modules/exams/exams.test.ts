@@ -2,11 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { PATH_METADATA } from '@nestjs/common/constants';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException, ValidationPipe } from '@nestjs/common';
 
 import { PERMISSIONS_KEY } from '../../auth/auth.constants';
 import { ParentPortalController } from '../../parent-portal/parent-portal.controller';
 import { ExamsController } from './exams.controller';
+import { ModerateExamMarksDto } from './dto/exams.dto';
 import { ExamsRepository } from './repositories/exams.repository';
 import { ExamsSchemaService } from './exams-schema.service';
 import { ExamsService } from './exams.service';
@@ -2580,7 +2581,7 @@ test('ExamsRepository moderates only submitted or reviewed marks and never locke
   assert.deepEqual(paramsList[0], ['tenant-a', ['mark-1'], 'reviewed', 'hod-1', 'approve']);
 });
 
-test('ExamsRepository scopes mark listing and moderation to HOD departments when provided', async () => {
+test('ExamsRepository scopes mark listing and moderation to HOD departments across legacy text identifiers', async () => {
   const queries: string[] = [];
   const paramsList: unknown[][] = [];
   const repository = new ExamsRepository({
@@ -2613,12 +2614,15 @@ test('ExamsRepository scopes mark listing and moderation to HOD departments when
     department_ids: ['11111111-1111-1111-1111-111111111111'],
   });
 
-  assert.match(queries[0] ?? '', /JOIN subjects s ON s\.id = m\.subject_id AND s\.tenant_id = m\.tenant_id/);
-  assert.match(queries[0] ?? '', /s\.department_id = ANY\(\$2::uuid\[\]\)/);
+  assert.match(queries[0] ?? '', /JOIN subjects s ON s\.id::text = m\.subject_id::text AND s\.tenant_id = m\.tenant_id/);
+  assert.match(queries[0] ?? '', /s\.department_id::text = ANY\(\$2::text\[\]\)/);
+  assert.doesNotMatch(queries[0] ?? '', /s\.department_id = ANY\([^)]*::uuid\[\]\)/);
   assert.deepEqual(paramsList[0], ['tenant-a', ['11111111-1111-1111-1111-111111111111'], ['submitted'], 25, 0]);
   assert.match(queries[1] ?? '', /UPDATE exam_marks mark/);
   assert.match(queries[1] ?? '', /FROM subjects subject/);
-  assert.match(queries[1] ?? '', /subject\.department_id = ANY\(\$6::uuid\[\]\)/);
+  assert.match(queries[1] ?? '', /subject\.id::text = mark\.subject_id::text/);
+  assert.match(queries[1] ?? '', /subject\.department_id::text = ANY\(\$6::text\[\]\)/);
+  assert.doesNotMatch(queries[1] ?? '', /subject\.department_id = ANY\([^)]*::uuid\[\]\)/);
   assert.deepEqual(paramsList[1], [
     'tenant-a',
     ['33333333-3333-3333-3333-333333333333'],
@@ -2627,6 +2631,38 @@ test('ExamsRepository scopes mark listing and moderation to HOD departments when
     'approve',
     ['11111111-1111-1111-1111-111111111111'],
   ]);
+});
+
+test('ModerateExamMarksDto accepts valid HOD actions through the global validation contract', async () => {
+  const pipe = new ValidationPipe({
+    whitelist: true,
+    transform: true,
+    forbidNonWhitelisted: true,
+  });
+  const markId = '33333333-3333-4333-8333-333333333333';
+
+  const approve = await pipe.transform(
+    { mark_ids: [markId], action: 'approve' },
+    { type: 'body', metatype: ModerateExamMarksDto },
+  );
+  assert.deepEqual(approve.mark_ids, [markId]);
+  assert.equal(approve.action, 'approve');
+
+  const returned = await pipe.transform(
+    { mark_ids: [markId], action: 'return_for_correction', reason: 'Please verify the score.' },
+    { type: 'body', metatype: ModerateExamMarksDto },
+  );
+  assert.equal(returned.action, 'return_for_correction');
+  assert.equal(returned.reason, 'Please verify the score.');
+
+  await assert.rejects(() => pipe.transform(
+    { mark_ids: [markId], action: 'approve', unexpected: true },
+    { type: 'body', metatype: ModerateExamMarksDto },
+  ));
+  await assert.rejects(() => pipe.transform(
+    { mark_ids: [], action: 'approve' },
+    { type: 'body', metatype: ModerateExamMarksDto },
+  ));
 });
 
 test('ExamsService generates report-card payloads from marks before publishing', async () => {

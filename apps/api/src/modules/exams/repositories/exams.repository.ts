@@ -3151,16 +3151,16 @@ export class ExamsRepository {
     let paramIndex = 2;
     
     if (input.department_id || departmentIds.length > 0) {
-      query += ` JOIN subjects s ON s.id = m.subject_id AND s.tenant_id = m.tenant_id `;
+      query += ` JOIN subjects s ON s.id::text = m.subject_id::text AND s.tenant_id = m.tenant_id `;
     }
     query += ` WHERE m.tenant_id = $1 `;
     
     if (departmentIds.length > 0) {
-      query += ` AND s.department_id = ANY($${paramIndex}::uuid[]) `;
+      query += ` AND s.department_id::text = ANY($${paramIndex}::text[]) `;
       params.push(departmentIds);
       paramIndex++;
     } else if (input.department_id) {
-      query += ` AND s.department_id = $${paramIndex}::uuid `;
+      query += ` AND s.department_id::text = $${paramIndex}::text `;
       params.push(input.department_id);
       paramIndex++;
     }
@@ -3193,9 +3193,9 @@ export class ExamsRepository {
       ? `
         FROM subjects subject
         WHERE mark.tenant_id = $1
-          AND subject.id = mark.subject_id::text
+          AND subject.id::text = mark.subject_id::text
           AND subject.tenant_id = mark.tenant_id
-          AND subject.department_id = ANY($6::uuid[])
+          AND subject.department_id::text = ANY($6::text[])
       `
       : `
         WHERE tenant_id = $1
