@@ -1787,6 +1787,7 @@ export class ExamsRepository {
           id::text,
           status,
           COALESCE(metadata->>'queue_status', 'queued') AS queue_status,
+          COALESCE(metadata->'failures', '[]'::jsonb) AS failures,
           total_students,
           completed_students,
           failed_students
@@ -1800,6 +1801,7 @@ export class ExamsRepository {
         input.failed_students ?? 0,
         JSON.stringify({
           queue_status: input.queue_status ?? 'queued',
+          failures: Array.isArray(input.failures) ? input.failures : [],
         }),
       ],
     );
@@ -1814,6 +1816,7 @@ export class ExamsRepository {
           id::text,
           status,
           COALESCE(metadata->>'queue_status', 'queued') AS queue_status,
+          COALESCE(metadata->'failures', '[]'::jsonb) AS failures,
           total_students,
           completed_students,
           failed_students
@@ -2089,6 +2092,52 @@ export class ExamsRepository {
       `,
       [input.tenant_id, input.exam_series_id],
     );
+    const academicGradingSystemResult = gradingPolicyResult.rows.length > 0
+      ? { rows: [] as Record<string, unknown>[], rowCount: 0 }
+      : await this.executeSql<Record<string, unknown>>(
+        `
+          WITH preferred_grading AS (
+            SELECT COALESCE(
+              (
+                SELECT NULLIF(to_jsonb(series)->>'grading_system_id', '')
+                FROM exam_series series
+                WHERE series.tenant_id = $1
+                  AND series.id = $2::uuid
+                LIMIT 1
+              ),
+              (
+                SELECT settings.grading_system_id::text
+                FROM academics_report_card_settings settings
+                WHERE settings.tenant_id = $1
+                  AND settings.is_active = TRUE
+                ORDER BY settings.updated_at DESC, settings.created_at DESC
+                LIMIT 1
+              )
+            ) AS grading_system_id
+          )
+          SELECT
+            system.id::text,
+            system.name,
+            system.version,
+            system.effective_from::text,
+            system.effective_to::text,
+            system.rules
+          FROM academics_grading_systems system
+          CROSS JOIN preferred_grading preferred
+          WHERE system.tenant_id = $1
+            AND system.is_active = TRUE
+            AND (
+              preferred.grading_system_id IS NULL
+              OR system.id::text = preferred.grading_system_id
+            )
+          ORDER BY
+            (system.id::text = preferred.grading_system_id) DESC,
+            system.updated_at DESC,
+            system.created_at DESC
+          LIMIT 1
+        `,
+        [input.tenant_id, input.exam_series_id],
+      );
     const subjectsResult = await this.executeSql(
       `
         WITH selected_policy AS (
@@ -2163,12 +2212,18 @@ export class ExamsRepository {
       [input.tenant_id, input.exam_series_id, input.student_id],
     );
 
+    const academicGradingSystem = academicGradingSystemResult.rows[0] ?? null;
+    const subjects = subjectsResult.rows.map((subject) =>
+      applyAcademicGradingRule(subject, academicGradingSystem?.rules),
+    );
+
     return {
       school: schoolResult.rows[0] ?? null,
       exam_series: seriesResult.rows[0] ?? null,
       student: studentResult.rows[0] ?? null,
-      grading_policy: gradingPolicyResult.rows[0] ?? null,
-      subjects: subjectsResult.rows,
+      grading_policy: gradingPolicyResult.rows[0]
+        ?? normalizeAcademicGradingPolicy(academicGradingSystem),
+      subjects,
       attendance: null,
     };
   }
@@ -6038,4 +6093,85 @@ export class ExamsRepository {
     };
   }
 
+}
+
+function normalizeAcademicGradingPolicy(value: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!value) return null;
+  const sourceId = String(value.id ?? '').trim();
+  return {
+    id: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sourceId)
+      ? sourceId
+      : null,
+    source_id: sourceId || null,
+    source: 'academic_setup',
+    name: value.name ?? 'School grading system',
+    reporting_mode: 'traditional',
+    version: Number(value.version ?? 1),
+    effective_from: value.effective_from ?? null,
+    effective_to: value.effective_to ?? null,
+    scope: { source: 'academics_grading_systems' },
+    rules: normalizeAcademicRules(value.rules),
+  };
+}
+
+function applyAcademicGradingRule(
+  subject: Record<string, unknown>,
+  rulesValue: unknown,
+): Record<string, unknown> {
+  if (String(subject.score_status ?? 'entered').toLowerCase() !== 'entered') return subject;
+  if (String(subject.grade_label ?? '').trim()) return subject;
+
+  const percentage = subject.percentage === null || subject.percentage === undefined
+    ? calculatePercentage(subject.score, subject.max_score)
+    : Number(subject.percentage);
+  if (!Number.isFinite(percentage)) return subject;
+
+  const rule = normalizeAcademicRules(rulesValue)
+    .map((item): Record<string, unknown> & { minimum: number } => ({
+      ...item,
+      minimum: Number(item.min ?? item.min_score),
+    }))
+    .filter((item) => String(item.label ?? '').trim() && Number.isFinite(item.minimum))
+    .sort((left, right) => right.minimum - left.minimum)
+    .find((item) => percentage >= item.minimum);
+  if (!rule) return subject;
+
+  const currentRemarks = String(subject.remarks ?? '').trim();
+  const ruleRemark = String(rule.remark ?? rule.descriptor ?? '').trim();
+  const points = rule.points === null || rule.points === undefined || rule.points === ''
+    ? null
+    : Number(rule.points);
+
+  return {
+    ...subject,
+    grade_label: String(rule.label).trim(),
+    points: points !== null && Number.isFinite(points) ? points : null,
+    descriptor: ruleRemark || null,
+    is_pass: typeof rule.is_pass === 'boolean' ? rule.is_pass : null,
+    remarks: currentRemarks || ruleRemark || null,
+  };
+}
+
+function normalizeAcademicRules(value: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is Record<string, unknown> =>
+      Boolean(item) && typeof item === 'object' && !Array.isArray(item),
+    );
+  }
+  if (typeof value === 'string') {
+    try {
+      return normalizeAcademicRules(JSON.parse(value));
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function calculatePercentage(scoreValue: unknown, maxScoreValue: unknown): number {
+  const score = Number(scoreValue);
+  const maxScore = Number(maxScoreValue);
+  return Number.isFinite(score) && Number.isFinite(maxScore) && maxScore > 0
+    ? (score / maxScore) * 100
+    : Number.NaN;
 }

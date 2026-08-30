@@ -43,6 +43,7 @@ export class ExamsSchemaService implements OnModuleInit {
         starts_on date NOT NULL,
         ends_on date NOT NULL,
         status text NOT NULL DEFAULT 'draft',
+        grading_system_id uuid,
         locked_at timestamptz,
         published_at timestamptz,
         created_by_user_id uuid,
@@ -1199,6 +1200,8 @@ export class ExamsSchemaService implements OnModuleInit {
 
       ALTER TABLE exam_series
       ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'draft';
+      ALTER TABLE exam_series
+      ADD COLUMN IF NOT EXISTS grading_system_id uuid;
       ALTER TABLE exam_series
       ADD COLUMN IF NOT EXISTS locked_at timestamptz;
       ALTER TABLE exam_series

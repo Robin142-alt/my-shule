@@ -310,7 +310,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
       setFeedback({
         tone: result.failed_students ? "critical" : "ok",
         message: result.failed_students
-          ? `${result.completed_students} cards generated and ${result.failed_students} failed. Review locked marks and retry only the affected learners.`
+          ? `${result.completed_students} cards generated and ${result.failed_students} failed.${result.failures?.[0]?.message ? ` ${result.failures[0].message}` : " Review locked marks and retry only the affected learners."}`
           : `${result.completed_students} report-card snapshots generated for ${scope.label}.`,
       });
       await refreshReports();
@@ -454,17 +454,29 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
             </Button>
           </div>
           {batchStatus ? (
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              {[
-                ["Learners", batchStatus.total_students],
-                ["Generated", batchStatus.completed_students],
-                ["Failed", batchStatus.failed_students ?? 0],
-              ].map(([label, value]) => (
-                <div key={String(label)} className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] px-4 py-3">
-                  <p className="text-xs font-bold uppercase text-[#64748B]">{label}</p>
-                  <p className="mt-1 text-xl font-black">{value}</p>
+            <div className="mt-4 space-y-3">
+              <div className="grid gap-3 sm:grid-cols-3">
+                {[
+                  ["Learners", batchStatus.total_students],
+                  ["Generated", batchStatus.completed_students],
+                  ["Failed", batchStatus.failed_students ?? 0],
+                ].map(([label, value]) => (
+                  <div key={String(label)} className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] px-4 py-3">
+                    <p className="text-xs font-bold uppercase text-[#64748B]">{label}</p>
+                    <p className="mt-1 text-xl font-black">{value}</p>
+                  </div>
+                ))}
+              </div>
+              {batchStatus.failures?.length ? (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
+                  <p className="font-black">Generation issues</p>
+                  <ul className="mt-1 list-disc space-y-1 pl-5">
+                    {batchStatus.failures.map((failure) => (
+                      <li key={`${failure.student_id}:${failure.message}`}>{failure.message}</li>
+                    ))}
+                  </ul>
                 </div>
-              ))}
+              ) : null}
             </div>
           ) : null}
         </div>

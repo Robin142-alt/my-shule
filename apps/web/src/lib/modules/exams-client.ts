@@ -72,6 +72,7 @@ export interface LiveReportCardBatchStatus {
   total_students: number;
   completed_students: number;
   failed_students?: number | null;
+  failures?: Array<{ student_id: string; message: string }> | null;
   artifact_count?: number | null;
 }
 

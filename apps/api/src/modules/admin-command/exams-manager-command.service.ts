@@ -204,6 +204,34 @@ export class ExamsManagerCommandService {
     return unique;
   }
 
+  private async resolveGradingSystemId(tenantId: string, dto: any): Promise<string | null> {
+    const requested = String(dto?.grading_system_id ?? dto?.gradingSystemId ?? dto?.grading_system ?? '').trim();
+    if (!requested) {
+      return null;
+    }
+
+    const result = await this.readSql<{ id: string }>(
+      `
+        SELECT system.id::text
+        FROM academics_grading_systems system
+        WHERE system.tenant_id = $1
+          AND system.is_active = TRUE
+          AND (
+            system.id::text = $2
+            OR LOWER(system.name) = LOWER($2)
+          )
+        ORDER BY (system.id::text = $2) DESC, system.updated_at DESC
+        LIMIT 1
+      `,
+      [tenantId, requested],
+    );
+    const id = String(result.rows[0]?.id ?? '').trim();
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+      throw new BadRequestException('Choose an active grading system configured for this school.');
+    }
+    return id;
+  }
+
   private requireExamScopeSelection(dto: any) {
     const subjectIds = this.uniqueUuidArray(dto?.subject_ids ?? dto?.subjectIds, 'Subjects');
     const classSectionIds = this.uniqueUuidArray(
@@ -549,6 +577,7 @@ export class ExamsManagerCommandService {
       type: string;
       max_marks: number;
       grading_system: string;
+      grading_system_id: string | null;
       status: string;
       subjects_count: number;
       classes_count: number;
@@ -564,7 +593,8 @@ export class ExamsManagerCommandService {
           EXTRACT(YEAR FROM series.starts_on)::int AS year,
           'Exam cycle' AS type,
           COALESCE((SELECT MAX(assessment.max_score)::int FROM exam_assessments assessment WHERE assessment.tenant_id = series.tenant_id AND assessment.exam_series_id = series.id), 100) AS max_marks,
-          'School grading' AS grading_system,
+          COALESCE(series_grading.name, default_grading.name, 'School grading') AS grading_system,
+          COALESCE(series_grading.id::text, default_grading.id::text) AS grading_system_id,
           COALESCE(series.status, 'scheduled') AS status,
           (SELECT COUNT(DISTINCT assessment.subject_id)::int FROM exam_assessments assessment WHERE assessment.tenant_id = series.tenant_id AND assessment.exam_series_id = series.id) AS subjects_count,
           (SELECT COUNT(DISTINCT entry_window.class_section_id)::int FROM exam_mark_entry_windows entry_window WHERE entry_window.tenant_id = series.tenant_id AND entry_window.exam_series_id = series.id) AS classes_count,
@@ -572,6 +602,22 @@ export class ExamsManagerCommandService {
           series.starts_on::text,
           series.ends_on::text
         FROM exam_series series
+        LEFT JOIN academics_grading_systems series_grading
+          ON series_grading.tenant_id = series.tenant_id
+         AND series_grading.id::text = NULLIF(to_jsonb(series)->>'grading_system_id', '')
+         AND series_grading.is_active = TRUE
+        LEFT JOIN LATERAL (
+          SELECT system.id, system.name
+          FROM academics_report_card_settings settings
+          JOIN academics_grading_systems system
+            ON system.tenant_id = settings.tenant_id
+           AND system.id::text = settings.grading_system_id::text
+           AND system.is_active = TRUE
+          WHERE settings.tenant_id = series.tenant_id
+            AND settings.is_active = TRUE
+          ORDER BY settings.updated_at DESC, settings.created_at DESC
+          LIMIT 1
+        ) default_grading ON TRUE
         WHERE series.tenant_id = $1
         ORDER BY series.starts_on DESC, series.created_at DESC
       `,
@@ -602,6 +648,7 @@ export class ExamsManagerCommandService {
     }
     this.requireExamScopeSelection(dto);
 
+    const gradingSystemId = await this.resolveGradingSystemId(tenantId, dto);
     const columns = await this.examSeriesColumns();
     const supportsAcademicTerm = columns.has('academic_term_id');
     const supportsCreatedBy = columns.has('created_by_user_id');
@@ -629,6 +676,12 @@ export class ExamsManagerCommandService {
       }
       insertColumns.push('created_by_user_id');
       params.push(actorUserId);
+      placeholders.push(`$${params.length}::uuid`);
+    }
+
+    if (gradingSystemId && columns.has('grading_system_id')) {
+      insertColumns.push('grading_system_id');
+      params.push(gradingSystemId);
       placeholders.push(`$${params.length}::uuid`);
     }
 
@@ -675,7 +728,7 @@ export class ExamsManagerCommandService {
       title: 'Exams: Exam Setup Created',
       message: `${name} created for ${startsOn} to ${endsOn}`,
       priority: 'normal',
-      payload: { exam_series_id: exam.id, name, starts_on: startsOn, ends_on: endsOn, status, ...scope },
+      payload: { exam_series_id: exam.id, name, starts_on: startsOn, ends_on: endsOn, status, grading_system_id: gradingSystemId, ...scope },
     });
     await this.emitExamSetupOperation({
       operation: 'created',
@@ -707,6 +760,11 @@ export class ExamsManagerCommandService {
     }
     this.requireExamScopeSelection(dto);
 
+    const gradingSystemId = await this.resolveGradingSystemId(tenantId, dto);
+    const gradingSystemUpdate = gradingSystemId ? ', grading_system_id = $7::uuid' : '';
+    const updateParams: unknown[] = [tenantId, id, name, startsOn, endsOn, status];
+    if (gradingSystemId) updateParams.push(gradingSystemId);
+
     const updated = await this.operations.writeSql<{
       id: string;
       name: string;
@@ -720,13 +778,14 @@ export class ExamsManagerCommandService {
         SET name = $3,
             starts_on = $4::date,
             ends_on = $5::date,
-            status = $6,
+            status = $6
+            ${gradingSystemUpdate},
             updated_at = NOW()
         WHERE tenant_id = $1
           AND id = $2::uuid
         RETURNING id::text, name, starts_on::text, ends_on::text, COALESCE(status, 'draft') AS status, updated_at::text
       `,
-      [tenantId, id, name, startsOn, endsOn, status],
+      updateParams,
     );
 
     if (updated.rowCount === 0) {
@@ -746,7 +805,7 @@ export class ExamsManagerCommandService {
       title: 'Exams: Exam Setup Configured',
       message: `${name} configured for ${startsOn} to ${endsOn}`,
       priority: 'normal',
-      payload: { name, starts_on: startsOn, ends_on: endsOn, status, ...scope },
+      payload: { name, starts_on: startsOn, ends_on: endsOn, status, grading_system_id: gradingSystemId, ...scope },
     });
     await this.emitExamSetupOperation({
       operation: 'configured',

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 
 import { createPdfReportArtifact } from './report-card-pdf-artifact';
@@ -31,10 +31,13 @@ export interface ReportCardBatchStatus {
   total_students: number;
   completed_students: number;
   failed_students: number;
+  failures?: Array<{ student_id: string; message: string }>;
 }
 
 @Injectable()
 export class ReportCardGenerationService {
+  private readonly logger = new Logger(ReportCardGenerationService.name);
+
   constructor(
     private readonly repository: ExamsRepository,
     private readonly templateService: ReportCardTemplateService,
@@ -204,6 +207,7 @@ export class ReportCardGenerationService {
     });
     let completedStudents = 0;
     let failedStudents = 0;
+    const failures: Array<{ student_id: string; message: string }> = [];
 
     for (const student of students) {
       try {
@@ -214,8 +218,16 @@ export class ReportCardGenerationService {
           student_id: student.id,
         });
         completedStudents += 1;
-      } catch {
+      } catch (error) {
         failedStudents += 1;
+        failures.push({
+          student_id: String(student.id),
+          message: reportCardFailureMessage(error),
+        });
+        this.logger.error(
+          `Report-card generation failed for tenant ${input.tenant_id}, series ${input.exam_series_id}, student ${student.id}`,
+          error instanceof Error ? error.stack : undefined,
+        );
       }
     }
 
@@ -228,6 +240,7 @@ export class ReportCardGenerationService {
       completed_students: completedStudents,
       failed_students: failedStudents,
       queue_status: failedStudents > 0 ? 'failed' : 'completed',
+      failures,
     }) as ReportCardBatchStatus | null;
 
     if (!updated) {
@@ -295,6 +308,13 @@ export class ReportCardGenerationService {
       }
     }
   }
+}
+
+function reportCardFailureMessage(error: unknown): string {
+  if (error instanceof BadRequestException) {
+    return error.message.slice(0, 240);
+  }
+  return 'Report-card generation failed for this learner. Retry after checking the locked marks and grading setup.';
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

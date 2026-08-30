@@ -29,6 +29,7 @@ test('ExamsSchemaService creates exam and report-card tables with tenant RLS', a
   await service.onModuleInit();
 
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS exam_series/);
+  assert.match(schemaSql, /ALTER TABLE exam_series\s+ADD COLUMN IF NOT EXISTS grading_system_id uuid/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS exam_marks/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS student_report_cards/);
   assert.match(schemaSql, /ALTER TABLE exam_marks FORCE ROW LEVEL SECURITY/);
@@ -3114,6 +3115,73 @@ test('ReportCardGenerationService generates HTML and PDF artifacts with a verifi
   );
 });
 
+test('ExamsRepository applies the configured academic grading system to report-card subjects', async () => {
+  const queries: string[] = [];
+  const repository = new ExamsRepository({
+    executeWithTenant: async function(_tenantId: string, _context: unknown, callback: any) {
+      return callback({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          const result = await (this as any).query(sql, params);
+          return result.rows;
+        },
+      });
+    },
+    query: async (sql: string) => {
+      queries.push(sql);
+      if (/FROM tenants tenant/.test(sql)) return { rows: [{ name: 'Kibabi' }] };
+      if (/academic_term_name/.test(sql)) return { rows: [{ id: 'series-1', name: 'Term 3' }] };
+      if (/FROM students student/.test(sql)) return { rows: [{ id: 'student-1', full_name: 'Learner One' }] };
+      if (/FROM exam_grading_policies policy/.test(sql) && !/FROM exam_marks mark/.test(sql)) return { rows: [] };
+      if (/FROM academics_grading_systems system/.test(sql)) {
+        return {
+          rows: [{
+            id: 'f559ae72-8374-4b0c-9a73-e3239f1b6fe9',
+            name: '2026 Senior model',
+            version: 1,
+            rules: [
+              { min: 80, max: 100, label: 'A', points: 12, remark: 'Excellent', is_pass: true },
+              { min: 70, max: 79, label: 'B', points: 10, remark: 'Very good', is_pass: true },
+            ],
+          }],
+        };
+      }
+      if (/FROM exam_marks mark/.test(sql)) {
+        return {
+          rows: [{
+            subject_id: 'subject-1',
+            subject_name: 'Mathematics',
+            score: 80,
+            score_status: 'entered',
+            max_score: 100,
+            percentage: 80,
+            grade_label: null,
+            points: null,
+            descriptor: null,
+            is_pass: null,
+            remarks: null,
+          }],
+        };
+      }
+      return { rows: [] };
+    },
+  } as never);
+
+  const data = await repository.loadReportCardData({
+    tenant_id: 'kibabi-high',
+    exam_series_id: '0e9d0e2c-7cb4-4336-b383-9a74d90ab3d0',
+    student_id: 'fc599890-3b68-4c85-b6ef-0ac4e199c30b',
+  });
+  const subject = (data.subjects as Array<Record<string, unknown>>)[0];
+  const policy = data.grading_policy as Record<string, unknown>;
+
+  assert.equal(subject?.grade_label, 'A');
+  assert.equal(subject?.points, 12);
+  assert.equal(subject?.remarks, 'Excellent');
+  assert.equal(policy.source, 'academic_setup');
+  assert.equal(policy.id, 'f559ae72-8374-4b0c-9a73-e3239f1b6fe9');
+  assert.equal(queries.some((sql) => /academics_report_card_settings/.test(sql)), true);
+});
+
 test('ReportCardGenerationService refuses report-card generation when a numeric subject has no grade boundary', async () => {
   const service = new ReportCardGenerationService(
     {
@@ -3317,6 +3385,49 @@ test('ExamsService lists tenant mark sheets with teacher and series filters', as
     offset: 0,
   });
   assert.equal(rows[0]?.mark_count, 18);
+});
+
+test('ReportCardGenerationService preserves actionable learner failures on a batch', async () => {
+  let capturedFailures: unknown = null;
+  const service = new ReportCardGenerationService(
+    {
+      getReportCardBatchReadiness: async () => ({
+        expected_mark_count: 1,
+        ready_mark_count: 1,
+        not_ready_mark_count: 0,
+        learner_count: 1,
+      }),
+      listStudentsForReportCardBatch: async () => [{ id: 'fc599890-3b68-4c85-b6ef-0ac4e199c30b' }],
+      createReportCardGenerationBatch: async () => ({ id: '40fdbade-8119-4fef-8ae1-0dc9821fe03e' }),
+      loadReportCardData: async () => ({
+        exam_series: { id: 'series-1', name: 'Term 3' },
+        student: { id: 'student-1', full_name: 'Learner One' },
+        subjects: [{
+          subject_id: 'subject-1',
+          subject_name: 'Mathematics',
+          score: 80,
+          score_status: 'entered',
+          max_score: 100,
+          grade_label: null,
+        }],
+      }),
+      updateReportCardGenerationBatch: async (input: Record<string, unknown>) => {
+        capturedFailures = input.failures;
+        return { id: 'batch-1', status: input.status, queue_status: input.queue_status, ...input };
+      },
+    } as never,
+    new ReportCardTemplateService(),
+  );
+
+  const result = await service.generateReportCardBatch({
+    tenant_id: 'kibabi-high',
+    actor_user_id: '11111111-1111-4111-8111-111111111111',
+    exam_series_id: '0e9d0e2c-7cb4-4336-b383-9a74d90ab3d0',
+  });
+
+  assert.equal(result.failed_students, 1);
+  assert.match(result.failures?.[0]?.message ?? '', /Mathematics has no grade boundary match/);
+  assert.deepEqual(result.failures, capturedFailures);
 });
 
 test('ExamsService scopes teacher mark-entry rows to the current teacher assignments', async () => {

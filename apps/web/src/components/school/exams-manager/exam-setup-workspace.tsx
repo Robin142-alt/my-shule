@@ -18,6 +18,7 @@ type ExamConfig = {
   type: string;
   max_marks: number;
   grading_system: string;
+  grading_system_id?: string | null;
   status: string;
   subjects_count: number;
   classes_count: number;
@@ -60,7 +61,7 @@ const emptyForm = {
   status: "draft",
   exam_type: "Opener",
   max_marks: "100",
-  grading_system: "",
+  grading_system_id: "",
   subject_ids: [] as string[],
   class_section_ids: [] as string[],
 };
@@ -112,7 +113,7 @@ export function ExamSetupWorkspace() {
     setForm({
       ...emptyForm,
       academic_term_id: termOptions.find((term) => String(term.status || "").toLowerCase() === "active")?.id ?? termOptions[0]?.id ?? "",
-      grading_system: gradingSystemOptions[0]?.label ?? "",
+      grading_system_id: gradingSystemOptions[0]?.id ?? "",
       subject_ids: subjectOptions.map((subject) => subject.id),
       class_section_ids: classOptions.map((schoolClass) => schoolClass.id),
     });
@@ -129,7 +130,10 @@ export function ExamSetupWorkspace() {
       status: exam.status?.toLowerCase() || "draft",
       exam_type: exam.type || "Exam cycle",
       max_marks: String(exam.max_marks || 100),
-      grading_system: exam.grading_system || gradingSystemOptions[0]?.label || "",
+      grading_system_id: exam.grading_system_id
+        || gradingSystemOptions.find((option) => option.label === exam.grading_system)?.id
+        || gradingSystemOptions[0]?.id
+        || "",
       academic_term_id: termOptions.find((term) => exam.term?.includes(term.label))?.id ?? termOptions[0]?.id ?? "",
       subject_ids: subjectOptions.map((subject) => subject.id),
       class_section_ids: classOptions.map((schoolClass) => schoolClass.id),
@@ -149,7 +153,7 @@ export function ExamSetupWorkspace() {
     if (!hasSubjects) return "The Principal must add subjects in Subjects & Departments before an exam can be created.";
     if (!hasClasses) return "The Principal must add classes and streams before an exam can be created.";
     if (!form.academic_term_id) return "Choose the academic term for this exam.";
-    if (!form.grading_system) return "Choose the school grading system for this exam.";
+    if (!form.grading_system_id) return "Choose the school grading system for this exam.";
     if (form.subject_ids.length === 0) return "Choose at least one subject for this exam.";
     if (form.class_section_ids.length === 0) return "Choose at least one class for this exam.";
     return null;
@@ -164,7 +168,7 @@ export function ExamSetupWorkspace() {
     type: form.exam_type,
     exam_type: form.exam_type,
     max_marks: Number(form.max_marks),
-    grading_system: form.grading_system,
+    grading_system_id: form.grading_system_id,
     subject_ids: form.subject_ids,
     class_section_ids: form.class_section_ids,
   });
@@ -351,13 +355,13 @@ export function ExamSetupWorkspace() {
         <label className="space-y-1 text-sm font-bold text-[#334155]">
           Grading
           <select
-            value={form.grading_system}
-            onChange={(event) => setForm((current) => ({ ...current, grading_system: event.target.value }))}
+            value={form.grading_system_id}
+            onChange={(event) => setForm((current) => ({ ...current, grading_system_id: event.target.value }))}
             className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
             disabled={optionsLoading || gradingSystemOptions.length === 0}
           >
             <option value="">{optionsLoading ? "Loading grading systems..." : gradingSystemOptions.length === 0 ? "No grading systems configured" : "Select grading system"}</option>
-            {gradingSystemOptions.map((option) => <option key={option.id} value={option.label}>{option.label}</option>)}
+            {gradingSystemOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
           </select>
         </label>
 
