@@ -7,12 +7,18 @@ import { ForbiddenException, NotFoundException, ValidationPipe } from '@nestjs/c
 import { PERMISSIONS_KEY } from '../../auth/auth.constants';
 import { ParentPortalController } from '../../parent-portal/parent-portal.controller';
 import { ExamsController } from './exams.controller';
-import { GenerateReportCardBatchDto, ModerateExamMarksDto } from './dto/exams.dto';
+import {
+  GenerateReportCardBatchDto,
+  ModerateExamMarksDto,
+  RegenerateReportCardDto,
+  TransitionReportCardDto,
+} from './dto/exams.dto';
 import { ExamsRepository } from './repositories/exams.repository';
 import { ExamsSchemaService } from './exams-schema.service';
 import { ExamsService } from './exams.service';
 import { ReportCardGenerationService } from './services/report-card-generation.service';
 import {
+  buildPersonalizedReportCardComments,
   extractPersistedReportCardPayload,
   ReportCardTemplateService,
 } from './services/report-card-template.service';
@@ -817,7 +823,6 @@ test('ExamsService persists validated report-card comments inside the current te
         calls.push(input);
         return { id: input.report_card_id, status: 'draft_generated', metadata: { class_teacher_comment: input.class_teacher_comment } };
       },
-      appendReportCardAuditLog: async (input: Record<string, unknown>) => calls.push(input),
     } as never,
   );
 
@@ -830,7 +835,7 @@ test('ExamsService persists validated report-card comments inside the current te
   assert.equal(result.success, true);
   assert.equal(calls[0].tenant_id, 'tenant-a');
   assert.equal(calls[0].actor_user_id, 'exam-manager-1');
-  assert.equal(calls[1].action, 'report_card.comments_updated');
+  assert.equal(calls.length, 1, 'the repository update owns the atomic comments audit write');
 });
 
 test('ExamsService transitions mark windows with tenant actor and correction reason', async () => {
@@ -2359,6 +2364,13 @@ test('ExamsRepository edits comments only on current tenant-scoped working draft
     /status IN \('draft_requested', 'draft_generated', 'draft', 'regeneration_required'\)/,
   );
   assert.match(calls[0]!.sql, /metadata->'report_card'->'template_fields'/);
+  assert.match(calls[0]!.sql, /WITH updated AS/);
+  assert.match(calls[0]!.sql, /INSERT INTO student_report_card_audit_logs/);
+  assert.match(calls[0]!.sql, /'report_card\.comments_updated'/);
+  assert.match(calls[0]!.sql, /- 'class_teacher_comment_source'/);
+  assert.match(calls[0]!.sql, /'class_teacher_comment_source', CASE[\s\S]+THEN 'manual'/);
+  assert.match(calls[0]!.sql, /- 'principal_comment_source'/);
+  assert.match(calls[0]!.sql, /'principal_comment_source', CASE[\s\S]+THEN 'manual'/);
   assert.deepEqual(calls[0]!.params, [
     'tenant-a',
     '00000000-0000-0000-0000-000000000411',
@@ -5178,4 +5190,165 @@ test('ExamsRepository applies assignment scope to every academic analytics query
     assert.match(query, /academics_class_teachers class_teacher/);
     assert.match(query, /class_teacher\.teacher_user_id::text = \$2/);
   }
+});
+
+test('report-card action DTOs accept regenerate reasons and reject undeclared actions', async () => {
+  const pipe = new ValidationPipe({
+    whitelist: true,
+    transform: true,
+    forbidNonWhitelisted: true,
+  });
+  const regenerate = await pipe.transform(
+    { exam_series_id: 'series-1', student_id: 'student-1', reason: 'Marks corrected after moderation' },
+    { type: 'body', metatype: RegenerateReportCardDto },
+  );
+  assert.equal(regenerate.reason, 'Marks corrected after moderation');
+
+  const transition = await pipe.transform(
+    { action: 'submit' },
+    { type: 'body', metatype: TransitionReportCardDto },
+  );
+  assert.equal(transition.action, 'submit');
+
+  await assert.rejects(() => pipe.transform(
+    { exam_series_id: 'series-1', student_id: 'student-1', reason: 'Valid', unexpected: true },
+    { type: 'body', metatype: RegenerateReportCardDto },
+  ));
+  await assert.rejects(() => pipe.transform(
+    { exam_series_id: 'series-1', student_id: 'student-1', reason: 'x'.repeat(1001) },
+    { type: 'body', metatype: RegenerateReportCardDto },
+  ));
+  await assert.rejects(() => pipe.transform(
+    { action: 'delete' },
+    { type: 'body', metatype: TransitionReportCardDto },
+  ));
+});
+
+test('Exam Manager alias can submit report cards without gaining Dean authority', async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const service = new ExamsService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: 'exam-manager-1',
+        role: 'Exam Manager',
+        permissions: ['exams:read', 'exams:write'],
+      }),
+    } as never,
+    {
+      transitionReportCard: async (input: Record<string, unknown>) => {
+        calls.push(input);
+        return {
+          id: input.report_card_id,
+          exam_series_id: 'series-1',
+          student_id: 'student-1',
+          status: 'under_review',
+        };
+      },
+    } as never,
+  );
+
+  const result = await service.transitionReportCard('report-card-1', 'submit');
+  assert.equal(result.success, true);
+  assert.equal(calls[0]?.actor_role, 'exam_manager');
+  await assert.rejects(() => service.transitionReportCard('report-card-1', 'approve'), ForbiddenException);
+});
+
+test('a committed report-card transition remains successful when downstream delivery fails', async () => {
+  const calls: Array<{ name: string; input?: Record<string, unknown> }> = [];
+  const service = new ExamsService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: 'principal-1',
+        role: 'principal',
+        permissions: ['principal:write', 'exams:read', 'exams:publish'],
+      }),
+    } as never,
+    {
+      transitionReportCard: async (input: Record<string, unknown>) => {
+        calls.push({ name: 'transition', input });
+        return {
+          id: 'report-card-1',
+          exam_series_id: 'series-1',
+          student_id: 'student-1',
+          status: 'published',
+          workflow_version: 3,
+          updated_at: '2026-08-31T10:00:00.000Z',
+        };
+      },
+      appendReportCardAuditLog: async (input: Record<string, unknown>) => {
+        calls.push({ name: 'delivery-audit', input });
+      },
+    } as never,
+    undefined,
+    undefined,
+    {
+      recordSchoolOperation: async () => {
+        calls.push({ name: 'school-delivery' });
+        throw new Error('notification transport unavailable');
+      },
+    } as never,
+    {
+      publishReportCardPublished: async () => {
+        calls.push({ name: 'grade-delivery' });
+        throw new Error('event transport unavailable');
+      },
+    } as never,
+  );
+
+  const result = await service.transitionReportCard('report-card-1', 'publish');
+  assert.equal(result.success, true);
+  assert.deepEqual(result.delivery_warnings, [
+    'grade publication event',
+    'school workflow notification',
+  ]);
+  assert.equal(calls[3]?.input?.action, 'report_card.delivery_failed');
+});
+
+test('personalized report-card comments use only real learner results and remain deterministic', () => {
+  const input = {
+    student: { first_name: 'Amina', full_name: 'Amina Njoroge' },
+    subjects: [
+      { subject_id: 'math', subject_name: 'Mathematics', score: 86, max_score: 100, percentage: 86, score_status: 'entered', grade_label: 'A', remarks: null },
+      { subject_id: 'english', subject_name: 'English', score: 63, max_score: 100, percentage: 63, score_status: 'entered', grade_label: 'C', remarks: null },
+    ],
+    percentage: 74.5,
+    overallGrade: 'B',
+    termHistory: [
+      { exam_series_id: 'term-2', label: 'Term 2', percentage: 74.5 },
+      { exam_series_id: 'term-1', label: 'Term 1', percentage: 70.3 },
+    ],
+    attendance: { days_present: 58, total_days: 60 },
+  };
+  const comments = buildPersonalizedReportCardComments(input);
+  const reordered = buildPersonalizedReportCardComments({
+    ...input,
+    subjects: [...input.subjects].reverse(),
+  });
+
+  assert.deepEqual(reordered, comments);
+  assert.match(comments.classTeacher ?? '', /Amina recorded 74\.5% overall \(B\)/);
+  assert.match(comments.classTeacher ?? '', /Mathematics was the highest result at 86%/);
+  assert.match(comments.classTeacher ?? '', /English, recorded at 63%/);
+  assert.match(comments.classTeacher ?? '', /improved by 4\.2 percentage points from Term 1/);
+  assert.match(comments.classTeacher ?? '', /Attendance was 58 of 60 days \(96\.67%\)/);
+  assert.doesNotMatch(`${comments.classTeacher} ${comments.principal}`, /promot|conduct|behavio|discipline/i);
+
+  const noScores = buildPersonalizedReportCardComments({
+    student: { first_name: 'Wanjiku' },
+    subjects: [{
+      subject_id: 'math',
+      subject_name: 'Mathematics',
+      score: null,
+      max_score: 100,
+      percentage: null,
+      score_status: 'absent',
+      grade_label: null,
+      remarks: null,
+    }],
+    percentage: 0,
+    termHistory: [],
+  });
+  assert.deepEqual(noScores, { classTeacher: null, principal: null });
 });

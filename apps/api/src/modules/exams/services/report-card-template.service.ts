@@ -61,7 +61,9 @@ export interface ReportCardPayload {
     term: string | null;
     exam_series: string | null;
     class_teacher_comment: string | null;
+    class_teacher_comment_source: string | null;
     principal_comment: string | null;
+    principal_comment_source: string | null;
     principal_signature_ref: string | null;
     next_term_opening_date: string | null;
     conduct_summary: string | null;
@@ -106,10 +108,21 @@ export class ReportCardTemplateService {
     const subjectHistory = normalizeSubjectHistory(analytics.subject_history);
     const position = numberOrNull(resultSnapshot.position);
     const cohortSize = numberOrNull(resultSnapshot.cohort_size);
+    const overallGrade = text(resultSnapshot.grade_label) ?? resolveOverallGrade(gradingPolicy, percentage);
     const persistedImprovement = text(analytics.improvement) ?? text(analytics.improvement_percentage);
     const derivedImprovement = termHistory.length > 1
       ? `${termHistory[0]!.percentage - termHistory[1]!.percentage >= 0 ? '+' : ''}${formatNumber(termHistory[0]!.percentage - termHistory[1]!.percentage)}%`
       : null;
+    const generatedComments = buildPersonalizedReportCardComments({
+      student,
+      subjects,
+      percentage,
+      overallGrade,
+      termHistory,
+      attendance: asRecord(data.attendance),
+    });
+    const classTeacherComment = text(comments.class_teacher);
+    const principalComment = text(comments.principal);
 
     return {
       exam_series: {
@@ -128,7 +141,7 @@ export class ReportCardTemplateService {
         total_max_score: totalMaxScore,
         mean_score: meanScore,
         percentage,
-        overall_grade: text(resultSnapshot.grade_label) ?? resolveOverallGrade(gradingPolicy, percentage),
+        overall_grade: overallGrade,
         class_position: position !== null
           ? `${Math.trunc(position)}${cohortSize !== null ? ` of ${Math.trunc(cohortSize)}` : ''}`
           : null,
@@ -150,8 +163,18 @@ export class ReportCardTemplateService {
         academic_year: text(series.academic_year_name),
         term: text(series.academic_term_name),
         exam_series: text(series.name),
-        class_teacher_comment: text(comments.class_teacher),
-        principal_comment: text(comments.principal),
+        class_teacher_comment: classTeacherComment ?? generatedComments.classTeacher,
+        class_teacher_comment_source: classTeacherComment
+          ? text(comments.class_teacher_source) ?? 'manual'
+          : generatedComments.classTeacher
+            ? 'automated_performance_v1'
+            : null,
+        principal_comment: principalComment ?? generatedComments.principal,
+        principal_comment_source: principalComment
+          ? text(comments.principal_source) ?? 'manual'
+          : generatedComments.principal
+            ? 'automated_performance_v1'
+            : null,
         principal_signature_ref: text(comments.principal_signature_ref),
         next_term_opening_date: text(nextTerm.opening_date) ?? text(series.next_term_opening_date),
         conduct_summary: text(comments.conduct_summary),
@@ -502,6 +525,118 @@ export class ReportCardTemplateService {
       };
     });
   }
+}
+
+export function buildPersonalizedReportCardComments(input: {
+  student: Record<string, unknown>;
+  subjects: ReportCardSubjectPayload[];
+  percentage: number;
+  overallGrade?: string | null;
+  termHistory: ReportCardPayload['analytics']['term_history'];
+  attendance?: Record<string, unknown> | null;
+}): { classTeacher: string | null; principal: string | null } {
+  const enteredSubjects = input.subjects
+    .map((subject) => ({ subject, percentage: reportSubjectPercentage(subject) }))
+    .filter((entry): entry is { subject: ReportCardSubjectPayload; percentage: number } => entry.percentage !== null)
+    .sort((left, right) => right.percentage - left.percentage || left.subject.subject_name.localeCompare(right.subject.subject_name));
+
+  if (enteredSubjects.length === 0) {
+    return { classTeacher: null, principal: null };
+  }
+
+  const storedFirstName = text(input.student.first_name);
+  const fullName = text(input.student.full_name);
+  const learnerName = storedFirstName ?? fullName?.split(/\s+/)[0] ?? 'The learner';
+  const overall = Math.max(0, Math.min(100, Number(input.percentage.toFixed(2))));
+  const grade = text(input.overallGrade);
+  const overallFact = `${learnerName} recorded ${formatPercentage(overall)} overall${grade ? ` (${grade})` : ''}.`;
+  const strongest = enteredSubjects[0]!;
+  const support = enteredSubjects[enteredSubjects.length - 1]!;
+  const classTeacherFacts = [overallFact];
+
+  if (enteredSubjects.length === 1) {
+    classTeacherFacts.push(
+      `${strongest.subject.subject_name} was assessed at ${formatPercentage(strongest.percentage)}.`,
+    );
+  } else {
+    classTeacherFacts.push(
+      `${strongest.subject.subject_name} was the highest result at ${formatPercentage(strongest.percentage)}.`,
+    );
+    if (strongest.percentage - support.percentage >= 5) {
+      classTeacherFacts.push(
+        `Focused practice in ${support.subject.subject_name}, recorded at ${formatPercentage(support.percentage)}, is the clearest next step.`,
+      );
+    } else {
+      classTeacherFacts.push(
+        `Results were balanced across the assessed subjects, ranging from ${formatPercentage(support.percentage)} to ${formatPercentage(strongest.percentage)}.`,
+      );
+    }
+  }
+
+  const trend = reportCardTrendSentence(input.termHistory);
+  if (trend) classTeacherFacts.push(trend.classTeacher);
+
+  const attendanceFact = reportCardAttendanceSentence(input.attendance);
+  if (attendanceFact) classTeacherFacts.push(attendanceFact);
+
+  const principalFacts = [overallFact];
+  if (enteredSubjects.length > 1) {
+    principalFacts.push(
+      `${strongest.subject.subject_name} led the assessed subjects at ${formatPercentage(strongest.percentage)}.`,
+    );
+  }
+  if (trend) principalFacts.push(trend.principal);
+
+  if (overall >= 80) {
+    principalFacts.push('Sustain this high level of effort while continuing to strengthen every assessed subject.');
+  } else if (overall >= 65) {
+    principalFacts.push('Maintain the strongest areas and follow the class teacher’s focused subject guidance.');
+  } else if (overall >= 50) {
+    principalFacts.push('Steady, targeted practice and regular follow-up can lift the next reporting result.');
+  } else {
+    principalFacts.push('A structured academic support plan and regular follow-up are recommended for the next reporting cycle.');
+  }
+
+  return {
+    classTeacher: classTeacherFacts.join(' '),
+    principal: principalFacts.join(' '),
+  };
+}
+
+function reportCardTrendSentence(
+  history: ReportCardPayload['analytics']['term_history'],
+): { classTeacher: string; principal: string } | null {
+  if (history.length < 2) return null;
+  const current = history[0]!;
+  const previous = history[1]!;
+  const difference = Number((current.percentage - previous.percentage).toFixed(2));
+  if (Math.abs(difference) < 0.05) {
+    return {
+      classTeacher: `This was unchanged from ${previous.label}.`,
+      principal: `The overall result was steady compared with ${previous.label}.`,
+    };
+  }
+  const amount = `${formatNumber(Math.abs(difference))} percentage point${Math.abs(difference) === 1 ? '' : 's'}`;
+  return difference > 0
+    ? {
+        classTeacher: `This improved by ${amount} from ${previous.label}.`,
+        principal: `The overall result improved by ${amount} from ${previous.label}.`,
+      }
+    : {
+        classTeacher: `This was ${amount} below ${previous.label}, making recovery of that gap a useful next target.`,
+        principal: `The overall result was ${amount} below ${previous.label}, so focused follow-up is needed.`,
+      };
+}
+
+function reportCardAttendanceSentence(attendance?: Record<string, unknown> | null): string | null {
+  if (!attendance) return null;
+  const present = recordNumber(attendance, 'days_present');
+  const total = recordNumber(attendance, 'total_days');
+  if (present === null) return null;
+  if (total === null || total <= 0) {
+    return `Attendance recorded ${formatNumber(present)} present day${present === 1 ? '' : 's'}.`;
+  }
+  return `Attendance was ${formatNumber(present)} of ${formatNumber(total)} days (${formatPercentage((present / total) * 100)}).`;
 }
 
 export function extractPersistedReportCardPayload(metadataValue: unknown): ReportCardPayload | null {

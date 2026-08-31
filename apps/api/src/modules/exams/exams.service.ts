@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
   UnauthorizedException,
@@ -28,6 +29,7 @@ import {
   EnterExamMarkDto,
   GenerateReportCardBatchDto,
   GenerateReportCardDto,
+  RegenerateReportCardDto,
   LockExamMarksDto,
   ModerateExamMarksDto,
   PublishReportCardDto,
@@ -62,6 +64,7 @@ const EXAM_ADMIN_ROLES = new Set([
   'super_admin',
 ]);
 const EXAMS_MANAGER_ROLES = new Set([
+  'exam_manager',
   'exams_manager',
   'exams_officer',
   'exam_officer',
@@ -210,6 +213,8 @@ interface BulkMarkUploadValidationResult {
 
 @Injectable()
 export class ExamsService {
+  private readonly logger = new Logger(ExamsService.name);
+
   constructor(
     @Inject(forwardRef(() => RequestContextService))
     private readonly requestContext: RequestContextService,
@@ -1337,7 +1342,7 @@ export class ExamsService {
     return reportCard;
   }
 
-  async regenerateReportCard(dto: GenerateReportCardDto & { reason?: string }) {
+  async regenerateReportCard(dto: RegenerateReportCardDto) {
     if (!this.isExamsOfficer()) {
       throw new ForbiddenException('Exam approval permission is required to regenerate report cards');
     }
@@ -1443,40 +1448,88 @@ export class ExamsService {
     if (!result) {
       throw new ConflictException(`Report card was not found for this school or is not ready to ${action}`);
     }
-    if (action === 'publish') {
-      await this.eventPublisher?.publishReportCardPublished({
-        tenant_id: tenantId,
-        report_id: result.id,
-        student_id: result.student_id,
-        exam_id: result.exam_series_id,
-        published_by_user_id: actorUserId,
-      });
+    const deliveryWarnings: string[] = [];
+    if (action === 'publish' && this.eventPublisher) {
+      try {
+        await this.eventPublisher.publishReportCardPublished({
+          tenant_id: tenantId,
+          report_id: result.id,
+          student_id: result.student_id,
+          exam_id: result.exam_series_id,
+          published_by_user_id: actorUserId,
+        });
+      } catch (error) {
+        deliveryWarnings.push('grade publication event');
+        this.logger.error(
+          `Report card ${result.id} was published, but its grade publication event could not be delivered`,
+          error instanceof Error ? error.stack : String(error),
+        );
+      }
     }
-    await this.schoolEvents?.recordSchoolOperation({ event: {
-      id: `report-card-transition-${result.id}-${String(result.updated_at)}`,
-      type: `report_card.${action === 'unpublish' ? 'withdrawn' : action}`,
-      module: 'exams',
-      actorRole,
-      title: `Report Card ${action.charAt(0).toUpperCase()}${action.slice(1)}`,
-      body: `Report card ${result.id} moved to ${result.status}.`,
-      entityId: result.id,
-      severity: action === 'unpublish' || action === 'recall' ? 'warning' : 'info',
-      payload: {
-        report_card_id: result.id,
-        student_id: result.student_id,
-        exam_series_id: result.exam_series_id,
-        status: result.status,
-        workflow_version: result.workflow_version,
-        reason: reason ?? null,
-      },
-    }, notifications: this.reportCardTransitionNotifications({
-      action,
-      tenant_id: tenantId,
-      report_card_id: result.id,
-      exam_series_id: result.exam_series_id,
-      student_id: result.student_id,
-    })});
-    return { success: true, message: `Report card ${action} completed`, data: result };
+    if (this.schoolEvents) {
+      try {
+        await this.schoolEvents.recordSchoolOperation({ event: {
+          id: `report-card-transition-${result.id}-${String(result.updated_at)}`,
+          type: `report_card.${action === 'unpublish' ? 'withdrawn' : action}`,
+          module: 'exams',
+          actorRole,
+          title: `Report Card ${action.charAt(0).toUpperCase()}${action.slice(1)}`,
+          body: `Report card ${result.id} moved to ${result.status}.`,
+          entityId: result.id,
+          severity: action === 'unpublish' || action === 'recall' ? 'warning' : 'info',
+          payload: {
+            report_card_id: result.id,
+            student_id: result.student_id,
+            exam_series_id: result.exam_series_id,
+            status: result.status,
+            workflow_version: result.workflow_version,
+            reason: reason ?? null,
+          },
+        }, notifications: this.reportCardTransitionNotifications({
+          action,
+          tenant_id: tenantId,
+          report_card_id: result.id,
+          exam_series_id: result.exam_series_id,
+          student_id: result.student_id,
+        })});
+      } catch (error) {
+        deliveryWarnings.push('school workflow notification');
+        this.logger.error(
+          `Report card ${result.id} moved to ${result.status}, but its school workflow notification could not be delivered`,
+          error instanceof Error ? error.stack : String(error),
+        );
+      }
+    }
+    if (deliveryWarnings.length) {
+      try {
+        await this.repository.appendReportCardAuditLog({
+          tenant_id: tenantId,
+          report_card_id: result.id,
+          exam_series_id: result.exam_series_id,
+          student_id: result.student_id,
+          action: 'report_card.delivery_failed',
+          actor_user_id: actorUserId,
+          metadata: {
+            transition_action: action,
+            resulting_status: result.status,
+            failed_deliveries: deliveryWarnings,
+          },
+        });
+      } catch (error) {
+        this.logger.error(
+          `Report card ${result.id} delivery failure could not be added to the audit log`,
+          error instanceof Error ? error.stack : String(error),
+        );
+      }
+    }
+    return {
+      success: true,
+      message: deliveryWarnings.length
+        ? `Report card ${action} completed, but ${deliveryWarnings.join(' and ')} delivery failed and was recorded for operations review`
+        : `Report card ${action} completed`,
+      data: result,
+      ...(deliveryWarnings.length ? { delivery_warnings: deliveryWarnings } : {}),
+    };
   }
 
   async updateReportCardComments(reportCardIdValue: string, classTeacherCommentValue?: string, principalCommentValue?: string) {
@@ -1506,15 +1559,6 @@ export class ExamsService {
         'Report card was not found for this school or its submitted snapshot is immutable',
       );
     }
-    await this.repository.appendReportCardAuditLog({
-      tenant_id: tenantId,
-      report_card_id: result.id,
-      exam_series_id: result.exam_series_id,
-      student_id: result.student_id,
-      action: 'report_card.comments_updated',
-      actor_user_id: actorUserId,
-      metadata: { class_teacher_comment_updated: Boolean(classTeacherComment), principal_comment_updated: Boolean(principalComment) },
-    });
     return { success: true, message: 'Report-card comments updated', data: result };
   }
 

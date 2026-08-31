@@ -1672,9 +1672,12 @@ export class ExamsRepository {
 
   async updateReportCardComments(input: { tenant_id: string; actor_user_id: string; report_card_id: string; class_teacher_comment: string; principal_comment: string }) {
     const result = await this.executeSql(
-      `UPDATE student_report_cards
+      `WITH updated AS (
+       UPDATE student_report_cards
        SET metadata =
-             COALESCE(metadata, '{}'::jsonb)
+             (COALESCE(metadata, '{}'::jsonb)
+               - 'class_teacher_comment'
+               - 'principal_comment')
              || jsonb_strip_nulls(jsonb_build_object(
                'class_teacher_comment', NULLIF($4::text, ''),
                'principal_comment', NULLIF($5::text, '')
@@ -1686,10 +1689,16 @@ export class ExamsRepository {
                  COALESCE(metadata->'report_card', '{}'::jsonb)
                  || jsonb_build_object(
                    'template_fields',
-                     COALESCE(metadata->'report_card'->'template_fields', '{}'::jsonb)
+                     (COALESCE(metadata->'report_card'->'template_fields', '{}'::jsonb)
+                       - 'class_teacher_comment'
+                       - 'class_teacher_comment_source'
+                       - 'principal_comment'
+                       - 'principal_comment_source')
                      || jsonb_strip_nulls(jsonb_build_object(
                        'class_teacher_comment', NULLIF($4::text, ''),
-                       'principal_comment', NULLIF($5::text, '')
+                       'class_teacher_comment_source', CASE WHEN NULLIF($4::text, '') IS NOT NULL THEN 'manual' END,
+                       'principal_comment', NULLIF($5::text, ''),
+                       'principal_comment_source', CASE WHEN NULLIF($5::text, '') IS NOT NULL THEN 'manual' END
                      ))
                  )
              ),
@@ -1698,7 +1707,33 @@ export class ExamsRepository {
          AND id = $3::uuid
          AND is_current = TRUE
          AND status IN ('draft_requested', 'draft_generated', 'draft', 'regeneration_required')
-       RETURNING *`,
+       RETURNING *
+       ), audit AS (
+         INSERT INTO student_report_card_audit_logs (
+           tenant_id,
+           report_card_id,
+           exam_series_id,
+           student_id,
+           action,
+           actor_user_id,
+           metadata
+         )
+         SELECT
+           $1,
+           updated.id,
+           updated.exam_series_id,
+           updated.student_id,
+           'report_card.comments_updated',
+           $2::uuid,
+           jsonb_build_object(
+             'class_teacher_comment_updated', NULLIF($4::text, '') IS NOT NULL,
+             'principal_comment_updated', NULLIF($5::text, '') IS NOT NULL
+           )
+         FROM updated
+         RETURNING id
+       )
+       SELECT updated.*, (SELECT COUNT(*)::integer FROM audit) AS audit_recorded
+       FROM updated`,
       [input.tenant_id, input.actor_user_id, input.report_card_id, input.class_teacher_comment, input.principal_comment],
     );
     return result.rows[0] ?? null;
@@ -2057,6 +2092,7 @@ export class ExamsRepository {
       `
         SELECT
           student.id::text,
+          NULLIF(student.first_name, '') AS first_name,
           concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS full_name,
           student.admission_number,
           NULLIF(student.upi_number, '') AS upi_number,
@@ -2116,6 +2152,49 @@ export class ExamsRepository {
         LIMIT 1
       `,
       [input.tenant_id, input.student_id, input.exam_series_id],
+    );
+    const commentsResult = await this.executeSql(
+      `
+        SELECT
+          NULLIF(current_card.metadata->>'class_teacher_comment', '') AS manual_class_teacher_comment,
+          NULLIF(current_card.metadata->>'principal_comment', '') AS manual_principal_comment,
+          submitted_teacher.final_comment AS submitted_class_teacher_comment
+        FROM (SELECT 1) seed
+        LEFT JOIN LATERAL (
+          SELECT card.metadata
+          FROM student_report_cards card
+          WHERE card.tenant_id = $1
+            AND card.exam_series_id = $2::uuid
+            AND card.student_id = $3::uuid
+            AND card.is_current = TRUE
+          ORDER BY card.revision_number DESC, card.updated_at DESC
+          LIMIT 1
+        ) current_card ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT NULLIF(comment.final_comment, '') AS final_comment
+          FROM report_card_comments comment
+          JOIN exam_series series
+            ON series.tenant_id = comment.tenant_id
+           AND series.id = $2::uuid
+           AND series.academic_term_id::text = comment.academic_term_id::text
+          JOIN academic_terms term
+            ON term.tenant_id = series.tenant_id
+           AND term.id::text = series.academic_term_id::text
+          JOIN student_class_assignments assignment
+            ON assignment.tenant_id = comment.tenant_id
+           AND assignment.student_id::text = comment.student_id::text
+           AND assignment.academic_year_id::text = term.academic_year_id::text
+           AND assignment.class_section_id::text = comment.class_section_id::text
+           AND assignment.status = 'active'
+          WHERE comment.tenant_id = $1
+            AND comment.student_id::text = $3::text
+            AND comment.comment_status = 'submitted'
+            AND NULLIF(comment.final_comment, '') IS NOT NULL
+          ORDER BY comment.updated_at DESC, comment.created_at DESC
+          LIMIT 1
+        ) submitted_teacher ON TRUE
+      `,
+      [input.tenant_id, input.exam_series_id, input.student_id],
     );
     const gradingPolicyResult = await this.executeSql(
       `
@@ -2418,6 +2497,16 @@ export class ExamsRepository {
     const subjects = subjectsResult.rows.map((subject) =>
       applyAcademicGradingRule(subject, academicGradingSystem?.rules),
     );
+    const commentRow = commentsResult.rows[0] ?? {};
+    const manualClassTeacherComment = typeof commentRow.manual_class_teacher_comment === 'string'
+      ? commentRow.manual_class_teacher_comment.trim()
+      : '';
+    const manualPrincipalComment = typeof commentRow.manual_principal_comment === 'string'
+      ? commentRow.manual_principal_comment.trim()
+      : '';
+    const submittedClassTeacherComment = typeof commentRow.submitted_class_teacher_comment === 'string'
+      ? commentRow.submitted_class_teacher_comment.trim()
+      : '';
 
     return {
       school: schoolResult.rows[0] ?? null,
@@ -2441,6 +2530,16 @@ export class ExamsRepository {
               : resultSnapshotResult.rows[0].cohort_size,
           }
         : null,
+      comments: {
+        class_teacher: manualClassTeacherComment || submittedClassTeacherComment || null,
+        class_teacher_source: manualClassTeacherComment
+          ? 'manual'
+          : submittedClassTeacherComment
+            ? 'class_teacher_submitted'
+            : null,
+        principal: manualPrincipalComment || null,
+        principal_source: manualPrincipalComment ? 'manual' : null,
+      },
       analytics: {
         term_history: termHistoryResult.rows,
         subject_history: subjectHistoryResult.rows,

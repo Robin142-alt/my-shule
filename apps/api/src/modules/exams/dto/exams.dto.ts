@@ -9,6 +9,7 @@ import {
   IsString,
   IsUUID,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
 
@@ -311,6 +312,36 @@ export class GenerateReportCardDto {
 
   @IsString()
   student_id!: string;
+}
+
+export class RegenerateReportCardDto extends GenerateReportCardDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  reason?: string;
+}
+
+export class TransitionReportCardDto {
+  @IsString()
+  @IsIn(['submit', 'approve', 'recall', 'publish', 'unpublish'])
+  action!: 'submit' | 'approve' | 'recall' | 'publish' | 'unpublish';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  reason?: string;
+}
+
+export class UpdateReportCardCommentsDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  class_teacher_comment?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  principal_comment?: string;
 }
 
 export class GenerateReportCardBatchDto {

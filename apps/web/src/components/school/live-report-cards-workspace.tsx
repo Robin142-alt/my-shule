@@ -104,6 +104,31 @@ function displayDate(value?: string | null) {
       });
 }
 
+function reportCardFilename(response: Response, report: LiveExamReportCard) {
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const encodedMatch = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+  const plainMatch = disposition.match(/filename="?([^";]+)"?/i);
+  const upstreamName = encodedMatch?.[1]
+    ? decodeURIComponent(encodedMatch[1])
+    : plainMatch?.[1]?.trim();
+  if (upstreamName) return upstreamName;
+  const learner = report.student_name?.trim().replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "") || "Learner";
+  return `Report_Card_${learner}.pdf`;
+}
+
+async function reportCardDownloadError(response: Response) {
+  const payload = await response.json().catch(() => null) as { message?: unknown } | null;
+  if (typeof payload?.message === "string" && payload.message.trim()) return payload.message.trim();
+  return `Report-card download failed (${response.status}).`;
+}
+
+function commentSourceLabel(value?: string) {
+  if (value === "automated_performance_v1") return "Personalized from this learner’s locked performance data";
+  if (value === "class_teacher_submitted") return "Submitted by the assigned class teacher";
+  if (value === "manual") return "Edited and saved for this report card";
+  return "Editable official report-card comment";
+}
+
 function buildGenerationScopes(markSheets: LiveExamMarkSheet[]) {
   const scopes = new Map<string, GenerationScope>();
   for (const sheet of markSheets) {
@@ -178,6 +203,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
   const [principalComment, setPrincipalComment] = useState("");
   const [busyAction, setBusyAction] = useState("");
   const [feedback, setFeedback] = useState<{ tone: "ok" | "critical"; message: string } | null>(null);
+  const [rowFeedback, setRowFeedback] = useState<Record<string, { tone: "ok" | "critical"; message: string }>>({});
   const [batchStatus, setBatchStatus] = useState<LiveReportCardBatchStatus | null>(null);
 
   const selectedReport = reports.find((report) => report.id === selectedReportId) ?? null;
@@ -235,8 +261,12 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
     const actionKey = `${report.id}:${action}`;
     setBusyAction(actionKey);
     setFeedback(null);
+    setRowFeedback((current) => ({
+      ...current,
+      [report.id]: { tone: "ok", message: `${action === "submit" ? "Submitting" : `${action.charAt(0).toUpperCase()}${action.slice(1)}`} report card...` },
+    }));
     try {
-      await requestSchoolApiProxy(
+      const result = await requestSchoolApiProxy<{ message?: string }>(
         `/exams/report-cards/${encodeURIComponent(report.id)}/transition`,
         {
           method: "PATCH",
@@ -246,14 +276,31 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
           },
         },
       );
-      setFeedback({ tone: "ok", message: `Report card ${action} completed and the school workflow has been refreshed.` });
+      const successMessage = result?.message ?? `Report card ${action} completed and the school workflow has been refreshed.`;
+      setFeedback({ tone: "ok", message: successMessage });
+      setRowFeedback((current) => ({ ...current, [report.id]: { tone: "ok", message: successMessage } }));
       setReasonByReport((current) => ({ ...current, [report.id]: "" }));
       await refreshReports();
     } catch (error) {
-      setFeedback({
-        tone: "critical",
-        message: error instanceof Error ? error.message : `Report card ${action} failed.`,
-      });
+      const expectedStatus: Record<typeof action, string> = {
+        submit: "under_review",
+        approve: "approved",
+        recall: "draft_generated",
+        publish: "published",
+        unpublish: "withdrawn",
+      };
+      const refreshed = await reportQuery.refetch().catch(() => null);
+      const persisted = refreshed?.data?.find((candidate) => candidate.id === report.id);
+      if (persisted?.status === expectedStatus[action]) {
+        const reconciledMessage = `Report card ${action} completed. Its latest persisted workflow state has been confirmed.`;
+        setFeedback({ tone: "ok", message: reconciledMessage });
+        setRowFeedback((current) => ({ ...current, [report.id]: { tone: "ok", message: reconciledMessage } }));
+        setReasonByReport((current) => ({ ...current, [report.id]: "" }));
+      } else {
+        const message = error instanceof Error ? error.message : `Report card ${action} failed.`;
+        setFeedback({ tone: "critical", message });
+        setRowFeedback((current) => ({ ...current, [report.id]: { tone: "critical", message } }));
+      }
     } finally {
       setBusyAction("");
     }
@@ -263,6 +310,10 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
     const actionKey = `${report.id}:regenerate`;
     setBusyAction(actionKey);
     setFeedback(null);
+    setRowFeedback((current) => ({
+      ...current,
+      [report.id]: { tone: "ok", message: "Regenerating this report card from the latest locked marks..." },
+    }));
     try {
       await requestSchoolApiProxy("/exams/report-cards/regenerate", {
         method: "POST",
@@ -272,13 +323,25 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
           reason: reasonByReport[report.id]?.trim() || "Manual correction regeneration",
         },
       });
-      setFeedback({ tone: "ok", message: "A new current report-card revision was generated from approved marks." });
+      const message = "A new current report-card revision was generated from approved marks and personalized comments.";
+      setFeedback({ tone: "ok", message });
+      setRowFeedback((current) => ({ ...current, [report.id]: { tone: "ok", message } }));
       await refreshReports();
     } catch (error) {
-      setFeedback({
-        tone: "critical",
-        message: error instanceof Error ? error.message : "Report-card regeneration failed.",
-      });
+      const refreshed = await reportQuery.refetch().catch(() => null);
+      const persisted = refreshed?.data?.find((candidate) => candidate.id === report.id);
+      const regenerated = persisted
+        && (Number(persisted.revision_number ?? 0) > Number(report.revision_number ?? 0)
+          || persisted.verification_code !== report.verification_code);
+      if (regenerated) {
+        const message = "A new report-card revision was persisted and has been refreshed.";
+        setFeedback({ tone: "ok", message });
+        setRowFeedback((current) => ({ ...current, [report.id]: { tone: "ok", message } }));
+      } else {
+        const message = error instanceof Error ? error.message : "Report-card regeneration failed.";
+        setFeedback({ tone: "critical", message });
+        setRowFeedback((current) => ({ ...current, [report.id]: { tone: "critical", message } }));
+      }
     } finally {
       setBusyAction("");
     }
@@ -359,12 +422,39 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
     }
   }
 
-  function downloadReport(report: LiveExamReportCard) {
-    window.open(
-      `/api/exams/report-cards/${encodeURIComponent(report.id)}/download`,
-      "_blank",
-      "noopener,noreferrer",
-    );
+  async function downloadReport(report: LiveExamReportCard) {
+    const actionKey = `${report.id}:download`;
+    setBusyAction(actionKey);
+    setFeedback(null);
+    setRowFeedback((current) => ({ ...current, [report.id]: { tone: "ok", message: "Preparing the official PDF..." } }));
+    try {
+      const response = await fetch(`/api/exams/report-cards/${encodeURIComponent(report.id)}/download`, {
+        method: "GET",
+        headers: { Accept: "application/pdf" },
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error(await reportCardDownloadError(response));
+      const blob = await response.blob();
+      if (!blob.size) throw new Error("The generated report-card PDF was empty. Regenerate it and retry.");
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = reportCardFilename(response, report);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(objectUrl);
+      const message = "Official report-card PDF downloaded.";
+      setFeedback({ tone: "ok", message });
+      setRowFeedback((current) => ({ ...current, [report.id]: { tone: "ok", message } }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Report-card download failed.";
+      setFeedback({ tone: "critical", message });
+      setRowFeedback((current) => ({ ...current, [report.id]: { tone: "critical", message } }));
+    } finally {
+      setBusyAction("");
+    }
   }
 
   const queryError = reportQuery.error ?? markSheetQuery.error;
@@ -553,6 +643,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                 </tr>
               ) : filteredReports.map((report) => {
                 const status = report.status.toLowerCase();
+                const reportBusy = busyAction.startsWith(`${report.id}:`);
                 const needsReason =
                   (audience === "exams-manager" && status === "under_review")
                   || (audience === "dean" && status === "under_review")
@@ -589,7 +680,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                           variant="secondary"
                           size="sm"
                           onClick={() => openPreview(report)}
-                          disabled={!hasPersistedReportCardSnapshot(report)}
+                          disabled={reportBusy || !hasPersistedReportCardSnapshot(report)}
                           title={hasPersistedReportCardSnapshot(report) ? "Preview persisted report snapshot" : "Persisted report data is unavailable"}
                         >
                           <Eye className="h-4 w-4" />
@@ -598,29 +689,29 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                         <Button
                           variant="secondary"
                           size="sm"
-                          onClick={() => downloadReport(report)}
-                          disabled={!hasPersistedReportCardSnapshot(report)}
+                          onClick={() => void downloadReport(report)}
+                          disabled={reportBusy || !hasPersistedReportCardSnapshot(report)}
                         >
-                          Download
+                          {busyAction === `${report.id}:download` ? "Downloading..." : "Download"}
                         </Button>
                         {audience === "exams-manager" && ["draft", "draft_generated", "regeneration_required"].includes(status) ? (
                           <>
                             <Button
                               size="sm"
                               onClick={() => void runTransition(report, "submit")}
-                              disabled={busyAction === `${report.id}:submit`}
+                              disabled={reportBusy}
                             >
                               <Send className="h-4 w-4" />
-                              Submit
+                              {busyAction === `${report.id}:submit` ? "Submitting..." : "Submit"}
                             </Button>
                             <Button
                               variant="secondary"
                               size="sm"
                               onClick={() => void regenerateReport(report)}
-                              disabled={busyAction === `${report.id}:regenerate`}
+                              disabled={reportBusy}
                             >
                               <RefreshCw className="h-4 w-4" />
-                              Regenerate
+                              {busyAction === `${report.id}:regenerate` ? "Regenerating..." : "Regenerate"}
                             </Button>
                           </>
                         ) : null}
@@ -629,10 +720,10 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                             variant="secondary"
                             size="sm"
                             onClick={() => void runTransition(report, "recall")}
-                            disabled={busyAction === `${report.id}:recall`}
+                            disabled={reportBusy}
                           >
                             <RotateCcw className="h-4 w-4" />
-                            Recall
+                            {busyAction === `${report.id}:recall` ? "Recalling..." : "Recall"}
                           </Button>
                         ) : null}
                         {audience === "dean" && status === "under_review" ? (
@@ -640,19 +731,19 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                             <Button
                               size="sm"
                               onClick={() => void runTransition(report, "approve")}
-                              disabled={busyAction === `${report.id}:approve`}
+                              disabled={reportBusy}
                             >
                               <CheckCircle2 className="h-4 w-4" />
-                              Approve
+                              {busyAction === `${report.id}:approve` ? "Approving..." : "Approve"}
                             </Button>
                             <Button
                               variant="secondary"
                               size="sm"
                               onClick={() => void runTransition(report, "recall")}
-                              disabled={busyAction === `${report.id}:recall`}
+                              disabled={reportBusy}
                             >
                               <RotateCcw className="h-4 w-4" />
-                              Recall
+                              {busyAction === `${report.id}:recall` ? "Recalling..." : "Recall"}
                             </Button>
                           </>
                         ) : null}
@@ -660,10 +751,10 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                           <Button
                             size="sm"
                             onClick={() => void runTransition(report, "publish")}
-                            disabled={busyAction === `${report.id}:publish`}
+                            disabled={reportBusy}
                           >
                             <Send className="h-4 w-4" />
-                            Publish
+                            {busyAction === `${report.id}:publish` ? "Publishing..." : "Publish"}
                           </Button>
                         ) : null}
                         {audience === "principal" && status === "published" ? (
@@ -671,10 +762,10 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                             variant="danger"
                             size="sm"
                             onClick={() => void runTransition(report, "unpublish")}
-                            disabled={busyAction === `${report.id}:unpublish`}
+                            disabled={reportBusy}
                           >
                             <RotateCcw className="h-4 w-4" />
-                            Withdraw
+                            {busyAction === `${report.id}:unpublish` ? "Withdrawing..." : "Withdraw"}
                           </Button>
                         ) : null}
                       </div>
@@ -687,7 +778,17 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                           }))}
                           placeholder={audience === "principal" ? "Required withdrawal reason" : "Required correction reason"}
                           className="mt-2 min-h-16 w-full max-w-[360px] rounded-lg border border-[#C8D5EA] px-3 py-2 text-xs outline-none focus:border-[#1D4ED8]"
+                          disabled={reportBusy}
                         />
+                      ) : null}
+                      {rowFeedback[report.id] ? (
+                        <p
+                          className={`mt-2 max-w-[360px] text-xs font-semibold ${rowFeedback[report.id]?.tone === "critical" ? "text-red-700" : "text-emerald-700"}`}
+                          role="status"
+                          aria-live="polite"
+                        >
+                          {rowFeedback[report.id]?.message}
+                        </p>
                       ) : null}
                     </td>
                   </tr>
@@ -718,6 +819,9 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
               <div className="my-3 grid gap-3 rounded-xl border border-[#C8D5EA] bg-white p-4 print:hidden md:grid-cols-2">
                 <label className="text-sm font-black text-[#071D49]">
                   Class teacher comment
+                  <span className="mt-1 block text-xs font-semibold text-[#64748B]">
+                    {commentSourceLabel(selectedDocument.comments.classTeacherSource)}
+                  </span>
                   <textarea
                     value={classTeacherComment}
                     onChange={(event) => setClassTeacherComment(event.target.value)}
@@ -727,6 +831,9 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                 </label>
                 <label className="text-sm font-black text-[#071D49]">
                   Principal comment
+                  <span className="mt-1 block text-xs font-semibold text-[#64748B]">
+                    {commentSourceLabel(selectedDocument.comments.principalDeputySource)}
+                  </span>
                   <textarea
                     value={principalComment}
                     onChange={(event) => setPrincipalComment(event.target.value)}
@@ -748,7 +855,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
               <ReportCardActionBar
                 report={selectedDocument}
                 onPrint={() => window.print()}
-                onDownloadPdf={() => downloadReport(selectedReport)}
+                onDownloadPdf={() => void downloadReport(selectedReport)}
               />
             </div>
             <ReportCardDocument report={selectedDocument} />

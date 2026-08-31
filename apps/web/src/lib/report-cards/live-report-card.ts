@@ -505,8 +505,10 @@ export function mapPersistedReportCardDocument(
       : undefined,
     comments: {
       classTeacher: text(fields.class_teacher_comment, text(metadata.class_teacher_comment)) || undefined,
+      classTeacherSource: text(fields.class_teacher_comment_source) || undefined,
       deanAcademics: text(fields.dean_academics_comment, text(metadata.dean_academics_comment)) || undefined,
       principalDeputy: text(fields.principal_comment, text(metadata.principal_comment)) || undefined,
+      principalDeputySource: text(fields.principal_comment_source) || undefined,
     },
     descriptorLegend: persistedLegend(metadata, reportCard),
     gradingScale: persistedGradingScale(metadata),

@@ -277,7 +277,7 @@ export async function proxySchoolApiRequest(
     fetch(upstreamUrl, {
       method: request.method,
       headers: {
-        Accept: wantsEventStream ? EVENT_STREAM_CONTENT_TYPE : "application/json",
+        Accept: wantsEventStream ? EVENT_STREAM_CONTENT_TYPE : acceptHeader,
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(body && contentType ? { "Content-Type": contentType } : {}),
         "x-auth-audience": audience,
@@ -385,6 +385,10 @@ export async function proxySchoolApiRequest(
         status: upstreamResponse.status,
         headers: {
           "content-type": upstreamResponse.headers.get("content-type") ?? "application/json",
+          ...(upstreamResponse.headers.get("content-disposition")
+            ? { "content-disposition": upstreamResponse.headers.get("content-disposition")! }
+            : {}),
+          "cache-control": upstreamResponse.headers.get("cache-control") ?? "no-store",
         },
       });
 

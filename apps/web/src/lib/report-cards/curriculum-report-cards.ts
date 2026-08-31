@@ -184,8 +184,10 @@ export interface ReportCardDocumentData {
   };
   comments: {
     classTeacher?: string;
+    classTeacherSource?: string;
     deanAcademics?: string;
     principalDeputy?: string;
+    principalDeputySource?: string;
   };
   descriptorLegend: Array<{ code: string; label: string }>;
   gradingScale: Array<{ grade: string; range: string; points?: string }>;

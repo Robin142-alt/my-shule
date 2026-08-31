@@ -15,6 +15,9 @@ import {
   EnterExamMarkDto,
   GenerateReportCardBatchDto,
   GenerateReportCardDto,
+  RegenerateReportCardDto,
+  TransitionReportCardDto,
+  UpdateReportCardCommentsDto,
   LockExamMarksDto,
   ModerateExamMarksDto,
   PublishReportCardDto,
@@ -200,7 +203,7 @@ export class ExamsController {
 
   @Post('report-cards/regenerate')
   @Permissions('exams:write')
-  regenerateReportCard(@Body() dto: GenerateReportCardDto & { reason?: string }) {
+  regenerateReportCard(@Body() dto: RegenerateReportCardDto) {
     return this.examsService.regenerateReportCard(dto);
   }
 
@@ -250,14 +253,14 @@ export class ExamsController {
   @Permissions('exams:read')
   transitionReportCard(
     @Param('reportCardId') reportCardId: string,
-    @Body() dto: { action?: string; reason?: string },
+    @Body() dto: TransitionReportCardDto,
   ) {
     return this.examsService.transitionReportCard(reportCardId, dto.action, dto.reason);
   }
 
   @Patch('report-cards/:reportCardId/comments')
   @Permissions('exams:write')
-  updateReportCardComments(@Param('reportCardId') reportCardId: string, @Body() dto: { class_teacher_comment?: string; principal_comment?: string }) {
+  updateReportCardComments(@Param('reportCardId') reportCardId: string, @Body() dto: UpdateReportCardCommentsDto) {
     return this.examsService.updateReportCardComments(reportCardId, dto.class_teacher_comment, dto.principal_comment);
   }
 
