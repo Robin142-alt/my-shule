@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { AlertCircle, CheckCircle2, ShieldAlert, Clock } from "lucide-react";
+import { AlertCircle, CheckCircle2, ShieldAlert, Clock, FileCheck2, Loader2, RefreshCw } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -31,16 +31,57 @@ type ApprovalsOverviewData = {
   recentApprovals: Array<{ id: string; title: string; status: string; date: string; note?: string | null }>;
 };
 
+type PrincipalExamSeries = {
+  id: string;
+  title: string;
+  status: string;
+  startsOn: string;
+  endsOn: string;
+  totalReportCards: number;
+  approvedReportCards: number;
+  publishedReportCards: number;
+  blockedReportCards: number;
+  canPublish: boolean;
+};
+
+type PrincipalExamsOverview = {
+  reportsPending: number;
+  recentResults: PrincipalExamSeries[];
+  releaseQueue?: PrincipalExamSeries[];
+};
+
 export function PrincipalApprovalsWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<ApprovalsOverviewData>('/admin-command/principal/approvals');
+  const {
+    data: examsData,
+    isLoading: examsLoading,
+    error: examsError,
+    refetch: refetchExams,
+  } = useSchoolQuery<PrincipalExamsOverview>('/admin-command/principal/exams');
   const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
   const { hasPermission } = usePermissions();
   const [selectedRequest, setSelectedRequest] = useState<ApprovalRequest | null>(null);
   const [decision, setDecision] = useState<"approve" | "reject">("approve");
   const [decisionNote, setDecisionNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [publishingSeriesId, setPublishingSeriesId] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
+  const approvalOverview = data ?? {
+    status: "degraded" as const,
+    pendingTotal: 0,
+    urgentApprovals: 0,
+    categories: [],
+    requests: [],
+    recentApprovals: [],
+  };
   const requests = Array.isArray(data?.requests) ? data.requests : [];
+  const releaseQueue = Array.isArray(examsData?.releaseQueue)
+    ? examsData.releaseQueue
+    : Array.isArray(examsData?.recentResults)
+      ? examsData.recentResults.filter((series) => series.canPublish)
+      : [];
+  const reportCardReleaseCount = Math.max(examsData?.reportsPending ?? 0, releaseQueue.length);
+  const canPublishReportCards = hasPermission("principal:write") && hasPermission("exams:publish");
 
   const openDecision = (request: ApprovalRequest, action: "approve" | "reject") => {
     setSelectedRequest(request);
@@ -74,7 +115,22 @@ export function PrincipalApprovalsWorkspace() {
     }
   };
 
-  if (isLoading) {
+  const publishReportCards = async (series: PrincipalExamSeries) => {
+    setPublishingSeriesId(series.id);
+    try {
+      await requestPrincipalApi(`/admin-command/principal/exams-report-cards/${series.id}/publish`, {
+        method: "POST",
+      });
+      toast.success(`${series.title} report cards released to authorized parent and student portals.`);
+      await Promise.all([refetch(), refetchExams()]);
+    } catch (publishError) {
+      toast.error(publishError instanceof Error ? publishError.message : "The report cards could not be released.");
+    } finally {
+      setPublishingSeriesId(null);
+    }
+  };
+
+  if (isLoading && examsLoading) {
     return (
       <div className="space-y-6">
         <div className="animate-pulse space-y-4">
@@ -85,30 +141,93 @@ export function PrincipalApprovalsWorkspace() {
     );
   }
 
-  if (error || !data) {
-    return (
-      <Card className="border border-red-500/20 bg-red-500/10 p-6">
-        <div className="flex flex-wrap items-center gap-3">
-          <AlertCircle className="h-6 w-6 text-red-500" />
-          <h2 className="text-xl font-bold text-red-500">Failed to load Approvals Overview</h2>
-          <Button type="button" size="sm" variant="outline" onClick={() => refetch()}>Retry</Button>
-        </div>
-      </Card>
-    );
-  }
-
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card className="border border-white/10 bg-white/5 p-5">
           <div className="text-sm font-semibold text-white/70">Total Pending</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.pendingTotal}</div>
+          <div className="mt-2 text-2xl font-black text-white">{approvalOverview.pendingTotal + reportCardReleaseCount}</div>
         </Card>
         <Card className="border border-rose-500/30 bg-rose-500/10 p-5">
           <div className="text-sm font-semibold text-rose-200">Urgent</div>
-          <div className="mt-2 text-2xl font-black text-rose-400">{data.urgentApprovals}</div>
+          <div className="mt-2 text-2xl font-black text-rose-400">{approvalOverview.urgentApprovals}</div>
+        </Card>
+        <Card className="border border-emerald-500/30 bg-emerald-500/10 p-5">
+          <div className="text-sm font-semibold text-emerald-100">Report Cards Ready to Release</div>
+          <div className="mt-2 text-2xl font-black text-emerald-300">{examsLoading ? "…" : reportCardReleaseCount}</div>
         </Card>
       </div>
+
+      {error ? (
+        <Card role="alert" className="border border-red-500/20 bg-red-500/10 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-red-100">
+              <AlertCircle className="h-5 w-5 text-red-300" />
+              Administrative approvals could not be loaded: {error.message}
+            </div>
+            <Button type="button" size="sm" variant="outline" onClick={() => refetch()}>Retry administrative approvals</Button>
+          </div>
+        </Card>
+      ) : null}
+
+      <Card className="border border-emerald-500/30 bg-emerald-500/10 p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-emerald-300/20 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <FileCheck2 className="h-5 w-5 text-emerald-300" />
+              <h2 className="text-xl font-bold text-white">Principal Report-card Release</h2>
+            </div>
+            <p className="mt-1 text-sm text-white/70">
+              Dean-approved report cards appear here for final Principal release. Releasing publishes the persisted cards to authorized parent and student portals.
+            </p>
+          </div>
+          <Button type="button" size="sm" variant="outline" disabled={examsLoading} onClick={() => refetchExams()}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${examsLoading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
+
+        {examsError ? (
+          <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-100">
+            <span>Report-card approvals could not be loaded: {examsError.message}</span>
+            <Button type="button" size="sm" variant="outline" onClick={() => refetchExams()}>Retry</Button>
+          </div>
+        ) : examsLoading ? (
+          <div className="mt-4 rounded-lg border border-white/10 bg-white/5 p-6 text-center text-white/60">
+            Loading report cards awaiting Principal release…
+          </div>
+        ) : releaseQueue.length === 0 ? (
+          <div className="mt-4 rounded-lg border border-white/10 bg-white/5 p-6 text-center text-white/60">
+            No Dean-approved report cards are awaiting Principal release.
+          </div>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {releaseQueue.map((series) => (
+              <div key={series.id} className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-300/20 bg-slate-950/20 p-4">
+                <div>
+                  <p className="font-bold text-white">{series.title}</p>
+                  <p className="mt-1 text-sm text-white/65">
+                    {series.approvedReportCards} of {series.totalReportCards} cards approved
+                    {series.blockedReportCards > 0 ? ` · ${series.blockedReportCards} blocked` : " · no blockers"}
+                  </p>
+                </div>
+                {canPublishReportCards ? (
+                  <Button
+                    type="button"
+                    disabled={Boolean(publishingSeriesId)}
+                    onClick={() => publishReportCards(series)}
+                  >
+                    {publishingSeriesId === series.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {publishingSeriesId === series.id ? "Releasing…" : "Release report cards"}
+                  </Button>
+                ) : (
+                  <span className="text-xs font-semibold text-amber-200">Principal release permission is required.</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
 
       <Card className="border border-white/10 bg-white/5 p-6">
         <div className="mb-5 border-b border-white/10 pb-4">
@@ -170,14 +289,14 @@ export function PrincipalApprovalsWorkspace() {
             <h2 className="text-xl font-bold text-white">Pending by Category</h2>
           </div>
           
-          {(!data.categories || data.categories.length === 0) ? (
+          {approvalOverview.categories.length === 0 ? (
             <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5">
               <CheckCircle2 className="h-10 w-10 text-emerald-400/50 mb-3" />
               <p className="text-white/60">All caught up! No pending approvals.</p>
             </div>
           ) : (
             <div className="space-y-4 flex-1 overflow-y-auto pr-2">
-              {data.categories.map((cat) => (
+              {approvalOverview.categories.map((cat) => (
                 <div key={cat.name} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
                   <div className="flex items-center gap-3">
                     <div className="flex-shrink-0 w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center border border-orange-500/30">
@@ -206,14 +325,14 @@ export function PrincipalApprovalsWorkspace() {
             <h2 className="text-xl font-bold text-white">Recent Approvals</h2>
           </div>
           
-          {(!data.recentApprovals || data.recentApprovals.length === 0) ? (
+          {approvalOverview.recentApprovals.length === 0 ? (
             <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5">
               <AlertCircle className="h-10 w-10 text-white/20 mb-3" />
               <p className="text-white/60">No recent approvals recorded.</p>
             </div>
           ) : (
             <div className="space-y-4 flex-1 overflow-y-auto pr-2">
-              {data.recentApprovals.map((app) => (
+              {approvalOverview.recentApprovals.map((app) => (
                 <div key={app.id} className="flex items-center justify-between p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
                   <div className="flex items-center gap-3">
                     <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center">

@@ -16,6 +16,35 @@ const PermissionContext = createContext<PermissionContextType>({
   hasPermission: () => false,
 });
 
+export function permissionAllows(permissions: readonly string[], key: string) {
+  const required = key.trim().toLowerCase();
+  if (!required) return true;
+
+  const granted = permissions
+    .map((permission) => permission.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (granted.includes("*:*")) return true;
+  if (granted.includes(required)) return true;
+
+  const delimiter = required.includes(":") ? ":" : ".";
+  const resource = required.split(delimiter)[0];
+
+  return granted.some((permission) => {
+    if (permission === "*") return true;
+    if (permission === `${resource}:*` || permission === `${resource}.*`) return true;
+
+    if (!permission.endsWith("*")) return false;
+    const permissionDelimiter = permission.includes(":") ? ":" : ".";
+    const permissionParts = permission.split(permissionDelimiter);
+    const requiredParts = required.split(delimiter);
+    const prefixParts = permissionParts.slice(0, -1);
+
+    return prefixParts.length < requiredParts.length
+      && prefixParts.every((part, index) => part === requiredParts[index]);
+  });
+}
+
 export function buildPermissionQueryKey(
   schoolId: string | undefined,
   userId: string,
@@ -54,32 +83,7 @@ export function PermissionProvider({
 
   const permissions = data || [];
 
-  const hasPermission = (key: string) => {
-    // If no specific permission is required, assume accessible.
-    if (!key) return true;
-    
-    // exact match
-    if (permissions.includes(key)) return true;
-    
-    // check wildcards (e.g. if we have 'finance.*', we allow 'finance.overview.view')
-    const keyParts = key.split('.');
-    for (const p of permissions) {
-      if (p.includes('*')) {
-        const pParts = p.split('.');
-        let match = true;
-        for (let i = 0; i < pParts.length; i++) {
-          if (pParts[i] === '*') break; // wildcard matches the rest
-          if (pParts[i] !== keyParts[i]) {
-            match = false;
-            break;
-          }
-        }
-        if (match) return true;
-      }
-    }
-    
-    return false;
-  };
+  const hasPermission = (key: string) => permissionAllows(permissions, key);
 
   return (
     <PermissionContext.Provider value={{ permissions, isLoading, hasPermission }}>

@@ -3741,10 +3741,70 @@ test('AdminCommandRepository derives principal exam readiness from canonical rep
   assert.equal(result.averageScore, 72.5);
   assert.equal(result.reportsPending, 1);
   assert.equal(result.recentResults[0]?.canPublish, true);
+  assert.equal(result.releaseQueue[0]?.canPublish, true);
   assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
   assert.ok(queries.some((query) => /LEFT JOIN student_report_cards card/.test(query.sql)));
   assert.ok(queries.some((query) => /card\.is_current = TRUE/.test(query.sql)));
   assert.ok(queries.every((query) => !/report_readiness_reviews/i.test(query.sql)));
+});
+
+test('AdminCommandRepository keeps approved report-card series in the Principal release queue beyond the recent-ten limit', async () => {
+  const queries: string[] = [];
+  const repository = new AdminCommandRepository({
+    query: async (sql: string) => {
+      queries.push(sql);
+      if (/missing_windows/.test(sql)) return { rows: [{ count: 0 }], rowCount: 1 };
+      if (/AS average_score/.test(sql)) return { rows: [{ average_score: '0' }], rowCount: 1 };
+      if (/HAVING COUNT\(card\.id\) > 0/.test(sql)) {
+        return {
+          rows: [{
+            id: 'older-approved-series',
+            exam_id: 'older-approved-series',
+            title: 'Older Approved Series',
+            status: 'reviewed',
+            starts_on: '2026-01-01',
+            ends_on: '2026-01-10',
+            total_report_cards: 30,
+            approved_report_cards: 30,
+            published_report_cards: 0,
+            blocked_report_cards: 0,
+          }],
+          rowCount: 1,
+        };
+      }
+      if (/series\.id::text AS exam_id/.test(sql) && /LIMIT 10/.test(sql)) {
+        return {
+          rows: Array.from({ length: 10 }, (_, index) => ({
+            id: `recent-series-${index}`,
+            exam_id: `recent-series-${index}`,
+            title: `Recent Series ${index}`,
+            status: 'reviewed',
+            starts_on: '2026-08-01',
+            ends_on: '2026-08-10',
+            total_report_cards: 1,
+            approved_report_cards: 0,
+            published_report_cards: 0,
+            blocked_report_cards: 1,
+          })),
+          rowCount: 10,
+        };
+      }
+      if (/COUNT\(\*\)::int AS count[\s\S]*FROM exam_series/i.test(sql)) {
+        return { rows: [{ count: 11 }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    },
+  } as never);
+
+  const result = await repository.getExamsOverview('tenant-a');
+
+  assert.equal(result.recentResults.length, 10);
+  assert.equal(result.recentResults.some((series: any) => series.id === 'older-approved-series'), false);
+  assert.equal(result.reportsPending, 1);
+  assert.equal(result.releaseQueue.length, 1);
+  assert.equal(result.releaseQueue[0]?.id, 'older-approved-series');
+  assert.equal(result.releaseQueue[0]?.canPublish, true);
+  assert.ok(queries.some((sql) => /HAVING COUNT\(card\.id\) > 0/.test(sql) && !/LIMIT 10/.test(sql)));
 });
 
 test('AdminCommandService creates incidents with audit trail', async () => {

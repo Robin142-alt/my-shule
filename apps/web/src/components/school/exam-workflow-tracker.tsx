@@ -132,10 +132,10 @@ export function ExamWorkflowTracker({
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
-          ["Active cycles", data?.metrics.active_series ?? 0],
-          ["HOD moderation", data?.metrics.marks_awaiting_moderation ?? 0],
-          ["Dean approval", data?.metrics.report_cards_awaiting_dean ?? 0],
-          ["Principal release", data?.metrics.report_cards_awaiting_principal ?? 0],
+          ["Active cycles", data?.metrics?.active_series ?? 0],
+          ["HOD moderation", data?.metrics?.marks_awaiting_moderation ?? 0],
+          ["Dean approval", data?.metrics?.report_cards_awaiting_dean ?? 0],
+          ["Principal release", data?.metrics?.report_cards_awaiting_principal ?? 0],
         ].map(([label, value]) => (
           <div key={String(label)} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3 sm:p-4">
             <p className="text-xs font-black uppercase tracking-[0.06em] text-[#64748B]">{label}</p>

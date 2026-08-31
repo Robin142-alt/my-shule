@@ -1178,7 +1178,36 @@ export class AdminCommandRepository {
       [tenantId],
     );
 
-    const recentResults = recentSeriesResult.rows.map((row: any) => {
+    const releaseQueueResult = await this.executeSql(
+      `
+        SELECT
+          series.id::text,
+          series.id::text AS exam_id,
+          series.name AS title,
+          lower(series.status) AS status,
+          to_char(series.starts_on, 'YYYY-MM-DD') AS starts_on,
+          to_char(series.ends_on, 'YYYY-MM-DD') AS ends_on,
+          COUNT(card.id)::int AS total_report_cards,
+          COUNT(card.id) FILTER (WHERE card.status = 'approved')::int AS approved_report_cards,
+          COUNT(card.id) FILTER (WHERE card.status = 'published')::int AS published_report_cards,
+          COUNT(card.id) FILTER (WHERE card.status NOT IN ('approved', 'published'))::int AS blocked_report_cards
+        FROM exam_series series
+        JOIN student_report_cards card
+          ON card.tenant_id = series.tenant_id
+         AND card.exam_series_id = series.id
+         AND card.is_current = TRUE
+        WHERE series.tenant_id = $1
+          AND lower(series.status) NOT IN ('archived', 'published')
+        GROUP BY series.id, series.name, series.status, series.starts_on, series.ends_on, series.created_at
+        HAVING COUNT(card.id) > 0
+           AND COUNT(card.id) FILTER (WHERE card.status = 'approved') > 0
+           AND COUNT(card.id) FILTER (WHERE card.status NOT IN ('approved', 'published')) = 0
+        ORDER BY series.created_at DESC
+      `,
+      [tenantId],
+    );
+
+    const mapSeriesResult = (row: any) => {
       const totalReportCards = Number(row.total_report_cards ?? 0);
       const approvedReportCards = Number(row.approved_report_cards ?? 0);
       const publishedReportCards = Number(row.published_report_cards ?? 0);
@@ -1199,8 +1228,10 @@ export class AdminCommandRepository {
           && blockedReportCards === 0
           && row.status !== 'published',
       };
-    });
-    const reportsPending = recentResults.filter((result) => result.canPublish).length;
+    };
+    const recentResults = recentSeriesResult.rows.map(mapSeriesResult);
+    const releaseQueue = releaseQueueResult.rows.map(mapSeriesResult);
+    const reportsPending = releaseQueue.length;
 
     return {
       status: "active",
@@ -1213,6 +1244,7 @@ export class AdminCommandRepository {
         value: Number(r.value)
       })),
       recentResults,
+      releaseQueue,
     };
   }
 

@@ -50,6 +50,7 @@ type PrincipalExamsData = {
   averageScore: number;
   performanceTrend: Array<{ label: string; value: number }>;
   recentResults: ExamSeriesResult[];
+  releaseQueue?: ExamSeriesResult[];
 };
 
 function toDateLabel(value: string) {
@@ -85,9 +86,16 @@ export function PrincipalExamsReportsWorkspace() {
   const [endsOn, setEndsOn] = useState("");
 
   const years = Array.isArray(academicYears) ? academicYears : [];
-  const terms = Array.isArray(academicTerms) ? academicTerms : [];
+  const terms = useMemo(
+    () => Array.isArray(academicTerms) ? academicTerms : [],
+    [academicTerms],
+  );
   const results = Array.isArray(data?.recentResults) ? data.recentResults : [];
   const trend = Array.isArray(data?.performanceTrend) ? data.performanceTrend : [];
+  const releaseQueue = Array.isArray(data?.releaseQueue)
+    ? data.releaseQueue
+    : results.filter((series) => series.canPublish);
+  const canReleaseReportCards = hasPermission("principal:write") && hasPermission("exams:publish");
   const filteredTerms = useMemo(
     () => terms.filter((term) => term.academic_year_id === selectedYearId),
     [selectedYearId, terms],
@@ -231,6 +239,41 @@ export function PrincipalExamsReportsWorkspace() {
         </Card>
       </div>
 
+      {releaseQueue.length > 0 ? (
+        <Card className="border border-emerald-500/35 bg-emerald-500/10 p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-emerald-300" />
+                <h2 className="text-xl font-black text-white">Final Principal release required</h2>
+              </div>
+              <p className="mt-1 text-sm text-white/70">
+                {releaseQueue.length} approved exam series {releaseQueue.length === 1 ? "is" : "are"} ready. Release publishes the approved report cards to authorized parent and student portals.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {releaseQueue.map((series) => (
+                canReleaseReportCards ? (
+                  <Button
+                    key={series.id}
+                    type="button"
+                    disabled={Boolean(publishingSeriesId)}
+                    onClick={() => publishSeries(series)}
+                  >
+                    {publishingSeriesId === series.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {publishingSeriesId === series.id ? "Releasing…" : `Release ${series.title}`}
+                  </Button>
+                ) : (
+                  <span key={series.id} className="rounded-lg border border-amber-300/20 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100">
+                    Principal release permission is required for {series.title}.
+                  </span>
+                )
+              ))}
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
       {(yearsError || termsError) ? (
         <Card className="border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -307,7 +350,7 @@ export function PrincipalExamsReportsWorkspace() {
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300">
                           <CheckCircle2 className="h-3.5 w-3.5" /> Published
                         </span>
-                      ) : series.canPublish && hasPermission("exams:publish") ? (
+                      ) : series.canPublish && canReleaseReportCards ? (
                         <Button type="button" size="sm" disabled={publishingSeriesId === series.id} onClick={() => publishSeries(series)}>
                           {publishingSeriesId === series.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                           Publish approved cards

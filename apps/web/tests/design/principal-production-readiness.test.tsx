@@ -271,7 +271,7 @@ describe("principal production readiness", () => {
         return {
           ok: true,
           json: async () => ({
-            data: ["academics:write", "exams:write", "finance:write", "principal:write", "reports:write", "students:read"],
+            data: ["academics:write", "exams:read", "exams:write", "exams:publish", "finance:write", "principal:write", "reports:write", "students:read"],
           }),
         } as Response;
       }
