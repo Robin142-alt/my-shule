@@ -1390,6 +1390,84 @@ test('ExamsService publishes a Dean-approved series as Principal and notifies sc
   assert.equal(operations.length, 1);
   assert.equal(publishedEvents.length, 2);
   assert.equal(publishedEvents[0]?.tenant_id, 'tenant-a');
+  assert.equal('delivery_warnings' in result, false);
+});
+
+test('a committed exam-series publication remains successful when downstream delivery fails', async () => {
+  const calls: Array<{ name: string; input?: Record<string, unknown> }> = [];
+  const service = new ExamsService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: 'principal-1',
+        role: 'principal',
+        permissions: ['principal:write', 'exams:read', 'exams:publish'],
+      }),
+    } as never,
+    {
+      getExamReadinessStats: async () => ({ unapproved_count: 0, missing_count: 0 }),
+      publishExamSeries: async (input: Record<string, unknown>) => {
+        calls.push({ name: 'publish', input });
+        return {
+          total_count: 2,
+          approved_count: 2,
+          already_published_count: 0,
+          blocked_count: 0,
+          published_cards: [
+            { id: 'report-card-1', student_id: 'student-1' },
+            { id: 'report-card-2', student_id: 'student-2' },
+          ],
+          published_marks_count: 8,
+          audit_count: 2,
+          series_published: true,
+        };
+      },
+      appendReportCardAuditLog: async (input: Record<string, unknown>) => {
+        calls.push({ name: 'delivery-audit', input });
+      },
+    } as never,
+    undefined,
+    undefined,
+    {
+      recordSchoolOperation: async () => {
+        calls.push({ name: 'school-delivery' });
+        throw new Error('notification transport unavailable');
+      },
+    } as never,
+    {
+      publishReportCardPublished: async (input: Record<string, unknown>) => {
+        calls.push({ name: 'grade-delivery', input });
+        throw new Error('event transport unavailable');
+      },
+    } as never,
+  );
+
+  const result = await service.publishExamSeries('00000000-0000-0000-0000-000000000316');
+
+  assert.equal(result.success, true);
+  assert.equal(result.published_report_cards_count, 2);
+  assert.equal(result.published_marks_count, 8);
+  assert.equal(result.already_published_count, 0);
+  assert.deepEqual(result.delivery_warnings, [
+    'school workflow notification',
+    'grade publication event',
+  ]);
+  assert.equal(calls.filter((call) => call.name === 'grade-delivery').length, 2);
+  const deliveryAudits = calls.filter((call) => call.name === 'delivery-audit');
+  assert.equal(deliveryAudits.length, 2);
+  assert.deepEqual(
+    deliveryAudits.map((call) => call.input?.report_card_id),
+    ['report-card-1', 'report-card-2'],
+  );
+  assert.deepEqual(deliveryAudits[0]?.input?.metadata, {
+    transition_action: 'publish',
+    resulting_status: 'published',
+    release_mode: 'exam_series',
+    failed_deliveries: [
+      'school workflow notification',
+      'grade publication event',
+    ],
+  });
 });
 
 test('ExamsService prevents the Exams Manager from withdrawing Principal-published results', async () => {

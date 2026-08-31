@@ -1731,55 +1731,118 @@ export class ExamsService {
     }
     const publishedCards = Array.isArray(release.published_cards) ? release.published_cards : [];
     const publishedMarksCount = Number(release.published_marks_count ?? 0);
+    const deliveryWarnings = new Set<string>();
+    const failedDeliveriesByReportCard = new Map<string, Set<string>>();
 
-    await this.schoolEvents?.recordSchoolOperation({
-      event: {
-        id: normalizedExamSeriesId,
-        type: 'exam.series_published',
-        module: 'exams',
-        actorRole,
-        title: 'Exam Results Released',
-        body: `${publishedCards.length} approved report card(s) for exam series ${normalizedExamSeriesId} were released.`,
-        entityId: normalizedExamSeriesId,
-        severity: 'success',
-        payload: {
-          exam_series_id: normalizedExamSeriesId,
-          published_report_cards_count: publishedCards.length,
-          published_marks_count: publishedMarksCount,
-        },
-      },
-      notifications: [
-        {
-          id: `exam-publish-${normalizedExamSeriesId}`,
-          schoolId: tenantId,
-          audienceRoles: ['exams-manager', 'dean-academics', 'deputy-principal'],
-          title: 'Exam Results Released',
-          body: `${publishedCards.length} approved report card(s) were published by the Principal.`,
-          sourceModule: 'exams',
-          relatedModule: 'academics',
-          relatedRecordId: normalizedExamSeriesId,
-          priority: 'high',
-          read: false,
-          createdAt: new Date().toISOString(),
+    const recordDeliveryFailure = (reportCardId: string, delivery: string) => {
+      const failures = failedDeliveriesByReportCard.get(reportCardId) ?? new Set<string>();
+      failures.add(delivery);
+      failedDeliveriesByReportCard.set(reportCardId, failures);
+    };
+
+    if (this.schoolEvents) {
+      try {
+        await this.schoolEvents.recordSchoolOperation({
+          event: {
+            id: normalizedExamSeriesId,
+            type: 'exam.series_published',
+            module: 'exams',
+            actorRole,
+            title: 'Exam Results Released',
+            body: `${publishedCards.length} approved report card(s) for exam series ${normalizedExamSeriesId} were released.`,
+            entityId: normalizedExamSeriesId,
+            severity: 'success',
+            payload: {
+              exam_series_id: normalizedExamSeriesId,
+              published_report_cards_count: publishedCards.length,
+              published_marks_count: publishedMarksCount,
+            },
+          },
+          notifications: [
+            {
+              id: `exam-publish-${normalizedExamSeriesId}`,
+              schoolId: tenantId,
+              audienceRoles: ['exams-manager', 'dean-academics', 'deputy-principal'],
+              title: 'Exam Results Released',
+              body: `${publishedCards.length} approved report card(s) were published by the Principal.`,
+              sourceModule: 'exams',
+              relatedModule: 'academics',
+              relatedRecordId: normalizedExamSeriesId,
+              priority: 'high',
+              read: false,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        });
+      } catch (error) {
+        const delivery = 'school workflow notification';
+        deliveryWarnings.add(delivery);
+        for (const reportCard of publishedCards) {
+          recordDeliveryFailure(String(reportCard.id), delivery);
         }
-      ]
-    });
+        this.logger.error(
+          `Exam series ${normalizedExamSeriesId} was published, but its school workflow notification could not be delivered`,
+          error instanceof Error ? error.stack : String(error),
+        );
+      }
+    }
+
+    if (this.eventPublisher) {
+      for (const reportCard of publishedCards) {
+        try {
+          await this.eventPublisher.publishReportCardPublished({
+            tenant_id: tenantId,
+            report_id: String(reportCard.id),
+            student_id: String(reportCard.student_id),
+            exam_id: normalizedExamSeriesId,
+            published_by_user_id: actorUserId,
+          });
+        } catch (error) {
+          const delivery = 'grade publication event';
+          deliveryWarnings.add(delivery);
+          recordDeliveryFailure(String(reportCard.id), delivery);
+          this.logger.error(
+            `Report card ${String(reportCard.id)} was published with exam series ${normalizedExamSeriesId}, but its grade publication event could not be delivered`,
+            error instanceof Error ? error.stack : String(error),
+          );
+        }
+      }
+    }
 
     for (const reportCard of publishedCards) {
-      await this.eventPublisher?.publishReportCardPublished({
-        tenant_id: tenantId,
-        report_id: String(reportCard.id),
-        student_id: String(reportCard.student_id),
-        exam_id: normalizedExamSeriesId,
-        published_by_user_id: actorUserId,
-      });
+      const failedDeliveries = failedDeliveriesByReportCard.get(String(reportCard.id));
+      if (!failedDeliveries?.size) continue;
+      try {
+        await this.repository.appendReportCardAuditLog({
+          tenant_id: tenantId,
+          report_card_id: String(reportCard.id),
+          exam_series_id: normalizedExamSeriesId,
+          student_id: String(reportCard.student_id),
+          action: 'report_card.delivery_failed',
+          actor_user_id: actorUserId,
+          metadata: {
+            transition_action: 'publish',
+            resulting_status: 'published',
+            release_mode: 'exam_series',
+            failed_deliveries: Array.from(failedDeliveries),
+          },
+        });
+      } catch (error) {
+        this.logger.error(
+          `Report card ${String(reportCard.id)} series-publication delivery failure could not be added to the audit log`,
+          error instanceof Error ? error.stack : String(error),
+        );
+      }
     }
+
+    const deliveryWarningList = Array.from(deliveryWarnings);
 
     return {
       success: true,
       published_report_cards_count: publishedCards.length,
       published_marks_count: publishedMarksCount,
       already_published_count: Number(release.already_published_count ?? 0),
+      ...(deliveryWarningList.length ? { delivery_warnings: deliveryWarningList } : {}),
     };
   }
 
