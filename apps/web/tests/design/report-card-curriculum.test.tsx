@@ -267,13 +267,13 @@ describe("curriculum-aware report cards", () => {
     const { rerender } = renderWithProviders(<ReportCardDocument report={hybridReport} />);
     expect(screen.getByTestId("report-card-document")).toHaveTextContent("Learning Areas and Competency Progress");
     expect(screen.getByTestId("report-card-document")).toHaveTextContent("Marks-Based Assessment Supplement");
-    expect(screen.getByTestId("report-card-document")).toHaveTextContent("Descriptor Legend");
-    expect(screen.getByTestId("report-card-document")).toHaveTextContent("Grading Scale");
+    expect(screen.getByTestId("report-card-document")).not.toHaveTextContent("Descriptor Legend");
+    expect(screen.getByTestId("report-card-document")).not.toHaveTextContent("Grading Scale");
     expect(screen.getByTestId("report-card-document")).not.toHaveTextContent(/position|ranking/i);
 
     rerender(<ReportCardDocument report={legacyReport} />);
     expect(screen.getByTestId("report-card-document")).toHaveTextContent("Legacy Subject Results");
-    expect(screen.getByTestId("report-card-document")).toHaveTextContent("Grading Scale");
+    expect(screen.getByTestId("report-card-document")).not.toHaveTextContent("Grading Scale");
     expect(screen.getByTestId("report-card-document")).not.toHaveTextContent("Learning Areas and Competency Progress");
     expect(screen.getByTestId("report-card-document")).not.toHaveTextContent("Core Competencies");
     expect(screen.getByTestId("report-card-document")).not.toHaveTextContent("Values and Character Development");

@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   NotFoundException,
+  Optional,
   Param,
   ParseUUIDPipe,
   Req,
@@ -12,14 +13,19 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
+import { DatabaseFileStorageService } from '../../common/uploads/database-file-storage.service';
 import { ExamsRepository } from './repositories/exams.repository';
+import { hydrateReportCardLogoForRendering } from './services/report-card-logo-hydration';
 import { extractPersistedReportCardPayload } from './services/report-card-template.service';
 import { createReportCardPdfArtifact } from './services/report-card-pdf-artifact';
 
 @Controller('exams')
 @UseGuards(JwtAuthGuard)
 export class ReportCardDownloadController {
-  constructor(private readonly examsRepository: ExamsRepository) {}
+  constructor(
+    private readonly examsRepository: ExamsRepository,
+    @Optional() private readonly fileStorage?: DatabaseFileStorageService,
+  ) {}
 
   @Get('report-cards/:reportCardId/download')
   @Permissions('exams:read')
@@ -51,7 +57,12 @@ export class ReportCardDownloadController {
       );
     }
 
-    const pdfArtifact = await createReportCardPdfArtifact(payload, verificationCode);
+    const renderPayload = await hydrateReportCardLogoForRendering(
+      payload,
+      tenantId,
+      this.fileStorage,
+    );
+    const pdfArtifact = await createReportCardPdfArtifact(renderPayload, verificationCode);
 
     return new StreamableFile(pdfArtifact.content, {
       type: 'application/pdf',

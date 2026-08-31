@@ -1,8 +1,10 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 
+import { DatabaseFileStorageService } from '../../../common/uploads/database-file-storage.service';
 import { createPdfReportArtifact } from './report-card-pdf-artifact';
 import { ExamsRepository } from '../repositories/exams.repository';
+import { hydrateReportCardLogoForRendering } from './report-card-logo-hydration';
 import { ReportCardTemplateService } from './report-card-template.service';
 
 export interface GenerateStudentReportCardInput {
@@ -41,6 +43,7 @@ export class ReportCardGenerationService {
   constructor(
     private readonly repository: ExamsRepository,
     private readonly templateService: ReportCardTemplateService,
+    @Optional() private readonly fileStorage?: DatabaseFileStorageService,
   ) {}
 
   async generateStudentReportCard(input: GenerateStudentReportCardInput): Promise<Record<string, unknown>> {
@@ -52,6 +55,11 @@ export class ReportCardGenerationService {
     });
     const payload = this.templateService.buildPayload(data, generatedAt);
     this.assertReportCardGradeBoundaries(payload);
+    const renderPayload = await hydrateReportCardLogoForRendering(
+      payload,
+      input.tenant_id,
+      this.fileStorage,
+    );
     const gradingPolicy = asRecord(data.grading_policy);
     const templateVersion = 1;
     const approvedResultVersion = buildApprovedResultVersion({
@@ -74,12 +82,12 @@ export class ReportCardGenerationService {
       verificationCode,
     );
     const htmlArtifact = createHtmlArtifact(
-      this.templateService.renderHtml(payload, verificationCode),
+      this.templateService.renderHtml(renderPayload, verificationCode),
       verificationCode,
       generatedAt,
     );
     const pdfArtifact = await createPdfReportArtifact(
-      payload,
+      renderPayload,
       verificationCode,
     );
     const reportCard = await this.repository.createGeneratedReportCardSnapshot({
@@ -334,6 +342,14 @@ function buildApprovedResultVersion(input: {
     score_status: string;
     max_score: number;
     grade_label: string | null;
+    assessment_components?: Array<{
+      name: string;
+      weight: number | null;
+      score: number | null;
+      max_score: number;
+      percentage: number | null;
+      score_status: string;
+    }>;
   }>;
 }): string {
   const evidence = {
@@ -348,6 +364,7 @@ function buildApprovedResultVersion(input: {
       score_status: subject.score_status,
       max_score: subject.max_score,
       grade_label: subject.grade_label,
+      assessment_components: subject.assessment_components ?? [],
     })),
   };
 

@@ -14,6 +14,7 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import ExcelJS from 'exceljs';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
+import { DatabaseFileStorageService } from '../../common/uploads/database-file-storage.service';
 import { validateUploadedFile, type UploadFileMetadata } from '../../common/uploads/upload-policy';
 import {
   BulkExamMarkUploadDto,
@@ -45,6 +46,7 @@ import {
   ReportCardTemplateService,
 } from './services/report-card-template.service';
 import { createReportCardPdfArtifact } from './services/report-card-pdf-artifact';
+import { hydrateReportCardLogoForRendering } from './services/report-card-logo-hydration';
 import type { ReportArtifact } from '../../common/reports/report-artifact';
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import { EventPublisherService } from '../events/event-publisher.service';
@@ -218,6 +220,7 @@ export class ExamsService {
     @Optional() private readonly eventPublisher?: EventPublisherService,
     @Optional() private readonly workflowRepository?: WorkflowRepository,
     @Optional() private readonly reportCardTemplateService?: ReportCardTemplateService,
+    @Optional() private readonly fileStorage?: DatabaseFileStorageService,
   ) {}
 
   async getDashboard() {
@@ -2092,7 +2095,7 @@ export class ExamsService {
     }
 
     this.assertParentReportCardDownloadable(reportCard);
-    return this.createReportCardPdfArtifact(reportCard);
+    return this.createReportCardPdfArtifact(reportCard, tenantId);
   }
 
   async createStudentReportCardPdfArtifact(reportCardId: string): Promise<ReportArtifact> {
@@ -2110,7 +2113,7 @@ export class ExamsService {
     }
 
     this.assertParentReportCardDownloadable(reportCard);
-    return this.createReportCardPdfArtifact(reportCard);
+    return this.createReportCardPdfArtifact(reportCard, tenantId);
   }
 
   async processResultBatch(batchIdValue: string, modeValue?: string) {
@@ -3110,7 +3113,10 @@ export class ExamsService {
     return { success: true, message: 'Timetable slot created', data: result };
   }
 
-  private async createReportCardPdfArtifact(reportCard: Record<string, unknown>): Promise<ReportArtifact> {
+  private async createReportCardPdfArtifact(
+    reportCard: Record<string, unknown>,
+    tenantId: string,
+  ): Promise<ReportArtifact> {
     const payload = extractPersistedReportCardPayload(reportCard.metadata);
     if (!payload) {
       throw new ConflictException(
@@ -3119,8 +3125,13 @@ export class ExamsService {
     }
     const verificationCode = String(reportCard.verification_code ?? '').trim()
       || createHash('sha256').update(String(reportCard.id ?? '')).digest('hex').slice(0, 12).toUpperCase();
+    const renderPayload = await hydrateReportCardLogoForRendering(
+      payload,
+      tenantId,
+      this.fileStorage,
+    );
 
-    return createReportCardPdfArtifact(payload, verificationCode);
+    return createReportCardPdfArtifact(renderPayload, verificationCode);
   }
 
   async updateTimetableSlot(slotIdValue: string, dto: Partial<CreateTimetableSlotDto> & { status?: string }) {

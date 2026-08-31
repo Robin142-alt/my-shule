@@ -128,10 +128,21 @@ export interface ReportCardDocumentData {
     subjectCode?: string;
     subjectName: string;
     assessmentComponent?: string;
+    assessmentComponents?: Array<{
+      name: string;
+      percentage?: string;
+      score?: string;
+      weight?: string;
+      status?: string;
+    }>;
     score?: string;
     percentage?: string;
+    catScore?: string;
+    examScore?: string;
+    finalScore?: string;
     grade?: string;
     points?: string;
+    achievementLevel?: string;
     teacherComment?: string;
     teacherName?: string;
   }>;
@@ -140,6 +151,15 @@ export interface ReportCardDocumentData {
     meanScore?: string;
     percentage?: string;
     overallGrade?: string;
+    classPosition?: string;
+  };
+  analytics?: {
+    attendancePercentage?: string;
+    bestSubject?: string;
+    improvement?: string;
+    conduct?: string;
+    termHistory?: Array<{ examSeriesId: string; label: string; percentage: number }>;
+    subjectHistory?: Array<{ examSeriesId: string; label: string; subjectId: string; subjectName: string; percentage: number }>;
   };
   coreCompetencies: Array<{ competency: string; level?: string; observation?: string; evidence?: string }>;
   values: Array<{ value: string; rating?: string; comment?: string }>;
@@ -201,21 +221,6 @@ export const curriculumSettings: ReportCardSettings = {
   allowParentPortalPublishing: true,
   allowStudentPortalVisibility: true,
 };
-
-export const cbcDescriptorFallback = [
-  { code: "EE", label: "Exceeding Expectations" },
-  { code: "ME", label: "Meeting Expectations" },
-  { code: "AE", label: "Approaching Expectations" },
-  { code: "BE", label: "Below Expectations" },
-];
-
-export const legacyGradingFallback = [
-  { grade: "A", range: "80-100", points: "12" },
-  { grade: "B", range: "65-79", points: "9-11" },
-  { grade: "C", range: "50-64", points: "6-8" },
-  { grade: "D", range: "35-49", points: "3-5" },
-  { grade: "E", range: "0-34", points: "1-2" },
-];
 
 export function getReportCardTypeLabel(type: ReportCardType) {
   if (type === "CBC_CBE_COMPETENCY") return "CBC/CBE Competency Report";
@@ -362,8 +367,8 @@ function buildLearningAreas(competencies: CbcCompetencyRow[]) {
     descriptor: item.coverage,
     teacherObservation: undefined,
     learnerStrengths: undefined,
-    areaNeedingSupport: item.tone === "ok" ? undefined : "Teacher follow-up required.",
-    parentSupport: item.tone === "ok" ? undefined : "Review the learning activity at home and confirm practice time.",
+    areaNeedingSupport: undefined,
+    parentSupport: undefined,
     teacher: undefined,
   }));
 }
@@ -419,12 +424,12 @@ export function buildReportCardDocument(input: {
       reportStatus: input.row.approvalStatus,
     },
     cbcProgress: {
-      overallDescriptor: isLegacy ? undefined : input.row.cbcCompletion === "Complete" ? "Meeting Expectations" : undefined,
+      overallDescriptor: undefined,
       learningAreasCompleted: isLegacy ? undefined : input.row.cbcCompletion,
       learningAreasNeedingSupport: isLegacy ? undefined : input.row.missingItems.join(" "),
       strongestAreas: isLegacy ? [] : input.data.competencies.filter((item) => item.tone === "ok").map((item) => item.competency),
       areasForImprovement: isLegacy ? [] : input.data.competencies.filter((item) => item.tone !== "ok").map((item) => item.competency),
-      attendancePercentage: "No attendance records are available for this reporting period.",
+      attendancePercentage: undefined,
       classTeacherProgressNote: undefined,
       principalSummaryNote: undefined,
     },
@@ -437,35 +442,27 @@ export function buildReportCardDocument(input: {
           level: item.status,
           evidence: item.evidence,
         })),
-    values: isLegacy
-      ? []
-      : [
-          { value: "Responsibility" },
-          { value: "Respect" },
-          { value: "Integrity" },
-        ],
+    values: [],
     projects: isLegacy ? [] : [],
     attendance: undefined,
-    conduct: settings.allowDisciplineVisibility
-      ? { generalConduct: "Conduct summary is available to permitted staff only." }
-      : undefined,
+    conduct: undefined,
     feeSummary: settings.allowFeeVisibility
-      ? { balanceLabel: "Fee summary hidden until finance releases report visibility.", releaseStatus: input.row.feeHoldStatus }
+      ? { releaseStatus: input.row.feeHoldStatus }
       : undefined,
     comments: {
       classTeacher: undefined,
       deanAcademics: undefined,
       principalDeputy: undefined,
     },
-    descriptorLegend: isLegacy ? [] : cbcDescriptorFallback,
-    gradingScale: canUseMarks ? legacyGradingFallback : [],
+    descriptorLegend: [],
+    gradingScale: [],
     signatures: [
       { role: "Class Teacher" },
       { role: isLegacy ? "Exams Manager" : "Dean/Academics" },
       { role: "Principal/Deputy" },
     ],
     verification: {
-      generatedBy: input.generatedBy?.trim() || "MyShule Reports",
+      generatedBy: input.generatedBy?.trim() || "",
       generatedAt: new Date().toISOString(),
       qrValue: `verify:${input.row.id}`,
       securityNote: "Generated from MyShule. Unauthorized alteration is invalid.",
@@ -478,14 +475,6 @@ export function buildReportCardDocument(input: {
       canPublish: settings.allowParentPortalPublishing,
       canDownload: true,
     },
-    auditTrail: [
-      {
-        actor: "MyShule Reports",
-        role: "System",
-        action: "Generated draft preview",
-        timestamp: new Date().toISOString(),
-        reason: "Curriculum-aware preview opened.",
-      },
-    ],
+    auditTrail: [],
   };
 }

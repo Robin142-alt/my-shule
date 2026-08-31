@@ -113,8 +113,9 @@ function safeLogoUrl(value: unknown, fallback?: string | null) {
 }
 
 function scoreStatusLabel(statusValue: unknown) {
-  const status = text(statusValue, "not_assessed").toLowerCase();
-  return scoreStatusLabels[status] ?? "No marks entered";
+  const status = text(statusValue).toLowerCase();
+  if (!status) return undefined;
+  return scoreStatusLabels[status] ?? status.replaceAll("_", " ").replace(/^./, (value) => value.toUpperCase());
 }
 
 function reportStatus(statusValue: unknown): ReportCardStatus {
@@ -209,10 +210,14 @@ function buildAuditTrail(card: LiveExamReportCard, metadata: UnknownRecord) {
     asRecord(metadata.report_card).generated_at,
     text(metadata.generated_at, card.created_at ?? ""),
   );
-  const generatedBy = text(metadata.generated_by, "MyShule report service");
+  const generatedBy = text(metadata.generated_by);
+  const submittedBy = text(card.submitted_by_user_id);
+  const approvedBy = text(card.approved_by_user_id);
+  const publishedBy = text(card.published_by_user_id);
+  const withdrawnBy = text(card.withdrawn_by_user_id);
   const events: ReportCardDocumentData["auditTrail"] = [];
 
-  if (generatedAt) {
+  if (generatedAt && generatedBy) {
     events.push({
       actor: generatedBy,
       role: "Report generation",
@@ -220,33 +225,33 @@ function buildAuditTrail(card: LiveExamReportCard, metadata: UnknownRecord) {
       timestamp: generatedAt,
     });
   }
-  if (card.submitted_at) {
+  if (card.submitted_at && submittedBy) {
     events.push({
-      actor: text(card.submitted_by_user_id, "Authorized exams user"),
+      actor: submittedBy,
       role: "Exams Manager",
       action: "Submitted for review",
       timestamp: card.submitted_at,
     });
   }
-  if (card.approved_at) {
+  if (card.approved_at && approvedBy) {
     events.push({
-      actor: text(card.approved_by_user_id, "Authorized academic reviewer"),
+      actor: approvedBy,
       role: text(card.approval_role, "Dean/Academics"),
       action: "Approved report card",
       timestamp: card.approved_at,
     });
   }
-  if (card.published_at) {
+  if (card.published_at && publishedBy) {
     events.push({
-      actor: text(card.published_by_user_id, "Authorized school leader"),
+      actor: publishedBy,
       role: "Principal",
       action: "Published report card",
       timestamp: card.published_at,
     });
   }
-  if (card.withdrawn_at) {
+  if (card.withdrawn_at && withdrawnBy) {
     events.push({
-      actor: text(card.withdrawn_by_user_id, "Authorized school leader"),
+      actor: withdrawnBy,
       role: "Principal",
       action: "Withdrew published report card",
       timestamp: card.withdrawn_at,
@@ -281,22 +286,23 @@ export function mapPersistedReportCardDocument(
   const student = asRecord(reportCard.student);
   const series = asRecord(reportCard.exam_series);
   const totals = asRecord(reportCard.totals);
+  const analyticsRecord = asRecord(reportCard.analytics);
   const attendanceRecord = asRecord(reportCard.attendance);
   const subjects = asRecords(reportCard.subjects);
   const reporting = reportingConfiguration({ metadata, reportCard, subjects });
   const enteredSubjects = subjects
     .map((subject) => ({
-      name: text(subject.subject_name, "Subject"),
+      name: text(subject.subject_name),
       percentage: numberValue(subject.percentage),
       status: text(subject.score_status, "entered").toLowerCase(),
       competency: text(subject.competency_outcome, text(subject.descriptor)),
     }))
-    .filter((subject) => subject.status === "entered" && subject.percentage !== null)
+    .filter((subject) => subject.name && subject.status === "entered" && subject.percentage !== null)
     .sort((left, right) => (right.percentage ?? 0) - (left.percentage ?? 0));
   const competencySubjects = subjects.map((subject) => ({
-    name: text(subject.subject_name, "Learning area"),
+    name: text(subject.subject_name),
     descriptor: text(subject.competency_outcome, text(subject.descriptor)),
-  })).filter((subject) => subject.descriptor);
+  })).filter((subject) => subject.name && subject.descriptor);
   const strongestAreas = enteredSubjects.length
     ? enteredSubjects.slice(0, Math.min(3, enteredSubjects.length)).map((subject) => subject.name)
     : competencySubjects.filter((subject) => /exceed|meet|achiev|proficient/i.test(subject.descriptor)).map((subject) => subject.name);
@@ -320,11 +326,24 @@ export function mapPersistedReportCardDocument(
   const totalMaxScore = numberValue(totals.total_max_score);
   const meanScore = numberValue(totals.mean_score);
   const overallPercentage = numberValue(totals.percentage);
-  const generatedAt = text(
-    reportCard.generated_at,
-    text(metadata.generated_at, text(card.created_at, text(card.updated_at, "Timestamp unavailable"))),
-  );
+  const generatedAt = text(reportCard.generated_at, text(metadata.generated_at, text(card.created_at, text(card.updated_at))));
   const verificationCode = text(card.verification_code);
+  const termHistory = asRecords(analyticsRecord.term_history).map((row) => ({
+    examSeriesId: text(row.exam_series_id),
+    label: text(row.label),
+    percentage: numberValue(row.percentage),
+  })).filter((row): row is { examSeriesId: string; label: string; percentage: number } => (
+    Boolean(row.examSeriesId && row.label) && row.percentage !== null
+  ));
+  const subjectHistory = asRecords(analyticsRecord.subject_history).map((row) => ({
+    examSeriesId: text(row.exam_series_id),
+    label: text(row.label),
+    subjectId: text(row.subject_id),
+    subjectName: text(row.subject_name),
+    percentage: numberValue(row.percentage),
+  })).filter((row): row is { examSeriesId: string; label: string; subjectId: string; subjectName: string; percentage: number } => (
+    Boolean(row.examSeriesId && row.label && row.subjectId && row.subjectName) && row.percentage !== null
+  ));
 
   return {
     id: card.id,
@@ -338,11 +357,11 @@ export function mapPersistedReportCardDocument(
       email: text(fields.school_email) || undefined,
     },
     learner: {
-      fullName: text(fields.learner_name, text(student.full_name, text(card.student_name, "Learner"))),
-      admissionNumber: text(fields.admission_number, text(student.admission_number, text(card.admission_number, "Not recorded"))),
-      upi: text(student.upi, text(student.assessment_number)) || undefined,
-      gradeForm: text(fields.learner_class, text(student.class_name, "Not assigned")),
-      stream: text(fields.learner_stream, text(student.stream_name, "Not assigned")),
+      fullName: text(fields.learner_name, text(student.full_name, text(card.student_name))),
+      admissionNumber: text(fields.admission_number, text(student.admission_number, text(card.admission_number))),
+      upi: text(student.upi_number, text(student.upi, text(student.assessment_number))) || undefined,
+      gradeForm: text(fields.learner_class, text(student.class_name)),
+      stream: text(fields.learner_stream, text(student.stream_name)),
       gender: text(student.gender) || undefined,
       boardingStatus: text(student.boarding_status) || undefined,
       houseDormitory: text(student.house_dormitory) || undefined,
@@ -350,9 +369,9 @@ export function mapPersistedReportCardDocument(
       status: text(student.status) || undefined,
     },
     academic: {
-      academicYear: text(fields.academic_year, text(series.academic_year_name, text(card.academic_year, "Not recorded"))),
-      term: text(fields.term, text(series.academic_term_name, text(card.term, "Not recorded"))),
-      reportingPeriod: text(fields.exam_series, text(series.name, text(card.exam_series_name, "Report card"))),
+      academicYear: text(fields.academic_year, text(series.academic_year_name, text(card.academic_year))),
+      term: text(fields.term, text(series.academic_term_name, text(card.term))),
+      reportingPeriod: text(fields.exam_series, text(series.name, text(card.exam_series_name))),
       openingDate: formatDate(series.opening_date),
       closingDate: formatDate(series.closing_date),
       nextTermOpeningDate: formatDate(fields.next_term_opening_date),
@@ -362,6 +381,14 @@ export function mapPersistedReportCardDocument(
       classReportingMode: reporting.classReportingMode,
       reportCardType: reporting.reportCardType,
       reportStatus: reportStatus(card.status),
+    },
+    analytics: {
+      attendancePercentage: formatPercentage(attendancePercentage),
+      bestSubject: enteredSubjects[0]?.name || undefined,
+      improvement: text(totals.improvement) || undefined,
+      conduct: text(fields.conduct_summary) || undefined,
+      termHistory,
+      subjectHistory,
     },
     cbcProgress: {
       overallDescriptor: text(totals.overall_descriptor, text(reportCard.overall_descriptor)) || undefined,
@@ -380,7 +407,7 @@ export function mapPersistedReportCardDocument(
           || text(subject.descriptor)
           || text(subject.teacher_observation),
         ).map((subject) => ({
-          learningArea: text(subject.subject_name, "Learning area"),
+          learningArea: text(subject.subject_name),
           strand: text(subject.strand) || undefined,
           subStrand: text(subject.sub_strand) || undefined,
           task: text(subject.assessment_task, text(subject.task)) || undefined,
@@ -399,13 +426,32 @@ export function mapPersistedReportCardDocument(
           const score = numberValue(subject.score);
           const maxScore = numberValue(subject.max_score);
           const entered = status === "entered" && score !== null;
+          const persistedComponents = asRecords(subject.assessment_components).map((component) => {
+            const componentScore = numberValue(component.score);
+            const componentMaxScore = numberValue(component.max_score);
+            const componentPercentage = numberValue(component.percentage)
+              ?? (componentScore !== null && componentMaxScore && componentMaxScore > 0
+                ? (componentScore / componentMaxScore) * 100
+                : null);
+            const componentStatus = text(component.score_status).toLowerCase();
+            return {
+              name: text(component.name),
+              percentage: formatPercentage(componentPercentage),
+              score: componentScore !== null
+                ? `${formatNumber(componentScore)}${componentMaxScore !== null ? ` / ${formatNumber(componentMaxScore)}` : ""}`
+                : undefined,
+              weight: formatPercentage(numberValue(component.weight)),
+              status: componentPercentage === null ? scoreStatusLabel(componentStatus) : undefined,
+            };
+          }).filter((component) => component.name);
 
           return {
             subjectCode: text(subject.subject_code, text(subject.code)) || undefined,
-            subjectName: text(subject.subject_name, "Subject"),
-            assessmentComponent: text(subject.assessment_component, text(series.name, "Term assessment")),
+            subjectName: text(subject.subject_name),
+            assessmentComponent: text(subject.assessment_name, text(subject.assessment_component)) || undefined,
+            assessmentComponents: persistedComponents.length ? persistedComponents : undefined,
             score: entered
-              ? `${formatNumber(score)} / ${formatNumber(maxScore) ?? "Not recorded"}`
+              ? `${formatNumber(score)}${maxScore !== null ? ` / ${formatNumber(maxScore)}` : ""}`
               : scoreStatusLabel(status),
             percentage: entered ? formatPercentage(numberValue(subject.percentage)) : undefined,
             grade: entered ? text(subject.grade_label) || undefined : undefined,
@@ -422,22 +468,23 @@ export function mapPersistedReportCardDocument(
           meanScore: formatNumber(meanScore),
           percentage: formatPercentage(overallPercentage),
           overallGrade: text(totals.overall_grade, text(totals.grade_label)) || undefined,
+          classPosition: text(totals.class_position, text(totals.position)) || undefined,
         }
       : undefined,
     coreCompetencies: asRecords(reportCard.core_competencies).map((row) => ({
-      competency: text(row.competency, text(row.name, "Competency")),
+      competency: text(row.competency, text(row.name)),
       level: text(row.level, text(row.rating)) || undefined,
       observation: text(row.observation, text(row.comment)) || undefined,
       evidence: text(row.evidence) || undefined,
-    })),
+    })).filter((row) => row.competency),
     values: asRecords(reportCard.values).map((row) => ({
-      value: text(row.value, text(row.name, "Value")),
+      value: text(row.value, text(row.name)),
       rating: text(row.rating, text(row.level)) || undefined,
       comment: text(row.comment, text(row.observation)) || undefined,
-    })),
+    })).filter((row) => row.value),
     projects: asRecords(reportCard.projects).map((row) => ({
-      title: text(row.title, text(row.name, "Project")),
-      category: text(row.category, "Project"),
+      title: text(row.title, text(row.name)),
+      category: text(row.category),
       note: text(row.note, text(row.comment)) || undefined,
     })),
     attendance: hasAttendance
@@ -479,7 +526,7 @@ export function mapPersistedReportCardDocument(
       },
     ],
     verification: {
-      generatedBy: text(metadata.generated_by, "MyShule report service"),
+      generatedBy: text(metadata.generated_by),
       generatedAt,
       publishedAt: card.published_at ?? undefined,
       qrValue: verificationCode || undefined,

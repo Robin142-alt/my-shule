@@ -3132,6 +3132,20 @@ test('ExamsRepository applies the configured academic grading system to report-c
       if (/academic_term_name/.test(sql)) return { rows: [{ id: 'series-1', name: 'Term 3' }] };
       if (/FROM students student/.test(sql)) return { rows: [{ id: 'student-1', full_name: 'Learner One' }] };
       if (/FROM exam_grading_policies policy/.test(sql) && !/FROM exam_marks mark/.test(sql)) return { rows: [] };
+      if (/SELECT settings\.show_rank, settings\.show_attendance/.test(sql)) {
+        return { rows: [{ show_rank: false, show_attendance: true, configuration: {} }] };
+      }
+      if (/snapshot\.class_rank/.test(sql)) {
+        return {
+          rows: [{
+            position: 2,
+            percentage: 82.5,
+            grade_label: 'A',
+            processed_at: '2026-08-30T12:00:00.000Z',
+            cohort_size: 30,
+          }],
+        };
+      }
       if (/FROM academics_grading_systems system/.test(sql)) {
         return {
           rows: [{
@@ -3173,13 +3187,22 @@ test('ExamsRepository applies the configured academic grading system to report-c
   });
   const subject = (data.subjects as Array<Record<string, unknown>>)[0];
   const policy = data.grading_policy as Record<string, unknown>;
+  const resultSnapshot = data.result_snapshot as Record<string, unknown>;
 
   assert.equal(subject?.grade_label, 'A');
   assert.equal(subject?.points, 12);
   assert.equal(subject?.remarks, 'Excellent');
   assert.equal(policy.source, 'academic_setup');
   assert.equal(policy.id, 'f559ae72-8374-4b0c-9a73-e3239f1b6fe9');
+  assert.equal(resultSnapshot.percentage, 82.5);
+  assert.equal(resultSnapshot.grade_label, 'A');
+  assert.equal(resultSnapshot.position, null);
+  assert.equal(resultSnapshot.cohort_size, null);
   assert.equal(queries.some((sql) => /academics_report_card_settings/.test(sql)), true);
+  const seriesQuery = queries.find((sql) => /academic_term_name/.test(sql) && /FROM exam_series series/.test(sql));
+  assert.match(seriesQuery ?? '', /LEFT JOIN LATERAL[\s\S]+candidate\.starts_on[\s\S]+\) next_term ON TRUE/);
+  const policyQuery = queries.find((sql) => /FROM exam_grading_policies policy/.test(sql) && !/FROM exam_marks mark/.test(sql));
+  assert.match(policyQuery ?? '', /exam_grading_policy_boundaries[\s\S]+AS boundaries/);
 });
 
 test('ReportCardGenerationService refuses report-card generation when a numeric subject has no grade boundary', async () => {

@@ -2028,7 +2028,10 @@ export class ExamsRepository {
           series.id::text,
           series.name,
           term.name AS academic_term_name,
-          year.name AS academic_year_name
+          year.name AS academic_year_name,
+          term.starts_on::text AS opening_date,
+          term.ends_on::text AS closing_date,
+          next_term.starts_on::text AS next_term_opening_date
         FROM exam_series series
         LEFT JOIN academic_terms term
           ON term.tenant_id = series.tenant_id
@@ -2036,6 +2039,14 @@ export class ExamsRepository {
         LEFT JOIN academic_years year
           ON year.tenant_id = term.tenant_id
          AND year.id = term.academic_year_id
+        LEFT JOIN LATERAL (
+          SELECT candidate.starts_on
+          FROM academic_terms candidate
+          WHERE candidate.tenant_id = term.tenant_id
+            AND candidate.starts_on > term.ends_on
+          ORDER BY candidate.starts_on ASC
+          LIMIT 1
+        ) next_term ON TRUE
         WHERE series.tenant_id = $1
           AND series.id = $2::uuid
         LIMIT 1
@@ -2048,24 +2059,63 @@ export class ExamsRepository {
           student.id::text,
           concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS full_name,
           student.admission_number,
+          NULLIF(student.upi_number, '') AS upi_number,
+          NULLIF(student.gender, 'undisclosed') AS gender,
+          student.boarding_status::text AS boarding_status,
+          student.status,
           class_section.name AS class_name,
-          stream.name AS stream_name
+          stream.name AS stream_name,
+          class_teacher.class_teacher_name
         FROM students student
-        LEFT JOIN student_class_assignments assignment
-          ON assignment.tenant_id = student.tenant_id
-         AND assignment.student_id = student.id::text
-         AND assignment.status = 'active'
+        LEFT JOIN exam_series series
+          ON series.tenant_id = student.tenant_id
+         AND series.id = $3::uuid
+        LEFT JOIN academic_terms term
+          ON term.tenant_id = series.tenant_id
+         AND term.id::text = series.academic_term_id::text
+        LEFT JOIN LATERAL (
+          SELECT placement.*
+          FROM student_class_assignments placement
+          WHERE placement.tenant_id = student.tenant_id
+            AND placement.student_id = student.id::text
+            AND placement.academic_year_id::text = term.academic_year_id::text
+            AND placement.status = 'active'
+          ORDER BY placement.updated_at DESC, placement.created_at DESC
+          LIMIT 1
+        ) assignment ON TRUE
         LEFT JOIN class_sections class_section
           ON class_section.tenant_id = assignment.tenant_id
          AND class_section.id = assignment.class_section_id
         LEFT JOIN class_streams stream
           ON stream.tenant_id = assignment.tenant_id
          AND stream.id = assignment.stream_id
+        LEFT JOIN LATERAL (
+          SELECT COALESCE(
+            NULLIF(staff.full_name, ''),
+            NULLIF(staff.display_name, ''),
+            NULLIF(staff.preferred_name, ''),
+            NULLIF(staff.email, ''),
+            NULLIF(staff.staff_number, '')
+          ) AS class_teacher_name
+          FROM academics_class_teachers appointment
+          JOIN staff_profiles staff
+            ON staff.tenant_id = appointment.tenant_id
+           AND staff.user_id = appointment.teacher_user_id
+          WHERE appointment.tenant_id = student.tenant_id
+            AND appointment.academic_year_id::text = term.academic_year_id::text
+            AND appointment.class_section_id::text = assignment.class_section_id::text
+            AND appointment.is_active = TRUE
+            AND COALESCE(appointment.status, 'active') = 'active'
+            AND (appointment.effective_from IS NULL OR appointment.effective_from <= term.ends_on)
+            AND (appointment.effective_to IS NULL OR appointment.effective_to >= term.starts_on)
+          ORDER BY appointment.updated_at DESC
+          LIMIT 1
+        ) class_teacher ON TRUE
         WHERE student.tenant_id = $1
           AND student.id = $2::text
         LIMIT 1
       `,
-      [input.tenant_id, input.student_id],
+      [input.tenant_id, input.student_id, input.exam_series_id],
     );
     const gradingPolicyResult = await this.executeSql(
       `
@@ -2076,7 +2126,23 @@ export class ExamsRepository {
           policy.version,
           policy.effective_from::text,
           policy.effective_to::text,
-          policy.scope
+          policy.scope,
+          COALESCE((
+            SELECT jsonb_agg(
+              jsonb_build_object(
+                'label', boundary.label,
+                'min_score', boundary.min_score,
+                'max_score', boundary.max_score,
+                'points', boundary.points,
+                'descriptor', boundary.descriptor,
+                'remark', boundary.remark
+              )
+              ORDER BY boundary.min_score DESC
+            )
+            FROM exam_grading_policy_boundaries boundary
+            WHERE boundary.tenant_id = policy.tenant_id
+              AND boundary.grading_policy_id = policy.id
+          ), '[]'::jsonb) AS boundaries
         FROM exam_grading_policies policy
         WHERE policy.tenant_id = $1
           AND policy.status = 'active'
@@ -2157,9 +2223,11 @@ export class ExamsRepository {
         )
         SELECT
           mark.subject_id::text,
-          COALESCE(subject.name, assessment.name, 'Subject') AS subject_name,
+          COALESCE(subject.name, assessment.name, '') AS subject_name,
           mark.score::float AS score,
           mark.score_status,
+          assessment.name AS assessment_name,
+          assessment.weight::float AS assessment_weight,
           assessment.max_score::float AS max_score,
           CASE
             WHEN mark.score_status = 'entered' AND assessment.max_score > 0
@@ -2211,6 +2279,140 @@ export class ExamsRepository {
       `,
       [input.tenant_id, input.exam_series_id, input.student_id],
     );
+    const attendanceResult = await this.executeSql(
+      `
+        SELECT
+          COUNT(*)::int AS total_days,
+          COUNT(*) FILTER (WHERE attendance.status IN ('present', 'late'))::int AS days_present,
+          COUNT(*) FILTER (WHERE attendance.status = 'absent')::int AS days_absent,
+          COUNT(*) FILTER (WHERE attendance.status = 'late')::int AS late_arrivals,
+          ROUND(
+            (COUNT(*) FILTER (WHERE attendance.status IN ('present', 'late'))::numeric / NULLIF(COUNT(*), 0)) * 100,
+            2
+          )::float AS percentage
+        FROM attendance_records attendance
+        JOIN exam_series series
+          ON series.tenant_id = attendance.tenant_id
+         AND series.id = $2::uuid
+        JOIN academic_terms term
+          ON term.tenant_id = series.tenant_id
+         AND term.id::text = series.academic_term_id::text
+        WHERE attendance.tenant_id = $1
+          AND attendance.student_id = $3::text
+          AND attendance.attendance_date BETWEEN term.starts_on AND term.ends_on
+        HAVING COUNT(*) > 0
+      `,
+      [input.tenant_id, input.exam_series_id, input.student_id],
+    );
+    const schoolPolicyResult = await this.executeSql(
+      `
+        SELECT settings.show_rank, settings.show_attendance, settings.configuration
+        FROM academics_report_card_settings settings
+        WHERE settings.tenant_id = $1
+          AND settings.is_active = TRUE
+          AND settings.archived_at IS NULL
+        ORDER BY settings.updated_at DESC, settings.created_at DESC
+        LIMIT 1
+      `,
+      [input.tenant_id],
+    );
+    const resultSnapshotResult = await this.executeSql(
+      `
+        SELECT
+          snapshot.class_rank::int AS position,
+          snapshot.average_percentage::float AS percentage,
+          snapshot.grade_label,
+          snapshot.processed_at::text,
+          (
+            SELECT COUNT(*)::int
+            FROM exam_result_snapshots cohort
+            WHERE cohort.tenant_id = snapshot.tenant_id
+              AND cohort.batch_id = snapshot.batch_id
+          ) AS cohort_size
+        FROM exam_result_snapshots snapshot
+        WHERE snapshot.tenant_id = $1
+          AND snapshot.exam_series_id = $2::uuid
+          AND snapshot.student_id = $3::uuid
+        ORDER BY snapshot.processed_at DESC
+        LIMIT 1
+      `,
+      [input.tenant_id, input.exam_series_id, input.student_id],
+    );
+    const termHistoryResult = await this.executeSql(
+      `
+        WITH latest_by_series AS (
+          SELECT DISTINCT ON (snapshot.exam_series_id)
+            snapshot.exam_series_id::text,
+            COALESCE(term.name, series.name) AS label,
+            snapshot.average_percentage::float AS percentage,
+            term.starts_on,
+            snapshot.processed_at
+          FROM exam_result_snapshots snapshot
+          JOIN exam_series series
+            ON series.tenant_id = snapshot.tenant_id
+           AND series.id = snapshot.exam_series_id
+          LEFT JOIN academic_terms term
+            ON term.tenant_id = series.tenant_id
+           AND term.id::text = series.academic_term_id::text
+          WHERE snapshot.tenant_id = $1
+            AND snapshot.student_id = $2::uuid
+          ORDER BY snapshot.exam_series_id, snapshot.processed_at DESC
+        )
+        SELECT exam_series_id, label, percentage
+        FROM latest_by_series
+        ORDER BY starts_on DESC NULLS LAST, processed_at DESC
+        LIMIT 3
+      `,
+      [input.tenant_id, input.student_id],
+    );
+    const subjectHistoryResult = await this.executeSql(
+      `
+        WITH marked_series AS (
+          SELECT
+            series.id,
+            COALESCE(term.name, series.name) AS label,
+            term.starts_on,
+            MAX(mark.updated_at) AS last_marked_at
+          FROM exam_marks mark
+          JOIN exam_series series
+            ON series.tenant_id = mark.tenant_id
+           AND series.id = mark.exam_series_id
+          LEFT JOIN academic_terms term
+            ON term.tenant_id = series.tenant_id
+           AND term.id::text = series.academic_term_id::text
+          WHERE mark.tenant_id = $1
+            AND mark.student_id = $2::uuid
+            AND mark.status IN ('locked', 'published')
+            AND mark.score_status = 'entered'
+          GROUP BY series.id, term.name, series.name, term.starts_on
+          ORDER BY term.starts_on DESC NULLS LAST, MAX(mark.updated_at) DESC
+          LIMIT 3
+        )
+        SELECT
+          series.id::text AS exam_series_id,
+          series.label,
+          mark.subject_id::text,
+          subject.name AS subject_name,
+          ROUND(AVG((mark.score / assessment.max_score) * 100)::numeric, 2)::float AS percentage
+        FROM marked_series series
+        JOIN exam_marks mark
+          ON mark.tenant_id = $1
+         AND mark.exam_series_id = series.id
+         AND mark.student_id = $2::uuid
+         AND mark.status IN ('locked', 'published')
+         AND mark.score_status = 'entered'
+        JOIN exam_assessments assessment
+          ON assessment.tenant_id = mark.tenant_id
+         AND assessment.id = mark.assessment_id
+         AND assessment.max_score > 0
+        LEFT JOIN subjects subject
+          ON subject.tenant_id = mark.tenant_id
+         AND subject.id = mark.subject_id::text
+        GROUP BY series.id, series.label, series.starts_on, mark.subject_id, subject.name
+        ORDER BY series.starts_on ASC NULLS FIRST, subject.name ASC
+      `,
+      [input.tenant_id, input.student_id],
+    );
 
     const academicGradingSystem = academicGradingSystemResult.rows[0] ?? null;
     const subjects = subjectsResult.rows.map((subject) =>
@@ -2224,7 +2426,25 @@ export class ExamsRepository {
       grading_policy: gradingPolicyResult.rows[0]
         ?? normalizeAcademicGradingPolicy(academicGradingSystem),
       subjects,
-      attendance: null,
+      attendance: schoolPolicyResult.rows[0]?.show_attendance === false
+        ? null
+        : attendanceResult.rows[0] ?? null,
+      school_policy: schoolPolicyResult.rows[0] ?? null,
+      result_snapshot: resultSnapshotResult.rows[0]
+        ? {
+            ...resultSnapshotResult.rows[0],
+            position: schoolPolicyResult.rows[0]?.show_rank === false
+              ? null
+              : resultSnapshotResult.rows[0].position,
+            cohort_size: schoolPolicyResult.rows[0]?.show_rank === false
+              ? null
+              : resultSnapshotResult.rows[0].cohort_size,
+          }
+        : null,
+      analytics: {
+        term_history: termHistoryResult.rows,
+        subject_history: subjectHistoryResult.rows,
+      },
     };
   }
 
