@@ -295,8 +295,59 @@ export function useClassTeacherSettings(streamId: string) {
   const scope = useClassTeacherQueryScope();
   return useQuery({
     queryKey: buildClassTeacherQueryKey(scope, "settings", streamId),
-    queryFn: () => fetchApi(scope.schoolId, "class-teacher/settings"),
-    enabled: isReadyClassTeacherScope(scope),
+    queryFn: () => fetchApi(
+      scope.schoolId,
+      `class-teacher/settings?streamId=${encodeURIComponent(streamId || "")}`,
+    ),
+    enabled: isReadyClassTeacherScope(scope) && Boolean(streamId),
+  });
+}
+
+export type ReportCardSignatureStatus = {
+  available: boolean;
+  signer_role: "class_teacher" | "principal";
+  content_url: string | null;
+  mime_type: string | null;
+  size_bytes: number;
+  checksum_sha256: string | null;
+  updated_at: string | null;
+};
+
+export function useClassTeacherReportCardSignature(streamId: string) {
+  const scope = useClassTeacherQueryScope();
+  return useQuery({
+    queryKey: buildClassTeacherQueryKey(scope, "report-card-signature", streamId),
+    queryFn: () => requestDashboardApi<ReportCardSignatureStatus>(
+      `class-teacher/report-card-signature?streamId=${encodeURIComponent(streamId)}`,
+      { tenantId: scope.schoolId },
+    ),
+    enabled: isReadyClassTeacherScope(scope) && Boolean(streamId),
+  });
+}
+
+export function useUploadClassTeacherReportCardSignature(streamId: string) {
+  const queryClient = useQueryClient();
+  const scope = useClassTeacherQueryScope();
+
+  return useMutation({
+    mutationFn: (file: File) => {
+      const body = new FormData();
+      body.append("signature", file);
+      return requestDashboardApi<ReportCardSignatureStatus>(
+        `class-teacher/report-card-signature?streamId=${encodeURIComponent(streamId)}`,
+        {
+          method: "POST",
+          tenantId: scope.schoolId,
+          body,
+          timeoutMs: 60_000,
+        },
+      );
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: buildClassTeacherQueryKey(scope, "report-card-signature", streamId),
+      });
+    },
   });
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Building2, CheckCircle2, Loader2, Save, Upload } from "lucide-react";
+import { AlertCircle, Building2, CheckCircle2, Loader2, PenTool, Save, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Card } from "@/components/ui/card";
@@ -38,6 +38,16 @@ type SchoolProfileForm = {
   website: string;
 };
 
+type ReportCardSignatureStatus = {
+  available: boolean;
+  signer_role: "principal";
+  content_url: string | null;
+  mime_type: string | null;
+  size_bytes: number;
+  checksum_sha256: string | null;
+  updated_at: string | null;
+};
+
 const emptyForm: SchoolProfileForm = {
   schoolName: "",
   motto: "",
@@ -67,14 +77,18 @@ function SchoolProfileHeading() {
 
 export function PrincipalSchoolProfileWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<SchoolProfileData>("/admin-command/principal/school-profile");
+  const signatureQuery = useSchoolQuery<ReportCardSignatureStatus>("/admin-command/principal/report-card-signature");
   const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
   const [form, setForm] = useState<SchoolProfileForm>(emptyForm);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingSignature, setIsUploadingSignature] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
+  const [failedSignatureVersion, setFailedSignatureVersion] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const signatureInputRef = useRef<HTMLInputElement>(null);
   const isDirtyRef = useRef(false);
 
   useEffect(() => {
@@ -151,6 +165,42 @@ export function PrincipalSchoolProfileWorkspace() {
     }
   };
 
+  const handleSignatureUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    if (!file) return;
+    setActionError(null);
+    setSuccessMessage(null);
+    if (!["image/png", "image/jpeg"].includes(file.type)) {
+      setActionError("Choose a PNG or JPEG signature image.");
+      event.currentTarget.value = "";
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setActionError("Signature images must not exceed 2 MB.");
+      event.currentTarget.value = "";
+      return;
+    }
+
+    setIsUploadingSignature(true);
+    const body = new FormData();
+    body.append("signature", file);
+    try {
+      await requestPrincipalApi<ReportCardSignatureStatus>("/admin-command/principal/report-card-signature", {
+        method: "POST",
+        body,
+        timeoutMs: 60_000,
+      });
+      await signatureQuery.refetch();
+      setFailedSignatureVersion(null);
+      setSuccessMessage("Principal signature uploaded. It will be placed automatically on newly generated report cards.");
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : "Principal signature could not be uploaded.");
+    } finally {
+      setIsUploadingSignature(false);
+      if (signatureInputRef.current) signatureInputRef.current.value = "";
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-5">
@@ -171,6 +221,12 @@ export function PrincipalSchoolProfileWorkspace() {
       </div>
     );
   }
+
+  const signature = signatureQuery.data;
+  const signatureVersion = signature?.updated_at ?? signature?.checksum_sha256 ?? "";
+  const signatureSource = signature?.content_url
+    ? `${signature.content_url}?v=${encodeURIComponent(signatureVersion)}`
+    : null;
 
   return (
     <form onSubmit={handleSave} className="space-y-5">
@@ -201,6 +257,58 @@ export function PrincipalSchoolProfileWorkspace() {
         </div>
       </Card>
 
+      <Card className="border border-white/10 bg-white/5 p-5 text-white">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="flex h-16 w-28 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/15 bg-white">
+              {signatureSource && failedSignatureVersion !== signatureVersion ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={signatureSource}
+                  alt="Principal report-card signature"
+                  className="max-h-14 max-w-24 object-contain"
+                  onError={() => setFailedSignatureVersion(signatureVersion)}
+                />
+              ) : (
+                <PenTool className="h-7 w-7 text-[#64748B]" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-lg font-black">Principal report-card signature</h3>
+              <p className="mt-1 text-sm font-semibold text-white/65">
+                Upload your own signature once. It remains private to this school and is placed automatically on generated report cards.
+              </p>
+              {signature?.available ? (
+                <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-black text-emerald-200">
+                  <CheckCircle2 className="h-4 w-4" /> Ready for report generation
+                  {signature.updated_at ? ` · Updated ${new Date(signature.updated_at).toLocaleString("en-KE")}` : ""}
+                </p>
+              ) : null}
+            </div>
+          </div>
+          <div className="shrink-0">
+            <input ref={signatureInputRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={handleSignatureUpload} />
+            <button
+              type="button"
+              onClick={() => signatureInputRef.current?.click()}
+              disabled={isUploadingSignature || isSaving || isUploading}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-200/30 bg-cyan-200/10 px-4 py-2.5 text-sm font-black text-cyan-100 disabled:opacity-50 sm:w-auto"
+            >
+              {isUploadingSignature ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              {isUploadingSignature ? "Uploading..." : signature?.available ? "Replace signature" : "Upload signature"}
+            </button>
+          </div>
+        </div>
+        {signatureQuery.error ? (
+          <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-sm font-bold text-amber-100">
+            <span>Signature status could not be loaded. Retry before generating reports.</span>
+            <button type="button" onClick={() => void signatureQuery.refetch()} className="rounded-lg border border-amber-200/40 bg-white/10 px-3 py-2 text-xs font-black text-amber-50">
+              Retry signature
+            </button>
+          </div>
+        ) : null}
+      </Card>
+
       {actionError ? <div role="alert" className="rounded-lg border border-red-300/30 bg-red-300/10 px-4 py-3 text-sm font-bold text-red-100">{actionError}</div> : null}
       {data.logoUrl && failedLogoUrl === data.logoUrl ? <div role="alert" className="rounded-lg border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-sm font-bold text-amber-100">The saved logo could not be displayed. Upload the logo again to repair the school branding.</div> : null}
       {successMessage ? <div role="status" className="rounded-lg border border-emerald-300/30 bg-emerald-300/10 px-4 py-3 text-sm font-bold text-emerald-100">{successMessage}</div> : null}
@@ -229,7 +337,7 @@ export function PrincipalSchoolProfileWorkspace() {
       </Card>
 
       <div className="flex justify-end">
-        <button type="submit" disabled={isSaving || isUploading} className="inline-flex min-w-40 items-center justify-center gap-2 rounded-lg bg-cyan-300 px-5 py-3 text-sm font-black text-[#071D49] disabled:opacity-50">
+        <button type="submit" disabled={isSaving || isUploading || isUploadingSignature} className="inline-flex min-w-40 items-center justify-center gap-2 rounded-lg bg-cyan-300 px-5 py-3 text-sm font-black text-[#071D49] disabled:opacity-50">
           {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} {isSaving ? "Saving..." : "Save school profile"}
         </button>
       </div>

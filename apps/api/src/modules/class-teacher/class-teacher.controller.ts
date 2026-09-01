@@ -1,8 +1,11 @@
-import { Body, Controller, Get, Post, Query, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, StreamableFile, UnauthorizedException, UploadedFile, UseInterceptors } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { RequestContextService } from '../../common/request-context/request-context.service';
+import { SkipResponseEnvelope } from '../../common/decorators/skip-response-envelope.decorator';
+import { StreamingUploadInterceptor } from '../../common/uploads/streaming-upload.interceptor';
+import type { UploadFileMetadata } from '../../common/uploads/upload-policy';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { ClassTeacherService } from './class-teacher.service';
 import { SaveTeacherMarksDto } from './dto/class-teacher.dto';
@@ -252,6 +255,39 @@ export class ClassTeacherController {
   getSettings(@Query('streamId') streamId: string) {
     const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getSettings(tenantId, userId, streamId);
+  }
+
+  @Get('report-card-signature')
+  @RequiresModule('exams')
+  getReportCardSignature(@Query('streamId') streamId: string) {
+    const { tenantId, userId } = this.currentScope();
+    return this.classTeacherService.getReportCardSignature(tenantId, userId, streamId);
+  }
+
+  @Post('report-card-signature')
+  @RequiresModule('exams')
+  @Permissions('teacher:write')
+  @UseInterceptors(StreamingUploadInterceptor('signature', 2 * 1024 * 1024))
+  uploadReportCardSignature(
+    @Query('streamId') streamId: string,
+    @UploadedFile() file: UploadFileMetadata,
+  ) {
+    const { tenantId, userId } = this.currentScope();
+    return this.classTeacherService.uploadReportCardSignature(tenantId, userId, streamId, file);
+  }
+
+  @Get('report-card-signature/content')
+  @RequiresModule('exams')
+  @SkipResponseEnvelope()
+  async getReportCardSignatureContent(@Query('streamId') streamId: string) {
+    const { tenantId, userId } = this.currentScope();
+    const signature = await this.classTeacherService.getReportCardSignatureContent(tenantId, userId, streamId);
+
+    return new StreamableFile(signature.content, {
+      type: signature.mime_type,
+      disposition: `inline; filename="${signature.original_file_name}"`,
+      length: signature.size_bytes,
+    });
   }
 
   @Post('settings')

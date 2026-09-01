@@ -4,6 +4,7 @@ import { StreamingUploadInterceptor } from '../../common/uploads/streaming-uploa
 import { UploadFileMetadata } from '../../common/uploads/upload-policy';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
+import { Roles } from '../../auth/decorators/roles.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import {
   CreateAdminIncidentDto,
@@ -801,6 +802,40 @@ export class AdminCommandController {
       type: logo.mime_type,
       disposition: `inline; filename="${logo.original_file_name}"`,
       length: logo.size_bytes,
+    });
+  }
+
+  @Get('principal/report-card-signature')
+  @RequiresModule('admin_command_centers', 'principal_dashboard', 'exams')
+  @Roles('principal', 'school_principal')
+  @Permissions('principal:read', 'exams:read')
+  getPrincipalReportCardSignature() {
+    return this.adminCommandService.getPrincipalReportCardSignature();
+  }
+
+  @Post('principal/report-card-signature')
+  @RequiresModule('admin_command_centers', 'principal_dashboard', 'exams')
+  @Roles('principal', 'school_principal')
+  @Permissions('principal:write')
+  @UseInterceptors(StreamingUploadInterceptor('signature', 2 * 1024 * 1024))
+  uploadPrincipalReportCardSignature(
+    @UploadedFile() file: UploadFileMetadata,
+  ) {
+    return this.adminCommandService.uploadPrincipalReportCardSignature(file);
+  }
+
+  @Get('principal/report-card-signature/content')
+  @RequiresModule('admin_command_centers', 'principal_dashboard', 'exams')
+  @Roles('principal', 'school_principal')
+  @Permissions('principal:read', 'exams:read')
+  @SkipResponseEnvelope()
+  async getPrincipalReportCardSignatureContent() {
+    const signature = await this.adminCommandService.getPrincipalReportCardSignatureContent();
+
+    return new StreamableFile(signature.content, {
+      type: signature.mime_type,
+      disposition: `inline; filename="${signature.original_file_name}"`,
+      length: signature.size_bytes,
     });
   }
 

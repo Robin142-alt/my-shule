@@ -62,8 +62,11 @@ export interface ReportCardPayload {
     exam_series: string | null;
     class_teacher_comment: string | null;
     class_teacher_comment_source: string | null;
+    class_teacher_name: string | null;
+    class_teacher_signature_ref: string | null;
     principal_comment: string | null;
     principal_comment_source: string | null;
+    principal_name: string | null;
     principal_signature_ref: string | null;
     next_term_opening_date: string | null;
     conduct_summary: string | null;
@@ -169,12 +172,15 @@ export class ReportCardTemplateService {
           : generatedComments.classTeacher
             ? 'automated_performance_v1'
             : null,
+        class_teacher_name: text(comments.class_teacher_name) ?? text(student.class_teacher_name),
+        class_teacher_signature_ref: text(comments.class_teacher_signature_ref),
         principal_comment: principalComment ?? generatedComments.principal,
         principal_comment_source: principalComment
           ? text(comments.principal_source) ?? 'manual'
           : generatedComments.principal
             ? 'automated_performance_v1'
             : null,
+        principal_name: text(comments.principal_name),
         principal_signature_ref: text(comments.principal_signature_ref),
         next_term_opening_date: text(nextTerm.opening_date) ?? text(series.next_term_opening_date),
         conduct_summary: text(comments.conduct_summary),
@@ -206,6 +212,8 @@ export class ReportCardTemplateService {
     const conduct = fields.conduct_summary;
     const curriculumModel = recordText(series, 'curriculum_model', 'reporting_mode', 'curriculum');
     const logoSource = safeImageSource(fields.school_logo_ref);
+    const classTeacherSignatureSource = safeImageSource(fields.class_teacher_signature_ref);
+    const principalSignatureSource = safeImageSource(fields.principal_signature_ref);
     const schoolInitials = initials(fields.school_name);
     const generatedLabel = formatReportDate(payload.generated_at);
     const assessmentNames = [...new Set(payload.subjects.flatMap((subject) => (
@@ -311,7 +319,9 @@ export class ReportCardTemplateService {
     .comment b { color:var(--navy); font-size:2.2mm; }
     .comment p { margin:1mm 0 0; font-size:2.15mm; line-height:1.35; }
     .signatures { display:grid; grid-template-columns:1fr 1fr; gap:20mm; padding:1.5mm 16mm 1mm; text-align:center; }
-    .signature-line { height:7mm; border-bottom:.35mm solid var(--navy); font-size:2mm; color:var(--muted); }
+    .signature-line { height:9mm; border-bottom:.35mm solid var(--navy); display:flex; align-items:flex-end; justify-content:center; }
+    .signature-line img { display:block; max-width:42mm; max-height:8mm; object-fit:contain; }
+    .signature-name { min-height:3mm; margin-top:.7mm; color:var(--muted); font-size:1.9mm; }
     .signature-label { margin-top:1mm; color:var(--navy); font-size:2mm; font-weight:700; }
     .footer { display:flex; justify-content:space-between; align-items:center; margin-top:2mm; padding:1.8mm 3mm 0; border-top:.45mm solid var(--gold); color:var(--navy); font-size:1.9mm; }
     .empty-note { margin:3mm; color:var(--muted); font-size:2.1mm; }
@@ -387,8 +397,16 @@ export class ReportCardTemplateService {
         ${fields.principal_comment ? `<div class="comment"><b>Principal Comment</b><p>${escapeHtml(fields.principal_comment)}</p></div>` : ''}
       </div>
       <div class="signatures">
-        <div><div class="signature-line">${escapeHtml(recordText(student, 'class_teacher_name') ?? '')}</div><div class="signature-label">Class Teacher Signature</div></div>
-        <div><div class="signature-line"></div><div class="signature-label">Principal Signature</div></div>
+        <div>
+          <div class="signature-line">${classTeacherSignatureSource ? `<img src="${escapeHtml(classTeacherSignatureSource)}" alt="Class teacher signature">` : ''}</div>
+          <div class="signature-name">${escapeHtml(fields.class_teacher_name ?? '')}</div>
+          <div class="signature-label">Class Teacher Signature</div>
+        </div>
+        <div>
+          <div class="signature-line">${principalSignatureSource ? `<img src="${escapeHtml(principalSignatureSource)}" alt="Principal signature">` : ''}</div>
+          <div class="signature-name">${escapeHtml(fields.principal_name ?? '')}</div>
+          <div class="signature-label">Principal Signature</div>
+        </div>
       </div>
     </section>
 

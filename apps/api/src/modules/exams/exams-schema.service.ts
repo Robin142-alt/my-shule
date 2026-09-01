@@ -396,6 +396,26 @@ export class ExamsSchemaService implements OnModuleInit {
         CONSTRAINT ck_report_card_artifacts_size CHECK (byte_size > 0)
       );
 
+      CREATE TABLE IF NOT EXISTS exam_report_card_signatures (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,
+        signer_user_id uuid NOT NULL,
+        signer_role text NOT NULL,
+        storage_path text NOT NULL,
+        original_file_name text NOT NULL,
+        mime_type text NOT NULL,
+        size_bytes integer NOT NULL,
+        checksum_sha256 text NOT NULL,
+        uploaded_by_user_id uuid NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_exam_report_card_signatures_owner UNIQUE (tenant_id, signer_user_id, signer_role),
+        CONSTRAINT ck_exam_report_card_signatures_role CHECK (signer_role IN ('class_teacher', 'principal')),
+        CONSTRAINT ck_exam_report_card_signatures_mime CHECK (mime_type IN ('image/png', 'image/jpeg')),
+        CONSTRAINT ck_exam_report_card_signatures_size CHECK (size_bytes > 0 AND size_bytes <= 2097152),
+        CONSTRAINT ck_exam_report_card_signatures_checksum CHECK (checksum_sha256 ~ '^[a-f0-9]{64}$')
+      );
+
       CREATE TABLE IF NOT EXISTS academic_interventions (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
@@ -529,6 +549,7 @@ export class ExamsSchemaService implements OnModuleInit {
       DROP POLICY IF EXISTS report_card_generation_batches_tenant_policy ON report_card_generation_batches;
       DROP POLICY IF EXISTS exam_result_snapshots_tenant_policy ON exam_result_snapshots;
       DROP POLICY IF EXISTS report_card_artifacts_tenant_policy ON report_card_artifacts;
+      DROP POLICY IF EXISTS exam_report_card_signatures_tenant_policy ON exam_report_card_signatures;
       DROP POLICY IF EXISTS student_report_card_audit_logs_tenant_policy ON student_report_card_audit_logs;
       DROP POLICY IF EXISTS exam_mark_audit_logs_tenant_policy ON exam_mark_audit_logs;
       DROP POLICY IF EXISTS exam_settings_tenant_policy ON exam_settings;
@@ -1282,6 +1303,7 @@ export class ExamsSchemaService implements OnModuleInit {
       DROP POLICY IF EXISTS report_card_generation_batches_tenant_policy ON report_card_generation_batches;
       DROP POLICY IF EXISTS exam_result_snapshots_tenant_policy ON exam_result_snapshots;
       DROP POLICY IF EXISTS report_card_artifacts_tenant_policy ON report_card_artifacts;
+      DROP POLICY IF EXISTS exam_report_card_signatures_tenant_policy ON exam_report_card_signatures;
       DROP POLICY IF EXISTS student_report_card_audit_logs_tenant_policy ON student_report_card_audit_logs;
       DROP POLICY IF EXISTS exam_mark_audit_logs_tenant_policy ON exam_mark_audit_logs;
       DROP POLICY IF EXISTS exam_settings_tenant_policy ON exam_settings;
@@ -1313,6 +1335,7 @@ export class ExamsSchemaService implements OnModuleInit {
           'student_report_cards',
           'report_card_generation_batches',
           'report_card_artifacts',
+          'exam_report_card_signatures',
           'exam_result_snapshots',
           'exam_settings_audit_logs',
           'exam_mark_audit_logs',
@@ -1497,6 +1520,8 @@ export class ExamsSchemaService implements OnModuleInit {
       ALTER TABLE exam_result_snapshots FORCE ROW LEVEL SECURITY;
       ALTER TABLE report_card_artifacts ENABLE ROW LEVEL SECURITY;
       ALTER TABLE report_card_artifacts FORCE ROW LEVEL SECURITY;
+      ALTER TABLE exam_report_card_signatures ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE exam_report_card_signatures FORCE ROW LEVEL SECURITY;
       ALTER TABLE student_report_card_audit_logs ENABLE ROW LEVEL SECURITY;
       ALTER TABLE student_report_card_audit_logs FORCE ROW LEVEL SECURITY;
       ALTER TABLE exam_mark_audit_logs ENABLE ROW LEVEL SECURITY;
@@ -1600,6 +1625,11 @@ export class ExamsSchemaService implements OnModuleInit {
 
       DROP POLICY IF EXISTS report_card_artifacts_tenant_policy ON report_card_artifacts;
       CREATE POLICY report_card_artifacts_tenant_policy ON report_card_artifacts
+      FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+
+      DROP POLICY IF EXISTS exam_report_card_signatures_tenant_policy ON exam_report_card_signatures;
+      CREATE POLICY exam_report_card_signatures_tenant_policy ON exam_report_card_signatures
       FOR ALL USING (tenant_id = current_setting('app.tenant_id', true))
       WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
 

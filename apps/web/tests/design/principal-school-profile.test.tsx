@@ -67,6 +67,7 @@ describe("principal school profile", () => {
       const workspace = await screen.findByRole("region", { name: /Principal school profile workspace/i });
       expect(screen.getByRole("heading", { name: /^School Profile$/i })).toBeVisible();
       expect(await screen.findByRole("button", { name: /Upload logo/i })).toBeVisible();
+      expect(await screen.findByRole("button", { name: /Upload signature/i })).toBeVisible();
 
       const name = await screen.findByLabelText(/School name/i);
       await user.clear(name);

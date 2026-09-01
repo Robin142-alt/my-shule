@@ -1,45 +1,61 @@
 import type { DatabaseFileStorageService } from '../../../common/uploads/database-file-storage.service';
 import type { ReportCardPayload } from './report-card-template.service';
 
-type ReportCardLogoStorage = Pick<DatabaseFileStorageService, 'readForTenant'>;
+type ReportCardImageStorage = Pick<DatabaseFileStorageService, 'readForTenant'>;
 
 const IMAGE_MIME_TYPE_PATTERN = /^image\/(?:png|jpe?g)$/i;
 
 export async function hydrateReportCardLogoForRendering(
   payload: ReportCardPayload,
   tenantIdValue: string,
-  fileStorage?: ReportCardLogoStorage,
+  fileStorage?: ReportCardImageStorage,
+  options: { includePrincipalSignature?: boolean } = {},
 ): Promise<ReportCardPayload> {
   const clonedPayload: ReportCardPayload = {
     ...payload,
     template_fields: {
       ...payload.template_fields,
+      principal_signature_ref: options.includePrincipalSignature
+        ? payload.template_fields.principal_signature_ref
+        : null,
     },
   };
   const tenantId = tenantIdValue.trim();
-  const storagePath = payload.template_fields.school_logo_ref?.trim() ?? '';
-
-  if (!fileStorage || !isTenantScopedStoragePath(tenantId, storagePath)) {
+  if (!fileStorage) {
     return clonedPayload;
   }
 
-  let storedLogo: Awaited<ReturnType<ReportCardLogoStorage['readForTenant']>>;
-  try {
-    storedLogo = await fileStorage.readForTenant({ tenantId, storagePath });
-  } catch {
-    return clonedPayload;
+  const imageFields: Array<
+    'school_logo_ref' | 'class_teacher_signature_ref' | 'principal_signature_ref'
+  > = [
+    'school_logo_ref',
+    'class_teacher_signature_ref',
+  ];
+  if (options.includePrincipalSignature) {
+    imageFields.push('principal_signature_ref');
   }
-  const mimeType = storedLogo.mime_type.trim().toLowerCase();
+  await Promise.all(imageFields.map(async (field) => {
+    const storagePath = payload.template_fields[field]?.trim() ?? '';
+    if (!isTenantScopedStoragePath(tenantId, storagePath)) return;
 
-  if (
-    storedLogo.stored_path !== storagePath
-    || !IMAGE_MIME_TYPE_PATTERN.test(mimeType)
-  ) {
-    return clonedPayload;
-  }
+    let storedImage: Awaited<ReturnType<ReportCardImageStorage['readForTenant']>>;
+    try {
+      storedImage = await fileStorage.readForTenant({ tenantId, storagePath });
+    } catch {
+      return;
+    }
+    const mimeType = storedImage.mime_type.trim().toLowerCase();
 
-  clonedPayload.template_fields.school_logo_ref =
-    `data:${mimeType};base64,${storedLogo.content.toString('base64')}`;
+    if (
+      storedImage.stored_path !== storagePath
+      || !IMAGE_MIME_TYPE_PATTERN.test(mimeType)
+    ) {
+      return;
+    }
+
+    clonedPayload.template_fields[field] =
+      `data:${mimeType};base64,${storedImage.content.toString('base64')}`;
+  }));
 
   return clonedPayload;
 }

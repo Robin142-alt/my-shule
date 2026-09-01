@@ -61,6 +61,7 @@ export class ReportCardDownloadController {
       payload,
       tenantId,
       this.fileStorage,
+      { includePrincipalSignature: reportCard.status === 'published' },
     );
     const pdfArtifact = await createReportCardPdfArtifact(renderPayload, verificationCode);
 

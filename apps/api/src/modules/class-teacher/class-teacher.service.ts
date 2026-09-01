@@ -16,6 +16,7 @@ import {
 import { ExamsService } from '../exams/exams.service';
 import type { SaveTeacherMarksDto, TeacherMarkInput } from './dto/class-teacher.dto';
 import { RequestContextService } from '../../common/request-context/request-context.service';
+import type { UploadFileMetadata } from '../../common/uploads/upload-policy';
 
 @Injectable()
 export class ClassTeacherService {
@@ -1984,6 +1985,64 @@ export class ClassTeacherService {
       darkMode: payload.darkMode ?? false,
       updatedAt: rows[0]?.created_at ?? null,
     };
+  }
+
+  async uploadReportCardSignature(
+    tenantId: string,
+    userId: string,
+    streamId: string,
+    file: UploadFileMetadata,
+  ) {
+    await this.assertActiveClassTeacherClass(tenantId, userId, streamId);
+    if (!this.examsService) {
+      throw new ServiceUnavailableException('Report-card signature service is not available');
+    }
+
+    const result = await this.examsService.uploadOwnedReportCardSignature({
+      tenant_id: tenantId,
+      signer_user_id: userId,
+      signer_role: 'class_teacher',
+    }, file);
+
+    return {
+      ...result,
+      content_url: result.content_url
+        ? `${result.content_url}?streamId=${encodeURIComponent(streamId)}`
+        : null,
+    };
+  }
+
+  async getReportCardSignature(tenantId: string, userId: string, streamId: string) {
+    await this.assertActiveClassTeacherClass(tenantId, userId, streamId);
+    if (!this.examsService) {
+      throw new ServiceUnavailableException('Report-card signature service is not available');
+    }
+
+    const result = await this.examsService.getOwnedReportCardSignature({
+      tenant_id: tenantId,
+      signer_user_id: userId,
+      signer_role: 'class_teacher',
+    });
+
+    return {
+      ...result,
+      content_url: result.content_url
+        ? `${result.content_url}?streamId=${encodeURIComponent(streamId)}`
+        : null,
+    };
+  }
+
+  async getReportCardSignatureContent(tenantId: string, userId: string, streamId: string) {
+    await this.assertActiveClassTeacherClass(tenantId, userId, streamId);
+    if (!this.examsService) {
+      throw new ServiceUnavailableException('Report-card signature service is not available');
+    }
+
+    return this.examsService.readOwnedReportCardSignature({
+      tenant_id: tenantId,
+      signer_user_id: userId,
+      signer_role: 'class_teacher',
+    });
   }
 
   async saveSettings(tenantId: string, userId: string, streamId: string, payload: any) {

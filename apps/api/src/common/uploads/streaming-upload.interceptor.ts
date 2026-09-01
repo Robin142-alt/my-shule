@@ -5,9 +5,15 @@ import {
   supportFileFilter,
 } from './upload-policy';
 
-export function StreamingUploadInterceptor(fieldName = 'file') {
+export function StreamingUploadInterceptor(
+  fieldName = 'file',
+  fileSizeBytes = UPLOAD_FORM_LIMITS.fileSize,
+) {
   return FileInterceptor(fieldName, {
-    limits: UPLOAD_FORM_LIMITS,
+    limits: {
+      ...UPLOAD_FORM_LIMITS,
+      fileSize: fileSizeBytes,
+    },
     fileFilter: supportFileFilter,
   });
 }

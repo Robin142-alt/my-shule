@@ -7,6 +7,7 @@ import {
   Logger,
   NotFoundException,
   Optional,
+  ServiceUnavailableException,
   UnauthorizedException,
   forwardRef,
 } from '@nestjs/common';
@@ -49,6 +50,7 @@ import {
 } from './services/report-card-template.service';
 import { createReportCardPdfArtifact } from './services/report-card-pdf-artifact';
 import { hydrateReportCardLogoForRendering } from './services/report-card-logo-hydration';
+import { assertDecodableReportCardSignatureImage } from './services/report-card-signature-image';
 import type { ReportArtifact } from '../../common/reports/report-artifact';
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import { EventPublisherService } from '../events/event-publisher.service';
@@ -96,6 +98,8 @@ const REPORT_CARD_TRANSITION_ACTIONS = new Set([
 const PARENT_REPORT_CARD_DOWNLOAD_PURPOSE = 'exams.report_card.parent_download';
 const BULK_MARK_UPLOAD_MAX_ROWS = 500;
 const BULK_ATTENDANCE_IMPORT_MAX_ROWS = 500;
+const REPORT_CARD_SIGNATURE_MAX_BYTES = 2 * 1024 * 1024;
+type ReportCardSignerRole = 'class_teacher' | 'principal';
 const EXAM_STUDENT_CASE_TYPES = new Set([
   'exemption',
   'irregularity',
@@ -227,6 +231,166 @@ export class ExamsService {
     @Optional() private readonly reportCardTemplateService?: ReportCardTemplateService,
     @Optional() private readonly fileStorage?: DatabaseFileStorageService,
   ) {}
+
+  async uploadOwnedReportCardSignature(input: {
+    tenant_id: string;
+    signer_user_id: string;
+    signer_role: ReportCardSignerRole;
+  }, file: UploadFileMetadata) {
+    this.assertOwnedReportCardSignatureScope(input);
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('A signature image is required for upload');
+    }
+
+    const mimeType = file.mimetype.trim().toLowerCase();
+    if (mimeType !== 'image/png' && mimeType !== 'image/jpeg') {
+      throw new BadRequestException('Report-card signatures must be PNG or JPEG images');
+    }
+    validateUploadedFile({ ...file, size: file.buffer.length });
+    if (file.buffer.length > REPORT_CARD_SIGNATURE_MAX_BYTES) {
+      throw new BadRequestException('Report-card signature images must not exceed 2 MB');
+    }
+    await assertDecodableReportCardSignatureImage(file.buffer);
+    if (!this.fileStorage) {
+      throw new ServiceUnavailableException('Signature file storage is not available');
+    }
+
+    const checksum = createHash('sha256').update(file.buffer).digest('hex');
+    const extension = mimeType === 'image/png' ? 'png' : 'jpg';
+    const storagePath = [
+      'tenant',
+      input.tenant_id,
+      'exams',
+      'report-card-signatures',
+      input.signer_role,
+      input.signer_user_id,
+      `${Date.now()}-${checksum.slice(0, 16)}.${extension}`,
+    ].join('/');
+    const stored = await this.fileStorage.save({
+      tenantId: input.tenant_id,
+      storagePath,
+      originalFileName: file.originalname,
+      mimeType,
+      sizeBytes: file.buffer.length,
+      buffer: file.buffer,
+      metadata: {
+        owner_type: 'report_card_signature',
+        owner_user_id: input.signer_user_id,
+        signer_role: input.signer_role,
+      },
+      retentionPolicy: 'school-record',
+    });
+    const signature = await this.repository.upsertReportCardSignature({
+      tenant_id: input.tenant_id,
+      signer_user_id: input.signer_user_id,
+      signer_role: input.signer_role,
+      storage_path: stored.stored_path,
+      original_file_name: stored.original_file_name,
+      mime_type: mimeType,
+      size_bytes: stored.size_bytes,
+      checksum_sha256: stored.sha256,
+      uploaded_by_user_id: input.signer_user_id,
+    });
+
+    await this.repository.appendReportCardAuditLog({
+      tenant_id: input.tenant_id,
+      action: 'report_card.signature_uploaded',
+      actor_user_id: input.signer_user_id,
+      metadata: {
+        signer_role: input.signer_role,
+        signature_id: signature?.id ?? null,
+        checksum_sha256: stored.sha256,
+        mime_type: stored.mime_type,
+        size_bytes: stored.size_bytes,
+      },
+    });
+
+    return this.reportCardSignatureStatus(signature, input.signer_role);
+  }
+
+  async getOwnedReportCardSignature(input: {
+    tenant_id: string;
+    signer_user_id: string;
+    signer_role: ReportCardSignerRole;
+  }) {
+    this.assertOwnedReportCardSignatureScope(input);
+    const signature = await this.repository.getReportCardSignature(input);
+    return this.reportCardSignatureStatus(signature, input.signer_role);
+  }
+
+  async readOwnedReportCardSignature(input: {
+    tenant_id: string;
+    signer_user_id: string;
+    signer_role: ReportCardSignerRole;
+  }) {
+    this.assertOwnedReportCardSignatureScope(input);
+    if (!this.fileStorage) {
+      throw new ServiceUnavailableException('Signature file storage is not available');
+    }
+    const signature = await this.repository.getReportCardSignature(input);
+    const storagePath = typeof signature?.storage_path === 'string'
+      ? signature.storage_path.trim()
+      : '';
+    if (!storagePath) {
+      throw new NotFoundException('A report-card signature has not been uploaded');
+    }
+
+    try {
+      return await this.fileStorage.readForTenant({
+        tenantId: input.tenant_id,
+        storagePath,
+      });
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw new NotFoundException('The uploaded report-card signature could not be found');
+      }
+      throw error;
+    }
+  }
+
+  private reportCardSignatureStatus(
+    signature: Record<string, unknown> | null | undefined,
+    signerRole: ReportCardSignerRole,
+  ) {
+    const available = Boolean(signature?.storage_path);
+    const contentUrl = signerRole === 'principal'
+      ? '/api/admin-command/principal/report-card-signature/content'
+      : '/api/class-teacher/report-card-signature/content';
+
+    return {
+      available,
+      signer_role: signerRole,
+      content_url: available ? contentUrl : null,
+      mime_type: available ? signature?.mime_type ?? null : null,
+      size_bytes: available ? Number(signature?.size_bytes ?? 0) : 0,
+      checksum_sha256: available ? signature?.checksum_sha256 ?? null : null,
+      updated_at: available ? signature?.updated_at ?? null : null,
+    };
+  }
+
+  private assertOwnedReportCardSignatureScope(input: {
+    tenant_id: string;
+    signer_user_id: string;
+    signer_role: ReportCardSignerRole;
+  }): void {
+    const tenantId = this.requireTenantId();
+    const userId = this.requireUserId();
+    if (input.tenant_id !== tenantId || input.signer_user_id !== userId) {
+      throw new ForbiddenException(
+        'Report-card signatures can only be managed by their authenticated owner in the current school',
+      );
+    }
+
+    const role = this.currentRole();
+    const roleAllowed = input.signer_role === 'principal'
+      ? PRINCIPAL_RELEASE_ROLES.has(role)
+      : role === 'class_teacher' || role === 'teacher';
+    if (!roleAllowed) {
+      throw new ForbiddenException(
+        `An active ${input.signer_role === 'principal' ? 'Principal' : 'class-teacher'} role is required to manage this signature`,
+      );
+    }
+  }
 
   async getDashboard() {
     const tenantId = this.requireTenantId();
@@ -3236,6 +3400,7 @@ export class ExamsService {
       payload,
       tenantId,
       this.fileStorage,
+      { includePrincipalSignature: reportCard.status === 'published' },
     );
 
     return createReportCardPdfArtifact(renderPayload, verificationCode);

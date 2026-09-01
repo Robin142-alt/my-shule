@@ -510,7 +510,6 @@ function drawCommentsAndSignatures(document: PDFKit.PDFDocument, payload: Report
   drawSectionTitle(document, 'COMMENTS', MARGIN + 12, y + 8);
   const commentsY = y + 26;
   const fields = payload.template_fields;
-  const student = asRecord(payload.student);
 
   const commentHeight = Math.max(42, Math.min(96, height - 58));
   const comments: Array<[string, string | null]> = [
@@ -523,8 +522,24 @@ function drawCommentsAndSignatures(document: PDFKit.PDFDocument, payload: Report
     drawComment(document, MARGIN + 8 + (index * (availableCommentWidth + 12)), commentsY, availableCommentWidth, commentHeight, label, comment);
   });
   const signatureY = y + height - 25;
-  drawSignature(document, MARGIN + 80, signatureY, 130, recordText(student, 'class_teacher_name') ?? '', 'Class Teacher Signature');
-  drawSignature(document, PAGE_WIDTH - MARGIN - 210, signatureY, 130, '', 'Principal Signature');
+  drawSignature(
+    document,
+    MARGIN + 80,
+    signatureY,
+    130,
+    fields.class_teacher_name ?? '',
+    'Class Teacher Signature',
+    fields.class_teacher_signature_ref,
+  );
+  drawSignature(
+    document,
+    PAGE_WIDTH - MARGIN - 210,
+    signatureY,
+    130,
+    fields.principal_name ?? '',
+    'Principal Signature',
+    fields.principal_signature_ref,
+  );
 }
 
 function drawComment(document: PDFKit.PDFDocument, x: number, y: number, width: number, height: number, label: string, comment: string) {
@@ -538,10 +553,26 @@ function drawComment(document: PDFKit.PDFDocument, x: number, y: number, width: 
   });
 }
 
-function drawSignature(document: PDFKit.PDFDocument, x: number, y: number, width: number, name: string, label: string) {
-  document.font('Helvetica').fontSize(6).fillColor(MUTED).text(name, x, y - 8, { width, align: 'center', ellipsis: true, lineBreak: false });
+function drawSignature(
+  document: PDFKit.PDFDocument,
+  x: number,
+  y: number,
+  width: number,
+  name: string,
+  label: string,
+  imageRef: string | null,
+) {
+  const image = dataImage(imageRef);
+  if (image) {
+    try {
+      document.image(image, x, y - 24, { fit: [width, 21], align: 'center', valign: 'bottom' });
+    } catch {
+      // Invalid image bytes must not prevent a real report card from rendering.
+    }
+  }
   document.moveTo(x, y).lineTo(x + width, y).lineWidth(0.6).strokeColor(NAVY).stroke();
-  document.font('Helvetica-Bold').fontSize(6).fillColor(NAVY).text(label, x, y + 4, { width, align: 'center', lineBreak: false });
+  document.font('Helvetica').fontSize(5.4).fillColor(MUTED).text(name, x, y + 3, { width, align: 'center', ellipsis: true, lineBreak: false });
+  document.font('Helvetica-Bold').fontSize(6).fillColor(NAVY).text(label, x, y + 10, { width, align: 'center', lineBreak: false });
 }
 
 function drawFooter(document: PDFKit.PDFDocument, verificationCode: string, generatedAt: string) {

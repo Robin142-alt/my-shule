@@ -703,6 +703,42 @@ export class AdminCommandService {
     }
   }
 
+  async uploadPrincipalReportCardSignature(file: UploadFileMetadata) {
+    if (!this.examsService) {
+      throw new ServiceUnavailableException('Report-card signature service is not available');
+    }
+
+    return this.examsService.uploadOwnedReportCardSignature({
+      tenant_id: this.requireTenantId(),
+      signer_user_id: this.requireUserId(),
+      signer_role: 'principal',
+    }, file);
+  }
+
+  async getPrincipalReportCardSignature() {
+    if (!this.examsService) {
+      throw new ServiceUnavailableException('Report-card signature service is not available');
+    }
+
+    return this.examsService.getOwnedReportCardSignature({
+      tenant_id: this.requireTenantId(),
+      signer_user_id: this.requireUserId(),
+      signer_role: 'principal',
+    });
+  }
+
+  async getPrincipalReportCardSignatureContent() {
+    if (!this.examsService) {
+      throw new ServiceUnavailableException('Report-card signature service is not available');
+    }
+
+    return this.examsService.readOwnedReportCardSignature({
+      tenant_id: this.requireTenantId(),
+      signer_user_id: this.requireUserId(),
+      signer_role: 'principal',
+    });
+  }
+
   private async audit(
     action: string,
     entityType: string,

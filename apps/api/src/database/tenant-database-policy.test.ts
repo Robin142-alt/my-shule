@@ -41,6 +41,20 @@ test('buildTenantDatabasePolicy requires tenant tables only for active school mo
   assert.equal(policy.requiredTables.every((table) => table.requiresTenantId), true);
 });
 
+test('buildTenantDatabasePolicy includes report-card signatures in the active exams tenant boundary', () => {
+  const policy = buildTenantDatabasePolicy({
+    activeModules: ['exams'],
+  });
+
+  const signatureTable = policy.requiredTables.find(
+    (table) => table.name === 'exam_report_card_signatures',
+  );
+
+  assert.equal(signatureTable?.moduleCode, 'exams');
+  assert.equal(signatureTable?.requiresTenantId, true);
+  assert.equal(signatureTable?.requiresForcedRls, true);
+});
+
 test('evaluateTenantSchemaSnapshot flags missing tenant ids, missing RLS, and weak encryption', () => {
   const policy = buildTenantDatabasePolicy({
     activeModules: ['students', 'finance'],

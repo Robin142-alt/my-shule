@@ -1139,6 +1139,12 @@ describe("dashboard action contract safety", () => {
     expect(tasksSource).not.toMatch(/Task creation action recorded/);
     expect(settingsRouteSource).toMatch(/saveClassTeacherSettings/);
     expect(settingsRouteSource).toMatch(/useSaveClassTeacherSettings/);
+    expect(settingsRouteSource).toMatch(/useClassTeacherReportCardSignature/);
+    expect(settingsRouteSource).toMatch(/useUploadClassTeacherReportCardSignature/);
+    expect(streamHookSource).toMatch(/class-teacher\/report-card-signature\?streamId=/);
+    expect(classTeacherControllerSource).toMatch(/@Post\('report-card-signature'\)/);
+    expect(classTeacherServiceSource).toMatch(/uploadReportCardSignature/);
+    expect(classTeacherServiceSource).toMatch(/assertActiveClassTeacherClass\(tenantId, userId, streamId\)/);
     expect(settingsRouteSource).not.toMatch(/Settings save review recorded/);
     expect(settingsRouteSource).not.toMatch(/preferences require persisted user settings/);
     expect(classTeacherControllerSource).toMatch(/@Post\('settings'\)/);

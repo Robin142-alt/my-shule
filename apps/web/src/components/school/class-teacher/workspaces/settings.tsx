@@ -1,15 +1,26 @@
-import { Settings } from "lucide-react";
-import { useEffect, useState } from "react";
+import { CheckCircle2, Loader2, PenTool, Settings, Upload } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Panel } from "../shared";
-import { useClassTeacherSettings, useResolvedClassTeacherStreamId, useSaveClassTeacherSettings } from "@/lib/data/class-teacher-hooks";
+import {
+  useClassTeacherReportCardSignature,
+  useClassTeacherSettings,
+  useResolvedClassTeacherStreamId,
+  useSaveClassTeacherSettings,
+  useUploadClassTeacherReportCardSignature,
+} from "@/lib/data/class-teacher-hooks";
 
 export function SettingsWorkspace() {
   const { streamId } = useResolvedClassTeacherStreamId();
   const { data, isLoading, error } = useClassTeacherSettings(streamId);
   const saveClassTeacherSettings = useSaveClassTeacherSettings(streamId);
+  const signatureQuery = useClassTeacherReportCardSignature(streamId);
+  const uploadSignature = useUploadClassTeacherReportCardSignature(streamId);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [defaultView, setDefaultView] = useState("Overview");
+  const signatureInputRef = useRef<HTMLInputElement>(null);
+  const [signatureError, setSignatureError] = useState<string | null>(null);
+  const [failedSignatureVersion, setFailedSignatureVersion] = useState<string | null>(null);
 
   useEffect(() => {
     const safeData = data as any;
@@ -30,6 +41,32 @@ export function SettingsWorkspace() {
     }
   }
 
+  async function handleSignatureUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    if (!file) return;
+    setSignatureError(null);
+    if (!['image/png', 'image/jpeg'].includes(file.type)) {
+      setSignatureError('Choose a PNG or JPEG signature image.');
+      event.currentTarget.value = '';
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setSignatureError('Signature images must not exceed 2 MB.');
+      event.currentTarget.value = '';
+      return;
+    }
+
+    try {
+      await uploadSignature.mutateAsync(file);
+      setFailedSignatureVersion(null);
+      toast.success('Your signature will be placed automatically on newly generated report cards.');
+    } catch (caught) {
+      setSignatureError(caught instanceof Error ? caught.message : 'Signature could not be uploaded.');
+    } finally {
+      if (signatureInputRef.current) signatureInputRef.current.value = '';
+    }
+  }
+
   if (isLoading) {
     return (
       <Panel title="Settings" description="Manage your preferences and workspace settings." icon={Settings}>
@@ -47,6 +84,11 @@ export function SettingsWorkspace() {
   }
 
   const safeData = data as any;
+  const signature = signatureQuery.data;
+  const signatureVersion = signature?.updated_at ?? signature?.checksum_sha256 ?? '';
+  const signatureSource = signature?.content_url
+    ? `${signature.content_url}${signature.content_url.includes('?') ? '&' : '?'}v=${encodeURIComponent(signatureVersion)}`
+    : null;
   return (
     <Panel title="Settings" description="Manage your preferences and workspace settings." icon={Settings}>
       <div className="space-y-6">
@@ -72,6 +114,66 @@ export function SettingsWorkspace() {
               {saveClassTeacherSettings.isPending ? "Saving..." : "Save Changes"}
             </button>
           </div>
+        </section>
+        <section className="rounded-xl border border-[#D8E0EC] bg-white p-6">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="flex h-16 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#D8E0EC] bg-[#F8FAFC]">
+                {signatureSource && failedSignatureVersion !== signatureVersion ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={signatureSource}
+                    alt="Your report-card signature"
+                    className="max-h-14 max-w-20 object-contain"
+                    onError={() => setFailedSignatureVersion(signatureVersion)}
+                  />
+                ) : (
+                  <PenTool className="h-7 w-7 text-[#64748B]" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-bold text-[#071D49]">Report-card signature</h3>
+                <p className="mt-1 text-sm font-semibold text-[#64748B]">
+                  Upload your own signature once. It is school-scoped and placed automatically on report cards for your active class-teacher appointment.
+                </p>
+                {signature?.available ? (
+                  <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-black text-emerald-700">
+                    <CheckCircle2 className="h-4 w-4" /> Ready for report generation
+                    {signature.updated_at ? ` · Updated ${new Date(signature.updated_at).toLocaleString('en-KE')}` : ''}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            <div className="shrink-0">
+              <input
+                ref={signatureInputRef}
+                type="file"
+                accept="image/png,image/jpeg"
+                className="hidden"
+                onChange={handleSignatureUpload}
+              />
+              <button
+                type="button"
+                disabled={!streamId || uploadSignature.isPending}
+                onClick={() => signatureInputRef.current?.click()}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#071D49] px-4 py-2.5 text-sm font-black text-white disabled:opacity-50 sm:w-auto"
+              >
+                {uploadSignature.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                {uploadSignature.isPending ? 'Uploading...' : signature?.available ? 'Replace signature' : 'Upload signature'}
+              </button>
+            </div>
+          </div>
+          {signatureQuery.isError ? (
+            <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-700">
+              <span>Signature status could not be loaded.</span>
+              <button type="button" onClick={() => void signatureQuery.refetch()} className="rounded-lg border border-rose-300 bg-white px-3 py-2 text-xs font-black text-rose-700">
+                Retry signature
+              </button>
+            </div>
+          ) : null}
+          {signatureError ? (
+            <p role="alert" className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-700">{signatureError}</p>
+          ) : null}
         </section>
       </div>
     </Panel>

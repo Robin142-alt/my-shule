@@ -2101,7 +2101,9 @@ export class ExamsRepository {
           student.status,
           class_section.name AS class_name,
           stream.name AS stream_name,
-          class_teacher.class_teacher_name
+          class_teacher.class_teacher_name,
+          class_teacher.class_teacher_user_id,
+          class_teacher.class_teacher_signature_ref
         FROM students student
         LEFT JOIN exam_series series
           ON series.tenant_id = student.tenant_id
@@ -2126,17 +2128,24 @@ export class ExamsRepository {
           ON stream.tenant_id = assignment.tenant_id
          AND stream.id = assignment.stream_id
         LEFT JOIN LATERAL (
-          SELECT COALESCE(
-            NULLIF(staff.full_name, ''),
-            NULLIF(staff.display_name, ''),
-            NULLIF(staff.preferred_name, ''),
-            NULLIF(staff.email, ''),
-            NULLIF(staff.staff_number, '')
-          ) AS class_teacher_name
+          SELECT
+            COALESCE(
+              NULLIF(staff.full_name, ''),
+              NULLIF(staff.display_name, ''),
+              NULLIF(staff.preferred_name, ''),
+              NULLIF(staff.email, ''),
+              NULLIF(staff.staff_number, '')
+            ) AS class_teacher_name,
+            appointment.teacher_user_id::text AS class_teacher_user_id,
+            signature.storage_path AS class_teacher_signature_ref
           FROM academics_class_teachers appointment
           JOIN staff_profiles staff
             ON staff.tenant_id = appointment.tenant_id
            AND staff.user_id = appointment.teacher_user_id
+          LEFT JOIN exam_report_card_signatures signature
+            ON signature.tenant_id = appointment.tenant_id
+           AND signature.signer_user_id = appointment.teacher_user_id
+           AND signature.signer_role = 'class_teacher'
           WHERE appointment.tenant_id = student.tenant_id
             AND appointment.academic_year_id::text = term.academic_year_id::text
             AND appointment.class_section_id::text = assignment.class_section_id::text
@@ -2152,6 +2161,57 @@ export class ExamsRepository {
         LIMIT 1
       `,
       [input.tenant_id, input.student_id, input.exam_series_id],
+    );
+    const principalResult = await this.executeSql(
+      `
+        SELECT
+          signature.signer_user_id::text AS principal_user_id,
+          signature.storage_path AS principal_signature_ref,
+          COALESCE(
+            NULLIF(staff.full_name, ''),
+            NULLIF(staff.display_name, ''),
+            NULLIF(account.full_name, ''),
+            NULLIF(account.display_name, ''),
+            NULLIF(account.email, '')
+          ) AS principal_name
+        FROM exam_report_card_signatures signature
+        JOIN users account
+          ON account.id = signature.signer_user_id
+         AND account.status = 'active'
+        LEFT JOIN staff_profiles staff
+          ON staff.tenant_id = signature.tenant_id
+         AND staff.user_id = signature.signer_user_id
+        WHERE signature.tenant_id = $1
+          AND signature.signer_role = 'principal'
+          AND (
+            EXISTS (
+              SELECT 1
+              FROM tenant_memberships membership
+              JOIN roles role
+                ON role.tenant_id = membership.tenant_id
+               AND role.id = membership.role_id
+              WHERE membership.tenant_id = signature.tenant_id
+                AND membership.user_id = signature.signer_user_id
+                AND membership.status = 'active'
+                AND role.code IN ('principal', 'school_principal')
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM user_roles user_role
+              JOIN roles role
+                ON role.tenant_id = user_role.tenant_id
+               AND role.id = user_role.role_id
+              WHERE user_role.tenant_id = signature.tenant_id
+                AND user_role.user_id = signature.signer_user_id
+                AND upper(user_role.status::text) = 'ACTIVE'
+                AND user_role.deleted_at IS NULL
+                AND role.code IN ('principal', 'school_principal')
+            )
+          )
+        ORDER BY signature.updated_at DESC
+        LIMIT 1
+      `,
+      [input.tenant_id],
     );
     const commentsResult = await this.executeSql(
       `
@@ -2385,7 +2445,13 @@ export class ExamsRepository {
     );
     const schoolPolicyResult = await this.executeSql(
       `
-        SELECT settings.show_rank, settings.show_attendance, settings.configuration
+        SELECT settings.show_rank, settings.show_attendance, settings.configuration,
+          COALESCE((
+            SELECT exam_settings.include_principal_signature
+            FROM exam_settings
+            WHERE exam_settings.tenant_id = settings.tenant_id
+            LIMIT 1
+          ), TRUE) AS include_principal_signature
         FROM academics_report_card_settings settings
         WHERE settings.tenant_id = $1
           AND settings.is_active = TRUE
@@ -2507,11 +2573,14 @@ export class ExamsRepository {
     const submittedClassTeacherComment = typeof commentRow.submitted_class_teacher_comment === 'string'
       ? commentRow.submitted_class_teacher_comment.trim()
       : '';
+    const studentRow = studentResult.rows[0] ?? null;
+    const principalRow = principalResult.rows[0] ?? null;
+    const includePrincipalSignature = schoolPolicyResult.rows[0]?.include_principal_signature !== false;
 
     return {
       school: schoolResult.rows[0] ?? null,
       exam_series: seriesResult.rows[0] ?? null,
-      student: studentResult.rows[0] ?? null,
+      student: studentRow,
       grading_policy: gradingPolicyResult.rows[0]
         ?? normalizeAcademicGradingPolicy(academicGradingSystem),
       subjects,
@@ -2539,6 +2608,12 @@ export class ExamsRepository {
             : null,
         principal: manualPrincipalComment || null,
         principal_source: manualPrincipalComment ? 'manual' : null,
+        class_teacher_name: studentRow?.class_teacher_name ?? null,
+        class_teacher_signature_ref: studentRow?.class_teacher_signature_ref ?? null,
+        principal_name: principalRow?.principal_name ?? null,
+        principal_signature_ref: includePrincipalSignature
+          ? principalRow?.principal_signature_ref ?? null
+          : null,
       },
       analytics: {
         term_history: termHistoryResult.rows,
@@ -3138,6 +3213,98 @@ export class ExamsRepository {
         JSON.stringify(input.metadata ?? {}),
       ],
     );
+  }
+
+  async upsertReportCardSignature(input: {
+    tenant_id: string;
+    signer_user_id: string;
+    signer_role: 'class_teacher' | 'principal';
+    storage_path: string;
+    original_file_name: string;
+    mime_type: 'image/png' | 'image/jpeg';
+    size_bytes: number;
+    checksum_sha256: string;
+    uploaded_by_user_id: string;
+  }) {
+    const result = await this.executeSql(
+      `
+        INSERT INTO exam_report_card_signatures (
+          tenant_id,
+          signer_user_id,
+          signer_role,
+          storage_path,
+          original_file_name,
+          mime_type,
+          size_bytes,
+          checksum_sha256,
+          uploaded_by_user_id
+        )
+        VALUES ($1, $2::uuid, $3, $4, $5, $6, $7, $8, $9::uuid)
+        ON CONFLICT (tenant_id, signer_user_id, signer_role)
+        DO UPDATE SET
+          storage_path = EXCLUDED.storage_path,
+          original_file_name = EXCLUDED.original_file_name,
+          mime_type = EXCLUDED.mime_type,
+          size_bytes = EXCLUDED.size_bytes,
+          checksum_sha256 = EXCLUDED.checksum_sha256,
+          uploaded_by_user_id = EXCLUDED.uploaded_by_user_id,
+          updated_at = NOW()
+        RETURNING
+          id::text,
+          signer_user_id::text,
+          signer_role,
+          storage_path,
+          original_file_name,
+          mime_type,
+          size_bytes,
+          checksum_sha256,
+          created_at::text,
+          updated_at::text
+      `,
+      [
+        input.tenant_id,
+        input.signer_user_id,
+        input.signer_role,
+        input.storage_path,
+        input.original_file_name,
+        input.mime_type,
+        input.size_bytes,
+        input.checksum_sha256,
+        input.uploaded_by_user_id,
+      ],
+    );
+
+    return result.rows[0];
+  }
+
+  async getReportCardSignature(input: {
+    tenant_id: string;
+    signer_user_id: string;
+    signer_role: 'class_teacher' | 'principal';
+  }) {
+    const result = await this.executeSql(
+      `
+        SELECT
+          signature.id::text,
+          signature.signer_user_id::text,
+          signature.signer_role,
+          signature.storage_path,
+          signature.original_file_name,
+          signature.mime_type,
+          signature.size_bytes,
+          signature.checksum_sha256,
+          signature.created_at::text,
+          signature.updated_at::text
+        FROM exam_report_card_signatures signature
+        WHERE signature.tenant_id = $1
+          AND signature.signer_user_id = $2::uuid
+          AND signature.signer_role = $3
+        LIMIT 1
+      `,
+      [input.tenant_id, input.signer_user_id, input.signer_role],
+    );
+
+    return result.rows[0] ?? null;
   }
 
   async getExamSettings(tenantId: string) {

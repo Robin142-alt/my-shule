@@ -83,6 +83,25 @@ test('report-card HTML uses the approved branded information hierarchy', () => {
   assert.doesNotMatch(html, /Not recorded|History unavailable|No marks entered/i);
 });
 
+test('report-card HTML and PDF place the uploaded role-owned signatures and real signer names', async () => {
+  const payload = referencePayload();
+  const signature = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+  payload.template_fields.class_teacher_name = 'Ms. Wanjiku';
+  payload.template_fields.class_teacher_signature_ref = signature;
+  payload.template_fields.principal_name = 'Dr. Kamau';
+  payload.template_fields.principal_signature_ref = signature;
+
+  const html = new ReportCardTemplateService().renderHtml(payload, 'RC-2026-0001').toString('utf8');
+  assert.match(html, /alt="Class teacher signature"/);
+  assert.match(html, /alt="Principal signature"/);
+  assert.match(html, /Ms\. Wanjiku/);
+  assert.match(html, /Dr\. Kamau/);
+
+  const pdf = await createReportCardPdfArtifact(payload, 'RC-2026-0001');
+  assert.equal(pdf.content.subarray(0, 5).toString('ascii'), '%PDF-');
+  assert.ok(pdf.byteLength > 4_000);
+});
+
 test('report-card PDF remains a single A4 page with all learner rows represented', async () => {
   const artifact = await createReportCardPdfArtifact(referencePayload(), 'RC-2026-0001');
   const pdfSource = artifact.content.toString('latin1');
@@ -175,4 +194,68 @@ test('report-card renderer embeds only the current tenant uploaded school logo',
   });
   assert.equal(reads, 1);
   assert.equal(crossTenant.template_fields.school_logo_ref, payload.template_fields.school_logo_ref);
+});
+
+test('report-card renderer hydrates class-teacher and Principal signatures only from the current tenant', async () => {
+  const payload = referencePayload();
+  payload.template_fields.class_teacher_signature_ref = 'tenant/tenant-a/exams/report-card-signatures/class_teacher/teacher-a/signature.png';
+  payload.template_fields.principal_signature_ref = 'tenant/tenant-a/exams/report-card-signatures/principal/principal-a/signature.jpg';
+  const reads: string[] = [];
+  const hydrated = await hydrateReportCardLogoForRendering(payload, 'tenant-a', {
+    readForTenant: async ({ storagePath }: { tenantId: string; storagePath: string }) => {
+      reads.push(storagePath);
+      return {
+        stored_path: storagePath,
+        original_file_name: storagePath.endsWith('.jpg') ? 'signature.jpg' : 'signature.png',
+        mime_type: storagePath.endsWith('.jpg') ? 'image/jpeg' : 'image/png',
+        size_bytes: 3,
+        sha256: 'hash',
+        storage_backend: 'database',
+        retention_policy: 'school-record',
+        retention_expires_at: null,
+        content: Buffer.from([1, 2, 3]),
+      };
+    },
+  }, { includePrincipalSignature: true });
+
+  assert.equal(reads.length, 2);
+  assert.match(hydrated.template_fields.class_teacher_signature_ref ?? '', /^data:image\/png;base64,/);
+  assert.match(hydrated.template_fields.principal_signature_ref ?? '', /^data:image\/jpeg;base64,/);
+
+  let crossTenantReads = 0;
+  await hydrateReportCardLogoForRendering(payload, 'tenant-b', {
+    readForTenant: async () => {
+      crossTenantReads += 1;
+      throw new Error('must not read across tenants');
+    },
+  }, { includePrincipalSignature: true });
+  assert.equal(crossTenantReads, 0);
+});
+
+test('report-card drafts omit the Principal signature until the Principal releases the report', async () => {
+  const payload = referencePayload();
+  payload.template_fields.class_teacher_signature_ref = 'tenant/tenant-a/exams/report-card-signatures/class_teacher/teacher-a/signature.png';
+  payload.template_fields.principal_signature_ref = 'tenant/tenant-a/exams/report-card-signatures/principal/principal-a/signature.png';
+  const reads: string[] = [];
+  const hydrated = await hydrateReportCardLogoForRendering(payload, 'tenant-a', {
+    readForTenant: async ({ storagePath }: { tenantId: string; storagePath: string }) => {
+      reads.push(storagePath);
+      return {
+        stored_path: storagePath,
+        original_file_name: 'signature.png',
+        mime_type: 'image/png',
+        size_bytes: 3,
+        sha256: 'hash',
+        storage_backend: 'database',
+        retention_policy: 'school-record',
+        retention_expires_at: null,
+        content: Buffer.from([1, 2, 3]),
+      };
+    },
+  });
+
+  assert.equal(reads.length, 1);
+  assert.match(hydrated.template_fields.class_teacher_signature_ref ?? '', /^data:image\/png;base64,/);
+  assert.equal(hydrated.template_fields.principal_signature_ref, null);
+  assert.equal(payload.template_fields.principal_signature_ref, 'tenant/tenant-a/exams/report-card-signatures/principal/principal-a/signature.png');
 });

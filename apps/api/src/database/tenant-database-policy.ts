@@ -80,7 +80,12 @@ const MODULE_TABLES: Record<string, readonly string[]> = {
   admissions: ['admission_applications', 'admission_workflow_steps'],
   academics: ['academic_years', 'academic_terms', 'classes', 'streams', 'subjects'],
   finance: ['fee_structures', 'invoices', 'usage_records', 'manual_fee_payments'],
-  exams: ['exam_series', 'exam_marks', 'student_report_cards'],
+  exams: [
+    'exam_series',
+    'exam_marks',
+    'student_report_cards',
+    'exam_report_card_signatures',
+  ],
   discipline: ['discipline_incidents', 'discipline_actions', 'counselling_sessions'],
   timetable: ['timetable_periods', 'timetable_lessons', 'lesson_substitutions'],
   lab_management: ['lab_inventory', 'lab_sessions', 'lab_hazard_logs'],

@@ -106,6 +106,29 @@ test('ClassTeacherService saves class-teacher settings as tenant and stream scop
   assert.equal(settingsInsert.params[3], 'class_teacher.settings_saved');
 });
 
+test('ClassTeacherService requires an active class-teacher appointment before exposing a report signature', async () => {
+  let signatureRead = false;
+  const service = new ClassTeacherService(
+    {
+      query: async () => ({ rows: [], rowCount: 0 }),
+    } as never,
+    {} as never,
+    {
+      getOwnedReportCardSignature: async () => {
+        signatureRead = true;
+        return { available: false };
+      },
+    } as never,
+    { getStore: () => ({ role: 'teacher' }) } as never,
+  );
+
+  await assert.rejects(
+    () => service.getReportCardSignature('tenant-a', 'teacher-a', 'stream-a'),
+    /active class-teacher appointment/,
+  );
+  assert.equal(signatureRead, false);
+});
+
 test('ClassTeacherService publishes attendance counts from submitted attendance values', async () => {
   const queries: Array<{ sql: string; params: unknown[] }> = [];
   const transactionQueries: Array<{ sql: string; params: unknown[] }> = [];

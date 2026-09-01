@@ -78,6 +78,8 @@ test('ExamsSchemaService creates grading policy, mark version, report-card workf
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS report_card_generation_batches/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS exam_result_snapshots/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS report_card_artifacts/);
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS exam_report_card_signatures/);
+  assert.match(schemaSql, /uq_exam_report_card_signatures_owner/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academic_interventions/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academic_intervention_updates/);
   assert.match(schemaSql, /draft_requested/);
@@ -88,6 +90,8 @@ test('ExamsSchemaService creates grading policy, mark version, report-card workf
   assert.match(schemaSql, /CREATE POLICY exam_result_snapshots_tenant_policy ON exam_result_snapshots/);
   assert.match(schemaSql, /ALTER TABLE exam_settings FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /CREATE POLICY exam_settings_tenant_policy ON exam_settings/);
+  assert.match(schemaSql, /ALTER TABLE exam_report_card_signatures FORCE ROW LEVEL SECURITY/);
+  assert.match(schemaSql, /CREATE POLICY exam_report_card_signatures_tenant_policy ON exam_report_card_signatures/);
   assert.match(schemaSql, /CREATE POLICY exam_mark_import_batches_tenant_policy ON exam_mark_import_batches/);
   assert.match(schemaSql, /CREATE POLICY exam_mark_import_batch_items_tenant_policy ON exam_mark_import_batch_items/);
   assert.match(schemaSql, /ALTER TABLE academic_interventions FORCE ROW LEVEL SECURITY/);
@@ -5429,4 +5433,125 @@ test('personalized report-card comments use only real learner results and remain
     termHistory: [],
   });
   assert.deepEqual(noScores, { classTeacher: null, principal: null });
+});
+
+test('report-card signature upload is tenant scoped, role owned, persisted, and audited', async () => {
+  const calls: Array<{ name: string; input: Record<string, unknown> }> = [];
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+  const signerUserId = '11111111-1111-4111-8111-111111111111';
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: signerUserId, role: 'principal' }) } as never,
+    {
+      upsertReportCardSignature: async (input: Record<string, unknown>) => {
+        calls.push({ name: 'upsert', input });
+        return { id: 'signature-1', ...input, updated_at: '2026-09-01T08:00:00.000Z' };
+      },
+      appendReportCardAuditLog: async (input: Record<string, unknown>) => {
+        calls.push({ name: 'audit', input });
+      },
+    } as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    {
+      save: async (input: Record<string, unknown>) => {
+        calls.push({ name: 'store', input });
+        return {
+          stored_path: input.storagePath,
+          original_file_name: input.originalFileName,
+          mime_type: input.mimeType,
+          size_bytes: input.sizeBytes,
+          sha256: 'a'.repeat(64),
+          storage_backend: 'database',
+          retention_policy: 'school-record',
+          retention_expires_at: null,
+        };
+      },
+    } as never,
+  );
+
+  const result = await service.uploadOwnedReportCardSignature({
+    tenant_id: 'tenant-a',
+    signer_user_id: signerUserId,
+    signer_role: 'principal',
+  }, {
+    originalname: 'signature.png',
+    mimetype: 'image/png',
+    size: png.length,
+    buffer: png,
+  });
+
+  assert.equal(result.available, true);
+  assert.equal(result.content_url, '/api/admin-command/principal/report-card-signature/content');
+  assert.deepEqual(calls.map((call) => call.name), ['store', 'upsert', 'audit']);
+  assert.match(String(calls[0]?.input.storagePath), /^tenant\/tenant-a\/exams\/report-card-signatures\/principal\//);
+  assert.equal(calls[1]?.input.tenant_id, 'tenant-a');
+  assert.equal(calls[1]?.input.signer_user_id, signerUserId);
+  assert.equal(calls[2]?.input.action, 'report_card.signature_uploaded');
+});
+
+test('report-card signature ownership cannot cross the authenticated user or school', async () => {
+  let queried = false;
+  const signerUserId = '11111111-1111-4111-8111-111111111111';
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: signerUserId, role: 'principal' }) } as never,
+    {
+      getReportCardSignature: async () => {
+        queried = true;
+        return null;
+      },
+    } as never,
+  );
+
+  await assert.rejects(
+    () => service.getOwnedReportCardSignature({
+      tenant_id: 'tenant-b',
+      signer_user_id: signerUserId,
+      signer_role: 'principal',
+    }),
+    /authenticated owner in the current school/,
+  );
+  await assert.rejects(
+    () => service.getOwnedReportCardSignature({
+      tenant_id: 'tenant-a',
+      signer_user_id: '22222222-2222-4222-8222-222222222222',
+      signer_role: 'principal',
+    }),
+    /authenticated owner in the current school/,
+  );
+  assert.equal(queried, false);
+});
+
+test('report-card signature upload rejects non-PNG/JPEG images before storage', async () => {
+  let stored = false;
+  const signerUserId = '11111111-1111-4111-8111-111111111111';
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: signerUserId, role: 'class_teacher' }) } as never,
+    {} as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    { save: async () => { stored = true; } } as never,
+  );
+
+  await assert.rejects(
+    () => service.uploadOwnedReportCardSignature({
+      tenant_id: 'tenant-a',
+      signer_user_id: signerUserId,
+      signer_role: 'class_teacher',
+    }, {
+      originalname: 'signature.webp',
+      mimetype: 'image/webp',
+      size: 12,
+      buffer: Buffer.from('RIFFxxxxWEBP', 'ascii'),
+    }),
+    /must be PNG or JPEG/,
+  );
+  assert.equal(stored, false);
 });
