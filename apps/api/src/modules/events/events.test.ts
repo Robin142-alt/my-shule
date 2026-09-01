@@ -23,7 +23,10 @@ import { NotificationRouterController } from './notification-router.controller';
 import { NotificationRouterService } from './notification-router.service';
 import { OutboxDispatcherService } from './outbox-dispatcher.service';
 import { WorkflowRepository } from './repositories/workflow.repository';
-import { EventsConsumerWorker } from './queue/events-consumer.worker';
+import {
+  EventsConsumerWorker,
+  resolveEventsWorkerConcurrency,
+} from './queue/events-consumer.worker';
 import { SchoolOperationalEventsController } from './school-operational-events.controller';
 import { SchoolOperationalEventsService } from './school-operational-events.service';
 import {
@@ -469,6 +472,13 @@ test('EventsConsumerWorker does not create a BullMQ worker while Redis is degrad
 
   await worker.onModuleInit();
   await worker.onModuleDestroy();
+});
+
+test('EventsConsumerWorker reserves database capacity with a bounded concurrency', () => {
+  assert.equal(resolveEventsWorkerConcurrency(undefined), 2);
+  assert.equal(resolveEventsWorkerConcurrency(0), 2);
+  assert.equal(resolveEventsWorkerConcurrency(4.8), 4);
+  assert.equal(resolveEventsWorkerConcurrency(50), 10);
 });
 
 test('EventPublisherService writes student.created events with request headers', async () => {
@@ -1231,6 +1241,8 @@ test('SchoolOperationalEventsService exposes notification inbox and read updates
 test('EventConsumerService skips already-completed consumers', async () => {
   const requestContext = new RequestContextService();
   let consumerInvocations = 0;
+  let outerTransactions = 0;
+  let requestedRowLock = false;
   const event: DomainEvent<'student.created'> = {
     id: 'event-1',
     tenant_id: 'tenant-a',
@@ -1278,10 +1290,20 @@ test('EventConsumerService skips already-completed consumers', async () => {
     } as never,
     requestContext,
     {
-      withRequestTransaction: async <T>(callback: () => Promise<T>): Promise<T> => callback(),
+      withRequestTransaction: async <T>(callback: () => Promise<T>): Promise<T> => {
+        outerTransactions += 1;
+        return callback();
+      },
     } as never,
     {
-      findById: async (): Promise<DomainEvent> => event,
+      findById: async (
+        _tenantId: string,
+        _eventId: string,
+        forUpdate = false,
+      ): Promise<DomainEvent> => {
+        requestedRowLock = forUpdate;
+        return event;
+      },
       markPublished: async (): Promise<void> => undefined,
       markFailed: async (): Promise<void> => undefined,
     } as never,
@@ -1315,6 +1337,8 @@ test('EventConsumerService skips already-completed consumers', async () => {
   });
 
   assert.equal(consumerInvocations, 0);
+  assert.equal(outerTransactions, 0);
+  assert.equal(requestedRowLock, false);
 });
 
 test('DashboardRealtimeService maps outbox domain events into dashboard envelopes', () => {

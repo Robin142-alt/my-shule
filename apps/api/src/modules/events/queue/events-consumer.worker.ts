@@ -10,6 +10,16 @@ import { EVENTS_QUEUE_NAME, OUTBOX_EVENT_JOB_NAME } from '../events.constants';
 import { EventConsumerService } from '../event-consumer.service';
 import { DispatchOutboxEventJobPayload } from '../events.types';
 
+export const resolveEventsWorkerConcurrency = (value: unknown): number => {
+  const parsed = typeof value === 'number' ? value : Number(value);
+
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return 2;
+  }
+
+  return Math.min(10, Math.floor(parsed));
+};
+
 @Injectable()
 export class EventsConsumerWorker implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(EventsConsumerWorker.name);
@@ -33,6 +43,9 @@ export class EventsConsumerWorker implements OnModuleInit, OnModuleDestroy {
     }
 
     const queueName = this.configService.get<string>('events.queueName') ?? EVENTS_QUEUE_NAME;
+    const concurrency = resolveEventsWorkerConcurrency(
+      this.configService.get<number>('events.workerConcurrency'),
+    );
 
     const redisStatus = await this.redisService.ping();
 
@@ -122,7 +135,7 @@ export class EventsConsumerWorker implements OnModuleInit, OnModuleDestroy {
       {
         connection: this.redisService.getBullConnectionOptions(),
         prefix: this.configService.get<string>('queue.prefix') ?? 'my-shule',
-        concurrency: 10,
+        concurrency,
       },
     );
 

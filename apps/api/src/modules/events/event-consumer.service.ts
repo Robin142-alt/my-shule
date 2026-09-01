@@ -68,46 +68,47 @@ export class EventConsumerService {
       },
       async () => {
         try {
-          await this.prisma.withRequestTransaction(async () => {
-            const event = await this.getRequiredEvent(jobPayload.tenant_id, jobPayload.outbox_event_id);
+          const event = await this.getRequiredEvent(
+            jobPayload.tenant_id,
+            jobPayload.outbox_event_id,
+          );
 
-            if (event.status === 'published') {
-              return;
+          if (event.status === 'published') {
+            return;
+          }
+
+          const consumers = this.eventConsumerRegistry.getConsumersForEvent(event.event_name);
+
+          for (const consumer of consumers) {
+            const consumerRun = await this.eventConsumerRunsRepository.acquireRun(
+              event.tenant_id,
+              event.id,
+              event.event_key,
+              consumer.name,
+            );
+
+            if (consumerRun.status === 'completed') {
+              continue;
             }
 
-            const consumers = this.eventConsumerRegistry.getConsumersForEvent(event.event_name);
+            await this.eventConsumerRunsRepository.markAttempt(event.tenant_id, consumerRun.id);
 
-            for (const consumer of consumers) {
-              const consumerRun = await this.eventConsumerRunsRepository.acquireRun(
+            try {
+              await consumer.handle(event as never);
+              await this.eventConsumerRunsRepository.markCompleted(event.tenant_id, consumerRun.id);
+            } catch (error) {
+              const message =
+                error instanceof Error ? error.message : 'Unknown domain event consumer error';
+              await this.eventConsumerRunsRepository.markFailed(
                 event.tenant_id,
-                event.id,
-                event.event_key,
-                consumer.name,
+                consumerRun.id,
+                message,
               );
-
-              if (consumerRun.status === 'completed') {
-                continue;
-              }
-
-              await this.eventConsumerRunsRepository.markAttempt(event.tenant_id, consumerRun.id);
-
-              try {
-                await consumer.handle(event as never);
-                await this.eventConsumerRunsRepository.markCompleted(event.tenant_id, consumerRun.id);
-              } catch (error) {
-                const message =
-                  error instanceof Error ? error.message : 'Unknown domain event consumer error';
-                await this.eventConsumerRunsRepository.markFailed(
-                  event.tenant_id,
-                  consumerRun.id,
-                  message,
-                );
-                throw error;
-              }
+              throw error;
             }
+          }
 
-            await this.outboxEventsRepository.markPublished(event.tenant_id, event.id);
-          });
+          await this.outboxEventsRepository.markPublished(event.tenant_id, event.id);
         } catch (error) {
           const message =
             error instanceof Error ? error.message : 'Unknown domain event processing error';
@@ -121,7 +122,7 @@ export class EventConsumerService {
   }
 
   private async getRequiredEvent(tenantId: string, outboxEventId: string): Promise<DomainEvent> {
-    const event = await this.outboxEventsRepository.findById(tenantId, outboxEventId, true);
+    const event = await this.outboxEventsRepository.findById(tenantId, outboxEventId);
 
     if (!event) {
       throw new NotFoundException(`Outbox event "${outboxEventId}" was not found`);
@@ -151,15 +152,13 @@ export class EventConsumerService {
         started_at: new Date().toISOString(),
       },
       async () => {
-        await this.prisma.withRequestTransaction(async () => {
-          await this.outboxEventsRepository.markFailed(
-            tenantId,
-            outboxEventId,
-            message,
-            Number(this.configService.get<number>('events.retryDelayMs') ?? 5000),
-            Number(this.configService.get<number>('events.maxAttempts') ?? 25),
-          );
-        });
+        await this.outboxEventsRepository.markFailed(
+          tenantId,
+          outboxEventId,
+          message,
+          Number(this.configService.get<number>('events.retryDelayMs') ?? 5000),
+          Number(this.configService.get<number>('events.maxAttempts') ?? 25),
+        );
       },
     );
   }

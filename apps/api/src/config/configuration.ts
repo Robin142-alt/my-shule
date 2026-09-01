@@ -326,6 +326,7 @@ export default () => ({
       process.env.EVENTS_WORKER_ENABLED,
       !isServerlessRuntime,
     ),
+    workerConcurrency: parseNumber(process.env.EVENTS_WORKER_CONCURRENCY, 2),
     dispatcherIntervalMs: parseNumber(process.env.EVENTS_DISPATCHER_INTERVAL_MS, 1000),
     dispatcherBatchSize: parseNumber(process.env.EVENTS_DISPATCHER_BATCH_SIZE, 100),
     dashboardRealtimePollMs: parseNumber(process.env.EVENTS_DASHBOARD_REALTIME_POLL_MS, 15000),

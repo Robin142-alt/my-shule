@@ -90,10 +90,63 @@ test('AcademicsRepository always binds new classes to a school-scoped academic l
   const createClassMethod = String(AcademicsRepository.prototype.createClassSection);
 
   assert.match(createClassMethod, /pg_advisory_xact_lock/);
+  assert.match(createClassMethod, /\$executeRawUnsafe/);
   assert.match(createClassMethod, /FROM academic_levels/);
   assert.match(createClassMethod, /INSERT INTO academic_levels/);
   assert.match(createClassMethod, /ACADEMIC_LEVEL_BINDING_FAILED/);
   assert.match(createClassMethod, /academicLevelId/);
+});
+
+test('AcademicsRepository executes the class-level advisory lock without deserializing void', async () => {
+  const executeCalls: Array<{ sql: string; params: unknown[] }> = [];
+  const queryCalls: string[] = [];
+  const repository = new AcademicsRepository({
+    executeWithTenant: async (
+      tenantId: string,
+      _userId: string | null,
+      callback: (tx: unknown) => Promise<unknown>,
+    ) => {
+      assert.equal(tenantId, 'kibabi-high');
+      return callback({
+        $executeRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          executeCalls.push({ sql, params });
+          return 1;
+        },
+        $queryRawUnsafe: async (sql: string) => {
+          queryCalls.push(sql);
+
+          if (/INSERT INTO academic_levels/i.test(sql)) {
+            return [{ id: 'level-1' }];
+          }
+
+          if (/FROM academic_levels/i.test(sql)) {
+            return [];
+          }
+
+          if (/INSERT INTO class_sections/i.test(sql)) {
+            return [{ id: 'class-1', tenant_id: 'kibabi-high' }];
+          }
+
+          throw new Error(`Unexpected SQL: ${sql}`);
+        },
+      });
+    },
+  } as never);
+
+  const created = await repository.createClassSection({
+    tenant_id: 'kibabi-high',
+    academic_year_id: 'year-1',
+    name: 'Grade 10',
+    curriculum_model: 'CBE',
+    created_by_user_id: '11111111-1111-4111-8111-111111111111',
+  });
+
+  assert.deepEqual(executeCalls, [{
+    sql: 'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+    params: ['academic-level:kibabi-high'],
+  }]);
+  assert.equal(queryCalls.some((sql) => /pg_advisory_xact_lock/i.test(sql)), false);
+  assert.deepEqual(created, { id: 'class-1', tenant_id: 'kibabi-high' });
 });
 
 test('AcademicsRepository writes settings across legacy UUID and current text schemas', async () => {

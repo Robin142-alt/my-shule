@@ -689,10 +689,9 @@ export class AcademicsRepository {
         : null;
 
       if (!academicLevelId) {
-        await this.executeSqlTx(
-          tx,
+        await tx.$executeRawUnsafe(
           'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-          [`academic-level:${tenantId}`],
+          `academic-level:${tenantId}`,
         );
 
         const classFormGradeName = String(input.name);
