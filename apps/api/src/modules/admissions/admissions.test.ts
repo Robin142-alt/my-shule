@@ -2694,6 +2694,115 @@ test('AdmissionsService creates and registers a manual admission application aut
   assert.equal(capturedAdmission?.guardian_phone, '+254799999999');
 });
 
+test('AdmissionsService commits admission events and dashboard notifications before success without post-commit replay', async () => {
+  const published: Array<{ input: Record<string, unknown>; tx: unknown }> = [];
+  const materialized: Array<{ input: Record<string, unknown>; tx: unknown }> = [];
+  let legacyOperationCalled = false;
+  let agpIntent: Record<string, any> | undefined;
+  const tx = { id: 'admission-transaction' };
+  const admitted = {
+    application_id: '00000000-0000-0000-0000-000000000701',
+    student: {
+      id: '00000000-0000-0000-0000-000000000999',
+      admission_number: 'ADM/MANUAL/002',
+      first_name: 'Safe',
+      middle_name: null,
+      last_name: 'Retry',
+    },
+    placement: {
+      academic_year_id: '00000000-0000-0000-0000-000000000111',
+      academic_year_name: '2026',
+      class_section_id: '00000000-0000-0000-0000-000000000222',
+      class_name: 'Form 1',
+      stream_id: '00000000-0000-0000-0000-000000000333',
+      stream_name: 'North',
+      academic_enrollment_id: '00000000-0000-0000-0000-000000000444',
+    },
+    subjects: [{ id: '00000000-0000-0000-0000-000000000555' }],
+    guardian: { profile_id: '00000000-0000-0000-0000-000000000666' },
+    student_portal: { username: 'ADM/MANUAL/002' },
+    fees: { status: 'not_configured' },
+  };
+  const service = new AdmissionsService(
+    {
+      requireStore: () => ({
+        tenant_id: '00000000-0000-0000-0000-000000000123',
+        user_id: '00000000-0000-0000-0000-000000000456',
+        role: 'admissions-officer',
+      }),
+      getStore: () => ({
+        tenant_id: '00000000-0000-0000-0000-000000000123',
+        user_id: '00000000-0000-0000-0000-000000000456',
+        role: 'admissions-officer',
+      }),
+    } as any,
+    {} as any,
+    {
+      admitCanonicalStudent: async (
+        _input: Record<string, unknown>,
+        persistGovernance: (input: { tx: unknown; result: typeof admitted }) => Promise<void>,
+      ) => {
+        await persistGovernance({ tx, result: admitted });
+        return admitted;
+      },
+    } as any,
+    {} as any,
+    {} as any,
+    undefined,
+    {
+      publish: async (input: Record<string, unknown>, transaction: unknown) => {
+        published.push({ input, tx: transaction });
+        return { id: `event-${published.length}` };
+      },
+    } as any,
+    {
+      execute: async (intent: Record<string, any>) => {
+        agpIntent = intent;
+        return intent.handler();
+      },
+    } as any,
+    {
+      recordSchoolOperation: async () => {
+        legacyOperationCalled = true;
+      },
+    } as any,
+    undefined,
+    undefined,
+    undefined,
+    {
+      upsertFromSchoolOperation: async (input: Record<string, unknown>, transaction: unknown) => {
+        materialized.push({ input, tx: transaction });
+      },
+    } as any,
+  );
+
+  const result = await service.createManualAdmission({
+    admission_number: 'ADM/MANUAL/002',
+    first_name: 'Safe',
+    last_name: 'Retry',
+    gender: 'female',
+    admission_date: '2026-01-06',
+    academic_year_id: '00000000-0000-0000-0000-000000000111',
+    curriculum: '8-4-4',
+    grade_level: 'Form 1',
+    class_section_id: '00000000-0000-0000-0000-000000000222',
+    stream_id: '00000000-0000-0000-0000-000000000333',
+    subject_ids: ['00000000-0000-0000-0000-000000000555'],
+    guardian_name: 'Safe Parent',
+    guardian_phone: '0712345678',
+    guardian_relationship: 'Mother',
+  });
+
+  assert.equal(published.length, 9);
+  assert.equal(published.every((event) => event.tx === tx), true);
+  assert.equal(materialized.length, 2);
+  assert.equal(materialized.every((notification) => notification.tx === tx), true);
+  assert.equal(legacyOperationCalled, false);
+  assert.equal(agpIntent?.governanceRecordedInHandler, true);
+  assert.equal(agpIntent?.retrySafe, false);
+  assert.equal(result.student.id, admitted.student.id);
+});
+
 test('AdmissionsService normalizes and governs admission-number changes', async () => {
   let captured: Record<string, unknown> | undefined;
   const service = new AdmissionsService(

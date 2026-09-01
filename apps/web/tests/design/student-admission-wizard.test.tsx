@@ -164,6 +164,56 @@ describe("guided student admission", () => {
     })));
     expect(await screen.findByRole("heading", { name: /student admitted/i })).toBeVisible();
     expect(screen.getByText(/OTP ready/i)).toBeVisible();
-    expect(onAdmitted).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onAdmitted).toHaveBeenCalledTimes(1));
+  });
+
+  it("prepares a fresh numbered draft after admission without turning refresh trouble into a failed admission", async () => {
+    const user = userEvent.setup();
+    const onAdmitted = jest.fn(async () => {
+      throw new Error("List refresh is temporarily unavailable");
+    });
+    const nextFoundation = {
+      ...foundation,
+      admission_settings: {
+        ...foundation.admission_settings,
+        suggested_admission_number: "MS-2026-0002",
+      },
+    };
+    refetchFoundation.mockResolvedValueOnce({ data: nextFoundation });
+    renderWithProviders(<StudentAdmissionWizard onCancel={jest.fn()} onAdmitted={onAdmitted} />);
+
+    await waitFor(() => expect(screen.getByLabelText(/^Admission number(?! mode)/i)).toHaveValue("MS-2026-0001"));
+    await user.type(screen.getByLabelText(/^First name/i), "Amina");
+    await user.type(screen.getByLabelText(/^Last name/i), "Njeri");
+    await user.selectOptions(screen.getByLabelText(/^Gender/i), "female");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await user.selectOptions(screen.getByLabelText(/^Academic year/i), "year-2026");
+    await user.selectOptions(screen.getByLabelText(/^Curriculum/i), "CBC");
+    await user.selectOptions(screen.getByLabelText(/^Class \/ form \/ grade/i), "class-grade-7");
+    await user.selectOptions(screen.getByLabelText(/^Stream/i), "stream-north");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await user.type(screen.getByLabelText(/^Primary guardian name/i), "Grace Njeri");
+    await user.type(screen.getByLabelText(/^Relationship/i), "Mother");
+    await user.type(screen.getByLabelText(/^Kenyan mobile number/i), "0712345678");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await user.click(screen.getByRole("button", { name: /admit student/i }));
+
+    expect(await screen.findByRole("heading", { name: /student admitted/i })).toBeVisible();
+    await waitFor(() => expect(onAdmitted).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(/list refresh is temporarily unavailable/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /admit another student/i }));
+    await waitFor(() => expect(screen.getByLabelText(/^Admission number(?! mode)/i)).toHaveValue("MS-2026-0002"));
+    expect(refetchFoundation).toHaveBeenCalledTimes(1);
+
+    await user.type(screen.getByLabelText(/^First name/i), "Brian");
+    await waitFor(() => expect(saveDraft).toHaveBeenLastCalledWith({
+      payload: expect.objectContaining({
+        admission_number: "MS-2026-0002",
+        first_name: "Brian",
+        step: 0,
+      }),
+    }), { timeout: 3_000 });
   });
 });

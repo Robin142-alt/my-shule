@@ -21,7 +21,8 @@ export class SelfHealingAgentService {
     await this.emitSystemEvent('system.repair.triggered', intent, tenantId, error);
 
     // Step 3: Retry execution (simulate a single retry for transient issues like Prisma timeouts)
-    const isTransient = error?.message?.includes('timeout') || error?.code === 'P2024';
+    const isTransient = intent.retrySafe !== false
+      && (error?.message?.includes('timeout') || error?.code === 'P2024');
     if (isTransient) {
       try {
         this.logger.log(`[Self-Healing Agent] Executing safe retry...`);

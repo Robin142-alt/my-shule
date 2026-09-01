@@ -149,6 +149,10 @@ type AdmissionResult = {
   };
   student_portal: { username: string; status: string };
   fees: { status: string; invoice_number?: string };
+  downstream_sync?: {
+    status: "queued" | "degraded";
+    message?: string;
+  };
 };
 
 const steps = ["Student Details", "Class & Stream", "Subjects", "Guardian", "Review & Admit"];
@@ -185,6 +189,35 @@ function errorMessage(error: unknown) {
   return "Admission could not be completed. Check the details and retry.";
 }
 
+function hasMeaningfulDraft(
+  form: AdmissionPayload,
+  step: number,
+  suggestedAdmissionNumber: string | undefined,
+) {
+  if (step > 0 || form.subject_ids.length > 0) return true;
+  if (
+    form.admission_number.trim()
+    && form.admission_number.trim() !== suggestedAdmissionNumber?.trim()
+  ) return true;
+  if (form.admission_date !== today) return true;
+
+  return [
+    form.first_name,
+    form.middle_name,
+    form.last_name,
+    form.gender,
+    form.date_of_birth,
+    form.academic_year_id,
+    form.curriculum,
+    form.grade_level,
+    form.class_section_id,
+    form.stream_id,
+    form.guardian_name,
+    form.guardian_relationship,
+    form.guardian_phone,
+  ].some((value) => value.trim().length > 0);
+}
+
 export function StudentAdmissionWizard({
   onCancel,
   onAdmitted,
@@ -197,15 +230,34 @@ export function StudentAdmissionWizard({
   const [formError, setFormError] = useState<string | null>(null);
   const [result, setResult] = useState<AdmissionResult | null>(null);
   const [preflight, setPreflight] = useState<AdmissionPreflight | null>(null);
-  const [draftStatus, setDraftStatus] = useState<"loading" | "saved" | "saving" | "failed">("loading");
+  const [draftStatus, setDraftStatus] = useState<"loading" | "saved" | "saving" | "queued" | "failed">("loading");
+  const [startingNextAdmission, setStartingNextAdmission] = useState(false);
+  const [nextAdmissionError, setNextAdmissionError] = useState<string | null>(null);
   const draftHydrated = useRef(false);
+  const draftSaveSequence = useRef(0);
   const foundationQuery = useSchoolQuery<AdmissionFoundation>("/admissions/foundation", { retry: 1 });
   const draftQuery = useSchoolQuery<AdmissionDraft | null>("/admissions/drafts/current", { retry: 1 });
-  const admitStudent = useSchoolMutation<AdmissionResult, AdmissionPayload>("/admissions/manual", "POST");
-  const preflightAdmission = useSchoolMutation<AdmissionPreflight, AdmissionPayload>("/admissions/manual/preflight", "POST");
-  const saveDraft = useSchoolMutation<AdmissionDraft, { payload: Partial<AdmissionPayload> & { step: number } }>("/admissions/drafts/current", "PUT");
-  const discardDraft = useSchoolMutation<{ discarded: boolean }, Record<string, never>>("/admissions/drafts/current", "DELETE");
-  const updateSettings = useSchoolMutation<AdmissionSettings, Omit<AdmissionSettings, "suggested_admission_number">>("/admissions/settings", "PUT");
+  const admitStudent = useSchoolMutation<AdmissionResult, AdmissionPayload>("/admissions/manual", "POST", {
+    invalidateSchoolQueries: false,
+    queueNetworkFailures: false,
+    requestTimeoutMs: 60_000,
+  });
+  const preflightAdmission = useSchoolMutation<AdmissionPreflight, AdmissionPayload>("/admissions/manual/preflight", "POST", {
+    invalidateSchoolQueries: false,
+    queueNetworkFailures: false,
+    requestTimeoutMs: 30_000,
+  });
+  const saveDraft = useSchoolMutation<AdmissionDraft, { payload: Partial<AdmissionPayload> & { step: number } }>("/admissions/drafts/current", "PUT", {
+    invalidateSchoolQueries: false,
+  });
+  const discardDraft = useSchoolMutation<{ discarded: boolean }, Record<string, never>>("/admissions/drafts/current", "DELETE", {
+    invalidateSchoolQueries: false,
+    queueNetworkFailures: false,
+  });
+  const updateSettings = useSchoolMutation<AdmissionSettings, Omit<AdmissionSettings, "suggested_admission_number">>("/admissions/settings", "PUT", {
+    invalidateSchoolQueries: false,
+    queueNetworkFailures: false,
+  });
   const saveDraftAsync = saveDraft.mutateAsync;
 
   const foundation = foundationQuery.data;
@@ -269,15 +321,30 @@ export function StudentAdmissionWizard({
   }, [admissionSettings?.suggested_admission_number, draftQuery.data, draftQuery.isLoading, foundationQuery.isLoading]);
 
   useEffect(() => {
-    if (!draftHydrated.current || result || !form.admission_number) return;
+    if (
+      !draftHydrated.current
+      || result
+      || !form.admission_number
+      || !hasMeaningfulDraft(form, step, admissionSettings?.suggested_admission_number)
+    ) return;
     setDraftStatus("saving");
     const timer = window.setTimeout(() => {
+      const saveSequence = ++draftSaveSequence.current;
       saveDraftAsync({ payload: { ...canonicalForm, step } })
-        .then(() => setDraftStatus("saved"))
-        .catch(() => setDraftStatus("failed"));
+        .then((saved) => {
+          if (saveSequence !== draftSaveSequence.current) return;
+          setDraftStatus(
+            saved && typeof saved === "object" && "_offline" in saved
+              ? "queued"
+              : "saved",
+          );
+        })
+        .catch(() => {
+          if (saveSequence === draftSaveSequence.current) setDraftStatus("failed");
+        });
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [canonicalForm, result, saveDraftAsync, step]);
+  }, [admissionSettings?.suggested_admission_number, canonicalForm, form, result, saveDraftAsync, step]);
 
   async function saveAdmissionSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -417,13 +484,53 @@ export function StudentAdmissionWizard({
         guardian_phone: canonicalForm.guardian_phone.trim(),
       });
       setResult(admission);
+      setNextAdmissionError(null);
       setDraftStatus("saved");
       toast.success(`${admission.student.first_name} was admitted successfully.`);
-      await Promise.all([onAdmitted(), foundationQuery.refetch()]);
+      void Promise.resolve()
+        .then(() => onAdmitted())
+        .catch(() => {
+          toast.warning("The learner was admitted. The admissions list will refresh automatically when the connection recovers.");
+        });
     } catch (error) {
       const message = errorMessage(error);
       setFormError(message);
       toast.error(message);
+    }
+  }
+
+  async function beginNextAdmission(preserveGuardian: boolean) {
+    setStartingNextAdmission(true);
+    setNextAdmissionError(null);
+    try {
+      const refreshed = await foundationQuery.refetch();
+      if (refreshed.isError || !refreshed.data) {
+        throw refreshed.error ?? new Error("Academic foundation is unavailable");
+      }
+      const guardian = preserveGuardian
+        ? {
+            guardian_name: form.guardian_name,
+            guardian_relationship: form.guardian_relationship,
+            guardian_phone: form.guardian_phone,
+          }
+        : {};
+      draftSaveSequence.current += 1;
+      setPreflight(null);
+      setFormError(null);
+      setForm({
+        ...emptyForm,
+        admission_number: refreshed.data.admission_settings.suggested_admission_number ?? "",
+        ...guardian,
+      });
+      setStep(0);
+      setDraftStatus("saved");
+      setResult(null);
+    } catch (error) {
+      const message = `The learner was admitted, but a fresh admission could not be prepared. ${errorMessage(error)}`;
+      setNextAdmissionError(message);
+      toast.error(message);
+    } finally {
+      setStartingNextAdmission(false);
     }
   }
 
@@ -477,40 +584,31 @@ export function StudentAdmissionWizard({
             Age review retained: the learner was admitted after staff confirmed the unusual age and grade combination.
           </p>
         ) : null}
+        {result.downstream_sync?.status === "degraded" ? (
+          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">
+            {result.downstream_sync.message ?? "The learner is admitted. Some dashboard notifications are still synchronizing."}
+          </p>
+        ) : null}
+        {nextAdmissionError ? (
+          <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+            {nextAdmissionError}
+          </p>
+        ) : null}
         <div className="mt-4 flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => {
-              setResult(null);
-              setForm({
-                ...emptyForm,
-                admission_number: foundationQuery.data?.admission_settings.suggested_admission_number ?? "",
-              });
-              setStep(0);
-            }}
-            className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white"
+            onClick={() => void beginNextAdmission(false)}
+            disabled={startingNextAdmission}
+            className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-60"
           >
-            Admit another student
+            {startingNextAdmission ? "Preparing fresh admission..." : "Admit another student"}
           </button>
           {result.guardian.existing_sibling_guardian ? (
             <button
               type="button"
-              onClick={() => {
-                const guardian = {
-                  guardian_name: form.guardian_name,
-                  guardian_relationship: form.guardian_relationship,
-                  guardian_phone: form.guardian_phone,
-                };
-                setResult(null);
-                setPreflight(null);
-                setForm({
-                  ...emptyForm,
-                  admission_number: foundationQuery.data?.admission_settings.suggested_admission_number ?? "",
-                  ...guardian,
-                });
-                setStep(0);
-              }}
-              className="rounded-xl border border-emerald-300 bg-white px-4 py-2 text-sm font-black text-emerald-800"
+              onClick={() => void beginNextAdmission(true)}
+              disabled={startingNextAdmission}
+              className="rounded-xl border border-emerald-300 bg-white px-4 py-2 text-sm font-black text-emerald-800 disabled:opacity-60"
             >
               Admit sibling
             </button>
@@ -531,7 +629,7 @@ export function StudentAdmissionWizard({
           Complete each stage. The final action creates the learner, placement, subjects, guardian access, fees, and downstream records together.
         </p>
         <p className={`mt-2 text-xs font-bold ${draftStatus === "failed" ? "text-rose-700" : "text-[#64748B]"}`}>
-          {draftStatus === "loading" ? "Checking saved draft..." : draftStatus === "saving" ? "Saving draft..." : draftStatus === "failed" ? "Draft could not be saved. Your entered data remains on this screen." : "Draft saved securely for your school account."}
+          {draftStatus === "loading" ? "Checking saved draft..." : draftStatus === "saving" ? "Saving draft..." : draftStatus === "queued" ? "Draft saved on this device and queued for secure school sync." : draftStatus === "failed" ? "Draft could not be saved. Your entered data remains on this screen." : "Draft saved securely for your school account."}
         </p>
       </div>
 
@@ -594,8 +692,8 @@ export function StudentAdmissionWizard({
       ) : foundationQuery.isError ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">
           Academic foundation could not be loaded. Retry before admitting a learner.
-          <button type="button" onClick={() => void foundationQuery.refetch()} className="ml-3 rounded-lg border border-rose-300 bg-white px-3 py-1">
-            Retry
+          <button type="button" onClick={() => void foundationQuery.refetch()} disabled={foundationQuery.isFetching} className="ml-3 rounded-lg border border-rose-300 bg-white px-3 py-1 disabled:opacity-60">
+            {foundationQuery.isFetching ? "Retrying..." : "Retry"}
           </button>
         </div>
       ) : years.length === 0 ? (
@@ -719,7 +817,7 @@ export function StudentAdmissionWizard({
           <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
             <div className="flex gap-2">
               <button type="button" onClick={onCancel} className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49]">Close and keep draft</button>
-              <button type="button" onClick={() => { void discardDraft.mutateAsync({}).then(onCancel); }} disabled={discardDraft.isPending} className="rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-black text-rose-700 disabled:opacity-60">Discard draft</button>
+              <button type="button" onClick={() => { void discardDraft.mutateAsync({}).then(onCancel).catch((error) => toast.error(errorMessage(error))); }} disabled={discardDraft.isPending} className="rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-black text-rose-700 disabled:opacity-60">Discard draft</button>
               {step > 0 ? <button type="button" onClick={() => { setFormError(null); setStep((current) => current - 1); }} className="inline-flex items-center gap-2 rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49]"><ChevronLeft className="h-4 w-4" /> Back</button> : null}
             </div>
             {step < steps.length - 1 ? (

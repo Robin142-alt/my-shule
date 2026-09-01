@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+
 import type { LiveAuthSession } from "@/lib/dashboard/api-client";
 import {
   advanceAdmissionsStudentAcademicLifecycleLive,
@@ -110,6 +113,16 @@ describe("admissions live API client", () => {
       row_count: 1,
       checksum_sha256: "checksum",
     });
+  });
+
+  it("proxies the draft and settings mutation methods used by the admission wizard", () => {
+    const source = fs.readFileSync(
+      path.join(process.cwd(), "src/app/api/admissions/[...path]/route.ts"),
+      "utf8",
+    );
+
+    expect(source).toMatch(/export async function PUT/);
+    expect(source).toMatch(/export async function DELETE/);
   });
 
   it("fetches school class options from the admissions API instead of static form choices", async () => {

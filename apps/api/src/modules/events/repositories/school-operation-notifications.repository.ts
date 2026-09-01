@@ -54,15 +54,17 @@ export class SchoolOperationNotificationsRepository {
     }
   }
 
-  async upsertFromSchoolOperation(input: MaterializeSchoolOperationNotificationInput): Promise<void> {
+  async upsertFromSchoolOperation(
+    input: MaterializeSchoolOperationNotificationInput,
+    tx?: any,
+  ): Promise<void> {
     const title = this.textOrDefault(input.notification.title, 'School update');
     const body = this.textOrDefault(input.notification.body, 'A school operation needs attention.');
     const type = this.textOrDefault(input.notification.type, 'school.operation.recorded');
     const notificationId = this.textOrDefault(input.notification.id, input.operationId);
     const notificationKey = `school-operation:${input.operationId}:${notificationId}`;
 
-    await this.executeSql(
-      `
+    const query = `
         INSERT INTO notifications (
           tenant_id,
           notification_key,
@@ -81,22 +83,28 @@ export class SchoolOperationNotificationsRepository {
           body = EXCLUDED.body,
           metadata = EXCLUDED.metadata,
           updated_at = NOW()
-      `,
-      [
-        input.tenantId,
-        notificationKey,
-        type,
-        title,
-        body,
-        JSON.stringify({
-          ...input.notification,
-          operation_id: input.operationId,
-          target_roles: Array.isArray(input.notification.audienceRoles)
-            ? input.notification.audienceRoles
-            : [],
-        }),
-      ],
-    );
+      `;
+    const params = [
+      input.tenantId,
+      notificationKey,
+      type,
+      title,
+      body,
+      JSON.stringify({
+        ...input.notification,
+        operation_id: input.operationId,
+        target_roles: Array.isArray(input.notification.audienceRoles)
+          ? input.notification.audienceRoles
+          : [],
+      }),
+    ];
+
+    if (tx) {
+      await tx.$executeRawUnsafe(query, ...params);
+      return;
+    }
+
+    await this.executeSql(query, params);
   }
 
   async listForTenantRole(

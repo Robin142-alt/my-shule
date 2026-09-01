@@ -1004,6 +1004,36 @@ test('SchoolOperationalEventsService rejects malformed exact recipients instead 
   assert.equal(published, false);
 });
 
+test('SchoolOperationNotificationsRepository materializes notifications in the caller transaction', async () => {
+  const { SchoolOperationNotificationsRepository } = await import(
+    './repositories/school-operation-notifications.repository'
+  );
+  const executed: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new SchoolOperationNotificationsRepository({} as never);
+  const tx = {
+    $executeRawUnsafe: async (sql: string, ...params: unknown[]) => {
+      executed.push({ sql, params });
+      return 1;
+    },
+  };
+
+  await repository.upsertFromSchoolOperation({
+    tenantId: 'tenant-a',
+    operationId: 'student-admitted-1',
+    notification: {
+      id: 'finance-1',
+      title: 'New student admitted',
+      body: 'Ready for fee processing.',
+      audienceRoles: ['accountant'],
+    },
+  }, tx);
+
+  assert.equal(executed.length, 1);
+  assert.match(executed[0].sql, /INSERT INTO notifications/);
+  assert.equal(executed[0].params[0], 'tenant-a');
+  assert.match(String(executed[0].params[1]), /^school-operation:student-admitted-1:/);
+});
+
 test('SchoolOperationNotificationsRepository lists unread notifications for the current tenant role', async () => {
   const queries: Array<{ sql: string; values: unknown[] }> = [];
   const { SchoolOperationNotificationsRepository } = await import(

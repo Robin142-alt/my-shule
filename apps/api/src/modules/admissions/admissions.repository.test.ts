@@ -89,6 +89,11 @@ test('AdmissionsRepository direct admission writes the complete application life
   assert.match(registrationMethod, /application_status = 'ADMITTED'/);
   assert.match(registrationMethod, /INSERT INTO students \(\s*id,\s*tenant_id,\s*school_id/);
   assert.match(registrationMethod, /pg_advisory_xact_lock/);
+  assert.match(registrationMethod, /tx\.\$executeRawUnsafe\(\s*'SELECT pg_advisory_xact_lock/);
+  assert.doesNotMatch(
+    registrationMethod,
+    /await query\(\s*'SELECT pg_advisory_xact_lock/,
+  );
   assert.match(registrationMethod, /INSERT INTO academic_levels/);
   assert.match(registrationMethod, /UPDATE class_sections\s+SET academic_level_id = \$3/);
   assert.match(registrationMethod, /ADMISSION_ACADEMIC_LEVEL_NOT_CONFIGURED/);
@@ -110,6 +115,9 @@ test('AdmissionsRepository direct admission writes the complete application life
   assert.doesNotMatch(registrationMethod, /INSERT INTO student_invoices/);
   assert.doesNotMatch(registrationMethod, /VALUES \(\$1,\s*\$2,\s*\$2::uuid/);
   assert.doesNotMatch(registrationMethod, /application_status = 'registered'/);
+  assert.match(registrationMethod, /SET status = 'completed'/);
+  assert.match(registrationMethod, /INSERT INTO audit_logs/);
+  assert.match(registrationMethod, /await persistGovernance\?\.\(\{ tx, result \}\)/);
 });
 
 test('AdmissionsSchemaService creates tenant-scoped student fee assignment and invoice tables', async () => {

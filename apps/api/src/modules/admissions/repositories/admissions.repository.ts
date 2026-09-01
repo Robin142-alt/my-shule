@@ -98,6 +98,11 @@ export interface AdmissionSettingsRecord {
   maximum_subjects: number | null;
 }
 
+export type CanonicalAdmissionTransactionHook = (input: {
+  tx: any;
+  result: any;
+}) => Promise<void>;
+
 const DEFAULT_ADMISSION_SETTINGS: AdmissionSettingsRecord = {
   admission_number_mode: 'suggested',
   admission_number_prefix: 'ADM',
@@ -588,7 +593,10 @@ export class AdmissionsRepository {
     return rows.map((row) => row.admission_number);
   }
 
-  async admitCanonicalStudent(input: CanonicalAdmissionInput) {
+  async admitCanonicalStudent(
+    input: CanonicalAdmissionInput,
+    persistGovernance?: CanonicalAdmissionTransactionHook,
+  ) {
     return this.prisma.executeWithTenant(input.tenant_id, input.actor_user_id, async (tx: any) => {
       const query = async <T = any>(sql: string, values: unknown[] = []): Promise<T[]> => {
         const rows = await tx.$queryRawUnsafe(sql, ...values);
@@ -656,9 +664,9 @@ export class AdmissionsRepository {
         : null;
 
       if (!academicLevelId) {
-        await query(
+        await tx.$executeRawUnsafe(
           'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-          [`academic-level:${input.tenant_id}`],
+          `academic-level:${input.tenant_id}`,
         );
         const existingLevelRows = await query<any>(`
           SELECT id, is_active
@@ -1262,7 +1270,7 @@ export class AdmissionsRepository {
         };
       }
 
-      return {
+      const result = {
         application_id: applicationId,
         student,
         placement: {
@@ -1294,6 +1302,41 @@ export class AdmissionsRepository {
         },
         fees: feeStatus,
       };
+
+      if (input.actor_user_id) {
+        await tx.$executeRawUnsafe(`
+          UPDATE admission_drafts
+          SET status = 'completed', updated_at = NOW()
+          WHERE tenant_id = $1
+            AND created_by_user_id = $2::uuid
+            AND status = 'draft'
+        `, input.tenant_id, input.actor_user_id);
+      }
+
+      await tx.$executeRawUnsafe(`
+        INSERT INTO audit_logs (
+          tenant_id, actor_user_id, action, module, entity_type, entity_id,
+          resource_type, resource_id, aggregate_id, metadata
+        ) VALUES (
+          $1, $2::uuid, 'STUDENT_ADMITTED', 'admissions', 'student', $3,
+          'student', $3::uuid, $3::uuid, $4::jsonb
+        )
+      `,
+      input.tenant_id,
+      input.actor_user_id,
+      student.id,
+      JSON.stringify({
+        status: 'SUCCESS',
+        admission_number: student.admission_number,
+        application_id: applicationId,
+        academic_year_id: input.academic_year_id,
+        class_section_id: input.class_section_id,
+        stream_id: input.stream_id,
+      }));
+
+      await persistGovernance?.({ tx, result });
+
+      return result;
     });
   }
 

@@ -13,6 +13,7 @@ interface OfflineMutationOptions<TData, TError, TVariables, TContext>
   queryKeysToInvalidate?: any[][];
   offlinePayload?: (variables: TVariables) => unknown;
   queueDedupeKey?: (variables: TVariables) => string | undefined;
+  queueNetworkFailures?: boolean;
   queueServerFailures?: boolean;
   requireAuthenticatedQueueActor?: boolean;
 }
@@ -25,6 +26,7 @@ export function useOfflineMutation<TData = unknown, TError = Error, TVariables =
   queryKeysToInvalidate,
   offlinePayload,
   queueDedupeKey,
+  queueNetworkFailures = true,
   queueServerFailures = false,
   requireAuthenticatedQueueActor = false,
   mutationFn,
@@ -54,7 +56,7 @@ export function useOfflineMutation<TData = unknown, TError = Error, TVariables =
         return await (mutationFn as any)(variables);
       } catch (error: any) {
         // If it's a network error or 5xx, we catch it and queue offline
-        const isNetworkError =
+        const isNetworkError = queueNetworkFailures && (
           error instanceof TypeError || // e.g. Failed to fetch
           error.message?.includes('Network Error') ||
           error.message?.includes('Failed to fetch') ||
@@ -62,7 +64,8 @@ export function useOfflineMutation<TData = unknown, TError = Error, TVariables =
             error.message?.includes('Request timed out') ||
             error.message?.includes('Request failed: 5') ||
             error.status >= 500
-          ));
+          ))
+        );
 
         if (isNetworkError) {
           const authenticatedUserId = dashboardRole?.userId?.trim() || auth?.user?.id?.trim();

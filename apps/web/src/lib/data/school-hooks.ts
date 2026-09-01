@@ -99,10 +99,20 @@ export function useSchoolMutation<TData, TVariables>(
   method: "POST" | "PATCH" | "DELETE" | "PUT" = "POST",
   options?: Omit<UseMutationOptions<TData, Error, TVariables>, "mutationFn"> & {
     tenantId?: string;
+    invalidateSchoolQueries?: boolean;
+    queueNetworkFailures?: boolean;
+    requestTimeoutMs?: number;
   }
 ) {
   const scopedTenantId = useOptionalSchoolTenantId();
-  const activeTenantId = options?.tenantId?.trim() || scopedTenantId?.trim() || null;
+  const {
+    tenantId: configuredTenantId,
+    invalidateSchoolQueries = true,
+    queueNetworkFailures = true,
+    requestTimeoutMs,
+    ...mutationOptions
+  } = options ?? {};
+  const activeTenantId = configuredTenantId?.trim() || scopedTenantId?.trim() || null;
   const dashboardRole = useOptionalSchoolDashboardRole();
   const activeAuthorizationRoleCode = dashboardRole?.activeAuthorizationRoleCode ?? "session-role";
   const userId = dashboardRole?.userId ?? "session-user";
@@ -137,18 +147,22 @@ export function useSchoolMutation<TData, TVariables>(
           method,
           tenantId: activeTenantId,
           body: variables as Record<string, unknown>,
+          ...(requestTimeoutMs ? { timeoutMs: requestTimeoutMs } : {}),
         });
       } catch (err: unknown) {
         if (err instanceof Error && err.message?.includes("403")) throw new PermissionDeniedError();
         throw err;
       }
     },
-    ...options,
-    queryKeysToInvalidate: [[
-      "school",
-      activeTenantId || "unverified-tenant",
-      userId,
-      activeAuthorizationRoleCode,
-    ]],
+    ...mutationOptions,
+    queueNetworkFailures,
+    queryKeysToInvalidate: invalidateSchoolQueries
+      ? [[
+          "school",
+          activeTenantId || "unverified-tenant",
+          userId,
+          activeAuthorizationRoleCode,
+        ]]
+      : undefined,
   });
 }

@@ -30,6 +30,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { EventPublisherService } from '../events/event-publisher.service';
 import { AgpExecutionService } from '../../common/platform-governance/agp-execution.service';
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
+import { SchoolOperationNotificationsRepository } from '../events/repositories/school-operation-notifications.repository';
 import { CommunicationSmsService } from '../communication/communication-sms.service';
 import { CreateApplicationDto, UpdateApplicationDto } from './dto/create-application.dto';
 import { ListAdmissionsQueryDto } from './dto/list-admissions-query.dto';
@@ -328,6 +329,7 @@ export class AdmissionsService {
     @Optional() private readonly uploadMalwareScan?: UploadMalwareScanService,
     @Optional() private readonly authorizationRepository?: AuthorizationRepository,
     @Optional() private readonly communicationSmsService?: CommunicationSmsService,
+    @Optional() private readonly schoolOperationNotificationsRepository?: SchoolOperationNotificationsRepository,
   ) {}
 
   async getSummary() {
@@ -983,172 +985,18 @@ export class AdmissionsService {
           student_password_hash: initialPortalPasswordHash,
           dormitory_name: dto.dormitory_name?.trim() || null,
           transport_route: dto.transport_route?.trim() || null,
-        });
+        }, this.eventPublisher
+          ? ({ tx, result: admitted }) => this.publishManualAdmissionEvents({
+              tenantId,
+              actorUserId: context.user_id || null,
+              actorRole: context.role ?? 'admissions',
+              guardianPhone,
+              admitted,
+              tx,
+            })
+          : undefined);
       } catch (error) {
         this.rethrowCanonicalAdmissionError(error);
-      }
-
-      const student = result.student;
-      if (this.eventPublisher) {
-        await this.eventPublisher.publishStudentCreated({
-          tenant_id: tenantId,
-          student_id: student.id,
-          created_at: new Date().toISOString(),
-          created_by_user_id: context.user_id || null,
-          admission_number: student.admission_number,
-          first_name: student.first_name,
-          last_name: student.last_name,
-          metadata: {
-            source: 'ordinary_admission',
-            class_section_id: result.placement.class_section_id,
-            stream_id: result.placement.stream_id,
-          },
-        });
-        await this.eventPublisher.publish({
-          event_key: `student.lifecycle.enrolled:${student.id}:${result.placement.academic_year_id}`,
-          event_name: 'student.lifecycle.enrolled',
-          aggregate_type: 'student',
-          aggregate_id: student.id,
-          payload: { tenant_id: tenantId, student_id: student.id, status: 'active' },
-        });
-        await this.eventPublisher.publish({
-          event_key: `student.lifecycle.class_assigned:${student.id}:${result.placement.academic_year_id}`,
-          event_name: 'student.lifecycle.class_assigned',
-          aggregate_type: 'student',
-          aggregate_id: student.id,
-          payload: {
-            tenant_id: tenantId,
-            student_id: student.id,
-            class_id: result.placement.class_section_id,
-          },
-        });
-        await this.eventPublisher.publish({
-          event_key: `student.academic_enrollment.created:${result.placement.academic_enrollment_id}`,
-          event_name: 'student.academic_enrollment.created',
-          aggregate_type: 'student_academic_enrollment',
-          aggregate_id: result.placement.academic_enrollment_id,
-          payload: {
-            tenant_id: tenantId,
-            student_id: student.id,
-            academic_enrollment_id: result.placement.academic_enrollment_id,
-            application_id: result.application_id,
-            class_section_id: result.placement.class_section_id,
-            class_name: result.placement.class_name,
-            stream_name: result.placement.stream_name ?? 'Unstreamed',
-            academic_year: result.placement.academic_year_name,
-            status: 'active',
-            occurred_at: new Date().toISOString(),
-          },
-        });
-        await this.eventPublisher.publish({
-          event_key: `student.admission_number.assigned:${student.id}:${student.admission_number}`,
-          event_name: 'student.admission_number.assigned',
-          aggregate_type: 'student',
-          aggregate_id: student.id,
-          payload: {
-            tenant_id: tenantId,
-            student_id: student.id,
-            admission_number: student.admission_number,
-            assigned_by_user_id: context.user_id || null,
-          },
-        });
-        await this.eventPublisher.publish({
-          event_key: `student.subjects.assigned:${student.id}:${result.placement.academic_year_id}`,
-          event_name: 'student.subjects.assigned',
-          aggregate_type: 'student',
-          aggregate_id: student.id,
-          payload: {
-            tenant_id: tenantId,
-            student_id: student.id,
-            academic_year_id: result.placement.academic_year_id,
-            class_section_id: result.placement.class_section_id,
-            stream_id: result.placement.stream_id,
-            subject_ids: result.subjects.map((subject: any) => subject.id),
-          },
-        });
-        await this.eventPublisher.publish({
-          event_key: `student.guardian.linked:${student.id}:${result.guardian.profile_id}`,
-          event_name: 'student.guardian.linked',
-          aggregate_type: 'student_guardian',
-          aggregate_id: result.guardian.profile_id,
-          payload: {
-            tenant_id: tenantId,
-            student_id: student.id,
-            guardian_profile_id: result.guardian.profile_id,
-            is_primary: true,
-          },
-        });
-        await this.eventPublisher.publish({
-          event_key: `student.credentials.created:${student.id}`,
-          event_name: 'student.credentials.created',
-          aggregate_type: 'student_portal_access',
-          aggregate_id: student.id,
-          payload: {
-            tenant_id: tenantId,
-            student_id: student.id,
-            username: result.student_portal.username,
-            force_password_change: true,
-            recovery_phone_last4: guardianPhone.slice(-4),
-          },
-        });
-      }
-
-      if (this.schoolOperationalEventsService) {
-        const fullName = [student.first_name, student.middle_name, student.last_name]
-          .filter(Boolean)
-          .join(' ');
-        await this.schoolOperationalEventsService.recordSchoolOperation({
-          schoolId: tenantId,
-          event: {
-            id: randomUUID(),
-            type: 'student.admitted',
-            module: 'admissions',
-            actorRole: context.role ?? 'admissions',
-            title: 'Student admitted',
-            body: `${fullName} was admitted to ${result.placement.class_name}.`,
-            entityId: student.id,
-            severity: 'success',
-            payload: {
-              application_id: result.application_id,
-              student_id: student.id,
-              admission_number: student.admission_number,
-              class_section_id: result.placement.class_section_id,
-              stream_id: result.placement.stream_id,
-            },
-          },
-          notifications: [
-            {
-              id: `student-admitted-finance-${student.id}`,
-              school_id: tenantId,
-              audienceRoles: ['accountant', 'bursar', 'principal'],
-              title: 'New student admitted',
-              body: `${fullName} is ready for fee processing.`,
-              sourceModule: 'admissions',
-              relatedModule: 'finance',
-              relatedRecordId: student.id,
-              priority: 'normal',
-              read: false,
-              created_at: new Date().toISOString(),
-            },
-            {
-              id: `student-admitted-class-${student.id}`,
-              school_id: tenantId,
-              audienceRoles: ['teacher', 'class-teacher', 'deputy-principal'],
-              title: 'Learner added to class',
-              body: `${fullName} was placed in ${result.placement.class_name}.`,
-              sourceModule: 'admissions',
-              relatedModule: 'academics',
-              relatedRecordId: student.id,
-              priority: 'normal',
-              read: false,
-              created_at: new Date().toISOString(),
-            },
-          ],
-        });
-      }
-
-      if (context.user_id) {
-        await this.admissionsRepository.discardAdmissionDraft(tenantId, context.user_id);
       }
 
       return result;
@@ -1160,8 +1008,217 @@ export class AdmissionsService {
       requiredCapability: 'admissions:write',
       aggregateType: 'student',
       aggregateId: normalizeAdmissionNumber(dto.admission_number),
+      governanceRecordedInHandler: true,
+      retrySafe: false,
       handler: command,
     });
+  }
+
+  private async publishManualAdmissionEvents(input: {
+    tenantId: string;
+    actorUserId: string | null;
+    actorRole: string;
+    guardianPhone: string;
+    admitted: any;
+    tx: any;
+  }) {
+    if (!this.eventPublisher) {
+      throw new Error('Admission event publisher is unavailable');
+    }
+
+    const { admitted, tenantId, actorUserId, actorRole, guardianPhone, tx } = input;
+    const student = admitted.student;
+    const createdAt = new Date().toISOString();
+
+    await this.eventPublisher.publish({
+      tenant_id: tenantId,
+      event_key: `student.created:${student.id}`,
+      event_name: 'student.created',
+      aggregate_type: 'student',
+      aggregate_id: student.id,
+      payload: {
+        tenant_id: tenantId,
+        student_id: student.id,
+        created_at: createdAt,
+        created_by_user_id: actorUserId,
+        admission_number: student.admission_number,
+        first_name: student.first_name,
+        last_name: student.last_name,
+        metadata: {
+          source: 'ordinary_admission',
+          class_section_id: admitted.placement.class_section_id,
+          stream_id: admitted.placement.stream_id,
+        },
+      },
+    }, tx);
+    await this.eventPublisher.publish({
+      tenant_id: tenantId,
+      event_key: `student.lifecycle.enrolled:${student.id}:${admitted.placement.academic_year_id}`,
+      event_name: 'student.lifecycle.enrolled',
+      aggregate_type: 'student',
+      aggregate_id: student.id,
+      payload: { tenant_id: tenantId, student_id: student.id, status: 'active' },
+    }, tx);
+    await this.eventPublisher.publish({
+      tenant_id: tenantId,
+      event_key: `student.lifecycle.class_assigned:${student.id}:${admitted.placement.academic_year_id}`,
+      event_name: 'student.lifecycle.class_assigned',
+      aggregate_type: 'student',
+      aggregate_id: student.id,
+      payload: {
+        tenant_id: tenantId,
+        student_id: student.id,
+        class_id: admitted.placement.class_section_id,
+      },
+    }, tx);
+    await this.eventPublisher.publish({
+      tenant_id: tenantId,
+      event_key: `student.academic_enrollment.created:${admitted.placement.academic_enrollment_id}`,
+      event_name: 'student.academic_enrollment.created',
+      aggregate_type: 'student_academic_enrollment',
+      aggregate_id: admitted.placement.academic_enrollment_id,
+      payload: {
+        tenant_id: tenantId,
+        student_id: student.id,
+        academic_enrollment_id: admitted.placement.academic_enrollment_id,
+        application_id: admitted.application_id,
+        class_section_id: admitted.placement.class_section_id,
+        class_name: admitted.placement.class_name,
+        stream_name: admitted.placement.stream_name ?? 'Unstreamed',
+        academic_year: admitted.placement.academic_year_name,
+        status: 'active',
+        occurred_at: createdAt,
+      },
+    }, tx);
+    await this.eventPublisher.publish({
+      tenant_id: tenantId,
+      event_key: `student.admission_number.assigned:${student.id}:${student.admission_number}`,
+      event_name: 'student.admission_number.assigned',
+      aggregate_type: 'student',
+      aggregate_id: student.id,
+      payload: {
+        tenant_id: tenantId,
+        student_id: student.id,
+        admission_number: student.admission_number,
+        assigned_by_user_id: actorUserId,
+      },
+    }, tx);
+    await this.eventPublisher.publish({
+      tenant_id: tenantId,
+      event_key: `student.subjects.assigned:${student.id}:${admitted.placement.academic_year_id}`,
+      event_name: 'student.subjects.assigned',
+      aggregate_type: 'student',
+      aggregate_id: student.id,
+      payload: {
+        tenant_id: tenantId,
+        student_id: student.id,
+        academic_year_id: admitted.placement.academic_year_id,
+        class_section_id: admitted.placement.class_section_id,
+        stream_id: admitted.placement.stream_id,
+        subject_ids: admitted.subjects.map((subject: any) => subject.id),
+      },
+    }, tx);
+    await this.eventPublisher.publish({
+      tenant_id: tenantId,
+      event_key: `student.guardian.linked:${student.id}:${admitted.guardian.profile_id}`,
+      event_name: 'student.guardian.linked',
+      aggregate_type: 'student_guardian',
+      aggregate_id: admitted.guardian.profile_id,
+      payload: {
+        tenant_id: tenantId,
+        student_id: student.id,
+        guardian_profile_id: admitted.guardian.profile_id,
+        is_primary: true,
+      },
+    }, tx);
+    await this.eventPublisher.publish({
+      tenant_id: tenantId,
+      event_key: `student.credentials.created:${student.id}`,
+      event_name: 'student.credentials.created',
+      aggregate_type: 'student_portal_access',
+      aggregate_id: student.id,
+      payload: {
+        tenant_id: tenantId,
+        student_id: student.id,
+        username: admitted.student_portal.username,
+        force_password_change: true,
+        recovery_phone_last4: guardianPhone.slice(-4),
+      },
+    }, tx);
+
+    const fullName = [student.first_name, student.middle_name, student.last_name]
+      .filter(Boolean)
+      .join(' ');
+    const operationId = `student-admitted-${student.id}`;
+    const notifications = [
+      {
+        id: `student-admitted-finance-${student.id}`,
+        school_id: tenantId,
+        audienceRoles: ['accountant', 'bursar', 'principal'],
+        title: 'New student admitted',
+        body: `${fullName} is ready for fee processing.`,
+        sourceModule: 'admissions',
+        relatedModule: 'finance',
+        relatedRecordId: student.id,
+        priority: 'normal',
+        read: false,
+        created_at: createdAt,
+      },
+      {
+        id: `student-admitted-class-${student.id}`,
+        school_id: tenantId,
+        audienceRoles: ['teacher', 'class_teacher', 'deputy_principal'],
+        title: 'Learner added to class',
+        body: `${fullName} was placed in ${admitted.placement.class_name}.`,
+        sourceModule: 'admissions',
+        relatedModule: 'academics',
+        relatedRecordId: student.id,
+        priority: 'normal',
+        read: false,
+        created_at: createdAt,
+      },
+    ];
+    await this.eventPublisher.publish({
+      tenant_id: tenantId,
+      event_key: `school.operation.recorded:${tenantId}:${operationId}`,
+      event_name: 'school.operation.recorded',
+      aggregate_type: 'school_operation',
+      aggregate_id: student.id,
+      payload: {
+        tenant_id: tenantId,
+        school_id: tenantId,
+        operation_id: operationId,
+        operation_type: 'student.admitted',
+        module: 'admissions',
+        actor_role: actorRole.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+        title: 'Student admitted',
+        body: `${fullName} was admitted to ${admitted.placement.class_name}.`,
+        entity_id: student.id,
+        severity: 'success',
+        target_roles: ['accountant', 'bursar', 'principal', 'teacher', 'class_teacher', 'deputy_principal'],
+        target_user_ids: [],
+        notifications,
+        sms: [],
+        payload: {
+          application_id: admitted.application_id,
+          student_id: student.id,
+          admission_number: student.admission_number,
+          class_section_id: admitted.placement.class_section_id,
+          stream_id: admitted.placement.stream_id,
+        },
+        occurred_at: createdAt,
+      },
+    }, tx);
+
+    if (this.schoolOperationNotificationsRepository) {
+      for (const notification of notifications) {
+        await this.schoolOperationNotificationsRepository.upsertFromSchoolOperation({
+          tenantId,
+          operationId,
+          notification,
+        }, tx);
+      }
+    }
   }
 
   async changeStudentAdmissionNumber(
