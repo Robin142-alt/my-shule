@@ -617,6 +617,15 @@ export function LiveRoleCommandCenter({
           <IntegratedSchoolCommandHeader
             roleTitle={config.roleTitle}
             fallbackUserLabel={userLabel?.trim() || config.roleLabel}
+            audience={experience === "portal" ? "portal" : "school"}
+            showSignOut={experience === "portal"}
+            browserLoginPath={
+              experience === "portal"
+                ? role === "student"
+                  ? "/student/login"
+                  : "/parent/login"
+                : "/school/login"
+            }
             actions={(
               <button
                 type="button"

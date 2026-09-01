@@ -3,6 +3,8 @@ import { PhoneCall } from "lucide-react";
 
 import { MyShuleBrand } from "@/components/brand/myshule-brand";
 import { CTAButton } from "@/components/marketing/cta-button";
+import { PwaInstallAction } from "@/components/pwa/pwa-install-action";
+import { InstalledPublicSiteRedirect } from "@/components/pwa/installed-public-site-redirect";
 import { SITE_CONTACT_PHONE } from "@/lib/seo";
 
 const primaryLinks = [
@@ -15,6 +17,7 @@ const primaryLinks = [
 export function PublicSiteShell({ children }: { children: React.ReactNode }) {
   return (
     <main className="command-background min-h-screen text-foreground">
+      <InstalledPublicSiteRedirect />
       <header className="sticky top-0 z-30 border-b border-white/10 bg-[#071D49]/95 backdrop-blur-xl">
         <div className="mx-auto flex min-h-[76px] w-full max-w-7xl items-center justify-between gap-4 px-5 sm:px-8 lg:px-10">
           <Link href="/" className="flex items-center gap-3" aria-label="MyShule home">
@@ -31,17 +34,20 @@ export function PublicSiteShell({ children }: { children: React.ReactNode }) {
               </Link>
             ))}
           </nav>
-          <div className="hidden items-center gap-3 sm:flex">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <PwaInstallAction />
             <a
               href={`tel:${SITE_CONTACT_PHONE}`}
-              className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.08] px-3 text-sm font-semibold text-white transition hover:border-accent/50 hover:bg-white/[0.14]"
+              className="hidden min-h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.08] px-3 text-sm font-semibold text-white transition hover:border-accent/50 hover:bg-white/[0.14] sm:inline-flex"
             >
               <PhoneCall className="h-4 w-4 text-[#f97316]" aria-hidden="true" />
               {SITE_CONTACT_PHONE}
             </a>
-            <CTAButton href="/school-portal" variant="dark" showArrow={false}>
-              Request Demo
-            </CTAButton>
+            <span className="hidden sm:inline-flex">
+              <CTAButton href="/school-portal" variant="dark" showArrow={false}>
+                Request Demo
+              </CTAButton>
+            </span>
           </div>
         </div>
         <nav className="grid grid-cols-2 gap-2 border-t border-white/10 px-5 py-3 text-sm font-semibold sm:hidden" aria-label="Mobile navigation">

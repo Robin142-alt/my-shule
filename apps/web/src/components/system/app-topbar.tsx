@@ -1,10 +1,11 @@
 "use client";
 
-import { Bell, ChevronDown, Menu, Plus, Search } from "lucide-react";
+import { Bell, ChevronDown, LogOut, Menu, Plus, Search } from "lucide-react";
 import { startTransition, useDeferredValue, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
+import { SessionSignOutButton } from "@/components/auth/session-sign-out-button";
 import { SchoolDashboardRoleSwitcher } from "@/components/school/school-dashboard-role-switcher";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
@@ -594,6 +595,24 @@ export function AppTopbar({
                 ) : null}
               </div>
             </>
+          ) : null}
+          {variant === "school" || variant === "portal" ? (
+            <SessionSignOutButton
+              audience={variant === "portal" ? "portal" : "school"}
+              browserLoginPath={
+                variant === "portal"
+                  ? normalizedRoleKey === "student"
+                    ? "/student/login"
+                    : "/parent/login"
+                  : "/school/login"
+              }
+              aria-label="Sign out"
+              title="Sign out"
+              className="inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-[var(--radius-sm)] border border-border bg-surface-muted text-danger transition hover:border-red-200 hover:bg-red-50 disabled:cursor-wait disabled:opacity-65"
+              pendingLabel={<span className="h-4 w-4 animate-spin rounded-full border-2 border-red-200 border-t-red-600" />}
+            >
+              <LogOut className="h-4 w-4" aria-hidden="true" />
+            </SessionSignOutButton>
           ) : null}
           {status ? <StatusPill label={status.label} tone={status.tone} /> : null}
           <div className="relative">

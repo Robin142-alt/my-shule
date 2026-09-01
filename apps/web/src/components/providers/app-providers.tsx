@@ -1,7 +1,9 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+
+import { scheduleMyShuleServiceWorkerRegistration } from "@/lib/pwa/service-worker-registration";
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -18,16 +20,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/service-worker.js').then(
-          () => undefined,
-          (err) => {
-            console.warn('ServiceWorker registration failed.', err);
-          }
-        );
-      });
-    }
+    return scheduleMyShuleServiceWorkerRegistration();
   }, []);
 
   return (

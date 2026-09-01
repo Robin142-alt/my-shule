@@ -1,4 +1,5 @@
 import type { ExperienceAudience } from "@/lib/auth/experience-audience";
+import { isInstalledPwa } from "@/lib/pwa/installed-mode";
 
 const expiredSessionLoginPaths: Record<ExperienceAudience, string> = {
   superadmin: "/superadmin/login",
@@ -16,11 +17,16 @@ export class ExpiredSessionError extends Error {
   }
 }
 
-export function getExpiredSessionLoginPath(audience: ExperienceAudience) {
-  return `${expiredSessionLoginPaths[audience]}?expired=1`;
+export function getExpiredSessionLoginPath(
+  audience: ExperienceAudience,
+  installed = isInstalledPwa(),
+) {
+  return installed ? "/app" : `${expiredSessionLoginPaths[audience]}?expired=1`;
 }
 
-export function isExpiredSessionError(error: unknown): error is ExpiredSessionError {
+export function isExpiredSessionError(
+  error: unknown,
+): error is ExpiredSessionError {
   return error instanceof ExpiredSessionError;
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, type LucideIcon } from "lucide-react";
+import { Building2, LogOut, type LucideIcon } from "lucide-react";
 import {
   createContext,
   useContext,
@@ -10,7 +10,9 @@ import {
 } from "react";
 
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
+import { SessionSignOutButton } from "@/components/auth/session-sign-out-button";
 import { SchoolDashboardRoleSwitcher } from "@/components/school/school-dashboard-role-switcher";
+import type { ExperienceAudience } from "@/lib/auth/experience-audience";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { tenantSlugToName } from "@/lib/seo/tenant-routes";
 
@@ -119,12 +121,18 @@ export function IntegratedSchoolCommandHeader({
   contextLabel = "command center",
   actions,
   className = "",
+  audience = "school",
+  browserLoginPath,
+  showSignOut = false,
 }: {
   roleTitle: string;
   fallbackUserLabel?: string;
   contextLabel?: string;
   actions?: ReactNode;
   className?: string;
+  audience?: ExperienceAudience;
+  browserLoginPath?: string;
+  showSignOut?: boolean;
 }) {
   const { schoolName, userLabel } = useSchoolCommandIdentity();
   const greetingName = userLabel === "School user" && fallbackUserLabel
@@ -144,6 +152,16 @@ export function IntegratedSchoolCommandHeader({
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center xl:max-w-[68%] xl:justify-end">
           <SchoolDashboardRoleSwitcher className="w-full sm:w-auto" />
           {actions}
+          {showSignOut ? (
+            <SessionSignOutButton
+              audience={audience}
+              browserLoginPath={browserLoginPath}
+              className="inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-xl border border-[#C8D5EA] bg-[#F8FAFC] px-4 text-sm font-black text-[#B42318] transition hover:border-red-200 hover:bg-red-50 disabled:cursor-wait disabled:opacity-65"
+            >
+              <LogOut className="h-4 w-4" aria-hidden="true" />
+              Sign out
+            </SessionSignOutButton>
+          ) : null}
         </div>
       </div>
     </header>

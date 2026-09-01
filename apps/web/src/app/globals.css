@@ -608,6 +608,28 @@ textarea {
   display: none;
 }
 
+.installed-public-site-cover {
+  display: none;
+}
+
+.installed-public-site-cover.is-visible {
+  display: flex;
+}
+
+.installed-public-site-cover.is-visible ~ * {
+  visibility: hidden;
+}
+
+@media (display-mode: standalone) {
+  .installed-public-site-cover {
+    display: flex;
+  }
+
+  .installed-public-site-cover ~ * {
+    visibility: hidden;
+  }
+}
+
 .report-card-a4 {
   box-sizing: border-box;
   width: 100%;

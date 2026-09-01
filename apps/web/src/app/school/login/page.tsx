@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import { AuthShell } from "@/components/auth/auth-shell";
 import { SchoolLoginView } from "@/components/auth/school-login-view";
+import { InstalledPublicSiteRedirect } from "@/components/pwa/installed-public-site-redirect";
 import { resolveSchoolBranding } from "@/lib/auth/school-branding";
 import { absoluteUrl, SITE_NAME } from "@/lib/seo";
 
@@ -41,6 +42,7 @@ export default async function SchoolLoginPage({
   const initialEmail = readSearchParam(resolvedSearchParams, "email").trim();
   const initialTenantSlug = readSearchParam(resolvedSearchParams, "tenant").trim() || null;
   const acceptedInvite = readSearchParam(resolvedSearchParams, "accepted").trim() === "1";
+  const launchedFromInstalledApp = readSearchParam(resolvedSearchParams, "source").trim() === "app";
   const requestHeaders = await headers();
   const host =
     requestHeaders.get("x-forwarded-host") ??
@@ -48,7 +50,9 @@ export default async function SchoolLoginPage({
   const resolution = resolveSchoolBranding(host);
 
   return (
-    <AuthShell
+    <>
+      <InstalledPublicSiteRedirect disabled={launchedFromInstalledApp} />
+      <AuthShell
       eyebrow="School staff login"
       heroTitle="Run your school with operational clarity."
       heroDescription="Visibility across departments. Every payment accountable. Every incident traceable. Every student monitored responsibly."
@@ -83,6 +87,7 @@ export default async function SchoolLoginPage({
         initialTenantSlug={initialTenantSlug}
         acceptedInvite={acceptedInvite}
       />
-    </AuthShell>
+      </AuthShell>
+    </>
   );
 }

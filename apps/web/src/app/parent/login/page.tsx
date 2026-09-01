@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { AuthShell } from "@/components/auth/auth-shell";
 import { PortalLoginView } from "@/components/auth/portal-login-view";
+import { InstalledPublicSiteRedirect } from "@/components/pwa/installed-public-site-redirect";
 import { absoluteUrl, SITE_NAME } from "@/lib/seo";
 
 export const metadata: Metadata = {
@@ -39,9 +40,12 @@ export default async function ParentLoginPage({
   const initialEmail = readSearchParam(resolvedSearchParams, "email").trim();
   const initialTenantSlug = readSearchParam(resolvedSearchParams, "tenant").trim() || null;
   const acceptedInvite = readSearchParam(resolvedSearchParams, "accepted").trim() === "1";
+  const launchedFromInstalledApp = readSearchParam(resolvedSearchParams, "source").trim() === "app";
 
   return (
-    <AuthShell
+    <>
+      <InstalledPublicSiteRedirect disabled={launchedFromInstalledApp} />
+      <AuthShell
       eyebrow="Parent portal login"
       heroTitle="Stay connected to your child in real time."
       heroDescription="Parent login brings fees, attendance, progress, discipline, clinic notes, transport status, notices, and teacher communication into one secure family workspace."
@@ -76,6 +80,7 @@ export default async function ParentLoginPage({
         initialTenantSlug={initialTenantSlug}
         acceptedInvite={acceptedInvite}
       />
-    </AuthShell>
+      </AuthShell>
+    </>
   );
 }

@@ -101,7 +101,7 @@ export function Topbar({
   liveSessionSubmitting: boolean;
   liveSessionError: string | null;
   onLiveLogin: (email: string, password: string) => Promise<void>;
-  onLiveLogout: () => void;
+  onLiveLogout: () => void | Promise<void>;
   onOpenSidebar: () => void;
   supplementalSearchItems?: SearchItem[];
 }) {
@@ -529,7 +529,7 @@ export function Topbar({
                 <button
                   type="button"
                   onClick={() => {
-                    onLiveLogout();
+                    void Promise.resolve(onLiveLogout()).catch(() => undefined);
                     setShowProfilePanel(false);
                   }}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-border bg-surface px-3 py-2 text-[13px] font-semibold text-foreground transition-colors hover:bg-surface-muted"

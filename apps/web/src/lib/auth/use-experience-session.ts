@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { getCsrfToken } from "@/lib/auth/csrf-client";
 import type { ExperienceAudience } from "@/lib/auth/experience-audience";
 import type { SchoolDashboardRoleContext } from "@/lib/auth/dashboard-role-context";
 import type { PublicExperienceGatewaySession } from "@/lib/auth/server-session";
+import { getPostLogoutPath } from "@/lib/pwa/installed-mode";
 
 type LoginInput = {
   identifier: string;
@@ -59,8 +62,11 @@ export function useExperienceSession(
   options?: {
     tenantSlug?: string | null;
     autoLoad?: boolean;
+    logoutPath?: string;
   },
 ) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const [session, setSession] = useState<PublicExperienceGatewaySession | null>(null);
   const [user, setUser] = useState<PublicExperienceGatewaySession["user"] | null>(null);
   const [isLoading, setIsLoading] = useState(options?.autoLoad ?? false);
@@ -91,6 +97,7 @@ export function useExperienceSession(
         const response = await fetch(`/api/auth/me?${query.toString()}`, {
           method: "GET",
           credentials: "same-origin",
+          cache: "no-store",
         });
 
         if (!response.ok) {
@@ -177,9 +184,10 @@ export function useExperienceSession(
 
   const logout = async () => {
     setIsSubmitting(true);
+    setError(null);
 
     try {
-      await fetch("/api/auth/logout", {
+      const response = await fetch("/api/auth/logout", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -188,9 +196,28 @@ export function useExperienceSession(
         credentials: "same-origin",
         body: JSON.stringify({ audience }),
       });
+      const payload = (await response.json().catch(() => null)) as
+        | { message?: string; success?: boolean }
+        | null;
+
+      if (!response.ok || payload?.success !== true) {
+        throw new ExperienceSessionRequestError(
+          payload?.message ?? "Unable to sign out securely. Please try again.",
+          response.status,
+        );
+      }
+
       setSession(null);
       setUser(null);
       setError(null);
+      queryClient.clear();
+      router.replace(getPostLogoutPath(audience, undefined, options?.logoutPath));
+    } catch (logoutError) {
+      const message = logoutError instanceof Error
+        ? logoutError.message
+        : "Unable to sign out securely. Please try again.";
+      setError(message);
+      throw logoutError;
     } finally {
       setIsSubmitting(false);
     }

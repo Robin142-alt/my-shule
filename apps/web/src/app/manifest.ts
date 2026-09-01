@@ -1,18 +1,21 @@
 import type { MetadataRoute } from "next";
 
-import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE } from "@/lib/seo";
+import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: SITE_TITLE,
+    id: "/",
+    name: SITE_NAME,
     short_name: SITE_NAME,
     description: SITE_DESCRIPTION,
-    start_url: "/",
+    start_url: "/app",
     scope: "/",
     display: "standalone",
-    background_color: "#F3F4F6",
+    background_color: "#071D49",
     theme_color: "#071D49",
+    lang: "en-KE",
     categories: ["education", "business", "productivity"],
+    prefer_related_applications: false,
     icons: [
       {
         src: "/brand/myshule-mark-192.png",

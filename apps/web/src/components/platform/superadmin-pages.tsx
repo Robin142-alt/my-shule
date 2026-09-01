@@ -20,17 +20,17 @@ import {
 } from "lucide-react";
 
 import { ActivityListCard, SimpleListCard } from "@/components/experience/activity-list-card";
+import { SessionSignOutButton } from "@/components/auth/session-sign-out-button";
 import { ChartCard } from "@/components/experience/chart-card";
 import { MetricGrid } from "@/components/experience/metric-grid";
 import { QuickActionBar } from "@/components/experience/quick-action-bar";
 import { PlatformShell } from "@/components/platform/platform-shell";
 import { PlatformSupportWorkspace } from "@/components/support/platform-support-workspace";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { Modal } from "@/components/ui/modal";
 import { StatusPill } from "@/components/ui/status-pill";
-import { getCsrfToken } from "@/lib/auth/csrf-client";
 import { redirectOnExpiredSessionError } from "@/lib/auth/session-expiry-client";
 import {
   fetchApiObservabilityAlerts,
@@ -526,33 +526,15 @@ function normalizeTenantProductSummary(value: unknown): PlatformTenantProductSum
 }
 
 function SuperadminLogoutButton() {
-  const router = useRouter();
-  const [isSigningOut, setIsSigningOut] = useState(false);
-
-  async function signOut() {
-    setIsSigningOut(true);
-
-    try {
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-myshule-csrf": await getCsrfToken(),
-        },
-        credentials: "same-origin",
-        body: JSON.stringify({ audience: "superadmin" }),
-      });
-    } finally {
-      router.push("/superadmin/login");
-      setIsSigningOut(false);
-    }
-  }
-
   return (
-    <Button variant="secondary" disabled={isSigningOut} onClick={() => void signOut()}>
+    <SessionSignOutButton
+      audience="superadmin"
+      className={buttonClasses({ variant: "secondary" })}
+      pendingLabel="Logging out"
+    >
       <LogOut className="h-4 w-4" />
-      {isSigningOut ? "Logging out" : "Logout"}
-    </Button>
+      Logout
+    </SessionSignOutButton>
   );
 }
 

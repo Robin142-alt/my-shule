@@ -22,6 +22,7 @@ import {
   ExperienceSessionRequestError,
   useExperienceSession,
 } from "@/lib/auth/use-experience-session";
+import { getExpiredSessionLoginPath } from "@/lib/auth/session-expiry-client";
 import type { SchoolExperienceRole } from "@/lib/experiences/types";
 import { getSchoolWorkspace } from "@/lib/experiences/school-data";
 import { isSchoolSection } from "@/lib/routing/experience-routes";
@@ -402,7 +403,7 @@ export function SchoolDashboardRoleProvider({
       router.refresh();
     } catch (error) {
       if (error instanceof ExperienceSessionRequestError && error.status === 401) {
-        router.replace("/school/login?expired=1");
+        router.replace(getExpiredSessionLoginPath("school"));
       }
 
       if (error instanceof ExperienceSessionRequestError && error.status === 403) {
