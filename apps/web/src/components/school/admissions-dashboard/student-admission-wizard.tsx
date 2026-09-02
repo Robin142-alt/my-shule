@@ -45,6 +45,7 @@ type Subject = {
 };
 
 type ClassSubjectAssignment = {
+  academic_term_id?: string;
   academic_year_id: string;
   class_section_id: string;
   subject_id: string;
@@ -235,7 +236,13 @@ export function StudentAdmissionWizard({
   const [nextAdmissionError, setNextAdmissionError] = useState<string | null>(null);
   const draftHydrated = useRef(false);
   const draftSaveSequence = useRef(0);
-  const foundationQuery = useSchoolQuery<AdmissionFoundation>("/admissions/foundation", { retry: 1 });
+  const foundationQuery = useSchoolQuery<AdmissionFoundation>("/admissions/foundation", {
+    retry: 1,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchInterval: 15_000,
+  });
   const draftQuery = useSchoolQuery<AdmissionDraft | null>("/admissions/drafts/current", { retry: 1 });
   const admitStudent = useSchoolMutation<AdmissionResult, AdmissionPayload>("/admissions/manual", "POST", {
     invalidateSchoolQueries: false,
@@ -276,24 +283,56 @@ export function StudentAdmissionWizard({
   const streams = (foundation?.streams ?? []).filter(
     (item) => item.class_section_id === form.class_section_id,
   );
-  const assignedSubjectIds = new Set(
-    (foundation?.class_subject_assignments ?? [])
-      .filter(
-        (item) =>
-          item.academic_year_id === form.academic_year_id &&
-          item.class_section_id === form.class_section_id,
-      )
-      .map((item) => item.subject_id),
+  const classSubjectAssignments = useMemo(
+    () => (foundation?.class_subject_assignments ?? []).filter(
+      (item) =>
+        item.academic_year_id === form.academic_year_id &&
+        item.class_section_id === form.class_section_id,
+    ),
+    [foundation?.class_subject_assignments, form.academic_year_id, form.class_section_id],
   );
-  const subjects = (foundation?.subjects ?? []).filter((item) => assignedSubjectIds.has(item.id));
+  const subjects = useMemo(() => {
+    const assignmentsBySubject = new Map(
+      classSubjectAssignments.map((assignment) => [assignment.subject_id, assignment]),
+    );
+
+    return (foundation?.subjects ?? [])
+      .filter((subject) => assignmentsBySubject.has(subject.id))
+      .map((subject) => {
+        const assignment = assignmentsBySubject.get(subject.id);
+        return {
+          ...subject,
+          // A class offering is the specific policy for this learner's class.
+          // `false` is an intentional optional override, so it must not be ORed
+          // with the broader subject catalogue default.
+          is_compulsory: assignment?.is_compulsory ?? subject.is_compulsory,
+          is_examinable: assignment?.is_examinable ?? subject.is_examinable,
+        };
+      });
+  }, [classSubjectAssignments, foundation?.subjects]);
+  const compulsorySubjectIds = useMemo(
+    () => subjects.filter((subject) => subject.is_compulsory).map((subject) => subject.id),
+    [subjects],
+  );
   const selectedClass = (foundation?.classes ?? []).find((item) => item.id === form.class_section_id);
+  const canonicalSubjectIds = useMemo(() => {
+    const availableSubjectIds = new Set(subjects.map((subject) => subject.id));
+    return [...new Set([
+      ...form.subject_ids.filter((subjectId) => availableSubjectIds.has(subjectId)),
+      ...compulsorySubjectIds,
+    ])];
+  }, [compulsorySubjectIds, form.subject_ids, subjects]);
   const canonicalForm = useMemo(
-    () => ({ ...form, grade_level: selectedClass?.name ?? form.grade_level }),
-    [form, selectedClass?.name],
+    () => ({
+      ...form,
+      grade_level: selectedClass?.name ?? form.grade_level,
+      subject_ids: canonicalSubjectIds,
+    }),
+    [canonicalSubjectIds, form, selectedClass?.name],
   );
   const selectedStream = (foundation?.streams ?? []).find((item) => item.id === form.stream_id);
   const selectedYear = years.find((item) => item.id === form.academic_year_id);
-  const selectedSubjects = subjects.filter((item) => form.subject_ids.includes(item.id));
+  const selectedSubjects = subjects.filter((item) => canonicalSubjectIds.includes(item.id));
   const admissionSettings = foundation?.admission_settings;
 
   useEffect(() => {
@@ -403,14 +442,14 @@ export function StudentAdmissionWizard({
     if (currentStep === 2) {
       if (subjects.length === 0) return "This class has no configured subjects. Ask the Deputy Principal to assign subjects first.";
       const missingCompulsory = subjects.some(
-        (subject) => subject.is_compulsory && !form.subject_ids.includes(subject.id),
+        (subject) => subject.is_compulsory && !canonicalSubjectIds.includes(subject.id),
       );
       if (missingCompulsory) return "All compulsory subjects must remain selected.";
-      if (form.subject_ids.length === 0) return "Select at least one subject.";
-      if (admissionSettings?.minimum_subjects != null && form.subject_ids.length < admissionSettings.minimum_subjects) {
+      if (canonicalSubjectIds.length === 0) return "Select at least one subject.";
+      if (admissionSettings?.minimum_subjects != null && canonicalSubjectIds.length < admissionSettings.minimum_subjects) {
         return `Select at least ${admissionSettings.minimum_subjects} subjects for this learner.`;
       }
-      if (admissionSettings?.maximum_subjects != null && form.subject_ids.length > admissionSettings.maximum_subjects) {
+      if (admissionSettings?.maximum_subjects != null && canonicalSubjectIds.length > admissionSettings.maximum_subjects) {
         return `Select no more than ${admissionSettings.maximum_subjects} subjects for this learner.`;
       }
     }
@@ -440,18 +479,7 @@ export function StudentAdmissionWizard({
       return;
     }
     if (step === 1) {
-      const compulsoryIds = subjects
-        .filter((subject) =>
-          subject.is_compulsory ||
-          (foundation?.class_subject_assignments ?? []).some(
-            (assignment) =>
-              assignment.class_section_id === form.class_section_id &&
-              assignment.subject_id === subject.id &&
-              assignment.is_compulsory,
-          ),
-        )
-        .map((subject) => subject.id);
-      setForm((current) => ({ ...current, subject_ids: compulsoryIds }));
+      setForm((current) => ({ ...current, subject_ids: compulsorySubjectIds }));
     }
     if (step === 3) {
       try {
@@ -623,11 +651,23 @@ export function StudentAdmissionWizard({
 
   return (
     <section className="mb-6 rounded-2xl border border-cyan-200 bg-cyan-50/60 p-4">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-lg font-black text-[#071D49]">New student admission</h3>
+          <p className="mt-1 text-sm font-semibold text-[#64748B]">
+            Complete each stage. The final action creates the learner, placement, subjects, guardian access, fees, and downstream records together.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void foundationQuery.refetch()}
+          disabled={foundationQuery.isFetching}
+          className="shrink-0 rounded-xl border border-cyan-300 bg-white px-3 py-2 text-xs font-black text-[#071D49] disabled:opacity-60"
+        >
+          {foundationQuery.isFetching ? "Refreshing setup..." : "Refresh classes, streams & subjects"}
+        </button>
+      </div>
       <div className="mb-4">
-        <h3 className="text-lg font-black text-[#071D49]">New student admission</h3>
-        <p className="mt-1 text-sm font-semibold text-[#64748B]">
-          Complete each stage. The final action creates the learner, placement, subjects, guardian access, fees, and downstream records together.
-        </p>
         <p className={`mt-2 text-xs font-bold ${draftStatus === "failed" ? "text-rose-700" : "text-[#64748B]"}`}>
           {draftStatus === "loading" ? "Checking saved draft..." : draftStatus === "saving" ? "Saving draft..." : draftStatus === "queued" ? "Draft saved on this device and queued for secure school sync." : draftStatus === "failed" ? "Draft could not be saved. Your entered data remains on this screen." : "Draft saved securely for your school account."}
         </p>
@@ -766,7 +806,7 @@ export function StudentAdmissionWizard({
               ) : (
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {subjects.map((subject) => {
-                    const compulsory = subject.is_compulsory || (foundation?.class_subject_assignments ?? []).some((assignment) => assignment.class_section_id === form.class_section_id && assignment.subject_id === subject.id && assignment.is_compulsory);
+                    const compulsory = subject.is_compulsory;
                     const checked = compulsory || form.subject_ids.includes(subject.id);
                     return (
                       <label key={subject.id} className={`flex items-start gap-3 rounded-xl border p-3 ${checked ? "border-cyan-300 bg-cyan-50" : "border-[#D8E0EC] bg-white"}`}>

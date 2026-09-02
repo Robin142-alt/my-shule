@@ -60,6 +60,7 @@ const foundation = {
 };
 
 describe("guided student admission", () => {
+  let currentFoundation = foundation;
   const refetchFoundation = jest.fn(async () => ({ data: foundation }));
   const admitStudent = jest.fn();
   const preflightAdmission = jest.fn();
@@ -69,9 +70,11 @@ describe("guided student admission", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    currentFoundation = foundation;
+    refetchFoundation.mockResolvedValue({ data: foundation });
     mockUseSchoolQuery.mockImplementation((path: string) => {
       if (path === "/admissions/foundation") {
-        return { data: foundation, isLoading: false, isError: false, refetch: refetchFoundation };
+        return { data: currentFoundation, isLoading: false, isError: false, isFetching: false, refetch: refetchFoundation };
       }
       if (path === "/admissions/drafts/current") {
         return { data: null, isLoading: false, isError: false, refetch: jest.fn() };
@@ -108,6 +111,94 @@ describe("guided student admission", () => {
       student_portal: { username: "MS-2026-0001", status: "otp_ready" },
       fees: { status: "pending_fee_structure" },
     });
+  });
+
+  it("always reloads Deputy setup and lets a class offering override a compulsory catalogue default", async () => {
+    const user = userEvent.setup();
+    const refreshedFoundation = {
+      ...foundation,
+      classes: [
+        ...foundation.classes,
+        {
+          ...foundation.classes[0],
+          id: "class-grade-8",
+          academic_level_id: "level-grade-8",
+          name: "Grade 8",
+          grade_level: "Grade 8",
+          student_count: 0,
+        },
+      ],
+      streams: [
+        ...foundation.streams,
+        {
+          ...foundation.streams[0],
+          id: "stream-east",
+          class_section_id: "class-grade-8",
+          name: "East",
+          student_count: 0,
+        },
+      ],
+      class_subject_assignments: foundation.class_subject_assignments.map((assignment) => ({
+        ...assignment,
+        class_section_id: "class-grade-8",
+        is_compulsory: false,
+      })),
+    };
+    refetchFoundation.mockImplementationOnce(async () => {
+      currentFoundation = refreshedFoundation;
+      return { data: refreshedFoundation };
+    });
+    const onCancel = jest.fn();
+    const onAdmitted = jest.fn();
+
+    const view = renderWithProviders(<StudentAdmissionWizard onCancel={onCancel} onAdmitted={onAdmitted} />);
+
+    expect(mockUseSchoolQuery).toHaveBeenCalledWith(
+      "/admissions/foundation",
+      expect.objectContaining({
+        staleTime: 0,
+        refetchOnMount: "always",
+        refetchOnWindowFocus: true,
+        refetchInterval: 15_000,
+      }),
+    );
+    await waitFor(() => expect(screen.getByLabelText(/^Admission number(?! mode)/i)).toHaveValue("MS-2026-0001"));
+    await user.type(screen.getByLabelText(/^First name/i), "Amina");
+    await user.type(screen.getByLabelText(/^Last name/i), "Njeri");
+    await user.selectOptions(screen.getByLabelText(/^Gender/i), "female");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await user.selectOptions(screen.getByLabelText(/^Academic year/i), "year-2026");
+    await user.selectOptions(screen.getByLabelText(/^Curriculum/i), "CBC");
+
+    expect(screen.queryByRole("option", { name: /Grade 8/i })).not.toBeInTheDocument();
+    const refreshSetup = screen.getByRole("button", { name: /refresh classes, streams & subjects/i });
+    await user.click(refreshSetup);
+    expect(refetchFoundation).toHaveBeenCalledTimes(1);
+    view.rerender(<StudentAdmissionWizard onCancel={onCancel} onAdmitted={onAdmitted} />);
+
+    expect(screen.getByRole("option", { name: /Grade 8/i })).toBeVisible();
+    await user.selectOptions(screen.getByLabelText(/^Class \/ form \/ grade/i), "class-grade-8");
+    expect(screen.getByRole("option", { name: /East/i })).toBeVisible();
+    await user.selectOptions(screen.getByLabelText(/^Stream/i), "stream-east");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+
+    const mathematics = screen.getByRole("checkbox", { name: /Mathematics/i });
+    expect(mathematics).toBeEnabled();
+    expect(mathematics).not.toBeChecked();
+    expect(screen.getByText("MAT - Optional")).toBeVisible();
+    await user.click(mathematics);
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await user.type(screen.getByLabelText(/^Primary guardian name/i), "Grace Njeri");
+    await user.type(screen.getByLabelText(/^Relationship/i), "Mother");
+    await user.type(screen.getByLabelText(/^Kenyan mobile number/i), "0712345678");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await user.click(screen.getByRole("button", { name: /admit student/i }));
+
+    await waitFor(() => expect(admitStudent).toHaveBeenCalledWith(expect.objectContaining({
+      class_section_id: "class-grade-8",
+      stream_id: "stream-east",
+      subject_ids: ["subject-mat"],
+    })));
   });
 
   it("completes the five-step school-scoped flow without legacy identity or invitation fields", async () => {

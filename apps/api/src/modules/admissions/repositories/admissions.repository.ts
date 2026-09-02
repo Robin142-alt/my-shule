@@ -340,19 +340,40 @@ export class AdmissionsRepository {
         ), '[]'::jsonb),
         'class_subject_assignments', COALESCE((
           SELECT jsonb_agg(jsonb_build_object(
-            'academic_term_id', assignment.academic_term_id,
-            'academic_year_id', term.academic_year_id,
-            'class_section_id', assignment.class_section_id,
-            'subject_id', assignment.subject_id,
-            'is_compulsory', assignment.is_compulsory,
-            'is_examinable', assignment.is_examinable
-          ))
-          FROM class_subject_assignments assignment
-          JOIN academic_terms term
-            ON term.tenant_id = assignment.tenant_id
-           AND term.id = assignment.academic_term_id
-          WHERE assignment.tenant_id = $1
-            AND lower(COALESCE(assignment.status, 'active')) = 'active'
+            'academic_term_id', effective_assignment.academic_term_id,
+            'academic_year_id', effective_assignment.academic_year_id,
+            'class_section_id', effective_assignment.class_section_id,
+            'subject_id', effective_assignment.subject_id,
+            'is_compulsory', effective_assignment.is_compulsory,
+            'is_examinable', effective_assignment.is_examinable
+          ) ORDER BY effective_assignment.class_section_id, effective_assignment.subject_id)
+          FROM (
+            SELECT DISTINCT ON (
+              assignment.class_section_id,
+              assignment.subject_id,
+              term.academic_year_id
+            )
+              assignment.academic_term_id,
+              term.academic_year_id,
+              assignment.class_section_id,
+              assignment.subject_id,
+              assignment.is_compulsory,
+              assignment.is_examinable
+            FROM class_subject_assignments assignment
+            JOIN academic_terms term
+              ON term.tenant_id = assignment.tenant_id
+             AND term.id = assignment.academic_term_id
+            WHERE assignment.tenant_id = $1
+              AND lower(COALESCE(assignment.status, 'active')) = 'active'
+            ORDER BY
+              assignment.class_section_id,
+              assignment.subject_id,
+              term.academic_year_id,
+              term.is_current DESC,
+              term.starts_on DESC,
+              assignment.updated_at DESC,
+              assignment.id DESC
+          ) effective_assignment
         ), '[]'::jsonb)
       ) AS foundation
     `, [tenantId]);

@@ -73,6 +73,14 @@ test('AdmissionsRepository uses the supported subject lifecycle contract', async
   assert.match(foundationQuery, /lower\(COALESCE\(subject\.status, 'active'\)\) = 'active'/);
   assert.match(foundationQuery, /subject\.deleted_at IS NULL/);
   assert.match(foundationQuery, /subject\.archived_at IS NULL/);
+  assert.match(
+    foundationQuery,
+    /DISTINCT ON \(\s*assignment\.class_section_id,\s*assignment\.subject_id,\s*term\.academic_year_id\s*\)/,
+  );
+  assert.match(
+    foundationQuery,
+    /term\.is_current DESC,\s*term\.starts_on DESC,\s*assignment\.updated_at DESC/,
+  );
 
   const registrationMethod = String(repository.admitCanonicalStudent);
   assert.doesNotMatch(registrationMethod, /subject\.is_active/);
