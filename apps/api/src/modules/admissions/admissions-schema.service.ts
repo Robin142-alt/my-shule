@@ -4,6 +4,42 @@ import { FILE_OBJECT_STORAGE_SCHEMA_SQL } from '../../common/uploads/file-object
 import { PrismaService } from '../../database/prisma.service';
 import { StudentsSchemaService } from '../students/students-schema.service';
 
+export const ADMISSION_INTERVIEW_STATUS_COMPATIBILITY_SQL = `
+  DO $$
+  BEGIN
+    IF EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'admission_interviews'
+        AND column_name = 'status'
+        AND data_type = 'USER-DEFINED'
+    ) THEN
+      ALTER TABLE admission_interviews ALTER COLUMN status DROP DEFAULT;
+      ALTER TABLE admission_interviews
+        ALTER COLUMN status TYPE text USING status::text;
+    END IF;
+
+    UPDATE admission_interviews
+    SET status = CASE
+      WHEN upper(status) = 'SCHEDULED' THEN 'scheduled'
+      WHEN upper(status) = 'DONE' THEN 'completed'
+      WHEN upper(status) = 'MISSED' THEN 'missed'
+      WHEN upper(status) = 'CANCELLED' THEN 'cancelled'
+      ELSE lower(status)
+    END
+    WHERE status <> CASE
+      WHEN upper(status) = 'SCHEDULED' THEN 'scheduled'
+      WHEN upper(status) = 'DONE' THEN 'completed'
+      WHEN upper(status) = 'MISSED' THEN 'missed'
+      WHEN upper(status) = 'CANCELLED' THEN 'cancelled'
+      ELSE lower(status)
+    END;
+
+    ALTER TABLE admission_interviews ALTER COLUMN status SET DEFAULT 'scheduled';
+  END $$;
+`;
+
 @Injectable()
 export class AdmissionsSchemaService implements OnModuleInit {
 
@@ -981,6 +1017,8 @@ export class AdmissionsSchemaService implements OnModuleInit {
           REFERENCES admission_applications (tenant_id, id)
           ON DELETE CASCADE
       );
+
+      ${ADMISSION_INTERVIEW_STATUS_COMPATIBILITY_SQL}
 
       CREATE TABLE IF NOT EXISTS admission_offers (
         id text PRIMARY KEY DEFAULT gen_random_uuid()::text,

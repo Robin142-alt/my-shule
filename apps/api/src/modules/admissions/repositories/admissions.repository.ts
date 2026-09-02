@@ -1318,7 +1318,7 @@ export class AdmissionsRepository {
           tenant_id, actor_user_id, action, module, entity_type, entity_id,
           resource_type, resource_id, aggregate_id, metadata
         ) VALUES (
-          $1, $2::uuid, 'STUDENT_ADMITTED', 'admissions', 'student', $3,
+          $1, $2::uuid, 'STUDENT_ADMITTED', 'admissions', 'student', $3::text,
           'student', $3::uuid, $3::uuid, $4::jsonb
         )
       `,

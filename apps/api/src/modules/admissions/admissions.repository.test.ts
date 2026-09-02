@@ -117,6 +117,10 @@ test('AdmissionsRepository direct admission writes the complete application life
   assert.doesNotMatch(registrationMethod, /application_status = 'registered'/);
   assert.match(registrationMethod, /SET status = 'completed'/);
   assert.match(registrationMethod, /INSERT INTO audit_logs/);
+  assert.match(
+    registrationMethod,
+    /'student',\s*\$3::text,\s*'student',\s*\$3::uuid,\s*\$3::uuid/,
+  );
   assert.match(registrationMethod, /await persistGovernance\?\.\(\{ tx, result \}\)/);
 });
 
@@ -145,6 +149,29 @@ test('AdmissionsSchemaService creates tenant-scoped student fee assignment and i
   assert.match(bootstrapSql, /admission_applications_applying_for_class_id_fkey/);
   assert.match(bootstrapSql, /ALTER TABLE admission_applications ALTER COLUMN id SET DEFAULT gen_random_uuid\(\)::text/);
   assert.match(bootstrapSql, /ALTER TABLE admission_applications ALTER COLUMN updated_at SET DEFAULT NOW\(\)/);
+});
+
+test('AdmissionsSchemaService converts legacy InterviewStatus values to the text workflow contract', async () => {
+  let bootstrapSql = '';
+  const service = new AdmissionsSchemaService(
+    {
+      runSchemaBootstrap: async (sql: string) => {
+        bootstrapSql = sql;
+      },
+    } as never,
+    {
+      onModuleInit: async () => undefined,
+    } as never,
+  );
+
+  await service.onModuleInit();
+
+  assert.match(
+    bootstrapSql,
+    /ALTER TABLE admission_interviews\s+ALTER COLUMN status TYPE text USING status::text/,
+  );
+  assert.match(bootstrapSql, /WHEN upper\(status\) = 'DONE' THEN 'completed'/);
+  assert.match(bootstrapSql, /ALTER TABLE admission_interviews ALTER COLUMN status SET DEFAULT 'scheduled'/);
 });
 
 test('AdmissionsSchemaService repairs the admission draft owner upsert contract', async () => {

@@ -40,6 +40,15 @@ import { DeputyCommandController } from './deputy-command.controller';
 import { AdmissionsCommandService } from './admissions-command.service';
 import { AdmissionsCommandRepository } from './repositories/admissions-command.repository';
 
+test('Admissions command reads compare interview statuses across enum and text schemas', () => {
+  const overviewMethod = String(AdmissionsCommandRepository.prototype.getOverview);
+  const interviewsMethod = String(AdmissionsCommandRepository.prototype.getInterviews);
+
+  assert.match(overviewMethod, /lower\(status::text\) = 'scheduled'/);
+  assert.match(interviewsMethod, /lower\(status::text\) = 'scheduled'/);
+  assert.match(interviewsMethod, /lower\(status::text\) IN \('completed', 'done'\)/);
+});
+
 test('live role command reads surface database failures instead of fabricating empty school data', async () => {
   const requestContext = {
     getStore: () => ({

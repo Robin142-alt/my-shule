@@ -18,7 +18,7 @@ export class AdmissionsCommandRepository {
     const enquiries = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_enquiries WHERE tenant_id = $1`, [tenantId]);
     const applicationsPending = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_applications WHERE tenant_id = $1 AND status = 'pending'`, [tenantId]);
     const documentsMissing = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_documents WHERE tenant_id = $1 AND verification_status = 'pending'`, [tenantId]);
-    const interviewsScheduled = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_interviews WHERE tenant_id = $1 AND status = 'scheduled'`, [tenantId]);
+    const interviewsScheduled = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_interviews WHERE tenant_id = $1 AND lower(status::text) = 'scheduled'`, [tenantId]);
     const admissionLettersPending = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_offers WHERE tenant_id = $1 AND offer_status = 'pending'`, [tenantId]);
 
     const recentActivity = await this.executeSql(tenantId, `
@@ -135,10 +135,10 @@ export class AdmissionsCommandRepository {
   }
 
   async getInterviews(tenantId: string) {
-    const scheduledToday = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_interviews WHERE tenant_id = $1 AND interview_date = CURRENT_DATE AND status = 'scheduled'`, [tenantId]);
-    const upcoming = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_interviews WHERE tenant_id = $1 AND interview_date > CURRENT_DATE AND status = 'scheduled'`, [tenantId]);
-    const completed = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_interviews WHERE tenant_id = $1 AND status = 'completed'`, [tenantId]);
-    const needsRescheduling = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_interviews WHERE tenant_id = $1 AND status = 'needs_rescheduling'`, [tenantId]);
+    const scheduledToday = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_interviews WHERE tenant_id = $1 AND interview_date = CURRENT_DATE AND lower(status::text) = 'scheduled'`, [tenantId]);
+    const upcoming = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_interviews WHERE tenant_id = $1 AND interview_date > CURRENT_DATE AND lower(status::text) = 'scheduled'`, [tenantId]);
+    const completed = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_interviews WHERE tenant_id = $1 AND lower(status::text) IN ('completed', 'done')`, [tenantId]);
+    const needsRescheduling = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_interviews WHERE tenant_id = $1 AND lower(status::text) IN ('needs_rescheduling', 'missed')`, [tenantId]);
 
     return {
       scheduledToday: Number(scheduledToday.rows[0]?.count || 0),
@@ -421,9 +421,9 @@ export class AdmissionsCommandRepository {
     const result = await this.executeSql(tenantId, `
       INSERT INTO admission_interviews (
         tenant_id, application_id, interview_date, start_time, end_time, location,
-        interviewer_user_id, assessment_type, status
+        interviewer_user_id, assessment_type
       )
-      VALUES ($1, $2::uuid, $3::date, $4, $5, $6, $7::uuid, $8, 'scheduled')
+      VALUES ($1, $2::uuid, $3::date, $4, $5, $6, $7::uuid, $8)
       RETURNING *
     `, [
       tenantId,
