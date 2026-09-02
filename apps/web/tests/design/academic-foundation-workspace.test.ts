@@ -50,7 +50,8 @@ describe("principal and deputy academic foundation workspace", () => {
     expect(workspaceSource).toContain("Create Stream");
     expect(workspaceSource).toContain("Create Department");
     expect(workspaceSource).toContain("Create Subject / Learning Area");
-    expect(workspaceSource).toContain("Assign Subject to Class");
+    expect(workspaceSource).toContain("Assign subjects to class and term");
+    expect(workspaceSource).toContain("Select Subjects to Assign");
     expect(workspaceSource).toContain("Add Calendar Period");
     expect(workspaceSource).toContain("Save HOD");
     expect(workspaceSource).toContain("Assign Class Teacher");
@@ -138,6 +139,10 @@ describe("principal and deputy academic foundation workspace", () => {
     expect(workspaceSource).toContain("bulk-lifecycle");
     expect(workspaceSource).toContain("timeoutMs: 30_000");
     expect(workspaceSource).toContain("timeoutMs: 60_000");
+    expect(workspaceSource).toContain('"/academics/class-subjects/bulk"');
+    expect(workspaceSource).toContain("subject_ids: subjectIds");
+    expect(workspaceSource).toContain("Select all");
+    expect(workspaceSource).toContain("Clear");
     expect(workspaceSource).toContain('const assignmentType = value(data, "assignment_type") || "primary"');
     expect(workspaceSource).toContain('is_primary: assignmentType !== "supporting"');
     expect(workspaceSource).toContain('name="assignment_type" defaultValue="primary"');

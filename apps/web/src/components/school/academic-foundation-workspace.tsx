@@ -303,6 +303,7 @@ export function AcademicFoundationWorkspace({
   const [showArchived, setShowArchived] = useState(false);
   const [recordSort, setRecordSort] = useState<"name-asc" | "name-desc" | "recent">("name-asc");
   const [policySetupType, setPolicySetupType] = useState<"grading" | "attendance" | "report-card">("grading");
+  const [selectedClassSubjectIds, setSelectedClassSubjectIds] = useState<string[]>([]);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -380,10 +381,12 @@ export function AcademicFoundationWorkspace({
       await refreshAll();
       form?.reset();
       toast.success(successMessage);
+      return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : "The academic setup action failed.";
       setActionError(message);
       toast.error(message);
+      return false;
     } finally {
       setBusyAction(null);
     }
@@ -525,20 +528,28 @@ export function AcademicFoundationWorkspace({
     }, "Subject or learning area created.", form);
   };
 
-  const handleAssignClassSubject = (event: FormEvent<HTMLFormElement>) => {
+  const handleAssignClassSubject = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
-    return submit("class-subject", "/academics/class-subjects", {
+    const subjectIds = [...new Set(selectedClassSubjectIds)].slice(0, 100);
+    if (subjectIds.length === 0) {
+      const message = "Select at least one subject or learning area.";
+      setActionError(message);
+      toast.error(message);
+      return;
+    }
+    const saved = await submit("class-subject", "/academics/class-subjects/bulk", {
       academic_term_id: value(data, "academic_term_id"),
       class_section_id: value(data, "class_section_id"),
-      subject_id: value(data, "subject_id"),
+      subject_ids: subjectIds,
       is_compulsory: data.get("is_compulsory") === "on",
       is_examinable: data.get("is_examinable") === "on",
       effective_from: value(data, "effective_from") || undefined,
       effective_to: value(data, "effective_to") || undefined,
       reason: value(data, "reason") || undefined,
-    }, "Subject assigned to class and term.", form);
+    }, `${subjectIds.length} ${subjectIds.length === 1 ? "subject" : "subjects"} assigned to the class and term.`, form);
+    if (saved) setSelectedClassSubjectIds([]);
   };
 
   const handleAssignClassTeacher = (event: FormEvent<HTMLFormElement>) => {
@@ -947,17 +958,46 @@ export function AcademicFoundationWorkspace({
               <button className={primaryButtonClass} disabled={busyAction !== null || activeDepartments.length === 0 || teachers.length === 0}>{busyAction === "hod" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Save HOD</button>
             </form>
           </SetupForm>
-          <SetupForm title="Assign subject to class and term" description="Create the exact class and term offering used by teacher allocation, timetables, exams, marks, and report cards.">
+          <SetupForm title="Assign subjects to class and term" description="Select one or several subjects to create the exact class and term offerings used by teacher allocation, timetables, exams, marks, and report cards.">
             <form onSubmit={handleAssignClassSubject} className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 xl:items-end">
               <label className="text-sm font-bold">Academic term<select name="academic_term_id" required defaultValue="" className={fieldClass}><option value="">Select term</option>{activeTerms.map((term) => <option key={term.id} value={term.id}>{term.name} - {labels.years.get(term.academic_year_id)}</option>)}</select></label>
               <label className="text-sm font-bold">Class/form/grade<select name="class_section_id" required defaultValue="" className={fieldClass}><option value="">Select class</option>{activeClasses.map((item) => <option key={item.id} value={item.id}>{item.name} - {labels.years.get(item.academic_year_id || "")}</option>)}</select></label>
-              <label className="text-sm font-bold">Subject / learning area<select name="subject_id" required defaultValue="" className={fieldClass}><option value="">Select subject</option>{activeSubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name} ({subject.code})</option>)}</select></label>
+              <fieldset disabled={busyAction !== null} aria-busy={busyAction === "class-subject"} className="rounded-lg border border-white/15 bg-[#0D2A5B] p-3 disabled:cursor-wait disabled:opacity-70 md:col-span-2 xl:col-span-1 xl:row-span-2">
+                <legend className="px-1 text-sm font-bold">Subjects / learning areas</legend>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-cyan-100" aria-live="polite">{selectedClassSubjectIds.length} selected</span>
+                  <div className="flex gap-2">
+                    <button type="button" className="text-xs font-black text-cyan-200 underline underline-offset-2 disabled:cursor-not-allowed disabled:opacity-50" disabled={activeSubjects.length === 0 || selectedClassSubjectIds.length === Math.min(activeSubjects.length, 100)} onClick={() => setSelectedClassSubjectIds(activeSubjects.slice(0, 100).map((subject) => subject.id))}>Select all</button>
+                    <button type="button" className="text-xs font-black text-white/70 underline underline-offset-2 disabled:cursor-not-allowed disabled:opacity-50" disabled={selectedClassSubjectIds.length === 0} onClick={() => setSelectedClassSubjectIds([])}>Clear</button>
+                  </div>
+                </div>
+                <div className="max-h-52 space-y-1 overflow-y-auto pr-1" aria-describedby="class-subject-selection-help">
+                  {activeSubjects.map((subject) => {
+                    const selected = selectedClassSubjectIds.includes(subject.id);
+                    const limitReached = !selected && selectedClassSubjectIds.length >= 100;
+                    return (
+                      <label key={subject.id} className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-md border px-2.5 py-2 text-sm font-semibold transition ${selected ? "border-cyan-300/70 bg-cyan-300/15 text-white" : "border-white/10 bg-white/[0.03] text-white/80 hover:bg-white/[0.07]"} ${limitReached ? "cursor-not-allowed opacity-50" : ""}`}>
+                        <input
+                          type="checkbox"
+                          name="subject_ids"
+                          value={subject.id}
+                          checked={selected}
+                          disabled={limitReached}
+                          onChange={() => setSelectedClassSubjectIds((current) => current.includes(subject.id) ? current.filter((id) => id !== subject.id) : [...current, subject.id].slice(0, 100))}
+                        />
+                        <span>{subject.name} <span className="text-xs text-cyan-100/75">({subject.code})</span></span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p id="class-subject-selection-help" className="mt-2 text-xs font-semibold text-white/50">Choose up to 100 subjects. The settings below apply to every selected subject.</p>
+              </fieldset>
               <label className="text-sm font-bold">Effective from<input type="date" name="effective_from" className={fieldClass} /></label>
               <label className="text-sm font-bold">Effective to<input type="date" name="effective_to" className={fieldClass} /></label>
               <label className="text-sm font-bold">Reason / setup note<input name="reason" className={fieldClass} placeholder="Why this offering applies" /></label>
               <div className="flex flex-wrap gap-4 md:col-span-2 xl:col-span-3"><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" name="is_compulsory" defaultChecked /> Compulsory for this class</label><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" name="is_examinable" defaultChecked /> Examinable in this term</label></div>
               {(activeTerms.length === 0 || activeClasses.length === 0 || activeSubjects.length === 0) ? <p className="text-xs font-bold text-amber-200 md:col-span-2 xl:col-span-3">Create an active academic term, class, and subject before assigning the offering.</p> : null}
-              <button className={`${primaryButtonClass} md:col-span-2 xl:col-span-3`} disabled={busyAction !== null || activeTerms.length === 0 || activeClasses.length === 0 || activeSubjects.length === 0}>{busyAction === "class-subject" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Assign Subject to Class</button>
+              <button className={`${primaryButtonClass} md:col-span-2 xl:col-span-3`} disabled={busyAction !== null || activeTerms.length === 0 || activeClasses.length === 0 || activeSubjects.length === 0 || selectedClassSubjectIds.length === 0}>{busyAction === "class-subject" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{selectedClassSubjectIds.length === 0 ? "Select Subjects to Assign" : `Assign ${selectedClassSubjectIds.length} ${selectedClassSubjectIds.length === 1 ? "Subject" : "Subjects"} to Class`}</button>
             </form>
           </SetupForm>
           <div className="grid gap-5 xl:grid-cols-2">

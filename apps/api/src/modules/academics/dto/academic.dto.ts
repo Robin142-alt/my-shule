@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
 
 export class CreateAcademicYearDto {
   @IsString()
@@ -566,6 +566,28 @@ export class CreateClassSubjectAssignmentDto {
 
   @IsString()
   subject_id!: string;
+
+  @IsOptional() @IsBoolean() is_compulsory?: boolean;
+  @IsOptional() @IsBoolean() is_examinable?: boolean;
+  @IsOptional() @IsDateString() effective_from?: string;
+  @IsOptional() @IsDateString() effective_to?: string;
+  @IsOptional() @IsString() @MaxLength(500) reason?: string;
+}
+
+export class CreateBulkClassSubjectAssignmentsDto {
+  @IsString()
+  academic_term_id!: string;
+
+  @IsString()
+  class_section_id!: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @ArrayUnique()
+  @IsString({ each: true })
+  @MaxLength(128, { each: true })
+  subject_ids!: string[];
 
   @IsOptional() @IsBoolean() is_compulsory?: boolean;
   @IsOptional() @IsBoolean() is_examinable?: boolean;

@@ -29,6 +29,7 @@ import {
   AssignClassTeacherDto,
   CreateClassStreamDto,
   CreateClassSubjectAssignmentDto,
+  CreateBulkClassSubjectAssignmentsDto,
   UpdateClassSubjectAssignmentDto,
   CreateAcademicCalendarPeriodDto,
   UpdateAcademicCalendarPeriodDto,
@@ -118,6 +119,12 @@ export class AcademicsController {
   @Permissions('academics:write')
   createClassSubjectAssignment(@Body() dto: CreateClassSubjectAssignmentDto) {
     return this.academicsService.createClassSubjectAssignment(dto);
+  }
+
+  @Post('class-subjects/bulk')
+  @Permissions('academics:write')
+  createClassSubjectAssignmentsBulk(@Body() dto: CreateBulkClassSubjectAssignmentsDto) {
+    return this.academicsService.createClassSubjectAssignmentsBulk(dto);
   }
 
   @Patch('class-subjects/:id')

@@ -1,7 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import { AcademicFoundationWorkspace } from "@/components/school/academic-foundation-workspace";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 jest.mock("@/lib/data/school-hooks", () => ({
   useSchoolQuery: jest.fn(),
@@ -146,5 +148,100 @@ describe("academic foundation saved-record visibility", () => {
       name: "Robinson Ondu — Deputy Principal",
     }).length).toBeGreaterThan(0);
     expect(screen.queryByRole("option", { name: "Robinson Ondu" })).not.toBeInTheDocument();
+  });
+
+  it("assigns several selected subjects to one class and term in a single bulk request", async () => {
+    const user = userEvent.setup();
+    const foundationWithSubjects = {
+      ...foundation,
+      subjects: [
+        foundation.subjects[0],
+        { id: "subject-2", code: "ENG", name: "English", status: "active" },
+        { id: "subject-3", code: "SCI", name: "Integrated Science", status: "active" },
+      ],
+    };
+    (useSchoolQuery as jest.Mock).mockReturnValue({
+      data: foundationWithSubjects,
+      error: null,
+      isLoading: false,
+      refetch: jest.fn().mockResolvedValue({ data: foundationWithSubjects, error: null }),
+    });
+    (requestDashboardApi as jest.Mock).mockResolvedValue({
+      assignments: [{ id: "offering-1" }, { id: "offering-2" }],
+      requested_count: 2,
+    });
+
+    render(
+      <AcademicFoundationWorkspace
+        actorRole="Deputy Principal"
+        schoolName="Maranda High"
+        tenantId="maranda-high"
+        initialTab="subjects"
+      />,
+    );
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Academic term" }), "term-1");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Class/form/grade" }), "class-1");
+    const subjectSelector = within(screen.getByRole("group", { name: "Subjects / learning areas" }));
+    await user.click(subjectSelector.getByRole("checkbox", { name: /Mathematics/ }));
+    await user.click(subjectSelector.getByRole("checkbox", { name: /English/ }));
+    expect(screen.getByText("2 selected")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Assign 2 Subjects to Class" }));
+
+    await waitFor(() => expect(requestDashboardApi).toHaveBeenCalledWith(
+      "/academics/class-subjects/bulk",
+      expect.objectContaining({
+        method: "POST",
+        tenantId: "maranda-high",
+        body: expect.objectContaining({
+          academic_term_id: "term-1",
+          class_section_id: "class-1",
+          subject_ids: ["subject-1", "subject-2"],
+          is_compulsory: true,
+          is_examinable: true,
+        }),
+      }),
+    ));
+    expect(screen.getByText("0 selected")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Select Subjects to Assign" })).toBeDisabled();
+  });
+
+  it("keeps the selected subjects available for correction when bulk assignment fails", async () => {
+    const user = userEvent.setup();
+    const foundationWithSubjects = {
+      ...foundation,
+      subjects: [
+        foundation.subjects[0],
+        { id: "subject-2", code: "ENG", name: "English", status: "active" },
+      ],
+    };
+    (useSchoolQuery as jest.Mock).mockReturnValue({
+      data: foundationWithSubjects,
+      error: null,
+      isLoading: false,
+      refetch: jest.fn().mockResolvedValue({ data: foundationWithSubjects, error: null }),
+    });
+    (requestDashboardApi as jest.Mock).mockRejectedValue(new Error("The subjects could not be assigned."));
+
+    render(
+      <AcademicFoundationWorkspace
+        actorRole="Principal"
+        schoolName="Maranda High"
+        tenantId="maranda-high"
+        initialTab="subjects"
+      />,
+    );
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Academic term" }), "term-1");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Class/form/grade" }), "class-1");
+    await user.click(screen.getByRole("button", { name: "Select all" }));
+    await user.click(screen.getByRole("button", { name: "Assign 2 Subjects to Class" }));
+
+    expect(await screen.findByText("The subjects could not be assigned.")).toBeInTheDocument();
+    const subjectSelector = within(screen.getByRole("group", { name: "Subjects / learning areas" }));
+    expect(subjectSelector.getByRole("checkbox", { name: /Mathematics/ })).toBeChecked();
+    expect(subjectSelector.getByRole("checkbox", { name: /English/ })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Assign 2 Subjects to Class" })).toBeEnabled();
   });
 });

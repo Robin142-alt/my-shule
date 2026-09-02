@@ -14,6 +14,7 @@ import {
   CreateClassSectionDto,
   CreateClassStreamDto,
   CreateClassSubjectAssignmentDto,
+  CreateBulkClassSubjectAssignmentsDto,
   UpdateClassSubjectAssignmentDto,
   CreateAcademicCalendarPeriodDto,
   UpdateAcademicCalendarPeriodDto,
@@ -209,6 +210,96 @@ export class AcademicsService {
     await this.recordAcademicChange('academic.subject.updated', 'class_subject_assignment', assignment,
       'assigned', null, dto.reason, { academic_term_id: dto.academic_term_id, class_section_id: dto.class_section_id });
     return assignment;
+  }
+
+  async createClassSubjectAssignmentsBulk(dto: CreateBulkClassSubjectAssignmentsDto) {
+    const tenantId = this.requireTenantId();
+    const academicTermId = this.requireText(dto.academic_term_id, 'Academic term');
+    const classSectionId = this.requireText(dto.class_section_id, 'Class/form/grade');
+    if (!Array.isArray(dto.subject_ids) || dto.subject_ids.length === 0) {
+      throw new BadRequestException('Select at least one subject or learning area.');
+    }
+    if (dto.subject_ids.length > 100) {
+      throw new BadRequestException('A maximum of 100 subjects can be assigned at once.');
+    }
+
+    const subjectIds = dto.subject_ids.map((subjectId) =>
+      this.requireText(subjectId, 'Subject or learning area'),
+    );
+    if (new Set(subjectIds).size !== subjectIds.length) {
+      throw new BadRequestException('Each subject can only be selected once.');
+    }
+    if (dto.effective_from && dto.effective_to) {
+      this.requireDateRange(dto.effective_from, dto.effective_to, 'Class subject offering');
+    }
+
+    const store = this.requestContext.getStore();
+    try {
+      const assignments = await this.repository.createClassSubjectAssignmentsBulk(
+        tenantId,
+        {
+          ...dto,
+          academic_term_id: academicTermId,
+          class_section_id: classSectionId,
+          subject_ids: subjectIds,
+          actor_user_id: this.currentUserId(),
+          actor_role: store?.role ?? null,
+          correlation_id: store?.trace_id ?? null,
+        },
+        async ({ tx, changes }) => {
+          if (!this.eventPublisher) return;
+          for (const { assignment, previous, action } of changes) {
+            const version = Number(assignment.version ?? 1);
+            await this.eventPublisher.publish({
+              event_key: `academic.subject.updated:${assignment.id}:${version}:${action}`,
+              event_name: 'academic.subject.updated',
+              aggregate_type: 'class_subject_assignment',
+              aggregate_id: String(assignment.id),
+              payload: {
+                tenant_id: tenantId,
+                entity_type: 'class_subject_assignment',
+                entity_id: String(assignment.id),
+                action,
+                version,
+                occurred_at: new Date().toISOString(),
+                previous_values: previous,
+                new_values: assignment,
+                reason: dto.reason ?? null,
+                metadata: {
+                  bulk_assignment: true,
+                  requested_count: subjectIds.length,
+                  academic_term_id: academicTermId,
+                  class_section_id: classSectionId,
+                  subject_id: String(assignment.subject_id),
+                },
+              },
+            }, tx);
+          }
+        },
+      );
+
+      return { assignments, requested_count: subjectIds.length };
+    } catch (error) {
+      const code = typeof error === 'object' && error !== null && 'code' in error
+        ? String((error as { code?: unknown }).code ?? '')
+        : '';
+      if (code === 'ACADEMIC_CLASS_SUBJECT_TERM_UNAVAILABLE') {
+        throw new BadRequestException('The academic term was not found or is unavailable in this school.');
+      }
+      if (code === 'ACADEMIC_CLASS_SUBJECT_CLASS_UNAVAILABLE') {
+        throw new BadRequestException('The class/form/grade was not found or is unavailable in this school.');
+      }
+      if (code === 'ACADEMIC_CLASS_SUBJECT_SUBJECTS_UNAVAILABLE') {
+        throw new BadRequestException('One or more selected subjects were not found or are unavailable in this school.');
+      }
+      if (code === 'ACADEMIC_CLASS_SUBJECT_YEAR_MISMATCH') {
+        throw new BadRequestException('The class and term must belong to the same academic year.');
+      }
+      if (code === 'ACADEMIC_CLASS_SUBJECT_WRITE_FAILED') {
+        throw new ConflictException('The subject offerings could not be saved. Refresh and try again.');
+      }
+      throw error;
+    }
   }
 
   async updateClassSubjectAssignment(id: string, dto: UpdateClassSubjectAssignmentDto) {

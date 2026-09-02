@@ -186,6 +186,36 @@ export type SetupDependencyResult = {
   reversible: boolean;
 };
 
+export type BulkClassSubjectAssignmentsInput = {
+  academic_term_id: string;
+  class_section_id: string;
+  subject_ids: string[];
+  is_compulsory?: boolean;
+  is_examinable?: boolean;
+  effective_from?: string;
+  effective_to?: string;
+  reason?: string;
+  actor_user_id: string | null;
+  actor_role: string | null;
+  correlation_id: string | null;
+};
+
+export type BulkClassSubjectAssignmentsTransactionHook = (input: {
+  tx: any;
+  assignments: Array<Record<string, any>>;
+  changes: Array<{
+    assignment: Record<string, any>;
+    previous: Record<string, any> | null;
+    action: 'assigned' | 'updated' | 'restored';
+  }>;
+}) => Promise<void>;
+
+function academicBulkOfferingError(code: string) {
+  const error = new Error(code) as Error & { code?: string };
+  error.code = code;
+  return error;
+}
+
 @Injectable()
 export class AcademicsRepository {
 
@@ -643,6 +673,149 @@ export class AcademicsRepository {
       input.effective_from ?? null, input.effective_to ?? null,
       input.reason ?? null, input.actor_user_id ?? null]);
     return result.rows[0];
+  }
+
+  async createClassSubjectAssignmentsBulk(
+    tenantId: string,
+    input: BulkClassSubjectAssignmentsInput,
+    persistGovernance?: BulkClassSubjectAssignmentsTransactionHook,
+  ) {
+    return this.prisma.executeWithTenant<Array<Record<string, any>>>(
+      tenantId,
+      input.actor_user_id,
+      async (tx: any) => {
+        await tx.$executeRawUnsafe(
+          'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+          `academic-class-subjects:${tenantId}:${input.academic_term_id}:${input.class_section_id}`,
+        );
+
+        const termResult = await this.executeSqlTx(tx, `
+          SELECT id::text, academic_year_id::text, status
+          FROM academic_terms
+          WHERE tenant_id = $1 AND id::text = $2
+            AND COALESCE(status, 'draft') NOT IN ('archived', 'closed', 'inactive')
+          LIMIT 1
+          FOR SHARE
+        `, [tenantId, input.academic_term_id]);
+        if (!termResult.rows[0]) {
+          throw academicBulkOfferingError('ACADEMIC_CLASS_SUBJECT_TERM_UNAVAILABLE');
+        }
+
+        const classResult = await this.executeSqlTx(tx, `
+          SELECT id::text, academic_year_id::text, status, is_active
+          FROM class_sections
+          WHERE tenant_id = $1 AND id::text = $2
+            AND COALESCE(status, 'active') NOT IN ('archived', 'closed', 'inactive')
+            AND COALESCE(is_active, true) = true
+          LIMIT 1
+          FOR SHARE
+        `, [tenantId, input.class_section_id]);
+        if (!classResult.rows[0]) {
+          throw academicBulkOfferingError('ACADEMIC_CLASS_SUBJECT_CLASS_UNAVAILABLE');
+        }
+        if (String(termResult.rows[0].academic_year_id) !== String(classResult.rows[0].academic_year_id)) {
+          throw academicBulkOfferingError('ACADEMIC_CLASS_SUBJECT_YEAR_MISMATCH');
+        }
+
+        const subjectResult = await this.executeSqlTx(tx, `
+          SELECT id::text
+          FROM subjects
+          WHERE tenant_id = $1
+            AND id::text = ANY($2::text[])
+            AND COALESCE(status, 'active') NOT IN ('archived', 'inactive')
+          FOR SHARE
+        `, [tenantId, input.subject_ids]);
+        const availableSubjectIds = new Set(subjectResult.rows.map((row) => String(row.id)));
+        if (input.subject_ids.some((subjectId) => !availableSubjectIds.has(subjectId))) {
+          throw academicBulkOfferingError('ACADEMIC_CLASS_SUBJECT_SUBJECTS_UNAVAILABLE');
+        }
+
+        const existingResult = await this.executeSqlTx(tx, `
+          SELECT *
+          FROM class_subject_assignments
+          WHERE tenant_id = $1
+            AND academic_term_id::text = $2
+            AND class_section_id::text = $3
+            AND subject_id::text = ANY($4::text[])
+          FOR UPDATE
+        `, [tenantId, input.academic_term_id, input.class_section_id, input.subject_ids]);
+        const previousBySubjectId = new Map(
+          existingResult.rows.map((row) => [String(row.subject_id), row as Record<string, any>]),
+        );
+
+        const assignments: Array<Record<string, any>> = [];
+        const changes: Array<{
+          assignment: Record<string, any>;
+          previous: Record<string, any> | null;
+          action: 'assigned' | 'updated' | 'restored';
+        }> = [];
+        for (const subjectId of input.subject_ids) {
+          const assignmentResult = await this.executeSqlTx(tx, `
+            INSERT INTO class_subject_assignments (
+              tenant_id, academic_term_id, class_section_id, subject_id,
+              is_compulsory, is_examinable, effective_from, effective_to,
+              reason, created_by_user_id, updated_by_user_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8::date, $9, $10::uuid, $10::uuid)
+            ON CONFLICT (tenant_id, academic_term_id, class_section_id, subject_id)
+            DO UPDATE SET is_compulsory = EXCLUDED.is_compulsory,
+              is_examinable = EXCLUDED.is_examinable,
+              effective_from = EXCLUDED.effective_from,
+              effective_to = EXCLUDED.effective_to,
+              status = 'active', archived_at = NULL, archived_by_user_id = NULL,
+              reason = EXCLUDED.reason, updated_by_user_id = EXCLUDED.updated_by_user_id,
+              version = class_subject_assignments.version + 1, updated_at = NOW()
+            RETURNING *
+          `, [tenantId, input.academic_term_id, input.class_section_id, subjectId,
+            input.is_compulsory ?? true, input.is_examinable ?? true,
+            input.effective_from ?? null, input.effective_to ?? null,
+            input.reason ?? null, input.actor_user_id]);
+          const assignment = assignmentResult.rows[0];
+          if (!assignment) {
+            throw academicBulkOfferingError('ACADEMIC_CLASS_SUBJECT_WRITE_FAILED');
+          }
+          assignments.push(assignment);
+          const previous = previousBySubjectId.get(subjectId) ?? null;
+          const action = previous
+            ? ['archived', 'inactive'].includes(String(previous.status ?? '').toLowerCase())
+              ? 'restored' as const
+              : 'updated' as const
+            : 'assigned' as const;
+          changes.push({ assignment, previous, action });
+
+          await tx.$executeRawUnsafe(`
+            INSERT INTO academic_audit_logs (
+              school_id, tenant_id, entity_type, entity_id, action, actor_user_id,
+              actor_role, previous_values, new_values, reason, effective_at,
+              correlation_id, metadata
+            ) VALUES (
+              $1, $1, 'class_subject_assignment', $2::text,
+              $3, $4::uuid, $5, $6::jsonb, $7::jsonb, $8,
+              $9::timestamptz, $10, $11::jsonb
+            )
+          `,
+          tenantId,
+          assignment.id,
+          `academics.class_subject_assignment_${action}`,
+          input.actor_user_id,
+          input.actor_role,
+          previous == null ? null : JSON.stringify(previous),
+          JSON.stringify(assignment),
+          input.reason ?? null,
+          input.effective_from ?? null,
+          input.correlation_id,
+          JSON.stringify({
+            bulk_assignment: true,
+            requested_count: input.subject_ids.length,
+            academic_term_id: input.academic_term_id,
+            class_section_id: input.class_section_id,
+            subject_id: subjectId,
+          }));
+        }
+
+        await persistGovernance?.({ tx, assignments, changes });
+        return assignments;
+      },
+    );
   }
 
   async updateClassSubjectAssignment(tenantId: string, id: string, input: Record<string, unknown>) {

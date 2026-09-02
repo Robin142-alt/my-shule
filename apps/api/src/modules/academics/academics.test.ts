@@ -19,6 +19,11 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academic_terms/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academics_calendar_periods/);
   assert.match(schemaSql, /ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS is_compulsory/);
+  assert.match(schemaSql, /ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS created_by_user_id uuid/);
+  assert.match(schemaSql, /DROP CONSTRAINT IF EXISTS fk_class_subject_assignments_term/);
+  assert.match(schemaSql, /ALTER TABLE class_subject_assignments ALTER COLUMN stream_id DROP NOT NULL/);
+  assert.match(schemaSql, /ranked_legacy_offerings/);
+  assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS uq_class_subject_assignments_scope/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS teacher_subject_assignments/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academics_departments/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academics_class_teachers/);
@@ -147,6 +152,101 @@ test('AcademicsRepository executes the class-level advisory lock without deseria
   }]);
   assert.equal(queryCalls.some((sql) => /pg_advisory_xact_lock/i.test(sql)), false);
   assert.deepEqual(created, { id: 'class-1', tenant_id: 'kibabi-high' });
+});
+
+test('AcademicsRepository saves bulk class subjects, audits, and governance in one tenant transaction', async () => {
+  const executeCalls: Array<{ sql: string; params: unknown[] }> = [];
+  const queryCalls: Array<{ sql: string; params: unknown[] }> = [];
+  let transactionCount = 0;
+  const tx = {
+    $executeRawUnsafe: async (sql: string, ...params: unknown[]) => {
+      executeCalls.push({ sql, params });
+      return 1;
+    },
+    $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+      queryCalls.push({ sql, params });
+      if (/FROM academic_terms/.test(sql)) {
+        return [{ id: 'term-1', academic_year_id: 'year-1', status: 'active' }];
+      }
+      if (/FROM class_sections/.test(sql)) {
+        return [{ id: 'class-1', academic_year_id: 'year-1', status: 'active', is_active: true }];
+      }
+      if (/FROM subjects/.test(sql)) {
+        return [{ id: 'subject-1' }, { id: 'subject-2' }];
+      }
+      if (/FROM class_subject_assignments/.test(sql)) {
+        return [{
+          id: '22222222-2222-4222-8222-222222222222',
+          tenant_id: 'tenant-a',
+          academic_term_id: 'term-1',
+          class_section_id: 'class-1',
+          subject_id: 'subject-2',
+          status: 'inactive',
+          version: 3,
+        }];
+      }
+      if (/INSERT INTO class_subject_assignments/.test(sql)) {
+        const subjectId = String(params[3]);
+        return [{
+          id: subjectId === 'subject-1'
+            ? '11111111-1111-4111-8111-111111111111'
+            : '22222222-2222-4222-8222-222222222222',
+          tenant_id: 'tenant-a',
+          academic_term_id: 'term-1',
+          class_section_id: 'class-1',
+          subject_id: subjectId,
+          version: subjectId === 'subject-1' ? 1 : 4,
+        }];
+      }
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+  };
+  const repository = new AcademicsRepository({
+    executeWithTenant: async (
+      tenantId: string,
+      userId: string | null,
+      callback: (transaction: typeof tx) => Promise<unknown>,
+    ) => {
+      transactionCount += 1;
+      assert.equal(tenantId, 'tenant-a');
+      assert.equal(userId, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+      return callback(tx);
+    },
+  } as never);
+  let governanceTransaction: unknown;
+
+  const assignments = await repository.createClassSubjectAssignmentsBulk('tenant-a', {
+    academic_term_id: 'term-1',
+    class_section_id: 'class-1',
+    subject_ids: ['subject-1', 'subject-2'],
+    is_compulsory: true,
+    is_examinable: true,
+    reason: 'Offer both subjects',
+    actor_user_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    actor_role: 'deputy_principal',
+    correlation_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  }, async ({ tx: transaction, assignments: savedAssignments, changes }) => {
+    governanceTransaction = transaction;
+    assert.equal(savedAssignments.length, 2);
+    assert.deepEqual(changes.map((change) => change.action), ['assigned', 'restored']);
+    assert.equal(changes[0]?.previous, null);
+    assert.equal(changes[1]?.previous?.version, 3);
+  });
+
+  assert.equal(transactionCount, 1);
+  assert.equal(governanceTransaction, tx);
+  assert.deepEqual(assignments.map((assignment) => assignment.subject_id), ['subject-1', 'subject-2']);
+  assert.equal(queryCalls.filter(({ sql }) => /INSERT INTO class_subject_assignments/.test(sql)).length, 2);
+  assert.equal(executeCalls.filter(({ sql }) => /INSERT INTO academic_audit_logs/.test(sql)).length, 2);
+  assert.equal(executeCalls[0]?.params[0], 'academic-class-subjects:tenant-a:term-1:class-1');
+  assert.deepEqual(
+    executeCalls.filter(({ sql }) => /INSERT INTO academic_audit_logs/.test(sql)).map(({ params }) => params[2]),
+    ['academics.class_subject_assignment_assigned', 'academics.class_subject_assignment_restored'],
+  );
+  for (const call of queryCalls) assert.equal(call.params[0], 'tenant-a');
+  for (const call of executeCalls.filter(({ sql }) => /INSERT INTO academic_audit_logs/.test(sql))) {
+    assert.equal(call.params[0], 'tenant-a');
+  }
 });
 
 test('AcademicsRepository writes settings across legacy UUID and current text schemas', async () => {
@@ -1419,6 +1519,136 @@ test('AcademicsService rejects class subject offerings across different academic
     /same academic year/,
   );
   assert.equal(createAttempted, false);
+});
+
+test('AcademicsService assigns several class subjects through one atomic repository call and publishes each event in it', async () => {
+  const transaction = { id: 'tenant-transaction' };
+  const published: Array<{ input: Record<string, any>; tx: unknown }> = [];
+  let repositoryCalls = 0;
+  const service = new AcademicsService(
+    {
+      getStore: () => ({
+        tenant_id: 'tenant-a',
+        user_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        role: 'deputy_principal',
+        trace_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      }),
+    } as never,
+    {
+      createClassSubjectAssignmentsBulk: async (
+        tenantId: string,
+        input: Record<string, any>,
+        governance: (context: {
+          tx: unknown;
+          assignments: Array<Record<string, any>>;
+          changes: Array<{
+            assignment: Record<string, any>;
+            previous: Record<string, any> | null;
+            action: 'assigned' | 'updated' | 'restored';
+          }>;
+        }) => Promise<void>,
+      ) => {
+        repositoryCalls += 1;
+        assert.equal(tenantId, 'tenant-a');
+        assert.deepEqual(input.subject_ids, ['subject-1', 'subject-2']);
+        assert.equal(input.actor_role, 'deputy_principal');
+        const assignments = [
+          { id: '11111111-1111-4111-8111-111111111111', subject_id: 'subject-1', version: 1 },
+          { id: '22222222-2222-4222-8222-222222222222', subject_id: 'subject-2', version: 2 },
+        ];
+        await governance({
+          tx: transaction,
+          assignments,
+          changes: [
+            { assignment: assignments[0]!, previous: null, action: 'assigned' },
+            {
+              assignment: assignments[1]!,
+              previous: { ...assignments[1], version: 1, status: 'active' },
+              action: 'updated',
+            },
+          ],
+        });
+        return assignments;
+      },
+    } as never,
+    {} as never,
+    {
+      publish: async (input: Record<string, any>, tx: unknown) => {
+        published.push({ input, tx });
+        return {};
+      },
+    } as never,
+  );
+
+  const result = await service.createClassSubjectAssignmentsBulk({
+    academic_term_id: 'term-1',
+    class_section_id: 'class-1',
+    subject_ids: ['subject-1', 'subject-2'],
+    is_compulsory: true,
+    is_examinable: true,
+    reason: 'Offer core subjects',
+  });
+
+  assert.equal(repositoryCalls, 1);
+  assert.equal(result.requested_count, 2);
+  assert.equal(result.assignments.length, 2);
+  assert.equal(published.length, 2);
+  assert.equal(published.every((entry) => entry.tx === transaction), true);
+  assert.deepEqual(published.map((entry) => entry.input.event_name), [
+    'academic.subject.updated',
+    'academic.subject.updated',
+  ]);
+  assert.deepEqual(published.map((entry) => entry.input.payload.metadata.subject_id), [
+    'subject-1',
+    'subject-2',
+  ]);
+  assert.deepEqual(published.map((entry) => entry.input.payload.action), ['assigned', 'updated']);
+  assert.equal(published[0]?.input.payload.previous_values, null);
+  assert.equal(published[1]?.input.payload.previous_values.version, 1);
+});
+
+test('AcademicsService rejects duplicate subjects before starting a bulk class subject transaction', async () => {
+  let repositoryCalled = false;
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    {
+      createClassSubjectAssignmentsBulk: async () => {
+        repositoryCalled = true;
+        return [];
+      },
+    } as never,
+    {} as never,
+  );
+
+  await assert.rejects(
+    () => service.createClassSubjectAssignmentsBulk({
+      academic_term_id: 'term-1',
+      class_section_id: 'class-1',
+      subject_ids: ['subject-1', 'subject-1'],
+    }),
+    /only be selected once/,
+  );
+  assert.equal(repositoryCalled, false);
+});
+
+test('AcademicsService reports a tenant-safe error when any bulk subject is unavailable', async () => {
+  const unavailable = Object.assign(new Error('unavailable'), {
+    code: 'ACADEMIC_CLASS_SUBJECT_SUBJECTS_UNAVAILABLE',
+  });
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    { createClassSubjectAssignmentsBulk: async () => { throw unavailable; } } as never,
+    {} as never,
+  );
+
+  await assert.rejects(
+    () => service.createClassSubjectAssignmentsBulk({
+      academic_term_id: 'term-1',
+      class_section_id: 'class-1',
+      subject_ids: ['subject-from-another-school'],
+    }),
+    /not found or are unavailable in this school/,
+  );
 });
 
 test('AcademicsService returns truthful partial success for teacher responsibility transfer', async () => {

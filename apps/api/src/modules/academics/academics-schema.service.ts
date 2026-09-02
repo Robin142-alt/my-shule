@@ -404,10 +404,20 @@ export class AcademicsSchemaService implements OnModuleInit {
       ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
       ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS reason text;
       ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
+      ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
       ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS updated_by_user_id uuid;
       ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS archived_at timestamptz;
       ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS archived_by_user_id uuid;
       ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
+
+      -- The original seeder owned a stream-scoped version of this table. Remove
+      -- only the legacy foreign keys whose UUID columns are normalized to the
+      -- current text contract below; the service revalidates every target in the
+      -- same tenant transaction before writing.
+      ALTER TABLE class_subject_assignments
+        DROP CONSTRAINT IF EXISTS fk_class_subject_assignments_term;
+      ALTER TABLE class_subject_assignments
+        DROP CONSTRAINT IF EXISTS fk_class_subject_assignments_subject;
 
       DO $$
       DECLARE
@@ -466,6 +476,85 @@ export class AcademicsSchemaService implements OnModuleInit {
           END IF;
         END LOOP;
       END $$;
+
+      -- Keep historical stream-scoped rows readable while allowing the current
+      -- class-scoped contract to write without inventing a stream. Where legacy
+      -- and current class IDs match, expose one canonical class-level offering;
+      -- retain additional stream rows with a NULL modern pointer so no linked
+      -- timetable history is deleted.
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'class_subject_assignments'
+            AND column_name = 'academic_year_id'
+        ) THEN
+          ALTER TABLE class_subject_assignments ALTER COLUMN academic_year_id DROP NOT NULL;
+        END IF;
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'class_subject_assignments'
+            AND column_name = 'school_class_id'
+        ) THEN
+          ALTER TABLE class_subject_assignments ALTER COLUMN school_class_id DROP NOT NULL;
+        END IF;
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'class_subject_assignments'
+            AND column_name = 'stream_id'
+        ) THEN
+          ALTER TABLE class_subject_assignments ALTER COLUMN stream_id DROP NOT NULL;
+        END IF;
+      END $$;
+
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'class_subject_assignments'
+            AND column_name = 'school_class_id'
+        ) THEN
+          WITH ranked_legacy_offerings AS (
+            SELECT assignment.id,
+                   section.id::text AS class_section_id,
+                   ROW_NUMBER() OVER (
+                     PARTITION BY assignment.tenant_id, assignment.academic_term_id,
+                                  section.id, assignment.subject_id
+                     ORDER BY assignment.updated_at DESC NULLS LAST,
+                              assignment.created_at DESC NULLS LAST,
+                              assignment.id::text DESC
+                   ) AS offering_rank
+            FROM class_subject_assignments assignment
+            JOIN class_sections section
+              ON section.tenant_id = assignment.tenant_id
+             AND section.id::text = assignment.school_class_id::text
+            WHERE assignment.class_section_id IS NULL
+          )
+          UPDATE class_subject_assignments assignment
+          SET class_section_id = ranked.class_section_id
+          FROM ranked_legacy_offerings ranked
+          WHERE assignment.id = ranked.id
+            AND ranked.offering_rank = 1;
+        END IF;
+      END $$;
+
+      WITH duplicate_class_subject_offerings AS (
+        SELECT id,
+               ROW_NUMBER() OVER (
+                 PARTITION BY tenant_id, academic_term_id, class_section_id, subject_id
+                 ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST, id::text DESC
+               ) AS offering_rank
+        FROM class_subject_assignments
+        WHERE class_section_id IS NOT NULL
+      )
+      UPDATE class_subject_assignments assignment
+      SET class_section_id = NULL
+      FROM duplicate_class_subject_offerings duplicate
+      WHERE assignment.id = duplicate.id
+        AND duplicate.offering_rank > 1;
+
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_class_subject_assignments_scope
+        ON class_subject_assignments (tenant_id, academic_term_id, class_section_id, subject_id);
 
       CREATE TABLE IF NOT EXISTS report_card_comments (
         id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
