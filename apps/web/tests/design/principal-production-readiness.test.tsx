@@ -340,6 +340,89 @@ describe("principal production readiness", () => {
     );
   });
 
+  it("keeps the required Principal sidebar order and child hierarchy", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <SchoolPages role="principal" section="dashboard" tenantSlug="maranda-high" routeMode="public" />,
+    );
+
+    const sidebar = await screen.findByRole("navigation", { name: "Principal dashboard sidebar" });
+    const topLevelLabels = Array.from(sidebar.querySelectorAll("button, a"))
+      .filter((item) => !item.closest('[role="group"]') && item.textContent?.trim())
+      .map((item) => item.textContent?.trim());
+    expect(topLevelLabels).toEqual([
+      "Overview", "Approvals", "Academic Intelligence", "Exams & Report Cards", "Communication",
+      "Master Timetable", "Fees & Finance", "Students", "Academics", "Staff", "Parents & Visitors",
+      "Transport", "Library", "Users & Invitations", "Reports", "Audit Logs", "School Setup", "Settings",
+    ]);
+    expect(within(sidebar).getByRole("link", { name: "Students" })).toHaveAttribute("href", "/school/principal/students");
+
+    for (const [label, toggleName, children] of [
+      ["Fees & Finance", "Fees & Finance", ["Fees"]],
+      ["Students", "Expand Students", ["Attendance", "Discipline", "Sick Bay", "Boarding"]],
+      ["Academics", "Academics", ["Academic Calendar", "Classes & Streams", "Subjects & Departments", "Teacher Allocations"]],
+      ["School Setup", "Expand School Setup", ["School Profile"]],
+    ] as const) {
+      const toggle = within(sidebar).getByRole("button", { name: toggleName });
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      await user.click(toggle);
+      const group = within(sidebar).getByRole("group", { name: label });
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      expect(toggle).toHaveAttribute("aria-controls", group.id);
+      expect(within(group).getAllByRole("button").map((item) => item.textContent)).toEqual(children);
+      await user.click(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(within(sidebar).queryByRole("group", { name: label })).not.toBeInTheDocument();
+    }
+  });
+
+  it("keeps mobile group toggles separate from School Setup and profile navigation", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "/school/principal");
+    renderWithProviders(
+      <SchoolPages role="principal" section="dashboard" tenantSlug="maranda-high" routeMode="public" />,
+    );
+
+    const sidebar = await screen.findByRole("navigation", { name: "Principal dashboard sidebar" });
+    await user.click(screen.getByRole("button", { name: "Open principal navigation" }));
+    for (const label of ["Students", "School Setup"]) {
+      await user.click(within(sidebar).getByRole("button", { name: `Expand ${label}` }));
+      await user.click(within(sidebar).getByRole("button", { name: `Collapse ${label}` }));
+      expect(window.location.pathname).toBe("/school/principal");
+      expect(screen.getByRole("button", { name: "Close principal navigation overlay" })).toBeInTheDocument();
+    }
+
+    await user.click(within(sidebar).getByRole("button", { name: "School Setup" }));
+    expect(window.location.pathname).toBe("/school/principal/setup-checklist");
+    expect(await screen.findByRole("heading", { name: "Setup Progress" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Close principal navigation overlay" })).not.toBeInTheDocument();
+    const setupGroup = within(sidebar).getByRole("group", { name: "School Setup" });
+    await user.click(within(setupGroup).getByRole("button", { name: "School Profile" }));
+    expect(window.location.pathname).toBe("/school/principal/school-profile");
+    expect(await screen.findByRole("heading", { name: "School Profile" })).toBeVisible();
+  });
+
+  it.each([
+    ["finance", "Fees & Finance", "Fees", "Collection Trend"],
+    ["clinic", "Students", "Sick Bay", "Sick Bay"],
+    ["academics", "Academics", "Teacher Allocations", "Performance Trend"],
+  ])("opens the active child group and preserves the %s route when selected", async (route, groupLabel, childLabel, heading) => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <SchoolPages role="principal" section={route} tenantSlug="maranda-high" routeMode="public" />,
+    );
+
+    const sidebar = await screen.findByRole("navigation", { name: "Principal dashboard sidebar" });
+    const group = within(sidebar).getByRole("group", { name: groupLabel });
+    const child = within(group).getByRole("button", { name: childLabel });
+    expect(child).toHaveAttribute("aria-current", "page");
+    await user.click(screen.getByRole("button", { name: "Open principal navigation" }));
+    await user.click(child);
+    expect(window.location.pathname).toBe(`/school/principal/${route}`);
+    expect(await screen.findByRole("heading", { name: heading })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Close principal navigation overlay" })).not.toBeInTheDocument();
+  });
+
   it.each([
     ["missing dashboard settings", { status: "active" }],
     ["partial dashboard settings", { status: "active", dashboard: {} }],

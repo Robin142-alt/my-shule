@@ -199,7 +199,7 @@ describe("live report-card action controls", () => {
     Object.defineProperty(window.URL, "createObjectURL", { configurable: true, value: createObjectURL });
     Object.defineProperty(window.URL, "revokeObjectURL", { configurable: true, value: revokeObjectURL });
     let downloadedFilename = "";
-    const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function click() {
+    const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function click(this: HTMLAnchorElement) {
       downloadedFilename = this.download;
     });
     const user = userEvent.setup();

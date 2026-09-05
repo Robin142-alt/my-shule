@@ -9,7 +9,9 @@ import {
   BusFront,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   ClipboardCheck,
+  GraduationCap,
   HeartPulse,
   Home,
   Library,
@@ -17,9 +19,11 @@ import {
   MessageSquareText,
   Settings,
   ShieldAlert,
+  Users,
   UsersRound,
   Wallet,
 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
@@ -93,6 +97,15 @@ type PrincipalNavItem = {
   icon: typeof Home;
 };
 
+type PrincipalNavGroup = {
+  id: "fees-finance" | "students" | "academic-group" | "setup-checklist";
+  label: string;
+  icon: typeof Home;
+  children: PrincipalNavItem[];
+  section?: PrincipalSection;
+  route?: "students";
+};
+
 type PrincipalSchoolProfileSummary = {
   schoolName: string;
   logoUrl?: string | null;
@@ -105,33 +118,57 @@ type PrincipalNavigationSettings = {
   } | null;
 };
 
-const PRINCIPAL_NAV_ITEMS: PrincipalNavItem[] = [
+const PRINCIPAL_NAV_ITEMS: Array<PrincipalNavItem | PrincipalNavGroup> = [
   { id: "overview", label: "Overview", icon: Home },
-  { id: "setup-checklist", label: "School Setup", icon: CheckCircle2 },
-  { id: "school-profile", label: "School Profile", icon: Building2 },
-  { id: "academic-setup", label: "Academic Calendar", icon: ClipboardCheck },
-  { id: "classes-streams", label: "Classes & Streams", icon: BookOpen },
-  { id: "subjects-departments", label: "Subjects & Departments", icon: Library },
-  { id: "academics", label: "Teacher Allocations", icon: UsersRound },
+  { id: "approvals", label: "Approvals", icon: CheckCircle2 },
+  { id: "academic-intelligence", label: "Academic Intelligence", icon: BarChart3 },
+  { id: "exams-reports", label: "Exams & Report Cards", icon: ClipboardCheck },
+  { id: "communication", label: "Communication", icon: MessageSquareText },
   { id: "timetable", label: "Master Timetable", icon: CalendarDays },
-  { id: "fees", label: "Fees", icon: Wallet },
-  { id: "attendance", label: "Attendance", icon: Activity },
-  { id: "discipline", label: "Discipline", icon: ShieldAlert },
-  { id: "visitors", label: "Parents & Visitors", icon: UsersRound },
-  { id: "sick-bay", label: "Sick Bay", icon: HeartPulse },
-  { id: "boarding", label: "Boarding", icon: BookOpen },
+  {
+    id: "fees-finance", label: "Fees & Finance", icon: Wallet,
+    children: [{ id: "fees", label: "Fees", icon: Wallet }],
+  },
+  {
+    id: "students", label: "Students", icon: Users, route: "students",
+    children: [
+      { id: "attendance", label: "Attendance", icon: Activity },
+      { id: "discipline", label: "Discipline", icon: ShieldAlert },
+      { id: "sick-bay", label: "Sick Bay", icon: HeartPulse },
+      { id: "boarding", label: "Boarding", icon: BookOpen },
+    ],
+  },
+  {
+    id: "academic-group", label: "Academics", icon: GraduationCap,
+    children: [
+      { id: "academic-setup", label: "Academic Calendar", icon: ClipboardCheck },
+      { id: "classes-streams", label: "Classes & Streams", icon: BookOpen },
+      { id: "subjects-departments", label: "Subjects & Departments", icon: Library },
+      { id: "academics", label: "Teacher Allocations", icon: UsersRound },
+    ],
+  },
   { id: "staff", label: "Staff", icon: UsersRound },
+  { id: "visitors", label: "Parents & Visitors", icon: UsersRound },
   { id: "transport", label: "Transport", icon: BusFront },
   { id: "library", label: "Library", icon: Library },
-  { id: "exams-reports", label: "Exams & Report Cards", icon: ClipboardCheck },
-  { id: "academic-intelligence", label: "Academic Intelligence", icon: BarChart3 },
-  { id: "communication", label: "Communication", icon: MessageSquareText },
   { id: "users-invitations", label: "Users & Invitations", icon: UsersRound },
-  { id: "approvals", label: "Approvals", icon: CheckCircle2 },
   { id: "reports", label: "Reports", icon: Bell },
   { id: "audit-logs", label: "Audit Logs", icon: ClipboardCheck },
+  {
+    id: "setup-checklist", label: "School Setup", icon: CheckCircle2, section: "setup-checklist",
+    children: [{ id: "school-profile", label: "School Profile", icon: Building2 }],
+  },
   { id: "settings", label: "Settings", icon: Settings },
 ];
+
+function principalNavItemClass(selected: boolean) {
+  return cn(
+    "flex min-h-10 w-full min-w-0 items-center gap-3 rounded-[var(--radius)] px-3 py-2 text-sm font-bold transition hover:-translate-y-0.5",
+    selected
+      ? "border border-cyan-300/35 bg-cyan-300/12 text-cyan-100 shadow-[inset_4px_0_0_#22D3EE]"
+      : "text-white/72 hover:bg-white/10 hover:text-white",
+  );
+}
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -261,6 +298,7 @@ export function PrincipalCommandCenter({
   );
   const defaultViewApplied = useRef(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [expandedNavGroups, setExpandedNavGroups] = useState<Record<string, boolean>>({});
   const [streamedPrincipalDashboard, setStreamedPrincipalDashboard] = useState<{
     schoolId: string;
     dashboard: PrincipalExecutiveDashboardSummary;
@@ -289,6 +327,13 @@ export function PrincipalCommandCenter({
   const savedTheme = principalNavigationSettings?.dashboard?.theme;
   const schoolName = principalSchoolProfile?.schoolName?.trim() || fallbackSchoolName;
   const [failedSchoolLogoUrl, setFailedSchoolLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const activeGroup = PRINCIPAL_NAV_ITEMS.find((item) =>
+      "children" in item && (item.section === activeWorkspace || item.children.some((child) => child.id === activeWorkspace)),
+    );
+    if (activeGroup) setExpandedNavGroups((groups) => ({ ...groups, [activeGroup.id]: true }));
+  }, [activeWorkspace]);
 
   useEffect(() => {
     setActiveWorkspaceState(normalizePrincipalSection(activeSection));
@@ -465,6 +510,22 @@ export function PrincipalCommandCenter({
     );
   }
 
+  function renderNavItem(item: PrincipalNavItem) {
+    const Icon = item.icon;
+    return (
+      <button
+        key={item.id}
+        type="button"
+        aria-current={activeWorkspace === item.id ? "page" : undefined}
+        onClick={() => setActiveWorkspace(item.id)}
+        className={principalNavItemClass(activeWorkspace === item.id)}
+      >
+        <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+        <span className="truncate">{item.label}</span>
+      </button>
+    );
+  }
+
   return (
     <DashboardCommunicationBoundary tenantId={schoolId}>
       <PermissionProvider schoolId={schoolId}>
@@ -514,22 +575,48 @@ export function PrincipalCommandCenter({
               </div>
               <nav aria-label="Principal dashboard sidebar" className="mt-5 flex-1 space-y-2 overflow-auto pr-1 pb-10">
                 {PRINCIPAL_NAV_ITEMS.map((item) => {
+                  if (!("children" in item)) return renderNavItem(item);
                   const Icon = item.icon;
+                  const expanded = Boolean(expandedNavGroups[item.id]);
+                  const selected = item.section === activeWorkspace || item.children.some((child) => child.id === activeWorkspace);
+                  const childrenId = `principal-nav-${item.id}`;
+                  const hasPage = Boolean(item.section || item.route);
                   return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setActiveWorkspace(item.id)}
-                      className={cn(
-                        "flex min-h-10 w-full items-center gap-3 rounded-[var(--radius)] px-3 py-2 text-sm font-bold transition hover:-translate-y-0.5",
-                        activeWorkspace === item.id
-                          ? "border border-cyan-300/35 bg-cyan-300/12 text-cyan-100 shadow-[inset_4px_0_0_#22D3EE]"
-                          : "text-white/72 hover:bg-white/10 hover:text-white",
-                      )}
-                    >
-                      <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                      <span className="truncate">{item.label}</span>
-                    </button>
+                    <div key={item.id}>
+                      <div className="flex items-center gap-1">
+                        {item.route ? (
+                          <Link
+                            href={buildSchoolSectionHref("principal", item.route, routeMode ?? "hosted")}
+                            onClick={() => setMobileSidebarOpen(false)}
+                            className={principalNavItemClass(selected)}
+                          >
+                            <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                            <span className="truncate">{item.label}</span>
+                          </Link>
+                        ) : item.section ? renderNavItem({ id: item.section, label: item.label, icon: item.icon }) : null}
+                        <button
+                          type="button"
+                          aria-label={hasPage ? `${expanded ? "Collapse" : "Expand"} ${item.label}` : undefined}
+                          aria-expanded={expanded}
+                          aria-controls={childrenId}
+                          onClick={() => setExpandedNavGroups((groups) => ({ ...groups, [item.id]: !expanded }))}
+                          className={hasPage
+                            ? "flex min-h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius)] text-white/72 transition hover:bg-white/10 hover:text-white"
+                            : principalNavItemClass(selected)}
+                        >
+                          {!hasPage ? (
+                            <>
+                              <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                              <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+                            </>
+                          ) : null}
+                          <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", !expanded && "-rotate-90")} aria-hidden="true" />
+                        </button>
+                      </div>
+                      <div id={childrenId} role="group" aria-label={item.label} hidden={!expanded} className="ml-4 mt-1 space-y-1 border-l border-white/10 pl-2">
+                        {item.children.map(renderNavItem)}
+                      </div>
+                    </div>
                   );
                 })}
               </nav>
