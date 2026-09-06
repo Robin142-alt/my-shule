@@ -222,13 +222,13 @@ describe("universal operational form and table system", () => {
     const form = screen.getByRole("form", { name: /parent sms follow-up/i });
 
     await user.click(within(form).getByRole("button", { name: /^print$/i }));
-    expect(screen.getByText(/Parent SMS Follow-up print copy ready with 3 fields loaded/i)).toBeVisible();
+    expect(within(form).getByText(/Parent SMS Follow-up print copy ready with 3 fields loaded/i)).toBeVisible();
     expect(document.body.textContent).not.toMatch(/Print copy prepared from the current form details|Printable preview prepared/i);
 
     await user.click(screen.getByRole("button", { name: /^close$/i }));
     await user.click(within(form).getByRole("button", { name: /preview print/i }));
 
-    expect(screen.getByText(/Parent SMS Follow-up print preview ready with 3 fields loaded/i)).toBeVisible();
+    expect(within(form).getByText(/Parent SMS Follow-up print preview ready with 3 fields loaded/i)).toBeVisible();
     expect(document.body.textContent).not.toMatch(/Print copy prepared from the current form details|Printable preview prepared/i);
   });
 
@@ -298,7 +298,7 @@ describe("universal operational form and table system", () => {
     expect(screen.getByText("Faith Akinyi Updated")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /row row-2 send sms/i }));
-    expect(screen.getByText(/send sms.*returned from the connected workflow/i)).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent(/send sms.*returned from the connected workflow/i);
 
     await user.click(screen.getByRole("button", { name: /export/i }));
     expect(createObjectUrlSpy).toHaveBeenCalled();
@@ -332,13 +332,13 @@ describe("universal operational form and table system", () => {
     );
 
     await user.click(screen.getByRole("button", { name: /row row-1 approve/i }));
-    expect(screen.getByText(/approve for row-1 is not connected to a school workflow/i)).toBeVisible();
+    expect(screen.getByRole("alert")).toHaveTextContent(/approve for row-1 is not connected to a school workflow/i);
     expect(screen.queryByText("Approved")).not.toBeInTheDocument();
     expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("button", { name: /row row-1 delete/i }));
     await user.click(screen.getByRole("button", { name: /yes, remove record/i }));
-    expect(screen.getByText(/delete for row-1 is not connected to a school workflow/i)).toBeVisible();
+    expect(screen.getByRole("alert")).toHaveTextContent(/delete for row-1 is not connected to a school workflow/i);
     expect(screen.getByText("QEX7ABC123")).toBeVisible();
   });
 
@@ -409,7 +409,7 @@ describe("universal operational form and table system", () => {
     await user.click(screen.getByRole("button", { name: /save draft/i }));
 
     expect(window.localStorage.getItem(storageKey)).toContain("Brian Otieno");
-    expect(screen.getByText(/draft saved/i)).toBeVisible();
+    expect(within(screen.getByRole("form")).getByText(/draft saved/i)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /^submit$/i }));
     expect(onAction).toHaveBeenCalledWith(
@@ -417,7 +417,7 @@ describe("universal operational form and table system", () => {
       expect.objectContaining({ title: "Parent SMS Follow-up" }),
       expect.objectContaining({ student: "Brian Otieno" }),
     );
-    expect(screen.getByText(/submit returned from the connected workflow/i)).toBeVisible();
+    expect(within(screen.getByRole("form")).getByText(/submit returned from the connected workflow/i)).toBeVisible();
     expect(window.localStorage.getItem(storageKey)).toBeNull();
 
     await user.click(screen.getByRole("button", { name: /cancel/i }));
@@ -433,7 +433,7 @@ describe("universal operational form and table system", () => {
     renderWithProviders(<OperationalFormShell contract={formContract} />);
     await user.click(screen.getByRole("button", { name: /save draft/i }));
 
-    expect(screen.getByText(/verified school context is required/i)).toBeVisible();
+    expect(screen.getByRole("alert")).toHaveTextContent(/verified school context is required/i);
     expect(Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index)))
       .not.toEqual(expect.arrayContaining([expect.stringContaining("operational-form:parent-sms-follow-up")]));
   });
@@ -459,7 +459,7 @@ describe("universal operational form and table system", () => {
     expect(window.localStorage.getItem(storageKey)).toContain("Tenant A Draft Student");
 
     await user.click(screen.getByRole("button", { name: /^submit$/i }));
-    expect(await screen.findByText(/submission rejected by the school api/i)).toBeVisible();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/submission rejected by the school api/i);
     expect(window.localStorage.getItem(storageKey)).toContain("Tenant A Draft Student");
   });
 
@@ -496,7 +496,7 @@ describe("universal operational form and table system", () => {
     );
 
     await user.click(screen.getByRole("button", { name: /^submit$/i }));
-    expect(await screen.findByText(/submit is not connected to a school workflow/i)).toBeVisible();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/submit is not connected to a school workflow/i);
     expect(window.localStorage.getItem("myshule:school-a:events")).toBeNull();
   });
 

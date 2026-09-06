@@ -47,6 +47,7 @@ jest.mock("@/components/school/class-teacher/shared", () => {
 });
 
 jest.mock("sonner", () => ({
+  ...jest.requireActual("sonner"),
   toast: { success: jest.fn(), error: jest.fn() },
 }));
 

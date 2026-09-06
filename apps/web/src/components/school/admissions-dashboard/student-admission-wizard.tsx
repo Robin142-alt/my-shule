@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Check, ChevronLeft, ChevronRight, Loader2, UserRoundCheck } from "lucide-react";
 import { toast } from "sonner";
@@ -231,11 +231,22 @@ export function StudentAdmissionWizard({
   const [formError, setFormError] = useState<string | null>(null);
   const [result, setResult] = useState<AdmissionResult | null>(null);
   const [preflight, setPreflight] = useState<AdmissionPreflight | null>(null);
-  const [draftStatus, setDraftStatus] = useState<"loading" | "saved" | "saving" | "queued" | "failed">("loading");
+  const [draftStatus, setDraftStatus] = useState<"loading" | "ready" | "saved" | "saving" | "queued" | "failed">("loading");
+  const [closingDraft, setClosingDraft] = useState(false);
+  const [discardingDraft, setDiscardingDraft] = useState(false);
   const [startingNextAdmission, setStartingNextAdmission] = useState(false);
   const [nextAdmissionError, setNextAdmissionError] = useState<string | null>(null);
   const draftHydrated = useRef(false);
   const draftSaveSequence = useRef(0);
+  const pendingDraftSave = useRef<Promise<unknown> | null>(null);
+  const draftSaveTimer = useRef<number | null>(null);
+  const draftWritesBlocked = useRef(false);
+  const draftSaveFailed = useRef(false);
+  const stepContent = useRef<HTMLDivElement>(null);
+  const focusNextStep = useRef(false);
+  const feedbackId = useId();
+  const draftFeedbackId = `${feedbackId}-draft`;
+  const subjectSummaryId = `${feedbackId}-subjects`;
   const foundationQuery = useSchoolQuery<AdmissionFoundation>("/admissions/foundation", {
     retry: 1,
     staleTime: 0,
@@ -334,6 +345,27 @@ export function StudentAdmissionWizard({
   const selectedYear = years.find((item) => item.id === form.academic_year_id);
   const selectedSubjects = subjects.filter((item) => canonicalSubjectIds.includes(item.id));
   const admissionSettings = foundation?.admission_settings;
+  const actionPending = closingDraft || discardingDraft || discardDraft.isPending || admitStudent.isPending || preflightAdmission.isPending;
+  const excessSubjects = Math.max(0, canonicalSubjectIds.length - (admissionSettings?.maximum_subjects ?? canonicalSubjectIds.length));
+  const subjectLimitExceeded = excessSubjects > 0;
+  const draftMessage = draftStatus === "loading" ? "Checking saved draft..."
+    : draftStatus === "ready" ? "Your draft will save as you enter the learner's details."
+      : draftStatus === "saving" ? "Saving draft..."
+        : draftStatus === "queued" ? "Draft saved on this device and queued for secure school sync."
+          : draftStatus === "failed" ? "Draft could not be saved. Your entered data remains on this screen. Retry by choosing Close and keep draft."
+            : "Draft saved securely for your school account.";
+
+  useEffect(() => () => {
+    toast.dismiss(feedbackId);
+    toast.dismiss(draftFeedbackId);
+  }, [draftFeedbackId, feedbackId]);
+
+  useEffect(() => {
+    if (!focusNextStep.current) return;
+    focusNextStep.current = false;
+    stepContent.current?.focus({ preventScroll: true });
+    stepContent.current?.scrollIntoView?.({ block: "start" });
+  }, [step, result]);
 
   useEffect(() => {
     if (draftHydrated.current || foundationQuery.isLoading || draftQuery.isLoading) return;
@@ -356,22 +388,40 @@ export function StudentAdmissionWizard({
         admission_number: current.admission_number || admissionSettings.suggested_admission_number,
       }));
     }
-    setDraftStatus("saved");
-  }, [admissionSettings?.suggested_admission_number, draftQuery.data, draftQuery.isLoading, foundationQuery.isLoading]);
+    if (draftQuery.isError) {
+      setDraftStatus("failed");
+      toast.warning("The saved admission draft could not be loaded. Your entered details remain on this screen.", { id: draftFeedbackId, duration: Infinity });
+    } else {
+      setDraftStatus("ready");
+    }
+  }, [admissionSettings?.suggested_admission_number, draftFeedbackId, draftQuery.data, draftQuery.isError, draftQuery.isLoading, foundationQuery.isLoading]);
 
   useEffect(() => {
     if (
       !draftHydrated.current
       || result
+      || draftWritesBlocked.current
+      || closingDraft
+      || discardingDraft
+      || discardDraft.isPending
       || !form.admission_number
       || !hasMeaningfulDraft(form, step, admissionSettings?.suggested_admission_number)
     ) return;
     setDraftStatus("saving");
+    const saveSequence = ++draftSaveSequence.current;
     const timer = window.setTimeout(() => {
-      const saveSequence = ++draftSaveSequence.current;
-      saveDraftAsync({ payload: { ...canonicalForm, step } })
+      draftSaveTimer.current = null;
+      if (draftWritesBlocked.current) return;
+      // Keep writes in order so a slow earlier save cannot overwrite newer input.
+      const saving = Promise.resolve(pendingDraftSave.current)
+        .catch(() => undefined)
+        .then(() => saveDraftAsync({ payload: { ...canonicalForm, step } }));
+      pendingDraftSave.current = saving;
+      saving
         .then((saved) => {
           if (saveSequence !== draftSaveSequence.current) return;
+          draftSaveFailed.current = false;
+          toast.dismiss(draftFeedbackId);
           setDraftStatus(
             saved && typeof saved === "object" && "_offline" in saved
               ? "queued"
@@ -379,11 +429,79 @@ export function StudentAdmissionWizard({
           );
         })
         .catch(() => {
-          if (saveSequence === draftSaveSequence.current) setDraftStatus("failed");
+          if (saveSequence !== draftSaveSequence.current) return;
+          setDraftStatus("failed");
+          if (!draftSaveFailed.current) {
+            toast.error("Draft could not be saved. Keep this screen open and retry Close and keep draft.", { id: draftFeedbackId, duration: Infinity });
+          }
+          draftSaveFailed.current = true;
         });
     }, 700);
-    return () => window.clearTimeout(timer);
-  }, [admissionSettings?.suggested_admission_number, canonicalForm, form, result, saveDraftAsync, step]);
+    draftSaveTimer.current = timer;
+    return () => {
+      window.clearTimeout(timer);
+      if (draftSaveTimer.current === timer) draftSaveTimer.current = null;
+    };
+  }, [admissionSettings?.suggested_admission_number, canonicalForm, closingDraft, discardDraft.isPending, discardingDraft, draftFeedbackId, form, result, saveDraftAsync, step]);
+
+  function clearFormError() {
+    setFormError(null);
+    toast.dismiss(feedbackId);
+  }
+
+  function reportFormError(message: string) {
+    setFormError(message);
+    // Notify on every attempt, including when the validation message is unchanged.
+    toast.error(message, { id: feedbackId, duration: Infinity });
+  }
+
+  function stopScheduledDraftSave() {
+    draftWritesBlocked.current = true;
+    draftSaveSequence.current += 1;
+    if (draftSaveTimer.current !== null) {
+      window.clearTimeout(draftSaveTimer.current);
+      draftSaveTimer.current = null;
+    }
+  }
+
+  async function closeAndKeepDraft() {
+    if (draftWritesBlocked.current) return;
+    if (!hasMeaningfulDraft(form, step, admissionSettings?.suggested_admission_number)) {
+      onCancel();
+      return;
+    }
+    setClosingDraft(true);
+    setDraftStatus("saving");
+    stopScheduledDraftSave();
+    try {
+      await pendingDraftSave.current?.catch(() => undefined);
+      const saved = await saveDraftAsync({ payload: { ...canonicalForm, step } });
+      const queued = saved && typeof saved === "object" && "_offline" in saved;
+      toast.success(queued ? "Draft saved on this device and queued for secure school sync." : "Admission draft saved. You can resume it later.");
+      onCancel();
+    } catch (error) {
+      draftWritesBlocked.current = false;
+      setDraftStatus("failed");
+      reportFormError(`The draft could not be saved, so this screen remains open. ${errorMessage(error)}`);
+      setClosingDraft(false);
+    }
+  }
+
+  async function discardAndClose() {
+    if (draftWritesBlocked.current) return;
+    stopScheduledDraftSave();
+    setDiscardingDraft(true);
+    try {
+      // DELETE must run after every already-started save to prevent resurrection.
+      await pendingDraftSave.current?.catch(() => undefined);
+      await discardDraft.mutateAsync({});
+      onCancel();
+    } catch (error) {
+      draftWritesBlocked.current = false;
+      setDiscardingDraft(false);
+      reportFormError(`The draft could not be discarded. ${errorMessage(error)}`);
+    }
+  }
 
   async function saveAdmissionSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -417,7 +535,7 @@ export function StudentAdmissionWizard({
 
   function update<Key extends keyof AdmissionPayload>(key: Key, value: AdmissionPayload[Key]) {
     setForm((current) => ({ ...current, [key]: value }));
-    setFormError(null);
+    clearFormError();
     setPreflight(null);
   }
 
@@ -466,7 +584,7 @@ export function StudentAdmissionWizard({
     setPreflight(review);
     const blocking = review.warnings.filter((warning) => warning.blocking);
     if (blocking.length) {
-      setFormError(blocking.map((warning) => warning.message).join(" "));
+      reportFormError(blocking.map((warning) => warning.message).join(" "));
       return false;
     }
     return true;
@@ -475,7 +593,7 @@ export function StudentAdmissionWizard({
   async function next() {
     const issue = validateStep(step);
     if (issue) {
-      setFormError(issue);
+      reportFormError(issue);
       return;
     }
     if (step === 1) {
@@ -485,20 +603,22 @@ export function StudentAdmissionWizard({
       try {
         if (!(await runPreflight())) return;
       } catch (error) {
-        setFormError(errorMessage(error));
+        reportFormError(errorMessage(error));
         return;
       }
     }
+    clearFormError();
+    focusNextStep.current = true;
     setStep((current) => Math.min(current + 1, steps.length - 1));
   }
 
   async function submit() {
     const issue = validateStep(3);
     if (issue) {
-      setFormError(issue);
+      reportFormError(issue);
       return;
     }
-    setFormError(null);
+    clearFormError();
     try {
       if (!(await runPreflight())) return;
       const admission = await admitStudent.mutateAsync({
@@ -521,9 +641,7 @@ export function StudentAdmissionWizard({
           toast.warning("The learner was admitted. The admissions list will refresh automatically when the connection recovers.");
         });
     } catch (error) {
-      const message = errorMessage(error);
-      setFormError(message);
-      toast.error(message);
+      reportFormError(errorMessage(error));
     }
   }
 
@@ -544,14 +662,15 @@ export function StudentAdmissionWizard({
         : {};
       draftSaveSequence.current += 1;
       setPreflight(null);
-      setFormError(null);
+      clearFormError();
       setForm({
         ...emptyForm,
         admission_number: refreshed.data.admission_settings.suggested_admission_number ?? "",
         ...guardian,
       });
+      focusNextStep.current = true;
       setStep(0);
-      setDraftStatus("saved");
+      setDraftStatus("ready");
       setResult(null);
     } catch (error) {
       const message = `The learner was admitted, but a fresh admission could not be prepared. ${errorMessage(error)}`;
@@ -618,11 +737,11 @@ export function StudentAdmissionWizard({
           </p>
         ) : null}
         {nextAdmissionError ? (
-          <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+          <p role="alert" className="mt-3 break-words rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
             {nextAdmissionError}
           </p>
         ) : null}
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-4 grid gap-2 sm:flex sm:flex-wrap [&_button]:min-h-11">
           <button
             type="button"
             onClick={() => void beginNextAdmission(false)}
@@ -667,16 +786,11 @@ export function StudentAdmissionWizard({
           {foundationQuery.isFetching ? "Refreshing setup..." : "Refresh classes, streams & subjects"}
         </button>
       </div>
-      <div className="mb-4">
-        <p className={`mt-2 text-xs font-bold ${draftStatus === "failed" ? "text-rose-700" : "text-[#64748B]"}`}>
-          {draftStatus === "loading" ? "Checking saved draft..." : draftStatus === "saving" ? "Saving draft..." : draftStatus === "queued" ? "Draft saved on this device and queued for secure school sync." : draftStatus === "failed" ? "Draft could not be saved. Your entered data remains on this screen." : "Draft saved securely for your school account."}
-        </p>
-      </div>
-
       {admissionSettings ? (
         <details className="mb-4 rounded-xl border border-[#D8E0EC] bg-white p-3">
           <summary className="cursor-pointer text-sm font-black text-[#071D49]">Admission numbering and safeguards</summary>
-          <form onSubmit={(event) => void saveAdmissionSettings(event)} className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-4">
+          <form onSubmit={(event) => void saveAdmissionSettings(event)}>
+          <fieldset disabled={closingDraft || discardingDraft} className="mt-4 grid min-w-0 gap-3 md:grid-cols-3 xl:grid-cols-4">
             <Field label="Admission number mode">
               <select name="admission_number_mode" defaultValue={admissionSettings.admission_number_mode}>
                 <option value="manual">Manual</option>
@@ -701,6 +815,7 @@ export function StudentAdmissionWizard({
             <button type="submit" disabled={updateSettings.isPending} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-60">
               {updateSettings.isPending ? "Saving policy..." : "Save admission policy"}
             </button>
+          </fieldset>
           </form>
         </details>
       ) : null}
@@ -709,6 +824,7 @@ export function StudentAdmissionWizard({
         {steps.map((label, index) => (
           <li
             key={label}
+            aria-current={index === step ? "step" : undefined}
             className={`rounded-xl border px-3 py-2 text-xs font-black ${
               index === step
                 ? "border-cyan-400 bg-cyan-100 text-[#071D49]"
@@ -726,11 +842,11 @@ export function StudentAdmissionWizard({
       </ol>
 
       {foundationQuery.isLoading ? (
-        <div className="flex items-center gap-2 rounded-xl border border-[#D8E0EC] bg-white p-4 text-sm font-bold text-[#64748B]">
+        <div role="status" className="flex items-center gap-2 rounded-xl border border-[#D8E0EC] bg-white p-4 text-sm font-bold text-[#64748B]">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Loading this school&apos;s academic foundation...
         </div>
       ) : foundationQuery.isError ? (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">
           Academic foundation could not be loaded. Retry before admitting a learner.
           <button type="button" onClick={() => void foundationQuery.refetch()} disabled={foundationQuery.isFetching} className="ml-3 rounded-lg border border-rose-300 bg-white px-3 py-1 disabled:opacity-60">
             {foundationQuery.isFetching ? "Retrying..." : "Retry"}
@@ -742,12 +858,8 @@ export function StudentAdmissionWizard({
         </div>
       ) : (
         <>
-          {formError ? (
-            <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
-              {formError}
-            </div>
-          ) : null}
-
+          <div ref={stepContent} role="group" aria-label={steps[step]} tabIndex={-1} className="scroll-mt-24 outline-none" onChange={() => { clearFormError(); setPreflight(null); }}>
+          <fieldset disabled={closingDraft || discardingDraft} className="min-w-0">
           {step === 0 ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <Field label="Admission number" hint={admissionSettings?.admission_number_mode === "automatic" ? "Generated from the school sequence. Refresh if another admission uses it first." : "School suggestion can be edited before admission."}><input autoFocus readOnly={admissionSettings?.admission_number_mode === "automatic"} value={form.admission_number} onChange={(event) => update("admission_number", event.target.value)} /></Field>
@@ -809,9 +921,9 @@ export function StudentAdmissionWizard({
                     const compulsory = subject.is_compulsory;
                     const checked = compulsory || form.subject_ids.includes(subject.id);
                     return (
-                      <label key={subject.id} className={`flex items-start gap-3 rounded-xl border p-3 ${checked ? "border-cyan-300 bg-cyan-50" : "border-[#D8E0EC] bg-white"}`}>
-                        <input type="checkbox" className="mt-1 h-4 w-4" checked={checked} disabled={compulsory} onChange={(event) => update("subject_ids", event.target.checked ? [...form.subject_ids, subject.id] : form.subject_ids.filter((id) => id !== subject.id))} />
-                        <span><span className="block font-black text-[#071D49]">{subject.name}</span><span className="text-xs font-semibold text-[#64748B]">{subject.code} - {compulsory ? "Compulsory" : "Optional"}</span></span>
+                      <label key={subject.id} className={`flex min-w-0 items-start gap-3 rounded-xl border p-3 ${checked ? "border-cyan-300 bg-cyan-50" : "border-[#D8E0EC] bg-white"}`}>
+                        <input type="checkbox" className="mt-1 h-4 w-4 shrink-0" checked={checked} disabled={compulsory} aria-describedby={subjectSummaryId} onChange={(event) => update("subject_ids", event.target.checked ? [...form.subject_ids, subject.id] : form.subject_ids.filter((id) => id !== subject.id))} />
+                        <span className="min-w-0 break-words"><span className="block font-black text-[#071D49]">{subject.name}</span><span className="text-xs font-semibold text-[#64748B]">{subject.code} - {compulsory ? "Compulsory" : "Optional"}</span></span>
                       </label>
                     );
                   })}
@@ -853,18 +965,38 @@ export function StudentAdmissionWizard({
               </div>
             </div>
           ) : null}
+          </fieldset>
+          </div>
 
-          <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
-            <div className="flex gap-2">
-              <button type="button" onClick={onCancel} className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49]">Close and keep draft</button>
-              <button type="button" onClick={() => { void discardDraft.mutateAsync({}).then(onCancel).catch((error) => toast.error(errorMessage(error))); }} disabled={discardDraft.isPending} className="rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-black text-rose-700 disabled:opacity-60">Discard draft</button>
-              {step > 0 ? <button type="button" onClick={() => { setFormError(null); setStep((current) => current - 1); }} className="inline-flex items-center gap-2 rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49]"><ChevronLeft className="h-4 w-4" /> Back</button> : null}
+          <div role="group" aria-label="Admission actions" aria-busy={actionPending} className="mt-5 grid min-w-0 gap-3">
+            {step === 2 ? (
+              <p id={subjectSummaryId} role="status" className={`rounded-xl border px-3 py-2 text-sm font-bold ${subjectLimitExceeded ? "border-amber-300 bg-amber-50 text-amber-900" : "border-cyan-200 bg-white text-[#071D49]"}`}>
+                {canonicalSubjectIds.length} {canonicalSubjectIds.length === 1 ? "subject" : "subjects"} selected.
+                {admissionSettings?.minimum_subjects != null ? ` Minimum: ${admissionSettings.minimum_subjects}.` : ""}
+                {admissionSettings?.maximum_subjects != null ? ` Maximum: ${admissionSettings.maximum_subjects}.` : ""}
+                {subjectLimitExceeded ? compulsorySubjectIds.length > (admissionSettings?.maximum_subjects ?? Infinity)
+                  ? " The compulsory subjects exceed this limit. Ask the Principal or Deputy Principal to review the subject policy."
+                  : ` Remove ${excessSubjects} optional ${excessSubjects === 1 ? "subject" : "subjects"} to continue.` : ""}
+              </p>
+            ) : null}
+            {formError ? (
+              <div id={feedbackId} role="alert" aria-atomic="true" className="break-words rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+                {formError}
+              </div>
+            ) : null}
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+              {step < steps.length - 1 ? (
+                <button type="button" onClick={() => void next()} disabled={actionPending} aria-describedby={formError ? feedbackId : step === 2 ? subjectSummaryId : undefined} className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-xl bg-[#071D49] px-4 py-2.5 text-sm font-black text-white disabled:opacity-60 sm:col-start-2">{preflightAdmission.isPending ? <><Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" /> Checking...</> : <>Continue <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" /></>}</button>
+              ) : (
+                <button type="button" onClick={() => void submit()} disabled={actionPending || preflight?.warnings.some((warning) => warning.blocking)} aria-describedby={formError ? feedbackId : undefined} className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-xl bg-[#FF6B1A] px-5 py-2.5 text-sm font-black text-white disabled:opacity-60 sm:col-start-2">{admitStudent.isPending || preflightAdmission.isPending ? <><Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" /> Verifying and admitting...</> : "Admit student"}</button>
+              )}
+              <div className="grid min-w-0 gap-2 sm:col-start-1 sm:row-start-1 sm:flex sm:flex-wrap [&_button]:min-h-11 [&_button]:min-w-0 [&_button]:py-2.5 [&_button]:disabled:opacity-60">
+                {step > 0 ? <button type="button" disabled={actionPending} onClick={() => { clearFormError(); focusNextStep.current = true; setStep((current) => current - 1); }} className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#D8E0EC] bg-white px-4 text-sm font-black text-[#071D49]"><ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" /> Back</button> : null}
+                <button type="button" onClick={() => void closeAndKeepDraft()} disabled={actionPending} className="rounded-xl border border-[#D8E0EC] bg-white px-4 text-sm font-black text-[#071D49]">{closingDraft ? "Saving draft..." : "Close and keep draft"}</button>
+                <button type="button" onClick={() => void discardAndClose()} disabled={actionPending} className="rounded-xl border border-rose-200 bg-white px-4 text-sm font-black text-rose-700">{discardingDraft || discardDraft.isPending ? "Discarding draft..." : "Discard draft"}</button>
+              </div>
             </div>
-            {step < steps.length - 1 ? (
-              <button type="button" onClick={() => void next()} disabled={preflightAdmission.isPending} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-60">{preflightAdmission.isPending ? "Checking..." : "Continue"} <ChevronRight className="h-4 w-4" /></button>
-            ) : (
-              <button type="button" onClick={() => void submit()} disabled={admitStudent.isPending || preflightAdmission.isPending || preflight?.warnings.some((warning) => warning.blocking)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#FF6B1A] px-5 py-2 text-sm font-black text-white disabled:opacity-60">{admitStudent.isPending || preflightAdmission.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Verifying and admitting...</> : "Admit student"}</button>
-            )}
+            <p role="status" className={`text-xs font-bold ${draftStatus === "failed" ? "text-rose-700" : "text-[#64748B]"}`}>{draftMessage}</p>
           </div>
         </>
       )}

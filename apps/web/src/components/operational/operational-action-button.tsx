@@ -5,6 +5,7 @@ import type { ComponentType } from "react";
 import { AlertTriangle, CheckCircle2, Clock3, Lock, RotateCcw, ShieldCheck, WifiOff } from "lucide-react";
 
 import { Modal } from "@/components/ui/modal";
+import { useActionFeedback } from "@/hooks/use-action-feedback";
 import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
 import {
   getCurrentSchoolId,
@@ -194,26 +195,22 @@ export function OperationalActionButton({
   const Icon = isSubmitting ? Clock3 : action.icon ?? healthIcon[action.health];
   const disabled = action.health === "LOADING" || isSubmitting;
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [localNotice, setLocalNotice] = useState<string | null>(null);
-  const [localNoticeTone, setLocalNoticeTone] = useState<"success" | "warning" | "danger">("success");
+  const { notice: localNotice, noticeTone: localNoticeTone, showFeedback } = useActionFeedback();
   const displayState = isSubmitting ? "Sending" : healthDisplay[action.health];
 
   async function completeAction() {
     setIsSubmitting(true);
-    setLocalNoticeTone("warning");
-    setLocalNotice(`${action.label} is being processed...`);
+    showFeedback(`${action.label} is being processed...`, "loading");
 
     try {
       const executionResult = normalizeExecutionResult(
         action,
         onExecute ? await onExecute(action) : publishDefaultAction(action, tenantId),
       );
-      setLocalNoticeTone(executionResult.tone ?? "success");
-      setLocalNotice(executionResult.message);
+      showFeedback(executionResult.message, executionResult.tone ?? "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "The connected workflow failed.";
-      setLocalNoticeTone("danger");
-      setLocalNotice(`${action.label} could not complete because ${message}`);
+      showFeedback(`${action.label} could not complete because ${message}`, "danger");
     } finally {
       setIsSubmitting(false);
     }
@@ -221,8 +218,7 @@ export function OperationalActionButton({
 
   function requestAction() {
     if (action.health === "LOCKED") {
-      setLocalNoticeTone("danger");
-      setLocalNotice(`${action.label} requires ${action.capability} permission.`);
+      showFeedback(`${action.label} requires ${action.capability} permission.`, "danger");
       return;
     }
 
@@ -242,7 +238,7 @@ export function OperationalActionButton({
     <div
       className={`${
         compact
-          ? "inline-flex max-w-full"
+          ? "inline-flex max-w-full flex-col items-start"
           : "rounded-[var(--radius-sm)] border border-border bg-surface/80 p-3 shadow-[0_12px_32px_rgba(15,23,42,0.05)]"
       }`}
       data-action-health={action.health}
@@ -251,10 +247,11 @@ export function OperationalActionButton({
         type="button"
         aria-label={`${action.label} ${displayState}`}
         disabled={disabled}
+        aria-busy={isSubmitting}
         onClick={() => {
           requestAction();
         }}
-        className={`inline-flex items-center gap-2 rounded-[var(--radius-xs)] border px-3 py-2 text-xs font-bold transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-75 ${healthClass[action.health]}`}
+        className={`inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-xs)] border px-3 py-2 text-xs font-bold transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-75 ${healthClass[action.health]}`}
       >
         <Icon className="h-3.5 w-3.5" />
         {!compact || action.health !== "ACTIVE" ? (
@@ -271,10 +268,10 @@ export function OperationalActionButton({
         </div>
       ) : null}
       {localNotice ? (
-        <p className={`mt-2 rounded-[var(--radius-xs)] border px-2 py-1.5 text-[10px] font-bold ${
+        <p role={localNoticeTone === "danger" ? "alert" : "status"} aria-atomic="true" className={`mt-2 max-w-full break-words rounded-[var(--radius-xs)] border px-2 py-1.5 text-sm font-bold ${
           localNoticeTone === "danger"
             ? "border-danger/20 bg-danger-soft text-danger"
-            : localNoticeTone === "warning"
+            : localNoticeTone === "warning" || localNoticeTone === "loading"
               ? "border-warning/20 bg-warning-soft text-warning"
               : "border-success/20 bg-success-soft text-success"
         }`}>

@@ -179,6 +179,8 @@ describe("school-scoped user management and invitations", () => {
     await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
     await user.click(within(commandCenter).getByRole("button", { name: /Invite New User/i }));
 
+    expect(document.querySelector("[data-sonner-toast]")).toBeNull();
+
     const roleSelect = within(commandCenter).getByLabelText(/^Role$/i);
 
     expect(within(roleSelect).queryByRole("option", { name: /Super Admin/i })).not.toBeInTheDocument();
@@ -193,6 +195,9 @@ describe("school-scoped user management and invitations", () => {
     await user.click(within(commandCenter).getByRole("button", { name: /Send Invitation/i }));
 
     expect(await within(commandCenter).findByText(/Invitation email sent to Grace Njeri/i)).toBeVisible();
+    await waitFor(() => {
+      expect(document.querySelector('[data-sonner-toast][data-type="success"]')).toHaveTextContent("Invitation email sent to Grace Njeri");
+    });
 
     await waitFor(() => {
       expect(readSchoolData("user-invitations", "kisumu-boys")).toEqual(
@@ -283,6 +288,9 @@ describe("school-scoped user management and invitations", () => {
     await user.click(within(commandCenter).getByRole("button", { name: /Send Invitation/i }));
 
     await waitFor(() => expect(within(commandCenter).getByText(/Transactional email provider is not configured/i)).toBeVisible());
+    await waitFor(() => {
+      expect(document.querySelector('[data-sonner-toast][data-type="error"]')).toHaveTextContent("Transactional email provider is not configured");
+    });
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/auth/invitations?limit=50&offset=0",
       expect.objectContaining({

@@ -33,6 +33,7 @@ jest.mock("@/components/school/nurse/api-client", () => ({
 }));
 
 jest.mock("sonner", () => ({
+  ...jest.requireActual("sonner"),
   toast: {
     success: jest.fn(),
     error: jest.fn(),

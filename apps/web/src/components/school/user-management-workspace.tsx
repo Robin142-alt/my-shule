@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
+import { useActionFeedback } from "@/hooks/use-action-feedback";
 import { getCsrfToken } from "@/lib/auth/csrf-client";
 import { requestPasswordRecovery } from "@/lib/auth/recovery-client";
 import {
@@ -460,6 +461,7 @@ export function UserManagementWorkspace({
   const [departmentFilter, setDepartmentFilter] = useState("All departments");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { showFeedback, clearFeedback } = useActionFeedback();
   const [selectedDetail, setSelectedDetail] = useState<SchoolUserRecord | UserInvitationRecord | null>(null);
   const [editingUser, setEditingUser] = useState<SchoolUserRecord | null>(null);
   const [roleChangeUser, setRoleChangeUser] = useState<SchoolUserRecord | null>(null);
@@ -468,11 +470,21 @@ export function UserManagementWorkspace({
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteActionBusy, setInviteActionBusy] = useState<string | null>(null);
   const [userActionBusy, setUserActionBusy] = useState<string | null>(null);
+  function reportActionError(message: string | null) {
+    setError(message);
+    if (message) showFeedback(message, "danger");
+  }
+  function reportActionNotice(message: string | null, tone: "success" | "warning" = "success") {
+    setNotice(message);
+    if (message) showFeedback(message, tone);
+  }
+  useEffect(() => { clearFeedback(); }, [schoolId, clearFeedback]);
   const explainManagePermission = () => {
-    setNotice(
+    reportActionNotice(
       actorRole === "Deputy Principal"
         ? "User management changes require the Deputy Principal manage-users permission for this school."
         : "User management changes require school administrator permission.",
+      "warning",
     );
   };
 
@@ -640,19 +652,20 @@ export function UserManagementWorkspace({
 
   async function updateUserStatus(user: SchoolUserRecord, status: SchoolUserStatus, reason: string) {
     if (!canManageUsers) {
-      setError("Your account can view users, but user management changes are not enabled.");
+      reportActionError("Your account can view users, but user management changes are not enabled.");
       return;
     }
 
     if (typeof fetch !== "function") {
-      setError("Live school user management is unavailable in this browser session.");
+      reportActionError("Live school user management is unavailable in this browser session.");
       return;
     }
 
     const busyKey = `status:${user.id}`;
     setUserActionBusy(busyKey);
-    setError(null);
-    setNotice(null);
+    showFeedback(`Updating ${user.name} status...`, "loading");
+    reportActionError(null);
+    reportActionNotice(null);
 
     try {
       const csrfToken = await getCsrfToken();
@@ -689,10 +702,10 @@ export function UserManagementWorkspace({
       setUsers((current) => current.map((item) => (item.id === user.id ? { ...item, ...nextUser } : item)));
       addUserAudit(`User ${status.toLowerCase()}`, user.name, user.status, status, reason);
       publishUserEvent("USER_STATUS_CHANGED", `User ${status.toLowerCase()}`, `${user.name} is now ${status.toLowerCase()} in ${schoolName}.`, user.id);
-      setNotice(`${user.name} is now ${status}.`);
+      reportActionNotice(`${user.name} is now ${status}.`);
       setPendingStatusChange(null);
     } catch (statusError) {
-      setError(statusError instanceof Error ? statusError.message : "Unable to update user status.");
+      reportActionError(statusError instanceof Error ? statusError.message : "Unable to update user status.");
     } finally {
       setUserActionBusy(null);
     }
@@ -700,7 +713,7 @@ export function UserManagementWorkspace({
 
   function removeUser(user: SchoolUserRecord) {
     if (!canManageUsers) {
-      setError("Your account can view users, but permanent removal is not enabled.");
+      reportActionError("Your account can view users, but permanent removal is not enabled.");
       return;
     }
 
@@ -709,7 +722,7 @@ export function UserManagementWorkspace({
     setUsers(remaining);
     addUserAudit("User removed", user.name, user.status, "Removed", "Removed from school user list");
     publishUserEvent("USER_REMOVED", "User removed", `${user.name} was removed from ${schoolName}.`, user.id);
-    setNotice(`${user.name} removed from this school.`);
+    reportActionNotice(`${user.name} removed from this school.`);
     setSelectedDetail(null);
   }
 
@@ -719,7 +732,7 @@ export function UserManagementWorkspace({
     }
 
     if (invite.invitationStatus !== "Pending" && invite.invitationStatus !== "Email Failed") {
-      setError("Only pending or failed-email invitations can be resent.");
+      reportActionError("Only pending or failed-email invitations can be resent.");
       return;
     }
 
@@ -727,11 +740,12 @@ export function UserManagementWorkspace({
     let nextInvite = { ...invite, invitationStatus: "Pending" as InvitationStatus, expiryDate, updatedAt: nowIso() };
 
     if (typeof fetch !== "function") {
-      setError("Invitation email service is not available in this browser session.");
+      reportActionError("Invitation email service is not available in this browser session.");
       return;
     }
 
     setInviteActionBusy(`resend:${invite.id}`);
+    showFeedback(`Resending invitation to ${invite.invitedName}...`, "loading");
     try {
       const csrfToken = await getCsrfToken();
       const response = await fetch(`/api/auth/invitations/${encodeURIComponent(invite.id)}/resend`, {
@@ -793,18 +807,18 @@ export function UserManagementWorkspace({
         invite.id,
       );
       if (resendSent) {
-        setNotice(`Invitation email resent to ${invite.invitedName}.`);
-        setError(null);
+        reportActionNotice(`Invitation email resent to ${invite.invitedName}.`);
+        reportActionError(null);
       } else {
         setNotice(`${invite.invitedName} remains in Pending Invitations. Resend once email delivery is fixed.`);
-        setError(`Email delivery failed: ${resendMessage}`);
+        reportActionError(`Email delivery failed: ${resendMessage}`);
       }
     } catch (resendError) {
       const message = resendError instanceof Error ? resendError.message : "Unable to resend invitation email.";
       addUserAudit("Invitation resend failed", invite.invitedName, invite.invitationStatus, "Failed", message);
       publishUserEvent("USER_INVITATION_RESEND_FAILED", "Invitation resend failed", `${invite.invitedName} invitation email could not be resent: ${message}`, invite.id);
-      setError(message);
-      setNotice(null);
+      reportActionError(message);
+      reportActionNotice(null);
     } finally {
       setInviteActionBusy(null);
     }
@@ -816,16 +830,17 @@ export function UserManagementWorkspace({
     }
 
     if (invite.invitationStatus !== "Pending") {
-      setError("Only pending invitations can be revoked.");
+      reportActionError("Only pending invitations can be revoked.");
       return;
     }
 
     if (typeof fetch !== "function") {
-      setError("Invitation service is not available in this browser session.");
+      reportActionError("Invitation service is not available in this browser session.");
       return;
     }
 
     setInviteActionBusy(`revoke:${invite.id}`);
+    showFeedback(`Revoking invitation for ${invite.invitedName}...`, "loading");
     try {
       const csrfToken = await getCsrfToken();
       const response = await fetch(`/api/auth/invitations/${encodeURIComponent(invite.id)}`, {
@@ -848,14 +863,14 @@ export function UserManagementWorkspace({
       );
       addUserAudit("Invitation revoked", invite.invitedName, "Pending", "Revoked", "Invitation revoked before acceptance");
       publishUserEvent("USER_INVITATION_REVOKED", "Invitation revoked", `${invite.invitedName} invitation was revoked.`, invite.id);
-      setNotice(`Invitation revoked for ${invite.invitedName}.`);
-      setError(null);
+      reportActionNotice(`Invitation revoked for ${invite.invitedName}.`);
+      reportActionError(null);
     } catch (revokeError) {
       const message = revokeError instanceof Error ? revokeError.message : "Unable to revoke invitation.";
       addUserAudit("Invitation revoke failed", invite.invitedName, invite.invitationStatus, "Failed", message);
       publishUserEvent("USER_INVITATION_REVOKE_FAILED", "Invitation revoke failed", `${invite.invitedName} invitation could not be revoked: ${message}`, invite.id);
-      setError(message);
-      setNotice(null);
+      reportActionError(message);
+      reportActionNotice(null);
     } finally {
       setInviteActionBusy(null);
     }
@@ -863,7 +878,7 @@ export function UserManagementWorkspace({
 
   function clearExpiredInvitation(invite: UserInvitationRecord) {
     if (invite.invitationStatus !== "Expired" && invite.invitationStatus !== "Revoked") {
-      setError("Only expired or revoked invitations can be cleared.");
+      reportActionError("Only expired or revoked invitations can be cleared.");
       return;
     }
 
@@ -871,36 +886,37 @@ export function UserManagementWorkspace({
     writeSchoolData(invitationModule, remaining, schoolId);
     setInvitations(remaining);
     addUserAudit("Invitation cleared", invite.invitedName, invite.invitationStatus, "Cleared", "Expired or revoked invite cleared");
-    setNotice(`${invite.invitedName} invitation cleared.`);
+    reportActionNotice(`${invite.invitedName} invitation cleared.`);
   }
 
   function copyInvitation(invite: UserInvitationRecord) {
     if (invite.inviteCode === "Hidden after delivery" || invite.inviteToken.includes(".live.")) {
-      setError("Secure invitation links are hidden after email delivery. Use Resend invitation to send a fresh email.");
-      setNotice(null);
+      reportActionError("Secure invitation links are hidden after email delivery. Use Resend invitation to send a fresh email.");
+      reportActionNotice(null);
       return;
     }
 
     const link = `https://myshule.online/invite/${encodeURIComponent(invite.inviteToken)}`;
     void navigator.clipboard?.writeText(link).catch(() => undefined);
-    setNotice(`${invite.invitedName} invite link/code is ready: ${invite.inviteCode}`);
+    reportActionNotice(`${invite.invitedName} invite link/code is ready: ${invite.inviteCode}`);
     addUserAudit("Invitation copied", invite.invitedName, undefined, invite.inviteCode, "Invite link copied");
   }
 
   async function resetPassword(user: SchoolUserRecord) {
     if (!canManageUsers) {
-      setError("Your account is not allowed to request password resets.");
+      reportActionError("Your account is not allowed to request password resets.");
       return;
     }
 
     if (!user.email || !/\S+@\S+\.\S+/.test(user.email)) {
-      setError(`${user.name} does not have a valid email address for password recovery.`);
+      reportActionError(`${user.name} does not have a valid email address for password recovery.`);
       return;
     }
 
     setUserActionBusy(`password:${user.id}`);
-    setError(null);
-    setNotice(null);
+    showFeedback(`Requesting password recovery for ${user.name}...`, "loading");
+    reportActionError(null);
+    reportActionNotice(null);
 
     try {
       await requestPasswordRecovery({
@@ -910,10 +926,10 @@ export function UserManagementWorkspace({
       });
       addUserAudit("Password reset requested", user.name, undefined, "Recovery email requested", "School administrator requested password recovery");
       publishUserEvent("USER_PASSWORD_RESET_REQUESTED", "Password reset requested", `${user.name} password recovery email was requested.`, user.id);
-      setNotice(`Password recovery instructions were requested for ${user.name}.`);
+      reportActionNotice(`Password recovery instructions were requested for ${user.name}.`);
       setPasswordResetUser(null);
     } catch (resetError) {
-      setError(resetError instanceof Error ? resetError.message : "Unable to request password recovery.");
+      reportActionError(resetError instanceof Error ? resetError.message : "Unable to request password recovery.");
     } finally {
       setUserActionBusy(null);
     }
@@ -939,18 +955,19 @@ export function UserManagementWorkspace({
     };
 
     if (!updates.name || !updates.email || !/\S+@\S+\.\S+/.test(updates.email)) {
-      setError("Name and a valid email are required before saving.");
+      reportActionError("Name and a valid email are required before saving.");
       return;
     }
 
     if (typeof fetch !== "function") {
-      setError("Live school user management is unavailable in this browser session.");
+      reportActionError("Live school user management is unavailable in this browser session.");
       return;
     }
 
     setUserActionBusy(`profile:${editingUser.id}`);
-    setError(null);
-    setNotice(null);
+    showFeedback(`Saving ${editingUser.name} details...`, "loading");
+    reportActionError(null);
+    reportActionNotice(null);
 
     try {
       const response = await fetch(`/api/auth/tenant-users/${encodeURIComponent(editingUser.id)}`, {
@@ -994,10 +1011,10 @@ export function UserManagementWorkspace({
         department: nextUser.department,
       }), "User details updated");
       publishUserEvent("USER_UPDATED", "User updated", `${nextUser.name} user record was updated.`, editingUser.id);
-      setNotice(`${nextUser.name} updated.`);
+      reportActionNotice(`${nextUser.name} updated.`);
       setEditingUser(null);
     } catch (editError) {
-      setError(editError instanceof Error ? editError.message : "Unable to update user details.");
+      reportActionError(editError instanceof Error ? editError.message : "Unable to update user details.");
     } finally {
       setUserActionBusy(null);
     }
@@ -1018,8 +1035,9 @@ export function UserManagementWorkspace({
     }
 
     setUserActionBusy(`role:${roleChangeUser.id}`);
-    setError(null);
-    setNotice(null);
+    showFeedback(`Updating ${roleChangeUser.name} role...`, "loading");
+    reportActionError(null);
+    reportActionNotice(null);
 
     try {
       const response = await fetch(`/api/auth/tenant-users/${encodeURIComponent(roleChangeUser.id)}/role`, {
@@ -1047,10 +1065,10 @@ export function UserManagementWorkspace({
       setUsers((current) => current.map((user) => (user.id === roleChangeUser.id ? { ...user, ...nextUser } : user)));
       addUserAudit("User role changed", roleChangeUser.name, roleChangeUser.role, nextUser.role, "Role changed by school administrator");
       publishUserEvent("USER_ROLE_CHANGED", "User role changed", `${nextUser.name} is now assigned the ${nextUser.role} role.`, roleChangeUser.id);
-      setNotice(`${nextUser.name} role changed to ${nextUser.role}.`);
+      reportActionNotice(`${nextUser.name} role changed to ${nextUser.role}.`);
       setRoleChangeUser(null);
     } catch (roleError) {
-      setError(roleError instanceof Error ? roleError.message : "Unable to update user role.");
+      reportActionError(roleError instanceof Error ? roleError.message : "Unable to update user role.");
     } finally {
       setUserActionBusy(null);
     }
@@ -1062,20 +1080,20 @@ export function UserManagementWorkspace({
       return;
     }
 
-    setError(null);
+    reportActionError(null);
 
     if (!canInviteUsers) {
-      setError("Your account is not allowed to invite users.");
+      reportActionError("Your account is not allowed to invite users.");
       return;
     }
 
     if (inviteForm.role === "Super Admin") {
-      setError("School administrators cannot create Super Admin users.");
+      reportActionError("School administrators cannot create Super Admin users.");
       return;
     }
 
     if (!inviteForm.fullName.trim() || !inviteForm.role.trim()) {
-      setError("Full name and role are required.");
+      reportActionError("Full name and role are required.");
       return;
     }
 
@@ -1087,18 +1105,18 @@ export function UserManagementWorkspace({
     });
 
     if (duplicateActiveUser) {
-      setError(`${duplicateActiveUser.name} already has an active user in this school.`);
+      reportActionError(`${duplicateActiveUser.name} already has an active user in this school.`);
       return;
     }
 
     const email = inviteForm.email.trim().toLowerCase();
     if (!email || !/\S+@\S+\.\S+/.test(email)) {
-      setError("A valid email address is required so MyShule can send the invitation.");
+      reportActionError("A valid email address is required so MyShule can send the invitation.");
       return;
     }
 
     if (typeof fetch !== "function") {
-      setError("Invitation email service is not available in this browser session.");
+      reportActionError("Invitation email service is not available in this browser session.");
       return;
     }
 
@@ -1112,6 +1130,7 @@ export function UserManagementWorkspace({
     const invitedByUserId = `${schoolId}-${slug(actorName)}`;
 
     setInviteBusy(true);
+    showFeedback(`Sending invitation to ${invitedName}...`, "loading");
     try {
       const csrfToken = await getCsrfToken();
       const response = await fetch("/api/auth/invitations", {
@@ -1192,26 +1211,31 @@ export function UserManagementWorkspace({
       setInviteForm(initialInviteForm());
       setActiveTab("invitations");
       if (invitationSent) {
-        setNotice(`Invitation email sent to ${invitedName}.`);
-        setError(null);
+        reportActionNotice(`Invitation email sent to ${invitedName}.`);
+        reportActionError(null);
       } else {
         setNotice(`${invitedName} was added to Pending Invitations. Resend once email delivery is fixed.`);
-        setError(`Email delivery failed: ${deliveryMessage}${deliveryAction ? ` ${deliveryAction}` : ""}`);
+        reportActionError(`Email delivery failed: ${deliveryMessage}${deliveryAction ? ` ${deliveryAction}` : ""}`);
       }
     } catch (inviteError) {
       const providerMessage = inviteError instanceof Error ? inviteError.message : "Unable to send invitation email.";
       const message = `Invitation request failed: ${providerMessage}`;
       addUserAudit("Invitation request failed", invitedName, undefined, `${role} invitation request failed`, providerMessage);
       publishUserEvent("USER_INVITE_REQUEST_FAILED", "Invitation request failed", `${invitedName} invitation request failed: ${providerMessage}`, `${schoolId}-${slug(invitedName)}`);
-      setError(message);
-      setNotice(null);
+      reportActionError(message);
+      reportActionNotice(null);
     } finally {
       setInviteBusy(false);
     }
   }
 
   return (
-    <div className="space-y-4" data-testid="user-management-workspace">
+    <div className="space-y-4" data-testid="user-management-workspace" onChangeCapture={(event) => {
+      if (error && event.target instanceof HTMLElement && event.target.closest("form")) {
+        setError(null);
+        clearFeedback();
+      }
+    }}>
       <Card className="p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -1230,12 +1254,12 @@ export function UserManagementWorkspace({
       </Card>
 
       {notice ? (
-        <div className="rounded-xl border border-[#BFE8D7] bg-[#ECFDF5] px-3 py-2 text-sm font-bold text-[#047857]" role="status">
+        <div className="break-words rounded-xl border border-[#BFE8D7] bg-[#ECFDF5] px-3 py-2 text-sm font-bold text-[#047857]" role="status" aria-atomic="true">
           {notice}
         </div>
       ) : null}
       {error ? (
-        <div className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-sm font-bold text-[#B91C1C]" role="alert">
+        <div className="break-words rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-sm font-bold text-[#B91C1C]" role="alert" aria-atomic="true">
           {error}
         </div>
       ) : null}

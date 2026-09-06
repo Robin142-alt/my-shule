@@ -1,5 +1,6 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 
 import { StudentAdmissionWizard } from "@/components/school/admissions-dashboard/student-admission-wizard";
 
@@ -70,6 +71,10 @@ describe("guided student admission", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.spyOn(toast, "error").mockReturnValue("admission-error");
+    jest.spyOn(toast, "success").mockReturnValue("admission-success");
+    jest.spyOn(toast, "warning").mockReturnValue("admission-warning");
+    jest.spyOn(toast, "dismiss").mockReturnValue("dismissed");
     currentFoundation = foundation;
     refetchFoundation.mockResolvedValue({ data: foundation });
     mockUseSchoolQuery.mockImplementation((path: string) => {
@@ -111,6 +116,174 @@ describe("guided student admission", () => {
       student_portal: { username: "MS-2026-0001", status: "otp_ready" },
       fees: { status: "pending_fee_structure" },
     });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  async function reachSubjects(user: ReturnType<typeof userEvent.setup>) {
+    await waitFor(() => expect(screen.getByLabelText(/^Admission number(?! mode)/i)).toHaveValue("MS-2026-0001"));
+    await user.type(screen.getByLabelText(/^First name/i), "Amina");
+    await user.type(screen.getByLabelText(/^Last name/i), "Njeri");
+    await user.selectOptions(screen.getByLabelText(/^Gender/i), "female");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await user.selectOptions(screen.getByLabelText(/^Academic year/i), "year-2026");
+    await user.selectOptions(screen.getByLabelText(/^Curriculum/i), "CBC");
+    await user.selectOptions(screen.getByLabelText(/^Class \/ form \/ grade/i), "class-grade-7");
+    await user.selectOptions(screen.getByLabelText(/^Stream/i), "stream-north");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+  }
+
+  it("shows subject limits and repeated validation beside Continue and in persistent viewport feedback", async () => {
+    currentFoundation = {
+      ...foundation,
+      admission_settings: { ...foundation.admission_settings, maximum_subjects: 1 },
+    };
+    const user = userEvent.setup();
+    renderWithProviders(<StudentAdmissionWizard onCancel={jest.fn()} onAdmitted={jest.fn()} />);
+    await reachSubjects(user);
+    await user.click(screen.getByRole("checkbox", { name: /Integrated Science/i }));
+    const actions = screen.getByRole("group", { name: "Admission actions" });
+    expect(within(actions).getByText(/2 subjects selected. Minimum: 1. Maximum: 1. Remove 1 optional subject to continue./)).toBeVisible();
+    const proceed = within(actions).getByRole("button", { name: /continue/i });
+    await user.click(proceed);
+    const error = within(actions).getByRole("alert");
+    expect(error).toHaveTextContent("Select no more than 1 subjects for this learner.");
+    expect(proceed).toHaveAttribute("aria-describedby", error.id);
+    expect(toast.error).toHaveBeenLastCalledWith(error.textContent, { id: error.id, duration: Infinity });
+    await user.click(proceed);
+    expect(toast.error).toHaveBeenCalledTimes(2);
+    expect(preflightAdmission).not.toHaveBeenCalled();
+    expect(admitStudent).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("checkbox", { name: /Integrated Science/i }));
+    expect(within(actions).queryByRole("alert")).not.toBeInTheDocument();
+    expect(toast.dismiss).toHaveBeenCalledWith(error.id);
+    await user.click(proceed);
+    expect(screen.getByRole("group", { name: "Guardian" })).toHaveFocus();
+  });
+
+  it("keeps a blocking server preflight visible at the action and permits retry without admitting", async () => {
+    const user = userEvent.setup();
+    preflightAdmission.mockResolvedValue({ valid: false, warnings: [{ code: "capacity", message: "This stream is full. Choose another stream.", blocking: true }], possible_duplicates: [], guardian: null, age_at_admission: null });
+    renderWithProviders(<StudentAdmissionWizard onCancel={jest.fn()} onAdmitted={jest.fn()} />);
+    await reachSubjects(user);
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await user.type(screen.getByLabelText(/^Primary guardian name/i), "Grace Njeri");
+    await user.type(screen.getByLabelText(/^Relationship/i), "Mother");
+    await user.type(screen.getByLabelText(/^Kenyan mobile number/i), "0712345678");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    expect(within(screen.getByRole("group", { name: "Admission actions" })).getByRole("alert")).toHaveTextContent("This stream is full. Choose another stream.");
+    expect(toast.error).toHaveBeenLastCalledWith("This stream is full. Choose another stream.", expect.objectContaining({ duration: Infinity }));
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    expect(preflightAdmission).toHaveBeenCalledTimes(2);
+    expect(admitStudent).not.toHaveBeenCalled();
+  });
+
+  it("reports failed preflight requests beside the action and allows another attempt", async () => {
+    const user = userEvent.setup();
+    preflightAdmission.mockRejectedValueOnce(new Error("Connection lost. Retry the check."));
+    renderWithProviders(<StudentAdmissionWizard onCancel={jest.fn()} onAdmitted={jest.fn()} />);
+    await reachSubjects(user);
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await user.type(screen.getByLabelText(/^Primary guardian name/i), "Grace Njeri");
+    await user.type(screen.getByLabelText(/^Relationship/i), "Mother");
+    await user.type(screen.getByLabelText(/^Kenyan mobile number/i), "0712345678");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    expect(within(screen.getByRole("group", { name: "Admission actions" })).getByRole("alert")).toHaveTextContent("Connection lost. Retry the check.");
+    expect(toast.error).toHaveBeenLastCalledWith("Connection lost. Retry the check.", expect.objectContaining({ duration: Infinity }));
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    expect(screen.getByRole("group", { name: "Review & Admit" })).toHaveFocus();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("saves the latest entered draft before closing and shows pending feedback", async () => {
+    const user = userEvent.setup();
+    const onCancel = jest.fn();
+    let finishSave!: (value: { payload: unknown; updated_at: string }) => void;
+    saveDraft.mockImplementationOnce(() => new Promise((resolve) => { finishSave = resolve; }));
+    renderWithProviders(<StudentAdmissionWizard onCancel={onCancel} onAdmitted={jest.fn()} />);
+    await user.type(screen.getByLabelText(/^First name/i), "Amina");
+    await user.click(screen.getByRole("button", { name: "Close and keep draft" }));
+    await waitFor(() => expect(saveDraft).toHaveBeenCalledWith({ payload: expect.objectContaining({ first_name: "Amina", step: 0 }) }));
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Saving draft..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+    expect(screen.getByLabelText(/^First name/i)).toBeDisabled();
+    await user.type(screen.getByLabelText(/^First name/i), " edited during save");
+    expect(screen.getByLabelText(/^First name/i)).toHaveValue("Amina");
+    await act(async () => finishSave({ payload: {}, updated_at: "2026-09-05T12:00:00Z" }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(toast.success).toHaveBeenCalledWith("Admission draft saved. You can resume it later.");
+  });
+
+  it("keeps entered data visible if saving before close fails", async () => {
+    const user = userEvent.setup();
+    const onCancel = jest.fn();
+    saveDraft.mockRejectedValueOnce(new Error("Draft storage unavailable"));
+    renderWithProviders(<StudentAdmissionWizard onCancel={onCancel} onAdmitted={jest.fn()} />);
+    await user.type(screen.getByLabelText(/^First name/i), "Amina");
+    await user.click(screen.getByRole("button", { name: "Close and keep draft" }));
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(screen.getByLabelText(/^First name/i)).toHaveValue("Amina");
+    expect(within(screen.getByRole("group", { name: "Admission actions" })).getByRole("alert")).toHaveTextContent("The draft could not be saved, so this screen remains open. Draft storage unavailable");
+    expect(screen.getByRole("button", { name: "Close and keep draft" })).toBeEnabled();
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Draft storage unavailable"), expect.objectContaining({ duration: Infinity }));
+    expect(screen.getByLabelText(/^First name/i)).toBeEnabled();
+  });
+
+  it("serializes slow autosaves before saving the latest draft for close", async () => {
+    jest.useFakeTimers();
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    const onCancel = jest.fn();
+    let finishFirst!: (value: { payload: unknown; updated_at: string }) => void;
+    let finishSecond!: (value: { payload: unknown; updated_at: string }) => void;
+    saveDraft.mockImplementationOnce(() => new Promise((resolve) => { finishFirst = resolve; }));
+    saveDraft.mockImplementationOnce(() => new Promise((resolve) => { finishSecond = resolve; }));
+    renderWithProviders(<StudentAdmissionWizard onCancel={onCancel} onAdmitted={jest.fn()} />);
+    await user.type(screen.getByLabelText(/^First name/i), "Amina");
+    await act(async () => jest.advanceTimersByTimeAsync(701));
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+    await user.type(screen.getByLabelText(/^Last name/i), "Njeri");
+    await act(async () => jest.advanceTimersByTimeAsync(701));
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+    await user.type(screen.getByLabelText(/^Middle name/i), "Grace");
+    await user.click(screen.getByRole("button", { name: "Close and keep draft" }));
+    expect(onCancel).not.toHaveBeenCalled();
+    await act(async () => finishFirst({ payload: {}, updated_at: "2026-09-05T12:00:00Z" }));
+    expect(saveDraft).toHaveBeenCalledTimes(2);
+    expect(saveDraft).toHaveBeenLastCalledWith({ payload: expect.objectContaining({ first_name: "Amina", last_name: "Njeri", middle_name: "" }) });
+    expect(onCancel).not.toHaveBeenCalled();
+    await act(async () => finishSecond({ payload: {}, updated_at: "2026-09-05T12:00:01Z" }));
+    expect(saveDraft).toHaveBeenCalledTimes(3);
+    expect(saveDraft).toHaveBeenLastCalledWith({ payload: expect.objectContaining({ first_name: "Amina", last_name: "Njeri", middle_name: "Grace" }) });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    await act(async () => jest.advanceTimersByTimeAsync(1000));
+    expect(saveDraft).toHaveBeenCalledTimes(3);
+  });
+
+  it("waits for an in-flight autosave and cancels the scheduled save before discarding", async () => {
+    jest.useFakeTimers();
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    const onCancel = jest.fn();
+    let finishSave!: (value: { payload: unknown; updated_at: string }) => void;
+    saveDraft.mockImplementationOnce(() => new Promise((resolve) => { finishSave = resolve; }));
+    renderWithProviders(<StudentAdmissionWizard onCancel={onCancel} onAdmitted={jest.fn()} />);
+    await user.type(screen.getByLabelText(/^First name/i), "Amina");
+    await act(async () => jest.advanceTimersByTimeAsync(701));
+    await user.type(screen.getByLabelText(/^Last name/i), "Njeri");
+    await user.click(screen.getByRole("button", { name: "Discard draft" }));
+    expect(discardDraft).not.toHaveBeenCalled();
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Discarding draft..." })).toBeDisabled();
+    expect(screen.getByLabelText(/^First name/i)).toBeDisabled();
+    await act(async () => finishSave({ payload: {}, updated_at: "2026-09-05T12:00:00Z" }));
+    expect(discardDraft).toHaveBeenCalledTimes(1);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    await act(async () => jest.advanceTimersByTimeAsync(1000));
+    expect(saveDraft).toHaveBeenCalledTimes(1);
   });
 
   it("always reloads Deputy setup and lets a class offering override a compulsory catalogue default", async () => {

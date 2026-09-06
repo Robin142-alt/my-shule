@@ -60,6 +60,6 @@ describe("DocxOperationalWorkspace", () => {
       "principal",
       "deputy_principal",
     ]);
-    expect(await screen.findByText(/create school was recorded in the workflow event log/i)).toBeVisible();
+    expect(await screen.findByRole("status")).toHaveTextContent(/create school was recorded in the workflow event log/i);
   });
 });

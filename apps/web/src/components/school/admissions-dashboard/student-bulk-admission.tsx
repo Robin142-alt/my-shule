@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { CheckCircle2, Download, FileSpreadsheet, Loader2, Upload, XCircle } from "lucide-react";
-import { toast } from "sonner";
+import { useActionFeedback } from "@/hooks/use-action-feedback";
 
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { getCurrentSchoolId } from "@/lib/school/school-operational-store";
@@ -92,19 +92,26 @@ export function StudentBulkAdmission({ onCompleted }: { onCompleted: () => Promi
   const [result, setResult] = useState<ImportCommitResult | null>(null);
   const [busy, setBusy] = useState<"template" | "preview" | "commit" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { showFeedback, clearFeedback } = useActionFeedback();
+
+  function reportError(message: string) {
+    setError(message);
+    showFeedback(message, "danger");
+  }
 
   const tenantId = getCurrentSchoolId() || undefined;
 
   async function downloadTemplate() {
     setBusy("template");
     setError(null);
+    showFeedback("Preparing the admission template...", "loading");
     try {
       const artifact = await requestDashboardApi<CsvArtifact>("/admissions/imports/template", { tenantId });
       downloadText(artifact.filename, artifact.csv);
+      showFeedback("Admission template download started.", "success");
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Template download failed";
-      setError(message);
-      toast.error(message);
+      reportError(message);
     } finally {
       setBusy(null);
     }
@@ -112,7 +119,7 @@ export function StudentBulkAdmission({ onCompleted }: { onCompleted: () => Promi
 
   async function validateFile() {
     if (!file) {
-      setError("Choose the completed CSV file before validation.");
+      reportError("Choose the completed CSV file before validation.");
       return;
     }
 
@@ -120,6 +127,7 @@ export function StudentBulkAdmission({ onCompleted }: { onCompleted: () => Promi
     setError(null);
     setPreview(null);
     setResult(null);
+    showFeedback("Validating the admission file. Please keep this screen open...", "loading");
     try {
       const formData = new FormData();
       formData.append("file", file, file.name);
@@ -131,14 +139,13 @@ export function StudentBulkAdmission({ onCompleted }: { onCompleted: () => Promi
       });
       setPreview(nextPreview);
       if (nextPreview.invalid_rows > 0) {
-        toast.error(`${nextPreview.invalid_rows} row(s) need correction before admission.`);
+        reportError(`${nextPreview.invalid_rows} row(s) need correction before admission.`);
       } else {
-        toast.success(`${nextPreview.valid_rows} row(s) are ready to admit.`);
+        showFeedback(`${nextPreview.valid_rows} row(s) are ready to admit.`, "success");
       }
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "File validation failed";
-      setError(message);
-      toast.error(message);
+      reportError(message);
     } finally {
       setBusy(null);
     }
@@ -147,12 +154,13 @@ export function StudentBulkAdmission({ onCompleted }: { onCompleted: () => Promi
   async function confirmImport() {
     const rows = preview?.rows.map((row) => row.record).filter((row): row is ImportRecord => Boolean(row)) ?? [];
     if (!preview || preview.invalid_rows > 0 || rows.length !== preview.total_rows) {
-      setError("Correct every invalid row and validate the file again before confirming admission.");
+      reportError("Correct every invalid row and validate the file again before confirming admission.");
       return;
     }
 
     setBusy("commit");
     setError(null);
+    showFeedback("Admitting the validated learners. Please keep this screen open...", "loading");
     try {
       const nextResult = await requestDashboardApi<ImportCommitResult>("/admissions/imports/commit", {
         method: "POST",
@@ -162,15 +170,18 @@ export function StudentBulkAdmission({ onCompleted }: { onCompleted: () => Promi
       });
       setResult(nextResult);
       if (nextResult.failed_rows > 0) {
-        toast.error(`${nextResult.admitted_rows} admitted; ${nextResult.failed_rows} failed. Review the results.`);
+        reportError(`${nextResult.admitted_rows} admitted; ${nextResult.failed_rows} failed. Review the results.`);
       } else {
-        toast.success(`${nextResult.admitted_rows} students admitted successfully.`);
+        showFeedback(`${nextResult.admitted_rows} students admitted successfully.`, "success");
       }
-      await onCompleted();
+      try {
+        await onCompleted();
+      } catch {
+        showFeedback(`Import completed: ${nextResult.admitted_rows} admitted, ${nextResult.failed_rows} failed. The student list could not refresh. Review the import results before trying again.`, "warning");
+      }
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Bulk admission failed";
-      setError(message);
-      toast.error(message);
+      reportError(message);
     } finally {
       setBusy(null);
     }
@@ -190,7 +201,7 @@ export function StudentBulkAdmission({ onCompleted }: { onCompleted: () => Promi
   }
 
   return (
-    <div className="mb-6 rounded-xl border border-[#B8D7E8] bg-[#F4FBFF] p-4">
+    <div aria-busy={busy !== null} className="mb-6 min-w-0 rounded-xl border border-[#B8D7E8] bg-[#F4FBFF] p-4 [&_button]:min-h-11">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-cyan-100 text-[#071D49]">
@@ -201,7 +212,7 @@ export function StudentBulkAdmission({ onCompleted }: { onCompleted: () => Promi
             <p className="mt-1 text-sm text-[#52637A]">Download template, upload, validate, preview, correct, confirm, then review results.</p>
           </div>
         </div>
-        <button type="button" onClick={() => setExpanded((value) => !value)} className="rounded-lg border border-[#9DB8D1] bg-white px-4 py-2 text-sm font-black text-[#071D49]">
+        <button type="button" disabled={busy !== null} onClick={() => { clearFeedback(); setExpanded((value) => !value); }} className="rounded-lg border border-[#9DB8D1] bg-white px-4 py-2 text-sm font-black text-[#071D49] disabled:opacity-60">
           {expanded ? "Close bulk admission" : "Open bulk admission"}
         </button>
       </div>
@@ -224,11 +235,12 @@ export function StudentBulkAdmission({ onCompleted }: { onCompleted: () => Promi
                   setPreview(null);
                   setResult(null);
                   setError(null);
+                  clearFeedback();
                 }}
               />
               <button type="button" disabled={busy !== null} onClick={() => fileInputRef.current?.click()} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-[#9DB8D1] bg-white px-4 py-2 font-bold text-[#071D49] disabled:opacity-60">
                 <Upload className="h-4 w-4" />
-                2. {file ? file.name : "Upload completed CSV"}
+                <span className="min-w-0 break-all">2. {file ? file.name : "Upload completed CSV"}</span>
               </button>
             </div>
             <button type="button" disabled={busy !== null || !file} onClick={() => void validateFile()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 font-bold text-white disabled:opacity-60">
@@ -284,7 +296,7 @@ export function StudentBulkAdmission({ onCompleted }: { onCompleted: () => Promi
           ) : null}
 
           {result ? (
-            <div className={`mt-4 rounded-lg border p-4 ${result.failed_rows === 0 ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
+            <div role="status" className={`mt-4 rounded-lg border p-4 ${result.failed_rows === 0 ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
               <div className="flex items-center gap-2 font-black text-[#071D49]">
                 {result.failed_rows === 0 ? <CheckCircle2 className="h-5 w-5 text-emerald-700" /> : <XCircle className="h-5 w-5 text-amber-700" />}
                 Import results: {result.admitted_rows} admitted, {result.failed_rows} failed

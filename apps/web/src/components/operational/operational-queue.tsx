@@ -115,15 +115,26 @@ export function OperationalQueue({
     setNoticeTone("warning");
     setNotice(`${action.label} is being processed...`);
 
-    const handlerResult = onExecute ? await onExecute(action) : undefined;
-    if (!onExecute) {
-      publishQueueAction(action, item);
+    let handlerResult: OperationalActionExecutionResult | string | void;
+    try {
+      handlerResult = onExecute ? await onExecute(action) : undefined;
+      if (!onExecute) publishQueueAction(action, item);
+    } catch (error) {
+      setNoticeTone("danger");
+      setNotice(error instanceof Error ? error.message : "The connected workflow failed.");
+      throw error;
     }
     if (handlerResult && typeof handlerResult === "object" && "message" in handlerResult) {
       resultMessage = handlerResult.message;
       resultTone = handlerResult.tone ?? resultTone;
     } else if (typeof handlerResult === "string" && handlerResult.trim().length > 0) {
       resultMessage = handlerResult;
+    }
+
+    if (resultTone === "danger") {
+      setNotice(resultMessage);
+      setNoticeTone("danger");
+      return { message: resultMessage, tone: resultTone };
     }
 
     if (item) {
@@ -170,7 +181,7 @@ export function OperationalQueue({
     }
 
     setNotice(resultMessage);
-    setNoticeTone(resultTone === "danger" ? "danger" : resultTone === "warning" ? "warning" : "success");
+    setNoticeTone(resultTone === "warning" ? "warning" : "success");
     return { message: resultMessage, tone: resultTone };
   }
 
@@ -199,7 +210,7 @@ export function OperationalQueue({
       ) : null}
 
       {notice ? (
-        <div className={`mt-3 rounded-[var(--radius-sm)] border px-3 py-2 text-xs font-bold ${
+        <div role={noticeTone === "danger" ? "alert" : "status"} aria-atomic="true" className={`mt-3 break-words rounded-[var(--radius-sm)] border px-3 py-2 text-sm font-bold ${
           noticeTone === "danger"
             ? "border-danger/20 bg-danger-soft text-danger"
             : noticeTone === "warning"

@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
+import { FeedbackViewport } from "@/components/shared/feedback-viewport";
 import { scheduleMyShuleServiceWorkerRegistration } from "@/lib/pwa/service-worker-registration";
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
@@ -24,6 +25,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      {children}
+      <FeedbackViewport />
+    </QueryClientProvider>
   );
 }

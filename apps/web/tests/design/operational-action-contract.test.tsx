@@ -102,7 +102,7 @@ describe("OperationalActionButton", () => {
     expect(screen.getByRole("button", { name: /retry dispatch needs retry/i })).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /approve results no permission/i }));
-    expect(screen.getByText(/approve results requires can_approve_results permission/i)).toBeVisible();
+    expect(screen.getByRole("alert")).toHaveTextContent(/approve results requires can_approve_results permission/i);
     expect(onExecute).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: /send to dean ready/i }));
@@ -114,7 +114,7 @@ describe("OperationalActionButton", () => {
         auditEvent: "audit.approve-results",
       }),
     );
-    expect(await screen.findByText(/send to dean queued for the exam-release workflow/i)).toBeVisible();
+    expect(await screen.findByRole("status")).toHaveTextContent(/send to dean queued for the exam-release workflow/i);
     expect(screen.queryByText(/send to dean returned from the connected workflow/i)).not.toBeInTheDocument();
   });
 
@@ -137,7 +137,7 @@ describe("OperationalActionButton", () => {
     await user.click(screen.getByRole("button", { name: /print register ready/i }));
 
     expect(onExecute).toHaveBeenCalledTimes(1);
-    expect(await screen.findByText(/print register workflow accepted/i)).toBeVisible();
+    expect(await screen.findByRole("status")).toHaveTextContent(/print register workflow accepted/i);
     expect(screen.queryByText(/print register returned from the connected workflow/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/print register completed/i)).not.toBeInTheDocument();
   });
@@ -165,7 +165,7 @@ describe("OperationalActionButton", () => {
     expect(screen.queryByText(/exam-release/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/audit\.approve-results/i)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /yes, continue/i }));
-    expect(screen.getByText(/delete visitor record workflow accepted/i)).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent(/delete visitor record workflow accepted/i);
     expect(screen.queryByText(/delete visitor record sent/i)).not.toBeInTheDocument();
   });
 });

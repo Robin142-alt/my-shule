@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { StatusPill } from "@/components/ui/status-pill";
+import { useActionFeedback } from "@/hooks/use-action-feedback";
 import {
   downloadCsvFile,
   openPrintDocument,
@@ -65,8 +66,7 @@ export function OperationalTable({
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [activeSort, setActiveSort] = useState<string>(contract.sortOptions[0] ?? "Newest");
-  const [notice, setNotice] = useState<string | null>(null);
-  const [noticeTone, setNoticeTone] = useState<"success" | "warning" | "danger">("success");
+  const { notice, noticeTone, showFeedback } = useActionFeedback();
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(() => new Set());
   const [detailRow, setDetailRow] = useState<OperationalTableRow | null>(null);
@@ -283,25 +283,21 @@ export function OperationalTable({
         : "";
 
     setBusyAction(`${context.scope}:${context.rowId ?? "all"}:${action}`);
-    setNoticeTone("warning");
-    setNotice(`${action}${suffix} is being processed...`);
+    showFeedback(`${action}${suffix} is being processed...`, "loading");
 
     try {
       if (onAction) {
         await onAction(action, context);
       } else if (context.scope === "export" || context.scope === "print" || context.scope === "filter" || context.scope === "sort") {
-        setNoticeTone("success");
-        setNotice(`${action}${suffix} applied to this view. No school record was changed.`);
+        showFeedback(`${action}${suffix} applied to this view. No school record was changed.`, "success");
         return true;
       } else {
         throw new Error(`${action}${suffix} is not connected to a school workflow. No record was changed.`);
       }
-      setNoticeTone("success");
-      setNotice(`${action}${suffix} returned from the connected workflow.`);
+      showFeedback(`${action}${suffix} returned from the connected workflow.`, "success");
       return true;
     } catch (error) {
-      setNoticeTone("danger");
-      setNotice(error instanceof Error ? error.message : `${action}${suffix} failed. Try again.`);
+      showFeedback(error instanceof Error ? error.message : `${action}${suffix} failed. Try again.`, "danger");
       return false;
     } finally {
       setBusyAction(null);
@@ -321,8 +317,7 @@ export function OperationalTable({
         current.map((row) => targetIds.has(row.id) ? { ...row, cells: { ...row.cells, status: "Approved" }, status: { label: "Approved", tone: "ok" } } : row),
       );
     } else if (/sms|reminder|notify/i.test(action)) {
-      setNoticeTone("warning");
-      setNotice(`${action} is being queued for ${targetIds.size} record${targetIds.size === 1 ? "" : "s"}.`);
+      showFeedback(`${action} is being queued for ${targetIds.size} record${targetIds.size === 1 ? "" : "s"}.`, "warning");
     }
 
   }
@@ -574,10 +569,10 @@ export function OperationalTable({
       </div>
 
       {notice ? (
-        <div className={`mt-3 rounded-[var(--radius-sm)] border px-3 py-2 text-xs font-bold ${
+        <div role={noticeTone === "danger" ? "alert" : "status"} aria-atomic="true" className={`mt-3 break-words rounded-[var(--radius-sm)] border px-3 py-2 text-sm font-bold ${
           noticeTone === "danger"
             ? "border-danger/20 bg-danger-soft text-danger"
-            : noticeTone === "warning"
+            : noticeTone === "warning" || noticeTone === "loading"
               ? "border-warning/20 bg-warning-soft text-warning"
               : "border-success/20 bg-success-soft text-success"
         }`}>

@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FileText, ShieldCheck } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
+import { useActionFeedback } from "@/hooks/use-action-feedback";
 import {
   openPrintDocument,
   type PrintableRow,
@@ -109,8 +110,8 @@ export function OperationalFormShell({
       ) as OperationalFormValues,
     [contract.fields],
   );
-  const [notice, setNotice] = useState<string | null>(null);
-  const [noticeTone, setNoticeTone] = useState<"success" | "warning" | "danger">("success");
+  const { notice, noticeTone, showFeedback, clearFeedback } = useActionFeedback();
+  const formRef = useRef<HTMLFormElement>(null);
   const [busyAction, setBusyAction] = useState<OperationalFormFooterAction | null>(null);
   const [values, setValues] = useState<OperationalFormValues>(() =>
     loadSchoolScopedDraft(storageKey, defaultValues),
@@ -122,8 +123,9 @@ export function OperationalFormShell({
     setDraftScopeKey(storageKey);
     setValues(loadSchoolScopedDraft(storageKey, defaultValues));
     setErrors({});
-    setNotice(null);
   }
+
+  useEffect(() => { clearFeedback(); }, [storageKey, clearFeedback]);
 
   function validate(nextValues: OperationalFormValues) {
     const nextErrors: Record<string, string> = {};
@@ -141,6 +143,14 @@ export function OperationalFormShell({
     });
 
     setErrors(nextErrors);
+    const firstInvalidField = contract.fields.find((field) => nextErrors[fieldKey(field.label)]);
+    if (firstInvalidField) {
+      const control = formRef.current?.elements.namedItem(fieldKey(firstInvalidField.label));
+      if (control instanceof HTMLElement) {
+        control.focus({ preventScroll: true });
+        control.scrollIntoView?.({ block: "center", behavior: "auto" });
+      }
+    }
     return Object.keys(nextErrors).length === 0;
   }
 
@@ -190,6 +200,7 @@ export function OperationalFormShell({
       closeOpenPrintPreviews();
     }
     setBusyAction(action);
+    showFeedback(`${action} is being processed...`, "loading");
 
     try {
       if (action === "Save Draft") {
@@ -202,22 +213,18 @@ export function OperationalFormShell({
           clearDraft();
         }
       } else if (action === "Save Draft") {
-        setNoticeTone("warning");
-        setNotice("Draft saved locally for this verified school. It remains unsubmitted.");
+        showFeedback("Draft saved locally for this verified school. It remains unsubmitted.", "warning");
         return;
       } else {
         throw new Error(`${action} is not connected to a school workflow. No school record was changed.`);
       }
       if (action === "Save Draft") {
-        setNoticeTone("warning");
-        setNotice("Draft saved locally for this verified school. It remains unsubmitted.");
+        showFeedback("Draft saved locally for this verified school. It remains unsubmitted.", "warning");
       } else {
-        setNoticeTone("success");
-        setNotice(`${action} returned from the connected workflow.`);
+        showFeedback(`${action} returned from the connected workflow.`, "success");
       }
     } catch (error) {
-      setNoticeTone("danger");
-      setNotice(error instanceof Error ? error.message : `${action} failed. Try again.`);
+      showFeedback(error instanceof Error ? error.message : `${action} failed. Try again.`, "danger");
     } finally {
       setBusyAction(null);
     }
@@ -226,6 +233,7 @@ export function OperationalFormShell({
   function setFieldValue(field: OperationalFormField, value: string) {
     const key = fieldKey(field.label);
 
+    if (noticeTone === "danger") clearFeedback();
     setValues((current) => ({ ...current, [key]: value }));
     setErrors((current) => {
       if (!current[key]) {
@@ -243,10 +251,15 @@ export function OperationalFormShell({
       "mt-1 w-full rounded-[var(--radius-xs)] border border-border bg-surface-muted px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent";
     const name = fieldKey(field.label);
     const value = values[name] ?? "";
+    const feedbackAttributes = {
+      "aria-invalid": Boolean(errors[name]),
+      "aria-describedby": errors[name] ? `${field.id}-error` : undefined,
+    };
 
     if (field.type === "textarea") {
       return (
         <textarea
+          {...feedbackAttributes}
           id={field.id}
           name={name}
           value={value}
@@ -261,6 +274,7 @@ export function OperationalFormShell({
 
       return (
         <select
+          {...feedbackAttributes}
           id={field.id}
           name={name}
           value={value}
@@ -279,6 +293,7 @@ export function OperationalFormShell({
 
     return (
       <input
+        {...feedbackAttributes}
         id={field.id}
         name={name}
         type={field.type}
@@ -292,19 +307,19 @@ export function OperationalFormShell({
   return (
     <Card className="p-5">
       <form
+        ref={formRef}
         id={formId}
         aria-label={contract.title}
+        aria-busy={busyAction !== null}
         onSubmit={(event) => {
           event.preventDefault();
           const nextValues = { ...values };
 
           if (!validate(nextValues)) {
-            setNotice("Check the highlighted fields before submitting.");
+            showFeedback("Check the highlighted fields before submitting.", "danger");
             return;
           }
 
-          setNoticeTone("warning");
-          setNotice("Saving...");
           void runAction("Submit", nextValues);
         }}
       >
@@ -325,7 +340,7 @@ export function OperationalFormShell({
               {field.label}
               {renderField(field)}
               {errors[fieldKey(field.label)] ? (
-                <span className="mt-1 block text-[11px] font-bold text-danger">
+                <span id={`${field.id}-error`} className="mt-1 block text-xs font-bold text-danger">
                   {errors[fieldKey(field.label)]}
                 </span>
               ) : null}
@@ -369,51 +384,42 @@ export function OperationalFormShell({
                     setErrors({});
                     clearDraft();
                     currentForm?.reset();
-                    setNoticeTone("warning");
-                    setNotice("Form cleared. No school record was changed.");
+                    showFeedback("Form cleared. No school record was changed.", "warning");
                     return;
                   } else if (action === "Preview") {
                     printValues(nextValues, `${contract.title} preview`);
-                    setNoticeTone("success");
-                    setNotice(`${contract.title} preview is ready. No school record was changed.`);
+                    showFeedback(`${contract.title} preview is ready. No school record was changed.`, "success");
                   } else if (action === "Print") {
                     printValues(nextValues, `${contract.title} print copy`);
-                    setNoticeTone("success");
-                    setNotice(
+                    showFeedback(
                       `${contract.title} print copy ready with ${contract.fields.length} field${contract.fields.length === 1 ? "" : "s"} loaded. No school record was changed.`,
+                      "success",
                     );
                   } else if (action === "Save Draft") {
                     void runAction(action, nextValues);
                     return;
                   } else if (action === "Send SMS") {
                     if (!validate(nextValues)) {
-                      setNoticeTone("danger");
-                      setNotice("Check the highlighted fields before sending SMS.");
+                      showFeedback("Check the highlighted fields before sending SMS.", "danger");
                       return;
                     }
-                    setNoticeTone("warning");
-                    setNotice("Queuing SMS...");
                     void runAction(action, nextValues);
                     return;
                   } else if (action === "Preview Print") {
                     if (!validate(nextValues)) {
-                      setNoticeTone("danger");
-                      setNotice("Check the highlighted fields before preparing the print preview.");
+                      showFeedback("Check the highlighted fields before preparing the print preview.", "danger");
                       return;
                     }
                     printValues(nextValues, `${contract.title} print preview`);
-                    setNoticeTone("success");
-                    setNotice(
+                    showFeedback(
                       `${contract.title} print preview ready with ${contract.fields.length} field${contract.fields.length === 1 ? "" : "s"} loaded. No school record was changed.`,
+                      "success",
                     );
                   } else if (action === "Submit for Approval") {
                     if (!validate(nextValues)) {
-                      setNoticeTone("danger");
-                      setNotice("Check the highlighted fields before submitting for approval.");
+                      showFeedback("Check the highlighted fields before submitting for approval.", "danger");
                       return;
                     }
-                    setNoticeTone("warning");
-                    setNotice("Submitting for approval...");
                     void runAction(action, nextValues);
                     return;
                   }
@@ -424,7 +430,7 @@ export function OperationalFormShell({
                 }
               }}
               disabled={busyAction !== null}
-              className={`rounded-[var(--radius-xs)] border px-3 py-2 text-xs font-bold transition hover:-translate-y-0.5 ${
+              className={`min-h-11 rounded-[var(--radius-xs)] border px-3 py-2 text-sm font-bold transition hover:-translate-y-0.5 ${
                 action === "Submit" || action === "Submit for Approval" || action === "Send SMS"
                   ? "border-accent/25 bg-accent-soft text-accent"
                   : "border-border bg-surface text-foreground"
@@ -436,10 +442,10 @@ export function OperationalFormShell({
         </div>
 
         {notice ? (
-          <div className={`mt-4 rounded-[var(--radius-sm)] border px-3 py-2 text-xs font-bold ${
+          <div role={noticeTone === "danger" ? "alert" : "status"} aria-live={noticeTone === "danger" ? "assertive" : "polite"} aria-atomic="true" className={`mt-4 break-words rounded-[var(--radius-sm)] border px-3 py-2 text-sm font-bold ${
             noticeTone === "danger"
               ? "border-danger/20 bg-danger-soft text-danger"
-              : noticeTone === "warning"
+              : noticeTone === "warning" || noticeTone === "loading"
                 ? "border-warning/20 bg-warning-soft text-warning"
                 : "border-success/20 bg-success-soft text-success"
           }`}>
