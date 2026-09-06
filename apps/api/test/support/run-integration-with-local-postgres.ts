@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm } from 'node:fs/promises';
+import { appendFile, mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import net from 'node:net';
@@ -271,6 +271,10 @@ const initializeCluster = async (
     }
   }
 
+  // Every test client connects over TCP. Distribution defaults can point Unix
+  // sockets at /var/run/postgresql, which an unprivileged CI runner cannot write.
+  await appendFile(path.join(dataDir, 'postgresql.conf'), "\nunix_socket_directories = ''\n");
+
   let postgresProcess: ChildProcess | undefined;
 
   try {
@@ -286,6 +290,10 @@ const initializeCluster = async (
     ]);
   } catch (error) {
     if (process.platform !== 'win32') {
+      const startupLog = await readFile(logFile, 'utf8').catch(() => '');
+      if (startupLog) {
+        process.stderr.write(`[local-postgres] Startup log:\n${startupLog}\n`);
+      }
       throw error;
     }
 
