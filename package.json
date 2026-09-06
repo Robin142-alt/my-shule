@@ -31,6 +31,7 @@
     "check": "npm run lint && npm run typecheck && npm run test && npm run test:e2e",
     "typecheck": "npm run prisma:generate && tsc --noEmit",
     "test:e2e": "playwright test",
+    "test:subject-teacher-assignments": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/subject-teacher-assignment.integration-spec.ts && node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/subject-teacher-continuity.integration-spec.ts",
     "test:prod-ready": "playwright test tests/production-readiness",
     "db:validate": "prisma validate",
     "db:migrate": "prisma migrate dev",

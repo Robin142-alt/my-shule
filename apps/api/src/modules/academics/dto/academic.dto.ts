@@ -110,8 +110,9 @@ export class CreateSubjectDto {
 }
 
 export class AssignTeacherDto {
+  @IsOptional()
   @IsString()
-  academic_term_id!: string;
+  academic_term_id?: string;
 
   @IsString()
   class_section_id!: string;

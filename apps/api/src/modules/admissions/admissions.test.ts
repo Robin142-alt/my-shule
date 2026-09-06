@@ -1952,12 +1952,14 @@ test('AdmissionsService promotes an active student into the next configured clas
   const requestContext = new RequestContextService();
   const completedEnrollments: Array<{ tenantId: string; enrollmentId: string; status: string }> = [];
   const lifecycleEvents: unknown[] = [];
+  const transaction = { $queryRawUnsafe: async () => [] };
+  const archivedPlacements: string[] = [];
   const publishedEvents: Array<{ event_name: string; aggregate_id: string; payload: Record<string, unknown> }> = [];
 
   const service = new AdmissionsService(
     requestContext,
     {
-      withRequestTransaction: async <T>(callback: () => Promise<T>): Promise<T> => callback(),
+      withRequestTransaction: async <T>(callback: (tx: any) => Promise<T>): Promise<T> => callback(transaction),
     } as never,
     {
       findActiveAcademicEnrollmentForUpdate: async () => ({
@@ -1979,11 +1981,20 @@ test('AdmissionsService promotes an active student into the next configured clas
         capacity: 40,
         current_enrollments: 18,
       }),
-      completeStudentAcademicEnrollment: async (tenantId: string, enrollmentId: string, status: string) => {
+      completeStudentAcademicEnrollment: async (tenantId: string, enrollmentId: string, status: string, tx: any) => {
+        assert.equal(tx, transaction);
         completedEnrollments.push({ tenantId, enrollmentId, status });
         return { id: enrollmentId, status };
       },
-      createStudentAcademicEnrollment: async () => ({
+      archivePreviousStudentClassAssignments: async (tenantId: string, studentId: string, tx: any) => {
+        assert.equal(tx, transaction);
+        assert.equal(tenantId, 'tenant-a');
+        archivedPlacements.push(studentId);
+      },
+      createStudentAcademicEnrollment: async (_input: unknown, tx: any) => {
+        assert.equal(tx, transaction);
+        assert.equal(archivedPlacements.length, 1);
+        return ({
         id: '00000000-0000-0000-0000-000000000774',
         student_id: '00000000-0000-0000-0000-000000000770',
         application_id: '00000000-0000-0000-0000-000000000769',
@@ -1992,7 +2003,8 @@ test('AdmissionsService promotes an active student into the next configured clas
         stream_name: 'North',
         academic_year: '2027',
         status: 'active',
-      }),
+      });
+      },
       enrollStudentSubjectsAndTimetable: async () => ({
         subject_enrollments: [{ subject_code: 'MATH', status: 'active' }],
         timetable_enrollments: [{ day_of_week: 'Tuesday', status: 'active' }],
@@ -2002,7 +2014,8 @@ test('AdmissionsService promotes an active student into the next configured clas
         class_name: 'Grade 9',
         stream_name: 'North',
       }),
-      createStudentAcademicLifecycleEvent: async (input: unknown) => {
+      createStudentAcademicLifecycleEvent: async (input: unknown, tx: any) => {
+        assert.equal(tx, transaction);
         lifecycleEvents.push(input);
         return {
           id: '00000000-0000-0000-0000-000000000776',
@@ -2027,7 +2040,8 @@ test('AdmissionsService promotes an active student into the next configured clas
         event_name: string;
         aggregate_id: string;
         payload: Record<string, unknown>;
-      }) => {
+      }, tx: any) => {
+        assert.equal(tx, transaction);
         publishedEvents.push(input);
         return input;
       },
@@ -2075,6 +2089,7 @@ test('AdmissionsService promotes an active student into the next configured clas
     },
   ]);
   assert.equal(lifecycleEvents.length, 1);
+  assert.deepEqual(archivedPlacements, ['00000000-0000-0000-0000-000000000770']);
   assert.equal(response.lifecycle_event.event_type, 'promotion');
   assert.equal(response.academic_enrollment.class_name, 'Grade 9');
   assert.equal(response.subject_enrollments.length, 1);

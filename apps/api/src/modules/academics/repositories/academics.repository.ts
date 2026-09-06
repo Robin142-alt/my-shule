@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
 import { ACADEMIC_TEACHING_ROLE_CODES } from '../../../auth/auth.constants';
@@ -1159,21 +1159,58 @@ export class AcademicsRepository {
     return result.rows[0];
   }
 
-  async createTeacherAssignment(input: Record<string, unknown>) {
+  async createTeacherAssignment(input: Record<string, unknown>, persistGovernance?: (change: {
+    tx: any; assignment: Record<string, any>; previous: Record<string, any>[];
+  }) => Promise<void>) {
     const tenantId = String(input.tenant_id);
     return this.prisma.executeWithTenant(tenantId, null, async (tx: any) => {
+      await this.executeSqlTx(tx,
+        `SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))::text`,
+        [`subject-teacher-continuity:${tenantId}:${input.class_section_id}`]);
+      const previous = await this.executeSqlTx(tx, `
+        SELECT *, ($6::date > CURRENT_DATE AND effective_from <= CURRENT_DATE
+          AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)) AS replacing_current_in_future
+        FROM teacher_subject_assignments
+        WHERE tenant_id = $1 AND class_section_id::text = $2 AND subject_id::text = $3
+          AND stream_id IS NOT DISTINCT FROM $4::text AND status = 'active'
+          AND ($5::text IS NULL OR academic_term_id IS NULL OR academic_term_id::text = $5::text)
+        FOR UPDATE
+      `, [tenantId, input.class_section_id, input.subject_id, input.stream_id ?? null,
+        input.academic_term_id ?? null, input.effective_from ?? null]);
+      if (previous.rows.some((row) => row.replacing_current_in_future
+        && String(row.teacher_user_id) === String(input.teacher_user_id))) {
+        throw new BadRequestException('This teacher is already assigned. Use today for changes to the current assignment, or select a different teacher to schedule a replacement.');
+      }
       if (input.is_primary !== false) {
         await this.executeSqlTx(tx, `
           UPDATE teacher_subject_assignments
-          SET status = 'ended', effective_to = COALESCE($7::date, CURRENT_DATE),
+          SET status = CASE WHEN $7::date > CURRENT_DATE AND effective_from < $7::date
+                THEN 'active' ELSE 'ended' END,
+              effective_to = CASE WHEN $7::date > CURRENT_DATE THEN $7::date - 1
+                ELSE COALESCE($7::date, CURRENT_DATE) END,
               ended_by_user_id = $6::uuid, reason = COALESCE($8, reason),
               version = version + 1, updated_at = NOW()
-          WHERE tenant_id = $1 AND academic_term_id::text = $2
+          WHERE tenant_id = $1
+            AND ($2::text IS NULL OR academic_term_id IS NULL OR academic_term_id::text = $2::text)
             AND class_section_id::text = $3 AND subject_id::text = $4
             AND teacher_user_id::text <> $5 AND status = 'active' AND is_primary = true
-        `, [tenantId, input.academic_term_id, input.class_section_id, input.subject_id,
+            AND stream_id IS NOT DISTINCT FROM $9::text
+        `, [tenantId, input.academic_term_id ?? null, input.class_section_id, input.subject_id,
           input.teacher_user_id, input.created_by_user_id, input.effective_from ?? null,
-          input.reason ?? 'Reassigned']);
+          input.reason ?? 'Reassigned', input.stream_id ?? null]);
+      }
+      if (!input.academic_term_id) {
+        // Replace this teacher's former term allocation without leaving duplicate
+        // active teaching permissions alongside the continuing assignment.
+        await this.executeSqlTx(tx, `
+          UPDATE teacher_subject_assignments
+          SET status = 'ended', effective_to = COALESCE($7::date, CURRENT_DATE),
+              ended_by_user_id = $6::uuid, version = version + 1, updated_at = NOW()
+          WHERE tenant_id = $1 AND class_section_id::text = $2 AND subject_id::text = $3
+            AND teacher_user_id::text = $4 AND stream_id IS NOT DISTINCT FROM $5::text
+            AND academic_term_id IS NOT NULL AND status = 'active'
+        `, [tenantId, input.class_section_id, input.subject_id, input.teacher_user_id,
+          input.stream_id ?? null, input.created_by_user_id, input.effective_from ?? null]);
       }
 
       const result = await this.executeSqlTx(tx, `
@@ -1188,7 +1225,8 @@ export class AcademicsRepository {
           COALESCE($12::date, CURRENT_DATE), $13::date, $14, 'active',
           $15::text, $16::uuid, $17
         )
-        ON CONFLICT (tenant_id, academic_term_id, class_section_id, subject_id, teacher_user_id)
+        ON CONFLICT (tenant_id, (COALESCE(academic_term_id, '')), class_section_id,
+          subject_id, (COALESCE(stream_id, '')), teacher_user_id) WHERE status = 'active'
         DO UPDATE SET assignment_type = EXCLUDED.assignment_type,
           is_primary = EXCLUDED.is_primary, mark_entry_allowed = EXCLUDED.mark_entry_allowed,
           lesson_record_allowed = EXCLUDED.lesson_record_allowed,
@@ -1197,14 +1235,18 @@ export class AcademicsRepository {
           stream_id = EXCLUDED.stream_id, department_id = EXCLUDED.department_id,
           curriculum_model = EXCLUDED.curriculum_model,
           reason = EXCLUDED.reason, status = 'active', ended_by_user_id = NULL,
+          continued_from_assignment_id = NULL,
           version = teacher_subject_assignments.version + 1, updated_at = NOW()
         RETURNING *
-      `, [tenantId, input.academic_term_id, input.class_section_id, input.subject_id,
+      `, [tenantId, input.academic_term_id ?? null, input.class_section_id, input.subject_id,
         input.teacher_user_id, input.created_by_user_id, input.assignment_type ?? 'primary',
         input.is_primary !== false, input.mark_entry_allowed !== false,
         input.lesson_record_allowed !== false, input.report_comment_allowed !== false,
         input.effective_from ?? null, input.effective_to ?? null, input.reason ?? null,
         input.stream_id ?? null, input.department_id ?? null, input.curriculum_model ?? null]);
+      if (result.rows[0]) {
+        await persistGovernance?.({ tx, assignment: result.rows[0], previous: previous.rows });
+      }
       return result.rows[0];
     });
   }
@@ -1458,9 +1500,12 @@ export class AcademicsRepository {
     });
   }
 
-  async appendAuditLog(input: Record<string, unknown>) {
+  async appendAuditLog(input: Record<string, unknown>, tx?: any) {
     const tenantId = String(input.tenant_id);
-    await this.executeSql(tenantId, `
+    const execute = (sql: string, values: unknown[]) => tx
+      ? this.executeSqlTx(tx, sql, values)
+      : this.executeSql(tenantId, sql, values);
+    await execute(`
         INSERT INTO academic_audit_logs (
           school_id, tenant_id, entity_type, entity_id, action, actor_user_id,
           actor_role, previous_values, new_values, reason, effective_at,
@@ -2586,7 +2631,7 @@ export class AcademicsRepository {
         SELECT COUNT(*)::integer AS count FROM exam_marks
         WHERE tenant_id::text = $1 AND entered_by_user_id::text = $2
           AND class_section_id::text = $3 AND subject_id::text = $4
-          AND academic_term_id::text = $5 AND status = 'draft'
+          AND ($5::text IS NULL OR academic_term_id::text = $5::text) AND status = 'draft'
       `, scope);
       const draftTimetable = await count('timetable_slots', [
         'tenant_id', 'teacher_id', 'class_section_id', 'subject_id', 'status',
@@ -2616,7 +2661,7 @@ export class AcademicsRepository {
         SELECT COUNT(*)::integer AS count FROM academics_lesson_plans
         WHERE tenant_id::text = $1 AND teacher_id::text = $2
           AND class_id::text = $3 AND subject_id::text = $4
-          AND term_id::text = $5 AND upper(status) = 'DRAFT'
+          AND ($5::text IS NULL OR term_id::text = $5::text) AND upper(status) = 'DRAFT'
       `, scope);
       return {
         draft_marks: draftMarks,
@@ -2632,6 +2677,14 @@ export class AcademicsRepository {
 
   async reassignTeacherAssignment(tenantId: string, id: string, input: Record<string, unknown>) {
     return this.prisma.executeWithTenant(tenantId, null, async (tx: any) => {
+      const scope = await this.executeSqlTx(tx, `
+        SELECT class_section_id FROM teacher_subject_assignments
+        WHERE tenant_id = $1 AND id::text = $2 AND status = 'active'
+      `, [tenantId, id]);
+      if (!scope.rows[0]) return null;
+      await this.executeSqlTx(tx,
+        `SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))::text`,
+        [`subject-teacher-continuity:${tenantId}:${scope.rows[0].class_section_id}`]);
       const selected = await this.executeSqlTx(tx, `
         SELECT * FROM teacher_subject_assignments
         WHERE tenant_id = $1 AND id::text = $2 AND status = 'active'
@@ -2639,9 +2692,15 @@ export class AcademicsRepository {
       `, [tenantId, id]);
       const previous = selected.rows[0];
       if (!previous) return null;
+      if (String(previous.teacher_user_id) === String(input.teacher_user_id)) {
+        throw new BadRequestException('Select a different teacher when reassigning this responsibility.');
+      }
       await this.executeSqlTx(tx, `
         UPDATE teacher_subject_assignments
-        SET status = 'ended', effective_to = $3::date, ended_by_user_id = $4::uuid,
+        SET status = CASE WHEN $3::date > CURRENT_DATE AND effective_from < $3::date
+              THEN 'active' ELSE 'ended' END,
+            effective_to = CASE WHEN $3::date > CURRENT_DATE THEN $3::date - 1 ELSE $3::date END,
+            ended_by_user_id = $4::uuid,
             reason = $5, version = version + 1, updated_at = NOW()
         WHERE tenant_id = $1 AND id::text = $2
       `, [tenantId, id, input.effective_from, input.actor_user_id ?? null, input.reason]);
@@ -2681,7 +2740,7 @@ export class AcademicsRepository {
             SELECT COUNT(*)::integer AS count FROM exam_marks
             WHERE tenant_id::text = $1 AND entered_by_user_id::text = $2
               AND class_section_id::text = $3 AND subject_id::text = $4
-              AND academic_term_id::text = $5 AND status = 'draft'
+              AND ($5::text IS NULL OR academic_term_id::text = $5::text) AND status = 'draft'
           `, [tenantId, previous.teacher_user_id, previous.class_section_id, previous.subject_id,
             previous.academic_term_id]);
           transferred.pending_mark_responsibilities = Number(marks.rows[0]?.count ?? 0);
@@ -2708,7 +2767,7 @@ export class AcademicsRepository {
           UPDATE academics_lesson_plans SET teacher_id = $6::uuid, updated_at = NOW()
           WHERE tenant_id::text = $1 AND teacher_id::text = $2
             AND class_id::text = $3 AND subject_id::text = $4
-            AND term_id::text = $5 AND upper(status) = 'DRAFT' RETURNING 1
+            AND ($5::text IS NULL OR term_id::text = $5::text) AND upper(status) = 'DRAFT' RETURNING 1
         `, [tenantId, previous.teacher_user_id, previous.class_section_id, previous.subject_id,
           previous.academic_term_id, input.teacher_user_id]);
         transferred.lesson_plans = moved.rows.length;
@@ -2730,6 +2789,7 @@ export class AcademicsRepository {
       ],
       'class-stream': [
         { table: 'student_class_assignments', column: 'stream_id' },
+        { table: 'teacher_subject_assignments', column: 'stream_id' },
         { table: 'timetable_slots', column: 'stream_id' },
         { table: 'academics_attendance', column: 'stream_id' },
         { table: 'exam_marks', column: 'stream_id' },
@@ -2946,6 +3006,7 @@ export class AcademicsRepository {
       ],
       'class-stream': [
         { table: 'student_class_assignments', column: 'stream_id', label: 'student placements' },
+        { table: 'teacher_subject_assignments', column: 'stream_id', label: 'teacher assignments' },
         { table: 'timetable_slots', column: 'stream_id', label: 'timetable slots' },
         { table: 'academics_attendance', column: 'stream_id', label: 'attendance registers' },
         { table: 'exam_marks', column: 'stream_id', label: 'exam marks' },
@@ -3047,7 +3108,7 @@ export class AcademicsRepository {
             FROM teacher_subject_assignments teacher
             JOIN class_subject_assignments offering
               ON offering.tenant_id = teacher.tenant_id
-             AND offering.academic_term_id::text = teacher.academic_term_id::text
+             AND (teacher.academic_term_id IS NULL OR offering.academic_term_id::text = teacher.academic_term_id::text)
              AND offering.class_section_id::text = teacher.class_section_id::text
              AND offering.subject_id::text = teacher.subject_id::text
             WHERE offering.tenant_id::text = $1 AND offering.id::text = ANY($2::text[])

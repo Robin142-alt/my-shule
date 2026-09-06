@@ -137,7 +137,11 @@ function configuredAdmissionNumber(
 export class AdmissionsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async executeSql<T = any>(tenantId: string, sql: string, params: any[]): Promise<T[]> {
+  private async executeSql<T = any>(tenantId: string, sql: string, params: any[], transaction?: any): Promise<T[]> {
+    if (transaction) {
+      const rows = await transaction.$queryRawUnsafe(sql, ...params);
+      return Array.isArray(rows) ? rows : [rows];
+    }
     return this.prisma.executeWithTenant<any>(tenantId, null, async (tx: any) => {
       const rows = await tx.$queryRawUnsafe(sql, ...params);
       return Array.isArray(rows) ? rows : [rows];
@@ -2434,7 +2438,7 @@ export class AdmissionsRepository {
     transport_route?: string | null;
     effective_from: string;
     notes?: string | null;
-  }) {
+  }, transaction?: any) {
     await this.executeSql(input.school_id, `
         UPDATE student_allocations
         SET is_current = FALSE,
@@ -2442,7 +2446,7 @@ export class AdmissionsRepository {
         WHERE tenant_id = $1
           AND student_id = $2::uuid
           AND is_current = TRUE
-      `, [input.school_id, input.student_id],
+      `, [input.school_id, input.student_id], transaction,
     );
 
     const result = await this.executeSql(input.school_id, `
@@ -2468,7 +2472,7 @@ export class AdmissionsRepository {
         input.transport_route ?? null,
         input.effective_from,
         input.notes ?? null,
-      ],
+      ], transaction,
     );
 
     return result[0];
@@ -2578,6 +2582,7 @@ export class AdmissionsRepository {
     tenantId: string,
     className: string,
     streamName: string,
+    transaction?: any,
   ) {
     const result = await this.executeSql(tenantId, `
         WITH selected_section AS (
@@ -2663,7 +2668,7 @@ export class AdmissionsRepository {
         LEFT JOIN selected_stream ON TRUE
         WHERE NULLIF(btrim($3), '') IS NULL
            OR selected_stream.id IS NOT NULL
-      `, [tenantId, className, streamName],
+      `, [tenantId, className, streamName], transaction,
     );
 
     return result[0] ?? null;
@@ -2678,7 +2683,7 @@ export class AdmissionsRepository {
     class_name: string;
     stream_name: string;
     academic_year: string;
-  }) {
+  }, transaction?: any) {
     const result = await this.executeSql(input.school_id, `
         WITH selected_section AS (
           SELECT
@@ -2797,13 +2802,22 @@ export class AdmissionsRepository {
         input.stream_name,
         input.academic_year,
         input.stream_id ?? null,
-      ],
+      ], transaction,
     );
 
     return result[0] ?? null;
   }
 
-  async findActiveAcademicEnrollmentForUpdate(tenantId: string, studentId: string) {
+  async archivePreviousStudentClassAssignments(tenantId: string, studentId: string, transaction: any) {
+    return this.executeSql(tenantId, `
+      UPDATE student_class_assignments
+      SET status = 'archived', updated_at = NOW()
+      WHERE tenant_id = $1 AND student_id::text = $2::text AND status = 'active'
+      RETURNING id
+    `, [tenantId, studentId], transaction);
+  }
+
+  async findActiveAcademicEnrollmentForUpdate(tenantId: string, studentId: string, transaction?: any) {
     const result = await this.executeSql(tenantId, `
         SELECT
           id,
@@ -2824,7 +2838,7 @@ export class AdmissionsRepository {
         ORDER BY enrolled_at DESC, created_at DESC
         LIMIT 1
         FOR UPDATE
-      `, [tenantId, studentId],
+      `, [tenantId, studentId], transaction,
     );
 
     return result[0] ?? null;
@@ -2834,6 +2848,7 @@ export class AdmissionsRepository {
     tenantId: string,
     enrollmentId: string,
     status: 'completed' | 'withdrawn',
+    transaction?: any,
   ) {
     const result = await this.executeSql(tenantId, `
         UPDATE student_academic_enrollments
@@ -2854,7 +2869,7 @@ export class AdmissionsRepository {
           enrolled_at,
           created_at,
           updated_at
-      `, [tenantId, enrollmentId, status],
+      `, [tenantId, enrollmentId, status], transaction,
     );
 
     return result[0] ?? null;
@@ -2876,7 +2891,7 @@ export class AdmissionsRepository {
     reason: string;
     notes?: string | null;
     created_by_user_id?: string | null;
-  }) {
+  }, transaction?: any) {
     const result = await this.executeSql(input.school_id, `
         INSERT INTO student_academic_lifecycle_events (
           tenant_id,
@@ -2945,7 +2960,7 @@ export class AdmissionsRepository {
         input.reason,
         input.notes ?? null,
         input.created_by_user_id ?? null,
-      ],
+      ], transaction,
     );
 
     return result[0] ?? null;
@@ -2956,7 +2971,7 @@ export class AdmissionsRepository {
     student_id: string;
     academic_enrollment_id: string;
     class_section_id: string;
-  }) {
+  }, transaction?: any) {
     const result = await this.executeSql(input.school_id, `
         WITH subject_rows AS (
           INSERT INTO student_subject_enrollments (
@@ -3058,7 +3073,7 @@ export class AdmissionsRepository {
         input.student_id,
         input.academic_enrollment_id,
         input.class_section_id,
-      ],
+      ], transaction,
     );
 
     return {

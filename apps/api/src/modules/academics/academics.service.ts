@@ -469,27 +469,30 @@ export class AcademicsService {
         ? true
         : dto.is_primary ?? true;
     await this.requireActiveStaffUserInTenant(tenantId, teacherUserId);
-    const termId = this.requireText(dto.academic_term_id, 'Academic term');
+    const termId = dto.academic_term_id?.trim() || null;
     const classSectionId = this.requireText(dto.class_section_id, 'Class section');
     const subjectId = this.requireText(dto.subject_id, 'Subject');
     const scope = await this.repository.executeSql(
       tenantId,
-      `SELECT term.id
-       FROM academic_terms term
-       JOIN class_sections section
-         ON section.tenant_id = term.tenant_id
-        AND section.academic_year_id = term.academic_year_id
-        AND section.id = $3::text
+      `SELECT section.id
+       FROM class_sections section
        JOIN subjects subject
-         ON subject.tenant_id = term.tenant_id
+         ON subject.tenant_id = section.tenant_id
         AND subject.id = $4::text
         AND COALESCE(subject.status, 'active') = 'active'
-       WHERE term.tenant_id = $1 AND term.id = $2::text
+       WHERE section.tenant_id = $1 AND section.id = $3::text
+         AND section.status = 'active'
+         AND ($2::text IS NULL OR EXISTS (
+           SELECT 1 FROM academic_terms term
+           WHERE term.tenant_id = section.tenant_id
+             AND term.academic_year_id = section.academic_year_id
+             AND term.id = $2::text
+         ))
        LIMIT 1`,
       [tenantId, termId, classSectionId, subjectId],
     );
     if (!scope.rows[0]) {
-      throw new BadRequestException('Select a term, class, and subject that belong to the same school and academic year.');
+      throw new BadRequestException('Select an active class and subject from this school. Any supplied term must belong to the class academic year.');
     }
     if (dto.effective_from && dto.effective_to) {
       this.requireDateRange(dto.effective_from, dto.effective_to, 'Teacher assignment');
@@ -504,17 +507,6 @@ export class AcademicsService {
     if (dto.department_id) {
       await this.requireSetupRecord(tenantId, 'department', dto.department_id);
     }
-
-    const existing = await this.repository.executeSql(
-      tenantId,
-      `SELECT id, teacher_user_id FROM teacher_subject_assignments
-       WHERE tenant_id = $1 
-         AND academic_term_id = $2
-         AND class_section_id = $3
-         AND subject_id = $4
-         AND status = 'active'`,
-      [tenantId, termId, classSectionId, subjectId]
-    );
 
     const assignment = await this.repository.createTeacherAssignment({
       tenant_id: tenantId,
@@ -534,20 +526,20 @@ export class AcademicsService {
       stream_id: dto.stream_id?.trim() || null,
       department_id: dto.department_id?.trim() || null,
       curriculum_model: dto.curriculum_model?.trim() || null,
+    }, async ({ tx, assignment: saved, previous }) => {
+      const action = previous.length ? 'reassigned' : 'assigned';
+      await this.auditMutation(tenantId, 'teacher_assignment', saved.id,
+        previous.length ? 'academics.teacher_subject_reassigned' : 'academics.teacher_subject_assigned', {
+          academic_term_id: termId, stream_id: dto.stream_id?.trim() || null,
+          class_section_id: classSectionId, subject_id: subjectId,
+          teacher_user_id: teacherUserId, previous_assignments: previous,
+        }, previous[0] ?? null, saved, dto.reason, tx);
+      await this.publishAcademicChange('academic.teacher_assignment.changed', 'teacher_assignment', saved,
+        action, previous[0] ?? null, dto.reason, { previous_assignments: previous }, tx);
+      await this.notifyAcademicAssignee(tenantId, teacherUserId, `academic-assignment:${saved.id}:${saved.version ?? 1}`,
+        'Academic assignment updated', 'Your class and subject assignment has been updated.', saved.id, tx);
     });
     if (!assignment) throw new ConflictException('The teacher assignment could not be saved. Refresh and retry.');
-
-    await this.auditMutation(tenantId, 'teacher_assignment', assignment.id,
-      existing.rows[0] ? 'academics.teacher_subject_reassigned' : 'academics.teacher_subject_assigned', {
-        academic_term_id: dto.academic_term_id,
-        class_section_id: dto.class_section_id,
-        subject_id: dto.subject_id,
-        teacher_user_id: teacherUserId,
-      }, existing.rows[0] ?? null, assignment, dto.reason);
-    await this.publishAcademicChange('academic.teacher_assignment.changed', 'teacher_assignment', assignment,
-      existing.rows[0] ? 'reassigned' : 'assigned', existing.rows[0] ?? null, dto.reason);
-    await this.notifyAcademicAssignee(tenantId, teacherUserId, `academic-assignment:${assignment.id}:${assignment.version ?? 1}`,
-      'Academic assignment updated', 'Your class and subject assignment has been updated.', assignment.id);
 
     return assignment;
   }
@@ -1616,6 +1608,7 @@ export class AcademicsService {
     previous: Record<string, unknown> | null,
     reason?: string,
     metadata: Record<string, unknown> = {},
+    tx?: any,
   ) {
     if (!this.eventPublisher || !record?.id) return;
     const tenantId = this.requireTenantId();
@@ -1637,7 +1630,7 @@ export class AcademicsService {
         reason: reason ?? null,
         metadata,
       } as any,
-    });
+    }, tx);
   }
 
   private async notifyAcademicAssignee(
@@ -1647,6 +1640,7 @@ export class AcademicsService {
     title: string,
     body: string,
     recordId: string,
+    tx?: any,
   ) {
     if (!this.workflowRepository) return;
     await this.workflowRepository.createNotification({
@@ -1660,7 +1654,7 @@ export class AcademicsService {
       source_module: 'academics',
       source_record_id: recordId,
       metadata: { school_id: tenantId },
-    });
+    }, tx);
   }
 
   private eventNameForEntity(entityType: string): SupportedDomainEventName {
@@ -1696,6 +1690,7 @@ export class AcademicsService {
     previousValues: Record<string, unknown> | null = null,
     newValues: Record<string, unknown> | null = null,
     reason?: string,
+    tx?: any,
   ) {
     const store = this.requestContext.getStore();
     return this.repository.appendAuditLog({
@@ -1710,7 +1705,7 @@ export class AcademicsService {
       reason: reason ?? null,
       correlation_id: store?.trace_id ?? null,
       metadata,
-    });
+    }, tx);
   }
 
   private async requireSetupRecord(tenantId: string, entityType: string, id: string) {

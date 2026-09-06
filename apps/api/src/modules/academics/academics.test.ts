@@ -366,6 +366,40 @@ test('AcademicsRepository previews dependencies for many records in one tenant t
   assert.equal(result[1]!.can_permanently_delete, true);
 });
 
+test('AcademicsRepository includes subject teachers in stream lifecycle dependencies and merges', async () => {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const repository = new AcademicsRepository({
+    executeWithTenant: async (tenantId: string, _actor: unknown, callback: (tx: unknown) => Promise<unknown>) => {
+      assert.equal(tenantId, 'tenant-a');
+      return callback({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          calls.push({ sql, params });
+          if (sql.includes('SELECT table_name, column_name')) return [
+            { table_name: 'teacher_subject_assignments', column_name: 'tenant_id' },
+            { table_name: 'teacher_subject_assignments', column_name: 'stream_id' },
+          ];
+          if (sql.includes('COUNT(*)')) return [{ entity_id: 'stream-a', count: 1 }];
+          if (sql.includes('SELECT * FROM class_streams')) return [{ id: 'stream-a' }, { id: 'stream-b' }];
+          if (sql.includes('SELECT udt_name')) return params[0] === 'teacher_subject_assignments' ? [{ udt_name: 'text' }] : [];
+          if (sql.includes('UPDATE teacher_subject_assignments')) return [{ moved: 1 }];
+          if (sql.includes('UPDATE class_streams')) return [{ id: 'stream-a', status: 'archived' }];
+          return [];
+        },
+      });
+    },
+  } as never);
+
+  const dependencies = await repository.getSetupDependencies('tenant-a', 'class-stream', 'stream-a');
+  assert.equal(dependencies.can_permanently_delete, false);
+  assert.deepEqual(dependencies.dependencies, [{ table: 'teacher_subject_assignments', label: 'teacher assignments', count: 1 }]);
+  const merged = await repository.mergeSetupRecords('tenant-a', 'class-stream', 'stream-a', 'stream-b');
+  assert.deepEqual(merged?.migrated, [{ table: 'teacher_subject_assignments', column: 'stream_id', count: 1 }]);
+  const update = calls.find((entry) => entry.sql.includes('UPDATE teacher_subject_assignments'))!;
+  assert.match(update.sql, /SET stream_id = \$3::text/);
+  assert.match(update.sql, /WHERE tenant_id = \$1 AND stream_id::text = \$2/);
+  assert.deepEqual(update.params, ['tenant-a', 'stream-a', 'stream-b']);
+});
+
 test('AcademicsRepository types every lifecycle parameter for status-only records', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new AcademicsRepository({
@@ -508,9 +542,11 @@ test('AcademicsService assigns teachers to deterministic subject class term scop
           : { rows: [], rowCount: 0 };
       },
       findTeacherOptionByUserId: async () => ({ id: 'staff-1', user_id: 'teacher-1', label: 'Teacher One' }),
-      createTeacherAssignment: async (input: Record<string, unknown>) => {
+      createTeacherAssignment: async (input: Record<string, unknown>, persist: (change: any) => Promise<void>) => {
         calls.push('assign');
-        return { id: 'assignment-1', ...input };
+        const assignment = { id: 'assignment-1', ...input };
+        await persist({ tx: {}, assignment, previous: [] });
+        return assignment;
       },
       appendAuditLog: async () => {
         calls.push('audit');
@@ -543,9 +579,11 @@ test('AcademicsService keeps supporting subject teachers non-primary even when a
           : { rows: [{ id: 'primary-1', teacher_user_id: 'teacher-primary' }], rowCount: 1 };
       },
       findTeacherOptionByUserId: async () => ({ id: 'staff-2', user_id: 'teacher-support', label: 'Support Teacher' }),
-      createTeacherAssignment: async (input: Record<string, unknown>) => {
+      createTeacherAssignment: async (input: Record<string, unknown>, persist: (change: any) => Promise<void>) => {
         assignmentInput = input;
-        return { id: 'supporting-1', ...input };
+        const assignment = { id: 'supporting-1', ...input };
+        await persist({ tx: {}, assignment, previous: [] });
+        return assignment;
       },
       appendAuditLog: async () => undefined,
     } as never,

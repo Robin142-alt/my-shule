@@ -815,6 +815,24 @@ export class AcademicsSchemaService implements OnModuleInit {
 
       ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS assignment_type text NOT NULL DEFAULT 'primary';
       ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS stream_id text;
+      ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS continued_from_assignment_id text;
+      ALTER TABLE teacher_subject_assignments ALTER COLUMN academic_term_id DROP NOT NULL;
+      -- Assignments use the Academic Foundation stream registry. Historical
+      -- legacy rows remain readable; new writes must match both school and class.
+      ALTER TABLE teacher_subject_assignments DROP CONSTRAINT IF EXISTS teacher_subject_assignments_stream_id_fkey;
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_class_streams_tenant_class_id
+        ON class_streams (tenant_id, class_section_id, id);
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'teacher_subject_assignments'::regclass
+            AND conname = 'fk_teacher_assignment_class_stream') THEN
+          ALTER TABLE teacher_subject_assignments
+            ADD CONSTRAINT fk_teacher_assignment_class_stream
+            FOREIGN KEY (tenant_id, class_section_id, stream_id)
+            REFERENCES class_streams (tenant_id, class_section_id, id) ON UPDATE CASCADE NOT VALID;
+        END IF;
+      END $$;
       ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS department_id uuid;
       ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS curriculum_model text;
       ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS is_primary boolean NOT NULL DEFAULT true;
@@ -1013,10 +1031,15 @@ export class AcademicsSchemaService implements OnModuleInit {
         ON academics_class_teachers (tenant_id, academic_year_id, class_section_id)
         WHERE is_active = true;
 
-      CREATE UNIQUE INDEX IF NOT EXISTS uq_teacher_subject_assignments_scope
+      -- Preserve ended history and allow the same teacher in multiple streams.
+      -- NULL term means an ongoing assignment, so NULL must participate in uniqueness.
+      ALTER TABLE teacher_subject_assignments DROP CONSTRAINT IF EXISTS uq_teacher_subject_assignments_scope;
+      DROP INDEX IF EXISTS uq_teacher_subject_assignments_scope;
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_teacher_subject_assignments_active_scope
         ON teacher_subject_assignments (
-          tenant_id, academic_term_id, class_section_id, subject_id, teacher_user_id
-        );
+          tenant_id, COALESCE(academic_term_id, ''), class_section_id, subject_id,
+          COALESCE(stream_id, ''), teacher_user_id
+        ) WHERE status = 'active';
 
       CREATE INDEX IF NOT EXISTS ix_academic_terms_year
         ON academic_terms (tenant_id, academic_year_id, starts_on);

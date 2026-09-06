@@ -19,6 +19,7 @@ import * as bcrypt from 'bcrypt';
 import { TenantInvitationsService } from '../../auth/tenant-invitations.service';
 import { AuthorizationRepository } from '../../auth/repositories/authorization.repository';
 import { StudentsService } from '../students/students.service';
+import { continueSubjectTeachersAfterPromotion } from '../students/subject-teacher-continuity';
 import {
   createCsvReportArtifact,
   type ReportCsvValue,
@@ -81,6 +82,7 @@ interface AcademicEnrollmentRecord {
 
 interface AcademicClassSectionRecord {
   id?: string | null;
+  stream_id?: string | null;
   class_name: string;
   stream_name: string;
   academic_year: string;
@@ -1456,13 +1458,15 @@ export class AdmissionsService {
     studentId: string,
     dto: AdvanceAcademicLifecycleDto,
   ) {
-    return this.prisma.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async (tx: any) => {
       const tenantId = this.requireTenantId();
       const action = this.parseAcademicLifecycleAction(dto.action);
-      const activeEnrollment = await this.requireActiveAcademicEnrollment(tenantId, studentId);
+      const activeEnrollment = await this.requireActiveAcademicEnrollment(
+        tenantId, studentId, action === 'promotion' ? tx : undefined,
+      );
 
       if (action === 'promotion') {
-        return this.promoteStudentAcademicLifecycle(tenantId, studentId, activeEnrollment, dto);
+        return this.promoteStudentAcademicLifecycle(tenantId, studentId, activeEnrollment, dto, tx);
       }
 
       const nextStudentStatus = action === 'graduation' ? 'graduated' : 'inactive';
@@ -1926,10 +1930,12 @@ export class AdmissionsService {
   private async requireActiveAcademicEnrollment(
     tenantId: string,
     studentId: string,
+    tx?: any,
   ): Promise<AcademicEnrollmentRecord> {
     const activeEnrollment = await this.admissionsRepository.findActiveAcademicEnrollmentForUpdate(
       tenantId,
       studentId,
+      tx,
     );
 
     if (!activeEnrollment?.id) {
@@ -1944,6 +1950,7 @@ export class AdmissionsService {
     studentId: string,
     activeEnrollment: AcademicEnrollmentRecord,
     dto: AdvanceAcademicLifecycleDto,
+    tx: any,
   ) {
     const className = dto.class_name?.trim();
     const streamName = dto.stream_name?.trim();
@@ -1956,6 +1963,7 @@ export class AdmissionsService {
       tenantId,
       className,
       streamName,
+      tx,
     ) as AcademicClassSectionRecord | null;
     this.assertAcademicCapacityAvailable(className, streamName, targetClassSection);
 
@@ -1970,7 +1978,9 @@ export class AdmissionsService {
       tenantId,
       activeEnrollment.id,
       'completed',
+      tx,
     );
+    await this.admissionsRepository.archivePreviousStudentClassAssignments(tenantId, studentId, tx);
     const nextEnrollment = await this.createAcademicEnrollment(
       tenantId,
       activeEnrollment.application_id,
@@ -1978,13 +1988,24 @@ export class AdmissionsService {
       className,
       streamName,
       targetClassSection,
+      tx,
     );
-    await this.publishAcademicEnrollmentCreated(tenantId, studentId, nextEnrollment);
+    const teacherContinuity = await continueSubjectTeachersAfterPromotion(tx, {
+      tenantId, studentId,
+      sourceClassId: activeEnrollment.class_section_id ?? '',
+      sourceStreamName: activeEnrollment.stream_name,
+      targetClassId: String(targetClassSection?.id ?? ''),
+      targetStreamId: targetClassSection?.stream_id,
+      actorUserId: this.requestContext.getStore()?.user_id ?? null,
+      actorRole: this.requestContext.getStore()?.role,
+    }, this.eventPublisher);
+    await this.publishAcademicEnrollmentCreated(tenantId, studentId, nextEnrollment, tx);
     const subjectTimetableEnrollment = await this.enrollSubjectsAndTimetable(
       tenantId,
       studentId,
       nextEnrollment,
       targetClassSection,
+      tx,
     );
     const allocation = await this.admissionsRepository.createAllocation({
       school_id: tenantId,
@@ -1993,7 +2014,7 @@ export class AdmissionsService {
       stream_name: streamName,
       effective_from: new Date().toISOString().slice(0, 10),
       notes: this.normalizeLifecycleReason(dto.reason),
-    });
+    }, tx);
     const lifecycleEvent = await this.recordAcademicLifecycleEvent({
       tenantId,
       studentId,
@@ -2003,19 +2024,21 @@ export class AdmissionsService {
       eventType: 'promotion',
       reason: dto.reason,
       notes: dto.notes,
-    });
+    }, tx);
     await this.publishAcademicLifecycleChanged(
       tenantId,
       studentId,
       activeEnrollment,
       lifecycleEvent,
       nextEnrollment,
+      tx,
     );
 
     return {
       lifecycle_event: lifecycleEvent,
       previous_academic_enrollment: completedEnrollment ?? activeEnrollment,
       academic_enrollment: nextEnrollment,
+      teacher_assignment_continuity: teacherContinuity,
       allocation,
       subject_enrollments: subjectTimetableEnrollment.subject_enrollments,
       timetable_enrollments: subjectTimetableEnrollment.timetable_enrollments,
@@ -2035,6 +2058,7 @@ export class AdmissionsService {
       academic_year?: string | null;
       status?: string | null;
     } | null,
+    tx?: any,
   ) {
     if (!this.eventPublisher || !academicEnrollment?.id) {
       return null;
@@ -2057,7 +2081,7 @@ export class AdmissionsService {
         status: academicEnrollment.status ?? 'active',
         occurred_at: new Date().toISOString(),
       },
-    });
+    }, tx);
   }
 
   private async publishAcademicLifecycleChanged(
@@ -2079,6 +2103,7 @@ export class AdmissionsService {
       stream_name?: string | null;
       academic_year?: string | null;
     } | null,
+    tx?: any,
   ) {
     if (!this.eventPublisher || !lifecycleEvent?.id) {
       return null;
@@ -2107,7 +2132,7 @@ export class AdmissionsService {
         reason: this.normalizeLifecycleReason(lifecycleEvent.reason),
         occurred_at: new Date().toISOString(),
       },
-    });
+    }, tx);
   }
 
   private async recordAcademicLifecycleEvent(input: {
@@ -2119,7 +2144,7 @@ export class AdmissionsService {
     eventType: AcademicLifecycleAction;
     reason?: string | null;
     notes?: string | null;
-  }) {
+  }, tx?: any) {
     return this.admissionsRepository.createStudentAcademicLifecycleEvent({
       school_id: input.tenantId,
       student_id: input.studentId,
@@ -2136,7 +2161,7 @@ export class AdmissionsService {
       reason: this.normalizeLifecycleReason(input.reason),
       notes: input.notes?.trim() || null,
       created_by_user_id: this.requestContext.getStore()?.user_id ?? null,
-    });
+    }, tx);
   }
 
   private normalizeLifecycleReason(reason?: string | null) {
@@ -2154,6 +2179,7 @@ export class AdmissionsService {
       stream_id?: string | null;
       academic_year?: string | null;
     } | null,
+    tx?: any,
   ) {
     const enrollment = await this.admissionsRepository.createStudentAcademicEnrollment({
       school_id: tenantId,
@@ -2164,7 +2190,7 @@ export class AdmissionsService {
       class_name: className,
       stream_name: streamName,
       academic_year: classSection?.academic_year ?? new Date().getUTCFullYear().toString(),
-    });
+    }, tx);
 
     if (!enrollment) {
       throw new BadRequestException(
@@ -2180,6 +2206,7 @@ export class AdmissionsService {
     studentId: string,
     academicEnrollment: { id?: string | null } | null,
     classSection: { id?: string | null } | null,
+    tx?: any,
   ) {
     if (!academicEnrollment?.id || !classSection?.id) {
       return {
@@ -2193,7 +2220,7 @@ export class AdmissionsService {
       student_id: studentId,
       academic_enrollment_id: academicEnrollment.id,
       class_section_id: classSection.id,
-    });
+    }, tx);
   }
 
   private normalizeListQuery(

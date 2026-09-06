@@ -27,7 +27,6 @@ type TeacherOption = SchoolStaffOptionInput & { status?: string };
 export function PrincipalStaffRolesWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalStaffData>('/admin-command/principal/staff');
   const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
-  const { data: termsData } = useSchoolQuery<any[]>('/academics/academic-terms');
   const { data: yearsData } = useSchoolQuery<any[]>('/academics/academic-years');
   const { data: classesData } = useSchoolQuery<any[]>('/academics/class-sections');
   const { data: subjectsData } = useSchoolQuery<any[]>('/academics/subjects');
@@ -58,7 +57,6 @@ export function PrincipalStaffRolesWorkspace() {
   const hasTeachers = teacherOptions.length > 0;
   const hasPrerequisites =
     hasTeachers &&
-    termsData && termsData.length > 0 &&
     classesData && classesData.length > 0 &&
     subjectsData && subjectsData.length > 0;
 
@@ -70,7 +68,7 @@ export function PrincipalStaffRolesWorkspace() {
   const teacherAssignmentBlockReason = !hasTeachers
     ? "Invite and activate teaching staff before assigning subject teachers"
     : !hasPrerequisites
-      ? "Cannot assign teachers before terms, classes, and subjects exist"
+      ? "Cannot assign teachers before classes and subjects exist"
       : "";
 
   const classTeacherBlockReason = !hasTeachers
@@ -88,13 +86,13 @@ export function PrincipalStaffRolesWorkspace() {
       await requestPrincipalApi('/academics/teacher-assignments', {
         method: "POST",
         body: {
-          academic_term_id: formData.get("academic_term_id"),
           class_section_id: formData.get("class_section_id"),
           subject_id: formData.get("subject_id"),
           teacher_user_id: formData.get("teacher_user_id"),
         }
       });
       setIsAssignModalOpen(false);
+      toast.success("Subject teacher assigned until reassigned or ended.");
       refetch();
     } catch (err: any) {
       setFormError(err.message || "Failed to assign teacher");
@@ -276,7 +274,8 @@ export function PrincipalStaffRolesWorkspace() {
       </div>
 
       <Modal open={isAssignModalOpen} onClose={() => setIsAssignModalOpen(false)} title="Assign Subject Teacher">
-        <form onSubmit={handleAssignTeacher} className="space-y-4">
+        <form aria-label="Assign subject teacher" onSubmit={handleAssignTeacher} className="space-y-4">
+          <p className="text-sm text-muted-foreground">The teacher continues across terms and follows the class as students are promoted, until reassigned or ended.</p>
           {formError && (
             <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded text-sm">
               {formError}
@@ -293,15 +292,6 @@ export function PrincipalStaffRolesWorkspace() {
             {!hasTeachers && (
               <p className="text-xs text-amber-600">Invite and activate teaching staff before assigning subjects.</p>
             )}
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-foreground">Academic Term</label>
-            <select name="academic_term_id" required className="input-base">
-              <option value="">Select Term...</option>
-              {termsData?.map(term => (
-                <option key={term.id} value={term.id}>{term.name}</option>
-              ))}
-            </select>
           </div>
           <div className="space-y-2">
             <label className="text-sm font-semibold text-foreground">Class Section</label>

@@ -383,7 +383,7 @@ export class ExamsRepository {
         FROM teacher_subject_assignments
         WHERE tenant_id = $1
           AND teacher_user_id = $2::text
-          AND academic_term_id = $3::text
+          AND (academic_term_id IS NULL OR academic_term_id = $3::text)
           AND class_section_id = $4::text
           AND subject_id = $5::text
           AND status = 'active'
@@ -595,7 +595,7 @@ export class ExamsRepository {
                FROM teacher_subject_assignments assignment
                WHERE assignment.tenant_id = mark_window.tenant_id
                  AND assignment.teacher_user_id = $2::text
-                 AND assignment.academic_term_id = source.academic_term_id::text
+                 AND (assignment.academic_term_id IS NULL OR assignment.academic_term_id = source.academic_term_id::text)
                  AND assignment.class_section_id = source.class_section_id::text
                  AND assignment.subject_id = source.subject_id::text
                  AND assignment.status = 'active'
@@ -3069,11 +3069,14 @@ export class ExamsRepository {
               FROM exam_series series
               JOIN teacher_subject_assignments assignment
                 ON assignment.tenant_id = series.tenant_id
-               AND assignment.academic_term_id = series.academic_term_id::text
+               AND (assignment.academic_term_id IS NULL OR assignment.academic_term_id = series.academic_term_id::text)
                AND assignment.class_section_id = mark_window.class_section_id::text
                AND assignment.subject_id = mark_window.subject_id::text
                AND assignment.teacher_user_id = $5::text
                AND assignment.status = 'active'
+               AND assignment.mark_entry_allowed = TRUE
+               AND assignment.effective_from <= CURRENT_DATE
+               AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
               WHERE series.tenant_id = mark_window.tenant_id
                 AND series.id = mark_window.exam_series_id
             )
@@ -3403,10 +3406,12 @@ export class ExamsRepository {
          ON series.tenant_id = mark_window.tenant_id AND series.id = mark_window.exam_series_id
        LEFT JOIN teacher_subject_assignments assignment
          ON assignment.tenant_id = mark_window.tenant_id
-        AND assignment.academic_term_id = series.academic_term_id::text
+        AND (assignment.academic_term_id IS NULL OR assignment.academic_term_id = series.academic_term_id::text)
         AND assignment.class_section_id = mark_window.class_section_id::text
         AND assignment.subject_id = mark_window.subject_id::text
         AND assignment.status = 'active'
+        AND assignment.effective_from <= CURRENT_DATE
+        AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
        LEFT JOIN class_sections class_section
          ON class_section.tenant_id = mark_window.tenant_id AND class_section.id = mark_window.class_section_id::text
        LEFT JOIN subjects subject
@@ -5205,10 +5210,12 @@ export class ExamsRepository {
         FROM exam_series series
         JOIN teacher_subject_assignments assignment
           ON assignment.tenant_id = series.tenant_id
-         AND assignment.academic_term_id = series.academic_term_id::text
+         AND (assignment.academic_term_id IS NULL OR assignment.academic_term_id = series.academic_term_id::text)
          AND assignment.class_section_id = mark_window.class_section_id::text
          AND assignment.subject_id = mark_window.subject_id::text
          AND assignment.status = 'active'
+         AND assignment.effective_from <= CURRENT_DATE
+         AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
         WHERE series.tenant_id = mark_window.tenant_id AND series.id = mark_window.exam_series_id
       ) teacher_assignments ON TRUE
       WHERE mark_window.tenant_id = $1`;
@@ -5305,11 +5312,14 @@ export class ExamsRepository {
             SELECT 1
             FROM teacher_subject_assignments assignment
             WHERE assignment.tenant_id = mark_window.tenant_id
-              AND assignment.academic_term_id = series.academic_term_id::text
+              AND (assignment.academic_term_id IS NULL OR assignment.academic_term_id = series.academic_term_id::text)
               AND assignment.class_section_id = mark_window.class_section_id::text
               AND assignment.subject_id = mark_window.subject_id::text
               AND assignment.teacher_user_id = $4::text
               AND assignment.status = 'active'
+              AND assignment.mark_entry_allowed = TRUE
+              AND assignment.effective_from <= CURRENT_DATE
+              AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
           )
         )
         AND ($5::uuid IS NULL OR mark_window.class_section_id = $5::uuid)

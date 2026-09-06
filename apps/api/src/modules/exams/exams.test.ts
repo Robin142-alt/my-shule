@@ -904,7 +904,7 @@ test('ExamsRepository opening a scheduled mark window makes it available immedia
   ]);
 });
 
-test('ExamsRepository accepts only current mark-enabled teacher assignments', async () => {
+test('ExamsRepository accepts ongoing or matching-term assignments while retaining mark permissions and scope', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new ExamsRepository({
     executeWithTenant: async function(_tenantId: string, _context: unknown, callback: (tx: unknown) => Promise<unknown>) {
@@ -927,6 +927,9 @@ test('ExamsRepository accepts only current mark-enabled teacher assignments', as
 
   assert.match(calls[0].sql, /tenant_id = \$1/);
   assert.match(calls[0].sql, /teacher_user_id = \$2::text/);
+  assert.match(calls[0].sql, /\(academic_term_id IS NULL OR academic_term_id = \$3::text\)/);
+  assert.match(calls[0].sql, /class_section_id = \$4::text/);
+  assert.match(calls[0].sql, /subject_id = \$5::text/);
   assert.match(calls[0].sql, /status = 'active'/);
   assert.match(calls[0].sql, /mark_entry_allowed = TRUE/);
   assert.match(calls[0].sql, /effective_from <= CURRENT_DATE/);

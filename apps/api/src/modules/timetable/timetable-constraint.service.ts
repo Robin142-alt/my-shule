@@ -150,12 +150,12 @@ export class TimetableConstraintService {
       String(assignment.class_section_id) === String(placement.class_section_id)
       && String(assignment.subject_id) === String(placement.subject_id)
       && String(assignment.teacher_id) === String(placement.teacher_id)
-      && (!placement.stream_id || !assignment.stream_id || String(assignment.stream_id) === String(placement.stream_id)),
+      && (!assignment.stream_id || String(assignment.stream_id) === String(placement.stream_id)),
     );
     if (!assignmentValid) {
       conflicts.push({
         code: 'INVALID_TEACHER_ALLOCATION',
-        message: 'The selected teacher is not actively allocated to this subject and class for the term.',
+        message: 'The selected teacher is not currently allocated to this subject and class or stream.',
       });
     }
 

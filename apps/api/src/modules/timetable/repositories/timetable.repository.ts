@@ -127,17 +127,19 @@ export class TimetableRepository {
           EXISTS (
             SELECT 1
             FROM teacher_subject_assignments assignment
-            JOIN academic_terms term
+            LEFT JOIN academic_terms term
               ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
-            JOIN academic_years year
+            LEFT JOIN academic_years year
               ON year.tenant_id = term.tenant_id AND year.id = term.academic_year_id
             WHERE assignment.tenant_id = $1
-              AND year.name = $2
-              AND term.name = $3
+              AND (assignment.academic_term_id IS NULL OR (year.name = $2 AND term.name = $3))
               AND assignment.class_section_id::text = $4
               AND assignment.subject_id::text = $5
               AND assignment.teacher_user_id::text = $6
               AND assignment.status = 'active'
+              AND (assignment.stream_id IS NULL OR assignment.stream_id::text = $7::text)
+              AND (assignment.effective_from IS NULL OR assignment.effective_from <= CURRENT_DATE)
+              AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
           ) AS teacher_assignment
       `,
       [

@@ -5,8 +5,15 @@ import { PrismaService } from '../../../database/prisma.service';
 export class WorkflowRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+  private async executeSql<T = any>(query: string, params: any[] = [], tx?: any): Promise<{ rows: T[], rowCount: number }> {
     const firstParam = params[0];
+    if (typeof firstParam !== 'string' || !firstParam.trim()) {
+      throw new Error('A tenant key is required for workflow projection writes');
+    }
+    if (tx) {
+      const rows = await tx.$queryRawUnsafe(query, ...params);
+      return { rows, rowCount: rows.length };
+    }
     if (typeof firstParam === 'string' && firstParam.trim()) {
       return this.prisma.executeWithTenant(firstParam, null, async (tx: any) => {
         const result = await tx.$queryRawUnsafe(query, ...params);
@@ -30,7 +37,7 @@ export class WorkflowRepository {
     source_module?: string;
     source_record_id?: string;
     metadata?: Record<string, unknown>;
-  }): Promise<void> {
+  }, tx?: any): Promise<void> {
     await this.executeSql(
       `
       INSERT INTO notifications (
@@ -51,7 +58,7 @@ export class WorkflowRepository {
         params.source_module || null,
         params.source_record_id || null,
         params.metadata ? JSON.stringify(params.metadata) : '{}',
-      ]
+      ], tx
     );
   }
 

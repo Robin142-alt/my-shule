@@ -535,7 +535,7 @@ export function DeputyTimetableManagementWorkspace() {
     }
   };
 
-  const selectedClassAssignments = assignments.filter((assignment) => assignment.academic_term_id === selectedTerm?.id && assignment.class_section_id === slotDraft.class_section_id);
+  const selectedClassAssignments = assignments.filter((assignment) => (!assignment.academic_term_id || assignment.academic_term_id === selectedTerm?.id) && assignment.class_section_id === slotDraft.class_section_id);
   const allowedSubjectIds = new Set(selectedClassAssignments.map((assignment) => assignment.subject_id));
   const subjectOptions = subjects.filter((subject) => allowedSubjectIds.has(subject.id));
   const allowedTeacherIds = new Set(selectedClassAssignments.filter((assignment) => assignment.subject_id === slotDraft.subject_id).map((assignment) => assignment.teacher_user_id));

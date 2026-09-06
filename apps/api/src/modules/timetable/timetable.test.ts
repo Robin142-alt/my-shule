@@ -696,6 +696,10 @@ test('Timetable relief assignment requires active teaching allocation and maps t
   const substituteQuery = statements.find((sql) => sql.includes('FROM staff_profiles staff')) ?? '';
   assert.match(substituteQuery, /FROM teacher_subject_assignments teaching_assignment/);
   assert.match(substituteQuery, /teaching_assignment\.status = 'active'/);
+  assert.match(substituteQuery, /LEFT JOIN academic_terms teaching_term/);
+  assert.match(substituteQuery, /\(teaching_assignment\.academic_term_id IS NULL OR \(teaching_year\.name = \$3 AND teaching_term\.name = \$4\)\)/);
+  assert.match(substituteQuery, /teaching_assignment\.tenant_id = staff\.tenant_id/);
+  assert.match(substituteQuery, /teaching_assignment\.effective_to::date >= \$5::date/);
   assert.match(substituteQuery, /teaching_year\.name = \$3/);
   assert.match(substituteQuery, /teaching_term\.name = \$4/);
   assert.equal(statements.some((sql) => sql.includes('pg_advisory_xact_lock')), true);
@@ -850,6 +854,26 @@ test('TimetableConstraintService generates the maximum valid timetable and repor
   });
   assert.equal(locked.placements.length, 0);
   assert.equal(locked.gaps.length, 1, 'locked lessons must remain hard scheduling constraints');
+});
+
+test('TimetableConstraintService keeps stream teacher allocations within their assigned scope', () => {
+  const constraint = new TimetableConstraintService({} as never);
+  const assignment = { class_section_id: 'class-a', stream_id: 'stream-a' as string | null, subject_id: 'english', teacher_id: 'teacher-a' };
+  const snapshot = {
+    configuration: { days: [{ day_of_week: 1, is_teaching_day: true, periods: [
+      { id: 'period-a', name: 'Period 1', starts_at: '08:00', ends_at: '08:40', is_teaching: true, order_index: 0 },
+    ] }], common_blocks: [] },
+    assignments: [assignment], requirements: [], resources: [], availability: [], slots: [],
+  };
+  const placement = { ...assignment, day_of_week: 1, period_id: 'period-a', starts_at: '08:00', ends_at: '08:40' };
+  const allocationDenied = (streamId: string | null) => constraint.validatePlacement(snapshot, { ...placement, stream_id: streamId })
+    .some((conflict) => conflict.code === 'INVALID_TEACHER_ALLOCATION');
+  assert.equal(allocationDenied('stream-a'), false);
+  assert.equal(allocationDenied('stream-b'), true);
+  assert.equal(allocationDenied(null), true);
+  snapshot.assignments = [{ ...assignment, stream_id: null }];
+  assert.equal(allocationDenied('stream-a'), false);
+  assert.equal(allocationDenied(null), false);
 });
 
 test('TimetableConstraintService centralizes clashes, availability, locks, and requirement coverage', () => {
@@ -1059,6 +1083,11 @@ test('Timetable slot reference validation binds active class and stream to tenan
   assert.equal(inactive.stream, false);
   assert.equal(otherTenant.class_section, false);
   const contractSql = queries[0]?.sql ?? '';
+  assert.match(contractSql, /LEFT JOIN academic_terms term/);
+  assert.match(contractSql, /\(assignment\.academic_term_id IS NULL OR \(year\.name = \$2 AND term\.name = \$3\)\)/);
+  assert.match(contractSql, /\(assignment\.stream_id IS NULL OR assignment\.stream_id::text = \$7::text\)/);
+  assert.match(contractSql, /assignment\.effective_from <= CURRENT_DATE/);
+  assert.match(contractSql, /assignment\.effective_to >= CURRENT_DATE/);
   assert.match(contractSql, /section\.tenant_id = \$1/);
   assert.match(contractSql, /year\.name = \$2/);
   assert.match(contractSql, /stream\.class_section_id::text = \$4/);

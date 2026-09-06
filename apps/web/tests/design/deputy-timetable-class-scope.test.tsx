@@ -5,6 +5,7 @@ import { DeputyTimetableManagementWorkspace } from "@/components/school/deputy-p
 const mockUseSchoolQuery = jest.fn();
 const mockClassRefetch = jest.fn().mockResolvedValue(undefined);
 let mockClassError: Error | null = null;
+let mockOngoingAssignments = false;
 
 jest.mock("@/lib/data/school-hooks", () => ({
   useSchoolQuery: (path: string | null) => mockUseSchoolQuery(path),
@@ -103,15 +104,23 @@ function installQueryFixtures() {
           ];
       return queryResult(rows, { error: mockClassError, refetch: mockClassRefetch });
     }
-    if (path === "/api/academics/subjects" || path === "/api/academics/teachers"
-      || path === "/api/academics/teacher-assignments?limit=300") {
-      return queryResult([]);
+    if (path === "/api/academics/subjects") {
+      return queryResult(mockOngoingAssignments ? [{ id: "subject-1", name: "English" }, { id: "subject-2", name: "Mathematics" }] : []);
+    }
+    if (path === "/api/academics/teachers") {
+      return queryResult(mockOngoingAssignments ? [{ user_id: "teacher-1", label: "Alex Teacher" }] : []);
+    }
+    if (path === "/api/academics/teacher-assignments?limit=300") {
+      return queryResult(mockOngoingAssignments ? [
+        { id: "assignment-1", academic_term_id: null, class_section_id: "class-current-a", subject_id: "subject-1", teacher_user_id: "teacher-1" },
+        { id: "assignment-old", academic_term_id: "term-2025", class_section_id: "class-current-a", subject_id: "subject-2", teacher_user_id: "teacher-1" },
+      ] : []);
     }
     if (path?.startsWith("/api/timetable/readiness?")) {
       return queryResult({ status: "READY", blockers: [], warnings: [], checks: {}, metrics: {} });
     }
     if (path?.startsWith("/api/timetable/planner?")) {
-      return queryResult({ version: null, slots: [], metrics: {} });
+      return queryResult({ version: mockOngoingAssignments ? { id: "draft-1", status: "draft", immutable: false } : null, slots: [], metrics: {} });
     }
     if (path === "/api/timetable/resources") {
       return queryResult({ items: [] });
@@ -124,6 +133,7 @@ describe("Deputy timetable class lifecycle and year scope", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockClassError = null;
+    mockOngoingAssignments = false;
     installQueryFixtures();
   });
 
@@ -168,5 +178,19 @@ describe("Deputy timetable class lifecycle and year scope", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Retry academic sources" }));
     expect(mockClassRefetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers ongoing subject teachers in the current term without including old term allocations", () => {
+    mockOngoingAssignments = true;
+    render(<DeputyTimetableManagementWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: "Draft review" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add lesson" }));
+    const classSelects = screen.getAllByRole("combobox", { name: "Class" });
+    fireEvent.change(classSelects[classSelects.length - 1], { target: { value: "class-current-a" } });
+    const subjectSelect = screen.getByRole("combobox", { name: "Subject" });
+    expect(within(subjectSelect).getByRole("option", { name: "English" })).toBeInTheDocument();
+    expect(within(subjectSelect).queryByRole("option", { name: "Mathematics" })).not.toBeInTheDocument();
+    fireEvent.change(subjectSelect, { target: { value: "subject-1" } });
+    expect(within(screen.getByRole("combobox", { name: "Teacher" })).getByRole("option", { name: "Alex Teacher" })).toBeInTheDocument();
   });
 });

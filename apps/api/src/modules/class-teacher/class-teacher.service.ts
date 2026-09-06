@@ -654,7 +654,7 @@ export class ClassTeacherService {
       JOIN teacher_subject_assignments tsa ON tsa.class_section_id = w.class_section_id::text
         AND tsa.subject_id = w.subject_id::text
         AND tsa.tenant_id = w.tenant_id
-        AND tsa.academic_term_id = es.academic_term_id::text
+        AND (tsa.academic_term_id IS NULL OR tsa.academic_term_id = es.academic_term_id::text)
         AND tsa.status = 'active'
         AND tsa.mark_entry_allowed = TRUE
         AND tsa.effective_from <= CURRENT_DATE
@@ -1171,7 +1171,7 @@ export class ClassTeacherService {
        AND subject.tenant_id = w.tenant_id
       JOIN teacher_subject_assignments tsa
         ON tsa.tenant_id = w.tenant_id
-       AND tsa.academic_term_id = es.academic_term_id::text
+       AND (tsa.academic_term_id IS NULL OR tsa.academic_term_id = es.academic_term_id::text)
        AND tsa.class_section_id = w.class_section_id::text
        AND tsa.subject_id = w.subject_id::text
        AND tsa.teacher_user_id = $3

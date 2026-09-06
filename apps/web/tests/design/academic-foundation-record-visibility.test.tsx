@@ -244,4 +244,85 @@ describe("academic foundation saved-record visibility", () => {
     expect(subjectSelector.getByRole("checkbox", { name: /English/ })).toBeChecked();
     expect(screen.getByRole("button", { name: "Assign 2 Subjects to Class" })).toBeEnabled();
   });
+
+  it("assigns an ongoing subject teacher with no term setup and refreshes the saved record", async () => {
+    const user = userEvent.setup();
+    const data = {
+      ...foundation,
+      terms: [],
+      teachers: [{ user_id: "teacher-1", label: "Alex Teacher", role_code: "teacher" }],
+      teacherAssignments: [{
+        id: "assignment-1",
+        academic_term_id: null,
+        class_section_id: "class-1",
+        subject_id: "subject-1",
+        teacher_user_id: "teacher-1",
+        teacher_name: "Alex Teacher",
+        effective_from: "2026-09-06",
+        effective_to: null,
+        status: "active",
+      }],
+    };
+    const refetch = jest.fn().mockResolvedValue({ data, error: null });
+    (useSchoolQuery as jest.Mock).mockReturnValue({ data, error: null, isLoading: false, refetch });
+    (requestDashboardApi as jest.Mock).mockResolvedValue({ id: "assignment-1" });
+
+    render(<AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName="Maranda High" tenantId="maranda-high" initialTab="allocations" />);
+    const form = within(screen.getByRole("form", { name: "Assign subject teacher" }));
+    expect(form.queryByRole("combobox", { name: /term/i })).not.toBeInTheDocument();
+    expect(form.getByRole("button", { name: "Assign Subject Teacher" })).toBeEnabled();
+    expect(screen.getByText(/Across terms/)).toBeInTheDocument();
+    expect(screen.getByText(/Until reassigned or ended/)).toBeInTheDocument();
+
+    await user.selectOptions(form.getByRole("combobox", { name: "Class/form/grade" }), "class-1");
+    await user.selectOptions(form.getByRole("combobox", { name: "Subject / learning area" }), "subject-1");
+    await user.selectOptions(form.getByRole("combobox", { name: "Teacher" }), "teacher-1");
+    await user.click(form.getByRole("button", { name: "Assign Subject Teacher" }));
+
+    await waitFor(() => expect(refetch).toHaveBeenCalledTimes(1));
+    const [path, request] = (requestDashboardApi as jest.Mock).mock.calls[0];
+    expect(path).toBe("/academics/teacher-assignments");
+    expect(request).toMatchObject({
+      method: "POST",
+      tenantId: "maranda-high",
+      body: {
+        class_section_id: "class-1", subject_id: "subject-1", teacher_user_id: "teacher-1",
+        assignment_type: "primary", is_primary: true,
+        mark_entry_allowed: true, lesson_record_allowed: true, report_comment_allowed: true,
+      },
+    });
+    expect(request.body).not.toHaveProperty("academic_term_id");
+    expect(request.body.effective_to).toBeUndefined();
+  });
+
+  it("preserves a temporary allocation and selections when subject teacher assignment fails", async () => {
+    const user = userEvent.setup();
+    const data = {
+      ...foundation,
+      terms: [],
+      teachers: [{ user_id: "teacher-1", label: "Alex Teacher", role_code: "teacher" }],
+    };
+    (useSchoolQuery as jest.Mock).mockReturnValue({
+      data, error: null, isLoading: false, refetch: jest.fn(),
+    });
+    (requestDashboardApi as jest.Mock).mockRejectedValue(new Error("Choose a stream belonging to the selected class."));
+    render(<AcademicFoundationWorkspace actorRole="Principal" schoolName="Maranda High" tenantId="maranda-high" initialTab="allocations" />);
+    const formElement = screen.getByRole("form", { name: "Assign subject teacher" });
+    const form = within(formElement);
+    await user.selectOptions(form.getByRole("combobox", { name: "Class/form/grade" }), "class-1");
+    await user.selectOptions(form.getByRole("combobox", { name: "Subject / learning area" }), "subject-1");
+    await user.selectOptions(form.getByRole("combobox", { name: "Teacher" }), "teacher-1");
+    await user.selectOptions(form.getByRole("combobox", { name: "Type" }), "temporary");
+    const endDate = form.getByLabelText("Effective to");
+    await user.type(endDate, "2026-12-01");
+    await user.click(form.getByRole("button", { name: "Assign Subject Teacher" }));
+
+    expect(await screen.findByText("Choose a stream belonging to the selected class.")).toBeInTheDocument();
+    expect(form.getByRole("combobox", { name: "Teacher" })).toHaveValue("teacher-1");
+    expect(endDate).toHaveValue("2026-12-01");
+    expect(form.getByRole("button", { name: "Assign Subject Teacher" })).toBeEnabled();
+    expect((requestDashboardApi as jest.Mock).mock.calls[0][1].body).toMatchObject({
+      assignment_type: "temporary", effective_to: "2026-12-01",
+    });
+  });
 });

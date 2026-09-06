@@ -63,6 +63,8 @@ test('ClassTeacherService loads open teacher markbooks across text and uuid acad
   assert.match(queries[0].sql, /tsa\.class_section_id\s*=\s*w\.class_section_id::text/);
   assert.match(queries[0].sql, /tsa\.subject_id\s*=\s*w\.subject_id::text/);
   assert.match(queries[0].sql, /tsa\.academic_term_id\s*=\s*es\.academic_term_id::text/);
+  assert.match(queries[0].sql, /\(tsa\.academic_term_id IS NULL OR tsa\.academic_term_id = es\.academic_term_id::text\)/);
+  assert.match(queries[0].sql, /es\.academic_term_id,/);
   assert.match(queries[0].sql, /w\.tenant_id\s*=\s*\$1/);
   assert.match(queries[0].sql, /tsa\.teacher_user_id\s*=\s*\$2/);
   assert.match(queries[0].sql, /tsa\.mark_entry_allowed\s*=\s*TRUE/);

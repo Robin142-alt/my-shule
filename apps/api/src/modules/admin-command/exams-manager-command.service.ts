@@ -1085,10 +1085,12 @@ export class ExamsManagerCommandService {
             ON staff.tenant_id = assignment.tenant_id
            AND staff.user_id::text = assignment.teacher_user_id::text
           WHERE assignment.tenant_id = mark_window.tenant_id
-            AND assignment.academic_term_id = series.academic_term_id::text
+            AND (assignment.academic_term_id IS NULL OR assignment.academic_term_id = series.academic_term_id::text)
             AND assignment.class_section_id = mark_window.class_section_id::text
             AND assignment.subject_id = mark_window.subject_id::text
             AND assignment.status = 'active'
+            AND assignment.effective_from <= CURRENT_DATE
+            AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
         ) teacher_assignments ON TRUE
         LEFT JOIN exam_marks mark
           ON mark.tenant_id = mark_window.tenant_id

@@ -2,6 +2,7 @@ import { Injectable, Logger, BadRequestException, NotFoundException } from '@nes
 import { PrismaService } from '../../database/prisma.service';
 import { EventPublisherService } from '../events/event-publisher.service';
 import { StudentStatus } from '@prisma/client';
+import { continueSubjectTeachersAfterPromotion } from './subject-teacher-continuity';
 
 @Injectable()
 export class StudentLifecycleService {
@@ -52,7 +53,7 @@ export class StudentLifecycleService {
     });
   }
 
-  async placeInClass(schoolId: string, studentId: string, classId: string, academicYearId: string, academicLevelId: string, userId: string, streamId?: string) {
+  async placeInClass(schoolId: string, studentId: string, classId: string, academicYearId: string, academicLevelId: string, userId: string, streamId?: string, promotion = false) {
     return this.prisma.executeWithTenant(schoolId, userId, async (tx: any) => {
       const [student, classSection, academicYear, academicLevel, stream] = await Promise.all([
         tx.student.findFirst({ where: { id: studentId, schoolId } }),
@@ -80,6 +81,12 @@ export class StudentLifecycleService {
         throw new BadRequestException('Selected academic level does not match the class');
       }
 
+      const previousPlacement = promotion
+        ? await tx.studentClassAssignment.findFirst({
+          where: { schoolId, studentId, status: 'active' },
+          orderBy: { createdAt: 'desc' },
+        })
+        : null;
       await tx.studentClassAssignment.updateMany({
         where: { schoolId, studentId, status: 'active' },
         data: { status: 'archived' },
@@ -107,11 +114,19 @@ export class StudentLifecycleService {
         },
       });
 
+      if (promotion && previousPlacement) {
+        await continueSubjectTeachersAfterPromotion(tx, {
+          tenantId: schoolId, studentId, sourceClassId: previousPlacement.classId,
+          sourceStreamId: previousPlacement.streamId, targetClassId: classId,
+          targetStreamId: streamId, actorUserId: userId,
+        }, this.eventPublisher);
+      }
+
       await tx.studentAuditLog.create({
         data: {
           schoolId,
           studentId,
-          action: 'PLACE_IN_CLASS',
+          action: promotion ? 'PROMOTE_STUDENT' : 'PLACE_IN_CLASS',
           previousStatus: student.studentStatus,
           newStatus: StudentStatus.ACTIVE,
           performedByUserId: userId,
@@ -125,14 +140,14 @@ export class StudentLifecycleService {
         aggregate_id: studentId,
         tenant_id: schoolId,
         payload: { tenant_id: schoolId, student_id: studentId, class_id: classId }
-      });
+      }, tx);
 
       return updated;
     });
   }
 
   async promoteStudent(schoolId: string, studentId: string, newClassId: string, academicYearId: string, academicLevelId: string, userId: string, streamId?: string) {
-    return this.placeInClass(schoolId, studentId, newClassId, academicYearId, academicLevelId, userId, streamId);
+    return this.placeInClass(schoolId, studentId, newClassId, academicYearId, academicLevelId, userId, streamId, true);
   }
 
   async suspendStudent(schoolId: string, studentId: string, userId: string, reason: string) {

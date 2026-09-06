@@ -314,16 +314,17 @@ export class TimetableWorkflowRepository {
          EXISTS (
            SELECT 1
            FROM teacher_subject_assignments assignment
-           JOIN academic_terms term
+           LEFT JOIN academic_terms term
              ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
-           JOIN academic_years year
+           LEFT JOIN academic_years year
              ON year.tenant_id = term.tenant_id AND year.id = term.academic_year_id
-           WHERE assignment.tenant_id = $1 AND year.name = $2 AND term.name = $3
+           WHERE assignment.tenant_id = $1
+             AND (assignment.academic_term_id IS NULL OR (year.name = $2 AND term.name = $3))
              AND assignment.class_section_id::text = $4
              AND assignment.subject_id::text = $6
              AND assignment.teacher_user_id::text = $7
              AND assignment.status = 'active'
-             AND ($5::text IS NULL OR assignment.stream_id IS NULL OR assignment.stream_id::text = $5)
+             AND (assignment.stream_id IS NULL OR assignment.stream_id::text = $5::text)
              AND (assignment.effective_from IS NULL OR assignment.effective_from::date <= CURRENT_DATE)
              AND (assignment.effective_to IS NULL OR assignment.effective_to::date >= CURRENT_DATE)
          ) AS allocation_ok,
@@ -1083,9 +1084,10 @@ export class TimetableWorkflowRepository {
          (SELECT COUNT(*)::int FROM subjects WHERE tenant_id = $1 AND COALESCE(status, 'active') = 'active') AS subjects,
          (SELECT COUNT(DISTINCT assignment.teacher_user_id)::int
           FROM teacher_subject_assignments assignment
-          JOIN academic_terms term ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
-          JOIN academic_years year ON year.tenant_id = term.tenant_id AND year.id = term.academic_year_id
-          WHERE assignment.tenant_id = $1 AND year.name = $2 AND term.name = $3
+          LEFT JOIN academic_terms term ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
+          LEFT JOIN academic_years year ON year.tenant_id = term.tenant_id AND year.id = term.academic_year_id
+          WHERE assignment.tenant_id = $1
+            AND (assignment.academic_term_id IS NULL OR (year.name = $2 AND term.name = $3))
             AND assignment.status = 'active'
             AND assignment.effective_from <= CURRENT_DATE
             AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)) AS active_teachers,
@@ -1099,15 +1101,17 @@ export class TimetableWorkflowRepository {
             AND (
               requirement.teacher_id IS NULL OR NOT EXISTS (
                 SELECT 1 FROM teacher_subject_assignments assignment
-                JOIN academic_terms term ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
-                JOIN academic_years year ON year.tenant_id = term.tenant_id AND year.id = term.academic_year_id
+                LEFT JOIN academic_terms term ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
+                LEFT JOIN academic_years year ON year.tenant_id = term.tenant_id AND year.id = term.academic_year_id
                 WHERE assignment.tenant_id = requirement.tenant_id
-                  AND year.name = requirement.academic_year AND term.name = requirement.term_name
+                  AND (assignment.academic_term_id IS NULL OR (year.name = requirement.academic_year AND term.name = requirement.term_name))
                   AND assignment.class_section_id::text = requirement.class_section_id
                   AND assignment.subject_id::text = requirement.subject_id
                   AND assignment.teacher_user_id::text = requirement.teacher_id
-                  AND (requirement.stream_id IS NULL OR assignment.stream_id::text IS NOT DISTINCT FROM requirement.stream_id)
+                  AND (assignment.stream_id IS NULL OR assignment.stream_id::text = requirement.stream_id)
                   AND assignment.status = 'active'
+                  AND (assignment.effective_from IS NULL OR assignment.effective_from <= CURRENT_DATE)
+                  AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
               )
             )) AS invalid_allocations`,
       [tenantId, academicYear, termName],
@@ -1127,10 +1131,13 @@ export class TimetableWorkflowRepository {
                 assignment.department_id::text, assignment.status,
                 assignment.effective_from::text, assignment.effective_to::text
          FROM teacher_subject_assignments assignment
-         JOIN academic_terms term ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
-         JOIN academic_years year ON year.tenant_id = term.tenant_id AND year.id = term.academic_year_id
-         WHERE assignment.tenant_id = $1 AND year.name = $2 AND term.name = $3
-           AND assignment.status = 'active'`,
+         LEFT JOIN academic_terms term ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
+         LEFT JOIN academic_years year ON year.tenant_id = term.tenant_id AND year.id = term.academic_year_id
+         WHERE assignment.tenant_id = $1
+           AND (assignment.academic_term_id IS NULL OR (year.name = $2 AND term.name = $3))
+           AND assignment.status = 'active'
+           AND (assignment.effective_from IS NULL OR assignment.effective_from <= CURRENT_DATE)
+           AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)`,
         [tenantId, academicYear, termName],
       ),
       versionId
@@ -2458,11 +2465,15 @@ export class TimetableWorkflowRepository {
              EXISTS (SELECT 1 FROM subjects WHERE tenant_id = $1 AND id::text = $4 AND COALESCE(status, 'active') = 'active') AS subject_ok,
              EXISTS (
                SELECT 1 FROM teacher_subject_assignments assignment
-               JOIN academic_terms term ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
-               JOIN academic_years year ON year.tenant_id = term.tenant_id AND year.id = term.academic_year_id
-               WHERE assignment.tenant_id = $1 AND year.name = $3 AND term.name = $5
+               LEFT JOIN academic_terms term ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
+               LEFT JOIN academic_years year ON year.tenant_id = term.tenant_id AND year.id = term.academic_year_id
+               WHERE assignment.tenant_id = $1
+                 AND (assignment.academic_term_id IS NULL OR (year.name = $3 AND term.name = $5))
                  AND assignment.class_section_id::text = $2 AND assignment.subject_id::text = $4
                  AND assignment.teacher_user_id::text = $6 AND assignment.status = 'active'
+                 AND (assignment.stream_id IS NULL OR assignment.stream_id::text = $8::text)
+                 AND (assignment.effective_from IS NULL OR assignment.effective_from <= CURRENT_DATE)
+                 AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
               ) AS allocation_ok,
               ($7::text IS NULL OR EXISTS (SELECT 1 FROM timetable_resources WHERE tenant_id = $1 AND id::text = $7 AND status = 'active')) AS resource_ok,
               ($8::text IS NULL OR EXISTS (
@@ -2715,17 +2726,16 @@ export class TimetableWorkflowRepository {
          AND EXISTS (
            SELECT 1
            FROM teacher_subject_assignments teaching_assignment
-           JOIN academic_terms teaching_term
+           LEFT JOIN academic_terms teaching_term
              ON teaching_term.tenant_id = teaching_assignment.tenant_id
             AND teaching_term.id = teaching_assignment.academic_term_id
-           JOIN academic_years teaching_year
+           LEFT JOIN academic_years teaching_year
              ON teaching_year.tenant_id = teaching_term.tenant_id
             AND teaching_year.id = teaching_term.academic_year_id
            WHERE teaching_assignment.tenant_id = staff.tenant_id
              AND teaching_assignment.teacher_user_id::text = staff.user_id::text
              AND teaching_assignment.status = 'active'
-             AND teaching_year.name = $11
-             AND teaching_term.name = $12
+             AND (teaching_assignment.academic_term_id IS NULL OR (teaching_year.name = $11 AND teaching_term.name = $12))
              AND (teaching_assignment.effective_from IS NULL OR teaching_assignment.effective_from::date <= $2::date)
              AND (teaching_assignment.effective_to IS NULL OR teaching_assignment.effective_to::date >= $2::date)
          )
@@ -2820,17 +2830,16 @@ export class TimetableWorkflowRepository {
            AND EXISTS (
              SELECT 1
              FROM teacher_subject_assignments teaching_assignment
-             JOIN academic_terms teaching_term
+             LEFT JOIN academic_terms teaching_term
                ON teaching_term.tenant_id = teaching_assignment.tenant_id
               AND teaching_term.id = teaching_assignment.academic_term_id
-             JOIN academic_years teaching_year
+             LEFT JOIN academic_years teaching_year
                ON teaching_year.tenant_id = teaching_term.tenant_id
               AND teaching_year.id = teaching_term.academic_year_id
              WHERE teaching_assignment.tenant_id = staff.tenant_id
                AND teaching_assignment.teacher_user_id::text = staff.user_id::text
                AND teaching_assignment.status = 'active'
-               AND teaching_year.name = $3
-               AND teaching_term.name = $4
+               AND (teaching_assignment.academic_term_id IS NULL OR (teaching_year.name = $3 AND teaching_term.name = $4))
                AND (teaching_assignment.effective_from IS NULL OR teaching_assignment.effective_from::date <= $5::date)
                AND (teaching_assignment.effective_to IS NULL OR teaching_assignment.effective_to::date >= $5::date)
            )

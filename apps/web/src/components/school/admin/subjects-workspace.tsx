@@ -5,6 +5,8 @@ import { BookOpen, Users, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useSchoolQuery, useSchoolMutation } from "@/lib/data/school-hooks";
+import { buildSchoolStaffOptions, type SchoolStaffOptionInput } from "@/lib/school/staff-option-label";
+import { toast } from "sonner";
 
 export function SubjectsWorkspace() {
   const [activeTab, setActiveTab] = useState<"subjects" | "teachers">("subjects");
@@ -12,9 +14,9 @@ export function SubjectsWorkspace() {
   const { data: subjectsList, refetch: refetchSubjects } = useSchoolQuery<any[]>("/api/academics/subjects", { enabled: activeTab === "subjects" || activeTab === "teachers" });
   const { data: assignmentsList, refetch: refetchAssignments } = useSchoolQuery<any[]>("/api/academics/teacher-assignments", { enabled: activeTab === "teachers" });
   
-  const { data: staffList } = useSchoolQuery<any[]>("/api/hr/staff", { enabled: activeTab === "teachers" });
+  const { data: staffList } = useSchoolQuery<SchoolStaffOptionInput[]>("/api/academics/teachers", { enabled: activeTab === "teachers" });
   const { data: sectionsList } = useSchoolQuery<any[]>("/api/academics/class-sections", { enabled: activeTab === "teachers" });
-  const { data: termsList } = useSchoolQuery<any[]>("/api/academics/academic-terms", { enabled: activeTab === "teachers" });
+  const teacherOptions = buildSchoolStaffOptions(staffList);
 
   const createSubjectMutation = useSchoolMutation("/api/academics/subjects");
   const assignTeacherMutation = useSchoolMutation("/api/academics/teacher-assignments");
@@ -29,22 +31,27 @@ export function SubjectsWorkspace() {
     refetchSubjects();
   };
 
-  const [assignTermId, setAssignTermId] = useState("");
   const [assignSectionId, setAssignSectionId] = useState("");
   const [assignSubjectId, setAssignSubjectId] = useState("");
   const [assignTeacherId, setAssignTeacherId] = useState("");
+  const [assignmentError, setAssignmentError] = useState("");
 
   const handleAssignTeacher = async () => {
-    if (!assignTermId || !assignSectionId || !assignSubjectId || !assignTeacherId) return;
-    await assignTeacherMutation.mutateAsync({
-      academic_term_id: assignTermId,
-      class_section_id: assignSectionId,
-      subject_id: assignSubjectId,
-      teacher_user_id: assignTeacherId // Actually user_id but maybe staff_profile_id. Assuming the backend accepts the staff_profile_id or user_id. We'll use staff_profile_id from staffList.
-    });
-    setAssignSubjectId("");
-    setAssignTeacherId("");
-    refetchAssignments();
+    if (!assignSectionId || !assignSubjectId || !assignTeacherId || assignTeacherMutation.isPending) return;
+    setAssignmentError("");
+    try {
+      await assignTeacherMutation.mutateAsync({
+        class_section_id: assignSectionId,
+        subject_id: assignSubjectId,
+        teacher_user_id: assignTeacherId,
+      });
+      setAssignSubjectId("");
+      setAssignTeacherId("");
+      toast.success("Subject teacher assigned until reassigned or ended.");
+      await refetchAssignments();
+    } catch (error) {
+      setAssignmentError(error instanceof Error ? error.message : "Failed to assign subject teacher. Try again.");
+    }
   };
 
   return (
@@ -145,17 +152,9 @@ export function SubjectsWorkspace() {
                 <Plus className="w-4 h-4" />
                 Assign Teacher
               </h3>
+              <p className="mb-4 text-sm text-slate-500">The teacher continues across terms and follows the class as students are promoted, until reassigned or ended.</p>
               <div className="space-y-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-700">Academic Term</label>
-                  <select 
-                    value={assignTermId} onChange={e => setAssignTermId(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
-                  >
-                    <option value="">Select Term...</option>
-                    {termsList?.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
-                </div>
+                {assignmentError ? <p role="alert" className="text-sm text-red-600">{assignmentError}</p> : null}
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-slate-700">Class Section</label>
                   <select 
@@ -183,11 +182,11 @@ export function SubjectsWorkspace() {
                     className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
                   >
                     <option value="">Select Staff...</option>
-                    {staffList?.map(s => <option key={s.id} value={s.id}>{s.display_name}</option>)}
+                    {teacherOptions.map(teacher => <option key={teacher.value} value={teacher.value}>{teacher.label}</option>)}
                   </select>
                 </div>
-                <Button onClick={handleAssignTeacher} disabled={assignTeacherMutation.isPending || !assignTermId || !assignSectionId || !assignSubjectId || !assignTeacherId} className="w-full">
-                  Assign Teacher
+                <Button onClick={handleAssignTeacher} disabled={assignTeacherMutation.isPending || !assignSectionId || !assignSubjectId || !assignTeacherId} className="w-full">
+                  {assignTeacherMutation.isPending ? "Assigning Teacher..." : "Assign Teacher"}
                 </Button>
               </div>
             </Card>

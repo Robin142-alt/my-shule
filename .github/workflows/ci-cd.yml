@@ -132,6 +132,12 @@ jobs:
           npm run test:finance-integrity
           npm run test:auth-security
 
+      - name: Subject teacher assignment and promotion database contracts
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: PG_BIN_DIR="$(pg_config --bindir)" npm run test:subject-teacher-assignments
+
   # ──────────────────────────────────────────────────────────────
   # Docker Build + Push
   # ──────────────────────────────────────────────────────────────

@@ -56,7 +56,7 @@ export type Subject = { id: string; code?: string; name: string };
 export type Teacher = SchoolStaffOptionInput;
 export type TeacherAssignment = {
   id: string;
-  academic_term_id: string;
+  academic_term_id: string | null;
   class_section_id: string;
   subject_id: string;
   teacher_user_id: string;

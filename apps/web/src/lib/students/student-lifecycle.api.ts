@@ -38,7 +38,11 @@ export async function promoteStudent(studentId: string, payload: { newClassId: s
     body: JSON.stringify(payload),
     credentials: 'same-origin',
   });
-  if (!response.ok) throw new Error('Failed to promote student');
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => null);
+    const message = body && typeof body === 'object' && 'message' in body ? body.message : null;
+    throw new Error(typeof message === 'string' ? message : 'Failed to promote student');
+  }
   return response.json();
 }
 
