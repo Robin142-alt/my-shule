@@ -1,6 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../../database/prisma.service';
+import { PRINCIPAL_SIGNATURE_ROLES } from '../services/report-card-signature-policy';
 
 export type ExamAnalyticsScopeLevel = 'school' | 'department' | 'assignment';
 
@@ -2193,7 +2194,7 @@ export class ExamsRepository {
               WHERE membership.tenant_id = signature.tenant_id
                 AND membership.user_id = signature.signer_user_id
                 AND membership.status = 'active'
-                AND role.code IN ('principal', 'school_principal')
+                AND role.code = ANY($2::text[])
             )
             OR EXISTS (
               SELECT 1
@@ -2205,13 +2206,13 @@ export class ExamsRepository {
                 AND user_role.user_id = signature.signer_user_id
                 AND upper(user_role.status::text) = 'ACTIVE'
                 AND user_role.deleted_at IS NULL
-                AND role.code IN ('principal', 'school_principal')
+                AND role.code = ANY($2::text[])
             )
           )
         ORDER BY signature.updated_at DESC
         LIMIT 1
       `,
-      [input.tenant_id],
+      [input.tenant_id, [...PRINCIPAL_SIGNATURE_ROLES]],
     );
     const commentsResult = await this.executeSql(
       `

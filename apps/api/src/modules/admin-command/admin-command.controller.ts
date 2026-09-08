@@ -5,6 +5,7 @@ import { UploadFileMetadata } from '../../common/uploads/upload-policy';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { Roles } from '../../auth/decorators/roles.decorator';
+import { PRINCIPAL_SIGNATURE_ROLES } from '../exams/services/report-card-signature-policy';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import {
   CreateAdminIncidentDto,
@@ -807,7 +808,7 @@ export class AdminCommandController {
 
   @Get('principal/report-card-signature')
   @RequiresModule('admin_command_centers', 'principal_dashboard', 'exams')
-  @Roles('principal', 'school_principal')
+  @Roles(...PRINCIPAL_SIGNATURE_ROLES)
   @Permissions('principal:read', 'exams:read')
   getPrincipalReportCardSignature() {
     return this.adminCommandService.getPrincipalReportCardSignature();
@@ -815,7 +816,7 @@ export class AdminCommandController {
 
   @Post('principal/report-card-signature')
   @RequiresModule('admin_command_centers', 'principal_dashboard', 'exams')
-  @Roles('principal', 'school_principal')
+  @Roles(...PRINCIPAL_SIGNATURE_ROLES)
   @Permissions('principal:write')
   @UseInterceptors(StreamingUploadInterceptor('signature', 2 * 1024 * 1024))
   uploadPrincipalReportCardSignature(
@@ -826,7 +827,7 @@ export class AdminCommandController {
 
   @Get('principal/report-card-signature/content')
   @RequiresModule('admin_command_centers', 'principal_dashboard', 'exams')
-  @Roles('principal', 'school_principal')
+  @Roles(...PRINCIPAL_SIGNATURE_ROLES)
   @Permissions('principal:read', 'exams:read')
   @SkipResponseEnvelope()
   async getPrincipalReportCardSignatureContent() {

@@ -51,6 +51,7 @@ import {
 import { createReportCardPdfArtifact } from './services/report-card-pdf-artifact';
 import { hydrateReportCardLogoForRendering } from './services/report-card-logo-hydration';
 import { assertDecodableReportCardSignatureImage } from './services/report-card-signature-image';
+import { PRINCIPAL_SIGNATURE_ROLES } from './services/report-card-signature-policy';
 import type { ReportArtifact } from '../../common/reports/report-artifact';
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import { EventPublisherService } from '../events/event-publisher.service';
@@ -305,6 +306,23 @@ export class ExamsService {
       },
     });
 
+    await this.schoolEvents?.recordSchoolOperation({
+      schoolId: input.tenant_id,
+      event: {
+        id: `report-card-signature:${storagePath}`,
+        type: 'report_card.signature_uploaded',
+        module: 'exams',
+        title: 'Report-card signature uploaded',
+        body: 'The report-card signer updated their signature.',
+        entityId: signature?.id,
+        payload: {
+          signer_role: input.signer_role,
+          signer_user_id: input.signer_user_id,
+          checksum_sha256: stored.sha256,
+        },
+      },
+    });
+
     return this.reportCardSignatureStatus(signature, input.signer_role);
   }
 
@@ -383,7 +401,7 @@ export class ExamsService {
 
     const role = this.currentRole();
     const roleAllowed = input.signer_role === 'principal'
-      ? PRINCIPAL_RELEASE_ROLES.has(role)
+      ? (PRINCIPAL_SIGNATURE_ROLES as readonly string[]).includes(role)
       : role === 'class_teacher' || role === 'teacher';
     if (!roleAllowed) {
       throw new ForbiddenException(

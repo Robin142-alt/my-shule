@@ -23,6 +23,10 @@ import {
   ReportCardTemplateService,
 } from './services/report-card-template.service';
 import { StudentController } from '../students/student-portal.controller';
+import { AdminCommandController } from '../admin-command/admin-command.controller';
+import { RbacGuard } from '../../guards/rbac.guard';
+import { Reflector } from '@nestjs/core';
+import { PRINCIPAL_SIGNATURE_ROLES } from './services/report-card-signature-policy';
 
 test('ExamsSchemaService creates exam and report-card tables with tenant RLS', async () => {
   let schemaSql = '';
@@ -5438,62 +5442,155 @@ test('personalized report-card comments use only real learner results and remain
   assert.deepEqual(noScores, { classTeacher: null, principal: null });
 });
 
-test('report-card signature upload is tenant scoped, role owned, persisted, and audited', async () => {
-  const calls: Array<{ name: string; input: Record<string, unknown> }> = [];
-  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
-  const signerUserId = '11111111-1111-4111-8111-111111111111';
-  const service = new ExamsService(
-    { getStore: () => ({ tenant_id: 'tenant-a', user_id: signerUserId, role: 'principal' }) } as never,
-    {
-      upsertReportCardSignature: async (input: Record<string, unknown>) => {
-        calls.push({ name: 'upsert', input });
-        return { id: 'signature-1', ...input, updated_at: '2026-09-01T08:00:00.000Z' };
-      },
-      appendReportCardAuditLog: async (input: Record<string, unknown>) => {
-        calls.push({ name: 'audit', input });
-      },
-    } as never,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    {
-      save: async (input: Record<string, unknown>) => {
-        calls.push({ name: 'store', input });
-        return {
-          stored_path: input.storagePath,
-          original_file_name: input.originalFileName,
-          mime_type: input.mimeType,
-          size_bytes: input.sizeBytes,
-          sha256: 'a'.repeat(64),
-          storage_backend: 'database',
-          retention_policy: 'school-record',
-          retention_expires_at: null,
-        };
-      },
-    } as never,
-  );
+for (const role of PRINCIPAL_SIGNATURE_ROLES) {
+  test(`report-card signature upload, preview and access remain school-owned for ${role}`, async () => {
+    const calls: Array<{ name: string; input: Record<string, unknown> }> = [];
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+    const signerUserId = '11111111-1111-4111-8111-111111111111';
+    const context = {
+      tenant_id: 'tenant-a', user_id: signerUserId, role,
+      is_authenticated: true, permissions: ['principal:read', 'principal:write', 'exams:read'],
+    };
+    const requestContext = { getStore: () => context, requireStore: () => context };
+    const guard = new RbacGuard(new Reflector(), requestContext as never);
+    for (const handler of [
+      AdminCommandController.prototype.uploadPrincipalReportCardSignature,
+      AdminCommandController.prototype.getPrincipalReportCardSignature,
+      AdminCommandController.prototype.getPrincipalReportCardSignatureContent,
+    ]) {
+      assert.equal(guard.canActivate({
+        getHandler: () => handler, getClass: () => AdminCommandController,
+      } as never), true);
+    }
+    const service = new ExamsService(
+      requestContext as never,
+      {
+        upsertReportCardSignature: async (input: Record<string, unknown>) => {
+          calls.push({ name: 'upsert', input });
+          return { id: 'signature-1', ...input, updated_at: '2026-09-01T08:00:00.000Z' };
+        },
+        appendReportCardAuditLog: async (input: Record<string, unknown>) => {
+          calls.push({ name: 'audit', input });
+        },
+        getReportCardSignature: async (input: Record<string, unknown>) => {
+          assert.equal(input.tenant_id, 'tenant-a');
+          assert.equal(input.signer_user_id, signerUserId);
+          return { storage_path: calls[0].input.storagePath };
+        },
+      } as never,
+      undefined,
+      undefined,
+      { recordSchoolOperation: async (input: Record<string, unknown>) => {
+        calls.push({ name: 'event', input });
+      } } as never,
+      undefined,
+      undefined,
+      undefined,
+      {
+        save: async (input: Record<string, unknown>) => {
+          calls.push({ name: 'store', input });
+          return {
+            stored_path: input.storagePath,
+            original_file_name: input.originalFileName,
+            mime_type: input.mimeType,
+            size_bytes: input.sizeBytes,
+            sha256: 'a'.repeat(64),
+            storage_backend: 'database',
+            retention_policy: 'school-record',
+            retention_expires_at: null,
+          };
+        },
+        readForTenant: async (input: Record<string, unknown>) => {
+          assert.equal(input.tenantId, 'tenant-a');
+          assert.equal(input.storagePath, calls[0].input.storagePath);
+          return { content: png, mime_type: 'image/png', size_bytes: png.length };
+        },
+      } as never,
+    );
 
-  const result = await service.uploadOwnedReportCardSignature({
-    tenant_id: 'tenant-a',
-    signer_user_id: signerUserId,
-    signer_role: 'principal',
-  }, {
-    originalname: 'signature.png',
-    mimetype: 'image/png',
-    size: png.length,
-    buffer: png,
+    const result = await service.uploadOwnedReportCardSignature({
+      tenant_id: 'tenant-a',
+      signer_user_id: signerUserId,
+      signer_role: 'principal',
+    }, {
+      originalname: 'signature.png',
+      mimetype: 'image/png',
+      size: png.length,
+      buffer: png,
+    });
+
+    assert.equal(result.available, true);
+    assert.equal(result.content_url, '/api/admin-command/principal/report-card-signature/content');
+    assert.deepEqual(calls.map((call) => call.name), ['store', 'upsert', 'audit', 'event']);
+    assert.match(String(calls[0]?.input.storagePath), /^tenant\/tenant-a\/exams\/report-card-signatures\/principal\//);
+    assert.equal(calls[1]?.input.tenant_id, 'tenant-a');
+    assert.equal(calls[1]?.input.signer_user_id, signerUserId);
+    assert.equal(calls[2]?.input.action, 'report_card.signature_uploaded');
+    assert.equal(calls[3]?.input.schoolId, 'tenant-a');
+    const owner = { tenant_id: 'tenant-a', signer_user_id: signerUserId, signer_role: 'principal' as const };
+    assert.equal((await service.getOwnedReportCardSignature(owner)).available, true);
+    assert.deepEqual((await service.readOwnedReportCardSignature(owner)).content, png);
+});
+}
+
+test('principal signature routes reject other roles even with wildcard permissions', async () => {
+  for (const role of ['platform_owner', 'super_admin', 'school_admin', 'admin', 'teacher', 'parent']) {
+    const context = { tenant_id: 'tenant-a', user_id: 'user-a', role, is_authenticated: true, permissions: ['*:*'] };
+    const guard = new RbacGuard(new Reflector(), { requireStore: () => context } as never);
+    const service = new ExamsService({ getStore: () => context } as never, {} as never);
+    for (const handler of [
+      AdminCommandController.prototype.uploadPrincipalReportCardSignature,
+      AdminCommandController.prototype.getPrincipalReportCardSignature,
+      AdminCommandController.prototype.getPrincipalReportCardSignatureContent,
+    ]) {
+      assert.throws(() => guard.canActivate({ getHandler: () => handler, getClass: () => AdminCommandController } as never), /Role-based access denied/);
+    }
+    await assert.rejects(() => service.getOwnedReportCardSignature({
+      tenant_id: 'tenant-a', signer_user_id: 'user-a', signer_role: 'principal',
+    }), /active Principal role/);
+  }
+});
+
+test('legacy principal signature access still requires authentication and action permissions', () => {
+  for (const context of [
+    { role: 'owner', is_authenticated: false, permissions: ['*:*'] },
+    { role: 'owner', is_authenticated: true, permissions: ['principal:read', 'exams:read'] },
+  ]) {
+    const guard = new RbacGuard(new Reflector(), { requireStore: () => context } as never);
+    assert.throws(() => guard.canActivate({
+      getHandler: () => AdminCommandController.prototype.uploadPrincipalReportCardSignature,
+      getClass: () => AdminCommandController,
+    } as never), /Authenticated access|Permission-based access/);
+  }
+});
+
+test('report cards resolve legacy principal signatures through active school membership', async () => {
+  const storagePath = 'tenant/tenant-a/exams/report-card-signatures/principal/user-a/signature.png';
+  let signatureQuerySeen = false;
+  const repository = new ExamsRepository({
+    executeWithTenant: async (tenantId: string, _context: unknown, callback: any) => {
+      assert.equal(tenantId, 'tenant-a');
+      return callback({
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          if (!sql.includes('FROM exam_report_card_signatures signature')) return [];
+          signatureQuerySeen = true;
+          assert.equal(params[0], 'tenant-a');
+          assert.deepEqual(params[1], [...PRINCIPAL_SIGNATURE_ROLES]);
+          assert.equal(sql.match(/role.code = ANY\(\$2::text\[\]\)/g)?.length, 2);
+          assert.match(sql, /membership.tenant_id = signature.tenant_id/);
+          assert.match(sql, /membership.status = 'active'/);
+          assert.match(sql, /user_role.tenant_id = signature.tenant_id/);
+          assert.match(sql, /user_role.deleted_at IS NULL/);
+          return [{ principal_signature_ref: storagePath }];
+        },
+      });
+    },
+  } as never);
+  const data = await repository.loadReportCardData({
+    tenant_id: 'tenant-a', exam_series_id: 'series-a', student_id: 'student-a',
   });
-
-  assert.equal(result.available, true);
-  assert.equal(result.content_url, '/api/admin-command/principal/report-card-signature/content');
-  assert.deepEqual(calls.map((call) => call.name), ['store', 'upsert', 'audit']);
-  assert.match(String(calls[0]?.input.storagePath), /^tenant\/tenant-a\/exams\/report-card-signatures\/principal\//);
-  assert.equal(calls[1]?.input.tenant_id, 'tenant-a');
-  assert.equal(calls[1]?.input.signer_user_id, signerUserId);
-  assert.equal(calls[2]?.input.action, 'report_card.signature_uploaded');
+  assert.equal(signatureQuerySeen, true);
+  assert.equal((data.comments as Record<string, unknown>).principal_signature_ref, storagePath);
 });
 
 test('report-card signature ownership cannot cross the authenticated user or school', async () => {
