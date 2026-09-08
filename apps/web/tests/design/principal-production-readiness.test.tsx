@@ -8,6 +8,9 @@ import { SchoolPages } from "@/components/school/school-pages";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 import { renderWithProviders } from "./test-utils";
+import { routerPushMock } from "./router-mock";
+import { isSchoolSection } from "@/lib/routing/experience-routes";
+import { isProductionReadyModule } from "@/lib/features/module-readiness";
 
 jest.mock("@/lib/dashboard/api-client", () => ({
   ...jest.requireActual("@/lib/dashboard/api-client"),
@@ -23,6 +26,11 @@ const requestDashboardApiMock = jest.mocked(requestDashboardApi);
 const activeStudentId = "00000000-0000-4000-8000-000000000411";
 
 const canonicalResponses: Record<string, unknown> = {
+  "/admin-command/principal/students": {
+    status: "active", totalStudents: 412, boys: 201, girls: 211,
+    populationTrend: [],
+    recentAdmissions: [{ id: activeStudentId, name: "Amina Wanjiku", class: "Grade 9", gender: "Female", admission_date: "2026-09-09" }],
+  },
   "/admin-command/principal/dashboard": {
     tenant_id: "fixture-tenant",
     generated_at: "2026-08-22T07:00:00.000Z",
@@ -374,6 +382,67 @@ describe("principal production readiness", () => {
       expect(toggle).toHaveAttribute("aria-expanded", "false");
       expect(within(sidebar).queryByRole("group", { name: label })).not.toBeInTheDocument();
     }
+  });
+
+  it.each([
+    "dashboard", "overview", "principal-overview", "students", "timetable", "approvals",
+    "academic-intelligence", "exams", "exams-reports", "exams-report-cards", "communication",
+    "finance", "finance-overview", "fees", "attendance-monitoring", "discipline",
+    "clinic", "sick-bay", "boarding", "academic-setup", "classes-streams", "subjects-departments",
+    "academics", "staff", "staff-roles", "visitors", "parents", "transport", "library",
+    "users-invitations", "reports", "audit-logs", "setup-checklist", "school-profile", "settings",
+    "subjects", "academic-analytics",
+  ])("loads Principal %s directly in the current dashboard", async (section) => {
+    expect(isSchoolSection(section)).toBe(true);
+    expect(isProductionReadyModule(section)).toBe(true);
+    renderWithProviders(<SchoolPages role="principal" section={section} tenantSlug="maranda-high" routeMode="public" />);
+    expect(await screen.findByRole("navigation", { name: "Principal dashboard sidebar" })).toBeVisible();
+    expect(screen.queryByRole("alert", { name: "Principal workspace unavailable" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Learner register" })).not.toBeInTheDocument();
+  });
+
+  it("opens Students from its sidebar destination and preserves school data on reload", async () => {
+    const { rerender } = renderWithProviders(<SchoolPages role="principal" section="dashboard" tenantSlug="maranda-high" routeMode="public" />);
+    const sidebar = await screen.findByRole("navigation", { name: "Principal dashboard sidebar" });
+    const href = within(sidebar).getByRole("link", { name: "Students" }).getAttribute("href")!;
+    rerender(<SchoolPages role="principal" section={href.split("/").pop()} tenantSlug="maranda-high" routeMode="public" />);
+    expect(await screen.findByRole("heading", { name: "Students Directory" })).toBeVisible();
+    expect(await screen.findByText("Amina Wanjiku")).toBeVisible();
+    expect(within(screen.getByRole("navigation", { name: "Principal dashboard sidebar" })).getByRole("link", { name: "Students" })).toHaveAttribute("aria-current", "page");
+    expect(requestDashboardApiMock).toHaveBeenCalledWith("/admin-command/principal/students", expect.objectContaining({ tenantId: "maranda-high" }));
+  });
+
+  it("keeps the master timetable in the Principal dashboard after reloading its URL", async () => {
+    const user = userEvent.setup();
+    const { unmount } = renderWithProviders(<SchoolPages role="principal" section="dashboard" tenantSlug="maranda-high" routeMode="public" />);
+    const sidebar = await screen.findByRole("navigation", { name: "Principal dashboard sidebar" });
+    await user.click(within(sidebar).getByRole("button", { name: "Master Timetable" }));
+    expect(window.location.pathname).toBe("/school/principal/timetable");
+    unmount();
+    renderWithProviders(<SchoolPages role="principal" section="timetable" tenantSlug="maranda-high" routeMode="public" />);
+    expect(await screen.findByRole("heading", { name: "School master timetable" })).toBeVisible();
+    expect(screen.getByRole("navigation", { name: "Principal dashboard sidebar" })).toBeVisible();
+  });
+
+  it("keeps the student admission action within the Principal role", async () => {
+    const user = userEvent.setup();
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: ["students:read", "school_admissions:write"] }) });
+    renderWithProviders(<SchoolPages role="principal" section="students" tenantSlug="maranda-high" routeMode="public" />);
+    await user.click(await screen.findByRole("button", { name: "Admit New" }));
+    expect(routerPushMock).toHaveBeenCalledWith("/school/principal/admissions");
+  });
+
+  it("opens student setup in Students and uses the supported attendance URL", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<SchoolPages role="principal" section="setup-checklist" tenantSlug="maranda-high" routeMode="public" />);
+    await user.click(await screen.findByRole("button", { name: "Open Students" }));
+    expect(window.location.pathname).toBe("/school/principal/students");
+    expect(await screen.findByRole("heading", { name: "Students Directory" })).toBeVisible();
+    const sidebar = screen.getByRole("navigation", { name: "Principal dashboard sidebar" });
+    await user.click(within(sidebar).getByRole("button", { name: "Expand Students" }));
+    await user.click(within(sidebar).getByRole("button", { name: "Attendance" }));
+    expect(window.location.pathname).toBe("/school/principal/attendance-monitoring");
+    expect(await screen.findByRole("heading", { name: "Weekly Attendance Rate" })).toBeVisible();
   });
 
   it("keeps mobile group toggles separate from School Setup and profile navigation", async () => {

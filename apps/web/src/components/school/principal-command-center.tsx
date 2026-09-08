@@ -59,6 +59,7 @@ import { PrincipalSchoolProfileWorkspace } from "./principal-dashboard/school-pr
 import { PrincipalSettingsWorkspace } from "./principal-dashboard/settings-workspace";
 import { PrincipalSetupChecklistWorkspace } from "./principal-dashboard/setup-checklist-workspace";
 import { PrincipalStaffRolesWorkspace } from "./principal-dashboard/staff-roles-workspace";
+import { PrincipalStudentsWorkspace } from "./principal-dashboard/students-workspace";
 import { PrincipalSubjectsDepartmentsWorkspace } from "./principal-dashboard/subjects-departments-workspace";
 import { buildSchoolSectionHref } from "./school-pages";
 import { StaffTimetableOverviewWorkspace } from "./staff-timetable-overview-workspace";
@@ -66,6 +67,7 @@ import { OverviewWorkspace as TransportOverviewWorkspace } from "./transport-man
 
 type PrincipalSection =
   | "overview"
+  | "students"
   | "setup-checklist"
   | "school-profile"
   | "academic-setup"
@@ -187,6 +189,7 @@ function getPrincipalSchoolName(schoolId: string) {
 function normalizePrincipalSection(section?: string | null): PrincipalSection {
   switch (section) {
     case "dashboard":
+    case "principal-overview":
     case undefined:
     case null:
       return "overview";
@@ -235,6 +238,7 @@ function normalizePrincipalSection(section?: string | null): PrincipalSection {
 
 function sectionRoute(section: PrincipalSection) {
   if (section === "overview") return "dashboard";
+  if (section === "attendance") return "attendance-monitoring";
   if (section === "fees") return "finance";
   if (section === "sick-bay") return "clinic";
   if (section === "exams-reports") return "exams";
@@ -429,6 +433,7 @@ export function PrincipalCommandCenter({
     if (activeWorkspace === "academic-setup") return <PrincipalAcademicSetupWorkspace />;
     if (activeWorkspace === "classes-streams") return <PrincipalClassesStreamsWorkspace />;
     if (activeWorkspace === "subjects-departments") return <PrincipalSubjectsDepartmentsWorkspace />;
+    if (activeWorkspace === "students") return <PrincipalStudentsWorkspace routeMode={routeMode ?? "hosted"} />;
     if (activeWorkspace === "fees") return <PrincipalFinanceOverviewWorkspace />;
     if (activeWorkspace === "attendance") return <PrincipalAttendanceWorkspace />;
     if (activeWorkspace === "discipline") return <PrincipalDisciplineWorkspace />;
@@ -578,7 +583,7 @@ export function PrincipalCommandCenter({
                   if (!("children" in item)) return renderNavItem(item);
                   const Icon = item.icon;
                   const expanded = Boolean(expandedNavGroups[item.id]);
-                  const selected = item.section === activeWorkspace || item.children.some((child) => child.id === activeWorkspace);
+                  const selected = item.section === activeWorkspace || item.route === activeWorkspace || item.children.some((child) => child.id === activeWorkspace);
                   const childrenId = `principal-nav-${item.id}`;
                   const hasPage = Boolean(item.section || item.route);
                   return (
@@ -587,6 +592,7 @@ export function PrincipalCommandCenter({
                         {item.route ? (
                           <Link
                             href={buildSchoolSectionHref("principal", item.route, routeMode ?? "hosted")}
+                            aria-current={item.route === activeWorkspace ? "page" : undefined}
                             onClick={() => setMobileSidebarOpen(false)}
                             className={principalNavItemClass(selected)}
                           >

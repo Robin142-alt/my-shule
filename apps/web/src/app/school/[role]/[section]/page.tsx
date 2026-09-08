@@ -52,6 +52,10 @@ export default async function SchoolSectionPage({
     notFound();
   }
 
+  if (role === "principal" && section === "attendance") {
+    redirect("/school/principal/attendance-monitoring");
+  }
+
   if (!isSchoolSection(section) || !isProductionReadyModule(section)) {
     notFound();
   }

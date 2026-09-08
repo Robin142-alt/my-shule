@@ -38,6 +38,10 @@ export const SUPERADMIN_SECTIONS = [
 ] as const;
 
 export const SCHOOL_SECTIONS = [
+  "academic-intelligence",
+  "exams-reports",
+  "sick-bay",
+  "users-invitations",
   "principal-overview",
   "setup-checklist",
   "school-profile",

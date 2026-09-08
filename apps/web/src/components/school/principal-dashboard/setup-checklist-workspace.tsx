@@ -15,7 +15,7 @@ type SetupWorkspaceTarget =
   | "users-invitations"
   | "academic-setup"
   | "subjects-departments"
-  | "visitors";
+  | "students";
 
 type SetupTaskAction = {
   actionLabel: string;
@@ -38,7 +38,7 @@ function actionForSetupTask(task: SetupChecklistData["tasks"][number]): SetupTas
     return { actionLabel: "Open Academic Setup", target: "academic-setup" };
   }
   if (title.includes("student") || title.includes("learner") || title.includes("admission")) {
-    return { actionLabel: "Open Admission Handoff", target: "visitors" };
+    return { actionLabel: "Open Students", target: "students" };
   }
 
   return null;

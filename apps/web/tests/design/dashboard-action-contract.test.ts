@@ -608,7 +608,7 @@ describe("dashboard action contract safety", () => {
     expect(accountantServiceSource).not.toMatch(/FEE_FOLLOW_UP_STAFF_ROLES\s*=\s*\[[^\]]*'parent'/);
     expect(accountantServiceSource).toMatch(/recipient_user_id, recipient_guardian_id/);
     expect(arrearsSource).not.toMatch(/Arrears reminder request recorded/);
-    expect(principalStudentsSource).toMatch(/buildSchoolSectionHref\("admissions", "admissions"/);
+    expect(principalStudentsSource).toMatch(/buildSchoolSectionHref\("principal", "admissions", routeMode/);
     expect(teacherSubjectsSource).toMatch(/buildSchoolSectionHref\("teacher", "students"/);
     expect(teacherTimetableSource).toMatch(/weekOffset/);
     expect(teacherTimetableSource).toMatch(/setWeekOffset/);

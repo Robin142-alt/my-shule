@@ -736,6 +736,12 @@ const financeRoleDedicatedSectionIds = new Set([
 ]);
 const principalCommandCenterSectionIds = new Set([
   "dashboard",
+  "overview",
+  "principal-overview",
+  "students",
+  "timetable",
+  "subjects",
+  "parents",
   "setup-checklist",
   "school-profile",
   "academic-setup",

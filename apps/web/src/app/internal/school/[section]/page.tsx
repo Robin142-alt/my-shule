@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { SchoolPages } from "@/components/school/school-pages";
 import { isProductionReadyModule } from "@/lib/features/module-readiness";
@@ -12,6 +12,10 @@ export default async function InternalSchoolSectionPage({
 }) {
   const context = await readSchoolRequestContext();
   const { section } = await params;
+
+  if (context.role === "principal" && section === "attendance") {
+    redirect("/attendance-monitoring");
+  }
 
   if (!isSchoolSection(section) || !isProductionReadyModule(section)) {
     notFound();
