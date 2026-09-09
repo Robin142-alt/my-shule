@@ -39,4 +39,6 @@ node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test
 
 The Redis test starts an isolated local `redis-server` with persistence disabled and shuts it down afterward. Integration tests use a disposable PostgreSQL database. No production school data is needed.
 
+The release also updates vulnerable request-parser and Prisma-tool dependencies that blocked the existing security gate: Multer 2.3.0, qs 6.16.0, fast-uri 3.1.7, and Prisma-scoped mysql2 3.24.4/deepmerge-ts 8.0.2. The deepmerge-ts major update changes Map merging and circular-reference handling; Prisma uses its unchanged `deepmerge` entry point to load this project's plain-record configuration. Clean CI installation and Prisma generation/build verify compatibility. Application database access remains PostgreSQL.
+
 Design references: [OWASP Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html) and [RFC 9700 refresh-token protection](https://www.rfc-editor.org/rfc/rfc9700.html#section-4.14).
