@@ -75,6 +75,12 @@ jobs:
       - name: Persistent authentication contracts with real Redis
         run: node -r ts-node/register/transpile-only -r tsconfig-paths/register --test apps/api/src/auth/persistent-session.test.ts apps/api/src/auth/auth-recovery.service.test.ts
 
+      - name: Authentication tenant isolation and Super Admin compatibility
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/auth-security.integration-spec.ts apps/api/test/auth-experience-separation.integration-spec.ts
+
       - name: Upload build artifacts
         if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
