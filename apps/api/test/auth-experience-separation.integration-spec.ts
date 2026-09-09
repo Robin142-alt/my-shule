@@ -6,6 +6,9 @@ import { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
 
 import { REDIS_CLIENT } from '../src/infrastructure/redis/redis.constants';
+import { PasswordService } from '../src/auth/password.service';
+import { AuthorizationRepository } from '../src/auth/repositories/authorization.repository';
+import { TrustedDeviceService } from '../src/auth/trusted-device.service';
 import { InMemoryRedis } from './support/in-memory-redis';
 import { AuthExperienceTestModule } from './support/auth-experience-test.module';
 
@@ -83,6 +86,8 @@ describe('Authentication audience separation', () => {
 
     tenantUser = await registerTenantUser(
       app,
+      testingModule,
+      pool,
       `authexp-${suffix}`,
       `owner+exp-${suffix}@example.test`,
     );
@@ -122,21 +127,45 @@ describe('Authentication audience separation', () => {
 
 const registerTenantUser = async (
   app: INestApplication,
+  testingModule: TestingModule,
+  pool: Pool,
   tenantId: string,
   email: string,
 ): Promise<RegisteredTenantUser> => {
   const password = `SecurePass!${tenantId.slice(-4)}`;
   const host = `${tenantId}.${process.env.APP_BASE_DOMAIN ?? 'integration.test'}`;
 
+  // Public self-registration was retired. Seed an isolated test membership
+  // through the same schema/baseline used by the security integration suite.
+  const authorization = testingModule.get(AuthorizationRepository);
+  await authorization.ensureTenantAuthorizationBaseline(tenantId);
+  const role = await authorization.getRoleByCode(tenantId, 'member');
+  const hash = await testingModule.get(PasswordService).hash(password);
+  const user = await pool.query<{ id: string }>(
+    `INSERT INTO users (tenant_id, email, password_hash, full_name, display_name, status, email_verified_at)
+     VALUES ($1, $2, $3, $4, $4, 'active', NOW()) RETURNING id`,
+    [tenantId, email, hash, `User ${tenantId}`],
+  );
+  await pool.query(
+    `INSERT INTO tenant_memberships (tenant_id, user_id, role_id, status) VALUES ($1, $2, $3, 'active')`,
+    [tenantId, user.rows[0].id, role!.id],
+  );
+  const trustedDeviceToken = `trusted-device-token-${user.rows[0].id}`;
+  await testingModule.get(TrustedDeviceService).trustDevice({
+    userId: user.rows[0].id, rawToken: trustedDeviceToken,
+    ipAddress: '127.0.0.1', userAgent: 'auth-experience.integration-spec',
+  });
+
   const response = await request(app.getHttpServer())
-    .post('/auth/register')
+    .post('/auth/login')
     .set('host', host)
     .send({
       email,
       password,
-      display_name: `User ${tenantId}`,
+      audience: 'school',
+      trusted_device_token: trustedDeviceToken,
     })
-    .expect(201);
+    .expect(response => { if (response.status !== 201) throw new Error(`Fixture login failed: ${JSON.stringify(response.body)}`); });
 
   return {
     tenant_id: tenantId,

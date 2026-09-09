@@ -8,6 +8,7 @@ interface UserRow {
   tenant_id: string;
   email: string;
   password_hash: string;
+  password_changed_at?: Date | string | null;
   display_name: string;
   status: string;
   email_verified_at: Date | string | null;
@@ -128,7 +129,7 @@ export class UsersRepository {
   async findById(userId: string): Promise<UserEntity | null> {
     const result = await this.databaseService.query<UserRow>(
       `
-        SELECT id, tenant_id, email, password_hash, display_name, status, email_verified_at, mfa_enabled, mfa_verified_at, created_at, updated_at
+        SELECT id, tenant_id, email, password_hash, password_changed_at, display_name, status, email_verified_at, mfa_enabled, mfa_verified_at, created_at, updated_at
         FROM users
         WHERE id = $1
         LIMIT 1

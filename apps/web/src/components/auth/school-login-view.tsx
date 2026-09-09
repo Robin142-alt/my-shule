@@ -188,7 +188,7 @@ export function SchoolLoginView({
           <AuthCheckbox
             checked={rememberMe}
             onChange={(event) => setRememberMe(event.target.checked)}
-            label="Remember this session"
+            label="Keep me signed in for up to 14 days"
           />
           <Link
             href="/school/forgot-password"

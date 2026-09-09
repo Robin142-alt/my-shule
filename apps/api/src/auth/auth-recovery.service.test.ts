@@ -7,6 +7,22 @@ import { RequestContextService } from '../common/request-context/request-context
 import { AuthEmailVerificationService } from './auth-email-verification.service';
 import { AuthRecoveryService } from './auth-recovery.service';
 
+test('password recovery revokes regular sessions while preserving platform-owner sessions', async () => {
+  for (const tenantId of ['school-a', 'global', null]) {
+    const revoked: string[] = [];
+    const service = new AuthRecoveryService(
+      {} as never,
+      { query: async () => ({ rows: [{ user_id: 'user-a', tenant_id: tenantId }] }) } as never,
+      { hash: async () => 'server-hash' } as never,
+      {} as never, {} as never,
+      { invalidateRegularUserSessions: async (userId: string) => { revoked.push(userId); } } as never,
+    );
+    const result = await service.resetPassword({ token: 'recovery-token', password: 'StrongPass123' });
+    assert.equal(result.success, true);
+    assert.deepEqual(revoked, tenantId === 'school-a' ? ['user-a'] : []);
+  }
+});
+
 test('AuthRecoveryService maps expired recovery token database errors to UnauthorizedException', async () => {
   const service = new AuthRecoveryService(
     {} as never,
