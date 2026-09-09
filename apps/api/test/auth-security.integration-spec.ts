@@ -214,6 +214,58 @@ describe('Authentication and authorization hardening', () => {
 
     expect(response.body.message).toContain('Attribute-based access denied');
   });
+
+  test('regular refresh retains the deadline and tenant scope', async () => {
+    const before = jwtService.decode(tenantMember.refresh_token) as { exp: number; iat: number };
+    expect(before.exp - before.iat).toBe(14 * 86400);
+    await request(app.getHttpServer()).post('/auth/refresh')
+      .set('host', otherTenantOwner.host).send({ refresh_token: tenantMember.refresh_token }).expect(401);
+    const response = await request(app.getHttpServer()).post('/auth/refresh')
+      .set('host', tenantMember.host).send({ refresh_token: tenantMember.refresh_token }).expect(201);
+    const after = jwtService.decode(response.body.tokens.refresh_token) as { exp: number };
+    expect(after.exp).toBeLessThanOrEqual(before.exp);
+    tenantMember.access_token = response.body.tokens.access_token;
+    tenantMember.refresh_token = response.body.tokens.refresh_token;
+  });
+
+  test('regular users cannot revoke another user or another school session', async () => {
+    for (const target of [tenantOwner, otherTenantOwner]) {
+      await request(app.getHttpServer()).post('/auth/my-sessions/revoke')
+        .set('host', tenantMember.host).set('authorization', `Bearer ${tenantMember.access_token}`)
+        .send({ sessionId: target.session_id }).expect(403);
+      await request(app.getHttpServer()).get('/auth/me')
+        .set('host', target.host).set('authorization', `Bearer ${target.access_token}`).expect(200);
+    }
+  });
+
+  test('device listing and revoke-others use the authenticated context and retain the current device', async () => {
+    const second = await request(app.getHttpServer()).post('/auth/login').set('host', tenantMember.host)
+      .send({ email: tenantMember.email, password: tenantMember.password, audience: 'school',
+        trusted_device_token: `trusted-device-token-${tenantMember.user_id}` })
+      .expect(response => { if (response.status !== 201) throw new Error(`Second-device login failed: ${JSON.stringify(response.body)}`); });
+    const listed = await request(app.getHttpServer()).get('/auth/my-sessions').set('host', tenantMember.host)
+      .set('authorization', `Bearer ${tenantMember.access_token}`).expect(200);
+    const rows = Array.isArray(listed.body) ? listed.body : listed.body.data;
+    expect(rows.some((row: { id: string; status: string }) => row.id === tenantMember.session_id && row.status === 'Current')).toBe(true);
+    expect(rows.some((row: { id: string }) => row.id === second.body.user.session_id)).toBe(true);
+    await request(app.getHttpServer()).post('/auth/my-sessions/revoke-others').set('host', tenantMember.host)
+      .set('authorization', `Bearer ${tenantMember.access_token}`).send({}).expect(201);
+    await request(app.getHttpServer()).get('/auth/me').set('host', tenantMember.host)
+      .set('authorization', `Bearer ${second.body.tokens.access_token}`).expect(401);
+    await request(app.getHttpServer()).get('/auth/me').set('host', tenantMember.host)
+      .set('authorization', `Bearer ${tenantMember.access_token}`).expect(200);
+  });
+
+  test('refresh-credential logout revokes both access and refresh and records an audit', async () => {
+    await request(app.getHttpServer()).post('/auth/logout/refresh')
+      .set('host', tenantMember.host).send({ refresh_token: tenantMember.refresh_token }).expect(201);
+    await request(app.getHttpServer()).get('/auth/me')
+      .set('host', tenantMember.host).set('authorization', `Bearer ${tenantMember.access_token}`).expect(401);
+    await request(app.getHttpServer()).post('/auth/refresh')
+      .set('host', tenantMember.host).send({ refresh_token: tenantMember.refresh_token }).expect(401);
+    const audit = await pool.query('SELECT action FROM audit_logs WHERE tenant_id = $1 AND resource_id = $2', [tenantMember.tenant_id, tenantMember.session_id]);
+    expect(audit.rows.some(row => row.action === 'auth.session.revoked')).toBe(true);
+  });
 });
 
 const registerTenantUser = async (

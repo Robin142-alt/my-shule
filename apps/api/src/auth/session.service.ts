@@ -4,6 +4,7 @@ import {
   ConflictException,
   Injectable,
   Optional,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -15,6 +16,7 @@ import {
   AuthenticatedPrincipal,
   IssuedTokenPair,
 } from './auth.interfaces';
+import { regularSessionExpiresAt } from './session-policy';
 
 const AUTH_USER_SESSION_PREFIX = 'auth:user-sessions';
 const AUTH_REFRESH_ROTATION_PREFIX = 'auth:refresh-rotation';
@@ -71,6 +73,7 @@ export class SessionService {
   ) {}
 
   async createSession(input: CreateSessionInput): Promise<AuthSessionRecord> {
+    this.assertSessionStoreAvailable(input.audience);
     const now = new Date().toISOString();
     const session: AuthSessionRecord = {
       user_id: input.user_id,
@@ -94,7 +97,8 @@ export class SessionService {
     return session;
   }
 
-  async getSession(sessionId: string): Promise<AuthSessionRecord | null> {
+  async getSession(sessionId: string, audience?: AuthSessionRecord['audience']): Promise<AuthSessionRecord | null> {
+    this.assertSessionStoreAvailable(audience);
     if (this.redisService.isDegraded()) {
       return this.getFallbackSession(sessionId);
     }
@@ -105,7 +109,11 @@ export class SessionService {
       return null;
     }
 
-    return JSON.parse(rawSession) as AuthSessionRecord;
+    const session = JSON.parse(rawSession) as AuthSessionRecord;
+    if (session.audience !== 'superadmin' && Date.parse(regularSessionExpiresAt(session)) <= Date.now()) {
+      return null;
+    }
+    return session;
   }
 
   async invalidateSession(sessionId: string): Promise<void> {
@@ -141,6 +149,13 @@ export class SessionService {
     }
 
     await redis.del(this.getUserSessionKey(userId));
+  }
+
+  async invalidateRegularUserSessions(userId: string): Promise<void> {
+    this.assertSessionStoreAvailable('school');
+    for (const session of await this.listUserSessions(userId)) {
+      if (session.audience !== 'superadmin') await this.invalidateSession(session.session_id);
+    }
   }
 
   async listUserSessions(userId: string): Promise<SafeSessionRecord[]> {
@@ -241,6 +256,14 @@ export class SessionService {
     const redis = this.redisService.getClient();
     const sessionKey = this.getSessionKey(input.session_id);
 
+    // WATCH is connection-scoped. Regular-user requests share the Redis client,
+    // so compare-and-set in Lua keeps rotation atomic across requests/replicas.
+    const initialSession = await this.getSession(input.session_id);
+    if (!initialSession) throw new UnauthorizedException('Session has expired');
+    if (initialSession.audience !== 'superadmin') {
+      return this.rotateRegularSession(input, rotationKey, clientFingerprint);
+    }
+
     for (let attempt = 0; attempt < 3; attempt += 1) {
       await redis.watch(sessionKey);
 
@@ -328,6 +351,17 @@ export class SessionService {
 
     const ttlSeconds = this.getSessionTtlSeconds(session.refresh_expires_at);
     const redis = this.redisService.getClient();
+    if (session.audience !== 'superadmin') {
+      const result = await redis.multi()
+        .set(this.getSessionKey(session.session_id), JSON.stringify(session), 'EX', ttlSeconds)
+        .sadd(this.getUserSessionKey(session.user_id), session.session_id)
+        .exec();
+      if (!result || result.some(([error]) => error)) {
+        await redis.del(this.getSessionKey(session.session_id));
+        throw new ServiceUnavailableException('Authentication session could not be persisted');
+      }
+      return;
+    }
     await redis.set(this.getSessionKey(session.session_id), JSON.stringify(session), 'EX', ttlSeconds);
     await redis.sadd(this.getUserSessionKey(session.user_id), session.session_id);
   }
@@ -385,6 +419,57 @@ export class SessionService {
     return `${AUTH_SESSION_PREFIX}:${sessionId}`;
   }
 
+  private async rotateRegularSession(
+    input: Parameters<SessionService['rotateRefreshToken']>[0],
+    rotationKey: string,
+    clientFingerprint: string,
+  ): Promise<RefreshTokenRotationResult> {
+    const redis = this.redisService.getClient();
+    const sessionKey = this.getSessionKey(input.session_id);
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const raw = await redis.get(sessionKey);
+      if (!raw) throw new UnauthorizedException('Session has expired');
+      const session = JSON.parse(raw) as AuthSessionRecord;
+      if (Date.parse(regularSessionExpiresAt(session)) <= Date.now()) {
+        throw new UnauthorizedException('Session has expired');
+      }
+      if (session.refresh_token_id !== input.current_refresh_token_id) {
+        const replay = await this.readRedisRotationReplay(rotationKey, clientFingerprint, session);
+        if (replay) {
+          if (replay.role !== input.role) throw new ConflictException('Session role changed during a concurrent token rotation');
+          return { session, token_pair: replay.token_pair, replayed: true };
+        }
+        // Delete only the version whose reuse was checked, never resurrect it.
+        const removed = await redis.eval(
+          "if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end redis.call('DEL', KEYS[1]) return 1",
+          1, sessionKey, raw,
+        );
+        if (!removed) continue;
+        await redis.srem(this.getUserSessionKey(session.user_id), session.session_id);
+        throw new UnauthorizedException('Refresh token reuse detected');
+      }
+      const nextSession = this.buildRotatedSession(session, input);
+      const replay = this.buildRotationReplay(input.next_token_pair, clientFingerprint, input.role);
+      const written = await redis.eval(
+        `if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
+         redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
+         redis.call('SET', KEYS[2], ARGV[4], 'EX', ARGV[5])
+         return 1`,
+        2, sessionKey, rotationKey, raw, JSON.stringify(nextSession),
+        this.getSessionTtlSeconds(nextSession.refresh_expires_at), JSON.stringify(replay),
+        this.getRefreshRotationGraceSeconds(),
+      );
+      if (written) return { session: nextSession, token_pair: input.next_token_pair, replayed: false };
+    }
+    throw new ConflictException('Session rotation failed due to a concurrent update');
+  }
+
+  private assertSessionStoreAvailable(audience?: AuthSessionRecord['audience']) {
+    if (audience && audience !== 'superadmin' && process.env.NODE_ENV === 'production' && this.redisService.isDegraded()) {
+      throw new ServiceUnavailableException('Authentication service is temporarily unavailable');
+    }
+  }
+
   private getRefreshRotationKey(sessionId: string, tokenId: string): string {
     return `${AUTH_REFRESH_ROTATION_PREFIX}:${sessionId}:${tokenId}`;
   }
@@ -410,7 +495,9 @@ export class SessionService {
       permissions: input.permissions,
       email_verified_at: input.email_verified_at,
       refresh_token_id: input.next_token_pair.refresh_token_id,
-      refresh_expires_at: input.next_token_pair.refresh_expires_at,
+      refresh_expires_at: currentSession.audience === 'superadmin'
+        ? input.next_token_pair.refresh_expires_at
+        : new Date(Math.min(Date.parse(regularSessionExpiresAt(currentSession)), Date.parse(input.next_token_pair.refresh_expires_at))).toISOString(),
       ip_address: input.ip_address ?? currentSession.ip_address,
       user_agent: input.user_agent ?? currentSession.user_agent,
       updated_at: new Date().toISOString(),
@@ -507,7 +594,8 @@ export class SessionService {
       return null;
     }
 
-    if (new Date(session.refresh_expires_at).getTime() <= Date.now()) {
+    const expiresAt = session.audience === 'superadmin' ? session.refresh_expires_at : regularSessionExpiresAt(session);
+    if (new Date(expiresAt).getTime() <= Date.now()) {
       this.invalidateFallbackSession(sessionId);
       return null;
     }

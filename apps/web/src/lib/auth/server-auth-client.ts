@@ -37,7 +37,7 @@ type BackendAuthResponse = {
     access_token: string;
     refresh_token: string;
   };
-  user: LiveAuthUser;
+  user: LiveAuthUser & { audience?: ExperienceAudience };
   role_context?: DashboardRoleContextDto;
 };
 
@@ -409,6 +409,10 @@ export function createServerAuthClient(request: Request) {
     },
 
     async refresh(input: RefreshInput, cookies: CookieReader) {
+      const cookieAudience = readAudienceCookie(cookies);
+      if (cookieAudience && cookieAudience !== input.audience) {
+        throw unauthorized("Refresh audience does not match the active session.", 400);
+      }
       const tenantSlug = input.tenantSlug?.trim() || readTenantCookie(cookies);
       const refreshToken = readRefreshCookie(cookies);
 
@@ -429,6 +433,9 @@ export function createServerAuthClient(request: Request) {
         },
       });
 
+      if (response.user.audience && response.user.audience !== input.audience) {
+        throw unauthorized("Refresh audience does not match the active session.", 400);
+      }
       return buildGatewaySession({
         audience: input.audience,
         userLabel: response.user.display_name || response.user.email,
@@ -440,6 +447,24 @@ export function createServerAuthClient(request: Request) {
         refreshToken: response.tokens.refresh_token,
         user: response.user,
       });
+    },
+
+    async logoutRegularSession(cookies: CookieReader) {
+      const audience = readAudienceCookie(cookies);
+      if (audience !== "school" && audience !== "portal") return;
+      const refreshToken = readRefreshCookie(cookies);
+      const accessToken = readAccessCookie(cookies);
+      if (!refreshToken && !accessToken) return;
+      try {
+        await requestBackendAuth(refreshToken ? "/auth/logout/refresh" : "/auth/logout", {
+          audience,
+          tenantSlug: readTenantCookie(cookies),
+          method: "POST",
+          ...(refreshToken ? { body: { refresh_token: refreshToken } } : { accessToken }),
+        });
+      } catch (error) {
+        if (!isServerAuthUnauthorized(error)) throw error;
+      }
     },
 
     async me(requestedAudience: ExperienceAudience, cookies: CookieReader) {

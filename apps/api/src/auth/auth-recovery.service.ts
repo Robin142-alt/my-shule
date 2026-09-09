@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Optional, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomBytes } from 'node:crypto';
 
@@ -12,6 +12,7 @@ import {
   ResetPasswordDto,
 } from './dto/password-recovery.dto';
 import { PasswordService } from './password.service';
+import { SessionService } from './session.service';
 
 type RecoveryUserRow = {
   id: string;
@@ -42,6 +43,7 @@ export class AuthRecoveryService {
     private readonly passwordService: PasswordService,
     private readonly emailService: AuthEmailService,
     private readonly configService: ConfigService,
+    @Optional() private readonly sessionService?: SessionService,
   ) {}
 
   async requestPasswordRecovery(
@@ -139,6 +141,11 @@ export class AuthRecoveryService {
 
     if (!result.rows[0]) {
       throw new UnauthorizedException('Invalid or expired recovery token');
+    }
+
+    // Platform owner recovery and sessions retain their existing behavior.
+    if (result.rows[0].tenant_id && result.rows[0].tenant_id !== 'global' && this.sessionService) {
+      await this.sessionService.invalidateRegularUserSessions(result.rows[0].user_id);
     }
 
     return {

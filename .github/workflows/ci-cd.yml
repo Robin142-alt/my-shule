@@ -41,6 +41,9 @@ jobs:
       - name: Lint (frontend)
         run: npm run web:lint
 
+      - name: Browser authentication contracts
+        run: npm --prefix apps/web run test:design -- persistent-login auth-route-contract auth-token-containment server-auth-client session-refreshing-fetch session-logout dashboard-api-cookie-session
+
   # ──────────────────────────────────────────────────────────────
   # Build + Unit Tests
   # ──────────────────────────────────────────────────────────────
@@ -65,6 +68,18 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+      - name: Install isolated session test dependency
+        run: sudo apt-get update && sudo apt-get install -y redis-server
+
+      - name: Persistent authentication contracts with real Redis
+        run: node -r ts-node/register/transpile-only -r tsconfig-paths/register --test apps/api/src/auth/persistent-session.test.ts apps/api/src/auth/auth-recovery.service.test.ts
+
+      - name: Authentication tenant isolation and Super Admin compatibility
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/auth-security.integration-spec.ts apps/api/test/auth-experience-separation.integration-spec.ts
 
       - name: Upload build artifacts
         if: github.ref == 'refs/heads/main'
