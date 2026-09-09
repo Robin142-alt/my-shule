@@ -27,6 +27,7 @@ const ensureIntegrationEnv = (): void => {
   process.env.APP_BASE_DOMAIN = process.env.APP_BASE_DOMAIN ?? 'integration.test';
   process.env.JWT_ISSUER = process.env.JWT_ISSUER ?? 'my-shule-integration-tests';
   process.env.JWT_AUDIENCE = process.env.JWT_AUDIENCE ?? 'my-shule-integration-clients';
+  process.env.SYSTEM_OWNER_EMAIL = 'platform-owner@auth-integration.test';
   process.env.JWT_ACCESS_TOKEN_SECRET =
     process.env.JWT_ACCESS_TOKEN_SECRET ?? 'integration-access-secret';
   process.env.JWT_REFRESH_TOKEN_SECRET =
@@ -121,7 +122,8 @@ describe('Authentication audience separation', () => {
       })
       .expect(401);
 
-    expect(response.body.message).toContain('audience');
+    expect(response.body.message).toBe('Invalid email or password');
+    expect(response.body.tokens).toBeUndefined();
   });
 });
 
