@@ -18,7 +18,7 @@ function load(level:'school'|'subject'|'grade'|'assignment'='school') {
 beforeEach(()=>{mockQuery.mockReset();mockMutation.mockReset();});
 it('keeps at-risk filtering on the server after clearing filters',()=>{
   load();renderWithProviders(<AcademicIntelligenceWorkspace audience="principal"/>);
-  fireEvent.click(screen.getByRole('button',{name:'At Risk',exact:true}));
+  fireEvent.click(screen.getByRole('button',{name:'At Risk'}));
   fireEvent.click(screen.getByRole('button',{name:'Clear filters'}));
   expect(mockQuery.mock.calls.at(-1)?.[0]).toContain('risk_level=At+Risk');
 });
@@ -49,7 +49,7 @@ it('renders risk reasons, opens a learner and posts an authorized intervention t
 });
 it('uses query filters for drill-down and keeps no-history and no-target states truthful',()=>{
   load();renderWithProviders(<AcademicIntelligenceWorkspace audience="principal"/>);
-  fireEvent.click(screen.getByRole('button',{name:'Targets'}));expect(screen.getByText('No target configured')).toBeVisible();
+  fireEvent.change(screen.getByLabelText('More views'),{target:{value:'Targets'}});expect(screen.getByText('No target configured')).toBeVisible();
   fireEvent.click(screen.getByRole('button',{name:'Trends'}));expect(screen.getByText(/A previous exam is required/)).toBeVisible();
   fireEvent.change(screen.getByLabelText('Subject'),{target:{value:'math'}});
   expect(mockQuery).toHaveBeenLastCalledWith(expect.stringContaining('subject_id=math'),expect.anything());
