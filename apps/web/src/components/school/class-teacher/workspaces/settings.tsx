@@ -1,3 +1,4 @@
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
 import { CheckCircle2, Loader2, PenTool, Settings, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -12,7 +13,7 @@ import {
 
 export function SettingsWorkspace() {
   const { streamId } = useResolvedClassTeacherStreamId();
-  const { data, isLoading, error } = useClassTeacherSettings(streamId);
+  const { data, isLoading, error, refetch } = useClassTeacherSettings(streamId);
   const saveClassTeacherSettings = useSaveClassTeacherSettings(streamId);
   const signatureQuery = useClassTeacherReportCardSignature(streamId);
   const uploadSignature = useUploadClassTeacherReportCardSignature(streamId);
@@ -79,6 +80,7 @@ export function SettingsWorkspace() {
     return (
       <Panel title="Settings" description="Manage your preferences and workspace settings." icon={Settings}>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 font-bold">Failed to load settings.</div>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Panel>
     );
   }

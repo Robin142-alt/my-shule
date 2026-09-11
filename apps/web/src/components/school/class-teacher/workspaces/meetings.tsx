@@ -1,3 +1,4 @@
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
 import { Users } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -62,6 +63,7 @@ export function MeetingsWorkspace() {
     return (
       <Panel title="Parent Meetings" description="Scheduled meetings with parents of your learners." icon={Users}>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 font-bold">Failed to load meetings.</div>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Panel>
     );
   }

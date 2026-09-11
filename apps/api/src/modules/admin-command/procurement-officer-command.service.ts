@@ -53,8 +53,8 @@ export class ProcurementOfficerCommandService {
       `
         SELECT
           (SELECT COUNT(*)::int FROM procurement_requests WHERE tenant_id = $1 AND status IN ('draft', 'submitted', 'returned')) AS pending_requests,
-          (SELECT COUNT(*)::int FROM purchase_orders WHERE tenant_id = $1 AND status IN ('draft', 'issued', 'partially_received')) AS active_orders,
-          (SELECT COUNT(*)::int FROM purchase_orders WHERE tenant_id = $1 AND status IN ('issued', 'partially_received') AND expected_delivery_date <= CURRENT_DATE) AS deliveries_due,
+          (SELECT COUNT(*)::int FROM purchase_orders WHERE tenant_id = $1 AND lower(status::text) IN ('draft', 'issued', 'partially_received')) AS active_orders,
+          (SELECT COUNT(*)::int FROM purchase_orders WHERE tenant_id = $1 AND lower(status::text) IN ('issued', 'partially_received') AND expected_delivery_date <= CURRENT_DATE) AS deliveries_due,
           (SELECT COUNT(*)::int FROM procurement_suppliers WHERE tenant_id = $1 AND status = 'active') AS suppliers
       `,
       [tenantId],
@@ -198,7 +198,7 @@ export class ProcurementOfficerCommandService {
         SELECT
           request.id::text,
           request.department,
-          COALESCE(actor.name, request.requested_by_user_id::text) AS requested_by,
+          COALESCE(actor.display_name, request.requested_by_user_id::text) AS requested_by,
           COALESCE(string_agg(item.item_name, ', ' ORDER BY item.created_at), request.title) AS item,
           COALESCE(SUM(item.quantity), 0)::float AS quantity,
           COALESCE(SUM(item.quantity * item.estimated_unit_cost_minor), 0)::text AS estimated_cost_minor,
@@ -219,7 +219,7 @@ export class ProcurementOfficerCommandService {
         LEFT JOIN users actor
           ON actor.id = request.requested_by_user_id
         WHERE request.tenant_id = $1
-        GROUP BY request.id, actor.name
+        GROUP BY request.id, actor.display_name
         ORDER BY request.created_at DESC
       `,
       [tenantId],
@@ -428,19 +428,19 @@ export class ProcurementOfficerCommandService {
           po.total_amount_minor::text AS total_amount_minor,
           po.created_at::date::text AS date,
           COALESCE(po.expected_delivery_date::text, '') AS delivery_date,
-          CASE po.status
+          CASE lower(po.status::text)
             WHEN 'draft' THEN 'Draft'
             WHEN 'issued' THEN 'Sent'
             WHEN 'partially_received' THEN 'Pending Review'
             WHEN 'received' THEN 'Delivered'
             WHEN 'cancelled' THEN 'Cancelled'
             WHEN 'closed' THEN 'Completed'
-            ELSE initcap(po.status)
+            ELSE initcap(po.status::text)
           END AS status
         FROM purchase_orders po
         INNER JOIN procurement_suppliers supplier
           ON supplier.tenant_id = po.tenant_id
-         AND supplier.id = po.supplier_id
+         AND supplier.id::text = po.supplier_id::text
         WHERE po.tenant_id = $1
         ORDER BY po.created_at DESC
       `,
@@ -449,10 +449,10 @@ export class ProcurementOfficerCommandService {
     const metrics = await this.executeSql<{ draft: number; sent: number; delivered: number; cancelled: number }>(
       `
         SELECT
-          COUNT(*) FILTER (WHERE status = 'draft')::int AS draft,
-          COUNT(*) FILTER (WHERE status = 'issued')::int AS sent,
-          COUNT(*) FILTER (WHERE status IN ('received', 'closed'))::int AS delivered,
-          COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled
+          COUNT(*) FILTER (WHERE lower(status::text) = 'draft')::int AS draft,
+          COUNT(*) FILTER (WHERE lower(status::text) = 'issued')::int AS sent,
+          COUNT(*) FILTER (WHERE lower(status::text) IN ('received', 'closed'))::int AS delivered,
+          COUNT(*) FILTER (WHERE lower(status::text) = 'cancelled')::int AS cancelled
         FROM purchase_orders
         WHERE tenant_id = $1
       `,
@@ -608,29 +608,29 @@ export class ProcurementOfficerCommandService {
           COALESCE(po.expected_delivery_date::text, '') AS expected_date,
           COALESCE(delivery.created_at::date::text, '') AS received_date,
           CASE
-            WHEN po.status = 'received' THEN 'Completed'
-            WHEN po.status = 'partially_received' THEN 'Pending Review'
+            WHEN lower(po.status::text) = 'received' THEN 'Completed'
+            WHEN lower(po.status::text) = 'partially_received' THEN 'Pending Review'
             WHEN po.expected_delivery_date < CURRENT_DATE THEN 'Overdue'
             ELSE 'Scheduled'
           END AS status
         FROM purchase_orders po
         INNER JOIN procurement_suppliers supplier
           ON supplier.tenant_id = po.tenant_id
-         AND supplier.id = po.supplier_id
+         AND supplier.id::text = po.supplier_id::text
         LEFT JOIN purchase_order_items item
           ON item.tenant_id = po.tenant_id
-         AND item.purchase_order_id = po.id
+         AND item.purchase_order_id::text = po.id::text
         LEFT JOIN LATERAL (
           SELECT created_at
           FROM workflow_events event
           WHERE event.tenant_id = po.tenant_id
             AND event.entity_type = 'procurement_delivery'
-            AND event.entity_id = po.id::text
+            AND event.entity_id::text = po.id::text
           ORDER BY event.created_at DESC
           LIMIT 1
         ) delivery ON TRUE
         WHERE po.tenant_id = $1
-          AND po.status IN ('issued', 'partially_received', 'received', 'closed')
+          AND lower(po.status::text) IN ('issued', 'partially_received', 'received', 'closed')
         GROUP BY po.id, supplier.name, delivery.created_at
         ORDER BY COALESCE(po.expected_delivery_date, po.created_at::date) DESC
       `,

@@ -571,7 +571,7 @@ test('Route vehicle assignment persists the same-tenant assignment before emitti
     '11111111-1111-4111-8111-111111111111',
     'transport_manager',
   ]);
-  assert.match(writes[0].sql, /selected_vehicle[\s\S]+vehicle\.tenant_id = \$1[\s\S]+vehicle\.status = 'active'/);
+  assert.match(writes[0].sql, /selected_vehicle[\s\S]+vehicle\.tenant_id = \$1[\s\S]+lower\(vehicle\.status::text\) = 'active'/);
   assert.match(writes[0].sql, /UPDATE transport_routes route[\s\S]+assigned_vehicle_id = selected_vehicle\.id/);
   assert.match(writes[0].sql, /route\.tenant_id = \$1[\s\S]+route\.id = \$2::uuid/);
   assert.match(writes[0].sql, /INSERT INTO workflow_events/);

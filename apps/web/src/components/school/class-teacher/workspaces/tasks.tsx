@@ -1,3 +1,4 @@
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
 import { CheckSquare } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -57,6 +58,7 @@ export function TasksWorkspace() {
     return (
       <Panel title="My Tasks" description="Your to-do list and reminders." icon={CheckSquare}>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 font-bold">Failed to load tasks.</div>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Panel>
     );
   }

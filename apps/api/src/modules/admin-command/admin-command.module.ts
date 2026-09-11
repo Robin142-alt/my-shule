@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { SidebarWorkspaceSchemaService } from './sidebar-workspace-schema.service';
 
 import { AdminCommandController } from './admin-command.controller';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
@@ -83,6 +84,7 @@ import { WorkflowModule } from '../workflow/workflow.module';
     AccountantCommandController,
   ],
   providers: [
+    SidebarWorkspaceSchemaService,
     AdminCommandSchemaService,
     AdminCommandOperationsService,
     AdminCommandService,

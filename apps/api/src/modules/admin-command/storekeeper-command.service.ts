@@ -115,7 +115,7 @@ export class StorekeeperCommandService {
           item.quantity_on_hand AS quantity_in_stock,
           item.reorder_level,
           item.unit_price AS unit_cost,
-          to_char(MAX(movement.occurred_at) FILTER (WHERE movement.movement_type = 'receive'), 'YYYY-MM-DD') AS last_restocked,
+          to_char(MAX(movement.occurred_at) FILTER (WHERE lower(movement.movement_type::text) IN ('receive', 'received', 'stock_in')), 'YYYY-MM-DD') AS last_restocked,
           item.status
         FROM inventory_items item
         LEFT JOIN inventory_categories category
@@ -393,8 +393,8 @@ export class StorekeeperCommandService {
           item.unit,
           item.quantity_on_hand AS quantity_in_stock,
           item.reorder_level,
-          to_char(MAX(movement.occurred_at) FILTER (WHERE movement.movement_type = 'receive'), 'YYYY-MM-DD') AS last_restocked,
-          COALESCE((CURRENT_DATE - MAX(movement.occurred_at)::date) FILTER (WHERE movement.movement_type = 'receive'), 0)::int AS days_since_restock
+          to_char(MAX(movement.occurred_at) FILTER (WHERE lower(movement.movement_type::text) IN ('receive', 'received', 'stock_in')), 'YYYY-MM-DD') AS last_restocked,
+          COALESCE(CURRENT_DATE - (MAX(movement.occurred_at) FILTER (WHERE lower(movement.movement_type::text) IN ('receive', 'received', 'stock_in')))::date, 0)::int AS days_since_restock
         FROM inventory_items item
         LEFT JOIN inventory_categories category
           ON category.tenant_id = item.tenant_id AND category.id = item.category_id
@@ -584,8 +584,8 @@ export class StorekeeperCommandService {
           COALESCE(counted_by_user_id::text, 'Storekeeper') AS started_by,
           to_char(created_at, 'YYYY-MM-DD') AS start_date,
           CASE WHEN status = 'posted' THEN to_char(updated_at, 'YYYY-MM-DD') ELSE NULL END AS end_date,
-          jsonb_array_length(lines) AS total_items_counted,
-          jsonb_array_length(lines) AS total_items_expected,
+          jsonb_array_length(lines::jsonb) AS total_items_counted,
+          jsonb_array_length(lines::jsonb) AS total_items_expected,
           variance_count AS discrepancies,
           status
         FROM inventory_stock_count_snapshots
@@ -698,9 +698,9 @@ export class StorekeeperCommandService {
           incident.status
         FROM inventory_incidents incident
         JOIN inventory_items item
-          ON item.tenant_id = incident.tenant_id AND item.id = incident.item_id
+          ON item.tenant_id = incident.tenant_id AND item.id::text = incident.item_id::text
         LEFT JOIN inventory_categories category
-          ON category.tenant_id = item.tenant_id AND category.id = item.category_id
+          ON category.tenant_id = item.tenant_id AND category.id::text = item.category_id::text
         WHERE incident.tenant_id = $1
         ORDER BY incident.reported_at DESC
       `,

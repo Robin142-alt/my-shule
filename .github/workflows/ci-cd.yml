@@ -47,6 +47,9 @@ jobs:
       - name: Academic intelligence workspace contracts
         run: npm --prefix apps/web run test:design -- academic-intelligence head-of-subject exams-workspace teacher-exams-marks-workspace
 
+      - name: Sidebar loading and recovery contracts
+        run: npm --prefix apps/web run test:design -- sidebar-workspace-recovery
+
   # ──────────────────────────────────────────────────────────────
   # Build + Unit Tests
   # ──────────────────────────────────────────────────────────────
@@ -92,6 +95,12 @@ jobs:
           DATABASE_URL: ""
           NODE_ENV: test
         run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/academic-intelligence.integration-spec.ts
+
+      - name: Sidebar reads, schema upgrades and tenant isolation
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: PG_BIN_DIR="$(pg_config --bindir)" npm run test:sidebar-workspaces
 
       - name: Upload build artifacts
         if: github.ref == 'refs/heads/main'

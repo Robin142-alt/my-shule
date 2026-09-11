@@ -1,3 +1,4 @@
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
 import { useState } from "react";
 import { Heart } from "lucide-react";
 import { Panel, StatusChip } from "../shared";
@@ -5,7 +6,7 @@ import { useClassTeacherRegister, useClassTeacherWelfare, useReferWelfareCase, u
 
 export function WelfareWorkspace() {
   const { streamId } = useResolvedClassTeacherStreamId();
-  const { data, isLoading, error } = useClassTeacherWelfare(streamId);
+  const { data, isLoading, error, refetch } = useClassTeacherWelfare(streamId);
   const { data: registerData, isLoading: isRegisterLoading } = useClassTeacherRegister(streamId);
   const referMutation = useReferWelfareCase();
   
@@ -26,6 +27,7 @@ export function WelfareWorkspace() {
     return (
       <Panel title="Welfare & Counselling" description="Track the well-being and welfare needs of your learners." icon={Heart}>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 font-bold">Failed to load welfare records.</div>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Panel>
     );
   }

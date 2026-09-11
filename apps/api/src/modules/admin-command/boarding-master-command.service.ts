@@ -102,11 +102,11 @@ export class BoardingMasterCommandService {
           FROM students student
           LEFT JOIN boarding_students boarding_student
             ON boarding_student.tenant_id = student.tenant_id
-           AND boarding_student.student_id = student.id
+           AND boarding_student.student_id::text = student.id::text
            AND lower(boarding_student.status) = 'active'
           LEFT JOIN boarding_houses house
             ON house.tenant_id = boarding_student.tenant_id
-           AND house.id = boarding_student.house_id
+           AND house.id::text = boarding_student.house_id::text
           LEFT JOIN boarding_allocations allocation
             ON allocation.tenant_id = student.tenant_id
            AND allocation.student_id::text = student.id::text
@@ -116,7 +116,7 @@ export class BoardingMasterCommandService {
            AND bed.id::text = allocation.bed_id::text
           LEFT JOIN boarding_hostels hostel
             ON hostel.tenant_id::text = bed.tenant_id::text
-           AND hostel.id = bed.hostel_id
+           AND hostel.id::text = bed.hostel_id::text
           WHERE student.tenant_id = $1
             AND student.deleted_at IS NULL
             AND lower(COALESCE(student.status::text, 'active')) IN ('active', 'enrolled')
@@ -145,7 +145,7 @@ export class BoardingMasterCommandService {
             )
             FROM student_guardians guardian
             INNER JOIN active_boarders boarder
-              ON boarder.id = guardian.student_id
+              ON boarder.id::text = guardian.student_id::text
             WHERE guardian.tenant_id = $1
               AND lower(guardian.status) = 'active'
           ), '[]'::jsonb) AS guardians,
@@ -156,7 +156,7 @@ export class BoardingMasterCommandService {
             )
             FROM tenant_memberships membership
             INNER JOIN users user_account
-              ON user_account.id = membership.user_id
+              ON user_account.id::text = membership.user_id::text
             WHERE membership.tenant_id::text = $1
               AND lower(membership.status::text) = 'active'
           ), '[]'::jsonb) AS wardens
@@ -187,7 +187,7 @@ export class BoardingMasterCommandService {
                   SELECT 1
                   FROM boarding_students boarding_student
                   WHERE boarding_student.tenant_id = student.tenant_id
-                    AND boarding_student.student_id = student.id
+                    AND boarding_student.student_id::text = student.id::text
                     AND lower(boarding_student.status) = 'active'
                 )
                 OR EXISTS (
@@ -312,7 +312,7 @@ export class BoardingMasterCommandService {
           LIMIT 1
         )
         INSERT INTO boarding_hostels (tenant_id, hostel_name, capacity, gender_allowed, warden_id, status)
-        SELECT $1::uuid, $2, $3, $4, $5::uuid, 'ACTIVE'
+        SELECT $1, $2, $3, $4, $5::uuid, 'ACTIVE'
         WHERE $5::uuid IS NULL OR EXISTS (SELECT 1 FROM selected_warden)
         RETURNING *
       `,
@@ -391,7 +391,7 @@ export class BoardingMasterCommandService {
     const res = await this.executeSql(
       `
         SELECT
-          MIN(b.id)::text AS id,
+          MIN(b.id::text) AS id,
           COALESCE(h.hostel_name, 'Unassigned Hostel') AS hostel,
           b.room_number,
           COUNT(b.id)::int AS capacity,
@@ -444,7 +444,7 @@ export class BoardingMasterCommandService {
           FROM unnest($4::text[]) AS bed_number
         )
         INSERT INTO boarding_beds (tenant_id, hostel_id, room_number, bed_number, status)
-        SELECT $1::uuid, hostel.id, $3, bed_number.bed_number, 'AVAILABLE'
+        SELECT $1, hostel.id, $3, bed_number.bed_number, 'AVAILABLE'
         FROM selected_hostel hostel
         CROSS JOIN bed_numbers bed_number
         RETURNING *
@@ -702,7 +702,7 @@ export class BoardingMasterCommandService {
           FROM boarding_dormitory_checks dormitory_check
           LEFT JOIN boarding_houses house
             ON house.tenant_id = dormitory_check.tenant_id
-           AND house.id = dormitory_check.house_id
+           AND house.id::text = dormitory_check.house_id::text
           WHERE dormitory_check.tenant_id = $1
           ORDER BY dormitory_check.checked_at DESC, dormitory_check.created_at DESC
           LIMIT 100
@@ -1605,10 +1605,10 @@ export class BoardingMasterCommandService {
           FROM boarding_incidents incident
           LEFT JOIN students student
             ON student.tenant_id = incident.tenant_id
-           AND student.id = incident.student_id
+           AND student.id::text = incident.student_id::text
           LEFT JOIN boarding_houses house
             ON house.tenant_id = incident.tenant_id
-           AND house.id = incident.house_id
+           AND house.id::text = incident.house_id::text
           WHERE incident.tenant_id = $1
           ORDER BY incident.created_at DESC, incident.id DESC
           LIMIT 200

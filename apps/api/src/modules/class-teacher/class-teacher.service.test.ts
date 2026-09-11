@@ -6,6 +6,16 @@ import { MODULE_ACCESS_KEY } from '../module-access/module-access.decorator';
 import { ClassTeacherController } from './class-teacher.controller';
 import { ClassTeacherService } from './class-teacher.service';
 
+test('ClassTeacherService propagates failed sidebar queries instead of returning empty or zero records', async () => {
+  const service = new ClassTeacherService({
+    query: async () => { throw new Error('workspace database unavailable'); },
+  } as never, {} as never);
+  await assert.rejects(() => service.getDashboardOverview('school-a', 'teacher-a'), /workspace database unavailable/);
+  await assert.rejects(() => service.getHomework('school-a', 'teacher-a', ''), /workspace database unavailable/);
+  await assert.rejects(() => service.getLessonLogs('school-a', 'teacher-a'), /workspace database unavailable/);
+  await assert.rejects(() => service.getNotifications('school-a', 'teacher-a', ''), /workspace database unavailable/);
+});
+
 test('ClassTeacherController gates teacher mark-entry reads and writes with the exams module', () => {
   const pendingMarksHandler = Object.getOwnPropertyDescriptor(
     ClassTeacherController.prototype,
@@ -65,7 +75,7 @@ test('ClassTeacherService loads open teacher markbooks across text and uuid acad
   assert.match(queries[0].sql, /tsa\.academic_term_id\s*=\s*es\.academic_term_id::text/);
   assert.match(queries[0].sql, /\(tsa\.academic_term_id IS NULL OR tsa\.academic_term_id = es\.academic_term_id::text\)/);
   assert.match(queries[0].sql, /es\.academic_term_id,/);
-  assert.match(queries[0].sql, /w\.tenant_id\s*=\s*\$1/);
+  assert.match(queries[0].sql, /w\.tenant_id(?:::text)?\s*=\s*\$1/);
   assert.match(queries[0].sql, /tsa\.teacher_user_id\s*=\s*\$2/);
   assert.match(queries[0].sql, /tsa\.mark_entry_allowed\s*=\s*TRUE/);
   assert.match(queries[0].sql, /w\.status\s*=\s*'open'/);
@@ -670,7 +680,7 @@ test('ClassTeacherService dashboard overview counts teacher inventory requests f
   assert.equal(result.storeRequests.detail, '3 pending store requests');
   const inventoryQuery = queries.find((query) => /inventory_requests/.test(query.sql));
   assert.ok(inventoryQuery);
-  assert.match(inventoryQuery.sql, /WHERE tenant_id = \$1/);
+  assert.match(inventoryQuery.sql, /WHERE tenant_id(?:::text)? = \$1/);
   assert.match(inventoryQuery.sql, /requested_by = \$2/);
   assert.equal(inventoryQuery.params[0], 'tenant-a');
   assert.equal(inventoryQuery.params[1], 'teacher-a');
@@ -711,7 +721,7 @@ test('ClassTeacherService returns tenant scoped report snapshots for class-teach
   assert.equal(result.reports[0].download_url, '/api/admin-command/class-teacher/reports/snapshot-a/download');
   const reportQuery = queries.find((query) => /FROM report_snapshots/.test(query.sql));
   assert.ok(reportQuery);
-  assert.match(reportQuery.sql, /tenant_id = \$1/);
+  assert.match(reportQuery.sql, /tenant_id(?:::text)? = \$1/);
   assert.equal(reportQuery.params[0], 'tenant-a');
 });
 

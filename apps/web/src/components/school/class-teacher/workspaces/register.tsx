@@ -1,10 +1,11 @@
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
 import { Users } from "lucide-react";
 import { Panel, StatusChip } from "../shared";
 import { useClassTeacherRegister, useResolvedClassTeacherStreamId } from "@/lib/data/class-teacher-hooks";
 
 export function ClassRegisterWorkspace({ onSelectLearner }: { onSelectLearner?: (id: string) => void }) {
   const { streamId } = useResolvedClassTeacherStreamId();
-  const { data, isLoading, error } = useClassTeacherRegister(streamId);
+  const { data, isLoading, error, refetch } = useClassTeacherRegister(streamId);
 
   if (isLoading) {
     return (
@@ -18,6 +19,7 @@ export function ClassRegisterWorkspace({ onSelectLearner }: { onSelectLearner?: 
     return (
       <Panel title="My Class Register" description="Shows all learners officially assigned to the class/stream." icon={Users}>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 font-bold">Failed to load register.</div>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Panel>
     );
   }

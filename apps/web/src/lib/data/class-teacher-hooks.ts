@@ -96,6 +96,7 @@ function useResolvedClassTeacherStreamIdForScope(
     streamId: resolvedStreamId,
     isResolvingStream: shouldResolve && assignmentsQuery.isLoading,
     streamResolutionError: shouldResolve ? assignmentsQuery.error : null,
+    retryStreamResolution: assignmentsQuery.refetch,
     hasAssignedStream: Boolean(resolvedStreamId),
   };
 }
@@ -111,7 +112,7 @@ function useClassTeacherStreamQuery<T>(scope: string, endpoint: string, streamId
   const queryScope = useClassTeacherQueryScope();
   const resolved = useResolvedClassTeacherStreamIdForScope(queryScope, streamId);
 
-  return useQuery<T, Error>({
+  const query = useQuery<T, Error>({
     queryKey: buildClassTeacherQueryKey(
       queryScope,
       scope,
@@ -124,8 +125,20 @@ function useClassTeacherStreamQuery<T>(scope: string, endpoint: string, streamId
         `${endpoint}?streamId=${encodeURIComponent(resolved.streamId)}`,
       ) as T;
     },
-    enabled: isReadyClassTeacherScope(queryScope) && !resolved.isResolvingStream,
+    enabled: isReadyClassTeacherScope(queryScope)
+      && !resolved.isResolvingStream && !resolved.streamResolutionError,
   });
+
+  // Assignment lookup is part of loading the workspace. A failed lookup must
+  // never become a successful empty class register.
+  return {
+    ...query,
+    isLoading: resolved.isResolvingStream || query.isLoading,
+    isError: Boolean(resolved.streamResolutionError) || query.isError,
+    isSuccess: !resolved.isResolvingStream && !resolved.streamResolutionError && query.isSuccess,
+    error: resolved.streamResolutionError || query.error,
+    refetch: resolved.streamResolutionError ? resolved.retryStreamResolution : query.refetch,
+  };
 }
 
 export function useClassTeacherOverview(streamId: string) {

@@ -27,9 +27,9 @@ export class LaboratoryTechnicianCommandService {
     const tenantId = this.requireTenantId();
     const metrics = await this.executeSql(`
       SELECT 
-        (SELECT COUNT(*)::int FROM lab_inventories WHERE tenant_id = $1) as "totalItems",
-        (SELECT COUNT(*)::int FROM lab_chemicals WHERE tenant_id = $1 AND quantity <= reorder_level) as "lowChemicals",
-        (SELECT COUNT(*)::int FROM lab_apparatus_issues WHERE tenant_id = $1 AND status = 'issued') as "activeIssues"
+        (SELECT COUNT(*)::int FROM lab_equipment WHERE tenant_id = $1) as "totalItems",
+        (SELECT COUNT(*)::int FROM chemical_items WHERE tenant_id = $1 AND quantity_available <= 0) as "lowChemicals",
+        (SELECT COUNT(*)::int FROM lab_issue_records WHERE tenant_id = $1 AND status = 'issued') as "activeIssues"
     `, [tenantId]);
 
     const row = metrics.rows[0] || { totalItems: 0, lowChemicals: 0, activeIssues: 0 };
@@ -46,7 +46,7 @@ export class LaboratoryTechnicianCommandService {
   async getLabInventory() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM lab_inventories WHERE tenant_id = $1 ORDER BY name ASC`,
+      `SELECT *, quantity_available AS quantity, condition_status AS status FROM lab_equipment WHERE tenant_id = $1 ORDER BY name ASC`,
       [tenantId]
     );
     return res.rows;
@@ -55,7 +55,7 @@ export class LaboratoryTechnicianCommandService {
   async getChemicals() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM lab_chemicals WHERE tenant_id = $1 ORDER BY name ASC`,
+      `SELECT *, quantity_available AS quantity FROM chemical_items WHERE tenant_id = $1 ORDER BY name ASC`,
       [tenantId]
     );
     return res.rows;
@@ -64,7 +64,7 @@ export class LaboratoryTechnicianCommandService {
   async getApparatusIssue() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM lab_apparatus_issues WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      `SELECT * FROM lab_issue_records WHERE tenant_id = $1 ORDER BY created_at DESC`,
       [tenantId]
     );
     return res.rows;
@@ -73,7 +73,7 @@ export class LaboratoryTechnicianCommandService {
   async getLabTimetable() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM lab_timetables WHERE tenant_id = $1 ORDER BY schedule_date ASC`,
+      `SELECT *, session_date AS schedule_date FROM lab_sessions WHERE tenant_id = $1 ORDER BY session_date ASC`,
       [tenantId]
     );
     return res.rows;
@@ -82,7 +82,7 @@ export class LaboratoryTechnicianCommandService {
   async getSafetyIncidents() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM lab_safety_incidents WHERE tenant_id = $1 ORDER BY incident_date DESC`,
+      `SELECT *, created_at AS incident_date FROM lab_breakage_loss_records WHERE tenant_id = $1 ORDER BY created_at DESC`,
       [tenantId]
     );
     return res.rows;

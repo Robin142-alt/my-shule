@@ -1,5 +1,7 @@
 "use client";
 
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
+
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { AlertCircle, GraduationCap, Calendar, Settings, Plus, Loader2, FileText, CheckSquare } from "lucide-react";
@@ -228,6 +230,7 @@ export function PrincipalAcademicSetupWorkspace() {
           <AlertCircle className="h-6 w-6 text-red-500" />
           <h2 className="text-xl font-bold text-red-500">Failed to load Academic Setup</h2>
         </div>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Card>
     );
   }
