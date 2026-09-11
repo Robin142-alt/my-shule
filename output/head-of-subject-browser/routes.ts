@@ -1,1 +1,0 @@
-export const buildSchoolSectionHref=(_role,section)=>'/?view='+section;
