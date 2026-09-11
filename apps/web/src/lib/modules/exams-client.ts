@@ -476,14 +476,15 @@ export interface LiveExamsAnalyticsTrend {
   exam_series_id: string;
   exam_series_name: string;
   starts_on: string;
-  average_score: number;
+  average_score: number | null;
+  pass_rate?: number | null;
 }
 
 export interface LiveExamsAnalyticsSubjectPerformance {
   subject_id: string;
   subject_name: string;
-  mean_score: number;
-  pass_rate: number;
+  mean_score: number | null;
+  pass_rate: number | null;
   ee_count: number;
   me_count: number;
   ae_count: number;
@@ -513,13 +514,14 @@ export interface LiveExamsAnalyticsAtRiskStudent {
   student_id: string;
   student_name: string;
   admission_number: string;
-  average_percentage: number;
+  average_percentage: number | null;
+  reasons?: string[];
   assessments_taken: number;
 }
 
 export interface LiveExamsAnalyticsResponse {
   scope: {
-    level: "school" | "department" | "assignment";
+    level: "school" | "department" | "subject" | "grade" | "class" | "assignment";
     role: string;
   };
   kpis: LiveExamsAnalyticsKPIs;

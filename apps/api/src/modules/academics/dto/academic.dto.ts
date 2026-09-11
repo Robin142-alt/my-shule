@@ -659,10 +659,12 @@ export class CreateAcademicPolicyDto extends AcademicPolicyDto {
 export class AcademicRoleAppointmentDto {
   @IsIn([
     'assistant_class_teacher', 'grade_master', 'form_master', 'dean_of_academics',
-    'exams_manager', 'subject_coordinator', 'curriculum_coordinator',
+    'exams_manager', 'head_of_subject', 'subject_coordinator', 'curriculum_coordinator',
     'academic_year_coordinator', 'timetable_coordinator',
   ])
   role_type!: string;
+
+  @IsOptional() @IsString() subject_id?: string;
 
   @IsString()
   teacher_user_id!: string;

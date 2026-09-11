@@ -76,12 +76,10 @@ import {
   publishLiveExamSeries,
   publishReportCardLive,
   transitionLiveReportCard,
-  fetchExamsAnalyticsLive,
   type ExamMarkSheetView,
   type ExamReportCardPreview,
   type ExamsLiveWorkspace,
   type LiveReportCardBatchStatus,
-  type LiveExamsAnalyticsResponse,
 } from "@/lib/modules/exams-client";
 import {
   buildReportCardDocument,
@@ -98,7 +96,7 @@ import {
   type SchoolCurriculumDirection,
 } from "@/lib/report-cards/curriculum-report-cards";
 import type { SchoolExperienceRole } from "@/lib/experiences/types";
-import { AnalyticsDashboard } from "./AnalyticsDashboard";
+import { AcademicIntelligenceWorkspace } from "@/components/school/academic-intelligence-workspace";
 
 type SaveState = "synced" | "saving" | "offline";
 type SubmissionState = "draft" | "submitted" | "reopened";
@@ -2284,93 +2282,7 @@ function CompetenciesPanel({
   );
 }
 
-function AnalyticsLoadingSkeleton() {
-  return (
-    <div className="space-y-6 animate-pulse">
-      {/* KPI Grid Skeleton */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="rounded-[var(--radius)] border border-border bg-surface p-5 h-32">
-            <div className="flex justify-between items-center">
-              <div className="h-5 w-5 bg-muted rounded-full"></div>
-              <div className="h-4 w-12 bg-muted rounded"></div>
-            </div>
-            <div className="h-4 w-24 bg-muted rounded mt-4 text-xs"></div>
-            <div className="h-6 w-16 bg-muted rounded mt-2"></div>
-          </div>
-        ))}
-      </div>
-      {/* Trends & Table Skeleton */}
-      <div className="grid gap-6 md:grid-cols-3">
-        <div className="md:col-span-2 rounded-[var(--radius)] border border-border bg-surface p-6 h-80">
-          <div className="h-4 w-32 bg-muted rounded mb-6"></div>
-          <div className="h-48 bg-muted/30 rounded flex items-end justify-between p-4 gap-2">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="bg-muted rounded-t w-full" style={{ height: `${i * 15}%` }}></div>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-[var(--radius)] border border-border bg-surface p-6 h-80">
-          <div className="h-4 w-32 bg-muted rounded mb-6"></div>
-          <div className="space-y-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="flex justify-between items-center">
-                <div className="h-4 w-24 bg-muted rounded"></div>
-                <div className="h-4 w-8 bg-muted rounded"></div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AnalyticsErrorBanner({ error, refetch }: { error: any; refetch: () => void }) {
-  return (
-    <div className="rounded-[var(--radius)] border border-danger/20 bg-danger/10 p-6 text-center">
-      <AlertCircle className="mx-auto h-12 w-12 text-danger" />
-      <h3 className="mt-4 text-lg font-bold text-danger">Failed to load academic analytics</h3>
-      <p className="mt-2 text-sm text-muted">
-        {error?.message || "An unexpected error occurred while fetching the live analytics data from the server."}
-      </p>
-      <Button className="mt-4" variant="outline" onClick={refetch}>
-        Retry Loading
-      </Button>
-    </div>
-  );
-}
-
-function AnalyticsEmptyState() {
-  return (
-    <div className="rounded-[var(--radius)] border border-dashed border-border bg-surface p-12 text-center">
-      <BarChart3 className="mx-auto h-16 w-16 text-muted/60" />
-      <h3 className="mt-6 text-xl font-bold text-foreground">No academic analytics available</h3>
-      <p className="mt-2 max-w-md mx-auto text-sm text-muted">
-        Get started by creating an exam series, configuring subject assessments, and submitting student marks. Once data is recorded, performance trends and CBC grade distributions will appear here.
-      </p>
-    </div>
-  );
-}
-
-function AnalyticsPanel({
-  analysis,
-  history,
-  isLiveMode,
-  isLoading,
-  error,
-  liveData,
-  refetch,
-}: {
-  analysis: ExamAnalysisItem[];
-  history: HistoricalResult[];
-  isLiveMode?: boolean;
-  isLoading?: boolean;
-  error?: any;
-  liveData?: LiveExamsAnalyticsResponse;
-  refetch?: () => void;
-}) {
-  if (!isLiveMode) {
+function DemoAnalyticsPanel({analysis,history}:{analysis:ExamAnalysisItem[];history:HistoricalResult[]}) {
     const historyColumns: DataTableColumn<HistoricalResult>[] = [
       { id: "exam", header: "Exam", render: (row) => <span className="font-semibold">{row.exam}</span> },
       { id: "mean", header: "Mean", render: (row) => row.mean },
@@ -2404,334 +2316,6 @@ function AnalyticsPanel({
         />
       </div>
     );
-  }
-
-  if (isLoading) {
-    return <AnalyticsLoadingSkeleton />;
-  }
-
-  if (error) {
-    return <AnalyticsErrorBanner error={error} refetch={refetch || (() => {})} />;
-  }
-
-  const hasData = liveData && (
-    (liveData.trends && liveData.trends.length > 0) || 
-    (liveData.subjectPerformance && liveData.subjectPerformance.length > 0) ||
-    (liveData.studentProgress?.topPerformers && liveData.studentProgress.topPerformers.length > 0) ||
-    liveData.kpis.pending_reviews > 0 ||
-    liveData.kpis.missing_marks_alerts > 0 ||
-    liveData.kpis.active_exams > 0 ||
-    liveData.data_quality.explicit_evidence_count > 0
-  );
-
-  if (!hasData) {
-    return <AnalyticsEmptyState />;
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* KPI Grid */}
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {/* KPI 1: School Average */}
-        <Card className="p-5">
-          <div className="flex items-center justify-between gap-3">
-            <BarChart3 className="h-5 w-5 text-info" />
-            <StatusPill
-              label={liveData.kpis.school_average === null ? "Awaiting Results" : "Final Results"}
-              tone={liveData.kpis.school_average === null ? "warning" : "ok"}
-            />
-          </div>
-          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
-            School Average
-          </p>
-          <p className="mt-2 text-2xl font-bold text-foreground">
-            {liveData.kpis.school_average === null
-              ? "No final results"
-              : `${liveData.kpis.school_average}%`}
-          </p>
-          <p className="mt-2 text-[13px] leading-5 text-muted">
-            Mean percentage from locked or published numeric marks only.
-          </p>
-        </Card>
-
-        {/* KPI 2: Pending Reviews */}
-        <Card className="p-5">
-          <div className="flex items-center justify-between gap-3">
-            <ClipboardCheck className="h-5 w-5 text-warning" />
-            <StatusPill 
-              label={liveData.kpis.pending_reviews > 0 ? "Requires Review" : "No Pending"} 
-              tone={liveData.kpis.pending_reviews > 0 ? "warning" : "ok"} 
-            />
-          </div>
-          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
-            Pending Reviews
-          </p>
-          <p className="mt-2 text-2xl font-bold text-foreground">
-            {liveData.kpis.pending_reviews}
-          </p>
-          <p className="mt-2 text-[13px] leading-5 text-muted">
-            Submitted marks awaiting HOD or Principal review.
-          </p>
-        </Card>
-
-        {/* KPI 3: Missing Marks Alerts */}
-        <Card className="p-5">
-          <div className="flex items-center justify-between gap-3">
-            <AlertCircle className="h-5 w-5 text-danger" />
-            <StatusPill 
-              label={liveData.kpis.missing_marks_alerts > 0 ? "Action Needed" : "All Marked"} 
-              tone={liveData.kpis.missing_marks_alerts > 0 ? "critical" : "ok"} 
-            />
-          </div>
-          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
-            Missing Marks Alerts
-          </p>
-          <p className="mt-2 text-2xl font-bold text-foreground">
-            {liveData.kpis.missing_marks_alerts}
-          </p>
-          <p className="mt-2 text-[13px] leading-5 text-muted">
-            Expected student marks not yet submitted/recorded.
-          </p>
-        </Card>
-
-        {/* KPI 4: Active Exams */}
-        <Card className="p-5">
-          <div className="flex items-center justify-between gap-3">
-            <BookOpenCheck className="h-5 w-5 text-success" />
-            <StatusPill label="Active Cycle" tone="ok" />
-          </div>
-          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
-            Active Exams
-          </p>
-          <p className="mt-2 text-2xl font-bold text-foreground">
-            {liveData.kpis.active_exams}
-          </p>
-          <p className="mt-2 text-[13px] leading-5 text-muted">
-            Ongoing assessment series currently in progress.
-          </p>
-        </Card>
-      </section>
-
-      <Card className="p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
-              Result evidence quality
-            </p>
-            <p className="mt-1 text-sm text-foreground">
-              Final numeric marks and explicit learner evidence remain separate from incomplete entry work.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <StatusPill
-              label={`${liveData.data_quality.final_mark_count} final marks`}
-              tone="ok"
-            />
-            <StatusPill
-              label={`${liveData.data_quality.explicit_evidence_count} status records`}
-              tone="ok"
-            />
-            <StatusPill
-              label={`${liveData.data_quality.missing_or_incomplete_count} missing or incomplete`}
-              tone={liveData.data_quality.missing_or_incomplete_count > 0 ? "warning" : "ok"}
-            />
-          </div>
-        </div>
-      </Card>
-
-      {/* Rich Analytics Dashboard via Recharts */}
-      <AnalyticsDashboard liveData={liveData} />
-
-      {/* Subject Performance Table */}
-      {liveData.subjectPerformance && liveData.subjectPerformance.length > 0 && (
-        <Card className="overflow-hidden">
-          <div className="p-6 border-b border-border">
-            <h3 className="text-base font-bold text-foreground">Subject Performance</h3>
-            <p className="text-xs text-muted leading-relaxed">
-              Detailed mean score, pass rate, and CBC competency grade distribution (EE, ME, AE, BE) by subject.
-            </p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-surface-muted/50 border-b border-border">
-                  <th className="p-4 text-xs font-bold uppercase tracking-wider text-muted">Subject Name</th>
-                  <th className="p-4 text-xs font-bold uppercase tracking-wider text-muted text-center">Mean Score</th>
-                  <th className="p-4 text-xs font-bold uppercase tracking-wider text-muted text-center">Pass Rate</th>
-                  <th className="p-4 text-xs font-bold uppercase tracking-wider text-muted">CBC Grade Distribution (EE | ME | AE | BE)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {liveData.subjectPerformance.map((subj) => {
-                  const ee = subj.ee_count ?? 0;
-                  const me = subj.me_count ?? 0;
-                  const ae = subj.ae_count ?? 0;
-                  const be = subj.be_count ?? 0;
-                  const totalGradeCount = ee + me + ae + be;
-                  
-                  // Calculate percentages for stacked bar
-                  const eePct = totalGradeCount > 0 ? (ee / totalGradeCount) * 100 : 0;
-                  const mePct = totalGradeCount > 0 ? (me / totalGradeCount) * 100 : 0;
-                  const aePct = totalGradeCount > 0 ? (ae / totalGradeCount) * 100 : 0;
-                  const bePct = totalGradeCount > 0 ? (be / totalGradeCount) * 100 : 0;
-
-                  return (
-                    <tr key={subj.subject_id} className="border-b border-border hover:bg-surface-muted/20 transition-colors">
-                      <td className="p-4 text-sm font-semibold text-foreground">{subj.subject_name}</td>
-                      <td className="p-4 text-sm font-bold text-center text-foreground">{subj.mean_score}%</td>
-                      <td className="p-4 text-sm font-bold text-center text-foreground">
-                        <span className={`px-2 py-0.5 rounded text-xs ${subj.pass_rate >= 50 ? 'bg-success/15 text-success' : 'bg-danger/15 text-danger'}`}>
-                          {subj.pass_rate}%
-                        </span>
-                      </td>
-                      <td className="p-4 max-w-[400px]">
-                        <div className="space-y-2">
-                          {/* Stacked Progress Bar */}
-                          {totalGradeCount > 0 ? (
-                            <div className="flex h-3 w-full overflow-hidden rounded bg-muted">
-                              {ee > 0 && (
-                                <div 
-                                  style={{ width: `${eePct}%` }} 
-                                  className="bg-success" 
-                                  title={`Exceeding Expectation (EE): ${ee} students`} 
-                                />
-                              )}
-                              {me > 0 && (
-                                <div 
-                                  style={{ width: `${mePct}%` }} 
-                                  className="bg-info" 
-                                  title={`Meeting Expectation (ME): ${me} students`} 
-                                />
-                              )}
-                              {ae > 0 && (
-                                <div 
-                                  style={{ width: `${aePct}%` }} 
-                                  className="bg-warning" 
-                                  title={`Approaching Expectation (AE): ${ae} students`} 
-                                />
-                              )}
-                              {be > 0 && (
-                                <div 
-                                  style={{ width: `${bePct}%` }} 
-                                  className="bg-danger" 
-                                  title={`Below Expectation (BE): ${be} students`} 
-                                />
-                              )}
-                            </div>
-                          ) : (
-                            <div className="text-xs text-muted">No grade boundaries matched</div>
-                          )}
-
-                          {/* Pill counts */}
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 bg-success/10 text-success rounded">
-                              EE: {ee}
-                            </span>
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 bg-info/10 text-info rounded">
-                              ME: {me}
-                            </span>
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 bg-warning/10 text-warning rounded">
-                              AE: {ae}
-                            </span>
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 bg-danger/10 text-danger rounded">
-                              BE: {be}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
-      {/* Student Insights Section: 3-column Comparison */}
-      <section className="grid gap-6 md:grid-cols-3">
-        {/* Column 1: Top Performers */}
-        <Card className="p-5 flex flex-col">
-          <h4 className="text-sm font-bold text-foreground flex items-center gap-2 border-b border-border pb-3">
-            <span className="h-2 w-2 rounded-full bg-success"></span>
-            Top Performers
-          </h4>
-          <div className="mt-3 divide-y divide-border/60 flex-1">
-            {liveData.studentProgress.topPerformers && liveData.studentProgress.topPerformers.length > 0 ? (
-              liveData.studentProgress.topPerformers.map((student) => (
-                <div key={student.student_id} className="py-2.5 flex items-center justify-between text-xs">
-                  <div>
-                    <p className="font-semibold text-foreground">{student.student_name}</p>
-                    <p className="text-muted text-[10px]">Adm: {student.admission_number}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-success">{student.average_percentage}%</p>
-                    <p className="text-muted text-[9px]">{student.assessments_taken} assessments</p>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-muted text-xs py-4 text-center">Top performers appear after marks are submitted and results are processed.</p>
-            )}
-          </div>
-        </Card>
-
-        {/* Column 2: Top Improvers */}
-        <Card className="p-5 flex flex-col">
-          <h4 className="text-sm font-bold text-foreground flex items-center gap-2 border-b border-border pb-3">
-            <span className="h-2 w-2 rounded-full bg-info"></span>
-            Top Improvers
-          </h4>
-          <div className="mt-3 divide-y divide-border/60 flex-1">
-            {liveData.studentProgress.topImprovers && liveData.studentProgress.topImprovers.length > 0 ? (
-              liveData.studentProgress.topImprovers.map((student) => (
-                <div key={student.student_id} className="py-2.5 flex items-center justify-between text-xs">
-                  <div>
-                    <p className="font-semibold text-foreground">{student.student_name}</p>
-                    <p className="text-muted text-[10px]">Adm: {student.admission_number}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-info">+{student.improvement}%</p>
-                    <p className="text-muted text-[9px]">
-                      {student.latest_average}% vs {student.previous_average}%
-                    </p>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-muted text-xs py-4 text-center">Improvers appear after learners have at least two processed assessment results.</p>
-            )}
-          </div>
-        </Card>
-
-        {/* Column 3: At-Risk Students */}
-        <Card className="p-5 flex flex-col">
-          <h4 className="text-sm font-bold text-foreground flex items-center gap-2 border-b border-border pb-3">
-            <span className="h-2 w-2 rounded-full bg-danger"></span>
-            At-Risk Students
-          </h4>
-          <div className="mt-3 divide-y divide-border/60 flex-1">
-            {liveData.studentProgress.atRiskStudents && liveData.studentProgress.atRiskStudents.length > 0 ? (
-              liveData.studentProgress.atRiskStudents.map((student) => (
-                <div key={student.student_id} className="py-2.5 flex items-center justify-between text-xs">
-                  <div>
-                    <p className="font-semibold text-foreground">{student.student_name}</p>
-                    <p className="text-muted text-[10px]">Adm: {student.admission_number}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-danger">{student.average_percentage}%</p>
-                    <p className="text-muted text-[9px]">{student.assessments_taken} assessments</p>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-muted text-xs py-4 text-center">At-risk learners appear after processed marks identify an average below 50%.</p>
-            )}
-          </div>
-        </Card>
-      </section>
-    </div>
-  );
 }
 
 function PublishingHistoryPanel({
@@ -3176,16 +2760,7 @@ export function ExamsModuleScreen({
     enabled: Boolean(liveSession.session && access.canViewReportCards && activeBatchId),
     refetchInterval: activeBatchId ? 3000 : false,
   });
-  const analyticsQuery = useQuery({
-    queryKey: ["exams-analytics", liveSession.session?.tenantId],
-    queryFn: () => fetchExamsAnalyticsLive(liveSession.session!),
-    enabled: Boolean(liveSession.session && access.canViewAnalytics),
-    staleTime: Infinity,
-    retry: false,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
-  });
+  const [selectedExamTab, setSelectedExamTab] = useState<string | undefined>(undefined);
   const isLiveMode = Boolean(liveSession.session);
   const liveWorkspace = liveWorkspaceQuery.data;
   const liveMarkSheets = liveWorkspace?.markSheets ?? [];
@@ -3532,15 +3107,10 @@ export function ExamsModuleScreen({
           id: "analytics",
           label: "Analytics",
           panel: (
-            <AnalyticsPanel
-              analysis={data.analysis}
-              history={data.history}
-              isLiveMode={isLiveMode}
-              isLoading={analyticsQuery.isLoading}
-              error={analyticsQuery.error}
-              liveData={analyticsQuery.data}
-              refetch={analyticsQuery.refetch}
-            />
+            isLiveMode ? <AcademicIntelligenceWorkspace audience="exams-manager"
+              onOpenMarks={access.canEnterMarks ? () => setSelectedExamTab("marks") : undefined}
+              onOpenReportCards={access.canViewReportCards ? () => setSelectedExamTab("reports") : undefined}
+            /> : <DemoAnalyticsPanel analysis={data.analysis} history={data.history}/>
           ),
         }
       : null,
@@ -3652,7 +3222,7 @@ export function ExamsModuleScreen({
         />
       ) : null}
       {examTabs.length > 0 ? (
-        <Tabs defaultTab={defaultExamTab} items={examTabs} />
+        <Tabs defaultTab={defaultExamTab} activeTab={selectedExamTab} onTabChange={setSelectedExamTab} items={examTabs} />
       ) : (
         <Card className="border-warning/30 bg-warning/10 p-5">
           <p className="eyebrow">Access restricted</p>

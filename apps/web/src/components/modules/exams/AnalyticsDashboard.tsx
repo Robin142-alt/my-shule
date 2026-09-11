@@ -11,6 +11,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   LabelList,
+  Legend,
 } from "recharts";
 import { Card } from "@/components/ui/card";
 import type { LiveExamsAnalyticsResponse } from "@/lib/modules/exams-client";
@@ -32,7 +33,7 @@ export function AnalyticsDashboard({
               Performance Trends
             </h3>
             <p className="text-xs text-muted leading-relaxed">
-              Comparison of average scores across consecutive exam series.
+              Average scores and pass rates across consecutive exam series.
             </p>
           </div>
           <div className="h-80 w-full">
@@ -64,6 +65,7 @@ export function AnalyticsDashboard({
                   }}
                 />
                 <Line
+                  isAnimationActive={false}
                   type="monotone"
                   dataKey="average_score"
                   stroke="#0ea5e9"
@@ -71,6 +73,8 @@ export function AnalyticsDashboard({
                   activeDot={{ r: 6 }}
                   name="Average Score (%)"
                 />
+                <Line isAnimationActive={false} type="monotone" dataKey="pass_rate" stroke="#15803d" strokeWidth={2} name="Pass Rate (%)" />
+                <Legend />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -118,6 +122,7 @@ export function AnalyticsDashboard({
                   }}
                 />
                 <Bar
+                  isAnimationActive={false}
                   dataKey="mean_score"
                   fill="#0ea5e9"
                   radius={[4, 4, 0, 0]}

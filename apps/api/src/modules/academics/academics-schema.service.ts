@@ -890,11 +890,13 @@ export class AcademicsSchemaService implements OnModuleInit {
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW()
       );
-      CREATE UNIQUE INDEX IF NOT EXISTS ux_academics_role_appointments_active
+      ALTER TABLE academics_role_appointments ADD COLUMN IF NOT EXISTS subject_id text;
+      DROP INDEX IF EXISTS ux_academics_role_appointments_active;
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_academics_role_appointments_subject_active
         ON academics_role_appointments (
           tenant_id, role_type,
           COALESCE(department_id::text, ''), COALESCE(academic_year_id, ''),
-          COALESCE(class_section_id, ''), COALESCE(stream_id, '')
+          COALESCE(class_section_id, ''), COALESCE(stream_id, ''), COALESCE(subject_id, '')
         ) WHERE status = 'active';
       CREATE INDEX IF NOT EXISTS ix_academics_role_appointments_history
         ON academics_role_appointments (tenant_id, role_type, teacher_user_id, effective_from DESC);

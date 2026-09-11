@@ -1314,6 +1314,18 @@ export class AcademicsService {
     const tenantId = this.requireTenantId();
     const teacherUserId = this.requireText(dto.teacher_user_id, 'Academic role holder');
     await this.requireActiveStaffUserInTenant(tenantId, teacherUserId);
+    if (dto.role_type === 'head_of_subject' && !dto.subject_id) {
+      throw new BadRequestException('Head of Subject requires a subject appointment.');
+    }
+    if (dto.subject_id) {
+      const subject = await this.requireSetupRecord(tenantId, 'subject', dto.subject_id);
+      if (subject.status === 'archived' || subject.status === 'inactive' || subject.archived_at || subject.is_active === false) {
+        throw new BadRequestException('Select an active subject for this appointment.');
+      }
+      if (dto.department_id && String(subject.department_id) !== dto.department_id) {
+        throw new BadRequestException('The appointed subject must belong to the selected department.');
+      }
+    }
     if (dto.effective_to) this.requireDateRange(dto.effective_from, dto.effective_to, 'Academic role appointment');
     if (dto.department_id) await this.requireSetupRecord(tenantId, 'department', dto.department_id);
     if (dto.academic_year_id) await this.requireSetupRecord(tenantId, 'academic-year', dto.academic_year_id);
@@ -1328,7 +1340,7 @@ export class AcademicsService {
     await this.recordAcademicChange('academic.role_assignment.changed', 'academic_role_appointment', appointment,
       result.changed_holder ? 'transferred' : 'assigned', result.previous, dto.reason, {
         role_type: dto.role_type,
-        scope: { department_id: dto.department_id ?? null, academic_year_id: dto.academic_year_id ?? null,
+        scope: { subject_id: dto.subject_id ?? null, department_id: dto.department_id ?? null, academic_year_id: dto.academic_year_id ?? null,
           class_section_id: dto.class_section_id ?? null, stream_id: dto.stream_id ?? null },
       });
     await this.notifyAcademicAssignee(tenantId, teacherUserId,

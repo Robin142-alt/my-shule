@@ -12,11 +12,16 @@ export interface TabItem {
 export function Tabs({
   items,
   defaultTab,
+  activeTab: controlledTab,
+  onTabChange,
 }: {
   items: TabItem[];
   defaultTab?: string;
+  activeTab?: string;
+  onTabChange?: (tab: string) => void;
 }) {
-  const [activeTab, setActiveTab] = useState(defaultTab ?? items[0]?.id ?? "");
+  const [localTab, setActiveTab] = useState(defaultTab ?? items[0]?.id ?? "");
+  const activeTab = controlledTab ?? localTab;
 
   return (
     <div className="space-y-5">
@@ -33,7 +38,7 @@ export function Tabs({
               type="button"
               role="tab"
               aria-selected={active}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => { setActiveTab(item.id); onTabChange?.(item.id); }}
               className={`rounded-[var(--radius-xs)] px-3.5 py-1.5 text-[13px] font-semibold transition-all duration-150 ${
                 active
                   ? "bg-accent text-white shadow-[0_10px_22px_rgba(255,122,26,0.22)]"
