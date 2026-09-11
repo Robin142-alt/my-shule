@@ -1,4 +1,4 @@
-import type { AnalyticsFilters, ExamAnalyticsScope, ExamAnalyticsScopeLevel } from './analytics-scope';
+import type { AnalyticsFilters, ExamAnalyticsScope, ExamAnalyticsScopeLevel } from './analytics-contract';
 
 export interface Boundary { label: string; min: number; max: number; points: number | null; is_pass: boolean }
 export interface InterventionEvidence {
