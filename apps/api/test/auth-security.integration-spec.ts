@@ -153,7 +153,7 @@ describe('Authentication and authorization hardening', () => {
     expect(staff.rows).toEqual([{tenant_id:tenantOwner.tenant_id,display_name:'Subject Leader',status:'active'}]);
     const roles=await request(app.getHttpServer()).get('/auth/dashboard-roles').set('host',tenantOwner.host)
       .set('authorization',`Bearer ${subjectHead.access_token}`).expect(200);
-    expect(roles.body.available_roles.map((role:{role_code:string})=>role.role_code)).toEqual(['head_of_subject','teacher']);
+    expect(roles.body.data.available_roles.map((role:{role_code:string})=>role.role_code)).toEqual(['head_of_subject','teacher']);
     await request(app.getHttpServer()).post('/auth/active-role').set('host',tenantOwner.host)
       .set('authorization',`Bearer ${subjectHead.access_token}`).send({role_code:'principal'}).expect(403);
     await request(app.getHttpServer()).get('/auth/me').set('host',otherTenantOwner.host)
