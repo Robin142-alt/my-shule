@@ -72,6 +72,9 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      - name: Academic analytics print authorization and pagination
+        run: node --test dist/apps/api/src/modules/exams/analytics/analytics-report.test.js
+
       - name: Install isolated session test dependency
         run: sudo apt-get update && sudo apt-get install -y redis-server
 
