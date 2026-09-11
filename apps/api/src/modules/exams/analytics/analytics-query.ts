@@ -130,16 +130,16 @@ export function analyticsQuery(level: ExamAnalyticsScopeLevel): string {
     FROM exam_grading_policy_boundaries b WHERE b.tenant_id = result.tenant_id AND b.grading_policy_id = policy.id
   ) boundaries ON TRUE
   LEFT JOIN LATERAL (
-    SELECT jsonb_agg(DISTINCT jsonb_build_object('id',t.teacher_user_id::text,'name',COALESCE(NULLIF(s.full_name,''),NULLIF(s.display_name,''),'Assigned teacher'))) AS items
-    FROM teacher_subject_assignments t LEFT JOIN staff_profiles s ON s.tenant_id = t.tenant_id AND s.user_id = t.teacher_user_id
+    SELECT jsonb_agg(DISTINCT jsonb_build_object('id',t.teacher_user_id::text,'name',COALESCE(NULLIF(s.display_name,''),'Assigned teacher'))) AS items
+    FROM teacher_subject_assignments t LEFT JOIN staff_profiles s ON s.tenant_id = t.tenant_id AND s.user_id::text = t.teacher_user_id::text
     WHERE t.tenant_id = result.tenant_id AND t.subject_id::text = result.subject_id AND t.class_section_id::text = result.class_section_id
       AND (t.academic_term_id IS NULL OR t.academic_term_id::text = result.academic_term_id)
       AND (t.stream_id IS NULL OR t.stream_id::text = result.stream_id)
       AND (t.effective_from IS NULL OR t.effective_from <= result.ends_on) AND (t.effective_to IS NULL OR t.effective_to >= result.exam_date::date)
   ) teachers ON TRUE
   LEFT JOIN LATERAL (
-    SELECT jsonb_agg(DISTINCT jsonb_build_object('id',ap.teacher_user_id::text,'name',COALESCE(NULLIF(staff.full_name,''),NULLIF(staff.display_name,''),'Assigned subject head'))) AS items
-    FROM academics_role_appointments ap LEFT JOIN staff_profiles staff ON staff.tenant_id = ap.tenant_id AND staff.user_id = ap.teacher_user_id
+    SELECT jsonb_agg(DISTINCT jsonb_build_object('id',ap.teacher_user_id::text,'name',COALESCE(NULLIF(staff.display_name,''),'Assigned subject head'))) AS items
+    FROM academics_role_appointments ap LEFT JOIN staff_profiles staff ON staff.tenant_id = ap.tenant_id AND staff.user_id::text = ap.teacher_user_id::text
     WHERE ap.tenant_id = result.tenant_id AND ap.subject_id::text = result.subject_id
       AND ap.role_type IN ('head_of_subject','hos','subject_coordinator') AND ap.status = 'active'
       AND (ap.academic_year_id IS NULL OR ap.academic_year_id::text = result.academic_year_id)

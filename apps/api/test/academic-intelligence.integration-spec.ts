@@ -34,11 +34,11 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
         CREATE TABLE student_report_cards(tenant_id text,exam_series_id uuid,student_id uuid,is_current boolean,status text,grading_policy_id uuid,grading_policy_version int);
         CREATE TABLE exam_grading_policies(tenant_id text,id uuid,exam_series_id uuid,reporting_mode text,version int,status text,effective_from timestamptz,effective_to timestamptz);
         CREATE TABLE exam_grading_policy_boundaries(tenant_id text,grading_policy_id uuid,label text,min_score numeric,max_score numeric,points numeric,is_pass boolean);
-        CREATE TABLE teacher_subject_assignments(tenant_id text,teacher_user_id uuid,class_section_id text,subject_id text,academic_term_id text,stream_id text,status text,effective_from date,effective_to date);
+        CREATE TABLE teacher_subject_assignments(tenant_id text,teacher_user_id text,class_section_id text,subject_id text,academic_term_id text,stream_id text,status text,effective_from date,effective_to date);
         CREATE TABLE academics_class_teachers(tenant_id text,teacher_user_id uuid,class_section_id text,academic_year_id text,is_active boolean,status text,effective_from date,effective_to date);
         CREATE TABLE academics_department_hod_appointments(tenant_id text,teacher_user_id uuid,department_id uuid,status text,effective_from date,effective_to date);
         CREATE TABLE academics_role_appointments(tenant_id text,teacher_user_id uuid,role_type text,subject_id text,class_section_id text,stream_id text,academic_year_id text,status text,effective_from date,effective_to date);
-        CREATE TABLE staff_profiles(tenant_id text,user_id uuid,full_name text,display_name text);
+        CREATE TABLE staff_profiles(tenant_id text,user_id uuid,display_name text);
         CREATE TABLE tenant_memberships(tenant_id text,user_id uuid,status text);
         CREATE TABLE academics_report_card_settings(tenant_id text,id text,show_rank boolean,is_active boolean,archived_at timestamptz,updated_at timestamptz);
         CREATE TABLE academic_interventions(tenant_id text,id uuid,student_id text,class_section_id text,subject_id text,status text,due_on date,starts_on date,completed_at timestamptz,baseline jsonb,target jsonb,outcome jsonb);
@@ -73,7 +73,7 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
       await c.query("INSERT INTO student_subject_enrollments VALUES ('school-a',$1,$2,$3,$4,$5,'active',NULL,NULL)",[ids.missing,ids.class,ids.math,ids.year,ids.term]);
       for(const who of ['teacher','hos','hod','class_teacher','grade','principal'])await c.query("INSERT INTO tenant_memberships VALUES ('school-a',$1,'active')",[ids[who]]);
       await c.query("INSERT INTO teacher_subject_assignments VALUES ('school-a',$1,$2,$3,$4,$5,'active',NULL,NULL)",[ids.teacher,ids.class,ids.math,ids.term,ids.blue]);
-      await c.query("INSERT INTO staff_profiles VALUES ('school-a',$1,'Teacher One',NULL)",[ids.teacher]);
+      await c.query("INSERT INTO staff_profiles VALUES ('school-a',$1,'Teacher One')",[ids.teacher]);
       await c.query("INSERT INTO academics_class_teachers VALUES ('school-a',$1,$2,$3,true,'active',NULL,NULL)",[ids.class_teacher,ids.class,ids.year]);
       await c.query("INSERT INTO academics_department_hod_appointments VALUES ('school-a',$1,$2,'active',NULL,NULL)",[ids.hod,ids.department]);
       await c.query("INSERT INTO academics_role_appointments VALUES ('school-a',$1,'head_of_subject',$2,NULL,NULL,NULL,'active',NULL,NULL)",[ids.hos,ids.math]);
