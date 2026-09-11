@@ -140,6 +140,7 @@ test('Default school invite catalog exposes the required school operating roles'
     'dean_academics',
     'exams_manager',
     'hod',
+    'head_of_subject',
     'class_teacher',
     'grade_master',
     'nurse',

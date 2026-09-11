@@ -11,6 +11,7 @@ export const TENANT_INVITABLE_ROLE_CODES = [
   'dean_academics',
   'exams_manager',
   'hod',
+  'head_of_subject',
   'class_teacher',
   'grade_master',
   'nurse',

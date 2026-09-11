@@ -15,7 +15,7 @@ export class AnalyticsReportService {
   constructor(private readonly context:RequestContextService,private readonly exams:ExamsService,private readonly repository:ExamsRepository,
     private readonly snapshots:ReportSnapshotRepository,private readonly events:SchoolOperationalEventsService) {}
 
-  async generate(input:unknown) {
+  async generate(input:unknown, fixedScope?: 'subject') {
     const actor=this.context.requireStore();
     if(!actor.tenant_id||!actor.user_id)throw new UnauthorizedException('An authenticated school account is required.');
     if(!input||typeof input!=='object'||Array.isArray(input))throw new BadRequestException('Choose a report and valid analytics filters.');
@@ -23,7 +23,8 @@ export class AnalyticsReportService {
     if(!ANALYTICS_REPORT_SECTIONS.includes(body.section as AnalyticsReportSection))throw new BadRequestException('Unknown analytics report.');
     if(!body.filters||typeof body.filters!=='object'||Array.isArray(body.filters)||Object.values(body.filters).some(value=>typeof value!=='string'))throw new BadRequestException('Invalid analytics report filters.');
     // Authority, data and totals are always recomputed through the existing scope resolver.
-    const data=await this.exams.getAnalytics(body.filters as Record<string,string>);
+    const filters = body.filters as Record<string,string>;
+    const data=await this.exams.getAnalytics(fixedScope ? { ...filters, scope: fixedScope } : filters);
     const identity=await this.repository.executeSql<{school_name:string;school_address:string|null;school_motto:string|null;generated_by:string}>(`
       SELECT tenant.name AS school_name, NULLIF(tenant.settings->>'address','') AS school_address,
         NULLIF(tenant.settings->>'motto','') AS school_motto,

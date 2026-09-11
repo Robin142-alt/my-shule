@@ -8,7 +8,7 @@ import { academicReportHtml, isAnalyticsReportResponse, type AnalyticsReportResp
 
 const button='inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50';
 const primaryButton='inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-blue-700 bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50';
-export function AcademicIntelligenceReport({filters,view,disabled}:{filters:Record<string,string>;view:string;disabled:boolean}) {
+export function AcademicIntelligenceReport({filters,view,disabled,subjectOnly=false}:{filters:Record<string,string>;view:string;disabled:boolean;subjectOnly?:boolean}) {
   const [open,setOpen]=useState(false);
   const [section,setSection]=useState<AnalyticsReportSection>('summary');
   const [result,setResult]=useState<AnalyticsReportResponse|null>(null);
@@ -17,7 +17,7 @@ export function AcademicIntelligenceReport({filters,view,disabled}:{filters:Reco
   const [pdfUrl,setPdfUrl]=useState('');
   const frame=useRef<HTMLIFrameElement>(null);
   const urlRef=useRef('');
-  const mutation=useSchoolMutation<AnalyticsReportResponse,{section:AnalyticsReportSection;filters:Record<string,string>}>('/exams/analytics/reports','POST',{queueNetworkFailures:false,invalidateSchoolQueries:false});
+  const mutation=useSchoolMutation<AnalyticsReportResponse,{section:AnalyticsReportSection;filters:Record<string,string>}>(subjectOnly ? '/exams/analytics/reports/subject' : '/exams/analytics/reports','POST',{queueNetworkFailures:false,invalidateSchoolQueries:false});
   useEffect(()=>()=>{if(urlRef.current)URL.revokeObjectURL(urlRef.current);},[]);
   function clearPreview() {setResult(null);setReady(false);setPdfUrl('');setError('');if(urlRef.current)URL.revokeObjectURL(urlRef.current);urlRef.current='';}
   async function generate() {

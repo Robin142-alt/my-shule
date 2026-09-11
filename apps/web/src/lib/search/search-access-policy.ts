@@ -145,6 +145,12 @@ const rolePolicies: Record<OperationalRoleKey, Omit<SearchAccessPolicy, "roleKey
     forbiddenEntities: [...financeEntities, "healthCase", "counsellingCase", "platformTenant", "systemJob"],
     scopeTags: ["grade-owned"],
   },
+  hos: {
+    mode: "ROLE_SCOPED",
+    allowedEntities: ["subject", "exam", "assignment", "document"],
+    forbiddenEntities: [...financeEntities, ...privateCaseEntities, "platformTenant", "systemJob"],
+    scopeTags: ["subject-owned"],
+  },
   hod: {
     mode: "ROLE_SCOPED",
     allowedEntities: ["student", "staff", "class", "subject", "exam", "assignment", "document"],
@@ -287,6 +293,7 @@ export function normalizeOperationalRoleKey(input: string | null | undefined): O
   if (normalized.includes("bursar")) return "bursar";
   if (normalized.includes("class teacher")) return "class-teacher";
   if (normalized.includes("grade") || normalized.includes("form master")) return "grade-master";
+  if (normalized.replace(/[_-]/g, " ").includes("head of subject") || normalized === "hos") return "hos";
   if (normalized.includes("head of department") || normalized === "hod") return "hod";
   if (normalized.includes("dean")) return "dean-academics";
   if (normalized.includes("exam")) return "exams-manager";

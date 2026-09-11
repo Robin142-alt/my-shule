@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { Pool } from 'pg';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 
 import { REDIS_CLIENT } from '../src/infrastructure/redis/redis.constants';
 import { ACCESS_TOKEN_TYPE } from '../src/auth/auth.constants';
@@ -69,6 +69,7 @@ describe('Authentication and authorization hardening', () => {
   let tenantOwner: RegisteredTenantUser;
   let tenantMember: RegisteredTenantUser;
   let otherTenantOwner: RegisteredTenantUser;
+  let subjectHead: RegisteredTenantUser | undefined;
 
   const suffix = randomUUID().replace(/-/g, '').slice(0, 8);
 
@@ -116,10 +117,52 @@ describe('Authentication and authorization hardening', () => {
   afterAll(async () => {
     await cleanupSeedData(
       pool,
-      [tenantOwner, tenantMember, otherTenantOwner].filter(Boolean),
+      [tenantOwner, tenantMember, otherTenantOwner, subjectHead].filter(Boolean) as RegisteredTenantUser[],
     );
     await app?.close();
     await pool?.end();
+  });
+
+  test('Head of Subject accepts a tenant-bound invite and signs into subject and teaching dashboards', async () => {
+    const email=`subject-head+${suffix}@example.test`;
+    const token=randomUUID()+randomUUID();
+    const password='SubjectHead123!';
+    await pool.query(`CREATE TABLE IF NOT EXISTS staff_profiles (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text NOT NULL, user_id uuid,
+      display_name text NOT NULL, status text NOT NULL, created_at timestamptz DEFAULT NOW(), updated_at timestamptz DEFAULT NOW(),
+      UNIQUE (tenant_id,user_id))`);
+    await pool.query(`INSERT INTO auth_action_tokens (tenant_id,email,token_hash,purpose,expires_at,metadata)
+      VALUES ($1,$2,$3,'invite_acceptance',NOW()+INTERVAL '1 hour',$4::jsonb)`,
+      [tenantOwner.tenant_id,email,createHash('sha256').update(token).digest('hex'),JSON.stringify({role_code:'head_of_subject',display_name:'Subject Leader'})]);
+    await request(app.getHttpServer()).post('/auth/invitations/accept').set('host',tenantOwner.host)
+      .send({token,password,expected_tenant_id:otherTenantOwner.tenant_id}).expect(401);
+    const accepted=await request(app.getHttpServer()).post('/auth/invitations/accept').set('host',tenantOwner.host)
+      .send({token,password,expected_tenant_id:tenantOwner.tenant_id}).expect(201);
+    expect(accepted.body.role).toBe('head_of_subject');expect(accepted.body.email).toBe(email);
+    const account=await pool.query('SELECT id FROM users WHERE tenant_id=$1 AND email=$2',[tenantOwner.tenant_id,email]);
+    const trustedDeviceToken=`trusted-subject-head-${account.rows[0].id}`;
+    await testingModule.get(TrustedDeviceService).trustDevice({userId:account.rows[0].id,rawToken:trustedDeviceToken,ipAddress:'127.0.0.1',userAgent:'auth-security.integration-spec'});
+    const login=await request(app.getHttpServer()).post('/auth/login').set('host',tenantOwner.host)
+      .send({email,password,audience:'school',trusted_device_token:trustedDeviceToken}).expect(response=>{if(response.status!==201)throw new Error(JSON.stringify(response.body));}).expect(201);
+    subjectHead={...tenantOwner,email,password,user_id:login.body.user.user_id,role:'head_of_subject',session_id:login.body.user.session_id,
+      access_token:login.body.tokens.access_token,refresh_token:login.body.tokens.refresh_token};
+    expect(login.body.user.role).toBe('head_of_subject');
+    expect(login.body.user.permissions).toContain('exams:subject-analytics');
+    expect(login.body.user.permissions).not.toContain('exams:read');
+    const staff=await pool.query('SELECT tenant_id,display_name,status FROM staff_profiles WHERE user_id=$1',[subjectHead.user_id]);
+    expect(staff.rows).toEqual([{tenant_id:tenantOwner.tenant_id,display_name:'Subject Leader',status:'active'}]);
+    const roles=await request(app.getHttpServer()).get('/auth/dashboard-roles').set('host',tenantOwner.host)
+      .set('authorization',`Bearer ${subjectHead.access_token}`).expect(200);
+    expect(roles.body.data.available_roles.map((role:{role_code:string})=>role.role_code)).toEqual(['head_of_subject','teacher']);
+    await request(app.getHttpServer()).post('/auth/active-role').set('host',tenantOwner.host)
+      .set('authorization',`Bearer ${subjectHead.access_token}`).send({role_code:'principal'}).expect(403);
+    await request(app.getHttpServer()).get('/auth/me').set('host',otherTenantOwner.host)
+      .set('authorization',`Bearer ${subjectHead.access_token}`).expect(401);
+    const teacher=await request(app.getHttpServer()).post('/auth/active-role').set('host',tenantOwner.host)
+      .set('authorization',`Bearer ${subjectHead.access_token}`).send({role_code:'teacher'}).expect(201);
+    expect(teacher.body.user.role).toBe('teacher');
+    await request(app.getHttpServer()).post('/auth/invitations/accept').set('host',tenantOwner.host)
+      .send({token,password,expected_tenant_id:tenantOwner.tenant_id}).expect(401);
   });
 
   test('blocks tampered JWTs', async () => {

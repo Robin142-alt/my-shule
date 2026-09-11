@@ -3,6 +3,7 @@
 import { Copy, Eye, Lock, Mail, RotateCcw, Search, ShieldCheck, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { SubjectHeadSetup } from "./subject-head-setup";
 import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
 import { useActionFeedback } from "@/hooks/use-action-feedback";
@@ -136,6 +137,7 @@ const schoolRoles = [
   "Dean of Academics",
   "Exams Manager",
   "Head of Department",
+  "Head of Subject",
   "Class Teacher",
   "Grade/Form Master",
   "Nurse",
@@ -162,6 +164,7 @@ const roleCodeByLabel: Record<string, string> = {
   "Dean of Academics": "dean_academics",
   "Exams Manager": "exams_manager",
   "Head of Department": "hod",
+  "Head of Subject": "head_of_subject",
   "Class Teacher": "class_teacher",
   "Grade/Form Master": "grade_master",
   Nurse: "nurse",
@@ -1352,6 +1355,7 @@ export function UserManagementWorkspace({
         </Card>
       ) : null}
 
+      <SubjectHeadSetup />
       {activeTab === "invite" ? (
         <Card className="p-4">
           <div>

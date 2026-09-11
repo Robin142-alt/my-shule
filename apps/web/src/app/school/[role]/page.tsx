@@ -29,6 +29,7 @@ const allowedRoles = [
   "dean-academics",
   "exams-manager",
   "hod",
+  "hos",
   "class-teacher",
   "grade-master",
   "admin",

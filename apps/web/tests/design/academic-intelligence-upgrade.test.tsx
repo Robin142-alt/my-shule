@@ -65,3 +65,10 @@ it('shows loading and suppresses cached values when a refresh fails',()=>{
   const data=load();mockQuery.mockReturnValue({data,error:new Error('Service unavailable'),isLoading:false,refetch:jest.fn()});renderWithProviders(<AcademicIntelligenceWorkspace audience="principal"/>);
   expect(screen.getByRole('alert')).toHaveTextContent('Service unavailable');expect(screen.queryByText('25.0%')).not.toBeInTheDocument();
 });
+
+it('uses the restricted subject analytics endpoint for Head of Subject',()=>{
+  load('subject');renderWithProviders(<AcademicIntelligenceWorkspace audience="hos"/>);
+  expect(mockQuery).toHaveBeenCalledWith('/exams/analytics/subject',expect.anything());
+  expect(screen.getByLabelText('Responsibility').querySelectorAll('option')).toHaveLength(1);
+  expect(screen.getByLabelText('Responsibility')).toHaveValue('subject');
+});

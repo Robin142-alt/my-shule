@@ -5,6 +5,7 @@ import { RotateCw, Send, ShieldBan, UserCheck, UserPlus } from "lucide-react";
 
 import { getCsrfToken } from "@/lib/auth/csrf-client";
 import { Button } from "@/components/ui/button";
+import { SubjectHeadSetup } from "./subject-head-setup";
 import { Card } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -46,6 +47,7 @@ const roleOptions = [
   { value: "dean_academics", label: "Dean of Academics" },
   { value: "exams_manager", label: "Exams Manager" },
   { value: "hod", label: "Head of Department" },
+  { value: "head_of_subject", label: "Head of Subject" },
   { value: "class_teacher", label: "Class Teacher" },
   { value: "grade_master", label: "Grade/Form Master" },
   { value: "nurse", label: "Nurse" },
@@ -324,6 +326,7 @@ export function UserManagementPanel() {
             <p className="text-sm text-muted">Create access without exposing passwords.</p>
           </div>
         </div>
+        <SubjectHeadSetup />
         <div className="mt-5 space-y-3">
           <input
             ref={nameRef}

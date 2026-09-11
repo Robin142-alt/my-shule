@@ -31,7 +31,7 @@ export function AcademicIntelligenceWorkspace(props: AcademicIntelligenceWorkspa
   const [filters,setFilters]=useState<Record<string,string>>({});
   const [view,setView]=useState("Overview");
   const query=new URLSearchParams(filters).toString();
-  const {data,isLoading,isFetching,error,refetch}=useSchoolQuery<LiveExamsAnalyticsResponse>("/exams/analytics"+(query?"?"+query:""),{staleTime:30000});
+  const {data,isLoading,isFetching,error,refetch}=useSchoolQuery<LiveExamsAnalyticsResponse>((props.audience === "hos" ? "/exams/analytics/subject" : "/exams/analytics")+(query?"?"+query:""),{staleTime:30000});
   const legacy=isLiveExamsAnalyticsResponse(data)?data:undefined;
   const analytics=isAcademicIntelligence(data)?data:undefined;
   const malformed=Boolean(data&&(!legacy || ("performance" in data&&!analytics)));
@@ -69,7 +69,7 @@ export function AcademicIntelligenceWorkspace(props: AcademicIntelligenceWorkspa
     <header className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5">
       <div><p className="text-sm font-semibold text-blue-700">{scopeTitle}</p><h2 id="academic-intelligence-title" className="mt-1 text-2xl font-bold">{title}</h2><p className="mt-2 max-w-2xl text-sm text-slate-600">See what changed, find learners who need support, and take the next step.</p></div>
       <div className="flex flex-wrap gap-2"><button className={button} disabled={isFetching} onClick={()=>void refetch()}><RefreshCw aria-hidden="true" className={"mr-2 inline h-4 w-4"+(isFetching?" animate-spin":"")}/>Refresh</button>
-        {analytics&&!error&&!malformed&&<AcademicIntelligenceReport key={query} filters={{...filters,scope:analytics.scope.level,...(analytics.filters.exam_series_id?{exam_series_id:analytics.filters.exam_series_id}:{})}} view={view} disabled={isFetching}/>}
+        {analytics&&!error&&!malformed&&<AcademicIntelligenceReport subjectOnly={props.audience === "hos"} key={query} filters={{...filters,scope:analytics.scope.level,...(analytics.filters.exam_series_id?{exam_series_id:analytics.filters.exam_series_id}:{})}} view={view} disabled={isFetching}/>}
       </div>
     </header>
     {(error||malformed)&&<div role="alert" className="rounded-xl border border-red-300 bg-red-50 p-5"><h3 className="font-bold">Academic intelligence could not be loaded</h3><p>{error?.message??"The live exams service returned an incomplete analytics response. No values were displayed as real school data."}</p><button className={button+" mt-3"} onClick={()=>void refetch()}>Retry live data</button></div>}
@@ -79,7 +79,7 @@ export function AcademicIntelligenceWorkspace(props: AcademicIntelligenceWorkspa
           {select("Academic Year","academic_year_id",[...new Map(options.exams.map(e=>[e.academic_year_id,{id:e.academic_year_id,name:e.year_name}])).values()])}
           {select("Term","academic_term_id",[...new Map(options.exams.filter(e=>!filters.academic_year_id||e.academic_year_id===filters.academic_year_id).map(e=>[e.academic_term_id,{id:e.academic_term_id,name:e.term_name}])).values()])}
           {select("Exam","exam_series_id",examOptions,"Latest exam")}
-          <label className="space-y-1 text-sm font-semibold text-slate-700">Responsibility<select aria-label="Responsibility" className={field} value={filters.scope??analytics.scope.level} onChange={e=>{setFilters({scope:e.target.value});setView("Overview");}}>{analytics.scope.available_scopes.map(scope=><option key={scope} value={scope}>{scopeNames[scope]}</option>)}</select></label>
+          <label className="space-y-1 text-sm font-semibold text-slate-700">Responsibility<select aria-label="Responsibility" className={field} value={filters.scope??analytics.scope.level} onChange={e=>{setFilters({scope:e.target.value});setView("Overview");}}>{analytics.scope.available_scopes.filter(scope=>props.audience!=="hos"||scope==="subject").map(scope=><option key={scope} value={scope}>{scopeNames[scope]}</option>)}</select></label>
         </div>
         <details><summary className="cursor-pointer py-2 text-sm font-semibold text-slate-700"><SlidersHorizontal aria-hidden="true" className="mr-2 inline h-4 w-4"/>More Filters{activeFilters.length>0?` (${activeFilters.length} active)`:""}</summary><div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {select("Department","department_id",options.departments,"All authorized departments",selectedScope==="school")}

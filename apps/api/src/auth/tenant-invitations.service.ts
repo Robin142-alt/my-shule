@@ -40,6 +40,7 @@ const ROLE_HIERARCHY: Record<string, number> = {
   admissions_officer: 40,
   ict_manager: 40,
   hod: 30,
+  head_of_subject: 25,
   accountant: 30,
   librarian: 30,
   nurse: 30,

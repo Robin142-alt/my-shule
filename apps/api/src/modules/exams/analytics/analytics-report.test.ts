@@ -51,3 +51,15 @@ test('invalid filters, denied scopes and persistence errors cannot return a docu
     {recordSchoolOperation:async()=>{writes++;}} as never);
   await assert.rejects(()=>failing.generate({section:'summary',filters:{}}),/Audit unavailable/);assert.equal(writes,0);
 });
+
+test('subject report forces the appointed subject scope before computing and auditing the PDF',async()=>{
+  let filters:Record<string,string>={};
+  const analytics=buildAcademicIntelligence([evidence()],{level:'subject',role:'head_of_subject',actor_user_id:'hos'},{page:1,page_size:25},['subject']);
+  const service=new AnalyticsReportService({requireStore:()=>({tenant_id:'school-a',user_id:'hos',role:'head_of_subject'})} as never,
+    {getAnalytics:async(value:Record<string,string>)=>{filters=value;return analytics;}} as never,
+    {executeSql:async()=>({rows:[identity]})} as never,{saveManifest:async()=>{}} as never,{recordSchoolOperation:async()=>{}} as never);
+  const result=await service.generate({section:'summary',filters:{scope:'school',subject_id:'math'}},'subject');
+  assert.deepEqual(filters,{scope:'subject',subject_id:'math'});
+  assert.equal(result.report.scope,'Subject');
+  assert.equal(Buffer.from(result.pdf_base64,'base64').subarray(0,5).toString(),'%PDF-');
+});

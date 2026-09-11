@@ -159,6 +159,12 @@ export class ExamsController {
     return this.examsService.publishReportCard(dto);
   }
 
+  @Get('analytics/subject')
+  @Permissions('exams:subject-analytics')
+  getSubjectAnalytics(@Query() query: Record<string, string | undefined> = {}) {
+    return this.examsService.getAnalytics({ ...query, scope: 'subject' });
+  }
+
   @Get('analytics')
   @Permissions('exams:read')
   getAnalytics(@Query() query: Record<string, string | undefined> = {}) {
