@@ -37,6 +37,8 @@ const ROLE_LABELS: Record<string, string> = {
   grade_master: "Grade/Form Master",
   form_master: "Form Master",
   hod: "Head of Department",
+  hos: "Head of Subject",
+  head_of_subject: "Head of Subject",
   head_of_department: "Head of Department",
   dean: "Dean of Academics",
   dean_academics: "Dean of Academics",

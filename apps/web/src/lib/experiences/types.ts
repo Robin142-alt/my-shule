@@ -12,6 +12,7 @@ export type SchoolExperienceRole =
   | "dean-academics"
   | "exams-manager"
   | "hod"
+  | "hos"
   | "class-teacher"
   | "grade-master"
   | "admin"

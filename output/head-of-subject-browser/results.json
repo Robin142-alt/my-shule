@@ -1,0 +1,28 @@
+[
+  {
+    "width": 390,
+    "passed": true,
+    "verified": [
+      "subject scope",
+      "preview",
+      "PDF download",
+      "print handler",
+      "appointments",
+      "empty/error/loading",
+      "no page overflow"
+    ]
+  },
+  {
+    "width": 1440,
+    "passed": true,
+    "verified": [
+      "subject scope",
+      "preview",
+      "PDF download",
+      "print handler",
+      "appointments",
+      "empty/error/loading",
+      "no page overflow"
+    ]
+  }
+]

@@ -55,6 +55,7 @@ const roleLabels: Record<SchoolExperienceRole, string> = {
   "dean-academics": "Dean of Academics Dashboard",
   "exams-manager": "Exams Manager Dashboard",
   hod: "Head of Department Dashboard",
+  hos: "Head of Subject Dashboard",
   "class-teacher": "Class Teacher Dashboard",
   "grade-master": "Grade/Form Master Dashboard",
   admin: "School Administration Dashboard",

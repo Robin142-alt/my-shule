@@ -640,6 +640,9 @@ export class ExamsService {
 
   async createAcademicIntervention(dto: CreateAcademicInterventionDto) {
     this.assertAcademicInterventionCreateAllowed(Boolean(dto.analytics_scope));
+    if (this.currentRole() === 'head_of_subject' && dto.analytics_scope !== 'subject') {
+      throw new ForbiddenException('Head of Subject interventions require an active subject appointment.');
+    }
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
     const triggerReason = this.requireText(dto.trigger_reason, 'Intervention reason');
@@ -2683,7 +2686,9 @@ export class ExamsService {
         || (analyticsScoped && this.hasPermission('teacher:write') && this.hasPermission('exams:read'))
       );
 
-    if (!leadershipAllowed && !hodAllowed && !teacherAllowed) {
+    const subjectHeadAllowed = analyticsScoped && role === 'head_of_subject'
+      && this.hasPermission('exams:subject-analytics');
+    if (!leadershipAllowed && !hodAllowed && !teacherAllowed && !subjectHeadAllowed) {
       throw new ForbiddenException(
         'Academic intervention creation requires academic write or review authority',
       );

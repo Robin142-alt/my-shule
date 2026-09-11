@@ -49,6 +49,12 @@ import { AcademicsWidgetDataDto } from '../dashboard/dashboard.dto';
 export class AcademicsController {
   constructor(private readonly academicsService: AcademicsService) {}
 
+  @Get('my-subject-appointments')
+  @Permissions('academics:read')
+  getMySubjectAppointments() {
+    return this.academicsService.getMySubjectAppointments();
+  }
+
   @Get('foundation')
   @Permissions('academics:read')
   getAcademicFoundation() {

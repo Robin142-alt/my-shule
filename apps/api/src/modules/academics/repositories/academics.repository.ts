@@ -2514,6 +2514,29 @@ export class AcademicsRepository {
     });
   }
 
+  async getSubjectAppointmentsForUser(tenantId: string, userId: string) {
+    const result = await this.executeSql(tenantId, `
+      SELECT ap.id::text, ap.subject_id, subject.name AS subject_name,
+        ap.appointment_type, ap.effective_from::text, ap.effective_to::text,
+        year.name AS academic_year_name, class.name AS class_name, stream.name AS stream_name,
+        CASE WHEN ap.status <> 'active' THEN ap.status
+          WHEN ap.effective_from > CURRENT_DATE THEN 'scheduled'
+          WHEN ap.effective_to < CURRENT_DATE THEN 'expired'
+          ELSE 'active' END AS status
+      FROM academics_role_appointments ap
+      JOIN subjects subject ON subject.tenant_id = ap.tenant_id AND subject.id::text = ap.subject_id::text
+      LEFT JOIN academic_years year ON year.tenant_id = ap.tenant_id AND year.id::text = ap.academic_year_id::text
+      LEFT JOIN class_sections class ON class.tenant_id = ap.tenant_id AND class.id::text = ap.class_section_id::text
+      LEFT JOIN class_streams stream ON stream.tenant_id = ap.tenant_id AND stream.id::text = ap.stream_id::text
+      WHERE ap.tenant_id = $1 AND ap.teacher_user_id::text = $2
+        AND ap.role_type IN ('head_of_subject', 'hos', 'subject_coordinator')
+        AND EXISTS (SELECT 1 FROM tenant_memberships membership
+          WHERE membership.tenant_id = ap.tenant_id AND membership.user_id::text = $2 AND membership.status = 'active')
+      ORDER BY ap.effective_from DESC, subject.name, ap.id
+    `, [tenantId, userId]);
+    return result.rows;
+  }
+
   async assignAcademicRole(tenantId: string, input: Record<string, unknown>) {
     return this.prisma.executeWithTenant(tenantId, null, async (tx: any) => {
       const scopeValues = [

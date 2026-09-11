@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
+import { AcademicsRepository } from '../src/modules/academics/repositories/academics.repository';
 import { ExamsRepository } from '../src/modules/exams/repositories/exams.repository';
 import type { ExamAnalyticsScopeLevel } from '../src/modules/exams/analytics/analytics-scope';
 import { analyticsQuery } from '../src/modules/exams/analytics/analytics-query';
@@ -78,6 +79,7 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
       await c.query("INSERT INTO academics_department_hod_appointments VALUES ('school-a',$1,$2,'active',NULL,NULL)",[ids.hod,ids.department]);
       await c.query("INSERT INTO academics_role_appointments VALUES ('school-a',$1,'head_of_subject',$2,NULL,NULL,NULL,'active',NULL,NULL)",[ids.hos,ids.math]);
       await c.query("INSERT INTO academics_role_appointments VALUES ('school-a',$1,'grade_master',NULL,$2,$3,$4,'active',NULL,NULL)",[ids.grade,ids.class,ids.red,ids.year]);
+      await c.query("ALTER TABLE academics_role_appointments ADD COLUMN id uuid DEFAULT gen_random_uuid(), ADD COLUMN appointment_type text DEFAULT 'permanent'");
       const tables=await c.query('SELECT tablename FROM pg_tables WHERE schemaname=$1',[schema]);
       for(const row of tables.rows)await c.query(`ALTER TABLE ${row.tablename} ENABLE ROW LEVEL SECURITY; ALTER TABLE ${row.tablename} FORCE ROW LEVEL SECURITY;
         CREATE POLICY tenant_isolation ON ${row.tablename} USING (tenant_id = current_setting('app.tenant_id',true));`);
@@ -103,11 +105,29 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
     await expect(repository.getAnalytics('school-b',{level:'assignment',actor_user_id:ids.teacher,role:'teacher'},{page:1,page_size:25,scope:'assignment'},false)).rejects.toThrow(/appointment/);
     const c=await pool.connect();try{await c.query(`SET search_path TO ${schema}`);await c.query("UPDATE academics_role_appointments SET effective_to='2000-01-01' WHERE teacher_user_id=$1",[ids.hos]);}finally{c.release();}
     await expect(read('subject','hos')).rejects.toThrow(/appointment/);
+    const reset=await pool.connect();try{await reset.query(`UPDATE ${schema}.academics_role_appointments SET effective_to=NULL WHERE teacher_user_id=$1`,[ids.hos]);}finally{reset.release();}
   });
   it('handles missing marks and does not broaden access through filters',async()=>{
     const result=await read('assignment','teacher');expect(result.operations.missing).toBe(1);expect(result.performance.mean).toBe(80);
     const unrelated=await read('assignment','teacher',{subject_id:ids.bio});expect(unrelated.learners.total).toBe(0);
     const wrongExam=await read('assignment','teacher',{exam_series_id:randomUUID()});expect(wrongExam.performance.mean).toBeNull();
+  });
+  it('lists only the authenticated staff subject appointments under RLS',async()=>{
+    const academicRepository = new AcademicsRepository({executeWithTenant:async(tenant:string,_user:unknown,callback:(tx:unknown)=>Promise<unknown>)=>{
+      const client=await pool.connect();try{await client.query('BEGIN');await client.query(`SET LOCAL search_path TO ${schema}; SET LOCAL ROLE ${role}`);
+        await client.query("SELECT set_config('app.tenant_id',$1,true)",[tenant]);
+        const result=await callback({$queryRawUnsafe:async(sql:string,...params:unknown[])=>(await client.query(sql,params)).rows});await client.query('COMMIT');return result;
+      }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
+    }} as never);
+    const rows=await academicRepository.getSubjectAppointmentsForUser('school-a',ids.hos);
+    expect(rows).toHaveLength(1);expect(rows[0].subject_name).toBe('math');expect(rows[0].status).toBe('active');
+    expect(await academicRepository.getSubjectAppointmentsForUser('school-a',ids.teacher)).toEqual([]);
+    expect(await academicRepository.getSubjectAppointmentsForUser('school-b',ids.hos)).toEqual([]);
+    const c=await pool.connect();try {
+      await c.query(`UPDATE ${schema}.academics_role_appointments SET effective_from=CURRENT_DATE+10 WHERE teacher_user_id=$1`,[ids.hos]);
+      expect((await academicRepository.getSubjectAppointmentsForUser('school-a',ids.hos))[0].status).toBe('scheduled');
+      await expect(read('subject','hos')).rejects.toThrow(/appointment/);
+    } finally {await c.query(`UPDATE ${schema}.academics_role_appointments SET effective_from=NULL WHERE teacher_user_id=$1`,[ids.hos]);c.release();}
   });
   it('keeps the HOS appointment migration idempotent and permits different subject heads',async()=>{
     let bootstrap='';

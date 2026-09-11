@@ -1,0 +1,1 @@
+import {createRoot} from 'react-dom/client';import {HosCommandCenter} from "C:/Users/user/Desktop/PROJECTS/Shule hub/tmp/head-of-subject-role/apps/web/src/components/school/hos-command-center";createRoot(document.getElementById('root')!).render(<HosCommandCenter routeMode="public" activeSection={new URLSearchParams(location.search).get('view')??undefined}/>);

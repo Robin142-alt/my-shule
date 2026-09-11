@@ -7,6 +7,11 @@ import { AnalyticsReportService } from './analytics-report.service';
 @RequiresModule('exams')
 export class AnalyticsReportController {
   constructor(private readonly reports:AnalyticsReportService) {}
+  @Post('reports/subject')
+  @Permissions('exams:subject-analytics')
+  @Header('Cache-Control','private, no-store')
+  generateSubject(@Body() input: unknown) { return this.reports.generate(input, 'subject'); }
+
   @Post('reports')
   @Permissions('exams:read')
   @Header('Cache-Control','private, no-store')

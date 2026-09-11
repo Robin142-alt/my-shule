@@ -17,6 +17,7 @@ export const DEFAULT_ROLE_TEACHER = 'teacher';
 export const DEFAULT_ROLE_DEAN_ACADEMICS = 'dean_academics';
 export const DEFAULT_ROLE_EXAMS_MANAGER = 'exams_manager';
 export const DEFAULT_ROLE_HOD = 'hod';
+export const DEFAULT_ROLE_HEAD_OF_SUBJECT = 'head_of_subject';
 export const DEFAULT_ROLE_CLASS_TEACHER = 'class_teacher';
 export const DEFAULT_ROLE_GRADE_MASTER = 'grade_master';
 export const DEFAULT_ROLE_ACCOUNTANT = 'accountant';
@@ -55,6 +56,7 @@ export const SCHOOL_STAFF_ROLE_CODES = [
   DEFAULT_ROLE_CLASS_TEACHER,
   DEFAULT_ROLE_GRADE_MASTER,
   DEFAULT_ROLE_HOD,
+  DEFAULT_ROLE_HEAD_OF_SUBJECT,
   DEFAULT_ROLE_DEAN_ACADEMICS,
   DEFAULT_ROLE_EXAMS_MANAGER,
   DEFAULT_ROLE_NURSE,
@@ -86,6 +88,7 @@ export const ACADEMIC_TEACHING_ROLE_CODES = [
   DEFAULT_ROLE_CLASS_TEACHER,
   DEFAULT_ROLE_GRADE_MASTER,
   DEFAULT_ROLE_HOD,
+  DEFAULT_ROLE_HEAD_OF_SUBJECT,
   DEFAULT_ROLE_DEAN_ACADEMICS,
   DEFAULT_ROLE_EXAMS_MANAGER,
   DEFAULT_ROLE_COUNSELLOR,
@@ -97,6 +100,7 @@ const SCHOOL_INBOX_PERMISSIONS = ['events:read', 'events:write'] as const;
 const SCHOOL_EVENT_PUBLISH_PERMISSIONS = ['events:publish'] as const;
 
 export const DEFAULT_PERMISSION_CATALOG = [
+  { resource: 'exams', action: 'subject-analytics', description: 'Read appointed subject analytics, generate scoped reports and create scoped learner interventions' },
   { resource: '*', action: '*', description: 'Full tenant access' },
   { resource: 'auth', action: 'read', description: 'Read authenticated identity context' },
   { resource: 'events', action: 'read', description: 'Read the authenticated user and role school workflow inbox' },
@@ -387,6 +391,15 @@ const DEFAULT_ROLE_CATALOG_BASE = [
       'support:view',
       'support:create',
       'support:reply',
+    ],
+  },
+  {
+    code: DEFAULT_ROLE_HEAD_OF_SUBJECT,
+    name: 'Head of Subject',
+    description: 'Subject appointment oversight, learner interventions and academic analysis; teaching duties use assigned teacher access',
+    permissions: [
+      'auth:read', ...SCHOOL_INBOX_PERMISSIONS, 'academics:read', 'exams:subject-analytics',
+      'support:view', 'support:create', 'support:reply',
     ],
   },
   {

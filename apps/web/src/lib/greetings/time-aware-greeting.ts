@@ -44,6 +44,7 @@ export const schoolRoleGreetingNames: Record<SchoolExperienceRole, string> = {
   "dean-academics": "Dean",
   "exams-manager": "Exams Manager",
   hod: "HOD",
+  hos: "Head of Subject",
   "class-teacher": "Class Teacher",
   "grade-master": "Grade Master",
   admin: "Admin",

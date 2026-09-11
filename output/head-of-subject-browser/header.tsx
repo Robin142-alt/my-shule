@@ -1,0 +1,1 @@
+export const IntegratedSchoolCommandHeader=({roleTitle})=><h1 className="text-2xl font-bold">{roleTitle}</h1>;export const SchoolCommandSidebarIdentity=()=> <p className="mb-4 font-bold">QA School · sample data</p>;

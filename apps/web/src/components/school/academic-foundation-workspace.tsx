@@ -290,11 +290,13 @@ export function AcademicFoundationWorkspace({
   schoolName,
   tenantId,
   initialTab = "calendar",
+  initialRoleType = "",
 }: {
   actorRole: "Principal" | "Deputy Principal";
   schoolName: string;
   tenantId: string;
   initialTab?: AcademicFoundationTab;
+  initialRoleType?: "" | "head_of_subject";
 }) {
   const [activeTab, setActiveTab] = useState<AcademicFoundationTab>(initialTab);
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -630,6 +632,10 @@ export function AcademicFoundationWorkspace({
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
+    if (value(data, "role_type") === "head_of_subject" && !value(data, "subject_id")) {
+      setActionError("Select a subject for the Head of Subject appointment.");
+      return;
+    }
     return submit("academic-role", "/academics/academic-roles", {
       role_type: value(data, "role_type"),
       subject_id: value(data, "subject_id") || undefined,
@@ -1058,7 +1064,7 @@ export function AcademicFoundationWorkspace({
           <div className="grid gap-5 xl:grid-cols-2">
             <SetupForm title="Assign academic leadership role" description="Create an effective-dated appointment. Reassignment ends the previous holder without erasing history.">
               <form onSubmit={handleAssignAcademicRole} className="grid gap-3 sm:grid-cols-2">
-                <label className="sm:col-span-2 text-sm font-bold">Role<select name="role_type" required defaultValue="" className={fieldClass}><option value="">Select academic role</option><option value="assistant_class_teacher">Assistant Class Teacher</option><option value="grade_master">Grade Master</option><option value="form_master">Form Master</option><option value="dean_of_academics">Dean of Academics</option><option value="exams_manager">Exams Manager</option><option value="head_of_subject">Head of Subject (HOS)</option><option value="subject_coordinator">Subject Coordinator</option><option value="curriculum_coordinator">Curriculum Coordinator</option><option value="academic_year_coordinator">Academic Year Coordinator</option><option value="timetable_coordinator">Timetable Coordinator</option></select></label>
+                <label className="sm:col-span-2 text-sm font-bold">Role<select name="role_type" required defaultValue={initialRoleType} className={fieldClass}><option value="">Select academic role</option><option value="assistant_class_teacher">Assistant Class Teacher</option><option value="grade_master">Grade Master</option><option value="form_master">Form Master</option><option value="dean_of_academics">Dean of Academics</option><option value="exams_manager">Exams Manager</option><option value="head_of_subject">Head of Subject (HOS)</option><option value="subject_coordinator">Subject Coordinator</option><option value="curriculum_coordinator">Curriculum Coordinator</option><option value="academic_year_coordinator">Academic Year Coordinator</option><option value="timetable_coordinator">Timetable Coordinator</option></select></label>
                 <label className="sm:col-span-2 text-sm font-bold">Staff member<select name="teacher_user_id" required defaultValue="" className={fieldClass}><option value="">Select active staff member</option>{teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.label}</option>)}</select></label>
                 <label className="text-sm font-bold">Subject scope (required for HOS)<select name="subject_id" defaultValue="" className={fieldClass}><option value="">Select subject</option>{activeSubjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
                 <label className="text-sm font-bold">Department scope<select name="department_id" defaultValue="" className={fieldClass}><option value="">Whole school / not applicable</option>{activeDepartments.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>

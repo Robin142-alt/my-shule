@@ -40,7 +40,8 @@ test('CreateTenantInvitationDto accepts school assignment fields sent by the use
   assert.equal(dto.note, 'Invite to manage Form 2 West lessons.');
 });
 
-test('TenantInvitationsService sends a tenant-scoped role invitation without exposing the token', async () => {
+for (const [invitedRoleCode, invitedRoleName] of [['teacher', 'Teacher'], ['head_of_subject', 'Head of Subject']]) {
+test(`TenantInvitationsService sends a tenant-scoped ${invitedRoleName} invitation without exposing the token`, async () => {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   const baselines: string[] = [];
   const roleLookups: Array<{ tenantId: string; code: string }> = [];
@@ -85,7 +86,7 @@ test('TenantInvitationsService sends a tenant-scoped role invitation without exp
       },
       getRoleByCode: async (tenantId: string, code: string) => {
         roleLookups.push({ tenantId, code });
-        return { id: 'role-1', code, name: 'Teacher' };
+        return { id: 'role-1', code, name: invitedRoleName };
       },
     } as never,
     {
@@ -114,7 +115,7 @@ test('TenantInvitationsService sends a tenant-scoped role invitation without exp
   const response = await service.inviteTenantUser({
     email: 'Teacher@Example.test',
     display_name: 'Teacher One',
-    role_code: 'teacher',
+    role_code: invitedRoleCode,
     phone: '+254725236545',
     department: 'Science',
     assignment: 'Form 2 West Mathematics',
@@ -124,26 +125,26 @@ test('TenantInvitationsService sends a tenant-scoped role invitation without exp
   });
 
   assert.deepEqual(baselines, ['green-valley']);
-  assert.deepEqual(roleLookups, [{ tenantId: 'green-valley', code: 'teacher' }]);
+  assert.deepEqual(roleLookups, [{ tenantId: 'green-valley', code: invitedRoleCode }]);
   assert.equal(sentInvites.length, 1);
   assert.equal(sentInvites[0]?.to, 'teacher@example.test');
   assert.equal(sentInvites[0]?.displayName, 'Teacher One');
   assert.equal(sentInvites[0]?.schoolName, 'Green Valley School');
-  assert.equal(sentInvites[0]?.assignedRole, 'Teacher');
+  assert.equal(sentInvites[0]?.assignedRole, invitedRoleName);
   assert.equal(sentInvites[0]?.inviterName, 'Principal Wanjiku');
   assert.match(sentInvites[0]?.supportNote ?? '', /school administrator or MyShule support/i);
   assert.match(sentInvites[0]?.inviteUrl ?? '', /^https:\/\/my-shule-erp\.vercel\.app\/invite\/accept\?token=/);
   assert.match(sentInvites[0]?.inviteUrl ?? '', /[?&]tenant=green-valley(?:&|$)/);
   assert.equal(response.tenant_id, 'green-valley');
   assert.equal(response.email, 'teacher@example.test');
-  assert.equal(response.role_code, 'teacher');
+  assert.equal(response.role_code, invitedRoleCode);
   assert.equal(response.invitation_sent, true);
   assert.equal(JSON.stringify(response).includes('token='), false);
   const tokenInsert = queries.find((query) => query.text.includes('INSERT INTO auth_action_tokens'));
   assert.match(String(tokenInsert?.values[3]), /^[a-f0-9]{64}$/);
   assert.equal(String(tokenInsert?.values[2]), 'teacher@example.test');
   const tokenMetadata = JSON.parse(String(tokenInsert?.values[5] ?? '{}'));
-  assert.equal(tokenMetadata.role_name, 'Teacher');
+  assert.equal(tokenMetadata.role_name, invitedRoleName);
   assert.equal(tokenMetadata.invited_by_display_name, 'Principal Wanjiku');
   assert.equal(tokenMetadata.phone, '+254725236545');
   assert.equal(tokenMetadata.department, 'Science');
@@ -160,10 +161,12 @@ test('TenantInvitationsService sends a tenant-scoped role invitation without exp
   assert.deepEqual(markDeliveryQuery?.values, ['00000000-0000-0000-0000-000000000901', 'sent', null, null, null]);
   assert.doesNotMatch(String(outboxInsert?.values[3] ?? ''), /token=|invite_url/);
   const outboxPayload = JSON.parse(String(outboxInsert?.values[3] ?? '{}'));
-  assert.equal(outboxPayload.role_name, 'Teacher');
+  assert.equal(outboxPayload.role_name, invitedRoleName);
   assert.equal(outboxPayload.invited_by_display_name, 'Principal Wanjiku');
   assert.equal(outboxPayload.department, 'Science');
 });
+
+}
 
 test('TenantInvitationsService allows a head teacher school admin to invite deputy principal users', async () => {
   const roleLookups: Array<{ tenantId: string; code: string }> = [];
@@ -799,6 +802,7 @@ test('TenantInvitationsService deactivates a tenant membership and archives its 
       'class_teacher',
       'grade_master',
       'hod',
+      'head_of_subject',
       'dean_academics',
       'exams_manager',
       'nurse',

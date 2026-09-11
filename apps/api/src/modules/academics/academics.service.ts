@@ -1310,6 +1310,13 @@ export class AcademicsService {
     return updated;
   }
 
+  async getMySubjectAppointments() {
+    const tenantId = this.requireTenantId();
+    const userId = this.currentUserId();
+    if (!userId || userId === 'anonymous') throw new UnauthorizedException('Sign in to view your subject appointments.');
+    return this.repository.getSubjectAppointmentsForUser(tenantId, userId);
+  }
+
   async assignAcademicRole(dto: AcademicRoleAppointmentDto) {
     const tenantId = this.requireTenantId();
     const teacherUserId = this.requireText(dto.teacher_user_id, 'Academic role holder');
