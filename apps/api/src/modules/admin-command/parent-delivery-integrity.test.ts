@@ -156,8 +156,8 @@ test('TeacherCommandService sent-message history is limited to the exact guardia
   assert.match(queries[0].sql, /FROM notifications notification/i);
   assert.match(queries[0].sql, /INNER JOIN workflow_events event/i);
   assert.match(queries[0].sql, /event\.source_user_id::text = \$2/i);
-  assert.match(queries[0].sql, /guardian\.id = notification\.recipient_guardian_id/i);
-  assert.match(queries[0].sql, /guardian\.user_id = notification\.recipient_user_id/i);
+  assert.match(queries[0].sql, /guardian\.id::text = notification\.recipient_guardian_id::text/i);
+  assert.match(queries[0].sql, /guardian\.user_id::text = notification\.recipient_user_id::text/i);
   assert.match(queries[0].sql, /notification\.tenant_id = \$1/i);
   assert.doesNotMatch(queries[0].sql, /FROM communication_sms_outbox/i);
 });
