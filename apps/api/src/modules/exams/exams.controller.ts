@@ -161,8 +161,8 @@ export class ExamsController {
 
   @Get('analytics')
   @Permissions('exams:read')
-  getAnalytics() {
-    return this.examsService.getAnalytics();
+  getAnalytics(@Query() query: Record<string, string | undefined> = {}) {
+    return this.examsService.getAnalytics(query);
   }
 
   @Get('interventions')

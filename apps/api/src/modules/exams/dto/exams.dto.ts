@@ -59,6 +59,10 @@ export const ACADEMIC_INTERVENTION_STATUSES = [
 
 export class CreateAcademicInterventionDto {
   @IsOptional()
+  @IsIn(['school', 'department', 'subject', 'grade', 'class', 'assignment'])
+  analytics_scope?: string;
+
+  @IsOptional()
   @IsString()
   student_id?: string;
 

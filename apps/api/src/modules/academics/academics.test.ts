@@ -81,7 +81,9 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.doesNotMatch(schemaSql, /ON CONFLICT \(tenant_id, order_index\)/);
   assert.match(schemaSql, /UPDATE class_sections section\s+SET academic_level_id =/);
   assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_academics_department_hod_active/);
-  assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_academics_role_appointments_active/);
+  assert.match(schemaSql, /ALTER TABLE academics_role_appointments ADD COLUMN IF NOT EXISTS subject_id text/);
+  assert.match(schemaSql, /DROP INDEX IF EXISTS ux_academics_role_appointments_active/);
+  assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_academics_role_appointments_subject_active/);
   assert.match(schemaSql, /uq_academics_curriculum_name_start/);
   assert.match(schemaSql, /NULLIF\(current_setting\('app\.role', true\), ''\) = 'system'/);
   assert.match(schemaSql, /ALTER TABLE teacher_subject_assignments FORCE ROW LEVEL SECURITY/);

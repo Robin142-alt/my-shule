@@ -491,6 +491,7 @@ export class AcademicsRepository {
                     FROM academics_report_card_settings WHERE tenant_id = $1) item), '[]'::jsonb) AS report_card_settings
             ,COALESCE((SELECT jsonb_agg(to_jsonb(item) ORDER BY item.created_at DESC)
               FROM (SELECT appointment.id::text, appointment.role_type,
+                           appointment.subject_id::text,
                            appointment.teacher_user_id::text,
                            COALESCE(staff.display_name, staff.staff_number) AS teacher_name,
                            appointment.department_id::text, appointment.academic_year_id::text,
@@ -2520,6 +2521,7 @@ export class AcademicsRepository {
         input.academic_year_id ?? null,
         input.class_section_id ?? null,
         input.stream_id ?? null,
+        input.subject_id ?? null,
       ];
       const existing = await this.executeSqlTx(tx, `
         SELECT * FROM academics_role_appointments
@@ -2528,6 +2530,7 @@ export class AcademicsRepository {
           AND academic_year_id IS NOT DISTINCT FROM $4::text
           AND class_section_id IS NOT DISTINCT FROM $5::text
           AND stream_id IS NOT DISTINCT FROM $6::text
+          AND subject_id IS NOT DISTINCT FROM $7::text
         FOR UPDATE
       `, [tenantId, input.role_type, ...scopeValues]);
       const previous = existing.rows[0] ?? null;
@@ -2559,15 +2562,15 @@ export class AcademicsRepository {
       const created = await this.executeSqlTx(tx, `
         INSERT INTO academics_role_appointments (
           tenant_id, school_id, role_type, teacher_user_id, department_id,
-          academic_year_id, class_section_id, stream_id, appointment_type,
+          academic_year_id, class_section_id, stream_id, appointment_type, subject_id,
           effective_from, effective_to, reason, appointed_by_user_id, approved_by_user_id
-        ) VALUES ($1, $1, $2, $3::uuid, $4::uuid, $5, $6, $7, $8,
+        ) VALUES ($1, $1, $2, $3::uuid, $4::uuid, $5, $6, $7, $8, $13,
                   $9::date, $10::date, $11, $12::uuid, $12::uuid)
         RETURNING *
       `, [tenantId, input.role_type, input.teacher_user_id, input.department_id ?? null,
         input.academic_year_id ?? null, input.class_section_id ?? null, input.stream_id ?? null,
         input.appointment_type ?? 'permanent', input.effective_from, input.effective_to ?? null,
-        input.reason ?? null, input.actor_user_id ?? null]);
+        input.reason ?? null, input.actor_user_id ?? null, input.subject_id ?? null]);
       return { previous, appointment: created.rows[0], changed_holder: Boolean(previous) };
     });
   }

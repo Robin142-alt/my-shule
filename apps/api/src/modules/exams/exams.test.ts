@@ -1,3 +1,4 @@
+import { evidence } from "./analytics/testing/evidence.fixture";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -5041,7 +5042,7 @@ test('ExamsController and ExamsService support live exams analytics with isolati
   assert.equal(passedTenantId, 'tenant-abc');
   assert.deepEqual(passedScope, {
     level: 'school',
-    actor_user_id: null,
+    actor_user_id: 'officer-1',
     role: 'admin',
   });
   assert.equal(res.kpis.school_average, 75.5);
@@ -5104,112 +5105,23 @@ test('ExamsService limits academic analytics to the current HOD department or te
 });
 
 test('ExamsRepository correctly aggregates exam analytics data', async () => {
-  const queries: string[] = [];
-  const paramsList: any[][] = [];
-  const responses = [
-    [{
-      school_average: 78.5,
-      pending_reviews: 2,
-      missing_marks_alerts: 5,
-      active_exams: 1,
-      final_mark_count: 120,
-      explicit_evidence_count: 6,
-      missing_or_incomplete_count: 5,
-    }],
-    [
-      { exam_series_id: 'series-1', exam_series_name: 'Term 1', starts_on: '2026-01-01', average_score: 65.2 },
-      { exam_series_id: 'series-2', exam_series_name: 'Term 2', starts_on: '2026-05-01', average_score: 72.8 },
-    ],
-    [{
-      subject_id: 'subject-1',
-      subject_name: 'Mathematics',
-      mean_score: 74.25,
-      pass_rate: 82.5,
-      ee_count: 10,
-      me_count: 12,
-      ae_count: 3,
-      be_count: 1,
-    }],
-    [{
-      student_id: 'student-1',
-      student_name: 'Amina Njeri',
-      admission_number: 'ADM-001',
-      average_percentage: 88.5,
-      assessments_taken: 6,
-    }],
-    [{
-      student_id: 'student-2',
-      student_name: 'Brian Otieno',
-      admission_number: 'ADM-002',
-      latest_exam_series: 'Term 2',
-      latest_average: 78,
-      previous_exam_series: 'Term 1',
-      previous_average: 70,
-      improvement: 8,
-    }],
-    [{
-      student_id: 'student-3',
-      student_name: 'Carol Wanjiku',
-      admission_number: 'ADM-003',
-      average_percentage: 43.5,
-      assessments_taken: 6,
-    }],
-  ];
-  let responseIndex = 0;
-  
-  const repository = new ExamsRepository({
-    executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
-      return cb({
-        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
-          queries.push(sql);
-          paramsList.push(params);
-          return responses[responseIndex++] ?? [];
-        }
-      });
-    }
-  } as never);
-
-  const analytics = await repository.getAnalytics('tenant-xyz');
-  
-  assert.equal(analytics.kpis.school_average, 78.5);
-  assert.equal(analytics.trends.length, 2);
-  assert.equal(analytics.trends[1].average_score, 72.8);
-  assert.equal(analytics.trends[1].exam_series_name, 'Term 2');
-  assert.equal(analytics.subjectPerformance[0].pass_rate, 82.5);
-  assert.equal(analytics.studentProgress.topPerformers[0].student_name, 'Amina Njeri');
-  assert.equal(analytics.studentProgress.topImprovers[0].improvement, 8);
-  assert.equal(analytics.studentProgress.atRiskStudents[0].average_percentage, 43.5);
-  assert.deepEqual(analytics.data_quality, {
-    final_mark_count: 120,
-    explicit_evidence_count: 6,
-    missing_or_incomplete_count: 5,
-  });
-  
-  assert.equal(queries.length, 6);
-  assert.equal(paramsList.every((params) => params[0] === 'tenant-xyz'), true);
-  assert.match(queries[0], /mark_window\.class_section_id::text = class_assignment\.class_section_id/);
-  assert.match(queries[0], /mark\.student_id::text = expected\.student_id/);
-  for (const query of queries) {
-    assert.doesNotMatch(
-      query,
-      /\b(?:FROM|JOIN|UPDATE)\s+exam_mark_entry_windows\s+window\b/i,
-      'PostgreSQL reserves WINDOW; mark-entry tables must use a safe alias',
-    );
-  }
-  for (const query of queries.slice(1)) {
-    assert.match(query, /mark\.status IN \('locked', 'published'\)/);
-    assert.match(query, /mark\.score_status = 'entered'/);
-    assert.match(query, /assessment\.max_score > 0/);
-  }
-  for (const query of queries) {
-    assert.match(query, /student_report_cards card/);
-    assert.match(
-      query,
-      /card\.tenant_id = (?:mark|exam_marks)\.tenant_id/,
-    );
-    assert.match(query, /card\.is_current = TRUE/);
-    assert.match(query, /card\.status IN \('approved', 'published'\)/);
-  }
+  const queries: string[] = []; const paramsList: unknown[][] = [];
+  const repository = new ExamsRepository({executeWithTenant: async (tenantId: string, _ctx: unknown, callback: any) => {
+    assert.equal(tenantId, 'tenant-xyz');
+    return callback({$queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+      queries.push(sql); paramsList.push(params);
+      return [evidence({ average: 60 }), evidence({ exam_series_id: 'exam-2', exam_date: '2026-05-01', average: 80 })];
+    }});
+  }} as never);
+  const result = await repository.getAnalytics('tenant-xyz');
+  assert.equal(result.kpis.school_average, 80); assert.equal(result.change, 20);
+  assert.equal(result.trends.length, 2); assert.equal(result.subjectPerformance[0].pass_rate, 100);
+  assert.equal(result.studentProgress.topImprovers[0].improvement, 20);
+  assert.equal(result.data_quality.final_mark_count, 1);
+  assert.equal(queries.length, 1); assert.equal(paramsList[0][0], 'tenant-xyz');
+  assert.match(queries[0], /card.status IN \('approved','published'\)/);
+  assert.match(queries[0], /assessment.tenant_id = key.tenant_id/);
+  assert.match(queries[0], /score_status = 'entered'/);
 });
 
 test('ExamsRepository does not disguise analytics database failures as zero results', async () => {
@@ -5230,55 +5142,18 @@ test('ExamsRepository does not disguise analytics database failures as zero resu
 });
 
 test('ExamsRepository applies assignment scope to every academic analytics query', async () => {
-  const queries: string[] = [];
-  const paramsList: any[][] = [];
-  let queryIndex = 0;
-  const responses = [
-    [{
-      school_average: null,
-      pending_reviews: 0,
-      missing_marks_alerts: 0,
-      active_exams: 0,
-      final_mark_count: 0,
-      explicit_evidence_count: 0,
-      missing_or_incomplete_count: 0,
-    }],
-    [],
-    [],
-    [],
-    [],
-    [],
-  ];
-  const repository = new ExamsRepository({
-    executeWithTenant: async (_tenantId: string, _context: unknown, callback: (tx: any) => unknown) =>
-      callback({
-        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
-          queries.push(sql);
-          paramsList.push(params);
-          return responses[queryIndex++] ?? [];
-        },
-      }),
-  } as never);
-
-  const analytics = await repository.getAnalytics('tenant-a', {
-    level: 'assignment',
-    actor_user_id: 'teacher-1',
-    role: 'teacher',
-  });
-
-  assert.deepEqual(analytics.scope, {
-    level: 'assignment',
-    role: 'teacher',
-  });
-  assert.equal(queries.length, 6);
-  assert.equal(paramsList.every((params) =>
-    params[0] === 'tenant-a' && params[1] === 'teacher-1'), true);
-  for (const query of queries) {
-    assert.match(query, /teacher_subject_assignments teacher_assignment/);
-    assert.match(query, /teacher_assignment\.teacher_user_id::text = \$2/);
-    assert.match(query, /academics_class_teachers class_teacher/);
-    assert.match(query, /class_teacher\.teacher_user_id::text = \$2/);
-  }
+  const queries: string[] = []; const paramsList: unknown[][] = [];
+  const repository = new ExamsRepository({executeWithTenant: async (_tenant: string, _ctx: unknown, callback: any) => callback({
+    $queryRawUnsafe: async (sql: string, ...params: unknown[]) => { queries.push(sql); paramsList.push(params); return queries.length === 1 ? [{ level: 'assignment' }] : []; }
+  })} as never);
+  const result = await repository.getAnalytics('tenant-a', {level:'assignment', actor_user_id:'teacher-1', role:'teacher'});
+  assert.equal(result.scope.level, 'assignment'); assert.deepEqual(result.scope.available_scopes, ['assignment']);
+  assert.equal(queries.length, 2); assert.ok(paramsList.every(p=>p[0]==='tenant-a' && p[1]==='teacher-1'));
+  assert.match(queries[0], /membership.status = 'active'/);
+  assert.match(queries[1], /ap.teacher_user_id::text = \$2::text/);
+  assert.match(queries[1], /ap.subject_id::text = evidence.subject_id::text/);
+  assert.match(queries[1], /ap.stream_id::text = evidence.stream_id::text/);
+  assert.doesNotMatch(queries[1], /academics_class_teachers/);
 });
 
 test('report-card action DTOs accept regenerate reasons and reject undeclared actions', async () => {

@@ -1476,6 +1476,12 @@ export class ExamsSchemaService implements OnModuleInit {
         );
       CREATE INDEX IF NOT EXISTS ix_academic_interventions_student
         ON academic_interventions (tenant_id, student_id, status, created_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_exam_grading_boundaries_analytics
+        ON exam_grading_policy_boundaries (tenant_id, grading_policy_id, min_score DESC);
+      CREATE INDEX IF NOT EXISTS ix_exam_series_analytics_history
+        ON exam_series (tenant_id, starts_on DESC, id);
+      CREATE INDEX IF NOT EXISTS ix_academic_interventions_subject_scope
+        ON academic_interventions (tenant_id, subject_id, class_section_id, student_id);
       CREATE INDEX IF NOT EXISTS ix_academic_interventions_owner
         ON academic_interventions (tenant_id, owner_user_id, status, due_on);
       CREATE INDEX IF NOT EXISTS ix_academic_intervention_updates_history

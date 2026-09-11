@@ -44,6 +44,9 @@ jobs:
       - name: Browser authentication contracts
         run: npm --prefix apps/web run test:design -- persistent-login auth-route-contract auth-token-containment server-auth-client session-refreshing-fetch session-logout dashboard-api-cookie-session
 
+      - name: Academic intelligence workspace contracts
+        run: npm --prefix apps/web run test:design -- academic-intelligence exams-workspace teacher-exams-marks-workspace
+
   # ──────────────────────────────────────────────────────────────
   # Build + Unit Tests
   # ──────────────────────────────────────────────────────────────
@@ -80,6 +83,12 @@ jobs:
           DATABASE_URL: ""
           NODE_ENV: test
         run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/auth-security.integration-spec.ts apps/api/test/auth-experience-separation.integration-spec.ts
+
+      - name: Academic intelligence tenant, scope and migration contracts
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/academic-intelligence.integration-spec.ts
 
       - name: Upload build artifacts
         if: github.ref == 'refs/heads/main'

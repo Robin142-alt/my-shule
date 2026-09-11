@@ -43,6 +43,7 @@ import {
   type ExamScoreStatus,
 } from './dto/exams.dto';
 import { ExamsRepository } from './repositories/exams.repository';
+import { parseAnalyticsFilters, type ExamAnalyticsScopeLevel } from './analytics/analytics-scope';
 import { ReportCardGenerationService } from './services/report-card-generation.service';
 import {
   extractPersistedReportCardPayload,
@@ -129,6 +130,9 @@ const ACADEMIC_INTERVENTION_LEADERSHIP_ROLES = new Set([
 ]);
 const ACADEMIC_INTERVENTION_HOD_ROLES = new Set(['hod', 'head_of_department']);
 const ACADEMIC_INTERVENTION_OWNER_ROLES = new Set([
+  'hos',
+  'head_of_subject',
+  'subject_coordinator',
   'teacher',
   'class_teacher',
   'grade_master',
@@ -584,22 +588,32 @@ export class ExamsService {
     };
   }
 
-  async getAnalytics() {
+  async getAnalytics(query: Record<string, string | undefined> = {}) {
     const tenantId = this.requireTenantId();
     const role = this.currentRole();
     const hasSchoolWideScope = this.isExamWorkflowAdmin()
       || SCHOOL_WIDE_ACADEMIC_ANALYTICS_ROLES.has(role);
-    const level = hasSchoolWideScope
+    const filters = parseAnalyticsFilters(query);
+    const defaultLevel: ExamAnalyticsScopeLevel = hasSchoolWideScope
       ? 'school'
       : DEPARTMENT_ACADEMIC_ANALYTICS_ROLES.has(role)
         ? 'department'
-        : 'assignment';
+        : ['hos', 'head_of_subject', 'subject_coordinator'].includes(role) ? 'subject'
+          : ['grade_master', 'form_master', 'grade_form_master'].includes(role) ? 'grade'
+            : role === 'class_teacher' ? 'class' : 'assignment';
+    const level = filters.scope ?? defaultLevel;
+    if (level === 'school' && !hasSchoolWideScope) {
+      throw new ForbiddenException('Whole-school analytics requires a school leadership role.');
+    }
 
-    return this.repository.getAnalytics(tenantId, {
+    const result = await this.repository.getAnalytics(tenantId, {
       level,
-      actor_user_id: level === 'school' ? null : this.requireUserId(),
+      actor_user_id: this.requireUserId(),
       role,
-    });
+    }, filters, hasSchoolWideScope);
+    let canStartIntervention = false;
+    try { this.assertAcademicInterventionCreateAllowed(true); canStartIntervention = true; } catch { /* Read-only academic experience. */ }
+    return { ...result, capabilities: { can_start_intervention: canStartIntervention } };
   }
 
   async listAcademicInterventions(query: Record<string, string | undefined> = {}) {
@@ -625,7 +639,7 @@ export class ExamsService {
   }
 
   async createAcademicIntervention(dto: CreateAcademicInterventionDto) {
-    this.assertAcademicInterventionCreateAllowed();
+    this.assertAcademicInterventionCreateAllowed(Boolean(dto.analytics_scope));
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
     const triggerReason = this.requireText(dto.trigger_reason, 'Intervention reason');
@@ -653,12 +667,27 @@ export class ExamsService {
     const studentId = textValue(scope?.student_id);
     const classSectionId = textValue(scope?.class_section_id);
     const subjectId = textValue(scope?.subject_id);
+    let analyticsAuthorized = false;
+    let analyticsBaseline: Record<string, unknown> | undefined;
+    if (dto.analytics_scope) {
+      if (!studentId || !classSectionId || !subjectId || !dto.exam_series_id) {
+        throw new BadRequestException('Select an exam, learner, class and subject from academic intelligence.');
+      }
+      const analytics = await this.getAnalytics({scope: dto.analytics_scope, exam_series_id: dto.exam_series_id,
+        student_id: studentId, class_section_id: classSectionId, subject_id: subjectId});
+      analyticsAuthorized = analytics.learners.items.some(learner => learner.student_id === studentId
+        && learner.class_section_id === classSectionId && learner.subjects.some(subject => subject.subject_id === subjectId));
+      if (!analyticsAuthorized) throw new ForbiddenException('The selected learner and subject are outside your academic appointment.');
+      const learner = analytics.learners.items.find(item => item.student_id === studentId)!;
+      analyticsBaseline = { average: learner.subjects.find(item => item.subject_id === subjectId)!.average,
+        exam_series_id: analytics.filters.exam_series_id, risk: learner.risk.level };
+    }
     if (!studentId && !classSectionId && !subjectId) {
       throw new BadRequestException(
         'Select a learner, class, or subject from this school before creating an intervention',
       );
     }
-    if (ACADEMIC_INTERVENTION_OWNER_ROLES.has(this.currentRole())) {
+    if (ACADEMIC_INTERVENTION_OWNER_ROLES.has(this.currentRole()) && !analyticsAuthorized) {
       if (!classSectionId && !subjectId) {
         throw new BadRequestException(
           'Teachers must select an assigned class or subject before creating an intervention',
@@ -692,7 +721,7 @@ export class ExamsService {
             : 'subject',
       source: dto.source ?? 'manual',
       trigger_reason: triggerReason,
-      baseline: this.recordValue(dto.baseline),
+      baseline: analyticsBaseline ?? this.recordValue(dto.baseline),
       plan,
       target: this.recordValue(dto.target),
       owner_user_id: textValue(scope?.owner_user_id),
@@ -2627,7 +2656,7 @@ export class ExamsService {
     }
   }
 
-  private assertAcademicInterventionCreateAllowed(): void {
+  private assertAcademicInterventionCreateAllowed(analyticsScoped = false): void {
     const role = this.currentRole();
     if (this.isExamWorkflowAdmin()) return;
 
@@ -2651,6 +2680,7 @@ export class ExamsService {
         this.hasPermission('academics:write')
         || this.hasPermission('academics:assign-teachers')
         || this.hasPermission('exams:review')
+        || (analyticsScoped && this.hasPermission('teacher:write') && this.hasPermission('exams:read'))
       );
 
     if (!leadershipAllowed && !hodAllowed && !teacherAllowed) {
