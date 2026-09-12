@@ -6,6 +6,7 @@ import {
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { notificationRecipientPredicate } from '../notifications/notification-recipient-predicate';
 import { PrismaService } from '../../database/prisma.service';
 import { EventPublisherService } from '../events/event-publisher.service';
 import {
@@ -64,7 +65,7 @@ export class ClassTeacherService {
     const { rows } = await this.executeSql(
       `SELECT id
        FROM student_class_assignments
-       WHERE tenant_id = $1
+       WHERE tenant_id::text = $1::text
          AND class_section_id = $2
          AND student_id = $3
          AND status = 'active'
@@ -102,7 +103,7 @@ export class ClassTeacherService {
     const { rows } = await this.executeSql(
       `SELECT id
        FROM teacher_subject_assignments
-       WHERE tenant_id = $1
+       WHERE tenant_id::text = $1::text
          AND teacher_user_id = $2
           AND class_section_id = $3
           AND subject_id = $4
@@ -129,7 +130,7 @@ export class ClassTeacherService {
     const { rows } = await this.executeSql(
       `SELECT id
        FROM teacher_subject_assignments
-       WHERE tenant_id = $1
+       WHERE tenant_id::text = $1::text
           AND teacher_user_id = $2
           AND class_section_id = $3
           AND status = 'active'
@@ -158,9 +159,10 @@ export class ClassTeacherService {
       `SELECT assignment.id
        FROM student_class_assignments student_assignment
        JOIN teacher_subject_assignments assignment
-         ON assignment.tenant_id = student_assignment.tenant_id
-        AND assignment.class_section_id = student_assignment.class_section_id
-       WHERE student_assignment.tenant_id = $1
+         ON assignment.tenant_id::text = student_assignment.tenant_id::text
+        AND assignment.class_section_id::text = student_assignment.class_section_id::text
+        AND (assignment.stream_id IS NULL OR assignment.stream_id::text = student_assignment.stream_id::text)
+       WHERE student_assignment.tenant_id::text = $1::text
          AND assignment.teacher_user_id = $2
          AND student_assignment.student_id = $3
          AND student_assignment.status = 'active'
@@ -184,7 +186,7 @@ export class ClassTeacherService {
     const { rows } = await this.executeSql(
       `SELECT id
        FROM academics_class_teachers
-       WHERE tenant_id = $1
+       WHERE tenant_id::text = $1::text
          AND teacher_user_id::text = $2
          AND class_section_id = $3
          AND is_active = TRUE
@@ -227,9 +229,9 @@ export class ClassTeacherService {
       `SELECT appointment.id
        FROM academics_class_teachers appointment
        JOIN student_class_assignments student_assignment
-         ON student_assignment.tenant_id = appointment.tenant_id
-        AND student_assignment.class_section_id = appointment.class_section_id
-       WHERE appointment.tenant_id = $1
+         ON student_assignment.tenant_id::text = appointment.tenant_id::text
+        AND student_assignment.class_section_id::text = appointment.class_section_id::text
+       WHERE appointment.tenant_id::text = $1::text
          AND appointment.teacher_user_id::text = $2
          AND student_assignment.student_id = $3
          AND student_assignment.status = 'active'
@@ -264,14 +266,14 @@ export class ClassTeacherService {
         COALESCE(attendance_stats.total_count, 0)::int as attendance_total_count,
         '--' as cat_average
       FROM teacher_subject_assignments tsa
-      JOIN subjects s ON s.id = tsa.subject_id AND s.tenant_id = tsa.tenant_id
-      JOIN class_sections cs ON cs.id = tsa.class_section_id AND cs.tenant_id = tsa.tenant_id
+      JOIN subjects s ON s.id::text = tsa.subject_id::text AND s.tenant_id::text = tsa.tenant_id::text
+      JOIN class_sections cs ON cs.id::text = tsa.class_section_id::text AND cs.tenant_id::text = tsa.tenant_id::text
       LEFT JOIN (
         SELECT class_section_id, tenant_id, COUNT(student_id) as student_count
         FROM student_class_assignments
         WHERE status = 'active'
         GROUP BY class_section_id, tenant_id
-      ) sc ON sc.class_section_id = tsa.class_section_id AND sc.tenant_id = tsa.tenant_id
+      ) sc ON sc.class_section_id::text = tsa.class_section_id::text AND sc.tenant_id::text = tsa.tenant_id::text
       LEFT JOIN (
         SELECT
           sa.class_section_id,
@@ -279,17 +281,17 @@ export class ClassTeacherService {
           COUNT(*) FILTER (WHERE LOWER(a.status) = 'present') as present_count,
           COUNT(*) as total_count
         FROM academics_attendance a
-        JOIN student_class_assignments sa ON sa.student_id = a.student_id AND sa.tenant_id = a.tenant_id
-        WHERE a.attendance_date >= CURRENT_DATE - interval '30 days'
+        JOIN student_class_assignments sa ON sa.student_id::text = a.student_id::text AND sa.tenant_id::text = a.tenant_id::text
+        WHERE a.attendance_date::date >= CURRENT_DATE - interval '30 days'
         GROUP BY sa.class_section_id, a.tenant_id
-      ) attendance_stats ON attendance_stats.class_section_id = tsa.class_section_id AND attendance_stats.tenant_id = tsa.tenant_id
+      ) attendance_stats ON attendance_stats.class_section_id::text = tsa.class_section_id::text AND attendance_stats.tenant_id::text = tsa.tenant_id::text
       LEFT JOIN (
         SELECT DISTINCT sa.class_section_id, a.tenant_id
         FROM academics_attendance a
-        JOIN student_class_assignments sa ON sa.student_id = a.student_id AND sa.tenant_id = a.tenant_id
-        WHERE a.attendance_date = CURRENT_DATE
-      ) today_attendance ON today_attendance.class_section_id = tsa.class_section_id AND today_attendance.tenant_id = tsa.tenant_id
-      WHERE tsa.tenant_id = $1 
+        JOIN student_class_assignments sa ON sa.student_id::text = a.student_id::text AND sa.tenant_id::text = a.tenant_id::text
+        WHERE a.attendance_date::date = CURRENT_DATE
+      ) today_attendance ON today_attendance.class_section_id::text = tsa.class_section_id::text AND today_attendance.tenant_id::text = tsa.tenant_id::text
+      WHERE tsa.tenant_id::text = $1::text
         AND tsa.teacher_user_id = $2
         AND tsa.status = 'active'
         AND tsa.effective_from <= CURRENT_DATE
@@ -327,14 +329,14 @@ export class ClassTeacherService {
     await this.assertCurrentRoleAssignedClass(tenantId, userId, streamId);
 
     const learnersRes = await this.executeSql(
-      `SELECT count(*)::int as count FROM student_class_assignments WHERE tenant_id = $1 AND class_section_id = $2 AND status = 'active'`,
+      `SELECT count(*)::int as count FROM student_class_assignments WHERE tenant_id::text = $1::text AND class_section_id = $2 AND status = 'active'`,
       [tenantId, streamId]
-    ).catch(() => ({ rows: [{ count: 0 }] }));
+    );
 
     const attendanceRes = await this.executeSql(
-      `SELECT count(*) FILTER (WHERE status = 'present')::int as present, count(*) FILTER (WHERE status = 'absent')::int as absent FROM academics_attendance WHERE tenant_id = $1 AND class_id = $2 AND attendance_date = CURRENT_DATE`,
+      `SELECT count(*) FILTER (WHERE status = 'present')::int as present, count(*) FILTER (WHERE status = 'absent')::int as absent FROM academics_attendance WHERE tenant_id::text = $1::text AND class_id = $2 AND attendance_date::date = CURRENT_DATE`,
       [tenantId, streamId]
-    ).catch(() => ({ rows: [{ present: 0, absent: 0 }] }));
+    );
 
     return {
       totalLearners: learnersRes.rows[0]?.count || 0,
@@ -349,9 +351,9 @@ export class ClassTeacherService {
 
     // Todays Lessons
     const lessonsRes = await this.executeSql(
-      `SELECT count(*)::int as count FROM academics_timetable_slots WHERE tenant_id = $1 AND teacher_id = $2 AND day_of_week = EXTRACT(ISODOW FROM CURRENT_DATE)`,
+      `SELECT count(*)::int as count FROM timetable_slots WHERE tenant_id::text = $1::text AND teacher_id = $2 AND day_of_week = EXTRACT(ISODOW FROM CURRENT_DATE)`,
       [tenantId, userId]
-    ).catch(() => ({ rows: [{ count: 0 }] }));
+    );
     const todaysLessonsCount = lessonsRes.rows[0]?.count || 0;
 
     // Pending Attendance
@@ -359,9 +361,9 @@ export class ClassTeacherService {
 
     // Lesson Logs
     const lessonLogsRes = await this.executeSql(
-      `SELECT count(*)::int as count FROM academics_lesson_logs WHERE tenant_id = $1 AND teacher_id = $2 AND log_date = $3`,
+      `SELECT count(*)::int as count FROM academics_lesson_logs WHERE tenant_id::text = $1::text AND teacher_id = $2 AND log_date = $3`,
       [tenantId, userId, today]
-    ).catch(() => ({ rows: [{ count: 0 }] }));
+    );
     const pendingLessonLogs = Math.max(0, todaysLessonsCount - (lessonLogsRes.rows[0]?.count || 0));
 
     // Marks
@@ -369,34 +371,37 @@ export class ClassTeacherService {
 
     // Assignments
     const assignmentsRes = await this.executeSql(
-      `SELECT count(*)::int as count FROM academics_assignments WHERE tenant_id = $1 AND teacher_id = $2 AND due_date >= CURRENT_DATE AND due_date < CURRENT_DATE + interval '7 days'`,
+      `SELECT count(*)::int as count FROM academics_assignments WHERE tenant_id::text = $1::text AND teacher_id = $2 AND due_date >= CURRENT_DATE AND due_date < CURRENT_DATE + interval '7 days'`,
       [tenantId, userId]
-    ).catch(() => ({ rows: [{ count: 0 }] }));
+    );
 
     // Learners needing attention (Discipline)
     const disciplineRes = await this.executeSql(
       `SELECT count(DISTINCT di.student_id)::int as count 
        FROM discipline_incidents di 
-       JOIN student_class_assignments sca ON di.student_id = sca.student_id AND sca.tenant_id = di.tenant_id AND sca.status = 'active'
-       JOIN teacher_subject_assignments tsa ON sca.class_section_id = tsa.class_section_id AND tsa.tenant_id = sca.tenant_id
-       WHERE di.status = 'PENDING' AND tsa.teacher_user_id = $2 AND di.tenant_id = $1`,
+       JOIN student_class_assignments sca ON di.student_id::text = sca.student_id::text AND sca.tenant_id::text = di.tenant_id::text AND sca.status = 'active'
+       JOIN teacher_subject_assignments tsa ON sca.class_section_id::text = tsa.class_section_id::text AND tsa.tenant_id::text = sca.tenant_id::text AND (tsa.stream_id IS NULL OR tsa.stream_id::text = sca.stream_id::text) AND tsa.status='active'
+       WHERE di.status = 'PENDING' AND tsa.teacher_user_id = $2 AND di.tenant_id::text = $1::text`,
       [tenantId, userId]
-    ).catch(() => ({ rows: [{ count: 0 }] }));
+    );
 
     // Messages
     const msgRes = await this.executeSql(
-      `SELECT count(*)::int as count FROM school_notifications WHERE tenant_id = $1 AND user_id = $2 AND read_at IS NULL`,
-      [tenantId, userId]
-    ).catch(() => ({ rows: [{ count: 0 }] }));
+      `SELECT count(*)::int as count FROM notifications notification
+       WHERE notification.tenant_id = $1
+         AND ${notificationRecipientPredicate('notification', '$2', '$3')}
+         AND notification.status <> 'read'`,
+      [tenantId, userId, this.isClassTeacherMode() ? 'class_teacher' : 'teacher']
+    );
 
     const storeRequestsRes = await this.executeSql(
       `SELECT count(*)::int as count
        FROM inventory_requests
-       WHERE tenant_id = $1
+       WHERE tenant_id::text = $1::text
          AND requested_by = $2
          AND status IN ('pending', 'approved', 'backordered')`,
       [tenantId, userId],
-    ).catch(() => ({ rows: [{ count: 0 }] }));
+    );
     const storeRequestsCount = storeRequestsRes.rows[0]?.count || 0;
 
     return {
@@ -426,16 +431,16 @@ export class ClassTeacherService {
         '--'::text AS cat_average
       FROM academics_class_teachers appointment
       JOIN class_sections cs
-        ON cs.id = appointment.class_section_id
-       AND cs.tenant_id = appointment.tenant_id
+        ON cs.id::text = appointment.class_section_id::text
+       AND cs.tenant_id::text = appointment.tenant_id::text
       LEFT JOIN (
         SELECT class_section_id, tenant_id, COUNT(student_id) AS student_count
         FROM student_class_assignments
         WHERE status = 'active'
         GROUP BY class_section_id, tenant_id
       ) student_counts
-        ON student_counts.class_section_id = appointment.class_section_id
-       AND student_counts.tenant_id = appointment.tenant_id
+        ON student_counts.class_section_id::text = appointment.class_section_id::text
+       AND student_counts.tenant_id::text = appointment.tenant_id::text
       LEFT JOIN (
         SELECT
           student_assignment.class_section_id,
@@ -444,26 +449,26 @@ export class ClassTeacherService {
           COUNT(*) AS total_count
         FROM academics_attendance attendance
         JOIN student_class_assignments student_assignment
-          ON student_assignment.student_id = attendance.student_id
-         AND student_assignment.tenant_id = attendance.tenant_id
-        WHERE attendance.attendance_date >= CURRENT_DATE - interval '30 days'
+          ON student_assignment.student_id::text = attendance.student_id::text
+         AND student_assignment.tenant_id::text = attendance.tenant_id::text
+        WHERE attendance.attendance_date::date >= CURRENT_DATE - interval '30 days'
           AND student_assignment.status = 'active'
         GROUP BY student_assignment.class_section_id, attendance.tenant_id
       ) attendance_stats
-        ON attendance_stats.class_section_id = appointment.class_section_id
-       AND attendance_stats.tenant_id = appointment.tenant_id
+        ON attendance_stats.class_section_id::text = appointment.class_section_id::text
+       AND attendance_stats.tenant_id::text = appointment.tenant_id::text
       LEFT JOIN (
         SELECT DISTINCT student_assignment.class_section_id, attendance.tenant_id
         FROM academics_attendance attendance
         JOIN student_class_assignments student_assignment
-          ON student_assignment.student_id = attendance.student_id
-         AND student_assignment.tenant_id = attendance.tenant_id
-        WHERE attendance.attendance_date = CURRENT_DATE
+          ON student_assignment.student_id::text = attendance.student_id::text
+         AND student_assignment.tenant_id::text = attendance.tenant_id::text
+        WHERE attendance.attendance_date::date = CURRENT_DATE
           AND student_assignment.status = 'active'
       ) today_attendance
-        ON today_attendance.class_section_id = appointment.class_section_id
-       AND today_attendance.tenant_id = appointment.tenant_id
-      WHERE appointment.tenant_id = $1
+        ON today_attendance.class_section_id::text = appointment.class_section_id::text
+       AND today_attendance.tenant_id::text = appointment.tenant_id::text
+      WHERE appointment.tenant_id::text = $1::text
         AND appointment.teacher_user_id::text = $2
         AND appointment.is_active = TRUE
         AND appointment.status = 'active'
@@ -517,8 +522,8 @@ export class ClassTeacherService {
         s.primary_guardian_phone as parent_phone,
         sa.status
       FROM student_class_assignments sa
-      JOIN students s ON s.id = sa.student_id AND s.tenant_id = sa.tenant_id
-      WHERE sa.tenant_id = $1 
+      JOIN students s ON s.id::text = sa.student_id::text AND s.tenant_id::text = sa.tenant_id::text
+      WHERE sa.tenant_id::text = $1::text
         AND sa.class_section_id = $2
         AND sa.status = 'active'
       ORDER BY s.first_name ASC
@@ -547,21 +552,21 @@ export class ClassTeacherService {
         COALESCE(sc.student_count, 0) as expected,
         CASE WHEN ar.id IS NULL THEN 'Pending' ELSE 'Completed' END as status
       FROM teacher_subject_assignments tsa
-      JOIN subjects s ON s.id = tsa.subject_id AND s.tenant_id = tsa.tenant_id
-      JOIN class_sections cs ON cs.id = tsa.class_section_id AND cs.tenant_id = tsa.tenant_id
+      JOIN subjects s ON s.id::text = tsa.subject_id::text AND s.tenant_id::text = tsa.tenant_id::text
+      JOIN class_sections cs ON cs.id::text = tsa.class_section_id::text AND cs.tenant_id::text = tsa.tenant_id::text
       LEFT JOIN (
         SELECT class_section_id, tenant_id, COUNT(student_id) as student_count
         FROM student_class_assignments
         WHERE status = 'active'
         GROUP BY class_section_id, tenant_id
-      ) sc ON sc.class_section_id = tsa.class_section_id AND sc.tenant_id = tsa.tenant_id
+      ) sc ON sc.class_section_id::text = tsa.class_section_id::text AND sc.tenant_id::text = tsa.tenant_id::text
       LEFT JOIN (
         SELECT DISTINCT a.tenant_id, a.id, sa.class_section_id
         FROM academics_attendance a
-        JOIN student_class_assignments sa ON sa.student_id = a.student_id AND sa.tenant_id = a.tenant_id
+        JOIN student_class_assignments sa ON sa.student_id::text = a.student_id::text AND sa.tenant_id::text = a.tenant_id::text
         WHERE a.attendance_date = $3
-      ) ar ON ar.class_section_id = tsa.class_section_id AND ar.tenant_id = tsa.tenant_id
-      WHERE tsa.tenant_id = $1 
+      ) ar ON ar.class_section_id::text = tsa.class_section_id::text AND ar.tenant_id::text = tsa.tenant_id::text
+      WHERE tsa.tenant_id::text = $1::text
         AND tsa.teacher_user_id = $2
         AND tsa.status = 'active'
         AND tsa.effective_from <= CURRENT_DATE
@@ -607,22 +612,22 @@ export class ClassTeacherService {
         (
           SELECT COUNT(*) 
           FROM exam_marks em 
-          WHERE em.tenant_id = w.tenant_id 
-            AND em.exam_series_id = w.exam_series_id 
-            AND em.assessment_id = assessment.id
-            AND em.class_section_id = w.class_section_id 
-            AND em.subject_id = w.subject_id
+          WHERE em.tenant_id::text = w.tenant_id::text
+            AND em.exam_series_id::text = w.exam_series_id::text
+            AND em.assessment_id::text = assessment.id::text
+            AND em.class_section_id::text = w.class_section_id::text
+            AND em.subject_id::text = w.subject_id::text
             AND em.score_status NOT IN ('not_assessed', 'incomplete')
         ) as entered_count,
         (
           SELECT COUNT(*)
           FROM students student
-          WHERE student.tenant_id = w.tenant_id
+          WHERE student.tenant_id::text = w.tenant_id::text
             AND student.status = 'active'
             AND EXISTS (
               SELECT 1
               FROM student_class_assignments class_assignment
-              WHERE class_assignment.tenant_id = student.tenant_id
+              WHERE class_assignment.tenant_id::text = student.tenant_id::text
                 AND class_assignment.student_id = student.id::text
                 AND class_assignment.class_section_id = w.class_section_id::text
                 AND class_assignment.status = 'active'
@@ -630,7 +635,7 @@ export class ClassTeacherService {
             AND EXISTS (
               SELECT 1
               FROM student_subject_enrollments subject_enrollment
-              WHERE subject_enrollment.tenant_id = student.tenant_id
+              WHERE subject_enrollment.tenant_id::text = student.tenant_id::text
                 AND subject_enrollment.student_id = student.id::text
                 AND subject_enrollment.class_section_id = w.class_section_id::text
                 AND subject_enrollment.subject_id = w.subject_id::text
@@ -639,27 +644,27 @@ export class ClassTeacherService {
         ) as total_students,
         w.status as window_status
       FROM exam_mark_entry_windows w
-      JOIN exam_series es ON es.id = w.exam_series_id AND es.tenant_id = w.tenant_id
-      JOIN class_sections cs ON cs.id = w.class_section_id::text AND cs.tenant_id = w.tenant_id
-      JOIN subjects s ON s.id = w.subject_id::text AND s.tenant_id = w.tenant_id
+      JOIN exam_series es ON es.id::text = w.exam_series_id::text AND es.tenant_id::text = w.tenant_id::text
+      JOIN class_sections cs ON cs.id = w.class_section_id::text AND cs.tenant_id::text = w.tenant_id::text
+      JOIN subjects s ON s.id = w.subject_id::text AND s.tenant_id::text = w.tenant_id::text
       JOIN LATERAL (
         SELECT ea.id, ea.name, ea.max_score
         FROM exam_assessments ea
-        WHERE ea.tenant_id = w.tenant_id
-          AND ea.exam_series_id = w.exam_series_id
-          AND ea.subject_id = w.subject_id
+        WHERE ea.tenant_id::text = w.tenant_id::text
+          AND ea.exam_series_id::text = w.exam_series_id::text
+          AND ea.subject_id::text = w.subject_id::text
         ORDER BY ea.created_at ASC
         LIMIT 1
       ) assessment ON TRUE
       JOIN teacher_subject_assignments tsa ON tsa.class_section_id = w.class_section_id::text
         AND tsa.subject_id = w.subject_id::text
-        AND tsa.tenant_id = w.tenant_id
+        AND tsa.tenant_id::text = w.tenant_id::text
         AND (tsa.academic_term_id IS NULL OR tsa.academic_term_id = es.academic_term_id::text)
         AND tsa.status = 'active'
         AND tsa.mark_entry_allowed = TRUE
         AND tsa.effective_from <= CURRENT_DATE
         AND (tsa.effective_to IS NULL OR tsa.effective_to >= CURRENT_DATE)
-      WHERE w.tenant_id = $1 
+      WHERE w.tenant_id::text = $1::text
         AND tsa.teacher_user_id = $2
         AND w.status = 'open'
         AND (w.opens_at <= NOW() OR w.last_action = 'opened')
@@ -704,18 +709,18 @@ export class ClassTeacherService {
         ts.starts_at,
         ts.ends_at
       FROM timetable_slots ts
-      JOIN class_sections cs ON cs.id::text = ts.class_section_id AND cs.tenant_id = ts.tenant_id
-      JOIN subjects s ON s.id::text = ts.subject_id AND s.tenant_id = ts.tenant_id
-      WHERE ts.tenant_id = $1 
+      JOIN class_sections cs ON cs.id::text = ts.class_section_id AND cs.tenant_id::text = ts.tenant_id::text
+      JOIN subjects s ON s.id::text = ts.subject_id AND s.tenant_id::text = ts.tenant_id::text
+      WHERE ts.tenant_id::text = $1::text
         AND ts.teacher_id = $2
         AND ts.status = 'published'
         AND EXISTS (
           SELECT 1
           FROM teacher_subject_assignments assignment
-          WHERE assignment.tenant_id = ts.tenant_id
+          WHERE assignment.tenant_id::text = ts.tenant_id::text
             AND assignment.teacher_user_id = $2
-            AND assignment.class_section_id = ts.class_section_id
-            AND assignment.subject_id = ts.subject_id
+            AND assignment.class_section_id::text = ts.class_section_id::text
+            AND assignment.subject_id::text = ts.subject_id::text
             AND assignment.status = 'active'
             AND assignment.effective_from <= CURRENT_DATE
             AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
@@ -748,7 +753,7 @@ export class ClassTeacherService {
         status,
         created_at
       FROM communication_sms_outbox
-      WHERE tenant_id = $1
+      WHERE tenant_id::text = $1::text
         AND sent_by = $2
       ORDER BY created_at DESC
       LIMIT 50
@@ -773,44 +778,46 @@ export class ClassTeacherService {
         COALESCE((
           SELECT COUNT(*)
           FROM academics_attendance a
-          WHERE a.student_id = s.id
-            AND a.tenant_id = s.tenant_id
+          WHERE a.student_id::text = s.id::text
+            AND a.tenant_id::text = s.tenant_id::text
             AND a.status = 'PRESENT'
         ), 0) as days_present,
         COALESCE((
           SELECT COUNT(*)
           FROM academics_attendance a
-          WHERE a.student_id = s.id
-            AND a.tenant_id = s.tenant_id
+          WHERE a.student_id::text = s.id::text
+            AND a.tenant_id::text = s.tenant_id::text
         ), 0) as total_attendance_days,
         (
           SELECT status
           FROM academics_attendance a
-          WHERE a.student_id = s.id
-            AND a.tenant_id = s.tenant_id
-            AND a.attendance_date = CURRENT_DATE
+          WHERE a.student_id::text = s.id::text
+            AND a.tenant_id::text = s.tenant_id::text
+            AND a.attendance_date::date = CURRENT_DATE
           LIMIT 1
         ) as today_status,
         COALESCE((
           SELECT COUNT(*)
           FROM discipline_incidents di
-          WHERE di.student_id = s.id
-            AND di.tenant_id = s.tenant_id
+          WHERE di.student_id::text = s.id::text
+            AND di.tenant_id::text = s.tenant_id::text
             AND di.status = 'PENDING'
         ), 0) as active_incidents,
         (
-          SELECT AVG(m.marks_obtained)
-          FROM academics_exam_marks m
-          WHERE m.student_id = s.id
-            AND m.tenant_id = s.tenant_id
+          SELECT AVG(100.0 * m.score / NULLIF(assessment.max_score, 0))
+          FROM exam_marks m
+          JOIN exam_assessments assessment ON assessment.tenant_id = m.tenant_id AND assessment.id = m.assessment_id
+          WHERE m.student_id::text = s.id::text
+            AND m.tenant_id::text = s.tenant_id::text
+            AND m.score_status = 'entered' AND m.status IN ('submitted', 'reviewed', 'locked', 'published')
         ) as avg_marks
       FROM class_sections cs
       JOIN academics_class_teachers appointment
-        ON appointment.tenant_id = cs.tenant_id
+        ON appointment.tenant_id::text = cs.tenant_id::text
        AND appointment.class_section_id = cs.id::text
-      JOIN student_class_assignments sca ON sca.class_section_id = cs.id AND sca.tenant_id = cs.tenant_id
-      JOIN students s ON s.id = sca.student_id AND s.tenant_id = sca.tenant_id
-      WHERE cs.tenant_id = $1 
+      JOIN student_class_assignments sca ON sca.class_section_id::text = cs.id::text AND sca.tenant_id::text = cs.tenant_id::text
+      JOIN students s ON s.id::text = sca.student_id::text AND s.tenant_id::text = sca.tenant_id::text
+      WHERE cs.tenant_id::text = $1::text
         AND appointment.teacher_user_id::text = $2
         AND appointment.is_active = TRUE
         AND appointment.status = 'active'
@@ -861,18 +868,18 @@ export class ClassTeacherService {
         di.created_at AS incident_date,
         s.first_name || ' ' || s.last_name as learner_name,
         cs.name as class_name,
-        di.category,
+        di.title,
         di.severity,
         di.status
       FROM discipline_incidents di
-      JOIN students s ON s.id = di.student_id AND s.tenant_id = di.tenant_id
-      JOIN student_class_assignments sca ON sca.student_id = s.id AND sca.tenant_id = s.tenant_id AND sca.status = 'active'
-      JOIN class_sections cs ON cs.id = sca.class_section_id AND cs.tenant_id = sca.tenant_id
+      JOIN students s ON s.id::text = di.student_id::text AND s.tenant_id::text = di.tenant_id::text
+      JOIN student_class_assignments sca ON sca.student_id::text = s.id::text AND sca.tenant_id::text = s.tenant_id::text AND sca.status = 'active'
+      JOIN class_sections cs ON cs.id::text = sca.class_section_id::text AND cs.tenant_id::text = sca.tenant_id::text
       JOIN academics_class_teachers appointment
-        ON appointment.tenant_id = sca.tenant_id
-       AND appointment.class_section_id = sca.class_section_id
-      WHERE di.tenant_id = $1
-        AND di.reported_by::text = $2
+        ON appointment.tenant_id::text = sca.tenant_id::text
+       AND appointment.class_section_id::text = sca.class_section_id::text
+      WHERE di.tenant_id::text = $1::text
+        AND di.reporting_staff_id::text = $2
         AND appointment.teacher_user_id::text = $2
         AND appointment.is_active = TRUE
         AND appointment.status = 'active'
@@ -932,12 +939,12 @@ export class ClassTeacherService {
         rcc.comment_status
       FROM class_sections cs
       JOIN academics_class_teachers appointment
-        ON appointment.tenant_id = cs.tenant_id
+        ON appointment.tenant_id::text = cs.tenant_id::text
        AND appointment.class_section_id = cs.id::text
-      JOIN student_class_assignments sca ON sca.class_section_id = cs.id AND sca.tenant_id = cs.tenant_id
-      JOIN students s ON s.id = sca.student_id AND s.tenant_id = sca.tenant_id
-      LEFT JOIN report_card_comments rcc ON rcc.student_id = s.id AND rcc.tenant_id = s.tenant_id
-      WHERE cs.tenant_id = $1 
+      JOIN student_class_assignments sca ON sca.class_section_id::text = cs.id::text AND sca.tenant_id::text = cs.tenant_id::text
+      JOIN students s ON s.id::text = sca.student_id::text AND s.tenant_id::text = sca.tenant_id::text
+      LEFT JOIN report_card_comments rcc ON rcc.student_id::text = s.id::text AND rcc.tenant_id::text = s.tenant_id::text
+      WHERE cs.tenant_id::text = $1::text
         AND appointment.teacher_user_id::text = $2
         AND appointment.is_active = TRUE
         AND appointment.status = 'active'
@@ -959,7 +966,7 @@ export class ClassTeacherService {
   async saveReportComment(tenantId: string, userId: string, data: any) {
     const checkQuery = `
       SELECT id FROM report_card_comments 
-      WHERE tenant_id = $1 AND student_id = $2
+      WHERE tenant_id::text = $1::text AND student_id = $2
     `;
     const insertQuery = `
       INSERT INTO report_card_comments (
@@ -1004,9 +1011,9 @@ export class ClassTeacherService {
         COALESCE(aa.status, 'present') as attendance,
         '' as reason
       FROM student_class_assignments sa
-      JOIN students s ON s.id = sa.student_id AND s.tenant_id = sa.tenant_id
-      LEFT JOIN academics_attendance aa ON aa.student_id = s.id AND aa.tenant_id = s.tenant_id AND aa.attendance_date = CURRENT_DATE
-      WHERE sa.tenant_id = $1 
+      JOIN students s ON s.id::text = sa.student_id::text AND s.tenant_id::text = sa.tenant_id::text
+      LEFT JOIN academics_attendance aa ON aa.student_id::text = s.id::text AND aa.tenant_id::text = s.tenant_id::text AND aa.attendance_date::date = CURRENT_DATE
+      WHERE sa.tenant_id::text = $1::text
         AND sa.class_section_id = $2
         AND sa.status = 'active'
       ORDER BY s.first_name ASC
@@ -1040,7 +1047,7 @@ export class ClassTeacherService {
     const activeStudents = await this.executeSql<{ student_id: string }>(
       `SELECT student_id::text
        FROM student_class_assignments
-       WHERE tenant_id = $1
+       WHERE tenant_id::text = $1::text
          AND class_section_id = $2
          AND status = 'active'
          AND student_id::text = ANY($3::text[])`,
@@ -1161,16 +1168,16 @@ export class ClassTeacherService {
         COALESCE(assessment.max_score, 100) AS out_of
       FROM exam_mark_entry_windows w
       JOIN exam_series es
-        ON es.id = w.exam_series_id
-       AND es.tenant_id = w.tenant_id
+        ON es.id::text = w.exam_series_id::text
+       AND es.tenant_id::text = w.tenant_id::text
       JOIN class_sections cs
         ON cs.id = w.class_section_id::text
-       AND cs.tenant_id = w.tenant_id
+       AND cs.tenant_id::text = w.tenant_id::text
       JOIN subjects subject
         ON subject.id = w.subject_id::text
-       AND subject.tenant_id = w.tenant_id
+       AND subject.tenant_id::text = w.tenant_id::text
       JOIN teacher_subject_assignments tsa
-        ON tsa.tenant_id = w.tenant_id
+        ON tsa.tenant_id::text = w.tenant_id::text
        AND (tsa.academic_term_id IS NULL OR tsa.academic_term_id = es.academic_term_id::text)
        AND tsa.class_section_id = w.class_section_id::text
        AND tsa.subject_id = w.subject_id::text
@@ -1182,9 +1189,9 @@ export class ClassTeacherService {
       JOIN LATERAL (
         SELECT ea.id, ea.max_score
         FROM exam_assessments ea
-        WHERE ea.tenant_id = w.tenant_id
-          AND ea.exam_series_id = w.exam_series_id
-          AND ea.subject_id = w.subject_id
+        WHERE ea.tenant_id::text = w.tenant_id::text
+          AND ea.exam_series_id::text = w.exam_series_id::text
+          AND ea.subject_id::text = w.subject_id::text
         ORDER BY ea.created_at ASC
         LIMIT 1
       ) assessment ON TRUE
@@ -1337,9 +1344,9 @@ export class ClassTeacherService {
     await this.assertCurrentRoleAssignedClass(tenantId, userId, streamId);
 
     const scoreRes = await this.executeSql(
-      `SELECT COALESCE(ROUND(AVG(score), 2), 0)::numeric as avg FROM exam_marks WHERE tenant_id = $1 AND class_section_id = $2`,
+      `SELECT COALESCE(ROUND(AVG(score), 2), 0)::numeric as avg FROM exam_marks WHERE tenant_id::text = $1::text AND class_section_id = $2`,
       [tenantId, streamId]
-    ).catch(() => ({ rows: [{ avg: 0 }] }));
+    );
 
     return {
       classMean: `${scoreRes.rows[0]?.avg || 0}%`,
@@ -1362,9 +1369,9 @@ export class ClassTeacherService {
         'N/A' as position,
         COALESCE(rcc.final_comment, '') as comment
       FROM student_class_assignments sca
-      JOIN students s ON s.id = sca.student_id AND s.tenant_id = sca.tenant_id
-      LEFT JOIN report_card_comments rcc ON rcc.student_id = s.id AND rcc.tenant_id = s.tenant_id
-      WHERE sca.tenant_id = $1 AND sca.class_section_id = $2
+      JOIN students s ON s.id::text = sca.student_id::text AND s.tenant_id::text = sca.tenant_id::text
+      LEFT JOIN report_card_comments rcc ON rcc.student_id::text = s.id::text AND rcc.tenant_id::text = s.tenant_id::text
+      WHERE sca.tenant_id::text = $1::text AND sca.class_section_id = $2
     `;
     const { rows } = await this.executeSql(query, [tenantId, streamId]);
     return rows;
@@ -1378,13 +1385,13 @@ export class ClassTeacherService {
         di.id,
         di.created_at as date,
         s.first_name || ' ' || s.last_name as learner,
-        di.category as issue,
+        di.title as issue,
         di.severity,
         di.status
       FROM discipline_incidents di
-      JOIN students s ON s.id = di.student_id AND s.tenant_id = di.tenant_id
-      JOIN student_class_assignments sca ON sca.student_id = s.id AND sca.tenant_id = s.tenant_id AND sca.status = 'active'
-      WHERE di.tenant_id = $1
+      JOIN students s ON s.id::text = di.student_id::text AND s.tenant_id::text = di.tenant_id::text
+      JOIN student_class_assignments sca ON sca.student_id::text = s.id::text AND sca.tenant_id::text = s.tenant_id::text AND sca.status = 'active'
+      WHERE di.tenant_id::text = $1::text
         AND sca.class_section_id = $2
       ORDER BY di.created_at DESC
     `;
@@ -1407,9 +1414,9 @@ export class ClassTeacherService {
         'Medium' as priority,
         sw.status
       FROM student_welfare_cases sw
-      JOIN students s ON s.id = sw.student_id AND s.tenant_id = sw.tenant_id
-      JOIN student_class_assignments sca ON sca.student_id = s.id AND sca.tenant_id = s.tenant_id AND sca.status = 'active'
-      WHERE sw.tenant_id = $1 AND sca.class_section_id = $2
+      JOIN students s ON s.id::text = sw.student_id::text AND s.tenant_id::text = sw.tenant_id::text
+      JOIN student_class_assignments sca ON sca.student_id::text = s.id::text AND sca.tenant_id::text = s.tenant_id::text AND sca.status = 'active'
+      WHERE sw.tenant_id::text = $1::text AND sca.class_section_id = $2
       ORDER BY sw.created_at DESC
     `;
     const { rows } = await this.executeSql(query, [tenantId, streamId]);
@@ -1433,13 +1440,13 @@ export class ClassTeacherService {
           WHEN 6 THEN 'Saturday'
           WHEN 7 THEN 'Sunday'
         END as day,
-        to_char(start_time, 'HH24:MI') || ' - ' || to_char(end_time, 'HH24:MI') as time,
+        to_char(starts_at, 'HH24:MI') || ' - ' || to_char(ends_at, 'HH24:MI') as time,
         subject_id as subject,
         teacher_id as teacher,
-        'Room 1' as room
-      FROM academics_timetable_slots
-      WHERE tenant_id = $1 AND class_id = $2 ${teacherFilter}
-      ORDER BY day_of_week, start_time
+        room_id as room
+      FROM timetable_slots
+      WHERE tenant_id::text = $1::text AND class_section_id = $2 ${teacherFilter}
+      ORDER BY day_of_week, starts_at
     `;
     const params = this.isClassTeacherMode() ? [tenantId, streamId] : [tenantId, streamId, userId];
     const { rows } = await this.executeSql(query, params);
@@ -1457,8 +1464,8 @@ export class ClassTeacherService {
         subject_id as subject,
         teacher_id as teacher,
         COUNT(id) as "lessonsPerWeek"
-      FROM academics_timetable_slots
-      WHERE tenant_id = $1 AND class_id = $2 ${teacherFilter}
+      FROM timetable_slots
+      WHERE tenant_id::text = $1::text AND class_section_id = $2 ${teacherFilter}
       GROUP BY subject_id, teacher_id
     `;
     const params = this.isClassTeacherMode() ? [tenantId, streamId] : [tenantId, streamId, userId];
@@ -1481,7 +1488,7 @@ export class ClassTeacherService {
         message as content,
         status
       FROM communication_sms_outbox
-      WHERE tenant_id = $1 AND sent_by::text = $2
+      WHERE tenant_id::text = $1::text AND sent_by::text = $2
       ORDER BY created_at DESC
       LIMIT 50
     `;
@@ -1503,13 +1510,13 @@ export class ClassTeacherService {
         a.due_date as "dueDate",
         a.status
       FROM academics_assignments a
-      JOIN class_sections cs ON cs.id::text = a.class_id AND cs.tenant_id = a.tenant_id
-      JOIN subjects s ON s.id::text = a.subject_id AND s.tenant_id = a.tenant_id
-      WHERE a.tenant_id = $1 ${streamId ? 'AND a.class_id = $2' : ''} AND a.teacher_id = ${streamId ? '$3' : '$2'}
+      JOIN class_sections cs ON cs.id::text = a.class_id AND cs.tenant_id::text = a.tenant_id::text
+      JOIN subjects s ON s.id::text = a.subject_id AND s.tenant_id::text = a.tenant_id::text
+      WHERE a.tenant_id::text = $1::text ${streamId ? 'AND a.class_id = $2' : ''} AND a.teacher_id = ${streamId ? '$3' : '$2'}
       ORDER BY a.due_date DESC
     `;
     const params = streamId ? [tenantId, streamId, userId] : [tenantId, userId];
-    const { rows } = await this.executeSql(query, params).catch(() => ({ rows: [] }));
+    const { rows } = await this.executeSql(query, params);
     return rows.map((r: any) => ({ ...r, dueDate: new Date(r.dueDate).toLocaleDateString() }));
   }
 
@@ -1749,11 +1756,11 @@ export class ClassTeacherService {
         l.covered_topics as topics,
         'Logged' as status
       FROM academics_lesson_logs l
-      JOIN class_sections cs ON cs.id = l.class_id AND cs.tenant_id = l.tenant_id
-      WHERE l.tenant_id = $1 AND l.teacher_id = $2
+      JOIN class_sections cs ON cs.id::text = l.class_id::text AND cs.tenant_id::text = l.tenant_id::text
+      WHERE l.tenant_id::text = $1::text AND l.teacher_id = $2
       ORDER BY l.log_date DESC
     `;
-    const { rows } = await this.executeSql(query, [tenantId, userId]).catch(() => ({ rows: [] }));
+    const { rows } = await this.executeSql(query, [tenantId, userId]);
     return rows.map((r: any) => ({ ...r, date: new Date(r.date).toLocaleDateString() }));
   }
 
@@ -1786,7 +1793,7 @@ export class ClassTeacherService {
         due_date as "dueDate",
         status
       FROM school_tasks
-      WHERE tenant_id = $1 AND assigned_to = $2
+      WHERE tenant_id::text = $1::text AND assigned_to = $2
       ORDER BY due_date ASC
     `;
     const { rows } = await this.executeSql(query, [tenantId, userId]);
@@ -1801,13 +1808,13 @@ export class ClassTeacherService {
         cv.id,
         cv.created_at as date,
         s.first_name || ' ' || s.last_name as learner,
-        cv.symptoms as issue,
-        cv.action_taken as action,
+        cv.symptoms_summary as issue,
+        cv.treatment_summary as action,
         cv.status
       FROM clinic_visits cv
-      JOIN students s ON s.id = cv.student_id AND s.tenant_id = cv.tenant_id
-      JOIN student_class_assignments sca ON sca.student_id = s.id AND sca.tenant_id = s.tenant_id AND sca.status = 'active'
-      WHERE cv.tenant_id = $1 AND sca.class_section_id = $2
+      JOIN students s ON s.id::text = cv.student_id::text AND s.tenant_id::text = cv.tenant_id::text
+      JOIN student_class_assignments sca ON sca.student_id::text = s.id::text AND sca.tenant_id::text = s.tenant_id::text AND sca.status = 'active'
+      WHERE cv.tenant_id::text = $1::text AND sca.class_section_id = $2
       ORDER BY cv.created_at DESC
     `;
     const { rows } = await this.executeSql(query, [tenantId, streamId]);
@@ -1821,7 +1828,7 @@ export class ClassTeacherService {
       WITH active_class_scope AS (
         SELECT DISTINCT appointment.class_section_id::text AS class_section_id
         FROM academics_class_teachers appointment
-        WHERE appointment.tenant_id = $1
+        WHERE appointment.tenant_id::text = $1::text
           AND appointment.teacher_user_id = $2::uuid
           AND appointment.is_active = TRUE
           AND LOWER(COALESCE(appointment.status, 'active')) = 'active'
@@ -1839,14 +1846,14 @@ export class ClassTeacherService {
       LEFT JOIN LATERAL (
         SELECT event.payload
         FROM workflow_events event
-        WHERE event.tenant_id = meeting.tenant_id
+        WHERE event.tenant_id::text = meeting.tenant_id::text
           AND event.entity_type = 'school_meeting'
           AND event.entity_id = meeting.id::text
           AND event.event_type = 'class_teacher.meeting_scheduled'
         ORDER BY event.created_at DESC
         LIMIT 1
       ) meeting_scope ON TRUE
-      WHERE meeting.tenant_id = $1
+      WHERE meeting.tenant_id::text = $1::text
         AND meeting.organizer_id = $2::uuid
         AND (
           meeting_scope.payload->>'class_section_id' = $3
@@ -1876,9 +1883,9 @@ export class ClassTeacherService {
         r.status,
         r.requested_by as "requestedBy"
       FROM student_requests r
-      JOIN students s ON s.id = r.student_id AND s.tenant_id = r.tenant_id
-      JOIN student_class_assignments sca ON sca.student_id = s.id AND sca.tenant_id = s.tenant_id AND sca.status = 'active'
-      WHERE r.tenant_id = $1 AND sca.class_section_id = $2
+      JOIN students s ON s.id::text = r.student_id::text AND s.tenant_id::text = r.tenant_id::text
+      JOIN student_class_assignments sca ON sca.student_id::text = s.id::text AND sca.tenant_id::text = s.tenant_id::text AND sca.status = 'active'
+      WHERE r.tenant_id::text = $1::text AND sca.class_section_id = $2
       ORDER BY r.created_at DESC
     `;
     const { rows } = await this.executeSql(query, [tenantId, streamId]);
@@ -1896,7 +1903,7 @@ export class ClassTeacherService {
         created_at as "uploadedAt",
         'Unknown' as size
       FROM academics_resources
-      WHERE tenant_id = $1 AND class_id = $2
+      WHERE tenant_id::text = $1::text AND class_id = $2
       ORDER BY created_at DESC
     `;
     const { rows } = await this.executeSql(query, [tenantId, streamId]);
@@ -1905,14 +1912,18 @@ export class ClassTeacherService {
 
   async getNotifications(tenantId: string, userId: string, streamId: string) {
     const res = await this.executeSql(
-      `SELECT id, created_at, title as message, read_at FROM school_notifications WHERE tenant_id = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT 5`,
-      [tenantId, userId]
-    ).catch(() => ({ rows: [] }));
+      `SELECT notification.id, notification.created_at, notification.title as message,
+              notification.status = 'read' AS is_read
+       FROM notifications notification WHERE notification.tenant_id = $1
+         AND ${notificationRecipientPredicate('notification', '$2', '$3')}
+       ORDER BY notification.created_at DESC LIMIT 50`,
+      [tenantId, userId, this.isClassTeacherMode() ? 'class_teacher' : 'teacher']
+    );
     return res.rows.map(r => ({
       id: r.id,
       date: new Date(r.created_at).toLocaleDateString(),
       message: r.message,
-      isRead: !!r.read_at
+      isRead: r.is_read === true
     }));
   }
 
@@ -1928,7 +1939,7 @@ export class ClassTeacherService {
         created_at::text as generated_at,
         'Ready' as status
       FROM report_snapshots
-      WHERE tenant_id = $1
+      WHERE tenant_id::text = $1::text
         AND module = 'class-teacher-command'
         AND (
           $2::text IS NULL
@@ -1968,7 +1979,7 @@ export class ClassTeacherService {
       `
         SELECT payload
         FROM workflow_events
-        WHERE tenant_id = $1
+        WHERE tenant_id::text = $1::text
           AND source_user_id = $2
           AND entity_id = $3
           AND event_type = 'class_teacher.settings_saved'
@@ -1976,7 +1987,7 @@ export class ClassTeacherService {
         LIMIT 1
       `,
       [tenantId, userId, streamId],
-    ).catch(() => ({ rows: [] as any[] }));
+    );
 
     const payload = rows[0]?.payload || {};
     return {

@@ -1,10 +1,11 @@
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
 import { BookOpenCheck } from "lucide-react";
 import { Panel } from "../shared";
 import { useClassTeacherHomework, useResolvedClassTeacherStreamId } from "@/lib/data/class-teacher-hooks";
 
 export function HomeworkWorkspace() {
   const { streamId } = useResolvedClassTeacherStreamId();
-  const { data, isLoading, error } = useClassTeacherHomework(streamId);
+  const { data, isLoading, error, refetch } = useClassTeacherHomework(streamId);
 
   if (isLoading) {
     return (
@@ -18,6 +19,7 @@ export function HomeworkWorkspace() {
     return (
       <Panel title="Assignments & Homework" description="Track homework assigned to the class across subjects." icon={BookOpenCheck}>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 font-bold">Failed to load homework.</div>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Panel>
     );
   }

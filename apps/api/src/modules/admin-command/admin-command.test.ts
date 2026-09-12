@@ -137,11 +137,14 @@ test('AdminCommandRepository builds principal teaching schedule only from the au
   const result = await repository.getPrincipalTeachingSchedule('tenant-a', actorUserId);
 
   assert.equal(queries.length, 2);
-  assert.match(queries[0].sql, /WHERE lesson\.tenant_id = \$1/);
-  assert.match(queries[1].sql, /WHERE lesson\.tenant_id = \$1/);
-  assert.match(queries[0].sql, /staff\.user_id = \$2::uuid/);
-  assert.match(queries[1].sql, /staff\.user_id = \$2::uuid/);
-  assert.match(queries[0].sql, /INNER JOIN tenant_memberships membership/);
+  assert.match(queries[0].sql, /WHERE tenant_id = \$1 AND teacher_user_id::text = \$2/);
+  assert.match(queries[1].sql, /WHERE slot\.tenant_id = \$1 AND slot\.teacher_id::text = \$2/);
+  for (const { sql } of queries) {
+    assert.match(sql, /FROM tenant_memberships membership/);
+    assert.match(sql, /membership\.user_id::text = \$2 AND membership\.status = 'active'/);
+  }
+  assert.match(queries[1].sql, /FROM timetable_slots slot/);
+  assert.match(queries[1].sql, /assignment\.subject_id::text = slot\.subject_id::text/);
   assert.doesNotMatch(queries[0].sql, /full_name ILIKE '%principal%'/);
   assert.deepEqual(queries[0].params, ['tenant-a', actorUserId]);
   assert.deepEqual(queries[1].params, ['tenant-a', actorUserId]);
@@ -2187,7 +2190,7 @@ test('SecurityOfficerCommandService returns canonical tenant-scoped visitor and 
   assert.equal(incidents.metrics.open_incidents, 1);
   assert.equal(incidents.incidentsList[0]?.title, 'Gate alarm');
   assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
-  assert.ok(queries.every((query) => /tenant_id = \$1/.test(query.sql)));
+  assert.ok(queries.every((query) => /tenant_id(?:::text)? = \$1/.test(query.sql)));
   const passListQuery = queries.find((query) => /exit_pass\.id::text/.test(query.sql));
   assert.ok(passListQuery);
   assert.match(passListQuery.sql, /exit_pass\.time_out::text AS exit_time/);
@@ -6160,7 +6163,7 @@ test('ParentCommandService scopes finance reads to the authenticated parent and 
       '11111111-1111-4111-8111-111111111111',
     ]);
     assert.match(query.sql, /student_guardians/i);
-    assert.match(query.sql, /guardian\.tenant_id = \$1/i);
+    assert.match(query.sql, /guardian\.tenant_id(?:::text)? = \$1/i);
     assert.match(query.sql, /guardian\.user_id = \$2::uuid/i);
   }
 });
@@ -6248,7 +6251,7 @@ test('StudentCommandService scopes finance reads to the authenticated student an
       '11111111-1111-4111-8111-111111111111',
     ]);
     assert.match(query.sql, /student_portal_access/i);
-    assert.match(query.sql, /access\.tenant_id = \$1/i);
+    assert.match(query.sql, /access\.tenant_id(?:::text)? = \$1/i);
     assert.match(query.sql, /access\.user_id = \$2::uuid/i);
   }
 });

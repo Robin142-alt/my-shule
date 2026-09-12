@@ -361,7 +361,7 @@ test('Deputy discipline reads derive a stable case reference without querying a 
   assert.equal(discipline[0].studentName, 'Amina Otieno');
   assert.deepEqual(statements[0].params, ['tenant-a']);
   assert.match(statements[0].sql, /CONCAT\('CAS-', UPPER\(LEFT\(REPLACE\(id::text/);
-  assert.match(statements[0].sql, /involved_parties ->> 'student_name'/);
+  assert.match(statements[0].sql, /involved_parties::jsonb ->> 'student_name'/);
   assert.doesNotMatch(statements[0].sql, /\bcase_no\b/i);
 });
 

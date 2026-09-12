@@ -1,3 +1,4 @@
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
 import { useState } from "react";
 import { ShieldAlert } from "lucide-react";
 import { Panel, StatusChip } from "../shared";
@@ -5,7 +6,7 @@ import { useClassTeacherDiscipline, useClassTeacherRegister, useReportDiscipline
 
 export function DisciplineWorkspace() {
   const { streamId } = useResolvedClassTeacherStreamId();
-  const { data, isLoading, error } = useClassTeacherDiscipline(streamId);
+  const { data, isLoading, error, refetch } = useClassTeacherDiscipline(streamId);
   const { data: registerData, isLoading: isRegisterLoading } = useClassTeacherRegister(streamId);
   const reportMutation = useReportDisciplineIncident();
   
@@ -27,6 +28,7 @@ export function DisciplineWorkspace() {
     return (
       <Panel title="Discipline & Behaviour" description="Track discipline issues originating from your class." icon={ShieldAlert}>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 font-bold">Failed to load discipline records.</div>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Panel>
     );
   }

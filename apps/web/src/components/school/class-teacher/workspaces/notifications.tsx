@@ -1,10 +1,11 @@
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
 import { Bell } from "lucide-react";
 import { Panel } from "../shared";
 import { useClassTeacherNotifications, useResolvedClassTeacherStreamId } from "@/lib/data/class-teacher-hooks";
 
 export function NotificationsWorkspace() {
   const { streamId } = useResolvedClassTeacherStreamId();
-  const { data, isLoading, error } = useClassTeacherNotifications(streamId);
+  const { data, isLoading, error, refetch } = useClassTeacherNotifications(streamId);
 
   if (isLoading) {
     return (
@@ -18,6 +19,7 @@ export function NotificationsWorkspace() {
     return (
       <Panel title="Notifications" description="Alerts and messages regarding your class." icon={Bell}>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 font-bold">Failed to load notifications.</div>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Panel>
     );
   }

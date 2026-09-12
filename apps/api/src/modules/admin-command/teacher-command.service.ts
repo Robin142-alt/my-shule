@@ -73,7 +73,7 @@ export class TeacherCommandService {
   async getAcademicSetup() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM academic_years WHERE tenant_id = $1 AND is_active = TRUE`,
+      `SELECT * FROM academic_years WHERE tenant_id = $1 AND lower(status::text) = 'active'`,
       [tenantId]
     );
     return res.rows;
@@ -98,9 +98,9 @@ export class TeacherCommandService {
         INNER JOIN class_sections class_section
           ON class_section.tenant_id = assignment.tenant_id
          AND class_section.id::text = assignment.class_section_id::text
-        LEFT JOIN academics_timetable_slots timetable
+        LEFT JOIN timetable_slots timetable
           ON timetable.tenant_id = assignment.tenant_id
-         AND timetable.class_id::text = assignment.class_section_id::text
+         AND timetable.class_section_id::text = assignment.class_section_id::text
          AND timetable.subject_id::text = assignment.subject_id::text
          AND timetable.teacher_id::text = assignment.teacher_user_id::text
         WHERE assignment.tenant_id = $1
@@ -359,6 +359,7 @@ export class TeacherCommandService {
         INNER JOIN student_class_assignments student_assignment
           ON student_assignment.tenant_id = assignment.tenant_id
          AND student_assignment.class_section_id::text = assignment.class_section_id::text
+              AND (assignment.stream_id IS NULL OR assignment.stream_id::text = student_assignment.stream_id::text)
          AND student_assignment.status = 'active'
         INNER JOIN students student
           ON student.tenant_id = student_assignment.tenant_id
@@ -457,6 +458,7 @@ export class TeacherCommandService {
             WHERE assignment.tenant_id = note.tenant_id
               AND assignment.teacher_user_id::text = $2
               AND assignment.class_section_id::text = student_assignment.class_section_id::text
+              AND (assignment.stream_id IS NULL OR assignment.stream_id::text = student_assignment.stream_id::text)
               AND assignment.status = 'active'
               AND assignment.effective_from <= CURRENT_DATE
               AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
@@ -746,13 +748,13 @@ export class TeacherCommandService {
         FROM notifications notification
         INNER JOIN workflow_events event
           ON event.tenant_id = notification.tenant_id
-         AND event.id::text = notification.source_record_id
+         AND event.id::text = notification.source_record_id::text
          AND event.event_type = 'teacher.parent_message_sent'
          AND event.source_user_id::text = $2
         INNER JOIN student_guardians guardian
           ON guardian.tenant_id = notification.tenant_id
-         AND guardian.id = notification.recipient_guardian_id
-         AND guardian.user_id = notification.recipient_user_id
+         AND guardian.id::text = notification.recipient_guardian_id::text
+         AND guardian.user_id::text = notification.recipient_user_id::text
         WHERE notification.tenant_id = $1
           AND notification.type = 'teacher.parent_message_sent'
           AND notification.source_module = 'teacher-command'
@@ -786,7 +788,7 @@ export class TeacherCommandService {
     }>(
       `
         WITH current_assignments AS (
-          SELECT DISTINCT assignment.class_section_id::text AS class_section_id
+          SELECT DISTINCT assignment.class_section_id::text AS class_section_id, assignment.stream_id
           FROM teacher_subject_assignments assignment
           WHERE assignment.tenant_id = $1
             AND assignment.teacher_user_id::text = $2
@@ -806,6 +808,7 @@ export class TeacherCommandService {
           INNER JOIN student_class_assignments student_assignment
             ON student_assignment.tenant_id = $1
            AND student_assignment.class_section_id::text = assignment.class_section_id
+              AND (assignment.stream_id IS NULL OR assignment.stream_id::text = student_assignment.stream_id::text)
            AND LOWER(student_assignment.status) = 'active'
           INNER JOIN students student
             ON student.tenant_id = student_assignment.tenant_id
@@ -916,7 +919,7 @@ export class TeacherCommandService {
     }>(
       `
         WITH assigned_scope AS (
-          SELECT DISTINCT assignment.class_section_id::text AS class_section_id
+          SELECT DISTINCT assignment.class_section_id::text AS class_section_id, assignment.stream_id
           FROM teacher_subject_assignments assignment
           WHERE assignment.tenant_id = $1
             AND assignment.teacher_user_id::text = $2

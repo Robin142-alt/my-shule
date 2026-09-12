@@ -35,9 +35,9 @@ export class NurseCommandService {
     const tenantId = this.requireTenantId();
     const metrics = await this.executeSql(`
       SELECT 
-        (SELECT COUNT(*)::int FROM clinic_visits WHERE tenant_id = $1 AND visit_date = CURRENT_DATE) as "todayVisits",
+        (SELECT COUNT(*)::int FROM clinic_visits WHERE tenant_id = $1 AND visit_date::date = CURRENT_DATE) as "todayVisits",
         (SELECT COUNT(*)::int FROM clinic_visits WHERE tenant_id = $1 AND status IN ('open', 'isolation')) as "waitingQueue",
-        (SELECT COUNT(*)::int FROM clinic_medicine_batches WHERE tenant_id = $1 AND status IN ('active', 'near_expiry') AND quantity_available <= minimum_stock_threshold) as "lowStockMeds"
+        (SELECT COUNT(*)::int FROM clinic_medicine_batches WHERE tenant_id = $1 AND status IN ('active', 'near_expiry') AND quantity_available <= minimum_stock_threshold::numeric) as "lowStockMeds"
     `, [tenantId]);
 
     const row = metrics.rows[0] || { todayVisits: 0, waitingQueue: 0, lowStockMeds: 0 };
@@ -66,8 +66,8 @@ export class NurseCommandService {
           visit.status,
           visit.visit_date::text
         FROM clinic_visits visit
-        INNER JOIN students student ON student.tenant_id = visit.tenant_id AND student.id = visit.student_id
-        LEFT JOIN student_allocations allocation ON allocation.tenant_id = student.tenant_id AND allocation.student_id = student.id AND allocation.is_current = TRUE
+        INNER JOIN students student ON student.tenant_id = visit.tenant_id AND student.id::text = visit.student_id::text
+        LEFT JOIN student_allocations allocation ON allocation.tenant_id = student.tenant_id AND allocation.student_id::text = student.id::text AND allocation.is_current = TRUE
         WHERE visit.tenant_id = $1
         ORDER BY visit.visit_date DESC, visit.created_at DESC
       `,
@@ -107,10 +107,10 @@ export class NurseCommandService {
           dispense.dispensed_by_user_id::text AS dispensed_by,
           dispense.dispensed_at::text
         FROM clinic_medicine_dispenses dispense
-        INNER JOIN clinic_visits visit ON visit.tenant_id = dispense.tenant_id AND visit.id = dispense.visit_id
-        INNER JOIN students student ON student.tenant_id = visit.tenant_id AND student.id = visit.student_id
-        INNER JOIN clinic_medicines medicine ON medicine.tenant_id = dispense.tenant_id AND medicine.id = dispense.medicine_id
-        LEFT JOIN student_allocations allocation ON allocation.tenant_id = student.tenant_id AND allocation.student_id = student.id AND allocation.is_current = TRUE
+        INNER JOIN clinic_visits visit ON visit.tenant_id = dispense.tenant_id AND visit.id::text = dispense.visit_id::text
+        INNER JOIN students student ON student.tenant_id = visit.tenant_id AND student.id::text = visit.student_id::text
+        INNER JOIN clinic_medicines medicine ON medicine.tenant_id = dispense.tenant_id AND medicine.id::text = dispense.medicine_id::text
+        LEFT JOIN student_allocations allocation ON allocation.tenant_id = student.tenant_id AND allocation.student_id::text = student.id::text AND allocation.is_current = TRUE
         WHERE dispense.tenant_id = $1
         ORDER BY dispense.dispensed_at DESC
       `,
@@ -136,8 +136,8 @@ export class NurseCommandService {
           medicine.category,
           COALESCE(SUM(batch.quantity_available), 0)::numeric AS quantity,
           medicine.unit_type AS unit,
-          COALESCE(MIN(batch.minimum_stock_threshold), 0)::numeric AS reorder_level,
-          MIN(batch.expiry_date)::text AS expiry_date
+          COALESCE(MIN(batch.minimum_stock_threshold::numeric), 0)::numeric AS reorder_level,
+          MIN(batch.expiry_date::date)::text AS expiry_date
         FROM clinic_medicines medicine
         LEFT JOIN clinic_medicine_batches batch
           ON batch.tenant_id = medicine.tenant_id
@@ -179,8 +179,8 @@ export class NurseCommandService {
           visit.status,
           visit.confidential_notes AS notes
         FROM clinic_visits visit
-        INNER JOIN students student ON student.tenant_id = visit.tenant_id AND student.id = visit.student_id
-        LEFT JOIN student_allocations allocation ON allocation.tenant_id = student.tenant_id AND allocation.student_id = student.id AND allocation.is_current = TRUE
+        INNER JOIN students student ON student.tenant_id = visit.tenant_id AND student.id::text = visit.student_id::text
+        LEFT JOIN student_allocations allocation ON allocation.tenant_id = student.tenant_id AND allocation.student_id::text = student.id::text AND allocation.is_current = TRUE
         WHERE visit.tenant_id = $1
           AND visit.status IN ('isolation', 'completed')
         ORDER BY visit.created_at DESC
@@ -232,8 +232,8 @@ export class NurseCommandService {
         FROM notifications notification
         INNER JOIN student_guardians guardian
           ON guardian.tenant_id = notification.tenant_id
-         AND guardian.id = notification.recipient_guardian_id
-         AND guardian.user_id = notification.recipient_user_id
+         AND guardian.id::text = notification.recipient_guardian_id::text
+         AND guardian.user_id::text = notification.recipient_user_id::text
         INNER JOIN students student
           ON student.tenant_id = notification.tenant_id
          AND student.id::text = notification.metadata #>> '{student_id}'

@@ -72,7 +72,7 @@ export class ClassTeacherCommandService {
         WITH assigned_classes AS (
           SELECT DISTINCT appointment.class_section_id::text AS class_section_id
           FROM academics_class_teachers appointment
-          WHERE appointment.tenant_id = $1
+          WHERE appointment.tenant_id::text = $1::text
             AND appointment.teacher_user_id = $2::uuid
             AND appointment.is_active = TRUE
             AND LOWER(COALESCE(appointment.status, 'active')) = 'active'
@@ -82,11 +82,11 @@ export class ClassTeacherCommandService {
           SELECT DISTINCT student.id::text AS student_id
           FROM assigned_classes class_scope
           JOIN student_class_assignments assignment
-            ON assignment.tenant_id = $1
-           AND assignment.class_section_id::text = class_scope.class_section_id
+            ON assignment.tenant_id::text = $1::text
+           AND assignment.class_section_id::text = class_scope.class_section_id::text
            AND assignment.status = 'active'
           JOIN students student
-            ON student.tenant_id = assignment.tenant_id
+            ON student.tenant_id::text = assignment.tenant_id::text
            AND student.id::text = assignment.student_id::text
           WHERE student.status IN ('active', 'enrolled')
         )
@@ -94,30 +94,30 @@ export class ClassTeacherCommandService {
           (SELECT COUNT(*)::int FROM assigned_students) AS total_students,
           (SELECT COUNT(DISTINCT attendance.student_id)::int
              FROM academics_attendance attendance
-             JOIN assigned_students learner ON learner.student_id = attendance.student_id::text
-            WHERE attendance.tenant_id = $1
-              AND attendance.attendance_date = CURRENT_DATE
+             JOIN assigned_students learner ON learner.student_id::text = attendance.student_id::text
+            WHERE attendance.tenant_id::text = $1::text
+              AND attendance.attendance_date::date = CURRENT_DATE
               AND LOWER(attendance.status) = 'present') AS present_today,
           (SELECT COUNT(DISTINCT attendance.student_id)::int
              FROM academics_attendance attendance
-             JOIN assigned_students learner ON learner.student_id = attendance.student_id::text
-            WHERE attendance.tenant_id = $1
-              AND attendance.attendance_date = CURRENT_DATE
+             JOIN assigned_students learner ON learner.student_id::text = attendance.student_id::text
+            WHERE attendance.tenant_id::text = $1::text
+              AND attendance.attendance_date::date = CURRENT_DATE
               AND LOWER(attendance.status) IN ('absent', 'late')) AS absent_today,
           (SELECT COUNT(*)::int
              FROM discipline_incidents incident
-             JOIN assigned_students learner ON learner.student_id = incident.student_id::text
-            WHERE incident.tenant_id = $1
+             JOIN assigned_students learner ON learner.student_id::text = incident.student_id::text
+            WHERE incident.tenant_id::text = $1::text
               AND LOWER(incident.status) NOT IN ('resolved', 'closed')) AS pending_discipline,
           (SELECT COUNT(*)::int
              FROM student_welfare_cases welfare
-             JOIN assigned_students learner ON learner.student_id = welfare.student_id::text
-            WHERE welfare.tenant_id = $1
+             JOIN assigned_students learner ON learner.student_id::text = welfare.student_id::text
+            WHERE welfare.tenant_id::text = $1::text
               AND LOWER(welfare.status) NOT IN ('resolved', 'closed')) AS welfare_flags,
           (SELECT ROUND(AVG(mark.score), 2)
              FROM exam_marks mark
-             JOIN assigned_students learner ON learner.student_id = mark.student_id::text
-            WHERE mark.tenant_id = $1) AS mean_score
+             JOIN assigned_students learner ON learner.student_id::text = mark.student_id::text
+            WHERE mark.tenant_id::text = $1::text) AS mean_score
       `, [tenantId, userId]),
       this.executeSql(`
         WITH assigned_students AS (
@@ -141,7 +141,7 @@ export class ClassTeacherCommandService {
         SELECT *
         FROM (
           SELECT incident.id::text, 'discipline'::text AS type, learner.student_name,
-                 COALESCE(incident.description, incident.category) AS message,
+                 COALESCE(incident.description, incident.title) AS message,
                  LOWER(COALESCE(incident.severity, 'medium')) AS severity, incident.created_at::text
           FROM discipline_incidents incident
           JOIN assigned_students learner ON learner.student_id = incident.student_id::text
@@ -189,16 +189,16 @@ export class ClassTeacherCommandService {
             student.tenant_id
           FROM academics_class_teachers appointment
           JOIN class_sections section
-            ON section.tenant_id = appointment.tenant_id
+            ON section.tenant_id::text = appointment.tenant_id::text
            AND section.id::text = appointment.class_section_id::text
           JOIN student_class_assignments assignment
-            ON assignment.tenant_id = appointment.tenant_id
+            ON assignment.tenant_id::text = appointment.tenant_id::text
            AND assignment.class_section_id::text = appointment.class_section_id::text
            AND assignment.status = 'active'
           JOIN students student
-            ON student.tenant_id = assignment.tenant_id
+            ON student.tenant_id::text = assignment.tenant_id::text
            AND student.id::text = assignment.student_id::text
-          WHERE appointment.tenant_id = $1
+          WHERE appointment.tenant_id::text = $1::text
             AND appointment.teacher_user_id = $2::uuid
             AND appointment.is_active = TRUE
             AND LOWER(COALESCE(appointment.status, 'active')) = 'active'
@@ -211,11 +211,11 @@ export class ClassTeacherCommandService {
           ROUND(AVG(mark.score), 2)::float AS mean_score
         FROM assigned_students learner
         LEFT JOIN academics_attendance attendance
-          ON attendance.tenant_id = learner.tenant_id
-         AND attendance.student_id::text = learner.id
+          ON attendance.tenant_id::text = learner.tenant_id::text
+         AND attendance.student_id::text = learner.id::text
         LEFT JOIN exam_marks mark
-          ON mark.tenant_id = learner.tenant_id
-         AND mark.student_id::text = learner.id
+          ON mark.tenant_id::text = learner.tenant_id::text
+         AND mark.student_id::text = learner.id::text
         GROUP BY learner.id, learner.admission_no, learner.full_name, learner.gender, learner.stream, learner.status, learner.tenant_id
         ORDER BY learner.stream, learner.full_name
       `,
@@ -243,13 +243,13 @@ export class ClassTeacherCommandService {
           SELECT DISTINCT student.*
           FROM academics_class_teachers appointment
           JOIN student_class_assignments assignment
-            ON assignment.tenant_id = appointment.tenant_id
+            ON assignment.tenant_id::text = appointment.tenant_id::text
            AND assignment.class_section_id::text = appointment.class_section_id::text
            AND assignment.status = 'active'
           JOIN students student
-            ON student.tenant_id = assignment.tenant_id
+            ON student.tenant_id::text = assignment.tenant_id::text
            AND student.id::text = assignment.student_id::text
-          WHERE appointment.tenant_id = $1
+          WHERE appointment.tenant_id::text = $1::text
             AND appointment.teacher_user_id = $2::uuid
             AND appointment.is_active = TRUE
             AND LOWER(COALESCE(appointment.status, 'active')) = 'active'
@@ -273,14 +273,14 @@ export class ClassTeacherCommandService {
         LEFT JOIN LATERAL (
           SELECT linked.display_name
           FROM student_guardians linked
-          WHERE linked.tenant_id = student.tenant_id
+          WHERE linked.tenant_id::text = student.tenant_id::text
             AND linked.student_id::text = student.id::text
             AND linked.status = 'active'
             AND linked.user_id IS NOT NULL
             AND EXISTS (
               SELECT 1 FROM tenant_memberships membership
-              WHERE membership.tenant_id = linked.tenant_id
-                AND membership.user_id = linked.user_id
+              WHERE membership.tenant_id::text = linked.tenant_id::text
+                AND membership.user_id::text = linked.user_id::text
                 AND membership.status = 'active'
             )
           ORDER BY linked.is_primary DESC, linked.created_at
@@ -289,23 +289,23 @@ export class ClassTeacherCommandService {
         LEFT JOIN LATERAL (
           SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE LOWER(status) = 'present') / NULLIF(COUNT(*), 0), 1) AS attendance_rate
           FROM academics_attendance
-          WHERE tenant_id = student.tenant_id AND student_id::text = student.id::text
+          WHERE tenant_id::text = student.tenant_id::text AND student_id::text = student.id::text
         ) attendance ON TRUE
         LEFT JOIN LATERAL (
           SELECT ROUND(AVG(score), 2) AS mean_score
           FROM exam_marks
-          WHERE tenant_id = student.tenant_id AND student_id::text = student.id::text
+          WHERE tenant_id::text = student.tenant_id::text AND student_id::text = student.id::text
         ) mark ON TRUE
         LEFT JOIN LATERAL (
           SELECT COUNT(*)::int AS case_count
           FROM discipline_incidents
-          WHERE tenant_id = student.tenant_id AND student_id::text = student.id::text
+          WHERE tenant_id::text = student.tenant_id::text AND student_id::text = student.id::text
             AND LOWER(status) NOT IN ('resolved', 'closed')
         ) discipline ON TRUE
         LEFT JOIN LATERAL (
           SELECT COUNT(*)::int AS flag_count
           FROM student_welfare_cases
-          WHERE tenant_id = student.tenant_id AND student_id::text = student.id::text
+          WHERE tenant_id::text = student.tenant_id::text AND student_id::text = student.id::text
             AND LOWER(status) NOT IN ('resolved', 'closed')
         ) welfare ON TRUE
         ORDER BY full_name
@@ -342,10 +342,10 @@ export class ClassTeacherCommandService {
             AND COALESCE(appointment.effective_from, CURRENT_DATE) <= CURRENT_DATE
             AND (appointment.effective_to IS NULL OR appointment.effective_to >= CURRENT_DATE)
         ), current_term AS (
-          SELECT id::text, COALESCE(name, term_name, 'Current term') AS name
+          SELECT id::text, COALESCE(name, 'Current term') AS name
           FROM academic_terms
           WHERE tenant_id = $1
-          ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, start_date DESC NULLS LAST, created_at DESC
+          ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, starts_on DESC NULLS LAST, created_at DESC
           LIMIT 1
         )
         SELECT
@@ -408,11 +408,11 @@ export class ClassTeacherCommandService {
                  CONCAT_WS(' ', student.first_name, student.last_name) AS student_name
           FROM academics_class_teachers appointment
           JOIN student_class_assignments assignment
-            ON assignment.tenant_id = appointment.tenant_id
+            ON assignment.tenant_id::text = appointment.tenant_id::text
            AND assignment.class_section_id::text = appointment.class_section_id::text
            AND assignment.status = 'active'
-          JOIN students student ON student.tenant_id = assignment.tenant_id AND student.id::text = assignment.student_id::text
-          WHERE appointment.tenant_id = $1
+          JOIN students student ON student.tenant_id::text = assignment.tenant_id::text AND student.id::text = assignment.student_id::text
+          WHERE appointment.tenant_id::text = $1::text
             AND appointment.teacher_user_id = $2::uuid
             AND appointment.is_active = TRUE
             AND LOWER(COALESCE(appointment.status, 'active')) = 'active'
@@ -424,7 +424,7 @@ export class ClassTeacherCommandService {
           learner.student_name,
           learner.admission_number AS admission_no,
           COUNT(attendance.id)::int AS absent_days,
-          MAX(attendance.attendance_date)::text AS last_absent_date,
+          MAX(attendance.attendance_date::date)::text AS last_absent_date,
           COALESCE(guardian.display_name, 'No active guardian') AS parent_name,
           COALESCE(guardian.phone, '') AS parent_phone,
           CASE
@@ -436,35 +436,35 @@ export class ClassTeacherCommandService {
           follow_up.created_at::text AS follow_up_at
         FROM assigned_students learner
         JOIN academics_attendance attendance
-          ON attendance.tenant_id = $1
-         AND attendance.student_id::text = learner.id
+          ON attendance.tenant_id::text = $1::text
+         AND attendance.student_id::text = learner.id::text
          AND LOWER(attendance.status) IN ('absent', 'late')
-         AND attendance.attendance_date >= CURRENT_DATE - INTERVAL '90 days'
+         AND attendance.attendance_date::date >= CURRENT_DATE - INTERVAL '90 days'
         LEFT JOIN LATERAL (
           SELECT linked.display_name, linked.phone
           FROM student_guardians linked
-          WHERE linked.tenant_id = $1
-            AND linked.student_id::text = learner.id
+          WHERE linked.tenant_id::text = $1::text
+            AND linked.student_id::text = learner.id::text
             AND linked.status = 'active'
             AND linked.user_id IS NOT NULL
             AND EXISTS (SELECT 1 FROM tenant_memberships membership
-              WHERE membership.tenant_id = linked.tenant_id AND membership.user_id = linked.user_id AND membership.status = 'active')
+              WHERE membership.tenant_id::text = linked.tenant_id::text AND membership.user_id::text = linked.user_id::text AND membership.status = 'active')
           ORDER BY linked.is_primary DESC, linked.created_at
           LIMIT 1
         ) guardian ON TRUE
         LEFT JOIN LATERAL (
           SELECT event.event_type, event.created_at
           FROM workflow_events event
-          WHERE event.tenant_id = $1
+          WHERE event.tenant_id::text = $1::text
             AND event.entity_type = 'student'
-            AND event.entity_id = learner.id
+            AND event.entity_id::text = learner.id::text
             AND event.event_type IN ('attendance.follow_up_parent_notified', 'attendance.follow_up_resolved')
           ORDER BY event.created_at DESC
           LIMIT 1
         ) follow_up ON TRUE
         GROUP BY learner.id, learner.student_name, learner.admission_number,
                  guardian.display_name, guardian.phone, follow_up.event_type, follow_up.created_at
-        ORDER BY MAX(attendance.attendance_date) DESC, learner.student_name
+        ORDER BY MAX(attendance.attendance_date::date) DESC, learner.student_name
       `,
       [tenantId, userId]
     );
@@ -499,7 +499,7 @@ export class ClassTeacherCommandService {
             AND (appointment.effective_to IS NULL OR appointment.effective_to >= CURRENT_DATE)
         )
         SELECT incident.id::text, learner.student_name, learner.admission_number AS admission_no,
-               incident.category AS incident_type, COALESCE(incident.description, '') AS description,
+               incident.title AS incident_type, COALESCE(incident.description, '') AS description,
                INITCAP(COALESCE(incident.severity, 'medium')) AS severity,
                CASE WHEN LOWER(incident.status) IN ('pending', 'reported', 'open') THEN 'Open' ELSE INITCAP(incident.status) END AS status,
                COALESCE(profile.display_name, 'School staff') AS reported_by,
@@ -510,7 +510,7 @@ export class ClassTeacherCommandService {
                COUNT(*) OVER (PARTITION BY incident.student_id)::int AS learner_case_count
         FROM discipline_incidents incident
         JOIN assigned_students learner ON learner.id = incident.student_id::text
-        LEFT JOIN staff_profiles profile ON profile.tenant_id = incident.tenant_id AND profile.user_id = incident.reported_by
+        LEFT JOIN staff_profiles profile ON profile.tenant_id = incident.tenant_id AND profile.user_id::text = incident.reporting_staff_id::text
         WHERE incident.tenant_id = $1
         ORDER BY incident.created_at DESC
       `,
@@ -617,20 +617,20 @@ export class ClassTeacherCommandService {
                guardian.relationship,
                contact.last_contacted, COALESCE(contact.contact_count_term, 0)::int AS contact_count_term
         FROM assigned_students learner
-        JOIN student_guardians guardian ON guardian.tenant_id = $1 AND guardian.student_id::text = learner.id
+        JOIN student_guardians guardian ON guardian.tenant_id = $1 AND guardian.student_id::text = learner.id::text
           AND guardian.status = 'active' AND guardian.user_id IS NOT NULL
         LEFT JOIN LATERAL (
           SELECT MAX(notification.created_at)::text AS last_contacted,
                  COUNT(*) FILTER (WHERE notification.created_at >= date_trunc('month', CURRENT_DATE))::int AS contact_count_term
           FROM notifications notification
           WHERE notification.tenant_id = guardian.tenant_id
-            AND notification.recipient_guardian_id = guardian.id
+            AND notification.recipient_guardian_id::text = guardian.id::text
             AND notification.type LIKE 'class_teacher.%'
         ) contact ON TRUE
         WHERE EXISTS (
           SELECT 1 FROM tenant_memberships membership
           WHERE membership.tenant_id = guardian.tenant_id
-            AND membership.user_id = guardian.user_id
+            AND membership.user_id::text = guardian.user_id::text
             AND membership.status = 'active'
         )
         ORDER BY guardian.display_name, learner.student_name
@@ -654,10 +654,10 @@ export class ClassTeacherCommandService {
     const res = await this.executeSql(
       `
         WITH current_term AS (
-          SELECT id::text, COALESCE(name, term_name, 'Current term') AS name
+          SELECT id::text, COALESCE(name, 'Current term') AS name
           FROM academic_terms
           WHERE tenant_id = $1
-          ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, start_date DESC NULLS LAST, created_at DESC
+          ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, starts_on DESC NULLS LAST, created_at DESC
           LIMIT 1
         ),
         class_students AS (
@@ -742,7 +742,7 @@ export class ClassTeacherCommandService {
       `
         WITH current_term AS (
           SELECT id::text FROM academic_terms WHERE tenant_id = $1
-          ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, start_date DESC NULLS LAST, created_at DESC LIMIT 1
+          ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, starts_on DESC NULLS LAST, created_at DESC LIMIT 1
         ),
         class_students AS (
           SELECT student.id, assignment.class_section_id
@@ -788,7 +788,7 @@ export class ClassTeacherCommandService {
       `
         WITH current_term AS (
           SELECT id::text FROM academic_terms WHERE tenant_id = $1
-          ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, start_date DESC NULLS LAST, created_at DESC LIMIT 1
+          ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, starts_on DESC NULLS LAST, created_at DESC LIMIT 1
         ), assigned_students AS (
           SELECT student.id::text AS student_id, assignment.class_section_id::text
           FROM academics_class_teachers appointment
@@ -858,7 +858,7 @@ export class ClassTeacherCommandService {
           SELECT id
           FROM academic_terms
           WHERE tenant_id = $1
-          ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, start_date DESC NULLS LAST, created_at DESC
+          ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, starts_on DESC NULLS LAST, created_at DESC
           LIMIT 1
         ),
         updated AS (

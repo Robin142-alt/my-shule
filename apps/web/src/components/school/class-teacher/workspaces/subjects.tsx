@@ -1,10 +1,11 @@
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
 import { BookOpen } from "lucide-react";
 import { Panel } from "../shared";
 import { useClassTeacherSubjects, useResolvedClassTeacherStreamId } from "@/lib/data/class-teacher-hooks";
 
 export function ClassSubjectsWorkspace() {
   const { streamId } = useResolvedClassTeacherStreamId();
-  const { data, isLoading, error } = useClassTeacherSubjects(streamId);
+  const { data, isLoading, error, refetch } = useClassTeacherSubjects(streamId);
 
   if (isLoading) {
     return (
@@ -18,6 +19,7 @@ export function ClassSubjectsWorkspace() {
     return (
       <Panel title="Class Subjects" description="List of subjects taught in this class and the assigned teachers." icon={BookOpen}>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 font-bold">Failed to load subjects.</div>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Panel>
     );
   }

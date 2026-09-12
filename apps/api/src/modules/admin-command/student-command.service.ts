@@ -55,7 +55,7 @@ export class StudentCommandService {
             CASE
               WHEN COUNT(attendance.id) = 0 THEN 0
               ELSE ROUND(
-                COUNT(attendance.id) FILTER (WHERE attendance.status IN ('present', 'late'))::numeric
+                COUNT(attendance.id) FILTER (WHERE lower(attendance.status::text) IN ('present', 'late'))::numeric
                 * 100
                 / COUNT(attendance.id)::numeric,
                 1
@@ -165,19 +165,19 @@ export class StudentCommandService {
             student.admission_number,
             btrim(concat_ws(' ', student.first_name, student.middle_name, student.last_name)) AS student_name,
             COALESCE(SUM(invoice.balance_minor) FILTER (
-              WHERE invoice.status NOT IN ('paid', 'cancelled', 'waived')
+              WHERE (CASE WHEN lower(COALESCE(to_jsonb(invoice)->>'status', '')) IN ('cancelled', 'waived') THEN lower(to_jsonb(invoice)->>'status') WHEN invoice.balance_minor <= 0 THEN 'paid' WHEN invoice.balance_minor < invoice.amount_minor THEN 'partially_paid' ELSE 'issued' END) NOT IN ('paid', 'cancelled', 'waived')
             ), 0)::bigint AS balance_minor,
             COUNT(invoice.id) FILTER (
-              WHERE invoice.status NOT IN ('paid', 'cancelled', 'waived')
+              WHERE (CASE WHEN lower(COALESCE(to_jsonb(invoice)->>'status', '')) IN ('cancelled', 'waived') THEN lower(to_jsonb(invoice)->>'status') WHEN invoice.balance_minor <= 0 THEN 'paid' WHEN invoice.balance_minor < invoice.amount_minor THEN 'partially_paid' ELSE 'issued' END) NOT IN ('paid', 'cancelled', 'waived')
             )::int AS open_invoices
           FROM student_portal_access access
           JOIN students student
-            ON student.tenant_id = access.tenant_id
-           AND student.id = access.student_id
+            ON student.tenant_id::text = access.tenant_id::text
+           AND student.id::text = access.student_id::text
           LEFT JOIN student_invoices invoice
-            ON invoice.tenant_id = student.tenant_id
+            ON invoice.tenant_id::text = student.tenant_id::text
            AND invoice.student_id::text = student.id::text
-          WHERE access.tenant_id = $1
+          WHERE access.tenant_id::text = $1::text
             AND access.user_id = $2::uuid
             AND access.status = 'active'
             AND student.deleted_at IS NULL
@@ -204,16 +204,16 @@ export class StudentCommandService {
             invoice.academic_year,
             invoice.amount_minor,
             invoice.balance_minor,
-            invoice.status,
+            (CASE WHEN lower(COALESCE(to_jsonb(invoice)->>'status', '')) IN ('cancelled', 'waived') THEN lower(to_jsonb(invoice)->>'status') WHEN invoice.balance_minor <= 0 THEN 'paid' WHEN invoice.balance_minor < invoice.amount_minor THEN 'partially_paid' ELSE 'issued' END) AS status,
             invoice.created_at::text
           FROM student_portal_access access
           JOIN students student
-            ON student.tenant_id = access.tenant_id
-           AND student.id = access.student_id
+            ON student.tenant_id::text = access.tenant_id::text
+           AND student.id::text = access.student_id::text
           JOIN student_invoices invoice
-            ON invoice.tenant_id = student.tenant_id
+            ON invoice.tenant_id::text = student.tenant_id::text
            AND invoice.student_id::text = student.id::text
-          WHERE access.tenant_id = $1
+          WHERE access.tenant_id::text = $1::text
             AND access.user_id = $2::uuid
             AND access.status = 'active'
             AND student.deleted_at IS NULL
@@ -240,14 +240,14 @@ export class StudentCommandService {
             payment.received_at::text
           FROM student_portal_access access
           JOIN students student
-            ON student.tenant_id = access.tenant_id
-           AND student.id = access.student_id
+            ON student.tenant_id::text = access.tenant_id::text
+           AND student.id::text = access.student_id::text
           JOIN manual_fee_payments payment
-            ON payment.tenant_id = student.tenant_id
+            ON payment.tenant_id::text = student.tenant_id::text
           LEFT JOIN student_invoices invoice
-            ON invoice.tenant_id = payment.tenant_id
-           AND invoice.id = payment.invoice_id
-          WHERE access.tenant_id = $1
+            ON invoice.tenant_id::text = payment.tenant_id::text
+           AND invoice.id::text = payment.invoice_id::text
+          WHERE access.tenant_id::text = $1::text
             AND access.user_id = $2::uuid
             AND access.status = 'active'
             AND student.deleted_at IS NULL
@@ -323,31 +323,31 @@ export class StudentCommandService {
             submission.completed_at::text
           FROM student_portal_access access
           JOIN students student
-            ON student.tenant_id = access.tenant_id
-           AND student.id = access.student_id
+            ON student.tenant_id::text = access.tenant_id::text
+           AND student.id::text = access.student_id::text
           JOIN academics_assignments assignment
-            ON assignment.tenant_id = student.tenant_id
+            ON assignment.tenant_id::text = student.tenant_id::text
            AND (
-             assignment.class_id = student.current_class_id::text
+             assignment.class_id::text = student.current_class_id::text
              OR EXISTS (
                SELECT 1
                FROM student_class_assignments enrollment
-               WHERE enrollment.tenant_id = student.tenant_id
-                 AND enrollment.student_id = student.id
-                 AND enrollment.class_section_id = assignment.class_id
+               WHERE enrollment.tenant_id::text = student.tenant_id::text
+                 AND enrollment.student_id::text = student.id::text
+                 AND enrollment.class_section_id::text = assignment.class_id::text
                  AND enrollment.status = 'active'
              )
            )
           LEFT JOIN subjects subject
-            ON subject.tenant_id = assignment.tenant_id
-           AND subject.id::text = assignment.subject_id
+            ON subject.tenant_id::text = assignment.tenant_id::text
+           AND subject.id::text = assignment.subject_id::text
           LEFT JOIN users actor
-            ON actor.id = assignment.teacher_id
+            ON actor.id::text = assignment.teacher_id::text
           LEFT JOIN academics_assignment_submissions submission
-            ON submission.tenant_id = assignment.tenant_id
-           AND submission.assignment_id = assignment.id
-           AND submission.student_id = student.id
-          WHERE access.tenant_id = $1
+            ON submission.tenant_id::text = assignment.tenant_id::text
+           AND submission.assignment_id::text = assignment.id::text
+           AND submission.student_id::text = student.id::text
+          WHERE access.tenant_id::text = $1::text
             AND access.user_id = $2::uuid
             AND access.status = 'active'
             AND student.deleted_at IS NULL

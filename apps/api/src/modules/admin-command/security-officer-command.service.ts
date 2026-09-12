@@ -270,14 +270,14 @@ export class SecurityOfficerCommandService {
       passes_active: number;
     }>(`
       SELECT
-        (SELECT COUNT(*)::int FROM visitors_logs WHERE tenant_id = $1 AND time_in::date = CURRENT_DATE) AS visitors_today,
-        (SELECT COUNT(*)::int FROM security_incidents WHERE tenant_id = $1 AND lower(status) IN ('open', 'reported', 'active', 'escalated')) AS incidents_open,
+        (SELECT COUNT(*)::int FROM visitors_logs WHERE tenant_id::text = $1::text AND time_in::date = CURRENT_DATE) AS visitors_today,
+        (SELECT COUNT(*)::int FROM security_incidents WHERE tenant_id::text = $1::text AND lower(status) IN ('open', 'reported', 'active', 'escalated')) AS incidents_open,
         (
           SELECT COUNT(*)::int
           FROM (
             SELECT DISTINCT ON (entity_id) event_type, payload
             FROM workflow_events
-            WHERE tenant_id = $1
+            WHERE tenant_id::text = $1::text
               AND event_type IN ('staff.entry_logged', 'staff.departure_logged')
             ORDER BY entity_id, created_at DESC, id DESC
           ) latest_staff_movement
@@ -287,7 +287,7 @@ export class SecurityOfficerCommandService {
         (
           SELECT COUNT(*)::int
           FROM student_exits
-          WHERE tenant_id = $1
+          WHERE tenant_id::text = $1::text
             AND lower(status) IN ('pending', 'verified', 'out')
             AND time_in IS NULL
         ) AS passes_active
@@ -969,11 +969,11 @@ export class SecurityOfficerCommandService {
           vehicle.registration_number AS vehicle_registration
         FROM transport_trips trip
         LEFT JOIN transport_routes route
-          ON route.tenant_id = trip.tenant_id AND route.id = trip.route_id
+          ON route.tenant_id = trip.tenant_id AND route.id::text = trip.route_id::text
         LEFT JOIN transport_vehicles vehicle
-          ON vehicle.tenant_id = trip.tenant_id AND vehicle.id = trip.vehicle_id
+          ON vehicle.tenant_id = trip.tenant_id AND vehicle.id::text = trip.vehicle_id::text
         WHERE trip.tenant_id = $1
-          AND trip.trip_date >= CURRENT_DATE - INTERVAL '1 day'
+          AND trip.trip_date::date >= CURRENT_DATE - INTERVAL '1 day'
           AND trip.status IN ('scheduled', 'in_progress', 'completed')
         ORDER BY trip.trip_date DESC, trip.created_at DESC
         LIMIT 100
@@ -1987,7 +1987,7 @@ export class SecurityOfficerCommandService {
             COUNT(*) FILTER (WHERE lower(status) = 'resolved' AND updated_at::date = CURRENT_DATE)::int AS resolved_today,
             COUNT(*) FILTER (WHERE lower(status) = 'escalated')::int AS escalated
           FROM security_incidents
-          WHERE tenant_id = $1
+          WHERE tenant_id::text = $1::text
         `,
         [tenantId],
       ),
@@ -2010,7 +2010,7 @@ export class SecurityOfficerCommandService {
             INITCAP(REPLACE(severity, '_', ' ')) AS severity,
             INITCAP(REPLACE(status, '_', ' ')) AS status
           FROM security_incidents
-          WHERE tenant_id = $1
+          WHERE tenant_id::text = $1::text
           ORDER BY created_at DESC
           LIMIT 200
         `,

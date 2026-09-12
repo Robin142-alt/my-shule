@@ -1,5 +1,7 @@
 "use client";
 
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
+
 import { Card } from "@/components/ui/card";
 import { AlertCircle, CalendarClock, UserX, UserMinus } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
@@ -73,6 +75,7 @@ export function PrincipalAttendanceWorkspace() {
           <AlertCircle className="h-6 w-6 text-red-500" />
           <h2 className="text-xl font-bold text-red-500">Failed to load Attendance Overview</h2>
         </div>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Card>
     );
   }

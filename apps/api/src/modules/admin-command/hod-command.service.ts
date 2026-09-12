@@ -3,6 +3,7 @@ import { RequestContextService } from '../../common/request-context/request-cont
 import { PrismaService } from '../../database/prisma.service';
 import { ExamsService } from '../exams/exams.service';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
+import { CURRICULUM_COVERAGE_SQL } from './academic-workspace-queries';
 
 @Injectable()
 export class HodCommandService {
@@ -47,7 +48,7 @@ export class HodCommandService {
   async getDepartmentOverview() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM departments WHERE tenant_id = $1`,
+      `SELECT * FROM academics_departments WHERE tenant_id = $1`,
       [tenantId]
     );
     return res.rows;
@@ -56,7 +57,7 @@ export class HodCommandService {
   async getReviewQueue() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM lesson_plans WHERE tenant_id = $1 AND status = 'submitted'`,
+      `SELECT * FROM academics_lesson_plans WHERE tenant_id = $1 AND lower(status::text) = 'submitted'`,
       [tenantId]
     );
     return res.rows;
@@ -65,7 +66,13 @@ export class HodCommandService {
   async getSubjectAllocation() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM subject_teacher_allocations WHERE tenant_id = $1`,
+      `SELECT assignment.*, subject.name AS subject_name, section.name AS class_name, staff.display_name AS teacher_name
+       FROM teacher_subject_assignments assignment
+       JOIN subjects subject ON subject.tenant_id = assignment.tenant_id AND subject.id::text = assignment.subject_id::text
+       JOIN class_sections section ON section.tenant_id = assignment.tenant_id AND section.id::text = assignment.class_section_id::text
+       LEFT JOIN LATERAL (SELECT profile.display_name FROM staff_profiles profile
+         WHERE profile.tenant_id = assignment.tenant_id AND profile.user_id::text = assignment.teacher_user_id::text LIMIT 1) staff ON TRUE
+       WHERE assignment.tenant_id = $1 AND assignment.status = 'active'`,
       [tenantId]
     );
     return res.rows;
@@ -132,7 +139,7 @@ export class HodCommandService {
   async getLessonPlans() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM lesson_plans WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      `SELECT * FROM academics_lesson_plans WHERE tenant_id = $1 ORDER BY created_at DESC`,
       [tenantId]
     );
     return res.rows;
@@ -141,7 +148,7 @@ export class HodCommandService {
   async getCoverageReview() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM curriculum_coverages WHERE tenant_id = $1`,
+      CURRICULUM_COVERAGE_SQL,
       [tenantId]
     );
     return res.rows;
@@ -157,7 +164,7 @@ export class HodCommandService {
   async getResourceRequests() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM resource_requests WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      `SELECT * FROM inventory_requests WHERE tenant_id = $1 ORDER BY created_at DESC`,
       [tenantId]
     );
     return res.rows;

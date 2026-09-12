@@ -103,8 +103,8 @@ export class IctManagerCommandService {
           id::text,
           title AS asset_name,
           COALESCE(NULLIF(metadata->>'asset_tag', ''), '') AS asset_tag,
-          COALESCE(category, '') AS category,
-          COALESCE(NULLIF(metadata->>'location', ''), NULLIF(owner_name, ''), '') AS location,
+          COALESCE(category::text, '') AS category,
+          COALESCE(NULLIF(metadata->>'location', ''), NULLIF(current_location, ''), '') AS location,
           COALESCE(NULLIF(metadata->>'purchase_date', ''), created_at::date::text) AS purchase_date,
           INITCAP(REPLACE(status, '_', ' ')) AS status
         FROM assets
@@ -130,7 +130,7 @@ export class IctManagerCommandService {
               AND NOT EXISTS (
                 SELECT 1 FROM asset_assignments assignment
                 WHERE assignment.tenant_id = asset.tenant_id
-                  AND assignment.asset_id = asset.id
+                  AND assignment.asset_id::text = asset.id::text
                   AND lower(assignment.status) = 'active'
               )
           ) AS unassigned,
@@ -156,13 +156,13 @@ export class IctManagerCommandService {
         FROM asset_assignments assignment
         INNER JOIN assets asset
           ON asset.tenant_id = assignment.tenant_id
-         AND asset.id = assignment.asset_id
+         AND asset.id::text = assignment.asset_id::text
         LEFT JOIN users assignee
-          ON assignee.id = assignment.assigned_to_id
+          ON assignee.id::text = assignment.assigned_to_id::text
          AND EXISTS (
            SELECT 1 FROM tenant_memberships membership
            WHERE membership.tenant_id = assignment.tenant_id
-             AND membership.user_id = assignee.id
+             AND membership.user_id::text = assignee.id::text
          )
         WHERE assignment.tenant_id = $1
           AND assignment.assigned_to_type <> 'loan'
@@ -210,13 +210,13 @@ export class IctManagerCommandService {
         FROM asset_assignments loan
         INNER JOIN assets asset
           ON asset.tenant_id = loan.tenant_id
-         AND asset.id = loan.asset_id
+         AND asset.id::text = loan.asset_id::text
         LEFT JOIN users borrower
-          ON borrower.id = loan.assigned_to_id
+          ON borrower.id::text = loan.assigned_to_id::text
          AND EXISTS (
            SELECT 1 FROM tenant_memberships membership
            WHERE membership.tenant_id = loan.tenant_id
-             AND membership.user_id = borrower.id
+             AND membership.user_id::text = borrower.id::text
          )
         WHERE loan.tenant_id = $1
           AND loan.assigned_to_type = 'loan'
@@ -263,7 +263,7 @@ export class IctManagerCommandService {
         FROM asset_repairs repair
         LEFT JOIN assets asset
           ON asset.tenant_id = repair.tenant_id
-         AND asset.id = repair.asset_id
+         AND asset.id::text = repair.asset_id::text
         WHERE repair.tenant_id = $1
         ORDER BY repair.created_at DESC
       `, [tenantId]),
