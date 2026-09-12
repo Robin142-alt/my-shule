@@ -3,6 +3,7 @@ import { AcademicFoundationWorkspace, type AcademicFoundationTab } from "@/compo
 import { AcademicAssignmentEndButton, AcademicTeacherReassignmentButton } from "@/components/school/academic-record-manager";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { createSubject } from "@/components/school/principal/api-client";
 
 jest.mock("@/lib/data/school-hooks", () => ({ useSchoolQuery: jest.fn() }));
 jest.mock("@/lib/dashboard/api-client", () => ({ requestDashboardApi: jest.fn() }));
@@ -98,6 +99,13 @@ it("creates a subject without code or abbreviation", async () => {
   expect(request.body.name).toBe("English");
   expect(request.body).not.toHaveProperty("code");
   expect(request.body).not.toHaveProperty("abbreviation");
+});
+
+it("lets the server identify principal subjects with matching name prefixes", async () => {
+  await createSubject({ name: " English " });
+  await createSubject({ name: "English Literature" });
+  expect(requestDashboardApi).toHaveBeenNthCalledWith(1, "/academics/subjects", { method: "POST", body: { name: "English" } });
+  expect(requestDashboardApi).toHaveBeenNthCalledWith(2, "/academics/subjects", { method: "POST", body: { name: "English Literature" } });
 });
 
 it("ends a responsibility immediately with its reason", async () => {
