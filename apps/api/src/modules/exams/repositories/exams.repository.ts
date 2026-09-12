@@ -2986,7 +2986,26 @@ export class ExamsRepository {
     tenant_id: string;
     exam_series_id: string;
     score: number;
+    class_section_id?: string;
+    max_score?: number;
   }) {
+    if (input.class_section_id) {
+      const policy = await this.executeSql<Record<string, unknown>>(`
+        SELECT section.curriculum_model, grading.rules
+        FROM class_sections section
+        LEFT JOIN LATERAL (${academicCurriculumGradingSql('$1', 'section.curriculum_model')}) grading ON TRUE
+        WHERE section.tenant_id = $1 AND section.id::text = $2 LIMIT 1
+      `, [input.tenant_id, input.class_section_id]);
+      if (policy.rows[0]?.curriculum_model) {
+        const rules = normalizeAcademicRules(policy.rows[0].rules);
+        const graded = applyAcademicGradingRule({ score: input.score, max_score: input.max_score ?? 100 }, rules);
+        return {
+          configured_count: rules.length,
+          match_count: graded.grade_label ? 1 : 0,
+          boundary: graded.grade_label ? { label: graded.grade_label, points: graded.points, remarks: graded.descriptor } : null,
+        };
+      }
+    }
     const result = await this.executeSql(
       `
         WITH configured AS (

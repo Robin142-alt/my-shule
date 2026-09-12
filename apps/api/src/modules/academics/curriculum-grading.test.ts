@@ -6,6 +6,7 @@ import { normalizeCurriculum, validateGradingRules } from './curriculum-grading'
 import { AcademicRoleAppointmentDto, CreateClassSectionDto } from './dto/academic.dto';
 import { AcademicsService } from './academics.service';
 import { ExamsRepository } from '../exams/repositories/exams.repository';
+import { ExamsService } from '../exams/exams.service';
 
 const rules = [
   { label: 'High', min: 60, max: 100, points: 8, remark: 'Meeting Expectation', is_pass: true },
@@ -93,4 +94,23 @@ test('report generation fails truthfully when the class curriculum has no gradin
   await assert.rejects(reportRepository('CBC', true).loadReportCardData({
     tenant_id: 'school-a', exam_series_id: 'exam', student_id: 'student',
   }), /Save a grading policy for the class curriculum/);
+});
+
+test('mark validation passes the class and assessment maximum to curriculum grading', async () => {
+  const scope = { exam_series_id: 'exam', assessment_id: 'assessment', academic_term_id: 'term', class_section_id: 'class', subject_id: 'math' };
+  const service = new ExamsService(
+    { getStore: () => ({ tenant_id: 'school-a', user_id: 'teacher', role: 'teacher', permissions: ['exams:enter-marks'] }) } as never,
+    {
+      findTeacherAssignment: async () => ({ id: 'assignment' }),
+      findSeriesState: async () => ({ status: 'draft', locked_at: null, published_at: null }),
+      findOpenMarkEntryWindow: async () => ({ id: 'window', status: 'open' }),
+      findAssessmentScope: async () => ({ ...scope, max_score: 50 }),
+      findGradeBoundaryForScore: async (input: Record<string, unknown>) => {
+        assert.deepEqual(input, { tenant_id: 'school-a', exam_series_id: 'exam', class_section_id: 'class', score: 32.5, max_score: 50 });
+        return { configured_count: 2, match_count: 1, boundary: { label: 'ME1' } };
+      },
+    } as never,
+  );
+  const validated = await (service as any).validateMarkEntry({ ...scope, student_id: 'learner', score: 32.5 }, 'school-a', 'teacher');
+  assert.equal(validated.grade_boundary.label, 'ME1');
 });

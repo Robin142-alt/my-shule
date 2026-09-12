@@ -183,6 +183,9 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
       }
     } finally { c.release(); }
     const batch = randomUUID();
+    const markInput = { tenant_id: 'school-a', exam_series_id: ids.exam, score: 32.5, max_score: 50 };
+    expect((await repository.findGradeBoundaryForScore({ ...markInput, class_section_id: ids.class })).boundary).toMatchObject({ label: 'ME1', points: 6 });
+    expect((await repository.findGradeBoundaryForScore({ ...markInput, class_section_id: secondaryClass })).boundary).toMatchObject({ label: 'B', points: 9 });
     const setup = await pool.connect();
     try {
       await setup.query(`SET search_path TO ${schema};
