@@ -455,19 +455,20 @@ export class AcademicsSchemaService implements OnModuleInit {
             EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET DEFAULT ''global''', target_table);
             EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET NOT NULL', target_table);
 
-            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'academic_term_id') THEN
+            -- Replays must preserve dependent views when columns already use text.
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'academic_term_id' AND data_type <> 'text') THEN
               EXECUTE format('ALTER TABLE %I ALTER COLUMN academic_term_id TYPE text USING academic_term_id::text', target_table);
             END IF;
-            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'class_section_id') THEN
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'class_section_id' AND data_type <> 'text') THEN
               EXECUTE format('ALTER TABLE %I ALTER COLUMN class_section_id TYPE text USING class_section_id::text', target_table);
             END IF;
-            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'subject_id') THEN
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'subject_id' AND data_type <> 'text') THEN
               EXECUTE format('ALTER TABLE %I ALTER COLUMN subject_id TYPE text USING subject_id::text', target_table);
             END IF;
-            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'teacher_user_id') THEN
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'teacher_user_id' AND data_type <> 'text') THEN
               EXECUTE format('ALTER TABLE %I ALTER COLUMN teacher_user_id TYPE text USING teacher_user_id::text', target_table);
             END IF;
-            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'status') THEN
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'status' AND data_type <> 'text') THEN
               EXECUTE format('ALTER TABLE %I ALTER COLUMN status TYPE text USING status::text', target_table);
             END IF;
             IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = format('uq_%s_tenant_id_id', target_table)) THEN
@@ -652,13 +653,13 @@ export class AcademicsSchemaService implements OnModuleInit {
             EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET DEFAULT ''global''', target_table);
             EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET NOT NULL', target_table);
 
-            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'student_id') THEN
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'student_id' AND data_type <> 'text') THEN
               EXECUTE format('ALTER TABLE %I ALTER COLUMN student_id TYPE text USING student_id::text', target_table);
             END IF;
-            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'academic_term_id') THEN
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'academic_term_id' AND data_type <> 'text') THEN
               EXECUTE format('ALTER TABLE %I ALTER COLUMN academic_term_id TYPE text USING academic_term_id::text', target_table);
             END IF;
-            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'class_section_id') THEN
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = target_table AND column_name = 'class_section_id' AND data_type <> 'text') THEN
               EXECUTE format('ALTER TABLE %I ALTER COLUMN class_section_id TYPE text USING class_section_id::text', target_table);
             END IF;
             IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = format('uq_%s_tenant_id_id', target_table)) THEN
