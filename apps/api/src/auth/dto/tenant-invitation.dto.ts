@@ -1,5 +1,11 @@
 import { Transform, Type } from 'class-transformer';
 import { IsEmail, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { SCHOOL_STAFF_ROLE_CODES } from '../auth.constants';
+
+// Directory coverage includes governed legacy roles without changing invitation privileges.
+export const DIRECTORY_STAFF_ROLE_CODES = [
+  ...SCHOOL_STAFF_ROLE_CODES, 'school_admin', 'driver', 'hr_officer', 'procurement_officer',
+] as const;
 
 export const TENANT_INVITABLE_ROLE_CODES = [
   'principal',
@@ -30,6 +36,8 @@ export const TENANT_INVITABLE_ROLE_CODES = [
 ] as const;
 
 export type TenantInvitableRoleCode = (typeof TENANT_INVITABLE_ROLE_CODES)[number];
+
+export const TENANT_SEARCHABLE_ROLE_CODES = [...TENANT_INVITABLE_ROLE_CODES, ...DIRECTORY_STAFF_ROLE_CODES];
 
 const trim = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
@@ -144,13 +152,18 @@ export class UpdateTenantMembershipProfileDto {
 export class ListTenantUsersQueryDto {
   @Transform(trim)
   @IsOptional()
+  @IsIn(['staff'])
+  scope?: 'staff';
+
+  @Transform(trim)
+  @IsOptional()
   @IsString()
   @MaxLength(120)
   search?: string;
 
   @Transform(trim)
   @IsOptional()
-  @IsIn(TENANT_INVITABLE_ROLE_CODES)
+  @IsIn(TENANT_SEARCHABLE_ROLE_CODES)
   role_code?: string;
 
   @Transform(trim)
