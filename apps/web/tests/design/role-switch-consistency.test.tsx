@@ -1,6 +1,6 @@
 import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import { normalizeDashboardRoleContext } from "@/lib/auth/dashboard-role-context";
 import { replaceDashboardDocument } from "@/lib/auth/dashboard-role-navigation";
@@ -45,8 +45,9 @@ function wrapper({ children }: { children: ReactNode }) {
 
 let roleState: ReturnType<typeof useSchoolDashboardRole>;
 function Probe() {
-  roleState = useSchoolDashboardRole();
-  return <div data-testid="active-role">{roleState.activeAuthorizationRoleCode}</div>;
+  const state = useSchoolDashboardRole();
+  useEffect(() => { roleState = state; }, [state]);
+  return <div data-testid="active-role">{state.activeAuthorizationRoleCode}</div>;
 }
 
 describe("role switch consistency", () => {
