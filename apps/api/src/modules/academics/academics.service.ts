@@ -1,5 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, UnauthorizedException, Inject, forwardRef, Optional } from '@nestjs/common';
 
+import { randomUUID } from 'node:crypto';
+
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { ExamsService } from '../exams/exams.service';
 import { EventPublisherService } from '../events/event-publisher.service';
@@ -430,7 +432,9 @@ export class AcademicsService {
       }
     }
 
-    await this.requireUniqueCode(tenantId, 'subjects', dto.code, null);
+    // Codes remain internal identifiers for existing integrations and reports.
+    const code = dto.code?.trim() || `SUB-${randomUUID()}`;
+    await this.requireUniqueCode(tenantId, 'subjects', code, null);
     const duplicateName = await this.repository.executeSql(tenantId, `
       SELECT id FROM subjects WHERE tenant_id = $1 AND lower(name) = lower($2)
         AND curriculum_model = $3 AND status <> 'archived' LIMIT 1
@@ -442,7 +446,7 @@ export class AcademicsService {
     const subject = await this.repository.createSubject({
       tenant_id: tenantId,
       created_by_user_id: this.currentUserId(),
-      code: this.requireText(dto.code, 'Subject code'),
+      code,
       name: this.requireText(dto.name, 'Subject name'),
       department_id: departmentId,
       abbreviation: dto.abbreviation?.trim() || null,
@@ -474,7 +478,7 @@ export class AcademicsService {
     const subjectId = this.requireText(dto.subject_id, 'Subject');
     const scope = await this.repository.executeSql(
       tenantId,
-      `SELECT section.id
+      `SELECT section.id, subject.department_id, subject.curriculum_model
        FROM class_sections section
        JOIN subjects subject
          ON subject.tenant_id = section.tenant_id
@@ -504,10 +508,6 @@ export class AcademicsService {
       `, [tenantId, dto.stream_id, classSectionId]);
       if (!stream.rows[0]) throw new BadRequestException('Select an active stream in the assigned class.');
     }
-    if (dto.department_id) {
-      await this.requireSetupRecord(tenantId, 'department', dto.department_id);
-    }
-
     const assignment = await this.repository.createTeacherAssignment({
       tenant_id: tenantId,
       created_by_user_id: this.currentUserId(),
@@ -524,8 +524,8 @@ export class AcademicsService {
       effective_to: dto.effective_to ?? null,
       reason: dto.reason?.trim() || null,
       stream_id: dto.stream_id?.trim() || null,
-      department_id: dto.department_id?.trim() || null,
-      curriculum_model: dto.curriculum_model?.trim() || null,
+      department_id: scope.rows[0].department_id ?? null,
+      curriculum_model: scope.rows[0].curriculum_model ?? null,
     }, async ({ tx, assignment: saved, previous }) => {
       const action = previous.length ? 'reassigned' : 'assigned';
       await this.auditMutation(tenantId, 'teacher_assignment', saved.id,
@@ -1318,6 +1318,7 @@ export class AcademicsService {
   }
 
   async assignAcademicRole(dto: AcademicRoleAppointmentDto) {
+    dto = { ...dto, effective_from: dto.effective_from ?? new Date().toISOString().slice(0, 10) };
     const tenantId = this.requireTenantId();
     const teacherUserId = this.requireText(dto.teacher_user_id, 'Academic role holder');
     await this.requireActiveStaffUserInTenant(tenantId, teacherUserId);
@@ -1333,7 +1334,7 @@ export class AcademicsService {
         throw new BadRequestException('The appointed subject must belong to the selected department.');
       }
     }
-    if (dto.effective_to) this.requireDateRange(dto.effective_from, dto.effective_to, 'Academic role appointment');
+    if (dto.effective_from && dto.effective_to) this.requireDateRange(dto.effective_from, dto.effective_to, 'Academic role appointment');
     if (dto.department_id) await this.requireSetupRecord(tenantId, 'department', dto.department_id);
     if (dto.academic_year_id) await this.requireSetupRecord(tenantId, 'academic-year', dto.academic_year_id);
     if (dto.class_section_id) await this.requireSetupRecord(tenantId, 'class-section', dto.class_section_id);
@@ -1380,13 +1381,14 @@ export class AcademicsService {
   }
 
   async createCurriculumConfiguration(dto: CreateAcademicCurriculumConfigurationDto) {
+    dto = { ...dto, effective_from: dto.effective_from ?? new Date().toISOString().slice(0, 10) };
     const tenantId = this.requireTenantId();
-    if (dto.effective_to) this.requireDateRange(dto.effective_from, dto.effective_to, 'Curriculum configuration');
+    if (dto.effective_from && dto.effective_to) this.requireDateRange(dto.effective_from, dto.effective_to, 'Curriculum configuration');
     const duplicate = await this.repository.executeSql(tenantId, `
       SELECT id FROM academics_curriculum_configurations
       WHERE tenant_id = $1 AND lower(name) = lower($2) AND effective_from = $3::date LIMIT 1
     `, [tenantId, dto.name.trim(), dto.effective_from]);
-    if (duplicate.rows[0]) throw new ConflictException('That curriculum configuration and effective date already exist.');
+    if (duplicate.rows[0]) throw new ConflictException('That curriculum configuration already exists. Open it to create a new version.');
     const created = await this.repository.createCurriculumConfiguration(tenantId, {
       ...dto, actor_user_id: this.currentUserId(), configuration: dto.configuration ?? {},
     });
@@ -1447,6 +1449,7 @@ export class AcademicsService {
   }
 
   async reassignTeacher(id: string, dto: ReassignTeacherDto) {
+    dto = { ...dto, effective_from: dto.effective_from ?? new Date().toISOString().slice(0, 10) };
     const tenantId = this.requireTenantId();
     await this.requireActiveStaffUserInTenant(tenantId, dto.teacher_user_id);
     const previous = await this.requireSetupRecord(tenantId, 'teacher-assignment', id);

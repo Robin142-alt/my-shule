@@ -41,7 +41,6 @@ const subjectTypes = [
 
 const emptySubjectForm = {
   name: "",
-  code: "",
   type: "CBC Learning Area",
   department: "",
   level_coverage: "",
@@ -104,7 +103,6 @@ export function SubjectsDepartmentsWorkspace() {
       await createSubject({
         name,
         subject_name: name,
-        code: subjectForm.code.trim() || null,
         type: subjectForm.type,
         department,
         level_coverage: subjectForm.level_coverage.trim() || null,
@@ -254,10 +252,7 @@ export function SubjectsDepartmentsWorkspace() {
               Subject name
               <input value={subjectForm.name} onChange={(event) => setSubjectForm((current) => ({ ...current, name: event.target.value }))} placeholder="Mathematics" className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400" required />
             </label>
-            <label className="space-y-1 text-sm font-bold text-[#334155]">
-              Subject code
-              <input value={subjectForm.code} onChange={(event) => setSubjectForm((current) => ({ ...current, code: event.target.value }))} placeholder="MATH" className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400" />
-            </label>
+
             <label className="space-y-1 text-sm font-bold text-[#334155]">
               Type
               <select value={subjectForm.type} onChange={(event) => setSubjectForm((current) => ({ ...current, type: event.target.value }))} className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400">

@@ -13,21 +13,19 @@ export function SubjectsWorkspace() {
 
   const { data: subjectsList, refetch: refetchSubjects } = useSchoolQuery<any[]>("/api/academics/subjects", { enabled: activeTab === "subjects" || activeTab === "teachers" });
   const { data: assignmentsList, refetch: refetchAssignments } = useSchoolQuery<any[]>("/api/academics/teacher-assignments", { enabled: activeTab === "teachers" });
-  
+
   const { data: staffList } = useSchoolQuery<SchoolStaffOptionInput[]>("/api/academics/teachers", { enabled: activeTab === "teachers" });
   const { data: sectionsList } = useSchoolQuery<any[]>("/api/academics/class-sections", { enabled: activeTab === "teachers" });
   const teacherOptions = buildSchoolStaffOptions(staffList);
 
   const createSubjectMutation = useSchoolMutation("/api/academics/subjects");
   const assignTeacherMutation = useSchoolMutation("/api/academics/teacher-assignments");
-
-  const [newSubCode, setNewSubCode] = useState("");
   const [newSubName, setNewSubName] = useState("");
 
   const handleCreateSubject = async () => {
-    if (!newSubCode || !newSubName) return;
-    await createSubjectMutation.mutateAsync({ code: newSubCode, name: newSubName });
-    setNewSubCode(""); setNewSubName("");
+    if (!newSubName.trim()) return;
+    await createSubjectMutation.mutateAsync({ name: newSubName.trim() });
+    setNewSubName("");
     refetchSubjects();
   };
 
@@ -93,15 +91,7 @@ export function SubjectsWorkspace() {
                 Add Subject
               </h3>
               <div className="space-y-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-700">Code</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. MAT101"
-                    value={newSubCode} onChange={e => setNewSubCode(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
-                  />
-                </div>
+
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-slate-700">Name</label>
                   <input 
@@ -111,7 +101,7 @@ export function SubjectsWorkspace() {
                     className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
                   />
                 </div>
-                <Button onClick={handleCreateSubject} disabled={createSubjectMutation.isPending || !newSubCode || !newSubName} className="w-full">
+                <Button onClick={handleCreateSubject} disabled={createSubjectMutation.isPending || !newSubName.trim()} className="w-full">
                   Create Subject
                 </Button>
               </div>
@@ -122,17 +112,17 @@ export function SubjectsWorkspace() {
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-slate-500 uppercase bg-slate-50/50 border-b border-slate-200">
                   <tr>
-                    <th className="px-4 py-3 font-medium">Code</th>
+
                     <th className="px-4 py-3 font-medium">Name</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {subjectsList?.length === 0 ? (
-                    <tr><td colSpan={2} className="px-4 py-8 text-center text-slate-500">No subjects defined yet.</td></tr>
+                    <tr><td colSpan={1} className="px-4 py-8 text-center text-slate-500">No subjects defined yet.</td></tr>
                   ) : (
                     subjectsList?.map((sub: any) => (
                       <tr key={sub.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-slate-900">{sub.code}</td>
+
                         <td className="px-4 py-3">{sub.name}</td>
                       </tr>
                     ))
