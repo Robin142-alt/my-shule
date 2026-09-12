@@ -272,7 +272,7 @@ describe("academic foundation saved-record visibility", () => {
     expect(form.queryByRole("combobox", { name: /term/i })).not.toBeInTheDocument();
     expect(form.getByRole("button", { name: "Assign Subject Teacher" })).toBeEnabled();
     expect(screen.getByText(/Across terms/)).toBeInTheDocument();
-    expect(screen.getByText(/Until reassigned or ended/)).toBeInTheDocument();
+    expect(screen.getByText(/until reassigned or ended/i)).toBeInTheDocument();
 
     await user.selectOptions(form.getByRole("combobox", { name: "Class/form/grade" }), "class-1");
     await user.selectOptions(form.getByRole("combobox", { name: "Subject / learning area" }), "subject-1");
@@ -313,16 +313,15 @@ describe("academic foundation saved-record visibility", () => {
     await user.selectOptions(form.getByRole("combobox", { name: "Subject / learning area" }), "subject-1");
     await user.selectOptions(form.getByRole("combobox", { name: "Teacher" }), "teacher-1");
     await user.selectOptions(form.getByRole("combobox", { name: "Type" }), "temporary");
-    const endDate = form.getByLabelText("Effective to");
-    await user.type(endDate, "2026-12-01");
+    expect(form.queryByLabelText(/Effective/)).not.toBeInTheDocument();
     await user.click(form.getByRole("button", { name: "Assign Subject Teacher" }));
 
     expect(await screen.findByText("Choose a stream belonging to the selected class.")).toBeInTheDocument();
     expect(form.getByRole("combobox", { name: "Teacher" })).toHaveValue("teacher-1");
-    expect(endDate).toHaveValue("2026-12-01");
+    expect(form.getByRole("combobox", { name: "Type" })).toHaveValue("temporary");
     expect(form.getByRole("button", { name: "Assign Subject Teacher" })).toBeEnabled();
     expect((requestDashboardApi as jest.Mock).mock.calls[0][1].body).toMatchObject({
-      assignment_type: "temporary", effective_to: "2026-12-01",
+      assignment_type: "temporary",
     });
   });
 });

@@ -125,12 +125,10 @@ export async function createStream(classId: string, data: any) {
 // Subjects & Departments
 export async function createSubject(data: any) {
   const name = String(data?.name ?? data?.subject_name ?? '').trim();
-  const code = String(data?.code ?? name.slice(0, 4).toUpperCase()).trim();
   return requestDashboardApi('/academics/subjects', {
     method: 'POST',
     body: {
       name,
-      code,
     },
   });
 }

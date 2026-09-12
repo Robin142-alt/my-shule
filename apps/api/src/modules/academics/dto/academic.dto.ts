@@ -81,8 +81,9 @@ export class CreateClassSectionDto {
 }
 
 export class CreateSubjectDto {
+  @IsOptional()
   @IsString()
-  code!: string;
+  code?: string;
 
   @IsString()
   name!: string;
@@ -674,7 +675,7 @@ export class AcademicRoleAppointmentDto {
   @IsOptional() @IsString() class_section_id?: string;
   @IsOptional() @IsString() stream_id?: string;
   @IsOptional() @IsIn(['permanent', 'acting', 'temporary']) appointment_type?: string;
-  @IsDateString() effective_from!: string;
+  @IsOptional() @IsDateString() effective_from?: string;
   @IsOptional() @IsDateString() effective_to?: string;
   @IsString() @MaxLength(500) reason!: string;
 }
@@ -729,12 +730,12 @@ export class AcademicCurriculumConfigurationDto {
 export class CreateAcademicCurriculumConfigurationDto extends AcademicCurriculumConfigurationDto {
   @IsString() declare name: string;
   @IsIn(['CBC', 'CBE', '8-4-4', 'International', 'Hybrid', 'Custom']) declare curriculum_model: string;
-  @IsDateString() declare effective_from: string;
+  @IsOptional() @IsDateString() declare effective_from?: string;
 }
 
 export class ReassignTeacherDto {
   @IsString() teacher_user_id!: string;
-  @IsDateString() effective_from!: string;
+  @IsOptional() @IsDateString() effective_from?: string;
   @IsString() @MaxLength(500) reason!: string;
   @IsOptional() @IsBoolean() transfer_future_timetable?: boolean;
   @IsOptional() @IsBoolean() transfer_pending_marks?: boolean;

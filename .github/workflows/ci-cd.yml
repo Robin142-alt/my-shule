@@ -53,6 +53,9 @@ jobs:
       - name: School staff search and invitation contracts
         run: npm --prefix apps/web run test:design -- staff-directory user-management-invitations
 
+      - name: Simplified academic setup contracts
+        run: npm --prefix apps/web run test:design -- academic-setup-simplification academic-foundation-record-visibility academic-foundation-workspace subject-teacher-assignment-surfaces academic-curriculum-builder academic-policy-builders
+
   # ──────────────────────────────────────────────────────────────
   # Build + Unit Tests
   # ──────────────────────────────────────────────────────────────

@@ -496,7 +496,6 @@ export function AcademicAssignmentEndButton({
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const reason = String(data.get("reason") ?? "").trim();
-    const effectiveTo = String(data.get("effective_to") ?? "").trim();
     setBusy(true);
     setError(null);
     try {
@@ -507,7 +506,7 @@ export function AcademicAssignmentEndButton({
           : `/academics/teacher-assignments/${assignmentId}/end`;
       await requestDashboardApi(path, {
         method: "POST",
-        body: { reason, effective_to: effectiveTo || undefined },
+        body: { reason },
       });
       await onUpdated();
       toast.success(`${label} ended.`);
@@ -534,15 +533,12 @@ export function AcademicAssignmentEndButton({
         open={open}
         onClose={() => setOpen(false)}
         title={`End ${label}`}
-        description="The previous allocation remains in academic history. Enter when and why the responsibility ended."
+        description="The previous allocation remains in academic history. Enter why the responsibility is ending."
         size="sm"
       >
         <form onSubmit={submit} className="space-y-4">
           {error ? <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div> : null}
-          <label className="block text-sm font-bold text-slate-700">
-            Effective end date
-            <input name="effective_to" type="date" defaultValue={new Date().toISOString().slice(0, 10)} className={inputClass} />
-          </label>
+
           <label className="block text-sm font-bold text-slate-700">
             Reason
             <textarea name="reason" required minLength={3} rows={3} className={inputClass} placeholder="e.g. Reassigned to another class" />
@@ -593,7 +589,6 @@ export function AcademicTeacherReassignmentButton({
         method: "POST",
         body: {
           teacher_user_id: String(data.get("teacher_user_id") ?? ""),
-          effective_from: String(data.get("effective_from") ?? ""),
           reason: String(data.get("reason") ?? "").trim(),
           transfer_future_timetable: data.get("transfer_future_timetable") === "on",
           transfer_pending_marks: data.get("transfer_pending_marks") === "on",
@@ -621,13 +616,13 @@ export function AcademicTeacherReassignmentButton({
       <button type="button" onClick={() => setOpen(true)} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-cyan-200/25 bg-cyan-200/10 px-3 py-2 text-xs font-black text-cyan-100 hover:bg-cyan-200/20">
         <ArrowRightLeft className="h-3.5 w-3.5" /> Reassign
       </button>
-      <Modal open={open} onClose={() => setOpen(false)} title="Reassign subject teacher" description="End the current allocation, create a dated replacement, and choose which pending responsibilities should move." size="lg">
+      <Modal open={open} onClose={() => setOpen(false)} title="Reassign subject teacher" description="End the current allocation, assign the replacement teacher, and choose which pending responsibilities should move." size="lg">
         <form onSubmit={submit} className="space-y-4">
           {error ? <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div> : null}
           {!preview && !error ? <p className="text-sm font-semibold text-slate-500">Loading scoped reassignment impact...</p> : null}
           {preview ? <div className="grid gap-2 rounded-xl bg-slate-50 p-3 text-sm sm:grid-cols-2">{Object.entries(pending).map(([key, count]) => <div key={key} className="rounded-lg bg-white px-3 py-2"><span className="font-bold capitalize">{key.replaceAll("_", " ")}</span>: {Number(count)}</div>)}</div> : null}
           <label className="block text-sm font-bold text-slate-700">Replacement teacher<select name="teacher_user_id" required defaultValue="" className={inputClass}><option value="">Select teacher</option>{teachers.filter((teacher) => teacher.id !== currentTeacherId).map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.label}</option>)}</select></label>
-          <label className="block text-sm font-bold text-slate-700">Effective from<input name="effective_from" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} className={inputClass} /></label>
+
           <label className="block text-sm font-bold text-slate-700">Reason<textarea name="reason" required minLength={3} rows={2} className={inputClass} /></label>
           <div className="grid gap-2 sm:grid-cols-2">{[
             ["transfer_future_timetable", "Future timetable lessons"], ["transfer_pending_marks", "Pending mark responsibilities"],

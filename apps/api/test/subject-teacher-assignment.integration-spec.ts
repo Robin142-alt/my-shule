@@ -32,7 +32,7 @@ describe('Continuing subject teacher assignment SQL contract', () => {
       CREATE TABLE class_sections (id text PRIMARY KEY, tenant_id text, academic_year_id text, status text DEFAULT 'active');
       CREATE TABLE class_streams (id text PRIMARY KEY, tenant_id text, class_section_id text, status text DEFAULT 'active');
       CREATE TABLE academic_terms (id text PRIMARY KEY, tenant_id text, academic_year_id text);
-      CREATE TABLE subjects (id text PRIMARY KEY, tenant_id text, status text DEFAULT 'active');
+      CREATE TABLE subjects (id text PRIMARY KEY, tenant_id text, status text DEFAULT 'active', department_id uuid, curriculum_model text);
       CREATE TABLE teacher_subject_assignments (
         id text PRIMARY KEY DEFAULT gen_random_uuid()::text, tenant_id text NOT NULL,
         academic_term_id text NOT NULL, class_section_id text NOT NULL, subject_id text NOT NULL,
@@ -115,6 +115,28 @@ describe('Continuing subject teacher assignment SQL contract', () => {
   const write = (teacher: string, stream = 'yellow', extras = {}) => repository.createTeacherAssignment({
     tenant_id: 'school-a', teacher_user_id: teacher, class_section_id: 'class-a', subject_id: 'english',
     stream_id: stream, created_by_user_id: actorId, ...extras,
+  });
+
+  it('inherits the subject department and curriculum even when a client supplies overrides', async () => {
+    const departmentId = randomUUID();
+    await pool.query("UPDATE subjects SET department_id=$1, curriculum_model='CBC' WHERE id='english'", [departmentId]);
+    try {
+      const saved = await service.assignTeacher({ ...input(), department_id: randomUUID(), curriculum_model: '8-4-4' });
+      expect(saved.department_id).toBe(departmentId);
+      expect(saved.curriculum_model).toBe('CBC');
+      const persisted = (await pool.query('SELECT department_id, curriculum_model, effective_from::text, effective_to FROM teacher_subject_assignments WHERE id=$1', [saved.id])).rows[0];
+      expect(persisted).toEqual({ department_id: departmentId, curriculum_model: 'CBC', effective_from: expect.any(String), effective_to: null });
+      expect((await pool.query('SELECT * FROM assignment_test_events')).rows).toHaveLength(1);
+    } finally {
+      await pool.query("UPDATE subjects SET department_id=NULL, curriculum_model=NULL WHERE id='english'");
+    }
+  });
+
+  it('rejects another class stream within the same school', async () => {
+    await pool.query("INSERT INTO class_sections(id, tenant_id, academic_year_id) VALUES ('other-class','school-a','year-a')");
+    await pool.query("INSERT INTO class_streams(id, tenant_id, class_section_id) VALUES ('other-stream','school-a','other-class')");
+    await expect(service.assignTeacher({ ...input(), stream_id: 'other-stream' })).rejects.toThrow(/stream in the assigned class/);
+    expect((await pool.query('SELECT * FROM teacher_subject_assignments')).rows).toHaveLength(0);
   });
 
   it('saves without a term using the canonical stream, audit, event, and notification', async () => {

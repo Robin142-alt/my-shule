@@ -159,18 +159,6 @@ function formatDate(value?: string | null) {
   return Number.isNaN(parsed.getTime()) ? "-" : parsed.toLocaleDateString();
 }
 
-function toDateTimeInput(value?: string | null) {
-  if (!value) return "";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 16);
-}
-
-function toApiTimestamp(value: string) {
-  if (!value) return undefined;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
-}
-
 function normalizePolicyStatus(value?: string): PolicyStatus {
   const status = value?.toLowerCase();
   if (
@@ -298,8 +286,6 @@ function PolicyDialog({
 }) {
   const [name, setName] = useState("");
   const [reportingMode, setReportingMode] = useState<ReportingMode>(reportingModeForTab(activeTab));
-  const [effectiveFrom, setEffectiveFrom] = useState("");
-  const [effectiveTo, setEffectiveTo] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -311,8 +297,6 @@ function PolicyDialog({
     setReportingMode(
       (policy?.reporting_mode ?? sourcePolicy?.reporting_mode ?? reportingModeForTab(activeTab)) as ReportingMode,
     );
-    setEffectiveFrom(toDateTimeInput(policy?.effective_from));
-    setEffectiveTo(toDateTimeInput(policy?.effective_to));
   }, [activeTab, open, policy, sourcePolicy]);
 
   const title = policy?.id
@@ -331,8 +315,6 @@ function PolicyDialog({
               {
                 name: name.trim(),
                 reporting_mode: reportingMode,
-                effective_from: toApiTimestamp(effectiveFrom),
-                effective_to: toApiTimestamp(effectiveTo),
                 supersedes_policy_id: sourcePolicy?.id,
                 scope: policy?.scope ?? sourcePolicy?.scope ?? scopeForTab(activeTab),
               },
@@ -372,26 +354,6 @@ function PolicyDialog({
                 <option value="cbc_competency">CBC competency levels</option>
                 <option value="hybrid">Hybrid grades and competencies</option>
               </select>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="grading-effective-from">Effective from</Label>
-                <Input
-                  id="grading-effective-from"
-                  type="datetime-local"
-                  value={effectiveFrom}
-                  onChange={(event) => setEffectiveFrom(event.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="grading-effective-to">Effective to</Label>
-                <Input
-                  id="grading-effective-to"
-                  type="datetime-local"
-                  value={effectiveTo}
-                  onChange={(event) => setEffectiveTo(event.target.value)}
-                />
-              </div>
             </div>
           </div>
           <DialogFooter>
@@ -973,7 +935,7 @@ export function GradingRubricsWorkspace({ model }: { model: unknown }) {
         <PageHeader
           eyebrow="Configuration"
           title="Grading & Rubrics"
-          description="Versioned grading scales, CBC competency rubrics, descriptors, effective dates, and publication-safe history."
+          description="Versioned grading scales, CBC competency rubrics, descriptors, and publication-safe history."
         />
         <div className="flex flex-wrap gap-2">
           <input
@@ -1042,7 +1004,7 @@ export function GradingRubricsWorkspace({ model }: { model: unknown }) {
                 <TableHead>Scale name</TableHead>
                 <TableHead>Version</TableHead>
                 <TableHead>Reporting mode</TableHead>
-                <TableHead>Effective period</TableHead>
+
                 <TableHead>Status</TableHead>
                 <TableHead>Updated</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -1051,7 +1013,7 @@ export function GradingRubricsWorkspace({ model }: { model: unknown }) {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center">
+                  <TableCell colSpan={6} className="py-10 text-center">
                     <Loader2 className="mx-auto mb-2 h-6 w-6 animate-spin text-muted-foreground" />
                     <p className="text-muted-foreground">Loading grading policies...</p>
                   </TableCell>
@@ -1059,14 +1021,14 @@ export function GradingRubricsWorkspace({ model }: { model: unknown }) {
               ) : null}
               {error ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-destructive">
+                  <TableCell colSpan={6} className="py-10 text-center text-destructive">
                     Error loading policies: {error.message}
                   </TableCell>
                 </TableRow>
               ) : null}
               {!isLoading && !error && visiblePolicies.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
                     No {activeTab.toLowerCase()} policy exists. Create a draft, add complete boundaries,
                     validate it, then activate it before generating reports.
                   </TableCell>
@@ -1080,9 +1042,7 @@ export function GradingRubricsWorkspace({ model }: { model: unknown }) {
                     <TableCell className="font-medium">{row.name ?? "Untitled scale"}</TableCell>
                     <TableCell>v{row.version ?? 1}</TableCell>
                     <TableCell>{row.reporting_mode ?? reportingModeForTab(activeTab)}</TableCell>
-                    <TableCell className="whitespace-nowrap text-sm">
-                      {formatDate(row.effective_from)} to {formatDate(row.effective_to)}
-                    </TableCell>
+
                     <TableCell>
                       <Badge variant={statusBadgeVariant(status)}>{status}</Badge>
                     </TableCell>

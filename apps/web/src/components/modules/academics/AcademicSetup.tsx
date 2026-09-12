@@ -51,7 +51,7 @@ export function AcademicSetup({ tenantId }: { tenantId?: string }) {
   });
 
   const createSubjectMutation = useMutation({
-    mutationFn: async (data: { name: string; code: string }) => {
+    mutationFn: async (data: { name: string }) => {
       return requestDashboardApi('/academics/subjects', {
         method: 'POST',
         body: data
@@ -82,7 +82,6 @@ export function AcademicSetup({ tenantId }: { tenantId?: string }) {
     const formData = new FormData(e.currentTarget);
     createSubjectMutation.mutate({
       name: formData.get("name") as string,
-      code: formData.get("code") as string,
     });
   };
 
@@ -135,7 +134,6 @@ export function AcademicSetup({ tenantId }: { tenantId?: string }) {
           <DataTable
             columns={[
               { id: "name", header: "Subject Name", render: (row: any) => row.name },
-              { id: "code", header: "Code", render: (row: any) => row.code },
             ]}
             rows={subjectsQuery.data || []}
             getRowKey={(row: any) => row.id}
@@ -174,10 +172,7 @@ export function AcademicSetup({ tenantId }: { tenantId?: string }) {
             <label className="text-sm font-semibold text-foreground">Subject Name</label>
             <input name="name" required className="input-base" placeholder="e.g. Mathematics" />
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-foreground">Subject Code</label>
-            <input name="code" required className="input-base" placeholder="e.g. MATH101" />
-          </div>
+
           <div className="pt-4 flex justify-end">
             <Button type="submit" disabled={createSubjectMutation.isPending}>
               {createSubjectMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
