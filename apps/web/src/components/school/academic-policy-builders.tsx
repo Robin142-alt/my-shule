@@ -30,18 +30,29 @@ type ReportCardConfiguration = {
 };
 
 const SECONDARY_GRADE_BANDS = [
-  { label: "A", min: 80, max: 100, points: 12, remark: "Excellent", is_pass: true },
-  { label: "B", min: 70, max: 79, points: 10, remark: "Very good", is_pass: true },
-  { label: "C", min: 60, max: 69, points: 8, remark: "Good", is_pass: true },
-  { label: "D", min: 50, max: 59, points: 6, remark: "Fair", is_pass: true },
-  { label: "E", min: 0, max: 49, points: 4, remark: "Needs support", is_pass: false },
+  { label: "A", min: 80, max: 100, points: 12, remark: "Very Good", is_pass: true },
+  { label: "A-", min: 75, max: 79, points: 11, remark: "Very Good", is_pass: true },
+  { label: "B+", min: 70, max: 74, points: 10, remark: "Good", is_pass: true },
+  { label: "B", min: 65, max: 69, points: 9, remark: "Good", is_pass: true },
+  { label: "B-", min: 60, max: 64, points: 8, remark: "Good", is_pass: true },
+  { label: "C+", min: 55, max: 59, points: 7, remark: "Average", is_pass: true },
+  { label: "C", min: 45, max: 54, points: 6, remark: "Average", is_pass: true },
+  { label: "C-", min: 40, max: 44, points: 5, remark: "Average", is_pass: true },
+  { label: "D+", min: 35, max: 39, points: 4, remark: "Average", is_pass: true },
+  { label: "D", min: 30, max: 34, points: 3, remark: "Weak", is_pass: true },
+  { label: "D-", min: 25, max: 29, points: 2, remark: "Weak", is_pass: true },
+  { label: "E", min: 0, max: 24, points: 1, remark: "Poor", is_pass: false },
 ];
 
 const CBC_GRADE_BANDS = [
-  { label: "EE", min: 75, max: 100, points: 4, remark: "Exceeding expectations", is_pass: true },
-  { label: "ME", min: 50, max: 74, points: 3, remark: "Meeting expectations", is_pass: true },
-  { label: "AE", min: 25, max: 49, points: 2, remark: "Approaching expectations", is_pass: true },
-  { label: "BE", min: 0, max: 24, points: 1, remark: "Below expectations", is_pass: false },
+  { label: "EE1", min: 90, max: 100, points: 8, remark: "Exceeding Expectation", is_pass: true },
+  { label: "EE2", min: 75, max: 89, points: 7, remark: "Exceeding Expectation", is_pass: true },
+  { label: "ME1", min: 58, max: 74, points: 6, remark: "Meeting Expectation", is_pass: true },
+  { label: "ME2", min: 41, max: 57, points: 5, remark: "Meeting Expectation", is_pass: true },
+  { label: "AE1", min: 31, max: 40, points: 4, remark: "Approaching Expectation", is_pass: true },
+  { label: "AE2", min: 21, max: 30, points: 3, remark: "Approaching Expectation", is_pass: true },
+  { label: "BE1", min: 11, max: 20, points: 2, remark: "Below Expectation", is_pass: false },
+  { label: "BE2", min: 0, max: 10, points: 1, remark: "Below Expectation", is_pass: false },
 ];
 
 const themeClasses = {
@@ -302,10 +313,10 @@ export function AcademicGradeBandsEditor({
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => applyPreset("secondary")} className={`min-h-9 rounded-lg border px-3 text-xs font-bold ${styles.secondaryButton}`}>
-            Secondary A-E starter
+            8-4-4
           </button>
           <button type="button" onClick={() => applyPreset("cbc")} className={`min-h-9 rounded-lg border px-3 text-xs font-bold ${styles.secondaryButton}`}>
-            CBC starter
+            CBC
           </button>
         </div>
       </div>
@@ -315,7 +326,7 @@ export function AcademicGradeBandsEditor({
           <div key={row.id} className={`grid gap-3 rounded-xl border p-3 sm:grid-cols-2 xl:grid-cols-12 ${styles.row}`}>
             <label className={`text-xs font-bold xl:col-span-2 ${styles.label}`}>
               Grade label
-              <input value={row.label} onChange={(event) => update(row.id, { label: event.target.value })} placeholder={index === 0 ? "A or EE" : "Grade"} className={`${baseInputClass} ${styles.input}`} required />
+              <input value={row.label} onChange={(event) => update(row.id, { label: event.target.value })} placeholder={index === 0 ? "A or EE1" : "Grade"} className={`${baseInputClass} ${styles.input}`} required />
             </label>
             <label className={`text-xs font-bold xl:col-span-2 ${styles.label}`}>
               Minimum mark
