@@ -488,7 +488,7 @@ test('TenantInvitationsService lists active users and pending tenant invitations
     {
       withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
       query: async (text: string, values: unknown[]) => {
-        assert.deepEqual(values, ['green-valley', null, null, null, 25, 0]);
+        assert.deepEqual(values, ['green-valley', null, null, null, 25, 0, null]);
         assert.match(text, /tenant_memberships/);
         assert.match(text, /auth_action_tokens/);
         assert.doesNotMatch(text, /SELECT \*/);
@@ -560,7 +560,7 @@ test('TenantInvitationsService scopes user search and caps page size', async () 
     {
       withRequestTransaction: async (callback: () => Promise<unknown>) => callback(),
       query: async (text: string, values: unknown[]) => {
-        assert.deepEqual(values, ['green-valley', '%mary%', 'teacher', 'active', 50, 75]);
+        assert.deepEqual(values, ['green-valley', '%mary%', 'teacher', 'active', 50, 75, null]);
         assert.match(text, /tm\.tenant_id = \$1/);
         assert.match(text, /token\.tenant_id = \$1/);
         assert.match(text, /managed_users\.role_code = \$3::text/);

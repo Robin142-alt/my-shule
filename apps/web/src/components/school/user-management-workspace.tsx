@@ -11,7 +11,6 @@ import { getCsrfToken } from "@/lib/auth/csrf-client";
 import { requestPasswordRecovery } from "@/lib/auth/recovery-client";
 import {
   addSchoolRecord,
-  mergeSchoolRecordsById,
   publishSchoolOperationalEvent,
   readSchoolData,
   subscribeToSchoolDataUpdates,
@@ -132,6 +131,7 @@ const schoolRoles = [
   "Principal",
   "Deputy Principal",
   "Secretary",
+  "Bursar",
   "Accountant",
   "Teacher",
   "Dean of Academics",
@@ -144,8 +144,6 @@ const schoolRoles = [
   "School Counsellor",
   "Discipline Master",
   "Librarian",
-  "Parent",
-  "Student",
   "Storekeeper",
   "Boarding Master",
   "Security Officer",
@@ -159,6 +157,7 @@ const roleCodeByLabel: Record<string, string> = {
   Principal: "principal",
   "Deputy Principal": "deputy_principal",
   Secretary: "secretary",
+  Bursar: "bursar",
   Accountant: "accountant",
   Teacher: "teacher",
   "Dean of Academics": "dean_academics",
@@ -171,8 +170,6 @@ const roleCodeByLabel: Record<string, string> = {
   "School Counsellor": "school_counsellor",
   "Discipline Master": "discipline_master",
   Librarian: "librarian",
-  Parent: "parent",
-  Student: "student",
   Storekeeper: "storekeeper",
   "Boarding Master": "boarding_master",
   "Security Officer": "security_officer",
@@ -180,14 +177,29 @@ const roleCodeByLabel: Record<string, string> = {
   "Laboratory Technician": "lab_technician",
   "Admissions Officer": "admissions_officer",
   "ICT / Computer Lab user": "ict_manager",
+  "School Owner": "owner",
+  "School Admin": "admin",
+  Staff: "staff",
+  "Clinic Staff": "clinic_staff",
+  "School Administrator": "school_admin",
+  Driver: "driver",
+  "HR Officer": "hr_officer",
+  "Procurement Officer": "procurement_officer",
 };
+
+const staffFilterRoles = Object.keys(roleCodeByLabel);
+
+function isSchoolStaffRole(role: string) {
+  const code = roleCodeByLabel[role] ?? role.trim().toLowerCase().replace(/[- ]/g, "_");
+  return Object.values(roleCodeByLabel).includes(code);
+}
 
 const roleLabelByCode = Object.fromEntries(
   Object.entries(roleCodeByLabel).map(([label, code]) => [code, label]),
 );
 
 const tabs: Array<{ id: UserManagementTab; label: string }> = [
-  { id: "users", label: "All Users" },
+  { id: "users", label: "All Staff" },
   { id: "invitations", label: "Pending Invitations" },
   { id: "invite", label: "Invite New User" },
   { id: "roles", label: "Roles & Permissions" },
@@ -320,6 +332,7 @@ function splitLiveUsers(payloadUsers: ManagedUserApi[], schoolId: string, actorR
   const invitations: UserInvitationRecord[] = [];
 
   payloadUsers.forEach((apiUser) => {
+    if (!isSchoolStaffRole(apiUser.role_code ?? apiUser.role_name ?? "")) return;
     const isInvitation =
       apiUser.kind === "invitation"
       || (apiUser.kind !== "member" && (
@@ -473,6 +486,9 @@ export function UserManagementWorkspace({
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteActionBusy, setInviteActionBusy] = useState<string | null>(null);
   const [userActionBusy, setUserActionBusy] = useState<string | null>(null);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadVersion, setLoadVersion] = useState(0);
   function reportActionError(message: string | null) {
     setError(message);
     if (message) showFeedback(message, "danger");
@@ -493,13 +509,14 @@ export function UserManagementWorkspace({
 
   useEffect(() => {
     let mounted = true;
+    const controller = new AbortController();
 
     function localUsers() {
-      return readSchoolData<SchoolUserRecord>(userModule, schoolId);
+      return readSchoolData<SchoolUserRecord>(userModule, schoolId).filter((user) => isSchoolStaffRole(user.role));
     }
 
     function localInvitations() {
-      return readSchoolData<UserInvitationRecord>(invitationModule, schoolId);
+      return readSchoolData<UserInvitationRecord>(invitationModule, schoolId).filter((invite) => isSchoolStaffRole(invite.role));
     }
 
     function localAuditRecords() {
@@ -513,39 +530,50 @@ export function UserManagementWorkspace({
     }
 
     async function hydrateLiveAccess() {
+      setLoadingUsers(true);
+      setLoadError(null);
       if (typeof fetch !== "function") {
+        setLoadingUsers(false);
         return;
       }
 
       try {
-        const response = await fetch("/api/auth/invitations?limit=50&offset=0", {
-          method: "GET",
-          credentials: "same-origin",
-          cache: "no-store",
-        });
-        const rawPayload = await response.json().catch(() => null);
+        const allUsers: ManagedUserApi[] = [];
+        const pageSize = 50;
+        for (let offset = 0; mounted; offset += pageSize) {
+          const response = await fetch(`/api/auth/invitations?limit=${pageSize}&offset=${offset}&scope=staff`, {
+            method: "GET",
+            credentials: "same-origin",
+            cache: "no-store",
+            signal: controller.signal,
+          });
+          const rawPayload = await response.json().catch(() => null);
 
-        if (!response.ok) {
-          const message = readApiMessage(rawPayload) ?? "Unable to load live school users.";
+          if (!response.ok) {
+            const message = readApiMessage(rawPayload) ?? "Unable to load live school users.";
 
-          if (response.status === 401) {
-            throw new Error(`Your school session has expired. Sign in again to load live user records. ${message}`);
+            if (response.status === 401) {
+              throw new Error(`Your school session has expired. Sign in again to load live user records. ${message}`);
+            }
+
+            if (response.status === 403) {
+              throw new Error(`Permission-based access denied: ${message}`);
+            }
+
+            throw new Error(message);
           }
 
-          if (response.status === 403) {
-            throw new Error(`Permission-based access denied: ${message}`);
+          const payload = readManagedUsersPayload(rawPayload);
+
+          if (!payload) {
+            throw new Error("The live school user response was incomplete.");
           }
 
-          throw new Error(message);
+          allUsers.push(...payload.users);
+          if (payload.users.length < pageSize) break;
         }
 
-        const payload = readManagedUsersPayload(rawPayload);
-
-        if (!payload) {
-          throw new Error("The live school user response was incomplete.");
-        }
-
-        const live = splitLiveUsers(payload.users, schoolId, actorRole);
+        const live = splitLiveUsers(allUsers, schoolId, actorRole);
 
         if (!mounted) {
           return;
@@ -575,9 +603,11 @@ export function UserManagementWorkspace({
             setError(message);
             setNotice(null);
           } else {
-            setNotice((current) => current ?? "Live user service is unavailable. Showing saved school user records.");
+            setLoadError(`${message} Showing saved staff records; the directory may be incomplete.`);
           }
         }
+      } finally {
+        if (mounted) setLoadingUsers(false);
       }
     }
 
@@ -592,9 +622,10 @@ export function UserManagementWorkspace({
 
     return () => {
       mounted = false;
+      controller.abort();
       unsubscribe();
     };
-  }, [actorName, actorRole, schoolId]);
+  }, [actorName, actorRole, schoolId, loadVersion]);
 
   const pendingInvitations = invitations.filter((invite) => invite.invitationStatus === "Pending" || invite.invitationStatus === "Email Failed");
   const inactiveUsers = users.filter((user) => user.status === "Suspended" || user.status === "Deactivated");
@@ -606,7 +637,7 @@ export function UserManagementWorkspace({
     const query = normalize(userSearch);
 
     return users.filter((user) => {
-      const haystack = [user.name, user.phone, user.email, user.role, user.department, user.assignment].join(" ").toLowerCase();
+      const haystack = [user.name, user.phone, user.email, user.role, user.department, user.assignment, user.tscNumber].join(" ").toLowerCase();
       const matchesQuery = !query || haystack.includes(query);
       const matchesRole = roleFilter === "All roles" || user.role === roleFilter;
       const matchesStatus = statusFilter === "All statuses" || user.status === statusFilter;
@@ -1249,7 +1280,7 @@ export function UserManagementWorkspace({
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <StatusPill label={`${users.filter((user) => user.status === "Active").length} active users`} tone="ok" />
+            <StatusPill label={`${users.filter((user) => user.status === "Active").length} active staff`} tone="ok" />
             <StatusPill label={`${pendingInvitations.length} pending invites`} tone="warning" />
             <StatusPill label={`${inactiveUsers.length} inactive`} tone={inactiveUsers.length ? "critical" : "ok"} />
           </div>
@@ -1289,7 +1320,8 @@ export function UserManagementWorkspace({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.14em] text-[#40608F]">Current school only</p>
-              <h3 className="mt-1 text-lg font-black text-[#071D49]">All Users</h3>
+              <h3 className="mt-1 text-lg font-black text-[#071D49]">All Staff</h3>
+              <p className="mt-1 text-sm text-[#52657F]">Search teaching and non-teaching staff in this school. Parents and students are excluded.</p>
             </div>
             <button
               type="button"
@@ -1311,7 +1343,19 @@ export function UserManagementWorkspace({
             onStatusFilter={setStatusFilter}
             onDepartmentFilter={setDepartmentFilter}
           />
-          <UsersTable
+          {loadingUsers ? <p role="status" className="mt-3 text-sm text-[#52657F]">Loading all school staff…</p> : null}
+          {loadError ? (
+            <div role="alert" className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm">
+              <p>{loadError}</p>
+              <button type="button" className="mt-2 font-bold underline" onClick={() => setLoadVersion((version) => version + 1)}>Retry staff search</button>
+            </div>
+          ) : null}
+          {(userSearch || roleFilter !== "All roles" || statusFilter !== "All statuses" || departmentFilter !== "All departments") ? (
+            <button type="button" className="mt-3 text-sm font-bold text-[#0B3A7A] underline" onClick={() => {
+              setUserSearch(""); setRoleFilter("All roles"); setStatusFilter("All statuses"); setDepartmentFilter("All departments");
+            }}>Clear filters</button>
+          ) : null}
+          {!loadingUsers || users.length > 0 ? <UsersTable
             users={filteredUsers}
             canManageUsers={canManageUsers}
             busyAction={userActionBusy}
@@ -1324,7 +1368,7 @@ export function UserManagementWorkspace({
             onReactivate={(user) => setPendingStatusChange({ user, status: "Active", reason: "Reactivated by school administrator" })}
             onRemove={removeUser}
             onResetPassword={setPasswordResetUser}
-          />
+          /> : null}
         </Card>
       ) : null}
 
@@ -1603,7 +1647,7 @@ function UserFilters({
       </label>
       <select aria-label="Filter by role" value={roleFilter} onChange={(event) => onRoleFilter(event.currentTarget.value)} className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]">
         <option>All roles</option>
-        {schoolRoles.map((role) => <option key={role}>{role}</option>)}
+        {staffFilterRoles.map((role) => <option key={role}>{role}</option>)}
       </select>
       <select aria-label="Filter by status" value={statusFilter} onChange={(event) => onStatusFilter(event.currentTarget.value)} className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]">
         <option>All statuses</option>
@@ -1649,7 +1693,7 @@ function UsersTable({
   if (!users.length) {
     return (
       <p className="mt-4 rounded-xl border border-[#D7E0EF] bg-[#F8FAFC] px-3 py-4 text-sm font-bold text-[#52657F]">
-        No users match this view.
+        No staff match this view. Clear the filters or open the invite form to add school staff.
       </p>
     );
   }
