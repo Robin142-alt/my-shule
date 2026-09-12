@@ -46,6 +46,13 @@ async function main() {
       }
       const { SIDEBAR_WORKSPACE_SCHEMA_SQL } = require('../src/modules/admin-command/sidebar-workspace-schema');
       fixture = await verifySidebarRecords(pool, SIDEBAR_WORKSPACE_SCHEMA_SQL);
+      // A new API process replays bootstrap after compatibility views already exist.
+      // Repeated ALTER TYPE text used to crash against timetable_lessons dependencies.
+      applied.clear();
+      for (const instance of schemaInstances.values()) {
+        if (typeof instance.onModuleInit === 'function') await instance.onModuleInit();
+      }
+
     }
     const context = { tenant_id: fixture.tenantId, user_id: fixture.userId, role: 'principal', is_authenticated: true, permissions: ['*:*'] };
     const failures: any[] = [], passed: string[] = [], unavailable: Array<{route: string, message: string}> = [];
