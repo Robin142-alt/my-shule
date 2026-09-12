@@ -144,13 +144,16 @@ export interface PendingMarksWindow {
   enteredCount: number;
   totalStudents: number;
   status: string;
+  canEnter?: boolean;
+  entryState?: string;
+  opensAt?: string;
 }
 
-export async function fetchPendingMarksLive(session: LiveAuthSession): Promise<{
+export async function fetchPendingMarksLive(session: LiveAuthSession, includeUnavailable = false): Promise<{
   stats: { totalWindows: number; nearingDeadline: number };
   windows: PendingMarksWindow[];
 }> {
-  return withSession(session, "/class-teacher/pending-marks", {
+  return withSession(session, `/class-teacher/pending-marks${includeUnavailable ? "?includeUnavailable=true" : ""}`, {
     method: "GET",
   });
 }

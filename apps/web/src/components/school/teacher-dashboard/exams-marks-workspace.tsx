@@ -58,6 +58,16 @@ const SCORE_STATUS_LABELS: Record<ExamScoreStatus, string> = {
 const EMPTY_MARK_WINDOWS: PendingMarksWindow[] = [];
 const EMPTY_MARK_ROWS: TeacherMarkSheetRow[] = [];
 
+function entryUnavailableReason(windowTask: PendingMarksWindow) {
+  switch (windowTask.entryState) {
+    case "Draft": return "This exam is still a draft. The Exams Manager must select Open for marks in Exam Setup before you can enter scores.";
+    case "Scheduled": return `Marks entry starts ${windowTask.opensAt ? new Date(windowTask.opensAt).toLocaleString() : "on the scheduled date"}. The Exams Manager can open it earlier from Exam Setup.`;
+    case "Deadline passed": return "The marks-entry deadline has passed. Ask the Exams Manager to extend the end date and open entry again.";
+    case "Locked": return "This exam is locked or has been published. Ask the Exams Manager to use the governed correction workflow for changes.";
+    default: return "Marks entry is closed. Ask the Exams Manager to open this exam for marks.";
+  }
+}
+
 function toNumber(value: string) {
   if (value.trim() === "") return null;
   const numeric = Number(value);
@@ -205,7 +215,7 @@ function WindowCard({
         className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white transition hover:bg-[#123A7A]"
       >
         <BookOpenCheck className="h-4 w-4" />
-        Open markbook
+        {windowTask.canEnter === false ? "View entry status" : "Open markbook"}
       </button>
     </article>
   );
@@ -224,15 +234,16 @@ export function ExamsMarksWorkspace({
   const [actionError, setActionError] = useState("");
 
   const pendingMarksQuery = useQuery({
-    queryKey: ["pending-marks", liveSession.session?.tenantId, liveSession.session?.user.user_id],
-    queryFn: () => fetchPendingMarksLive(liveSession.session!),
+    queryKey: ["pending-marks", liveSession.session?.tenantId, liveSession.session?.user.user_id, "all"],
+    queryFn: () => fetchPendingMarksLive(liveSession.session!, true),
     enabled: !!liveSession.session,
     retry: false,
+    refetchInterval: 30_000,
   });
 
   const windows = pendingMarksQuery.data?.windows ?? EMPTY_MARK_WINDOWS;
   const activeWindow = useMemo(() => {
-    if (!activeWindowId) return windows[0] ?? null;
+    if (!activeWindowId) return windows.find((windowTask) => windowTask.canEnter !== false) ?? windows[0] ?? null;
     return windows.find((windowTask) => windowTask.id === activeWindowId) ?? null;
   }, [activeWindowId, windows]);
 
@@ -257,12 +268,13 @@ export function ExamsMarksWorkspace({
       && activeWindow?.examSeriesId
       && activeWindow.classSectionId
       && activeWindow.subjectId
-      && activeWindow.assessmentId,
+      && activeWindow.assessmentId
+      && activeWindow.canEnter !== false,
     ),
     retry: false,
   });
 
-  const markRows = markSheetQuery.data ?? EMPTY_MARK_ROWS;
+  const markRows = activeWindow?.canEnter === false ? EMPTY_MARK_ROWS : markSheetQuery.data ?? EMPTY_MARK_ROWS;
   const activeDrafts = useMemo(() => {
     if (!activeWindow) return {};
     const localDrafts = draftMarks[activeWindow.id] ?? {};
@@ -292,7 +304,7 @@ export function ExamsMarksWorkspace({
       ? getWindowCompletion(activeWindow)
       : 0;
   const activeAverage = activeWindow ? getAverage(activeDrafts, activeWindow.outOf) : "-";
-  const markSheetReadOnly = markRows.some((row) => Boolean(row.id) && row.status !== "draft");
+  const markSheetReadOnly = activeWindow?.canEnter === false || markRows.some((row) => Boolean(row.id) && row.status !== "draft");
   const canSubmit = Boolean(
     activeWindow
     && markRows.length > 0
@@ -327,7 +339,9 @@ export function ExamsMarksWorkspace({
     }
 
     if (markSheetReadOnly) {
-      setActionError("This mark sheet has already entered moderation and is read-only. Use the governed correction workflow for changes.");
+      setActionError(activeWindow.canEnter === false
+        ? entryUnavailableReason(activeWindow)
+        : "This mark sheet has already entered moderation and is read-only. Use the governed correction workflow for changes.");
       return;
     }
 
@@ -456,12 +470,21 @@ export function ExamsMarksWorkspace({
       title="Exams & Marks"
       description="Teacher markbook for formal exams, score validation, CSV export, and HOD moderation submission."
       icon={BookOpenCheck}
-      headerEnd={
+      headerEnd={<div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => void pendingMarksQuery.refetch()}
+          disabled={pendingMarksQuery.isFetching}
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49] disabled:opacity-60"
+        >
+          <RefreshCw className="h-4 w-4" /> Refresh exams
+        </button>
         <button
           type="button"
           onClick={downloadTemplate}
           disabled={
             !activeWindow
+            || activeWindow.canEnter === false
             || pendingMarksQuery.isError
             || pendingMarksQuery.isLoading
             || markSheetQuery.isError
@@ -473,12 +496,12 @@ export function ExamsMarksWorkspace({
           <Download className="h-4 w-4" />
           Download CSV
         </button>
-      }
+      </div>}
     >
       {pendingMarksQuery.isSuccess ? (
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <article className="rounded-2xl border border-[#D8E0EC] bg-[#F8FAFC] p-3 sm:p-4">
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#64748B]">Open markbooks</p>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#64748B]">Assigned markbooks</p>
           <p className="mt-2 text-2xl font-black text-[#071D49] sm:text-3xl">{totalWindows}</p>
         </article>
         <article className="rounded-2xl border border-amber-200 bg-amber-50 p-3 sm:p-4">
@@ -534,7 +557,7 @@ export function ExamsMarksWorkspace({
           <BookOpenCheck className="mx-auto h-9 w-9 text-[#1D4ED8]" />
           <h3 className="mt-3 text-lg font-black text-[#071D49]">No markbooks assigned yet</h3>
           <p className="mx-auto mt-2 max-w-2xl text-sm font-semibold leading-6 text-[#64748B]">
-            A markbook appears here when its entry dates are open and it matches your active class and subject allocation. Ask the Exams Manager or Deputy Principal to confirm those three details.
+            No exam matches your active class and subject allocation. Ask the Exams Manager to include your class and subject in Exam Setup, and the Deputy Principal to confirm your teaching assignment.
           </p>
           <button
             type="button"
@@ -607,7 +630,7 @@ export function ExamsMarksWorkspace({
             </div>
           </div>
 
-          {activeWindow && markSheetQuery.isSuccess ? (
+          {activeWindow && activeWindow.canEnter !== false && markSheetQuery.isSuccess ? (
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3">
                 <p className="text-xs font-black uppercase text-[#64748B]">Missing score evidence</p>
@@ -644,6 +667,11 @@ export function ExamsMarksWorkspace({
               <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-[#64748B]">
                 The teacher workspace loads the school-scoped subject register, preserves explicit evidence, enforces score ranges, and keeps drafts separate from moderated marks.
               </p>
+            </div>
+          ) : activeWindow.canEnter === false ? (
+            <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-5" role="status">
+              <p className="font-black text-[#071D49]">{activeWindow.entryState || "Entry unavailable"}</p>
+              <p className="mt-2 text-sm font-semibold leading-6 text-[#64748B]">{entryUnavailableReason(activeWindow)}</p>
             </div>
           ) : markSheetQuery.isLoading ? (
             <div className="mt-5 flex h-56 items-center justify-center rounded-2xl border border-dashed border-[#D8E0EC] bg-[#F8FAFC]">

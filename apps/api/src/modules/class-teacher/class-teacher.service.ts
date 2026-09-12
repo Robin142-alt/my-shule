@@ -15,6 +15,8 @@ import {
   type ExamScoreStatus,
 } from '../exams/dto/exams.dto';
 import { ExamsService } from '../exams/exams.service';
+import { markEntryHasStartedSql } from '../exams/mark-entry-window-policy';
+import { teacherMarkStudentScopeSql } from '../exams/teacher-mark-scope';
 import type { SaveTeacherMarksDto, TeacherMarkInput } from './dto/class-teacher.dto';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import type { UploadFileMetadata } from '../../common/uploads/upload-policy';
@@ -594,9 +596,9 @@ export class ClassTeacherService {
     };
   }
 
-  async getPendingMarks(tenantId: string, userId: string) {
+  async getPendingMarks(tenantId: string, userId: string, includeUnavailable = false) {
     const query = `
-      SELECT 
+      SELECT DISTINCT
         w.id as window_id,
         w.exam_series_id,
         es.academic_term_id,
@@ -618,12 +620,14 @@ export class ClassTeacherService {
             AND em.class_section_id::text = w.class_section_id::text
             AND em.subject_id::text = w.subject_id::text
             AND em.score_status NOT IN ('not_assessed', 'incomplete')
+            AND ${teacherMarkStudentScopeSql('w', 'es', 'em.student_id', '$2')}
         ) as entered_count,
         (
           SELECT COUNT(*)
           FROM students student
           WHERE student.tenant_id::text = w.tenant_id::text
             AND student.status = 'active'
+            AND ${teacherMarkStudentScopeSql('w', 'es', 'student.id', '$2')}
             AND EXISTS (
               SELECT 1
               FROM student_class_assignments class_assignment
@@ -642,7 +646,17 @@ export class ClassTeacherService {
                 AND subject_enrollment.status = 'active'
             )
         ) as total_students,
-        w.status as window_status
+        w.status as window_status,
+        CASE
+          WHEN es.locked_at IS NOT NULL OR es.published_at IS NOT NULL
+            OR es.status IN ('locked', 'published', 'archived') THEN 'Locked'
+          WHEN es.status = 'draft' AND w.status <> 'open' THEN 'Draft'
+          WHEN w.status <> 'open' THEN 'Closed'
+          WHEN w.closes_at < NOW() THEN 'Deadline passed'
+          WHEN ${markEntryHasStartedSql('w', 'es')} THEN 'Open'
+          ELSE 'Scheduled'
+        END AS entry_state,
+        w.opens_at
       FROM exam_mark_entry_windows w
       JOIN exam_series es ON es.id::text = w.exam_series_id::text AND es.tenant_id::text = w.tenant_id::text
       JOIN class_sections cs ON cs.id = w.class_section_id::text AND cs.tenant_id::text = w.tenant_id::text
@@ -666,17 +680,21 @@ export class ClassTeacherService {
         AND (tsa.effective_to IS NULL OR tsa.effective_to >= CURRENT_DATE)
       WHERE w.tenant_id::text = $1::text
         AND tsa.teacher_user_id = $2
-        AND w.status = 'open'
-        AND (w.opens_at <= NOW() OR w.last_action = 'opened')
-        AND w.closes_at >= NOW()
+        AND ($3::boolean OR (
+          w.status = 'open'
+          AND ${markEntryHasStartedSql('w', 'es')}
+          AND w.closes_at >= NOW()
+          AND es.locked_at IS NULL AND es.published_at IS NULL
+          AND es.status NOT IN ('locked', 'published', 'archived')
+        ))
       ORDER BY w.closes_at ASC
     `;
-    const { rows: result } = await this.executeSql(query, [tenantId, userId]);
+    const { rows: result } = await this.executeSql(query, [tenantId, userId, includeUnavailable]);
     
     return {
       stats: {
         totalWindows: result.length,
-        nearingDeadline: result.filter(r => new Date(r.deadline).getTime() - Date.now() < 3 * 24 * 60 * 60 * 1000).length
+        nearingDeadline: result.filter(r => r.entry_state === 'Open' && new Date(r.deadline).getTime() - Date.now() < 3 * 24 * 60 * 60 * 1000).length
       },
       windows: result.map(r => ({
         id: r.window_id,
@@ -693,7 +711,12 @@ export class ClassTeacherService {
         deadline: new Date(r.deadline).toLocaleDateString(),
         enteredCount: parseInt(r.entered_count),
         totalStudents: parseInt(r.total_students),
-        status: parseInt(r.entered_count) >= parseInt(r.total_students) ? 'Completed' : 'Pending',
+        canEnter: r.entry_state === 'Open',
+        entryState: r.entry_state,
+        opensAt: new Date(r.opens_at).toISOString(),
+        status: r.entry_state !== 'Open'
+          ? r.entry_state
+          : parseInt(r.total_students) > 0 && parseInt(r.entered_count) >= parseInt(r.total_students) ? 'Completed' : 'Pending',
       }))
     };
   }
@@ -1199,7 +1222,7 @@ export class ClassTeacherService {
         AND w.tenant_id = $2
         AND w.class_section_id = $4
         AND w.status = 'open'
-        AND (w.opens_at <= NOW() OR w.last_action = 'opened')
+        AND ${markEntryHasStartedSql('w', 'es')}
         AND w.closes_at >= NOW()
       LIMIT 1
     `;

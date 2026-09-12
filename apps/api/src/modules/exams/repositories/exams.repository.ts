@@ -1,3 +1,5 @@
+import { markEntryHasStartedSql } from '../mark-entry-window-policy';
+import { teacherMarkStudentScopeSql } from '../teacher-mark-scope';
 import { academicCurriculumGradingSql } from '../../academics/curriculum-grading';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 
@@ -445,8 +447,10 @@ export class ExamsRepository {
           AND mark_window.class_section_id = $4::uuid
           AND mark_window.subject_id = $5::uuid
           AND mark_window.status = 'open'
-          AND (mark_window.opens_at <= NOW() OR mark_window.last_action = 'opened')
+          AND ${markEntryHasStartedSql('mark_window', 'series')}
           AND mark_window.closes_at >= NOW()
+          AND series.locked_at IS NULL AND series.published_at IS NULL
+          AND series.status NOT IN ('locked', 'published', 'archived')
         ORDER BY mark_window.created_at DESC
         LIMIT 1
       `,
@@ -571,7 +575,6 @@ export class ExamsRepository {
               AND mark_window.class_section_id = source.class_section_id
               AND mark_window.subject_id = source.subject_id
               AND mark_window.status = 'open'
-              AND (mark_window.opens_at <= NOW() OR mark_window.last_action = 'opened')
               AND mark_window.closes_at >= NOW()
              JOIN exam_series series
                ON series.tenant_id = mark_window.tenant_id
@@ -579,7 +582,8 @@ export class ExamsRepository {
               AND series.academic_term_id = source.academic_term_id
               AND series.locked_at IS NULL
               AND series.published_at IS NULL
-              AND series.status NOT IN ('locked', 'published')
+              AND series.status NOT IN ('locked', 'published', 'archived')
+              AND ${markEntryHasStartedSql('mark_window', 'series')}
              JOIN exam_assessments assessment
                ON assessment.tenant_id = mark_window.tenant_id
               AND assessment.id = source.assessment_id
@@ -597,6 +601,10 @@ export class ExamsRepository {
                  AND (assignment.academic_term_id IS NULL OR assignment.academic_term_id = source.academic_term_id::text)
                  AND assignment.class_section_id = source.class_section_id::text
                  AND assignment.subject_id = source.subject_id::text
+                 AND EXISTS (SELECT 1 FROM student_class_assignments membership
+                   WHERE membership.tenant_id=assignment.tenant_id AND membership.student_id=source.student_id::text
+                     AND membership.class_section_id=assignment.class_section_id AND membership.status='active'
+                     AND (assignment.stream_id IS NULL OR assignment.stream_id=membership.stream_id))
                  AND assignment.status = 'active'
                  AND assignment.mark_entry_allowed = TRUE
                  AND assignment.effective_from <= CURRENT_DATE
@@ -727,6 +735,9 @@ export class ExamsRepository {
                ARRAY[]::text[]
              ) AS mark_ids
            FROM exam_mark_entry_windows mark_window
+           JOIN exam_series series
+             ON series.tenant_id = mark_window.tenant_id
+            AND series.id = mark_window.exam_series_id
            JOIN students student
              ON student.tenant_id = mark_window.tenant_id
             AND student.status = 'active'
@@ -760,7 +771,8 @@ export class ExamsRepository {
              AND mark_window.class_section_id = $6::uuid
              AND mark_window.subject_id = $7::uuid
              AND mark_window.status = 'open'
-             AND (mark_window.opens_at <= NOW() OR mark_window.last_action = 'opened')
+             AND ${markEntryHasStartedSql('mark_window', 'series')}
+             AND ${teacherMarkStudentScopeSql('mark_window', 'series', 'student.id', '$2')}
              AND mark_window.closes_at >= NOW()`,
           input.tenant_id,
           input.actor_user_id,
@@ -2912,7 +2924,7 @@ export class ExamsRepository {
     return result.rows[0] ?? null;
   }
 
-  async findAssessmentScope(input: { tenant_id: string; assessment_id: string }) {
+  async findAssessmentScope(input: { tenant_id: string; assessment_id: string; class_section_id?: string }) {
     const result = await this.executeSql(
       `
         SELECT
@@ -2930,12 +2942,13 @@ export class ExamsRepository {
           ON entry_window.tenant_id = assessment.tenant_id
          AND entry_window.exam_series_id = assessment.exam_series_id
          AND entry_window.subject_id = assessment.subject_id
+         AND ($3::uuid IS NULL OR entry_window.class_section_id = $3::uuid)
         WHERE assessment.tenant_id = $1
           AND assessment.id = $2::uuid
         ORDER BY entry_window.created_at DESC NULLS LAST
         LIMIT 1
       `,
-      [input.tenant_id, input.assessment_id],
+      [input.tenant_id, input.assessment_id, input.class_section_id ?? null],
     );
 
     return result.rows[0] ?? null;
@@ -5371,14 +5384,17 @@ export class ExamsRepository {
               AND assignment.mark_entry_allowed = TRUE
               AND assignment.effective_from <= CURRENT_DATE
               AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
+              AND ${teacherMarkStudentScopeSql('mark_window', 'series', 'student.id', '$4')}
           )
         )
         AND ($5::uuid IS NULL OR mark_window.class_section_id = $5::uuid)
         AND ($8::uuid IS NULL OR mark_window.subject_id = $8::uuid)
         AND ($9::uuid IS NULL OR assessment.id = $9::uuid)
         AND mark_window.status = 'open'
-        AND (mark_window.opens_at <= NOW() OR mark_window.last_action = 'opened')
+        AND ${markEntryHasStartedSql('mark_window', 'series')}
         AND mark_window.closes_at >= NOW()
+        AND series.locked_at IS NULL AND series.published_at IS NULL
+        AND series.status NOT IN ('locked', 'published', 'archived')
       ORDER BY
         class_section.name NULLS LAST,
         subject.name NULLS LAST,

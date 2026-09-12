@@ -324,6 +324,9 @@ export class ExamsManagerCommandService {
           opens_at,
           closes_at,
           status,
+          last_action,
+          last_action_at,
+          last_action_by_user_id,
           created_at,
           updated_at
         )
@@ -332,9 +335,12 @@ export class ExamsManagerCommandService {
           $2::uuid,
           subject.id::uuid,
           section.id::uuid,
-          $5::date,
+          CASE WHEN $7 = 'open' THEN LEAST($5::date, NOW()) ELSE $5::date END,
           ($6::date + INTERVAL '1 day' - INTERVAL '1 second'),
           $7,
+          CASE WHEN $7 = 'open' THEN 'opened' ELSE 'locked' END,
+          NOW(),
+          $8::uuid,
           NOW(),
           NOW()
         FROM subjects subject
@@ -348,10 +354,13 @@ export class ExamsManagerCommandService {
         SET opens_at = EXCLUDED.opens_at,
             closes_at = EXCLUDED.closes_at,
             status = EXCLUDED.status,
+            last_action = EXCLUDED.last_action,
+            last_action_at = EXCLUDED.last_action_at,
+            last_action_by_user_id = EXCLUDED.last_action_by_user_id,
             updated_at = NOW()
         RETURNING id::text, subject_id::text, class_section_id::text
       `,
-      [tenantId, examSeriesId, subjectIds, classSectionIds, startsOn, endsOn, windowStatus],
+      [tenantId, examSeriesId, subjectIds, classSectionIds, startsOn, endsOn, windowStatus, actorUserId],
     );
 
     return {

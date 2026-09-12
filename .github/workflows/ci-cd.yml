@@ -108,6 +108,12 @@ jobs:
           NODE_ENV: test
         run: PG_BIN_DIR="$(pg_config --bindir)" npm run test:sidebar-workspaces
 
+      - name: Teacher exam visibility and marks submission
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/teacher-exam-visibility.integration-spec.ts
+
       - name: Staff directory pagination and school isolation
         env:
           DATABASE_URL: ""
