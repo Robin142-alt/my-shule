@@ -64,8 +64,8 @@ describe("principal and deputy academic foundation workspace", () => {
   it("uses guided policy builders instead of exposing JSON configuration to school staff", () => {
     for (const label of [
       "Guided school policy setup",
-      "Secondary A-E starter",
-      "CBC starter",
+      "8-4-4",
+      "CBC",
       "Morning register",
       "Class teacher comment",
       "Signature lines",

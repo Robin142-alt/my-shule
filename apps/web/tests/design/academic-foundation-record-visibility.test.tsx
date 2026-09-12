@@ -57,6 +57,43 @@ describe("academic foundation saved-record visibility", () => {
     });
   });
 
+  it.each([
+    { preset: "CBC", count: 8, label: "EE1", min: 90, points: 8 },
+    { preset: "8-4-4", count: 12, label: "A", min: 80, points: 12 },
+  ])("saves editable $preset defaults through the school-scoped grading API", async ({ preset, count, label, min, points }) => {
+    const user = userEvent.setup();
+    const refetch = jest.fn().mockResolvedValue({ data: foundation, error: null });
+    (useSchoolQuery as jest.Mock).mockReturnValue({
+      data: foundation, error: null, isLoading: false, refetch,
+    });
+    (requestDashboardApi as jest.Mock).mockResolvedValue({ id: "grading-1" });
+    render(
+      <AcademicFoundationWorkspace
+        actorRole="Deputy Principal"
+        schoolName="Maranda High"
+        tenantId="maranda-high"
+        initialTab="policies"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: preset, exact: true }));
+    await user.type(screen.getByLabelText("Policy name"), preset);
+    const remark = screen.getAllByLabelText("Report remark")[0];
+    await user.clear(remark);
+    await user.type(remark, "School remark");
+    await user.click(screen.getByRole("button", { name: "Save grading system" }));
+
+    await waitFor(() => expect(requestDashboardApi).toHaveBeenCalledWith("/academics/grading-systems", {
+      method: "POST",
+      tenantId: "maranda-high",
+      body: expect.objectContaining({ name: preset, rules: expect.any(Array) }),
+    }));
+    const savedRules = (requestDashboardApi as jest.Mock).mock.calls[0][1].body.rules;
+    expect(savedRules).toHaveLength(count);
+    expect(savedRules[0]).toMatchObject({ label, min, max: 100, points, remark: "School remark" });
+    await waitFor(() => expect(refetch).toHaveBeenCalled());
+  });
+
   it("loads the complete foundation under the authenticated tenant and shows saved terms", () => {
     render(
       <AcademicFoundationWorkspace

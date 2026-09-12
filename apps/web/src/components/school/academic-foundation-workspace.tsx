@@ -1140,9 +1140,9 @@ export function AcademicFoundationWorkspace({
 
           {policySetupType === "grading" ? (
             <>
-              <SetupForm title="Create grading system" description="Start from a Kenyan secondary or CBC template, then adjust each grade band using normal form controls.">
+              <SetupForm title="Create grading system" description="Choose the CBC or 8-4-4 grading system, then edit the grade bands, points, and report remarks to suit your school.">
                 <form onSubmit={handleCreatePolicy("grading")} className="grid gap-4 lg:grid-cols-2">
-                  <label className="block text-sm font-bold">Policy name<input name="name" required className={fieldClass} placeholder="e.g. 2026 Secondary A-E grading" /></label>
+                  <label className="block text-sm font-bold">Policy name<input name="name" required className={fieldClass} placeholder="e.g. 2026 CBC or 8-4-4 grading" /></label>
                   <label className="block text-sm font-bold">Description<input name="description" className={fieldClass} placeholder="Where this grading system applies" /></label>
 
 
