@@ -1,4 +1,5 @@
-import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
+import { academicCurriculumGradingSql } from '../../academics/curriculum-grading';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../../database/prisma.service';
 import { PRINCIPAL_SIGNATURE_ROLES } from '../services/report-card-signature-policy';
@@ -2098,6 +2099,7 @@ export class ExamsRepository {
           student.boarding_status::text AS boarding_status,
           student.status,
           class_section.name AS class_name,
+          class_section.curriculum_model AS curriculum_model,
           stream.name AS stream_name,
           class_teacher.class_teacher_name,
           class_teacher.class_teacher_user_id,
@@ -2110,18 +2112,28 @@ export class ExamsRepository {
           ON term.tenant_id = series.tenant_id
          AND term.id::text = series.academic_term_id::text
         LEFT JOIN LATERAL (
+          SELECT mark.class_section_id::text
+          FROM exam_marks mark
+          WHERE mark.tenant_id = student.tenant_id
+            AND mark.student_id::text = student.id::text
+            AND mark.exam_series_id = series.id
+          ORDER BY mark.updated_at DESC, mark.id
+          LIMIT 1
+        ) exam_class ON TRUE
+        LEFT JOIN LATERAL (
           SELECT placement.*
           FROM student_class_assignments placement
           WHERE placement.tenant_id = student.tenant_id
             AND placement.student_id = student.id::text
             AND placement.academic_year_id::text = term.academic_year_id::text
-            AND placement.status = 'active'
-          ORDER BY placement.updated_at DESC, placement.created_at DESC
+            AND ((exam_class.class_section_id IS NOT NULL AND placement.class_section_id::text = exam_class.class_section_id)
+              OR (exam_class.class_section_id IS NULL AND placement.status = 'active'))
+          ORDER BY (placement.status = 'active') DESC, placement.updated_at DESC, placement.created_at DESC
           LIMIT 1
         ) assignment ON TRUE
         LEFT JOIN class_sections class_section
-          ON class_section.tenant_id = assignment.tenant_id
-         AND class_section.id = assignment.class_section_id
+          ON class_section.tenant_id = student.tenant_id
+         AND class_section.id::text = COALESCE(exam_class.class_section_id, assignment.class_section_id::text)
         LEFT JOIN class_streams stream
           ON stream.tenant_id = assignment.tenant_id
          AND stream.id = assignment.stream_id
@@ -2254,7 +2266,18 @@ export class ExamsRepository {
       `,
       [input.tenant_id, input.exam_series_id, input.student_id],
     );
-    const gradingPolicyResult = await this.executeSql(
+    const classCurriculum = studentResult.rows[0]?.curriculum_model;
+    const classGradingResult = classCurriculum
+      ? await this.executeSql<Record<string, unknown>>(
+        academicCurriculumGradingSql('$1', '$2'), [input.tenant_id, classCurriculum],
+      )
+      : { rows: [] as Record<string, unknown>[] };
+    if (classCurriculum && !classGradingResult.rows[0]) {
+      throw new BadRequestException(`Save a grading policy for the class curriculum (${classCurriculum}) before generating reports.`);
+    }
+    const gradingPolicyResult = classGradingResult.rows.length > 0
+      ? { rows: [] as Record<string, unknown>[] }
+      : await this.executeSql(
       `
         SELECT
           policy.id::text,
@@ -2295,7 +2318,9 @@ export class ExamsRepository {
       `,
       [input.tenant_id, input.exam_series_id],
     );
-    const academicGradingSystemResult = gradingPolicyResult.rows.length > 0
+    const academicGradingSystemResult = classGradingResult.rows.length > 0
+      ? classGradingResult
+      : gradingPolicyResult.rows.length > 0
       ? { rows: [] as Record<string, unknown>[], rowCount: 0 }
       : await this.executeSql<Record<string, unknown>>(
         `
@@ -2559,7 +2584,7 @@ export class ExamsRepository {
 
     const academicGradingSystem = academicGradingSystemResult.rows[0] ?? null;
     const subjects = subjectsResult.rows.map((subject) =>
-      applyAcademicGradingRule(subject, academicGradingSystem?.rules),
+      applyAcademicGradingRule(subject, academicGradingSystem?.rules, Boolean(classCurriculum)),
     );
     const commentRow = commentsResult.rows[0] ?? {};
     const manualClassTeacherComment = typeof commentRow.manual_class_teacher_comment === 'string'
@@ -3432,7 +3457,7 @@ export class ExamsRepository {
          SELECT
            batch_scope.id AS batch_id,
            batch_scope.exam_series_id,
-           batch_scope.class_section_id,
+           mark.class_section_id,
            mark.student_id,
            ROUND(SUM(mark.score)::numeric, 2) AS raw_total,
            COUNT(*)::integer AS assessment_count,
@@ -3447,11 +3472,11 @@ export class ExamsRepository {
            ON assessment.tenant_id = mark.tenant_id
           AND assessment.id = mark.assessment_id
           AND assessment.max_score > 0
-         GROUP BY batch_scope.id, batch_scope.exam_series_id, batch_scope.class_section_id, mark.student_id
+         GROUP BY batch_scope.id, batch_scope.exam_series_id, mark.class_section_id, mark.student_id
        ), ranked AS (
          SELECT scores.*,
            CASE WHEN $4 = 'rankings'
-             THEN DENSE_RANK() OVER (ORDER BY average_percentage DESC, raw_total DESC)::integer
+             THEN DENSE_RANK() OVER (PARTITION BY class_section_id ORDER BY average_percentage DESC, raw_total DESC)::integer
              ELSE NULL
            END AS class_rank
          FROM scores
@@ -3467,14 +3492,23 @@ export class ExamsRepository {
          )
          SELECT
            $1, ranked.batch_id, ranked.exam_series_id, ranked.class_section_id, ranked.student_id,
-           ranked.raw_total, ranked.assessment_count, ranked.average_percentage, boundary.label,
+           ranked.raw_total, ranked.assessment_count, ranked.average_percentage, COALESCE(curriculum_boundary.label, boundary.label),
            ranked.class_rank, $2::uuid
          FROM ranked
          CROSS JOIN (SELECT COUNT(*) FROM removed) cleanup
+         LEFT JOIN class_sections section ON section.tenant_id = $1 AND section.id::text = ranked.class_section_id::text
+         LEFT JOIN LATERAL (
+           ${academicCurriculumGradingSql('$1', 'section.curriculum_model')}
+         ) curriculum_policy ON TRUE
+         LEFT JOIN LATERAL (
+           SELECT rule->>'label' AS label FROM jsonb_array_elements(curriculum_policy.rules) rule
+           WHERE ranked.average_percentage >= COALESCE(rule->>'min', rule->>'min_score')::numeric
+           ORDER BY COALESCE(rule->>'min', rule->>'min_score')::numeric DESC LIMIT 1
+         ) curriculum_boundary ON TRUE
          LEFT JOIN LATERAL (
            SELECT label
            FROM exam_grade_boundaries
-           WHERE tenant_id = $1
+           WHERE tenant_id = $1 AND section.curriculum_model IS NULL
              AND exam_series_id = ranked.exam_series_id
              AND ranked.average_percentage BETWEEN min_score AND max_score
            ORDER BY min_score DESC
@@ -5957,7 +5991,8 @@ function normalizeAcademicGradingPolicy(value: Record<string, unknown> | null): 
     source_id: sourceId || null,
     source: 'academic_setup',
     name: value.name ?? 'School grading system',
-    reporting_mode: 'traditional',
+    reporting_mode: ['CBC', 'CBE'].includes(String(value.curriculum_model).toUpperCase()) ? 'competency' : 'traditional',
+    curriculum_model: value.curriculum_model ?? null,
     version: Number(value.version ?? 1),
     effective_from: value.effective_from ?? null,
     effective_to: value.effective_to ?? null,
@@ -5969,9 +6004,10 @@ function normalizeAcademicGradingPolicy(value: Record<string, unknown> | null): 
 function applyAcademicGradingRule(
   subject: Record<string, unknown>,
   rulesValue: unknown,
+  override = false,
 ): Record<string, unknown> {
   if (String(subject.score_status ?? 'entered').toLowerCase() !== 'entered') return subject;
-  if (String(subject.grade_label ?? '').trim()) return subject;
+  if (!override && String(subject.grade_label ?? '').trim()) return subject;
 
   const percentage = subject.percentage === null || subject.percentage === undefined
     ? calculatePercentage(subject.score, subject.max_score)

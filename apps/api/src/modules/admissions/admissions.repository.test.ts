@@ -4,6 +4,47 @@ import test from 'node:test';
 import { AdmissionsSchemaService } from './admissions-schema.service';
 import { AdmissionsRepository } from './repositories/admissions.repository';
 
+test('admission enrols shared subjects using the selected class curriculum', async () => {
+  let enrollment: unknown[] = [];
+  const stop = new Error('Enrollment captured; stop this transaction fixture');
+  const repository = new AdmissionsRepository({
+    executeWithTenant: async (tenant: string, actor: string, callback: (tx: unknown) => Promise<unknown>) => {
+      assert.equal(tenant, 'school-a');
+      assert.equal(actor, 'actor');
+      return callback({ $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+        if (sql.includes('FOR UPDATE OF section')) return [{
+          id: 'class', name: 'Form 1', curriculum_model: '8-4-4', enrolment_open: true,
+          academic_level_id: 'level', academic_year_name: '2026',
+          academic_year_starts_on: '2026-01-01', academic_year_ends_on: '2026-12-31',
+        }];
+        if (sql.includes('FROM admission_settings')) return [{
+          admission_number_mode: 'manual', admission_number_prefix: 'ADM', admission_number_separator: '-',
+          admission_number_padding: 4, next_sequence: 1, include_academic_year: false,
+        }];
+        if (sql.includes('FROM class_subject_assignments assignment')) return [{
+          id: 'math', name: 'Mathematics', code: 'MATH', curriculum_model: 'CBC',
+          subject_type: 'academic', is_compulsory: true, academic_term_id: 'term',
+        }];
+        if (sql.includes('INSERT INTO student_subject_enrollments')) {
+          enrollment = params;
+          throw stop;
+        }
+        if (/INSERT INTO (admission_applications|students|student_academic_enrollments)\s*\(/.test(sql)) return [{ id: 'record' }];
+        return [];
+      } });
+    },
+  } as never);
+  await assert.rejects(repository.admitCanonicalStudent({
+    tenant_id: 'school-a', actor_user_id: 'actor', class_section_id: 'class', academic_year_id: 'year',
+    curriculum: '8-4-4', admission_date: '2026-09-01', admission_number: 'ADM-99',
+    first_name: 'Learner', last_name: 'One', subject_ids: ['math'],
+  } as never), (error) => error === stop);
+  assert.equal(enrollment[0], 'school-a');
+  assert.equal(enrollment[7], 'class');
+  assert.equal(enrollment[9], 'math');
+  assert.equal(enrollment[10], '8-4-4');
+});
+
 test('AdmissionsRepository summary treats three uploads as the complete admissions document set', async () => {
   const queries: string[] = [];
   const repository = new AdmissionsRepository({

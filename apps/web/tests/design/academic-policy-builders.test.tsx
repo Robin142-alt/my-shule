@@ -47,6 +47,23 @@ function bandTable(container: HTMLElement) {
 }
 
 describe("academic policy builders", () => {
+  it("binds grading to one curriculum checkbox and supports a named custom scale", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<form><AcademicGradeBandsEditor name="rules" curriculumName="curriculum_model" /></form>);
+    const selected = () => (container.querySelector('input[name="curriculum_model"]') as HTMLInputElement).value;
+    expect(selected()).toBe("8-4-4");
+    await user.click(screen.getByRole("checkbox", { name: "CBC", exact: true }));
+    expect(selected()).toBe("CBC");
+    expect(screen.getByRole("checkbox", { name: "8-4-4", exact: true })).not.toBeChecked();
+    expect(bandTable(container)).toEqual(expectedCbcBands);
+    await user.click(screen.getByRole("checkbox", { name: "Configure another system" }));
+    fireEvent.change(screen.getByLabelText("Curriculum name"), { target: { value: "Cambridge" } });
+    fireEvent.change(screen.getByLabelText("Grade label"), { target: { value: "Pass" } });
+    expect(selected()).toBe("Cambridge");
+    expect(validateAcademicGradeBands(structuredValue(container, "rules"))).toBeNull();
+    expect(screen.queryByRole("button", { name: "CBC", exact: true })).not.toBeInTheDocument();
+  });
+
   it("builds complete grading bands from school-friendly presets", async () => {
     const user = userEvent.setup();
     const { container } = render(
@@ -128,6 +145,17 @@ describe("academic policy builders", () => {
       { label: "A", min: 70, max: 100 },
       { label: "B", min: 0, max: 75 },
     ])).toContain("overlap");
+  });
+
+  it("preserves edited bands when binding a saved policy and when clicking its selected curriculum", () => {
+    const savedRules = [{ label: "School grade", min: 0, max: 100, points: 5, remark: "Custom remark", is_pass: true }];
+    const { container } = render(<form><AcademicGradeBandsEditor name="rules" curriculumName="curriculum_model" defaultValue={savedRules} /></form>);
+    fireEvent.click(screen.getByRole("checkbox", { name: "CBC", exact: true }));
+    expect(structuredValue(container, "rules")).toEqual(savedRules);
+    fireEvent.change(screen.getByLabelText("Points"), { target: { value: "6" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "CBC", exact: true }));
+    expect(structuredValue(container, "rules")).toEqual([{ ...savedRules[0], points: 6 }]);
+    expect(container.querySelector<HTMLInputElement>('input[name="curriculum_model"]')?.value).toBe("CBC");
   });
 
   it("builds the attendance schedule from register checkboxes", async () => {

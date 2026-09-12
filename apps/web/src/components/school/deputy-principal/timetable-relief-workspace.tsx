@@ -68,7 +68,6 @@ export function DeputyTimetableReliefWorkspace({ academicYear, termName }: { aca
   const [absentTeacherId, setAbsentTeacherId] = useState("");
   const [selectedLesson, setSelectedLesson] = useState<ReliefLesson | null>(null);
   const [substituteTeacherId, setSubstituteTeacherId] = useState("");
-  const [reason, setReason] = useState("");
 
   const teachersQuery = useSchoolQuery<Teacher[]>("/api/academics/teachers");
   const teachers = rowsFrom(teachersQuery.data);
@@ -98,7 +97,6 @@ export function DeputyTimetableReliefWorkspace({ academicYear, termName }: { aca
   const openAssignment = (lesson: ReliefLesson) => {
     setSelectedLesson(lesson);
     setSubstituteTeacherId("");
-    setReason("");
   };
 
   const assign = async () => {
@@ -111,7 +109,6 @@ export function DeputyTimetableReliefWorkspace({ academicYear, termName }: { aca
         slot_id: selectedLesson.slot_id,
         relief_date: date,
         substitute_teacher_id: substituteTeacherId,
-        reason: reason.trim() || undefined,
         notify_teacher: true,
         idempotency_key: `${selectedLesson.slot_id}:${date}:${substituteTeacherId}`,
       });
@@ -211,9 +208,6 @@ export function DeputyTimetableReliefWorkspace({ academicYear, termName }: { aca
               </label>
             ))}
           </div>
-          <label className="block text-sm font-black">Assignment note (optional)
-            <textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={2} maxLength={500} placeholder="Reason for absence or handover note" className="mt-1 w-full rounded-lg border border-[#C8D5EA] p-3" />
-          </label>
           <div className="flex flex-col-reverse gap-2 border-t border-[#E2E8F0] pt-4 sm:flex-row sm:justify-end">
             <button type="button" onClick={() => setSelectedLesson(null)} className="min-h-11 rounded-lg border border-[#C8D5EA] px-4 font-bold">Cancel</button>
             <button type="button" onClick={assign} disabled={!substituteTeacherId || assignMutation.isPending} className="min-h-11 rounded-lg bg-[#174EA6] px-4 font-black text-white disabled:opacity-50">{assignMutation.isPending ? "Assigning..." : "Confirm relief assignment"}</button>

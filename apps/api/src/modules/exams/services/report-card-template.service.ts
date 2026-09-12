@@ -111,7 +111,7 @@ export class ReportCardTemplateService {
     const subjectHistory = normalizeSubjectHistory(analytics.subject_history);
     const position = numberOrNull(resultSnapshot.position);
     const cohortSize = numberOrNull(resultSnapshot.cohort_size);
-    const overallGrade = text(resultSnapshot.grade_label) ?? resolveOverallGrade(gradingPolicy, percentage);
+    const overallGrade = resolveOverallGrade(gradingPolicy, percentage) ?? text(resultSnapshot.grade_label);
     const persistedImprovement = text(analytics.improvement) ?? text(analytics.improvement_percentage);
     const derivedImprovement = termHistory.length > 1
       ? `${termHistory[0]!.percentage - termHistory[1]!.percentage >= 0 ? '+' : ''}${formatNumber(termHistory[0]!.percentage - termHistory[1]!.percentage)}%`
@@ -130,7 +130,7 @@ export class ReportCardTemplateService {
     return {
       exam_series: {
         ...series,
-        reporting_mode: text(series.reporting_mode) ?? text(gradingPolicy.reporting_mode),
+        reporting_mode: text(gradingPolicy.reporting_mode) ?? text(series.reporting_mode),
       },
       student,
       attendance: asRecord(data.attendance),

@@ -72,7 +72,7 @@ export class CreateClassSectionDto {
   code?: string;
 
   @IsOptional()
-  @IsIn(['CBC', 'CBE', '8-4-4', 'International', 'Hybrid', 'Custom'])
+  @IsString() @MaxLength(100)
   curriculum_model?: string;
 
   @IsOptional()
@@ -380,7 +380,7 @@ export class UpdateClassSectionDto {
   capacity?: number;
 
   @IsOptional() @IsString() code?: string;
-  @IsOptional() @IsIn(['CBC', 'CBE', '8-4-4', 'International', 'Hybrid', 'Custom']) curriculum_model?: string;
+  @IsOptional() @IsString() @MaxLength(100) curriculum_model?: string;
   @IsOptional() @IsBoolean() enrolment_open?: boolean;
 
   @IsOptional()
@@ -638,6 +638,7 @@ export class UpdateAcademicCalendarPeriodDto {
 }
 
 export class AcademicPolicyDto {
+  @IsOptional() @IsString() @MaxLength(100) curriculum_model?: string;
   @IsOptional() @IsString() name?: string;
 
   @IsOptional() @IsString() @MaxLength(1000) description?: string;
@@ -677,7 +678,7 @@ export class AcademicRoleAppointmentDto {
   @IsOptional() @IsIn(['permanent', 'acting', 'temporary']) appointment_type?: string;
   @IsOptional() @IsDateString() effective_from?: string;
   @IsOptional() @IsDateString() effective_to?: string;
-  @IsString() @MaxLength(500) reason!: string;
+  @IsOptional() @IsString() @MaxLength(500) reason?: string;
 }
 
 export class AcademicMergeDto {

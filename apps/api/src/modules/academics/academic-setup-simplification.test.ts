@@ -64,11 +64,12 @@ function fixture() {
 test('subject creation generates internal identifiers, keeps school ownership, and rejects duplicate names', async () => {
   const { service, writes, audit, events, setDuplicate } = fixture();
   await service.createSubject({ name: 'Mathematics' });
-  await service.createSubject({ name: 'English' });
+  await service.createSubject({ name: 'English', curriculum_model: 'CBC' });
   assert.equal(writes[0].tenant_id, 'school-a');
   assert.match(writes[0].code, /^SUB-[0-9a-f-]{36}$/);
   assert.notEqual(writes[0].code, writes[1].code);
   assert.equal(writes[0].abbreviation, null);
+  assert.equal(writes[1].curriculum_model, 'Custom');
   assert.equal(audit.length, 2);
   assert.equal(events[0].event_name, 'academic.subject.updated');
   setDuplicate();
@@ -79,7 +80,8 @@ test('subject creation generates internal identifiers, keeps school ownership, a
 test('role, curriculum, and teacher reassignment default their history dates on the server', async () => {
   const { service, writes, audit, events, notices } = fixture();
   const today = new Date().toISOString().slice(0, 10);
-  await service.assignAcademicRole({ role_type: 'dean_of_academics', teacher_user_id: 'teacher', reason: 'Appointment' });
+  await service.assignAcademicRole({ role_type: 'dean_of_academics', teacher_user_id: 'teacher' });
+  assert.equal(writes[0].reason, null);
   await service.createCurriculumConfiguration({ name: 'CBC', curriculum_model: 'CBC' });
   await service.reassignTeacher('old', { teacher_user_id: 'teacher', reason: 'Transfer duties' });
   for (const write of writes) {
