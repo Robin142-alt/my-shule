@@ -3185,6 +3185,7 @@ export class ExamsService {
       findAssessmentScope?: (input: {
         tenant_id: string;
         assessment_id: string;
+        class_section_id?: string;
       }) => Promise<Record<string, unknown> | null>;
     };
 
@@ -3195,6 +3196,7 @@ export class ExamsService {
     return repository.findAssessmentScope({
       tenant_id: this.requireTenantId(),
       assessment_id: dto.assessment_id,
+      class_section_id: dto.class_section_id,
     });
   }
 

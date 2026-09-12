@@ -67,6 +67,8 @@ describe("teacher exams and marks workspace", () => {
           enteredCount: 1,
           totalStudents: 2,
           status: "Pending",
+          canEnter: true,
+          entryState: "Open",
         },
       ],
     });
@@ -137,6 +139,7 @@ describe("teacher exams and marks workspace", () => {
     expect((await screen.findAllByText(/Teacher markbook/i)).length).toBeGreaterThan(0);
     expect(await screen.findByText(/Moderation readiness/i)).toBeVisible();
     expect(await screen.findByText(/50% complete/i)).toBeVisible();
+    expect(fetchPendingMarksLive).toHaveBeenCalledWith(mockSession, true);
 
     fireEvent.click(screen.getByRole("button", { name: /Open markbook for Term 2 Opener/i }));
 
@@ -281,6 +284,41 @@ describe("teacher exams and marks workspace", () => {
     });
     expect((await screen.findAllByText(/Asha Njeri/i)).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Missing evidence/i).length).toBeGreaterThan(0);
+  });
+
+  it.each([
+    ["Draft", /must select Open for marks/i],
+    ["Scheduled", /can open it earlier/i],
+    ["Closed", /Ask the Exams Manager to open/i],
+    ["Deadline passed", /extend the end date/i],
+    ["Locked", /governed correction workflow/i],
+  ])("shows %s exams with an explanation and prevents marks entry", async (entryState, reason) => {
+    const openResult = await (fetchPendingMarksLive as jest.Mock)();
+    jest.mocked(fetchPendingMarksLive).mockClear();
+    jest.mocked(fetchPendingMarksLive).mockResolvedValue({
+      ...openResult,
+      windows: [{ ...openResult.windows[0], canEnter: false, entryState, status: entryState, opensAt: "2026-10-01T06:00:00Z" }],
+    });
+    renderWithProviders(createElement(ExamsMarksWorkspace, { onStartAction: jest.fn() }));
+    expect(await screen.findByText(reason)).toBeVisible();
+    expect(fetchTeacherMarkSheetLive).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /Save draft/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Submit for moderation/i })).toBeDisabled();
+    expect(screen.queryByText(/No markbooks assigned yet/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No active subject-enrolled learners/i)).not.toBeInTheDocument();
+  });
+
+  it("refreshes an assigned draft into an editable markbook once the manager opens it", async () => {
+    const openResult = await (fetchPendingMarksLive as jest.Mock)();
+    jest.mocked(fetchPendingMarksLive).mockClear();
+    jest.mocked(fetchPendingMarksLive).mockResolvedValueOnce({ ...openResult,
+      windows: [{ ...openResult.windows[0], canEnter: false, entryState: "Draft", status: "Draft" }],
+    });
+    renderWithProviders(createElement(ExamsMarksWorkspace, { onStartAction: jest.fn() }));
+    expect(await screen.findByText(/must select Open for marks/i)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: /Refresh exams/i }));
+    expect((await screen.findAllByLabelText(/Asha Njeri score/i))[0]).toBeEnabled();
+    expect(screen.queryByText(/must select Open for marks/i)).not.toBeInTheDocument();
   });
 
   it("shows one actionable empty state only after markbooks load successfully", async () => {

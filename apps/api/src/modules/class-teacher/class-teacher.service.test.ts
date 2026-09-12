@@ -53,6 +53,8 @@ test('ClassTeacherService loads open teacher markbooks across text and uuid acad
             entered_count: '4',
             total_students: '30',
             window_status: 'open',
+            entry_state: 'Open',
+            opens_at: '2026-09-01T06:00:00.000Z',
           }],
           rowCount: 1,
         };
@@ -67,7 +69,8 @@ test('ClassTeacherService loads open teacher markbooks across text and uuid acad
   assert.equal(result.windows[0].classSectionId, 'class-a');
   assert.equal(result.windows[0].subjectId, 'subject-a');
   assert.equal(result.windows[0].status, 'Pending');
-  assert.deepEqual(queries[0].params, ['tenant-a', 'teacher-a']);
+  assert.equal(result.windows[0].canEnter, true);
+  assert.deepEqual(queries[0].params, ['tenant-a', 'teacher-a', false]);
   assert.match(queries[0].sql, /cs\.id\s*=\s*w\.class_section_id::text/);
   assert.match(queries[0].sql, /s\.id\s*=\s*w\.subject_id::text/);
   assert.match(queries[0].sql, /tsa\.class_section_id\s*=\s*w\.class_section_id::text/);
@@ -659,6 +662,9 @@ test('ClassTeacherService dashboard overview counts teacher inventory requests f
         queries.push({ sql, params });
         if (/inventory_requests/.test(sql)) {
           return { rows: [{ count: 3 }], rowCount: 1 };
+        }
+        if (/FROM exam_mark_entry_windows/.test(sql)) {
+          return { rows: [], rowCount: 0 };
         }
         if (/CASE WHEN ar\.id IS NULL/.test(sql)) {
           return {
