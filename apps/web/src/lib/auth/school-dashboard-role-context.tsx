@@ -9,6 +9,7 @@ import {
   useEffect,
   useEffectEvent,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -23,6 +24,7 @@ import {
   useExperienceSession,
 } from "@/lib/auth/use-experience-session";
 import { getExpiredSessionLoginPath } from "@/lib/auth/session-expiry-client";
+import { replaceDashboardDocument } from "@/lib/auth/dashboard-role-navigation";
 import type { SchoolExperienceRole } from "@/lib/experiences/types";
 import { getSchoolWorkspace } from "@/lib/experiences/school-data";
 import { isSchoolSection } from "@/lib/routing/experience-routes";
@@ -70,6 +72,18 @@ export function isValidDashboardRolePath(
   routeMode: SchoolDashboardRouteMode,
 ) {
   const pathname = path.split(/[?#]/, 1)[0] ?? "";
+  // Stored paths must remain on this origin and must not normalize into another role.
+  if (
+    !path.startsWith("/") || path.startsWith("//") || path.includes("\\")
+    || Array.from(path).some((character) => character.charCodeAt(0) <= 32)
+  ) {
+    return false;
+  }
+  try {
+    if (new URL(path, "https://dashboard.invalid").pathname !== pathname) return false;
+  } catch {
+    return false;
+  }
 
   if (routeMode === "public") {
     const roleRoot = `/school/${role}`;
@@ -213,6 +227,8 @@ export function SchoolDashboardRoleProvider({
   const [isLoadingRoles, setIsLoadingRoles] = useState(liveDataEnabled);
   const [switchingToAuthorizationRoleCode, setSwitchingToAuthorizationRoleCode] = useState<string | null>(null);
   const [roleError, setRoleError] = useState<string | null>(null);
+  const switchInProgress = useRef(false);
+  const roleRequestVersion = useRef(0);
   const sessionRoleContext = auth.session?.roleContext;
   const userId = auth.user?.user_id ?? null;
   // Once the gateway has authenticated the request, its tenant is the only
@@ -226,6 +242,11 @@ export function SchoolDashboardRoleProvider({
   const loadDashboardRoles = useEffectEvent(() => auth.loadDashboardRoles());
 
   useEffect(() => {
+    if (!auth.session && auth.error) setRoleError(auth.error);
+  }, [auth.error, auth.session]);
+
+  useEffect(() => {
+    if (switchInProgress.current) return;
     if (sessionRoleContext) {
       setRoleContext(sessionRoleContext);
 
@@ -236,8 +257,7 @@ export function SchoolDashboardRoleProvider({
           role: sessionRoleContext.activeRole,
           routeMode,
         }) ?? getDefaultDashboardRolePath(sessionRoleContext.activeRole, routeMode);
-        router.replace(targetPath);
-        router.refresh();
+        replaceDashboardDocument(targetPath);
       }
     }
   }, [initialRole, normalizedTenantSlug, routeMode, router, sessionRoleContext, userId]);
@@ -254,24 +274,23 @@ export function SchoolDashboardRoleProvider({
 
     if (!auth.session || !auth.user) {
       setIsLoadingRoles(false);
-      if (auth.error) {
-        setRoleError(auth.error);
-      }
       return;
     }
 
     let cancelled = false;
+    const requestVersion = roleRequestVersion.current;
+    if (switchInProgress.current) return;
     setIsLoadingRoles(true);
 
     void loadDashboardRoles()
       .then((nextContext) => {
-        if (!cancelled) {
+        if (!cancelled && requestVersion === roleRequestVersion.current) {
           setRoleContext(nextContext);
           setRoleError(null);
         }
       })
       .catch((error: unknown) => {
-        if (!cancelled) {
+        if (!cancelled && requestVersion === roleRequestVersion.current) {
           setRoleError(
             error instanceof Error
               ? error.message
@@ -288,16 +307,20 @@ export function SchoolDashboardRoleProvider({
     return () => {
       cancelled = true;
     };
-  }, [auth.error, auth.isLoading, auth.session, auth.user, liveDataEnabled]);
+  }, [auth.isLoading, auth.session, auth.user, liveDataEnabled]);
 
   const reloadDashboardRoles = useCallback(async () => {
+    if (switchInProgress.current) return;
+    const requestVersion = ++roleRequestVersion.current;
     setIsLoadingRoles(true);
     setRoleError(null);
 
     try {
       const nextContext = await auth.loadDashboardRoles();
+      if (requestVersion !== roleRequestVersion.current) return;
       setRoleContext(nextContext);
     } catch (error) {
+      if (requestVersion !== roleRequestVersion.current) return;
       setRoleError(
         error instanceof Error
           ? error.message
@@ -324,13 +347,17 @@ export function SchoolDashboardRoleProvider({
   }, [initialRole, normalizedTenantSlug, pathname, roleContext.activeRole, routeMode, userId]);
 
   const switchDashboardRole = useCallback(async (authorizationRoleCode: string) => {
+    // React state updates alone cannot stop two clicks in the same render frame.
+    // Keep this lock until the new document opens, including same-URL hosted switches.
+    if (switchInProgress.current) return;
     const normalizedAuthorizationRoleCode = authorizationRoleCode.trim().toLowerCase();
     const selectedOption = roleContext.availableRoles.find(
       (option) => option.authorizationRoleCode.trim().toLowerCase() === normalizedAuthorizationRoleCode,
     );
     if (!selectedOption) {
-      setRoleError("That dashboard is not assigned to your school account.");
-      return;
+      const error = new Error("That dashboard is not assigned to your school account.");
+      setRoleError(error.message);
+      throw error;
     }
 
     if (
@@ -340,6 +367,8 @@ export function SchoolDashboardRoleProvider({
       return;
     }
 
+    switchInProgress.current = true;
+    roleRequestVersion.current += 1;
     setSwitchingToAuthorizationRoleCode(selectedOption.authorizationRoleCode);
     setRoleError(null);
     writeLastDashboardPath({
@@ -374,24 +403,8 @@ export function SchoolDashboardRoleProvider({
           roleContext.activeAuthorizationRoleCode,
         ],
       });
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: [
-            "school",
-            tenantKey,
-            userKey,
-            nextContext.activeAuthorizationRoleCode,
-          ],
-        }),
-        queryClient.invalidateQueries({
-          queryKey: [
-            "permissions",
-            tenantKey,
-            userKey,
-            nextContext.activeAuthorizationRoleCode,
-          ],
-        }),
-      ]);
+      // Do not refetch the outgoing workspace under the newly issued role.
+      // The new document creates fresh query and permission caches.
 
       const targetPath = readLastDashboardPath({
         tenantSlug: normalizedTenantSlug,
@@ -399,8 +412,7 @@ export function SchoolDashboardRoleProvider({
         role: selectedOption.roleCode,
         routeMode,
       }) ?? getDefaultDashboardRolePath(selectedOption.roleCode, routeMode);
-      router.replace(targetPath);
-      router.refresh();
+      replaceDashboardDocument(targetPath);
     } catch (error) {
       if (error instanceof ExperienceSessionRequestError && error.status === 401) {
         router.replace(getExpiredSessionLoginPath("school"));
@@ -419,9 +431,9 @@ export function SchoolDashboardRoleProvider({
           ? error.message
           : "Unable to switch dashboards.",
       );
-      throw error;
-    } finally {
+      switchInProgress.current = false;
       setSwitchingToAuthorizationRoleCode(null);
+      throw error;
     }
   }, [auth, normalizedTenantSlug, pathname, queryClient, roleContext, routeMode, router, userId]);
 
