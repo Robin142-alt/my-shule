@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -73,9 +73,11 @@ export function useExperienceSession(
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSwitchingRole, setIsSwitchingRole] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sessionVersion = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
+    const requestVersion = sessionVersion.current;
 
     async function load() {
       if (!options?.autoLoad) {
@@ -105,7 +107,7 @@ export function useExperienceSession(
             | { message?: string }
             | null;
 
-          if (!cancelled) {
+          if (!cancelled && requestVersion === sessionVersion.current) {
             if (response.status === 401) {
               setSession(null);
               setUser(null);
@@ -121,13 +123,13 @@ export function useExperienceSession(
 
         const payload = (await response.json()) as SessionResponse;
 
-        if (!cancelled) {
+        if (!cancelled && requestVersion === sessionVersion.current) {
           setSession(payload.session);
           setUser(payload.user);
           setError(null);
         }
       } catch (loadError) {
-        if (!cancelled) {
+        if (!cancelled && requestVersion === sessionVersion.current) {
           setError(
             loadError instanceof Error
               ? loadError.message
@@ -224,6 +226,7 @@ export function useExperienceSession(
   };
 
   const refresh = async () => {
+    const requestVersion = sessionVersion.current;
     setIsSubmitting(true);
 
     try {
@@ -240,16 +243,18 @@ export function useExperienceSession(
         }),
       });
       const payload = await parseResponse(response);
-      setSession(payload.session);
-      setUser(payload.user);
-      setError(null);
+      if (requestVersion === sessionVersion.current) {
+        setSession(payload.session);
+        setUser(payload.user);
+        setError(null);
+      }
       return payload;
     } catch (refreshError) {
       const message =
         refreshError instanceof Error
           ? refreshError.message
           : "Unable to refresh the current session.";
-      setError(message);
+      if (requestVersion === sessionVersion.current) setError(message);
       throw refreshError;
     } finally {
       setIsSubmitting(false);
@@ -288,6 +293,7 @@ export function useExperienceSession(
       throw new Error("Dashboard switching is available only for school sessions.");
     }
 
+    sessionVersion.current += 1;
     setIsSwitchingRole(true);
     setError(null);
 
@@ -302,6 +308,14 @@ export function useExperienceSession(
         body: JSON.stringify({ role_code: roleCode }),
       });
       const payload = await parseResponse(response);
+      const requestedRole = roleCode.trim().toLowerCase();
+      if (
+        payload?.session?.roleContext?.activeAuthorizationRoleCode.trim().toLowerCase() !== requestedRole
+        || payload.session.user.role.trim().toLowerCase() !== requestedRole
+        || (payload.roleContext && payload.roleContext.activeAuthorizationRoleCode.trim().toLowerCase() !== requestedRole)
+      ) {
+        throw new Error("The server did not confirm the requested dashboard role.");
+      }
       setSession(payload.session);
       setUser(payload.user);
       setError(null);

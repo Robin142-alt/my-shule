@@ -30,6 +30,7 @@ export async function GET(request: Request) {
     const authClient = createServerAuthClient(request);
     const cookieStore = await cookies();
     let session;
+    let refreshed = false;
 
     try {
       session = await authClient.me(audience, cookieStore);
@@ -46,15 +47,21 @@ export async function GET(request: Request) {
         },
         cookieStore,
       );
+      refreshed = true;
     }
 
     const response = NextResponse.json({
       session: toPublicExperienceGatewaySession(session),
       user: session.user,
     });
-    setExperienceSessionCookies(response, session, {
-      rememberSession: readRememberSessionCookie(cookieStore),
-    });
+    response.headers.set("Cache-Control", "private, no-store");
+    // A delayed read must not restore cookies captured before a role switch.
+    // Only an actual token rotation needs to issue session cookies.
+    if (refreshed) {
+      setExperienceSessionCookies(response, session, {
+        rememberSession: readRememberSessionCookie(cookieStore),
+      });
+    }
     return response;
   } catch (error) {
     const response = NextResponse.json(
