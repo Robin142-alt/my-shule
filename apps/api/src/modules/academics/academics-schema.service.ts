@@ -768,6 +768,17 @@ export class AcademicsSchemaService implements OnModuleInit {
       ALTER TABLE class_streams ADD COLUMN IF NOT EXISTS stream_teacher_user_id uuid;
       ALTER TABLE class_streams ADD COLUMN IF NOT EXISTS archived_at timestamptz;
       ALTER TABLE class_streams ADD COLUMN IF NOT EXISTS archived_by_user_id uuid;
+      -- Curriculum belongs to a class. Grading policies bind to the same curriculum.
+      ALTER TABLE academics_grading_systems ADD COLUMN IF NOT EXISTS curriculum_model text;
+      UPDATE academics_grading_systems SET curriculum_model = CASE
+        WHEN upper(trim(name)) IN ('CBC', 'CBE') THEN upper(trim(name))
+        WHEN regexp_replace(name, '[-_ ]', '', 'g') = '844' THEN '8-4-4'
+        ELSE NULL END
+      WHERE curriculum_model IS NULL
+        AND (upper(trim(name)) IN ('CBC', 'CBE') OR regexp_replace(name, '[-_ ]', '', 'g') = '844');
+      CREATE INDEX IF NOT EXISTS ix_academic_grading_curriculum
+        ON academics_grading_systems (tenant_id, lower(curriculum_model), updated_at DESC)
+        WHERE is_active = TRUE;
       ALTER TABLE subjects ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
       ALTER TABLE subjects ADD COLUMN IF NOT EXISTS abbreviation text;
       ALTER TABLE subjects ADD COLUMN IF NOT EXISTS curriculum_model text NOT NULL DEFAULT 'Custom';

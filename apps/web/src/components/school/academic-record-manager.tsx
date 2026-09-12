@@ -203,6 +203,10 @@ export function AcademicRecordManager({
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const body: Record<string, unknown> = { expected_version: Number(record.version ?? 1), reason: reason || undefined };
+    if (entityType === "grading-system") {
+      body.curriculum_model = String(data.get("curriculum_model") ?? "").trim();
+      if (!body.curriculum_model) { setDetailError("Choose the curriculum for this grading policy."); return; }
+    }
     for (const field of fields) {
       if (field.type === "checkbox") body[field.name] = data.get(field.name) === "on";
       else if (field.type === "number") body[field.name] = Number(data.get(field.name));
@@ -327,6 +331,8 @@ export function AcademicRecordManager({
                       name={field.name}
                       label={field.label}
                       defaultValue={record[field.name]}
+                      curriculumName={entityType === "grading-system" ? "curriculum_model" : undefined}
+                      defaultCurriculum={typeof record.curriculum_model === "string" ? record.curriculum_model : undefined}
                       initialPreset="blank"
                       theme="light"
                     />

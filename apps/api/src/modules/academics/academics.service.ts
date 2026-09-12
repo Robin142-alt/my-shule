@@ -1,3 +1,4 @@
+import { normalizeCurriculum, validateGradingRules } from './curriculum-grading';
 import { BadRequestException, ConflictException, Injectable, UnauthorizedException, Inject, forwardRef, Optional } from '@nestjs/common';
 
 import { randomUUID } from 'node:crypto';
@@ -367,7 +368,7 @@ export class AcademicsService {
       custom_label: dto.custom_label?.trim() || null,
       capacity: dto.capacity ?? null,
       code: dto.code?.trim() || null,
-      curriculum_model: dto.curriculum_model ?? 'Custom',
+      curriculum_model: normalizeCurriculum(dto.curriculum_model ?? 'Custom'),
       enrolment_open: dto.enrolment_open ?? true,
     });
     if (!classSection) throw new ConflictException('That class already exists in the selected academic year.');
@@ -437,10 +438,10 @@ export class AcademicsService {
     await this.requireUniqueCode(tenantId, 'subjects', code, null);
     const duplicateName = await this.repository.executeSql(tenantId, `
       SELECT id FROM subjects WHERE tenant_id = $1 AND lower(name) = lower($2)
-        AND curriculum_model = $3 AND status <> 'archived' LIMIT 1
-    `, [tenantId, dto.name.trim(), dto.curriculum_model ?? 'Custom']);
+        AND status <> 'archived' LIMIT 1
+    `, [tenantId, dto.name.trim()]);
     if (duplicateName.rows[0]) {
-      throw new ConflictException('A subject with that name and curriculum already exists. Open and edit it instead.');
+      throw new ConflictException('A subject with that name already exists. Open and edit it instead.');
     }
 
     const subject = await this.repository.createSubject({
@@ -450,7 +451,7 @@ export class AcademicsService {
       name: this.requireText(dto.name, 'Subject name'),
       department_id: departmentId,
       abbreviation: dto.abbreviation?.trim() || null,
-      curriculum_model: dto.curriculum_model ?? 'Custom',
+      curriculum_model: 'Custom', // Compatibility column; the class supplies the curriculum.
       subject_type: dto.subject_type ?? 'academic',
       is_compulsory: dto.is_compulsory ?? true,
       is_examinable: dto.is_examinable ?? true,
@@ -478,7 +479,7 @@ export class AcademicsService {
     const subjectId = this.requireText(dto.subject_id, 'Subject');
     const scope = await this.repository.executeSql(
       tenantId,
-      `SELECT section.id, subject.department_id, subject.curriculum_model
+      `SELECT section.id, subject.department_id, section.curriculum_model
        FROM class_sections section
        JOIN subjects subject
          ON subject.tenant_id = section.tenant_id
@@ -863,6 +864,7 @@ export class AcademicsService {
 
   async updateClassSection(id: string, dto: UpdateClassSectionDto) {
     const tenantId = this.requireTenantId();
+    if (dto.curriculum_model !== undefined) dto.curriculum_model = normalizeCurriculum(dto.curriculum_model);
     const previous = await this.requireSetupRecord(tenantId, 'class-section', id);
     const targetAcademicYearId = dto.academic_year_id ?? String(previous.academic_year_id);
     const classNameChanged = dto.name !== undefined || dto.grade_level !== undefined;
@@ -916,6 +918,7 @@ export class AcademicsService {
 
   async updateSubject(id: string, dto: UpdateSubjectDto) {
     const tenantId = this.requireTenantId();
+    const { curriculum_model: _legacyCurriculum, ...subjectChanges } = dto;
     const previous = await this.requireSetupRecord(tenantId, 'subject', id);
     if (dto.department_id) {
       await this.requireSetupRecord(tenantId, 'department', dto.department_id);
@@ -927,14 +930,14 @@ export class AcademicsService {
       `, [tenantId, dto.code.trim(), id]);
       if (duplicate.rows[0]) throw new BadRequestException('Another subject in this school already uses that code.');
     }
-    if (dto.name || dto.curriculum_model) {
+    if (dto.name) {
       const duplicate = await this.repository.executeSql(tenantId, `
         SELECT id FROM subjects WHERE tenant_id = $1 AND lower(name) = lower($2)
-          AND curriculum_model = $3 AND id::text <> $4 AND status <> 'archived' LIMIT 1
-      `, [tenantId, (dto.name ?? previous.name).trim(), dto.curriculum_model ?? previous.curriculum_model ?? 'Custom', id]);
-      if (duplicate.rows[0]) throw new BadRequestException('Another subject with that name and curriculum already exists.');
+          AND id::text <> $3 AND status <> 'archived' LIMIT 1
+      `, [tenantId, (dto.name ?? previous.name).trim(), id]);
+      if (duplicate.rows[0]) throw new BadRequestException('Another subject with that name already exists.');
     }
-    const updated = await this.repository.updateSubject(tenantId, id, { ...dto });
+    const updated = await this.repository.updateSubject(tenantId, id, { ...subjectChanges });
     this.requireUpdatedRecord(updated, 'Subject');
     await this.recordAcademicChange('academic.subject.updated', 'subject', updated, 'updated', previous, dto.reason);
     return updated;
@@ -1176,6 +1179,8 @@ export class AcademicsService {
 
   async createGradingSystem(dto: CreateAcademicPolicyDto) {
     const tenantId = this.requireTenantId();
+    const curriculum = normalizeCurriculum(dto.curriculum_model);
+    const rules = validateGradingRules(dto.rules);
     if (dto.effective_from && dto.effective_to) {
       this.requireDateRange(dto.effective_from, dto.effective_to, 'Grading policy');
     }
@@ -1184,7 +1189,7 @@ export class AcademicsService {
       tenantId,
       this.requireText(dto.name, 'Grading system name'),
       dto.description?.trim() || null,
-      { rules: dto.rules ?? [], effective_from: dto.effective_from ?? null,
+      { curriculum_model: curriculum, rules, effective_from: dto.effective_from ?? null,
         effective_to: dto.effective_to ?? null },
     );
     if (!setting) throw new ConflictException('That grading policy already exists. Open and edit it instead.');
@@ -1195,18 +1200,20 @@ export class AcademicsService {
   async updateGradingSystem(id: string, dto: AcademicPolicyDto) {
     const tenantId = this.requireTenantId();
     const previous = await this.requireSetupRecord(tenantId, 'grading-system', id);
+    const curriculum = normalizeCurriculum(dto.curriculum_model ?? previous.curriculum_model);
+    const rules = validateGradingRules(dto.rules ?? previous.rules);
     if (dto.effective_from && dto.effective_to) {
       this.requireDateRange(dto.effective_from, dto.effective_to, 'Grading policy');
     }
     if (dto.name && dto.name.trim().toLowerCase() !== String(previous.name).toLowerCase()) {
       await this.requireCreateNameAvailable(tenantId, 'academics_grading_systems', dto.name, 'grading policy');
     }
-    if (previous.status === 'published' && (dto.rules || dto.effective_from || dto.effective_to)) {
+    if (previous.status === 'published' && (dto.rules || dto.curriculum_model || dto.effective_from || dto.effective_to)) {
       const versionedName = `${dto.name?.trim() || previous.name} v${Number(previous.version ?? 1) + 1}`;
       await this.requireCreateNameAvailable(tenantId, 'academics_grading_systems', versionedName, 'grading policy version');
       const cloned = await this.repository.createGradingSystem(tenantId, versionedName,
         dto.description?.trim() || previous.description || null, {
-          rules: dto.rules ?? previous.rules ?? [], effective_from: dto.effective_from ?? null,
+          curriculum_model: curriculum, rules, effective_from: dto.effective_from ?? null,
           effective_to: dto.effective_to ?? null, based_on_id: id,
         });
       if (!cloned) throw new ConflictException('A grading policy version with that name already exists.');
@@ -1219,7 +1226,7 @@ export class AcademicsService {
       this.requireText(id, 'Grading system ID'),
       dto.name?.trim() || null,
       dto.description?.trim() || null,
-      { rules: dto.rules, effective_from: dto.effective_from ?? null,
+      { curriculum_model: curriculum, rules, effective_from: dto.effective_from ?? null,
         effective_to: dto.effective_to ?? null, expected_version: dto.expected_version ?? null },
     );
     if (!setting) throw new BadRequestException('Grading system was not found in this school.');
@@ -1342,7 +1349,7 @@ export class AcademicsService {
     const result = await this.repository.assignAcademicRole(tenantId, {
       ...dto,
       actor_user_id: this.currentUserId(),
-      reason: this.requireText(dto.reason, 'Appointment reason'),
+      reason: dto.reason?.trim() || null,
     });
     const appointment = result.appointment as Record<string, any>;
     await this.recordAcademicChange('academic.role_assignment.changed', 'academic_role_appointment', appointment,

@@ -2317,7 +2317,7 @@ export class ExamsService {
 
     const gradeBoundary = scoreEvidence.score === null
       ? null
-      : await this.assertGradeBoundaryForMark(tenantId, normalizedDto, scoreEvidence.score);
+      : await this.assertGradeBoundaryForMark(tenantId, normalizedDto, scoreEvidence.score, Number(assessmentScope?.max_score ?? 100));
 
     return {
       dto: normalizedDto,
@@ -3202,12 +3202,15 @@ export class ExamsService {
     tenantId: string,
     dto: EnterExamMarkDto,
     score: number,
+    maxScore: number,
   ): Promise<Record<string, unknown> | null> {
     const repository = this.repository as ExamsRepository & {
       findGradeBoundaryForScore?: (input: {
         tenant_id: string;
         exam_series_id: string;
         score: number;
+        class_section_id: string;
+        max_score: number;
       }) => Promise<{
         configured_count?: number | string;
         match_count?: number | string;
@@ -3223,6 +3226,8 @@ export class ExamsService {
       tenant_id: tenantId,
       exam_series_id: dto.exam_series_id,
       score,
+      class_section_id: dto.class_section_id,
+      max_score: maxScore,
     });
     const configuredCount = Number(result?.configured_count ?? 0);
     const matchCount = Number(result?.match_count ?? 0);

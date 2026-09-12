@@ -331,7 +331,6 @@ export class AdmissionsRepository {
             'id', subject.id,
             'code', subject.code,
             'name', subject.name,
-            'curriculum', subject.curriculum_model,
             'subject_type', subject.subject_type,
             'is_compulsory', subject.is_compulsory,
             'is_examinable', subject.is_examinable
@@ -821,7 +820,6 @@ export class AdmissionsRepository {
           subject.id,
           subject.code,
           subject.name,
-          subject.curriculum_model,
           subject.subject_type,
           COALESCE(assignment.is_compulsory, subject.is_compulsory, FALSE) AS is_compulsory,
           assignment.academic_term_id
@@ -1008,7 +1006,7 @@ export class AdmissionsRepository {
           input.class_section_id,
           input.stream_id,
           subject.id,
-          subject.curriculum_model,
+          placement.curriculum_model,
           subject.subject_type,
           subject.is_compulsory,
           input.actor_user_id,

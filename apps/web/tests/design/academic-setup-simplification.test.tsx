@@ -12,9 +12,9 @@ jest.mock("sonner", () => ({ toast: { success: jest.fn(), warning: jest.fn(), er
 const data = {
   years: [{ id: "year", name: "2026", status: "active" }], terms: [], calendarPeriods: [],
   classes: [
-    { id: "form4", name: "Form 4", academic_year_id: "year", status: "active" },
-    { id: "grade10", name: "Grade 10", academic_year_id: "year", status: "active" },
-    { id: "grade9", name: "Grade 9", academic_year_id: "year", status: "active" },
+    { id: "form4", name: "Form 4", curriculum_model: "8-4-4", academic_year_id: "year", status: "active" },
+    { id: "grade10", name: "Grade 10", curriculum_model: "CBC", academic_year_id: "year", status: "active" },
+    { id: "grade9", name: "Grade 9", curriculum_model: "CBC", academic_year_id: "year", status: "active" },
   ],
   streams: [
     { id: "yellow", name: "Yellow", class_section_id: "form4", status: "active" },
@@ -99,6 +99,28 @@ it("creates a subject without code or abbreviation", async () => {
   expect(request.body.name).toBe("English");
   expect(request.body).not.toHaveProperty("code");
   expect(request.body).not.toHaveProperty("abbreviation");
+  expect(request.body).not.toHaveProperty("curriculum_model");
+  expect(within(form).queryByLabelText("Curriculum")).not.toBeInTheDocument();
+});
+
+it("removes department descriptions and routine appointment or allocation notes", () => {
+  const { container, rerender } = setup("subjects");
+  const departmentForm = screen.getByRole("button", { name: "Create Department" }).closest("form")!;
+  expect(departmentForm.querySelector('[name="description"]')).toBeNull();
+  expect(screen.queryByPlaceholderText("Appointment or reassignment reason")).not.toBeInTheDocument();
+  rerender(<AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName="School" tenantId="school" initialTab="allocations" />);
+  expect(container.querySelector('[name="reason"]')).toBeNull();
+  rerender(<AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName="School" tenantId="school" initialTab="policies" />);
+  expect(container.querySelector('[name="description"]')).toBeNull();
+});
+
+it("offers school-defined grading curricula when creating a class", () => {
+  (useSchoolQuery as jest.Mock).mockReturnValue({
+    data: { ...data, gradingSystems: [{ id: "cambridge", name: "Cambridge grades", curriculum_model: "Cambridge", status: "active" }] },
+    isLoading: false, error: null, refetch,
+  });
+  setup("classes");
+  expect(within(screen.getByLabelText("Curriculum")).getByRole("option", { name: "Cambridge" })).toBeInTheDocument();
 });
 
 it("lets the server identify principal subjects with matching name prefixes", async () => {

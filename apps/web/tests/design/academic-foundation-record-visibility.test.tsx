@@ -76,7 +76,7 @@ describe("academic foundation saved-record visibility", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: preset, exact: true }));
+    await user.click(screen.getByRole("checkbox", { name: preset }));
     await user.type(screen.getByLabelText("Policy name"), preset);
     const remark = screen.getAllByLabelText("Report remark")[0];
     await user.clear(remark);
@@ -86,7 +86,7 @@ describe("academic foundation saved-record visibility", () => {
     await waitFor(() => expect(requestDashboardApi).toHaveBeenCalledWith("/academics/grading-systems", {
       method: "POST",
       tenantId: "maranda-high",
-      body: expect.objectContaining({ name: preset, rules: expect.any(Array) }),
+      body: expect.objectContaining({ name: preset, curriculum_model: preset, rules: expect.any(Array) }),
     }));
     const savedRules = (requestDashboardApi as jest.Mock).mock.calls[0][1].body.rules;
     expect(savedRules).toHaveLength(count);

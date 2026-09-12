@@ -38,7 +38,6 @@ type Subject = {
   id: string;
   code: string;
   name: string;
-  curriculum: string;
   subject_type: string;
   is_compulsory: boolean;
   is_examinable: boolean;
