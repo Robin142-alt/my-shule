@@ -30,12 +30,16 @@ describe('Created exams reach assigned subject teachers', () => {
     pool = new Pool({ connectionString: url.toString() });
     let bootstrap = '';
     await new ExamsSchemaService({ runSchemaBootstrap: async (sql: string) => { bootstrap += sql; } } as never).onModuleInit();
-    for (const table of ['exam_series', 'exam_assessments', 'exam_mark_entry_windows', 'exam_grade_boundaries', 'exam_marks', 'exam_mark_audit_logs']) {
+    for (const table of ['exam_series', 'exam_assessments', 'exam_mark_entry_windows', 'exam_grade_boundaries', 'exam_marks', 'exam_mark_audit_logs', 'exam_timetable_slots', 'exam_assessment_components']) {
       const sql = bootstrap.match(new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n      \\);`))?.[0];
       if (!sql) throw new Error(`Missing production schema for ${table}`);
       await pool.query(sql);
     }
     await pool.query(`
+      ALTER TABLE exam_series ADD COLUMN exam_type text DEFAULT 'Exam cycle';
+      CREATE TABLE academic_terms (id uuid PRIMARY KEY, tenant_id text);
+      CREATE TABLE workflow_events (id uuid DEFAULT gen_random_uuid(), tenant_id text, source_user_id uuid, source_role text, target_roles jsonb, event_type text, entity_type text, entity_id text, title text, message text, priority text, payload jsonb);
+      CREATE TABLE audit_logs (tenant_id text, actor_user_id uuid, request_id text, action text, resource_type text, resource_id uuid, metadata jsonb);
       CREATE TABLE class_sections (id text PRIMARY KEY, tenant_id text, name text, status text DEFAULT 'active', curriculum_model text DEFAULT 'CBC');
       CREATE TABLE academics_grading_systems (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text,
         curriculum_model text, rules jsonb, is_active boolean DEFAULT TRUE, archived_at timestamptz,
@@ -57,6 +61,7 @@ describe('Created exams reach assigned subject teachers', () => {
     `);
     await pool.query(`INSERT INTO class_sections(id,tenant_id,name) VALUES ($1,'school-a','Form 1'),($2,'school-a','Form 2')`, [ids.class, ids.secondClass]);
     await pool.query(`INSERT INTO subjects VALUES ($1,'school-a','Mathematics')`, [ids.subject]);
+    await pool.query(`INSERT INTO academic_terms VALUES ($1,'school-a')`, [ids.term]);
     for (const [classId, studentId] of [[ids.class, ids.student], [ids.secondClass, ids.secondStudent]]) {
       await pool.query(`INSERT INTO teacher_subject_assignments(tenant_id,class_section_id,subject_id,teacher_user_id)
         VALUES ('school-a',$1,$2,$3)`, [classId, ids.subject, ids.teacher]);
@@ -71,7 +76,10 @@ describe('Created exams reach assigned subject teachers', () => {
         const client = await pool.connect();
         try {
           await client.query('BEGIN');
-          const result = await callback({ $queryRawUnsafe: async (sql: string, ...params: unknown[]) => (await client.query(sql, params)).rows });
+          const result = await callback({
+            $queryRawUnsafe: async (sql: string, ...params: unknown[]) => (await client.query(sql, params)).rows,
+            $executeRawUnsafe: async (sql: string, ...params: unknown[]) => (await client.query(sql, params)).rowCount,
+          });
           await client.query('COMMIT');
           return result;
         } catch (error) {
@@ -131,7 +139,7 @@ describe('Created exams reach assigned subject teachers', () => {
     await expect(save(window)).rejects.toThrow();
     expect((await pool.query(`SELECT status FROM exam_marks WHERE exam_series_id=$1`, [created.exam.id])).rows[0].status).toBe('submitted');
     expect((await pool.query(`SELECT action FROM exam_mark_audit_logs WHERE exam_series_id=$1`, [created.exam.id])).rows.map(row => row.action)).toEqual(expect.arrayContaining(['grade.created', 'grade.submitted']));
-    expect(operations).toEqual(expect.arrayContaining([expect.objectContaining({ eventType: 'exams.exam-setup.created' })]));
+    expect((await pool.query('SELECT event_type FROM workflow_events WHERE entity_id=$1', [created.exam.id])).rows).toEqual(expect.arrayContaining([expect.objectContaining({ event_type: 'exams.exam-setup.created' })]));
     expect(events).toEqual(expect.arrayContaining([expect.objectContaining({ event: expect.objectContaining({ type: 'exam.marks_submitted' }) })]));
     expect(submissions).toEqual(expect.arrayContaining([expect.objectContaining({ exam_id: created.exam.id, tenant_id: 'school-a' })]));
   });

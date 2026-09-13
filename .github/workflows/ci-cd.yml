@@ -50,6 +50,9 @@ jobs:
       - name: Academic intelligence workspace contracts
         run: npm --prefix apps/web run test:design -- academic-intelligence head-of-subject exams-workspace teacher-exams-marks-workspace
 
+      - name: Exam setup configuration and deletion controls
+        run: npm --prefix apps/web run test:design -- exam-setup-edit-delete exams-manager-human-workflows exams-manager-routing
+
       - name: Teacher marks roster and routing contracts
         run: npm --prefix apps/web run test:design -- teacher-mark-sheet-pagination teacher-dashboard-routing
 
@@ -110,6 +113,12 @@ jobs:
           DATABASE_URL: ""
           NODE_ENV: test
         run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/academic-intelligence.integration-spec.ts
+
+      - name: Exam setup transactions, deletion and teacher mark entry
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/exam-setup-integrity.integration-spec.ts apps/api/test/teacher-exam-visibility.integration-spec.ts
 
       - name: Sidebar reads, schema upgrades and tenant isolation
         env:

@@ -5303,7 +5303,7 @@ test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped e
           rowCount: 1,
         };
       },
-      readSql: async () => ({
+      readSql: async (sql: string) => /AS valid_term/.test(sql) ? ({ rows: [{ subjects: 1, classes: 1, valid_term: true }], rowCount: 1 }) : ({
         rows: [
           { column_name: 'academic_term_id' },
           { column_name: 'created_by_user_id' },
@@ -5331,7 +5331,7 @@ test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped e
     } as never,
   );
 
-  const result = await service.createExamSetup({
+  const result = await (service as any).createExamSetupWithinTransaction({
     name: 'Term 1 Opener',
     academic_term_id: '33333333-3333-4333-8333-333333333333',
     starts_on: '2026-01-12',
@@ -5455,7 +5455,7 @@ test('ExamsManagerCommandService persists selected exam subjects and class mark-
     } as never,
   );
 
-  const result = await service.createExamSetup({
+  const result = await (service as any).createExamSetupWithinTransaction({
     name: 'Term 1 Opener',
     starts_on: '2026-01-12',
     ends_on: '2026-01-16',
@@ -5484,29 +5484,29 @@ test('ExamsManagerCommandService persists selected exam subjects and class mark-
   assert.match(writes[1].sql, /subject\.id::uuid/i);
   assert.doesNotMatch(writes[1].sql, /\$1::uuid/i);
   assert.match(writes[1].sql, /subject\.id::text\s*=\s*ANY\(\$3::text\[\]\)/i);
-  assert.doesNotMatch(writes[1].sql, /NOT EXISTS/i);
+  assert.match(writes[1].sql, /NOT EXISTS/i);
   assert.doesNotMatch(writes[1].sql, /subject\.id\s*=\s*ANY\(\$3::uuid\[\]\)/i);
-  assert.match(writes[1].sql, /ON CONFLICT\s*\(tenant_id, exam_series_id, subject_id, name\)\s*DO UPDATE/i);
+  assert.match(writes[1].sql, /ON CONFLICT\s*\(tenant_id, exam_series_id, subject_id, name\)\s*DO NOTHING/i);
   assert.match(writes[1].sql, /created_at,\s*updated_at/i);
   assert.match(writes[1].sql, /NOW\(\),\s*NOW\(\)/i);
-  assert.match(writes[1].sql, /max_score\s*=\s*EXCLUDED\.max_score/i);
-  assert.match(writes[2].sql, /INSERT INTO exam_mark_entry_windows/i);
-  assert.deepEqual(writes[2].params[3], [
+  assert.match(writes[2].sql, /UPDATE exam_assessments/i);
+  assert.match(writes[3].sql, /INSERT INTO exam_mark_entry_windows/i);
+  assert.deepEqual(writes[3].params[3], [
     '66666666-6666-4666-8666-666666666666',
     '77777777-7777-4777-8777-777777777777',
   ]);
-  assert.match(writes[2].sql, /subject\.id::uuid/i);
-  assert.match(writes[2].sql, /section\.id::uuid/i);
-  assert.doesNotMatch(writes[2].sql, /\$1::uuid/i);
-  assert.match(writes[2].sql, /subject\.id::text\s*=\s*ANY\(\$3::text\[\]\)/i);
-  assert.match(writes[2].sql, /section\.id::text\s*=\s*ANY\(\$4::text\[\]\)/i);
-  assert.doesNotMatch(writes[2].sql, /NOT EXISTS/i);
-  assert.doesNotMatch(writes[2].sql, /(?:subject|section)\.id\s*=\s*ANY\(\$[34]::uuid\[\]\)/i);
-  assert.match(writes[2].sql, /ON CONFLICT\s*\(tenant_id, exam_series_id, subject_id, class_section_id\)\s*DO UPDATE/i);
-  assert.match(writes[2].sql, /created_at,\s*updated_at/i);
-  assert.match(writes[2].sql, /NOW\(\),\s*NOW\(\)/i);
-  assert.match(writes[2].sql, /status\s*=\s*EXCLUDED\.status/i);
-  assert.equal(writes[2].params[6], 'open');
+  assert.match(writes[3].sql, /subject\.id::uuid/i);
+  assert.match(writes[3].sql, /section\.id::uuid/i);
+  assert.doesNotMatch(writes[3].sql, /\$1::uuid/i);
+  assert.match(writes[3].sql, /subject\.id::text\s*=\s*ANY\(\$3::text\[\]\)/i);
+  assert.match(writes[3].sql, /section\.id::text\s*=\s*ANY\(\$4::text\[\]\)/i);
+  assert.doesNotMatch(writes[3].sql, /NOT EXISTS/i);
+  assert.doesNotMatch(writes[3].sql, /(?:subject|section)\.id\s*=\s*ANY\(\$[34]::uuid\[\]\)/i);
+  assert.match(writes[3].sql, /ON CONFLICT\s*\(tenant_id, exam_series_id, subject_id, class_section_id\)\s*DO UPDATE/i);
+  assert.match(writes[3].sql, /created_at,\s*updated_at/i);
+  assert.match(writes[3].sql, /NOW\(\),\s*NOW\(\)/i);
+  assert.match(writes[3].sql, /status\s*=\s*EXCLUDED\.status/i);
+  assert.equal(writes[3].params[6], 'open');
   assert.equal(workflowCalls[0].payload.subjectsConfigured, 2);
   assert.equal(workflowCalls[0].payload.markEntryWindowsConfigured, 4);
 });
@@ -5546,8 +5546,8 @@ test('ExamsManagerCommandService keeps draft mark-entry windows closed using the
     '2026-01-16',
   );
 
-  assert.equal(writes.length, 2);
-  assert.equal(writes[1].params[6], 'closed');
+  assert.equal(writes.length, 3);
+  assert.equal(writes[2].params[6], 'closed');
 });
 
 test('ExamsManagerCommandService reads configured windows before teachers enter the first mark', async () => {
@@ -5636,6 +5636,11 @@ test('ExamsManagerCommandService configures an existing exam setup inside the cu
     } as never,
     {} as never,
     {
+      readSql: async (sql: string) => {
+        if (/FOR UPDATE/.test(sql)) return { rows: [{ id: '22222222-2222-4222-8222-222222222222', status: 'draft', academic_term_id: '33333333-3333-4333-8333-333333333333' }], rowCount: 1 };
+        if (/AS valid_term/.test(sql)) return { rows: [{ subjects: 1, classes: 1, valid_term: true }], rowCount: 1 };
+        return { rows: [], rowCount: 0 };
+      },
       writeSql: async (sql: string, params: unknown[]) => {
         writes.push({ sql, params });
         return {
@@ -5669,7 +5674,7 @@ test('ExamsManagerCommandService configures an existing exam setup inside the cu
     } as never,
   );
 
-  const result = await service.configureExamSetup('22222222-2222-4222-8222-222222222222', {
+  const result = await (service as any).configureExamSetupWithinTransaction('22222222-2222-4222-8222-222222222222', {
     name: 'Term 1 Midterm',
     starts_on: '2026-02-02',
     ends_on: '2026-02-06',
@@ -5679,12 +5684,13 @@ test('ExamsManagerCommandService configures an existing exam setup inside the cu
   });
 
   assert.equal(result.success, true);
-  assert.match(writes[0].sql, /UPDATE exam_series/i);
-  assert.match(writes[0].sql, /WHERE tenant_id = \$1\s+AND id = \$2::uuid/i);
-  assert.equal(writes[0].params[0], 'tenant-a');
-  assert.equal(writes[0].params[1], '22222222-2222-4222-8222-222222222222');
-  assert.equal(writes[0].params[2], 'Term 1 Midterm');
-  assert.equal(writes[0].params[5], 'submitted');
+  const update = writes.find(write => /UPDATE exam_series/.test(write.sql))!;
+  assert.match(update.sql, /UPDATE exam_series/i);
+  assert.match(update.sql, /WHERE tenant_id = \$1\s+AND id = \$2::uuid/i);
+  assert.equal(update.params[0], 'tenant-a');
+  assert.equal(update.params[1], '22222222-2222-4222-8222-222222222222');
+  assert.equal(update.params[2], 'Term 1 Midterm');
+  assert.equal(update.params[5], 'submitted');
   assert.equal(workflowCalls.length, 1);
   assert.equal(workflowCalls[0].eventType, 'exams.exam-setup.configured');
   assert.equal(workflowCalls[0].entityType, 'exam_series');
