@@ -16,7 +16,7 @@ import {
 } from '../exams/dto/exams.dto';
 import { ExamsService } from '../exams/exams.service';
 import { markEntryHasStartedSql } from '../exams/mark-entry-window-policy';
-import { teacherMarkStudentScopeSql } from '../exams/teacher-mark-scope';
+import { teacherMarkSheetSubmittedSql, teacherMarkStudentScopeSql } from '../exams/teacher-mark-scope';
 import type { SaveTeacherMarksDto, TeacherMarkInput } from './dto/class-teacher.dto';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import type { UploadFileMetadata } from '../../common/uploads/upload-policy';
@@ -619,7 +619,7 @@ export class ClassTeacherService {
             AND em.assessment_id::text = assessment.id::text
             AND em.class_section_id::text = w.class_section_id::text
             AND em.subject_id::text = w.subject_id::text
-            AND em.score_status NOT IN ('not_assessed', 'incomplete')
+            AND em.score_status = 'entered' AND em.score IS NOT NULL
             AND ${teacherMarkStudentScopeSql('w', 'es', 'em.student_id', '$2')}
         ) as entered_count,
         (
@@ -680,6 +680,7 @@ export class ClassTeacherService {
         AND (tsa.effective_to IS NULL OR tsa.effective_to >= CURRENT_DATE)
       WHERE w.tenant_id::text = $1::text
         AND tsa.teacher_user_id = $2
+        AND NOT ${teacherMarkSheetSubmittedSql('w', 'es', 'assessment.id', '$2')}
         AND ($3::boolean OR (
           w.status = 'open'
           AND ${markEntryHasStartedSql('w', 'es')}
@@ -716,7 +717,7 @@ export class ClassTeacherService {
         opensAt: new Date(r.opens_at).toISOString(),
         status: r.entry_state !== 'Open'
           ? r.entry_state
-          : parseInt(r.total_students) > 0 && parseInt(r.entered_count) >= parseInt(r.total_students) ? 'Completed' : 'Pending',
+          : parseInt(r.entered_count) > 0 ? 'Draft' : 'Pending',
       }))
     };
   }
@@ -1221,6 +1222,7 @@ export class ClassTeacherService {
       WHERE w.id = $1
         AND w.tenant_id = $2
         AND w.class_section_id = $4
+        AND NOT ${teacherMarkSheetSubmittedSql('w', 'es', 'assessment.id', '$3')}
         AND w.status = 'open'
         AND ${markEntryHasStartedSql('w', 'es')}
         AND w.closes_at >= NOW()

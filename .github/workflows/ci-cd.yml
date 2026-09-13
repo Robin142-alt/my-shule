@@ -50,6 +50,9 @@ jobs:
       - name: Academic intelligence workspace contracts
         run: npm --prefix apps/web run test:design -- academic-intelligence head-of-subject exams-workspace teacher-exams-marks-workspace
 
+      - name: Teacher marks roster and routing contracts
+        run: npm --prefix apps/web run test:design -- teacher-mark-sheet-pagination teacher-dashboard-routing
+
       - name: Sidebar loading and recovery contracts
         run: npm --prefix apps/web run test:design -- sidebar-workspace-recovery
 

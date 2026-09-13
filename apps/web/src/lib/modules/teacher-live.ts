@@ -336,13 +336,17 @@ export async function fetchTeacherMarkSheetLive(
     assessment_id: filters.assessmentId,
     limit: "100",
   });
-  const response = await withSession<ExamsActionResponse<TeacherMarkSheetRow[]>>(
-    session,
-    `/exams/marks?${query.toString()}`,
-    { method: "GET" },
-  );
-
-  return response.data;
+  // The API pages at 100 students. Submission needs the entire assigned roster,
+  // including large classes, before it can ask about every missing score.
+  const rows: TeacherMarkSheetRow[] = [];
+  for (let offset = 0; ; offset += 100) {
+    query.set("offset", String(offset));
+    const response = await withSession<ExamsActionResponse<TeacherMarkSheetRow[]>>(
+      session, `/exams/marks?${query.toString()}`, { method: "GET" },
+    );
+    rows.push(...response.data);
+    if (response.data.length < 100) return rows;
+  }
 }
 
 export interface TeacherMarkDraftInput {

@@ -19,3 +19,19 @@ export function teacherMarkStudentScopeSql(window: string, series: string, stude
       AND (assigned_teacher.effective_to IS NULL OR assigned_teacher.effective_to >= CURRENT_DATE)
   )`;
 }
+
+// Completion is submission, not a fully filled draft. Scope to the teacher's
+// assigned streams so submitting one stream never hides another teacher's work.
+// Returning marks to draft through moderation makes the sheet available again.
+export function teacherMarkSheetSubmittedSql(window: string, series: string, assessmentId: string, teacherId: string): string {
+  const scope = `completed_mark.tenant_id = ${window}.tenant_id
+    AND completed_mark.exam_series_id = ${window}.exam_series_id
+    AND completed_mark.class_section_id = ${window}.class_section_id
+    AND completed_mark.subject_id = ${window}.subject_id
+    AND completed_mark.assessment_id = ${assessmentId}
+    AND ${teacherMarkStudentScopeSql(window, series, 'completed_mark.student_id', teacherId)}`;
+  return `(EXISTS (SELECT 1 FROM exam_marks completed_mark WHERE ${scope}
+      AND completed_mark.status IN ('submitted', 'reviewed', 'locked', 'published'))
+    AND NOT EXISTS (SELECT 1 FROM exam_marks completed_mark WHERE ${scope}
+      AND completed_mark.status = 'draft'))`;
+}

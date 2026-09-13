@@ -68,7 +68,7 @@ test('ClassTeacherService loads open teacher markbooks across text and uuid acad
   assert.equal(result.stats.totalWindows, 1);
   assert.equal(result.windows[0].classSectionId, 'class-a');
   assert.equal(result.windows[0].subjectId, 'subject-a');
-  assert.equal(result.windows[0].status, 'Pending');
+  assert.equal(result.windows[0].status, 'Draft');
   assert.equal(result.windows[0].canEnter, true);
   assert.deepEqual(queries[0].params, ['tenant-a', 'teacher-a', false]);
   assert.match(queries[0].sql, /cs\.id\s*=\s*w\.class_section_id::text/);

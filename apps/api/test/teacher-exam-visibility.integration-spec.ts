@@ -36,12 +36,7 @@ describe('Created exams reach assigned subject teachers', () => {
       await pool.query(sql);
     }
     await pool.query(`
-      CREATE TABLE class_sections (id text PRIMARY KEY, tenant_id text, name text, status text DEFAULT 'active', curriculum_model text DEFAULT 'CBC');
-      CREATE TABLE academics_grading_systems (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text,
-        curriculum_model text, rules jsonb, is_active boolean DEFAULT TRUE, archived_at timestamptz,
-        effective_from date, effective_to date, updated_at timestamptz DEFAULT NOW(), version integer DEFAULT 1);
-      INSERT INTO academics_grading_systems(tenant_id,curriculum_model,rules) VALUES
-        ('school-a','CBC','[{"label":"EE","min":0,"max":100,"points":4}]');
+      CREATE TABLE class_sections (id text PRIMARY KEY, tenant_id text, name text, status text DEFAULT 'active');
       CREATE TABLE subjects (id text PRIMARY KEY, tenant_id text, name text);
       CREATE TABLE teacher_subject_assignments (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text, academic_term_id text,
@@ -122,7 +117,12 @@ describe('Created exams reach assigned subject teachers', () => {
     expect(persistedWindow.opens_at.getTime()).toBeLessThanOrEqual(Date.now());
     await save(window);
     expect((await exams.getMarks({ exam_series_id: created.exam.id })).data[0].score).toBe(74);
+    expect(await windowFor(created.exam.id)).toMatchObject({ status: 'Draft', enteredCount: 1, canEnter: true });
     await save(window, 'submit');
+    expect(await windowFor(created.exam.id)).toBeUndefined();
+    expect((await teacher.getPendingMarks('school-a', ids.teacher)).windows.some(row => row.id === window.id)).toBe(false);
+    expect((await exams.getMarks({ exam_series_id: created.exam.id })).data).toHaveLength(0);
+    await expect(save(window)).rejects.toThrow();
     expect((await pool.query(`SELECT status FROM exam_marks WHERE exam_series_id=$1`, [created.exam.id])).rows[0].status).toBe('submitted');
     expect((await pool.query(`SELECT action FROM exam_mark_audit_logs WHERE exam_series_id=$1`, [created.exam.id])).rows.map(row => row.action)).toEqual(expect.arrayContaining(['grade.created', 'grade.submitted']));
     expect(operations).toEqual(expect.arrayContaining([expect.objectContaining({ eventType: 'exams.exam-setup.created' })]));
@@ -200,6 +200,52 @@ describe('Created exams reach assigned subject teachers', () => {
     expect((await pool.query(`SELECT * FROM exam_marks WHERE exam_series_id=$1`, [created.exam.id])).rows).toHaveLength(2);
   });
 
+  it('removes submitted sheets with missing-score reasons and reopens returned drafts', async () => {
+    for (const reason of ['absent', 'exempt', 'not_assessed', 'incomplete', 'withheld', 'medical_exception', 'transfer_student'] as const) {
+      const created = await createExam();
+      const window = await windowFor(created.exam.id);
+      await teacher.saveMarks('school-a', ids.teacher, { examId: window.id, classSectionId: ids.class,
+        action: 'submit', marks: { [ids.student]: { score: null, score_status: reason } } });
+      expect(await windowFor(created.exam.id)).toBeUndefined();
+      expect((await exams.getMarks({ exam_series_id: created.exam.id })).data).toHaveLength(0);
+      await expect(save(window)).rejects.toThrow();
+      const mark = (await pool.query(`SELECT * FROM exam_marks WHERE exam_series_id=$1`, [created.exam.id])).rows[0];
+      expect(mark).toMatchObject({ score: null, score_status: reason, status: 'submitted', tenant_id: 'school-a' });
+      // Simulate moderation returning the sheet to draft; completion is not sticky.
+      await pool.query(`UPDATE exam_marks SET status='draft' WHERE exam_series_id=$1`, [created.exam.id]);
+      expect(await windowFor(created.exam.id)).toMatchObject({ canEnter: true });
+      expect((await exams.getMarks({ exam_series_id: created.exam.id })).data).toHaveLength(1);
+      await save(window);
+    }
+  });
+
+  it('keeps another assigned stream available after one teacher submits', async () => {
+    const otherStudent = randomUUID();
+    await pool.query(`UPDATE teacher_subject_assignments SET stream_id='blue' WHERE class_section_id=$1 AND teacher_user_id=$2`, [ids.class, ids.teacher]);
+    await pool.query(`UPDATE student_class_assignments SET stream_id='blue' WHERE student_id=$1`, [ids.student]);
+    await pool.query(`INSERT INTO teacher_subject_assignments(tenant_id,class_section_id,subject_id,teacher_user_id,stream_id) VALUES ('school-a',$1,$2,$3,'red')`, [ids.class, ids.subject, ids.otherTeacher]);
+    await pool.query(`INSERT INTO students(id,tenant_id,first_name) VALUES ($1,'school-a','Red learner')`, [otherStudent]);
+    await pool.query(`INSERT INTO student_class_assignments(tenant_id,student_id,class_section_id,stream_id) VALUES ('school-a',$1,$2,'red')`, [otherStudent, ids.class]);
+    await pool.query(`INSERT INTO student_subject_enrollments(tenant_id,student_id,class_section_id,subject_id) VALUES ('school-a',$1,$2,$3)`, [otherStudent, ids.class, ids.subject]);
+    try {
+      const created = await createExam();
+      await save(await windowFor(created.exam.id), 'submit');
+      expect(await windowFor(created.exam.id)).toBeUndefined();
+      const otherWindows = await teacher.getPendingMarks('school-a', ids.otherTeacher, true);
+      expect(otherWindows.windows.find(row => row.examSeriesId === created.exam.id)).toMatchObject({ canEnter: true, totalStudents: 1 });
+      const otherRoster = await repository.getMarks('school-a', { exam_series_id: created.exam.id, teacher_user_id: ids.otherTeacher });
+      expect(otherRoster.map(row => row.student_id)).toEqual([otherStudent]);
+      // Exam officers retain the shared data used for moderation.
+      expect(await repository.getMarks('school-a', { exam_series_id: created.exam.id })).toHaveLength(2);
+    } finally {
+      await pool.query(`DELETE FROM teacher_subject_assignments WHERE teacher_user_id=$1`, [ids.otherTeacher]);
+      await pool.query(`DELETE FROM student_subject_enrollments WHERE student_id=$1`, [otherStudent]);
+      await pool.query(`DELETE FROM student_class_assignments WHERE student_id=$1`, [otherStudent]);
+      await pool.query(`DELETE FROM students WHERE id=$1`, [otherStudent]);
+      await pool.query(`UPDATE teacher_subject_assignments SET stream_id=NULL WHERE class_section_id=$1`, [ids.class]);
+    }
+  });
+
   it('restricts the roster, progress and submission to the teachers assigned stream', async () => {
     const unassignedStudent = randomUUID();
     await pool.query(`UPDATE teacher_subject_assignments SET stream_id='blue' WHERE class_section_id=$1`, [ids.class]);
@@ -213,6 +259,6 @@ describe('Created exams reach assigned subject teachers', () => {
     expect((await exams.getMarks({ exam_series_id: created.exam.id })).data.map(row => row.student_id)).toEqual([ids.student]);
     await expect(save(window, 'draft', unassignedStudent)).rejects.toThrow();
     await save(window, 'submit');
-    expect((await windowFor(created.exam.id)).enteredCount).toBe(1);
+    expect(await windowFor(created.exam.id)).toBeUndefined();
   });
 });
