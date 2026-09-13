@@ -70,6 +70,7 @@ describe('Authentication and authorization hardening', () => {
   let tenantMember: RegisteredTenantUser;
   let otherTenantOwner: RegisteredTenantUser;
   let subjectHead: RegisteredTenantUser | undefined;
+  let admissionsOfficer: RegisteredTenantUser | undefined;
 
   const suffix = randomUUID().replace(/-/g, '').slice(0, 8);
 
@@ -117,7 +118,7 @@ describe('Authentication and authorization hardening', () => {
   afterAll(async () => {
     await cleanupSeedData(
       pool,
-      [tenantOwner, tenantMember, otherTenantOwner, subjectHead].filter(Boolean) as RegisteredTenantUser[],
+      [tenantOwner, tenantMember, otherTenantOwner, subjectHead, admissionsOfficer].filter(Boolean) as RegisteredTenantUser[],
     );
     await app?.close();
     await pool?.end();
@@ -163,6 +164,67 @@ describe('Authentication and authorization hardening', () => {
     expect(teacher.body.user.role).toBe('teacher');
     await request(app.getHttpServer()).post('/auth/invitations/accept').set('host',tenantOwner.host)
       .send({token,password,expected_tenant_id:tenantOwner.tenant_id}).expect(401);
+  });
+
+  test('Admissions Officer switches to Teacher and back with tenant isolation, refreshed permissions and audits', async () => {
+    admissionsOfficer = await registerTenantUser(
+      { app, testingModule, pool },
+      tenantOwner.tenant_id,
+      `admissions+${suffix}@example.test`,
+      'admissions_officer',
+    );
+    const officer = admissionsOfficer;
+    const roles = await request(app.getHttpServer()).get('/auth/dashboard-roles')
+      .set('host', officer.host).set('authorization', `Bearer ${officer.access_token}`).expect(200);
+    expect(roles.body.data.primary_role).toBe('admissions_officer');
+    expect(roles.body.data.assigned_roles).toEqual(['admissions_officer']);
+    expect(roles.body.data.available_roles.map((role: { role_code: string }) => role.role_code))
+      .toEqual(['admissions_officer', 'teacher']);
+
+    await request(app.getHttpServer()).post('/auth/active-role')
+      .set('host', otherTenantOwner.host).set('authorization', `Bearer ${officer.access_token}`)
+      .send({ role_code: 'teacher' }).expect(401);
+    await request(app.getHttpServer()).post('/auth/active-role')
+      .set('host', officer.host).set('authorization', `Bearer ${officer.access_token}`)
+      .send({ role_code: 'principal' }).expect(403);
+
+    const teacher = await request(app.getHttpServer()).post('/auth/active-role')
+      .set('host', officer.host).set('authorization', `Bearer ${officer.access_token}`)
+      .send({ role_code: 'teacher' }).expect(201);
+    expect(teacher.body.user).toMatchObject({
+      user_id: officer.user_id, tenant_id: officer.tenant_id,
+      session_id: officer.session_id, role: 'teacher',
+    });
+    expect(teacher.body.user.permissions).toEqual(expect.arrayContaining(['teacher:read', 'teacher:write']));
+    expect(teacher.body.user.permissions).not.toContain('admissions:write');
+    expect(teacher.body.user.permissions).not.toContain('roles:write');
+
+    const refreshed = await request(app.getHttpServer()).post('/auth/refresh')
+      .set('host', officer.host).send({ refresh_token: teacher.body.tokens.refresh_token }).expect(201);
+    expect(refreshed.body.user.role).toBe('teacher');
+    const me = await request(app.getHttpServer()).get('/auth/me')
+      .set('host', officer.host).set('authorization', `Bearer ${refreshed.body.tokens.access_token}`).expect(200);
+    expect(me.body.data.user.role).toBe('teacher');
+    expect(me.body.data.role_context.primary_role).toBe('admissions_officer');
+
+    const returned = await request(app.getHttpServer()).post('/auth/active-role')
+      .set('host', officer.host).set('authorization', `Bearer ${refreshed.body.tokens.access_token}`)
+      .send({ role_code: 'admissions_officer' }).expect(201);
+    expect(returned.body.user.role).toBe('admissions_officer');
+    expect(returned.body.user.permissions).toContain('admissions:write');
+    expect(returned.body.user.permissions).not.toContain('teacher:write');
+    const membership = await pool.query(`SELECT r.code FROM tenant_memberships m
+      JOIN roles r ON r.id = m.role_id AND r.tenant_id = m.tenant_id
+      WHERE m.tenant_id = $1 AND m.user_id = $2`, [officer.tenant_id, officer.user_id]);
+    expect(membership.rows).toEqual([{ code: 'admissions_officer' }]);
+    const audits = await pool.query(`SELECT metadata FROM audit_logs
+      WHERE tenant_id = $1 AND actor_user_id = $2 AND resource_id = $3
+        AND action = 'auth.active_role_changed'`, [officer.tenant_id, officer.user_id, officer.session_id]);
+    expect(audits.rows.map(row => row.metadata)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ previous_role: 'admissions_officer', active_role: 'teacher', primary_role: 'admissions_officer' }),
+      expect.objectContaining({ previous_role: 'teacher', active_role: 'admissions_officer', primary_role: 'admissions_officer' }),
+    ]));
+    expect(audits.rows).toHaveLength(2);
   });
 
   test('blocks tampered JWTs', async () => {
@@ -319,6 +381,7 @@ const registerTenantUser = async (
   },
   tenantId: string,
   email: string,
+  assignedRole?: 'admissions_officer',
 ): Promise<RegisteredTenantUser> => {
   const { app, testingModule, pool } = context;
   const password = `SecurePass!${tenantId.slice(-4)}`;
@@ -338,7 +401,7 @@ const registerTenantUser = async (
     `,
     [tenantId],
   );
-  const roleCode = Number(existingMembers.rows[0]?.total ?? '0') === 0 ? 'owner' : 'member';
+  const roleCode = assignedRole ?? (Number(existingMembers.rows[0]?.total ?? '0') === 0 ? 'owner' : 'member');
   const role = await authorizationRepository.getRoleByCode(tenantId, roleCode);
   const passwordHash = await passwordService.hash(password);
   const userResult = await pool.query<{ id: string }>(
