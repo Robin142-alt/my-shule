@@ -36,7 +36,12 @@ describe('Created exams reach assigned subject teachers', () => {
       await pool.query(sql);
     }
     await pool.query(`
-      CREATE TABLE class_sections (id text PRIMARY KEY, tenant_id text, name text, status text DEFAULT 'active');
+      CREATE TABLE class_sections (id text PRIMARY KEY, tenant_id text, name text, status text DEFAULT 'active', curriculum_model text DEFAULT 'CBC');
+      CREATE TABLE academics_grading_systems (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text,
+        curriculum_model text, rules jsonb, is_active boolean DEFAULT TRUE, archived_at timestamptz,
+        effective_from date, effective_to date, updated_at timestamptz DEFAULT NOW(), version integer DEFAULT 1);
+      INSERT INTO academics_grading_systems(tenant_id,curriculum_model,rules) VALUES
+        ('school-a','CBC','[{"label":"EE","min":0,"max":100,"points":4}]');
       CREATE TABLE subjects (id text PRIMARY KEY, tenant_id text, name text);
       CREATE TABLE teacher_subject_assignments (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text, academic_term_id text,

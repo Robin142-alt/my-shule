@@ -563,9 +563,9 @@ describe("exams workspace", () => {
     expect(
       screen.getAllByRole("heading", { name: /Exams & Marks/i }).length,
     ).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: /Download CSV/i })).toBeVisible();
-    expect(screen.getByRole("heading", { name: /No markbooks assigned yet/i })).toBeVisible();
-    expect(screen.getByRole("button", { name: /Refresh markbooks/i })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: /No exams awaiting marks/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Refresh exams/i })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Download CSV/i })).not.toBeInTheDocument();
   });
 
   it("blocks the exams workspace when the tenant module is disabled", async () => {
