@@ -95,29 +95,31 @@ function roleLabel(value: string) {
 export function ExamWorkflowTracker({
   endpoint = "/exams/workflow",
   heading = "Exam-to-report-card workflow",
+  compact = false,
 }: {
   endpoint?: string;
   heading?: string;
+  compact?: boolean;
 }) {
-  const { data, error, isLoading, refetch } = useSchoolQuery<ExamWorkflowData>(endpoint);
+  const { data, error, isLoading, isFetching, refetch } = useSchoolQuery<ExamWorkflowData>(endpoint);
   const items = data?.series ?? [];
 
   return (
-    <section className="space-y-4 rounded-2xl border border-[#C8D5EA] bg-white p-4 text-[#071D49] shadow-[0_12px_35px_rgba(7,29,73,0.08)] sm:p-5">
+    <section className={`space-y-4 border border-[#C8D5EA] bg-white p-4 text-[#071D49] sm:p-5 ${compact ? "rounded-lg" : "rounded-2xl shadow-[0_12px_35px_rgba(7,29,73,0.08)]"}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[#1D4ED8]">
+          {!compact ? <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[#1D4ED8]">
             <Route className="h-4 w-4" /> Live school workflow
-          </p>
-          <h2 className="mt-1 text-xl font-black sm:text-2xl">{heading}</h2>
+          </p> : null}
+          <h2 className={compact ? "text-lg font-semibold" : "mt-1 text-xl font-black sm:text-2xl"}>{heading}</h2>
           <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-[#64748B]">
-            One shared lifecycle for Exams Manager, teachers, Dean, Deputy, and Principal. Each cycle shows its current desk and what must happen next.
+            {compact ? "Track each cycle, the next responsible person and any outstanding work." : "One shared lifecycle for Exams Manager, teachers, Dean, Deputy, and Principal. Each cycle shows its current desk and what must happen next."}
           </p>
         </div>
         <button
           type="button"
           onClick={() => void refetch()}
-          disabled={isLoading}
+          disabled={isLoading || isFetching}
           className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[#C8D5EA] bg-white px-3 text-sm font-black text-[#0B63CE] disabled:opacity-50"
         >
           <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} /> Refresh
@@ -139,7 +141,7 @@ export function ExamWorkflowTracker({
         ].map(([label, value]) => (
           <div key={String(label)} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3 sm:p-4">
             <p className="text-xs font-black uppercase tracking-[0.06em] text-[#64748B]">{label}</p>
-            <p className="mt-1 text-2xl font-black">{isLoading ? "..." : value}</p>
+            <p className="mt-1 text-2xl font-black">{isLoading ? "..." : error ? "—" : value}</p>
           </div>
         ))}
       </div>
@@ -152,7 +154,7 @@ export function ExamWorkflowTracker({
       ) : null}
 
       <div className="space-y-4">
-        {items.map((series) => {
+        {!error && items.map((series) => {
           const currentIndex = stageIndex(series.stage);
           const finalizedMarks = series.counts.locked_marks + series.counts.published_marks;
           return (
@@ -170,7 +172,7 @@ export function ExamWorkflowTracker({
               </div>
 
               <div className="mt-4 overflow-x-auto pb-2">
-                <ol className="grid min-w-[880px] grid-cols-9 gap-2" aria-label={`${series.name} progress`}>
+                <ol className={compact ? "grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-9" : "grid min-w-[880px] grid-cols-9 gap-2"} aria-label={`${series.name} progress`}>
                   {stages.map((stage, index) => {
                     const complete = index < currentIndex || series.stage === "released";
                     const current = index === currentIndex && series.stage !== "released";
@@ -214,7 +216,7 @@ export function ExamWorkflowTracker({
         })}
       </div>
 
-      {data?.scope ? (
+      {data?.scope && !compact ? (
         <p className="text-right text-xs font-bold text-[#64748B]">
           {data.scope.level === "department" ? "Department-scoped" : "School-scoped"} view for {roleLabel(data.scope.role)}
         </p>
