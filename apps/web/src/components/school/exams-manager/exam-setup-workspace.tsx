@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { ClipboardList, Plus, Settings } from "lucide-react";
+import { ClipboardList, Plus, Settings, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Modal } from "@/components/ui/modal";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
-import { configureExam, createExam } from "./api-client";
+import { configureExam, createExam, deleteExam } from "./api-client";
 import { Panel, StatusChip, type Tone } from "./shared";
 
 type ExamConfig = {
@@ -25,9 +25,16 @@ type ExamConfig = {
   created_at: string;
   starts_on?: string;
   ends_on?: string;
+  academic_term_id: string | null;
+  subject_ids: string[];
+  class_section_ids: string[];
+  can_delete: boolean;
+  delete_block_reason?: string | null;
+  marks_count: number;
 };
 
 type ExamSetupData = {
+  can_manage: boolean;
   metrics: {
     total_exams: number;
     active_exams: number;
@@ -71,7 +78,7 @@ function toggleSelection(values: string[], value: string) {
 }
 
 export function ExamSetupWorkspace() {
-  const { data, isLoading, refetch } = useSchoolQuery<ExamSetupData>("/admin-command/exams-manager/exam-setup");
+  const { data, isLoading, error: setupError, refetch } = useSchoolQuery<ExamSetupData>("/admin-command/exams-manager/exam-setup");
   const {
     data: options,
     isLoading: optionsLoading,
@@ -82,10 +89,14 @@ export function ExamSetupWorkspace() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [configuringExam, setConfiguringExam] = useState<ExamConfig | null>(null);
   const [isConfiguring, setIsConfiguring] = useState(false);
+  const [deletingExam, setDeletingExam] = useState<ExamConfig | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
 
   const exams = data?.exams || [];
+  const canManage = data?.can_manage === true;
   const termOptions = options?.terms || [];
   const subjectOptions = options?.subjects || [];
   const classOptions = options?.classes || [];
@@ -130,13 +141,10 @@ export function ExamSetupWorkspace() {
       status: exam.status?.toLowerCase() || "draft",
       exam_type: exam.type || "Exam cycle",
       max_marks: String(exam.max_marks || 100),
-      grading_system_id: exam.grading_system_id
-        || gradingSystemOptions.find((option) => option.label === exam.grading_system)?.id
-        || gradingSystemOptions[0]?.id
-        || "",
-      academic_term_id: termOptions.find((term) => exam.term?.includes(term.label))?.id ?? termOptions[0]?.id ?? "",
-      subject_ids: subjectOptions.map((subject) => subject.id),
-      class_section_ids: classOptions.map((schoolClass) => schoolClass.id),
+      grading_system_id: exam.grading_system_id || "",
+      academic_term_id: exam.academic_term_id || "",
+      subject_ids: [...(exam.subject_ids ?? [])],
+      class_section_ids: [...(exam.class_section_ids ?? [])],
     });
     setConfiguringExam(exam);
   };
@@ -175,6 +183,7 @@ export function ExamSetupWorkspace() {
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isCreating || !canManage) return;
     setFormError(null);
     const validation = validateForm();
     if (validation) {
@@ -199,6 +208,7 @@ export function ExamSetupWorkspace() {
 
   const handleConfigure = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isConfiguring || !canManage) return;
     setFormError(null);
 
     if (!configuringExam) {
@@ -227,6 +237,25 @@ export function ExamSetupWorkspace() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!deletingExam || isDeleting || !canManage) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteExam(deletingExam.id);
+      toast.success(`${deletingExam.name} deleted.`);
+      setDeletingExam(null);
+      await Promise.all([refetch(), refetchOptions()]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to delete exam. Please retry.";
+      setDeleteError(message);
+      toast.error(message);
+      await refetch();
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const setupWarning = !optionsLoading && !optionsError && !setupReady ? (
     <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
       Exam setup needs school data first:
@@ -246,11 +275,11 @@ export function ExamSetupWorkspace() {
 
     return (
       <fieldset className="rounded-xl border border-[#D8E0EC] p-3 md:col-span-2">
-        <legend className="px-1 text-sm font-black text-[#334155]">{label}</legend>
+        <legend className="px-1 text-sm font-black text-[#334155]">{label} ({selected.length} selected)</legend>
         {list.length === 0 ? (
           <p className="text-sm font-semibold text-amber-700">{emptyText}. Configure this in Principal setup first.</p>
         ) : (
-          <div className="grid max-h-44 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-2">
             {list.map((item) => (
               <label key={item.id} className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]">
                 <input
@@ -271,11 +300,7 @@ export function ExamSetupWorkspace() {
 
   const renderExamFields = () => (
     <div className="space-y-4">
-      {formError ? (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
-          {formError}
-        </div>
-      ) : null}
+      {configuringExam && configuringExam.marks_count > 0 ? <p className="text-sm text-amber-800">This exam has saved results. Their subjects, classes, term, grading system and maximum marks are protected.</p> : null}
 
       <div className="grid gap-4 md:grid-cols-2">
         <label className="space-y-1 text-sm font-bold text-[#334155] md:col-span-2">
@@ -310,6 +335,7 @@ export function ExamSetupWorkspace() {
             onChange={(event) => setForm((current) => ({ ...current, exam_type: event.target.value }))}
             className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
           >
+            {form.exam_type === "Exam cycle" ? <option value="Exam cycle">Exam cycle</option> : null}
             <option value="Opener">Opener</option>
             <option value="Midterm">Midterm</option>
             <option value="End Term">End Term</option>
@@ -374,10 +400,7 @@ export function ExamSetupWorkspace() {
           >
             <option value="draft">Draft</option>
             <option value="submitted">Open for marks</option>
-            <option value="reviewed">Reviewed</option>
-            <option value="locked">Locked for report cards</option>
-            {configuringExam ? <option value="published">Published</option> : null}
-            {configuringExam ? <option value="archived">Archived</option> : null}
+            {configuringExam && !["draft", "submitted"].includes(configuringExam.status) ? <option value={configuringExam.status}>{configuringExam.status}</option> : null}
           </select>
         </label>
 
@@ -393,12 +416,15 @@ export function ExamSetupWorkspace() {
       description="Configure exam cycles, terms, subjects, classes, max marks, grading policy, and mark-entry readiness."
       icon={ClipboardList}
       actions={
-        <button type="button" onClick={openCreateForm} disabled={isCreating || optionsLoading || Boolean(optionsError) || !setupReady} title={!setupReady ? "Complete term, subject, class, and grading setup first" : undefined} className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white transition hover:bg-blue-900 disabled:opacity-50">
+        <button type="button" onClick={openCreateForm} disabled={!canManage || isCreating || optionsLoading || Boolean(optionsError) || !setupReady} title={!setupReady ? "Complete term, subject, class, and grading setup first" : undefined} className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white transition hover:bg-blue-900 disabled:opacity-50">
           <Plus className="w-4 h-4" /> New Exam
         </button>
       }
     >
       {setupWarning}
+      {setupError ? <div role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        Exam configurations could not be loaded. <button type="button" onClick={() => void refetch()} className="font-bold underline">Retry exams</button>
+      </div> : null}
 
       {optionsError ? (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">
@@ -451,7 +477,7 @@ export function ExamSetupWorkspace() {
           <tbody className="divide-y divide-[#D8E0EC]">
             {isLoading ? (
               <tr><td colSpan={10} className="px-4 py-8 text-center text-[#64748B]">Loading exam configurations...</td></tr>
-            ) : exams.length === 0 ? (
+            ) : setupError ? <tr><td colSpan={10} className="px-4 py-8 text-center">Use Retry exams above to reload your school’s exams.</td></tr> : exams.length === 0 ? (
               <tr>
                 <td colSpan={10} className="px-4 py-8 text-center">
                   <div className="mx-auto flex max-w-xl flex-col items-center gap-3 text-[#64748B]">
@@ -464,7 +490,7 @@ export function ExamSetupWorkspace() {
                     <button
                       type="button"
                       onClick={openCreateForm}
-                      disabled={!setupReady || optionsLoading || Boolean(optionsError)}
+                      disabled={!canManage || !setupReady || optionsLoading || Boolean(optionsError)}
                       title={!setupReady ? "Complete term, subject, class, and grading setup first" : undefined}
                       className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-xs font-black text-white hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-50"
                     >
@@ -487,7 +513,14 @@ export function ExamSetupWorkspace() {
                   <td className="px-4 py-3 text-[#64748B]">{exam.classes_count}</td>
                   <td className="px-4 py-3"><StatusChip label={exam.status} tone={getStatusTone(exam.status)} /></td>
                   <td className="px-4 py-3 text-right">
-                    <button type="button" onClick={() => openConfigureForm(exam)} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline"><Settings className="h-3 w-3" /> Configure</button>
+                    <div className="flex justify-end gap-3">
+                      <button type="button" onClick={() => openConfigureForm(exam)} disabled={!canManage || optionsLoading || Boolean(optionsError)} className="inline-flex min-h-11 items-center gap-1 text-xs font-semibold text-blue-600 hover:underline disabled:opacity-50"><Settings className="h-3 w-3" /> Configure</button>
+                      <button type="button" aria-label={`Delete ${exam.name}`} disabled={!canManage || !exam.can_delete}
+                        title={!canManage ? "Exam management permission is required" : exam.delete_block_reason || "Delete this exam before results are entered"}
+                        onClick={() => { setDeleteError(null); setDeletingExam(exam); }}
+                        className="inline-flex min-h-11 items-center gap-1 text-xs font-semibold text-rose-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50"><Trash2 className="h-3 w-3" /> Delete</button>
+                    </div>
+                    {exam.delete_block_reason ? <p className="max-w-xs whitespace-normal text-xs text-slate-500">{exam.delete_block_reason}</p> : null}
                   </td>
                 </tr>
               ))
@@ -500,21 +533,22 @@ export function ExamSetupWorkspace() {
         open={isCreateOpen}
         onClose={() => !isCreating && setIsCreateOpen(false)}
         title="Create exam cycle"
-        description="This creates a real tenant-scoped exam cycle and prepares subject/class mark-entry windows for the current school."
+        description="Choose the exam details, subjects and classes to prepare for marks entry."
         size="lg"
         footer={
           <>
+            {formError ? <p role="alert" className="w-full text-sm font-semibold text-rose-700">{formError}</p> : null}
             <button type="button" onClick={() => setIsCreateOpen(false)} disabled={isCreating} className="rounded-lg border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49] hover:bg-[#F8FAFC] disabled:opacity-50">
               Cancel
             </button>
-            <button type="submit" form="exam-setup-create-form" disabled={isCreating || optionsLoading} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50">
+            <button type="submit" form="exam-setup-create-form" disabled={!canManage || isCreating || optionsLoading || Boolean(optionsError)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50">
               {isCreating ? "Creating..." : "Create exam"}
             </button>
           </>
         }
       >
         <form id="exam-setup-create-form" onSubmit={handleCreate} className="space-y-4">
-          {renderExamFields()}
+          <fieldset disabled={isCreating}>{renderExamFields()}</fieldset>
         </form>
       </Modal>
 
@@ -526,18 +560,29 @@ export function ExamSetupWorkspace() {
         size="lg"
         footer={
           <>
+            {formError ? <p role="alert" className="w-full text-sm font-semibold text-rose-700">{formError}</p> : null}
             <button type="button" onClick={() => setConfiguringExam(null)} disabled={isConfiguring} className="rounded-lg border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49] hover:bg-[#F8FAFC] disabled:opacity-50">
               Cancel
             </button>
-            <button type="submit" form="exam-setup-configure-form" disabled={isConfiguring || optionsLoading} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50">
+            <button type="submit" form="exam-setup-configure-form" disabled={!canManage || isConfiguring || optionsLoading || Boolean(optionsError)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50">
               {isConfiguring ? "Saving..." : "Save configuration"}
             </button>
           </>
         }
       >
         <form id="exam-setup-configure-form" onSubmit={handleConfigure} className="space-y-4">
-          {renderExamFields()}
+          <fieldset disabled={isConfiguring}>{renderExamFields()}</fieldset>
         </form>
+      </Modal>
+      <Modal open={Boolean(deletingExam)} onClose={() => !isDeleting && setDeletingExam(null)}
+        title="Delete exam?" description={deletingExam?.name} size="sm"
+        footer={<>
+          <button type="button" disabled={isDeleting} onClick={() => setDeletingExam(null)} className="rounded-lg border px-4 py-2 text-sm font-bold">Cancel</button>
+          <button type="button" disabled={isDeleting || !canManage} onClick={() => void handleDelete()} className="rounded-lg bg-rose-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{isDeleting ? "Deleting..." : "Delete exam"}</button>
+        </>}
+      >
+        <p className="text-sm text-slate-700">This permanently removes the exam, its papers, mark-entry windows and timetable. Only exams with no entered results or student records can be deleted. This cannot be undone.</p>
+        {deleteError ? <p role="alert" className="mt-3 text-sm font-semibold text-rose-700">{deleteError}</p> : null}
       </Modal>
     </Panel>
   );

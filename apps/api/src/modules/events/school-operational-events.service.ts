@@ -119,7 +119,7 @@ export class SchoolOperationalEventsService {
     private readonly schoolOperationNotificationsRepository: SchoolOperationNotificationsRepository,
   ) {}
 
-  async recordSchoolOperation(dto: SchoolOperationalEventSyncDto) {
+  async recordSchoolOperation(dto: SchoolOperationalEventSyncDto, tx?: import('@prisma/client').Prisma.TransactionClient) {
     const store = this.requestContext.requireStore();
     const tenantId = this.requireText(store.tenant_id, 'tenant context');
     const event = dto.event ?? {};
@@ -175,7 +175,7 @@ export class SchoolOperationalEventsService {
         source_module: sourceModule,
         actor_role: actorRole,
       },
-    });
+    }, tx);
 
     await Promise.all(
       notifications.map((notification) =>
@@ -183,7 +183,7 @@ export class SchoolOperationalEventsService {
           tenantId,
           operationId,
           notification,
-        }),
+        }, tx),
       ),
     );
 

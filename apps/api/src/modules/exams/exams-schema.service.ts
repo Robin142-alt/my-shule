@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 
 import { PrismaService } from '../../database/prisma.service';
+import { EXAM_SETUP_INTEGRITY_SCHEMA } from './exam-setup-integrity-schema';
 
 @Injectable()
 export class ExamsSchemaService implements OnModuleInit {
@@ -1690,6 +1691,7 @@ export class ExamsSchemaService implements OnModuleInit {
       WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
     `);
 
+    await this.prisma.runSchemaBootstrap(EXAM_SETUP_INTEGRITY_SCHEMA);
     this.logger.log('Exams schema and RLS policies verified');
   }
 }
