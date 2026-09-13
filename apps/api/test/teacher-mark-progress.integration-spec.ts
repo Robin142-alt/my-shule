@@ -83,6 +83,14 @@ describe('Exams manager teacher mark progress', () => {
     expect(await entries()).toEqual([]);
   });
 
+  it('supports text student IDs in upgraded schools without losing recorded marks', async () => {
+    await pool.query('ALTER TABLE students ALTER COLUMN id TYPE text USING id::text');
+    await enroll('legacy-student-number', 'blue');
+    await mark(ids.s1, 'submitted', 'entered', 0);
+    const row = (await entries()).find(item => item.teacher_id === ids.teacher);
+    expect(row).toMatchObject({ total_students: 3, recorded: 1, submitted: 1, missing: 2, status: 'In progress' });
+  });
+
   it('keeps saved drafts outstanding and checks every paper separately', async () => {
     await mark(ids.s1); await mark(ids.s2);
     await pool.query(`INSERT INTO exam_assessments(id,tenant_id,exam_series_id,subject_id,name) VALUES ($1,$2,$3,$4,'Paper 2')`, [ids.paper2, context.tenant_id, ids.exam, ids.subject]);

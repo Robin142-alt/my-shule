@@ -81,7 +81,7 @@ export const TEACHER_MARK_PROGRESS_SQL = `
     LEFT JOIN staff_profiles staff ON staff.tenant_id = w.tenant_id AND staff.user_id::text = owner.teacher_user_id::text
     LEFT JOIN exam_marks mark ON mark.tenant_id = w.tenant_id AND mark.exam_series_id = w.exam_series_id
       AND mark.assessment_id = assessment.id AND mark.subject_id = w.subject_id
-      AND mark.class_section_id = w.class_section_id AND mark.student_id = roster.student_id
+      AND mark.class_section_id = w.class_section_id AND mark.student_id::text = roster.student_id::text
     WHERE w.tenant_id = $1 AND series.status <> 'archived'
     GROUP BY w.id, series.id, assessment.id, subject.name, section.name,
       roster.stream_id, stream.name, owner.teacher_user_id
