@@ -4,6 +4,7 @@ import { Panel, RecordTable } from "./shared-components";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import { fetchPendingMarksLive } from "@/lib/modules/teacher-live";
 import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
+import { markbookDate } from "./markbook-list";
 
 export function AssessmentsCatsWorkspace() {
   const liveSession = useLiveTenantSession("school");
@@ -19,9 +20,9 @@ export function AssessmentsCatsWorkspace() {
   const rows = catWindows.map(w => [
     w.examName,
     w.className,
-    w.subjectName,
+    `${w.subjectName} · ${w.paperName}`,
     w.outOf.toString(),
-    w.deadline,
+    markbookDate(w.deadline),
     `${w.enteredCount} / ${w.totalStudents}`,
     w.status,
     "Use Exams Workspace"

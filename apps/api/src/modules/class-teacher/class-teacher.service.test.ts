@@ -51,6 +51,7 @@ test('ClassTeacherService loads open teacher markbooks across text and uuid acad
             out_of: '100',
             deadline: '2026-09-05T14:00:00.000Z',
             entered_count: '4',
+            saved_count: '4',
             total_students: '30',
             window_status: 'open',
             entry_state: 'Open',
@@ -70,7 +71,7 @@ test('ClassTeacherService loads open teacher markbooks across text and uuid acad
   assert.equal(result.windows[0].subjectId, 'subject-a');
   assert.equal(result.windows[0].status, 'Draft');
   assert.equal(result.windows[0].canEnter, true);
-  assert.deepEqual(queries[0].params, ['tenant-a', 'teacher-a', false]);
+  assert.deepEqual(queries[0].params, ['tenant-a', 'teacher-a', false, false]);
   assert.match(queries[0].sql, /cs\.id\s*=\s*w\.class_section_id::text/);
   assert.match(queries[0].sql, /s\.id\s*=\s*w\.subject_id::text/);
   assert.match(queries[0].sql, /tsa\.class_section_id\s*=\s*w\.class_section_id::text/);

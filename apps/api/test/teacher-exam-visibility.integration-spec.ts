@@ -43,6 +43,7 @@ describe('Created exams reach assigned subject teachers', () => {
       INSERT INTO academics_grading_systems(tenant_id,curriculum_model,rules) VALUES
         ('school-a','CBC','[{"label":"EE","min":0,"max":100,"points":4}]');
       CREATE TABLE subjects (id text PRIMARY KEY, tenant_id text, name text);
+      CREATE TABLE class_streams (id text, tenant_id text, class_section_id text, name text);
       CREATE TABLE teacher_subject_assignments (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text, academic_term_id text,
         class_section_id text, subject_id text, teacher_user_id text, stream_id text,
@@ -106,7 +107,7 @@ describe('Created exams reach assigned subject teachers', () => {
 
   async function save(window: any, action: 'draft' | 'submit' = 'draft', studentId = ids.student, score = 74) {
     return teacher.saveMarks('school-a', ids.teacher, { examId: window.id, classSectionId: window.classSectionId,
-      action, marks: { [studentId]: { score, score_status: 'entered' } } });
+      assessmentId: window.assessmentId, action, marks: { [studentId]: { score, score_status: 'entered' } } });
   }
 
   it('opens future-dated exams immediately and persists teacher marks through submission with audit and events', async () => {
@@ -133,6 +134,55 @@ describe('Created exams reach assigned subject teachers', () => {
     expect(operations).toEqual(expect.arrayContaining([expect.objectContaining({ eventType: 'exams.exam-setup.created' })]));
     expect(events).toEqual(expect.arrayContaining([expect.objectContaining({ event: expect.objectContaining({ type: 'exam.marks_submitted' }) })]));
     expect(submissions).toEqual(expect.arrayContaining([expect.objectContaining({ exam_id: created.exam.id, tenant_id: 'school-a' })]));
+  });
+
+  it('saves, edits and submits each paper independently, with submitted history remaining read-only', async () => {
+    const created = await createExam();
+    const first = await windowFor(created.exam.id);
+    const secondPaper = randomUUID();
+    await pool.query(`INSERT INTO exam_assessments(id,tenant_id,exam_series_id,subject_id,name,max_score,weight)
+      VALUES ($1,'school-a',$2,$3,'Paper 2',60,100)`, [secondPaper, created.exam.id, ids.subject]);
+    const sheets = (await teacher.getPendingMarks('school-a', ids.teacher, true)).windows.filter(sheet => sheet.examSeriesId === created.exam.id);
+    expect(sheets).toHaveLength(2);
+    expect(new Set(sheets.map(sheet => sheet.sheetId)).size).toBe(2);
+    await expect(teacher.saveMarks('school-a', ids.teacher, { examId: first.id, classSectionId: ids.class,
+      marks: { [ids.student]: { score: 40, score_status: 'entered' } } })).rejects.toThrow(/assessment paper/);
+    await save(first, 'draft', ids.student, 40);
+    await save(first, 'draft', ids.student, 55);
+    expect((await exams.getMarks({ exam_series_id: created.exam.id, assessment_id: first.assessmentId })).data[0].score).toBe(55);
+    await save(first, 'submit', ids.student, 55);
+    const remaining = (await teacher.getPendingMarks('school-a', ids.teacher, true)).windows.filter(sheet => sheet.examSeriesId === created.exam.id);
+    expect(remaining.map(sheet => sheet.assessmentId)).toEqual([secondPaper]);
+    expect(remaining[0]).toMatchObject({ savedCount: 0, status: 'Pending', outOf: 60 });
+    const history = (await teacher.getPendingMarks('school-a', ids.teacher, true, true)).windows.filter(sheet => sheet.examSeriesId === created.exam.id);
+    expect(history.find(sheet => sheet.assessmentId === first.assessmentId)).toMatchObject({ status: 'Submitted', canEnter: false, savedCount: 1 });
+    await expect(save(first)).rejects.toThrow();
+    await pool.query(`UPDATE exam_mark_entry_windows SET status='closed' WHERE id=$1`, [first.id]);
+    expect((await exams.getMarks({ exam_series_id: created.exam.id, view: 'submitted' })).data).toEqual([
+      expect.objectContaining({ assessment_id: first.assessmentId, score: 55, status: 'submitted' }),
+    ]);
+    expect(await repository.getMarks('school-b', { exam_series_id: created.exam.id, view: 'submitted', teacher_user_id: ids.teacher })).toEqual([]);
+    expect(await repository.getMarks('school-a', { exam_series_id: created.exam.id, view: 'submitted', teacher_user_id: ids.otherTeacher })).toEqual([]);
+    await pool.query(`UPDATE exam_mark_entry_windows SET status='open' WHERE id=$1`, [first.id]);
+    await save(remaining[0], 'submit', ids.student, 42);
+    expect((await teacher.getPendingMarks('school-a', ids.teacher, true)).windows.filter(sheet => sheet.examSeriesId === created.exam.id)).toHaveLength(0);
+  });
+
+  it('keeps a second subject available when the same teacher submits the first subject', async () => {
+    const subject = randomUUID();
+    await pool.query(`INSERT INTO subjects VALUES ($1,'school-a','Biology')`, [subject]);
+    await pool.query(`INSERT INTO teacher_subject_assignments(tenant_id,class_section_id,subject_id,teacher_user_id)
+      VALUES ('school-a',$1,$2,$3)`, [ids.class, subject, ids.teacher]);
+    await pool.query(`INSERT INTO student_subject_enrollments(tenant_id,student_id,class_section_id,subject_id)
+      VALUES ('school-a',$1,$2,$3)`, [ids.student, ids.class, subject]);
+    const created = await manager.createExamSetup({ name: 'Two subjects', academic_term_id: ids.term,
+      starts_on: futureDate(7), ends_on: futureDate(14), status: 'submitted',
+      subject_ids: [ids.subject, subject], class_section_ids: [ids.class], max_marks: 80 });
+    const sheets = (await teacher.getPendingMarks('school-a', ids.teacher, true)).windows.filter(sheet => sheet.examSeriesId === created.exam.id);
+    expect(sheets).toHaveLength(2);
+    await save(sheets.find(sheet => sheet.subjectId === ids.subject), 'submit');
+    const remaining = (await teacher.getPendingMarks('school-a', ids.teacher, true)).windows.filter(sheet => sheet.examSeriesId === created.exam.id);
+    expect(remaining).toEqual([expect.objectContaining({ subjectId: subject, savedCount: 0, status: 'Pending' })]);
   });
 
   it('honors existing Open for marks exams that retained a future opening date', async () => {

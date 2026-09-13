@@ -4962,6 +4962,11 @@ export class ExamsService {
     const subjectId = this.optionalText(filters.subject_id);
     const teacherUserId = this.optionalText(filters.teacher_user_id);
 
+    if (filters.view !== undefined && !['active', 'submitted'].includes(filters.view)) {
+      throw new BadRequestException('Mark sheet view must be active or submitted');
+    }
+    if (filters.view === 'submitted') normalizedFilters.view = 'submitted';
+
     if (examSeriesId) normalizedFilters.exam_series_id = examSeriesId;
     if (assessmentId) normalizedFilters.assessment_id = assessmentId;
     if (studentId) normalizedFilters.student_id = studentId;

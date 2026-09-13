@@ -21,6 +21,10 @@ export class SaveTeacherMarksDto {
   classSectionId!: string;
 
   @IsOptional()
+  @IsString()
+  assessmentId?: string;
+
+  @IsOptional()
   @IsObject()
   marks?: Record<string, TeacherMarkInput>;
 

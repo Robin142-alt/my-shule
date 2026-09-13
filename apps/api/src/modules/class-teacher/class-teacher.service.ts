@@ -596,7 +596,7 @@ export class ClassTeacherService {
     };
   }
 
-  async getPendingMarks(tenantId: string, userId: string, includeUnavailable = false) {
+  async getPendingMarks(tenantId: string, userId: string, includeUnavailable = false, includeSubmitted = false) {
     const query = `
       SELECT DISTINCT
         w.id as window_id,
@@ -611,6 +611,34 @@ export class ClassTeacherService {
         COALESCE(assessment.name, 'Main Paper') as paper_name,
         COALESCE(assessment.max_score, 100) as out_of,
         w.closes_at as deadline,
+        ${teacherMarkSheetSubmittedSql('w', 'es', 'assessment.id', '$2')} AS is_submitted,
+        (
+          SELECT COUNT(DISTINCT em.student_id) FROM exam_marks em
+          WHERE em.tenant_id = w.tenant_id AND em.exam_series_id = w.exam_series_id
+            AND em.assessment_id = assessment.id AND em.class_section_id = w.class_section_id
+            AND em.subject_id = w.subject_id
+            AND ${teacherMarkStudentScopeSql('w', 'es', 'em.student_id', '$2')}
+        ) AS saved_count,
+        (
+          SELECT MAX(em.submitted_at) FROM exam_marks em
+          WHERE em.tenant_id = w.tenant_id AND em.exam_series_id = w.exam_series_id
+            AND em.assessment_id = assessment.id AND em.class_section_id = w.class_section_id
+            AND em.subject_id = w.subject_id
+            AND ${teacherMarkStudentScopeSql('w', 'es', 'em.student_id', '$2')}
+        ) AS submitted_at,
+        (
+          SELECT STRING_AGG(DISTINCT stream.name, ', ' ORDER BY stream.name)
+          FROM class_streams stream
+          JOIN teacher_subject_assignments assigned ON assigned.tenant_id = stream.tenant_id
+            AND assigned.class_section_id = stream.class_section_id
+            AND (assigned.stream_id IS NULL OR assigned.stream_id = stream.id)
+          WHERE stream.tenant_id = w.tenant_id AND stream.class_section_id = w.class_section_id::text
+            AND assigned.teacher_user_id = $2 AND assigned.subject_id = w.subject_id::text
+            AND (assigned.academic_term_id IS NULL OR assigned.academic_term_id = es.academic_term_id::text)
+            AND assigned.status = 'active' AND assigned.mark_entry_allowed = TRUE
+            AND assigned.effective_from <= CURRENT_DATE
+            AND (assigned.effective_to IS NULL OR assigned.effective_to >= CURRENT_DATE)
+        ) AS stream_names,
         (
           SELECT COUNT(*) 
           FROM exam_marks em 
@@ -667,8 +695,6 @@ export class ClassTeacherService {
         WHERE ea.tenant_id::text = w.tenant_id::text
           AND ea.exam_series_id::text = w.exam_series_id::text
           AND ea.subject_id::text = w.subject_id::text
-        ORDER BY ea.created_at ASC
-        LIMIT 1
       ) assessment ON TRUE
       JOIN teacher_subject_assignments tsa ON tsa.class_section_id = w.class_section_id::text
         AND tsa.subject_id = w.subject_id::text
@@ -680,7 +706,7 @@ export class ClassTeacherService {
         AND (tsa.effective_to IS NULL OR tsa.effective_to >= CURRENT_DATE)
       WHERE w.tenant_id::text = $1::text
         AND tsa.teacher_user_id = $2
-        AND NOT ${teacherMarkSheetSubmittedSql('w', 'es', 'assessment.id', '$2')}
+        AND ($4::boolean OR NOT ${teacherMarkSheetSubmittedSql('w', 'es', 'assessment.id', '$2')})
         AND ($3::boolean OR (
           w.status = 'open'
           AND ${markEntryHasStartedSql('w', 'es')}
@@ -690,15 +716,16 @@ export class ClassTeacherService {
         ))
       ORDER BY w.closes_at ASC
     `;
-    const { rows: result } = await this.executeSql(query, [tenantId, userId, includeUnavailable]);
+    const { rows: result } = await this.executeSql(query, [tenantId, userId, includeUnavailable, includeSubmitted]);
     
     return {
       stats: {
-        totalWindows: result.length,
-        nearingDeadline: result.filter(r => r.entry_state === 'Open' && new Date(r.deadline).getTime() - Date.now() < 3 * 24 * 60 * 60 * 1000).length
+        totalWindows: result.filter(r => !r.is_submitted).length,
+        nearingDeadline: result.filter(r => !r.is_submitted && r.entry_state === 'Open' && new Date(r.deadline).getTime() - Date.now() < 3 * 24 * 60 * 60 * 1000).length
       },
       windows: result.map(r => ({
         id: r.window_id,
+        sheetId: `${r.window_id}:${r.assessment_id}`,
         examSeriesId: r.exam_series_id,
         academicTermId: r.academic_term_id,
         examName: r.exam_name,
@@ -708,16 +735,19 @@ export class ClassTeacherService {
         subjectName: r.subject_name,
         assessmentId: r.assessment_id,
         paperName: r.paper_name,
+        streamNames: r.stream_names || null,
+        savedCount: Number(r.saved_count),
+        submittedAt: r.submitted_at ? new Date(r.submitted_at).toISOString() : null,
         outOf: parseInt(r.out_of),
-        deadline: new Date(r.deadline).toLocaleDateString(),
+        deadline: new Date(r.deadline).toISOString(),
         enteredCount: parseInt(r.entered_count),
         totalStudents: parseInt(r.total_students),
-        canEnter: r.entry_state === 'Open',
+        canEnter: !r.is_submitted && r.entry_state === 'Open',
         entryState: r.entry_state,
         opensAt: new Date(r.opens_at).toISOString(),
-        status: r.entry_state !== 'Open'
+        status: r.is_submitted ? 'Submitted' : r.entry_state !== 'Open'
           ? r.entry_state
-          : parseInt(r.entered_count) > 0 ? 'Draft' : 'Pending',
+          : Number(r.saved_count) > 0 ? 'Draft' : 'Pending',
       }))
     };
   }
@@ -1179,7 +1209,7 @@ export class ClassTeacherService {
     }
 
     const windowQuery = `
-      SELECT
+      SELECT DISTINCT
         w.id,
         w.exam_series_id,
         w.class_section_id,
@@ -1189,6 +1219,9 @@ export class ClassTeacherService {
         cs.name AS class_name,
         subject.name AS subject_name,
         assessment.id AS assessment_id,
+        (SELECT COUNT(*) FROM exam_assessments paper
+          WHERE paper.tenant_id = w.tenant_id AND paper.exam_series_id = w.exam_series_id
+            AND paper.subject_id = w.subject_id) AS assessment_count,
         COALESCE(assessment.max_score, 100) AS out_of
       FROM exam_mark_entry_windows w
       JOIN exam_series es
@@ -1216,8 +1249,7 @@ export class ClassTeacherService {
         WHERE ea.tenant_id::text = w.tenant_id::text
           AND ea.exam_series_id::text = w.exam_series_id::text
           AND ea.subject_id::text = w.subject_id::text
-        ORDER BY ea.created_at ASC
-        LIMIT 1
+          AND ($5::text IS NULL OR ea.id::text = $5::text)
       ) assessment ON TRUE
       WHERE w.id = $1
         AND w.tenant_id = $2
@@ -1226,18 +1258,22 @@ export class ClassTeacherService {
         AND w.status = 'open'
         AND ${markEntryHasStartedSql('w', 'es')}
         AND w.closes_at >= NOW()
-      LIMIT 1
     `;
     const { rows: windows } = await this.executeSql(windowQuery, [
       payload.examId,
       tenantId,
       userId,
       payload.classSectionId,
+      payload.assessmentId?.trim() || null,
     ]);
     if (windows.length === 0) {
       throw new BadRequestException(
         'Exam window is closed, invalid, or not assigned to this teacher.',
       );
+    }
+
+    if (windows.length > 1 || (!payload.assessmentId && Number(windows[0].assessment_count) > 1)) {
+      throw new BadRequestException('Select the assessment paper before saving marks.');
     }
 
     const window = windows[0];

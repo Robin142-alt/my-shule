@@ -1,6 +1,6 @@
-import { AlertTriangle, ArrowLeft, BookOpenCheck, Download, FileText, Loader2, RefreshCw, Save, Search, Send } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Download, FileText, Loader2, RefreshCw, Save, Search, Send } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { cn } from "./shared-components";
@@ -11,6 +11,7 @@ import {
   type ExamScoreStatus, type PendingMarksWindow, type TeacherMarkSheetRow,
 } from "@/lib/modules/teacher-live";
 import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
+import { MarkbookList, sheetKey, isSubmitted, markbookDate, type MarkbookView } from "./markbook-list";
 
 type MarkDraft = { score: string; scoreStatus: ExamScoreStatus | ""; remarks: string };
 type DraftsByStudent = Record<string, MarkDraft>;
@@ -57,9 +58,19 @@ export function ExamsMarksWorkspace({ onStartAction }: {
   onStartAction: (action: TeacherAction, view: TeacherView, message: string) => void;
 }) {
   const liveSession = useLiveTenantSession("school");
+  return <TeacherMarkbooks key={`${liveSession.session?.tenantId}:${liveSession.session?.user.user_id}`}
+    liveSession={liveSession} onStartAction={onStartAction} />;
+}
+
+function TeacherMarkbooks({ liveSession, onStartAction }: {
+  liveSession: ReturnType<typeof useLiveTenantSession>;
+  onStartAction: (action: TeacherAction, view: TeacherView, message: string) => void;
+}) {
   const queryClient = useQueryClient();
   const [activeWindowId, setActiveWindowId] = useState<string | null>(null);
+  const [view, setView] = useState<MarkbookView>("active");
   const [draftMarks, setDraftMarks] = useState<Record<string, DraftsByStudent>>({});
+  const [savedDrafts, setSavedDrafts] = useState<Record<string, DraftsByStudent>>({});
   const [isSaving, setIsSaving] = useState(false);
   const savingRef = useRef(false);
   const [actionError, setActionError] = useState("");
@@ -69,38 +80,50 @@ export function ExamsMarksWorkspace({ onStartAction }: {
   const [reviewWindowId, setReviewWindowId] = useState<string | null>(null);
   const reviewHeading = useRef<HTMLHeadingElement>(null);
   const scoreInputs = useRef<Record<string, HTMLInputElement | null>>({});
-  const pendingKey = ["pending-marks", liveSession.session?.tenantId, liveSession.session?.user.user_id, "all"];
+  const pendingKey = ["pending-marks", liveSession.session?.tenantId, liveSession.session?.user.user_id, "markbooks"];
   const pendingMarksQuery = useQuery({
     queryKey: pendingKey,
-    queryFn: () => fetchPendingMarksLive(liveSession.session!, true),
+    queryFn: () => fetchPendingMarksLive(liveSession.session!, true, true),
     enabled: !!liveSession.session, retry: false, refetchInterval: 30_000,
   });
-  const windows = useMemo(() => (pendingMarksQuery.data?.windows ?? EMPTY_WINDOWS)
-    .filter(windowTask => windowTask.status.toLowerCase() !== "completed"), [pendingMarksQuery.data]);
-  const activeWindow = windows.find(windowTask => windowTask.id === activeWindowId)
-    ?? windows.find(windowTask => windowTask.canEnter !== false) ?? windows[0] ?? null;
-  const reviewing = !!activeWindow && reviewWindowId === activeWindow.id;
+  const sheets = pendingMarksQuery.data?.windows ?? EMPTY_WINDOWS;
+  const windows = sheets.filter(sheet => view === "submitted" ? isSubmitted(sheet) : !isSubmitted(sheet));
+  const activeWindow = windows.find(windowTask => sheetKey(windowTask) === activeWindowId) ?? null;
+  const submittedView = !!activeWindow && isSubmitted(activeWindow);
+  const reviewing = !!activeWindow && !submittedView && reviewWindowId === sheetKey(activeWindow);
   useEffect(() => { if (reviewing) reviewHeading.current?.focus(); }, [reviewing]);
+
+  const hasUnsavedChanges = Object.keys(draftMarks).length > 0;
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [hasUnsavedChanges]);
 
   const markSheetQuery = useQuery({
     queryKey: ["teacher-mark-sheet", liveSession.session?.tenantId, liveSession.session?.user.user_id,
-      activeWindow?.examSeriesId, activeWindow?.classSectionId, activeWindow?.subjectId, activeWindow?.assessmentId],
+      activeWindow?.examSeriesId, activeWindow?.classSectionId, activeWindow?.subjectId, activeWindow?.assessmentId,
+      submittedView ? "submitted" : "active"],
     queryFn: () => fetchTeacherMarkSheetLive(liveSession.session!, {
       examSeriesId: activeWindow!.examSeriesId, classSectionId: activeWindow!.classSectionId,
       subjectId: activeWindow!.subjectId, assessmentId: activeWindow!.assessmentId,
+      ...(submittedView ? { view: "submitted" as const } : {}),
     }),
     enabled: Boolean(liveSession.session && activeWindow?.examSeriesId && activeWindow.classSectionId
-      && activeWindow.subjectId && activeWindow.assessmentId && activeWindow.canEnter !== false),
+      && activeWindow.subjectId && activeWindow.assessmentId && (submittedView || activeWindow.canEnter !== false)),
     retry: false,
   });
-  const markRows = activeWindow?.canEnter === false ? EMPTY_ROWS : markSheetQuery.data ?? EMPTY_ROWS;
-  const activeDrafts = useMemo(() => Object.fromEntries(markRows.map(row => [row.student_id,
-    (activeWindow && draftMarks[activeWindow.id]?.[row.student_id]) || draftFromRow(row),
-  ])) as DraftsByStudent, [activeWindow, draftMarks, markRows]);
+  const markRows = activeWindow?.canEnter === false && !submittedView ? EMPTY_ROWS : markSheetQuery.data ?? EMPTY_ROWS;
+  const activeDrafts = Object.fromEntries(markRows.map(row => [row.student_id,
+    (!submittedView && activeWindow && (draftMarks[sheetKey(activeWindow)]?.[row.student_id]
+      || savedDrafts[sheetKey(activeWindow)]?.[row.student_id])) || draftFromRow(row),
+  ])) as DraftsByStudent;
   const blankRows = markRows.filter(row => !activeDrafts[row.student_id].score.trim());
   const invalidRows = markRows.filter(row => scoreError(activeDrafts[row.student_id], activeWindow?.outOf ?? 100));
   const enteredCount = markRows.length - blankRows.length;
-  const readOnly = activeWindow?.canEnter === false || markRows.some(row => row.id && row.status !== "draft");
+  const readOnly = submittedView || activeWindow?.canEnter === false || markRows.some(row => row.id && row.status !== "draft");
+  const exportUnavailable = !activeWindow || !markRows.length || isSaving || markSheetQuery.isError || markSheetQuery.isLoading;
   const unavailable = !activeWindow || readOnly || !markRows.length || isSaving || pendingMarksQuery.isError
     || markSheetQuery.isError || markSheetQuery.isLoading;
   const visibleRows = markRows.filter(row => (!onlyBlank || !activeDrafts[row.student_id].score.trim())
@@ -109,11 +132,11 @@ export function ExamsMarksWorkspace({ onStartAction }: {
   function updateDraft(studentId: string, patch: Partial<MarkDraft>) {
     if (!activeWindow || isSaving || readOnly) return;
     setActionError(""); setNotice("");
-    setDraftMarks(current => ({ ...current, [activeWindow.id]: {
-      ...current[activeWindow.id], [studentId]: { ...activeDrafts[studentId], ...patch },
+    setDraftMarks(current => ({ ...current, [sheetKey(activeWindow)]: {
+      ...current[sheetKey(activeWindow)], [studentId]: { ...activeDrafts[studentId], ...patch },
     } }));
   }
-  function switchWindow(id: string) {
+  function switchWindow(id: string | null) {
     setActiveWindowId(id); setReviewWindowId(null); setSearch(""); setOnlyBlank(false); setActionError(""); setNotice("");
   }
   function reportInvalidScores() {
@@ -132,7 +155,9 @@ export function ExamsMarksWorkspace({ onStartAction }: {
     }
     const marks = Object.fromEntries(markRows.flatMap(row => {
       const draft = activeDrafts[row.student_id];
-      const status = scoreStatus(draft);
+      // Clearing a persisted score must clear it on the server as an incomplete
+      // draft, rather than silently keeping the previous saved score.
+      const status = scoreStatus(draft) || (action === "draft" && (row.id || savedDrafts[sheetKey(activeWindow)]?.[row.student_id]) ? "incomplete" : "");
       if (!status) return [];
       return [[row.student_id, { score: status === "entered" ? Number(draft.score) : null,
         score_status: status, ...(draft.remarks.trim() ? { remarks: draft.remarks.trim() } : {}),
@@ -142,25 +167,48 @@ export function ExamsMarksWorkspace({ onStartAction }: {
     savingRef.current = true; setIsSaving(true); setActionError(""); setNotice("");
     try {
       const result = await saveExamMarksLive(liveSession.session, {
-        action, examId: activeWindow.id, classSectionId: activeWindow.classSectionId, marks,
+        action, examId: activeWindow.id, assessmentId: activeWindow.assessmentId,
+        classSectionId: activeWindow.classSectionId, marks,
       });
       if (!result.success) throw new Error("Marks were not saved. Please retry.");
       if (action === "submit") {
-        // Remove the submitted sheet immediately, including its cached roster.
+        // Move only the confirmed paper to history. Other subjects and drafts stay.
+        await queryClient.cancelQueries({ queryKey: pendingKey, exact: true });
         queryClient.setQueryData(pendingKey, (current: typeof pendingMarksQuery.data) => current ? {
-          ...current, windows: current.windows.filter(windowTask => windowTask.id !== activeWindow.id),
+          ...current, windows: current.windows.map(windowTask => sheetKey(windowTask) === sheetKey(activeWindow)
+            ? { ...windowTask, status: "Submitted", canEnter: false, submittedAt: new Date().toISOString() } : windowTask),
         } : current);
         queryClient.removeQueries({ queryKey: ["teacher-mark-sheet", liveSession.session.tenantId,
           liveSession.session.user.user_id, activeWindow.examSeriesId, activeWindow.classSectionId,
-          activeWindow.subjectId, activeWindow.assessmentId], exact: true });
+          activeWindow.subjectId, activeWindow.assessmentId, "active"], exact: true });
         setActiveWindowId(null); setReviewWindowId(null); setSearch(""); setOnlyBlank(false);
+        setView("active");
+      } else {
+        // Keep the confirmed server draft visible even if the subsequent refresh fails.
+        setSavedDrafts(current => ({ ...current, [sheetKey(activeWindow)]: activeDrafts }));
+        queryClient.setQueryData(["teacher-mark-sheet", liveSession.session.tenantId,
+          liveSession.session.user.user_id, activeWindow.examSeriesId, activeWindow.classSectionId,
+          activeWindow.subjectId, activeWindow.assessmentId, "active"], markRows.map(row => marks[row.student_id]
+            ? { ...row, score: marks[row.student_id].score, score_status: marks[row.student_id].score_status,
+              remarks: marks[row.student_id].remarks ?? null, status: "draft" } : row));
+        queryClient.setQueryData(pendingKey, (current: typeof pendingMarksQuery.data) => current ? {
+          ...current, windows: current.windows.map(sheet => sheetKey(sheet) === sheetKey(activeWindow)
+            ? { ...sheet, status: "Draft", savedCount: Object.keys(marks).length } : sheet),
+        } : current);
       }
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["pending-marks"] }),
-        queryClient.invalidateQueries({ queryKey: ["teacher-mark-sheet"] }),
+        queryClient.invalidateQueries({ queryKey: ["pending-marks", liveSession.session.tenantId, liveSession.session.user.user_id] }),
+        queryClient.invalidateQueries({ queryKey: ["teacher-mark-sheet", liveSession.session.tenantId, liveSession.session.user.user_id] }),
       ]);
-      setDraftMarks(current => { const next = { ...current }; delete next[activeWindow.id]; return next; });
-      const message = action === "submit" ? `${activeWindow.examName}: results submitted for moderation.` : "Draft saved.";
+      const sheetState = queryClient.getQueryState(["teacher-mark-sheet", liveSession.session.tenantId,
+        liveSession.session.user.user_id, activeWindow.examSeriesId, activeWindow.classSectionId,
+        activeWindow.subjectId, activeWindow.assessmentId, "active"]);
+      if (action === "submit" || sheetState?.status === "success") {
+        setSavedDrafts(current => { const next = { ...current }; delete next[sheetKey(activeWindow)]; return next; });
+      }
+      setDraftMarks(current => { const next = { ...current }; delete next[sheetKey(activeWindow)]; return next; });
+      const label = `${activeWindow.subjectName} · ${activeWindow.className} · ${activeWindow.paperName}`;
+      const message = action === "submit" ? `${label}: submitted for moderation. Choose your next markbook below.` : `${label}: draft saved. You can continue editing or return later.`;
       setNotice(message); toast.success(message);
       onStartAction("marks", "exams-marks", message);
     } catch (error) {
@@ -171,7 +219,7 @@ export function ExamsMarksWorkspace({ onStartAction }: {
   function submitResults() {
     if (unavailable || reportInvalidScores()) return;
     setActionError("");
-    if (blankRows.length) setReviewWindowId(activeWindow!.id);
+    if (blankRows.length) setReviewWindowId(sheetKey(activeWindow!));
     else void persistScores("submit");
   }
   function downloadMarkbook() {
@@ -189,7 +237,7 @@ export function ExamsMarksWorkspace({ onStartAction }: {
       subtitle: `${activeWindow.className} | ${activeWindow.subjectName} | ${activeWindow.paperName}`,
       rows: markRows.map(row => ({ label: `${row.admission_number ?? "-"} - ${row.student_name ?? "Unnamed student"}`,
         value: activeDrafts[row.student_id].score.trim() ? `${activeDrafts[row.student_id].score} / ${activeWindow.outOf}` : reasonLabel(activeDrafts[row.student_id]),
-      })), footer: "Draft markbook. Results are subject to moderation and publication.",
+      })), footer: submittedView ? "Submitted markbook. Results are subject to moderation and publication." : "Draft markbook. Results are subject to moderation and publication.",
     });
   }
 
@@ -214,34 +262,31 @@ export function ExamsMarksWorkspace({ onStartAction }: {
           <button type="button" onClick={() => void pendingMarksQuery.refetch()} disabled={pendingMarksQuery.isFetching} className={cn(buttonClass, "mt-3")} aria-label="Retry loading markbooks">Retry</button>
         </div>
       ) : !activeWindow ? (
-        <div className="px-5 py-10 text-center">
-          <BookOpenCheck className="mx-auto h-8 w-8 text-slate-400" />
-          <h3 className="mt-3 font-semibold">No exams awaiting marks</h3>
-          <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-500">Submitted markbooks are removed from this list. If an exam is missing, ask the Exams Manager to check your active class and subject allocation and open it for marks.</p>
-        </div>
+        <MarkbookList sheets={sheets} drafts={Object.keys(draftMarks)} view={view} onView={setView} onOpen={switchWindow} />
       ) : (
         <div className="min-w-0">
           <div className="grid gap-2 border-b border-slate-200 bg-slate-50/70 p-3 sm:p-4 sm:px-6">
+            <button type="button" onClick={() => switchWindow(null)} disabled={isSaving} className={cn(buttonClass, "justify-self-start")}><ArrowLeft className="h-4 w-4" /> All markbooks</button>
             <label className="grid min-w-0 gap-1.5 text-sm font-medium">
               Exam / class / subject
-              <select aria-label="Exam / class / subject" value={activeWindow.id} onChange={event => switchWindow(event.target.value)} disabled={isSaving}
+              <select aria-label="Exam / class / subject" value={sheetKey(activeWindow)} onChange={event => switchWindow(event.target.value)} disabled={isSaving}
                 className="min-h-12 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-base font-normal focus:outline-blue-600 disabled:opacity-60">
-                {windows.map(windowTask => <option key={windowTask.id} value={windowTask.id}>{windowTask.examName} · {windowTask.className} · {windowTask.subjectName} · {windowTask.paperName}{windowTask.canEnter === false ? ` (${windowTask.entryState})` : ""}</option>)}
+                {windows.map(windowTask => <option key={sheetKey(windowTask)} value={sheetKey(windowTask)}>{windowTask.examName} · {windowTask.className}{windowTask.streamNames ? ` · ${windowTask.streamNames}` : ""} · {windowTask.subjectName} · {windowTask.paperName}{windowTask.canEnter === false ? ` (${windowTask.entryState})` : ""}</option>)}
               </select>
             </label>
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500">
               <div className="min-w-0 break-words">
                 <p className="mb-1 font-medium text-slate-700 sm:hidden">{activeWindow.className} · {activeWindow.subjectName}</p>
-                <p>{activeWindow.paperName} <span className="mx-1">·</span> Out of <strong className="font-semibold text-slate-700">{activeWindow.outOf}</strong>{activeWindow.deadline && <> <span className="mx-1">·</span> Due {activeWindow.deadline}</>}</p>
+                <p>{activeWindow.paperName} <span className="mx-1">·</span> Out of <strong className="font-semibold text-slate-700">{activeWindow.outOf}</strong>{activeWindow.deadline && <> <span className="mx-1">·</span> Due {markbookDate(activeWindow.deadline)}</>}</p>
               </div>
               <div className="flex gap-2">
-                <button type="button" aria-label="Download CSV" onClick={downloadMarkbook} disabled={unavailable} className={buttonClass}><Download className="h-4 w-4" /><span><span className="hidden sm:inline">Download </span>CSV</span></button>
-                <button type="button" aria-label="Print sheet" onClick={printSheet} disabled={unavailable} className={buttonClass}><FileText className="h-4 w-4" /><span>Print<span className="hidden sm:inline"> sheet</span></span></button>
+                <button type="button" aria-label="Download CSV" onClick={downloadMarkbook} disabled={exportUnavailable} className={buttonClass}><Download className="h-4 w-4" /><span><span className="hidden sm:inline">Download </span>CSV</span></button>
+                <button type="button" aria-label="Print sheet" onClick={printSheet} disabled={exportUnavailable} className={buttonClass}><FileText className="h-4 w-4" /><span>Print<span className="hidden sm:inline"> sheet</span></span></button>
               </div>
             </div>
           </div>
           {actionError && <p role="alert" className="mx-4 mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{actionError}</p>}
-          {activeWindow.canEnter === false ? (
+          {activeWindow.canEnter === false && !submittedView ? (
             <div role="status" className="m-4 rounded-lg border border-amber-200 bg-amber-50 p-4"><h3 className="font-semibold">{activeWindow.entryState || "Entry unavailable"}</h3><p className="mt-1 text-sm leading-6 text-slate-600">{entryUnavailableReason(activeWindow)}</p></div>
           ) : markSheetQuery.isLoading ? (
             <p role="status" className="flex items-center justify-center gap-2 p-10 text-sm text-slate-500"><Loader2 className="h-5 w-5 animate-spin" /> Loading students...</p>
@@ -272,7 +317,7 @@ export function ExamsMarksWorkspace({ onStartAction }: {
             </section>
           ) : (
             <>
-              {readOnly && <p role="status" className="m-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">These results are in moderation. Refresh exams to update your list.</p>}
+              {readOnly && <p role="status" className="m-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">Submitted results are read-only. The Exams Manager must return the sheet before you can edit it.</p>}
               <div className="flex flex-wrap items-center gap-2 p-3 sm:gap-3 sm:p-4 sm:px-6">
                 <label className="relative min-w-0 flex-1 basis-48"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" /><input type="search" aria-label="Find student" placeholder="Name or admission number" value={search} onChange={event => setSearch(event.target.value)} className="min-h-11 w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-base focus:outline-blue-600" /></label>
                 <button type="button" aria-label={`Blank scores (${blankRows.length})`} aria-pressed={onlyBlank} onClick={() => setOnlyBlank(value => !value)} className={cn(buttonClass, onlyBlank && "border-blue-600 bg-blue-50 text-blue-700")}>Blank ({blankRows.length})</button>
@@ -304,13 +349,13 @@ export function ExamsMarksWorkspace({ onStartAction }: {
               {!visibleRows.length && <div className="p-6 text-center"><p className="text-sm text-slate-500">No students match these filters.</p><button type="button" onClick={() => { setSearch(""); setOnlyBlank(false); }} className={cn(buttonClass, "mt-3")}>Clear filters</button></div>}
             </>
           )}
-          <footer className="sticky bottom-0 z-10 grid grid-cols-2 items-center gap-2 rounded-b-xl border-t border-slate-200 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex sm:flex-wrap sm:justify-end sm:px-6">
-            <p className="col-span-2 text-xs text-slate-500 empty:hidden sm:mr-auto">{isSaving ? "Saving results..." : activeWindow && draftMarks[activeWindow.id] ? "Unsaved changes" : ""}</p>
+          {!submittedView && <footer className="sticky bottom-0 z-10 grid grid-cols-2 items-center gap-2 rounded-b-xl border-t border-slate-200 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex sm:flex-wrap sm:justify-end sm:px-6">
+            <p className="col-span-2 text-xs text-slate-500 empty:hidden sm:mr-auto">{isSaving ? "Saving results..." : activeWindow && draftMarks[sheetKey(activeWindow)] ? "Unsaved changes — save before leaving" : "Saved drafts remain editable until you submit."}</p>
             {!reviewing && <button type="button" onClick={() => void persistScores("draft")} disabled={unavailable} className={buttonClass}><Save className="h-4 w-4" /> Save draft</button>}
             <button type="button" onClick={() => reviewing ? void persistScores("submit") : submitResults()} disabled={unavailable} className={cn(primaryClass, reviewing && "col-span-2")}>
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="hidden h-4 w-4 sm:block" />}{reviewing ? "Confirm submission" : "Submit results"}
             </button>
-          </footer>
+          </footer>}
         </div>
       )}
     </section>
