@@ -3681,6 +3681,7 @@ test('ExamsRepository derives teacher mark-entry rows from open windows, assessm
     0,
     null,
     null,
+    false,
   ]);
 });
 

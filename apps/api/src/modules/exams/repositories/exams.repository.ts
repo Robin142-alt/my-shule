@@ -5391,12 +5391,16 @@ export class ExamsRepository {
         AND ($5::uuid IS NULL OR mark_window.class_section_id = $5::uuid)
         AND ($8::uuid IS NULL OR mark_window.subject_id = $8::uuid)
         AND ($9::uuid IS NULL OR assessment.id = $9::uuid)
-        AND ($4::uuid IS NULL OR NOT ${teacherMarkSheetSubmittedSql('mark_window', 'series', 'assessment.id', '$4')})
-        AND mark_window.status = 'open'
-        AND ${markEntryHasStartedSql('mark_window', 'series')}
-        AND mark_window.closes_at >= NOW()
-        AND series.locked_at IS NULL AND series.published_at IS NULL
-        AND series.status NOT IN ('locked', 'published', 'archived')
+        AND (
+          ($10::boolean AND mark.status IN ('submitted', 'reviewed', 'approved', 'locked', 'published'))
+          OR (NOT $10::boolean
+            AND ($4::uuid IS NULL OR NOT ${teacherMarkSheetSubmittedSql('mark_window', 'series', 'assessment.id', '$4')})
+            AND mark_window.status = 'open'
+            AND ${markEntryHasStartedSql('mark_window', 'series')}
+            AND mark_window.closes_at >= NOW()
+            AND series.locked_at IS NULL AND series.published_at IS NULL
+            AND series.status NOT IN ('locked', 'published', 'archived'))
+        )
       ORDER BY
         class_section.name NULLS LAST,
         subject.name NULLS LAST,
@@ -5416,6 +5420,7 @@ export class ExamsRepository {
       offset,
       filters.subject_id ?? null,
       filters.assessment_id ?? null,
+      filters.view === 'submitted',
     ];
     const result = await this.executeSql(query, params);
     return result.rows;

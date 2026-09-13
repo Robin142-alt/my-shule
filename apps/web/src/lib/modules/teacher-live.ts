@@ -130,6 +130,10 @@ export async function fetchClassRegisterLive(session: LiveAuthSession, streamId:
 
 export interface PendingMarksWindow {
   id: string;
+  sheetId?: string;
+  streamNames?: string | null;
+  savedCount?: number;
+  submittedAt?: string | null;
   examSeriesId: string;
   academicTermId: string;
   examName: string;
@@ -149,11 +153,14 @@ export interface PendingMarksWindow {
   opensAt?: string;
 }
 
-export async function fetchPendingMarksLive(session: LiveAuthSession, includeUnavailable = false): Promise<{
+export async function fetchPendingMarksLive(session: LiveAuthSession, includeUnavailable = false, includeSubmitted = false): Promise<{
   stats: { totalWindows: number; nearingDeadline: number };
   windows: PendingMarksWindow[];
 }> {
-  return withSession(session, `/class-teacher/pending-marks${includeUnavailable ? "?includeUnavailable=true" : ""}`, {
+  const query = new URLSearchParams();
+  if (includeUnavailable) query.set('includeUnavailable', 'true');
+  if (includeSubmitted) query.set('includeSubmitted', 'true');
+  return withSession(session, `/class-teacher/pending-marks${query.size ? `?${query}` : ""}`, {
     method: "GET",
   });
 }
@@ -327,6 +334,7 @@ export async function fetchTeacherMarkSheetLive(
     classSectionId: string;
     subjectId: string;
     assessmentId: string;
+    view?: 'active' | 'submitted';
   },
 ): Promise<TeacherMarkSheetRow[]> {
   const query = new URLSearchParams({
@@ -336,6 +344,7 @@ export async function fetchTeacherMarkSheetLive(
     assessment_id: filters.assessmentId,
     limit: "100",
   });
+  if (filters.view === 'submitted') query.set('view', 'submitted');
   // The API pages at 100 students. Submission needs the entire assigned roster,
   // including large classes, before it can ask about every missing score.
   const rows: TeacherMarkSheetRow[] = [];
@@ -359,6 +368,7 @@ export interface SaveTeacherMarksPayload extends Record<string, unknown> {
   action: "draft" | "submit";
   examId: string;
   classSectionId: string;
+  assessmentId?: string;
   marks: Record<string, TeacherMarkDraftInput>;
 }
 
