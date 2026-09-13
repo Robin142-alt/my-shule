@@ -53,6 +53,9 @@ jobs:
       - name: Teacher marks roster and routing contracts
         run: npm --prefix apps/web run test:design -- teacher-mark-sheet-pagination teacher-dashboard-routing
 
+      - name: Exams manager dashboard and teacher follow-up contracts
+        run: npm --prefix apps/web run test:design -- --runTestsByPath tests/design/exams-manager-command-center.test.ts tests/design/exams-manager-human-workflows.test.ts tests/design/exams-manager-routing.test.tsx tests/design/exams-manager-teacher-progress.test.tsx
+
       - name: Sidebar loading and recovery contracts
         run: npm --prefix apps/web run test:design -- sidebar-workspace-recovery
 
@@ -125,6 +128,12 @@ jobs:
           DATABASE_URL: ""
           NODE_ENV: test
         run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/staff-directory.integration-spec.ts
+
+      - name: Exams manager teacher progress and school isolation
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/teacher-mark-progress.integration-spec.ts
 
       - name: Upload build artifacts
         if: github.ref == 'refs/heads/main'
