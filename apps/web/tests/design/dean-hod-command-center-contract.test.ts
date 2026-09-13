@@ -57,7 +57,7 @@ describe("academic leadership command center shell contract", () => {
     const source = readSource("src/components/school/dean-academics/assessments-workspace.tsx");
 
     expect(source).toMatch(/\/exams\/marks\/moderate/);
-    expect(source).toMatch(/mark_ids: markIds/);
+    expect(source).toMatch(/mark_ids: markIds\.slice\(index, index \+ 500\)/);
     expect(source).toMatch(/action: "approve" \| "return_for_correction"/);
     expect(source).toMatch(/Required correction reason/);
     expect(source).toMatch(/\/exams\/report-cards\?status=under_review&limit=50/);

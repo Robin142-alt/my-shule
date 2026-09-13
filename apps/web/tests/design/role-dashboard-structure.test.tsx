@@ -197,7 +197,7 @@ describe("role dashboard operational structure", () => {
     }> = [
       { role: "grade-master", testId: "role-operational-command-center", heading: /Grade\/Form Master Command Center/i },
       { role: "hod", testId: "role-operational-command-center", heading: /Head of Department/i },
-      { role: "dean-academics", testId: "role-operational-command-center", heading: /Dean of Academics Dashboard/i },
+      { role: "dean-academics", testId: "role-operational-command-center", heading: /^Dean of Academics$/i },
       { role: "deputy-principal", testId: "deputy-principal-command-center", heading: /Deputy Principal/i },
       { role: "exams-manager", testId: "role-operational-command-center", heading: /Exams Manager/i },
       { role: "principal", testId: "principal-practical-command-center", heading: /Exam Performance Trend/i },

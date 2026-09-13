@@ -31,6 +31,14 @@ describe("school role command identity", () => {
   ];
 
   it.each(integratedRoleCommandCenters)("uses the integrated live-school header in %s", (file) => {
+    if (file === "dean-academics-command-center.tsx") {
+      const source = schoolComponent(file);
+      expect(source).toMatch(/useSchoolCommandIdentity/);
+      expect(source).toMatch(/<SchoolCommandSidebarIdentity[^>]*compact/);
+      expect(source).toMatch(/<SchoolDashboardRoleSwitcher/);
+      expect(source).toMatch(/\{schoolName\}/);
+      return;
+    }
     expect(schoolComponent(file)).toMatch(/IntegratedSchoolCommandHeader/);
   });
 

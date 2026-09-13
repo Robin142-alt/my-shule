@@ -1,87 +1,195 @@
 "use client";
-import { Clock } from "lucide-react";
-import { Panel, StatusChip, Tone, listFromData } from "./shared";
-import { useSchoolQuery } from "@/lib/data/school-hooks";
 
-type TeacherWorkloadRecord = {
+import { useState } from "react";
+import { UsersRound } from "lucide-react";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { deanButtonClass, Panel, QueryNotice, StatusChip } from "./shared";
+import styles from "./dean-workspace.module.css";
+
+type WorkloadRecord = {
   id: string;
   teacher_name: string;
-  department: string;
   lessons_per_week: number;
-  max_allowed: number;
+  subjects: number;
   classes: number;
-  status: string;
 };
 
-type TeacherWorkloadData = {
-  metrics: {
-    total_teachers: number;
-    overloaded: number;
-    underloaded: number;
-  };
-  teacherworkloadList: TeacherWorkloadRecord[];
-};
-
-export function TeacherWorkloadWorkspace() {
-  const { data, isLoading } = useSchoolQuery<TeacherWorkloadData>('/admin-command/dean-academics/teacher-workload');
-  const items = listFromData<TeacherWorkloadRecord>(data, "teacherworkloadList");
-
-  const getStatusTone = (st: string): Tone => {
-    if (st === "Active" || st === "Available" || st === "Approved" || st === "Completed" || st === "Resolved" || st === "Present" || st === "Functional" || st === "On Track" || st === "Cleared") return "success";
-    if (st === "Pending" || st === "In Progress" || st === "Pending Approval" || st === "Scheduled" || st === "On Loan" || st === "Behind" || st === "Departed" || st === "Warning" || st === "Pending Review") return "warning";
-    if (st === "Overdue" || st === "Critical" || st === "Rejected" || st === "Escalated" || st === "Expired" || st === "Damaged" || st === "Flagged" || st === "Absent" || st === "Blacklisted" || st === "Disposed" || st === "Unauthorized") return "danger";
-    if (st === "Issued" || st === "Checked In" || st === "Submitted" || st === "Booked" || st === "Sent" || st === "On Leave") return "info";
-    return "neutral";
-  };
-
+export function TeacherWorkloadWorkspace({
+  onOpenTimetable,
+}: {
+  onOpenTimetable?: () => void;
+}) {
+  const { data, isLoading, error, refetch } = useSchoolQuery<WorkloadRecord[]>(
+    "/admin-command/dean-academics/teacher-workload",
+  );
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
+  const rows = Array.isArray(data) ? data : [];
+  const filtered = rows.filter(
+    (row) =>
+      row.teacher_name.toLowerCase().includes(search.trim().toLowerCase()) &&
+      (filter === "all" ||
+        (filter === "assigned" ? row.classes > 0 : row.classes === 0)),
+  );
   return (
-    <Panel title="Teacher Workload" description="Monitor teacher teaching loads and allocations." icon={Clock}>
-      <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Total Teachers</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.total_teachers ?? 0}</div>
+    <div className={styles.workspace}>
+      <Panel
+        title="Teacher Workload"
+        description="Active staff and their recorded teaching assignments. Staff without assignments may hold non-teaching roles."
+        icon={UsersRound}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            {onOpenTimetable ? (
+              <button onClick={onOpenTimetable} className={deanButtonClass}>
+                Open timetable
+              </button>
+            ) : null}
+            <button
+              onClick={() => void refetch()}
+              disabled={isLoading}
+              className={deanButtonClass}
+            >
+              Refresh
+            </button>
+          </div>
+        }
+      >
+        <QueryNotice error={error} onRetry={() => void refetch()} />
+        <div className="mb-4 grid grid-cols-3 divide-x divide-slate-200 rounded-md border border-slate-200 bg-slate-50 py-3">
+          {[
+            ["Active staff", rows.length],
+            ["Teaching assigned", rows.filter((row) => row.classes > 0).length],
+            [
+              "Weekly lessons",
+              rows.reduce((sum, row) => sum + Number(row.lessons_per_week), 0),
+            ],
+          ].map(([label, value]) => (
+            <div key={label} className="px-3">
+              <p className="text-xs text-slate-500">{label}</p>
+              <p className="mt-1 text-xl font-semibold tabular-nums">
+                {error || isLoading ? "—" : value}
+              </p>
+            </div>
+          ))}
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Overloaded</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.overloaded ?? 0}</div>
+        <div className="mb-4 flex flex-wrap gap-3">
+          <label className="min-w-0 flex-1 text-xs text-slate-500">
+            Search staff
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Staff name…"
+              className="mt-1 block min-h-10 w-full rounded-md border border-slate-200 px-3 text-sm"
+            />
+          </label>
+          <label className="text-xs text-slate-500">
+            Assignments
+            <select
+              value={filter}
+              onChange={(event) => setFilter(event.target.value)}
+              className="mt-1 block min-h-10 rounded-md border border-slate-200 bg-white px-3 text-sm"
+            >
+              <option value="all">All staff</option>
+              <option value="assigned">With teaching assignments</option>
+              <option value="unassigned">No teaching assignments</option>
+            </select>
+          </label>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Underloaded</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.underloaded ?? 0}</div>
-        </div>
-      </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
-        <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
-            <tr>
-              <th className="px-4 py-3 font-bold">Teacher Name</th>
-              <th className="px-4 py-3 font-bold">Department</th>
-              <th className="px-4 py-3 font-bold">Lessons Per Week</th>
-              <th className="px-4 py-3 font-bold">Max Allowed</th>
-              <th className="px-4 py-3 font-bold">Classes</th>
-              <th className="px-4 py-3 font-bold">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
-            ) : items.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No teacher workload records yet. Subject allocations and timetable slots will populate this table.</td></tr>
-            ) : (
-              items.map(row => (
-                <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 text-[#64748B]">{row.teacher_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.department}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.lessons_per_week}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.max_allowed}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.classes}</td>
-                  <td className="px-4 py-3"><StatusChip label={row.status} tone={getStatusTone(row.status)} /></td>
+        <div className="overflow-x-auto rounded-md border border-slate-200">
+          <table className={`w-full text-left text-sm ${styles.table}`}>
+            <thead className="bg-slate-50">
+              <tr>
+                {[
+                  "Staff member",
+                  "Classes",
+                  "Subjects",
+                  "Lessons / week",
+                  "Allocation",
+                ].map((label) => (
+                  <th key={label} className="px-4 py-3">
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {error ? (
+                <tr>
+                  <td colSpan={5} className="p-6 text-slate-500">
+                    Workload records are unavailable. Retry above.
+                  </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </Panel>
+              ) : isLoading ? (
+                <tr>
+                  <td colSpan={5} className="p-6 text-slate-500">
+                    Loading teaching assignments…
+                  </td>
+                </tr>
+              ) : filtered.length ? (
+                filtered.map((row) => (
+                  <tr key={row.id} className="border-t border-slate-200">
+                    <td
+                      data-label="Staff member"
+                      className="px-4 py-3 font-medium text-slate-800"
+                    >
+                      {row.teacher_name}
+                    </td>
+                    <td data-label="Classes" className="px-4 py-3 tabular-nums">
+                      {row.classes}
+                    </td>
+                    <td
+                      data-label="Subjects"
+                      className="px-4 py-3 tabular-nums"
+                    >
+                      {row.subjects}
+                    </td>
+                    <td
+                      data-label="Lessons / week"
+                      className="px-4 py-3 tabular-nums"
+                    >
+                      {row.lessons_per_week}
+                    </td>
+                    <td data-label="Allocation" className="px-4 py-3">
+                      <StatusChip
+                        label={
+                          row.classes
+                            ? "Teaching assigned"
+                            : "No teaching assignments"
+                        }
+                        tone={row.classes ? "info" : "neutral"}
+                      />
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="p-6 text-slate-500">
+                    {rows.length
+                      ? "No staff match these filters."
+                      : "No active staff records yet. Staff invitations and teaching allocations are managed through school administration."}
+                    {rows.length ? (
+                      <button
+                        onClick={() => {
+                          setSearch("");
+                          setFilter("all");
+                        }}
+                        className="ml-2 text-blue-700 underline"
+                      >
+                        Clear filters
+                      </button>
+                    ) : null}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {!error && !isLoading ? (
+          <p className="mt-3 text-xs text-slate-500">
+            {filtered.length} of {rows.length} staff members
+          </p>
+        ) : null}
+      </Panel>
+    </div>
   );
 }

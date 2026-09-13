@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
   BookMarked,
@@ -19,7 +19,11 @@ import {
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import { NotificationBell } from "@/components/shared/notification-bell";
-import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
+import {
+  SchoolCommandSidebarIdentity,
+  useSchoolCommandIdentity,
+} from "@/components/school/integrated-school-command-header";
+import { SchoolDashboardRoleSwitcher } from "@/components/school/school-dashboard-role-switcher";
 import { TaskQueue } from "@/components/shared/task-queue";
 
 import { buildSchoolSectionHref } from "./school-pages";
@@ -37,7 +41,7 @@ import { cn } from "./dean-academics/shared";
 
 type DeanRouteMode = "hosted" | "public";
 
-type DeanView =
+export type DeanView =
   | "overview"
   | "curriculum-coverage"
   | "department-performance"
@@ -63,21 +67,29 @@ const deanNavItems: DeanNavItem[] = [
     label: "Academic Overview",
     description: "School-wide academic health and current operating metrics.",
     icon: GraduationCap,
-    group: "Command Center",
+    group: "Academic office",
+  },
+  {
+    id: "assessments",
+    label: "Assessments",
+    description:
+      "Review submitted marks, lock reviewed batches, and approve report cards.",
+    icon: ClipboardList,
+    group: "Academic office",
+  },
+  {
+    id: "reports",
+    label: "Academic Reports",
+    description: "Preview and download academic report cards.",
+    icon: FileText,
+    group: "Academic office",
   },
   {
     id: "curriculum-coverage",
     label: "Curriculum Coverage",
     description: "Coverage progress across departments and classes.",
     icon: BookOpen,
-    group: "Academic Quality",
-  },
-  {
-    id: "department-performance",
-    label: "Department Performance",
-    description: "Compare department outcomes and academic trends.",
-    icon: BarChart3,
-    group: "Academic Quality",
+    group: "Teaching",
   },
   {
     id: "teacher-workload",
@@ -89,7 +101,8 @@ const deanNavItems: DeanNavItem[] = [
   {
     id: "timetable",
     label: "Master Timetable",
-    description: "School-wide published lessons, teacher load, classes, and shared resources.",
+    description:
+      "School-wide published lessons, teacher load, classes, and shared resources.",
     icon: CalendarDays,
     group: "Teaching",
   },
@@ -108,25 +121,18 @@ const deanNavItems: DeanNavItem[] = [
     group: "Teaching",
   },
   {
-    id: "assessments",
-    label: "Assessments",
-    description: "Review assessment readiness, moderation, and pending marking.",
-    icon: ClipboardList,
-    group: "Exams",
+    id: "department-performance",
+    label: "Department Performance",
+    description: "Compare department outcomes and academic trends.",
+    icon: BarChart3,
+    group: "Progress & support",
   },
   {
     id: "academic-interventions",
     label: "Academic Interventions",
     description: "Track learners, classes, and departments needing support.",
     icon: Target,
-    group: "Support",
-  },
-  {
-    id: "reports",
-    label: "Academic Reports",
-    description: "Generated reports and academic governance downloads.",
-    icon: FileText,
-    group: "Reports",
+    group: "Progress & support",
   },
 ];
 
@@ -176,7 +182,9 @@ export function normalizeDeanView(section?: string): DeanView {
 }
 
 function getDeanViewLabel(view: DeanView) {
-  return deanNavItems.find((item) => item.id === view)?.label ?? "Academic Overview";
+  return (
+    deanNavItems.find((item) => item.id === view)?.label ?? "Academic Overview"
+  );
 }
 
 function Sidebar({
@@ -187,10 +195,17 @@ function Sidebar({
   onViewChange: (view: DeanView) => void;
 }) {
   return (
-    <aside className="hidden h-full w-[292px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
-      <SchoolCommandSidebarIdentity eyebrow="Academic command" title="Dean of Academics" subtitle="Quality, moderation, interventions, and reporting" />
+    <aside className="hidden h-full w-[232px] shrink-0 flex-col border-r border-slate-200 bg-[#F8FAFC] lg:flex">
+      <SchoolCommandSidebarIdentity
+        eyebrow="MyShule / Academic office"
+        tone="light"
+        compact
+      />
 
-      <nav className="mt-4 space-y-1" aria-label="Dean of Academics navigation">
+      <nav
+        className="min-h-0 flex-1 overflow-y-auto px-3 pb-4"
+        aria-label="Dean of Academics navigation"
+      >
         {deanNavItems.map((item, index) => {
           const showGroup = item.group !== deanNavItems[index - 1]?.group;
           const Icon = item.icon;
@@ -199,19 +214,22 @@ function Sidebar({
           return (
             <div key={`${item.group}-${item.id}`}>
               {showGroup ? (
-                <p className="px-3 pb-2 pt-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+                <p className="px-3 pb-2 pt-5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                   {item.group}
                 </p>
               ) : null}
               <button
                 type="button"
                 onClick={() => onViewChange(item.id)}
+                aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-white/72 transition hover:bg-white/10 hover:text-white",
-                  active && "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]",
+                  "mb-0.5 flex min-h-10 w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-[13px] font-medium transition focus-visible:outline-2 focus-visible:outline-blue-600",
+                  active
+                    ? "bg-[#E5EDF8] text-[#174789]"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
                 )}
               >
-                <Icon className="h-4 w-4" aria-hidden="true" />
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span>{item.label}</span>
               </button>
             </div>
@@ -237,27 +255,37 @@ function Topbar({
   onSearchResult: (item: DeanNavItem) => void;
   onViewChange: (view: DeanView) => void;
 }) {
+  const { schoolName } = useSchoolCommandIdentity();
   return (
-    <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/95 px-4 py-3 backdrop-blur">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <p className="text-sm font-black text-[#071D49]">Academic leadership controls</p>
+    <header className="z-20 border-b border-slate-200 bg-white px-4 py-3 lg:sticky lg:top-0 lg:px-6">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 xl:grid-cols-[minmax(0,1fr)_auto_auto]">
+        <div className="min-w-0">
+          <h1 className="text-sm font-semibold text-slate-900">
+            Dean of Academics
+          </h1>
+          <p className="mt-0.5 text-xs text-slate-500">
+            <span className="lg:hidden">{schoolName} · </span>
+            {getDeanViewLabel(activeView)}
+          </p>
+        </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[260px]">
-            <label className="flex items-center gap-2 rounded-2xl border border-[#C7D4E6] bg-[#F8FAFC] px-3 py-2 text-sm font-semibold text-[#64748B]">
+        <div className="order-3 col-span-2 flex flex-wrap items-center gap-2 xl:order-2 xl:col-span-1">
+          <div className="relative min-w-0 flex-1 sm:w-60 sm:flex-none">
+            <label className="flex min-h-10 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">
               <Search className="h-4 w-4" />
               <span className="sr-only">Dean workspace search</span>
               <input
                 value={searchTerm}
                 onChange={(event) => onSearchTermChange(event.target.value)}
                 onKeyDown={(event) => {
+                  if (event.key === "Escape") onSearchTermChange("");
                   if (event.key === "Enter" && searchResults[0]) {
                     event.preventDefault();
                     onSearchResult(searchResults[0]);
                   }
                 }}
                 className="w-full bg-transparent outline-none"
-                placeholder="Search academic workspaces"
+                placeholder="Find a workspace…"
               />
             </label>
             {searchTerm.trim() ? (
@@ -270,8 +298,12 @@ function Topbar({
                       onClick={() => onSearchResult(item)}
                       className="w-full rounded-lg px-3 py-2 text-left transition hover:bg-[#F3F6FA]"
                     >
-                      <span className="block text-sm font-black text-[#071D49]">{item.label}</span>
-                      <span className="mt-0.5 block text-xs font-semibold text-[#64748B]">{item.description}</span>
+                      <span className="block text-sm font-semibold text-[#071D49]">
+                        {item.label}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-[#64748B]">
+                        {item.description}
+                      </span>
                     </button>
                   ))
                 ) : (
@@ -285,6 +317,9 @@ function Topbar({
           <TaskQueue />
           <ApprovalInbox />
           <NotificationBell />
+        </div>
+        <div className="order-2 max-w-[175px] sm:max-w-none xl:order-3">
+          <SchoolDashboardRoleSwitcher className="w-full sm:w-auto" />
         </div>
       </div>
 
@@ -301,17 +336,6 @@ function Topbar({
   );
 }
 
-function WorkspaceFrame({ activeView, children }: { activeView: DeanView; children: ReactNode }) {
-  return (
-    <div className="space-y-4">
-      <div role="status" className="rounded-xl border border-[#BFDBFE] bg-[#EEF5FF] px-4 py-3 text-sm font-bold text-[#071D49]">
-        {getDeanViewLabel(activeView)} opened. Data remains scoped to the current school and current user permissions.
-      </div>
-      {children}
-    </div>
-  );
-}
-
 function DeanWorkspace({
   activeView,
   onNavigate,
@@ -321,7 +345,12 @@ function DeanWorkspace({
 }) {
   switch (activeView) {
     case "curriculum-coverage":
-      return <CurriculumCoverageWorkspace />;
+      return (
+        <CurriculumCoverageWorkspace
+          onOpenPlans={() => onNavigate("lesson-plans")}
+          onOpenLogs={() => onNavigate("lesson-logs")}
+        />
+      );
     case "department-performance":
       return (
         <DepartmentPerformanceWorkspace
@@ -331,7 +360,11 @@ function DeanWorkspace({
         />
       );
     case "teacher-workload":
-      return <TeacherWorkloadWorkspace />;
+      return (
+        <TeacherWorkloadWorkspace
+          onOpenTimetable={() => onNavigate("timetable")}
+        />
+      );
     case "timetable":
       return (
         <StaffTimetableOverviewWorkspace
@@ -344,14 +377,16 @@ function DeanWorkspace({
     case "lesson-logs":
       return <LessonLogsWorkspace />;
     case "assessments":
-      return <AssessmentsWorkspace />;
+      return (
+        <AssessmentsWorkspace onOpenReports={() => onNavigate("reports")} />
+      );
     case "academic-interventions":
       return <AcademicInterventionsWorkspace />;
     case "reports":
       return <LiveReportCardsWorkspace audience="dean" />;
     case "overview":
     default:
-      return <OverviewWorkspace />;
+      return <OverviewWorkspace onNavigate={onNavigate} />;
   }
 }
 
@@ -364,12 +399,33 @@ export function DeanAcademicsCommandCenter({
   examsEnabled?: boolean;
   rolePermitted?: boolean;
 }) {
-  const [activeView, setActiveView] = useState<DeanView>(() => normalizeDeanView(activeSection));
+  const [activeView, setActiveView] = useState<DeanView>(() =>
+    normalizeDeanView(activeSection),
+  );
   const [searchTerm, setSearchTerm] = useState("");
+  const workspaceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setActiveView(normalizeDeanView(activeSection));
   }, [activeSection]);
+
+  useEffect(() => {
+    const restoreView = () => {
+      setActiveView(
+        normalizeDeanView(
+          window.location.pathname.split("/").filter(Boolean).pop(),
+        ),
+      );
+      setSearchTerm("");
+    };
+    window.addEventListener("popstate", restoreView);
+    return () => window.removeEventListener("popstate", restoreView);
+  }, []);
+
+  useEffect(() => {
+    if (workspaceRef.current) workspaceRef.current.scrollTop = 0;
+    window.scrollTo(0, 0);
+  }, [activeView]);
 
   const searchResults = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -379,7 +435,9 @@ export function DeanAcademicsCommandCenter({
     }
 
     return deanNavItems.filter((item) =>
-      `${item.label} ${item.description} ${item.group}`.toLowerCase().includes(query),
+      `${item.label} ${item.description} ${item.group}`
+        .toLowerCase()
+        .includes(query),
     );
   }, [searchTerm]);
 
@@ -389,7 +447,13 @@ export function DeanAcademicsCommandCenter({
     setSearchTerm("");
 
     if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", buildSchoolSectionHref("dean-academics", nextView, routeMode));
+      const href = buildSchoolSectionHref(
+        "dean-academics",
+        nextView,
+        routeMode,
+      );
+      if (window.location.pathname !== href)
+        window.history.pushState(null, "", href);
     }
   }
 
@@ -402,7 +466,7 @@ export function DeanAcademicsCommandCenter({
       data-testid="role-operational-command-center"
       data-role-dashboard="dean-academics"
       data-active-view={activeView}
-      className="min-h-dvh bg-[#F3F6FA] text-[#071D49] lg:h-dvh lg:overflow-hidden"
+      className="min-h-dvh bg-[#F5F7FA] text-slate-800 lg:h-dvh lg:overflow-hidden"
     >
       <div className="flex min-h-dvh lg:h-full">
         <Sidebar activeView={activeView} onViewChange={openView} />
@@ -415,11 +479,13 @@ export function DeanAcademicsCommandCenter({
             onSearchResult={openSearchResult}
             onViewChange={openView}
           />
-          <div className="space-y-4 p-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:p-6">
-            <IntegratedSchoolCommandHeader roleTitle="Dean of Academics Dashboard" fallbackUserLabel="Dean of Academics" />
-            <WorkspaceFrame activeView={activeView}>
+          <div
+            ref={workspaceRef}
+            className="p-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:p-6"
+          >
+            <div className="mx-auto max-w-[1600px]" key={activeView}>
               <DeanWorkspace activeView={activeView} onNavigate={openView} />
-            </WorkspaceFrame>
+            </div>
           </div>
         </main>
       </div>
