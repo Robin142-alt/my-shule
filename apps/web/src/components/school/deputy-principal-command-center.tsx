@@ -34,6 +34,7 @@ import {
 
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
+import { SchoolDashboardRoleSwitcher } from "@/components/school/school-dashboard-role-switcher";
 import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { TaskQueue } from "@/components/shared/task-queue";
@@ -332,7 +333,7 @@ export function DeputyPrincipalCommandCenter({
                 <DashboardGreeting name={deputyName} context={`${schoolName} command center`} />
                 <h1 className="mt-1 text-2xl font-black">Deputy Principal Dashboard</h1>
               </div>
-              <div className="grid gap-3 lg:min-w-[640px]">
+              <div className="grid min-w-0 gap-3 xl:w-full xl:max-w-[640px]">
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-4 top-3.5 h-5 w-5 text-[#5F6F89]" aria-hidden="true" />
                   <input
@@ -341,6 +342,7 @@ export function DeputyPrincipalCommandCenter({
                   />
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  <SchoolDashboardRoleSwitcher className="w-full sm:w-auto" />
                   <TaskQueue />
                   <ApprovalInbox />
                   <NotificationBell />

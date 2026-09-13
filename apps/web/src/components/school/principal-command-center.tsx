@@ -27,6 +27,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
+import { SchoolDashboardRoleSwitcher } from "@/components/school/school-dashboard-role-switcher";
 import { PermissionProvider } from "@/components/providers/permission-context";
 import { UserManagementWorkspace } from "@/components/school/user-management-workspace";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
@@ -635,15 +636,18 @@ export function PrincipalCommandCenter({
                     <DashboardGreeting name={principalName} context={`${schoolName} command center`} />
                     <h1 className="mt-1 text-2xl font-black">Principal Dashboard</h1>
                   </div>
-                  <button
-                    type="button"
-                    aria-label="Open principal navigation"
-                    className="rounded-xl border border-[#C8D5EA] bg-[#F8FAFC] px-3 py-2 text-sm font-black text-[#071D49] xl:hidden"
-                    onClick={() => setMobileSidebarOpen(true)}
-                  >
-                    <Menu className="mr-2 inline h-4 w-4" aria-hidden="true" />
-                    Menu
-                  </button>
+                  <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
+                    <SchoolDashboardRoleSwitcher className="w-full sm:w-auto" />
+                    <button
+                      type="button"
+                      aria-label="Open principal navigation"
+                      className="rounded-xl border border-[#C8D5EA] bg-[#F8FAFC] px-3 py-2 text-sm font-black text-[#071D49] xl:hidden"
+                      onClick={() => setMobileSidebarOpen(true)}
+                    >
+                      <Menu className="mr-2 inline h-4 w-4" aria-hidden="true" />
+                      Menu
+                    </button>
+                  </div>
                 </div>
               </header>
 

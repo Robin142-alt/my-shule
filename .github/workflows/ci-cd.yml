@@ -45,7 +45,7 @@ jobs:
         run: npm --prefix apps/web run test:design -- persistent-login auth-route-contract auth-token-containment server-auth-client session-refreshing-fetch session-logout dashboard-api-cookie-session
 
       - name: Dashboard role switching and delayed session responses
-        run: npm --prefix apps/web run test:design -- role-switch-consistency dashboard-role-context school-dashboard-role-switcher active-role-cache-isolation
+        run: npm --prefix apps/web run test:design -- role-switch-consistency dashboard-role-context school-dashboard-role-switcher active-role-cache-isolation leadership-teacher-role-switch
 
       - name: Academic intelligence workspace contracts
         run: npm --prefix apps/web run test:design -- academic-intelligence head-of-subject exams-workspace teacher-exams-marks-workspace
