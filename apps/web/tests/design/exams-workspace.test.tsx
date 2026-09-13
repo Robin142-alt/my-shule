@@ -508,6 +508,9 @@ describe("exams workspace", () => {
     jest.clearAllMocks();
     global.fetch = jest.fn((input: RequestInfo | URL) => {
       const urlStr = String(input);
+      if (urlStr.includes("/class-teacher/pending-marks")) {
+        return Promise.resolve(jsonResponse({ stats: { totalWindows: 0, nearingDeadline: 0 }, windows: [] }));
+      }
       if (urlStr.includes("/api/school/modules/me")) {
         return Promise.resolve({
           ok: true,
@@ -544,6 +547,7 @@ describe("exams workspace", () => {
   });
 
   it("opens the teacher exams workspace with a clear empty markbook state", async () => {
+    mockLiveExamsSession();
     await act(async () => {
       renderWithProviders(
         createElement(SchoolPages, {
