@@ -1,3 +1,4 @@
+import { requiresPublishedExamAnalytics } from './analytics/analytics-scope';
 import {
   BadRequestException,
   ConflictException,
@@ -12,7 +13,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual, randomUUID } from 'node:crypto';
 import ExcelJS from 'exceljs';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
@@ -78,8 +79,6 @@ const EXAM_REVIEW_ROLES = new Set([
   'dean_academics',
   'dean_of_academics',
   'academic_dean',
-  'hod',
-  'head_of_department',
 ]);
 const DEAN_APPROVAL_ROLES = new Set([
   'dean_academics',
@@ -450,6 +449,7 @@ export class ExamsService {
   }
 
   async getWorkflowOverview(query: Record<string, string | undefined> = {}) {
+    this.assertExamWorkflowParticipant();
     const tenantId = this.requireTenantId();
     const requestedDepartmentId = this.optionalText(query.department_id);
     const departmentIds = await this.resolveDepartmentModerationScope(
@@ -497,8 +497,8 @@ export class ExamsService {
         stage = 'mark_entry';
         nextOwner = 'Teachers';
       } else if (counts.submitted_marks > 0) {
-        stage = 'hod_moderation';
-        nextOwner = 'Head of Department';
+        stage = 'dean_review';
+        nextOwner = 'Dean of Academics';
       } else if (counts.reviewed_marks > 0) {
         stage = 'dean_lock';
         nextOwner = 'Dean of Academics';
@@ -526,7 +526,7 @@ export class ExamsService {
       if (counts.assessments === 0) blockers.push('No assessments configured');
       if (counts.entry_windows === 0) blockers.push('No mark-entry windows opened');
       if (counts.draft_marks > 0) blockers.push(`${counts.draft_marks} draft marks need teacher submission`);
-      if (counts.submitted_marks > 0) blockers.push(`${counts.submitted_marks} marks await HOD moderation`);
+      if (counts.submitted_marks > 0) blockers.push(`${counts.submitted_marks} marks await Dean review`);
       if (counts.reviewed_marks > 0) blockers.push(`${counts.reviewed_marks} reviewed marks await Dean lock`);
       if (counts.failed_generation_batches > 0) blockers.push('A report-card generation batch needs retry');
       if (counts.draft_report_cards > 0) blockers.push(`${counts.draft_report_cards} report cards await Exams Manager handoff`);
@@ -1114,7 +1114,7 @@ export class ExamsService {
         submitted_count: result.submitted_count,
         mark_ids: result.mark_ids,
       },
-    }});
+    }, notifications: submit && Number(result.submitted_count) > 0 ? this.deanMarkSubmissionNotification(tenantId) : [] });
 
     return {
       success: true,
@@ -1358,7 +1358,7 @@ export class ExamsService {
       body: `${result.submitted_count} mark row${result.submitted_count === 1 ? '' : 's'} submitted for review.`,
       severity: result.submitted_count === markIds.length ? 'info' : 'warning',
       payload: { requested_count: markIds.length, submitted_count: result.submitted_count, mark_ids: result.mark_ids },
-    }});
+    }, notifications: this.deanMarkSubmissionNotification(tenantId) });
 
     return { success: true, message: 'Marks submitted for review', data: result };
   }
@@ -1605,6 +1605,7 @@ export class ExamsService {
   }
 
   listReportCards(queryOrStudentId?: string | Record<string, string | undefined>) {
+    this.assertExamWorkflowParticipant();
     const query = typeof queryOrStudentId === 'string'
       ? { student_id: queryOrStudentId }
       : queryOrStudentId ?? {};
@@ -1809,6 +1810,7 @@ export class ExamsService {
   }
 
   async getDepartmentMarks(query: Record<string, string | undefined>) {
+    this.assertExamWorkflowParticipant();
     const tenantId = this.requireTenantId();
     const departmentId = this.optionalText(query.department_id);
     const departmentIds = await this.resolveDepartmentModerationScope(tenantId, departmentId);
@@ -1851,6 +1853,7 @@ export class ExamsService {
       action,
       actor_user_id: actorUserId,
       department_ids: departmentIds,
+      ...(reason ? { reason } : {}),
     });
 
     if (updatedMarks.length === 0) {
@@ -1871,10 +1874,23 @@ export class ExamsService {
       }
     }
     
+    await this.schoolEvents?.recordSchoolOperation({
+      event: {
+        id: `marks-${action}-${randomUUID()}`, type: action === 'approve' ? 'exam.marks_reviewed' : 'exam.marks_returned',
+        module: 'exams', title: action === 'approve' ? 'Marks reviewed by Dean' : 'Marks returned for correction',
+        body: `${updatedMarks.length} marks ${action === 'approve' ? 'reviewed and ready for locking' : 'returned for teacher correction'}.`,
+        payload: { mark_ids: updatedMarks.map(mark => mark.id), action, reason: reason ?? null, actor_user_id: actorUserId },
+      },
+      notifications: action === 'approve' ? [] : [...new Set(updatedMarks.map(mark => mark.entered_by_user_id).filter(Boolean))].map(userId => ({
+        id: `marks-returned-${randomUUID()}`, schoolId: tenantId, audienceRoles: ['teacher'], recipientUserId: String(userId),
+        title: 'Marks need correction', body: reason, sourceModule: 'exams', actionUrl: '/school/teacher/exams-marks', priority: 'high',
+      })),
+    });
     return { success: true, updated_count: updatedMarks.length };
   }
 
   getSchoolMarks(query: Record<string, string | undefined>) {
+    this.assertExamWorkflowParticipant();
     return this.repository.listMarks({
       tenant_id: this.requireTenantId(),
       status_in: ['reviewed'],
@@ -1884,6 +1900,8 @@ export class ExamsService {
   }
 
   async lockMarks(dto: LockExamMarksDto) {
+    this.assertExamWorkflowParticipant();
+    if (!this.canApproveExamCorrections()) throw new ForbiddenException('Dean authorization is required to lock reviewed marks');
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
     const updatedMarks = await this.repository.lockMarks({
@@ -1891,6 +1909,14 @@ export class ExamsService {
       mark_ids: dto.mark_ids,
       actor_user_id: actorUserId,
     });
+    if (!updatedMarks.length) throw new ConflictException('No selected reviewed marks were available to lock in this school');
+    await this.schoolEvents?.recordSchoolOperation({ event: {
+      id: `marks-locked-${randomUUID()}`, type: 'exam.marks_locked', module: 'exams',
+      title: 'Reviewed marks locked', body: `${updatedMarks.length} reviewed marks are ready for report-card generation.`,
+      payload: { mark_ids: updatedMarks.map(mark => mark.id), actor_user_id: actorUserId },
+    }, notifications: [{ id: `marks-ready-${randomUUID()}`, schoolId: tenantId, audienceRoles: ['exams-manager'],
+      title: 'Marks ready for report cards', body: 'The Dean locked reviewed marks. Open report cards to generate the completed mark sheets.',
+      sourceModule: 'exams', actionUrl: '/school/exams-manager/report-cards', priority: 'normal' }] });
     return { success: true, locked_count: updatedMarks.length };
   }
 
@@ -1986,6 +2012,12 @@ export class ExamsService {
               read: false,
               createdAt: new Date().toISOString(),
             },
+            ...['hod', 'hos'].map(role => ({
+              id: `exam-analytics-${normalizedExamSeriesId}-${role}`, schoolId: tenantId, audienceRoles: [role === 'hos' ? 'head_of_subject' : role],
+              title: 'Published exam analytics available', body: 'Exam results have been published. Open your analytics to review results within your academic responsibility.',
+              sourceModule: 'exams', relatedRecordId: normalizedExamSeriesId,
+              actionUrl: `/school/${role}/academic-intelligence`, priority: 'normal',
+            })),
           ],
         });
       } catch (error) {
@@ -2107,7 +2139,7 @@ export class ExamsService {
         {
           id: `exam-withdraw-${normalizedExamSeriesId}-${Date.now()}`,
           schoolId: tenantId,
-          audienceRoles: ['exams-manager', 'dean-academics', 'deputy-principal'],
+          audienceRoles: ['exams-manager', 'dean-academics', 'deputy-principal', 'hod', 'head_of_subject'],
           title: 'Published exam results withdrawn',
           body: `The Principal withdrew ${withdrawnCards.length} report card(s). Reason: ${reason}`,
           sourceModule: 'exams',
@@ -2589,6 +2621,7 @@ export class ExamsService {
   }
 
   private canReviewExamMarks(): boolean {
+    if (requiresPublishedExamAnalytics(this.currentRole())) return false;
     if (this.isExamWorkflowAdmin()) return true;
     const role = this.currentRole();
     return (EXAMS_MANAGER_ROLES.has(role) || EXAM_REVIEW_ROLES.has(role))
@@ -2990,6 +3023,18 @@ export class ExamsService {
         student_id: input.student_id,
       },
     }];
+  }
+
+  private deanMarkSubmissionNotification(tenantId: string) {
+    return [{ id: `marks-submitted-dean-${randomUUID()}`, schoolId: tenantId, audienceRoles: ['dean-academics'],
+      title: 'Marks ready for Dean review', body: 'Teachers submitted marks. Review or return them for correction before locking.',
+      sourceModule: 'exams', actionUrl: '/school/dean-academics/assessments', priority: 'normal' }];
+  }
+
+  private assertExamWorkflowParticipant(): void {
+    if (requiresPublishedExamAnalytics(this.currentRole())) {
+      throw new ForbiddenException('HOD and HOS receive scoped exam analytics after publication. Use the academic analytics workspace.');
+    }
   }
 
   private isHeadOfDepartmentReviewer(): boolean {
@@ -4953,6 +4998,7 @@ export class ExamsService {
   }
 
   async getMarks(filters: Record<string, string | undefined>) {
+    this.assertExamWorkflowParticipant();
     const tenantId = this.requireTenantId();
     const normalizedFilters: Record<string, string | number> = {};
     const examSeriesId = this.optionalText(filters.exam_series_id);

@@ -35,7 +35,7 @@ describe("AcademicIntelligenceWorkspace live contract", () => {
     expect(screen.queryByText(/School average/i)).not.toBeInTheDocument();
   });
 
-  it("renders a truthful empty state for a valid analytics response with no approved marks", async () => {
+  it.each(["hod", "hos"] as const)("explains publication before %s analytics become available", async (audience) => {
     mockUseSchoolQuery.mockReturnValue({
       data: {
         scope: { level: "department", role: "hod" },
@@ -64,9 +64,11 @@ describe("AcademicIntelligenceWorkspace live contract", () => {
       refetch: jest.fn(),
     });
 
-    renderWithProviders(<AcademicIntelligenceWorkspace audience="hod" />);
+    renderWithProviders(<AcademicIntelligenceWorkspace audience={audience} />);
 
-    expect(await screen.findByText(/No approved academic results yet/i)).toBeVisible();
+    expect(await screen.findByText(/No published exam results yet/i)).toBeVisible();
+    expect(screen.getByText(/after the Principal publishes/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Open marks workflow/ })).not.toBeInTheDocument();
     expect(screen.getByText(/Department scoped/i)).toBeVisible();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });

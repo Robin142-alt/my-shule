@@ -7,7 +7,7 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 type WorkflowStage =
   | "setup"
   | "mark_entry"
-  | "hod_moderation"
+  | "dean_review"
   | "dean_lock"
   | "report_card_generation"
   | "report_card_handoff"
@@ -75,7 +75,7 @@ export type ExamWorkflowData = {
 const stages: Array<{ key: WorkflowStage; short: string; owner: string }> = [
   { key: "setup", short: "Setup", owner: "Exams Manager" },
   { key: "mark_entry", short: "Mark entry", owner: "Teachers" },
-  { key: "hod_moderation", short: "Moderate", owner: "HOD" },
+  { key: "dean_review", short: "Review marks", owner: "Dean" },
   { key: "dean_lock", short: "Lock marks", owner: "Dean" },
   { key: "report_card_generation", short: "Generate cards", owner: "Exams Manager" },
   { key: "report_card_handoff", short: "Submit cards", owner: "Exams Manager" },
@@ -111,7 +111,7 @@ export function ExamWorkflowTracker({
           </p>
           <h2 className="mt-1 text-xl font-black sm:text-2xl">{heading}</h2>
           <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-[#64748B]">
-            One shared lifecycle for Exams Manager, teachers, HOD, Dean, Deputy, and Principal. Each cycle shows its current desk and what must happen next.
+            One shared lifecycle for Exams Manager, teachers, Dean, Deputy, and Principal. Each cycle shows its current desk and what must happen next.
           </p>
         </div>
         <button
@@ -133,7 +133,7 @@ export function ExamWorkflowTracker({
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           ["Active cycles", data?.metrics?.active_series ?? 0],
-          ["HOD moderation", data?.metrics?.marks_awaiting_moderation ?? 0],
+          ["Dean mark review", data?.metrics?.marks_awaiting_moderation ?? 0],
           ["Dean approval", data?.metrics?.report_cards_awaiting_dean ?? 0],
           ["Principal release", data?.metrics?.report_cards_awaiting_principal ?? 0],
         ].map(([label, value]) => (

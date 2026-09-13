@@ -136,7 +136,7 @@ const schoolNavMap: Record<SchoolExperienceRole | PortalViewer, ExperienceNavIte
     { id: "timetable", label: "Department Timetable", href: toSchoolPath("timetable"), icon: CalendarDays },
     { id: "coverage-review", label: "Coverage Review", href: toSchoolPath("coverage-review"), icon: LayoutGrid },
     { id: "lesson-plans", label: "Lesson Plans", href: toSchoolPath("lesson-plans"), icon: FileSpreadsheet },
-    { id: "marks-moderation", label: "Marks Moderation", href: toSchoolPath("marks-moderation"), icon: ShieldAlert },
+    { id: "academic-intelligence", label: "Exam Analytics", href: toSchoolPath("academic-intelligence"), icon: ShieldAlert },
     { id: "resource-requests", label: "Resource Requests", href: toSchoolPath("resource-requests"), icon: FileSpreadsheet },
     { id: "reports", label: "Reports", href: toSchoolPath("reports"), icon: FileSpreadsheet },
     ...supportSidebarItems,

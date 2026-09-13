@@ -1,3 +1,4 @@
+import { ExamsService } from '../src/modules/exams/exams.service';
 import { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
 import { AcademicsRepository } from '../src/modules/academics/repositories/academics.repository';
@@ -81,10 +82,14 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
       await c.query("INSERT INTO academics_role_appointments VALUES ('school-a',$1,'head_of_subject',$2,NULL,NULL,NULL,'active',NULL,NULL)",[ids.hos,ids.math]);
       await c.query("INSERT INTO academics_role_appointments VALUES ('school-a',$1,'grade_master',NULL,$2,$3,$4,'active',NULL,NULL)",[ids.grade,ids.class,ids.red,ids.year]);
       await c.query("ALTER TABLE academics_role_appointments ADD COLUMN id uuid DEFAULT gen_random_uuid(), ADD COLUMN appointment_type text DEFAULT 'permanent'");
+      await c.query("UPDATE exam_series SET status='published'; UPDATE exam_marks SET status='published'; UPDATE student_report_cards SET status='published'");
+      await c.query(`ALTER TABLE exam_marks ADD COLUMN updated_by_user_id uuid, ADD COLUMN reviewed_at timestamptz, ADD COLUMN locked_at timestamptz, ADD COLUMN updated_at timestamptz;
+        CREATE TABLE exam_mark_audit_logs(id uuid DEFAULT gen_random_uuid(), tenant_id text, mark_id uuid, exam_series_id uuid, assessment_id uuid, student_id uuid,
+          action text, actor_user_id uuid, previous_score numeric, new_score numeric, reason text, metadata jsonb);`);
       const tables=await c.query('SELECT tablename FROM pg_tables WHERE schemaname=$1',[schema]);
       for(const row of tables.rows)await c.query(`ALTER TABLE ${row.tablename} ENABLE ROW LEVEL SECURITY; ALTER TABLE ${row.tablename} FORCE ROW LEVEL SECURITY;
         CREATE POLICY tenant_isolation ON ${row.tablename} USING (tenant_id = current_setting('app.tenant_id',true));`);
-      await c.query(`GRANT USAGE ON SCHEMA ${schema} TO ${role}; GRANT SELECT ON ALL TABLES IN SCHEMA ${schema} TO ${role};`);
+      await c.query(`GRANT USAGE ON SCHEMA ${schema} TO ${role}; GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA ${schema} TO ${role};`);
     }finally{c.release();}
     repository=new ExamsRepository({executeWithTenant:async(tenant:string,_user:unknown,callback:(tx:unknown)=>Promise<unknown>)=>{
       const client=await pool.connect();try{await client.query('BEGIN');await client.query(`SET LOCAL search_path TO ${schema}; SET LOCAL ROLE ${role}`);
@@ -100,6 +105,52 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
     expect(JSON.stringify(data)).not.toContain('FOREIGN');
     if(scope==='assignment'||scope==='subject')expect(data.options.subjects.map(s=>s.id)).toEqual([ids.math]);
     if(scope==='grade')expect(data.learners.items.map(l=>l.student_id)).toEqual([ids.second]);
+  });
+  it('withholds unpublished, approved and withdrawn analytics from HOD/HOS, including forged filters and comparisons', async () => {
+    const client=await pool.connect();
+    try {
+      await client.query(`SET search_path TO ${schema}; UPDATE exam_series SET status='locked' WHERE tenant_id='school-a';
+        UPDATE exam_marks SET status='locked' WHERE tenant_id='school-a'; UPDATE student_report_cards SET status='approved' WHERE tenant_id='school-a'`);
+      for(const [scope,actor] of [['subject','hos'],['department','hod']] as const) {
+        const hidden=await read(scope,actor,{exam_series_id:ids.exam,comparison_exam_id:ids.old,publication_status:'approved'});
+        expect(hidden.options.exams).toEqual([]);expect(hidden.performance.mean).toBeNull();expect(hidden.learners.total).toBe(0);
+      }
+      expect((await read('school','principal')).performance.mean).toBe(57.5);
+      await client.query("UPDATE exam_series SET status='published' WHERE tenant_id='school-a' AND id=$1",[ids.exam]);
+      expect((await read('subject','hos')).performance.mean).toBeNull();
+      await client.query("UPDATE exam_marks SET status='published' WHERE tenant_id='school-a' AND exam_series_id=$1",[ids.exam]);
+      expect((await read('department','hod')).performance.mean).toBeNull();
+      await client.query("UPDATE student_report_cards SET status='published' WHERE tenant_id='school-a' AND exam_series_id=$1",[ids.exam]);
+      expect((await read('subject','hos')).performance.mean).toBe(60);
+      expect((await read('department','hod')).options.exams.map(exam=>exam.id)).toEqual([ids.exam]);
+      const unpublishedComparison=await read('subject','hos',{comparison_exam_id:ids.old});
+      expect(unpublishedComparison.options.exams.map(exam=>exam.id)).toEqual([ids.exam]);
+      await client.query("UPDATE exam_series SET status='withdrawn' WHERE tenant_id='school-a' AND id=$1",[ids.exam]);
+      expect((await read('subject','hos')).options.exams).toEqual([]);
+      expect((await read('department','hod')).learners.total).toBe(0);
+    } finally {
+      await client.query(`UPDATE ${schema}.exam_series SET status='published'; UPDATE ${schema}.exam_marks SET status='published'; UPDATE ${schema}.student_report_cards SET status='published'`);
+      client.release();
+    }
+  });
+  it('routes submitted marks through Dean review and lock with atomic audits and school isolation', async () => {
+    const client=await pool.connect();const events:any[]=[];
+    const dean=new ExamsService({getStore:()=>({tenant_id:'school-a',user_id:ids.principal,role:'dean_academics',permissions:['exams:review','exams:approve']})} as never,
+      repository,undefined,undefined,{recordSchoolOperation:async(event:unknown)=>{events.push(event);}} as never);
+    try {
+      const marks=await client.query(`UPDATE ${schema}.exam_marks SET status='submitted' WHERE tenant_id='school-a' RETURNING id`);
+      const markIds=marks.rows.map(mark=>mark.id);
+      const foreign=await client.query(`SELECT id FROM ${schema}.exam_marks WHERE tenant_id='school-b' LIMIT 1`);
+      const result=await dean.moderateMarks({mark_ids:[...markIds,foreign.rows[0].id],action:'approve'});
+      expect(result.updated_count).toBe(markIds.length);
+      const locks=await dean.lockMarks({mark_ids:markIds});expect(locks.locked_count).toBe(markIds.length);
+      const audits=await client.query(`SELECT action,COUNT(*)::int AS count FROM ${schema}.exam_mark_audit_logs WHERE tenant_id='school-a' GROUP BY action`);
+      expect(audits.rows).toEqual(expect.arrayContaining([{action:'marks.reviewed',count:markIds.length},{action:'marks.locked',count:markIds.length}]));
+      expect(events.map(event=>event.event.type)).toEqual(['exam.marks_reviewed','exam.marks_locked']);
+      expect(events[1].notifications[0].audienceRoles).toEqual(['exams-manager']);
+      expect((await client.query(`SELECT status FROM ${schema}.exam_marks WHERE tenant_id='school-b'`)).rows.every(mark=>mark.status==='published')).toBe(true);
+      await expect(dean.lockMarks({mark_ids:markIds})).rejects.toThrow(/No selected reviewed marks/);
+    } finally {await client.query(`UPDATE ${schema}.exam_marks SET status='published'`);client.release();}
   });
   it('rejects invented, expired and foreign appointments',async()=>{
     await expect(read('subject','teacher')).rejects.toThrow(/appointment/);

@@ -414,7 +414,6 @@ const DEFAULT_ROLE_CATALOG_BASE = [
       'academics:read',
       'academics:assign-teachers',
       'exams:read',
-      'exams:review',
       'discipline:read',
       'timetable:read',
       'reports:read',

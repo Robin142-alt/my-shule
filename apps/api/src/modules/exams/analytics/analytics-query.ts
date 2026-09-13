@@ -5,7 +5,7 @@ import { analyticsScopeSql, type ExamAnalyticsScopeLevel } from './analytics-sco
  * $3 contains validated filters. Learner filters are applied AFTER population statistics.
  * Historical placement is matched to the exam's academic year, never the student's current class.
  */
-export function analyticsQuery(level: ExamAnalyticsScopeLevel): string {
+export function analyticsQuery(level: ExamAnalyticsScopeLevel, publishedOnly = false): string {
   return `WITH request_identity AS (SELECT $1::text AS tenant_id, $2::text AS actor_user_id, $3::jsonb AS filters),
   candidate_exams AS MATERIALIZED (
     SELECT series.*, term.academic_year_id::text, term.name AS term_name, year.name AS year_name
@@ -13,6 +13,7 @@ export function analyticsQuery(level: ExamAnalyticsScopeLevel): string {
     JOIN academic_terms term ON term.tenant_id = series.tenant_id AND term.id::text = series.academic_term_id::text
     JOIN academic_years year ON year.tenant_id = term.tenant_id AND year.id::text = term.academic_year_id::text
     WHERE series.tenant_id = $1
+      ${publishedOnly ? "AND series.status = 'published'" : ''}
   ), anchor_exam AS (
     SELECT * FROM candidate_exams WHERE
       (($3::jsonb->>'academic_year_id') IS NULL OR academic_year_id = $3::jsonb->>'academic_year_id')
@@ -73,6 +74,7 @@ export function analyticsQuery(level: ExamAnalyticsScopeLevel): string {
       AND card.student_id::text = key.student_id AND card.is_current = TRUE
   ), scoped AS MATERIALIZED (
     SELECT evidence.* FROM evidence WHERE evidence.tenant_id = $1 AND ${analyticsScopeSql('evidence', level)}
+      ${publishedOnly ? "AND evidence.mark_status = 'published' AND evidence.report_status = 'published'" : ''}
       AND (($3::jsonb->>'department_id') IS NULL OR department_id = $3::jsonb->>'department_id')
       AND (($3::jsonb->>'subject_id') IS NULL OR subject_id = $3::jsonb->>'subject_id')
       AND (($3::jsonb->>'class_section_id') IS NULL OR class_section_id = $3::jsonb->>'class_section_id')

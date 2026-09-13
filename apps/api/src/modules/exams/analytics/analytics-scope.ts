@@ -73,3 +73,9 @@ export const ANALYTICS_APPOINTMENTS_SQL = `SELECT level FROM (
     AND ap.status = 'active' AND (ap.effective_from IS NULL OR ap.effective_from <= CURRENT_DATE) AND (ap.effective_to IS NULL OR ap.effective_to >= CURRENT_DATE)
 ) scopes WHERE EXISTS (SELECT 1 FROM tenant_memberships membership WHERE membership.tenant_id = $1
   AND membership.user_id::text = $2::text AND membership.status = 'active')`;
+
+/** Determined from the authenticated role, never from requested filters or scope. */
+export function requiresPublishedExamAnalytics(role: string): boolean {
+  return ['hod', 'head_of_department', 'hos', 'head_of_subject', 'subject_coordinator']
+    .includes(role.toLowerCase().replace(/[- ]/g, '_'));
+}

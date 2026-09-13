@@ -7,7 +7,6 @@ import {
   BookOpen,
   Briefcase,
   CalendarDays,
-  CheckSquare,
   FileText,
   LayoutGrid,
   PackagePlus,
@@ -27,7 +26,6 @@ import { buildSchoolSectionHref } from "./school-pages";
 import { CoverageReviewWorkspace } from "./hod/coverage-review-workspace";
 import { DepartmentTeachersWorkspace } from "./hod/department-teachers-workspace";
 import { LessonPlansWorkspace } from "./hod/lesson-plans-workspace";
-import { MarksModerationWorkspace } from "./hod/marks-moderation-workspace";
 import { OverviewWorkspace } from "./hod/overview-workspace";
 import { ReportsWorkspace } from "./hod/reports-workspace";
 import { ResourceRequestsWorkspace } from "./hod/resource-requests-workspace";
@@ -44,7 +42,6 @@ type HodView =
   | "timetable"
   | "coverage-review"
   | "lesson-plans"
-  | "marks-moderation"
   | "academic-intelligence"
   | "resource-requests"
   | "reports";
@@ -101,16 +98,9 @@ const hodNavItems: HodNavItem[] = [
     group: "Academics",
   },
   {
-    id: "marks-moderation",
-    label: "Marks Moderation",
-    description: "Moderate department exam marks, analytics, and student performance.",
-    icon: CheckSquare,
-    group: "Exams",
-  },
-  {
     id: "academic-intelligence",
-    label: "Academic Intelligence",
-    description: "Live department trends, subject evidence, learner risk, and interventions.",
+    label: "Exam Analytics",
+    description: "Published department results, subject trends, and learner support.",
     icon: BarChart3,
     group: "Exams",
   },
@@ -151,18 +141,18 @@ const hodViewAliases: Record<string, HodView> = {
   "lesson-delivery": "coverage-review",
   "coverage-review": "coverage-review",
   "lesson-plans": "lesson-plans",
-  "assessments-cats": "marks-moderation",
-  exams: "marks-moderation",
-  "exams-marks-moderation": "marks-moderation",
-  marks: "marks-moderation",
-  grading: "marks-moderation",
-  validation: "marks-moderation",
+  "assessments-cats": "academic-intelligence",
+  exams: "academic-intelligence",
+  "exams-marks-moderation": "academic-intelligence",
+  marks: "academic-intelligence",
+  grading: "academic-intelligence",
+  validation: "academic-intelligence",
   "performance-analytics": "academic-intelligence",
   "student-analytics": "academic-intelligence",
   "academic-analytics": "academic-intelligence",
   "academic-intelligence": "academic-intelligence",
-  "learner-interventions": "marks-moderation",
-  "marks-moderation": "marks-moderation",
+  "learner-interventions": "academic-intelligence",
+  "marks-moderation": "academic-intelligence",
   resources: "resource-requests",
   "resources-requests": "resource-requests",
   "resource-requests": "resource-requests",
@@ -196,7 +186,7 @@ function Sidebar({
 }) {
   return (
     <aside className="hidden h-full w-[292px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
-      <SchoolCommandSidebarIdentity eyebrow="Department command" title="Head of Department" subtitle="Teaching quality, moderation, and resources" />
+      <SchoolCommandSidebarIdentity eyebrow="Department command" title="Head of Department" subtitle="Teaching quality, published results, and resources" />
 
       <nav className="mt-4 space-y-1" aria-label="HOD navigation">
         {hodNavItems.map((item, index) => {
@@ -343,14 +333,10 @@ function HodWorkspace({
       return <CoverageReviewWorkspace />;
     case "lesson-plans":
       return <LessonPlansWorkspace />;
-    case "marks-moderation":
-      return <MarksModerationWorkspace />;
     case "academic-intelligence":
       return (
         <AcademicIntelligenceWorkspace
           audience="hod"
-          onOpenMarks={() => onNavigate("marks-moderation")}
-          onOpenInterventions={() => onNavigate("marks-moderation")}
           onOpenReportCards={() => onNavigate("reports")}
         />
       );

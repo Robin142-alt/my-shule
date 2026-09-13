@@ -187,7 +187,7 @@ export function AssessmentsWorkspace() {
       <ExamWorkflowTracker heading="Academic exam and report-card workflow" />
       <Panel
       title="Assessments"
-      description="Manage and monitor school-wide assessments."
+      description="Review teacher submissions, return corrections, and lock reviewed marks for the Exams Manager."
       icon={ClipboardList}
       actions={
         <button type="button" onClick={handleLockBatch} disabled={isLocking || lockableMarkIds.length === 0} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
@@ -201,7 +201,7 @@ export function AssessmentsWorkspace() {
           <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : metricFromData(data, "active_assessments", items.length)}</div>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Pending Marking</div>
+          <div className="text-sm font-semibold text-[#64748B]">Awaiting Dean Review</div>
           <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : metricFromData(data, "pending_marking", lockableItems.length)}</div>
         </div>
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">

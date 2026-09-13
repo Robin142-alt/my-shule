@@ -1400,6 +1400,12 @@ test('ExamsService publishes a Dean-approved series as Principal and notifies sc
   assert.equal(result.published_report_cards_count, 2);
   assert.equal(result.published_marks_count, 8);
   assert.equal(operations.length, 1);
+  const analyticsNotifications = (operations[0].notifications as Array<Record<string, any>>)
+    .filter(notification => notification.title === 'Published exam analytics available');
+  assert.deepEqual(analyticsNotifications.map(notification => notification.audienceRoles), [['hod'], ['head_of_subject']]);
+  assert.ok(analyticsNotifications.every(notification => notification.schoolId === 'tenant-a'));
+  assert.deepEqual(analyticsNotifications.map(notification => notification.actionUrl),
+    ['/school/hod/academic-intelligence', '/school/hos/academic-intelligence']);
   assert.equal(publishedEvents.length, 2);
   assert.equal(publishedEvents[0]?.tenant_id, 'tenant-a');
   assert.equal('delivery_warnings' in result, false);
@@ -2681,7 +2687,7 @@ test('ExamsRepository moderates only submitted or reviewed marks and never locke
   assert.match(queries[0] ?? '', /\$5::text = 'approve' AND status = 'submitted'/);
   assert.match(queries[0] ?? '', /\$5::text = 'return_for_correction' AND status IN \('submitted', 'reviewed'\)/);
   assert.doesNotMatch(queries[0] ?? '', /locked', 'published/);
-  assert.deepEqual(paramsList[0], ['tenant-a', ['mark-1'], 'reviewed', 'hod-1', 'approve']);
+  assert.deepEqual(paramsList[0], ['tenant-a', ['mark-1'], 'reviewed', 'hod-1', 'approve', null]);
 });
 
 test('ExamsRepository scopes mark listing and moderation to HOD departments across legacy text identifiers', async () => {
@@ -2733,10 +2739,11 @@ test('ExamsRepository scopes mark listing and moderation to HOD departments acro
     '22222222-2222-2222-2222-222222222222',
     'approve',
     ['11111111-1111-1111-1111-111111111111'],
+    null,
   ]);
 });
 
-test('ModerateExamMarksDto accepts valid HOD actions through the global validation contract', async () => {
+test('ModerateExamMarksDto accepts valid Dean actions through the global validation contract', async () => {
   const pipe = new ValidationPipe({
     whitelist: true,
     transform: true,
@@ -4077,14 +4084,14 @@ test('ReportCardGenerationService refuses a partially finalized report-card scop
   assert.equal(batchCreated, false);
 });
 
-test('ExamsService exposes one department-scoped workflow projection for HOD handoff', async () => {
+test('ExamsService exposes teacher submissions directly in the Dean workflow', async () => {
   let capturedInput: Record<string, unknown> | null = null;
   const service = new ExamsService(
     {
       getStore: () => ({
         tenant_id: 'tenant-a',
         user_id: '00000000-0000-0000-0000-000000000401',
-        role: 'hod',
+        role: 'dean_academics',
         permissions: ['exams:read', 'exams:review'],
       }),
     } as never,
@@ -4125,12 +4132,11 @@ test('ExamsService exposes one department-scoped workflow projection for HOD han
   const result = await service.getWorkflowOverview();
   assert.deepEqual(capturedInput, {
     tenant_id: 'tenant-a',
-    department_ids: ['00000000-0000-0000-0000-000000000501'],
     limit: 25,
   });
-  assert.equal(result.scope.level, 'department');
-  assert.equal(result.series[0]?.stage, 'hod_moderation');
-  assert.equal(result.series[0]?.next_owner, 'Head of Department');
+  assert.equal(result.scope.level, 'school');
+  assert.equal(result.series[0]?.stage, 'dean_review');
+  assert.equal(result.series[0]?.next_owner, 'Dean of Academics');
   assert.equal(result.metrics.marks_awaiting_moderation, 2);
   assert.deepEqual(result.moderation_batches[0]?.mark_ids, ['mark-1', 'mark-2']);
 });
@@ -4376,8 +4382,8 @@ test('ExamsService validates moderation before mutating marks', async () => {
   );
   assert.equal(calls.length, 0);
 
-  const hodService = new ExamsService(
-    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'hod-1', role: 'hod', permissions: ['exams:review'] }) } as never,
+  const deanService = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'dean-1', role: 'dean_academics', permissions: ['exams:review'] }) } as never,
     {
       moderateMarks: async () => {
         calls.push('moderate');
@@ -4387,7 +4393,7 @@ test('ExamsService validates moderation before mutating marks', async () => {
   );
 
   await assert.rejects(
-    () => hodService.moderateMarks({ mark_ids: ['mark-1'], action: 'return_for_correction' }),
+    () => deanService.moderateMarks({ mark_ids: ['mark-1'], action: 'return_for_correction' }),
     /Reason is required/i,
   );
   assert.equal(calls.length, 0);
@@ -4454,55 +4460,22 @@ test('extractPersistedReportCardPayload preserves entered zero and missing-mark 
   assert.equal(extractPersistedReportCardPayload({ report_card: { generated_at: 'now' } }), null);
 });
 
-test('ExamsService limits HOD moderation to assigned departments', async () => {
-  const calls: Array<{ method: string; input: Record<string, unknown> }> = [];
-  const service = new ExamsService(
-    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'hod-1', role: 'hod', permissions: ['exams:review'] }) } as never,
-    {
-      listDepartmentsLedByUser: async (input: Record<string, unknown>) => {
-        calls.push({ method: 'listDepartmentsLedByUser', input });
-        return ['dept-1'];
-      },
-      listMarks: async (input: Record<string, unknown>) => {
-        calls.push({ method: 'listMarks', input });
-        return [];
-      },
-      moderateMarks: async (input: Record<string, unknown>) => {
-        calls.push({ method: 'moderateMarks', input });
-        return [{ id: 'mark-1', score: 85 }];
-      },
-    } as never,
-  );
-
-  await service.getDepartmentMarks({});
-  assert.deepEqual(calls[1], {
-    method: 'listMarks',
-    input: {
-      tenant_id: 'tenant-a',
-      department_ids: ['dept-1'],
-      status_in: ['submitted', 'reviewed'],
-      limit: 25,
-      offset: 0,
-    },
-  });
-
-  await assert.rejects(
-    () => service.getDepartmentMarks({ department_id: 'dept-2' }),
-    /not assigned to this department/i,
-  );
-
-  const result = await service.moderateMarks({ mark_ids: ['mark-1'], action: 'approve' });
-  assert.equal(result.updated_count, 1);
-  assert.deepEqual(calls.at(-1), {
-    method: 'moderateMarks',
-    input: {
-      tenant_id: 'tenant-a',
-      mark_ids: ['mark-1'],
-      action: 'approve',
-      actor_user_id: 'hod-1',
-      department_ids: ['dept-1'],
-    },
-  });
+test('HOD and HOS cannot enter the review workflow even with stale permissions', async () => {
+  for (const role of ['hod', 'head_of_department', 'hos', 'head_of_subject', 'subject_coordinator']) {
+    let mutations = 0;
+    const service = new ExamsService({ getStore: () => ({ tenant_id: 'tenant-a', user_id: 'head-1', role,
+      permissions: ['exams:read', 'exams:review', 'exams:write', 'exams:approve'] }) } as never,
+      { moderateMarks: async () => { mutations++; return []; }, lockMarks: async () => { mutations++; return []; } } as never);
+    for (const action of ['approve', 'return_for_correction'] as const) {
+      await assert.rejects(() => service.moderateMarks({ mark_ids: ['mark-1'], action, reason: 'Check score' }), /review permission/);
+    }
+    await assert.rejects(() => service.lockMarks({ mark_ids: ['mark-1'] }), /after publication/);
+    await assert.rejects(() => service.getDepartmentMarks({}), /after publication/);
+    await assert.rejects(() => service.getWorkflowOverview(), /after publication/);
+    assert.throws(() => service.getSchoolMarks({}), /after publication/);
+    assert.throws(() => service.listReportCards({}), /after publication/);
+    assert.equal(mutations, 0);
+  }
 });
 
 test('ExamsService restricts intervention reads to the current tenant and assigned teacher', async () => {
@@ -4945,7 +4918,7 @@ test('ExamsService enforces strict Mark Entry permission rules based on teacher 
   );
 });
 
-test('ExamsService handles HOD Review workflow for returning submitted marks', async () => {
+test('ExamsService handles Dean Review workflow for returning submitted marks', async () => {
   const repositoryCalls: Array<{ method: string; args: any }> = [];
 
   const mockRepository = {
@@ -4969,7 +4942,7 @@ test('ExamsService handles HOD Review workflow for returning submitted marks', a
     getStore: () => ({
       tenant_id: 'tenant-a',
       user_id: 'hod-1',
-      role: 'hod',
+      role: 'dean_academics',
       permissions: ['exams:review']
     })
   };
@@ -4986,22 +4959,18 @@ test('ExamsService handles HOD Review workflow for returning submitted marks', a
   });
 
   assert.deepEqual(res, { success: true, updated_count: 1 });
-  assert.equal(repositoryCalls.length, 3);
-  assert.equal(repositoryCalls[0].method, 'listDepartmentsLedByUser');
+  assert.equal(repositoryCalls.length, 2);
+  assert.equal(repositoryCalls[0].method, 'moderateMarks');
   assert.deepEqual(repositoryCalls[0].args, {
-    tenant_id: 'tenant-a',
-    user_id: 'hod-1'
-  });
-  assert.equal(repositoryCalls[1].method, 'moderateMarks');
-  assert.deepEqual(repositoryCalls[1].args, {
     tenant_id: 'tenant-a',
     mark_ids: ['mark-1'],
     action: 'return_for_correction',
     actor_user_id: 'hod-1',
-    department_ids: ['dept-1']
+    department_ids: undefined,
+    reason: 'Incorrect entry',
   });
-  assert.equal(repositoryCalls[2].method, 'createMarkVersion');
-  assert.deepEqual(repositoryCalls[2].args, {
+  assert.equal(repositoryCalls[1].method, 'createMarkVersion');
+  assert.deepEqual(repositoryCalls[1].args, {
     tenant_id: 'tenant-a',
     mark_id: 'mark-1',
     original_score: 85,
