@@ -158,7 +158,7 @@ export class HodCommandService {
     if (!this.examsService) {
       throw new ServiceUnavailableException('Published exam analytics are not available');
     }
-    return this.examsService.getAnalytics({ scope: 'department' });
+    return this.examsService.getAnalytics();
   }
 
   async getResourceRequests() {
