@@ -28,6 +28,7 @@ export function isLiveExamsAnalyticsResponse(value: unknown): value is LiveExams
     && ["pending_reviews","missing_marks_alerts","active_exams"].every(key=>typeof kpis[key]==="number");
 }
 export function AcademicIntelligenceWorkspace(props: AcademicIntelligenceWorkspaceProps) {
+  const publishedOnly = props.audience === "hod" || props.audience === "hos";
   const [filters,setFilters]=useState<Record<string,string>>({});
   const [view,setView]=useState("Overview");
   const query=new URLSearchParams(filters).toString();
@@ -67,7 +68,7 @@ export function AcademicIntelligenceWorkspace(props: AcademicIntelligenceWorkspa
   ]:[];
   return <section className="min-w-0 space-y-5 text-slate-900" aria-labelledby="academic-intelligence-title">
     <header className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5">
-      <div><p className="text-sm font-semibold text-blue-700">{scopeTitle}</p><h2 id="academic-intelligence-title" className="mt-1 text-2xl font-bold">{title}</h2><p className="mt-2 max-w-2xl text-sm text-slate-600">See what changed, find learners who need support, and take the next step.</p></div>
+      <div><p className="text-sm font-semibold text-blue-700">{scopeTitle}</p><h2 id="academic-intelligence-title" className="mt-1 text-2xl font-bold">{title}</h2><p className="mt-2 max-w-2xl text-sm text-slate-600">{publishedOnly ? "Review published exam results within your academic responsibility and plan learner support." : "See what changed, find learners who need support, and take the next step."}</p></div>
       <div className="flex flex-wrap gap-2"><button className={button} disabled={isFetching} onClick={()=>void refetch()}><RefreshCw aria-hidden="true" className={"mr-2 inline h-4 w-4"+(isFetching?" animate-spin":"")}/>Refresh</button>
         {analytics&&!error&&!malformed&&<AcademicIntelligenceReport subjectOnly={props.audience === "hos"} key={query} filters={{...filters,scope:analytics.scope.level,...(analytics.filters.exam_series_id?{exam_series_id:analytics.filters.exam_series_id}:{})}} view={view} disabled={isFetching}/>}
       </div>
@@ -92,10 +93,10 @@ export function AcademicIntelligenceWorkspace(props: AcademicIntelligenceWorkspa
           {select("Risk Level","risk_level",["At Risk","Low","Moderate","High","Critical"].map(id=>({id,name:id})))}
           {select("Recognition","learner_group",[{id:'high_performers',name:'High performers'},{id:'most_improved',name:'Most improved'},{id:'passing_all',name:'Passing all subjects'},{id:'declining',name:'Declining results'},{id:'consistent_improvers',name:'Consistently improving'},{id:'consistent_high',name:'Consistently high performers'}])}
           {select("Grade / Achievement","grade",(analytics.distribution??[]).filter(b=>b.id!=='ungraded').map(b=>({id:b.label,name:b.label})))}
-          {select("Marks Status","marks_status",["missing","draft","submitted","reviewed","locked","published"].map(id=>({id,name:id})))}
-          {select("Publication Status","publication_status",["draft_requested","draft_generated","under_review","approved","published"].map(id=>({id,name:id.replaceAll("_"," ")})))}
+          {select("Marks Status","marks_status",(publishedOnly ? ["published"] : ["missing","draft","submitted","reviewed","locked","published"]).map(id=>({id,name:id})))}
+          {select("Publication Status","publication_status",(publishedOnly ? ["published"] : ["draft_requested","draft_generated","under_review","approved","published"]).map(id=>({id,name:id.replaceAll("_"," ")})))}
         </div></details>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3"><p className="text-sm text-slate-600"><strong className="text-slate-800">{options.exams.find(e=>e.id===analytics.filters.exam_series_id)?.name??"No exam evidence in this scope"}</strong> · {analytics.performance.learners_examined} {analytics.performance.learners_examined===1?'learner':'learners'} with approved results <span role="status">{isFetching?" · Updating…":""}</span></p>{Object.keys(filters).length>0&&<button className="min-h-11 px-2 text-sm font-semibold text-blue-700 hover:underline" onClick={()=>setFilters({...(filters.scope?{scope:filters.scope}:{}),...(view==='At Risk'?{risk_level:'At Risk'}:{})})}>Clear filters</button>}</div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3"><p className="text-sm text-slate-600"><strong className="text-slate-800">{options.exams.find(e=>e.id===analytics.filters.exam_series_id)?.name??"No exam evidence in this scope"}</strong> · {analytics.performance.learners_examined} {analytics.performance.learners_examined===1?'learner':'learners'} with {publishedOnly ? "published" : "approved"} results <span role="status">{isFetching?" · Updating…":""}</span></p>{Object.keys(filters).length>0&&<button className="min-h-11 px-2 text-sm font-semibold text-blue-700 hover:underline" onClick={()=>setFilters({...(filters.scope?{scope:filters.scope}:{}),...(view==='At Risk'?{risk_level:'At Risk'}:{})})}>Clear filters</button>}</div>
         {activeFilters.length>0&&<div aria-label="Active filters" className="flex flex-wrap gap-2">{activeFilters.map(([key,value])=>{
           const groups:Record<string,{id:string;name:string}[]>={subject_id:options.subjects,department_id:options.departments,class_section_id:options.classes,stream_id:options.streams,teacher_user_id:options.teachers};
           const label:Record<string,string>={subject_id:'Subject',department_id:'Department',class_section_id:'Class',stream_id:'Stream',teacher_user_id:'Teacher',risk_level:'Risk',learner_query:'Search',learner_group:'Recognition',grade_level:'Grade/Form',grade:'Achievement',marks_status:'Marks',publication_status:'Publication'};
@@ -104,7 +105,7 @@ export function AcademicIntelligenceWorkspace(props: AcademicIntelligenceWorkspa
         })}</div>}
       </div>}
       {!analytics&&<p>{scopeNames[legacy.scope.level]}</p>}
-      {legacy.data_quality.final_mark_count===0&&<div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6"><h3 className="text-lg font-bold">No approved academic results yet</h3><p className="mt-2 text-sm">Analytics will appear after marks are completed and approved. Missing marks are never treated as zero.</p><div className="mt-4 flex flex-wrap gap-3">{props.onOpenMarks&&<button className={button} onClick={props.onOpenMarks}>Open marks workflow</button>}{props.onOpenReportCards&&<button className={button} onClick={props.onOpenReportCards}>Open report cards</button>}</div></div>}
+      {legacy.data_quality.final_mark_count===0&&<div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6"><h3 className="text-lg font-bold">{publishedOnly ? "No published exam results yet" : "No approved academic results yet"}</h3><p className="mt-2 text-sm">{publishedOnly ? "Analytics appear after the Principal publishes the exam results. Refresh after publication to review your assigned subjects and learners." : "Analytics will appear after marks are completed and approved. Missing marks are never treated as zero."}</p><div className="mt-4 flex flex-wrap gap-3">{props.onOpenMarks&&<button className={button} onClick={props.onOpenMarks}>Open marks workflow</button>}{props.onOpenReportCards&&<button className={button} onClick={props.onOpenReportCards}>Open report cards</button>}</div></div>}
       {analytics&&<>
         <div className="space-y-4">
           <div className="flex min-w-0 flex-col gap-2 border-b border-slate-200 pb-2 lg:flex-row lg:items-center">

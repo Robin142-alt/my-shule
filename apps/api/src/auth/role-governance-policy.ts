@@ -169,7 +169,7 @@ const ROLE_PERMISSIONS: Partial<Record<BlueprintUserRole, readonly string[]>> = 
   dean_academics: ['academics:read', 'exams:read', 'exams:review', 'exams:approve', 'reports:read'],
   exams_manager: ['academics:read', 'exams:read', 'exams:write', 'exams:enter-marks', 'exams:review', 'reports:read'],
   head_of_subject: ['academics:read', 'exams:subject-analytics'],
-  hod: ['academics:read', 'academics:assign-teachers', 'exams:read', 'exams:review'],
+  hod: ['academics:read', 'academics:assign-teachers', 'exams:read'],
   teacher: ['students:read', 'academics:read', 'exams:enter-marks', 'discipline:write'],
   class_teacher: ['students:read', 'academics:read', 'exams:enter-marks', 'discipline:write', 'portal:message_school'],
   grade_master: ['students:read', 'academics:read', 'exams:review', 'discipline:read', 'discipline:reports', 'reports:read'],

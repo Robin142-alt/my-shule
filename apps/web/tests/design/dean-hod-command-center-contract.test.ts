@@ -32,7 +32,8 @@ describe("academic leadership command center shell contract", () => {
     expect(source).toMatch(/from "\.\/hod\/subject-allocation-workspace"/);
     expect(source).toMatch(/from "\.\/hod\/coverage-review-workspace"/);
     expect(source).toMatch(/from "\.\/hod\/lesson-plans-workspace"/);
-    expect(source).toMatch(/from "\.\/hod\/marks-moderation-workspace"/);
+    expect(source).not.toMatch(/from "\.\/hod\/marks-moderation-workspace"/);
+    expect(source).toMatch(/label: "Exam Analytics"/);
     expect(source).toMatch(/from "\.\/hod\/resource-requests-workspace"/);
     expect(source).toMatch(/from "\.\/hod\/reports-workspace"/);
     expect(source).toMatch(/function normalizeHodView/);
@@ -75,14 +76,10 @@ describe("academic leadership command center shell contract", () => {
     expect(source).not.toMatch(/Subject ID|Class Section ID|Academic Term ID|Staff member ID/);
   });
 
-  it("wires mobile-friendly HOD moderation controls to the real exam action contract", () => {
+  it("keeps legacy HOD exam links on published analytics without moderation actions", () => {
     const source = readSource("src/components/school/hod/marks-moderation-workspace.tsx");
+    expect(source).toContain('<AcademicIntelligenceWorkspace audience="hod" />');
+    expect(source).not.toMatch(/requestDashboardApi|marks\/moderate|return_for_correction/);
 
-    expect(source).toMatch(/requestDashboardApi\("\/exams\/marks\/moderate"/);
-    expect(source).toMatch(/mark_ids: batch\.mark_ids/);
-    expect(source).toMatch(/"approve" \| "return_for_correction"/);
-    expect(source).toMatch(/Enter the required correction reason/);
-    expect(source).toMatch(/min-h-11 w-full touch-manipulation/);
-    expect(source).toMatch(/sm:w-auto/);
   });
 });

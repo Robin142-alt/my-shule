@@ -174,6 +174,9 @@ const eventConfigs: Partial<Record<SupportedDomainEventName, DashboardEventConfi
         ? payload.module.trim()
         : 'platform';
 
+      if (moduleName === 'exams' && ['exam.series_published', 'exam.series_withdrawn'].includes(String(payload.operation_type))) {
+        return ['exams:read', 'exams:subject-analytics'];
+      }
       return moduleName === 'platform' ? 'auth:read' : `${moduleName}:read`;
     },
     roleChannels: (event) => {

@@ -531,7 +531,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
               ) : null}
               {!markSheetQuery.isLoading && generationScopes.length > 0 && !generationScopes.some((scope) => scope.ready) ? (
                 <p className="mt-2 text-sm font-semibold text-amber-700">
-                  Mark sheets exist, but none are ready. Teachers submit marks, the HOD moderates them, and the Dean locks them before report cards can be generated.
+                  Mark sheets exist, but none are ready. Teachers submit marks, the Dean reviews and locks them before report cards can be generated.
                 </p>
               ) : null}
             </div>

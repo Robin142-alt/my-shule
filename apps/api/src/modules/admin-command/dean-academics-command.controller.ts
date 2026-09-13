@@ -35,6 +35,7 @@ export class DeanAcademicsCommandController {
   }
 
   @Get('assessments')
+  @Permissions('exams:review')
   getAssessments() {
     return this.service.getAssessments();
   }

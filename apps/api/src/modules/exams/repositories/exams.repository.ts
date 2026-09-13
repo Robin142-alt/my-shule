@@ -1,3 +1,4 @@
+import { requiresPublishedExamAnalytics } from '../analytics/analytics-scope';
 import { markEntryHasStartedSql } from '../mark-entry-window-policy';
 import { teacherMarkSheetSubmittedSql, teacherMarkStudentScopeSql } from '../teacher-mark-scope';
 import { academicCurriculumGradingSql } from '../../academics/curriculum-grading';
@@ -3795,6 +3796,7 @@ export class ExamsRepository {
     action: 'approve' | 'return_for_correction';
     actor_user_id: string;
     department_ids?: string[];
+    reason?: string;
   }) {
     const status = input.action === 'approve' ? 'reviewed' : 'draft';
     const departmentIds = Array.isArray(input.department_ids)
@@ -3828,6 +3830,7 @@ export class ExamsRepository {
       `;
     const result = await this.executeSql(
       `
+        WITH updated AS (
         UPDATE exam_marks${departmentIds.length > 0 ? ' mark' : ''}
         SET status = $3,
             updated_by_user_id = $4::uuid,
@@ -3836,10 +3839,21 @@ export class ExamsRepository {
         ${departmentJoin}
         ${statusPredicate}
         RETURNING ${departmentIds.length > 0 ? 'mark.*' : '*'}
+        ), audits AS (
+          INSERT INTO exam_mark_audit_logs (
+            tenant_id, mark_id, exam_series_id, assessment_id, student_id,
+            action, actor_user_id, previous_score, new_score, reason, metadata
+          )
+          SELECT tenant_id, id, exam_series_id, assessment_id, student_id,
+            CASE WHEN $5::text = 'approve' THEN 'marks.reviewed' ELSE 'marks.returned' END,
+            $4::uuid, score, score, $${departmentIds.length > 0 ? 7 : 6}::text,
+            jsonb_build_object('action', $5::text, 'resulting_status', status)
+          FROM updated RETURNING id
+        ) SELECT * FROM updated
       `,
       departmentIds.length > 0
-        ? [input.tenant_id, input.mark_ids, status, input.actor_user_id, input.action, departmentIds]
-        : [input.tenant_id, input.mark_ids, status, input.actor_user_id, input.action]
+        ? [input.tenant_id, input.mark_ids, status, input.actor_user_id, input.action, departmentIds, input.reason ?? null]
+        : [input.tenant_id, input.mark_ids, status, input.actor_user_id, input.action, input.reason ?? null]
     );
     return result.rows;
   }
@@ -3867,7 +3881,7 @@ export class ExamsRepository {
   }) {
     const result = await this.executeSql(
       `
-        UPDATE exam_marks
+        WITH updated AS (UPDATE exam_marks
         SET status = 'locked',
             updated_by_user_id = $3::uuid,
             locked_at = NOW(),
@@ -3875,7 +3889,15 @@ export class ExamsRepository {
         WHERE tenant_id = $1
           AND id = ANY($2::uuid[])
           AND status = 'reviewed'
-        RETURNING *
+        RETURNING *), audits AS (
+          INSERT INTO exam_mark_audit_logs (
+            tenant_id, mark_id, exam_series_id, assessment_id, student_id,
+            action, actor_user_id, previous_score, new_score, metadata
+          )
+          SELECT tenant_id, id, exam_series_id, assessment_id, student_id,
+            'marks.locked', $3::uuid, score, score, jsonb_build_object('resulting_status', status)
+          FROM updated RETURNING id
+        ) SELECT * FROM updated
       `,
       [input.tenant_id, input.mark_ids, input.actor_user_id]
     );
@@ -6018,7 +6040,7 @@ export class ExamsRepository {
     ])];
     if (!available.includes(scope.level) && !filters.scope && available.length) scope = { ...scope, level: available[0] };
     if (!available.includes(scope.level)) throw new ForbiddenException('No active appointment authorizes this academic analytics scope.');
-    const result = await this.executeSql<SubjectEvidence>(analyticsQuery(scope.level), [tenantId, scope.actor_user_id, JSON.stringify(filters)]);
+    const result = await this.executeSql<SubjectEvidence>(analyticsQuery(scope.level, requiresPublishedExamAnalytics(scope.role)), [tenantId, scope.actor_user_id, JSON.stringify(filters)]);
     return buildAcademicIntelligence(result.rows, scope, filters, available);
   }
 

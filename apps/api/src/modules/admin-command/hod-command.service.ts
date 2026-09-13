@@ -156,9 +156,9 @@ export class HodCommandService {
 
   async getMarksModeration() {
     if (!this.examsService) {
-      throw new ServiceUnavailableException('The exam moderation workflow is not available');
+      throw new ServiceUnavailableException('Published exam analytics are not available');
     }
-    return this.examsService.getWorkflowOverview();
+    return this.examsService.getAnalytics();
   }
 
   async getResourceRequests() {
