@@ -39,6 +39,18 @@ test('WorkflowRuntime executes deterministic transitions only from the current s
   assert.deepEqual(result.escalation.roles, ['dean-academics', 'school-owner']);
 });
 
+test('the exam runtime goes from teacher submission directly to the Dean without HOD approval', () => {
+  const workflow = createExamWorkflowRuntime();
+  assert.ok(!JSON.stringify(workflow).toLowerCase().includes('hod'));
+  const reviewed = executeWorkflowTransition(workflow, {
+    tenantId: 'tenant-1', workflowInstanceId: 'exam-workflow-1', entityId: 'exam-batch-1',
+    currentState: 'SUBJECT_REVIEW', actionId: 'dean-approve', actorUserId: 'dean-1', role: 'dean-academics',
+    capabilities: ['exams:dean-approve'], now: '2026-09-13T10:00:00.000Z',
+  });
+  assert.equal(reviewed.status, 'ADVANCED');
+  assert.equal(reviewed.to, 'DEAN_APPROVAL');
+});
+
 test('WorkflowRuntime blocks invalid transitions without emitting business events', () => {
   const workflow = createExamWorkflowRuntime();
   const result = executeWorkflowTransition(workflow, {
