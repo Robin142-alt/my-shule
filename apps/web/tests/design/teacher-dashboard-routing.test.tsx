@@ -99,7 +99,8 @@ describe("teacher dashboard routing", () => {
     );
 
     expect(await screen.findByRole("button", { name: /Exams & Marks/i })).toHaveClass("bg-white/15");
-    expect(screen.getByText(/Teacher markbook for formal exams/i)).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Exams & Marks", level: 2 })).toBeVisible();
+    expect(screen.getByText(/Enter scores, save your draft, then submit results/i)).toBeVisible();
     expect(within(document.body).queryByText(/Workspace Not Found/i)).not.toBeInTheDocument();
   });
 });

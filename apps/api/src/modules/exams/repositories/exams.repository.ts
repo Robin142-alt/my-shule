@@ -1,5 +1,5 @@
 import { markEntryHasStartedSql } from '../mark-entry-window-policy';
-import { teacherMarkStudentScopeSql } from '../teacher-mark-scope';
+import { teacherMarkSheetSubmittedSql, teacherMarkStudentScopeSql } from '../teacher-mark-scope';
 import { academicCurriculumGradingSql } from '../../academics/curriculum-grading';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 
@@ -589,6 +589,7 @@ export class ExamsRepository {
               AND assessment.id = source.assessment_id
               AND assessment.exam_series_id = source.exam_series_id
               AND assessment.subject_id = source.subject_id
+              AND NOT ${teacherMarkSheetSubmittedSql('mark_window', 'series', 'assessment.id', '$2')}
              JOIN students student
                ON student.tenant_id = mark_window.tenant_id
               AND student.id::text = source.student_id::text
@@ -5390,6 +5391,7 @@ export class ExamsRepository {
         AND ($5::uuid IS NULL OR mark_window.class_section_id = $5::uuid)
         AND ($8::uuid IS NULL OR mark_window.subject_id = $8::uuid)
         AND ($9::uuid IS NULL OR assessment.id = $9::uuid)
+        AND ($4::uuid IS NULL OR NOT ${teacherMarkSheetSubmittedSql('mark_window', 'series', 'assessment.id', '$4')})
         AND mark_window.status = 'open'
         AND ${markEntryHasStartedSql('mark_window', 'series')}
         AND mark_window.closes_at >= NOW()
@@ -5400,7 +5402,8 @@ export class ExamsRepository {
         subject.name NULLS LAST,
         assessment.name,
         student.admission_number NULLS LAST,
-        student.created_at ASC
+        student.created_at ASC,
+        student.id ASC
       LIMIT $6::integer
       OFFSET $7::integer`;
     const params: any[] = [

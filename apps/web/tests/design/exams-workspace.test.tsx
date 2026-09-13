@@ -508,6 +508,9 @@ describe("exams workspace", () => {
     jest.clearAllMocks();
     global.fetch = jest.fn((input: RequestInfo | URL) => {
       const urlStr = String(input);
+      if (urlStr.includes("/class-teacher/pending-marks")) {
+        return Promise.resolve(jsonResponse({ stats: { totalWindows: 0, nearingDeadline: 0 }, windows: [] }));
+      }
       if (urlStr.includes("/api/school/modules/me")) {
         return Promise.resolve({
           ok: true,
@@ -544,6 +547,7 @@ describe("exams workspace", () => {
   });
 
   it("opens the teacher exams workspace with a clear empty markbook state", async () => {
+    mockLiveExamsSession();
     await act(async () => {
       renderWithProviders(
         createElement(SchoolPages, {
@@ -563,9 +567,9 @@ describe("exams workspace", () => {
     expect(
       screen.getAllByRole("heading", { name: /Exams & Marks/i }).length,
     ).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: /Download CSV/i })).toBeVisible();
-    expect(screen.getByRole("heading", { name: /No markbooks assigned yet/i })).toBeVisible();
-    expect(screen.getByRole("button", { name: /Refresh markbooks/i })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: /No exams awaiting marks/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Refresh exams/i })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Download CSV/i })).not.toBeInTheDocument();
   });
 
   it("blocks the exams workspace when the tenant module is disabled", async () => {

@@ -29,7 +29,7 @@ describe('Continuing subject teacher assignment SQL contract', () => {
     pool = new Pool({ connectionString: process.env.DATABASE_URL });
     await pool.query(`
       CREATE TABLE streams (id text PRIMARY KEY);
-      CREATE TABLE class_sections (id text PRIMARY KEY, tenant_id text, academic_year_id text, status text DEFAULT 'active');
+      CREATE TABLE class_sections (id text PRIMARY KEY, tenant_id text, academic_year_id text, status text DEFAULT 'active', curriculum_model text DEFAULT 'CBC');
       CREATE TABLE class_streams (id text PRIMARY KEY, tenant_id text, class_section_id text, status text DEFAULT 'active');
       CREATE TABLE academic_terms (id text PRIMARY KEY, tenant_id text, academic_year_id text);
       CREATE TABLE subjects (id text PRIMARY KEY, tenant_id text, status text DEFAULT 'active', department_id uuid, curriculum_model text);
@@ -117,9 +117,9 @@ describe('Continuing subject teacher assignment SQL contract', () => {
     stream_id: stream, created_by_user_id: actorId, ...extras,
   });
 
-  it('inherits the subject department and curriculum even when a client supplies overrides', async () => {
+  it('inherits the subject department and class curriculum even when a client supplies overrides', async () => {
     const departmentId = randomUUID();
-    await pool.query("UPDATE subjects SET department_id=$1, curriculum_model='CBC' WHERE id='english'", [departmentId]);
+    await pool.query("UPDATE subjects SET department_id=$1, curriculum_model='8-4-4' WHERE id='english'", [departmentId]);
     try {
       const saved = await service.assignTeacher({ ...input(), department_id: randomUUID(), curriculum_model: '8-4-4' });
       expect(saved.department_id).toBe(departmentId);
