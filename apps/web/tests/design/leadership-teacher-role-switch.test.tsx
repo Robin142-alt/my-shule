@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { DeputyPrincipalCommandCenter } from "@/components/school/deputy-principal-command-center";
 import { PrincipalCommandCenter } from "@/components/school/principal-command-center";
+import { AdmissionsDashboardCommandCenter } from "@/components/school/admissions-dashboard/admissions-dashboard-command-center";
 import { TeacherCommandCenter } from "@/components/school/teacher-command-center";
 import { normalizeDashboardRoleContext } from "@/lib/auth/dashboard-role-context";
 import { replaceDashboardDocument } from "@/lib/auth/dashboard-role-navigation";
@@ -29,6 +30,9 @@ jest.mock("@/components/school/teacher-dashboard/overview-workspace", () => ({
 jest.mock("@/components/school/principal-dashboard/overview-workspace", () => ({
   PrincipalOverviewWorkspace: () => <p>Principal overview</p>,
 }));
+jest.mock("@/components/school/admissions-dashboard/overview-workspace", () => ({
+  AdmissionsOverviewWorkspace: () => <p>Admissions overview</p>,
+}));
 jest.mock("@/components/providers/permission-context", () => ({
   PermissionProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
@@ -36,9 +40,14 @@ jest.mock("@/lib/dashboard-communication/dashboard-communication-provider", () =
   DashboardCommunicationBoundary: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-type LeadershipRole = "deputy_principal" | "principal";
-type ActiveRole = LeadershipRole | "teacher";
-let primaryRole: LeadershipRole;
+const staffRoles = {
+  deputy_principal: { label: "Deputy Principal", route: "deputy-principal" },
+  principal: { label: "Principal", route: "principal" },
+  admissions_officer: { label: "Admissions Officer", route: "admissions" },
+} as const;
+type StaffRole = keyof typeof staffRoles;
+type ActiveRole = StaffRole | "teacher";
+let primaryRole: StaffRole;
 
 function payload(activeRole: ActiveRole) {
   const roleContext = normalizeDashboardRoleContext({
@@ -46,13 +55,13 @@ function payload(activeRole: ActiveRole) {
     active_role: activeRole,
     assigned_roles: [primaryRole],
     available_roles: [
-      { role_code: primaryRole, role_name: primaryRole === "principal" ? "Principal" : "Deputy Principal", is_primary: true,
+      { role_code: primaryRole, role_name: staffRoles[primaryRole].label, is_primary: true,
         is_teacher_mode: false, sources: ["primary_membership"] },
       { role_code: "teacher", role_name: "Teacher", is_primary: false,
         is_teacher_mode: true, sources: ["teacher_eligibility"] },
     ],
     teacher_dashboard_eligible: true,
-  }, "deputy-principal");
+  }, staffRoles[primaryRole].route);
   const user = { user_id: "deputy-a", tenant_id: "school-a", role: activeRole,
     email: "deputy@example.test", display_name: "School Deputy", session_id: "session-a",
     permissions: ["auth:read"] };
@@ -75,12 +84,14 @@ function installSession(activeRole: ActiveRole, switchResponse: () => Promise<Re
 }
 
 function renderDashboard(activeRole: ActiveRole, routeMode: "public" | "hosted" = "public") {
-  const role = activeRole === "deputy_principal" ? "deputy-principal" : activeRole;
+  const role = activeRole === "teacher" ? "teacher" : staffRoles[activeRole].route;
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <SchoolDashboardRoleProvider initialRole={role} tenantSlug="school-a" routeMode={routeMode}>
         {activeRole === "teacher" ? <TeacherCommandCenter routeMode={routeMode} /> : activeRole === "principal" ? (
           <PrincipalCommandCenter tenantSlug="school-a" userLabel="School Principal" routeMode={routeMode} />
+        ) : activeRole === "admissions_officer" ? (
+          <AdmissionsDashboardCommandCenter routeMode={routeMode} />
         ) : (
           <DeputyPrincipalCommandCenter tenantSlug="school-a" userLabel="School Deputy" routeMode={routeMode} />
         )}
@@ -89,15 +100,15 @@ function renderDashboard(activeRole: ActiveRole, routeMode: "public" | "hosted" 
   );
 }
 
-describe.each(["deputy_principal", "principal"] as const)("%s teacher dashboard switching", (leadershipRole) => {
+describe.each(["deputy_principal", "principal", "admissions_officer"] as const)("%s teacher dashboard switching", (staffRole) => {
   beforeEach(() => {
-    primaryRole = leadershipRole;
+    primaryRole = staffRole;
     global.fetch = jest.fn();
     jest.mocked(replaceDashboardDocument).mockReset();
     window.sessionStorage.clear();
   });
 
-  it.each(["public", "hosted"] as const)("switches from the %s leadership header only after server confirmation", async (routeMode) => {
+  it.each(["public", "hosted"] as const)("switches from the %s staff header only after server confirmation", async (routeMode) => {
     let confirm!: (value: Response) => void;
     const pending = new Promise<Response>((resolve) => { confirm = resolve; });
     installSession(primaryRole, () => pending);
@@ -105,7 +116,7 @@ describe.each(["deputy_principal", "principal"] as const)("%s teacher dashboard 
     renderDashboard(primaryRole, routeMode);
 
     const header = within(screen.getByRole("banner"));
-    const trigger = await header.findByRole("button", { name: /switch dashboard.*principal/i });
+    const trigger = await header.findByRole("button", { name: new RegExp(`switch dashboard.*${staffRoles[primaryRole].label}`, "i") });
     await user.click(trigger);
     const teacher = screen.getByRole("radio", { name: /^Teacher\b/i });
     expect(screen.queryByRole("radio", { name: /Accountant/i })).not.toBeInTheDocument();
@@ -124,22 +135,22 @@ describe.each(["deputy_principal", "principal"] as const)("%s teacher dashboard 
     expect(jest.mocked(fetch).mock.calls.filter(([url]) => url === "/api/auth/active-role")).toHaveLength(1);
   });
 
-  it("offers the leadership role on the teacher dashboard and switches back with its authorization code", async () => {
+  it.each(["public", "hosted"] as const)("switches back from Teacher with the correct authorization code and %s route", async (routeMode) => {
     installSession("teacher", async () => response(payload(primaryRole)));
     const user = userEvent.setup();
-    renderDashboard("teacher");
+    renderDashboard("teacher", routeMode);
 
     await user.click(await screen.findByRole("button", { name: /switch dashboard.*teacher/i }));
-    await user.click(screen.getByRole("radio", { name: /Principal/i }));
+    await user.click(screen.getByRole("radio", { name: new RegExp(staffRoles[primaryRole].label, "i") }));
     await waitFor(() => expect(replaceDashboardDocument).toHaveBeenCalledWith(
-      primaryRole === "principal" ? "/school/principal" : "/school/deputy-principal",
+      routeMode === "public" ? `/school/${staffRoles[primaryRole].route}` : "/dashboard",
     ));
     expect(fetch).toHaveBeenCalledWith("/api/auth/active-role", expect.objectContaining({
       body: JSON.stringify({ role_code: primaryRole }),
     }));
   });
 
-  it("keeps a failed switch visible on the leadership dashboard and lets the user retry", async () => {
+  it("keeps a failed switch visible on the staff dashboard and lets the user retry", async () => {
     const switchResponse = jest.fn()
       .mockResolvedValueOnce(response({ message: "Unable to switch dashboards. Please retry." }, 503))
       .mockResolvedValueOnce(response(payload("teacher")));
@@ -147,11 +158,11 @@ describe.each(["deputy_principal", "principal"] as const)("%s teacher dashboard 
     const user = userEvent.setup();
     renderDashboard(primaryRole);
 
-    await user.click(await screen.findByRole("button", { name: /switch dashboard.*principal/i }));
+    await user.click(await screen.findByRole("button", { name: new RegExp(`switch dashboard.*${staffRoles[primaryRole].label}`, "i") }));
     await user.click(screen.getByRole("radio", { name: /^Teacher\b/i }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to switch dashboards. Please retry.");
     expect(replaceDashboardDocument).not.toHaveBeenCalled();
-    expect(screen.getByRole("radio", { name: /Principal/i })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: new RegExp(staffRoles[primaryRole].label, "i") })).toHaveAttribute("aria-checked", "true");
     await user.click(screen.getByRole("radio", { name: /^Teacher\b/i }));
     await waitFor(() => expect(replaceDashboardDocument).toHaveBeenCalledWith("/school/teacher"));
   });
