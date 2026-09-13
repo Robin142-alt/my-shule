@@ -43,8 +43,8 @@ export function cn(...classes: Array<string | false | null | undefined>) {
 
 export function StatusChip({ label, tone = "neutral" }: { label: string; tone?: Tone }) {
   return (
-    <span className={cn("inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold whitespace-nowrap", toneClasses[tone].chip)}>
-      <span className={cn("h-2 w-2 rounded-full shrink-0", toneClasses[tone].dot)} />
+    <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium whitespace-nowrap", toneClasses[tone].chip)}>
+      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", toneClasses[tone].dot)} />
       {label}
     </span>
   );
@@ -64,16 +64,16 @@ export function Panel({
   actions?: ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+    <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 gap-3">
           {Icon ? (
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
-              <Icon className="h-5 w-5" aria-hidden="true" />
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-slate-50 text-slate-600">
+              <Icon className="h-4 w-4" aria-hidden="true" />
             </span>
           ) : null}
           <div>
-            <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">{title}</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-slate-900">{title}</h2>
             {description ? <p className="mt-1 text-sm leading-6 text-[#64748B]">{description}</p> : null}
           </div>
         </div>

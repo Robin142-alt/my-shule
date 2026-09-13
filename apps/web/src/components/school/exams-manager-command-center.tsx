@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
   CalendarDays,
@@ -35,6 +35,7 @@ import { OverviewWorkspace } from "./exams-manager/overview-workspace";
 import { PublishingWorkspace } from "./exams-manager/publishing-workspace";
 import { ReportCardsWorkspace } from "./exams-manager/report-cards-workspace";
 import { ReportsWorkspace } from "./exams-manager/reports-workspace";
+import type { TeacherMarkSheet } from "./exams-manager/teacher-marks-progress";
 import { buildSchoolSectionHref } from "./school-pages";
 
 type ExamsManagerRouteMode = "hosted" | "public";
@@ -82,20 +83,8 @@ type NavItem = {
   aliases: ExamsManagerView[];
 };
 
-type MarksEntryExportRow = {
-  exam_name?: string | null;
-  subject?: string | null;
-  class_name?: string | null;
-  teacher?: string | null;
-  total_students?: number | string | null;
-  entered?: number | string | null;
-  missing?: number | string | null;
-  deadline?: string | null;
-  status?: string | null;
-};
-
 type MarksEntryExportResponse = {
-  entries?: MarksEntryExportRow[];
+  entries?: TeacherMarkSheet[];
 };
 
 const routeAliases: Record<ExamsManagerView, ExamsManagerCanonicalView> = {
@@ -134,7 +123,7 @@ const navItems: NavItem[] = [
   {
     id: "overview",
     label: "Exam Command Center",
-    summary: "Live exam cycle metrics, marks progress, and tenant-clean recent exams.",
+    summary: "Exam cycles, outstanding teachers, and progress toward results.",
     icon: GraduationCap,
     aliases: ["dashboard", "overview"],
   },
@@ -203,7 +192,7 @@ const navItems: NavItem[] = [
   },
 ];
 
-const navById = new Map(navItems.map((item) => [item.id, item]));
+
 
 export function canonicalizeExamsManagerView(section?: string): ExamsManagerCanonicalView {
   const normalized = String(section || "overview").trim() as ExamsManagerView;
@@ -214,17 +203,6 @@ function updateBrowserPath(view: ExamsManagerCanonicalView, routeMode: ExamsMana
   if (typeof window === "undefined") return;
 
   window.history.replaceState(null, "", buildSchoolSectionHref("exams-manager", view, routeMode));
-}
-
-function StatusNotice({ children }: { children: ReactNode }) {
-  return (
-    <div
-      role="status"
-      className="rounded-2xl border border-[#D9E2EF] bg-white px-4 py-3 text-sm font-bold leading-6 text-[#071D49] shadow-sm"
-    >
-      {children}
-    </div>
-  );
 }
 
 function LockedWorkspace({ reason }: { reason: string }) {
@@ -261,7 +239,7 @@ function Workspace({
     case "exam-timetable":
       return <ExamTimetableWorkspace />;
     case "marks-entry":
-      return <MarksEntryWorkspace />;
+      return <MarksEntryWorkspace onOpenSetup={() => onNavigate("exam-setup")} />;
     case "moderation":
       return <ModerationWorkspace />;
     case "analysis":
@@ -281,7 +259,7 @@ function Workspace({
       return <ReportsWorkspace />;
     case "overview":
     default:
-      return <OverviewWorkspace />;
+      return <OverviewWorkspace onNavigate={onNavigate} />;
   }
 }
 
@@ -307,7 +285,6 @@ export function ExamsManagerCommandCenter({
     setActiveViewState(canonicalizeExamsManagerView(activeSection));
   }, [activeSection]);
 
-  const activeItem = navById.get(activeView) ?? navItems[0];
   const lockedReason = !examsEnabled
     ? "The Exams module is not enabled for this school. Ask the platform owner to enable Exams before creating exam cycles or report cards."
     : !rolePermitted
@@ -344,29 +321,34 @@ export function ExamsManagerCommandCenter({
   async function requestMarksExport() {
     setCommandState("export");
     try {
-      const response = await requestDashboardApi<MarksEntryExportResponse>("/admin-command/exams-manager/marks-entry");
+      const response = await requestDashboardApi<MarksEntryExportResponse>("/admin-command/exams-manager/teacher-mark-progress");
       const entries = Array.isArray(response.entries) ? response.entries : [];
 
       if (entries.length === 0) {
         setActiveView("marks-entry");
-        toast.error("No marks-entry rows are available to export yet. Open an exam cycle and wait for teacher submissions first.");
+        toast.error("No mark-entry sheets are available to export yet. Set up an exam with subjects and classes first.");
         return;
       }
 
       downloadCsvFile({
-        filename: `marks-entry-export-${new Date().toISOString().slice(0, 10)}.csv`,
-        headers: ["exam_name", "subject", "class_name", "teacher", "total_students", "entered", "missing", "deadline", "status"],
+        filename: `teacher-mark-progress-${new Date().toISOString().slice(0, 10)}.csv`,
+        headers: ["exam_name", "subject", "paper", "class_name", "stream", "teacher", "total_students", "entered", "recorded", "submitted", "missing", "deadline", "status", "overdue"],
         rows: entries.map((entry) => [
           entry.exam_name ?? "",
           entry.subject ?? "",
+          entry.paper ?? "",
           entry.class_name ?? "",
+          entry.stream ?? "",
           entry.teacher ?? "",
           String(entry.total_students ?? 0),
           String(entry.entered ?? 0),
+          String(entry.recorded ?? 0),
+          String(entry.submitted ?? 0),
           String(entry.missing ?? 0),
           entry.deadline ?? "",
           entry.status ?? "",
-        ]),
+          entry.overdue ? "Yes" : "No",
+        ].map(value => /^[=+\-@\t\r]/.test(value) ? `'${value}` : value)),
       });
       toast.success(`Downloaded ${entries.length} marks-entry row${entries.length === 1 ? "" : "s"}.`);
     } catch (error) {
@@ -380,13 +362,13 @@ export function ExamsManagerCommandCenter({
     <div
       data-testid="role-operational-command-center"
       data-route-mode={actualRouteMode}
-      className="min-h-dvh bg-[#EEF3F8] text-[#071D49]"
+      className="min-h-dvh bg-slate-50 text-slate-900"
     >
       <div className="flex min-h-dvh">
-        <aside className="hidden w-[296px] shrink-0 border-r border-white/15 bg-[#071D49] p-5 text-white shadow-2xl lg:flex lg:flex-col">
-          <SchoolCommandSidebarIdentity eyebrow="Exams command" title="Exams Manager" subtitle="Setup, marks, moderation, reports, and approval handoff" />
+        <aside className="sticky top-0 hidden h-dvh w-[240px] shrink-0 flex-col border-r border-white/10 bg-[#101F36] p-3 text-white lg:flex">
+          <SchoolCommandSidebarIdentity eyebrow="Examinations" className="!rounded-lg !border-0 !bg-transparent !p-2 !shadow-none" />
 
-          <nav aria-label="Exams Manager navigation" className="mt-8 flex-1 space-y-2 overflow-y-auto pr-1">
+          <nav aria-label="Exams Manager navigation" className="mt-3 flex-1 space-y-1 overflow-y-auto">
             {navItems.map((item) => {
               const Icon = item.icon;
               const selected = activeView === item.id;
@@ -395,9 +377,10 @@ export function ExamsManagerCommandCenter({
                   key={item.id}
                   type="button"
                   aria-label={item.label}
+                  aria-current={selected ? "page" : undefined}
                   onClick={() => setActiveView(item.id)}
-                  className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-black transition ${
-                    selected ? "bg-white text-[#071D49] shadow-lg" : "text-blue-100 hover:bg-white/10 hover:text-white"
+                  className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${
+                    selected ? "bg-white text-[#071D49]" : "text-slate-300 hover:bg-white/10 hover:text-white"
                   }`}
                 >
                   <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -407,19 +390,15 @@ export function ExamsManagerCommandCenter({
             })}
           </nav>
 
-          <div className="mt-4 rounded-2xl border border-white/10 bg-white/10 p-4 text-sm text-blue-100">
-            <p className="font-black text-white">Access</p>
-            <p className="mt-1">School-scoped exams desk</p>
-          </div>
+          <p className="mt-4 border-t border-white/10 px-3 pt-4 text-xs text-slate-400">Examinations workspace</p>
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-20 border-b border-[#D9E2EF] bg-white/90 px-4 py-4 backdrop-blur md:px-8">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <p className="text-sm font-black text-[#071D49]">Exam operations controls</p>
+          <header className="border-b border-slate-200 bg-white px-4 py-3 md:px-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
 
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative hidden items-center gap-2 rounded-2xl border border-[#D9E2EF] bg-[#F8FAFC] px-3 py-2 text-sm font-bold text-[#64748B] md:flex">
+              <div className="flex w-full flex-wrap items-center gap-3">
+                <div className="relative hidden items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 md:flex">
                   <Search className="h-4 w-4" aria-hidden="true" />
                   <input
                     value={searchTerm}
@@ -431,7 +410,7 @@ export function ExamsManagerCommandCenter({
                     }}
                     aria-label="Search exams manager workspace"
                     placeholder="Search exams workspaces"
-                    className="w-64 bg-transparent text-sm font-bold outline-none placeholder:text-[#64748B]"
+                    className="w-44 bg-transparent text-sm outline-none placeholder:text-slate-400"
                   />
                   {searchTerm.trim().length > 0 ? (
                     <div className="absolute right-0 top-12 z-30 w-96 overflow-hidden rounded-2xl border border-[#D9E2EF] bg-white text-[#071D49] shadow-2xl">
@@ -458,7 +437,7 @@ export function ExamsManagerCommandCenter({
                   ) : null}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="ml-auto flex items-center gap-2">
                   <TaskQueue />
                   <ApprovalInbox />
                   <NotificationBell />
@@ -469,7 +448,7 @@ export function ExamsManagerCommandCenter({
                     type="button"
                     onClick={requestMarksImport}
                     disabled={Boolean(lockedReason) || commandState !== null}
-                    className="inline-flex items-center gap-2 rounded-full border border-[#D9E2EF] bg-white px-3 py-2 text-xs font-black text-[#071D49] shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex items-center gap-2 min-h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Upload className="h-4 w-4" aria-hidden="true" />
                     Import marks
@@ -478,25 +457,22 @@ export function ExamsManagerCommandCenter({
                     type="button"
                     onClick={requestMarksExport}
                     disabled={Boolean(lockedReason) || commandState !== null}
-                    className="inline-flex items-center gap-2 rounded-full border border-[#D9E2EF] bg-white px-3 py-2 text-xs font-black text-[#071D49] shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex items-center gap-2 min-h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Download className="h-4 w-4" aria-hidden="true" />
-                    {commandState === "export" ? "Exporting..." : "Export marks"}
+                    {commandState === "export" ? "Exporting..." : "Export progress"}
                   </button>
                   <button
                     type="button"
                     onClick={openExternalImportWorkspace}
                     disabled={Boolean(lockedReason) || commandState !== null}
-                    className="inline-flex items-center gap-2 rounded-full border border-[#D9E2EF] bg-white px-3 py-2 text-xs font-black text-[#071D49] shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex items-center gap-2 min-h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
                     CSV templates
                   </button>
                 </div>
 
-                <span className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700">
-                  Tenant-scoped exams desk
-                </span>
               </div>
             </div>
 
@@ -519,28 +495,8 @@ export function ExamsManagerCommandCenter({
             </div>
           </header>
 
-          <main className="flex-1 px-4 py-6 md:px-8">
-            <IntegratedSchoolCommandHeader roleTitle="Exams Manager Dashboard" fallbackUserLabel="Exams Manager" className="mb-5" />
-            <div className="mb-5 grid gap-3">
-              <StatusNotice>
-                {lockedReason
-                  ? lockedReason
-                  : `${activeItem.label} is connected to the live exams backend. Fresh schools only show records created inside that school.`}
-              </StatusNotice>
-            </div>
-
-            <section className="mb-6 rounded-3xl border border-[#D9E2EF] bg-gradient-to-br from-[#071D49] via-[#0B3478] to-[#0B63CE] p-6 text-white shadow-[0_28px_70px_rgba(7,29,73,0.18)]">
-              <p className="text-xs font-black uppercase tracking-[0.24em] text-blue-100">
-                Exams Manager Dashboard
-              </p>
-              <h2 className="mt-3 text-3xl font-black tracking-tight md:text-4xl">
-                Exam setup, marks, moderation, and report-card preparation.
-              </h2>
-              <p className="mt-4 max-w-4xl text-sm leading-7 text-blue-50 md:text-base">
-                Create exam cycles first, schedule sessions, monitor teacher mark entry, moderate results,
-                then generate report cards and submit them to the Dean. Only the Principal releases approved results.
-              </p>
-            </section>
+          <main className="min-w-0 flex-1 px-4 py-5 md:px-6">
+            <IntegratedSchoolCommandHeader roleTitle="Exams Manager Dashboard" fallbackUserLabel="Exams Manager" className="mb-5 !rounded-none !border-0 !bg-transparent !p-0 !shadow-none [&_h1]:!text-xl [&_h1]:!font-semibold" />
 
             {lockedReason ? (
               <LockedWorkspace reason={lockedReason} />

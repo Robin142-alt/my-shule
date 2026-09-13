@@ -52,6 +52,12 @@ export class ExamsManagerCommandController {
     return this.service.getMarksEntry();
   }
 
+  @Get('teacher-mark-progress')
+  @Permissions('exams:write')
+  getTeacherMarkProgress() {
+    return this.service.getTeacherMarkProgress();
+  }
+
   @Post('marks-entry')
   @Permissions('exams:write')
   submitMarks(@Body() dto: any) {

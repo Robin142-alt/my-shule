@@ -4,6 +4,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { ExamsService } from '../exams/exams.service';
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
+import { TEACHER_MARK_PROGRESS_SQL, TeacherMarkProgress } from './teacher-mark-progress';
 
 type SqlResult<T> = { rows: T[]; rowCount: number };
 
@@ -1002,6 +1003,12 @@ export class ExamsManagerCommandService {
       slot,
       invigilator,
     };
+  }
+
+  async getTeacherMarkProgress() {
+    const tenantId = this.requireTenantId();
+    const result = await this.readSql<TeacherMarkProgress>(TEACHER_MARK_PROGRESS_SQL, [tenantId]);
+    return { entries: result.rows };
   }
 
   async getMarksEntry() {

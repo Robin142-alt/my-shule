@@ -1604,7 +1604,7 @@ describe("dashboard action contract safety", () => {
     expect(source).toMatch(/setActiveView\("imports-templates"\)/);
     expect(source).toMatch(/ImportsTemplatesWorkspace/);
     expect(source).toMatch(/openExternalImportWorkspace/);
-    expect(source).toMatch(/requestDashboardApi<MarksEntryExportResponse>\("\/admin-command\/exams-manager\/marks-entry"/);
+    expect(source).toMatch(/requestDashboardApi<MarksEntryExportResponse>\("\/admin-command\/exams-manager\/teacher-mark-progress"/);
     expect(source).toMatch(/downloadCsvFile/);
     expect(source).not.toMatch(/requestDashboardApi\("\/admin-command\/exams-manager\/zeraki-sync"/);
     expect(source).not.toMatch(/Zeraki sync requested/);
