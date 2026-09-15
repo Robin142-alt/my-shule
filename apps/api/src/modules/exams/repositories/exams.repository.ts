@@ -1,6 +1,6 @@
-import { REPORT_CARD_READINESS_CTES, REPORT_CARD_READINESS_COUNTS } from '../report-card-readiness';
+import { reportCardReadinessCtes, REPORT_CARD_READINESS_CTES, REPORT_CARD_READINESS_COUNTS } from '../report-card-readiness';
 import { requiresPublishedExamAnalytics } from '../analytics/analytics-scope';
-import { markEntryHasStartedSql } from '../mark-entry-window-policy';
+import { markEntryAccessSql } from '../mark-entry-window-policy';
 import { teacherMarkSheetSubmittedSql, teacherMarkStudentScopeSql } from '../teacher-mark-scope';
 import { academicCurriculumGradingSql } from '../../academics/curriculum-grading';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
@@ -95,7 +95,13 @@ export class ExamsRepository {
       : 25;
 
     const seriesResult = await this.executeSql(
-      `WITH series_scope AS (
+      `${reportCardReadinessCtes({ exam: 'NULL::uuid', class: 'NULL::uuid', stream: 'NULL::text' })}, readiness_rollup AS (
+         SELECT readiness.exam_series_id, ${REPORT_CARD_READINESS_COUNTS}
+         FROM readiness
+         JOIN subjects subject ON subject.tenant_id = $1 AND subject.id::text = readiness.subject_id::text
+         WHERE ($2::text[] IS NULL OR subject.department_id::text = ANY($2::text[]))
+         GROUP BY readiness.exam_series_id
+       ), series_scope AS (
          SELECT series.*
          FROM exam_series series
          WHERE series.tenant_id = $1
@@ -215,6 +221,10 @@ export class ExamsRepository {
          COALESCE(mark_window.closed_window_count, 0) AS closed_window_count,
          COALESCE(mark_window.class_count, 0) AS class_count,
          COALESCE(mark.total_marks, 0) AS total_marks,
+         COALESCE(readiness.expected_mark_count, 0) AS expected_mark_count,
+         COALESCE(readiness.ready_mark_count, 0) AS ready_mark_count,
+         COALESCE(readiness.missing_mark_count, 0) AS missing_mark_count,
+         COALESCE(readiness.not_ready_mark_count, 0) AS not_ready_mark_count,
          COALESCE(mark.draft_marks, 0) AS draft_marks,
          COALESCE(mark.submitted_marks, 0) AS submitted_marks,
          COALESCE(mark.reviewed_marks, 0) AS reviewed_marks,
@@ -246,6 +256,7 @@ export class ExamsRepository {
        LEFT JOIN assessment_rollup assessment ON assessment.exam_series_id = series.id
        LEFT JOIN window_rollup mark_window ON mark_window.exam_series_id = series.id
        LEFT JOIN mark_rollup mark ON mark.exam_series_id = series.id
+       LEFT JOIN readiness_rollup readiness ON readiness.exam_series_id = series.id
        LEFT JOIN card_rollup card ON card.exam_series_id = series.id
        LEFT JOIN generation_rollup generation ON generation.exam_series_id = series.id
        ORDER BY series.created_at DESC`,
@@ -428,6 +439,7 @@ export class ExamsRepository {
     academic_term_id: string;
     class_section_id: string;
     subject_id: string;
+    teacher_user_id?: string;
   }) {
     const result = await this.executeSql(
       `
@@ -448,9 +460,7 @@ export class ExamsRepository {
           AND series.academic_term_id = $3::uuid
           AND mark_window.class_section_id = $4::uuid
           AND mark_window.subject_id = $5::uuid
-          AND mark_window.status = 'open'
-          AND ${markEntryHasStartedSql('mark_window', 'series')}
-          AND mark_window.closes_at >= NOW()
+          AND ${markEntryAccessSql('mark_window', 'series', '$6')}
           AND series.locked_at IS NULL AND series.published_at IS NULL
           AND series.status NOT IN ('locked', 'published', 'archived')
         ORDER BY mark_window.created_at DESC
@@ -462,6 +472,7 @@ export class ExamsRepository {
         input.academic_term_id,
         input.class_section_id,
         input.subject_id,
+        input.teacher_user_id ?? null,
       ],
     );
 
@@ -576,8 +587,6 @@ export class ExamsRepository {
               AND mark_window.exam_series_id = source.exam_series_id
               AND mark_window.class_section_id = source.class_section_id
               AND mark_window.subject_id = source.subject_id
-              AND mark_window.status = 'open'
-              AND mark_window.closes_at >= NOW()
              JOIN exam_series series
                ON series.tenant_id = mark_window.tenant_id
               AND series.id = mark_window.exam_series_id
@@ -585,7 +594,7 @@ export class ExamsRepository {
               AND series.locked_at IS NULL
               AND series.published_at IS NULL
               AND series.status NOT IN ('locked', 'published', 'archived')
-              AND ${markEntryHasStartedSql('mark_window', 'series')}
+              AND ${markEntryAccessSql('mark_window', 'series', '$2')}
              JOIN exam_assessments assessment
                ON assessment.tenant_id = mark_window.tenant_id
               AND assessment.id = source.assessment_id
@@ -773,10 +782,8 @@ export class ExamsRepository {
              AND mark_window.exam_series_id = $4::uuid
              AND mark_window.class_section_id = $6::uuid
              AND mark_window.subject_id = $7::uuid
-             AND mark_window.status = 'open'
-             AND ${markEntryHasStartedSql('mark_window', 'series')}
-             AND ${teacherMarkStudentScopeSql('mark_window', 'series', 'student.id', '$2')}
-             AND mark_window.closes_at >= NOW()`,
+             AND ${markEntryAccessSql('mark_window', 'series', '$2')}
+             AND ${teacherMarkStudentScopeSql('mark_window', 'series', 'student.id', '$2')}`,
           input.tenant_id,
           input.actor_user_id,
           input.source_window_id,
@@ -1984,7 +1991,25 @@ export class ExamsRepository {
            'missing_mark_count', subject_counts.missing_mark_count,
            'draft_mark_count', subject_counts.draft_mark_count,
            'submitted_mark_count', subject_counts.submitted_mark_count,
-           'reviewed_mark_count', subject_counts.reviewed_mark_count
+           'reviewed_mark_count', subject_counts.reviewed_mark_count,
+           'other_exams', COALESCE((
+             SELECT jsonb_agg(other_exam ORDER BY other_exam->>'exam_name') FROM (
+               SELECT jsonb_build_object('exam_series_id', other_series.id::text, 'exam_name', other_series.name,
+                 'learner_count', COUNT(DISTINCT missing.student_id)::int) AS other_exam
+               FROM readiness missing
+               JOIN exam_marks other_mark ON other_mark.tenant_id = $1
+                 AND other_mark.class_section_id = missing.class_section_id
+                 AND other_mark.subject_id = missing.subject_id
+                 AND other_mark.student_id::text = missing.student_id
+                 AND other_mark.exam_series_id <> missing.exam_series_id
+                 AND other_mark.status IN ('locked', 'published')
+               JOIN exam_series other_series ON other_series.tenant_id = $1 AND other_series.id = other_mark.exam_series_id
+               WHERE missing.exam_series_id = subject_counts.exam_series_id
+                 AND missing.class_section_id = subject_counts.class_section_id
+                 AND missing.subject_id = subject_counts.subject_id AND missing.mark_state = 0
+               GROUP BY other_series.id, other_series.name
+             ) other_results
+           ), '[]'::jsonb)
          ) ORDER BY subject.name)
            FROM subject_counts
            LEFT JOIN subjects subject ON subject.tenant_id = $1
@@ -3165,6 +3190,7 @@ export class ExamsRepository {
       `
         UPDATE exam_mark_entry_windows
         SET status = 'closed',
+            teacher_entry_deadlines = '{}'::jsonb,
             updated_at = NOW()
         WHERE tenant_id = $1
           AND id = $2::uuid
@@ -3428,6 +3454,7 @@ export class ExamsRepository {
        )
        UPDATE exam_mark_entry_windows mark_window
        SET status = CASE WHEN $4 = 'lock' THEN 'closed' ELSE 'open' END,
+           teacher_entry_deadlines = '{}'::jsonb,
            opens_at = CASE WHEN $4 = 'open' THEN LEAST(mark_window.opens_at, NOW()) ELSE mark_window.opens_at END,
            last_action = CASE WHEN $4 = 'return' THEN 'returned' WHEN $4 = 'lock' THEN 'locked' ELSE 'opened' END,
            last_action_at = NOW(),
@@ -5415,9 +5442,7 @@ export class ExamsRepository {
           ($10::boolean AND mark.status IN ('submitted', 'reviewed', 'approved', 'locked', 'published'))
           OR (NOT $10::boolean
             AND ($4::uuid IS NULL OR NOT ${teacherMarkSheetSubmittedSql('mark_window', 'series', 'assessment.id', '$4')})
-            AND mark_window.status = 'open'
-            AND ${markEntryHasStartedSql('mark_window', 'series')}
-            AND mark_window.closes_at >= NOW()
+            AND ${markEntryAccessSql('mark_window', 'series', '$4')}
             AND series.locked_at IS NULL AND series.published_at IS NULL
             AND series.status NOT IN ('locked', 'published', 'archived'))
         )

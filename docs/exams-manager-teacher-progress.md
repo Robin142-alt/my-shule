@@ -15,3 +15,15 @@ Verification:
 - `apps/web/tests/design/exams-manager-browser.mjs`: actual components and styles with isolated browser fixtures at 320, 390, 768 and 1440 pixels; checks layout, search, details, filters, CSV download, error recovery and setup navigation. Screenshots are written to `output/exams-manager-ui` and contain only QA data.
 
 Both API and web changes must be released together. No production school was modified by this work.
+
+## Open mark entry
+
+Marks Entry Hub includes an Open mark entry form. Choose an exam, a particular teacher, a particular class, or everyone in that exam, then set a future deadline in East Africa Time. The form uses the full progress response, independently of the list's filters and pagination.
+
+`POST /admin-command/exams-manager/marks-entry/open` requires an exam-management role, `exams:write`, authenticated actor and verified school context. It validates the scope and deadline, locks the parent exam, and updates only matching school/exam windows. Draft exams must first be opened through Exam Setup; locked, published and archived exams require the existing correction workflow.
+
+Individual access is persisted in `exam_mark_entry_windows.teacher_entry_deadlines`, a JSONB map keyed by teacher user ID. It extends only that teacher's access through their active term/class/subject/stream assignments, including when the shared window is closed or expired. Class and everyone actions set the shared deadline and replace individual extensions for the affected windows. Closing a window clears its extensions. Existing databases receive the column through the exam schema upgrade.
+
+Teacher discovery, progress, roster reads and transactional saves enforce the same access rule. Submitted sheets and reviewed, locked or published marks retain their existing protection. Closing entry does not finalize draft marks or replace Dean review. Access updates, per-window audit records, workflow events and teacher-targeted notifications commit together; an event failure rolls back the opening.
+
+The teacher exam visibility integration suite covers individual, class and everyone access, school/role isolation, expired shared deadlines, locked results and transaction rollback. Component tests exercise all three scopes, selection resets, duplicate submission prevention and error/loading states. The follow-up visual check could not run because the Windows computer-use tool could not verify the browser URL.

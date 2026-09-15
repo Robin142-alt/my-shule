@@ -5592,18 +5592,18 @@ test('ExamsManagerCommandService reads configured windows before teachers enter 
   assert.match(reads[0].sql, /WHERE mark_window\.tenant_id = \$1/i);
 });
 
-test('ExamsManagerCommandService locks a whole tenant-scoped mark-entry window and its marks', async () => {
+test('ExamsManagerCommandService closes a tenant-scoped entry window without bypassing Dean review', async () => {
   const writes: Array<{ sql: string; params: unknown[] }> = [];
   const workflowCalls: any[] = [];
   const service = new ExamsManagerCommandService(
     {
-      getStore: () => ({ tenant_id: 'kibabi-high', user_id: '22222222-2222-4222-8222-222222222222' }),
+      getStore: () => ({ tenant_id: 'kibabi-high', user_id: '22222222-2222-4222-8222-222222222222', role: 'exams_manager', permissions: ['exams:write'] }),
     } as never,
     {} as never,
     {
       writeSql: async (sql: string, params: unknown[]) => {
         writes.push({ sql, params });
-        return { rows: [{ id: params[1], status: 'closed', marks_locked: 35 }], rowCount: 1 };
+        return { rows: [{ id: params[1], status: 'closed', marks_locked: 0 }], rowCount: 1 };
       },
       recordWorkflowAction: async (input: any) => {
         workflowCalls.push(input);
@@ -5621,7 +5621,8 @@ test('ExamsManagerCommandService locks a whole tenant-scoped mark-entry window a
     '22222222-2222-4222-8222-222222222222',
   ]);
   assert.match(writes[0].sql, /UPDATE exam_mark_entry_windows/i);
-  assert.match(writes[0].sql, /UPDATE exam_marks mark/i);
+  assert.doesNotMatch(writes[0].sql, /UPDATE exam_marks/i);
+  assert.match(writes[0].sql, /teacher_entry_deadlines = '\{\}'::jsonb/i);
   assert.match(writes[0].sql, /WHERE tenant_id = \$1/i);
   assert.equal(workflowCalls[0].eventType, 'exams.marks-entry.locked');
 });

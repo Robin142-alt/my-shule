@@ -1,4 +1,6 @@
-import { BadRequestException, ConflictException, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
+import { openMarkEntry, validateEntryRequest } from './mark-entry-access';
+import { OpenMarkEntryDto } from './open-mark-entry.dto';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import { ExamsService } from '../exams/exams.service';
@@ -1105,6 +1107,43 @@ export class ExamsManagerCommandService {
     return { entries: result.rows };
   }
 
+  private assertEntryManager() {
+    const context = this.requestContext.getStore();
+    const role = String(context?.role ?? '').toLowerCase();
+    if (!['exams_officer', 'exams_manager', 'principal', 'super_admin'].includes(role)
+      || !(context?.permissions ?? []).some(permission => ['exams:write', '*'].includes(permission))) {
+      throw new ForbiddenException('Exam management permission is required to open mark entry.');
+    }
+    return role;
+  }
+
+  async openMarksEntry(dto: OpenMarkEntryDto) {
+    const role = this.assertEntryManager();
+    const tenant = this.requireTenantId();
+    const actor = this.actorUserId();
+    if (!actor) throw new UnauthorizedException('Sign in before changing mark entry.');
+    const input = validateEntryRequest(dto);
+    return examSetupTransaction(this.prisma, tenant, actor, async (operations, tx) => {
+      const access = await openMarkEntry(operations, tenant, actor, input);
+      await operations.recordWorkflowAction({ tenantId: tenant, actorUserId: actor,
+        sourceRole: 'exams_manager', targetRoles: ['exams_manager'], eventType: 'exams.mark-entry.opened',
+        entityType: 'exam_series', entityId: input.exam_series_id, title: 'Mark entry opened',
+        message: `Entry opened for ${access.exam_name} until ${input.closes_at}.`, priority: 'normal', payload: access });
+      await this.schoolEvents?.recordSchoolOperation({ event: {
+        id: `mark-entry-opened-${input.exam_series_id}-${Date.now()}`, type: 'exam.mark_entry_opened', module: 'exams',
+        actorRole: role, title: 'Mark entry opened', body: `Entry opened for ${access.exam_name}.`,
+        entityId: input.exam_series_id, severity: 'info', payload: access,
+      }, notifications: access.teacher_user_ids.map(userId => ({
+        id: `mark-entry-${input.exam_series_id}-${userId}-${Date.now()}`,
+        audienceRoles: ['teacher'], targetUserId: userId, title: 'Mark entry opened',
+        body: `You can enter outstanding marks for ${access.exam_name} until ${input.closes_at}.`,
+        sourceModule: 'exams', relatedModule: 'exams', relatedRecordId: input.exam_series_id,
+        priority: 'normal', read: false, createdAt: new Date().toISOString(),
+      })) }, tx);
+      return { success: true, message: `Mark entry opened for ${access.window_count} subject/class windows.`, ...access };
+    });
+  }
+
   async getMarksEntry() {
     const tenantId = this.requireTenantId();
     const result = await this.readSql<{
@@ -1244,6 +1283,7 @@ export class ExamsManagerCommandService {
   }
 
   async lockMarksEntry(id: string, dto: any = {}) {
+    this.assertEntryManager();
     const tenantId = this.requireTenantId();
     const actorUserId = this.actorUserId();
     const result = await this.operations.writeSql(
@@ -1251,6 +1291,7 @@ export class ExamsManagerCommandService {
         WITH locked_window AS (
           UPDATE exam_mark_entry_windows
           SET status = 'closed',
+              teacher_entry_deadlines = '{}'::jsonb,
               last_action = 'locked',
               last_action_at = NOW(),
               last_action_by_user_id = $3::uuid,
@@ -1258,22 +1299,11 @@ export class ExamsManagerCommandService {
           WHERE tenant_id = $1
             AND id = $2::uuid
           RETURNING id, tenant_id, exam_series_id, subject_id, class_section_id, status
-        ), locked_marks AS (
-          UPDATE exam_marks mark
-          SET status = 'locked',
-              locked_at = COALESCE(mark.locked_at, NOW()),
-              updated_at = NOW()
-          FROM locked_window mark_window
-          WHERE mark.tenant_id = mark_window.tenant_id
-            AND mark.exam_series_id = mark_window.exam_series_id
-            AND mark.subject_id = mark_window.subject_id
-            AND mark.class_section_id = mark_window.class_section_id
-          RETURNING mark.id
         )
         SELECT
           mark_window.id::text,
           mark_window.status,
-          (SELECT COUNT(*)::int FROM locked_marks) AS marks_locked
+          0::int AS marks_locked
         FROM locked_window mark_window
       `,
       [tenantId, id, actorUserId],

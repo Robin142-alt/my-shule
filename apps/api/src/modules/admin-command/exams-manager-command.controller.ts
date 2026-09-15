@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { ExamsManagerCommandService } from './exams-manager-command.service';
+import { OpenMarkEntryDto } from './open-mark-entry.dto';
 
 @Controller('admin-command/exams-manager')
 @RequiresModule('exams')
@@ -68,6 +69,12 @@ export class ExamsManagerCommandController {
   @Permissions('exams:write')
   submitMarks(@Body() dto: any) {
     return this.service.recordExamAction('marks-entry.submitted', dto);
+  }
+
+  @Post('marks-entry/open')
+  @Permissions('exams:write')
+  openMarksEntry(@Body() dto: OpenMarkEntryDto) {
+    return this.service.openMarksEntry(dto);
   }
 
   @Post('import-marks')

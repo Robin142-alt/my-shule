@@ -84,6 +84,7 @@ export interface LiveReportCardGenerationScope {
     draft_mark_count: number;
     submitted_mark_count: number;
     reviewed_mark_count: number;
+    other_exams?: Array<{ exam_series_id: string; exam_name: string; learner_count: number }>;
   }>;
 }
 

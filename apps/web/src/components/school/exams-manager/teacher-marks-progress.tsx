@@ -6,9 +6,11 @@ import { toast } from "sonner";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { lockMarksEntry } from "./api-client";
 import { StatusChip, type Tone } from "./shared";
+import { OpenMarkEntryPanel } from "./open-mark-entry-panel";
 
 export type TeacherMarkSheet = {
   id: string; window_id: string; exam_id: string; exam_name: string;
+  class_section_id?: string;
   teacher_id: string | null; teacher: string; subject: string; paper: string;
   class_name: string; stream: string | null; total_students: number;
   entered: number; recorded: number; submitted: number; missing: number;
@@ -81,6 +83,8 @@ export function TeacherMarksProgress({ showWindowControls = false, onOpenSetup }
   }
 
   return (
+    <div className="min-w-0 space-y-4">
+    {showWindowControls ? <OpenMarkEntryPanel entries={entries} unavailable={isLoading || Boolean(error) || !data} onOpened={refetch} /> : null}
     <section aria-label="Teacher mark entry progress" className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div className="flex flex-wrap items-start justify-between gap-3 p-4 sm:p-5">
         <div><h2 className="text-lg font-semibold tracking-tight text-slate-900">Teacher mark entry</h2><p className="mt-1 text-sm text-slate-500">See who still needs to enter marks or submit a completed sheet.</p></div>
@@ -145,5 +149,6 @@ export function TeacherMarksProgress({ showWindowControls = false, onOpenSetup }
         </>
       )}
     </section>
+    </div>
   );
 }

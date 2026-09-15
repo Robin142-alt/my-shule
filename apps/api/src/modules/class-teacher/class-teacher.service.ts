@@ -15,7 +15,7 @@ import {
   type ExamScoreStatus,
 } from '../exams/dto/exams.dto';
 import { ExamsService } from '../exams/exams.service';
-import { markEntryHasStartedSql } from '../exams/mark-entry-window-policy';
+import { markEntryHasStartedSql, markEntryAccessSql, effectiveEntryDeadlineSql } from '../exams/mark-entry-window-policy';
 import { teacherMarkSheetSubmittedSql, teacherMarkStudentScopeSql } from '../exams/teacher-mark-scope';
 import type { SaveTeacherMarksDto, TeacherMarkInput } from './dto/class-teacher.dto';
 import { RequestContextService } from '../../common/request-context/request-context.service';
@@ -610,7 +610,7 @@ export class ClassTeacherService {
         assessment.id as assessment_id,
         COALESCE(assessment.name, 'Main Paper') as paper_name,
         COALESCE(assessment.max_score, 100) as out_of,
-        w.closes_at as deadline,
+        ${effectiveEntryDeadlineSql('w', '$2')} as deadline,
         ${teacherMarkSheetSubmittedSql('w', 'es', 'assessment.id', '$2')} AS is_submitted,
         (
           SELECT COUNT(DISTINCT em.student_id) FROM exam_marks em
@@ -679,6 +679,7 @@ export class ClassTeacherService {
           WHEN es.locked_at IS NOT NULL OR es.published_at IS NOT NULL
             OR es.status IN ('locked', 'published', 'archived') THEN 'Locked'
           WHEN es.status = 'draft' AND w.status <> 'open' THEN 'Draft'
+          WHEN ${markEntryAccessSql('w', 'es', '$2')} THEN 'Open'
           WHEN w.status <> 'open' THEN 'Closed'
           WHEN w.closes_at < NOW() THEN 'Deadline passed'
           WHEN ${markEntryHasStartedSql('w', 'es')} THEN 'Open'
@@ -708,13 +709,11 @@ export class ClassTeacherService {
         AND tsa.teacher_user_id = $2
         AND ($4::boolean OR NOT ${teacherMarkSheetSubmittedSql('w', 'es', 'assessment.id', '$2')})
         AND ($3::boolean OR (
-          w.status = 'open'
-          AND ${markEntryHasStartedSql('w', 'es')}
-          AND w.closes_at >= NOW()
+          ${markEntryAccessSql('w', 'es', '$2')}
           AND es.locked_at IS NULL AND es.published_at IS NULL
           AND es.status NOT IN ('locked', 'published', 'archived')
         ))
-      ORDER BY w.closes_at ASC
+      ORDER BY deadline ASC
     `;
     const { rows: result } = await this.executeSql(query, [tenantId, userId, includeUnavailable, includeSubmitted]);
     
@@ -1255,9 +1254,7 @@ export class ClassTeacherService {
         AND w.tenant_id = $2
         AND w.class_section_id = $4
         AND NOT ${teacherMarkSheetSubmittedSql('w', 'es', 'assessment.id', '$3')}
-        AND w.status = 'open'
-        AND ${markEntryHasStartedSql('w', 'es')}
-        AND w.closes_at >= NOW()
+        AND ${markEntryAccessSql('w', 'es', '$3')}
     `;
     const { rows: windows } = await this.executeSql(windowQuery, [
       payload.examId,

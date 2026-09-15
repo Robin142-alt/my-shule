@@ -475,6 +475,10 @@ export class ExamsService {
         classes: numberValue(row.class_count),
         learners: numberValue(row.learner_count),
         marks: numberValue(row.total_marks),
+        expected_marks: numberValue(row.expected_mark_count),
+        ready_marks: numberValue(row.ready_mark_count),
+        missing_marks: numberValue(row.missing_mark_count),
+        not_ready_marks: numberValue(row.not_ready_mark_count),
         draft_marks: numberValue(row.draft_marks),
         submitted_marks: numberValue(row.submitted_marks),
         reviewed_marks: numberValue(row.reviewed_marks),
@@ -487,13 +491,15 @@ export class ExamsService {
         published_report_cards: numberValue(row.published_report_cards),
         failed_generation_batches: numberValue(row.failed_generation_batches),
       };
-      const finalizedMarks = counts.locked_marks + counts.published_marks;
       const unresolvedMarks = counts.draft_marks + counts.submitted_marks + counts.reviewed_marks;
       const finalizedCards = counts.approved_report_cards + counts.published_report_cards;
       let stage = 'setup';
       let nextOwner = 'Exams Manager';
 
-      if (counts.draft_marks > 0) {
+      if (counts.missing_marks > 0 && counts.report_cards === 0) {
+        stage = 'mark_entry';
+        nextOwner = 'Teachers';
+      } else if (counts.draft_marks > 0) {
         stage = 'mark_entry';
         nextOwner = 'Teachers';
       } else if (counts.submitted_marks > 0) {
@@ -514,7 +520,7 @@ export class ExamsService {
       } else if (counts.draft_report_cards > 0) {
         stage = 'report_card_handoff';
         nextOwner = 'Exams Manager';
-      } else if (finalizedMarks > 0 && unresolvedMarks === 0) {
+      } else if (counts.expected_marks > 0 && counts.not_ready_marks === 0 && unresolvedMarks === 0) {
         stage = 'report_card_generation';
         nextOwner = 'Exams Manager';
       } else if (counts.entry_windows > 0 || counts.marks > 0) {
@@ -525,6 +531,7 @@ export class ExamsService {
       const blockers: string[] = [];
       if (counts.assessments === 0) blockers.push('No assessments configured');
       if (counts.entry_windows === 0) blockers.push('No mark-entry windows opened');
+      if (counts.missing_marks > 0) blockers.push(`${counts.missing_marks} learner-subject marks have not been saved for this exam`);
       if (counts.draft_marks > 0) blockers.push(`${counts.draft_marks} draft marks need teacher submission`);
       if (counts.submitted_marks > 0) blockers.push(`${counts.submitted_marks} marks await Dean review`);
       if (counts.reviewed_marks > 0) blockers.push(`${counts.reviewed_marks} reviewed marks await Dean lock`);
@@ -547,7 +554,7 @@ export class ExamsService {
         next_owner: nextOwner,
         blockers,
         counts,
-        can_generate_report_cards: counts.marks > 0 && finalizedMarks === counts.marks,
+        can_generate_report_cards: counts.expected_marks > 0 && counts.not_ready_marks === 0,
         can_submit_report_cards: counts.draft_report_cards > 0,
         can_approve_report_cards: counts.review_report_cards > 0,
         can_publish_report_cards: counts.report_cards > 0
@@ -2305,6 +2312,7 @@ export class ExamsService {
 
     const markEntryWindow = await this.repository.findOpenMarkEntryWindow({
       tenant_id: tenantId,
+      teacher_user_id: actorUserId,
       exam_series_id: dto.exam_series_id,
       academic_term_id: dto.academic_term_id,
       class_section_id: dto.class_section_id,
