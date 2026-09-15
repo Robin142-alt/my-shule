@@ -65,6 +65,28 @@ export interface LiveReportCardArtifact {
   generated_at?: string | null;
 }
 
+export interface LiveReportCardGenerationScope {
+  exam_series_id: string;
+  exam_series_name: string;
+  class_section_id: string;
+  class_name: string;
+  expected_mark_count: number;
+  ready_mark_count: number;
+  not_ready_mark_count: number;
+  learner_count: number;
+  ready: boolean;
+  blockers: Array<{
+    subject_id: string;
+    subject_name: string;
+    expected_mark_count: number;
+    ready_mark_count: number;
+    missing_mark_count: number;
+    draft_mark_count: number;
+    submitted_mark_count: number;
+    reviewed_mark_count: number;
+  }>;
+}
+
 export interface LiveReportCardBatchStatus {
   id: string;
   status: string;

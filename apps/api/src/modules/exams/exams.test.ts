@@ -4006,7 +4006,8 @@ test('ExamsRepository checks complete finalized report-card readiness inside one
 
   assert.equal(readiness.not_ready_mark_count, 0);
   assert.match(queries[0]?.text ?? '', /WHERE mark\.tenant_id = \$1/);
-  assert.match(queries[0]?.text ?? '', /mark\.exam_series_id = \$2::uuid/);
+  assert.match(queries[0]?.text ?? '', /exam_series_id = \$2::uuid/);
+  assert.match(queries[0]?.text ?? '', /mark\.exam_series_id = expected\.exam_series_id/);
   assert.match(queries[0]?.text ?? '', /mark\.status IN \('locked', 'published'\)/);
   assert.deepEqual(queries[0]?.values, [
     'tenant-a',
