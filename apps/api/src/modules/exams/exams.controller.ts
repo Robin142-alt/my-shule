@@ -213,6 +213,12 @@ export class ExamsController {
     return this.examsService.regenerateReportCard(dto);
   }
 
+  @Get('report-cards/generation-scopes')
+  @Permissions('exams:read')
+  listReportCardGenerationScopes() {
+    return this.examsService.listReportCardGenerationScopes();
+  }
+
   @Post('report-cards/batches')
   @Permissions('exams:write')
   generateReportCardBatch(@Body() dto: GenerateReportCardBatchDto) {

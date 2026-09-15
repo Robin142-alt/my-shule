@@ -53,6 +53,9 @@ jobs:
       - name: Exam setup configuration and deletion controls
         run: npm --prefix apps/web run test:design -- exam-setup-edit-delete exams-manager-human-workflows exams-manager-routing
 
+      - name: Report-card generation readiness and actions
+        run: npm --prefix apps/web run test:design -- report-card-generation-readiness live-report-card-actions report-card-curriculum
+
       - name: Teacher marks roster and routing contracts
         run: npm --prefix apps/web run test:design -- teacher-mark-sheet-pagination teacher-dashboard-routing
 
@@ -119,6 +122,12 @@ jobs:
           DATABASE_URL: ""
           NODE_ENV: test
         run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/exam-setup-integrity.integration-spec.ts apps/api/test/teacher-exam-visibility.integration-spec.ts
+
+      - name: Report-card readiness, missing marks and school isolation
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/report-card-readiness.integration-spec.ts
 
       - name: Sidebar reads, schema upgrades and tenant isolation
         env:

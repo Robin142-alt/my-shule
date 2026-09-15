@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import Link from "next/link";
 
 import {
   ReportCardActionBar,
@@ -23,7 +24,7 @@ import { useSchoolCommandIdentity } from "@/components/school/integrated-school-
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { requestSchoolApiProxy } from "@/lib/dashboard/school-api-proxy-client";
 import type {
-  LiveExamMarkSheet,
+  LiveReportCardGenerationScope,
   LiveExamReportCard,
   LiveReportCardBatchStatus,
 } from "@/lib/modules/exams-client";
@@ -32,17 +33,6 @@ import {
   mapPersistedReportCardDocument,
   type ReportCardAudience,
 } from "@/lib/report-cards/live-report-card";
-
-type GenerationScope = {
-  key: string;
-  examSeriesId: string;
-  classSectionId: string;
-  label: string;
-  ready: boolean;
-  guidance: string;
-  finalizedMarks: number;
-  pendingMarks: number;
-};
 
 const audienceCopy: Record<ReportCardAudience, {
   eyebrow: string;
@@ -129,43 +119,16 @@ function commentSourceLabel(value?: string) {
   return "Editable official report-card comment";
 }
 
-function buildGenerationScopes(markSheets: LiveExamMarkSheet[]) {
-  const scopes = new Map<string, GenerationScope>();
-  for (const sheet of markSheets) {
-    if (!sheet.exam_series_id || !sheet.class_section_id) continue;
-    const key = `${sheet.exam_series_id}:${sheet.class_section_id}`;
-    const existing = scopes.get(key);
-    const finalizedMarks = Number(sheet.locked_mark_count ?? 0) + Number(sheet.published_mark_count ?? 0);
-    const pendingMarks = Number(sheet.draft_mark_count ?? 0)
-      + Number(sheet.submitted_mark_count ?? 0)
-      + Number(sheet.reviewed_mark_count ?? 0);
-    if (!existing) {
-      const examName = sheet.exam_series_name?.trim() || "Exam cycle";
-      const className = sheet.class_name?.trim() || `Class ${sheet.class_section_id.slice(0, 8)}`;
-      scopes.set(key, {
-        key,
-        examSeriesId: sheet.exam_series_id,
-        classSectionId: sheet.class_section_id,
-        label: `${examName} - ${className}`,
-        ready: false,
-        guidance: "Marks must be moderated and locked first",
-        finalizedMarks,
-        pendingMarks,
-      });
-    } else {
-      existing.finalizedMarks += finalizedMarks;
-      existing.pendingMarks += pendingMarks;
-    }
-  }
-  return [...scopes.values()]
-    .map((scope) => ({
+function buildGenerationScopes(scopes: LiveReportCardGenerationScope[]) {
+  return scopes.map((scope) => ({
       ...scope,
-      ready: scope.finalizedMarks > 0 && scope.pendingMarks === 0,
-      guidance: scope.finalizedMarks === 0
-        ? "No locked marks yet"
-        : scope.pendingMarks > 0
-          ? `${scope.pendingMarks} marks still need submission, moderation, or locking`
-          : `${scope.finalizedMarks} finalized marks ready`,
+      key: `${scope.exam_series_id}:${scope.class_section_id}`,
+      label: `${scope.exam_series_name} - ${scope.class_name}`,
+      guidance: scope.expected_mark_count === 0
+        ? "No enrolled learners for this exam"
+        : scope.not_ready_mark_count > 0
+          ? `${scope.not_ready_mark_count} learner-subject marks need attention`
+          : `${scope.ready_mark_count} finalized marks ready`,
     }))
     .sort((left, right) => left.label.localeCompare(right.label));
 }
@@ -188,12 +151,12 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
   const identity = useSchoolCommandIdentity();
   const copy = audienceCopy[audience];
   const reportQuery = useSchoolQuery<LiveExamReportCard[]>("/exams/report-cards?limit=50");
-  const markSheetQuery = useSchoolQuery<LiveExamMarkSheet[]>(
-    audience === "exams-manager" ? "/exams/mark-sheets" : null,
+  const generationQuery = useSchoolQuery<LiveReportCardGenerationScope[]>(
+    audience === "exams-manager" ? "/exams/report-cards/generation-scopes" : null,
+    { refetchInterval: 60_000 },
   );
-  const reports = reportQuery.data ?? [];
-  const markSheets = markSheetQuery.data ?? [];
-  const generationScopes = useMemo(() => buildGenerationScopes(markSheets), [markSheets]);
+  const reports = useMemo(() => reportQuery.data ?? [], [reportQuery.data]);
+  const generationScopes = useMemo(() => buildGenerationScopes(generationQuery.data ?? []), [generationQuery.data]);
   const [selectedScopeKey, setSelectedScopeKey] = useState("");
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -205,6 +168,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
   const [feedback, setFeedback] = useState<{ tone: "ok" | "critical"; message: string } | null>(null);
   const [rowFeedback, setRowFeedback] = useState<Record<string, { tone: "ok" | "critical"; message: string }>>({});
   const [batchStatus, setBatchStatus] = useState<LiveReportCardBatchStatus | null>(null);
+  const selectedScope = generationScopes.find((scope) => scope.key === selectedScopeKey);
 
   const selectedReport = reports.find((report) => report.id === selectedReportId) ?? null;
   const selectedDocument = selectedReport
@@ -349,7 +313,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
 
   async function generateBatch() {
     const scope = generationScopes.find((candidate) => candidate.key === selectedScopeKey);
-    if (!scope?.ready) {
+    if (busyAction || generationQuery.error || generationQuery.isFetching || !scope?.ready) {
       setFeedback({
         tone: "critical",
         message: scope?.guidance ?? "Select a class whose marks have been moderated and locked.",
@@ -359,12 +323,13 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
 
     setBusyAction("generate-batch");
     setFeedback(null);
+    setBatchStatus(null);
     try {
       const result = await requestSchoolApiProxy<LiveReportCardBatchStatus>("/exams/report-cards/batches", {
         method: "POST",
         body: {
-          exam_series_id: scope.examSeriesId,
-          class_section_id: scope.classSectionId,
+          exam_series_id: scope.exam_series_id,
+          class_section_id: scope.class_section_id,
           batch_size: 200,
           offset: 0,
         },
@@ -383,6 +348,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
         message: error instanceof Error ? error.message : "Report-card batch generation failed.",
       });
     } finally {
+      await generationQuery.refetch();
       setBusyAction("");
     }
   }
@@ -457,8 +423,8 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
     }
   }
 
-  const queryError = reportQuery.error ?? markSheetQuery.error;
-  const isLoading = reportQuery.isLoading || (audience === "exams-manager" && markSheetQuery.isLoading);
+  const queryError = reportQuery.error ?? generationQuery.error;
+  const isLoading = reportQuery.isLoading || (audience === "exams-manager" && generationQuery.isLoading);
 
   return (
     <section className="space-y-5" aria-label={`${copy.title} workspace`}>
@@ -495,7 +461,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
             className="mt-3"
             onClick={() => {
               void reportQuery.refetch();
-              if (audience === "exams-manager") void markSheetQuery.refetch();
+              if (audience === "exams-manager") void generationQuery.refetch();
             }}
           >
             <RefreshCw className="h-4 w-4" />
@@ -509,40 +475,78 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="min-w-0 flex-1">
               <label htmlFor="report-generation-scope" className="text-sm font-black">
-                Marked class and exam cycle
+                Class and exam cycle
               </label>
               <select
                 id="report-generation-scope"
                 value={selectedScopeKey}
-                onChange={(event) => setSelectedScopeKey(event.target.value)}
+                disabled={Boolean(busyAction) || generationQuery.isLoading}
+                onChange={(event) => {
+                  setSelectedScopeKey(event.target.value);
+                  setFeedback(null);
+                  setBatchStatus(null);
+                }}
                 className="mt-2 h-11 w-full rounded-lg border border-[#C8D5EA] bg-white px-3 text-sm font-semibold outline-none focus:border-[#1D4ED8] xl:max-w-xl"
               >
                 <option value="">Select class generation scope</option>
                 {generationScopes.map((scope) => (
-                  <option key={scope.key} value={scope.key} disabled={!scope.ready}>
-                    {scope.label} - {scope.ready ? "Ready" : scope.guidance}
+                  <option key={scope.key} value={scope.key}>
+                    {scope.label} - {generationQuery.error ? "Readiness unavailable" : scope.ready ? "Ready" : scope.guidance}
                   </option>
                 ))}
               </select>
-              {!markSheetQuery.isLoading && generationScopes.length === 0 ? (
+              {generationQuery.isLoading ? <p className="mt-2 text-sm">Checking exam readiness...</p> : null}
+              {!generationQuery.isLoading && !generationQuery.error && generationScopes.length === 0 ? (
                 <p className="mt-2 text-sm font-semibold text-amber-700">
                   No mark sheets are available. Create the exam, assign subjects, enter marks, and lock the mark sheets first.
                 </p>
               ) : null}
-              {!markSheetQuery.isLoading && generationScopes.length > 0 && !generationScopes.some((scope) => scope.ready) ? (
+              {!generationQuery.isLoading && generationScopes.length > 0 && !generationScopes.some((scope) => scope.ready) ? (
                 <p className="mt-2 text-sm font-semibold text-amber-700">
-                  Mark sheets exist, but none are ready. Teachers submit marks, the Dean reviews and locks them before report cards can be generated.
+                  Select an exam to see its outstanding subjects. Teachers submit marks, then the Dean reviews and locks them before report cards can be generated.
                 </p>
               ) : null}
             </div>
+            <Button variant="secondary" onClick={() => void generationQuery.refetch()} disabled={Boolean(busyAction) || generationQuery.isFetching}>
+              <RefreshCw className="h-4 w-4" />
+              {generationQuery.isFetching ? "Checking..." : "Refresh readiness"}
+            </Button>
             <Button
               onClick={() => void generateBatch()}
-              disabled={!generationScopes.find((scope) => scope.key === selectedScopeKey)?.ready || busyAction === "generate-batch"}
+              disabled={!selectedScope?.ready || Boolean(busyAction) || Boolean(generationQuery.error) || generationQuery.isFetching}
             >
               <FileCheck2 className="h-4 w-4" />
               {busyAction === "generate-batch" ? "Generating..." : "Generate class report cards"}
             </Button>
           </div>
+          {selectedScope && !generationQuery.error ? (
+            <div className="mt-4 space-y-3" aria-live="polite">
+              <p className="text-sm font-semibold">
+                {selectedScope.ready_mark_count} of {selectedScope.expected_mark_count} learner-subject marks finalized for {selectedScope.learner_count} learners.
+              </p>
+              {selectedScope.blockers.length > 0 ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                  <p className="font-bold">Complete these subjects before generating this class:</p>
+                  <ul className="mt-2 space-y-2">
+                    {selectedScope.blockers.map((subject) => (
+                      <li key={subject.subject_id}>
+                        <strong>{subject.subject_name}:</strong> {[
+                          subject.missing_mark_count > 0 && `${subject.missing_mark_count} missing`,
+                          subject.draft_mark_count > 0 && `${subject.draft_mark_count} awaiting submission`,
+                          subject.submitted_mark_count > 0 && `${subject.submitted_mark_count} awaiting Dean review`,
+                          subject.reviewed_mark_count > 0 && `${subject.reviewed_mark_count} awaiting locking`,
+                        ].filter(Boolean).join("; ")}.
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-3">Open Marks Entry Hub to identify the learners and assigned teachers. After submission, the Dean reviews and locks the marks.</p>
+                  <Link className="mt-3 inline-flex min-h-11 items-center font-bold underline" href="/school/exams-manager/marks-entry">Open Marks Entry Hub</Link>
+                </div>
+              ) : selectedScope.expected_mark_count === 0 ? (
+                <p className="text-sm text-amber-800">Check this class’s learner enrollments and exam subjects in Academic Setup and Exam Setup before generating report cards.</p>
+              ) : null}
+            </div>
+          ) : null}
           {batchStatus ? (
             <div className="mt-4 space-y-3">
               <div className="grid gap-3 sm:grid-cols-3">

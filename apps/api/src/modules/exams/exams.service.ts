@@ -1572,6 +1572,13 @@ export class ExamsService {
     });
   }
 
+  listReportCardGenerationScopes() {
+    if (!this.isExamsOfficer()) {
+      throw new ForbiddenException('Exam approval permission is required to generate report cards');
+    }
+    return this.repository.listReportCardGenerationScopes({ tenant_id: this.requireTenantId() });
+  }
+
   async generateReportCardBatch(dto: GenerateReportCardBatchDto) {
     if (!this.isExamsOfficer()) {
       throw new ForbiddenException('Exam approval permission is required to generate report cards');

@@ -1,3 +1,4 @@
+import { REPORT_CARD_READINESS_CTES, REPORT_CARD_READINESS_COUNTS } from '../report-card-readiness';
 import { requiresPublishedExamAnalytics } from '../analytics/analytics-scope';
 import { markEntryHasStartedSql } from '../mark-entry-window-policy';
 import { teacherMarkSheetSubmittedSql, teacherMarkStudentScopeSql } from '../teacher-mark-scope';
@@ -1937,58 +1938,8 @@ export class ExamsRepository {
     stream_name?: string | null;
   }) {
     const result = await this.executeSql(
-      `WITH selected_windows AS (
-         SELECT class_section_id, subject_id
-         FROM exam_mark_entry_windows
-         WHERE tenant_id = $1
-           AND exam_series_id = $2::uuid
-           AND ($3::uuid IS NULL OR class_section_id = $3::uuid)
-       ), expected AS (
-         SELECT DISTINCT
-           student.id::text AS student_id,
-           mark_window.class_section_id,
-           mark_window.subject_id
-         FROM selected_windows mark_window
-         INNER JOIN student_class_assignments assignment
-           ON assignment.tenant_id = $1
-          AND assignment.class_section_id = mark_window.class_section_id::text
-          AND assignment.status = 'active'
-         INNER JOIN students student
-           ON student.tenant_id = assignment.tenant_id
-          AND student.id::text = assignment.student_id::text
-          AND student.status = 'active'
-         INNER JOIN student_subject_enrollments enrollment
-           ON enrollment.tenant_id = student.tenant_id
-          AND enrollment.student_id::text = student.id::text
-          AND enrollment.class_section_id = mark_window.class_section_id::text
-          AND enrollment.subject_id = mark_window.subject_id::text
-          AND enrollment.status = 'active'
-         LEFT JOIN class_streams stream
-           ON stream.tenant_id = assignment.tenant_id
-          AND stream.id::text = assignment.stream_id::text
-         WHERE ($4::text IS NULL OR stream.name = $4::text)
-       ), readiness AS (
-         SELECT
-           expected.student_id,
-           expected.class_section_id,
-           expected.subject_id,
-           EXISTS (
-             SELECT 1
-             FROM exam_marks mark
-             WHERE mark.tenant_id = $1
-               AND mark.exam_series_id = $2::uuid
-               AND mark.student_id::text = expected.student_id
-               AND mark.class_section_id = expected.class_section_id
-               AND mark.subject_id = expected.subject_id
-               AND mark.status IN ('locked', 'published')
-           ) AS is_ready
-         FROM expected
-       )
-       SELECT
-         COUNT(*)::integer AS expected_mark_count,
-         COUNT(*) FILTER (WHERE is_ready)::integer AS ready_mark_count,
-         COUNT(*) FILTER (WHERE NOT is_ready)::integer AS not_ready_mark_count,
-         COUNT(DISTINCT student_id)::integer AS learner_count
+      `${REPORT_CARD_READINESS_CTES}
+       SELECT ${REPORT_CARD_READINESS_COUNTS}
        FROM readiness`,
       [
         input.tenant_id,
@@ -2004,6 +1955,53 @@ export class ExamsRepository {
       not_ready_mark_count: 0,
       learner_count: 0,
     };
+  }
+
+  async listReportCardGenerationScopes(input: { tenant_id: string }) {
+    const result = await this.executeSql(
+      `${REPORT_CARD_READINESS_CTES}, subject_counts AS (
+         SELECT exam_series_id, class_section_id, subject_id, ${REPORT_CARD_READINESS_COUNTS}
+         FROM readiness GROUP BY exam_series_id, class_section_id, subject_id
+       ), scope_counts AS (
+         SELECT exam_series_id, class_section_id, ${REPORT_CARD_READINESS_COUNTS}
+         FROM readiness GROUP BY exam_series_id, class_section_id
+       ), scopes AS (
+         SELECT DISTINCT exam_series_id, class_section_id FROM selected_windows
+       )
+       SELECT scopes.exam_series_id::text, scopes.class_section_id::text,
+         series.name AS exam_series_name,
+         COALESCE(section.custom_label, section.name, 'Class') AS class_name,
+         COALESCE(counts.expected_mark_count, 0) AS expected_mark_count,
+         COALESCE(counts.ready_mark_count, 0) AS ready_mark_count,
+         COALESCE(counts.not_ready_mark_count, 0) AS not_ready_mark_count,
+         COALESCE(counts.learner_count, 0) AS learner_count,
+         COALESCE(counts.expected_mark_count > 0 AND counts.not_ready_mark_count = 0, FALSE) AS ready,
+         COALESCE((SELECT jsonb_agg(jsonb_build_object(
+           'subject_id', subject_counts.subject_id::text,
+           'subject_name', COALESCE(subject.name, 'Subject'),
+           'expected_mark_count', subject_counts.expected_mark_count,
+           'ready_mark_count', subject_counts.ready_mark_count,
+           'missing_mark_count', subject_counts.missing_mark_count,
+           'draft_mark_count', subject_counts.draft_mark_count,
+           'submitted_mark_count', subject_counts.submitted_mark_count,
+           'reviewed_mark_count', subject_counts.reviewed_mark_count
+         ) ORDER BY subject.name)
+           FROM subject_counts
+           LEFT JOIN subjects subject ON subject.tenant_id = $1
+             AND subject.id::text = subject_counts.subject_id::text
+           WHERE subject_counts.exam_series_id = scopes.exam_series_id
+             AND subject_counts.class_section_id = scopes.class_section_id
+             AND subject_counts.not_ready_mark_count > 0
+         ), '[]'::jsonb) AS blockers
+       FROM scopes
+       JOIN exam_series series ON series.tenant_id = $1 AND series.id = scopes.exam_series_id
+       LEFT JOIN class_sections section ON section.tenant_id = $1 AND section.id::text = scopes.class_section_id::text
+       LEFT JOIN scope_counts counts ON counts.exam_series_id = scopes.exam_series_id
+         AND counts.class_section_id = scopes.class_section_id
+       ORDER BY series.name, class_name, scopes.exam_series_id, scopes.class_section_id`,
+      [input.tenant_id, null, null, null],
+    );
+    return result.rows;
   }
 
   async findReportCardArtifactByVerificationCode(input: {
