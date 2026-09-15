@@ -31,6 +31,8 @@ type ExamConfig = {
   can_delete: boolean;
   delete_block_reason?: string | null;
   marks_count: number;
+  reports_count?: number;
+  other_records_count?: number;
 };
 
 type ExamSetupData = {
@@ -92,6 +94,7 @@ export function ExamSetupWorkspace() {
   const [deletingExam, setDeletingExam] = useState<ExamConfig | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
 
@@ -238,11 +241,11 @@ export function ExamSetupWorkspace() {
   };
 
   const handleDelete = async () => {
-    if (!deletingExam || isDeleting || !canManage) return;
+    if (!deletingExam || isDeleting || !canManage || !deletingExam.can_delete || deleteConfirmation !== deletingExam.name) return;
     setIsDeleting(true);
     setDeleteError(null);
     try {
-      await deleteExam(deletingExam.id);
+      await deleteExam(deletingExam.id, deleteConfirmation);
       toast.success(`${deletingExam.name} deleted.`);
       setDeletingExam(null);
       await Promise.all([refetch(), refetchOptions()]);
@@ -516,8 +519,8 @@ export function ExamSetupWorkspace() {
                     <div className="flex justify-end gap-3">
                       <button type="button" onClick={() => openConfigureForm(exam)} disabled={!canManage || optionsLoading || Boolean(optionsError)} className="inline-flex min-h-11 items-center gap-1 text-xs font-semibold text-blue-600 hover:underline disabled:opacity-50"><Settings className="h-3 w-3" /> Configure</button>
                       <button type="button" aria-label={`Delete ${exam.name}`} disabled={!canManage || !exam.can_delete}
-                        title={!canManage ? "Exam management permission is required" : exam.delete_block_reason || "Delete this exam before results are entered"}
-                        onClick={() => { setDeleteError(null); setDeletingExam(exam); }}
+                        title={!canManage ? "Exam management permission is required" : exam.delete_block_reason || "Permanently delete this exam and its results"}
+                        onClick={() => { setDeleteError(null); setDeleteConfirmation(""); setDeletingExam(exam); }}
                         className="inline-flex min-h-11 items-center gap-1 text-xs font-semibold text-rose-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50"><Trash2 className="h-3 w-3" /> Delete</button>
                     </div>
                     {exam.delete_block_reason ? <p className="max-w-xs whitespace-normal text-xs text-slate-500">{exam.delete_block_reason}</p> : null}
@@ -578,10 +581,17 @@ export function ExamSetupWorkspace() {
         title="Delete exam?" description={deletingExam?.name} size="sm"
         footer={<>
           <button type="button" disabled={isDeleting} onClick={() => setDeletingExam(null)} className="rounded-lg border px-4 py-2 text-sm font-bold">Cancel</button>
-          <button type="button" disabled={isDeleting || !canManage} onClick={() => void handleDelete()} className="rounded-lg bg-rose-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{isDeleting ? "Deleting..." : "Delete exam"}</button>
+          <button type="button" disabled={isDeleting || !canManage || !deletingExam?.can_delete || deleteConfirmation !== deletingExam?.name} onClick={() => void handleDelete()} className="rounded-lg bg-rose-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{isDeleting ? "Deleting..." : "Delete exam"}</button>
         </>}
       >
-        <p className="text-sm text-slate-700">This permanently removes the exam, its papers, mark-entry windows and timetable. Only exams with no entered results or student records can be deleted. This cannot be undone.</p>
+        <p className="text-sm text-slate-700">This permanently removes this exam and all its saved marks, report cards (including published cards), papers, timetable, attendance and linked cases or interventions. This cannot be undone. The deletion audit remains.</p>
+        <p className="mt-3 text-sm font-semibold text-rose-800">{deletingExam?.marks_count ?? 0} saved marks, {deletingExam?.reports_count ?? 0} reports/result batches and {deletingExam?.other_records_count ?? 0} other student records will be removed.</p>
+        <label className="mt-4 block text-sm font-semibold text-slate-800">Type the exact exam name to confirm
+          <span className="mt-1 block break-words font-bold">{deletingExam?.name}</span>
+          <input aria-label="Exam name confirmation" autoComplete="off" spellCheck={false} disabled={isDeleting}
+            value={deleteConfirmation} onChange={event => { setDeleteConfirmation(event.target.value); setDeleteError(null); }}
+            className="mt-2 min-h-11 w-full min-w-0 rounded-lg border border-slate-300 px-3 font-normal" />
+        </label>
         {deleteError ? <p role="alert" className="mt-3 text-sm font-semibold text-rose-700">{deleteError}</p> : null}
       </Modal>
     </Panel>

@@ -93,32 +93,51 @@ describe('Exam setup editing and deletion', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
     expect(deleteExam).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Delete End term' }));
+    expect(screen.getByRole('button', { name: 'Delete exam' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Exam name confirmation'), { target: { value: 'end term' } });
+    expect(screen.getByRole('button', { name: 'Delete exam' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Exam name confirmation'), { target: { value: 'End term' } });
     fireEvent.click(screen.getByRole('button', { name: 'Delete exam' }));
-    await waitFor(() => expect(deleteExam).toHaveBeenCalledWith('exam-1'));
+    await waitFor(() => expect(deleteExam).toHaveBeenCalledWith('exam-1', 'End term'));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(refetch).toHaveBeenCalled();
     expect(toast.success).toHaveBeenCalledWith('End term deleted.');
   });
-  it('prevents repeated deletion while waiting and shows concurrent-results rejection truthfully', async () => {
+  it('prevents repeated deletion while waiting and keeps backend failures retryable', async () => {
     let reject!: (error: Error) => void;
     jest.mocked(deleteExam).mockImplementation(() => new Promise((_resolve, rejectPromise) => { reject = rejectPromise; }));
     render(<ExamSetupWorkspace />);
     fireEvent.click(screen.getByRole('button', { name: 'Delete End term' }));
+    fireEvent.change(screen.getByLabelText('Exam name confirmation'), { target: { value: 'End term' } });
     fireEvent.click(screen.getByRole('button', { name: 'Delete exam' }));
     expect(screen.getByRole('button', { name: 'Deleting...' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Deleting...' }));
     expect(deleteExam).toHaveBeenCalledTimes(1);
-    reject(new Error('Results were entered. This exam cannot be deleted.'));
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('cannot be deleted'));
+    reject(new Error('Deletion failed. Try again.'));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Deletion failed'));
     expect(toast.success).not.toHaveBeenCalled();
   });
-  it('locks deletion for marks and locks mutations without exam management permission', () => {
-    exam.can_delete = false; exam.delete_block_reason = 'This exam has entered results.'; canManage = false;
+  it('allows saved and published results with exact confirmation, resetting confirmation on reopen', () => {
+    Object.assign(exam, { status: 'published', marks_count: 49, reports_count: 11 });
+    render(<ExamSetupWorkspace />);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete End term' }));
+    expect(screen.getByText(/49 saved marks, 11 reports/)).toBeVisible();
+    expect(screen.getByText(/including published cards/)).toBeVisible();
+    fireEvent.change(screen.getByLabelText('Exam name confirmation'), { target: { value: 'End term' } });
+    expect(screen.getByRole('button', { name: 'Delete exam' })).toBeEnabled();
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete End term' }));
+    expect(screen.getByLabelText('Exam name confirmation')).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'Delete exam' })).toBeDisabled();
+    expect(deleteExam).not.toHaveBeenCalled();
+  });
+  it('locks mutations without exam management permission', () => {
+    exam.can_delete = false; exam.delete_block_reason = 'Exam management permission is required.'; canManage = false;
     render(<ExamSetupWorkspace />);
     expect(screen.getByRole('button', { name: 'Delete End term' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Configure' })).toBeDisabled();
     expect(screen.getByRole('button', { name: /New Exam/ })).toBeDisabled();
-    expect(screen.getByText('This exam has entered results.')).toBeVisible();
+    expect(screen.getByText('Exam management permission is required.')).toBeVisible();
   });
   it('shows a retry state instead of claiming the school has no exams on load failure', () => {
     setupError = new Error('Unavailable'); exams = [];

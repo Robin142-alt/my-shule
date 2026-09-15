@@ -1,13 +1,14 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
 import { openMarkEntry, validateEntryRequest } from './mark-entry-access';
 import { OpenMarkEntryDto } from './open-mark-entry.dto';
+import { DeleteExamDto } from './delete-exam.dto';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import { ExamsService } from '../exams/exams.service';
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
 import { TEACHER_MARK_PROGRESS_SQL, TeacherMarkProgress } from './teacher-mark-progress';
-import { deleteExamSetupRecords, examDeletionBlock, examSetupTransaction, EXAM_RECORD_COUNTS_SQL, lockExam, reconcileExamScope, validateExamSelection } from './exam-setup-integrity';
+import { deleteExamSetupRecords, canDeleteExam, examSetupTransaction, EXAM_RECORD_COUNTS_SQL, lockExam, reconcileExamScope, validateExamSelection } from './exam-setup-integrity';
 import type { Prisma } from '@prisma/client';
 
 type SqlResult<T> = { rows: T[]; rowCount: number };
@@ -658,7 +659,10 @@ export class ExamsManagerCommandService {
       [tenantId],
     );
 
-    const exams = result.rows.map((exam) => ({ ...exam, can_delete: !examDeletionBlock(exam), delete_block_reason: examDeletionBlock(exam) }));
+    const context = this.requestContext.getStore();
+    const canDelete = canDeleteExam(context?.role, context?.permissions);
+    const exams = result.rows.map((exam) => ({ ...exam, can_delete: canDelete,
+      delete_block_reason: canDelete ? null : 'Exam management permission is required to delete an exam.' }));
     return {
       can_manage: ['exams:write', 'exams:*', '*:*'].some((permission) => this.requestContext.getStore()?.permissions?.includes(permission)),
       metrics: {
@@ -907,26 +911,31 @@ export class ExamsManagerCommandService {
     };
   }
 
-  async deleteExamSetup(id: string) {
+  async deleteExamSetup(id: string, dto?: DeleteExamDto) {
+    const context = this.requestContext.getStore();
+    if (!canDeleteExam(context?.role, context?.permissions)) {
+      throw new ForbiddenException('Exam management permission is required to delete an exam.');
+    }
     const tenantId = this.requireTenantId();
     const actorId = this.actorUserId();
     if (!actorId) throw new UnauthorizedException('User context is required.');
     this.uniqueUuidArray([id], 'Exam');
     await examSetupTransaction(this.prisma, tenantId, actorId, async (operations, tx) => {
       const current = await lockExam(operations, tenantId, id);
+      if (typeof dto?.confirmation_name !== 'string' || dto.confirmation_name !== current.name) {
+        throw new BadRequestException('Type the exact exam name to confirm permanent deletion.');
+      }
       const counts = (await operations.readSql(EXAM_RECORD_COUNTS_SQL, [tenantId, id])).rows[0];
-      const blocked = examDeletionBlock({ ...current, ...counts });
-      if (blocked) throw new ConflictException(blocked);
       await deleteExamSetupRecords(operations, tenantId, id);
       await operations.recordWorkflowAction({ tenantId, actorUserId: actorId,
         sourceRole: this.requestContext.getStore()?.role ?? 'exams_manager',
         targetRoles: ['principal', 'dean_academics', 'hod', 'teacher'],
         eventType: 'exams.exam-setup.deleted', entityType: 'exam_series', entityId: id,
-        title: 'Exam Cycle Deleted', message: `${current.name} deleted before results were entered.`,
-        payload: { exam_series_id: id, previous: current, ...counts } });
+        title: 'Exam Cycle Deleted', message: `${current.name} and its saved results were permanently deleted.`,
+        payload: { exam_series_id: id, confirmation_name: dto.confirmation_name, previous: current, ...counts } });
       const exam = { ...current, updated_at: new Date().toISOString() };
       await this.emitExamSetupOperation({ operation: 'deleted', exam, name: exam.name,
-        startsOn: String(exam.starts_on), endsOn: String(exam.ends_on), status: 'deleted', scope: {} }, tx);
+        startsOn: String(exam.starts_on), endsOn: String(exam.ends_on), status: 'deleted', scope: { ...counts } }, tx);
     });
     return { success: true, message: 'Exam deleted successfully', exam_id: id };
   }

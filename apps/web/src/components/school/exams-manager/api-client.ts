@@ -54,8 +54,10 @@ export async function configureExam(examId: string, data: any) {
   return requestDashboardApi(`/admin-command/exams-manager/exam-setup/${examId}/configure`, { method: 'POST', body: data });
 }
 
-export async function deleteExam(examId: string) {
-  return requestDashboardApi(`/admin-command/exams-manager/exam-setup/${encodeURIComponent(examId)}`, { method: 'DELETE' });
+export async function deleteExam(examId: string, confirmationName: string) {
+  return requestDashboardApi(`/admin-command/exams-manager/exam-setup/${encodeURIComponent(examId)}`, {
+    method: 'DELETE', body: { confirmation_name: confirmationName },
+  });
 }
 
 export async function createTimetableSlot(data: any) {
