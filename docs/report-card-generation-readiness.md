@@ -8,11 +8,13 @@ Incomplete exams remain selectable for diagnosis. The page shows finalized/expec
 
 Generation still requires complete finalized marks. This change does not fabricate missing results, change school records, publish cards, or bypass approval. It does not alter the existing active-enrollment policy for historical exams.
 
+The command center now shares this readiness calculation too. Previously, it could show 28/28 finalized and advance to generation because it counted only saved rows. It now shows finalized marks against the expected enrollment count and keeps incomplete exams at mark entry. If a missing learner/subject has finalized marks under another exam in the same school, the report-card page identifies that exam and the matching learner count. These are diagnostic hints, not proof that the exams should be combined; results remain attached to their original exam.
+
 Regression coverage:
 
 - The existing exam suite covers report generation, approvals, artifacts, audits, permissions and tenant scoping.
 - 7 PostgreSQL integration tests cover the 49-missing-marks case, independent exams/classes/schools, moderation stages, duplicate enrollment rows, more than 50 scopes, stream filtering and authorization.
-- 20 report-card UI tests cover readiness, report actions and curriculum rendering; the new readiness suite contains 7 tests.
+- Report-card UI tests cover readiness, other-exam hints, report actions and curriculum rendering.
 - CI runs the PostgreSQL readiness tests and the report-card UI suites alongside the existing build, lint, permissions and workflow checks.
 - Browser verification uses the real component and styles with local test fixtures; it does not generate cards in a real school.
 

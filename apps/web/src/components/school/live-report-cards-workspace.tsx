@@ -536,6 +536,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                           subject.submitted_mark_count > 0 && `${subject.submitted_mark_count} awaiting Dean review`,
                           subject.reviewed_mark_count > 0 && `${subject.reviewed_mark_count} awaiting locking`,
                         ].filter(Boolean).join("; ")}.
+                        {subject.other_exams?.map((exam) => <p key={exam.exam_series_id} className="mt-1 text-sm">{exam.learner_count} of these learners have finalized {subject.subject_name} results under <strong>{exam.exam_name}</strong>. Those belong to a different exam record.</p>)}
                       </li>
                     ))}
                   </ul>

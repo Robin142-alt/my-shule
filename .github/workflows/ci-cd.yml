@@ -54,7 +54,7 @@ jobs:
         run: npm --prefix apps/web run test:design -- exam-setup-edit-delete exams-manager-human-workflows exams-manager-routing
 
       - name: Report-card generation readiness and actions
-        run: npm --prefix apps/web run test:design -- report-card-generation-readiness live-report-card-actions report-card-curriculum
+        run: npm --prefix apps/web run test:design -- report-card-generation-readiness live-report-card-actions report-card-curriculum exams-manager-entry-controls
 
       - name: Teacher marks roster and routing contracts
         run: npm --prefix apps/web run test:design -- teacher-mark-sheet-pagination teacher-dashboard-routing

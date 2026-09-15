@@ -29,6 +29,9 @@ type WorkflowSeries = {
     classes: number;
     learners: number;
     marks: number;
+    expected_marks?: number;
+    ready_marks?: number;
+    missing_marks?: number;
     submitted_marks: number;
     reviewed_marks: number;
     locked_marks: number;
@@ -201,7 +204,7 @@ export function ExamWorkflowTracker({
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
                 <p className="rounded-lg bg-[#F8FAFC] px-3 py-2"><span className="font-black">Subjects:</span> {series.counts.subjects}</p>
                 <p className="rounded-lg bg-[#F8FAFC] px-3 py-2"><span className="font-black">Learners:</span> {series.counts.learners}</p>
-                <p className="rounded-lg bg-[#F8FAFC] px-3 py-2"><span className="font-black">Final marks:</span> {finalizedMarks}/{series.counts.marks}</p>
+                <p className="rounded-lg bg-[#F8FAFC] px-3 py-2"><span className="font-black">Final marks:</span> {series.counts.ready_marks ?? finalizedMarks}/{series.counts.expected_marks ?? series.counts.marks}{Boolean(series.counts.missing_marks) ? <span className="mt-1 block text-amber-800">{series.counts.missing_marks} not saved for this exam</span> : null}</p>
                 <p className="rounded-lg bg-[#F8FAFC] px-3 py-2"><span className="font-black">Cards:</span> {series.counts.published_report_cards}/{series.counts.report_cards} released</p>
               </div>
 

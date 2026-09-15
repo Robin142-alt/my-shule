@@ -87,6 +87,7 @@ export class ExamsSchemaService implements OnModuleInit {
         last_action_at timestamptz,
         last_action_by_user_id uuid,
         return_reason text,
+        teacher_entry_deadlines jsonb NOT NULL DEFAULT '{}'::jsonb,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW(),
         CONSTRAINT uq_exam_mark_entry_windows_tenant_id_id UNIQUE (tenant_id, id),
@@ -1457,6 +1458,7 @@ export class ExamsSchemaService implements OnModuleInit {
       ALTER TABLE exam_mark_entry_windows ADD COLUMN IF NOT EXISTS last_action_at timestamptz;
       ALTER TABLE exam_mark_entry_windows ADD COLUMN IF NOT EXISTS last_action_by_user_id uuid;
       ALTER TABLE exam_mark_entry_windows ADD COLUMN IF NOT EXISTS return_reason text;
+      ALTER TABLE exam_mark_entry_windows ADD COLUMN IF NOT EXISTS teacher_entry_deadlines jsonb NOT NULL DEFAULT '{}'::jsonb;
       ALTER TABLE exam_attendance_records ADD COLUMN IF NOT EXISTS locked_at timestamptz;
       ALTER TABLE exam_attendance_records ADD COLUMN IF NOT EXISTS locked_by_user_id uuid;
       CREATE INDEX IF NOT EXISTS ix_exam_mark_versions_mark

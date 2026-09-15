@@ -979,6 +979,7 @@ test('ExamsRepository treats an explicitly opened future mark window as open for
     '00000000-0000-0000-0000-000000000103',
     '00000000-0000-0000-0000-000000000104',
     '00000000-0000-0000-0000-000000000105',
+    null,
   ]);
 });
 
@@ -4146,6 +4147,24 @@ test('ExamsController exposes the shared workflow as an exams read endpoint', ()
   const handler = ExamsController.prototype.getWorkflowOverview as unknown as Function;
   assert.equal(Reflect.getMetadata(PATH_METADATA, handler), 'workflow');
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, handler), ['exams:read']);
+});
+
+test('ExamsService keeps an exam at mark entry when saved results are finalized but expected learner marks are absent', async () => {
+  const row = { id: 'exam', name: 'END TERM 3', assessment_count: 10, entry_window_count: 10,
+    total_marks: 28, locked_marks: 28, expected_mark_count: 77, ready_mark_count: 28,
+    not_ready_mark_count: 49, missing_mark_count: 49 };
+  const service = new ExamsService({ getStore: () => ({ tenant_id: 'school-a', user_id: 'manager',
+    role: 'exams_officer', permissions: ['exams:read', 'exams:write'] }) } as never,
+  { getWorkflowOverview: async () => ({ series: [row], moderation_batches: [] }) } as never);
+  const incomplete = (await service.getWorkflowOverview()).series[0];
+  assert.equal(incomplete.stage, 'mark_entry');
+  assert.equal(incomplete.can_generate_report_cards, false);
+  assert.equal(incomplete.counts.expected_marks, 77);
+  assert.match(incomplete.blockers.join(' '), /49 learner-subject marks/);
+  Object.assign(row, { total_marks: 77, locked_marks: 77, ready_mark_count: 77, not_ready_mark_count: 0, missing_mark_count: 0 });
+  const complete = (await service.getWorkflowOverview()).series[0];
+  assert.equal(complete.stage, 'report_card_generation');
+  assert.equal(complete.can_generate_report_cards, true);
 });
 
 test('ExamsService normalizes report-card list pagination before querying', async () => {
