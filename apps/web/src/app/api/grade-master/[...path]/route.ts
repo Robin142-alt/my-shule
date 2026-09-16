@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { proxySchoolApiRequest } from "@/lib/dashboard/server-api-proxy";
 
 type RouteContext = {
-  params: Promise<{ path?: string[] }> | { path?: string[] };
+  params: Promise<{ path?: string[] }>;
 };
 
 export const dynamic = "force-dynamic";
