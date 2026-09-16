@@ -62,7 +62,7 @@ function reportRepository(curriculum: string, missing = false) {
   (repository as any).executeSql = async (sql: string, params: unknown[]) => {
     assert.equal(params[0], 'school-a');
     if (sql.includes('FROM students student')) return { rows: [{ id: 'student', curriculum_model: curriculum }] };
-    if (sql.includes('FROM academics_grading_systems system')) {
+    if (sql.includes('FROM academics_grading_systems system') && sql.includes('lower(system.curriculum_model)')) {
       assert.equal(params[1], curriculum);
       assert.match(sql, /system.tenant_id = \$1/);
       return { rows: missing ? [] : [{

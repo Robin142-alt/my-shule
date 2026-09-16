@@ -2409,9 +2409,6 @@ export class ExamsRepository {
         academicCurriculumGradingSql('$1', '$2'), [input.tenant_id, classCurriculum],
       )
       : { rows: [] as Record<string, unknown>[] };
-    if (classCurriculum && !classGradingResult.rows[0]) {
-      throw new BadRequestException(`Save a grading policy for the class curriculum (${classCurriculum}) before generating reports.`);
-    }
     const gradingPolicyResult = classGradingResult.rows.length > 0
       ? { rows: [] as Record<string, unknown>[] }
       : await readShared(
@@ -2503,6 +2500,10 @@ export class ExamsRepository {
         `,
         [input.tenant_id, input.exam_series_id],
       );
+    if (classCurriculum && !classGradingResult.rows[0]
+      && !gradingPolicyResult.rows[0] && !academicGradingSystemResult.rows[0]) {
+      throw new BadRequestException(`Save a grading policy for the class curriculum (${classCurriculum}) before generating reports.`);
+    }
     const subjectsResult = await this.executeSql(
       `
         WITH selected_policy AS (
