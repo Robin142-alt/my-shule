@@ -324,31 +324,56 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
     setBusyAction("generate-batch");
     setFeedback(null);
     setBatchStatus(null);
+    let progress: LiveReportCardBatchStatus = {
+      id: "", status: "draft_requested", queue_status: "running",
+      total_students: scope.learner_count, completed_students: 0, failed_students: 0,
+      reused_students: 0, failures: [], duration_ms: 0,
+    };
     try {
-      const result = await requestSchoolApiProxy<LiveReportCardBatchStatus>("/exams/report-cards/batches", {
-        method: "POST",
-        body: {
-          exam_series_id: scope.exam_series_id,
-          class_section_id: scope.class_section_id,
-          batch_size: 200,
-          offset: 0,
-        },
-      });
-      setBatchStatus(result);
+      setBatchStatus(progress);
+      // Small requests avoid one long class-generation request and cover classes larger than 200.
+      let offset = 0;
+      while (offset < scope.learner_count) {
+        const result = await requestSchoolApiProxy<LiveReportCardBatchStatus>("/exams/report-cards/batches", {
+          method: "POST",
+          body: {
+            exam_series_id: scope.exam_series_id,
+            class_section_id: scope.class_section_id,
+            batch_size: 25,
+            offset,
+          },
+        });
+        if (result.total_students <= 0) throw new Error("No learners were processed. Refresh class readiness before retrying.");
+        progress = {
+          ...progress, id: result.id,
+          completed_students: progress.completed_students + result.completed_students,
+          failed_students: (progress.failed_students ?? 0) + (result.failed_students ?? 0),
+          reused_students: (progress.reused_students ?? 0) + (result.reused_students ?? 0),
+          duration_ms: (progress.duration_ms ?? 0) + (result.duration_ms ?? 0),
+          failures: [...(progress.failures ?? []), ...(result.failures ?? [])],
+        };
+        offset += result.total_students;
+        setBatchStatus(progress);
+        // A shared service failure should not repeat across every remaining class page.
+        if (result.failures?.some(failure => failure.code === "REPORT_SCHEMA_MISMATCH")) break;
+      }
+      const pending = Math.max(0, progress.total_students - progress.completed_students - (progress.failed_students ?? 0));
+      progress = { ...progress, queue_status: progress.failed_students || pending ? "failed" : "completed" };
+      setBatchStatus(progress);
       setFeedback({
-        tone: result.failed_students ? "critical" : "ok",
-        message: result.failed_students
-          ? `${result.completed_students} cards generated and ${result.failed_students} failed.${result.failures?.[0]?.message ? ` ${result.failures[0].message}` : " Review locked marks and retry only the affected learners."}`
-          : `${result.completed_students} report-card snapshots generated for ${scope.label}.`,
+        tone: progress.failed_students || pending ? "critical" : "ok",
+        message: progress.failed_students || pending
+          ? `${progress.completed_students} cards ready, ${progress.failed_students ?? 0} failed and ${pending} not yet processed. ${progress.failures?.[0]?.message ?? "Retry generation to finish the class; completed cards will be reused."}`
+          : `${progress.completed_students} report-card snapshots generated for ${scope.label}.${progress.reused_students ? ` ${progress.reused_students} unchanged cards reused.` : ""}`,
       });
-      await refreshReports();
     } catch (error) {
+      setBatchStatus({ ...progress, queue_status: "failed" });
       setFeedback({
         tone: "critical",
-        message: error instanceof Error ? error.message : "Report-card batch generation failed.",
+        message: `${error instanceof Error ? error.message : "Report-card batch generation failed."}${progress.completed_students ? ` ${progress.completed_students} completed cards are saved. Retry generation to continue safely.` : ""}`,
       });
     } finally {
-      await generationQuery.refetch();
+      await Promise.allSettled([refreshReports(), generationQuery.refetch()]);
       setBusyAction("");
     }
   }
@@ -550,11 +575,12 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
           ) : null}
           {batchStatus ? (
             <div className="mt-4 space-y-3">
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {[
                   ["Learners", batchStatus.total_students],
                   ["Generated", batchStatus.completed_students],
                   ["Failed", batchStatus.failed_students ?? 0],
+                  ["Not yet processed", Math.max(0, batchStatus.total_students - batchStatus.completed_students - (batchStatus.failed_students ?? 0))],
                 ].map(([label, value]) => (
                   <div key={String(label)} className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] px-4 py-3">
                     <p className="text-xs font-bold uppercase text-[#64748B]">{label}</p>
@@ -562,12 +588,20 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                   </div>
                 ))}
               </div>
+              <p className="break-all text-xs text-[#64748B]" role="status" aria-live="polite">
+                {batchStatus.queue_status === "running" ? "Generating report cards… " : ""}
+                {batchStatus.id ? `Batch reference: ${batchStatus.id}. ` : ""}
+                {batchStatus.reused_students ? `${batchStatus.reused_students} unchanged cards reused. ` : ""}
+                {batchStatus.duration_ms ? `Processing time: ${(batchStatus.duration_ms / 1000).toFixed(1)} seconds.` : ""}
+              </p>
               {batchStatus.failures?.length ? (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
                   <p className="font-black">Generation issues</p>
                   <ul className="mt-1 list-disc space-y-1 pl-5">
                     {batchStatus.failures.map((failure) => (
-                      <li key={`${failure.student_id}:${failure.message}`}>{failure.message}</li>
+                      <li key={`${failure.student_id}:${failure.message}`}>
+                        <span className="font-black">{failure.student_name || `Learner ${failure.student_id}`}:</span> {failure.message}
+                      </li>
                     ))}
                   </ul>
                 </div>

@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { reportCardReadinessCtes, REPORT_CARD_READINESS_CTES, REPORT_CARD_READINESS_COUNTS } from '../report-card-readiness';
 import { requiresPublishedExamAnalytics } from '../analytics/analytics-scope';
 import { markEntryAccessSql } from '../mark-entry-window-policy';
@@ -13,12 +14,21 @@ import { analyticsQuery } from '../analytics/analytics-query';
 import { buildAcademicIntelligence, type SubjectEvidence } from '../analytics/analytics-engine';
 export type { ExamAnalyticsScope, ExamAnalyticsScopeLevel } from '../analytics/analytics-scope';
 
+// Batch-local cache. Keys include the school and query parameters. Rejected reads are evicted.
+export type ReportCardReadCache = Map<string, Promise<{ rows: any[]; rowCount: number }>>;
+
 @Injectable()
 export class ExamsRepository {
+  private reportTransaction?: { tenantId: string; client: Prisma.TransactionClient };
   constructor(private readonly prisma: PrismaService) {}
 
   public async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
     const tenantId = params[0] as string;
+    if (this.reportTransaction) {
+      if (tenantId !== this.reportTransaction.tenantId) throw new ForbiddenException('Report transaction school mismatch');
+      const rows = await this.reportTransaction.client.$queryRawUnsafe<T[]>(query, ...params);
+      return { rows, rowCount: rows.length };
+    }
     return this.prisma.executeWithTenant(tenantId, null, async (tx: any) => {
       const result = await tx.$queryRawUnsafe(query, ...params);
       const arr = Array.isArray(result) ? result : [result];
@@ -1825,7 +1835,28 @@ export class ExamsRepository {
     return result.rows[0];
   }
 
-  async updateReportCardGenerationBatch(input: Record<string, unknown>) {
+  async updateReportCardGenerationBatch(
+    input: Record<string, unknown>,
+    onSaved?: (tx: Prisma.TransactionClient) => Promise<unknown>,
+  ): Promise<Record<string, any> | undefined> {
+    if (onSaved) {
+      const tenantId = String(input.tenant_id);
+      return this.prisma.executeWithTenant(tenantId, String(input.actor_user_id), async (tx) => {
+        const scoped = new ExamsRepository(this.prisma);
+        scoped.reportTransaction = { tenantId, client: tx };
+        const result = await scoped.updateReportCardGenerationBatch(input);
+        if (result) {
+          await scoped.appendReportCardAuditLog({
+            tenant_id: tenantId, actor_user_id: input.actor_user_id, exam_series_id: input.exam_series_id,
+            action: input.failed_students ? 'report_generation.failed' : 'report_generation.completed',
+            metadata: { batch_id: input.batch_id, completed_students: input.completed_students,
+              failed_students: input.failed_students, failures: input.failures },
+          });
+          await onSaved(tx);
+        }
+        return result;
+      });
+    }
     const result = await this.executeSql(
       `
         UPDATE report_card_generation_batches
@@ -1844,6 +1875,8 @@ export class ExamsRepository {
           status,
           COALESCE(metadata->>'queue_status', 'queued') AS queue_status,
           COALESCE(metadata->'failures', '[]'::jsonb) AS failures,
+          COALESCE((metadata->>'reused_students')::integer, 0) AS reused_students,
+          COALESCE((metadata->>'duration_ms')::integer, 0) AS duration_ms,
           total_students,
           completed_students,
           failed_students
@@ -1858,6 +1891,8 @@ export class ExamsRepository {
         JSON.stringify({
           queue_status: input.queue_status ?? 'queued',
           failures: Array.isArray(input.failures) ? input.failures : [],
+          reused_students: input.reused_students ?? 0,
+          duration_ms: input.duration_ms ?? 0,
         }),
       ],
     );
@@ -1873,6 +1908,8 @@ export class ExamsRepository {
           status,
           COALESCE(metadata->>'queue_status', 'queued') AS queue_status,
           COALESCE(metadata->'failures', '[]'::jsonb) AS failures,
+          COALESCE((metadata->>'reused_students')::integer, 0) AS reused_students,
+          COALESCE((metadata->>'duration_ms')::integer, 0) AS duration_ms,
           total_students,
           completed_students,
           failed_students
@@ -1894,34 +1931,20 @@ export class ExamsRepository {
     stream_name?: string | null;
     limit?: number;
     offset?: number;
-  }): Promise<Array<{ id: string }>> {
+  }): Promise<Array<{ id: string; student_name?: string }>> {
     const requestedLimit = Number.isFinite(input.limit) ? Math.floor(Number(input.limit)) : 200;
     const requestedOffset = Number.isFinite(input.offset) ? Math.floor(Number(input.offset)) : 0;
     const limit = requestedLimit > 0 ? Math.min(requestedLimit, 200) : 200;
     const offset = Math.max(requestedOffset, 0);
 
-    const result = await this.executeSql<{ id: string }>(
-      `
-        SELECT DISTINCT student.id::text, student.admission_number, student.created_at
-        FROM exam_marks mark
-        INNER JOIN students student
-          ON student.tenant_id = mark.tenant_id
-         AND student.id = mark.student_id::text
-         AND student.status = 'active'
-        LEFT JOIN student_class_assignments assignment
-          ON assignment.tenant_id = student.tenant_id
-         AND assignment.student_id = student.id::text
-         AND assignment.class_section_id = mark.class_section_id::text
-         AND assignment.status = 'active'
-        LEFT JOIN class_streams stream
-          ON stream.tenant_id = assignment.tenant_id
-         AND stream.id = assignment.stream_id
-        WHERE mark.tenant_id = $1
-          AND mark.exam_series_id = $2::uuid
-          AND mark.status IN ('locked', 'published')
-          AND ($3::uuid IS NULL OR mark.class_section_id = $3::uuid)
-          AND ($4::text IS NULL OR stream.name = $4::text)
-        ORDER BY student.admission_number ASC, student.created_at ASC
+    const result = await this.executeSql<{ id: string; student_name?: string }>(
+      `${REPORT_CARD_READINESS_CTES}
+        SELECT DISTINCT student.id::text, student.admission_number, student.created_at,
+          concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS student_name
+        FROM readiness ready
+        JOIN students student ON student.tenant_id = $1 AND student.id::text = ready.student_id
+        WHERE ready.is_ready
+        ORDER BY student.admission_number ASC, student.created_at ASC, student.id ASC
         LIMIT $5::integer
         OFFSET $6::integer
       `,
@@ -1962,6 +1985,71 @@ export class ExamsRepository {
       not_ready_mark_count: 0,
       learner_count: 0,
     };
+  }
+
+  async findReusableReportCard(input: Record<string, unknown>) {
+    const result = await this.executeSql(
+      `SELECT card.*, COALESCE((SELECT jsonb_agg(artifact.*) FROM report_card_artifacts artifact
+          WHERE artifact.tenant_id = card.tenant_id AND artifact.report_card_id = card.id
+            AND artifact.verification_code = card.verification_code), '[]'::jsonb) AS artifacts
+       FROM student_report_cards card
+       WHERE card.tenant_id = $1 AND card.exam_series_id = $2::uuid AND card.student_id = $3::uuid
+         AND card.is_current = TRUE
+         AND card.status IN ('draft_generated', 'draft', 'under_review', 'approved', 'published')
+         AND (card.verification_code = $4 OR ($5::boolean AND card.approved_result_version = $6
+           AND (card.status IN ('under_review', 'approved', 'published') OR card.metadata->>'generation_source_version' = $7)))
+         AND card.metadata->'report_card' IS NOT NULL
+         AND (SELECT COUNT(DISTINCT artifact.artifact_type) FROM report_card_artifacts artifact
+           WHERE artifact.tenant_id = card.tenant_id AND artifact.report_card_id = card.id
+             AND artifact.verification_code = card.verification_code
+             AND artifact.artifact_type IN ('html', 'pdf')) = 2
+       LIMIT 1`,
+      [input.tenant_id, input.exam_series_id, input.student_id, input.verification_code ?? null,
+        input.reuse_existing === true, input.approved_result_version ?? null, input.generation_source_version ?? null],
+    );
+    return result.rows[0] ? { ...result.rows[0], reused: true } : null;
+  }
+
+  /** Snapshot, artifact manifests, audit and outbox event commit together, or all roll back. */
+  async saveGeneratedReportCard(
+    input: Record<string, unknown>,
+    artifacts: Array<Record<string, unknown>>,
+    audit: Record<string, unknown>,
+    onSaved?: (card: Record<string, any>, tx: Prisma.TransactionClient) => Promise<unknown>,
+  ): Promise<Record<string, any>> {
+    const tenantId = String(input.tenant_id);
+    return this.prisma.executeWithTenant(tenantId, String(input.actor_user_id), async (tx) => {
+      // Includes the school: concurrent requests cannot create competing current revisions.
+      await tx.$queryRawUnsafe(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))::text',
+        JSON.stringify([tenantId, input.exam_series_id, input.student_id]),
+      );
+      const scoped = new ExamsRepository(this.prisma);
+      scoped.reportTransaction = { tenantId, client: tx };
+      const existing = await scoped.findReusableReportCard(input);
+      if (existing) return existing;
+      if (input.reuse_existing === true) {
+        const protectedCard = await scoped.executeSql(
+          `SELECT id FROM student_report_cards WHERE tenant_id = $1 AND exam_series_id = $2::uuid
+            AND student_id = $3::uuid AND is_current = TRUE AND status IN ('under_review', 'approved', 'published')`,
+          [tenantId, input.exam_series_id, input.student_id],
+        );
+        if (protectedCard.rows.length) {
+          throw new ConflictException('This report is already submitted, approved or published. Use the controlled recall or regeneration workflow to change it.');
+        }
+      }
+      const card = await scoped.createGeneratedReportCardSnapshot(input);
+      const savedArtifacts = [];
+      for (const artifact of artifacts) {
+        savedArtifacts.push(await scoped.recordReportCardArtifact({
+          ...artifact, tenant_id: tenantId, report_card_id: card.id,
+          storage_key: `tenant/${tenantId}/exams/report-cards/${card.id}/${input.verification_code}.${artifact.artifact_type}`,
+        }));
+      }
+      await scoped.appendReportCardAuditLog({ ...audit, tenant_id: tenantId, report_card_id: card.id });
+      await onSaved?.(card, tx);
+      return { ...card, artifacts: savedArtifacts, reused: false };
+    });
   }
 
   async listReportCardGenerationScopes(input: { tenant_id: string }) {
@@ -2074,8 +2162,21 @@ export class ExamsRepository {
     tenant_id: string;
     exam_series_id: string;
     student_id: string;
+    read_cache?: ReportCardReadCache;
   }): Promise<Record<string, unknown>> {
-    const schoolResult = await this.executeSql(
+    const readShared = (sql: string, params: unknown[]) => {
+      if (!input.read_cache) return this.executeSql(sql, params);
+      const key = JSON.stringify([sql, params]);
+      const cached = input.read_cache.get(key);
+      if (cached) return cached;
+      const pending = this.executeSql(sql, params).catch((error) => {
+        input.read_cache!.delete(key);
+        throw error;
+      });
+      input.read_cache.set(key, pending);
+      return pending;
+    };
+    const schoolResult = await readShared(
       `
         SELECT
           tenant.name,
@@ -2093,7 +2194,7 @@ export class ExamsRepository {
       `,
       [input.tenant_id],
     );
-    const seriesResult = await this.executeSql(
+    const seriesResult = await readShared(
       `
         SELECT
           series.id::text,
@@ -2177,10 +2278,9 @@ export class ExamsRepository {
         LEFT JOIN LATERAL (
           SELECT
             COALESCE(
-              NULLIF(staff.full_name, ''),
               NULLIF(staff.display_name, ''),
-              NULLIF(staff.preferred_name, ''),
-              NULLIF(staff.email, ''),
+              NULLIF(account.full_name, ''),
+              NULLIF(account.display_name, ''),
               NULLIF(staff.staff_number, '')
             ) AS class_teacher_name,
             appointment.teacher_user_id::text AS class_teacher_user_id,
@@ -2189,6 +2289,7 @@ export class ExamsRepository {
           JOIN staff_profiles staff
             ON staff.tenant_id = appointment.tenant_id
            AND staff.user_id = appointment.teacher_user_id
+          LEFT JOIN users account ON account.id = appointment.teacher_user_id
           LEFT JOIN exam_report_card_signatures signature
             ON signature.tenant_id = appointment.tenant_id
            AND signature.signer_user_id = appointment.teacher_user_id
@@ -2209,13 +2310,12 @@ export class ExamsRepository {
       `,
       [input.tenant_id, input.student_id, input.exam_series_id],
     );
-    const principalResult = await this.executeSql(
+    const principalResult = await readShared(
       `
         SELECT
           signature.signer_user_id::text AS principal_user_id,
           signature.storage_path AS principal_signature_ref,
           COALESCE(
-            NULLIF(staff.full_name, ''),
             NULLIF(staff.display_name, ''),
             NULLIF(account.full_name, ''),
             NULLIF(account.display_name, ''),
@@ -2305,7 +2405,7 @@ export class ExamsRepository {
     );
     const classCurriculum = studentResult.rows[0]?.curriculum_model;
     const classGradingResult = classCurriculum
-      ? await this.executeSql<Record<string, unknown>>(
+      ? await readShared(
         academicCurriculumGradingSql('$1', '$2'), [input.tenant_id, classCurriculum],
       )
       : { rows: [] as Record<string, unknown>[] };
@@ -2314,7 +2414,7 @@ export class ExamsRepository {
     }
     const gradingPolicyResult = classGradingResult.rows.length > 0
       ? { rows: [] as Record<string, unknown>[] }
-      : await this.executeSql(
+      : await readShared(
       `
         SELECT
           policy.id::text,
@@ -2359,7 +2459,7 @@ export class ExamsRepository {
       ? classGradingResult
       : gradingPolicyResult.rows.length > 0
       ? { rows: [] as Record<string, unknown>[], rowCount: 0 }
-      : await this.executeSql<Record<string, unknown>>(
+      : await readShared(
         `
           WITH preferred_grading AS (
             SELECT COALESCE(
@@ -2482,11 +2582,11 @@ export class ExamsRepository {
       `
         SELECT
           COUNT(*)::int AS total_days,
-          COUNT(*) FILTER (WHERE attendance.status IN ('present', 'late'))::int AS days_present,
-          COUNT(*) FILTER (WHERE attendance.status = 'absent')::int AS days_absent,
-          COUNT(*) FILTER (WHERE attendance.status = 'late')::int AS late_arrivals,
+          COUNT(*) FILTER (WHERE lower(attendance.status::text) IN ('present', 'late'))::int AS days_present,
+          COUNT(*) FILTER (WHERE lower(attendance.status::text) = 'absent')::int AS days_absent,
+          COUNT(*) FILTER (WHERE lower(attendance.status::text) = 'late')::int AS late_arrivals,
           ROUND(
-            (COUNT(*) FILTER (WHERE attendance.status IN ('present', 'late'))::numeric / NULLIF(COUNT(*), 0)) * 100,
+            (COUNT(*) FILTER (WHERE lower(attendance.status::text) IN ('present', 'late'))::numeric / NULLIF(COUNT(*), 0)) * 100,
             2
           )::float AS percentage
         FROM attendance_records attendance
@@ -2503,7 +2603,7 @@ export class ExamsRepository {
       `,
       [input.tenant_id, input.exam_series_id, input.student_id],
     );
-    const schoolPolicyResult = await this.executeSql(
+    const schoolPolicyResult = await readShared(
       `
         SELECT settings.show_rank, settings.show_attendance, settings.configuration,
           COALESCE((

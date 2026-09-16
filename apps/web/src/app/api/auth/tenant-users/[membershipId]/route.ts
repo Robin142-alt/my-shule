@@ -5,7 +5,7 @@ import { validateCsrfRequest } from "@/lib/auth/csrf";
 import { proxySchoolApiRequest } from "@/lib/auth/school-api-proxy";
 
 type RouteContext = {
-  params: Promise<{ membershipId: string }> | { membershipId: string };
+  params: Promise<{ membershipId: string }>;
 };
 
 const unavailableMessage =

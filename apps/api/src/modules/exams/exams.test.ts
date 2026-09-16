@@ -3128,24 +3128,13 @@ test('ReportCardGenerationService generates HTML and PDF artifacts with a verifi
           },
         ],
       }),
-      createGeneratedReportCardSnapshot: async (input: Record<string, unknown>) => {
+      findReusableReportCard: async () => null,
+      saveGeneratedReportCard: async (input: Record<string, unknown>, artifacts: Array<Record<string, unknown>>, audit: Record<string, unknown>) => {
         calls.push({ name: 'snapshot', input });
-        return {
-          id: 'report-card-1',
-          status: 'draft_generated',
-          verification_code: input.verification_code,
-          metadata: input.metadata,
-        };
-      },
-      recordReportCardArtifact: async (input: Record<string, unknown>) => {
-        calls.push({ name: 'artifact', input });
-        return {
-          id: `artifact-${calls.filter((call) => call.name === 'artifact').length}`,
-          ...input,
-        };
-      },
-      appendReportCardAuditLog: async (input: Record<string, unknown>) => {
-        calls.push({ name: 'audit', input });
+        for (const artifact of artifacts) calls.push({ name: 'artifact', input: artifact });
+        calls.push({ name: 'audit', input: audit });
+        return { id: 'report-card-1', status: 'draft_generated', verification_code: input.verification_code,
+          metadata: input.metadata, artifacts };
       },
     } as never,
     new ReportCardTemplateService(),

@@ -50,6 +50,9 @@ jobs:
       - name: Academic intelligence workspace contracts
         run: npm --prefix apps/web run test:design -- academic-intelligence head-of-subject exams-workspace teacher-exams-marks-workspace dean-review-workflow dean-hod-command-center-contract dean-usability
 
+      - name: Report-card class generation and recovery interface
+        run: npm --prefix apps/web run test:design -- report-card-generation-readiness live-report-card-actions
+
       - name: Exam setup configuration and deletion controls
         run: npm --prefix apps/web run test:design -- exam-setup-edit-delete exams-manager-human-workflows exams-manager-routing
 
@@ -152,6 +155,15 @@ jobs:
           DATABASE_URL: ""
           NODE_ENV: test
         run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/teacher-mark-progress.integration-spec.ts
+
+      - name: Report-card generation, recovery and school isolation
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/report-card-generation.integration-spec.ts apps/api/test/report-card-readiness.integration-spec.ts
+
+      - name: Report-card retries and concurrency
+        run: node --test dist/apps/api/src/modules/exams/services/report-card-generation-resilience.test.js
 
       - name: Upload build artifacts
         if: github.ref == 'refs/heads/main'
