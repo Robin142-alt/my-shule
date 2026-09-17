@@ -983,7 +983,7 @@ export class PlatformOnboardingService {
     executor?: RawSqlExecutor,
   ): Promise<void> {
     await this.executeSql(
-      "SELECT set_config('app.tenant_id', $1, true)",
+      "SELECT set_config('app.tenant_id', $1, true), set_config('app.role', 'platform_owner', true)",
       [tenantId],
       executor,
     );
@@ -1005,7 +1005,8 @@ export class PlatformOnboardingService {
           (SELECT COUNT(*) FROM tenant_memberships WHERE tenant_id = $1) AS memberships,
           (SELECT COUNT(*) FROM students WHERE tenant_id = $1) AS students,
           (SELECT COUNT(*) FROM invoices WHERE tenant_id = $1) AS invoices,
-          (SELECT COUNT(*) FROM support_tickets WHERE tenant_id = $1) AS support_tickets,
+          CASE WHEN to_regclass('public.support_tickets') IS NOT NULL
+               THEN (SELECT COUNT(*) FROM support_tickets WHERE tenant_id = $1) ELSE 0 END AS support_tickets,
           (SELECT COUNT(*) FROM mpesa_transactions WHERE tenant_id = $1) AS mpesa_transactions
       `,
       [tenantId],
@@ -1285,7 +1286,12 @@ export class PlatformOnboardingService {
     ];
 
     for (const statement of cleanupStatements) {
-      await this.executeSql(statement, [tenantId], executor);
+      try {
+        await this.executeSql(statement, [tenantId], executor);
+      } catch (error: any) {
+        const isUndefinedTable = error.code === '42P01' || error.message?.includes('does not exist');
+        if (!isUndefinedTable) throw error;
+      }
     }
   }
 
