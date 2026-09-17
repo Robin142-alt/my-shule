@@ -2499,8 +2499,12 @@ export class AuthSchemaService implements OnModuleInit {
       CREATE POLICY users_delete_policy ON users
       FOR DELETE
       USING (
-        tenant_id = 'global'
-        AND id::text = NULLIF(current_setting('app.user_id', true), '')
+        (
+          tenant_id = 'global'
+          AND id::text = NULLIF(current_setting('app.user_id', true), '')
+        )
+        OR tenant_id = current_setting('app.tenant_id', true)
+        OR NULLIF(current_setting('app.role', true), '') = 'platform_owner'
       );
 
       DROP POLICY IF EXISTS roles_rls_policy ON roles;

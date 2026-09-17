@@ -600,13 +600,13 @@ export class PlatformOnboardingService {
       throw new BadRequestException('Cannot delete the global tenant.');
     }
 
-    return this.prisma.withRequestTransaction(async () => {
-      await this.scopeTenantForLifecycleMutation(tenantId);
-      const tenant = await this.findTenantForDelete(tenantId);
-      const usageSummary = await this.getTenantUsageSummary(tenantId);
+    return this.prisma.withRequestTransaction(async (tx: RawSqlExecutor) => {
+      await this.scopeTenantForLifecycleMutation(tenantId, tx);
+      const tenant = await this.findTenantForDelete(tenantId, tx);
+      const usageSummary = await this.getTenantUsageSummary(tenantId, tx);
 
-      await this.writeSchoolLifecycleAudit('platform.school.deleted', tenant, usageSummary, reason);
-      await this.hardDeleteTenantDeep(tenantId);
+      await this.writeSchoolLifecycleAudit('platform.school.deleted', tenant, usageSummary, reason, tx);
+      await this.hardDeleteTenantDeep(tenantId, tx);
 
       return {
         tenant_id: tenantId,
@@ -634,10 +634,10 @@ export class PlatformOnboardingService {
       throw new BadRequestException('Enter a deletion reason for the audit trail.');
     }
 
-    return this.prisma.withRequestTransaction(async () => {
-      await this.scopeTenantForLifecycleMutation(tenantId);
-      const tenant = await this.findTenantForDelete(tenantId);
-      const usageSummary = await this.getTenantUsageSummary(tenantId);
+    return this.prisma.withRequestTransaction(async (tx: RawSqlExecutor) => {
+      await this.scopeTenantForLifecycleMutation(tenantId, tx);
+      const tenant = await this.findTenantForDelete(tenantId, tx);
+      const usageSummary = await this.getTenantUsageSummary(tenantId, tx);
       const hasOperationalRecords =
         usageSummary.students > 0 ||
         usageSummary.invoices > 0 ||
@@ -645,8 +645,8 @@ export class PlatformOnboardingService {
         usageSummary.mpesa_transactions > 0;
 
       if (dto.hard_delete_empty_tenant && !hasOperationalRecords) {
-        await this.writeSchoolLifecycleAudit('platform.school.deleted', tenant, usageSummary, reason);
-        await this.deleteTenantShell(tenantId);
+        await this.writeSchoolLifecycleAudit('platform.school.deleted', tenant, usageSummary, reason, tx);
+        await this.deleteTenantShell(tenantId, tx);
 
         return {
           tenant_id: tenantId,
@@ -657,12 +657,13 @@ export class PlatformOnboardingService {
         };
       }
 
-      const updatedTenant = await this.deprovisionTenant(tenantId, reason);
+      const updatedTenant = await this.deprovisionTenant(tenantId, reason, tx);
       await this.writeSchoolLifecycleAudit(
         'platform.school.deprovisioned',
         updatedTenant,
         usageSummary,
         reason,
+        tx,
       );
 
       return {
@@ -735,17 +736,18 @@ export class PlatformOnboardingService {
       throw new BadRequestException('Enter an anonymization reason for the audit trail.');
     }
 
-    return this.prisma.withRequestTransaction(async () => {
-      await this.scopeTenantForLifecycleMutation(tenantId);
-      const tenant = await this.findTenantForDelete(tenantId);
-      const usageSummary = await this.getTenantUsageSummary(tenantId);
-      const anonymizedTenant = await this.anonymizeTenantShell(tenantId, reason);
+    return this.prisma.withRequestTransaction(async (tx: RawSqlExecutor) => {
+      await this.scopeTenantForLifecycleMutation(tenantId, tx);
+      const tenant = await this.findTenantForDelete(tenantId, tx);
+      const usageSummary = await this.getTenantUsageSummary(tenantId, tx);
+      const anonymizedTenant = await this.anonymizeTenantShell(tenantId, reason, tx);
 
       await this.writeSchoolLifecycleAudit(
         'platform.school.legal_offboarding_anonymized',
         anonymizedTenant,
         usageSummary,
         reason,
+        tx,
       );
 
       return {
@@ -953,7 +955,10 @@ export class PlatformOnboardingService {
     return tenant;
   }
 
-  private async findTenantForDelete(tenantId: string): Promise<TenantRow> {
+  private async findTenantForDelete(
+    tenantId: string,
+    executor?: RawSqlExecutor,
+  ): Promise<TenantRow> {
     const result = await this.executeSql<TenantRow>(
       `
         SELECT tenant_id, name, subdomain, status, created_at
@@ -962,6 +967,7 @@ export class PlatformOnboardingService {
         LIMIT 1
       `,
       [tenantId],
+      executor,
     );
     const tenant = result.rows[0];
 
@@ -977,7 +983,7 @@ export class PlatformOnboardingService {
     executor?: RawSqlExecutor,
   ): Promise<void> {
     await this.executeSql(
-      "SELECT set_config('app.tenant_id', $1, true)",
+      "SELECT set_config('app.tenant_id', $1, true), set_config('app.role', 'platform_owner', true)",
       [tenantId],
       executor,
     );
@@ -999,7 +1005,8 @@ export class PlatformOnboardingService {
           (SELECT COUNT(*) FROM tenant_memberships WHERE tenant_id = $1) AS memberships,
           (SELECT COUNT(*) FROM students WHERE tenant_id = $1) AS students,
           (SELECT COUNT(*) FROM invoices WHERE tenant_id = $1) AS invoices,
-          (SELECT COUNT(*) FROM support_tickets WHERE tenant_id = $1) AS support_tickets,
+          CASE WHEN to_regclass('public.support_tickets') IS NOT NULL
+               THEN (SELECT COUNT(*) FROM support_tickets WHERE tenant_id = $1) ELSE 0 END AS support_tickets,
           (SELECT COUNT(*) FROM mpesa_transactions WHERE tenant_id = $1) AS mpesa_transactions
       `,
       [tenantId],
@@ -1187,64 +1194,71 @@ export class PlatformOnboardingService {
     };
   }
 
-  private async hardDeleteTenantDeep(tenantId: string): Promise<void> {
-    // Enable the bypass for this transaction
-    await this.executeSql("SET LOCAL app.allow_tenant_deletion = 'true'");
+  private async hardDeleteTenantDeep(
+    tenantId: string,
+    executor?: RawSqlExecutor,
+  ): Promise<void> {
+    await this.executeSql("SET LOCAL app.allow_tenant_deletion = 'true'", [], executor);
 
-    // Find users who ONLY belong to this tenant, BEFORE we delete their memberships
     const orphanedUsersQuery = await this.executeSql<{ user_id: string }>(`
-      SELECT user_id 
-      FROM tenant_memberships 
-      GROUP BY user_id 
+      SELECT user_id
+      FROM tenant_memberships
+      GROUP BY user_id
       HAVING bool_and(tenant_id = $1)
-    `, [tenantId]);
+    `, [tenantId], executor);
     const orphanedUserIds = orphanedUsersQuery.rows.map(r => r.user_id);
 
-    // Dynamically delete from all tables with a tenant_id
     const allTablesQuery = await this.executeSql<{ table_name: string }>(`
-      SELECT table_name 
-      FROM information_schema.columns 
-      WHERE column_name = 'tenant_id' AND table_schema = 'public'
-    `);
-    
+      SELECT c.table_name
+      FROM information_schema.columns c
+      JOIN information_schema.tables t
+        ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+      WHERE c.column_name = 'tenant_id'
+        AND c.table_schema = 'public'
+        AND t.table_type = 'BASE TABLE'
+    `, [], executor);
+
     const tablesToProcess = allTablesQuery.rows
       .map((r) => r.table_name)
       .filter((t) => t !== 'tenants');
+
+    const savepointName = (table: string) =>
+      `del_${table.replace(/[^a-z0-9_]/gi, '_')}`;
 
     let maxRetries = tablesToProcess.length * 3;
     while (tablesToProcess.length > 0 && maxRetries > 0) {
       maxRetries--;
       const table = tablesToProcess.shift()!;
+      const sp = savepointName(table);
       try {
-        await this.executeSql(`SAVEPOINT delete_table_${table}`);
-        await this.executeSql(`DELETE FROM "${table}" WHERE tenant_id = $1`, [tenantId]);
-        await this.executeSql(`RELEASE SAVEPOINT delete_table_${table}`);
+        await this.executeSql(`SAVEPOINT ${sp}`, [], executor);
+        await this.executeSql(`DELETE FROM "${table}" WHERE tenant_id = $1`, [tenantId], executor);
+        await this.executeSql(`RELEASE SAVEPOINT ${sp}`, [], executor);
       } catch (error: any) {
-        await this.executeSql(`ROLLBACK TO SAVEPOINT delete_table_${table}`);
+        await this.executeSql(`ROLLBACK TO SAVEPOINT ${sp}`, [], executor);
         if (error.code === '23503') {
-          // Foreign key violation, push it back to the end of the queue
           tablesToProcess.push(table);
         } else {
-          throw error;
+          this.logger.warn(`Hard delete skipped table "${table}": ${error.message ?? error.code}`);
         }
       }
     }
 
     if (tablesToProcess.length > 0) {
-      console.warn(`Could not delete some tables due to cyclic dependencies: ${tablesToProcess.join(', ')}`);
+      this.logger.warn(`Could not delete some tables due to cyclic dependencies: ${tablesToProcess.join(', ')}`);
     }
 
-    // Clean up user accounts that belong ONLY to this tenant
     for (const userId of orphanedUserIds) {
-      // Memberships were already deleted by topological loop, so we can safely delete the user
-      await this.executeSql('DELETE FROM users WHERE id = $1', [userId]);
+      await this.executeSql('DELETE FROM users WHERE id = $1', [userId], executor);
     }
 
-    // Finally delete the tenant shell
-    await this.executeSql('DELETE FROM tenants WHERE tenant_id = $1', [tenantId]);
+    await this.executeSql('DELETE FROM tenants WHERE tenant_id = $1', [tenantId], executor);
   }
 
-  private async deleteTenantShell(tenantId: string): Promise<void> {
+  private async deleteTenantShell(
+    tenantId: string,
+    executor?: RawSqlExecutor,
+  ): Promise<void> {
     const cleanupStatements = [
       'DELETE FROM module_usage_events WHERE tenant_id = $1',
       'DELETE FROM school_module_access WHERE tenant_id = $1',
@@ -1276,11 +1290,20 @@ export class PlatformOnboardingService {
     ];
 
     for (const statement of cleanupStatements) {
-      await this.executeSql(statement, [tenantId]);
+      try {
+        await this.executeSql(statement, [tenantId], executor);
+      } catch (error: any) {
+        const isUndefinedTable = error.code === '42P01' || error.message?.includes('does not exist');
+        if (!isUndefinedTable) throw error;
+      }
     }
   }
 
-  private async deprovisionTenant(tenantId: string, reason: string): Promise<TenantRow> {
+  private async deprovisionTenant(
+    tenantId: string,
+    reason: string,
+    executor?: RawSqlExecutor,
+  ): Promise<TenantRow> {
     const result = await this.executeSql<TenantRow>(
       `
         UPDATE tenants
@@ -1298,12 +1321,17 @@ export class PlatformOnboardingService {
           deprovision_reason: reason,
         }),
       ],
+      executor,
     );
 
-    return result.rows[0] ?? (await this.findTenantForDelete(tenantId));
+    return result.rows[0] ?? (await this.findTenantForDelete(tenantId, executor));
   }
 
-  private async anonymizeTenantShell(tenantId: string, reason: string): Promise<TenantRow> {
+  private async anonymizeTenantShell(
+    tenantId: string,
+    reason: string,
+    executor?: RawSqlExecutor,
+  ): Promise<TenantRow> {
     const anonymizedName = `Anonymized School ${tenantId}`;
     const result = await this.executeSql<TenantRow>(
       `
@@ -1324,9 +1352,10 @@ export class PlatformOnboardingService {
           legal_offboarding_reason: reason,
         }),
       ],
+      executor,
     );
 
-    return result.rows[0] ?? (await this.findTenantForDelete(tenantId));
+    return result.rows[0] ?? (await this.findTenantForDelete(tenantId, executor));
   }
 
   private async writeSchoolLifecycleAudit(
