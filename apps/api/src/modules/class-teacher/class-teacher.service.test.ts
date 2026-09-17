@@ -6,6 +6,16 @@ import { MODULE_ACCESS_KEY } from '../module-access/module-access.decorator';
 import { ClassTeacherController } from './class-teacher.controller';
 import { ClassTeacherService } from './class-teacher.service';
 
+test('ClassTeacherService propagates failed sidebar queries instead of returning empty or zero records', async () => {
+  const service = new ClassTeacherService({
+    query: async () => { throw new Error('workspace database unavailable'); },
+  } as never, {} as never);
+  await assert.rejects(() => service.getDashboardOverview('school-a', 'teacher-a'), /workspace database unavailable/);
+  await assert.rejects(() => service.getHomework('school-a', 'teacher-a', ''), /workspace database unavailable/);
+  await assert.rejects(() => service.getLessonLogs('school-a', 'teacher-a'), /workspace database unavailable/);
+  await assert.rejects(() => service.getNotifications('school-a', 'teacher-a', ''), /workspace database unavailable/);
+});
+
 test('ClassTeacherController gates teacher mark-entry reads and writes with the exams module', () => {
   const pendingMarksHandler = Object.getOwnPropertyDescriptor(
     ClassTeacherController.prototype,
@@ -41,8 +51,11 @@ test('ClassTeacherService loads open teacher markbooks across text and uuid acad
             out_of: '100',
             deadline: '2026-09-05T14:00:00.000Z',
             entered_count: '4',
+            saved_count: '4',
             total_students: '30',
             window_status: 'open',
+            entry_state: 'Open',
+            opens_at: '2026-09-01T06:00:00.000Z',
           }],
           rowCount: 1,
         };
@@ -56,8 +69,9 @@ test('ClassTeacherService loads open teacher markbooks across text and uuid acad
   assert.equal(result.stats.totalWindows, 1);
   assert.equal(result.windows[0].classSectionId, 'class-a');
   assert.equal(result.windows[0].subjectId, 'subject-a');
-  assert.equal(result.windows[0].status, 'Pending');
-  assert.deepEqual(queries[0].params, ['tenant-a', 'teacher-a']);
+  assert.equal(result.windows[0].status, 'Draft');
+  assert.equal(result.windows[0].canEnter, true);
+  assert.deepEqual(queries[0].params, ['tenant-a', 'teacher-a', false, false]);
   assert.match(queries[0].sql, /cs\.id\s*=\s*w\.class_section_id::text/);
   assert.match(queries[0].sql, /s\.id\s*=\s*w\.subject_id::text/);
   assert.match(queries[0].sql, /tsa\.class_section_id\s*=\s*w\.class_section_id::text/);
@@ -65,7 +79,7 @@ test('ClassTeacherService loads open teacher markbooks across text and uuid acad
   assert.match(queries[0].sql, /tsa\.academic_term_id\s*=\s*es\.academic_term_id::text/);
   assert.match(queries[0].sql, /\(tsa\.academic_term_id IS NULL OR tsa\.academic_term_id = es\.academic_term_id::text\)/);
   assert.match(queries[0].sql, /es\.academic_term_id,/);
-  assert.match(queries[0].sql, /w\.tenant_id\s*=\s*\$1/);
+  assert.match(queries[0].sql, /w\.tenant_id(?:::text)?\s*=\s*\$1/);
   assert.match(queries[0].sql, /tsa\.teacher_user_id\s*=\s*\$2/);
   assert.match(queries[0].sql, /tsa\.mark_entry_allowed\s*=\s*TRUE/);
   assert.match(queries[0].sql, /w\.status\s*=\s*'open'/);
@@ -650,6 +664,9 @@ test('ClassTeacherService dashboard overview counts teacher inventory requests f
         if (/inventory_requests/.test(sql)) {
           return { rows: [{ count: 3 }], rowCount: 1 };
         }
+        if (/FROM exam_mark_entry_windows/.test(sql)) {
+          return { rows: [], rowCount: 0 };
+        }
         if (/CASE WHEN ar\.id IS NULL/.test(sql)) {
           return {
             rows: [
@@ -670,7 +687,7 @@ test('ClassTeacherService dashboard overview counts teacher inventory requests f
   assert.equal(result.storeRequests.detail, '3 pending store requests');
   const inventoryQuery = queries.find((query) => /inventory_requests/.test(query.sql));
   assert.ok(inventoryQuery);
-  assert.match(inventoryQuery.sql, /WHERE tenant_id = \$1/);
+  assert.match(inventoryQuery.sql, /WHERE tenant_id(?:::text)? = \$1/);
   assert.match(inventoryQuery.sql, /requested_by = \$2/);
   assert.equal(inventoryQuery.params[0], 'tenant-a');
   assert.equal(inventoryQuery.params[1], 'teacher-a');
@@ -711,7 +728,7 @@ test('ClassTeacherService returns tenant scoped report snapshots for class-teach
   assert.equal(result.reports[0].download_url, '/api/admin-command/class-teacher/reports/snapshot-a/download');
   const reportQuery = queries.find((query) => /FROM report_snapshots/.test(query.sql));
   assert.ok(reportQuery);
-  assert.match(reportQuery.sql, /tenant_id = \$1/);
+  assert.match(reportQuery.sql, /tenant_id(?:::text)? = \$1/);
   assert.equal(reportQuery.params[0], 'tenant-a');
 });
 

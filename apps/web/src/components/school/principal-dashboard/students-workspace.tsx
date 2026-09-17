@@ -1,5 +1,7 @@
 "use client";
 
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
+
 import { Card } from "@/components/ui/card";
 import { AlertCircle, Users, UserPlus, Plus } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
@@ -24,7 +26,7 @@ type PrincipalStudentsData = {
 export function PrincipalStudentsWorkspace() {
   useStudentEvents();
   const router = useRouter();
-  const { data, isLoading, error } = useSchoolQuery<PrincipalStudentsData>('/admin-command/principal/students');
+  const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalStudentsData>('/admin-command/principal/students');
   const eventBus = useDashboardEventBus();
   const { hasPermission } = usePermissions();
   const openAdmissionsWorkspace = () => router.push(buildSchoolSectionHref("admissions", "admissions", "public"));
@@ -47,6 +49,7 @@ export function PrincipalStudentsWorkspace() {
           <AlertCircle className="h-6 w-6 text-red-500" />
           <h2 className="text-xl font-bold text-red-500">Failed to load Students Overview</h2>
         </div>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Card>
     );
   }

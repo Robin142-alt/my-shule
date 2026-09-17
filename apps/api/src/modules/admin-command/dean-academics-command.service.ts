@@ -3,6 +3,7 @@ import { RequestContextService } from '../../common/request-context/request-cont
 import { PrismaService } from '../../database/prisma.service';
 import { ExamsService } from '../exams/exams.service';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
+import { CURRICULUM_COVERAGE_SQL, DEPARTMENT_PERFORMANCE_SQL, TEACHER_WORKLOAD_SQL } from './academic-workspace-queries';
 
 @Injectable()
 export class DeanAcademicsCommandService {
@@ -47,7 +48,7 @@ export class DeanAcademicsCommandService {
   async getTeacherWorkload() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM teacher_workloads WHERE tenant_id = $1`,
+      TEACHER_WORKLOAD_SQL,
       [tenantId]
     );
     return res.rows;
@@ -56,7 +57,7 @@ export class DeanAcademicsCommandService {
   async getLessonPlans() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM lesson_plans WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      `SELECT * FROM academics_lesson_plans WHERE tenant_id = $1 ORDER BY created_at DESC`,
       [tenantId]
     );
     return res.rows;
@@ -65,7 +66,7 @@ export class DeanAcademicsCommandService {
   async getLessonLogs() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM lesson_logs WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      `SELECT * FROM academics_lesson_logs WHERE tenant_id = $1 ORDER BY created_at DESC`,
       [tenantId]
     );
     return res.rows;
@@ -74,7 +75,7 @@ export class DeanAcademicsCommandService {
   async getCurriculumCoverage() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM curriculum_coverages WHERE tenant_id = $1`,
+      CURRICULUM_COVERAGE_SQL,
       [tenantId]
     );
     return res.rows;
@@ -173,7 +174,7 @@ export class DeanAcademicsCommandService {
   async getDepartmentPerformance() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM department_performances WHERE tenant_id = $1`,
+      DEPARTMENT_PERFORMANCE_SQL,
       [tenantId]
     );
     return res.rows;

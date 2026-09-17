@@ -40,7 +40,17 @@ export function createCsrfResponse(request?: NextRequest) {
   return response;
 }
 
-export function validateCsrfRequest(request: NextRequest) {
+export function validateCsrfRequest(request: NextRequest, audience?: string) {
+  // The regular web/PWA gateway is same-origin. A sibling site must not
+  // authorize a write by planting a matching double-submit cookie.
+  const sessionAudience = audience ?? request.cookies.get("myshule_audience")?.value;
+  if (sessionAudience === "school" || sessionAudience === "portal") {
+    const origin = request.headers.get("origin");
+    const site = request.headers.get("sec-fetch-site");
+    if ((origin && origin !== new URL(request.url).origin) || site === "cross-site" || site === "same-site") {
+      return false;
+    }
+  }
   const cookieToken = request.cookies.get(CSRF_COOKIE)?.value ?? null;
   const headerToken = request.headers.get(CSRF_HEADER);
 

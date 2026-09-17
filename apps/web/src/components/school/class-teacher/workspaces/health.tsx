@@ -1,10 +1,11 @@
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
 import { Stethoscope } from "lucide-react";
 import { Panel } from "../shared";
 import { useClassTeacherHealth, useResolvedClassTeacherStreamId } from "@/lib/data/class-teacher-hooks";
 
 export function HealthNotesWorkspace() {
   const { streamId } = useResolvedClassTeacherStreamId();
-  const { data, isLoading, error } = useClassTeacherHealth(streamId);
+  const { data, isLoading, error, refetch } = useClassTeacherHealth(streamId);
 
   if (isLoading) {
     return (
@@ -18,6 +19,7 @@ export function HealthNotesWorkspace() {
     return (
       <Panel title="Health Records" description="Important medical conditions and allergies for learners in your class." icon={Stethoscope}>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 font-bold">Failed to load health records.</div>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Panel>
     );
   }

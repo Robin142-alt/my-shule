@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { Pool } from 'pg';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 
 import { REDIS_CLIENT } from '../src/infrastructure/redis/redis.constants';
 import { ACCESS_TOKEN_TYPE } from '../src/auth/auth.constants';
@@ -69,6 +69,8 @@ describe('Authentication and authorization hardening', () => {
   let tenantOwner: RegisteredTenantUser;
   let tenantMember: RegisteredTenantUser;
   let otherTenantOwner: RegisteredTenantUser;
+  let subjectHead: RegisteredTenantUser | undefined;
+  let admissionsOfficer: RegisteredTenantUser | undefined;
 
   const suffix = randomUUID().replace(/-/g, '').slice(0, 8);
 
@@ -116,10 +118,113 @@ describe('Authentication and authorization hardening', () => {
   afterAll(async () => {
     await cleanupSeedData(
       pool,
-      [tenantOwner, tenantMember, otherTenantOwner].filter(Boolean),
+      [tenantOwner, tenantMember, otherTenantOwner, subjectHead, admissionsOfficer].filter(Boolean) as RegisteredTenantUser[],
     );
     await app?.close();
     await pool?.end();
+  });
+
+  test('Head of Subject accepts a tenant-bound invite and signs into subject and teaching dashboards', async () => {
+    const email=`subject-head+${suffix}@example.test`;
+    const token=randomUUID()+randomUUID();
+    const password='SubjectHead123!';
+    await pool.query(`CREATE TABLE IF NOT EXISTS staff_profiles (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text NOT NULL, user_id uuid,
+      display_name text NOT NULL, status text NOT NULL, created_at timestamptz DEFAULT NOW(), updated_at timestamptz DEFAULT NOW(),
+      UNIQUE (tenant_id,user_id))`);
+    await pool.query(`INSERT INTO auth_action_tokens (tenant_id,email,token_hash,purpose,expires_at,metadata)
+      VALUES ($1,$2,$3,'invite_acceptance',NOW()+INTERVAL '1 hour',$4::jsonb)`,
+      [tenantOwner.tenant_id,email,createHash('sha256').update(token).digest('hex'),JSON.stringify({role_code:'head_of_subject',display_name:'Subject Leader'})]);
+    await request(app.getHttpServer()).post('/auth/invitations/accept').set('host',tenantOwner.host)
+      .send({token,password,expected_tenant_id:otherTenantOwner.tenant_id}).expect(401);
+    const accepted=await request(app.getHttpServer()).post('/auth/invitations/accept').set('host',tenantOwner.host)
+      .send({token,password,expected_tenant_id:tenantOwner.tenant_id}).expect(201);
+    expect(accepted.body.role).toBe('head_of_subject');expect(accepted.body.email).toBe(email);
+    const account=await pool.query('SELECT id FROM users WHERE tenant_id=$1 AND email=$2',[tenantOwner.tenant_id,email]);
+    const trustedDeviceToken=`trusted-subject-head-${account.rows[0].id}`;
+    await testingModule.get(TrustedDeviceService).trustDevice({userId:account.rows[0].id,rawToken:trustedDeviceToken,ipAddress:'127.0.0.1',userAgent:'auth-security.integration-spec'});
+    const login=await request(app.getHttpServer()).post('/auth/login').set('host',tenantOwner.host)
+      .send({email,password,audience:'school',trusted_device_token:trustedDeviceToken}).expect(response=>{if(response.status!==201)throw new Error(JSON.stringify(response.body));}).expect(201);
+    subjectHead={...tenantOwner,email,password,user_id:login.body.user.user_id,role:'head_of_subject',session_id:login.body.user.session_id,
+      access_token:login.body.tokens.access_token,refresh_token:login.body.tokens.refresh_token};
+    expect(login.body.user.role).toBe('head_of_subject');
+    expect(login.body.user.permissions).toContain('exams:subject-analytics');
+    expect(login.body.user.permissions).not.toContain('exams:read');
+    const staff=await pool.query('SELECT tenant_id,display_name,status FROM staff_profiles WHERE user_id=$1',[subjectHead.user_id]);
+    expect(staff.rows).toEqual([{tenant_id:tenantOwner.tenant_id,display_name:'Subject Leader',status:'active'}]);
+    const roles=await request(app.getHttpServer()).get('/auth/dashboard-roles').set('host',tenantOwner.host)
+      .set('authorization',`Bearer ${subjectHead.access_token}`).expect(200);
+    expect(roles.body.data.available_roles.map((role:{role_code:string})=>role.role_code)).toEqual(['head_of_subject','teacher']);
+    await request(app.getHttpServer()).post('/auth/active-role').set('host',tenantOwner.host)
+      .set('authorization',`Bearer ${subjectHead.access_token}`).send({role_code:'principal'}).expect(403);
+    await request(app.getHttpServer()).get('/auth/me').set('host',otherTenantOwner.host)
+      .set('authorization',`Bearer ${subjectHead.access_token}`).expect(401);
+    const teacher=await request(app.getHttpServer()).post('/auth/active-role').set('host',tenantOwner.host)
+      .set('authorization',`Bearer ${subjectHead.access_token}`).send({role_code:'teacher'}).expect(201);
+    expect(teacher.body.user.role).toBe('teacher');
+    await request(app.getHttpServer()).post('/auth/invitations/accept').set('host',tenantOwner.host)
+      .send({token,password,expected_tenant_id:tenantOwner.tenant_id}).expect(401);
+  });
+
+  test('Admissions Officer switches to Teacher and back with tenant isolation, refreshed permissions and audits', async () => {
+    admissionsOfficer = await registerTenantUser(
+      { app, testingModule, pool },
+      tenantOwner.tenant_id,
+      `admissions+${suffix}@example.test`,
+      'admissions_officer',
+    );
+    const officer = admissionsOfficer;
+    const roles = await request(app.getHttpServer()).get('/auth/dashboard-roles')
+      .set('host', officer.host).set('authorization', `Bearer ${officer.access_token}`).expect(200);
+    expect(roles.body.data.primary_role).toBe('admissions_officer');
+    expect(roles.body.data.assigned_roles).toEqual(['admissions_officer']);
+    expect(roles.body.data.available_roles.map((role: { role_code: string }) => role.role_code))
+      .toEqual(['admissions_officer', 'teacher']);
+
+    await request(app.getHttpServer()).post('/auth/active-role')
+      .set('host', otherTenantOwner.host).set('authorization', `Bearer ${officer.access_token}`)
+      .send({ role_code: 'teacher' }).expect(401);
+    await request(app.getHttpServer()).post('/auth/active-role')
+      .set('host', officer.host).set('authorization', `Bearer ${officer.access_token}`)
+      .send({ role_code: 'principal' }).expect(403);
+
+    const teacher = await request(app.getHttpServer()).post('/auth/active-role')
+      .set('host', officer.host).set('authorization', `Bearer ${officer.access_token}`)
+      .send({ role_code: 'teacher' }).expect(201);
+    expect(teacher.body.user).toMatchObject({
+      user_id: officer.user_id, tenant_id: officer.tenant_id,
+      session_id: officer.session_id, role: 'teacher',
+    });
+    expect(teacher.body.user.permissions).toEqual(expect.arrayContaining(['teacher:read', 'teacher:write']));
+    expect(teacher.body.user.permissions).not.toContain('admissions:write');
+    expect(teacher.body.user.permissions).not.toContain('roles:write');
+
+    const refreshed = await request(app.getHttpServer()).post('/auth/refresh')
+      .set('host', officer.host).send({ refresh_token: teacher.body.tokens.refresh_token }).expect(201);
+    expect(refreshed.body.user.role).toBe('teacher');
+    const me = await request(app.getHttpServer()).get('/auth/me')
+      .set('host', officer.host).set('authorization', `Bearer ${refreshed.body.tokens.access_token}`).expect(200);
+    expect(me.body.data.user.role).toBe('teacher');
+    expect(me.body.data.role_context.primary_role).toBe('admissions_officer');
+
+    const returned = await request(app.getHttpServer()).post('/auth/active-role')
+      .set('host', officer.host).set('authorization', `Bearer ${refreshed.body.tokens.access_token}`)
+      .send({ role_code: 'admissions_officer' }).expect(201);
+    expect(returned.body.user.role).toBe('admissions_officer');
+    expect(returned.body.user.permissions).toContain('admissions:write');
+    expect(returned.body.user.permissions).not.toContain('teacher:write');
+    const membership = await pool.query(`SELECT r.code FROM tenant_memberships m
+      JOIN roles r ON r.id = m.role_id AND r.tenant_id = m.tenant_id
+      WHERE m.tenant_id = $1 AND m.user_id = $2`, [officer.tenant_id, officer.user_id]);
+    expect(membership.rows).toEqual([{ code: 'admissions_officer' }]);
+    const audits = await pool.query(`SELECT metadata FROM audit_logs
+      WHERE tenant_id = $1 AND actor_user_id = $2 AND resource_id = $3
+        AND action = 'auth.active_role_changed'`, [officer.tenant_id, officer.user_id, officer.session_id]);
+    expect(audits.rows.map(row => row.metadata)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ previous_role: 'admissions_officer', active_role: 'teacher', primary_role: 'admissions_officer' }),
+      expect.objectContaining({ previous_role: 'teacher', active_role: 'admissions_officer', primary_role: 'admissions_officer' }),
+    ]));
+    expect(audits.rows).toHaveLength(2);
   });
 
   test('blocks tampered JWTs', async () => {
@@ -214,6 +319,58 @@ describe('Authentication and authorization hardening', () => {
 
     expect(response.body.message).toContain('Attribute-based access denied');
   });
+
+  test('regular refresh retains the deadline and tenant scope', async () => {
+    const before = jwtService.decode(tenantMember.refresh_token) as { exp: number; iat: number };
+    expect(before.exp - before.iat).toBe(14 * 86400);
+    await request(app.getHttpServer()).post('/auth/refresh')
+      .set('host', otherTenantOwner.host).send({ refresh_token: tenantMember.refresh_token }).expect(401);
+    const response = await request(app.getHttpServer()).post('/auth/refresh')
+      .set('host', tenantMember.host).send({ refresh_token: tenantMember.refresh_token }).expect(201);
+    const after = jwtService.decode(response.body.tokens.refresh_token) as { exp: number };
+    expect(after.exp).toBeLessThanOrEqual(before.exp);
+    tenantMember.access_token = response.body.tokens.access_token;
+    tenantMember.refresh_token = response.body.tokens.refresh_token;
+  });
+
+  test('regular users cannot revoke another user or another school session', async () => {
+    for (const target of [tenantOwner, otherTenantOwner]) {
+      await request(app.getHttpServer()).post('/auth/my-sessions/revoke')
+        .set('host', tenantMember.host).set('authorization', `Bearer ${tenantMember.access_token}`)
+        .send({ sessionId: target.session_id }).expect(403);
+      await request(app.getHttpServer()).get('/auth/me')
+        .set('host', target.host).set('authorization', `Bearer ${target.access_token}`).expect(200);
+    }
+  });
+
+  test('device listing and revoke-others use the authenticated context and retain the current device', async () => {
+    const second = await request(app.getHttpServer()).post('/auth/login').set('host', tenantMember.host)
+      .send({ email: tenantMember.email, password: tenantMember.password, audience: 'school',
+        trusted_device_token: `trusted-device-token-${tenantMember.user_id}` })
+      .expect(response => { if (response.status !== 201) throw new Error(`Second-device login failed: ${JSON.stringify(response.body)}`); });
+    const listed = await request(app.getHttpServer()).get('/auth/my-sessions').set('host', tenantMember.host)
+      .set('authorization', `Bearer ${tenantMember.access_token}`).expect(200);
+    const rows = Array.isArray(listed.body) ? listed.body : listed.body.data;
+    expect(rows.some((row: { id: string; status: string }) => row.id === tenantMember.session_id && row.status === 'Current')).toBe(true);
+    expect(rows.some((row: { id: string }) => row.id === second.body.user.session_id)).toBe(true);
+    await request(app.getHttpServer()).post('/auth/my-sessions/revoke-others').set('host', tenantMember.host)
+      .set('authorization', `Bearer ${tenantMember.access_token}`).send({}).expect(201);
+    await request(app.getHttpServer()).get('/auth/me').set('host', tenantMember.host)
+      .set('authorization', `Bearer ${second.body.tokens.access_token}`).expect(401);
+    await request(app.getHttpServer()).get('/auth/me').set('host', tenantMember.host)
+      .set('authorization', `Bearer ${tenantMember.access_token}`).expect(200);
+  });
+
+  test('refresh-credential logout revokes both access and refresh and records an audit', async () => {
+    await request(app.getHttpServer()).post('/auth/logout/refresh')
+      .set('host', tenantMember.host).send({ refresh_token: tenantMember.refresh_token }).expect(201);
+    await request(app.getHttpServer()).get('/auth/me')
+      .set('host', tenantMember.host).set('authorization', `Bearer ${tenantMember.access_token}`).expect(401);
+    await request(app.getHttpServer()).post('/auth/refresh')
+      .set('host', tenantMember.host).send({ refresh_token: tenantMember.refresh_token }).expect(401);
+    const audit = await pool.query('SELECT action FROM audit_logs WHERE tenant_id = $1 AND resource_id = $2', [tenantMember.tenant_id, tenantMember.session_id]);
+    expect(audit.rows.some(row => row.action === 'auth.session.revoked')).toBe(true);
+  });
 });
 
 const registerTenantUser = async (
@@ -224,6 +381,7 @@ const registerTenantUser = async (
   },
   tenantId: string,
   email: string,
+  assignedRole?: 'admissions_officer',
 ): Promise<RegisteredTenantUser> => {
   const { app, testingModule, pool } = context;
   const password = `SecurePass!${tenantId.slice(-4)}`;
@@ -243,7 +401,7 @@ const registerTenantUser = async (
     `,
     [tenantId],
   );
-  const roleCode = Number(existingMembers.rows[0]?.total ?? '0') === 0 ? 'owner' : 'member';
+  const roleCode = assignedRole ?? (Number(existingMembers.rows[0]?.total ?? '0') === 0 ? 'owner' : 'member');
   const role = await authorizationRepository.getRoleByCode(tenantId, roleCode);
   const passwordHash = await passwordService.hash(password);
   const userResult = await pool.query<{ id: string }>(

@@ -109,10 +109,16 @@ export function setExperienceSessionCookies(
   session: ExperienceGatewaySession,
   options: { rememberSession?: boolean } = {},
 ) {
-  const maxAge = options.rememberSession
-    ? getRefreshTokenMaxAge(session.refreshToken)
+  const rememberSession = options.rememberSession ?? session.audience !== "superadmin";
+  const maxAge = rememberSession
+    ? session.audience === "superadmin"
+      ? getRefreshTokenMaxAge(session.refreshToken)
+      : Math.min(14 * 24 * 60 * 60, getRefreshTokenMaxAge(session.refreshToken, 0))
     : undefined;
   const sessionCookieOptions = cookieOptions(maxAge);
+  if (session.audience !== "superadmin") {
+    response.headers.set("Cache-Control", "private, no-store");
+  }
 
   response.cookies.set(
     getExperienceSessionCookieName(session.audience),
@@ -129,7 +135,7 @@ export function setExperienceSessionCookies(
     deleteCookie(response, TENANT_COOKIE);
   }
 
-  if (options.rememberSession) {
+  if (rememberSession) {
     response.cookies.set(REMEMBER_SESSION_COOKIE, "1", sessionCookieOptions);
   } else {
     deleteCookie(response, REMEMBER_SESSION_COOKIE);
@@ -202,8 +208,7 @@ function normalizeTenantSlug(value?: string | null) {
   return normalized && normalized.length > 0 ? normalized : null;
 }
 
-function getRefreshTokenMaxAge(refreshToken: string) {
-  const fallbackSeconds = 30 * 24 * 60 * 60;
+function getRefreshTokenMaxAge(refreshToken: string, fallbackSeconds = 30 * 24 * 60 * 60) {
 
   try {
     const payloadSegment = refreshToken.split(".")[1];

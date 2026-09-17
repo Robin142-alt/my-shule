@@ -61,7 +61,7 @@ export const approvalWorkflowCatalog: ApprovalWorkflow[] = [
     label: "Exam release approvals",
     description: "Approve moderated results before they become visible to families.",
     moduleCode: "exams",
-    roles: ["principal", "deputy-principal", "hod"],
+    roles: ["principal", "deputy-principal", "dean-academics"],
     stage: "approval",
     count: 4,
     tone: "warning",

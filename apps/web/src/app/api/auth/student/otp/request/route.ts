@@ -5,7 +5,7 @@ import { validateCsrfRequest } from "@/lib/auth/csrf";
 import { getDashboardApiBaseUrl } from "@/lib/dashboard/api-client";
 
 export async function POST(request: NextRequest) {
-  if (!validateCsrfRequest(request)) {
+  if (!validateCsrfRequest(request, "portal")) {
     return NextResponse.json(
       { message: "Security check expired. Refresh the page and try again." },
       { status: 403 },

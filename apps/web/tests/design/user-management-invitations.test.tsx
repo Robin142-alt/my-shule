@@ -61,7 +61,7 @@ describe("school-scoped user management and invitations", () => {
     await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
 
     expect(within(commandCenter).getAllByRole("heading", { name: /Users & Invitations/i }).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getByRole("button", { name: /^All Users$/i })).toBeVisible();
+    expect(within(commandCenter).getByRole("button", { name: /^All Staff$/i })).toBeVisible();
     expect(within(commandCenter).getByRole("button", { name: /Pending Invitations/i })).toBeVisible();
     expect(within(commandCenter).getByRole("button", { name: /Invite New User/i })).toBeVisible();
     expect(within(commandCenter).getByRole("button", { name: /Roles & Permissions/i })).toBeVisible();
@@ -89,7 +89,7 @@ describe("school-scoped user management and invitations", () => {
     await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
 
     await waitFor(() => {
-      expect(within(commandCenter).getByText("0 active users")).toBeVisible();
+      expect(within(commandCenter).getByText("0 active staff")).toBeVisible();
       expect(within(commandCenter).getByText("0 pending invites")).toBeVisible();
       expect(within(commandCenter).getByText("0 inactive")).toBeVisible();
     });
@@ -130,7 +130,7 @@ describe("school-scoped user management and invitations", () => {
     await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
 
     await waitFor(() => {
-      expect(within(commandCenter).getByText("0 active users")).toBeVisible();
+      expect(within(commandCenter).getByText("0 active staff")).toBeVisible();
     });
     expect(within(commandCenter).queryByText(/Principal Wanjiku/i)).not.toBeInTheDocument();
     expect(within(commandCenter).queryByText(/principal\.wanjiku@kisumuboys\.ac\.ke/i)).not.toBeInTheDocument();
@@ -253,10 +253,10 @@ describe("school-scoped user management and invitations", () => {
             {
               id: "invite-1",
               kind: "invitation",
-              display_name: "Jane Parent",
-              email: "parent@example.test",
-              role_code: "parent",
-              role_name: "Parent",
+              display_name: "Jane Librarian",
+              email: "librarian@example.test",
+              role_code: "librarian",
+              role_name: "Librarian",
               status: "invited",
             },
           ],
@@ -278,13 +278,13 @@ describe("school-scoped user management and invitations", () => {
 
     expect((await within(commandCenter).findAllByText(/Mary Wanjiku/i)).length).toBeGreaterThan(0);
     await user.click(within(commandCenter).getByRole("button", { name: /Pending Invitations/i }));
-    expect(within(commandCenter).getAllByText(/Jane Parent/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getAllByText(/Jane Librarian/i).length).toBeGreaterThan(0);
 
     await user.click(within(commandCenter).getByRole("button", { name: /Invite New User/i }));
     await user.type(within(commandCenter).getByLabelText(/Full name/i), "Brian Otieno");
     await user.type(within(commandCenter).getByLabelText(/Phone number/i), "0712456789");
-    await user.type(within(commandCenter).getByLabelText(/Email address/i), "brian.parent@example.test");
-    await user.selectOptions(within(commandCenter).getByLabelText(/^Role$/i), "Parent");
+    await user.type(within(commandCenter).getByLabelText(/Email address/i), "brian.librarian@example.test");
+    await user.selectOptions(within(commandCenter).getByLabelText(/^Role$/i), "Librarian");
     await user.click(within(commandCenter).getByRole("button", { name: /Send Invitation/i }));
 
     await waitFor(() => expect(within(commandCenter).getByText(/Transactional email provider is not configured/i)).toBeVisible());
@@ -292,7 +292,7 @@ describe("school-scoped user management and invitations", () => {
       expect(document.querySelector('[data-sonner-toast][data-type="error"]')).toHaveTextContent("Transactional email provider is not configured");
     });
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/auth/invitations?limit=50&offset=0",
+      "/api/auth/invitations?limit=50&offset=0&scope=staff",
       expect.objectContaining({
         method: "GET",
         credentials: "same-origin",
@@ -314,7 +314,7 @@ describe("school-scoped user management and invitations", () => {
           "Content-Type": "application/json",
           "x-myshule-csrf": "csrf-user-workspace-token",
         }),
-        body: expect.stringContaining('"role_code":"parent"'),
+        body: expect.stringContaining('"role_code":"librarian"'),
       }),
     );
     expect(readSchoolData("user-invitations", "kisumu-boys")).not.toEqual(
@@ -366,7 +366,7 @@ describe("school-scoped user management and invitations", () => {
     await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
 
     expect((await within(commandCenter).findAllByText("Accepted Kibabi Teacher")).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getByText("1 active users")).toBeVisible();
+    expect(within(commandCenter).getByText("1 active staff")).toBeVisible();
     expect(within(commandCenter).getAllByText("accepted.teacher@example.test").length).toBeGreaterThan(0);
     expect(readSchoolData("school-users", "kibabi-high")).toEqual(
       expect.arrayContaining([
@@ -508,7 +508,7 @@ describe("school-scoped user management and invitations", () => {
 
     await user.click(within(commandCenter).getByRole("button", { name: "Open Invite Form" }));
     expect(within(commandCenter).getByLabelText("Full name")).toBeVisible();
-    await user.click(within(commandCenter).getByRole("button", { name: "All Users" }));
+    await user.click(within(commandCenter).getByRole("button", { name: "All Staff" }));
 
     await user.click(within(commandCenter).getAllByRole("button", { name: "View details" })[0]);
     expect(screen.getByRole("dialog", { name: "Mary Wanjiku details" })).toBeVisible();
@@ -601,7 +601,7 @@ describe("school-scoped user management and invitations", () => {
     expect(within(commandCenter).queryByText(/Email delivery failed: Internal server error/i)).not.toBeInTheDocument();
   }, 30000);
 
-  it("prevents duplicate active users inside the same school and filters out another school's users", async () => {
+  it("prevents duplicate active staff inside the same school and filters out another school's users", async () => {
     const user = userEvent.setup();
 
     seedSchoolUser("kisumu-boys", {
@@ -654,12 +654,12 @@ describe("school-scoped user management and invitations", () => {
               status: "active",
             },
             {
-              id: "invite-kibabi-live-parent",
+              id: "invite-kibabi-live-librarian",
               kind: "invitation",
-              display_name: "Kibabi Pending Parent",
-              email: "parent@kibabi.example.test",
-              role_code: "parent",
-              role_name: "Parent",
+              display_name: "Kibabi Pending Librarian",
+              email: "librarian@kibabi.example.test",
+              role_code: "librarian",
+              role_name: "Librarian",
               status: "invited",
             },
           ],
@@ -701,7 +701,7 @@ describe("school-scoped user management and invitations", () => {
     expect(within(commandCenter).getByText(/Deputy Principal can invite school users in Kisumu Boys/i)).toBeVisible();
     expect(within(commandCenter).queryByRole("option", { name: /Super Admin/i })).not.toBeInTheDocument();
     expect((await within(commandCenter).findAllByText("Kibabi Live Teacher")).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getByText("1 active users")).toBeVisible();
+    expect(within(commandCenter).getByText("1 active staff")).toBeVisible();
     expect(within(commandCenter).getByText("1 pending invites")).toBeVisible();
     expect(within(commandCenter).queryByText(/Live user service is unavailable/i)).not.toBeInTheDocument();
 
@@ -737,12 +737,12 @@ describe("school-scoped user management and invitations", () => {
         status: "active",
       },
       {
-        id: "invite-kibabi-shared-parent",
+        id: "invite-kibabi-shared-librarian",
         kind: "invitation",
-        display_name: "Kibabi Shared Parent",
-        email: "shared.parent@kibabi.example.test",
-        role_code: "parent",
-        role_name: "Parent",
+        display_name: "Kibabi Shared Librarian",
+        email: "shared.librarian@kibabi.example.test",
+        role_code: "librarian",
+        role_name: "Librarian",
         status: "invited",
       },
     ];
@@ -765,7 +765,7 @@ describe("school-scoped user management and invitations", () => {
     );
 
     expect((await screen.findAllByText("Kibabi Shared Teacher")).length).toBeGreaterThan(0);
-    expect(screen.getByText("1 active users")).toBeVisible();
+    expect(screen.getByText("1 active staff")).toBeVisible();
     expect(screen.getByText("1 pending invites")).toBeVisible();
     principal.unmount();
     window.localStorage.clear();
@@ -780,7 +780,7 @@ describe("school-scoped user management and invitations", () => {
     );
 
     expect((await screen.findAllByText("Kibabi Shared Teacher")).length).toBeGreaterThan(0);
-    expect(screen.getByText("1 active users")).toBeVisible();
+    expect(screen.getByText("1 active staff")).toBeVisible();
     expect(screen.getByText("1 pending invites")).toBeVisible();
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(readSchoolData("school-users", "kibabi-high")).toEqual([
@@ -796,12 +796,12 @@ describe("school-scoped user management and invitations", () => {
     });
     addSchoolRecord("user-invitations", {
       id: "cached-kibabi-invitation",
-      invitedName: "Cached Kibabi Parent",
+      invitedName: "Cached Kibabi Librarian",
       phone: "0712000001",
-      email: "cached.parent@kibabi.example.test",
-      role: "Parent",
+      email: "cached.librarian@kibabi.example.test",
+      role: "Librarian",
       department: "School access",
-      assignment: "Parent",
+      assignment: "Librarian",
       identifier: "",
       deliveryMethod: "Email",
       note: "",

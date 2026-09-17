@@ -31,6 +31,7 @@ import { PrincipalCommandCenter } from "@/components/school/principal-command-ce
 import { AccountantCommandCenter } from "@/components/school/accountant-command-center";
 import { ExamsManagerCommandCenter } from "@/components/school/exams-manager-command-center";
 import { GradeMasterCommandCenter } from "@/components/school/grade-master-command-center";
+import { HosCommandCenter } from "@/components/school/hos-command-center";
 import { HodCommandCenter } from "@/components/school/hod-command-center";
 import {
   isLiveRoleCommandCenterRole,
@@ -939,6 +940,10 @@ function shouldRenderRoleOperationalWorkspace(role: SchoolExperienceRole, sectio
 
   if (role === "dean-academics") {
     return deanAcademicsWorkspaceSectionIds.has(section);
+  }
+
+  if (role === "hos") {
+    return ["dashboard", "overview", "subjects", "academic-intelligence", "exams"].includes(section);
   }
 
   if (role === "hod") {
@@ -4961,6 +4966,9 @@ function SchoolPagesShell({
   }
 
   if (renderRoleOperationalWorkspace) {
+    if (role === "hos") {
+      return <HosCommandCenter routeMode={routeMode} activeSection={section} />;
+    }
     if (role === "principal") {
       return <PrincipalCommandCenter routeMode={routeMode} tenantSlug={tenantSlug} activeSection={section} userLabel={userLabel} />;
     }

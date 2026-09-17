@@ -1,10 +1,11 @@
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
 import { GitPullRequest } from "lucide-react";
 import { Panel, StatusChip, openClassTeacherRecord } from "../shared";
 import { useClassTeacherRequests, useResolvedClassTeacherStreamId } from "@/lib/data/class-teacher-hooks";
 
 export function RequestsWorkspace() {
   const { streamId } = useResolvedClassTeacherStreamId();
-  const { data, isLoading, error } = useClassTeacherRequests(streamId);
+  const { data, isLoading, error, refetch } = useClassTeacherRequests(streamId);
 
   if (isLoading) {
     return (
@@ -18,6 +19,7 @@ export function RequestsWorkspace() {
     return (
       <Panel title="Learner Requests" description="Pending requests for learners (e.g., leave, gate pass)." icon={GitPullRequest}>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 font-bold">Failed to load requests.</div>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Panel>
     );
   }

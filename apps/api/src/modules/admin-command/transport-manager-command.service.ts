@@ -105,7 +105,7 @@ export class TransportManagerCommandService {
             route.status
           FROM transport_routes route
           WHERE route.tenant_id = $1
-            AND route.status = 'active'
+            AND lower(route.status::text) = 'active'
           ORDER BY route.name ASC
           LIMIT 200
         `,
@@ -121,7 +121,7 @@ export class TransportManagerCommandService {
           FROM transport_manifests manifest
           INNER JOIN transport_routes route
             ON route.tenant_id = manifest.tenant_id
-           AND route.id = manifest.route_id
+           AND route.id::text = manifest.route_id::text
           WHERE manifest.tenant_id = $1
             AND manifest.status = 'active'
           ORDER BY route.name ASC, manifest.effective_from DESC
@@ -158,7 +158,7 @@ export class TransportManagerCommandService {
           FROM transport_route_stops stop
           INNER JOIN transport_routes route
             ON route.tenant_id = stop.tenant_id
-           AND route.id = stop.route_id
+           AND route.id::text = stop.route_id::text
           WHERE stop.tenant_id = $1
             AND stop.is_active = true
           ORDER BY route.name ASC, stop.stop_sequence ASC
@@ -178,7 +178,7 @@ export class TransportManagerCommandService {
             vehicle.status
           FROM transport_vehicles vehicle
           WHERE vehicle.tenant_id = $1
-            AND vehicle.status IN ('active', 'maintenance')
+            AND lower(vehicle.status::text) IN ('active', 'maintenance')
           ORDER BY vehicle.registration_number ASC
           LIMIT 200
         `,
@@ -210,7 +210,7 @@ export class TransportManagerCommandService {
           (SELECT COUNT(*)::int FROM transport_vehicles vehicle WHERE vehicle.tenant_id = $1) AS total_vehicles,
           (SELECT COUNT(*)::int FROM transport_drivers driver WHERE driver.tenant_id = $1) AS total_drivers,
           (SELECT COUNT(*)::int FROM transport_routes route WHERE route.tenant_id = $1) AS total_routes,
-          (SELECT COUNT(*)::int FROM transport_routes route WHERE route.tenant_id = $1 AND route.status = 'active') AS active_routes,
+          (SELECT COUNT(*)::int FROM transport_routes route WHERE route.tenant_id = $1 AND lower(route.status::text) = 'active') AS active_routes,
           (
             SELECT COUNT(DISTINCT manifest_student.student_id)::int
             FROM transport_manifest_students manifest_student
@@ -221,7 +221,7 @@ export class TransportManagerCommandService {
               AND manifest_student.boarding_status = 'active'
               AND manifest.status = 'active'
           ) AS students_transported,
-          (SELECT COUNT(*)::int FROM transport_trips trip WHERE trip.tenant_id = $1 AND trip.trip_date = CURRENT_DATE) AS trips_today
+          (SELECT COUNT(*)::int FROM transport_trips trip WHERE trip.tenant_id = $1 AND trip.trip_date::date = CURRENT_DATE) AS trips_today
       `,
       [tenantId],
     );
@@ -282,19 +282,19 @@ export class TransportManagerCommandService {
           COALESCE(latest_driver.name, '') AS assigned_driver,
           COALESCE(current_assignment.route_name, latest_driver.route_name, '') AS assigned_route,
           COALESCE(latest_service.service_date::text, '') AS last_service,
-          INITCAP(REPLACE(vehicle.status, '_', ' ')) AS status
+          INITCAP(REPLACE(vehicle.status::text, '_', ' ')) AS status
         FROM transport_vehicles vehicle
         LEFT JOIN LATERAL (
           SELECT driver.name, route.name AS route_name
           FROM transport_trips trip
           INNER JOIN transport_drivers driver
             ON driver.tenant_id = trip.tenant_id
-           AND driver.id = trip.driver_id
+           AND driver.id::text = trip.driver_id::text
           INNER JOIN transport_routes route
             ON route.tenant_id = trip.tenant_id
-           AND route.id = trip.route_id
+           AND route.id::text = trip.route_id::text
           WHERE trip.tenant_id = vehicle.tenant_id
-            AND trip.vehicle_id = vehicle.id
+            AND trip.vehicle_id::text = vehicle.id::text
           ORDER BY trip.trip_date DESC, trip.created_at DESC, trip.id DESC
           LIMIT 1
         ) latest_driver ON TRUE
@@ -302,8 +302,8 @@ export class TransportManagerCommandService {
           SELECT route.name AS route_name
           FROM transport_routes route
           WHERE route.tenant_id = vehicle.tenant_id
-            AND route.assigned_vehicle_id = vehicle.id
-            AND route.status = 'active'
+            AND route.assigned_vehicle_id::text = vehicle.id::text
+            AND lower(route.status::text) = 'active'
           ORDER BY route.vehicle_assigned_at DESC NULLS LAST, route.updated_at DESC, route.id DESC
           LIMIT 1
         ) current_assignment ON TRUE
@@ -311,7 +311,7 @@ export class TransportManagerCommandService {
           SELECT service_log.service_date
           FROM vehicle_service_logs service_log
           WHERE service_log.tenant_id = vehicle.tenant_id
-            AND service_log.vehicle_id = vehicle.id
+            AND service_log.vehicle_id::text = vehicle.id::text
           ORDER BY service_log.service_date DESC, service_log.created_at DESC, service_log.id DESC
           LIMIT 1
         ) latest_service ON TRUE
@@ -424,8 +424,8 @@ export class TransportManagerCommandService {
             SELECT 1
             FROM transport_trips duty_trip
             WHERE duty_trip.tenant_id = driver.tenant_id
-              AND duty_trip.driver_id = driver.id
-              AND duty_trip.trip_date = CURRENT_DATE
+              AND duty_trip.driver_id::text = driver.id::text
+              AND duty_trip.trip_date::date = CURRENT_DATE
               AND duty_trip.status = 'in_progress'
           ) AS on_duty
         FROM transport_drivers driver
@@ -434,9 +434,9 @@ export class TransportManagerCommandService {
           FROM transport_trips trip
           INNER JOIN transport_vehicles vehicle
             ON vehicle.tenant_id = trip.tenant_id
-           AND vehicle.id = trip.vehicle_id
+           AND vehicle.id::text = trip.vehicle_id::text
           WHERE trip.tenant_id = driver.tenant_id
-            AND trip.driver_id = driver.id
+            AND trip.driver_id::text = driver.id::text
           ORDER BY trip.trip_date DESC, trip.created_at DESC, trip.id DESC
           LIMIT 1
         ) latest_trip ON TRUE
@@ -556,20 +556,20 @@ export class TransportManagerCommandService {
           )::int AS learner_count,
           COALESCE(latest_trip.driver, '') AS driver,
           COALESCE(assigned_vehicle.registration_number, latest_trip.vehicle, '') AS vehicle,
-          INITCAP(REPLACE(route.status, '_', ' ')) AS status
+          INITCAP(REPLACE(route.status::text, '_', ' ')) AS status
         FROM transport_routes route
         LEFT JOIN transport_route_stops stop
           ON stop.tenant_id = route.tenant_id
-         AND stop.route_id = route.id
+         AND stop.route_id::text = route.id::text
         LEFT JOIN transport_manifests manifest
           ON manifest.tenant_id = route.tenant_id
-         AND manifest.route_id = route.id
+         AND manifest.route_id::text = route.id::text
         LEFT JOIN transport_manifest_students manifest_student
           ON manifest_student.tenant_id = manifest.tenant_id
-         AND manifest_student.manifest_id = manifest.id
+         AND manifest_student.manifest_id::text = manifest.id::text
         LEFT JOIN transport_vehicles assigned_vehicle
           ON assigned_vehicle.tenant_id = route.tenant_id
-         AND assigned_vehicle.id = route.assigned_vehicle_id
+         AND assigned_vehicle.id::text = route.assigned_vehicle_id::text
         LEFT JOIN LATERAL (
           SELECT
             driver.name AS driver,
@@ -577,12 +577,12 @@ export class TransportManagerCommandService {
           FROM transport_trips trip
           INNER JOIN transport_vehicles vehicle
             ON vehicle.tenant_id = trip.tenant_id
-           AND vehicle.id = trip.vehicle_id
+           AND vehicle.id::text = trip.vehicle_id::text
           LEFT JOIN transport_drivers driver
             ON driver.tenant_id = trip.tenant_id
-           AND driver.id = trip.driver_id
+           AND driver.id::text = trip.driver_id::text
           WHERE trip.tenant_id = route.tenant_id
-            AND trip.route_id = route.id
+            AND trip.route_id::text = route.id::text
           ORDER BY trip.trip_date DESC, trip.created_at DESC, trip.id DESC
           LIMIT 1
         ) latest_trip ON TRUE
@@ -672,7 +672,7 @@ export class TransportManagerCommandService {
           FROM transport_vehicles vehicle
           WHERE vehicle.tenant_id = $1
             AND vehicle.id = $3::uuid
-            AND vehicle.status = 'active'
+            AND lower(vehicle.status::text) = 'active'
         ), updated_route AS (
           UPDATE transport_routes route
           SET assigned_vehicle_id = selected_vehicle.id,
@@ -682,7 +682,7 @@ export class TransportManagerCommandService {
           FROM selected_vehicle
           WHERE route.tenant_id = $1
             AND route.id = $2::uuid
-            AND route.status = 'active'
+            AND lower(route.status::text) = 'active'
           RETURNING
             route.id,
             route.tenant_id,
@@ -819,17 +819,17 @@ export class TransportManagerCommandService {
           COALESCE(trip.actual_end_at::text, '') AS arrival_time,
           trip.learner_count::int AS students,
           INITCAP(REPLACE(trip.status, '_', ' ')) AS status,
-          trip.trip_date = CURRENT_DATE AS is_today
+          trip.trip_date::date = CURRENT_DATE AS is_today
         FROM transport_trips trip
         INNER JOIN transport_routes route
           ON route.tenant_id = trip.tenant_id
-         AND route.id = trip.route_id
+         AND route.id::text = trip.route_id::text
         INNER JOIN transport_vehicles vehicle
           ON vehicle.tenant_id = trip.tenant_id
-         AND vehicle.id = trip.vehicle_id
+         AND vehicle.id::text = trip.vehicle_id::text
         LEFT JOIN transport_drivers driver
           ON driver.tenant_id = trip.tenant_id
-         AND driver.id = trip.driver_id
+         AND driver.id::text = trip.driver_id::text
         WHERE trip.tenant_id = $1
         ORDER BY trip.trip_date DESC, trip.created_at DESC, trip.id DESC
         LIMIT 200
@@ -927,14 +927,14 @@ export class TransportManagerCommandService {
               SELECT SUM(service_log.cost_minor)
               FROM vehicle_service_logs service_log
               WHERE service_log.tenant_id = $1
-                AND service_log.service_date >= DATE_TRUNC('month', CURRENT_DATE)::date
+                AND service_log.service_date::date >= DATE_TRUNC('month', CURRENT_DATE)::date
             ), 0)::text AS maintenance_cost_this_month_minor,
-            (SELECT COUNT(*)::int FROM transport_vehicles vehicle WHERE vehicle.tenant_id = $1 AND vehicle.status = 'maintenance') AS pending_maintenance,
+            (SELECT COUNT(*)::int FROM transport_vehicles vehicle WHERE vehicle.tenant_id = $1 AND lower(vehicle.status::text) = 'maintenance') AS pending_maintenance,
             (
               SELECT COUNT(*)::int
               FROM transport_vehicles vehicle
               WHERE vehicle.tenant_id = $1
-                AND vehicle.status = 'active'
+                AND lower(vehicle.status::text) = 'active'
                 AND vehicle.service_due_date IS NOT NULL
                 AND vehicle.service_due_date < CURRENT_DATE
             ) AS overdue_service
@@ -1003,7 +1003,7 @@ export class TransportManagerCommandService {
           FROM vehicle_service_logs service_log
           INNER JOIN transport_vehicles vehicle
             ON vehicle.tenant_id = service_log.tenant_id
-           AND vehicle.id = service_log.vehicle_id
+           AND vehicle.id::text = service_log.vehicle_id::text
           WHERE service_log.tenant_id = $1
           ORDER BY service_log.service_date DESC, service_log.created_at DESC, service_log.id DESC
           LIMIT 200
@@ -1061,7 +1061,7 @@ export class TransportManagerCommandService {
           FROM transport_vehicles vehicle
           WHERE vehicle.tenant_id = $1
             AND vehicle.id = $2::uuid
-            AND vehicle.status IN ('active', 'maintenance')
+            AND lower(vehicle.status::text) IN ('active', 'maintenance')
         ), inserted_log AS (
           INSERT INTO vehicle_fuel_logs (
             tenant_id, vehicle_id, fuel_date, litres, cost_minor, odometer_reading,
@@ -1209,7 +1209,7 @@ export class TransportManagerCommandService {
           FROM transport_vehicles vehicle
           WHERE vehicle.tenant_id = $1
             AND vehicle.id = $2::uuid
-            AND vehicle.status IN ('active', 'maintenance')
+            AND lower(vehicle.status::text) IN ('active', 'maintenance')
         ), inserted_log AS (
           INSERT INTO vehicle_service_logs (
             tenant_id, vehicle_id, service_date, odometer_reading, next_service_date,
@@ -1367,7 +1367,7 @@ export class TransportManagerCommandService {
               FROM transport_manifest_students manifest_student
               INNER JOIN transport_manifests manifest
                 ON manifest.tenant_id = manifest_student.tenant_id
-               AND manifest.id = manifest_student.manifest_id
+               AND manifest.id::text = manifest_student.manifest_id::text
               WHERE manifest_student.tenant_id = $1
                 AND manifest_student.boarding_status = 'active'
                 AND manifest.status = 'active'
@@ -1383,9 +1383,9 @@ export class TransportManagerCommandService {
                   FROM transport_manifest_students manifest_student
                   INNER JOIN transport_manifests manifest
                     ON manifest.tenant_id = manifest_student.tenant_id
-                   AND manifest.id = manifest_student.manifest_id
+                   AND manifest.id::text = manifest_student.manifest_id::text
                   WHERE manifest_student.tenant_id = student.tenant_id
-                    AND manifest_student.student_id = student.id
+                    AND manifest_student.student_id::text = student.id::text
                     AND manifest_student.boarding_status = 'active'
                     AND manifest.status = 'active'
                 )
@@ -1422,21 +1422,21 @@ export class TransportManagerCommandService {
           FROM transport_manifest_students manifest_student
           INNER JOIN transport_manifests manifest
             ON manifest.tenant_id = manifest_student.tenant_id
-           AND manifest.id = manifest_student.manifest_id
+           AND manifest.id::text = manifest_student.manifest_id::text
           INNER JOIN transport_routes route
             ON route.tenant_id = manifest.tenant_id
-           AND route.id = manifest.route_id
+           AND route.id::text = manifest.route_id::text
           INNER JOIN students student
             ON student.tenant_id = manifest_student.tenant_id
-           AND student.id = manifest_student.student_id
+           AND student.id::text = manifest_student.student_id::text
           LEFT JOIN transport_route_stops pickup_stop
             ON pickup_stop.tenant_id = manifest_student.tenant_id
-           AND pickup_stop.id = manifest_student.pickup_stop_id
+           AND pickup_stop.id::text = manifest_student.pickup_stop_id::text
           LEFT JOIN LATERAL (
             SELECT allocation.class_name
             FROM student_allocations allocation
             WHERE allocation.tenant_id = student.tenant_id
-              AND allocation.student_id = student.id::text
+              AND allocation.student_id::text = student.id::text
               AND allocation.is_current = TRUE
             ORDER BY allocation.effective_from DESC, allocation.created_at DESC
             LIMIT 1
@@ -1499,14 +1499,14 @@ export class TransportManagerCommandService {
             AND manifest.id = $2::uuid
             AND $2::uuid IS NOT NULL
             AND manifest.status = 'active'
-            AND route.status = 'active'
+            AND lower(route.status::text) = 'active'
         ), selected_route AS (
           SELECT route.id, route.tenant_id
           FROM transport_routes route
           WHERE route.tenant_id = $1
             AND route.id = $3::uuid
             AND $2::uuid IS NULL
-            AND route.status = 'active'
+            AND lower(route.status::text) = 'active'
         ), candidate_route AS (
           SELECT selected_manifest.tenant_id, selected_manifest.route_id
           FROM selected_manifest
@@ -1907,13 +1907,13 @@ export class TransportManagerCommandService {
           FROM transport_trip_events trip_event
           INNER JOIN transport_trips trip
             ON trip.tenant_id = trip_event.tenant_id
-           AND trip.id = trip_event.trip_id
+           AND trip.id::text = trip_event.trip_id::text
           INNER JOIN transport_vehicles vehicle
             ON vehicle.tenant_id = trip.tenant_id
-           AND vehicle.id = trip.vehicle_id
+           AND vehicle.id::text = trip.vehicle_id::text
           LEFT JOIN transport_drivers driver
             ON driver.tenant_id = trip.tenant_id
-           AND driver.id = trip.driver_id
+           AND driver.id::text = trip.driver_id::text
           WHERE trip_event.tenant_id = $1
             AND trip_event.event_type IN ('delay', 'incident')
 
@@ -1931,7 +1931,7 @@ export class TransportManagerCommandService {
           FROM transport_alerts alert
           LEFT JOIN transport_vehicles vehicle
             ON vehicle.tenant_id = alert.tenant_id
-           AND vehicle.id = alert.vehicle_id
+           AND vehicle.id::text = alert.vehicle_id::text
           WHERE alert.tenant_id = $1
         )
         SELECT
@@ -2023,7 +2023,7 @@ export class TransportManagerCommandService {
           INNER JOIN transport_routes route
             ON route.tenant_id = manifest.tenant_id
            AND route.id = manifest.route_id
-           AND route.status = 'active'
+           AND lower(route.status::text) = 'active'
           INNER JOIN students student
             ON student.tenant_id = manifest_student.tenant_id
            AND student.id = manifest_student.student_id

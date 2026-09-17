@@ -67,6 +67,8 @@ describe("teacher exams and marks workspace", () => {
           enteredCount: 1,
           totalStudents: 2,
           status: "Pending",
+          canEnter: true,
+          entryState: "Open",
         },
       ],
     });
@@ -127,177 +129,289 @@ describe("teacher exams and marks workspace", () => {
     (saveExamMarksLive as jest.Mock).mockResolvedValue({ success: true });
   });
 
-  it("opens a full teacher markbook with analytics, learner rows, save draft, and moderation submission", async () => {
-    renderWithProviders(
-      createElement(ExamsMarksWorkspace, {
-        onStartAction: jest.fn(),
-      }),
-    );
+  async function openWorkspace() {
+    renderWithProviders(createElement(ExamsMarksWorkspace, { onStartAction: jest.fn() }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Open Mathematics/ }));
+    await screen.findByLabelText("Asha Njeri score");
+  }
 
-    expect((await screen.findAllByText(/Teacher markbook/i)).length).toBeGreaterThan(0);
-    expect(await screen.findByText(/Moderation readiness/i)).toBeVisible();
-    expect(await screen.findByText(/50% complete/i)).toBeVisible();
-
-    fireEvent.click(screen.getByRole("button", { name: /Open markbook for Term 2 Opener/i }));
-
-    await screen.findAllByLabelText(/Asha Njeri score/i);
-    expect(screen.getAllByText(/Brian Otieno/i).length).toBeGreaterThan(0);
-
-    const evidenceLabels = Array.from(
-      (screen.getAllByLabelText(/Asha Njeri evidence status/i)[0] as HTMLSelectElement).options,
-    ).map((option) => option.text);
-    expect(evidenceLabels).not.toContain("Score entered");
-    expect(evidenceLabels).toEqual(expect.arrayContaining([
-      "Absent",
-      "Exempt",
-      "Not assessed",
-      "Incomplete",
-      "Withheld",
-      "Medical exception",
-      "Transfer student",
-    ]));
-
-    const ashaInput = screen.getAllByLabelText(/Asha Njeri score/i)[0]!;
-    expect(ashaInput).toBeEnabled();
-    fireEvent.change(ashaInput, { target: { value: "74" } });
-    fireEvent.click(screen.getByRole("button", { name: /Save draft/i }));
-
-    await waitFor(() => {
-      expect(saveExamMarksLive).toHaveBeenCalledWith(
-        mockSession,
-        expect.objectContaining({
-          action: "draft",
-          examId: "window-1",
-          classSectionId: "class-2-blue",
-          marks: expect.objectContaining({
-            "student-1": expect.objectContaining({ score: 74, score_status: "entered" }),
-          }),
-        }),
-      );
-    });
-
-    await waitFor(() => {
-      expect(screen.getAllByLabelText(/Asha Njeri score/i)[0]).toBeEnabled();
-    });
-    fireEvent.change(screen.getAllByLabelText(/Asha Njeri score/i)[0]!, { target: { value: "74" } });
-    fireEvent.change(screen.getAllByLabelText(/Brian Otieno score/i)[0]!, { target: { value: "68" } });
-    fireEvent.click(screen.getByRole("button", { name: /Submit for moderation/i }));
-
-    await waitFor(() => {
-      expect(saveExamMarksLive).toHaveBeenCalledWith(
-        mockSession,
-        expect.objectContaining({
-          action: "submit",
-          examId: "window-1",
-          marks: expect.objectContaining({
-            "student-1": expect.objectContaining({ score: 74, score_status: "entered" }),
-            "student-2": expect.objectContaining({ score: 68, score_status: "entered" }),
-          }),
-        }),
-      );
-    });
+  it("shows one compact score input per student without evidence, remarks, policy or validation panels", async () => {
+    await openWorkspace();
+    expect(fetchPendingMarksLive).toHaveBeenCalledWith(mockSession, true, true);
+    expect(screen.getAllByLabelText("Asha Njeri score")).toHaveLength(1);
+    expect(screen.getByRole("table", { name: "Student scores" })).toBeVisible();
+    expect(screen.getByLabelText("Asha Njeri score")).toHaveAttribute("inputmode", "decimal");
+    expect(screen.queryByText(/evidence|remarks|policy result|validation|moderation readiness/i)).not.toBeInTheDocument();
+    expect(screen.getAllByRole("combobox")).toHaveLength(1);
+    fireEvent.change(screen.getByLabelText("Asha Njeri score"), { target: { value: "74" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() => expect(saveExamMarksLive).toHaveBeenCalledWith(mockSession, expect.objectContaining({
+      action: "draft", examId: "window-1", marks: { "student-1": { score: 74, score_status: "entered" } },
+    })));
+    expect(screen.queryByText("Reasons for missing scores")).not.toBeInTheDocument();
   });
 
-  it("requires evidence only for a learner whose score is blank", async () => {
-    renderWithProviders(
-      createElement(ExamsMarksWorkspace, {
-        onStartAction: jest.fn(),
-      }),
-    );
+  it("submits a fully scored sheet directly and removes it after success", async () => {
+    await openWorkspace();
+    fireEvent.change(screen.getByLabelText("Asha Njeri score"), { target: { value: "0" } });
+    fireEvent.change(screen.getByLabelText("Brian Otieno score"), { target: { value: "68.5" } });
+    jest.mocked(fetchPendingMarksLive).mockResolvedValue({ stats: { totalWindows: 0, nearingDeadline: 0 }, windows: [] });
+    fireEvent.click(screen.getByRole("button", { name: "Submit results" }));
+    await waitFor(() => expect(saveExamMarksLive).toHaveBeenCalledWith(mockSession, expect.objectContaining({
+      action: "submit", marks: { "student-1": { score: 0, score_status: "entered" }, "student-2": { score: 68.5, score_status: "entered" } },
+    })));
+    expect(await screen.findByText("No exams awaiting marks")).toBeVisible();
+    expect(screen.queryByLabelText("Asha Njeri score")).not.toBeInTheDocument();
+    expect(screen.queryByText("Reasons for missing scores")).not.toBeInTheDocument();
+  });
 
-    fireEvent.click(await screen.findByRole("button", { name: /Open markbook for Term 2 Opener/i }));
-    fireEvent.change((await screen.findAllByLabelText(/Asha Njeri score/i))[0]!, { target: { value: "74" } });
-    fireEvent.click(screen.getByRole("button", { name: /Submit for moderation/i }));
-
-    expect(await screen.findByText(/Enter a valid score or select missing-mark evidence for every learner/i)).toBeVisible();
+  it("asks for evidence only on submission and only for students without scores", async () => {
+    await openWorkspace();
+    fireEvent.change(screen.getByLabelText("Asha Njeri score"), { target: { value: "74" } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit results" }));
+    expect(screen.getByText("Reasons for missing scores")).toHaveFocus();
+    expect(screen.queryByLabelText("Asha Njeri missing score reason")).not.toBeInTheDocument();
+    const reason = screen.getByLabelText("Brian Otieno missing score reason") as HTMLSelectElement;
+    expect(Array.from(reason.options).map(option => option.text)).toEqual([
+      "Select a reason", "Absent", "Exempt", "Not assessed", "Incomplete", "Withheld", "Medical exception", "Transfer student",
+    ]);
     expect(saveExamMarksLive).not.toHaveBeenCalled();
-
-    fireEvent.change(screen.getAllByLabelText(/Brian Otieno evidence status/i)[0]!, { target: { value: "absent" } });
-    fireEvent.click(screen.getByRole("button", { name: /Submit for moderation/i }));
-
-    await waitFor(() => {
-      expect(saveExamMarksLive).toHaveBeenCalledWith(
-        mockSession,
-        expect.objectContaining({
-          action: "submit",
-          examId: "window-1",
-          marks: {
-            "student-1": { score: 74, score_status: "entered" },
-            "student-2": { score: null, score_status: "absent" },
-          },
-        }),
-      );
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm submission" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Select a reason for every student");
+    expect(saveExamMarksLive).not.toHaveBeenCalled();
+    fireEvent.change(reason, { target: { value: "absent" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm submission" }));
+    await waitFor(() => expect(saveExamMarksLive).toHaveBeenCalledWith(mockSession, expect.objectContaining({
+      action: "submit", marks: { "student-1": { score: 74, score_status: "entered" }, "student-2": { score: null, score_status: "absent" } },
+    })));
   });
 
-  it("shows one retryable recovery state without misleading zero or empty markbooks when loading fails", async () => {
-    (fetchPendingMarksLive as jest.Mock).mockRejectedValueOnce(
-      new Error("Request failed: 500 — Internal server error"),
-    );
-
-    renderWithProviders(
-      createElement(ExamsMarksWorkspace, {
-        onStartAction: jest.fn(),
-      }),
-    );
-
-    expect(await screen.findByText(/We couldn.t load your assigned markbooks/i)).toBeVisible();
-    expect(screen.getByText(/Request failed: 500/i)).toBeVisible();
-    expect(screen.queryByText(/No open exam markbooks yet/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Open a markbook to start entering scores/i)).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /Retry loading markbooks/i }));
-
-    await waitFor(() => {
-      expect(fetchPendingMarksLive).toHaveBeenCalledTimes(2);
-    });
-    expect((await screen.findAllByText(/Term 2 Opener/i)).length).toBeGreaterThan(0);
+  it("returns to normal entry, keeps scores and replaces an earlier reason when a score is entered", async () => {
+    await openWorkspace();
+    fireEvent.change(screen.getByLabelText("Asha Njeri score"), { target: { value: "74" } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit results" }));
+    fireEvent.change(screen.getByLabelText("Brian Otieno missing score reason"), { target: { value: "medical_exception" } });
+    fireEvent.click(screen.getByRole("button", { name: "Back to scores" }));
+    expect(screen.queryByText(/evidence/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Asha Njeri score")).toHaveValue("74");
+    fireEvent.change(screen.getByLabelText("Brian Otieno score"), { target: { value: "62" } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit results" }));
+    await waitFor(() => expect(saveExamMarksLive).toHaveBeenCalledWith(mockSession, expect.objectContaining({
+      marks: expect.objectContaining({ "student-2": { score: 62, score_status: "entered" } }),
+    })));
   });
 
-  it("shows a retryable markbook error without presenting failed data as valid zero counts", async () => {
-    (fetchTeacherMarkSheetLive as jest.Mock).mockRejectedValueOnce(
-      new Error("Request failed: 500 — Internal server error"),
-    );
-
-    renderWithProviders(
-      createElement(ExamsMarksWorkspace, {
-        onStartAction: jest.fn(),
-      }),
-    );
-
-    fireEvent.click(await screen.findByRole("button", { name: /Open markbook for Term 2 Opener/i }));
-
-    expect(await screen.findByText(/Request failed: 500/i)).toBeVisible();
-    expect(screen.queryByText(/Missing evidence/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Unresolved evidence/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Validation errors/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Submit status/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Download CSV/i })).toBeDisabled();
-
-    fireEvent.click(screen.getByRole("button", { name: /Retry markbook/i }));
-
-    await waitFor(() => {
-      expect(fetchTeacherMarkSheetLive).toHaveBeenCalledTimes(2);
-    });
-    expect((await screen.findAllByText(/Asha Njeri/i)).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Missing evidence/i).length).toBeGreaterThan(0);
+  it.each(["81", "-1", "abc"])("keeps range checking for %s without adding a validation column", async value => {
+    await openWorkspace();
+    fireEvent.change(screen.getByLabelText("Asha Njeri score"), { target: { value } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit results" }));
+    expect(screen.getByLabelText("Asha Njeri score")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText("Enter 0 to 80.")).toBeVisible();
+    expect(saveExamMarksLive).not.toHaveBeenCalled();
+    expect(screen.queryByText("Reasons for missing scores")).not.toBeInTheDocument();
   });
 
-  it("shows one actionable empty state only after markbooks load successfully", async () => {
-    (fetchPendingMarksLive as jest.Mock).mockResolvedValueOnce({
-      stats: { totalWindows: 0, nearingDeadline: 0 },
-      windows: [],
+  it("searches and filters students without leaving hidden students out of submission", async () => {
+    await openWorkspace();
+    fireEvent.change(screen.getByLabelText("Asha Njeri score"), { target: { value: "74" } });
+    fireEvent.change(screen.getByLabelText("Find student"), { target: { value: "ADM-001" } });
+    expect(screen.queryByLabelText("Brian Otieno score")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Submit results" }));
+    expect(screen.getByLabelText("Brian Otieno missing score reason")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Back to scores" }));
+    fireEvent.change(screen.getByLabelText("Find student"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Blank scores (1)" }));
+    expect(screen.queryByLabelText("Asha Njeri score")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Brian Otieno score")).toBeVisible();
+  });
+
+  it("preserves entry on save failure and disables edits and duplicate submits during a save", async () => {
+    await openWorkspace();
+    let rejectSave!: (error: Error) => void;
+    jest.mocked(saveExamMarksLive).mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectSave = reject; }));
+    fireEvent.change(screen.getByLabelText("Asha Njeri score"), { target: { value: "74" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    expect(screen.getByLabelText("Asha Njeri score")).toBeDisabled();
+    expect(screen.getByLabelText("Exam / class / subject")).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    expect(saveExamMarksLive).toHaveBeenCalledTimes(1);
+    rejectSave(new Error("Connection interrupted"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Connection interrupted");
+    expect(screen.getByLabelText("Asha Njeri score")).toHaveValue("74");
+    expect(screen.getByRole("button", { name: "Save draft" })).toBeEnabled();
+  });
+
+  it("excludes completed exams even when an older cached response includes them", async () => {
+    const result = await jest.mocked(fetchPendingMarksLive)(mockSession, true);
+    jest.mocked(fetchPendingMarksLive).mockClear();
+    jest.mocked(fetchPendingMarksLive).mockResolvedValue({ ...result, windows: [
+      { ...result.windows[0], id: "completed", examName: "Old completed exam", status: "Completed" }, result.windows[0],
+    ] });
+    await openWorkspace();
+    expect(screen.queryByRole("option", { name: /Old completed exam/ })).not.toBeInTheDocument();
+    expect(fetchTeacherMarkSheetLive).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes the active sheet when a refresh reports it as completed", async () => {
+    await openWorkspace();
+    const result = await jest.mocked(fetchPendingMarksLive)(mockSession, true);
+    jest.mocked(fetchPendingMarksLive).mockResolvedValue({ ...result, windows: [{ ...result.windows[0], status: "Completed" }] });
+    fireEvent.click(screen.getByRole("button", { name: "Refresh exams" }));
+    expect(await screen.findByText("No exams awaiting marks")).toBeVisible();
+    expect(screen.queryByLabelText("Asha Njeri score")).not.toBeInTheDocument();
+  });
+
+  it("shows a retryable discovery error without misleading empty counts", async () => {
+    jest.mocked(fetchPendingMarksLive).mockRejectedValueOnce(new Error("Request failed: 500"));
+    renderWithProviders(createElement(ExamsMarksWorkspace, { onStartAction: jest.fn() }));
+    expect(await screen.findByText(/We couldn.t load your assigned markbooks/)).toBeVisible();
+    expect(screen.queryByText("No exams awaiting marks")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry loading markbooks" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Open Mathematics/ }));
+    expect(await screen.findByLabelText("Asha Njeri score")).toBeEnabled();
+  });
+
+  it("shows a retryable roster error and disables exports and mutations", async () => {
+    jest.mocked(fetchTeacherMarkSheetLive).mockRejectedValueOnce(new Error("Request failed: 500"));
+    renderWithProviders(createElement(ExamsMarksWorkspace, { onStartAction: jest.fn() }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Open Mathematics/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Request failed: 500");
+    expect(screen.getByRole("button", { name: "Download CSV" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Submit results" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Retry markbook" }));
+    expect(await screen.findByLabelText("Asha Njeri score")).toBeEnabled();
+    expect(screen.queryByText(/Missing evidence|Validation errors/)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["Draft", /must select Open for marks/i], ["Scheduled", /can open it earlier/i],
+    ["Closed", /Ask the Exams Manager to open/i], ["Deadline passed", /extend the end date/i],
+    ["Locked", /governed correction workflow/i],
+  ])("explains %s exams and blocks entry", async (entryState, reason) => {
+    const result = await jest.mocked(fetchPendingMarksLive)(mockSession, true);
+    jest.mocked(fetchPendingMarksLive).mockClear();
+    jest.mocked(fetchPendingMarksLive).mockResolvedValue({ ...result, windows: [
+      { ...result.windows[0], canEnter: false, entryState, status: entryState, opensAt: "2026-10-01T06:00:00Z" },
+    ] });
+    renderWithProviders(createElement(ExamsMarksWorkspace, { onStartAction: jest.fn() }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Open Mathematics/ }));
+    expect(await screen.findByText(reason)).toBeVisible();
+    expect(fetchTeacherMarkSheetLive).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Submit results" })).toBeDisabled();
+  });
+
+  it("refreshes an assigned draft once the manager opens it", async () => {
+    const result = await jest.mocked(fetchPendingMarksLive)(mockSession, true);
+    jest.mocked(fetchPendingMarksLive).mockResolvedValueOnce({ ...result, windows: [
+      { ...result.windows[0], canEnter: false, entryState: "Draft", status: "Draft" },
+    ] });
+    renderWithProviders(createElement(ExamsMarksWorkspace, { onStartAction: jest.fn() }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Open Mathematics/ }));
+    expect(await screen.findByText(/must select Open for marks/i)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh exams" }));
+    expect(await screen.findByLabelText("Asha Njeri score")).toBeEnabled();
+  });
+
+  it("organises several subjects and papers, preserving independent unsaved entries when switching", async () => {
+    const result = await jest.mocked(fetchPendingMarksLive)(mockSession, true, true);
+    const maths = result.windows[0];
+    const biology = { ...maths, id: 'window-bio', subjectId: 'biology', subjectName: 'Biology', assessmentId: 'bio-paper', paperName: 'Main paper' };
+    const paper2 = { ...maths, assessmentId: 'maths-paper-2', paperName: 'Paper 2' };
+    jest.mocked(fetchPendingMarksLive).mockResolvedValue({ ...result, windows: [maths, biology, paper2] });
+    renderWithProviders(createElement(ExamsMarksWorkspace, { onStartAction: jest.fn() }));
+    expect(await screen.findByRole('button', { name: 'To do (3)' })).toBeVisible();
+    expect(fetchTeacherMarkSheetLive).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('Filter by subject'), { target: { value: 'biology' } });
+    expect(screen.queryByRole('button', { name: /^Open Mathematics/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Open Biology/ }));
+    fireEvent.change(await screen.findByLabelText('Asha Njeri score'), { target: { value: '61' } });
+    fireEvent.change(screen.getByLabelText('Exam / class / subject'), { target: { value: 'window-1:assessment-paper-1' } });
+    expect(await screen.findByLabelText('Asha Njeri score')).toHaveValue('');
+    fireEvent.change(screen.getByLabelText('Asha Njeri score'), { target: { value: '35' } });
+    fireEvent.change(screen.getByLabelText('Exam / class / subject'), { target: { value: 'window-1:maths-paper-2' } });
+    expect(await screen.findByLabelText('Asha Njeri score')).toHaveValue('');
+    fireEvent.change(screen.getByLabelText('Exam / class / subject'), { target: { value: 'window-bio:bio-paper' } });
+    expect(await screen.findByLabelText('Asha Njeri score')).toHaveValue('61');
+    fireEvent.change(screen.getByLabelText('Exam / class / subject'), { target: { value: 'window-1:assessment-paper-1' } });
+    expect(await screen.findByLabelText('Asha Njeri score')).toHaveValue('35');
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(saveExamMarksLive).toHaveBeenCalledWith(mockSession, expect.objectContaining({
+      examId: 'window-1', assessmentId: 'assessment-paper-1', action: 'draft', marks: { 'student-1': { score: 35, score_status: 'entered' } },
+    })));
+  });
+
+  it("loads a saved draft after returning, allows edits, and clears previously saved scores", async () => {
+    const result = await jest.mocked(fetchPendingMarksLive)(mockSession, true, true);
+    const rows = await jest.mocked(fetchTeacherMarkSheetLive)(mockSession, {} as never);
+    let savedRows = rows.map((row, i) => i ? row : { ...row, id: 'persisted-mark', score: 47, status: 'draft' });
+    jest.mocked(fetchPendingMarksLive).mockResolvedValue({ ...result, windows: [{ ...result.windows[0], status: 'Draft', savedCount: 1 }] });
+    jest.mocked(fetchTeacherMarkSheetLive).mockImplementation(async () => savedRows);
+    jest.mocked(saveExamMarksLive).mockImplementation(async (_session, payload) => {
+      savedRows = savedRows.map(row => payload.marks[row.student_id] ? { ...row,
+        score: payload.marks[row.student_id].score ?? null, score_status: payload.marks[row.student_id].score_status } : row);
+      return { success: true, action: 'draft', status: 'draft', savedCount: 1, submittedCount: 0, markIds: ['persisted-mark'] };
     });
+    const mounted = renderWithProviders(createElement(ExamsMarksWorkspace, { onStartAction: jest.fn() }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Saved drafts (1)' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Open Mathematics/ }));
+    expect(await screen.findByLabelText('Asha Njeri score')).toHaveValue('47');
+    fireEvent.change(screen.getByLabelText('Asha Njeri score'), { target: { value: '52' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await screen.findByText(/draft saved. You can continue editing/);
+    mounted.unmount();
+    await openWorkspace();
+    expect(screen.getByLabelText('Asha Njeri score')).toHaveValue('52');
+    fireEvent.change(screen.getByLabelText('Asha Njeri score'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(saveExamMarksLive).toHaveBeenLastCalledWith(mockSession, expect.objectContaining({
+      action: 'draft', marks: { 'student-1': { score: null, score_status: 'incomplete' } },
+    })));
+  });
 
-    renderWithProviders(
-      createElement(ExamsMarksWorkspace, {
-        onStartAction: jest.fn(),
-      }),
-    );
+  it("moves only the submitted paper to read-only history and keeps another subject available", async () => {
+    const result = await jest.mocked(fetchPendingMarksLive)(mockSession, true, true);
+    const rows = await jest.mocked(fetchTeacherMarkSheetLive)(mockSession, {} as never);
+    let sheets = [result.windows[0], { ...result.windows[0], id: 'biology', subjectId: 'biology', subjectName: 'Biology' }];
+    jest.mocked(fetchPendingMarksLive).mockImplementation(async () => ({ ...result, windows: sheets }));
+    jest.mocked(fetchTeacherMarkSheetLive).mockImplementation(async (_session, filters) => rows.map(row =>
+      filters.view === 'submitted' ? { ...row, id: row.student_id, score: 64, status: 'submitted' } : row));
+    jest.mocked(saveExamMarksLive).mockImplementation(async () => {
+      sheets = sheets.map(sheet => sheet.subjectName === 'Mathematics' ? { ...sheet, status: 'Submitted', canEnter: false } : sheet);
+      return { success: true, action: 'submit', status: 'submitted', savedCount: 2, submittedCount: 2, markIds: [] };
+    });
+    await openWorkspace();
+    fireEvent.change(screen.getByLabelText('Asha Njeri score'), { target: { value: '64' } });
+    fireEvent.change(screen.getByLabelText('Brian Otieno score'), { target: { value: '64' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit results' }));
+    expect(await screen.findByRole('button', { name: /^Open Biology/ })).toBeVisible();
+    expect(screen.queryByRole('button', { name: /^Open Mathematics/ })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Asha Njeri score')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Submitted (1)' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Open Mathematics/ }));
+    expect(await screen.findByLabelText('Asha Njeri score')).toBeDisabled();
+    expect(screen.getByLabelText('Asha Njeri score')).toHaveValue('64');
+    expect(screen.queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Submit results' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download CSV' })).toBeEnabled();
+  });
 
-    expect(await screen.findByText(/No markbooks assigned yet/i)).toBeVisible();
-    expect(screen.getByText(/active class and subject allocation/i)).toBeVisible();
-    expect(screen.queryByText(/We couldn.t load your assigned markbooks/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Open a markbook to start entering scores/i)).not.toBeInTheDocument();
+  it("retains the active sheet and scores after submission fails", async () => {
+    jest.mocked(saveExamMarksLive).mockRejectedValueOnce(new Error('Submission could not be completed'));
+    await openWorkspace();
+    fireEvent.change(screen.getByLabelText('Asha Njeri score'), { target: { value: '64' } });
+    fireEvent.change(screen.getByLabelText('Brian Otieno score'), { target: { value: '71' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit results' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Submission could not be completed');
+    expect(screen.getByLabelText('Asha Njeri score')).toHaveValue('64');
+    expect(screen.getByRole('button', { name: 'Submit results' })).toBeEnabled();
+  });
+
+  it("shows an actionable empty state once the exam list loads", async () => {
+    jest.mocked(fetchPendingMarksLive).mockResolvedValue({ stats: { totalWindows: 0, nearingDeadline: 0 }, windows: [] });
+    renderWithProviders(createElement(ExamsMarksWorkspace, { onStartAction: jest.fn() }));
+    expect(await screen.findByText("No exams awaiting marks")).toBeVisible();
+    expect(screen.getByText(/active class and subject allocation/)).toBeVisible();
+    expect(fetchTeacherMarkSheetLive).not.toHaveBeenCalled();
   });
 });

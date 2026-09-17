@@ -1,0 +1,13 @@
+# Exams analytics usability and printing
+
+The shared Academic Intelligence workspace now groups its six common views together and keeps detailed tools in More views. Learner search submits explicitly, active filters can be removed individually, and learner and comparison tables emphasize the measures needed for everyday decisions. Previous averages, consistency and completion remain accessible in expanded detail. Risk levels include text as well as color. Mobile filters use two columns and wide tables scroll within their own accessible region.
+
+Print / PDF opens a report preparation dialog. Available documents are an exam summary, the current learner page, subject comparisons, exam trends, and marks/readiness. The selected exam and authorized scope are sent to `POST /exams/analytics/reports`; the server recomputes results with the existing analytics scope resolver. It does not accept client-calculated totals, school branding or actor identity.
+
+Reports include school name, motto/address when configured, a document number, exam/period, filters, generation date in East Africa Time and the generating staff member. They are internal analytics snapshots and do not claim to be published report cards. Learner exports explicitly show the current page's range and total matching learners. Summary metrics describe the academic scope; learner search/risk filters only narrow the learner list.
+
+The server creates an A4 PDF with measured table rows, repeated headers and page numbers. A preview of the same report data is available before printing or downloading. Downloads contain actual PDF bytes. Browser printing opens the print dialog; the UI never claims that paper was printed. If printing is unavailable, the downloaded PDF is the recovery path. Empty results and generation failures remain visible.
+
+The endpoint requires an authenticated school account, the exams module and `exams:read`, then reuses active appointment checks and tenant isolation from analytics. A report snapshot manifest and audit entry are saved through the existing report repository, and `exams.analytics_report.generated` is recorded through school operational events. Failures do not return a successful document response. Report content is escaped before rendering the print preview, and temporary browser document URLs are revoked when closed.
+
+Verification uses backend report/scope tests, frontend search/preview/print/download/error tests, the actual shared components in Chromium at 390x844 and 1440x1000, and visual inspection of an A4 PDF containing long names and a 75-learner list. All QA data stays in test fixtures and local output artifacts. No real school records are seeded or mutated by verification.

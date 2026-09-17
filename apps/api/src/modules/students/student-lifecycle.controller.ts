@@ -45,7 +45,8 @@ export class StudentLifecycleController {
   async promoteStudent(
     @Request() req: any,
     @Param('studentId') studentId: string,
-    @Body() body: { newClassId: string; academicYearId: string; academicLevelId: string; streamId?: string },
+    @Body() body: { newClassId: string; academicYearId: string; academicLevelId: string; streamId?: string;
+      request_id?: string; source_placement_id?: string; expected_version?: number; reason?: string },
   ) {
     const schoolId = req.tenantId;
     const userId = req.user?.id || 'system';
@@ -57,6 +58,7 @@ export class StudentLifecycleController {
       body.academicLevelId,
       userId,
       body.streamId,
+      body,
     );
   }
 

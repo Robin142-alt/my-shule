@@ -1,3 +1,4 @@
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
 import { MessageCircle } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Panel, StatusChip, sendClassTeacherCommunication } from "../shared";
@@ -89,7 +90,7 @@ export function CommunicationWorkspace() {
   const { hasPermission } = usePermissions();
   const canWrite = hasPermission('teacher:write');
   const [composerMode, setComposerMode] = useState<ComposerMode | null>(null);
-  const { data, isLoading, error } = useClassTeacherCommunication(streamId);
+  const { data, isLoading, error, refetch } = useClassTeacherCommunication(streamId);
   const { data: registerData, isLoading: isRegisterLoading } = useClassTeacherRegister(streamId);
   const learners = (Array.isArray(registerData) ? registerData : []) as AssignedLearner[];
   const records = (Array.isArray(data) ? data : []) as CommunicationRecord[];
@@ -106,6 +107,7 @@ export function CommunicationWorkspace() {
     return (
       <Panel title="Parent Communication" description="Message history with parents of learners in your class." icon={MessageCircle}>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 font-bold">Failed to load communication records.</div>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Panel>
     );
   }

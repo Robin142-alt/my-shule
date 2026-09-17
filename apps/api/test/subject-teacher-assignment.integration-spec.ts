@@ -5,6 +5,7 @@ import { AcademicsRepository } from '../src/modules/academics/repositories/acade
 import { AcademicsService } from '../src/modules/academics/academics.service';
 import { ExamsRepository } from '../src/modules/exams/repositories/exams.repository';
 import { WorkflowRepository } from '../src/modules/events/repositories/workflow.repository';
+import { COHORT_SCHEMA_SQL } from '../src/modules/academics/cohort-schema';
 
 describe('Continuing subject teacher assignment SQL contract', () => {
   let pool: Pool;
@@ -32,7 +33,7 @@ describe('Continuing subject teacher assignment SQL contract', () => {
       CREATE TABLE class_sections (id text PRIMARY KEY, tenant_id text, academic_year_id text, status text DEFAULT 'active');
       CREATE TABLE class_streams (id text PRIMARY KEY, tenant_id text, class_section_id text, status text DEFAULT 'active');
       CREATE TABLE academic_terms (id text PRIMARY KEY, tenant_id text, academic_year_id text);
-      CREATE TABLE subjects (id text PRIMARY KEY, tenant_id text, status text DEFAULT 'active');
+      CREATE TABLE subjects (id text PRIMARY KEY, tenant_id text, status text DEFAULT 'active', department_id uuid, curriculum_model text);
       CREATE TABLE teacher_subject_assignments (
         id text PRIMARY KEY DEFAULT gen_random_uuid()::text, tenant_id text NOT NULL,
         academic_term_id text NOT NULL, class_section_id text NOT NULL, subject_id text NOT NULL,
@@ -79,6 +80,25 @@ describe('Continuing subject teacher assignment SQL contract', () => {
     migration = bootstrap.slice(streamStart, streamEnd) + bootstrap.slice(indexStart, indexEnd);
     await pool.query(migration);
     await pool.query(migration);
+    await pool.query(`
+      CREATE TABLE academic_years(id text,tenant_id text,starts_on date,ends_on date,PRIMARY KEY(id),UNIQUE(tenant_id,id));
+      INSERT INTO academic_years VALUES ('year-a','school-a','2026-01-01','2026-12-31'),('year-b','school-b','2026-01-01','2026-12-31');
+      ALTER TABLE class_sections ADD COLUMN is_active boolean DEFAULT TRUE,ADD COLUMN archived_at timestamptz,
+        ADD CONSTRAINT test_classes_tenant_id UNIQUE(tenant_id,id);
+      ALTER TABLE class_streams ADD COLUMN is_active boolean DEFAULT TRUE,ADD COLUMN archived_at timestamptz,ADD COLUMN name text,
+        ADD CONSTRAINT test_stream_context UNIQUE(tenant_id,class_section_id,id);
+      ALTER TABLE academic_terms ADD COLUMN starts_on date,ADD COLUMN is_current boolean DEFAULT FALSE;
+      CREATE TABLE class_subject_assignments(id text PRIMARY KEY DEFAULT gen_random_uuid()::text,tenant_id text,
+        academic_term_id text,class_section_id text,subject_id text,is_compulsory boolean DEFAULT TRUE,is_examinable boolean DEFAULT TRUE,
+        effective_from date,effective_to date,reason text,created_by_user_id uuid,updated_by_user_id uuid,
+        version integer DEFAULT 1,status text DEFAULT 'active',created_at timestamptz DEFAULT NOW(),updated_at timestamptz DEFAULT NOW(),
+        archived_at timestamptz,archived_by_user_id uuid);
+      CREATE TABLE student_class_assignments(id text,tenant_id text,student_id text,class_section_id text,stream_id text,status text);
+      CREATE TABLE student_academic_enrollments(id text,tenant_id text,student_id text,class_section_id text,stream_name text,status text);
+      CREATE TABLE tenant_memberships(tenant_id text,user_id uuid,status text);
+      ALTER TABLE academic_audit_logs ADD COLUMN id uuid DEFAULT gen_random_uuid();
+    `);
+    await pool.query(COHORT_SCHEMA_SQL);
     const prisma = {
       executeWithTenant: async (_tenant: string, _user: string | null, callback: (tx: any) => Promise<unknown>) => {
         const client = await pool.connect();
@@ -105,7 +125,7 @@ describe('Continuing subject teacher assignment SQL contract', () => {
   });
   afterAll(async () => { await pool?.end(); });
   beforeEach(async () => {
-    await pool.query('TRUNCATE teacher_subject_assignments, academic_audit_logs, notifications, assignment_test_events');
+    await pool.query('TRUNCATE teacher_subject_assignments, class_subject_assignments, academic_audit_logs, notifications, assignment_test_events');
     jest.spyOn(repository, 'findTeacherOptionByUserId').mockImplementation(async (tenantId, userId) =>
       tenantId === 'school-a' && [actorId, 'teacher-a', 'teacher-b'].includes(userId)
         ? { id: 'staff', user_id: userId, label: 'Active teacher' } as any : null);
@@ -117,11 +137,33 @@ describe('Continuing subject teacher assignment SQL contract', () => {
     stream_id: stream, created_by_user_id: actorId, ...extras,
   });
 
+  it('inherits the subject department and curriculum even when a client supplies overrides', async () => {
+    const departmentId = randomUUID();
+    await pool.query("UPDATE subjects SET department_id=$1, curriculum_model='CBC' WHERE id='english'", [departmentId]);
+    try {
+      const saved = await service.assignTeacher({ ...input(), department_id: randomUUID(), curriculum_model: '8-4-4' });
+      expect(saved.department_id).toBe(departmentId);
+      expect(saved.curriculum_model).toBe('CBC');
+      const persisted = (await pool.query('SELECT department_id, curriculum_model, effective_from::text, effective_to FROM teacher_subject_assignments WHERE id=$1', [saved.id])).rows[0];
+      expect(persisted).toEqual({ department_id: departmentId, curriculum_model: 'CBC', effective_from: expect.any(String), effective_to: null });
+      expect((await pool.query('SELECT * FROM assignment_test_events')).rows).toHaveLength(1);
+    } finally {
+      await pool.query("UPDATE subjects SET department_id=NULL, curriculum_model=NULL WHERE id='english'");
+    }
+  });
+
+  it('rejects another class stream within the same school', async () => {
+    await pool.query("INSERT INTO class_sections(id, tenant_id, academic_year_id) VALUES ('other-class','school-a','year-a')");
+    await pool.query("INSERT INTO class_streams(id, tenant_id, class_section_id) VALUES ('other-stream','school-a','other-class')");
+    await expect(service.assignTeacher({ ...input(), stream_id: 'other-stream' })).rejects.toThrow(/stream in the assigned class/);
+    expect((await pool.query('SELECT * FROM teacher_subject_assignments')).rows).toHaveLength(0);
+  });
+
   it('saves without a term using the canonical stream, audit, event, and notification', async () => {
     const saved = await service.assignTeacher(input());
     expect(saved.academic_term_id).toBeNull();
     expect(saved.stream_id).toBe('yellow');
-    expect((await pool.query('SELECT * FROM academic_audit_logs')).rows).toHaveLength(1);
+    expect((await pool.query('SELECT * FROM academic_audit_logs')).rows).toHaveLength(2);
     expect((await pool.query('SELECT * FROM assignment_test_events')).rows).toHaveLength(1);
     expect((await pool.query('SELECT * FROM notifications')).rows).toHaveLength(1);
   });
@@ -129,7 +171,7 @@ describe('Continuing subject teacher assignment SQL contract', () => {
   it('rejects a stream or subject outside the school without writing', async () => {
     await expect(service.assignTeacher({ ...input(), stream_id: 'foreign' })).rejects.toThrow(/active stream/);
     await expect(service.assignTeacher({ ...input(), subject_id: 'foreign-subject' })).rejects.toThrow(/active class and subject/);
-    await expect(write('teacher-a', 'foreign')).rejects.toMatchObject({ code: '23503' });
+    await expect(write('teacher-a', 'foreign')).rejects.toThrow(/active stream/);
     expect((await pool.query('SELECT * FROM teacher_subject_assignments')).rows).toHaveLength(0);
   });
 
@@ -139,11 +181,10 @@ describe('Continuing subject teacher assignment SQL contract', () => {
     expect((await pool.query("SELECT * FROM teacher_subject_assignments WHERE status='active'")).rows).toHaveLength(2);
   });
 
-  it('keeps teacher assignments aligned when a stream moves during a class merge', async () => {
+  it('prevents a class merge from rewriting existing cohort stream history', async () => {
     const saved = await write('teacher-a');
-    await pool.query("UPDATE class_streams SET class_section_id='merged-class' WHERE tenant_id='school-a' AND id='yellow'");
-    expect((await pool.query('SELECT class_section_id FROM teacher_subject_assignments WHERE id=$1', [saved.id])).rows[0].class_section_id).toBe('merged-class');
-    await pool.query("UPDATE class_streams SET class_section_id='class-a' WHERE tenant_id='school-a' AND id='yellow'");
+    await expect(repository.mergeSetupRecords('school-a','class-stream','yellow','blue')).rejects.toThrow(/cohort placements/);
+    expect((await pool.query('SELECT class_section_id FROM teacher_subject_assignments WHERE id=$1', [saved!.id])).rows[0].class_section_id).toBe('class-a');
   });
 
   it('replaces only the selected stream primary and preserves supporting teachers', async () => {
@@ -178,9 +219,9 @@ describe('Continuing subject teacher assignment SQL contract', () => {
     const incumbent = await write('teacher-a');
     await write('teacher-b', 'yellow', { effective_from: dates.future });
     const scope = { tenant_id: 'school-a', teacher_user_id: 'teacher-a', academic_term_id: 'term-2', class_section_id: 'class-a', subject_id: 'english' };
-    expect((await exams.findTeacherAssignment(scope))?.id).toBe(incumbent.id);
+    expect((await exams.findTeacherAssignment(scope))?.id).toBe(incumbent!.id);
     expect(await exams.findTeacherAssignment({ ...scope, teacher_user_id: 'teacher-b' })).toBeNull();
-    const current = (await pool.query('SELECT status, effective_to::text FROM teacher_subject_assignments WHERE id=$1', [incumbent.id])).rows[0];
+    const current = (await pool.query('SELECT status, effective_to::text FROM teacher_subject_assignments WHERE id=$1', [incumbent!.id])).rows[0];
     expect(current).toEqual({ status: 'active', effective_to: dates.incumbent_end });
     await expect(write('teacher-a', 'yellow', { effective_from: dates.future })).rejects.toThrow(/already assigned/);
   });
@@ -188,12 +229,12 @@ describe('Continuing subject teacher assignment SQL contract', () => {
   it('keeps marks access in the next term while enforcing tenant, class, dates and capability', async () => {
     const saved = await write('teacher-a');
     const scope = { tenant_id: 'school-a', teacher_user_id: 'teacher-a', academic_term_id: 'term-2', class_section_id: 'class-a', subject_id: 'english' };
-    expect((await exams.findTeacherAssignment(scope))?.id).toBe(saved.id);
+    expect((await exams.findTeacherAssignment(scope))?.id).toBe(saved!.id);
     expect(await exams.findTeacherAssignment({ ...scope, tenant_id: 'school-b' })).toBeNull();
     expect(await exams.findTeacherAssignment({ ...scope, class_section_id: 'class-b' })).toBeNull();
     await pool.query('UPDATE teacher_subject_assignments SET mark_entry_allowed=FALSE');
     expect(await exams.findTeacherAssignment(scope)).toBeNull();
-    await pool.query("UPDATE teacher_subject_assignments SET mark_entry_allowed=TRUE, effective_to=CURRENT_DATE-1");
+    await pool.query("UPDATE teacher_subject_assignments SET mark_entry_allowed=TRUE, effective_from=CURRENT_DATE-2, effective_to=CURRENT_DATE-1");
     expect(await exams.findTeacherAssignment(scope)).toBeNull();
     await pool.query("UPDATE teacher_subject_assignments SET effective_to=NULL, status='ended'");
     expect(await exams.findTeacherAssignment(scope)).toBeNull();

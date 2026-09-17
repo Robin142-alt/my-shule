@@ -120,9 +120,9 @@ export class DeputyCommandRepository {
           id::text,
           created_at,
           COALESCE(
-            NULLIF(involved_parties ->> 'area', ''),
-            NULLIF(involved_parties ->> 'name', ''),
-            NULLIF(involved_parties #>> '{}', ''),
+            NULLIF(involved_parties::jsonb ->> 'area', ''),
+            NULLIF(involved_parties::jsonb ->> 'name', ''),
+            NULLIF(involved_parties::jsonb #>> '{}', ''),
             'General'
           ) AS area,
           description,
@@ -459,10 +459,10 @@ export class DeputyCommandRepository {
           id::text,
           CONCAT('CAS-', UPPER(LEFT(REPLACE(id::text, '-', ''), 8))) AS "caseNo",
           COALESCE(
-            NULLIF(involved_parties ->> 'student_name', ''),
-            NULLIF(involved_parties ->> 'studentName', ''),
-            NULLIF(involved_parties ->> 'name', ''),
-            NULLIF(involved_parties #>> '{}', '')
+            NULLIF(involved_parties::jsonb ->> 'student_name', ''),
+            NULLIF(involved_parties::jsonb ->> 'studentName', ''),
+            NULLIF(involved_parties::jsonb ->> 'name', ''),
+            NULLIF(involved_parties::jsonb #>> '{}', '')
           ) AS "studentName",
           description AS "incidentType",
           severity,
@@ -509,7 +509,7 @@ export class DeputyCommandRepository {
     const metrics = await this.queryOne(
       `
         SELECT
-          (SELECT COUNT(*)::int FROM clinic_visits WHERE tenant_id = $1 AND visit_date = CURRENT_DATE) AS clinic_visits_today
+          (SELECT COUNT(*)::int FROM clinic_visits WHERE tenant_id = $1 AND visit_date::date = CURRENT_DATE) AS clinic_visits_today
       `,
       [tenantId],
       { clinic_visits_today: 0 }
@@ -520,10 +520,10 @@ export class DeputyCommandRepository {
         SELECT
           incident.id,
           COALESCE(
-            NULLIF(incident.involved_parties ->> 'student_name', ''),
-            NULLIF(incident.involved_parties ->> 'studentName', ''),
-            NULLIF(incident.involved_parties ->> 'name', ''),
-            NULLIF(incident.involved_parties #>> '{}', '')
+            NULLIF(incident.involved_parties::jsonb ->> 'student_name', ''),
+            NULLIF(incident.involved_parties::jsonb ->> 'studentName', ''),
+            NULLIF(incident.involved_parties::jsonb ->> 'name', ''),
+            NULLIF(incident.involved_parties::jsonb #>> '{}', '')
           ) AS "studentName",
           incident.description AS concern,
           COALESCE(assignment.assigned_to, 'Not assigned') AS "assignedTo",
@@ -618,12 +618,12 @@ export class DeputyCommandRepository {
     const dutiesResult = await this.executeSql(
       `
         SELECT
-          id::text,
-          COALESCE(staff.full_name, staff.display_name, 'Unassigned') AS "staffName",
+          roster.id::text,
+          COALESCE(staff.display_name, 'Unassigned') AS "staffName",
           duty_type AS "dutyArea",
           CONCAT(start_time::text, ' - ', end_time::text) AS "time",
-          status,
-          CASE WHEN status IN ('checked_in', 'missed', 'excused') THEN 'Submitted' ELSE 'Pending' END AS "reportStatus"
+          roster.status,
+          CASE WHEN roster.status IN ('checked_in', 'missed', 'excused') THEN 'Submitted' ELSE 'Pending' END AS "reportStatus"
         FROM duty_rosters roster
         LEFT JOIN staff_profiles staff ON staff.tenant_id = roster.tenant_id AND staff.user_id = roster.assigned_user_id
         WHERE roster.tenant_id = $1
@@ -791,7 +791,7 @@ export class DeputyCommandRepository {
   async markTeachingAttendance(tenantId: string, actorUserId: string | null, id: string) {
     const result = await this.executeSql(
       `
-        UPDATE timetable_lessons
+        UPDATE timetable_slots
         SET metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb,
             updated_at = NOW()
         WHERE tenant_id = $1
@@ -828,7 +828,7 @@ export class DeputyCommandRepository {
   async logTeachingLesson(tenantId: string, actorUserId: string | null, id: string) {
     const result = await this.executeSql(
       `
-        UPDATE timetable_lessons
+        UPDATE timetable_slots
         SET metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb,
             updated_at = NOW()
         WHERE tenant_id = $1
@@ -866,7 +866,7 @@ export class DeputyCommandRepository {
     const metrics = await this.queryOne(
       `
         SELECT
-          (SELECT COUNT(*)::int FROM timetable_periods WHERE tenant_id = $1) AS total_periods
+          (SELECT COUNT(*)::int FROM timetable_periods period WHERE EXISTS (SELECT 1 FROM schools school JOIN tenants tenant ON tenant.subdomain = school.slug WHERE school.id = period.school_id AND tenant.tenant_id = $1)) AS total_periods
       `,
       [tenantId],
       { total_periods: 0 }
@@ -879,17 +879,17 @@ export class DeputyCommandRepository {
           CONCAT(lesson.starts_at::text, ' - ', lesson.ends_at::text) AS "lessonTime",
           COALESCE(section.name, stream.name, 'Class not set') AS "className",
           COALESCE(subject.name, subject.code, 'Subject not set') AS subject,
-          COALESCE(absent.display_name, absent.full_name, 'Teacher not recorded') AS "absentTeacher",
+          COALESCE(absent.display_name, 'Teacher not recorded') AS "absentTeacher",
           COALESCE(relief.status, 'Needed') AS "reliefStatus",
-          COALESCE(assigned.display_name, assigned.full_name) AS "assignedTeacher"
+          assigned.display_name AS "assignedTeacher"
         FROM lesson_substitutions relief
         LEFT JOIN timetable_lessons lesson ON lesson.tenant_id = relief.tenant_id AND lesson.id = relief.lesson_id
         LEFT JOIN class_streams stream ON stream.tenant_id = lesson.tenant_id AND stream.id = lesson.stream_id
         LEFT JOIN class_sections section ON section.tenant_id = lesson.tenant_id AND section.id = lesson.stream_id
         LEFT JOIN class_subject_assignments assignment ON assignment.tenant_id = lesson.tenant_id AND assignment.id = lesson.class_subject_assignment_id
         LEFT JOIN subjects subject ON subject.tenant_id = lesson.tenant_id AND subject.id = assignment.subject_id
-        LEFT JOIN staff_profiles absent ON absent.tenant_id = relief.tenant_id AND absent.id = relief.absent_teacher_id
-        LEFT JOIN staff_profiles assigned ON assigned.tenant_id = relief.tenant_id AND assigned.id = relief.assigned_teacher_id
+        LEFT JOIN staff_profiles absent ON absent.tenant_id = relief.tenant_id AND absent.user_id::text = relief.absent_teacher_id::text
+        LEFT JOIN staff_profiles assigned ON assigned.tenant_id = relief.tenant_id AND assigned.user_id::text = relief.assigned_teacher_id::text
         WHERE relief.tenant_id = $1
         ORDER BY relief.created_at DESC
         LIMIT 25
@@ -1009,18 +1009,22 @@ export class DeputyCommandRepository {
           assignment.id::text,
           COALESCE(section.name, stream.name, 'Class not set') AS "className",
           COALESCE(subject.name, subject.code, 'Subject not set') AS subject,
-          COALESCE(staff.full_name, staff.display_name, 'Teacher not assigned') AS teacher,
-          COALESCE(assignment.metadata->>'coverage', 'Not recorded') AS coverage,
-          COALESCE(assignment.metadata->>'concern', 'Review required') AS concern
+          COALESCE(staff.display_name, 'Teacher not assigned') AS teacher,
+          COALESCE((to_jsonb(assignment)->'metadata')->>'coverage', 'Not recorded') AS coverage,
+          COALESCE((to_jsonb(assignment)->'metadata')->>'concern', 'Review required') AS concern
         FROM class_subject_assignments assignment
         LEFT JOIN class_sections section ON section.tenant_id = assignment.tenant_id AND section.id = assignment.class_section_id
-        LEFT JOIN class_streams stream ON stream.tenant_id = assignment.tenant_id AND stream.id = assignment.stream_id
+        LEFT JOIN class_streams stream ON stream.tenant_id = assignment.tenant_id AND stream.id::text = to_jsonb(assignment)->>'stream_id'
         LEFT JOIN subjects subject ON subject.tenant_id = assignment.tenant_id AND subject.id = assignment.subject_id
-        LEFT JOIN staff_profiles staff ON staff.tenant_id = assignment.tenant_id AND staff.id = assignment.staff_member_id
+        LEFT JOIN LATERAL (SELECT profile.display_name FROM teacher_subject_assignments teaching
+          JOIN staff_profiles profile ON profile.tenant_id = teaching.tenant_id AND profile.user_id::text = teaching.teacher_user_id::text
+          WHERE teaching.tenant_id = assignment.tenant_id AND teaching.class_section_id::text = assignment.class_section_id::text
+            AND teaching.subject_id::text = assignment.subject_id::text AND teaching.status = 'active'
+          ORDER BY teaching.updated_at DESC LIMIT 1) staff ON TRUE
         WHERE assignment.tenant_id = $1
           AND (
-            assignment.metadata ? 'concern'
-            OR assignment.metadata ? 'coverage'
+            (to_jsonb(assignment)->'metadata') ? 'concern'
+            OR (to_jsonb(assignment)->'metadata') ? 'coverage'
           )
         ORDER BY assignment.updated_at DESC
         LIMIT 25
@@ -1041,13 +1045,17 @@ export class DeputyCommandRepository {
           assignment.id::text,
           COALESCE(section.name, stream.name, 'Class not set') AS class_name,
           COALESCE(subject.name, subject.code, 'Subject not set') AS subject_name,
-          COALESCE(staff.full_name, staff.display_name, 'Teacher not assigned') AS teacher_name,
-          COALESCE(assignment.metadata->>'concern', 'Academic intervention requires HOD review') AS concern
+          COALESCE(staff.display_name, 'Teacher not assigned') AS teacher_name,
+          COALESCE((to_jsonb(assignment)->'metadata')->>'concern', 'Academic intervention requires HOD review') AS concern
         FROM class_subject_assignments assignment
         LEFT JOIN class_sections section ON section.tenant_id = assignment.tenant_id AND section.id = assignment.class_section_id
-        LEFT JOIN class_streams stream ON stream.tenant_id = assignment.tenant_id AND stream.id = assignment.stream_id
+        LEFT JOIN class_streams stream ON stream.tenant_id = assignment.tenant_id AND stream.id::text = to_jsonb(assignment)->>'stream_id'
         LEFT JOIN subjects subject ON subject.tenant_id = assignment.tenant_id AND subject.id = assignment.subject_id
-        LEFT JOIN staff_profiles staff ON staff.tenant_id = assignment.tenant_id AND staff.id = assignment.staff_member_id
+        LEFT JOIN LATERAL (SELECT profile.display_name FROM teacher_subject_assignments teaching
+          JOIN staff_profiles profile ON profile.tenant_id = teaching.tenant_id AND profile.user_id::text = teaching.teacher_user_id::text
+          WHERE teaching.tenant_id = assignment.tenant_id AND teaching.class_section_id::text = assignment.class_section_id::text
+            AND teaching.subject_id::text = assignment.subject_id::text AND teaching.status = 'active'
+          ORDER BY teaching.updated_at DESC LIMIT 1) staff ON TRUE
         WHERE assignment.tenant_id = $1 AND assignment.id::text = $2
         LIMIT 1
       `,
@@ -1691,9 +1699,9 @@ export class DeputyCommandRepository {
       `
         SELECT
           staff.id::text,
-          COALESCE(staff.full_name, staff.display_name, 'Unnamed staff') AS name,
-          COALESCE(role.name, staff.role, staff.job_title, 'Role not assigned') AS role,
-          COALESCE(department.name, staff.department, 'Department not assigned') AS department,
+          COALESCE(staff.display_name, 'Unnamed staff') AS name,
+          COALESCE(role.name, 'Role not assigned') AS role,
+          COALESCE(department.name, 'Department not assigned') AS department,
           COALESCE(NULLIF(staff.status, ''), 'Status not recorded') AS status
         FROM staff_profiles staff
         LEFT JOIN user_roles user_role
@@ -1704,7 +1712,7 @@ export class DeputyCommandRepository {
         LEFT JOIN roles role
           ON role.id = user_role.role_id
          AND role.tenant_id = user_role.tenant_id
-        LEFT JOIN departments department ON department.tenant_id = staff.tenant_id AND department.id = staff.department_id
+        LEFT JOIN academics_departments department ON department.tenant_id = staff.tenant_id AND department.id = staff.department_id
         WHERE staff.tenant_id = $1
         ORDER BY staff.created_at DESC
         LIMIT 50

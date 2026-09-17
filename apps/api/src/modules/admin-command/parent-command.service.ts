@@ -57,34 +57,34 @@ export class ParentCommandService {
           COALESCE(fees.balance_minor, 0) AS balance_minor
         FROM student_guardians guardian
         JOIN students student
-          ON student.tenant_id = guardian.tenant_id
-         AND student.id = guardian.student_id
+          ON student.tenant_id::text = guardian.tenant_id::text
+         AND student.id::text = guardian.student_id::text
         LEFT JOIN class_sections class_section
-          ON class_section.tenant_id = student.tenant_id
+          ON class_section.tenant_id::text = student.tenant_id::text
          AND class_section.id::text = student.current_class_id::text
         LEFT JOIN LATERAL (
           SELECT
             CASE
               WHEN COUNT(*) = 0 THEN 0
               ELSE ROUND(
-                COUNT(*) FILTER (WHERE record.status IN ('present', 'late'))::numeric
+                COUNT(*) FILTER (WHERE lower(record.status::text) IN ('present', 'late'))::numeric
                 * 100
                 / COUNT(*)::numeric,
                 1
               )
             END AS attendance_percentage
           FROM attendance_records record
-          WHERE record.tenant_id = student.tenant_id
+          WHERE record.tenant_id::text = student.tenant_id::text
             AND record.student_id::text = student.id::text
         ) attendance ON TRUE
         LEFT JOIN LATERAL (
           SELECT COALESCE(SUM(invoice.balance_minor), 0)::bigint AS balance_minor
           FROM student_invoices invoice
-          WHERE invoice.tenant_id = student.tenant_id
+          WHERE invoice.tenant_id::text = student.tenant_id::text
             AND invoice.student_id::text = student.id::text
-            AND invoice.status NOT IN ('paid', 'cancelled', 'waived')
+            AND (CASE WHEN lower(COALESCE(to_jsonb(invoice)->>'status', '')) IN ('cancelled', 'waived') THEN lower(to_jsonb(invoice)->>'status') WHEN invoice.balance_minor <= 0 THEN 'paid' WHEN invoice.balance_minor < invoice.amount_minor THEN 'partially_paid' ELSE 'issued' END) NOT IN ('paid', 'cancelled', 'waived')
         ) fees ON TRUE
-        WHERE guardian.tenant_id = $1
+        WHERE guardian.tenant_id::text = $1::text
           AND guardian.user_id = $2::uuid
           AND guardian.status = 'active'
           AND student.deleted_at IS NULL
@@ -146,9 +146,9 @@ export class ParentCommandService {
             SELECT student.*
             FROM student_guardians guardian
             JOIN students student
-              ON student.tenant_id = guardian.tenant_id
-             AND student.id = guardian.student_id
-            WHERE guardian.tenant_id = $1
+              ON student.tenant_id::text = guardian.tenant_id::text
+             AND student.id::text = guardian.student_id::text
+            WHERE guardian.tenant_id::text = $1::text
               AND guardian.user_id = $2::uuid
               AND guardian.status = 'active'
               AND student.deleted_at IS NULL
@@ -159,17 +159,17 @@ export class ParentCommandService {
             btrim(concat_ws(' ', student.first_name, student.middle_name, student.last_name)) AS student_name,
             class_section.name AS class_name,
             COALESCE(SUM(invoice.balance_minor) FILTER (
-              WHERE invoice.status NOT IN ('paid', 'cancelled', 'waived')
+              WHERE (CASE WHEN lower(COALESCE(to_jsonb(invoice)->>'status', '')) IN ('cancelled', 'waived') THEN lower(to_jsonb(invoice)->>'status') WHEN invoice.balance_minor <= 0 THEN 'paid' WHEN invoice.balance_minor < invoice.amount_minor THEN 'partially_paid' ELSE 'issued' END) NOT IN ('paid', 'cancelled', 'waived')
             ), 0)::bigint AS balance_minor,
             COUNT(invoice.id) FILTER (
-              WHERE invoice.status NOT IN ('paid', 'cancelled', 'waived')
+              WHERE (CASE WHEN lower(COALESCE(to_jsonb(invoice)->>'status', '')) IN ('cancelled', 'waived') THEN lower(to_jsonb(invoice)->>'status') WHEN invoice.balance_minor <= 0 THEN 'paid' WHEN invoice.balance_minor < invoice.amount_minor THEN 'partially_paid' ELSE 'issued' END) NOT IN ('paid', 'cancelled', 'waived')
             )::int AS open_invoices
           FROM linked_students student
           LEFT JOIN class_sections class_section
-            ON class_section.tenant_id = student.tenant_id
+            ON class_section.tenant_id::text = student.tenant_id::text
            AND class_section.id::text = student.current_class_id::text
           LEFT JOIN student_invoices invoice
-            ON invoice.tenant_id = student.tenant_id
+            ON invoice.tenant_id::text = student.tenant_id::text
            AND invoice.student_id::text = student.id::text
           GROUP BY
             student.id,
@@ -204,16 +204,16 @@ export class ParentCommandService {
             invoice.academic_year,
             invoice.amount_minor,
             invoice.balance_minor,
-            invoice.status,
+            (CASE WHEN lower(COALESCE(to_jsonb(invoice)->>'status', '')) IN ('cancelled', 'waived') THEN lower(to_jsonb(invoice)->>'status') WHEN invoice.balance_minor <= 0 THEN 'paid' WHEN invoice.balance_minor < invoice.amount_minor THEN 'partially_paid' ELSE 'issued' END) AS status,
             invoice.created_at::text
           FROM student_guardians guardian
           JOIN students student
-            ON student.tenant_id = guardian.tenant_id
-           AND student.id = guardian.student_id
+            ON student.tenant_id::text = guardian.tenant_id::text
+           AND student.id::text = guardian.student_id::text
           JOIN student_invoices invoice
-            ON invoice.tenant_id = student.tenant_id
+            ON invoice.tenant_id::text = student.tenant_id::text
            AND invoice.student_id::text = student.id::text
-          WHERE guardian.tenant_id = $1
+          WHERE guardian.tenant_id::text = $1::text
             AND guardian.user_id = $2::uuid
             AND guardian.status = 'active'
             AND student.deleted_at IS NULL
@@ -237,9 +237,9 @@ export class ParentCommandService {
             SELECT student.*
             FROM student_guardians guardian
             JOIN students student
-              ON student.tenant_id = guardian.tenant_id
-             AND student.id = guardian.student_id
-            WHERE guardian.tenant_id = $1
+              ON student.tenant_id::text = guardian.tenant_id::text
+             AND student.id::text = guardian.student_id::text
+            WHERE guardian.tenant_id::text = $1::text
               AND guardian.user_id = $2::uuid
               AND guardian.status = 'active'
               AND student.deleted_at IS NULL
@@ -255,11 +255,11 @@ export class ParentCommandService {
             payment.received_at::text
           FROM manual_fee_payments payment
           LEFT JOIN student_invoices invoice
-            ON invoice.tenant_id = payment.tenant_id
-           AND invoice.id = payment.invoice_id
+            ON invoice.tenant_id::text = payment.tenant_id::text
+           AND invoice.id::text = payment.invoice_id::text
           JOIN linked_students student
             ON student.id::text = COALESCE(payment.student_id::text, invoice.student_id::text)
-          WHERE payment.tenant_id = $1
+          WHERE payment.tenant_id::text = $1::text
           ORDER BY payment.received_at DESC
           LIMIT 100
         `,

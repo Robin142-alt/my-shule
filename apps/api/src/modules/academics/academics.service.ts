@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, UnauthorizedException, Inject, forwardRef, Optional } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { ExamsService } from '../exams/exams.service';
@@ -194,27 +195,13 @@ export class AcademicsService {
   }
 
   async createClassSubjectAssignment(dto: CreateClassSubjectAssignmentDto) {
-    const tenantId = this.requireTenantId();
-    const term = await this.requireSetupRecord(tenantId, 'academic-term', dto.academic_term_id);
-    const classSection = await this.requireSetupRecord(tenantId, 'class-section', dto.class_section_id);
-    await this.requireSetupRecord(tenantId, 'subject', dto.subject_id);
-    if (String(term.academic_year_id) !== String(classSection.academic_year_id)) {
-      throw new BadRequestException('The class and term must belong to the same academic year.');
-    }
-    if (dto.effective_from && dto.effective_to) {
-      this.requireDateRange(dto.effective_from, dto.effective_to, 'Class subject offering');
-    }
-    const assignment = await this.repository.createClassSubjectAssignment(tenantId, {
-      ...dto, actor_user_id: this.currentUserId(),
-    });
-    await this.recordAcademicChange('academic.subject.updated', 'class_subject_assignment', assignment,
-      'assigned', null, dto.reason, { academic_term_id: dto.academic_term_id, class_section_id: dto.class_section_id });
-    return assignment;
+    const result = await this.createClassSubjectAssignmentsBulk({ ...dto, subject_ids: [dto.subject_id] });
+    return result.assignments[0] ? { ...result.assignments[0], assignments: result.assignments } : null;
   }
 
   async createClassSubjectAssignmentsBulk(dto: CreateBulkClassSubjectAssignmentsDto) {
     const tenantId = this.requireTenantId();
-    const academicTermId = this.requireText(dto.academic_term_id, 'Academic term');
+    const academicTermId = null;
     const classSectionId = this.requireText(dto.class_section_id, 'Class/form/grade');
     if (!Array.isArray(dto.subject_ids) || dto.subject_ids.length === 0) {
       throw new BadRequestException('Select at least one subject or learning area.');
@@ -305,32 +292,22 @@ export class AcademicsService {
   async updateClassSubjectAssignment(id: string, dto: UpdateClassSubjectAssignmentDto) {
     const tenantId = this.requireTenantId();
     const previous = await this.requireSetupRecord(tenantId, 'class-subject', id);
-    const academicTermId = dto.academic_term_id ?? String(previous.academic_term_id);
-    const classSectionId = dto.class_section_id ?? String(previous.class_section_id);
-    const subjectId = dto.subject_id ?? String(previous.subject_id);
-    const term = await this.requireSetupRecord(tenantId, 'academic-term', academicTermId);
-    const classSection = await this.requireSetupRecord(tenantId, 'class-section', classSectionId);
-    await this.requireSetupRecord(tenantId, 'subject', subjectId);
-    if (String(term.academic_year_id) !== String(classSection.academic_year_id)) {
-      throw new BadRequestException('The class and term must belong to the same academic year.');
+    if (!previous.cohort_placement_id) throw new ConflictException('This is historical configuration. Open the current cohort offering to make changes.');
+    for (const field of ['class_section_id', 'stream_id', 'subject_id'] as const) {
+      if (dto[field] !== undefined && String(dto[field] ?? '') !== String(previous[field] ?? '')) {
+        throw new BadRequestException('A cohort offering cannot be moved by editing its class, stream or subject. Use promotion or configure a separate offering.');
+      }
     }
-    const effectiveFrom = dto.effective_from ?? (previous.effective_from ? String(previous.effective_from).slice(0, 10) : undefined);
-    const effectiveTo = dto.effective_to ?? (previous.effective_to ? String(previous.effective_to).slice(0, 10) : undefined);
-    if (effectiveFrom && effectiveTo) this.requireDateRange(effectiveFrom, effectiveTo, 'Class subject offering');
-    const duplicate = await this.repository.executeSql(tenantId, `
-      SELECT id FROM class_subject_assignments
-      WHERE tenant_id = $1 AND academic_term_id::text = $2
-        AND class_section_id::text = $3 AND subject_id::text = $4
-        AND id::text <> $5 LIMIT 1
-    `, [tenantId, academicTermId, classSectionId, subjectId, id]);
-    if (duplicate.rows[0]) throw new ConflictException('That subject is already offered to the selected class in this term.');
-    const updated = await this.repository.updateClassSubjectAssignment(tenantId, id, {
-      ...dto, academic_term_id: academicTermId, class_section_id: classSectionId,
-      subject_id: subjectId, actor_user_id: this.currentUserId(),
+    const effectiveFrom = dto.effective_from ?? (previous.effective_from ? String(previous.effective_from).slice(0,10) : undefined);
+    const effectiveTo = dto.effective_to ?? (previous.effective_to ? String(previous.effective_to).slice(0,10) : undefined);
+    if (effectiveFrom && effectiveTo) this.requireDateRange(effectiveFrom,effectiveTo,'Cohort subject');
+    const updated = await this.repository.updateClassSubjectAssignment(tenantId,id,{
+      ...dto,academic_term_id:null,actor_user_id:this.currentUserId(),
+    }, async ({tx, assignment, previous: original}) => {
+      await this.auditMutation(tenantId,'class_subject_assignment',assignment.id,'academics.class_subject_assignment_updated',{},original,assignment,dto.reason,tx);
+      await this.publishAcademicChange('academic.subject.updated','class_subject_assignment',assignment,'updated',original,dto.reason,{},tx);
     });
-    this.requireUpdatedRecord(updated, 'Class subject offering');
-    await this.recordAcademicChange('academic.subject.updated', 'class_subject_assignment', updated,
-      'updated', previous, dto.reason);
+    this.requireUpdatedRecord(updated,'Cohort subject offering');
     return updated;
   }
 
@@ -430,7 +407,9 @@ export class AcademicsService {
       }
     }
 
-    await this.requireUniqueCode(tenantId, 'subjects', dto.code, null);
+    // Codes remain internal identifiers for existing integrations and reports.
+    const code = dto.code?.trim() || `SUB-${randomUUID()}`;
+    await this.requireUniqueCode(tenantId, 'subjects', code, null);
     const duplicateName = await this.repository.executeSql(tenantId, `
       SELECT id FROM subjects WHERE tenant_id = $1 AND lower(name) = lower($2)
         AND curriculum_model = $3 AND status <> 'archived' LIMIT 1
@@ -442,7 +421,7 @@ export class AcademicsService {
     const subject = await this.repository.createSubject({
       tenant_id: tenantId,
       created_by_user_id: this.currentUserId(),
-      code: this.requireText(dto.code, 'Subject code'),
+      code,
       name: this.requireText(dto.name, 'Subject name'),
       department_id: departmentId,
       abbreviation: dto.abbreviation?.trim() || null,
@@ -469,12 +448,12 @@ export class AcademicsService {
         ? true
         : dto.is_primary ?? true;
     await this.requireActiveStaffUserInTenant(tenantId, teacherUserId);
-    const termId = dto.academic_term_id?.trim() || null;
+    const termId = null;
     const classSectionId = this.requireText(dto.class_section_id, 'Class section');
     const subjectId = this.requireText(dto.subject_id, 'Subject');
     const scope = await this.repository.executeSql(
       tenantId,
-      `SELECT section.id
+      `SELECT section.id, subject.department_id, subject.curriculum_model
        FROM class_sections section
        JOIN subjects subject
          ON subject.tenant_id = section.tenant_id
@@ -504,10 +483,6 @@ export class AcademicsService {
       `, [tenantId, dto.stream_id, classSectionId]);
       if (!stream.rows[0]) throw new BadRequestException('Select an active stream in the assigned class.');
     }
-    if (dto.department_id) {
-      await this.requireSetupRecord(tenantId, 'department', dto.department_id);
-    }
-
     const assignment = await this.repository.createTeacherAssignment({
       tenant_id: tenantId,
       created_by_user_id: this.currentUserId(),
@@ -515,6 +490,7 @@ export class AcademicsService {
       class_section_id: classSectionId,
       subject_id: subjectId,
       teacher_user_id: teacherUserId,
+      lessons_per_week: dto.lessons_per_week,
       assignment_type: assignmentType,
       is_primary: isPrimary,
       mark_entry_allowed: dto.mark_entry_allowed ?? true,
@@ -524,8 +500,8 @@ export class AcademicsService {
       effective_to: dto.effective_to ?? null,
       reason: dto.reason?.trim() || null,
       stream_id: dto.stream_id?.trim() || null,
-      department_id: dto.department_id?.trim() || null,
-      curriculum_model: dto.curriculum_model?.trim() || null,
+      department_id: scope.rows[0].department_id ?? null,
+      curriculum_model: scope.rows[0].curriculum_model ?? null,
     }, async ({ tx, assignment: saved, previous }) => {
       const action = previous.length ? 'reassigned' : 'assigned';
       await this.auditMutation(tenantId, 'teacher_assignment', saved.id,
@@ -544,30 +520,17 @@ export class AcademicsService {
     return assignment;
   }
 
-  async archiveTeacherAssignment(id: string, dto?: EndAssignmentDto) {
-    const tenantId = this.requireTenantId();
-    const previous = await this.repository.getSetupRecord(tenantId, 'teacher-assignment', id);
-    const assignment = await this.repository.archiveTeacherAssignment(
-      tenantId,
-      this.requireText(id, 'Teacher assignment ID'),
-      {
-        effective_to: dto?.effective_to,
-        reason: dto?.reason?.trim() || null,
-        actor_user_id: this.currentUserId(),
-      },
-    );
-    if (!assignment) {
-      throw new BadRequestException('Teacher assignment was not found in this school');
-    }
-    await this.auditMutation(tenantId, 'teacher_assignment', assignment.id, 'academics.teacher_subject_unassigned', {},
-      previous, assignment, dto?.reason ?? 'Assignment ended');
-    await this.publishAcademicChange('academic.teacher_assignment.changed', 'teacher_assignment', assignment,
-      'ended', previous, dto?.reason ?? 'Assignment ended');
-    if (assignment.teacher_user_id) {
-      await this.notifyAcademicAssignee(tenantId, String(assignment.teacher_user_id),
-        `academic-assignment-ended:${assignment.id}:${assignment.version ?? 1}`,
-        'Academic assignment ended', 'One of your class and subject assignments has ended.', assignment.id);
-    }
+  async archiveTeacherAssignment(id:string,dto?:EndAssignmentDto) {
+    const tenantId=this.requireTenantId();
+    const assignment=await this.repository.archiveTeacherAssignment(tenantId,this.requireText(id,'Teacher assignment ID'),{
+      effective_to:dto?.effective_to,reason:dto?.reason?.trim()||null,actor_user_id:this.currentUserId(),
+    },async({tx,assignment:saved,previous})=>{
+      await this.auditMutation(tenantId,'teacher_assignment',saved.id,'academics.teacher_subject_unassigned',{},previous,saved,dto?.reason,tx);
+      await this.publishAcademicChange('academic.teacher_assignment.changed','teacher_assignment',saved,'ended',previous,dto?.reason,{},tx);
+      await this.notifyAcademicAssignee(tenantId,String(saved.teacher_user_id),`academic-assignment-ended:${saved.id}:${saved.version}`,
+        'Academic assignment ended','One of your cohort teaching assignments has ended.',saved.id,tx);
+    });
+    if(!assignment)throw new ConflictException('The assignment has ended or the cohort has moved. Refresh the allocation list.');
     return assignment;
   }
 
@@ -581,12 +544,11 @@ export class AcademicsService {
       academic_level_id: this.requireText(dto.academic_level_id, 'Academic level'),
       academic_year_id: this.requireText(dto.academic_year_id, 'Academic year'),
       assigned_by_user_id: this.currentUserId(),
-    });
-
-    await this.repository.appendAuditLog({
+    }, async (tx, saved) => {
+      await this.repository.appendAuditLog({
       tenant_id: tenantId,
       entity_type: 'student_class_assignment',
-      entity_id: (assignment as any).id,
+      entity_id: saved.id,
       action: 'academics.student_class_assigned',
       actor_user_id: this.currentUserId(),
       metadata: {
@@ -595,8 +557,10 @@ export class AcademicsService {
         stream_id: dto.stream_id ?? null,
         academic_year_id: dto.academic_year_id,
       },
+      }, tx);
+      await this.publishAcademicChange('academic.class.updated', 'student_class_assignment', saved, 'assigned', null,
+        undefined, {student_id:dto.student_id}, tx);
     });
-
     return assignment;
   }
 
@@ -1310,11 +1274,31 @@ export class AcademicsService {
     return updated;
   }
 
+  async getMySubjectAppointments() {
+    const tenantId = this.requireTenantId();
+    const userId = this.currentUserId();
+    if (!userId || userId === 'anonymous') throw new UnauthorizedException('Sign in to view your subject appointments.');
+    return this.repository.getSubjectAppointmentsForUser(tenantId, userId);
+  }
+
   async assignAcademicRole(dto: AcademicRoleAppointmentDto) {
+    dto = { ...dto, effective_from: dto.effective_from ?? new Date().toISOString().slice(0, 10) };
     const tenantId = this.requireTenantId();
     const teacherUserId = this.requireText(dto.teacher_user_id, 'Academic role holder');
     await this.requireActiveStaffUserInTenant(tenantId, teacherUserId);
-    if (dto.effective_to) this.requireDateRange(dto.effective_from, dto.effective_to, 'Academic role appointment');
+    if (dto.role_type === 'head_of_subject' && !dto.subject_id) {
+      throw new BadRequestException('Head of Subject requires a subject appointment.');
+    }
+    if (dto.subject_id) {
+      const subject = await this.requireSetupRecord(tenantId, 'subject', dto.subject_id);
+      if (subject.status === 'archived' || subject.status === 'inactive' || subject.archived_at || subject.is_active === false) {
+        throw new BadRequestException('Select an active subject for this appointment.');
+      }
+      if (dto.department_id && String(subject.department_id) !== dto.department_id) {
+        throw new BadRequestException('The appointed subject must belong to the selected department.');
+      }
+    }
+    if (dto.effective_from && dto.effective_to) this.requireDateRange(dto.effective_from, dto.effective_to, 'Academic role appointment');
     if (dto.department_id) await this.requireSetupRecord(tenantId, 'department', dto.department_id);
     if (dto.academic_year_id) await this.requireSetupRecord(tenantId, 'academic-year', dto.academic_year_id);
     if (dto.class_section_id) await this.requireSetupRecord(tenantId, 'class-section', dto.class_section_id);
@@ -1328,7 +1312,7 @@ export class AcademicsService {
     await this.recordAcademicChange('academic.role_assignment.changed', 'academic_role_appointment', appointment,
       result.changed_holder ? 'transferred' : 'assigned', result.previous, dto.reason, {
         role_type: dto.role_type,
-        scope: { department_id: dto.department_id ?? null, academic_year_id: dto.academic_year_id ?? null,
+        scope: { subject_id: dto.subject_id ?? null, department_id: dto.department_id ?? null, academic_year_id: dto.academic_year_id ?? null,
           class_section_id: dto.class_section_id ?? null, stream_id: dto.stream_id ?? null },
       });
     await this.notifyAcademicAssignee(tenantId, teacherUserId,
@@ -1361,13 +1345,14 @@ export class AcademicsService {
   }
 
   async createCurriculumConfiguration(dto: CreateAcademicCurriculumConfigurationDto) {
+    dto = { ...dto, effective_from: dto.effective_from ?? new Date().toISOString().slice(0, 10) };
     const tenantId = this.requireTenantId();
-    if (dto.effective_to) this.requireDateRange(dto.effective_from, dto.effective_to, 'Curriculum configuration');
+    if (dto.effective_from && dto.effective_to) this.requireDateRange(dto.effective_from, dto.effective_to, 'Curriculum configuration');
     const duplicate = await this.repository.executeSql(tenantId, `
       SELECT id FROM academics_curriculum_configurations
       WHERE tenant_id = $1 AND lower(name) = lower($2) AND effective_from = $3::date LIMIT 1
     `, [tenantId, dto.name.trim(), dto.effective_from]);
-    if (duplicate.rows[0]) throw new ConflictException('That curriculum configuration and effective date already exist.');
+    if (duplicate.rows[0]) throw new ConflictException('That curriculum configuration already exists. Open it to create a new version.');
     const created = await this.repository.createCurriculumConfiguration(tenantId, {
       ...dto, actor_user_id: this.currentUserId(), configuration: dto.configuration ?? {},
     });
@@ -1427,34 +1412,23 @@ export class AcademicsService {
     };
   }
 
-  async reassignTeacher(id: string, dto: ReassignTeacherDto) {
-    const tenantId = this.requireTenantId();
-    await this.requireActiveStaffUserInTenant(tenantId, dto.teacher_user_id);
-    const previous = await this.requireSetupRecord(tenantId, 'teacher-assignment', id);
-    const result = await this.repository.reassignTeacherAssignment(tenantId, id, {
-      ...dto, actor_user_id: this.currentUserId(),
-    });
-    if (!result?.assignment) throw new ConflictException('The assignment is no longer active. Refresh the allocation list.');
-    await this.recordAcademicChange('academic.teacher_assignment.changed', 'teacher_assignment', result.assignment,
-      'transferred', previous, dto.reason, { transfer_choices: {
-        future_timetable: dto.transfer_future_timetable ?? false,
-        pending_marks: dto.transfer_pending_marks ?? false,
-        assignments: dto.transfer_assignments ?? false,
-        comments: dto.transfer_comments ?? false,
-        lesson_plans: dto.transfer_lesson_plans ?? false,
-        approvals: dto.transfer_pending_approvals ?? false,
-      }, transferred: result.transferred ?? {}, manual_review: result.manual_review ?? [], historical_marks_preserved: true });
-    await this.notifyAcademicAssignee(tenantId, dto.teacher_user_id,
-      `academic-reassignment:${result.assignment.id}:1`, 'Academic assignment transferred',
-      `A class and subject assignment was transferred to you effective ${dto.effective_from}.`,
-      String(result.assignment.id));
-    return {
-      ...result,
-      status: result.manual_review?.length ? 'partial_success' : 'completed',
-      message: result.manual_review?.length
-        ? 'The allocation and selected safe work were transferred. Review the listed items manually.'
-        : 'The allocation and selected responsibilities were transferred.',
-    };
+  async reassignTeacher(id:string,dto:ReassignTeacherDto) {
+    const effectiveFrom = dto.effective_from ?? new Date().toISOString().slice(0, 10);
+    const tenantId=this.requireTenantId();
+    await this.requireActiveStaffUserInTenant(tenantId,dto.teacher_user_id);
+    const result=await this.repository.reassignTeacherAssignment(tenantId,id,{...dto,effective_from:effectiveFrom,actor_user_id:this.currentUserId()},
+      async({tx,assignment,previous,transferred,manual_review})=>{
+        await this.auditMutation(tenantId,'teacher_assignment',assignment.id,'academics.teacher_assignment_transferred',
+          {transferred,manual_review,historical_marks_preserved:true},previous,assignment,dto.reason,tx);
+        await this.publishAcademicChange('academic.teacher_assignment.changed','teacher_assignment',assignment,'transferred',
+          previous,dto.reason,{transferred,manual_review},tx);
+        await this.notifyAcademicAssignee(tenantId,dto.teacher_user_id,`academic-reassignment:${assignment.id}:1`,
+          'Academic assignment transferred',`A cohort teaching assignment was transferred to you effective ${effectiveFrom}.`,assignment.id,tx);
+      });
+    if(!result?.assignment)throw new ConflictException('The assignment is no longer active. Refresh the allocation list.');
+    return {...result,status:result.manual_review?.length?'partial_success':'completed',message:result.manual_review?.length
+      ?'The allocation and selected safe work were transferred. Review the listed items manually.'
+      :'The allocation and selected responsibilities were transferred.'};
   }
 
   async previewSetupMerge(entityType: string, sourceId: string, targetId: string) {
@@ -1563,6 +1537,9 @@ export class AcademicsService {
       }
     }
     if (dto.action === 'delete') {
+      if (entityType === 'class-subject' && previous.cohort_id) {
+        throw new ConflictException('Archive cohort subjects to preserve teaching history.');
+      }
       if (!dependencies.can_permanently_delete) {
         throw new ConflictException({
           message: 'This record has linked school data and cannot be permanently deleted. Archive it instead.',
@@ -1578,9 +1555,15 @@ export class AcademicsService {
     }
     const updated = await this.repository.applySetupLifecycle(
       tenantId, entityType, normalizedId, dto.action, this.currentUserId(), dto.expected_version,
+      ['class-subject', 'subject'].includes(entityType) ? async (tx, saved, original) => {
+        const auditType = this.auditTypeForEntity(entityType);
+        await this.auditMutation(tenantId, auditType, saved.id, `academics.${auditType}_${dto.action}`,
+          { dependencies }, original, saved, reason ?? undefined, tx);
+        await this.publishAcademicChange('academic.subject.updated', auditType, saved, dto.action, original, reason ?? undefined, { dependencies }, tx);
+      } : undefined,
     );
     this.requireUpdatedRecord(updated, 'Academic setup record');
-    await this.recordAcademicChange(this.eventNameForEntity(entityType), this.auditTypeForEntity(entityType),
+    if (!['class-subject', 'subject'].includes(entityType)) await this.recordAcademicChange(this.eventNameForEntity(entityType), this.auditTypeForEntity(entityType),
       updated, dto.action, previous, reason ?? undefined, { dependencies, closure, effective_at: dto.effective_at ?? null });
     return { record: updated, dependencies, closure, permanently_deleted: false };
   }

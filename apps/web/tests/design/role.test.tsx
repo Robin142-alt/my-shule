@@ -149,7 +149,7 @@ describe("school role command-center contracts", () => {
       { role: "class-teacher", heading: /Class Teacher Dashboard/i },
       { role: "grade-master", heading: /Grade\/Form Master Command Center/i, centerTestId: "role-operational-command-center" },
       { role: "hod", heading: /Head of Department/i, centerTestId: "role-operational-command-center" },
-      { role: "dean-academics", heading: /Dean of Academics Dashboard/i, centerTestId: "role-operational-command-center" },
+      { role: "dean-academics", heading: /^Dean of Academics$/i, centerTestId: "role-operational-command-center" },
       { role: "exams-manager", heading: /Exams Manager/i, centerTestId: "role-operational-command-center" },
     ];
 

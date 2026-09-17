@@ -1,5 +1,7 @@
 "use client";
 
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
+
 import { DashboardEngine } from "@/components/dashboard/dashboard-engine";
 import { Card } from "@/components/ui/card";
 import { isSchoolQueryForPath, useSchoolQuery } from "@/lib/data/school-hooks";
@@ -47,7 +49,7 @@ export function PrincipalOverviewWorkspace({
   executiveDashboardStreamDegraded?: boolean;
   riskCenterLabel?: string;
 }) {
-  const { data, isLoading, error } = useSchoolQuery<PrincipalOverviewData>('/admin-command/principal/overview');
+  const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalOverviewData>('/admin-command/principal/overview');
   const queryClient = useQueryClient();
   const eventBus = useDashboardEventBus();
   const tenantId = useOptionalSchoolTenantId();
@@ -106,6 +108,7 @@ export function PrincipalOverviewWorkspace({
           <AlertCircle className="h-6 w-6 text-red-500" />
           <h2 className="text-xl font-bold text-red-500">Failed to load Principal Overview</h2>
         </div>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Card>
     );
   }

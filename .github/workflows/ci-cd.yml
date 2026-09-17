@@ -41,6 +41,21 @@ jobs:
       - name: Lint (frontend)
         run: npm run web:lint
 
+      - name: Browser authentication contracts
+        run: npm --prefix apps/web run test:design -- persistent-login auth-route-contract auth-token-containment server-auth-client session-refreshing-fetch session-logout dashboard-api-cookie-session
+
+      - name: Dashboard role switching and delayed session responses
+        run: npm --prefix apps/web run test:design -- role-switch-consistency dashboard-role-context school-dashboard-role-switcher active-role-cache-isolation leadership-teacher-role-switch
+
+      - name: Academic intelligence workspace contracts
+        run: npm --prefix apps/web run test:design -- academic-intelligence head-of-subject exams-workspace teacher-exams-marks-workspace dean-review-workflow dean-hod-command-center-contract
+
+      - name: Report-card class generation and recovery interface
+        run: npm --prefix apps/web run test:design -- report-card-generation-readiness live-report-card-actions
+
+      - name: Exam setup configuration and deletion controls
+        run: npm --prefix apps/web run test:design -- exam-setup-edit-delete exams-manager-human-workflows exams-manager-routing
+
   # ──────────────────────────────────────────────────────────────
   # Build + Unit Tests
   # ──────────────────────────────────────────────────────────────
@@ -65,6 +80,42 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+      - name: Academic analytics print authorization and pagination
+        run: node --test dist/apps/api/src/modules/exams/analytics/analytics-report.test.js dist/apps/api/src/auth/head-of-subject.test.js
+
+      - name: Install isolated session test dependency
+        run: sudo apt-get update && sudo apt-get install -y redis-server
+
+      - name: Persistent authentication contracts with real Redis
+        run: node -r ts-node/register/transpile-only -r tsconfig-paths/register --test apps/api/src/auth/persistent-session.test.ts apps/api/src/auth/auth-recovery.service.test.ts
+
+      - name: Authentication tenant isolation and Super Admin compatibility
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/auth-security.integration-spec.ts apps/api/test/auth-experience-separation.integration-spec.ts
+
+      - name: Academic intelligence tenant, scope and migration contracts
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/academic-intelligence.integration-spec.ts
+
+      - name: Exam setup transactions, deletion and teacher mark entry
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/exam-setup-integrity.integration-spec.ts apps/api/test/teacher-exam-visibility.integration-spec.ts
+
+      - name: Report-card generation, recovery and school isolation
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/report-card-generation.integration-spec.ts apps/api/test/report-card-readiness.integration-spec.ts
+
+      - name: Report-card retries and concurrency
+        run: node --test dist/apps/api/src/modules/exams/services/report-card-generation-resilience.test.js
 
       - name: Upload build artifacts
         if: github.ref == 'refs/heads/main'

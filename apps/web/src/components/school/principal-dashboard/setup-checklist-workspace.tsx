@@ -1,5 +1,7 @@
 "use client";
 
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
+
 import { Card } from "@/components/ui/card";
 import { AlertCircle, CheckCircle2, Circle, ListTodo } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
@@ -49,7 +51,7 @@ export function PrincipalSetupChecklistWorkspace({
 }: {
   onNavigate?: (target: SetupWorkspaceTarget) => void;
 }) {
-  const { data, isLoading, error } = useSchoolQuery<SetupChecklistData>('/admin-command/principal/setup-checklist');
+  const { data, isLoading, error, refetch } = useSchoolQuery<SetupChecklistData>('/admin-command/principal/setup-checklist');
 
   if (isLoading) {
     return (
@@ -69,6 +71,7 @@ export function PrincipalSetupChecklistWorkspace({
           <AlertCircle className="h-6 w-6 text-red-500" />
           <h2 className="text-xl font-bold text-red-500">Failed to load Setup Checklist</h2>
         </div>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Card>
     );
   }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { ExamsManagerCommandService } from './exams-manager-command.service';
@@ -36,6 +36,12 @@ export class ExamsManagerCommandController {
     return this.service.configureExamSetup(id, dto);
   }
 
+  @Delete('exam-setup/:id')
+  @Permissions('exams:write')
+  deleteExamSetup(@Param('id') id: string) {
+    return this.service.deleteExamSetup(id);
+  }
+
   @Get('exam-timetable')
   getExamTimetable() {
     return this.service.getExamTimetable();
@@ -50,6 +56,12 @@ export class ExamsManagerCommandController {
   @Get('marks-entry')
   getMarksEntry() {
     return this.service.getMarksEntry();
+  }
+
+  @Get('teacher-mark-progress')
+  @Permissions('exams:write')
+  getTeacherMarkProgress() {
+    return this.service.getTeacherMarkProgress();
   }
 
   @Post('marks-entry')

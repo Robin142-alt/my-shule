@@ -1,4 +1,5 @@
 export type SupportedDomainEventName =
+  | 'auth.session.revoked'
   | 'student.created'
   | 'student.lifecycle.enrolled'
   | 'student.lifecycle.class_assigned'
@@ -74,6 +75,7 @@ export type SupportedDomainEventName =
   | 'academic.hod.reassigned'
   | 'academic.subject.updated'
   | 'academic.teacher_assignment.changed'
+  | 'academic.cohort.promoted'
   | 'academic.policy.updated'
   | 'academic.role_assignment.changed'
   | 'academic.curriculum.updated'
@@ -509,6 +511,7 @@ export interface AcademicSetupChangedPayload {
 }
 
 export interface DomainEventPayloadMap {
+  'auth.session.revoked': { session_id: string; user_id: string; reason: 'logout' | 'device_revocation' };
   'student.created': StudentCreatedPayload;
   'student.lifecycle.enrolled': StudentLifecycleEnrolledPayload;
   'student.lifecycle.class_assigned': StudentLifecycleClassAssignedPayload;
@@ -584,6 +587,7 @@ export interface DomainEventPayloadMap {
   'academic.hod.reassigned': AcademicSetupChangedPayload;
   'academic.subject.updated': AcademicSetupChangedPayload;
   'academic.teacher_assignment.changed': AcademicSetupChangedPayload;
+  'academic.cohort.promoted': AcademicSetupChangedPayload;
   'academic.policy.updated': AcademicSetupChangedPayload;
   'academic.role_assignment.changed': AcademicSetupChangedPayload;
   'academic.curriculum.updated': AcademicSetupChangedPayload;

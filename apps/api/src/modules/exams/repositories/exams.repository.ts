@@ -1,21 +1,32 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { requiresPublishedExamAnalytics } from '../analytics/analytics-scope';
+import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../../database/prisma.service';
+import { markEntryHasStartedSql } from '../mark-entry-window-policy';
+import { teacherMarkSheetSubmittedSql, teacherMarkStudentScopeSql } from '../teacher-mark-scope';
+import { REPORT_CARD_READINESS_CTES, REPORT_CARD_READINESS_COUNTS } from '../report-card-readiness';
 
-export type ExamAnalyticsScopeLevel = 'school' | 'department' | 'assignment';
+import { ANALYTICS_APPOINTMENTS_SQL, type AnalyticsFilters, type ExamAnalyticsScope, type ExamAnalyticsScopeLevel } from '../analytics/analytics-scope';
+import { analyticsQuery } from '../analytics/analytics-query';
+import { buildAcademicIntelligence, type SubjectEvidence } from '../analytics/analytics-engine';
+export type { ExamAnalyticsScope, ExamAnalyticsScopeLevel } from '../analytics/analytics-scope';
 
-export interface ExamAnalyticsScope {
-  level: ExamAnalyticsScopeLevel;
-  actor_user_id: string | null;
-  role: string;
-}
+// Owned by one batch, never shared across requests or schools. Rejected reads are evicted for retry.
+export type ReportCardReadCache = Map<string, Promise<{ rows: any[]; rowCount: number }>>;
 
 @Injectable()
 export class ExamsRepository {
+  private reportTransaction?: { tenantId: string; client: Prisma.TransactionClient };
   constructor(private readonly prisma: PrismaService) {}
 
   public async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
     const tenantId = params[0] as string;
+    if (this.reportTransaction) {
+      if (tenantId !== this.reportTransaction.tenantId) throw new ForbiddenException('Report transaction school mismatch');
+      const rows = await this.reportTransaction.client.$queryRawUnsafe<T[]>(query, ...params);
+      return { rows, rowCount: rows.length };
+    }
     return this.prisma.executeWithTenant(tenantId, null, async (tx: any) => {
       const result = await tx.$queryRawUnsafe(query, ...params);
       const arr = Array.isArray(result) ? result : [result];
@@ -446,8 +457,10 @@ export class ExamsRepository {
           AND mark_window.class_section_id = $4::uuid
           AND mark_window.subject_id = $5::uuid
           AND mark_window.status = 'open'
-          AND (mark_window.opens_at <= NOW() OR mark_window.last_action = 'opened')
+          AND ${markEntryHasStartedSql('mark_window', 'series')}
           AND mark_window.closes_at >= NOW()
+          AND series.locked_at IS NULL AND series.published_at IS NULL
+          AND series.status NOT IN ('locked', 'published', 'archived')
         ORDER BY mark_window.created_at DESC
         LIMIT 1
       `,
@@ -572,7 +585,6 @@ export class ExamsRepository {
               AND mark_window.class_section_id = source.class_section_id
               AND mark_window.subject_id = source.subject_id
               AND mark_window.status = 'open'
-              AND (mark_window.opens_at <= NOW() OR mark_window.last_action = 'opened')
               AND mark_window.closes_at >= NOW()
              JOIN exam_series series
                ON series.tenant_id = mark_window.tenant_id
@@ -580,12 +592,14 @@ export class ExamsRepository {
               AND series.academic_term_id = source.academic_term_id
               AND series.locked_at IS NULL
               AND series.published_at IS NULL
-              AND series.status NOT IN ('locked', 'published')
+              AND series.status NOT IN ('locked', 'published', 'archived')
+              AND ${markEntryHasStartedSql('mark_window', 'series')}
              JOIN exam_assessments assessment
                ON assessment.tenant_id = mark_window.tenant_id
               AND assessment.id = source.assessment_id
               AND assessment.exam_series_id = source.exam_series_id
               AND assessment.subject_id = source.subject_id
+              AND NOT ${teacherMarkSheetSubmittedSql('mark_window', 'series', 'assessment.id', '$2')}
              JOIN students student
                ON student.tenant_id = mark_window.tenant_id
               AND student.id::text = source.student_id::text
@@ -598,6 +612,10 @@ export class ExamsRepository {
                  AND (assignment.academic_term_id IS NULL OR assignment.academic_term_id = source.academic_term_id::text)
                  AND assignment.class_section_id = source.class_section_id::text
                  AND assignment.subject_id = source.subject_id::text
+                 AND EXISTS (SELECT 1 FROM student_class_assignments membership
+                   WHERE membership.tenant_id=assignment.tenant_id AND membership.student_id=source.student_id::text
+                     AND membership.class_section_id=assignment.class_section_id AND membership.status='active'
+                     AND (assignment.stream_id IS NULL OR assignment.stream_id=membership.stream_id))
                  AND assignment.status = 'active'
                  AND assignment.mark_entry_allowed = TRUE
                  AND assignment.effective_from <= CURRENT_DATE
@@ -728,6 +746,9 @@ export class ExamsRepository {
                ARRAY[]::text[]
              ) AS mark_ids
            FROM exam_mark_entry_windows mark_window
+           JOIN exam_series series
+             ON series.tenant_id = mark_window.tenant_id
+            AND series.id = mark_window.exam_series_id
            JOIN students student
              ON student.tenant_id = mark_window.tenant_id
             AND student.status = 'active'
@@ -761,7 +782,8 @@ export class ExamsRepository {
              AND mark_window.class_section_id = $6::uuid
              AND mark_window.subject_id = $7::uuid
              AND mark_window.status = 'open'
-             AND (mark_window.opens_at <= NOW() OR mark_window.last_action = 'opened')
+             AND ${markEntryHasStartedSql('mark_window', 'series')}
+             AND ${teacherMarkStudentScopeSql('mark_window', 'series', 'student.id', '$2')}
              AND mark_window.closes_at >= NOW()`,
           input.tenant_id,
           input.actor_user_id,
@@ -1804,7 +1826,28 @@ export class ExamsRepository {
     return result.rows[0];
   }
 
-  async updateReportCardGenerationBatch(input: Record<string, unknown>) {
+  async updateReportCardGenerationBatch(
+    input: Record<string, unknown>,
+    onSaved?: (tx: Prisma.TransactionClient) => Promise<unknown>,
+  ): Promise<Record<string, any> | undefined> {
+    if (onSaved) {
+      const tenantId = String(input.tenant_id);
+      return this.prisma.executeWithTenant(tenantId, String(input.actor_user_id), async (tx) => {
+        const scoped = new ExamsRepository(this.prisma);
+        scoped.reportTransaction = { tenantId, client: tx };
+        const result = await scoped.updateReportCardGenerationBatch(input);
+        if (result) {
+          await scoped.appendReportCardAuditLog({
+            tenant_id: tenantId, actor_user_id: input.actor_user_id, exam_series_id: input.exam_series_id,
+            action: input.failed_students ? 'report_generation.failed' : 'report_generation.completed',
+            metadata: { batch_id: input.batch_id, completed_students: input.completed_students,
+              failed_students: input.failed_students, failures: input.failures },
+          });
+          await onSaved(tx);
+        }
+        return result;
+      });
+    }
     const result = await this.executeSql(
       `
         UPDATE report_card_generation_batches
@@ -1823,6 +1866,8 @@ export class ExamsRepository {
           status,
           COALESCE(metadata->>'queue_status', 'queued') AS queue_status,
           COALESCE(metadata->'failures', '[]'::jsonb) AS failures,
+          COALESCE((metadata->>'reused_students')::integer, 0) AS reused_students,
+          COALESCE((metadata->>'duration_ms')::integer, 0) AS duration_ms,
           total_students,
           completed_students,
           failed_students
@@ -1837,6 +1882,8 @@ export class ExamsRepository {
         JSON.stringify({
           queue_status: input.queue_status ?? 'queued',
           failures: Array.isArray(input.failures) ? input.failures : [],
+          reused_students: input.reused_students ?? 0,
+          duration_ms: input.duration_ms ?? 0,
         }),
       ],
     );
@@ -1852,6 +1899,8 @@ export class ExamsRepository {
           status,
           COALESCE(metadata->>'queue_status', 'queued') AS queue_status,
           COALESCE(metadata->'failures', '[]'::jsonb) AS failures,
+          COALESCE((metadata->>'reused_students')::integer, 0) AS reused_students,
+          COALESCE((metadata->>'duration_ms')::integer, 0) AS duration_ms,
           total_students,
           completed_students,
           failed_students
@@ -1873,34 +1922,20 @@ export class ExamsRepository {
     stream_name?: string | null;
     limit?: number;
     offset?: number;
-  }): Promise<Array<{ id: string }>> {
+  }): Promise<Array<{ id: string; student_name?: string }>> {
     const requestedLimit = Number.isFinite(input.limit) ? Math.floor(Number(input.limit)) : 200;
     const requestedOffset = Number.isFinite(input.offset) ? Math.floor(Number(input.offset)) : 0;
     const limit = requestedLimit > 0 ? Math.min(requestedLimit, 200) : 200;
     const offset = Math.max(requestedOffset, 0);
 
-    const result = await this.executeSql<{ id: string }>(
-      `
-        SELECT DISTINCT student.id::text, student.admission_number, student.created_at
-        FROM exam_marks mark
-        INNER JOIN students student
-          ON student.tenant_id = mark.tenant_id
-         AND student.id = mark.student_id::text
-         AND student.status = 'active'
-        LEFT JOIN student_class_assignments assignment
-          ON assignment.tenant_id = student.tenant_id
-         AND assignment.student_id = student.id::text
-         AND assignment.class_section_id = mark.class_section_id::text
-         AND assignment.status = 'active'
-        LEFT JOIN class_streams stream
-          ON stream.tenant_id = assignment.tenant_id
-         AND stream.id = assignment.stream_id
-        WHERE mark.tenant_id = $1
-          AND mark.exam_series_id = $2::uuid
-          AND mark.status IN ('locked', 'published')
-          AND ($3::uuid IS NULL OR mark.class_section_id = $3::uuid)
-          AND ($4::text IS NULL OR stream.name = $4::text)
-        ORDER BY student.admission_number ASC, student.created_at ASC
+    const result = await this.executeSql<{ id: string; student_name?: string }>(
+      `${REPORT_CARD_READINESS_CTES}
+        SELECT DISTINCT student.id::text, student.admission_number, student.created_at,
+          concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS student_name
+        FROM readiness ready
+        JOIN students student ON student.tenant_id = $1 AND student.id::text = ready.student_id
+        WHERE ready.is_ready
+        ORDER BY student.admission_number ASC, student.created_at ASC, student.id ASC
         LIMIT $5::integer
         OFFSET $6::integer
       `,
@@ -1924,58 +1959,8 @@ export class ExamsRepository {
     stream_name?: string | null;
   }) {
     const result = await this.executeSql(
-      `WITH selected_windows AS (
-         SELECT class_section_id, subject_id
-         FROM exam_mark_entry_windows
-         WHERE tenant_id = $1
-           AND exam_series_id = $2::uuid
-           AND ($3::uuid IS NULL OR class_section_id = $3::uuid)
-       ), expected AS (
-         SELECT DISTINCT
-           student.id::text AS student_id,
-           mark_window.class_section_id,
-           mark_window.subject_id
-         FROM selected_windows mark_window
-         INNER JOIN student_class_assignments assignment
-           ON assignment.tenant_id = $1
-          AND assignment.class_section_id = mark_window.class_section_id::text
-          AND assignment.status = 'active'
-         INNER JOIN students student
-           ON student.tenant_id = assignment.tenant_id
-          AND student.id::text = assignment.student_id::text
-          AND student.status = 'active'
-         INNER JOIN student_subject_enrollments enrollment
-           ON enrollment.tenant_id = student.tenant_id
-          AND enrollment.student_id::text = student.id::text
-          AND enrollment.class_section_id = mark_window.class_section_id::text
-          AND enrollment.subject_id = mark_window.subject_id::text
-          AND enrollment.status = 'active'
-         LEFT JOIN class_streams stream
-           ON stream.tenant_id = assignment.tenant_id
-          AND stream.id::text = assignment.stream_id::text
-         WHERE ($4::text IS NULL OR stream.name = $4::text)
-       ), readiness AS (
-         SELECT
-           expected.student_id,
-           expected.class_section_id,
-           expected.subject_id,
-           EXISTS (
-             SELECT 1
-             FROM exam_marks mark
-             WHERE mark.tenant_id = $1
-               AND mark.exam_series_id = $2::uuid
-               AND mark.student_id::text = expected.student_id
-               AND mark.class_section_id = expected.class_section_id
-               AND mark.subject_id = expected.subject_id
-               AND mark.status IN ('locked', 'published')
-           ) AS is_ready
-         FROM expected
-       )
-       SELECT
-         COUNT(*)::integer AS expected_mark_count,
-         COUNT(*) FILTER (WHERE is_ready)::integer AS ready_mark_count,
-         COUNT(*) FILTER (WHERE NOT is_ready)::integer AS not_ready_mark_count,
-         COUNT(DISTINCT student_id)::integer AS learner_count
+      `${REPORT_CARD_READINESS_CTES}
+       SELECT ${REPORT_CARD_READINESS_COUNTS}
        FROM readiness`,
       [
         input.tenant_id,
@@ -1991,6 +1976,118 @@ export class ExamsRepository {
       not_ready_mark_count: 0,
       learner_count: 0,
     };
+  }
+
+  async findReusableReportCard(input: Record<string, unknown>) {
+    const result = await this.executeSql(
+      `SELECT card.*, COALESCE((SELECT jsonb_agg(artifact.*) FROM report_card_artifacts artifact
+          WHERE artifact.tenant_id = card.tenant_id AND artifact.report_card_id = card.id
+            AND artifact.verification_code = card.verification_code), '[]'::jsonb) AS artifacts
+       FROM student_report_cards card
+       WHERE card.tenant_id = $1 AND card.exam_series_id = $2::uuid AND card.student_id = $3::uuid
+         AND card.is_current = TRUE
+         AND card.status IN ('draft_generated', 'draft', 'under_review', 'approved', 'published')
+         AND (card.verification_code = $4 OR ($5::boolean AND card.approved_result_version = $6
+           AND (card.status IN ('under_review', 'approved', 'published') OR card.metadata->>'generation_source_version' = $7)))
+         AND card.metadata->'report_card' IS NOT NULL
+         AND (SELECT COUNT(DISTINCT artifact.artifact_type) FROM report_card_artifacts artifact
+           WHERE artifact.tenant_id = card.tenant_id AND artifact.report_card_id = card.id
+             AND artifact.verification_code = card.verification_code
+             AND artifact.artifact_type IN ('html', 'pdf')) = 2
+       LIMIT 1`,
+      [input.tenant_id, input.exam_series_id, input.student_id, input.verification_code ?? null,
+        input.reuse_existing === true, input.approved_result_version ?? null, input.generation_source_version ?? null],
+    );
+    return result.rows[0] ? { ...result.rows[0], reused: true } : null;
+  }
+
+  /** Snapshot, artifact manifests, audit and outbox event commit together, or all roll back. */
+  async saveGeneratedReportCard(
+    input: Record<string, unknown>,
+    artifacts: Array<Record<string, unknown>>,
+    audit: Record<string, unknown>,
+    onSaved?: (card: Record<string, any>, tx: Prisma.TransactionClient) => Promise<unknown>,
+  ): Promise<Record<string, any>> {
+    const tenantId = String(input.tenant_id);
+    return this.prisma.executeWithTenant(tenantId, String(input.actor_user_id), async (tx) => {
+      // Includes the school: concurrent requests cannot create competing current revisions.
+      await tx.$queryRawUnsafe(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))::text',
+        JSON.stringify([tenantId, input.exam_series_id, input.student_id]),
+      );
+      const scoped = new ExamsRepository(this.prisma);
+      scoped.reportTransaction = { tenantId, client: tx };
+      const existing = await scoped.findReusableReportCard(input);
+      if (existing) return existing;
+      if (input.reuse_existing === true) {
+        const protectedCard = await scoped.executeSql(
+          `SELECT id FROM student_report_cards WHERE tenant_id = $1 AND exam_series_id = $2::uuid
+            AND student_id = $3::uuid AND is_current = TRUE AND status IN ('under_review', 'approved', 'published')`,
+          [tenantId, input.exam_series_id, input.student_id],
+        );
+        if (protectedCard.rows.length) {
+          throw new ConflictException('This report is already submitted, approved or published. Use the controlled recall or regeneration workflow to change it.');
+        }
+      }
+      const card = await scoped.createGeneratedReportCardSnapshot(input);
+      const savedArtifacts = [];
+      for (const artifact of artifacts) {
+        savedArtifacts.push(await scoped.recordReportCardArtifact({
+          ...artifact, tenant_id: tenantId, report_card_id: card.id,
+          storage_key: `tenant/${tenantId}/exams/report-cards/${card.id}/${input.verification_code}.${artifact.artifact_type}`,
+        }));
+      }
+      await scoped.appendReportCardAuditLog({ ...audit, tenant_id: tenantId, report_card_id: card.id });
+      await onSaved?.(card, tx);
+      return { ...card, artifacts: savedArtifacts, reused: false };
+    });
+  }
+
+  async listReportCardGenerationScopes(input: { tenant_id: string }) {
+    const result = await this.executeSql(
+      `${REPORT_CARD_READINESS_CTES}, subject_counts AS (
+         SELECT exam_series_id, class_section_id, subject_id, ${REPORT_CARD_READINESS_COUNTS}
+         FROM readiness GROUP BY exam_series_id, class_section_id, subject_id
+       ), scope_counts AS (
+         SELECT exam_series_id, class_section_id, ${REPORT_CARD_READINESS_COUNTS}
+         FROM readiness GROUP BY exam_series_id, class_section_id
+       ), scopes AS (
+         SELECT DISTINCT exam_series_id, class_section_id FROM selected_windows
+       )
+       SELECT scopes.exam_series_id::text, scopes.class_section_id::text,
+         series.name AS exam_series_name,
+         COALESCE(section.custom_label, section.name, 'Class') AS class_name,
+         COALESCE(counts.expected_mark_count, 0) AS expected_mark_count,
+         COALESCE(counts.ready_mark_count, 0) AS ready_mark_count,
+         COALESCE(counts.not_ready_mark_count, 0) AS not_ready_mark_count,
+         COALESCE(counts.learner_count, 0) AS learner_count,
+         COALESCE(counts.expected_mark_count > 0 AND counts.not_ready_mark_count = 0, FALSE) AS ready,
+         COALESCE((SELECT jsonb_agg(jsonb_build_object(
+           'subject_id', subject_counts.subject_id::text,
+           'subject_name', COALESCE(subject.name, 'Subject'),
+           'expected_mark_count', subject_counts.expected_mark_count,
+           'ready_mark_count', subject_counts.ready_mark_count,
+           'missing_mark_count', subject_counts.missing_mark_count,
+           'draft_mark_count', subject_counts.draft_mark_count,
+           'submitted_mark_count', subject_counts.submitted_mark_count,
+           'reviewed_mark_count', subject_counts.reviewed_mark_count
+         ) ORDER BY subject.name)
+           FROM subject_counts
+           LEFT JOIN subjects subject ON subject.tenant_id = $1
+             AND subject.id::text = subject_counts.subject_id::text
+           WHERE subject_counts.exam_series_id = scopes.exam_series_id
+             AND subject_counts.class_section_id = scopes.class_section_id
+             AND subject_counts.not_ready_mark_count > 0
+         ), '[]'::jsonb) AS blockers
+       FROM scopes
+       JOIN exam_series series ON series.tenant_id = $1 AND series.id = scopes.exam_series_id
+       LEFT JOIN class_sections section ON section.tenant_id = $1 AND section.id::text = scopes.class_section_id::text
+       LEFT JOIN scope_counts counts ON counts.exam_series_id = scopes.exam_series_id
+         AND counts.class_section_id = scopes.class_section_id
+       ORDER BY series.name, class_name, scopes.exam_series_id, scopes.class_section_id`,
+      [input.tenant_id, null, null, null],
+    );
+    return result.rows;
   }
 
   async findReportCardArtifactByVerificationCode(input: {
@@ -2038,8 +2135,21 @@ export class ExamsRepository {
     tenant_id: string;
     exam_series_id: string;
     student_id: string;
+    read_cache?: ReportCardReadCache;
   }): Promise<Record<string, unknown>> {
-    const schoolResult = await this.executeSql(
+    const readShared = (sql: string, params: unknown[]) => {
+      if (!input.read_cache) return this.executeSql(sql, params);
+      const key = JSON.stringify([sql, params]);
+      const cached = input.read_cache.get(key);
+      if (cached) return cached;
+      const pending = this.executeSql(sql, params).catch((error) => {
+        input.read_cache!.delete(key);
+        throw error;
+      });
+      input.read_cache.set(key, pending);
+      return pending;
+    };
+    const schoolResult = await readShared(
       `
         SELECT
           tenant.name,
@@ -2057,7 +2167,7 @@ export class ExamsRepository {
       `,
       [input.tenant_id],
     );
-    const seriesResult = await this.executeSql(
+    const seriesResult = await readShared(
       `
         SELECT
           series.id::text,
@@ -2130,10 +2240,9 @@ export class ExamsRepository {
         LEFT JOIN LATERAL (
           SELECT
             COALESCE(
-              NULLIF(staff.full_name, ''),
               NULLIF(staff.display_name, ''),
-              NULLIF(staff.preferred_name, ''),
-              NULLIF(staff.email, ''),
+              NULLIF(account.full_name, ''),
+              NULLIF(account.display_name, ''),
               NULLIF(staff.staff_number, '')
             ) AS class_teacher_name,
             appointment.teacher_user_id::text AS class_teacher_user_id,
@@ -2142,6 +2251,7 @@ export class ExamsRepository {
           JOIN staff_profiles staff
             ON staff.tenant_id = appointment.tenant_id
            AND staff.user_id = appointment.teacher_user_id
+          LEFT JOIN users account ON account.id = appointment.teacher_user_id
           LEFT JOIN exam_report_card_signatures signature
             ON signature.tenant_id = appointment.tenant_id
            AND signature.signer_user_id = appointment.teacher_user_id
@@ -2162,13 +2272,12 @@ export class ExamsRepository {
       `,
       [input.tenant_id, input.student_id, input.exam_series_id],
     );
-    const principalResult = await this.executeSql(
+    const principalResult = await readShared(
       `
         SELECT
           signature.signer_user_id::text AS principal_user_id,
           signature.storage_path AS principal_signature_ref,
           COALESCE(
-            NULLIF(staff.full_name, ''),
             NULLIF(staff.display_name, ''),
             NULLIF(account.full_name, ''),
             NULLIF(account.display_name, ''),
@@ -2256,7 +2365,7 @@ export class ExamsRepository {
       `,
       [input.tenant_id, input.exam_series_id, input.student_id],
     );
-    const gradingPolicyResult = await this.executeSql(
+    const gradingPolicyResult = await readShared(
       `
         SELECT
           policy.id::text,
@@ -2299,7 +2408,7 @@ export class ExamsRepository {
     );
     const academicGradingSystemResult = gradingPolicyResult.rows.length > 0
       ? { rows: [] as Record<string, unknown>[], rowCount: 0 }
-      : await this.executeSql<Record<string, unknown>>(
+      : await readShared(
         `
           WITH preferred_grading AS (
             SELECT COALESCE(
@@ -2422,11 +2531,11 @@ export class ExamsRepository {
       `
         SELECT
           COUNT(*)::int AS total_days,
-          COUNT(*) FILTER (WHERE attendance.status IN ('present', 'late'))::int AS days_present,
-          COUNT(*) FILTER (WHERE attendance.status = 'absent')::int AS days_absent,
-          COUNT(*) FILTER (WHERE attendance.status = 'late')::int AS late_arrivals,
+          COUNT(*) FILTER (WHERE lower(attendance.status::text) IN ('present', 'late'))::int AS days_present,
+          COUNT(*) FILTER (WHERE lower(attendance.status::text) = 'absent')::int AS days_absent,
+          COUNT(*) FILTER (WHERE lower(attendance.status::text) = 'late')::int AS late_arrivals,
           ROUND(
-            (COUNT(*) FILTER (WHERE attendance.status IN ('present', 'late'))::numeric / NULLIF(COUNT(*), 0)) * 100,
+            (COUNT(*) FILTER (WHERE lower(attendance.status::text) IN ('present', 'late'))::numeric / NULLIF(COUNT(*), 0)) * 100,
             2
           )::float AS percentage
         FROM attendance_records attendance
@@ -2443,7 +2552,7 @@ export class ExamsRepository {
       `,
       [input.tenant_id, input.exam_series_id, input.student_id],
     );
-    const schoolPolicyResult = await this.executeSql(
+    const schoolPolicyResult = await readShared(
       `
         SELECT settings.show_rank, settings.show_attendance, settings.configuration,
           COALESCE((
@@ -2699,6 +2808,555 @@ export class ExamsRepository {
     return result.rows;
   }
 
+  async listScopedReportCards(input: {
+    tenant_id: string;
+    exam_series_id?: string;
+    class_section_id?: string;
+    stream_id?: string;
+    student_ids?: string[];
+    status_in?: string[];
+    limit?: number;
+    offset?: number;
+  }) {
+    const requestedLimit = Number.isFinite(input.limit) ? Math.floor(Number(input.limit)) : 50;
+    const requestedOffset = Number.isFinite(input.offset) ? Math.floor(Number(input.offset)) : 0;
+    const limit = requestedLimit > 0 ? Math.min(requestedLimit, 200) : 50;
+    const offset = Math.max(requestedOffset, 0);
+
+    const params: unknown[] = [input.tenant_id];
+    const conditions = ['card.tenant_id = $1', 'card.is_current = TRUE'];
+    let joins = '';
+    let paramIndex = 2;
+
+    if (input.exam_series_id) {
+      params.push(input.exam_series_id);
+      conditions.push(`card.exam_series_id = $${paramIndex}::uuid`);
+      paramIndex++;
+    }
+    if (input.student_ids?.length) {
+      params.push(input.student_ids);
+      conditions.push(`card.student_id = ANY($${paramIndex}::uuid[])`);
+      paramIndex++;
+    } else if (input.class_section_id || input.stream_id) {
+      joins = `
+        JOIN student_class_assignments sca
+          ON sca.tenant_id = card.tenant_id
+         AND sca.student_id = card.student_id::text
+         AND sca.status = 'active'`;
+      if (input.class_section_id) {
+        params.push(input.class_section_id);
+        conditions.push(`sca.class_section_id = $${paramIndex}::text`);
+        paramIndex++;
+      }
+      if (input.stream_id) {
+        params.push(input.stream_id);
+        conditions.push(`sca.stream_id = $${paramIndex}::text`);
+        paramIndex++;
+      }
+    }
+    if (input.status_in?.length) {
+      params.push(input.status_in);
+      conditions.push(`card.status = ANY($${paramIndex}::text[])`);
+      paramIndex++;
+    }
+
+    params.push(limit, offset);
+    const limitParam = paramIndex;
+    const offsetParam = paramIndex + 1;
+
+    const result = await this.executeSql(
+      `
+        SELECT
+          card.id::text,
+          card.tenant_id,
+          card.exam_series_id::text,
+          card.student_id::text,
+          card.report_snapshot_id,
+          card.status,
+          card.verification_code,
+          card.published_by_user_id::text,
+          card.revision_number,
+          card.is_current,
+          card.supersedes_report_card_id::text,
+          card.grading_policy_id::text,
+          card.grading_policy_version,
+          card.template_version,
+          card.approved_result_version,
+          card.submitted_by_user_id::text,
+          card.submitted_at::text,
+          card.approved_by_user_id::text,
+          card.approved_at::text,
+          card.approval_role,
+          card.withdrawn_by_user_id::text,
+          card.withdrawn_at::text,
+          card.workflow_version,
+          card.published_at::text,
+          card.metadata,
+          card.created_at::text,
+          card.updated_at::text,
+          series.name AS exam_series_name,
+          term.name AS term,
+          year.name AS academic_year,
+          concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS student_name,
+          student.admission_number,
+          cs.name AS class_name,
+          stream.name AS stream_name,
+          sca_display.class_section_id::text AS student_class_section_id,
+          sca_display.stream_id::text AS student_stream_id
+        FROM student_report_cards card
+        ${joins}
+        LEFT JOIN exam_series series
+          ON series.tenant_id = card.tenant_id AND series.id = card.exam_series_id
+        LEFT JOIN academic_terms term
+          ON term.tenant_id = series.tenant_id AND term.id::text = series.academic_term_id::text
+        LEFT JOIN academic_years year
+          ON year.tenant_id = term.tenant_id AND year.id = term.academic_year_id
+        LEFT JOIN students student
+          ON student.tenant_id = card.tenant_id AND student.id = card.student_id::text
+        LEFT JOIN student_class_assignments sca_display
+          ON sca_display.tenant_id = card.tenant_id
+         AND sca_display.student_id = card.student_id::text
+         AND sca_display.status = 'active'
+        LEFT JOIN class_sections cs
+          ON cs.tenant_id = sca_display.tenant_id AND cs.id = sca_display.class_section_id
+        LEFT JOIN class_streams stream
+          ON stream.tenant_id = sca_display.tenant_id AND stream.id::text = sca_display.stream_id::text
+        WHERE ${conditions.join(' AND ')}
+        ORDER BY cs.name ASC NULLS LAST, stream.name ASC NULLS LAST,
+                 student.last_name ASC NULLS LAST, student.first_name ASC NULLS LAST,
+                 card.created_at DESC
+        LIMIT $${limitParam}::integer
+        OFFSET $${offsetParam}::integer
+      `,
+      params,
+    );
+
+    return result.rows;
+  }
+
+  async getReportCardScopeSummary(input: {
+    tenant_id: string;
+    exam_series_id?: string;
+    class_section_id?: string;
+    stream_id?: string;
+    student_ids?: string[];
+    target_action?: string;
+  }) {
+    const params: unknown[] = [input.tenant_id];
+    const conditions = ['card.tenant_id = $1', 'card.is_current = TRUE'];
+    let joins = '';
+    let paramIndex = 2;
+
+    if (input.exam_series_id) {
+      params.push(input.exam_series_id);
+      conditions.push(`card.exam_series_id = $${paramIndex}::uuid`);
+      paramIndex++;
+    }
+    if (input.student_ids?.length) {
+      params.push(input.student_ids);
+      conditions.push(`card.student_id = ANY($${paramIndex}::uuid[])`);
+      paramIndex++;
+    } else if (input.class_section_id || input.stream_id) {
+      joins = `
+        JOIN student_class_assignments sca
+          ON sca.tenant_id = card.tenant_id
+         AND sca.student_id = card.student_id::text
+         AND sca.status = 'active'`;
+      if (input.class_section_id) {
+        params.push(input.class_section_id);
+        conditions.push(`sca.class_section_id = $${paramIndex}::text`);
+        paramIndex++;
+      }
+      if (input.stream_id) {
+        params.push(input.stream_id);
+        conditions.push(`sca.stream_id = $${paramIndex}::text`);
+        paramIndex++;
+      }
+    }
+
+    const targetSourceStatuses = input.target_action
+      ? ({
+          submit: ['draft_generated', 'draft', 'regeneration_required'],
+          approve: ['under_review'],
+          recall: ['under_review'],
+          publish: ['approved'],
+          unpublish: ['published'],
+        } as Record<string, string[]>)[input.target_action] ?? []
+      : [];
+
+    const result = await this.executeSql(
+      `
+        SELECT
+          COUNT(*)::integer AS total_cards,
+          ${targetSourceStatuses.length
+            ? `COUNT(*) FILTER (WHERE card.status = ANY($${paramIndex}::text[]))::integer AS eligible_cards,
+               COUNT(*) FILTER (WHERE card.status <> ALL($${paramIndex}::text[]))::integer AS ineligible_cards,`
+            : `0::integer AS eligible_cards, 0::integer AS ineligible_cards,`}
+          jsonb_object_agg(
+            COALESCE(card.status, 'unknown'),
+            status_group.cnt
+          ) FILTER (WHERE status_group.cnt > 0) AS status_counts
+        FROM student_report_cards card
+        ${joins}
+        LEFT JOIN LATERAL (
+          SELECT card.status, COUNT(*)::integer AS cnt
+          FROM student_report_cards c2
+          ${joins.replace(/sca/g, 'sca2').replace(/card/g, 'c2')}
+          WHERE ${conditions.map(c => c.replace(/card\./g, 'c2.').replace(/sca\./g, 'sca2.')).join(' AND ')}
+            AND c2.status = card.status
+          GROUP BY c2.status
+        ) status_group ON TRUE
+        WHERE ${conditions.join(' AND ')}
+      `,
+      targetSourceStatuses.length ? [...params, targetSourceStatuses] : params,
+    );
+
+    if (!result.rows[0] || Number(result.rows[0].total_cards) === 0) {
+      return { total_cards: 0, eligible_cards: 0, ineligible_cards: 0, status_counts: {} };
+    }
+
+    return result.rows[0];
+  }
+
+  async getReportCardScopeHierarchy(input: {
+    tenant_id: string;
+    exam_series_id?: string;
+  }) {
+    const params: unknown[] = [input.tenant_id];
+    const examFilter = input.exam_series_id
+      ? `AND card.exam_series_id = $2::uuid`
+      : '';
+    if (input.exam_series_id) params.push(input.exam_series_id);
+
+    const result = await this.executeSql(
+      `
+        SELECT
+          cs.id::text AS class_section_id,
+          cs.name AS class_name,
+          stream.id::text AS stream_id,
+          stream.name AS stream_name,
+          COUNT(DISTINCT card.id)::integer AS card_count,
+          COUNT(DISTINCT card.student_id)::integer AS student_count,
+          jsonb_object_agg(
+            COALESCE(card.status, 'unknown'),
+            sub.cnt
+          ) FILTER (WHERE sub.cnt > 0) AS status_counts
+        FROM student_report_cards card
+        JOIN student_class_assignments sca
+          ON sca.tenant_id = card.tenant_id
+         AND sca.student_id = card.student_id::text
+         AND sca.status = 'active'
+        JOIN class_sections cs
+          ON cs.tenant_id = sca.tenant_id AND cs.id = sca.class_section_id
+        LEFT JOIN class_streams stream
+          ON stream.tenant_id = sca.tenant_id AND stream.id::text = sca.stream_id::text
+        LEFT JOIN LATERAL (
+          SELECT c2.status, COUNT(*)::integer AS cnt
+          FROM student_report_cards c2
+          JOIN student_class_assignments sca2
+            ON sca2.tenant_id = c2.tenant_id
+           AND sca2.student_id = c2.student_id::text
+           AND sca2.status = 'active'
+          WHERE c2.tenant_id = card.tenant_id
+            AND c2.is_current = TRUE
+            AND sca2.class_section_id = sca.class_section_id
+            AND (stream.id IS NULL OR sca2.stream_id::text = stream.id::text)
+            ${examFilter.replace('card.', 'c2.')}
+            AND c2.status = card.status
+          GROUP BY c2.status
+        ) sub ON TRUE
+        WHERE card.tenant_id = $1
+          AND card.is_current = TRUE
+          ${examFilter}
+        GROUP BY cs.id, cs.name, stream.id, stream.name
+        ORDER BY cs.name, stream.name NULLS FIRST
+      `,
+      params,
+    );
+
+    return result.rows;
+  }
+
+  async bulkTransitionReportCards(input: {
+    tenant_id: string;
+    actor_user_id: string;
+    actor_role: string;
+    action: string;
+    reason?: string;
+    exam_series_id?: string;
+    class_section_id?: string;
+    stream_id?: string;
+    student_ids?: string[];
+    report_card_ids?: string[];
+  }) {
+    const action = input.action;
+    const sourceStatuses = ({
+      submit: ['draft_generated', 'draft', 'regeneration_required'],
+      approve: ['under_review'],
+      recall: ['under_review'],
+      publish: ['approved'],
+      unpublish: ['published'],
+    } as Record<string, string[]>)[action];
+    const targetStatus = ({
+      submit: 'under_review',
+      approve: 'approved',
+      recall: 'draft_generated',
+      publish: 'published',
+      unpublish: 'withdrawn',
+    } as Record<string, string>)[action];
+
+    if (!sourceStatuses || !targetStatus) return { updated: [], updated_count: 0, audit_count: 0, total_in_scope: 0, eligible_count: 0, skipped_count: 0 };
+
+    const params: unknown[] = [
+      input.tenant_id,
+      input.actor_user_id,
+      input.actor_role,
+      targetStatus,
+      sourceStatuses,
+      input.reason ?? null,
+    ];
+    let paramIndex = 7;
+    const scopeConditions: string[] = [];
+    let scopeJoins = '';
+
+    if (input.report_card_ids?.length) {
+      params.push(input.report_card_ids);
+      scopeConditions.push(`card.id = ANY($${paramIndex}::uuid[])`);
+      paramIndex++;
+    } else {
+      if (input.exam_series_id) {
+        params.push(input.exam_series_id);
+        scopeConditions.push(`card.exam_series_id = $${paramIndex}::uuid`);
+        paramIndex++;
+      }
+      if (input.student_ids?.length) {
+        params.push(input.student_ids);
+        scopeConditions.push(`card.student_id = ANY($${paramIndex}::uuid[])`);
+        paramIndex++;
+      } else if (input.class_section_id || input.stream_id) {
+        scopeJoins = `
+          JOIN student_class_assignments sca
+            ON sca.tenant_id = card.tenant_id
+           AND sca.student_id = card.student_id::text
+           AND sca.status = 'active'`;
+        if (input.class_section_id) {
+          params.push(input.class_section_id);
+          scopeConditions.push(`sca.class_section_id = $${paramIndex}::text`);
+          paramIndex++;
+        }
+        if (input.stream_id) {
+          params.push(input.stream_id);
+          scopeConditions.push(`sca.stream_id = $${paramIndex}::text`);
+          paramIndex++;
+        }
+      }
+    }
+
+    const scopeWhere = scopeConditions.length
+      ? `AND ${scopeConditions.join(' AND ')}`
+      : '';
+
+    const result = await this.executeSql(
+      `
+        WITH eligible AS (
+          SELECT card.id
+          FROM student_report_cards card
+          ${scopeJoins}
+          WHERE card.tenant_id = $1
+            AND card.is_current = TRUE
+            AND card.status = ANY($5::text[])
+            ${scopeWhere}
+          FOR UPDATE OF card
+        ), updated AS (
+          UPDATE student_report_cards card
+          SET status = $4,
+              submitted_by_user_id = CASE
+                WHEN $4 = 'under_review' THEN $2::uuid
+                WHEN $4 = 'draft_generated' THEN NULL
+                ELSE card.submitted_by_user_id
+              END,
+              submitted_at = CASE
+                WHEN $4 = 'under_review' THEN NOW()
+                WHEN $4 = 'draft_generated' THEN NULL
+                ELSE card.submitted_at
+              END,
+              approved_by_user_id = CASE
+                WHEN $4 = 'approved' THEN $2::uuid
+                WHEN $4 = 'draft_generated' THEN NULL
+                ELSE card.approved_by_user_id
+              END,
+              approved_at = CASE
+                WHEN $4 = 'approved' THEN NOW()
+                WHEN $4 = 'draft_generated' THEN NULL
+                ELSE card.approved_at
+              END,
+              approval_role = CASE
+                WHEN $4 = 'approved' THEN $3
+                WHEN $4 = 'draft_generated' THEN NULL
+                ELSE card.approval_role
+              END,
+              published_by_user_id = CASE WHEN $4 = 'published' THEN $2::uuid ELSE card.published_by_user_id END,
+              published_at = CASE WHEN $4 = 'published' THEN NOW() ELSE card.published_at END,
+              withdrawn_by_user_id = CASE WHEN $4 = 'withdrawn' THEN $2::uuid ELSE NULL END,
+              withdrawn_at = CASE WHEN $4 = 'withdrawn' THEN NOW() ELSE NULL END,
+              workflow_version = card.workflow_version + 1,
+              metadata = card.metadata || jsonb_strip_nulls(jsonb_build_object(
+                'last_transition', '${action}'::text,
+                'transitioned_by', $2::text,
+                'transitioned_by_role', $3::text,
+                'transitioned_at', NOW(),
+                'transition_reason', $6::text,
+                'bulk_transition', TRUE
+              )),
+              updated_at = NOW()
+          FROM eligible
+          WHERE card.id = eligible.id
+          RETURNING card.id::text, card.student_id::text, card.exam_series_id::text, card.status
+        ), updated_with_names AS (
+          SELECT u.id, u.student_id, u.exam_series_id, u.status,
+                 concat_ws(' ', s.first_name, s.middle_name, s.last_name) AS student_name
+          FROM updated u
+          LEFT JOIN students s ON s.tenant_id = $1 AND s.id = u.student_id::text
+        ), audit AS (
+          INSERT INTO student_report_card_audit_logs (
+            tenant_id, report_card_id, exam_series_id, student_id, action, actor_user_id, metadata
+          )
+          SELECT
+            $1,
+            u.id::uuid,
+            u.exam_series_id::uuid,
+            u.student_id::uuid,
+            CASE '${action}'
+              WHEN 'submit' THEN 'report_card.submitted'
+              WHEN 'approve' THEN 'report_card.approved'
+              WHEN 'recall' THEN 'report_card.recalled'
+              WHEN 'publish' THEN 'report_card.published'
+              WHEN 'unpublish' THEN 'report_card.withdrawn'
+            END,
+            $2::uuid,
+            jsonb_strip_nulls(jsonb_build_object(
+              'resulting_status', u.status,
+              'actor_role', $3::text,
+              'reason', $6::text,
+              'workflow_version', (SELECT workflow_version FROM student_report_cards WHERE id = u.id::uuid),
+              'bulk_transition', TRUE
+            ))
+          FROM updated_with_names u
+          RETURNING report_card_id::text
+        ), total_in_scope AS (
+          SELECT COUNT(*)::integer AS total
+          FROM student_report_cards card
+          ${scopeJoins}
+          WHERE card.tenant_id = $1
+            AND card.is_current = TRUE
+            ${scopeWhere}
+        )
+        SELECT
+          (SELECT json_agg(json_build_object(
+            'id', u.id, 'student_id', u.student_id,
+            'exam_series_id', u.exam_series_id, 'status', u.status,
+            'student_name', u.student_name
+          )) FROM updated_with_names u) AS updated_cards,
+          (SELECT COUNT(*)::integer FROM updated_with_names) AS updated_count,
+          (SELECT COUNT(*)::integer FROM audit) AS audit_count,
+          (SELECT total FROM total_in_scope) AS total_in_scope,
+          (SELECT COUNT(*)::integer FROM eligible) AS eligible_count
+      `,
+      params,
+    );
+
+    const row = result.rows[0] ?? {};
+    return {
+      updated: Array.isArray(row.updated_cards) ? row.updated_cards : [],
+      updated_count: Number(row.updated_count ?? 0),
+      audit_count: Number(row.audit_count ?? 0),
+      total_in_scope: Number(row.total_in_scope ?? 0),
+      eligible_count: Number(row.eligible_count ?? 0),
+      skipped_count: Number(row.eligible_count ?? 0) - Number(row.updated_count ?? 0),
+    };
+  }
+
+  async listReportCardIdsForBulkDownload(input: {
+    tenant_id: string;
+    exam_series_id?: string;
+    class_section_id?: string;
+    stream_id?: string;
+    student_ids?: string[];
+    report_card_ids?: string[];
+    limit?: number;
+  }) {
+    const maxCards = Math.min(Number(input.limit) || 500, 500);
+    const params: unknown[] = [input.tenant_id];
+    const conditions = ['card.tenant_id = $1', 'card.is_current = TRUE'];
+    let joins = '';
+    let paramIndex = 2;
+
+    if (input.report_card_ids?.length) {
+      params.push(input.report_card_ids);
+      conditions.push(`card.id = ANY($${paramIndex}::uuid[])`);
+      paramIndex++;
+    } else {
+      if (input.exam_series_id) {
+        params.push(input.exam_series_id);
+        conditions.push(`card.exam_series_id = $${paramIndex}::uuid`);
+        paramIndex++;
+      }
+      if (input.student_ids?.length) {
+        params.push(input.student_ids);
+        conditions.push(`card.student_id = ANY($${paramIndex}::uuid[])`);
+        paramIndex++;
+      } else if (input.class_section_id || input.stream_id) {
+        joins = `
+          JOIN student_class_assignments sca
+            ON sca.tenant_id = card.tenant_id
+           AND sca.student_id = card.student_id::text
+           AND sca.status = 'active'`;
+        if (input.class_section_id) {
+          params.push(input.class_section_id);
+          conditions.push(`sca.class_section_id = $${paramIndex}::text`);
+          paramIndex++;
+        }
+        if (input.stream_id) {
+          params.push(input.stream_id);
+          conditions.push(`sca.stream_id = $${paramIndex}::text`);
+          paramIndex++;
+        }
+      }
+    }
+
+    params.push(maxCards);
+
+    const result = await this.executeSql(
+      `
+        SELECT card.id::text, card.verification_code, card.metadata,
+               card.status, card.student_id::text,
+               concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS student_name,
+               student.admission_number,
+               cs.name AS class_name,
+               stream.name AS stream_name
+        FROM student_report_cards card
+        ${joins}
+        LEFT JOIN students student
+          ON student.tenant_id = card.tenant_id AND student.id = card.student_id::text
+        LEFT JOIN student_class_assignments sca_d
+          ON sca_d.tenant_id = card.tenant_id
+         AND sca_d.student_id = card.student_id::text
+         AND sca_d.status = 'active'
+        LEFT JOIN class_sections cs
+          ON cs.tenant_id = sca_d.tenant_id AND cs.id = sca_d.class_section_id
+        LEFT JOIN class_streams stream
+          ON stream.tenant_id = sca_d.tenant_id AND stream.id::text = sca_d.stream_id::text
+        WHERE ${conditions.join(' AND ')}
+        ORDER BY cs.name ASC NULLS LAST, stream.name ASC NULLS LAST,
+                 student.last_name ASC NULLS LAST, student.first_name ASC NULLS LAST
+        LIMIT $${paramIndex}::integer
+      `,
+      params,
+    );
+
+    return result.rows;
+  }
+
   async listGuardianReportCards(input: {
     tenant_id: string;
     guardian_user_id: string;
@@ -2889,7 +3547,7 @@ export class ExamsRepository {
     return result.rows[0] ?? null;
   }
 
-  async findAssessmentScope(input: { tenant_id: string; assessment_id: string }) {
+  async findAssessmentScope(input: { tenant_id: string; assessment_id: string; class_section_id?: string }) {
     const result = await this.executeSql(
       `
         SELECT
@@ -2907,12 +3565,13 @@ export class ExamsRepository {
           ON entry_window.tenant_id = assessment.tenant_id
          AND entry_window.exam_series_id = assessment.exam_series_id
          AND entry_window.subject_id = assessment.subject_id
+         AND ($3::uuid IS NULL OR entry_window.class_section_id = $3::uuid)
         WHERE assessment.tenant_id = $1
           AND assessment.id = $2::uuid
         ORDER BY entry_window.created_at DESC NULLS LAST
         LIMIT 1
       `,
-      [input.tenant_id, input.assessment_id],
+      [input.tenant_id, input.assessment_id, input.class_section_id ?? null],
     );
 
     return result.rows[0] ?? null;
@@ -3730,6 +4389,7 @@ export class ExamsRepository {
     action: 'approve' | 'return_for_correction';
     actor_user_id: string;
     department_ids?: string[];
+    reason?: string;
   }) {
     const status = input.action === 'approve' ? 'reviewed' : 'draft';
     const departmentIds = Array.isArray(input.department_ids)
@@ -3763,6 +4423,7 @@ export class ExamsRepository {
       `;
     const result = await this.executeSql(
       `
+        WITH updated AS (
         UPDATE exam_marks${departmentIds.length > 0 ? ' mark' : ''}
         SET status = $3,
             updated_by_user_id = $4::uuid,
@@ -3771,10 +4432,21 @@ export class ExamsRepository {
         ${departmentJoin}
         ${statusPredicate}
         RETURNING ${departmentIds.length > 0 ? 'mark.*' : '*'}
+        ), audits AS (
+          INSERT INTO exam_mark_audit_logs (
+            tenant_id, mark_id, exam_series_id, assessment_id, student_id,
+            action, actor_user_id, previous_score, new_score, reason, metadata
+          )
+          SELECT tenant_id, id, exam_series_id, assessment_id, student_id,
+            CASE WHEN $5::text = 'approve' THEN 'marks.reviewed' ELSE 'marks.returned' END,
+            $4::uuid, score, score, $${departmentIds.length > 0 ? 7 : 6}::text,
+            jsonb_build_object('action', $5::text, 'resulting_status', status)
+          FROM updated RETURNING id
+        ) SELECT * FROM updated
       `,
       departmentIds.length > 0
-        ? [input.tenant_id, input.mark_ids, status, input.actor_user_id, input.action, departmentIds]
-        : [input.tenant_id, input.mark_ids, status, input.actor_user_id, input.action]
+        ? [input.tenant_id, input.mark_ids, status, input.actor_user_id, input.action, departmentIds, input.reason ?? null]
+        : [input.tenant_id, input.mark_ids, status, input.actor_user_id, input.action, input.reason ?? null]
     );
     return result.rows;
   }
@@ -3802,7 +4474,7 @@ export class ExamsRepository {
   }) {
     const result = await this.executeSql(
       `
-        UPDATE exam_marks
+        WITH updated AS (UPDATE exam_marks
         SET status = 'locked',
             updated_by_user_id = $3::uuid,
             locked_at = NOW(),
@@ -3810,7 +4482,15 @@ export class ExamsRepository {
         WHERE tenant_id = $1
           AND id = ANY($2::uuid[])
           AND status = 'reviewed'
-        RETURNING *
+        RETURNING *), audits AS (
+          INSERT INTO exam_mark_audit_logs (
+            tenant_id, mark_id, exam_series_id, assessment_id, student_id,
+            action, actor_user_id, previous_score, new_score, metadata
+          )
+          SELECT tenant_id, id, exam_series_id, assessment_id, student_id,
+            'marks.locked', $3::uuid, score, score, jsonb_build_object('resulting_status', status)
+          FROM updated RETURNING id
+        ) SELECT * FROM updated
       `,
       [input.tenant_id, input.mark_ids, input.actor_user_id]
     );
@@ -5320,20 +6000,29 @@ export class ExamsRepository {
               AND assignment.mark_entry_allowed = TRUE
               AND assignment.effective_from <= CURRENT_DATE
               AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
+              AND ${teacherMarkStudentScopeSql('mark_window', 'series', 'student.id', '$4')}
           )
         )
         AND ($5::uuid IS NULL OR mark_window.class_section_id = $5::uuid)
         AND ($8::uuid IS NULL OR mark_window.subject_id = $8::uuid)
         AND ($9::uuid IS NULL OR assessment.id = $9::uuid)
-        AND mark_window.status = 'open'
-        AND (mark_window.opens_at <= NOW() OR mark_window.last_action = 'opened')
-        AND mark_window.closes_at >= NOW()
+        AND (
+          ($10::boolean AND mark.status IN ('submitted', 'reviewed', 'approved', 'locked', 'published'))
+          OR (NOT $10::boolean
+            AND ($4::uuid IS NULL OR NOT ${teacherMarkSheetSubmittedSql('mark_window', 'series', 'assessment.id', '$4')})
+            AND mark_window.status = 'open'
+            AND ${markEntryHasStartedSql('mark_window', 'series')}
+            AND mark_window.closes_at >= NOW()
+            AND series.locked_at IS NULL AND series.published_at IS NULL
+            AND series.status NOT IN ('locked', 'published', 'archived'))
+        )
       ORDER BY
         class_section.name NULLS LAST,
         subject.name NULLS LAST,
         assessment.name,
         student.admission_number NULLS LAST,
-        student.created_at ASC
+        student.created_at ASC,
+        student.id ASC
       LIMIT $6::integer
       OFFSET $7::integer`;
     const params: any[] = [
@@ -5346,6 +6035,7 @@ export class ExamsRepository {
       offset,
       filters.subject_id ?? null,
       filters.assessment_id ?? null,
+      filters.view === 'submitted',
     ];
     const result = await this.executeSql(query, params);
     return result.rows;
@@ -5934,659 +6624,17 @@ export class ExamsRepository {
     return result.rows;
   }
 
-  private analyticsMarkScope(alias: string, scope: ExamAnalyticsScope): string {
-    if (scope.level === 'school') {
-      return 'TRUE';
-    }
-
-    if (!scope.actor_user_id) {
-      throw new ConflictException('An authenticated staff identity is required for scoped analytics');
-    }
-
-    if (scope.level === 'department') {
-      return `
-        EXISTS (
-          SELECT 1
-          FROM subjects scoped_subject
-          JOIN academics_department_hod_appointments hod_appointment
-            ON hod_appointment.tenant_id = scoped_subject.tenant_id
-           AND hod_appointment.department_id::text = scoped_subject.department_id::text
-          WHERE scoped_subject.tenant_id = ${alias}.tenant_id
-            AND scoped_subject.id::text = ${alias}.subject_id::text
-            AND hod_appointment.teacher_user_id::text = $2
-            AND hod_appointment.status = 'active'
-            AND (
-              hod_appointment.effective_from IS NULL
-              OR hod_appointment.effective_from::date <= CURRENT_DATE
-            )
-            AND (
-              hod_appointment.effective_to IS NULL
-              OR hod_appointment.effective_to::date >= CURRENT_DATE
-            )
-        )
-      `;
-    }
-
-    return `
-      (
-        EXISTS (
-          SELECT 1
-          FROM teacher_subject_assignments teacher_assignment
-          WHERE teacher_assignment.tenant_id = ${alias}.tenant_id
-            AND teacher_assignment.teacher_user_id::text = $2
-            AND teacher_assignment.class_section_id::text = ${alias}.class_section_id::text
-            AND teacher_assignment.subject_id::text = ${alias}.subject_id::text
-            AND teacher_assignment.status = 'active'
-            AND (
-              teacher_assignment.effective_from IS NULL
-              OR teacher_assignment.effective_from::date <= CURRENT_DATE
-            )
-            AND (
-              teacher_assignment.effective_to IS NULL
-              OR teacher_assignment.effective_to::date >= CURRENT_DATE
-            )
-        )
-        OR EXISTS (
-          SELECT 1
-          FROM academics_class_teachers class_teacher
-          WHERE class_teacher.tenant_id = ${alias}.tenant_id
-            AND class_teacher.teacher_user_id::text = $2
-            AND class_teacher.class_section_id::text = ${alias}.class_section_id::text
-            AND class_teacher.is_active = TRUE
-            AND class_teacher.status = 'active'
-            AND (
-              class_teacher.effective_from IS NULL
-              OR class_teacher.effective_from::date <= CURRENT_DATE
-            )
-            AND (
-              class_teacher.effective_to IS NULL
-              OR class_teacher.effective_to::date >= CURRENT_DATE
-            )
-        )
-      )
-    `;
-  }
-
-  private analyticsWindowScope(alias: string, scope: ExamAnalyticsScope): string {
-    if (scope.level === 'school') {
-      return 'TRUE';
-    }
-
-    if (!scope.actor_user_id) {
-      throw new ConflictException('An authenticated staff identity is required for scoped analytics');
-    }
-
-    if (scope.level === 'department') {
-      return `
-        EXISTS (
-          SELECT 1
-          FROM subjects scoped_subject
-          JOIN academics_department_hod_appointments hod_appointment
-            ON hod_appointment.tenant_id = scoped_subject.tenant_id
-           AND hod_appointment.department_id::text = scoped_subject.department_id::text
-          WHERE scoped_subject.tenant_id = ${alias}.tenant_id
-            AND scoped_subject.id::text = ${alias}.subject_id::text
-            AND hod_appointment.teacher_user_id::text = $2
-            AND hod_appointment.status = 'active'
-            AND (
-              hod_appointment.effective_from IS NULL
-              OR hod_appointment.effective_from::date <= CURRENT_DATE
-            )
-            AND (
-              hod_appointment.effective_to IS NULL
-              OR hod_appointment.effective_to::date >= CURRENT_DATE
-            )
-        )
-      `;
-    }
-
-    return `
-      (
-        EXISTS (
-          SELECT 1
-          FROM teacher_subject_assignments teacher_assignment
-          WHERE teacher_assignment.tenant_id = ${alias}.tenant_id
-            AND teacher_assignment.teacher_user_id::text = $2
-            AND teacher_assignment.class_section_id::text = ${alias}.class_section_id::text
-            AND teacher_assignment.subject_id::text = ${alias}.subject_id::text
-            AND teacher_assignment.status = 'active'
-            AND (
-              teacher_assignment.effective_from IS NULL
-              OR teacher_assignment.effective_from::date <= CURRENT_DATE
-            )
-            AND (
-              teacher_assignment.effective_to IS NULL
-              OR teacher_assignment.effective_to::date >= CURRENT_DATE
-            )
-        )
-        OR EXISTS (
-          SELECT 1
-          FROM academics_class_teachers class_teacher
-          WHERE class_teacher.tenant_id = ${alias}.tenant_id
-            AND class_teacher.teacher_user_id::text = $2
-            AND class_teacher.class_section_id::text = ${alias}.class_section_id::text
-            AND class_teacher.is_active = TRUE
-            AND class_teacher.status = 'active'
-            AND (
-              class_teacher.effective_from IS NULL
-              OR class_teacher.effective_from::date <= CURRENT_DATE
-            )
-            AND (
-              class_teacher.effective_to IS NULL
-              OR class_teacher.effective_to::date >= CURRENT_DATE
-            )
-        )
-      )
-    `;
-  }
-
-  private analyticsSeriesScope(alias: string, scope: ExamAnalyticsScope): string {
-    if (scope.level === 'school') {
-      return 'TRUE';
-    }
-
-    return `
-      EXISTS (
-        SELECT 1
-        FROM exam_mark_entry_windows scoped_window
-        WHERE scoped_window.tenant_id = ${alias}.tenant_id
-          AND scoped_window.exam_series_id = ${alias}.id
-          AND ${this.analyticsWindowScope('scoped_window', scope)}
-      )
-    `;
-  }
-
-  async getAnalytics(
-    tenantId: string,
-    scope: ExamAnalyticsScope = {
-      level: 'school',
-      actor_user_id: null,
-      role: 'system',
-    },
-  ) {
-    const queryParams = scope.level === 'school'
-      ? [tenantId]
-      : [tenantId, scope.actor_user_id];
-    const markScope = this.analyticsMarkScope('mark', scope);
-    const examMarksScope = this.analyticsMarkScope('exam_marks', scope);
-    const windowScope = this.analyticsWindowScope('mark_window', scope);
-    const seriesScope = this.analyticsSeriesScope('exam_series', scope);
-    const kpiResult = await this.executeSql(
-      `
-        WITH final_entered_marks AS (
-          SELECT
-            mark.id,
-            (mark.score / assessment.max_score) * 100.0 AS percentage
-          FROM exam_marks mark
-          JOIN exam_assessments assessment
-            ON assessment.tenant_id = mark.tenant_id
-           AND assessment.id = mark.assessment_id
-          WHERE mark.tenant_id = $1
-            AND ${markScope}
-            AND mark.status IN ('locked', 'published')
-            AND mark.score_status = 'entered'
-            AND mark.score IS NOT NULL
-            AND assessment.max_score > 0
-            AND EXISTS (
-              SELECT 1
-              FROM student_report_cards card
-              WHERE card.tenant_id = mark.tenant_id
-                AND card.exam_series_id = mark.exam_series_id
-                AND card.student_id::text = mark.student_id::text
-                AND card.is_current = TRUE
-                AND card.status IN ('approved', 'published')
-            )
-        ),
-        expected_marks AS (
-          SELECT DISTINCT
-            student.id AS student_id,
-            mark_window.exam_series_id,
-            assessment.id AS assessment_id
-          FROM students student
-          JOIN student_class_assignments class_assignment
-            ON class_assignment.tenant_id = student.tenant_id
-           AND class_assignment.student_id = student.id
-           AND class_assignment.status = 'active'
-          JOIN exam_mark_entry_windows mark_window
-            ON mark_window.tenant_id = class_assignment.tenant_id
-           AND mark_window.class_section_id::text = class_assignment.class_section_id
-           AND mark_window.status = 'open'
-          JOIN student_subject_enrollments subject_enrollment
-            ON subject_enrollment.tenant_id = student.tenant_id
-           AND subject_enrollment.student_id = student.id
-           AND subject_enrollment.class_section_id = mark_window.class_section_id::text
-           AND subject_enrollment.subject_id = mark_window.subject_id::text
-           AND subject_enrollment.status = 'active'
-          JOIN exam_assessments assessment
-            ON assessment.tenant_id = mark_window.tenant_id
-           AND assessment.exam_series_id = mark_window.exam_series_id
-           AND assessment.subject_id = mark_window.subject_id
-          WHERE student.tenant_id = $1
-            AND student.status = 'active'
-            AND ${windowScope}
-        ),
-        expected_mark_evidence AS (
-          SELECT
-            expected.student_id,
-            expected.exam_series_id,
-            expected.assessment_id,
-            mark.id AS mark_id,
-            mark.score_status
-          FROM expected_marks expected
-          LEFT JOIN exam_marks mark
-            ON mark.tenant_id = $1
-           AND mark.exam_series_id = expected.exam_series_id
-           AND mark.assessment_id = expected.assessment_id
-           AND mark.student_id::text = expected.student_id
-        )
-        SELECT
-          (SELECT ROUND(AVG(percentage), 2)::numeric FROM final_entered_marks) AS school_average,
-          (
-            SELECT COUNT(*)::integer
-            FROM exam_marks
-            WHERE tenant_id = $1
-              AND ${examMarksScope}
-              AND status = 'submitted'
-          ) AS pending_reviews,
-          (
-            SELECT COUNT(*)::integer
-            FROM expected_mark_evidence
-            WHERE mark_id IS NULL
-               OR score_status IN ('not_assessed', 'incomplete')
-          ) AS missing_marks_alerts,
-          (
-            SELECT COUNT(*)::integer
-            FROM exam_series
-            WHERE tenant_id = $1
-              AND ${seriesScope}
-              AND status IN ('draft', 'submitted', 'reviewed')
-              AND CURRENT_DATE BETWEEN starts_on AND ends_on
-          ) AS active_exams,
-          (SELECT COUNT(*)::integer FROM final_entered_marks) AS final_mark_count,
-          (
-            SELECT COUNT(*)::integer
-            FROM exam_marks
-            WHERE tenant_id = $1
-              AND ${examMarksScope}
-              AND status IN ('locked', 'published')
-              AND score_status <> 'entered'
-              AND EXISTS (
-                SELECT 1
-                FROM student_report_cards card
-                WHERE card.tenant_id = exam_marks.tenant_id
-                  AND card.exam_series_id = exam_marks.exam_series_id
-                  AND card.student_id::text = exam_marks.student_id::text
-                  AND card.is_current = TRUE
-                  AND card.status IN ('approved', 'published')
-              )
-          ) AS explicit_evidence_count,
-          (
-            SELECT COUNT(*)::integer
-            FROM expected_mark_evidence
-            WHERE mark_id IS NULL
-               OR score_status IN ('not_assessed', 'incomplete')
-          ) AS missing_or_incomplete_count
-      `,
-      queryParams,
-    );
-    const kpiRow = kpiResult.rows[0] ?? {};
-    const kpis = {
-      school_average:
-        kpiRow.school_average === null || kpiRow.school_average === undefined
-          ? null
-          : Number(kpiRow.school_average),
-      pending_reviews: Number(kpiRow.pending_reviews ?? 0),
-      missing_marks_alerts: Number(kpiRow.missing_marks_alerts ?? 0),
-      active_exams: Number(kpiRow.active_exams ?? 0),
-    };
-    const dataQuality = {
-      final_mark_count: Number(kpiRow.final_mark_count ?? 0),
-      explicit_evidence_count: Number(kpiRow.explicit_evidence_count ?? 0),
-      missing_or_incomplete_count: Number(kpiRow.missing_or_incomplete_count ?? 0),
-    };
-
-    const trendsResult = await this.executeSql(
-      `
-        SELECT
-          series.id::text AS exam_series_id,
-          series.name AS exam_series_name,
-          series.starts_on::text AS starts_on,
-          ROUND(AVG((mark.score / assessment.max_score) * 100.0), 2)::numeric AS average_score
-        FROM exam_series series
-        JOIN exam_marks mark
-          ON mark.tenant_id = series.tenant_id
-         AND mark.exam_series_id = series.id
-        JOIN exam_assessments assessment
-          ON assessment.tenant_id = mark.tenant_id
-         AND assessment.id = mark.assessment_id
-        WHERE series.tenant_id = $1
-          AND ${markScope}
-          AND mark.status IN ('locked', 'published')
-          AND mark.score_status = 'entered'
-          AND mark.score IS NOT NULL
-          AND assessment.max_score > 0
-          AND EXISTS (
-            SELECT 1
-            FROM student_report_cards card
-            WHERE card.tenant_id = mark.tenant_id
-              AND card.exam_series_id = mark.exam_series_id
-              AND card.student_id::text = mark.student_id::text
-              AND card.is_current = TRUE
-              AND card.status IN ('approved', 'published')
-          )
-        GROUP BY series.id, series.name, series.starts_on
-        ORDER BY series.starts_on ASC, series.id ASC
-      `,
-      queryParams,
-    );
-    const trends = trendsResult.rows.map((row: any) => ({
-      exam_series_id: row.exam_series_id,
-      exam_series_name: row.exam_series_name,
-      starts_on: row.starts_on,
-      average_score: Number(row.average_score),
-    }));
-
-    const subjectPerformanceResult = await this.executeSql(
-      `
-        WITH final_marks AS (
-          SELECT
-            mark.tenant_id,
-            mark.exam_series_id,
-            subject.id AS subject_id,
-            subject.name AS subject_name,
-            series.ends_on,
-            (mark.score / assessment.max_score) * 100.0 AS percentage
-          FROM exam_marks mark
-          JOIN exam_assessments assessment
-            ON assessment.tenant_id = mark.tenant_id
-           AND assessment.id = mark.assessment_id
-          JOIN exam_series series
-            ON series.tenant_id = mark.tenant_id
-           AND series.id = mark.exam_series_id
-          JOIN subjects subject
-            ON subject.tenant_id = mark.tenant_id
-           AND subject.id = mark.subject_id::text
-          WHERE mark.tenant_id = $1
-            AND ${markScope}
-            AND mark.status IN ('locked', 'published')
-            AND mark.score_status = 'entered'
-            AND mark.score IS NOT NULL
-            AND assessment.max_score > 0
-            AND EXISTS (
-              SELECT 1
-              FROM student_report_cards card
-              WHERE card.tenant_id = mark.tenant_id
-                AND card.exam_series_id = mark.exam_series_id
-                AND card.student_id::text = mark.student_id::text
-                AND card.is_current = TRUE
-                AND card.status IN ('approved', 'published')
-            )
-        ),
-        graded_marks AS (
-          SELECT
-            final_mark.*,
-            boundary.label AS grade_label,
-            COALESCE(boundary.is_pass, final_mark.percentage >= 50.0) AS is_pass
-          FROM final_marks final_mark
-          LEFT JOIN LATERAL (
-            SELECT policy.id
-            FROM exam_grading_policies policy
-            WHERE policy.tenant_id = final_mark.tenant_id
-              AND (policy.exam_series_id = final_mark.exam_series_id OR policy.exam_series_id IS NULL)
-              AND policy.status IN ('active', 'replaced', 'archived')
-              AND (policy.effective_from IS NULL OR policy.effective_from::date <= final_mark.ends_on)
-              AND (policy.effective_to IS NULL OR policy.effective_to::date >= final_mark.ends_on)
-            ORDER BY
-              (policy.exam_series_id = final_mark.exam_series_id) DESC,
-              policy.version DESC,
-              policy.activated_at DESC NULLS LAST
-            LIMIT 1
-          ) selected_policy ON TRUE
-          LEFT JOIN LATERAL (
-            SELECT policy_boundary.label, policy_boundary.is_pass
-            FROM exam_grading_policy_boundaries policy_boundary
-            WHERE policy_boundary.tenant_id = final_mark.tenant_id
-              AND policy_boundary.grading_policy_id = selected_policy.id
-              AND policy_boundary.min_score <= final_mark.percentage
-            ORDER BY policy_boundary.min_score DESC
-            LIMIT 1
-          ) boundary ON TRUE
-        )
-        SELECT
-          subject_id,
-          subject_name,
-          ROUND(AVG(percentage), 2)::numeric AS mean_score,
-          ROUND(AVG(CASE WHEN is_pass THEN 100.0 ELSE 0.0 END), 2)::numeric AS pass_rate,
-          COUNT(*) FILTER (
-            WHERE UPPER(grade_label) = 'EE' OR grade_label ILIKE '%exceed%'
-          )::integer AS ee_count,
-          COUNT(*) FILTER (
-            WHERE UPPER(grade_label) = 'ME' OR grade_label ILIKE '%meet%'
-          )::integer AS me_count,
-          COUNT(*) FILTER (
-            WHERE UPPER(grade_label) = 'AE' OR grade_label ILIKE '%approach%'
-          )::integer AS ae_count,
-          COUNT(*) FILTER (
-            WHERE UPPER(grade_label) = 'BE' OR grade_label ILIKE '%below%'
-          )::integer AS be_count
-        FROM graded_marks
-        GROUP BY subject_id, subject_name
-        ORDER BY subject_name ASC
-      `,
-      queryParams,
-    );
-    const subjectPerformance = subjectPerformanceResult.rows.map((row: any) => ({
-      subject_id: row.subject_id,
-      subject_name: row.subject_name,
-      mean_score: Number(row.mean_score),
-      pass_rate: Number(row.pass_rate),
-      ee_count: Number(row.ee_count ?? 0),
-      me_count: Number(row.me_count ?? 0),
-      ae_count: Number(row.ae_count ?? 0),
-      be_count: Number(row.be_count ?? 0),
-    }));
-
-    const topPerformersResult = await this.executeSql(
-      `
-        SELECT
-          student.id AS student_id,
-          concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS student_name,
-          student.admission_number,
-          ROUND(AVG((mark.score / assessment.max_score) * 100.0), 2)::numeric AS average_percentage,
-          COUNT(mark.id)::integer AS assessments_taken
-        FROM students student
-        JOIN exam_marks mark
-          ON mark.tenant_id = student.tenant_id
-         AND mark.student_id::text = student.id
-        JOIN exam_assessments assessment
-          ON assessment.tenant_id = mark.tenant_id
-         AND assessment.id = mark.assessment_id
-        WHERE student.tenant_id = $1
-          AND student.status = 'active'
-          AND ${markScope}
-          AND mark.status IN ('locked', 'published')
-          AND mark.score_status = 'entered'
-          AND mark.score IS NOT NULL
-          AND assessment.max_score > 0
-          AND EXISTS (
-            SELECT 1
-            FROM student_report_cards card
-            WHERE card.tenant_id = mark.tenant_id
-              AND card.exam_series_id = mark.exam_series_id
-              AND card.student_id::text = mark.student_id::text
-              AND card.is_current = TRUE
-              AND card.status IN ('approved', 'published')
-          )
-        GROUP BY
-          student.id,
-          student.first_name,
-          student.middle_name,
-          student.last_name,
-          student.admission_number
-        ORDER BY average_percentage DESC, student_name ASC
-        LIMIT 10
-      `,
-      queryParams,
-    );
-    const topPerformers = topPerformersResult.rows.map((row: any) => ({
-      student_id: row.student_id,
-      student_name: row.student_name,
-      admission_number: row.admission_number,
-      average_percentage: Number(row.average_percentage),
-      assessments_taken: Number(row.assessments_taken),
-    }));
-
-    const topImproversResult = await this.executeSql(
-      `
-        WITH student_series_averages AS (
-          SELECT
-            mark.student_id::text AS student_id,
-            mark.exam_series_id,
-            series.name AS exam_series_name,
-            series.starts_on AS exam_series_date,
-            AVG((mark.score / assessment.max_score) * 100.0) AS average_percentage
-          FROM exam_marks mark
-          JOIN exam_assessments assessment
-            ON assessment.tenant_id = mark.tenant_id
-           AND assessment.id = mark.assessment_id
-          JOIN exam_series series
-            ON series.tenant_id = mark.tenant_id
-           AND series.id = mark.exam_series_id
-          WHERE mark.tenant_id = $1
-            AND ${markScope}
-            AND mark.status IN ('locked', 'published')
-            AND mark.score_status = 'entered'
-            AND mark.score IS NOT NULL
-            AND assessment.max_score > 0
-            AND EXISTS (
-              SELECT 1
-              FROM student_report_cards card
-              WHERE card.tenant_id = mark.tenant_id
-                AND card.exam_series_id = mark.exam_series_id
-                AND card.student_id::text = mark.student_id::text
-                AND card.is_current = TRUE
-                AND card.status IN ('approved', 'published')
-            )
-          GROUP BY
-            mark.student_id,
-            mark.exam_series_id,
-            series.name,
-            series.starts_on
-        ),
-        ranked_student_averages AS (
-          SELECT
-            student_id,
-            exam_series_id,
-            exam_series_name,
-            exam_series_date,
-            average_percentage,
-            ROW_NUMBER() OVER (
-              PARTITION BY student_id
-              ORDER BY exam_series_date DESC, exam_series_id DESC
-            ) AS rank
-          FROM student_series_averages
-        )
-        SELECT
-          student.id AS student_id,
-          concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS student_name,
-          student.admission_number,
-          latest.exam_series_name AS latest_exam_series,
-          ROUND(latest.average_percentage::numeric, 2) AS latest_average,
-          previous.exam_series_name AS previous_exam_series,
-          ROUND(previous.average_percentage::numeric, 2) AS previous_average,
-          ROUND((latest.average_percentage - previous.average_percentage)::numeric, 2) AS improvement
-        FROM ranked_student_averages latest
-        JOIN ranked_student_averages previous
-          ON previous.student_id = latest.student_id
-         AND previous.rank = 2
-        JOIN students student
-          ON student.tenant_id = $1
-         AND student.id = latest.student_id
-        WHERE latest.rank = 1
-          AND student.status = 'active'
-          AND latest.average_percentage > previous.average_percentage
-        ORDER BY improvement DESC, student_name ASC
-        LIMIT 10
-      `,
-      queryParams,
-    );
-    const topImprovers = topImproversResult.rows.map((row: any) => ({
-      student_id: row.student_id,
-      student_name: row.student_name,
-      admission_number: row.admission_number,
-      latest_exam_series: row.latest_exam_series,
-      latest_average: Number(row.latest_average),
-      previous_exam_series: row.previous_exam_series,
-      previous_average: Number(row.previous_average),
-      improvement: Number(row.improvement),
-    }));
-
-    const atRiskStudentsResult = await this.executeSql(
-      `
-        SELECT
-          student.id AS student_id,
-          concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS student_name,
-          student.admission_number,
-          ROUND(AVG((mark.score / assessment.max_score) * 100.0), 2)::numeric AS average_percentage,
-          COUNT(mark.id)::integer AS assessments_taken
-        FROM students student
-        JOIN exam_marks mark
-          ON mark.tenant_id = student.tenant_id
-         AND mark.student_id::text = student.id
-        JOIN exam_assessments assessment
-          ON assessment.tenant_id = mark.tenant_id
-         AND assessment.id = mark.assessment_id
-        WHERE student.tenant_id = $1
-          AND student.status = 'active'
-          AND ${markScope}
-          AND mark.status IN ('locked', 'published')
-          AND mark.score_status = 'entered'
-          AND mark.score IS NOT NULL
-          AND assessment.max_score > 0
-          AND EXISTS (
-            SELECT 1
-            FROM student_report_cards card
-            WHERE card.tenant_id = mark.tenant_id
-              AND card.exam_series_id = mark.exam_series_id
-              AND card.student_id::text = mark.student_id::text
-              AND card.is_current = TRUE
-              AND card.status IN ('approved', 'published')
-          )
-        GROUP BY
-          student.id,
-          student.first_name,
-          student.middle_name,
-          student.last_name,
-          student.admission_number
-        HAVING AVG((mark.score / assessment.max_score) * 100.0) < 50.0
-        ORDER BY average_percentage ASC, student_name ASC
-        LIMIT 10
-      `,
-      queryParams,
-    );
-    const atRiskStudents = atRiskStudentsResult.rows.map((row: any) => ({
-      student_id: row.student_id,
-      student_name: row.student_name,
-      admission_number: row.admission_number,
-      average_percentage: Number(row.average_percentage),
-      assessments_taken: Number(row.assessments_taken),
-    }));
-
-    return {
-      scope: {
-        level: scope.level,
-        role: scope.role,
-      },
-      kpis,
-      trends,
-      subjectPerformance,
-      studentProgress: {
-        topPerformers,
-        topImprovers,
-        atRiskStudents,
-      },
-      data_quality: dataQuality,
-    };
+  async getAnalytics(tenantId: string, scope: ExamAnalyticsScope = { level: 'school', actor_user_id: null, role: 'system' },
+    filters: AnalyticsFilters = { page: 1, page_size: 25 }, schoolWideAllowed = scope.level === 'school') {
+    const appointments = scope.actor_user_id ? await this.executeSql<{level: ExamAnalyticsScopeLevel}>(
+      ANALYTICS_APPOINTMENTS_SQL, [tenantId, scope.actor_user_id]) : { rows: [] };
+    const available = [...new Set<ExamAnalyticsScopeLevel>([
+      ...(schoolWideAllowed ? ['school' as const] : []), ...appointments.rows.map(row => row.level),
+    ])];
+    if (!available.includes(scope.level) && !filters.scope && available.length) scope = { ...scope, level: available[0] };
+    if (!available.includes(scope.level)) throw new ForbiddenException('No active appointment authorizes this academic analytics scope.');
+    const result = await this.executeSql<SubjectEvidence>(analyticsQuery(scope.level, requiresPublishedExamAnalytics(scope.role)), [tenantId, scope.actor_user_id, JSON.stringify(filters)]);
+    return buildAcademicIntelligence(result.rows, scope, filters, available);
   }
 
 }

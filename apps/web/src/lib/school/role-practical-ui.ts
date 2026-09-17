@@ -134,6 +134,17 @@ export const practicalRoleProfiles: Record<SchoolExperienceRole, PracticalRolePr
     urgentAlerts: ["Grade 7 East missing Kiswahili marks", "One invalid score range", "Report cards need validation"],
     emptyState: "No exam processing issue waiting right now.",
   },
+  hos: {
+    title: "Head of Subject",
+    subtitle: "Subject performance, learner support and academic reports.",
+    sidebarTitle: "Subject Desk",
+    sidebarSubtitle: "Assigned subjects",
+    todayContext: "Review approved results and follow up with learners in your assigned subjects.",
+    sectionNoun: "subject desk",
+    summaryCards: [],
+    urgentAlerts: [],
+    emptyState: "No active subject appointment. Ask the Principal to assign your subject in Academic Setup.",
+  },
   hod: {
     title: "Head of Department Desk",
     subtitle: "Department teachers, subjects, lesson coverage, performance, resources, and reports.",

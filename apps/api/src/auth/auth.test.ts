@@ -140,6 +140,7 @@ test('Default school invite catalog exposes the required school operating roles'
     'dean_academics',
     'exams_manager',
     'hod',
+    'head_of_subject',
     'class_teacher',
     'grade_master',
     'nurse',
@@ -1972,7 +1973,7 @@ test('AuthService never honors the contract demo MFA bypass in production', asyn
 });
 
 test('DashboardRoleService grants Teacher mode to every teaching-eligible assigned role', async () => {
-  for (const roleCode of ACADEMIC_TEACHING_ROLE_CODES) {
+  for (const roleCode of new Set([...ACADEMIC_TEACHING_ROLE_CODES, 'admissions_officer'])) {
     const service = new DashboardRoleService(
       {
         findActiveMembership: async () => ({

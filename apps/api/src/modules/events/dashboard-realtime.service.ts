@@ -174,6 +174,9 @@ const eventConfigs: Partial<Record<SupportedDomainEventName, DashboardEventConfi
         ? payload.module.trim()
         : 'platform';
 
+      if (moduleName === 'exams' && ['exam.series_published', 'exam.series_withdrawn'].includes(String(payload.operation_type))) {
+        return ['exams:read', 'exams:subject-analytics'];
+      }
       return moduleName === 'platform' ? 'auth:read' : `${moduleName}:read`;
     },
     roleChannels: (event) => {
@@ -461,6 +464,7 @@ const eventConfigs: Partial<Record<SupportedDomainEventName, DashboardEventConfi
   'academic.hod.reassigned': academicDataChangedConfig('Head of department reassigned'),
   'academic.subject.updated': academicDataChangedConfig('Subject setup updated'),
   'academic.teacher_assignment.changed': academicDataChangedConfig('Teacher allocation updated'),
+  'academic.cohort.promoted': academicDataChangedConfig('Cohort promoted'),
   'academic.policy.updated': academicDataChangedConfig('Academic policy updated'),
   'academic.role_assignment.changed': academicDataChangedConfig('Academic duty assignment updated'),
   'academic.curriculum.updated': academicDataChangedConfig('Curriculum setup updated'),

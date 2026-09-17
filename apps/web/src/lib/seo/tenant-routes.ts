@@ -33,6 +33,8 @@ const reservedSchoolRouteSlugs = new Set([
   "guidance-counselling",
   "head-of-department",
   "hod",
+  "hos",
+  "head-of-subject",
   "ict",
   "ict-manager",
   "ict-computer-lab-user",

@@ -15,6 +15,7 @@ import {
 import { VerifyEmailDto } from './dto/email-verification.dto';
 import { AcceptInvitationDto, InvitationAcceptanceResponseDto } from './dto/invitation.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { RevokeSessionDto } from './dto/revoke-session.dto';
 import { RegisterDto } from './dto/register.dto';
 import {
   DashboardRoleContextDto,
@@ -239,12 +240,34 @@ export class AuthController {
 
   @Post('sessions/revoke')
   @Permissions('auth:write')
-  async revokeSession(@Body() body: { sessionId: string }) {
-    if (!body?.sessionId) {
-      return { success: false };
-    }
-    await this.sessionService.invalidateSession(body.sessionId);
-    return { success: true };
+  async revokeSession(@Body() body: RevokeSessionDto) {
+    return this.authService.revokeOwnSession(body.sessionId);
+  }
+
+  @Public()
+  @Post('logout/refresh')
+  async logoutWithRefreshToken(@Body() body: RefreshTokenDto) {
+    return this.authService.logoutWithRefreshToken(body);
+  }
+
+  @Post('my-sessions/revoke')
+  @Permissions('auth:read')
+  async revokeMySession(@Body() body: RevokeSessionDto) {
+    this.authService.assertRegularSession();
+    return this.authService.revokeOwnSession(body.sessionId);
+  }
+
+  @Post('my-sessions/revoke-others')
+  @Permissions('auth:read')
+  async revokeMyOtherSessions() {
+    this.authService.assertRegularSession();
+    return this.authService.revokeOtherOwnSessions();
+  }
+
+  @Get('my-sessions')
+  @Permissions('auth:read')
+  async mySessions() {
+    return this.authService.listOwnSessions();
   }
 
   @Post('sessions/revoke-all')

@@ -1,3 +1,4 @@
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
 import { useState, useEffect } from "react";
 import { ClipboardCheck } from "lucide-react";
 import { Panel } from "../shared";
@@ -5,7 +6,7 @@ import { useClassTeacherAttendance, useResolvedClassTeacherStreamId, useSaveAtte
 
 export function AttendanceWorkspace() {
   const { streamId } = useResolvedClassTeacherStreamId();
-  const { data, isLoading, error } = useClassTeacherAttendance(streamId);
+  const { data, isLoading, error, refetch } = useClassTeacherAttendance(streamId);
   const saveMutation = useSaveAttendance();
   const [localData, setLocalData] = useState<any[]>([]);
 
@@ -25,6 +26,7 @@ export function AttendanceWorkspace() {
     return (
       <Panel title="Attendance" description="Daily class roll call. This is one of the most important Class Teacher tasks." icon={ClipboardCheck}>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 font-bold">Failed to load attendance.</div>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Panel>
     );
   }

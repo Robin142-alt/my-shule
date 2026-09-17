@@ -9,14 +9,17 @@ import { ExamsRepository } from './repositories/exams.repository';
 import { ReportCardGenerationService } from './services/report-card-generation.service';
 import { ReportCardTemplateService } from './services/report-card-template.service';
 import { EventsModule } from '../events/events.module';
+import { AnalyticsReportController } from './analytics/analytics-report.controller';
+import { AnalyticsReportService } from './analytics/analytics-report.service';
 
 @Module({
   imports: [EventsModule],
-  controllers: [ExamsController, ReportCardDownloadController],
+  controllers: [ExamsController, ReportCardDownloadController, AnalyticsReportController],
   providers: [
     ...Object.values(moduleConsumers),
     ExamsSchemaService,
     ExamsService,
+    AnalyticsReportService,
     ExamsRepository,
     ReportCardGenerationService,
     ReportCardTemplateService,

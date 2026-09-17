@@ -245,7 +245,7 @@ export class AdminCommandRepository {
         return this.safeMetricQuery(
           `
             SELECT
-              (SELECT COUNT(*)::int FROM clinic_visits WHERE tenant_id = $1 AND visit_date = CURRENT_DATE) AS clinic_visits_today,
+              (SELECT COUNT(*)::int FROM clinic_visits WHERE tenant_id = $1 AND visit_date::date = CURRENT_DATE) AS clinic_visits_today,
               (SELECT COUNT(*)::int FROM clinic_medicine_batches WHERE tenant_id = $1 AND quantity_available <= minimum_stock_threshold AND status = 'active') AS medicine_low_stock,
               (SELECT COUNT(*)::int FROM clinic_medicine_batches WHERE tenant_id = $1 AND expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '90 days' AND status = 'active') AS medicine_expiring_soon,
               (SELECT COUNT(*)::int FROM clinic_medicine_batches WHERE tenant_id = $1 AND quantity_available <= 0 AND status = 'active') AS out_of_stock_medicines,
@@ -782,24 +782,24 @@ export class AdminCommandRepository {
           SELECT
             record.student_id::text AS student_id,
             record.attendance_date,
-            lower(record.status) AS status
+            lower(record.status::text) AS status
           FROM attendance_records record
-          WHERE record.tenant_id = $1
+          WHERE record.tenant_id::text = $1::text
 
           UNION ALL
 
           SELECT
             live.student_id::text AS student_id,
-            live.attendance_date,
-            lower(live.status) AS status
+            live.attendance_date::date,
+            lower(live.status::text) AS status
           FROM academics_attendance live
-          WHERE live.tenant_id = $1
+          WHERE live.tenant_id::text = $1::text
             AND NOT EXISTS (
               SELECT 1
               FROM attendance_records record
-              WHERE record.tenant_id = live.tenant_id
+              WHERE record.tenant_id::text = live.tenant_id::text
                 AND record.student_id::text = live.student_id::text
-                AND record.attendance_date = live.attendance_date
+                AND record.attendance_date = live.attendance_date::date
             )
         ), chronic_students AS (
           SELECT attendance.student_id
@@ -815,7 +815,7 @@ export class AdminCommandRepository {
           (SELECT COUNT(*)::int FROM canonical_attendance WHERE attendance_date = CURRENT_DATE AND status = 'late') AS late_today,
           COALESCE(ROUND(
             100.0 * (SELECT COUNT(*) FROM chronic_students)
-            / NULLIF((SELECT COUNT(*) FROM students WHERE tenant_id = $1 AND lower(status) = 'active'), 0),
+            / NULLIF((SELECT COUNT(*) FROM students WHERE tenant_id::text = $1::text AND lower(status) = 'active'), 0),
             0
           ), 0)::int AS chronic_absenteeism
       `,
@@ -834,7 +834,7 @@ export class AdminCommandRepository {
             record.id::text AS id,
             record.student_id::text AS student_id,
             record.attendance_date,
-            lower(record.status) AS status,
+            lower(record.status::text) AS status,
             record.notes,
             record.created_at
           FROM attendance_records record
@@ -845,18 +845,18 @@ export class AdminCommandRepository {
           SELECT
             live.id::text AS id,
             live.student_id::text AS student_id,
-            live.attendance_date,
-            lower(live.status) AS status,
+            live.attendance_date::date,
+            lower(live.status::text) AS status,
             NULL::text AS notes,
             live.created_at
           FROM academics_attendance live
-          WHERE live.tenant_id = $1
+          WHERE live.tenant_id::text = $1::text
             AND NOT EXISTS (
               SELECT 1
               FROM attendance_records record
-              WHERE record.tenant_id = live.tenant_id
+              WHERE record.tenant_id::text = live.tenant_id::text
                 AND record.student_id::text = live.student_id::text
-                AND record.attendance_date = live.attendance_date
+                AND record.attendance_date = live.attendance_date::date
             )
         )
         SELECT
@@ -908,21 +908,21 @@ export class AdminCommandRepository {
     const trendResult = await this.executeSql(
       `
        WITH canonical_attendance AS (
-         SELECT record.student_id::text AS student_id, record.attendance_date, lower(record.status) AS status
+         SELECT record.student_id::text AS student_id, record.attendance_date, lower(record.status::text) AS status
          FROM attendance_records record
          WHERE record.tenant_id = $1
 
          UNION ALL
 
-         SELECT live.student_id::text AS student_id, live.attendance_date, lower(live.status) AS status
+         SELECT live.student_id::text AS student_id, live.attendance_date::date, lower(live.status::text) AS status
          FROM academics_attendance live
-         WHERE live.tenant_id = $1
+         WHERE live.tenant_id::text = $1::text
            AND NOT EXISTS (
              SELECT 1
              FROM attendance_records record
-             WHERE record.tenant_id = live.tenant_id
+             WHERE record.tenant_id::text = live.tenant_id::text
                AND record.student_id::text = live.student_id::text
-               AND record.attendance_date = live.attendance_date
+               AND record.attendance_date = live.attendance_date::date
            )
        )
        SELECT
@@ -1502,7 +1502,7 @@ export class AdminCommandRepository {
                   SELECT 1
                   FROM staff_contracts contract
                   WHERE contract.tenant_id = profile.tenant_id
-                    AND contract.staff_profile_id = profile.id
+                    AND contract.staff_profile_id::text = profile.id::text
                     AND contract.approval_state = 'approved'
                     AND contract.role_title ILIKE '%teacher%'
                 )
@@ -1510,7 +1510,7 @@ export class AdminCommandRepository {
                   SELECT 1
                   FROM teacher_subject_assignments assignment
                   WHERE assignment.tenant_id = profile.tenant_id
-                    AND assignment.teacher_user_id = profile.user_id
+                    AND assignment.teacher_user_id::text = profile.user_id::text
                     AND assignment.status = 'active'
                 )
               )
@@ -1521,7 +1521,7 @@ export class AdminCommandRepository {
                 SELECT 1
                 FROM staff_contracts contract
                 WHERE contract.tenant_id = profile.tenant_id
-                  AND contract.staff_profile_id = profile.id
+                  AND contract.staff_profile_id::text = profile.id::text
                   AND contract.approval_state = 'approved'
                   AND contract.role_title ILIKE '%teacher%'
               )
@@ -1529,7 +1529,7 @@ export class AdminCommandRepository {
                 SELECT 1
                 FROM teacher_subject_assignments assignment
                 WHERE assignment.tenant_id = profile.tenant_id
-                  AND assignment.teacher_user_id = profile.user_id
+                  AND assignment.teacher_user_id::text = profile.user_id::text
                   AND assignment.status = 'active'
               )
           )::int AS support_staff,
@@ -1716,8 +1716,8 @@ export class AdminCommandRepository {
               COALESCE(SUM(batch.quantity_available) FILTER (
                 WHERE batch.status IN ('active', 'near_expiry')
               ), 0)::numeric AS quantity_available,
-              COALESCE(MAX(batch.minimum_stock_threshold), 0)::numeric AS reorder_level,
-              MIN(batch.expiry_date) FILTER (
+              COALESCE(MAX(batch.minimum_stock_threshold::numeric), 0)::numeric AS reorder_level,
+              MIN(batch.expiry_date::date) FILTER (
                 WHERE batch.status IN ('active', 'near_expiry')
               ) AS earliest_expiry
             FROM clinic_medicine_batches batch
@@ -1725,9 +1725,9 @@ export class AdminCommandRepository {
             GROUP BY batch.medicine_id
           )
           SELECT
-            (SELECT COUNT(*)::int FROM clinic_visits WHERE tenant_id = $1 AND visit_date = CURRENT_DATE) AS visits_today,
+            (SELECT COUNT(*)::int FROM clinic_visits WHERE tenant_id = $1 AND visit_date::date = CURRENT_DATE) AS visits_today,
             (SELECT COUNT(*)::int FROM clinic_visits WHERE tenant_id = $1 AND status IN ('open', 'isolation')) AS open_cases,
-            (SELECT COUNT(*)::int FROM clinic_visits WHERE tenant_id = $1 AND visit_date = CURRENT_DATE AND status = 'referred') AS referred_today,
+            (SELECT COUNT(*)::int FROM clinic_visits WHERE tenant_id = $1 AND visit_date::date = CURRENT_DATE AND status = 'referred') AS referred_today,
             COUNT(*) FILTER (
               WHERE quantity_available > 0
                 AND quantity_available <= reorder_level
@@ -1749,8 +1749,8 @@ export class AdminCommandRepository {
               COALESCE(SUM(batch.quantity_available) FILTER (
                 WHERE batch.status IN ('active', 'near_expiry')
               ), 0)::numeric AS quantity_available,
-              COALESCE(MAX(batch.minimum_stock_threshold), 0)::numeric AS reorder_level,
-              MIN(batch.expiry_date) FILTER (
+              COALESCE(MAX(batch.minimum_stock_threshold::numeric), 0)::numeric AS reorder_level,
+              MIN(batch.expiry_date::date) FILTER (
                 WHERE batch.status IN ('active', 'near_expiry')
               ) AS earliest_expiry
             FROM clinic_medicines medicine
@@ -2085,14 +2085,14 @@ export class AdminCommandRepository {
           SELECT NULLIF(category ->> 'name', '') AS name, 0::int AS count
           FROM operations_reports report
           CROSS JOIN LATERAL jsonb_array_elements(report.content::jsonb) category
-          WHERE report.tenant_id = $1
+          WHERE report.tenant_id::text = $1::text
             AND report.title = 'Report Categories'
         ), generated_categories AS (
           SELECT
             initcap(replace(module, '-', ' ')) AS name,
             COUNT(DISTINCT report_id)::int AS count
           FROM report_snapshots
-          WHERE tenant_id = $1
+          WHERE tenant_id::text = $1::text
           GROUP BY module
         )
         SELECT name, SUM(count)::int AS count
@@ -2334,79 +2334,42 @@ export class AdminCommandRepository {
   }
 
   async getPrincipalTeachingSchedule(tenantId: string, actorUserId: string) {
-    const metrics = await this.executeSql(
-      `
-        SELECT
-          COUNT(DISTINCT lesson.stream_id)::int AS total_classes,
-          COUNT(*) FILTER (
-            WHERE COALESCE((lesson.metadata->>'grading_status'), 'pending') IN ('pending', 'missing', 'due')
-          )::int AS pending_grading
-        FROM timetable_lessons lesson
-        INNER JOIN class_subject_assignments assignment
-          ON assignment.tenant_id = lesson.tenant_id
-         AND assignment.id = lesson.class_subject_assignment_id
-        INNER JOIN staff_members staff
-          ON staff.tenant_id = assignment.tenant_id
-         AND staff.id = assignment.staff_member_id
-        INNER JOIN tenant_memberships membership
-          ON membership.tenant_id = staff.tenant_id
-         AND membership.user_id = staff.user_id
-         AND lower(membership.status) = 'active'
-        WHERE lesson.tenant_id = $1
-          AND staff.user_id = $2::uuid
-      `,
-      [tenantId, actorUserId],
-    );
-    const lessons = await this.executeSql(
-      `
-        SELECT
-          COALESCE(stream.name, section.name, 'Assigned class') AS class_name,
-          COALESCE(subject.name, subject.code, 'Assigned subject') AS subject_name,
-          CONCAT(lesson.starts_at::text, ' - ', lesson.ends_at::text) AS lesson_time,
-          COALESCE(lesson.room_label, lesson.metadata->>'room_label', 'Room not assigned') AS room_name
-        FROM timetable_lessons lesson
-        LEFT JOIN streams stream
-          ON stream.tenant_id = lesson.tenant_id
-         AND stream.id = lesson.stream_id
-        LEFT JOIN class_sections section
-          ON section.tenant_id = lesson.tenant_id
-         AND section.id = lesson.stream_id
-        INNER JOIN class_subject_assignments assignment
-          ON assignment.tenant_id = lesson.tenant_id
-         AND assignment.id = lesson.class_subject_assignment_id
-        LEFT JOIN subjects subject
-          ON subject.tenant_id = assignment.tenant_id
-         AND subject.id = assignment.subject_id
-        INNER JOIN staff_members staff
-          ON staff.tenant_id = assignment.tenant_id
-         AND staff.id = assignment.staff_member_id
-        INNER JOIN tenant_memberships membership
-          ON membership.tenant_id = staff.tenant_id
-         AND membership.user_id = staff.user_id
-         AND lower(membership.status) = 'active'
-        WHERE lesson.tenant_id = $1
-          AND staff.user_id = $2::uuid
-        ORDER BY
-          CASE WHEN lesson.weekday >= EXTRACT(ISODOW FROM CURRENT_DATE)::int THEN 0 ELSE 1 END,
-          lesson.weekday ASC,
-          lesson.period_number ASC
-        LIMIT 10
-      `,
-      [tenantId, actorUserId],
-    );
+    const metrics = await this.executeSql(`
+      SELECT
+        (SELECT COUNT(DISTINCT class_section_id)::int FROM teacher_subject_assignments
+          WHERE tenant_id = $1 AND teacher_user_id::text = $2 AND status = 'active'
+            AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)) AS total_classes,
+        (SELECT COUNT(*)::int FROM exam_marks WHERE tenant_id = $1
+          AND entered_by_user_id::text = $2 AND status = 'draft') AS pending_grading
+      WHERE EXISTS (SELECT 1 FROM tenant_memberships membership
+        WHERE membership.tenant_id = $1 AND membership.user_id::text = $2 AND membership.status = 'active')
+    `, [tenantId, actorUserId]);
+    const lessons = await this.executeSql(`
+      SELECT section.name AS class_name, subject.name AS subject_name,
+        CONCAT(slot.starts_at::text, ' - ', slot.ends_at::text) AS lesson_time,
+        slot.room_id AS room_name
+      FROM timetable_slots slot
+      JOIN class_sections section ON section.tenant_id = slot.tenant_id AND section.id::text = slot.class_section_id::text
+      JOIN subjects subject ON subject.tenant_id = slot.tenant_id AND subject.id::text = slot.subject_id::text
+      WHERE slot.tenant_id = $1 AND slot.teacher_id::text = $2
+        AND EXISTS (SELECT 1 FROM tenant_memberships membership
+          WHERE membership.tenant_id = slot.tenant_id AND membership.user_id::text = $2 AND membership.status = 'active')
+        AND EXISTS (SELECT 1 FROM teacher_subject_assignments assignment
+          WHERE assignment.tenant_id = slot.tenant_id AND assignment.teacher_user_id::text = $2
+            AND assignment.class_section_id::text = slot.class_section_id::text
+            AND assignment.subject_id::text = slot.subject_id::text AND assignment.status = 'active'
+            AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE))
+      ORDER BY CASE WHEN slot.day_of_week >= EXTRACT(ISODOW FROM CURRENT_DATE)::int THEN 0 ELSE 1 END,
+        slot.day_of_week, slot.starts_at LIMIT 10
+    `, [tenantId, actorUserId]);
     const upcomingClasses = lessons.rows.map((row: any) => ({
-      class: row.class_name,
-      subject: row.subject_name,
-      time: row.lesson_time,
-      room: row.room_name,
+      class: row.class_name, subject: row.subject_name, time: row.lesson_time, room: row.room_name,
     }));
-
     return {
-      status: upcomingClasses.length ? "active" : "empty",
-      totalClasses: metrics.rows[0]?.total_classes ?? 0,
-      subjects: Array.from(new Set(upcomingClasses.map((lesson) => lesson.subject).filter(Boolean))),
-      upcomingClasses,
-      pendingGrading: metrics.rows[0]?.pending_grading ?? 0
+      status: upcomingClasses.length ? 'active' : 'empty',
+      totalClasses: Number(metrics.rows[0]?.total_classes ?? 0),
+      subjects: Array.from(new Set(upcomingClasses.map(lesson => lesson.subject))),
+      upcomingClasses, pendingGrading: Number(metrics.rows[0]?.pending_grading ?? 0),
     };
   }
 

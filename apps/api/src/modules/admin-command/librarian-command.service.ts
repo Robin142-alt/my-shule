@@ -132,8 +132,8 @@ export class LibrarianCommandService {
                COALESCE(allocation.class_name, student.current_class_id, '') AS class_name,
                borrower.created_at::text
         FROM library_borrowers borrower
-        LEFT JOIN students student ON student.tenant_id = borrower.tenant_id AND student.id = borrower.subject_id
-        LEFT JOIN student_allocations allocation ON allocation.tenant_id = student.tenant_id AND allocation.student_id = student.id AND allocation.is_current = TRUE
+        LEFT JOIN students student ON student.tenant_id = borrower.tenant_id AND student.id::text = borrower.subject_id::text
+        LEFT JOIN student_allocations allocation ON allocation.tenant_id = student.tenant_id AND allocation.student_id::text = student.id::text AND allocation.is_current = TRUE
         WHERE borrower.tenant_id = $1
         ORDER BY name ASC
       `,
@@ -160,8 +160,8 @@ export class LibrarianCommandService {
                  COALESCE(student.admission_number, borrower.scan_code, '') AS admission_no,
                  COALESCE(allocation.class_name, '') AS class_name
           FROM library_borrowers borrower
-          LEFT JOIN students student ON student.tenant_id = borrower.tenant_id AND student.id = borrower.subject_id
-          LEFT JOIN student_allocations allocation ON allocation.tenant_id = student.tenant_id AND allocation.student_id = student.id AND allocation.is_current = TRUE
+          LEFT JOIN students student ON student.tenant_id = borrower.tenant_id AND student.id::text = borrower.subject_id::text
+          LEFT JOIN student_allocations allocation ON allocation.tenant_id = student.tenant_id AND allocation.student_id::text = student.id::text AND allocation.is_current = TRUE
           WHERE borrower.tenant_id = $1
           ORDER BY label ASC
           LIMIT 500
@@ -189,7 +189,7 @@ export class LibrarianCommandService {
       this.executeSql(
         `
           SELECT id::text AS id,
-                 COALESCE(NULLIF(full_name, ''), NULLIF(display_name, ''), staff_number, id::text)
+                 COALESCE(NULLIF(display_name, ''), staff_number, id::text)
                  || COALESCE(' - ' || NULLIF(staff_number, ''), '') AS label,
                  staff_number,
                  COALESCE(status, 'active') AS status
@@ -316,14 +316,14 @@ export class LibrarianCommandService {
         FROM library_circulation_ledger returned
         INNER JOIN library_circulation_ledger issue
           ON issue.tenant_id = returned.tenant_id
-         AND issue.copy_id = returned.copy_id
-         AND issue.borrower_id = returned.borrower_id
+         AND issue.copy_id::text = returned.copy_id::text
+         AND issue.borrower_id::text = returned.borrower_id::text
          AND issue.action = 'issue'
          AND issue.created_at <= returned.created_at
-        INNER JOIN library_copies copy ON copy.tenant_id = returned.tenant_id AND copy.id = returned.copy_id
-        INNER JOIN library_catalog_items item ON item.tenant_id = copy.tenant_id AND item.id = copy.catalog_item_id
-        INNER JOIN library_borrowers borrower ON borrower.tenant_id = returned.tenant_id AND borrower.id = returned.borrower_id
-        LEFT JOIN students student ON student.tenant_id = borrower.tenant_id AND student.id = borrower.subject_id
+        INNER JOIN library_copies copy ON copy.tenant_id = returned.tenant_id AND copy.id::text = returned.copy_id::text
+        INNER JOIN library_catalog_items item ON item.tenant_id = copy.tenant_id AND item.id::text = copy.catalog_item_id::text
+        INNER JOIN library_borrowers borrower ON borrower.tenant_id = returned.tenant_id AND borrower.id::text = returned.borrower_id::text
+        LEFT JOIN students student ON student.tenant_id = borrower.tenant_id AND student.id::text = borrower.subject_id::text
         WHERE returned.tenant_id = $1
           AND returned.action = 'return'
         ORDER BY returned.created_at DESC
@@ -379,17 +379,18 @@ export class LibrarianCommandService {
                COALESCE(allocation.class_name, student.current_class_id, '') AS class_name,
                item.title AS book_title,
                fine.reason AS fine_type,
-               fine.amount_minor,
+               COALESCE(ROUND((to_jsonb(fine)->>'amount')::numeric * 100)::bigint, fine.amount_minor) AS amount_minor,
+               lower(to_jsonb(fine)->>'status') AS fine_status,
                fine.created_at::text AS date_created,
                fine.billing_reference,
                fine.reason AS notes
         FROM library_fines fine
-        INNER JOIN library_borrowers borrower ON borrower.tenant_id = fine.tenant_id AND borrower.id = fine.borrower_id
-        LEFT JOIN students student ON student.tenant_id = borrower.tenant_id AND student.id = borrower.subject_id
-        LEFT JOIN student_allocations allocation ON allocation.tenant_id = student.tenant_id AND allocation.student_id = student.id AND allocation.is_current = TRUE
-        LEFT JOIN library_copies copy ON copy.tenant_id = fine.tenant_id AND copy.id = fine.copy_id
-        LEFT JOIN library_catalog_items item ON item.tenant_id = copy.tenant_id AND item.id = copy.catalog_item_id
-        WHERE fine.tenant_id = $1
+        LEFT JOIN library_borrowers borrower ON borrower.tenant_id::text = fine.tenant_id::text AND borrower.id::text = fine.borrower_id::text
+        LEFT JOIN students student ON student.tenant_id::text = fine.tenant_id::text AND student.id::text = COALESCE(borrower.subject_id::text, to_jsonb(fine)->>'student_id')
+        LEFT JOIN student_allocations allocation ON allocation.tenant_id::text = student.tenant_id::text AND allocation.student_id::text = student.id::text AND allocation.is_current = TRUE
+        LEFT JOIN library_copies copy ON copy.tenant_id::text = fine.tenant_id::text AND copy.id::text = fine.copy_id::text
+        LEFT JOIN library_catalog_items item ON item.tenant_id::text = copy.tenant_id::text AND item.id::text = copy.catalog_item_id::text
+        WHERE fine.tenant_id::text = $1::text
         ORDER BY fine.created_at DESC
       `,
       [tenantId]
@@ -403,7 +404,7 @@ export class LibrarianCommandService {
       fine_type: this.formatFineType(row.fine_type),
       amount: Number(row.amount_minor ?? 0) / 100,
       date_created: String(row.date_created).slice(0, 10),
-      status: row.billing_reference === 'waived' ? 'Waived' : row.billing_reference === 'paid' ? 'Paid' : 'Pending',
+      status: row.fine_status === 'waived' || row.billing_reference === 'waived' ? 'Waived' : row.fine_status === 'paid' || row.billing_reference === 'paid' ? 'Paid' : 'Pending',
       notes: row.notes,
     }));
     return {
@@ -1031,8 +1032,8 @@ export class LibrarianCommandService {
       INNER JOIN library_copies copy ON copy.tenant_id = issue.tenant_id AND copy.id = issue.copy_id
       INNER JOIN library_catalog_items item ON item.tenant_id = copy.tenant_id AND item.id = copy.catalog_item_id
       INNER JOIN library_borrowers borrower ON borrower.tenant_id = issue.tenant_id AND borrower.id = issue.borrower_id
-      LEFT JOIN students student ON student.tenant_id = borrower.tenant_id AND student.id = borrower.subject_id
-      LEFT JOIN student_allocations allocation ON allocation.tenant_id = student.tenant_id AND allocation.student_id = student.id AND allocation.is_current = TRUE
+      LEFT JOIN students student ON student.tenant_id = borrower.tenant_id AND student.id::text = borrower.subject_id::text
+      LEFT JOIN student_allocations allocation ON allocation.tenant_id = student.tenant_id AND allocation.student_id::text = student.id::text AND allocation.is_current = TRUE
       WHERE issue.tenant_id = $1
         AND issue.action = 'issue'
         ${overdueOnly ? "AND issue.metadata->>'due_on' < CURRENT_DATE::text" : ''}

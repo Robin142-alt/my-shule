@@ -38,8 +38,12 @@ describe("exams manager human workflow contracts", () => {
 
     expect(activeSetupSource).toMatch(/Create first exam cycle/);
     expect(activeSetupSource).toMatch(/onClick=\{openCreateForm\}/);
-    expect(activeMarksSource).toMatch(/\/school\/exams-manager\/exam-setup/);
-    expect(activeMarksSource).toMatch(/Open exam setup/);
+    const progressSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/exams-manager/teacher-marks-progress.tsx"), "utf8");
+    const commandSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/exams-manager-command-center.tsx"), "utf8");
+    expect(activeMarksSource).toMatch(/onOpenSetup=\{onOpenSetup\}/);
+    expect(progressSource).toMatch(/onClick=\{onOpenSetup\}/);
+    expect(progressSource).toMatch(/Open exam setup/);
+    expect(commandSource).toMatch(/MarksEntryWorkspace onOpenSetup=\{\(\) => onNavigate\("exam-setup"\)\}/);
     expect(activeMarksSource).not.toMatch(/No records found/);
   });
 
@@ -130,7 +134,7 @@ describe("exams manager human workflow contracts", () => {
     expect(commandCenterSource).toMatch(/ImportsTemplatesWorkspace/);
     expect(commandCenterSource).toMatch(/setActiveView\("imports-templates"\)/);
     expect(commandCenterSource).toMatch(/openExternalImportWorkspace/);
-    expect(commandCenterSource).toMatch(/requestDashboardApi(?:<[^>]+>)?\("\/admin-command\/exams-manager\/marks-entry"/);
+    expect(commandCenterSource).toMatch(/requestDashboardApi(?:<[^>]+>)?\("\/admin-command\/exams-manager\/teacher-mark-progress"/);
     expect(commandCenterSource).toMatch(/downloadCsvFile/);
     expect(commandCenterSource).not.toMatch(/requestDashboardApi\("\/admin-command\/exams-manager\/import-marks"/);
     expect(commandCenterSource).not.toMatch(/requestDashboardApi\("\/admin-command\/exams-manager\/export-marks"/);

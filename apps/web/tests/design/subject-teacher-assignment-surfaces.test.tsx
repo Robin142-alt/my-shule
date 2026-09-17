@@ -49,10 +49,10 @@ describe("continuing subject teacher assignment surfaces", () => {
     fireEvent.click(openButton);
     const form = screen.getByRole("form", { name: "Assign subject teacher" });
     const controls = within(form).getAllByRole("combobox");
-    expect(controls).toHaveLength(3);
+    expect(controls).toHaveLength(4);
     fireEvent.change(controls[0], { target: { value: "teacher-user-1" } });
     fireEvent.change(controls[1], { target: { value: "class-1" } });
-    fireEvent.change(controls[2], { target: { value: "subject-1" } });
+    fireEvent.change(controls[3], { target: { value: "subject-1" } });
     fireEvent.submit(form);
 
     await waitFor(() => expect(mockRequest).toHaveBeenCalledWith("/academics/teacher-assignments", {
@@ -66,10 +66,10 @@ describe("continuing subject teacher assignment surfaces", () => {
     render(<SubjectsWorkspace />);
     fireEvent.click(screen.getByRole("button", { name: "Teacher Assignments" }));
     const controls = screen.getAllByRole("combobox");
-    expect(controls).toHaveLength(3);
+    expect(controls).toHaveLength(4);
     fireEvent.change(controls[0], { target: { value: "class-1" } });
-    fireEvent.change(controls[1], { target: { value: "subject-1" } });
-    fireEvent.change(controls[2], { target: { value: "teacher-user-1" } });
+    fireEvent.change(controls[2], { target: { value: "subject-1" } });
+    fireEvent.change(controls[3], { target: { value: "teacher-user-1" } });
     fireEvent.click(screen.getByRole("button", { name: "Assign Teacher" }));
 
     await waitFor(() => expect(mockRequest).toHaveBeenCalledWith({

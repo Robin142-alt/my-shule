@@ -137,11 +137,14 @@ test('AdminCommandRepository builds principal teaching schedule only from the au
   const result = await repository.getPrincipalTeachingSchedule('tenant-a', actorUserId);
 
   assert.equal(queries.length, 2);
-  assert.match(queries[0].sql, /WHERE lesson\.tenant_id = \$1/);
-  assert.match(queries[1].sql, /WHERE lesson\.tenant_id = \$1/);
-  assert.match(queries[0].sql, /staff\.user_id = \$2::uuid/);
-  assert.match(queries[1].sql, /staff\.user_id = \$2::uuid/);
-  assert.match(queries[0].sql, /INNER JOIN tenant_memberships membership/);
+  assert.match(queries[0].sql, /WHERE tenant_id = \$1 AND teacher_user_id::text = \$2/);
+  assert.match(queries[1].sql, /WHERE slot\.tenant_id = \$1 AND slot\.teacher_id::text = \$2/);
+  for (const { sql } of queries) {
+    assert.match(sql, /FROM tenant_memberships membership/);
+    assert.match(sql, /membership\.user_id::text = \$2 AND membership\.status = 'active'/);
+  }
+  assert.match(queries[1].sql, /FROM timetable_slots slot/);
+  assert.match(queries[1].sql, /assignment\.subject_id::text = slot\.subject_id::text/);
   assert.doesNotMatch(queries[0].sql, /full_name ILIKE '%principal%'/);
   assert.deepEqual(queries[0].params, ['tenant-a', actorUserId]);
   assert.deepEqual(queries[1].params, ['tenant-a', actorUserId]);
@@ -2187,7 +2190,7 @@ test('SecurityOfficerCommandService returns canonical tenant-scoped visitor and 
   assert.equal(incidents.metrics.open_incidents, 1);
   assert.equal(incidents.incidentsList[0]?.title, 'Gate alarm');
   assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
-  assert.ok(queries.every((query) => /tenant_id = \$1/.test(query.sql)));
+  assert.ok(queries.every((query) => /tenant_id(?:::text)? = \$1/.test(query.sql)));
   const passListQuery = queries.find((query) => /exit_pass\.id::text/.test(query.sql));
   assert.ok(passListQuery);
   assert.match(passListQuery.sql, /exit_pass\.time_out::text AS exit_time/);
@@ -4187,8 +4190,8 @@ test('HodCommandService returns tenant-scoped subject allocation options for HOD
         if (/FROM class_sections/.test(sql)) {
           return { rows: [{ id: 'class-a', label: 'Form 2 East', grade_level: 'Form 2', stream: 'East' }], rowCount: 1 };
         }
-        if (/FROM academic_terms/.test(sql)) {
-          return { rows: [{ id: 'term-a', label: 'Term 2 2026', status: 'active' }], rowCount: 1 };
+        if (/FROM class_streams/.test(sql)) {
+          return { rows: [{ id: 'stream-a', label: 'Blue', class_section_id: 'class-a' }], rowCount: 1 };
         }
         return { rows: [], rowCount: 0 };
       },
@@ -4204,7 +4207,7 @@ test('HodCommandService returns tenant-scoped subject allocation options for HOD
   assert.deepEqual(result.teachers, [{ id: 'staff-a', user_id: 'teacher-a', label: 'Teacher A' }]);
   assert.deepEqual(result.subjects, [{ id: 'subject-a', label: 'Mathematics', code: 'MATH' }]);
   assert.deepEqual(result.classes, [{ id: 'class-a', label: 'Form 2 East', grade_level: 'Form 2', stream: 'East' }]);
-  assert.deepEqual(result.terms, [{ id: 'term-a', label: 'Term 2 2026', status: 'active' }]);
+  assert.deepEqual(result.streams, [{ id: 'stream-a', label: 'Blue', class_section_id: 'class-a' }]);
   assert.equal(queries.length, 4);
   assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
 });
@@ -5300,7 +5303,7 @@ test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped e
           rowCount: 1,
         };
       },
-      readSql: async () => ({
+      readSql: async (sql: string) => /AS valid_term/.test(sql) ? ({ rows: [{ subjects: 1, classes: 1, valid_term: true }], rowCount: 1 }) : ({
         rows: [
           { column_name: 'academic_term_id' },
           { column_name: 'created_by_user_id' },
@@ -5328,7 +5331,7 @@ test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped e
     } as never,
   );
 
-  const result = await service.createExamSetup({
+  const result = await (service as any).createExamSetupWithinTransaction({
     name: 'Term 1 Opener',
     academic_term_id: '33333333-3333-4333-8333-333333333333',
     starts_on: '2026-01-12',
@@ -5452,7 +5455,7 @@ test('ExamsManagerCommandService persists selected exam subjects and class mark-
     } as never,
   );
 
-  const result = await service.createExamSetup({
+  const result = await (service as any).createExamSetupWithinTransaction({
     name: 'Term 1 Opener',
     starts_on: '2026-01-12',
     ends_on: '2026-01-16',
@@ -5481,29 +5484,29 @@ test('ExamsManagerCommandService persists selected exam subjects and class mark-
   assert.match(writes[1].sql, /subject\.id::uuid/i);
   assert.doesNotMatch(writes[1].sql, /\$1::uuid/i);
   assert.match(writes[1].sql, /subject\.id::text\s*=\s*ANY\(\$3::text\[\]\)/i);
-  assert.doesNotMatch(writes[1].sql, /NOT EXISTS/i);
+  assert.match(writes[1].sql, /NOT EXISTS/i);
   assert.doesNotMatch(writes[1].sql, /subject\.id\s*=\s*ANY\(\$3::uuid\[\]\)/i);
-  assert.match(writes[1].sql, /ON CONFLICT\s*\(tenant_id, exam_series_id, subject_id, name\)\s*DO UPDATE/i);
+  assert.match(writes[1].sql, /ON CONFLICT\s*\(tenant_id, exam_series_id, subject_id, name\)\s*DO NOTHING/i);
   assert.match(writes[1].sql, /created_at,\s*updated_at/i);
   assert.match(writes[1].sql, /NOW\(\),\s*NOW\(\)/i);
-  assert.match(writes[1].sql, /max_score\s*=\s*EXCLUDED\.max_score/i);
-  assert.match(writes[2].sql, /INSERT INTO exam_mark_entry_windows/i);
-  assert.deepEqual(writes[2].params[3], [
+  assert.match(writes[2].sql, /UPDATE exam_assessments/i);
+  assert.match(writes[3].sql, /INSERT INTO exam_mark_entry_windows/i);
+  assert.deepEqual(writes[3].params[3], [
     '66666666-6666-4666-8666-666666666666',
     '77777777-7777-4777-8777-777777777777',
   ]);
-  assert.match(writes[2].sql, /subject\.id::uuid/i);
-  assert.match(writes[2].sql, /section\.id::uuid/i);
-  assert.doesNotMatch(writes[2].sql, /\$1::uuid/i);
-  assert.match(writes[2].sql, /subject\.id::text\s*=\s*ANY\(\$3::text\[\]\)/i);
-  assert.match(writes[2].sql, /section\.id::text\s*=\s*ANY\(\$4::text\[\]\)/i);
-  assert.doesNotMatch(writes[2].sql, /NOT EXISTS/i);
-  assert.doesNotMatch(writes[2].sql, /(?:subject|section)\.id\s*=\s*ANY\(\$[34]::uuid\[\]\)/i);
-  assert.match(writes[2].sql, /ON CONFLICT\s*\(tenant_id, exam_series_id, subject_id, class_section_id\)\s*DO UPDATE/i);
-  assert.match(writes[2].sql, /created_at,\s*updated_at/i);
-  assert.match(writes[2].sql, /NOW\(\),\s*NOW\(\)/i);
-  assert.match(writes[2].sql, /status\s*=\s*EXCLUDED\.status/i);
-  assert.equal(writes[2].params[6], 'open');
+  assert.match(writes[3].sql, /subject\.id::uuid/i);
+  assert.match(writes[3].sql, /section\.id::uuid/i);
+  assert.doesNotMatch(writes[3].sql, /\$1::uuid/i);
+  assert.match(writes[3].sql, /subject\.id::text\s*=\s*ANY\(\$3::text\[\]\)/i);
+  assert.match(writes[3].sql, /section\.id::text\s*=\s*ANY\(\$4::text\[\]\)/i);
+  assert.doesNotMatch(writes[3].sql, /NOT EXISTS/i);
+  assert.doesNotMatch(writes[3].sql, /(?:subject|section)\.id\s*=\s*ANY\(\$[34]::uuid\[\]\)/i);
+  assert.match(writes[3].sql, /ON CONFLICT\s*\(tenant_id, exam_series_id, subject_id, class_section_id\)\s*DO UPDATE/i);
+  assert.match(writes[3].sql, /created_at,\s*updated_at/i);
+  assert.match(writes[3].sql, /NOW\(\),\s*NOW\(\)/i);
+  assert.match(writes[3].sql, /status\s*=\s*EXCLUDED\.status/i);
+  assert.equal(writes[3].params[6], 'open');
   assert.equal(workflowCalls[0].payload.subjectsConfigured, 2);
   assert.equal(workflowCalls[0].payload.markEntryWindowsConfigured, 4);
 });
@@ -5543,8 +5546,8 @@ test('ExamsManagerCommandService keeps draft mark-entry windows closed using the
     '2026-01-16',
   );
 
-  assert.equal(writes.length, 2);
-  assert.equal(writes[1].params[6], 'closed');
+  assert.equal(writes.length, 3);
+  assert.equal(writes[2].params[6], 'closed');
 });
 
 test('ExamsManagerCommandService reads configured windows before teachers enter the first mark', async () => {
@@ -5633,6 +5636,11 @@ test('ExamsManagerCommandService configures an existing exam setup inside the cu
     } as never,
     {} as never,
     {
+      readSql: async (sql: string) => {
+        if (/FOR UPDATE/.test(sql)) return { rows: [{ id: '22222222-2222-4222-8222-222222222222', status: 'draft', academic_term_id: '33333333-3333-4333-8333-333333333333' }], rowCount: 1 };
+        if (/AS valid_term/.test(sql)) return { rows: [{ subjects: 1, classes: 1, valid_term: true }], rowCount: 1 };
+        return { rows: [], rowCount: 0 };
+      },
       writeSql: async (sql: string, params: unknown[]) => {
         writes.push({ sql, params });
         return {
@@ -5666,7 +5674,7 @@ test('ExamsManagerCommandService configures an existing exam setup inside the cu
     } as never,
   );
 
-  const result = await service.configureExamSetup('22222222-2222-4222-8222-222222222222', {
+  const result = await (service as any).configureExamSetupWithinTransaction('22222222-2222-4222-8222-222222222222', {
     name: 'Term 1 Midterm',
     starts_on: '2026-02-02',
     ends_on: '2026-02-06',
@@ -5676,12 +5684,13 @@ test('ExamsManagerCommandService configures an existing exam setup inside the cu
   });
 
   assert.equal(result.success, true);
-  assert.match(writes[0].sql, /UPDATE exam_series/i);
-  assert.match(writes[0].sql, /WHERE tenant_id = \$1\s+AND id = \$2::uuid/i);
-  assert.equal(writes[0].params[0], 'tenant-a');
-  assert.equal(writes[0].params[1], '22222222-2222-4222-8222-222222222222');
-  assert.equal(writes[0].params[2], 'Term 1 Midterm');
-  assert.equal(writes[0].params[5], 'submitted');
+  const update = writes.find(write => /UPDATE exam_series/.test(write.sql))!;
+  assert.match(update.sql, /UPDATE exam_series/i);
+  assert.match(update.sql, /WHERE tenant_id = \$1\s+AND id = \$2::uuid/i);
+  assert.equal(update.params[0], 'tenant-a');
+  assert.equal(update.params[1], '22222222-2222-4222-8222-222222222222');
+  assert.equal(update.params[2], 'Term 1 Midterm');
+  assert.equal(update.params[5], 'submitted');
   assert.equal(workflowCalls.length, 1);
   assert.equal(workflowCalls[0].eventType, 'exams.exam-setup.configured');
   assert.equal(workflowCalls[0].entityType, 'exam_series');
@@ -6160,7 +6169,7 @@ test('ParentCommandService scopes finance reads to the authenticated parent and 
       '11111111-1111-4111-8111-111111111111',
     ]);
     assert.match(query.sql, /student_guardians/i);
-    assert.match(query.sql, /guardian\.tenant_id = \$1/i);
+    assert.match(query.sql, /guardian\.tenant_id(?:::text)? = \$1/i);
     assert.match(query.sql, /guardian\.user_id = \$2::uuid/i);
   }
 });
@@ -6248,7 +6257,7 @@ test('StudentCommandService scopes finance reads to the authenticated student an
       '11111111-1111-4111-8111-111111111111',
     ]);
     assert.match(query.sql, /student_portal_access/i);
-    assert.match(query.sql, /access\.tenant_id = \$1/i);
+    assert.match(query.sql, /access\.tenant_id(?:::text)? = \$1/i);
     assert.match(query.sql, /access\.user_id = \$2::uuid/i);
   }
 });

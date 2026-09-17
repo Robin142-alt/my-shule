@@ -1,7 +1,6 @@
 export type WorkflowRuntimeState =
   | 'DRAFT'
   | 'SUBJECT_REVIEW'
-  | 'HOD_APPROVAL'
   | 'DEAN_APPROVAL'
   | 'PRINCIPAL_APPROVAL'
   | 'PUBLISHED'
@@ -231,19 +230,10 @@ export function createExamWorkflowRuntime(): WorkflowRuntimeDefinition {
         'exams:submit',
         ['EXAM_SUBJECT_REVIEW_STARTED'],
         240,
-        ['hod', 'dean-academics'],
-      ),
-      transition(
-        'SUBJECT_REVIEW',
-        'HOD_APPROVAL',
-        'hod-approve',
-        'exams:hod-approve',
-        ['HOD_APPROVAL_GRANTED'],
-        480,
         ['dean-academics'],
       ),
       transition(
-        'HOD_APPROVAL',
+        'SUBJECT_REVIEW',
         'DEAN_APPROVAL',
         'dean-approve',
         'exams:dean-approve',

@@ -3,6 +3,8 @@ import { RequestContextService } from '../../common/request-context/request-cont
 import { PrismaService } from '../../database/prisma.service';
 import { ExamsService } from '../exams/exams.service';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
+import { AcademicsService } from '../academics/academics.service';
+import { CURRICULUM_COVERAGE_SQL } from './academic-workspace-queries';
 
 @Injectable()
 export class HodCommandService {
@@ -11,6 +13,7 @@ export class HodCommandService {
     private readonly prisma: PrismaService,
     private readonly operations: AdminCommandOperationsService,
     @Optional() private readonly examsService?: ExamsService,
+    @Optional() private readonly academicsService?: AcademicsService,
   ) {}
 
   private requireTenantId(): string {
@@ -47,7 +50,7 @@ export class HodCommandService {
   async getDepartmentOverview() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM departments WHERE tenant_id = $1`,
+      `SELECT * FROM academics_departments WHERE tenant_id = $1`,
       [tenantId]
     );
     return res.rows;
@@ -56,7 +59,7 @@ export class HodCommandService {
   async getReviewQueue() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM lesson_plans WHERE tenant_id = $1 AND status = 'submitted'`,
+      `SELECT * FROM academics_lesson_plans WHERE tenant_id = $1 AND lower(status::text) = 'submitted'`,
       [tenantId]
     );
     return res.rows;
@@ -65,7 +68,20 @@ export class HodCommandService {
   async getSubjectAllocation() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM subject_teacher_allocations WHERE tenant_id = $1`,
+      `SELECT assignment.*, subject.name AS subject_name,
+         CONCAT_WS(' / ',section.name,stream.name) AS class_name, stream.name AS stream_name,
+         staff.display_name AS teacher_name, offering.lessons_per_week
+       FROM teacher_subject_assignments assignment
+       JOIN academic_cohort_placements placement ON placement.tenant_id=assignment.tenant_id
+         AND placement.id::text = assignment.cohort_placement_id::text AND placement.status='active'
+       JOIN subjects subject ON subject.tenant_id=assignment.tenant_id AND subject.id::text = assignment.subject_id::text
+       JOIN class_sections section ON section.tenant_id=assignment.tenant_id AND section.id::text = assignment.class_section_id::text
+       LEFT JOIN class_streams stream ON stream.tenant_id=assignment.tenant_id AND stream.id::text = assignment.stream_id::text
+       LEFT JOIN LATERAL (SELECT profile.display_name FROM staff_profiles profile
+         WHERE profile.tenant_id=assignment.tenant_id AND profile.user_id::text = assignment.teacher_user_id::text LIMIT 1) staff ON TRUE
+       LEFT JOIN class_subject_assignments offering ON offering.tenant_id=assignment.tenant_id
+         AND offering.cohort_placement_id::text = assignment.cohort_placement_id::text AND offering.subject_id::text = assignment.subject_id::text AND offering.status='active'
+       WHERE assignment.tenant_id=$1 AND assignment.status='active'`,
       [tenantId]
     );
     return res.rows;
@@ -73,12 +89,12 @@ export class HodCommandService {
 
   async getSubjectAllocationOptions() {
     const tenantId = this.requireTenantId();
-    const [teachers, subjects, classes, terms] = await Promise.all([
+    const [teachers, subjects, classes, streams] = await Promise.all([
       this.executeSql(
         `SELECT id::text, user_id::text, display_name AS label
          FROM staff_profiles
          WHERE tenant_id = $1
-           AND status IN ('active', 'pending_acceptance', 'profile_incomplete')
+           AND status = 'active' AND user_id IS NOT NULL
          ORDER BY display_name ASC`,
         [tenantId],
       ),
@@ -103,11 +119,11 @@ export class HodCommandService {
         [tenantId],
       ),
       this.executeSql(
-        `SELECT id::text, name AS label, status
-         FROM academic_terms
+        `SELECT id::text, name AS label, class_section_id::text
+         FROM class_streams
          WHERE tenant_id = $1
-           AND status IN ('active', 'draft')
-         ORDER BY starts_on DESC`,
+           AND status='active' AND is_active=TRUE
+         ORDER BY name`,
         [tenantId],
       ),
     ]);
@@ -116,7 +132,7 @@ export class HodCommandService {
       teachers: teachers.rows,
       subjects: subjects.rows,
       classes: classes.rows,
-      terms: terms.rows,
+      streams: streams.rows,
     };
   }
 
@@ -132,7 +148,7 @@ export class HodCommandService {
   async getLessonPlans() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM lesson_plans WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      `SELECT * FROM academics_lesson_plans WHERE tenant_id = $1 ORDER BY created_at DESC`,
       [tenantId]
     );
     return res.rows;
@@ -141,7 +157,7 @@ export class HodCommandService {
   async getCoverageReview() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM curriculum_coverages WHERE tenant_id = $1`,
+      CURRICULUM_COVERAGE_SQL,
       [tenantId]
     );
     return res.rows;
@@ -149,15 +165,15 @@ export class HodCommandService {
 
   async getMarksModeration() {
     if (!this.examsService) {
-      throw new ServiceUnavailableException('The exam moderation workflow is not available');
+      throw new ServiceUnavailableException('Published exam analytics are not available');
     }
-    return this.examsService.getWorkflowOverview();
+    return this.examsService.getAnalytics();
   }
 
   async getResourceRequests() {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
-      `SELECT * FROM resource_requests WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      `SELECT * FROM inventory_requests WHERE tenant_id = $1 ORDER BY created_at DESC`,
       [tenantId]
     );
     return res.rows;
@@ -283,46 +299,26 @@ export class HodCommandService {
     return { success: true, message: 'Department meeting logged and routed', event };
   }
 
-  private async upsertSubjectAllocation(dto: any = {}) {
+  private async upsertSubjectAllocation(dto: any = {}): Promise<Record<string, any> | null> {
     const tenantId = this.requireTenantId();
     const subjectId = this.operations.uuidOrNull(dto?.subject_id ?? dto?.subjectId);
     const classSectionId = this.operations.uuidOrNull(dto?.class_section_id ?? dto?.classSectionId);
-    const academicTermId = this.operations.uuidOrNull(dto?.academic_term_id ?? dto?.academicTermId);
     const teacherId = this.operations.uuidOrNull(dto?.teacher_id ?? dto?.teacherId ?? dto?.staff_member_id ?? dto?.staffMemberId);
 
-    if (!subjectId || !classSectionId || !academicTermId) {
+    if (!subjectId || !classSectionId) {
       return null;
     }
 
-    const result = await this.executeSql(
-      `
-        INSERT INTO class_subject_assignments (
-          tenant_id, academic_term_id, class_section_id, subject_id, staff_member_id, created_by_user_id, metadata
-        )
-        VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5::uuid, $6::uuid, $7::jsonb)
-        ON CONFLICT (tenant_id, academic_term_id, class_section_id, subject_id)
-        DO UPDATE SET
-          staff_member_id = COALESCE(EXCLUDED.staff_member_id, class_subject_assignments.staff_member_id),
-          metadata = class_subject_assignments.metadata || EXCLUDED.metadata,
-          updated_at = NOW()
-        RETURNING id::text, tenant_id, academic_term_id::text, class_section_id::text, subject_id::text, staff_member_id::text
-      `,
-      [
-        tenantId,
-        academicTermId,
-        classSectionId,
-        subjectId,
-        teacherId,
-        this.operations.uuidOrNull(this.requestContext.getStore()?.user_id),
-        JSON.stringify({
-          source_dashboard: 'hod-command-center',
-          lessons_per_week: dto?.lessons_per_week ?? dto?.lessonsPerWeek ?? null,
-          notes: dto?.notes ?? null,
-        }),
-      ],
-    );
-
-    return result.rows[0] ?? null;
+    if (!this.academicsService) throw new ServiceUnavailableException('Academic configuration is unavailable.');
+    const scope = {class_section_id:classSectionId,subject_id:subjectId,
+      lessons_per_week:dto?.lessons_per_week ? Number(dto.lessons_per_week) : undefined,
+      stream_id:this.operations.uuidOrNull(dto?.stream_id ?? dto?.streamId) ?? undefined,
+      reason:String(dto?.reason ?? dto?.notes ?? 'Department teaching configuration')};
+    if (!teacherId) return this.academicsService.createClassSubjectAssignment(scope);
+    const staff = await this.executeSql(`SELECT user_id::text FROM staff_profiles
+      WHERE tenant_id=$1 AND (id::text=$2 OR user_id::text=$2) AND status='active'`,[tenantId,teacherId]);
+    if (!staff.rows[0]?.user_id) throw new ServiceUnavailableException('Select an active teacher with a linked staff account.');
+    return this.academicsService.assignTeacher({...scope,teacher_user_id:staff.rows[0].user_id});
   }
 
   async generateReport(dto: any) {

@@ -4,11 +4,7 @@ import { NextResponse } from "next/server";
 import {
   createServerAuthClient,
   getServerAuthErrorStatus,
-  isServerAuthUnauthorized,
 } from "@/lib/auth/server-auth-client";
-import {
-  clearExperienceSessionCookies,
-} from "@/lib/auth/server-session";
 
 export async function GET(request: Request) {
   try {
@@ -18,7 +14,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       roleContext,
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     const response = NextResponse.json(
       {
@@ -26,12 +22,11 @@ export async function GET(request: Request) {
           ? error.message
           : "Unable to load dashboard roles.",
       },
-      { status: getServerAuthErrorStatus(error) },
+      { status: getServerAuthErrorStatus(error), headers: { "Cache-Control": "private, no-store" } },
     );
 
-    if (isServerAuthUnauthorized(error)) {
-      clearExperienceSessionCookies(response);
-    }
+    // An in-flight role read can be rejected after switching invalidates its
+    // access token. It must never clear the newly issued session cookies.
 
     return response;
   }

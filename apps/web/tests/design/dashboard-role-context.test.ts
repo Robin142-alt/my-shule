@@ -144,6 +144,9 @@ describe("school dashboard role context", () => {
   });
 
   it("restores only role-specific hosted paths", () => {
+    expect(isValidDashboardRolePath("//my-timetable", "teacher", "hosted")).toBe(false);
+    expect(isValidDashboardRolePath("/school/teacher/../principal", "teacher", "public")).toBe(false);
+    expect(isValidDashboardRolePath("/school/teacher/%2e%2e/principal", "teacher", "public")).toBe(false);
     expect(isValidDashboardRolePath("/my-timetable", "teacher", "hosted")).toBe(true);
     expect(isValidDashboardRolePath("/finance", "teacher", "hosted")).toBe(false);
     expect(isValidDashboardRolePath("/school/teacher/teacher-attendance", "teacher", "public")).toBe(true);

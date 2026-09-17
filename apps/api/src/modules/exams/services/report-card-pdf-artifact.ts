@@ -38,6 +38,59 @@ export async function createReportCardPdfArtifact(
 
 export const createPdfReportArtifact = createReportCardPdfArtifact;
 
+export interface BulkReportCardEntry {
+  payload: ReportCardPayload;
+  verificationCode: string;
+}
+
+export function createBulkReportCardPdfBuffer(
+  entries: BulkReportCardEntry[],
+): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    const now = new Date().toISOString();
+    const document = new PDFDocument({
+      autoFirstPage: false,
+      bufferPages: false,
+      compress: true,
+      margin: 0,
+      size: 'A4',
+      info: {
+        Title: `Report Cards (${entries.length})`,
+        Subject: 'Bulk Report Card Download',
+        CreationDate: new Date(now),
+      },
+    });
+
+    document.on('data', (chunk: Buffer) => chunks.push(chunk));
+    document.on('error', reject);
+    document.on('end', () => resolve(Buffer.concat(chunks)));
+
+    for (const entry of entries) {
+      document.addPage({ size: 'A4', margin: 0 });
+      const generatedAt = normalizeReportGeneratedAt(entry.payload.generated_at);
+      renderReportCardPageContent(document, entry.payload, entry.verificationCode, generatedAt);
+    }
+
+    document.end();
+  });
+}
+
+function renderReportCardPageContent(
+  document: PDFKit.PDFDocument,
+  payload: ReportCardPayload,
+  verificationCode: string,
+  generatedAt: string,
+) {
+  document.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT).fill('#ffffff');
+  drawHeader(document, payload, verificationCode);
+  drawStudentInformation(document, payload);
+  const performanceBottom = drawAcademicPerformance(document, payload);
+  const analyticsBottom = drawAnalyticsAndOverview(document, payload, performanceBottom + 8);
+  drawCommentsAndSignatures(document, payload, analyticsBottom + 8);
+  drawFooter(document, verificationCode, generatedAt);
+}
+
 function renderReportCardPdf(
   payload: ReportCardPayload,
   verificationCode: string,
@@ -66,13 +119,7 @@ function renderReportCardPdf(
     document.on('error', reject);
     document.on('end', () => resolve(Buffer.concat(chunks)));
 
-    document.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT).fill('#ffffff');
-    drawHeader(document, payload, verificationCode);
-    drawStudentInformation(document, payload);
-    const performanceBottom = drawAcademicPerformance(document, payload);
-    const analyticsBottom = drawAnalyticsAndOverview(document, payload, performanceBottom + 8);
-    drawCommentsAndSignatures(document, payload, analyticsBottom + 8);
-    drawFooter(document, verificationCode, generatedAt);
+    renderReportCardPageContent(document, payload, verificationCode, generatedAt);
     document.end();
   });
 }

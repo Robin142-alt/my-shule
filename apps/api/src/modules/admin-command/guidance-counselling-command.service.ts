@@ -241,7 +241,7 @@ export class GuidanceCounsellingCommandService {
           FROM counselling_referrals referral
           INNER JOIN students student
             ON student.tenant_id = referral.tenant_id
-           AND student.id = referral.student_id
+           AND student.id::text = referral.student_id::text
            AND student.deleted_at IS NULL
           WHERE referral.tenant_id = $1
             AND referral.status IN ('open', 'accepted')
@@ -362,18 +362,18 @@ export class GuidanceCounsellingCommandService {
           FROM counselling_sessions session
           INNER JOIN students student
             ON student.tenant_id = session.tenant_id
-           AND student.id = session.student_id
+           AND student.id::text = session.student_id::text
            AND student.deleted_at IS NULL
           LEFT JOIN class_sections section
             ON section.tenant_id = session.tenant_id
            AND section.id::text = student.current_class_id::text
           LEFT JOIN users counsellor
-            ON counsellor.id = session.counsellor_user_id
+            ON counsellor.id::text = session.counsellor_user_id::text
            AND EXISTS (
              SELECT 1
              FROM tenant_memberships membership
              WHERE membership.tenant_id = session.tenant_id
-               AND membership.user_id = counsellor.id
+               AND membership.user_id::text = counsellor.id::text
            )
           WHERE session.tenant_id = $1
           ORDER BY session.scheduled_for DESC
@@ -1100,31 +1100,31 @@ export class GuidanceCounsellingCommandService {
             WHEN EXISTS (
               SELECT 1
               FROM notifications notification
-              WHERE notification.tenant_id = engagement.tenant_id::text
+              WHERE notification.tenant_id::text = engagement.tenant_id::text
                 AND notification.source_module = 'guidance-counselling'
-                AND notification.source_record_id = engagement.id::text
+                AND notification.source_record_id::text = engagement.id::text
             ) THEN 'Queued'
             ELSE 'Logged'
           END AS status
         FROM parent_contact_logs engagement
         INNER JOIN students student
-          ON student.tenant_id = engagement.tenant_id::text
-         AND student.id = engagement.student_id
+          ON student.tenant_id::text = engagement.tenant_id::text
+         AND student.id::text = engagement.student_id::text
          AND student.deleted_at IS NULL
         INNER JOIN student_guardians guardian
-          ON guardian.tenant_id = student.tenant_id
-         AND guardian.student_id = student.id
-         AND guardian.id = engagement.guardian_id
+          ON guardian.tenant_id::text = student.tenant_id::text
+         AND guardian.student_id::text = student.id::text
+         AND guardian.id::text = engagement.guardian_id::text
          AND guardian.status <> 'revoked'
         LEFT JOIN users counsellor
           ON counsellor.id = engagement.contacted_by
          AND EXISTS (
            SELECT 1
            FROM tenant_memberships membership
-           WHERE membership.tenant_id = student.tenant_id
-             AND membership.user_id = counsellor.id
+           WHERE membership.tenant_id::text = student.tenant_id::text
+             AND membership.user_id::text = counsellor.id::text
          )
-        WHERE engagement.tenant_id::text = $1
+        WHERE engagement.tenant_id::text = $1::text
         ORDER BY engagement.created_at DESC
         LIMIT 200
       `,

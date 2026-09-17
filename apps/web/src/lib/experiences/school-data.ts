@@ -1,4 +1,4 @@
-import { LayoutGrid, Settings, Building2, GraduationCap, BookOpenCheck, Users, CalendarDays, FileSpreadsheet, CircleDollarSign, ShieldAlert, MessageSquareText, ClipboardList, Stethoscope, BusFront, Activity, Boxes, Library, FlaskConical } from "lucide-react";
+import { BarChart3, BookOpen, LayoutGrid, Settings, Building2, GraduationCap, BookOpenCheck, Users, CalendarDays, FileSpreadsheet, CircleDollarSign, ShieldAlert, MessageSquareText, ClipboardList, Stethoscope, BusFront, Activity, Boxes, Library, FlaskConical } from "lucide-react";
 
 import { buildSchoolErpModel } from "@/lib/dashboard/erp-model";
 import { buildDashboardSnapshot } from "@/lib/dashboard/empty-data";
@@ -136,7 +136,7 @@ const schoolNavMap: Record<SchoolExperienceRole | PortalViewer, ExperienceNavIte
     { id: "timetable", label: "Department Timetable", href: toSchoolPath("timetable"), icon: CalendarDays },
     { id: "coverage-review", label: "Coverage Review", href: toSchoolPath("coverage-review"), icon: LayoutGrid },
     { id: "lesson-plans", label: "Lesson Plans", href: toSchoolPath("lesson-plans"), icon: FileSpreadsheet },
-    { id: "marks-moderation", label: "Marks Moderation", href: toSchoolPath("marks-moderation"), icon: ShieldAlert },
+    { id: "academic-intelligence", label: "Exam Analytics", href: toSchoolPath("academic-intelligence"), icon: ShieldAlert },
     { id: "resource-requests", label: "Resource Requests", href: toSchoolPath("resource-requests"), icon: FileSpreadsheet },
     { id: "reports", label: "Reports", href: toSchoolPath("reports"), icon: FileSpreadsheet },
     ...supportSidebarItems,
@@ -356,6 +356,11 @@ const schoolNavMap: Record<SchoolExperienceRole | PortalViewer, ExperienceNavIte
     { id: "notifications", label: "Notifications", href: toSchoolPath("notifications"), icon: MessageSquareText },
     ...supportSidebarItems,
   ],
+  hos: [
+    { id: "academic-intelligence", label: "Subject Analytics", href: toSchoolPath("academic-intelligence"), icon: BarChart3 },
+    { id: "subjects", label: "My Subject Appointments", href: toSchoolPath("subjects"), icon: BookOpen },
+    ...supportSidebarItems,
+  ],
   "grade-master": [],
   "bursar": []
 };
@@ -395,6 +400,7 @@ const roleToDashboardRole: Record<SchoolExperienceRole, DashboardRole> = {
   "dean-academics": "teacher",
   "exams-manager": "teacher",
   hod: "teacher",
+  hos: "teacher",
   "class-teacher": "teacher",
   "grade-master": "teacher",
   admin: "admin",
@@ -617,6 +623,11 @@ function buildSchoolProfile(role: SchoolExperienceRole, schoolName: string): Exp
     "exams-manager": {
       name: "Exams Manager",
       roleLabel: "Exams Manager",
+      contextLabel: schoolName,
+    },
+    hos: {
+      name: "Head of Subject",
+      roleLabel: "Head of Subject",
       contextLabel: schoolName,
     },
     hod: {

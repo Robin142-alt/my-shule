@@ -13,25 +13,24 @@ export function SubjectsWorkspace() {
 
   const { data: subjectsList, refetch: refetchSubjects } = useSchoolQuery<any[]>("/api/academics/subjects", { enabled: activeTab === "subjects" || activeTab === "teachers" });
   const { data: assignmentsList, refetch: refetchAssignments } = useSchoolQuery<any[]>("/api/academics/teacher-assignments", { enabled: activeTab === "teachers" });
-  
+
   const { data: staffList } = useSchoolQuery<SchoolStaffOptionInput[]>("/api/academics/teachers", { enabled: activeTab === "teachers" });
   const { data: sectionsList } = useSchoolQuery<any[]>("/api/academics/class-sections", { enabled: activeTab === "teachers" });
+  const { data: streamsList } = useSchoolQuery<Array<{ id: string; name: string; class_section_id: string }>>("/academics/class-streams", { enabled: activeTab === "teachers" });
   const teacherOptions = buildSchoolStaffOptions(staffList);
 
   const createSubjectMutation = useSchoolMutation("/api/academics/subjects");
-  const assignTeacherMutation = useSchoolMutation("/api/academics/teacher-assignments");
-
-  const [newSubCode, setNewSubCode] = useState("");
-  const [newSubName, setNewSubName] = useState("");
+  const assignTeacherMutation = useSchoolMutation("/api/academics/teacher-assignments");  const [newSubName, setNewSubName] = useState("");
 
   const handleCreateSubject = async () => {
-    if (!newSubCode || !newSubName) return;
-    await createSubjectMutation.mutateAsync({ code: newSubCode, name: newSubName });
-    setNewSubCode(""); setNewSubName("");
+    if (!newSubName.trim()) return;
+    await createSubjectMutation.mutateAsync({ name: newSubName.trim() });
+    setNewSubName("");
     refetchSubjects();
   };
 
   const [assignSectionId, setAssignSectionId] = useState("");
+  const [assignStreamId, setAssignStreamId] = useState("");
   const [assignSubjectId, setAssignSubjectId] = useState("");
   const [assignTeacherId, setAssignTeacherId] = useState("");
   const [assignmentError, setAssignmentError] = useState("");
@@ -42,6 +41,7 @@ export function SubjectsWorkspace() {
     try {
       await assignTeacherMutation.mutateAsync({
         class_section_id: assignSectionId,
+        stream_id: assignStreamId || undefined,
         subject_id: assignSubjectId,
         teacher_user_id: assignTeacherId,
       });
@@ -93,15 +93,7 @@ export function SubjectsWorkspace() {
                 Add Subject
               </h3>
               <div className="space-y-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-700">Code</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. MAT101"
-                    value={newSubCode} onChange={e => setNewSubCode(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
-                  />
-                </div>
+
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-slate-700">Name</label>
                   <input 
@@ -111,7 +103,7 @@ export function SubjectsWorkspace() {
                     className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
                   />
                 </div>
-                <Button onClick={handleCreateSubject} disabled={createSubjectMutation.isPending || !newSubCode || !newSubName} className="w-full">
+                <Button onClick={handleCreateSubject} disabled={createSubjectMutation.isPending || !newSubName.trim()} className="w-full">
                   Create Subject
                 </Button>
               </div>
@@ -122,17 +114,17 @@ export function SubjectsWorkspace() {
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-slate-500 uppercase bg-slate-50/50 border-b border-slate-200">
                   <tr>
-                    <th className="px-4 py-3 font-medium">Code</th>
+
                     <th className="px-4 py-3 font-medium">Name</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {subjectsList?.length === 0 ? (
-                    <tr><td colSpan={2} className="px-4 py-8 text-center text-slate-500">No subjects defined yet.</td></tr>
+                    <tr><td colSpan={1} className="px-4 py-8 text-center text-slate-500">No subjects defined yet.</td></tr>
                   ) : (
                     subjectsList?.map((sub: any) => (
                       <tr key={sub.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-slate-900">{sub.code}</td>
+
                         <td className="px-4 py-3">{sub.name}</td>
                       </tr>
                     ))
@@ -152,19 +144,25 @@ export function SubjectsWorkspace() {
                 <Plus className="w-4 h-4" />
                 Assign Teacher
               </h3>
-              <p className="mb-4 text-sm text-slate-500">The teacher continues across terms and follows the class as students are promoted, until reassigned or ended.</p>
+              <p className="mb-4 text-sm text-slate-500">The teacher continues across terms and follows the cohort as students are promoted, until reassigned or ended.</p>
               <div className="space-y-4">
                 {assignmentError ? <p role="alert" className="text-sm text-red-600">{assignmentError}</p> : null}
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-slate-700">Class Section</label>
                   <select 
-                    value={assignSectionId} onChange={e => setAssignSectionId(e.target.value)}
+                    value={assignSectionId} onChange={e => { setAssignSectionId(e.target.value); setAssignStreamId(""); }}
                     className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
                   >
                     <option value="">Select Class...</option>
                     {sectionsList?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </div>
+                <label className="block space-y-1 text-xs font-medium text-slate-700">Stream
+                  <select value={assignStreamId} disabled={!assignSectionId} onChange={(event) => setAssignStreamId(event.target.value)} className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm">
+                    <option value="">All current streams / no stream</option>
+                    {(streamsList ?? []).filter((stream) => stream.class_section_id === assignSectionId).map((stream) => <option key={stream.id} value={stream.id}>{stream.name}</option>)}
+                  </select>
+                </label>
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-slate-700">Subject</label>
                   <select 
@@ -207,7 +205,7 @@ export function SubjectsWorkspace() {
                   ) : (
                     assignmentsList?.map((asmt: any) => (
                       <tr key={asmt.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-slate-900">{asmt.class_name}</td>
+                        <td className="px-4 py-3 font-medium text-slate-900">{asmt.class_section_name || asmt.class_name}<span className="block text-xs font-normal text-slate-500">{asmt.stream_name || "No stream"}{asmt.cohort_name ? ` / ${asmt.cohort_name}` : ""}</span></td>
                         <td className="px-4 py-3">{asmt.subject_name}</td>
                         <td className="px-4 py-3 text-slate-500">{asmt.teacher_name}</td>
                       </tr>

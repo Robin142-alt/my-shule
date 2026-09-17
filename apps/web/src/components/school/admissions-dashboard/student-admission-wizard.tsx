@@ -45,7 +45,8 @@ type Subject = {
 };
 
 type ClassSubjectAssignment = {
-  academic_term_id?: string;
+  academic_term_id?: string | null;
+  stream_id?: string | null;
   academic_year_id: string;
   class_section_id: string;
   subject_id: string;
@@ -297,10 +298,10 @@ export function StudentAdmissionWizard({
   const classSubjectAssignments = useMemo(
     () => (foundation?.class_subject_assignments ?? []).filter(
       (item) =>
-        item.academic_year_id === form.academic_year_id &&
-        item.class_section_id === form.class_section_id,
+        item.class_section_id === form.class_section_id &&
+        (!item.stream_id || item.stream_id === form.stream_id),
     ),
-    [foundation?.class_subject_assignments, form.academic_year_id, form.class_section_id],
+    [foundation?.class_subject_assignments, form.class_section_id, form.stream_id],
   );
   const subjects = useMemo(() => {
     const assignmentsBySubject = new Map(

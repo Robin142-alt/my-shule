@@ -30,6 +30,13 @@ export async function POST(request: NextRequest) {
       rememberSession?: boolean;
     };
 
+    if (body.audience !== "superadmin" && !validateCsrfRequest(request, body.audience)) {
+      return NextResponse.json(
+        { message: "Security check expired. Refresh the page and try again." },
+        { status: 403 },
+      );
+    }
+
     const audience = body.audience ?? null;
 
     if (!isExperienceAudience(audience)) {
@@ -62,7 +69,7 @@ export async function POST(request: NextRequest) {
     });
 
     setExperienceSessionCookies(response, session, {
-      rememberSession: body.rememberSession === true,
+      rememberSession: audience === "superadmin" ? body.rememberSession === true : body.rememberSession !== false,
     });
 
     return response;

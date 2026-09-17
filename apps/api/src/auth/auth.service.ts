@@ -48,6 +48,8 @@ import { TenantMembershipsRepository } from './repositories/tenant-memberships.r
 import { UsersRepository } from './repositories/users.repository';
 import { PasswordService } from './password.service';
 import { SessionService } from './session.service';
+import { EventPublisherService } from '../modules/events/event-publisher.service';
+import { regularSessionExpiresAt } from './session-policy';
 import { TokenService } from './token.service';
 import { MfaService } from './mfa.service';
 import { TrustedDeviceService } from './trusted-device.service';
@@ -70,6 +72,7 @@ export class AuthService {
     @Optional() private readonly databaseService?: DatabaseService,
     private readonly dashboardRoleService?: DashboardRoleService,
     private readonly auditService?: AuditService,
+    @Optional() private readonly eventPublisher?: EventPublisherService,
   ) {}
 
   extractBearerToken(request: Request): string | null {
@@ -111,7 +114,7 @@ export class AuthService {
       throw new UnauthorizedException('Access token does not belong to this tenant');
     }
 
-    const session = await this.sessionService.getSession(payload.session_id);
+    const session = await this.sessionService.getSession(payload.session_id, payload.audience);
 
     if (!session) {
       throw new UnauthorizedException('Session is no longer valid');
@@ -229,7 +232,7 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token does not belong to this tenant');
     }
 
-    const session = await this.sessionService.getSession(payload.session_id);
+    const session = await this.sessionService.getSession(payload.session_id, payload.audience);
 
     if (!session) {
       throw new UnauthorizedException('Session is no longer valid');
@@ -249,6 +252,13 @@ export class AuthService {
     if (!user || user.status !== 'active') {
       await this.sessionService.invalidateSession(payload.session_id);
       throw new UnauthorizedException('User account is no longer active');
+    }
+
+    // The database timestamp also rejects old refresh credentials if a password
+    // reset completed while Redis revocation was unavailable.
+    if (user.password_changed_at && new Date(user.password_changed_at).getTime() > Date.parse(session.created_at)) {
+      await this.sessionService.invalidateSession(payload.session_id);
+      throw new UnauthorizedException('Password changed. Please sign in again');
     }
 
     const membership = await this.tenantMembershipsRepository.findActiveMembership(user.id, tenantId);
@@ -281,6 +291,7 @@ export class AuthService {
       role: selectedRole.role_code,
       audience,
       session_id: payload.session_id,
+      session_expires_at: regularSessionExpiresAt(session),
     });
 
     const rotation = await this.sessionService.rotateRefreshToken({
@@ -315,7 +326,85 @@ export class AuthService {
 
     await this.sessionService.invalidateSession(requestContext.session_id);
 
+    if (requestContext.audience !== 'superadmin') {
+      await this.recordSessionRevoked(requestContext.session_id, requestContext.user_id, requestContext.tenant_id!, 'logout', requestContext.role);
+    }
+
     return { success: true };
+  }
+
+  // Refresh credentials can revoke their own regular-user session even after
+  // access expiry. This endpoint never creates or rotates credentials.
+  async logoutWithRefreshToken(dto: RefreshTokenDto): Promise<LogoutResponseDto> {
+    const payload = await this.tokenService.verifyRefreshToken(dto.refresh_token);
+    if (payload.audience === 'superadmin') throw new ForbiddenException('Use the Super Admin logout flow');
+    const tenantId = await this.resolveTokenTenantContext(payload.tenant_id, this.requestContext.requireStore().tenant_id);
+    if (!tenantId || tenantId !== payload.tenant_id) throw new UnauthorizedException('Session tenant mismatch');
+    const session = await this.sessionService.getSession(payload.session_id, payload.audience);
+    if (!session) return { success: true };
+    if (session.user_id !== payload.user_id || session.tenant_id !== tenantId || session.audience !== payload.audience) {
+      throw new UnauthorizedException('Refresh token does not match this session');
+    }
+    // A signed older family token may revoke the family, but cannot renew it.
+    await this.sessionService.invalidateSession(session.session_id);
+    await this.recordSessionRevoked(session.session_id, session.user_id, tenantId, 'logout', session.role);
+    return { success: true };
+  }
+
+  async revokeOwnSession(sessionId: string): Promise<LogoutResponseDto> {
+    const context = this.requestContext.requireStore();
+    const session = await this.sessionService.getSession(sessionId, context.audience ?? undefined);
+    if (!session || session.user_id !== context.user_id || session.tenant_id !== context.tenant_id || session.audience !== context.audience) {
+      throw new ForbiddenException('Session is not available to this account');
+    }
+    await this.sessionService.invalidateSession(sessionId);
+    if (session.audience !== 'superadmin') {
+      await this.recordSessionRevoked(sessionId, session.user_id, session.tenant_id!, 'device_revocation', session.role);
+    }
+    return { success: true };
+  }
+
+  assertRegularSession(): void {
+    const context = this.requestContext.requireStore();
+    if (!context.is_authenticated || !context.tenant_id || context.audience === 'superadmin') {
+      throw new ForbiddenException('A regular user session is required');
+    }
+  }
+
+  private async recordSessionRevoked(sessionId: string, userId: string, tenantId: string, reason: 'logout' | 'device_revocation', role: string | null) {
+    await this.auditService?.record({
+      tenant_id: tenantId, actor_user_id: userId, action: 'auth.session.revoked',
+      resource_type: 'auth_session', resource_id: sessionId, metadata: { reason },
+    });
+    await this.eventPublisher?.publish({
+      tenant_id: tenantId, actor_user_id: userId, actor_role: role, source_dashboard: role ?? 'school',
+      event_name: 'auth.session.revoked', event_key: `auth.session.revoked:${sessionId}`,
+      aggregate_type: 'auth_session', aggregate_id: sessionId,
+      payload: { session_id: sessionId, user_id: userId, reason },
+    });
+  }
+
+  async revokeOtherOwnSessions(): Promise<LogoutResponseDto> {
+    const context = this.requestContext.requireStore();
+    const sessions = await this.sessionService.listUserSessions(context.user_id);
+    for (const session of sessions) {
+      if (session.session_id !== context.session_id && session.tenant_id === context.tenant_id && session.audience === context.audience) {
+        await this.revokeOwnSession(session.session_id);
+      }
+    }
+    return { success: true };
+  }
+
+  async listOwnSessions() {
+    this.assertRegularSession();
+    const context = this.requestContext.requireStore();
+    const sessions = await this.sessionService.listUserSessions(context.user_id);
+    return sessions.filter(session => session.tenant_id === context.tenant_id && session.audience === context.audience)
+      .map(session => ({
+        id: session.session_id, device: session.device_label, ip: session.ip_address ?? 'Unknown IP',
+        lastSeen: session.updated_at, expiresAt: session.refresh_expires_at,
+        status: session.session_id === context.session_id ? 'Current' : 'Active',
+      }));
   }
 
   async me(): Promise<MeResponseDto> {
@@ -459,6 +548,7 @@ export class AuthService {
       role: selectedRole.role_code,
       audience: this.requireTenantScopedAudience(requestContext.audience ?? 'school'),
       session_id: session.session_id,
+      session_expires_at: regularSessionExpiresAt(session),
     });
     const rotation = await this.sessionService.rotateRefreshToken({
       session_id: session.session_id,

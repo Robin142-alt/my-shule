@@ -1,9 +1,12 @@
-import { BadRequestException, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import { ExamsService } from '../exams/exams.service';
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
+import { TEACHER_MARK_PROGRESS_SQL, TeacherMarkProgress } from './teacher-mark-progress';
+import { deleteExamSetupRecords, examDeletionBlock, examSetupTransaction, EXAM_RECORD_COUNTS_SQL, lockExam, reconcileExamScope, validateExamSelection } from './exam-setup-integrity';
+import type { Prisma } from '@prisma/client';
 
 type SqlResult<T> = { rows: T[]; rowCount: number };
 
@@ -18,14 +21,14 @@ export class ExamsManagerCommandService {
   ) {}
 
   private async emitExamSetupOperation(input: {
-    operation: 'created' | 'configured';
+    operation: 'created' | 'configured' | 'deleted';
     exam: Record<string, unknown>;
     name: string;
     startsOn: string;
     endsOn: string;
     status: string;
     scope: Record<string, unknown>;
-  }) {
+  }, tx?: Prisma.TransactionClient) {
     if (!this.schoolEvents) {
       return;
     }
@@ -41,9 +44,8 @@ export class ExamsManagerCommandService {
       ?? input.exam.created_at
       ?? new Date().toISOString(),
     );
-    const actionLabel = input.operation === 'created' ? 'created' : 'configured';
-    const title = input.operation === 'created' ? 'Exam Cycle Created' : 'Exam Cycle Configured';
-    const body = `${input.name} was ${actionLabel} for ${input.startsOn} to ${input.endsOn}.`;
+    const title = `Exam Cycle ${input.operation === 'created' ? 'Created' : input.operation === 'deleted' ? 'Deleted' : 'Configured'}`;
+    const body = `${input.name} was ${input.operation} for ${input.startsOn} to ${input.endsOn}.`;
 
     await this.schoolEvents.recordSchoolOperation({
       event: {
@@ -77,7 +79,7 @@ export class ExamsManagerCommandService {
         read: false,
         createdAt: timestamp,
       }],
-    });
+    }, tx);
   }
 
   private requireTenantId(): string {
@@ -260,6 +262,7 @@ export class ExamsManagerCommandService {
     dto: any,
     startsOn: string,
     endsOn: string,
+    updateMaxScores = true,
   ) {
     const { subjectIds, classSectionIds } = this.requireExamScopeSelection(dto);
 
@@ -301,14 +304,21 @@ export class ExamsManagerCommandService {
         FROM subjects subject
         WHERE subject.tenant_id = $1
           AND subject.id::text = ANY($3::text[])
-        ON CONFLICT (tenant_id, exam_series_id, subject_id, name) DO UPDATE
-        SET max_score = EXCLUDED.max_score,
-            weight = EXCLUDED.weight,
-            updated_at = NOW()
+          AND NOT EXISTS (SELECT 1 FROM exam_assessments existing
+            WHERE existing.tenant_id = $1 AND existing.exam_series_id = $2::uuid AND existing.subject_id = subject.id::uuid)
+        ON CONFLICT (tenant_id, exam_series_id, subject_id, name) DO NOTHING
         RETURNING id::text, subject_id::text
       `,
       [tenantId, examSeriesId, subjectIds, maxMarks, actorUserId],
     );
+
+    // Keep custom papers and their weights; only update the overall maximum on unmarked papers.
+    if (updateMaxScores) await this.operations.writeSql(`UPDATE exam_assessments assessment SET max_score = $3::numeric, updated_at = NOW()
+      WHERE assessment.tenant_id = $1 AND assessment.exam_series_id = $2::uuid
+        AND NOT EXISTS (SELECT 1 FROM exam_marks mark WHERE mark.tenant_id = assessment.tenant_id AND mark.assessment_id = assessment.id)
+        AND (SELECT COUNT(*) FROM exam_assessments paper WHERE paper.tenant_id = assessment.tenant_id
+          AND paper.exam_series_id = assessment.exam_series_id AND paper.subject_id = assessment.subject_id) = 1`,
+    [tenantId, examSeriesId, maxMarks]);
 
     const windows = await this.operations.writeSql<{
       id: string;
@@ -324,6 +334,9 @@ export class ExamsManagerCommandService {
           opens_at,
           closes_at,
           status,
+          last_action,
+          last_action_at,
+          last_action_by_user_id,
           created_at,
           updated_at
         )
@@ -332,9 +345,12 @@ export class ExamsManagerCommandService {
           $2::uuid,
           subject.id::uuid,
           section.id::uuid,
-          $5::date,
+          CASE WHEN $7 = 'open' THEN LEAST($5::date, NOW()) ELSE $5::date END,
           ($6::date + INTERVAL '1 day' - INTERVAL '1 second'),
           $7,
+          CASE WHEN $7 = 'open' THEN 'opened' ELSE 'locked' END,
+          NOW(),
+          $8::uuid,
           NOW(),
           NOW()
         FROM subjects subject
@@ -348,14 +364,17 @@ export class ExamsManagerCommandService {
         SET opens_at = EXCLUDED.opens_at,
             closes_at = EXCLUDED.closes_at,
             status = EXCLUDED.status,
+            last_action = EXCLUDED.last_action,
+            last_action_at = EXCLUDED.last_action_at,
+            last_action_by_user_id = EXCLUDED.last_action_by_user_id,
             updated_at = NOW()
         RETURNING id::text, subject_id::text, class_section_id::text
       `,
-      [tenantId, examSeriesId, subjectIds, classSectionIds, startsOn, endsOn, windowStatus],
+      [tenantId, examSeriesId, subjectIds, classSectionIds, startsOn, endsOn, windowStatus, actorUserId],
     );
 
     return {
-      subjectsConfigured: assessments.rowCount,
+      subjectsConfigured: subjectIds.length,
       markEntryWindowsConfigured: windows.rowCount,
       assessmentsInserted: assessments.rowCount,
     };
@@ -584,24 +603,37 @@ export class ExamsManagerCommandService {
       created_at: string;
       starts_on: string;
       ends_on: string;
+      academic_term_id: string | null;
+      subject_ids: string[];
+      class_section_ids: string[];
+      marks_count: number;
+      reports_count: number;
+      other_records_count: number;
     }>(
       `
         SELECT
           series.id::text,
           series.name,
-          CONCAT(series.starts_on::text, ' - ', series.ends_on::text) AS term,
+          COALESCE(term.name, CONCAT(series.starts_on::text, ' - ', series.ends_on::text)) AS term,
+          series.academic_term_id::text,
           EXTRACT(YEAR FROM series.starts_on)::int AS year,
-          'Exam cycle' AS type,
+          COALESCE(NULLIF(to_jsonb(series)->>'exam_type', ''), 'Exam cycle') AS type,
           COALESCE((SELECT MAX(assessment.max_score)::int FROM exam_assessments assessment WHERE assessment.tenant_id = series.tenant_id AND assessment.exam_series_id = series.id), 100) AS max_marks,
           COALESCE(series_grading.name, default_grading.name, 'School grading') AS grading_system,
           COALESCE(series_grading.id::text, default_grading.id::text) AS grading_system_id,
           COALESCE(series.status, 'scheduled') AS status,
           (SELECT COUNT(DISTINCT assessment.subject_id)::int FROM exam_assessments assessment WHERE assessment.tenant_id = series.tenant_id AND assessment.exam_series_id = series.id) AS subjects_count,
           (SELECT COUNT(DISTINCT entry_window.class_section_id)::int FROM exam_mark_entry_windows entry_window WHERE entry_window.tenant_id = series.tenant_id AND entry_window.exam_series_id = series.id) AS classes_count,
+          ARRAY(SELECT DISTINCT assessment.subject_id::text FROM exam_assessments assessment WHERE assessment.tenant_id = series.tenant_id AND assessment.exam_series_id = series.id) AS subject_ids,
+          ARRAY(SELECT DISTINCT entry_window.class_section_id::text FROM exam_mark_entry_windows entry_window WHERE entry_window.tenant_id = series.tenant_id AND entry_window.exam_series_id = series.id) AS class_section_ids,
+          record_counts.*,
+          series.published_at::text,
           series.created_at::text,
           series.starts_on::text,
           series.ends_on::text
         FROM exam_series series
+        LEFT JOIN academic_terms term ON term.tenant_id = series.tenant_id AND term.id::text = series.academic_term_id::text
+        CROSS JOIN LATERAL (${EXAM_RECORD_COUNTS_SQL.replace(/\$1/g, 'series.tenant_id').replace(/\$2::uuid/g, 'series.id')}) record_counts
         LEFT JOIN academics_grading_systems series_grading
           ON series_grading.tenant_id = series.tenant_id
          AND series_grading.id::text = NULLIF(to_jsonb(series)->>'grading_system_id', '')
@@ -624,8 +656,9 @@ export class ExamsManagerCommandService {
       [tenantId],
     );
 
-    const exams = result.rows;
+    const exams = result.rows.map((exam) => ({ ...exam, can_delete: !examDeletionBlock(exam), delete_block_reason: examDeletionBlock(exam) }));
     return {
+      can_manage: ['exams:write', 'exams:*', '*:*'].some((permission) => this.requestContext.getStore()?.permissions?.includes(permission)),
       metrics: {
         total_exams: exams.length,
         active_exams: exams.filter((exam) => ['submitted', 'reviewed', 'locked'].includes(String(exam.status).toLowerCase())).length,
@@ -637,6 +670,24 @@ export class ExamsManagerCommandService {
   }
 
   async createExamSetup(dto: any) {
+    this.requireExamScopeSelection(dto);
+    return this.mutateExamSetup('created', dto);
+  }
+
+  private async mutateExamSetup(operation: 'created' | 'configured', dto: any, id?: string) {
+    const tenantId = this.requireTenantId();
+    const actorId = this.actorUserId();
+    if (!actorId) throw new UnauthorizedException('User context is required.');
+    return examSetupTransaction(this.prisma, tenantId, actorId, async (operations, tx) => {
+      const service = new ExamsManagerCommandService(this.requestContext, this.prisma, operations, this.examsService);
+      const result = await (operation === 'created' ? service.createExamSetupWithinTransaction(dto) : service.configureExamSetupWithinTransaction(id!, dto));
+      await this.emitExamSetupOperation({ operation, exam: result.exam, name: result.exam.name,
+        startsOn: result.exam.starts_on, endsOn: result.exam.ends_on, status: result.exam.status, scope: result.scope }, tx);
+      return result;
+    });
+  }
+
+  private async createExamSetupWithinTransaction(dto: any) {
     const tenantId = this.requireTenantId();
     const name = this.operations.requiredText(dto?.name, 'Exam name');
     const startsOn = this.requireDate(dto?.starts_on ?? dto?.startsOn, 'Start date');
@@ -646,7 +697,9 @@ export class ExamsManagerCommandService {
     if (new Date(endsOn) < new Date(startsOn)) {
       throw new BadRequestException('End date cannot be before start date');
     }
-    this.requireExamScopeSelection(dto);
+    const selection = this.requireExamScopeSelection(dto);
+    if (!['draft', 'submitted'].includes(status)) throw new BadRequestException('Create an exam as a draft or open it for marks.');
+    this.positiveNumber(dto?.max_marks, 100, 'Max marks');
 
     const gradingSystemId = await this.resolveGradingSystemId(tenantId, dto);
     const columns = await this.examSeriesColumns();
@@ -661,6 +714,7 @@ export class ExamsManagerCommandService {
       if (!academicTermId) {
         throw new BadRequestException('Create or activate an academic term before creating an exam cycle.');
       }
+      await validateExamSelection(this.operations, tenantId, selection.subjectIds, selection.classSectionIds, academicTermId);
       insertColumns.splice(1, 0, 'academic_term_id');
       params.splice(1, 0, academicTermId);
       placeholders.splice(1, 0, '$2::uuid');
@@ -683,6 +737,11 @@ export class ExamsManagerCommandService {
       insertColumns.push('grading_system_id');
       params.push(gradingSystemId);
       placeholders.push(`$${params.length}::uuid`);
+    }
+    if (columns.has('exam_type')) {
+      insertColumns.push('exam_type');
+      params.push(this.optionalText(dto?.exam_type ?? dto?.type) ?? 'Exam cycle');
+      placeholders.push(`$${params.length}`);
     }
 
     if (columns.has('created_at')) {
@@ -749,7 +808,13 @@ export class ExamsManagerCommandService {
   }
 
   async configureExamSetup(id: string, dto: any) {
+    this.uniqueUuidArray([id], 'Exam');
+    return this.mutateExamSetup('configured', dto, id);
+  }
+
+  private async configureExamSetupWithinTransaction(id: string, dto: any) {
     const tenantId = this.requireTenantId();
+    const current = await lockExam(this.operations, tenantId, id);
     const name = this.operations.requiredText(dto?.name, 'Exam name');
     const startsOn = this.requireDate(dto?.starts_on ?? dto?.startsOn, 'Start date');
     const endsOn = this.requireDate(dto?.ends_on ?? dto?.endsOn, 'End date');
@@ -758,12 +823,25 @@ export class ExamsManagerCommandService {
     if (new Date(endsOn) < new Date(startsOn)) {
       throw new BadRequestException('End date cannot be before start date');
     }
-    this.requireExamScopeSelection(dto);
+    const selection = this.requireExamScopeSelection(dto);
+    const maxMarks = this.positiveNumber(dto?.max_marks, Number(current.max_marks ?? 100), 'Max marks');
+    const academicTermId = this.optionalText(dto?.academic_term_id) ?? current.academic_term_id;
+    await validateExamSelection(this.operations, tenantId, selection.subjectIds, selection.classSectionIds, academicTermId);
+    if (['published', 'archived'].includes(current.status) || current.published_at) {
+      throw new ConflictException('Published or archived exam configuration is read-only.');
+    }
+    if ((!['draft', 'submitted'].includes(status) && status !== current.status) || (current.locked_at && status !== current.status)) {
+      throw new ConflictException('Use the exam review and publishing workflow to change this status.');
+    }
 
     const gradingSystemId = await this.resolveGradingSystemId(tenantId, dto);
+    await reconcileExamScope(this.operations, tenantId, id, selection.subjectIds, selection.classSectionIds,
+      maxMarks, academicTermId, gradingSystemId);
     const gradingSystemUpdate = gradingSystemId ? ', grading_system_id = $7::uuid' : '';
     const updateParams: unknown[] = [tenantId, id, name, startsOn, endsOn, status];
     if (gradingSystemId) updateParams.push(gradingSystemId);
+    updateParams.push(academicTermId, this.optionalText(dto?.exam_type ?? dto?.type) ?? current.exam_type ?? 'Exam cycle');
+    const termParameter = updateParams.length - 1;
 
     const updated = await this.operations.writeSql<{
       id: string;
@@ -780,6 +858,8 @@ export class ExamsManagerCommandService {
             ends_on = $5::date,
             status = $6
             ${gradingSystemUpdate},
+            academic_term_id = $${termParameter}::uuid,
+            exam_type = $${termParameter + 1},
             updated_at = NOW()
         WHERE tenant_id = $1
           AND id = $2::uuid
@@ -793,7 +873,7 @@ export class ExamsManagerCommandService {
     }
 
     const exam = updated.rows[0];
-    const scope = await this.syncExamScope(tenantId, id, dto, startsOn, endsOn);
+    const scope = await this.syncExamScope(tenantId, id, { ...dto, max_marks: maxMarks }, startsOn, endsOn, maxMarks !== Number(current.max_marks));
     await this.operations.recordWorkflowAction({
       tenantId,
       actorUserId: this.actorUserId(),
@@ -823,6 +903,30 @@ export class ExamsManagerCommandService {
       exam,
       scope,
     };
+  }
+
+  async deleteExamSetup(id: string) {
+    const tenantId = this.requireTenantId();
+    const actorId = this.actorUserId();
+    if (!actorId) throw new UnauthorizedException('User context is required.');
+    this.uniqueUuidArray([id], 'Exam');
+    await examSetupTransaction(this.prisma, tenantId, actorId, async (operations, tx) => {
+      const current = await lockExam(operations, tenantId, id);
+      const counts = (await operations.readSql(EXAM_RECORD_COUNTS_SQL, [tenantId, id])).rows[0];
+      const blocked = examDeletionBlock({ ...current, ...counts });
+      if (blocked) throw new ConflictException(blocked);
+      await deleteExamSetupRecords(operations, tenantId, id);
+      await operations.recordWorkflowAction({ tenantId, actorUserId: actorId,
+        sourceRole: this.requestContext.getStore()?.role ?? 'exams_manager',
+        targetRoles: ['principal', 'dean_academics', 'hod', 'teacher'],
+        eventType: 'exams.exam-setup.deleted', entityType: 'exam_series', entityId: id,
+        title: 'Exam Cycle Deleted', message: `${current.name} deleted before results were entered.`,
+        payload: { exam_series_id: id, previous: current, ...counts } });
+      const exam = { ...current, updated_at: new Date().toISOString() };
+      await this.emitExamSetupOperation({ operation: 'deleted', exam, name: exam.name,
+        startsOn: String(exam.starts_on), endsOn: String(exam.ends_on), status: 'deleted', scope: {} }, tx);
+    });
+    return { success: true, message: 'Exam deleted successfully', exam_id: id };
   }
 
   async getExamTimetable() {
@@ -993,6 +1097,12 @@ export class ExamsManagerCommandService {
       slot,
       invigilator,
     };
+  }
+
+  async getTeacherMarkProgress() {
+    const tenantId = this.requireTenantId();
+    const result = await this.readSql<TeacherMarkProgress>(TEACHER_MARK_PROGRESS_SQL, [tenantId]);
+    return { entries: result.rows };
   }
 
   async getMarksEntry() {

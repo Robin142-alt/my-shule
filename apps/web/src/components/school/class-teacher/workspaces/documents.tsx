@@ -1,10 +1,11 @@
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
 import { FolderOpen } from "lucide-react";
 import { Panel, openClassTeacherRecord } from "../shared";
 import { useClassTeacherDocuments, useResolvedClassTeacherStreamId } from "@/lib/data/class-teacher-hooks";
 
 export function DocumentsWorkspace() {
   const { streamId } = useResolvedClassTeacherStreamId();
-  const { data, isLoading, error } = useClassTeacherDocuments(streamId);
+  const { data, isLoading, error, refetch } = useClassTeacherDocuments(streamId);
 
   if (isLoading) {
     return (
@@ -18,6 +19,7 @@ export function DocumentsWorkspace() {
     return (
       <Panel title="Class Documents" description="Shared files, syllabuses, and class resources." icon={FolderOpen}>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 font-bold">Failed to load documents.</div>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Panel>
     );
   }

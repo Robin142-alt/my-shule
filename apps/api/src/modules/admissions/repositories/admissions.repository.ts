@@ -1,3 +1,5 @@
+import { BadRequestException } from '@nestjs/common';
+import { ensureCohortMigration, ensureCohortContexts, lockCohortSchool } from '../../academics/cohort-configuration';
 import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../../database/prisma.service';
@@ -266,6 +268,7 @@ export class AdmissionsRepository {
   }
 
   async getAdmissionFoundation(tenantId: string) {
+    await this.prisma.executeWithTenant(tenantId,null,(tx:any)=>ensureCohortMigration(tx,tenantId));
     const result = await this.executeSql<{ foundation: Record<string, unknown> }>(tenantId, `
       SELECT jsonb_build_object(
         'academic_years', COALESCE((
@@ -343,41 +346,15 @@ export class AdmissionsRepository {
             AND subject.archived_at IS NULL
         ), '[]'::jsonb),
         'class_subject_assignments', COALESCE((
-          SELECT jsonb_agg(jsonb_build_object(
-            'academic_term_id', effective_assignment.academic_term_id,
-            'academic_year_id', effective_assignment.academic_year_id,
-            'class_section_id', effective_assignment.class_section_id,
-            'subject_id', effective_assignment.subject_id,
-            'is_compulsory', effective_assignment.is_compulsory,
-            'is_examinable', effective_assignment.is_examinable
-          ) ORDER BY effective_assignment.class_section_id, effective_assignment.subject_id)
-          FROM (
-            SELECT DISTINCT ON (
-              assignment.class_section_id,
-              assignment.subject_id,
-              term.academic_year_id
-            )
-              assignment.academic_term_id,
-              term.academic_year_id,
-              assignment.class_section_id,
-              assignment.subject_id,
-              assignment.is_compulsory,
-              assignment.is_examinable
-            FROM class_subject_assignments assignment
-            JOIN academic_terms term
-              ON term.tenant_id = assignment.tenant_id
-             AND term.id = assignment.academic_term_id
-            WHERE assignment.tenant_id = $1
-              AND lower(COALESCE(assignment.status, 'active')) = 'active'
-            ORDER BY
-              assignment.class_section_id,
-              assignment.subject_id,
-              term.academic_year_id,
-              term.is_current DESC,
-              term.starts_on DESC,
-              assignment.updated_at DESC,
-              assignment.id DESC
-          ) effective_assignment
+          SELECT jsonb_agg(jsonb_build_object('academic_term_id',NULL,'academic_year_id',placement.academic_year_id,
+            'class_section_id',assignment.class_section_id,'stream_id',assignment.stream_id,'cohort_id',assignment.cohort_id,
+            'cohort_placement_id',placement.id,'subject_id',assignment.subject_id,'is_compulsory',assignment.is_compulsory,
+            'is_examinable',assignment.is_examinable) ORDER BY assignment.class_section_id,assignment.stream_id,assignment.subject_id)
+          FROM class_subject_assignments assignment JOIN academic_cohort_placements placement
+            ON placement.tenant_id=assignment.tenant_id AND placement.id=assignment.cohort_placement_id AND placement.status='active'
+          WHERE assignment.tenant_id=$1 AND assignment.status='active'
+            AND (assignment.effective_from IS NULL OR assignment.effective_from<=CURRENT_DATE)
+            AND (assignment.effective_to IS NULL OR assignment.effective_to>=CURRENT_DATE)
         ), '[]'::jsonb)
       ) AS foundation
     `, [tenantId]);
@@ -623,6 +600,8 @@ export class AdmissionsRepository {
     persistGovernance?: CanonicalAdmissionTransactionHook,
   ) {
     return this.prisma.executeWithTenant(input.tenant_id, input.actor_user_id, async (tx: any) => {
+      await lockCohortSchool(tx, input.tenant_id);
+      await ensureCohortMigration(tx, input.tenant_id);
       const query = async <T = any>(sql: string, values: unknown[] = []): Promise<T[]> => {
         const rows = await tx.$queryRawUnsafe(sql, ...values);
         return Array.isArray(rows) ? rows : [rows];
@@ -816,31 +795,21 @@ export class AdmissionsRepository {
       }
       if (settings.strict_age_rules && ageOutsideRule) throw new Error('ADMISSION_AGE_RULE_FAILED');
 
+      await lockCohortSchool(tx,input.tenant_id);
+      await ensureCohortMigration(tx,input.tenant_id);
+      const admissionContexts=await ensureCohortContexts(tx,input.tenant_id,input.class_section_id,input.stream_id);
+      const admissionContext=admissionContexts.find(context=>context.stream_id===(input.stream_id??null));
+      if(!admissionContext)throw new Error('ADMISSION_STREAM_INVALID');
       const availableSubjects = await query<any>(`
-        SELECT DISTINCT ON (subject.id)
-          subject.id,
-          subject.code,
-          subject.name,
-          subject.curriculum_model,
-          subject.subject_type,
-          COALESCE(assignment.is_compulsory, subject.is_compulsory, FALSE) AS is_compulsory,
-          assignment.academic_term_id
-        FROM class_subject_assignments assignment
-        JOIN academic_terms term
-          ON term.tenant_id = assignment.tenant_id
-         AND term.id = assignment.academic_term_id
-        JOIN subjects subject
-          ON subject.tenant_id = assignment.tenant_id
-         AND subject.id = assignment.subject_id
-        WHERE assignment.tenant_id = $1
-          AND assignment.class_section_id = $2
-          AND term.academic_year_id = $3
-          AND lower(COALESCE(assignment.status, 'active')) = 'active'
-          AND lower(COALESCE(subject.status, 'active')) = 'active'
-          AND subject.deleted_at IS NULL
-          AND subject.archived_at IS NULL
-        ORDER BY subject.id, term.is_current DESC, term.starts_on DESC
-      `, [input.tenant_id, input.class_section_id, input.academic_year_id]);
+        SELECT subject.id,subject.code,subject.name,subject.curriculum_model,subject.subject_type,
+          COALESCE(assignment.is_compulsory,subject.is_compulsory,FALSE) AS is_compulsory,assignment.academic_term_id
+        FROM class_subject_assignments assignment JOIN subjects subject ON subject.tenant_id=assignment.tenant_id
+          AND subject.id=assignment.subject_id
+        WHERE assignment.tenant_id=$1 AND assignment.cohort_placement_id=$2 AND assignment.status='active'
+          AND (assignment.effective_from IS NULL OR assignment.effective_from<=CURRENT_DATE)
+          AND (assignment.effective_to IS NULL OR assignment.effective_to>=CURRENT_DATE)
+          AND subject.status='active' AND subject.deleted_at IS NULL AND subject.archived_at IS NULL
+        ORDER BY subject.id`,[input.tenant_id,admissionContext.id]);
       if (availableSubjects.length === 0) throw new Error('ADMISSION_SUBJECTS_NOT_CONFIGURED');
 
       const selected = new Set(input.subject_ids);
@@ -986,6 +955,12 @@ export class AdmissionsRepository {
         input.transport_route,
         input.admission_date,
       ]);
+
+      await query(`UPDATE student_class_assignments SET cohort_id=$3,cohort_placement_id=$4
+        WHERE tenant_id=$1 AND student_id=$2 AND status='active' AND class_section_id=$5 AND stream_id IS NOT DISTINCT FROM $6::text
+        RETURNING id`,[input.tenant_id,student.id,admissionContext.cohort_id,admissionContext.id,input.class_section_id,input.stream_id??null]);
+      await query(`UPDATE student_academic_enrollments SET cohort_id=$3,cohort_placement_id=$4,stream_id=$5
+        WHERE tenant_id=$1 AND id=$2 RETURNING id`,[input.tenant_id,academicEnrollmentId,admissionContext.cohort_id,admissionContext.id,input.stream_id??null]);
 
       for (const subject of availableSubjects.filter((item) => selected.has(String(item.id)))) {
         await query(`
@@ -2438,7 +2413,7 @@ export class AdmissionsRepository {
     transport_route?: string | null;
     effective_from: string;
     notes?: string | null;
-  }, transaction?: any) {
+  }, transaction?: any): Promise<any> {
     await this.executeSql(input.school_id, `
         UPDATE student_allocations
         SET is_current = FALSE,
@@ -2683,7 +2658,21 @@ export class AdmissionsRepository {
     class_name: string;
     stream_name: string;
     academic_year: string;
-  }, transaction?: any) {
+  }, transaction?: any): Promise<any> {
+    if (!transaction) return this.prisma.executeWithTenant(input.school_id,null,
+      (tx:any)=>this.createStudentAcademicEnrollment(input,tx));
+    await lockCohortSchool(transaction,input.school_id);
+    await ensureCohortMigration(transaction,input.school_id);
+    const contexts=await ensureCohortContexts(transaction,input.school_id,String(input.class_section_id),input.stream_id);
+    const context=contexts.find(item=>item.stream_id===(input.stream_id??null));
+    if(!context)throw new BadRequestException('Select the actual stream for this cohort.');
+    const existing=await transaction.$queryRawUnsafe(`SELECT * FROM student_academic_enrollments
+      WHERE tenant_id=$1 AND student_id::text=$2 AND (academic_year=$3 OR status='active') FOR UPDATE`,
+    input.school_id,input.student_id,input.academic_year);
+    if(existing.length) {
+      if(existing.length===1 && existing[0].status==='active' && existing[0].cohort_placement_id===context.id) return existing[0];
+      throw new BadRequestException('This learner already has an enrollment. Use class placement or annual cohort promotion to move them.');
+    }
     const result = await this.executeSql(input.school_id, `
         WITH selected_section AS (
           SELECT
@@ -2693,6 +2682,8 @@ export class AdmissionsRepository {
           FROM class_sections section
           WHERE section.tenant_id = $1
             AND section.id::text = $4::text
+            AND EXISTS (SELECT 1 FROM academic_years year WHERE year.tenant_id=section.tenant_id
+              AND year.id::text=section.academic_year_id::text AND year.name=$7)
             AND section.is_active = TRUE
             AND lower(COALESCE(section.status, 'active')) = 'active'
             AND section.archived_at IS NULL
@@ -2729,7 +2720,7 @@ export class AdmissionsRepository {
           SELECT $1, $2::text, $3::text, section.id, $5, $6, $7, 'active'
           FROM selected_section section
           LEFT JOIN selected_stream stream ON TRUE
-          WHERE NULLIF(btrim($6), '') IS NULL
+          WHERE $8::text IS NULL
              OR stream.id IS NOT NULL
           ON CONFLICT (tenant_id, student_id, academic_year)
           DO UPDATE SET
@@ -2778,7 +2769,7 @@ export class AdmissionsRepository {
             NOW()
           FROM selected_section section
           LEFT JOIN selected_stream stream ON TRUE
-          WHERE NULLIF(btrim($6), '') IS NULL
+          WHERE $8::text IS NULL
              OR stream.id IS NOT NULL
           ON CONFLICT (tenant_id, student_id, academic_year_id) WHERE status = 'active'
           DO UPDATE SET
@@ -2805,7 +2796,14 @@ export class AdmissionsRepository {
       ], transaction,
     );
 
-    return result[0] ?? null;
+    if(result[0]) {
+      await transaction.$queryRawUnsafe(`UPDATE student_academic_enrollments SET cohort_id=$3,cohort_placement_id=$4,stream_id=$5
+        WHERE tenant_id=$1 AND id=$2 RETURNING id`,input.school_id,result[0].id,context.cohort_id,context.id,context.stream_id);
+      await transaction.$queryRawUnsafe(`UPDATE student_class_assignments SET cohort_id=$3,cohort_placement_id=$4
+        WHERE tenant_id=$1 AND student_id=$2 AND class_section_id=$5 AND stream_id IS NOT DISTINCT FROM $6::text
+          AND status='active' RETURNING id`,input.school_id,input.student_id,context.cohort_id,context.id,context.class_section_id,context.stream_id);
+    }
+    return result[0] ? {...result[0],cohort_id:context.cohort_id,cohort_placement_id:context.id,stream_id:context.stream_id} : null;
   }
 
   async archivePreviousStudentClassAssignments(tenantId: string, studentId: string, transaction: any) {
@@ -2974,43 +2972,24 @@ export class AdmissionsRepository {
   }, transaction?: any) {
     const result = await this.executeSql(input.school_id, `
         WITH subject_rows AS (
-          INSERT INTO student_subject_enrollments (
-            tenant_id,
-            student_id,
-            academic_enrollment_id,
-            subject_offering_id,
-            subject_code,
-            subject_name,
-            status
-          )
-          SELECT
-            offering.tenant_id,
-            $2::uuid,
-            $3::uuid,
-            offering.id,
-            offering.subject_code,
-            offering.subject_name,
-            'active'
-          FROM academic_subject_offerings offering
-          WHERE offering.tenant_id = $1
-            AND offering.class_section_id = $4::uuid
-            AND offering.is_active = TRUE
-          ON CONFLICT (tenant_id, student_id, subject_offering_id)
-          DO UPDATE SET
-            academic_enrollment_id = EXCLUDED.academic_enrollment_id,
-            subject_code = EXCLUDED.subject_code,
-            subject_name = EXCLUDED.subject_name,
-            status = 'active',
-            updated_at = NOW()
-          RETURNING
-            id,
-            subject_offering_id::text,
-            subject_code,
-            subject_name,
-            status,
-            enrolled_at,
-            created_at,
-            updated_at
+          INSERT INTO student_subject_enrollments (tenant_id,student_id,academic_enrollment_id,
+            subject_code,subject_name,academic_year_id,class_section_id,stream_id,subject_id,is_compulsory,status)
+          SELECT offering.tenant_id,$2::text,$3::text,subject.code,subject.name,placement.academic_year_id,
+            placement.class_section_id,placement.stream_id,offering.subject_id,offering.is_compulsory,'active'
+          FROM student_academic_enrollments enrollment
+          JOIN academic_cohort_placements placement ON placement.tenant_id=enrollment.tenant_id
+            AND placement.id=enrollment.cohort_placement_id AND placement.status='active'
+          JOIN class_subject_assignments offering ON offering.tenant_id=placement.tenant_id
+            AND offering.cohort_placement_id=placement.id AND offering.status='active'
+          JOIN subjects subject ON subject.tenant_id=offering.tenant_id AND subject.id::text=offering.subject_id::text AND subject.status='active'
+          WHERE enrollment.tenant_id=$1 AND enrollment.id::text=$3 AND enrollment.student_id::text=$2
+            AND enrollment.class_section_id::text=$4 AND enrollment.status='active'
+            AND (offering.effective_from IS NULL OR offering.effective_from<=CURRENT_DATE)
+            AND (offering.effective_to IS NULL OR offering.effective_to>=CURRENT_DATE)
+          ON CONFLICT (tenant_id,student_id,academic_year_id,subject_id)
+            WHERE status='active' AND academic_year_id IS NOT NULL AND subject_id IS NOT NULL
+          DO UPDATE SET is_compulsory=EXCLUDED.is_compulsory,updated_at=NOW()
+          RETURNING *
         ),
         timetable_rows AS (
           INSERT INTO student_timetable_enrollments (
@@ -3027,8 +3006,8 @@ export class AdmissionsRepository {
           )
           SELECT
             slot.tenant_id,
-            $2::uuid,
-            $3::uuid,
+            $2::text,
+            $3::text,
             slot.id,
             slot.day_of_week,
             slot.starts_at,
@@ -3041,7 +3020,7 @@ export class AdmissionsRepository {
             ON offering.tenant_id = slot.tenant_id
            AND offering.id = slot.subject_offering_id
           WHERE slot.tenant_id = $1
-            AND slot.class_section_id = $4::uuid
+            AND slot.class_section_id = $4::text
             AND slot.is_active = TRUE
           ON CONFLICT (tenant_id, student_id, timetable_slot_id)
           DO UPDATE SET

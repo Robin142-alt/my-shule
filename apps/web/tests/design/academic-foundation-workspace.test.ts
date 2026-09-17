@@ -50,7 +50,7 @@ describe("principal and deputy academic foundation workspace", () => {
     expect(workspaceSource).toContain("Create Stream");
     expect(workspaceSource).toContain("Create Department");
     expect(workspaceSource).toContain("Create Subject / Learning Area");
-    expect(workspaceSource).toContain("Assign subjects to class and term");
+    expect(workspaceSource).toContain("Assign subjects to cohort");
     expect(workspaceSource).toContain("Select Subjects to Assign");
     expect(workspaceSource).toContain("Add Calendar Period");
     expect(workspaceSource).toContain("Save HOD");
@@ -64,8 +64,8 @@ describe("principal and deputy academic foundation workspace", () => {
   it("uses guided policy builders instead of exposing JSON configuration to school staff", () => {
     for (const label of [
       "Guided school policy setup",
-      "Secondary A-E starter",
-      "CBC starter",
+      "8-4-4",
+      "CBC",
       "Morning register",
       "Class teacher comment",
       "Signature lines",

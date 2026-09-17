@@ -59,6 +59,10 @@ export const ACADEMIC_INTERVENTION_STATUSES = [
 
 export class CreateAcademicInterventionDto {
   @IsOptional()
+  @IsIn(['school', 'department', 'subject', 'grade', 'class', 'assignment'])
+  analytics_scope?: string;
+
+  @IsOptional()
   @IsString()
   student_id?: string;
 
@@ -366,6 +370,39 @@ export class GenerateReportCardBatchDto {
   @IsInt()
   @Min(0)
   offset?: number;
+}
+
+export class BulkReportCardTransitionDto {
+  @IsString()
+  @IsIn(['submit', 'approve', 'recall', 'publish', 'unpublish'])
+  action!: 'submit' | 'approve' | 'recall' | 'publish' | 'unpublish';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  reason?: string;
+
+  @IsOptional()
+  @IsString()
+  exam_series_id?: string;
+
+  @IsOptional()
+  @IsString()
+  class_section_id?: string;
+
+  @IsOptional()
+  @IsString()
+  stream_id?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  student_ids?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  report_card_ids?: string[];
 }
 
 export class ModerateExamMarksDto {

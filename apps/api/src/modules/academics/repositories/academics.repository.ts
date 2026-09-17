@@ -1,8 +1,11 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { updateStudentCohortPosition, updateStudentCohortSubjects } from '../cohort-enrollment';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
 import { ACADEMIC_TEACHING_ROLE_CODES } from '../../../auth/auth.constants';
 import { PrismaService } from '../../../database/prisma.service';
+import { ensureCohortContexts, ensureCohortMigration, lockCohortSchool } from '../cohort-configuration';
+import { writeCohortSubjects, writeCohortTeacher } from '../cohort-assignment-writes';
 
 const ACADEMIC_TEACHING_ROLE_SQL = ACADEMIC_TEACHING_ROLE_CODES
   .map((roleCode) => `'${roleCode}'`)
@@ -187,7 +190,8 @@ export type SetupDependencyResult = {
 };
 
 export type BulkClassSubjectAssignmentsInput = {
-  academic_term_id: string;
+  academic_term_id?: string | null;
+  stream_id?: string | null;
   class_section_id: string;
   subject_ids: string[];
   is_compulsory?: boolean;
@@ -274,6 +278,7 @@ export class AcademicsRepository {
 
   async getAcademicFoundation(tenantId: string) {
     return this.prisma.executeWithTenant(tenantId, null, async (tx: any) => {
+      await ensureCohortMigration(tx,tenantId);
       const rows = await tx.$queryRawUnsafe(
         `
           SELECT
@@ -357,6 +362,8 @@ export class AcademicsRepository {
               SELECT jsonb_agg(to_jsonb(item) ORDER BY item.created_at DESC)
               FROM (
                 SELECT assignment.id::text, assignment.academic_term_id::text,
+                       assignment.cohort_id,assignment.cohort_placement_id,assignment.stream_id,
+                       stream.name AS stream_name,
                        term.name AS academic_term_name,
                        assignment.class_section_id::text,
                        section.name AS class_section_name,
@@ -366,6 +373,9 @@ export class AcademicsRepository {
                        assignment.status, assignment.reason, assignment.version,
                        assignment.created_at
                 FROM class_subject_assignments assignment
+                JOIN academic_cohort_placements placement ON placement.tenant_id=assignment.tenant_id
+                  AND placement.id=assignment.cohort_placement_id AND placement.status='active'
+                LEFT JOIN class_streams stream ON stream.tenant_id=assignment.tenant_id AND stream.id=assignment.stream_id
                 LEFT JOIN academic_terms term
                   ON term.tenant_id = assignment.tenant_id
                  AND term.id::text = assignment.academic_term_id::text
@@ -454,6 +464,7 @@ export class AcademicsRepository {
               SELECT jsonb_agg(to_jsonb(item) ORDER BY item.created_at DESC)
               FROM (
                 SELECT assignment.id::text, assignment.academic_term_id::text,
+                       assignment.cohort_id,assignment.cohort_placement_id,stream.name AS stream_name,
                        term.name AS academic_term_name, assignment.class_section_id::text,
                        section.name AS class_section_name, assignment.subject_id::text,
                        subject.name AS subject_name, assignment.teacher_user_id::text,
@@ -465,6 +476,9 @@ export class AcademicsRepository {
                        assignment.department_id::text, assignment.curriculum_model, assignment.version,
                        assignment.created_at
                 FROM teacher_subject_assignments assignment
+                JOIN academic_cohort_placements placement ON placement.tenant_id=assignment.tenant_id
+                  AND placement.id=assignment.cohort_placement_id AND placement.status='active'
+                LEFT JOIN class_streams stream ON stream.tenant_id=assignment.tenant_id AND stream.id=assignment.stream_id
                 LEFT JOIN academic_terms term
                   ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
                 LEFT JOIN class_sections section
@@ -491,6 +505,7 @@ export class AcademicsRepository {
                     FROM academics_report_card_settings WHERE tenant_id = $1) item), '[]'::jsonb) AS report_card_settings
             ,COALESCE((SELECT jsonb_agg(to_jsonb(item) ORDER BY item.created_at DESC)
               FROM (SELECT appointment.id::text, appointment.role_type,
+                           appointment.subject_id::text,
                            appointment.teacher_user_id::text,
                            COALESCE(staff.display_name, staff.staff_number) AS teacher_name,
                            appointment.department_id::text, appointment.academic_year_id::text,
@@ -514,6 +529,13 @@ export class AcademicsRepository {
       const result = (Array.isArray(rows) ? rows[0] : null) ?? {};
 
       return {
+        migrationIssues: await tx.$queryRawUnsafe(`SELECT issue.id,issue.entity_type,issue.reason,issue.subject_id,
+          section.name AS class_name,stream.name AS stream_name,subject.name AS subject_name
+          FROM academic_cohort_migration_issues issue
+          JOIN class_sections section ON section.tenant_id=issue.tenant_id AND section.id::text=issue.class_section_id
+          LEFT JOIN class_streams stream ON stream.tenant_id=issue.tenant_id AND stream.id::text=issue.stream_id
+          LEFT JOIN subjects subject ON subject.tenant_id=issue.tenant_id AND subject.id::text=issue.subject_id
+          WHERE issue.tenant_id=$1 AND issue.status='pending' ORDER BY section.name,stream.name,subject.name`,tenantId),
         years: Array.isArray(result.years) ? result.years : [],
         terms: Array.isArray(result.terms) ? result.terms : [],
         calendarPeriods: Array.isArray(result.calendar_periods) ? result.calendar_periods : [],
@@ -652,204 +674,47 @@ export class AcademicsRepository {
     return result.rows[0];
   }
 
-  async createClassSubjectAssignment(tenantId: string, input: Record<string, unknown>) {
-    const result = await this.executeSql(tenantId, `
-      INSERT INTO class_subject_assignments (
-        tenant_id, academic_term_id, class_section_id, subject_id,
-        is_compulsory, is_examinable, effective_from, effective_to,
-        reason, created_by_user_id, updated_by_user_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8::date, $9, $10::uuid, $10::uuid)
-      ON CONFLICT (tenant_id, academic_term_id, class_section_id, subject_id)
-      DO UPDATE SET is_compulsory = EXCLUDED.is_compulsory,
-        is_examinable = EXCLUDED.is_examinable,
-        effective_from = EXCLUDED.effective_from,
-        effective_to = EXCLUDED.effective_to,
-        status = 'active', archived_at = NULL, archived_by_user_id = NULL,
-        reason = EXCLUDED.reason, updated_by_user_id = EXCLUDED.updated_by_user_id,
-        version = class_subject_assignments.version + 1, updated_at = NOW()
-      RETURNING *
-    `, [tenantId, input.academic_term_id, input.class_section_id, input.subject_id,
-      input.is_compulsory ?? true, input.is_examinable ?? true,
-      input.effective_from ?? null, input.effective_to ?? null,
-      input.reason ?? null, input.actor_user_id ?? null]);
-    return result.rows[0];
+  async createClassSubjectAssignment(tenantId: string, input: Record<string, unknown>, persistGovernance?: BulkClassSubjectAssignmentsTransactionHook) {
+    const assignments = await this.createClassSubjectAssignmentsBulk(tenantId, {
+      ...input, class_section_id: String(input.class_section_id), subject_ids: [String(input.subject_id)],
+      actor_user_id: input.actor_user_id as string ?? null, actor_role: input.actor_role as string ?? null,
+      correlation_id: input.correlation_id as string ?? null,
+    }, persistGovernance);
+    return assignments[0] ? { ...assignments[0], assignments } : null;
   }
 
-  async createClassSubjectAssignmentsBulk(
-    tenantId: string,
-    input: BulkClassSubjectAssignmentsInput,
-    persistGovernance?: BulkClassSubjectAssignmentsTransactionHook,
-  ) {
-    return this.prisma.executeWithTenant<Array<Record<string, any>>>(
-      tenantId,
-      input.actor_user_id,
-      async (tx: any) => {
-        await tx.$executeRawUnsafe(
-          'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-          `academic-class-subjects:${tenantId}:${input.academic_term_id}:${input.class_section_id}`,
-        );
-
-        const termResult = await this.executeSqlTx(tx, `
-          SELECT id::text, academic_year_id::text, status
-          FROM academic_terms
-          WHERE tenant_id = $1 AND id::text = $2
-            AND COALESCE(status, 'draft') NOT IN ('archived', 'closed', 'inactive')
-          LIMIT 1
-          FOR SHARE
-        `, [tenantId, input.academic_term_id]);
-        if (!termResult.rows[0]) {
-          throw academicBulkOfferingError('ACADEMIC_CLASS_SUBJECT_TERM_UNAVAILABLE');
-        }
-
-        const classResult = await this.executeSqlTx(tx, `
-          SELECT id::text, academic_year_id::text, status, is_active
-          FROM class_sections
-          WHERE tenant_id = $1 AND id::text = $2
-            AND COALESCE(status, 'active') NOT IN ('archived', 'closed', 'inactive')
-            AND COALESCE(is_active, true) = true
-          LIMIT 1
-          FOR SHARE
-        `, [tenantId, input.class_section_id]);
-        if (!classResult.rows[0]) {
-          throw academicBulkOfferingError('ACADEMIC_CLASS_SUBJECT_CLASS_UNAVAILABLE');
-        }
-        if (String(termResult.rows[0].academic_year_id) !== String(classResult.rows[0].academic_year_id)) {
-          throw academicBulkOfferingError('ACADEMIC_CLASS_SUBJECT_YEAR_MISMATCH');
-        }
-
-        const subjectResult = await this.executeSqlTx(tx, `
-          SELECT id::text
-          FROM subjects
-          WHERE tenant_id = $1
-            AND id::text = ANY($2::text[])
-            AND COALESCE(status, 'active') NOT IN ('archived', 'inactive')
-          FOR SHARE
-        `, [tenantId, input.subject_ids]);
-        const availableSubjectIds = new Set(subjectResult.rows.map((row) => String(row.id)));
-        if (input.subject_ids.some((subjectId) => !availableSubjectIds.has(subjectId))) {
-          throw academicBulkOfferingError('ACADEMIC_CLASS_SUBJECT_SUBJECTS_UNAVAILABLE');
-        }
-
-        const existingResult = await this.executeSqlTx(tx, `
-          SELECT *
-          FROM class_subject_assignments
-          WHERE tenant_id = $1
-            AND academic_term_id::text = $2
-            AND class_section_id::text = $3
-            AND subject_id::text = ANY($4::text[])
-          FOR UPDATE
-        `, [tenantId, input.academic_term_id, input.class_section_id, input.subject_ids]);
-        const previousBySubjectId = new Map(
-          existingResult.rows.map((row) => [String(row.subject_id), row as Record<string, any>]),
-        );
-
-        const assignments: Array<Record<string, any>> = [];
-        const changes: Array<{
-          assignment: Record<string, any>;
-          previous: Record<string, any> | null;
-          action: 'assigned' | 'updated' | 'restored';
-        }> = [];
-        for (const subjectId of input.subject_ids) {
-          const assignmentResult = await this.executeSqlTx(tx, `
-            INSERT INTO class_subject_assignments (
-              tenant_id, academic_term_id, class_section_id, subject_id,
-              is_compulsory, is_examinable, effective_from, effective_to,
-              reason, created_by_user_id, updated_by_user_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8::date, $9, $10::uuid, $10::uuid)
-            ON CONFLICT (tenant_id, academic_term_id, class_section_id, subject_id)
-            DO UPDATE SET is_compulsory = EXCLUDED.is_compulsory,
-              is_examinable = EXCLUDED.is_examinable,
-              effective_from = EXCLUDED.effective_from,
-              effective_to = EXCLUDED.effective_to,
-              status = 'active', archived_at = NULL, archived_by_user_id = NULL,
-              reason = EXCLUDED.reason, updated_by_user_id = EXCLUDED.updated_by_user_id,
-              version = class_subject_assignments.version + 1, updated_at = NOW()
-            RETURNING *
-          `, [tenantId, input.academic_term_id, input.class_section_id, subjectId,
-            input.is_compulsory ?? true, input.is_examinable ?? true,
-            input.effective_from ?? null, input.effective_to ?? null,
-            input.reason ?? null, input.actor_user_id]);
-          const assignment = assignmentResult.rows[0];
-          if (!assignment) {
-            throw academicBulkOfferingError('ACADEMIC_CLASS_SUBJECT_WRITE_FAILED');
-          }
-          assignments.push(assignment);
-          const previous = previousBySubjectId.get(subjectId) ?? null;
-          const action = previous
-            ? ['archived', 'inactive'].includes(String(previous.status ?? '').toLowerCase())
-              ? 'restored' as const
-              : 'updated' as const
-            : 'assigned' as const;
-          changes.push({ assignment, previous, action });
-
-          await tx.$executeRawUnsafe(`
-            INSERT INTO academic_audit_logs (
-              school_id, tenant_id, entity_type, entity_id, action, actor_user_id,
-              actor_role, previous_values, new_values, reason, effective_at,
-              correlation_id, metadata
-            ) VALUES (
-              $1, $1, 'class_subject_assignment', $2::text,
-              $3, $4::uuid, $5, $6::jsonb, $7::jsonb, $8,
-              $9::timestamptz, $10, $11::jsonb
-            )
-          `,
-          tenantId,
-          assignment.id,
-          `academics.class_subject_assignment_${action}`,
-          input.actor_user_id,
-          input.actor_role,
-          previous == null ? null : JSON.stringify(previous),
-          JSON.stringify(assignment),
-          input.reason ?? null,
-          input.effective_from ?? null,
-          input.correlation_id,
-          JSON.stringify({
-            bulk_assignment: true,
-            requested_count: input.subject_ids.length,
-            academic_term_id: input.academic_term_id,
-            class_section_id: input.class_section_id,
-            subject_id: subjectId,
-          }));
-        }
-
-        await persistGovernance?.({ tx, assignments, changes });
-        return assignments;
-      },
-    );
+  async createClassSubjectAssignmentsBulk(tenantId: string, input: BulkClassSubjectAssignmentsInput,
+    persistGovernance?: BulkClassSubjectAssignmentsTransactionHook) {
+    return this.prisma.executeWithTenant(tenantId, input.actor_user_id, async (tx: any) => {
+      const changes = await writeCohortSubjects(tx, tenantId, input);
+      const assignments = changes.map(change => change.assignment);
+      await persistGovernance?.({tx, assignments, changes});
+      return assignments;
+    });
   }
 
-  async updateClassSubjectAssignment(tenantId: string, id: string, input: Record<string, unknown>) {
-    const fields: string[] = [];
-    const values: unknown[] = [tenantId, id];
-    let i = 3;
-    for (const field of ['academic_term_id', 'class_section_id', 'subject_id', 'reason']) {
-      if (input[field] !== undefined) {
-        fields.push(`${field} = $${i++}`);
-        values.push(input[field] || null);
+  async updateClassSubjectAssignment(tenantId: string,id: string,input: Record<string,unknown>,
+    governance?: (change:{tx:any;assignment:Record<string,any>;previous:Record<string,any>})=>Promise<void>) {
+    return this.prisma.executeWithTenant(tenantId,input.actor_user_id as string ?? null,async(tx:any)=>{
+      await lockCohortSchool(tx,tenantId);
+      const selected = await this.executeSqlTx(tx,`SELECT assignment.* FROM class_subject_assignments assignment
+        JOIN academic_cohort_placements placement ON placement.tenant_id=assignment.tenant_id
+          AND placement.id=assignment.cohort_placement_id AND placement.status='active'
+        WHERE assignment.tenant_id=$1 AND assignment.id=$2 FOR UPDATE OF assignment`,[tenantId,id]);
+      const previous=selected.rows[0];
+      if(!previous) throw new ConflictException('This cohort configuration has moved or is historical. Refresh before editing.');
+      if(input.expected_version!==undefined && Number(input.expected_version)!==Number(previous.version))
+        throw new ConflictException('This offering changed. Refresh before editing.');
+      const fields:string[]=[]; const values:unknown[]=[tenantId,id];
+      for(const field of ['reason','is_compulsory','is_examinable','effective_from','effective_to']) {
+        if(input[field]!==undefined){values.push(input[field]);fields.push(`${field}=$${values.length}${field.startsWith('effective_')?'::date':''}`);}
       }
-    }
-    for (const field of ['is_compulsory', 'is_examinable']) {
-      if (input[field] !== undefined) {
-        fields.push(`${field} = $${i++}`);
-        values.push(input[field]);
-      }
-    }
-    for (const field of ['effective_from', 'effective_to']) {
-      if (input[field] !== undefined) {
-        fields.push(`${field} = $${i++}::date`);
-        values.push(input[field] || null);
-      }
-    }
-    if (fields.length === 0) return this.getSetupRecord(tenantId, 'class-subject', id);
-    fields.push(`updated_by_user_id = $${i++}::uuid`, 'version = version + 1', 'updated_at = NOW()');
-    values.push(input.actor_user_id ?? null, input.expected_version ?? null);
-    const result = await this.executeSql(tenantId, `
-      UPDATE class_subject_assignments SET ${fields.join(', ')}
-      WHERE tenant_id = $1 AND id::text = $2
-        AND ($${i}::integer IS NULL OR version = $${i}::integer)
-      RETURNING *
-    `, values);
-    return result.rows[0];
+      values.push(input.actor_user_id??null);
+      const updated=await this.executeSqlTx(tx,`UPDATE class_subject_assignments SET ${fields.length?fields.join(',')+',':''}
+        updated_by_user_id=$${values.length}::uuid,version=version+1,updated_at=NOW() WHERE tenant_id=$1 AND id=$2 RETURNING *`,values);
+      await governance?.({tx,assignment:updated.rows[0],previous});
+      return updated.rows[0];
+    });
   }
 
   async createClassSection(input: Record<string, unknown>) {
@@ -1163,92 +1028,8 @@ export class AcademicsRepository {
     tx: any; assignment: Record<string, any>; previous: Record<string, any>[];
   }) => Promise<void>) {
     const tenantId = String(input.tenant_id);
-    return this.prisma.executeWithTenant(tenantId, null, async (tx: any) => {
-      await this.executeSqlTx(tx,
-        `SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))::text`,
-        [`subject-teacher-continuity:${tenantId}:${input.class_section_id}`]);
-      const previous = await this.executeSqlTx(tx, `
-        SELECT *, ($6::date > CURRENT_DATE AND effective_from <= CURRENT_DATE
-          AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)) AS replacing_current_in_future
-        FROM teacher_subject_assignments
-        WHERE tenant_id = $1 AND class_section_id::text = $2 AND subject_id::text = $3
-          AND stream_id IS NOT DISTINCT FROM $4::text AND status = 'active'
-          AND ($5::text IS NULL OR academic_term_id IS NULL OR academic_term_id::text = $5::text)
-        FOR UPDATE
-      `, [tenantId, input.class_section_id, input.subject_id, input.stream_id ?? null,
-        input.academic_term_id ?? null, input.effective_from ?? null]);
-      if (previous.rows.some((row) => row.replacing_current_in_future
-        && String(row.teacher_user_id) === String(input.teacher_user_id))) {
-        throw new BadRequestException('This teacher is already assigned. Use today for changes to the current assignment, or select a different teacher to schedule a replacement.');
-      }
-      if (input.is_primary !== false) {
-        await this.executeSqlTx(tx, `
-          UPDATE teacher_subject_assignments
-          SET status = CASE WHEN $7::date > CURRENT_DATE AND effective_from < $7::date
-                THEN 'active' ELSE 'ended' END,
-              effective_to = CASE WHEN $7::date > CURRENT_DATE THEN $7::date - 1
-                ELSE COALESCE($7::date, CURRENT_DATE) END,
-              ended_by_user_id = $6::uuid, reason = COALESCE($8, reason),
-              version = version + 1, updated_at = NOW()
-          WHERE tenant_id = $1
-            AND ($2::text IS NULL OR academic_term_id IS NULL OR academic_term_id::text = $2::text)
-            AND class_section_id::text = $3 AND subject_id::text = $4
-            AND teacher_user_id::text <> $5 AND status = 'active' AND is_primary = true
-            AND stream_id IS NOT DISTINCT FROM $9::text
-        `, [tenantId, input.academic_term_id ?? null, input.class_section_id, input.subject_id,
-          input.teacher_user_id, input.created_by_user_id, input.effective_from ?? null,
-          input.reason ?? 'Reassigned', input.stream_id ?? null]);
-      }
-      if (!input.academic_term_id) {
-        // Replace this teacher's former term allocation without leaving duplicate
-        // active teaching permissions alongside the continuing assignment.
-        await this.executeSqlTx(tx, `
-          UPDATE teacher_subject_assignments
-          SET status = 'ended', effective_to = COALESCE($7::date, CURRENT_DATE),
-              ended_by_user_id = $6::uuid, version = version + 1, updated_at = NOW()
-          WHERE tenant_id = $1 AND class_section_id::text = $2 AND subject_id::text = $3
-            AND teacher_user_id::text = $4 AND stream_id IS NOT DISTINCT FROM $5::text
-            AND academic_term_id IS NOT NULL AND status = 'active'
-        `, [tenantId, input.class_section_id, input.subject_id, input.teacher_user_id,
-          input.stream_id ?? null, input.created_by_user_id, input.effective_from ?? null]);
-      }
-
-      const result = await this.executeSqlTx(tx, `
-        INSERT INTO teacher_subject_assignments (
-          tenant_id, academic_term_id, class_section_id, subject_id,
-          teacher_user_id, created_by_user_id, assignment_type, is_primary,
-          mark_entry_allowed, lesson_record_allowed, report_comment_allowed,
-          effective_from, effective_to, reason, status,
-          stream_id, department_id, curriculum_model
-        ) VALUES (
-          $1, $2, $3, $4, $5, $6::uuid, $7, $8, $9, $10, $11,
-          COALESCE($12::date, CURRENT_DATE), $13::date, $14, 'active',
-          $15::text, $16::uuid, $17
-        )
-        ON CONFLICT (tenant_id, (COALESCE(academic_term_id, '')), class_section_id,
-          subject_id, (COALESCE(stream_id, '')), teacher_user_id) WHERE status = 'active'
-        DO UPDATE SET assignment_type = EXCLUDED.assignment_type,
-          is_primary = EXCLUDED.is_primary, mark_entry_allowed = EXCLUDED.mark_entry_allowed,
-          lesson_record_allowed = EXCLUDED.lesson_record_allowed,
-          report_comment_allowed = EXCLUDED.report_comment_allowed,
-          effective_from = EXCLUDED.effective_from, effective_to = EXCLUDED.effective_to,
-          stream_id = EXCLUDED.stream_id, department_id = EXCLUDED.department_id,
-          curriculum_model = EXCLUDED.curriculum_model,
-          reason = EXCLUDED.reason, status = 'active', ended_by_user_id = NULL,
-          continued_from_assignment_id = NULL,
-          version = teacher_subject_assignments.version + 1, updated_at = NOW()
-        RETURNING *
-      `, [tenantId, input.academic_term_id ?? null, input.class_section_id, input.subject_id,
-        input.teacher_user_id, input.created_by_user_id, input.assignment_type ?? 'primary',
-        input.is_primary !== false, input.mark_entry_allowed !== false,
-        input.lesson_record_allowed !== false, input.report_comment_allowed !== false,
-        input.effective_from ?? null, input.effective_to ?? null, input.reason ?? null,
-        input.stream_id ?? null, input.department_id ?? null, input.curriculum_model ?? null]);
-      if (result.rows[0]) {
-        await persistGovernance?.({ tx, assignment: result.rows[0], previous: previous.rows });
-      }
-      return result.rows[0];
-    });
+    return this.prisma.executeWithTenant(tenantId, input.created_by_user_id as string ?? null,
+      (tx: any) => writeCohortTeacher(tx, tenantId, input, persistGovernance));
   }
 
   async listTeacherAssignments(input: {
@@ -1277,6 +1058,8 @@ export class AcademicsRepository {
           assignment.created_at::text,
           assignment.updated_at::text
         FROM teacher_subject_assignments assignment
+        JOIN academic_cohort_placements placement ON placement.tenant_id=assignment.tenant_id
+          AND placement.id=assignment.cohort_placement_id AND placement.status='active'
         LEFT JOIN academic_terms term ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
         LEFT JOIN class_sections class_section ON class_section.tenant_id = assignment.tenant_id AND class_section.id = assignment.class_section_id
         LEFT JOIN subjects subject ON subject.tenant_id = assignment.tenant_id AND subject.id = assignment.subject_id
@@ -1289,13 +1072,17 @@ export class AcademicsRepository {
         OFFSET $4::integer
       `,
       values,]), `
-        SELECT assignment.id::text, assignment.tenant_id, assignment.academic_term_id::text,
+        SELECT assignment.id::text, assignment.tenant_id, assignment.cohort_id,assignment.cohort_placement_id,
+          assignment.stream_id,assignment.assignment_type,assignment.is_primary,assignment.effective_from,assignment.effective_to,
+          assignment.academic_term_id::text,
           term.name AS academic_term_name, assignment.class_section_id::text,
           class_section.name AS class_section_name, assignment.subject_id::text,
           subject.name AS subject_name, assignment.teacher_user_id::text,
           COALESCE(staff.display_name, staff.staff_number, 'Unlinked teacher') AS teacher_name,
           assignment.status, assignment.created_by_user_id::text, assignment.created_at::text, assignment.updated_at::text
         FROM teacher_subject_assignments assignment
+        JOIN academic_cohort_placements placement ON placement.tenant_id=assignment.tenant_id
+          AND placement.id=assignment.cohort_placement_id AND placement.status='active'
         LEFT JOIN academic_terms term ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
         LEFT JOIN class_sections class_section ON class_section.tenant_id = assignment.tenant_id AND class_section.id = assignment.class_section_id
         LEFT JOIN subjects subject ON subject.tenant_id = assignment.tenant_id AND subject.id = assignment.subject_id
@@ -1312,21 +1099,22 @@ export class AcademicsRepository {
     return result.rows;
   }
 
-  async archiveTeacherAssignment(tenantId: string, id: string, options: Record<string, unknown> = {}) {
-    const result = await this.executeSql(
-      tenantId,
-      `UPDATE teacher_subject_assignments
-       SET status = 'ended',
-           effective_to = COALESCE($3::date, CURRENT_DATE),
-           ended_by_user_id = $4::uuid,
-           reason = COALESCE($5, reason),
-           version = version + 1,
-           updated_at = NOW()
-       WHERE tenant_id = $1 AND id = $2::text AND status = 'active'
-       RETURNING *`,
-      [tenantId, id, options.effective_to ?? null, options.actor_user_id ?? null, options.reason ?? null],
-    );
-    return result.rows[0] ?? null;
+  async archiveTeacherAssignment(tenantId:string,id:string,options:Record<string,unknown>={},
+    governance?:(change:{tx:any;assignment:Record<string,any>;previous:Record<string,any>})=>Promise<void>) {
+    return this.prisma.executeWithTenant(tenantId,options.actor_user_id as string??null,async(tx:any)=>{
+      await lockCohortSchool(tx,tenantId);
+      const previous=(await this.executeSqlTx(tx,`SELECT duty.* FROM teacher_subject_assignments duty
+        JOIN academic_cohort_placements placement ON placement.tenant_id=duty.tenant_id AND placement.id=duty.cohort_placement_id
+        AND placement.status='active' WHERE duty.tenant_id=$1 AND duty.id=$2 AND duty.status='active' FOR UPDATE OF duty`,[tenantId,id])).rows[0];
+      if(!previous)return null;
+      const assignment=(await this.executeSqlTx(tx,`UPDATE teacher_subject_assignments
+        SET status=CASE WHEN $3::date>CURRENT_DATE THEN 'active' ELSE 'ended' END,
+          effective_to=COALESCE($3::date,CURRENT_DATE),ended_by_user_id=$4::uuid,reason=COALESCE($5,reason),
+          version=version+1,updated_at=NOW() WHERE tenant_id=$1 AND id=$2 RETURNING *`,
+        [tenantId,id,options.effective_to??null,options.actor_user_id??null,options.reason??null])).rows[0];
+      await governance?.({tx,assignment,previous});
+      return assignment;
+    });
   }
 
   async listTeacherOptions(tenantId: string) {
@@ -1416,87 +1204,45 @@ export class AcademicsRepository {
     return result.rows[0] ?? null;
   }
 
-  async assignStudentToClass(input: Record<string, unknown>) {
-    return this.prisma.executeWithTenant<any>(input.tenant_id || (input as any).tenant_id, (input as any).created_by_user_id || null, async (tx: any) => {
-      if (input.stream_id) {
-        const streamResult = await this.executeSqlTx(tx, `
-            SELECT id
-            FROM class_streams
-            WHERE tenant_id = $1
-              AND id = $2::uuid
-              AND class_section_id = $3::uuid
-            LIMIT 1
-          `,
-          [input.tenant_id, input.stream_id, input.class_section_id]);
-
-        if (!streamResult.rows[0]) {
-          throw new Error('Selected stream does not belong to the selected class');
-        }
+  async assignStudentToClass(input: Record<string, unknown>, governance?: (tx: any, assignment: any) => Promise<void>) {
+    const tenantId = String(input.tenant_id);
+    return this.prisma.executeWithTenant(tenantId, input.assigned_by_user_id as string | null, async (tx: any) => {
+      await lockCohortSchool(tx, tenantId);
+      await ensureCohortMigration(tx, tenantId);
+      const contexts = await ensureCohortContexts(tx, tenantId, String(input.class_section_id), input.stream_id as string | null);
+      const context = contexts.find(item => item.stream_id === (input.stream_id ?? null));
+      if (!context || context.academic_year_id !== input.academic_year_id) throw new ConflictException('Select the actual class, academic year, and stream.');
+      const [student] = await tx.$queryRawUnsafe(`SELECT id FROM students WHERE tenant_id=$1 AND id::text=$2 FOR UPDATE`, tenantId,input.student_id);
+      if (!student) throw new ConflictException('Student was not found in this school.');
+      const previous = await tx.$queryRawUnsafe(`SELECT * FROM student_class_assignments WHERE tenant_id=$1
+        AND student_id::text=$2 AND status='active' FOR UPDATE`,tenantId,input.student_id);
+      if (previous.some((item: any) => item.academic_year_id !== context.academic_year_id)) {
+        throw new ConflictException('Use annual cohort promotion to move this learner into another academic year.');
       }
-
-      await this.executeSql(this.getTenantId([`
-          UPDATE student_class_assignments
-          SET status = 'transferred', updated_at = NOW()
-          WHERE tenant_id = $1
-            AND student_id = $2::uuid
-            AND academic_year_id = $3::uuid
-            AND status = 'active'
-        `,
-        [input.tenant_id, input.student_id, input.academic_year_id],]), `
-          UPDATE student_class_assignments
-          SET status = 'transferred', updated_at = NOW()
-          WHERE tenant_id = $1
-            AND student_id = $2::uuid
-            AND academic_year_id = $3::uuid
-            AND status = 'active'
-        `,
-        [input.tenant_id, input.student_id, input.academic_year_id],);
-
-      const result = await this.executeSql(this.getTenantId([`
-          INSERT INTO student_class_assignments (
-            tenant_id,
-            student_id,
-            class_section_id,
-            stream_id,
-            academic_level_id,
-            academic_year_id,
-            assigned_by_user_id
-          )
-          VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5::uuid, $6::uuid, $7::uuid)
-          RETURNING *
-        `,
-        [
-          input.tenant_id,
-          input.student_id,
-          input.class_section_id,
-          input.stream_id ?? null,
-          input.academic_level_id,
-          input.academic_year_id,
-          input.assigned_by_user_id,
-        ],]), `
-          INSERT INTO student_class_assignments (
-            tenant_id,
-            student_id,
-            class_section_id,
-            stream_id,
-            academic_level_id,
-            academic_year_id,
-            assigned_by_user_id
-          )
-          VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5::uuid, $6::uuid, $7::uuid)
-          RETURNING *
-        `,
-        [
-          input.tenant_id,
-          input.student_id,
-          input.class_section_id,
-          input.stream_id ?? null,
-          input.academic_level_id,
-          input.academic_year_id,
-          input.assigned_by_user_id,
-        ],);
-
-      return result.rows[0];
+      if (previous.length === 1 && previous[0].cohort_placement_id === context.id) return previous[0];
+      await tx.$queryRawUnsafe(`UPDATE student_class_assignments SET status='transferred',updated_at=NOW()
+        WHERE tenant_id=$1 AND student_id::text=$2 AND status='active' RETURNING id`,tenantId,input.student_id);
+      const [assignment] = await tx.$queryRawUnsafe(`INSERT INTO student_class_assignments
+        (school_id,tenant_id,student_id,class_section_id,stream_id,academic_level_id,academic_year_id,assigned_by_user_id,cohort_id,cohort_placement_id)
+        SELECT $1,$1,$2,section.id,$3,section.academic_level_id,section.academic_year_id,$4::uuid,$5,$6
+        FROM class_sections section WHERE section.tenant_id=$1 AND section.id::text=$7 RETURNING *`,
+      tenantId,input.student_id,context.stream_id,input.assigned_by_user_id ?? null,context.cohort_id,context.id,context.class_section_id);
+      const [enrollment] = await tx.$queryRawUnsafe(`UPDATE student_academic_enrollments SET class_section_id=$3,stream_id=$4,
+        cohort_id=$5,cohort_placement_id=$6,class_name=section.name,stream_name=COALESCE(stream.name,'Unstreamed'),updated_at=NOW()
+        FROM class_sections section LEFT JOIN class_streams stream ON stream.tenant_id=section.tenant_id AND stream.id::text=$4
+        WHERE student_academic_enrollments.tenant_id=$1 AND student_academic_enrollments.student_id::text=$2
+          AND student_academic_enrollments.status='active' AND section.tenant_id=$1 AND section.id::text=$3 RETURNING student_academic_enrollments.*`,
+      tenantId,input.student_id,context.class_section_id,context.stream_id,context.cohort_id,context.id);
+      const actor = {tenantId, userId: input.assigned_by_user_id as string | null};
+      const [section] = await tx.$queryRawUnsafe('SELECT grade_level FROM class_sections WHERE tenant_id=$1 AND id::text=$2',tenantId,context.class_section_id);
+      await updateStudentCohortPosition(tx,actor,String(input.student_id),context,section);
+      if (enrollment) {
+        const subjects = await tx.$queryRawUnsafe(`SELECT *, effective_from::text AS effective_from, effective_to::text AS effective_to
+          FROM class_subject_assignments WHERE tenant_id=$1 AND cohort_placement_id=$2 AND status='active'`,tenantId,context.id);
+        await updateStudentCohortSubjects(tx,actor,String(input.student_id),context,enrollment,subjects);
+      }
+      await governance?.(tx,assignment);
+      return assignment;
     });
   }
 
@@ -2513,6 +2259,29 @@ export class AcademicsRepository {
     });
   }
 
+  async getSubjectAppointmentsForUser(tenantId: string, userId: string) {
+    const result = await this.executeSql(tenantId, `
+      SELECT ap.id::text, ap.subject_id, subject.name AS subject_name,
+        ap.appointment_type, ap.effective_from::text, ap.effective_to::text,
+        year.name AS academic_year_name, class.name AS class_name, stream.name AS stream_name,
+        CASE WHEN ap.status <> 'active' THEN ap.status
+          WHEN ap.effective_from > CURRENT_DATE THEN 'scheduled'
+          WHEN ap.effective_to < CURRENT_DATE THEN 'expired'
+          ELSE 'active' END AS status
+      FROM academics_role_appointments ap
+      JOIN subjects subject ON subject.tenant_id = ap.tenant_id AND subject.id::text = ap.subject_id::text
+      LEFT JOIN academic_years year ON year.tenant_id = ap.tenant_id AND year.id::text = ap.academic_year_id::text
+      LEFT JOIN class_sections class ON class.tenant_id = ap.tenant_id AND class.id::text = ap.class_section_id::text
+      LEFT JOIN class_streams stream ON stream.tenant_id = ap.tenant_id AND stream.id::text = ap.stream_id::text
+      WHERE ap.tenant_id = $1 AND ap.teacher_user_id::text = $2
+        AND ap.role_type IN ('head_of_subject', 'hos', 'subject_coordinator')
+        AND EXISTS (SELECT 1 FROM tenant_memberships membership
+          WHERE membership.tenant_id = ap.tenant_id AND membership.user_id::text = $2 AND membership.status = 'active')
+      ORDER BY ap.effective_from DESC, subject.name, ap.id
+    `, [tenantId, userId]);
+    return result.rows;
+  }
+
   async assignAcademicRole(tenantId: string, input: Record<string, unknown>) {
     return this.prisma.executeWithTenant(tenantId, null, async (tx: any) => {
       const scopeValues = [
@@ -2520,6 +2289,7 @@ export class AcademicsRepository {
         input.academic_year_id ?? null,
         input.class_section_id ?? null,
         input.stream_id ?? null,
+        input.subject_id ?? null,
       ];
       const existing = await this.executeSqlTx(tx, `
         SELECT * FROM academics_role_appointments
@@ -2528,6 +2298,7 @@ export class AcademicsRepository {
           AND academic_year_id IS NOT DISTINCT FROM $4::text
           AND class_section_id IS NOT DISTINCT FROM $5::text
           AND stream_id IS NOT DISTINCT FROM $6::text
+          AND subject_id IS NOT DISTINCT FROM $7::text
         FOR UPDATE
       `, [tenantId, input.role_type, ...scopeValues]);
       const previous = existing.rows[0] ?? null;
@@ -2559,15 +2330,15 @@ export class AcademicsRepository {
       const created = await this.executeSqlTx(tx, `
         INSERT INTO academics_role_appointments (
           tenant_id, school_id, role_type, teacher_user_id, department_id,
-          academic_year_id, class_section_id, stream_id, appointment_type,
+          academic_year_id, class_section_id, stream_id, appointment_type, subject_id,
           effective_from, effective_to, reason, appointed_by_user_id, approved_by_user_id
-        ) VALUES ($1, $1, $2, $3::uuid, $4::uuid, $5, $6, $7, $8,
+        ) VALUES ($1, $1, $2, $3::uuid, $4::uuid, $5, $6, $7, $8, $13,
                   $9::date, $10::date, $11, $12::uuid, $12::uuid)
         RETURNING *
       `, [tenantId, input.role_type, input.teacher_user_id, input.department_id ?? null,
         input.academic_year_id ?? null, input.class_section_id ?? null, input.stream_id ?? null,
         input.appointment_type ?? 'permanent', input.effective_from, input.effective_to ?? null,
-        input.reason ?? null, input.actor_user_id ?? null]);
+        input.reason ?? null, input.actor_user_id ?? null, input.subject_id ?? null]);
       return { previous, appointment: created.rows[0], changed_holder: Boolean(previous) };
     });
   }
@@ -2675,19 +2446,20 @@ export class AcademicsRepository {
     });
   }
 
-  async reassignTeacherAssignment(tenantId: string, id: string, input: Record<string, unknown>) {
+  async reassignTeacherAssignment(tenantId: string, id: string, input: Record<string, unknown>,
+    governance?:(change:{tx:any;assignment:Record<string,any>;previous:Record<string,any>;transferred:Record<string,number>;manual_review:string[]})=>Promise<void>) {
     return this.prisma.executeWithTenant(tenantId, null, async (tx: any) => {
+      await lockCohortSchool(tx,tenantId);
       const scope = await this.executeSqlTx(tx, `
         SELECT class_section_id FROM teacher_subject_assignments
         WHERE tenant_id = $1 AND id::text = $2 AND status = 'active'
       `, [tenantId, id]);
       if (!scope.rows[0]) return null;
-      await this.executeSqlTx(tx,
-        `SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))::text`,
-        [`subject-teacher-continuity:${tenantId}:${scope.rows[0].class_section_id}`]);
       const selected = await this.executeSqlTx(tx, `
-        SELECT * FROM teacher_subject_assignments
+        SELECT *, effective_from::text AS effective_from, effective_to::text AS effective_to FROM teacher_subject_assignments
         WHERE tenant_id = $1 AND id::text = $2 AND status = 'active'
+          AND EXISTS (SELECT 1 FROM academic_cohort_placements placement WHERE placement.tenant_id=$1
+            AND placement.id=teacher_subject_assignments.cohort_placement_id AND placement.status='active')
         FOR UPDATE
       `, [tenantId, id]);
       const previous = selected.rows[0];
@@ -2709,27 +2481,29 @@ export class AcademicsRepository {
           tenant_id, academic_term_id, class_section_id, subject_id, teacher_user_id,
           created_by_user_id, assignment_type, is_primary, mark_entry_allowed,
           lesson_record_allowed, report_comment_allowed, effective_from, effective_to,
-          reason, status, stream_id, department_id, curriculum_model
+          reason, status, stream_id, department_id, curriculum_model,cohort_id,cohort_placement_id,source_assignment_id
         ) VALUES ($1, $2, $3, $4, $5, $6::uuid, $7, $8, $9, $10, $11,
-                  $12::date, $13::date, $14, 'active', $15, $16::uuid, $17)
+                  $12::date, $13::date, $14, 'active', $15, $16::uuid, $17,$18,$19,$20)
         RETURNING *
       `, [tenantId, previous.academic_term_id, previous.class_section_id, previous.subject_id,
         input.teacher_user_id, input.actor_user_id ?? null, previous.assignment_type,
         previous.is_primary, previous.mark_entry_allowed, previous.lesson_record_allowed,
         previous.report_comment_allowed, input.effective_from, previous.effective_to,
-        input.reason, previous.stream_id, previous.department_id, previous.curriculum_model]);
+        input.reason, previous.stream_id, previous.department_id, previous.curriculum_model,previous.cohort_id,previous.cohort_placement_id,previous.id]);
       const transferred: Record<string, number> = {};
       const manualReview: string[] = [];
-      if (input.transfer_future_timetable && await this.tableHasColumnsTx(tx, 'timetable_slots', [
-        'tenant_id', 'teacher_id', 'class_section_id', 'subject_id', 'status',
+      if (input.transfer_future_timetable && String(input.effective_from) > new Date().toISOString().slice(0,10)) {
+        manualReview.push('Scheduled replacements need a timetable revision effective on the replacement date. Current published lessons retain their teacher.');
+      } else if (input.transfer_future_timetable && await this.tableHasColumnsTx(tx, 'timetable_slots', [
+        'tenant_id', 'teacher_id', 'class_section_id', 'subject_id', 'status', 'stream_id',
       ])) {
         const moved = await this.executeSqlTx(tx, `
           UPDATE timetable_slots SET teacher_id = $5, updated_at = NOW()
           WHERE tenant_id::text = $1 AND teacher_id::text = $2
             AND class_section_id::text = $3 AND subject_id::text = $4
-            AND status IN ('draft', 'published') RETURNING 1
+            AND ($6::text IS NULL OR stream_id::text=$6) AND status IN ('draft', 'published') RETURNING 1
         `, [tenantId, previous.teacher_user_id, previous.class_section_id, previous.subject_id,
-          input.teacher_user_id]);
+          input.teacher_user_id, previous.stream_id]);
         transferred.timetable_slots = moved.rows.length;
       }
       if (input.transfer_pending_marks) {
@@ -2747,7 +2521,8 @@ export class AcademicsRepository {
         }
         manualReview.push('Draft mark authorship remains with the original teacher; the new active allocation grants completion access.');
       }
-      if (input.transfer_assignments && await this.tableHasColumnsTx(tx, 'academics_assignments', [
+      if (input.transfer_assignments && previous.stream_id) manualReview.push('Class-wide homework needs review before transferring ownership for one stream.');
+      else if (input.transfer_assignments && await this.tableHasColumnsTx(tx, 'academics_assignments', [
         'tenant_id', 'teacher_id', 'class_id', 'subject_id', 'due_date', 'status',
       ])) {
         const moved = await this.executeSqlTx(tx, `
@@ -2760,7 +2535,8 @@ export class AcademicsRepository {
           input.teacher_user_id, input.effective_from]);
         transferred.assignments = moved.rows.length;
       }
-      if (input.transfer_lesson_plans && await this.tableHasColumnsTx(tx, 'academics_lesson_plans', [
+      if (input.transfer_lesson_plans && previous.stream_id) manualReview.push('Class-wide lesson plans need review before transferring ownership for one stream.');
+      else if (input.transfer_lesson_plans && await this.tableHasColumnsTx(tx, 'academics_lesson_plans', [
         'tenant_id', 'teacher_id', 'class_id', 'subject_id', 'term_id', 'status',
       ])) {
         const moved = await this.executeSqlTx(tx, `
@@ -2774,6 +2550,7 @@ export class AcademicsRepository {
       }
       if (input.transfer_comments) manualReview.push('Class and report comments require record-by-record review because no transferable owner field is defined.');
       if (input.transfer_pending_approvals) manualReview.push('Pending approvals retain their original requester and must be reassigned from the approval queue.');
+      await governance?.({tx,assignment:created.rows[0],previous,transferred,manual_review:manualReview});
       return { previous, assignment: created.rows[0], transferred, manual_review: manualReview };
     });
   }
@@ -2819,6 +2596,13 @@ export class AcademicsRepository {
     const table = lifecycleTables[entityType];
     if (!table || !relations[entityType]) return null;
     return this.prisma.executeWithTenant(tenantId, null, async (tx: any) => {
+      await lockCohortSchool(tx, tenantId);
+      if (entityType === 'class-section' || entityType === 'class-stream') {
+        const column = entityType === 'class-section' ? 'class_section_id' : 'stream_id';
+        const linked = await tx.$queryRawUnsafe(`SELECT id FROM academic_cohort_placements
+          WHERE tenant_id=$1 AND ${column}=ANY($2::text[]) LIMIT 1`,tenantId,[sourceId,targetId]);
+        if (linked.length) throw new ConflictException('These records have cohort placements. Move learners with an explicit cohort mapping; merging would change historical class or stream references.');
+      }
       const records = await this.executeSqlTx(tx, `
         SELECT * FROM ${table} WHERE tenant_id = $1 AND id::text = ANY($2::text[]) FOR UPDATE
       `, [tenantId, [sourceId, targetId]]);
@@ -2991,6 +2775,7 @@ export class AcademicsRepository {
       ],
       'calendar-period': [],
       'class-section': [
+        { table: 'academic_cohort_placements', column: 'class_section_id', label: 'cohort placements' },
         { table: 'class_streams', column: 'class_section_id', label: 'streams' },
         { table: 'student_class_assignments', column: 'class_section_id', label: 'student placements' },
         { table: 'teacher_subject_assignments', column: 'class_section_id', label: 'teacher assignments' },
@@ -3005,6 +2790,7 @@ export class AcademicsRepository {
         { table: 'assignments', column: 'class_section_id', label: 'assignments' },
       ],
       'class-stream': [
+        { table: 'academic_cohort_placements', column: 'stream_id', label: 'cohort placements' },
         { table: 'student_class_assignments', column: 'stream_id', label: 'student placements' },
         { table: 'teacher_subject_assignments', column: 'stream_id', label: 'teacher assignments' },
         { table: 'timetable_slots', column: 'stream_id', label: 'timetable slots' },
@@ -3201,7 +2987,60 @@ export class AcademicsRepository {
     action: string,
     actorUserId: string | null,
     expectedVersion?: number,
+    governance?: (tx: any, updated: any, previous: any) => Promise<void>,
   ) {
+    if (entityType === 'subject') {
+      return this.prisma.executeWithTenant(tenantId, actorUserId, async (tx: any) => {
+        await lockCohortSchool(tx, tenantId);
+        const [previous] = await tx.$queryRawUnsafe('SELECT * FROM subjects WHERE tenant_id=$1 AND id::text=$2 FOR UPDATE', tenantId, id);
+        if (!previous || (expectedVersion != null && Number(previous.version) !== expectedVersion)) {
+          throw new ConflictException('This subject changed. Refresh before saving.');
+        }
+        const active = action === 'activate' || action === 'restore';
+        const status = active ? 'active' : action === 'archive' ? 'archived' : 'inactive';
+        if (!active) {
+          await tx.$queryRawUnsafe(`UPDATE teacher_subject_assignments assignment SET status='ended',
+            ended_by_user_id=$3::uuid,version=assignment.version+1,updated_at=NOW()
+            FROM academic_cohort_placements placement
+            WHERE assignment.tenant_id=$1 AND assignment.subject_id::text=$2 AND assignment.status='active'
+              AND placement.tenant_id=$1 AND placement.id=assignment.cohort_placement_id AND placement.status='active' RETURNING assignment.id`, tenantId,id,actorUserId);
+          await tx.$queryRawUnsafe(`UPDATE class_subject_assignments assignment SET status='inactive',
+            version=assignment.version+1,updated_at=NOW()
+            FROM academic_cohort_placements placement
+            WHERE assignment.tenant_id=$1 AND assignment.subject_id::text=$2 AND assignment.status='active'
+              AND placement.tenant_id=$1 AND placement.id=assignment.cohort_placement_id AND placement.status='active' RETURNING assignment.id`, tenantId,id);
+        }
+        const [updated] = await tx.$queryRawUnsafe(`UPDATE subjects SET status=$3,
+          archived_at=CASE WHEN $3='archived' THEN NOW() ELSE NULL END,
+          archived_by_user_id=CASE WHEN $3='archived' THEN $4::uuid ELSE NULL END,
+          version=version+1,updated_at=NOW() WHERE tenant_id=$1 AND id::text=$2 RETURNING *`, tenantId,id,status,actorUserId);
+        await governance?.(tx, updated, previous);
+        return updated;
+      });
+    }
+    if (entityType === 'class-subject') {
+      return this.prisma.executeWithTenant(tenantId, actorUserId, async (tx: any) => {
+        await lockCohortSchool(tx, tenantId);
+        const [previous] = await tx.$queryRawUnsafe(`SELECT assignment.* FROM class_subject_assignments assignment
+          JOIN academic_cohort_placements placement ON placement.tenant_id=assignment.tenant_id
+            AND placement.id=assignment.cohort_placement_id AND placement.status='active'
+          WHERE assignment.tenant_id=$1 AND assignment.id::text=$2 FOR UPDATE OF assignment`, tenantId, id);
+        if (!previous) throw new ConflictException('This subject belongs to a completed cohort placement. Refresh the current configuration.');
+        if (expectedVersion != null && Number(previous.version) !== expectedVersion) throw new ConflictException('This subject configuration changed. Refresh before saving.');
+        const active = action === 'activate' || action === 'restore';
+        const status = active ? 'active' : action === 'archive' ? 'archived' : 'inactive';
+        if (!active) await tx.$queryRawUnsafe(`UPDATE teacher_subject_assignments SET status='ended',
+          ended_by_user_id=$4::uuid,version=version+1,updated_at=NOW()
+          WHERE tenant_id=$1 AND cohort_placement_id=$2 AND subject_id=$3 AND status='active' RETURNING id`,
+        tenantId, previous.cohort_placement_id, previous.subject_id, actorUserId);
+        const [updated] = await tx.$queryRawUnsafe(`UPDATE class_subject_assignments SET status=$3,
+          archived_at=CASE WHEN $3='archived' THEN NOW() ELSE NULL END,
+          archived_by_user_id=CASE WHEN $3='archived' THEN $4::uuid ELSE NULL END,
+          version=version+1,updated_at=NOW() WHERE tenant_id=$1 AND id::text=$2 RETURNING *`, tenantId,id,status,actorUserId);
+        await governance?.(tx, updated, previous);
+        return updated;
+      });
+    }
     const configs: Record<string, { table: string; mode: 'status' | 'status-active' | 'active' }> = {
       'academic-year': { table: 'academic_years', mode: 'status' },
       'academic-term': { table: 'academic_terms', mode: 'status' },

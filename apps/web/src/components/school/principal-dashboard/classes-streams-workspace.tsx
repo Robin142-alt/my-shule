@@ -1,5 +1,7 @@
 "use client";
 
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
+
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { AlertCircle, LayoutDashboard, Settings2, Plus, Loader2, Users } from "lucide-react";
@@ -110,6 +112,7 @@ export function PrincipalClassesStreamsWorkspace() {
           <AlertCircle className="h-6 w-6 text-red-500" />
           <h2 className="text-xl font-bold text-red-500">Failed to load Classes Overview</h2>
         </div>
+        <WorkspaceRetry onRetry={() => refetchOverview()} />
       </Card>
     );
   }

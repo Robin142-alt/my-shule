@@ -1623,6 +1623,31 @@ test('DashboardRealtimeService maps frontend school operations into role-specifi
   assert.equal(dashboardEvent?.notification.tone, 'warning');
 });
 
+test('publication and withdrawal reach HOD/HOS through the governed notification and realtime contracts', async () => {
+  const emitted: any[] = [];
+  const inbox: any[] = [];
+  const operations = new SchoolOperationalEventsService({ requireStore: () => ({
+    tenant_id: 'tenant-a', user_id: 'principal-1', role: 'principal',
+  }) } as never, { publish: async (input: any) => { emitted.push(input); return { id: 'outbox-1', ...input }; } } as never,
+  { upsertFromSchoolOperation: async (input: any) => { inbox.push(input); } } as never);
+  const realtime = new DashboardRealtimeService({} as never, {} as never, {} as never);
+  for (const type of ['exam.series_published', 'exam.series_withdrawn']) {
+    await operations.recordSchoolOperation({ event: { id: type, type, module: 'exams', title: 'Exam publication changed', body: 'Refresh your scoped analytics.' },
+      notifications: ['hod', 'head_of_subject'].map(role => ({ id: `${type}:${role}`, schoolId: 'tenant-a', audienceRoles: [role],
+        title: 'Exam publication changed', body: 'Refresh your scoped analytics.', sourceModule: 'exams' })) });
+    const event = { ...emitted.at(-1), id: type, created_at: new Date().toISOString() };
+    for (const role of ['hod', 'head_of_subject']) {
+      const permissions = [role === 'hod' ? 'exams:read' : 'exams:subject-analytics'];
+      assert.ok(realtime.toDashboardEvent(event, { enabledModules: ['exams'], permissions, role }));
+    }
+    assert.equal(realtime.toDashboardEvent(event, { enabledModules: ['exams'], permissions: ['exams:read'], role: 'teacher' }), null);
+    assert.equal(realtime.toDashboardEvent({ ...event, payload: { ...event.payload, operation_type: 'exam.marks_submitted' } },
+      { enabledModules: ['exams'], permissions: ['exams:subject-analytics'], role: 'head_of_subject' }), null);
+  }
+  assert.equal(inbox.length, 4);
+  assert.ok(inbox.every(item => item.tenantId === 'tenant-a'));
+});
+
 test('DashboardRealtimeService routes exact school-operation recipients by user without a role-wide broadcast', () => {
   const service = new DashboardRealtimeService(
     {} as never,

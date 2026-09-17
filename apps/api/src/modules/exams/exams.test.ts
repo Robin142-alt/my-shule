@@ -1,3 +1,4 @@
+import { evidence } from "./analytics/testing/evidence.fixture";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -1395,6 +1396,12 @@ test('ExamsService publishes a Dean-approved series as Principal and notifies sc
   assert.equal(result.published_report_cards_count, 2);
   assert.equal(result.published_marks_count, 8);
   assert.equal(operations.length, 1);
+  const analyticsNotifications = (operations[0].notifications as Array<Record<string, any>>)
+    .filter(notification => notification.title === 'Published exam analytics available');
+  assert.deepEqual(analyticsNotifications.map(notification => notification.audienceRoles), [['hod'], ['head_of_subject']]);
+  assert.ok(analyticsNotifications.every(notification => notification.schoolId === 'tenant-a'));
+  assert.deepEqual(analyticsNotifications.map(notification => notification.actionUrl),
+    ['/school/hod/academic-intelligence', '/school/hos/academic-intelligence']);
   assert.equal(publishedEvents.length, 2);
   assert.equal(publishedEvents[0]?.tenant_id, 'tenant-a');
   assert.equal('delivery_warnings' in result, false);
@@ -2676,7 +2683,7 @@ test('ExamsRepository moderates only submitted or reviewed marks and never locke
   assert.match(queries[0] ?? '', /\$5::text = 'approve' AND status = 'submitted'/);
   assert.match(queries[0] ?? '', /\$5::text = 'return_for_correction' AND status IN \('submitted', 'reviewed'\)/);
   assert.doesNotMatch(queries[0] ?? '', /locked', 'published/);
-  assert.deepEqual(paramsList[0], ['tenant-a', ['mark-1'], 'reviewed', 'hod-1', 'approve']);
+  assert.deepEqual(paramsList[0], ['tenant-a', ['mark-1'], 'reviewed', 'hod-1', 'approve', null]);
 });
 
 test('ExamsRepository scopes mark listing and moderation to HOD departments across legacy text identifiers', async () => {
@@ -2728,10 +2735,11 @@ test('ExamsRepository scopes mark listing and moderation to HOD departments acro
     '22222222-2222-2222-2222-222222222222',
     'approve',
     ['11111111-1111-1111-1111-111111111111'],
+    null,
   ]);
 });
 
-test('ModerateExamMarksDto accepts valid HOD actions through the global validation contract', async () => {
+test('ModerateExamMarksDto accepts valid Dean actions through the global validation contract', async () => {
   const pipe = new ValidationPipe({
     whitelist: true,
     transform: true,
@@ -3115,24 +3123,13 @@ test('ReportCardGenerationService generates HTML and PDF artifacts with a verifi
           },
         ],
       }),
-      createGeneratedReportCardSnapshot: async (input: Record<string, unknown>) => {
+      findReusableReportCard: async () => null,
+      saveGeneratedReportCard: async (input: Record<string, unknown>, artifacts: Array<Record<string, unknown>>, audit: Record<string, unknown>) => {
         calls.push({ name: 'snapshot', input });
-        return {
-          id: 'report-card-1',
-          status: 'draft_generated',
-          verification_code: input.verification_code,
-          metadata: input.metadata,
-        };
-      },
-      recordReportCardArtifact: async (input: Record<string, unknown>) => {
-        calls.push({ name: 'artifact', input });
-        return {
-          id: `artifact-${calls.filter((call) => call.name === 'artifact').length}`,
-          ...input,
-        };
-      },
-      appendReportCardAuditLog: async (input: Record<string, unknown>) => {
-        calls.push({ name: 'audit', input });
+        for (const artifact of artifacts) calls.push({ name: 'artifact', input: artifact });
+        calls.push({ name: 'audit', input: audit });
+        return { id: 'report-card-1', status: 'draft_generated', verification_code: input.verification_code,
+          metadata: input.metadata, artifacts };
       },
     } as never,
     new ReportCardTemplateService(),
@@ -3676,6 +3673,7 @@ test('ExamsRepository derives teacher mark-entry rows from open windows, assessm
     0,
     null,
     null,
+    false,
   ]);
 });
 
@@ -3993,7 +3991,8 @@ test('ExamsRepository checks complete finalized report-card readiness inside one
 
   assert.equal(readiness.not_ready_mark_count, 0);
   assert.match(queries[0]?.text ?? '', /WHERE mark\.tenant_id = \$1/);
-  assert.match(queries[0]?.text ?? '', /mark\.exam_series_id = \$2::uuid/);
+  assert.match(queries[0]?.text ?? '', /exam_series_id = \$2::uuid/);
+  assert.match(queries[0]?.text ?? '', /mark\.exam_series_id = expected\.exam_series_id/);
   assert.match(queries[0]?.text ?? '', /mark\.status IN \('locked', 'published'\)/);
   assert.deepEqual(queries[0]?.values, [
     'tenant-a',
@@ -4071,14 +4070,14 @@ test('ReportCardGenerationService refuses a partially finalized report-card scop
   assert.equal(batchCreated, false);
 });
 
-test('ExamsService exposes one department-scoped workflow projection for HOD handoff', async () => {
+test('ExamsService exposes teacher submissions directly in the Dean workflow', async () => {
   let capturedInput: Record<string, unknown> | null = null;
   const service = new ExamsService(
     {
       getStore: () => ({
         tenant_id: 'tenant-a',
         user_id: '00000000-0000-0000-0000-000000000401',
-        role: 'hod',
+        role: 'dean_academics',
         permissions: ['exams:read', 'exams:review'],
       }),
     } as never,
@@ -4119,12 +4118,11 @@ test('ExamsService exposes one department-scoped workflow projection for HOD han
   const result = await service.getWorkflowOverview();
   assert.deepEqual(capturedInput, {
     tenant_id: 'tenant-a',
-    department_ids: ['00000000-0000-0000-0000-000000000501'],
     limit: 25,
   });
-  assert.equal(result.scope.level, 'department');
-  assert.equal(result.series[0]?.stage, 'hod_moderation');
-  assert.equal(result.series[0]?.next_owner, 'Head of Department');
+  assert.equal(result.scope.level, 'school');
+  assert.equal(result.series[0]?.stage, 'dean_review');
+  assert.equal(result.series[0]?.next_owner, 'Dean of Academics');
   assert.equal(result.metrics.marks_awaiting_moderation, 2);
   assert.deepEqual(result.moderation_batches[0]?.mark_ids, ['mark-1', 'mark-2']);
 });
@@ -4370,8 +4368,8 @@ test('ExamsService validates moderation before mutating marks', async () => {
   );
   assert.equal(calls.length, 0);
 
-  const hodService = new ExamsService(
-    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'hod-1', role: 'hod', permissions: ['exams:review'] }) } as never,
+  const deanService = new ExamsService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'dean-1', role: 'dean_academics', permissions: ['exams:review'] }) } as never,
     {
       moderateMarks: async () => {
         calls.push('moderate');
@@ -4381,7 +4379,7 @@ test('ExamsService validates moderation before mutating marks', async () => {
   );
 
   await assert.rejects(
-    () => hodService.moderateMarks({ mark_ids: ['mark-1'], action: 'return_for_correction' }),
+    () => deanService.moderateMarks({ mark_ids: ['mark-1'], action: 'return_for_correction' }),
     /Reason is required/i,
   );
   assert.equal(calls.length, 0);
@@ -4448,55 +4446,22 @@ test('extractPersistedReportCardPayload preserves entered zero and missing-mark 
   assert.equal(extractPersistedReportCardPayload({ report_card: { generated_at: 'now' } }), null);
 });
 
-test('ExamsService limits HOD moderation to assigned departments', async () => {
-  const calls: Array<{ method: string; input: Record<string, unknown> }> = [];
-  const service = new ExamsService(
-    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'hod-1', role: 'hod', permissions: ['exams:review'] }) } as never,
-    {
-      listDepartmentsLedByUser: async (input: Record<string, unknown>) => {
-        calls.push({ method: 'listDepartmentsLedByUser', input });
-        return ['dept-1'];
-      },
-      listMarks: async (input: Record<string, unknown>) => {
-        calls.push({ method: 'listMarks', input });
-        return [];
-      },
-      moderateMarks: async (input: Record<string, unknown>) => {
-        calls.push({ method: 'moderateMarks', input });
-        return [{ id: 'mark-1', score: 85 }];
-      },
-    } as never,
-  );
-
-  await service.getDepartmentMarks({});
-  assert.deepEqual(calls[1], {
-    method: 'listMarks',
-    input: {
-      tenant_id: 'tenant-a',
-      department_ids: ['dept-1'],
-      status_in: ['submitted', 'reviewed'],
-      limit: 25,
-      offset: 0,
-    },
-  });
-
-  await assert.rejects(
-    () => service.getDepartmentMarks({ department_id: 'dept-2' }),
-    /not assigned to this department/i,
-  );
-
-  const result = await service.moderateMarks({ mark_ids: ['mark-1'], action: 'approve' });
-  assert.equal(result.updated_count, 1);
-  assert.deepEqual(calls.at(-1), {
-    method: 'moderateMarks',
-    input: {
-      tenant_id: 'tenant-a',
-      mark_ids: ['mark-1'],
-      action: 'approve',
-      actor_user_id: 'hod-1',
-      department_ids: ['dept-1'],
-    },
-  });
+test('HOD and HOS cannot enter the review workflow even with stale permissions', async () => {
+  for (const role of ['hod', 'head_of_department', 'hos', 'head_of_subject', 'subject_coordinator']) {
+    let mutations = 0;
+    const service = new ExamsService({ getStore: () => ({ tenant_id: 'tenant-a', user_id: 'head-1', role,
+      permissions: ['exams:read', 'exams:review', 'exams:write', 'exams:approve'] }) } as never,
+      { moderateMarks: async () => { mutations++; return []; }, lockMarks: async () => { mutations++; return []; } } as never);
+    for (const action of ['approve', 'return_for_correction'] as const) {
+      await assert.rejects(() => service.moderateMarks({ mark_ids: ['mark-1'], action, reason: 'Check score' }), /review permission/);
+    }
+    await assert.rejects(() => service.lockMarks({ mark_ids: ['mark-1'] }), /after publication/);
+    await assert.rejects(() => service.getDepartmentMarks({}), /after publication/);
+    await assert.rejects(() => service.getWorkflowOverview(), /after publication/);
+    assert.throws(() => service.getSchoolMarks({}), /after publication/);
+    assert.throws(() => service.listReportCards({}), /after publication/);
+    assert.equal(mutations, 0);
+  }
 });
 
 test('ExamsService restricts intervention reads to the current tenant and assigned teacher', async () => {
@@ -4939,7 +4904,7 @@ test('ExamsService enforces strict Mark Entry permission rules based on teacher 
   );
 });
 
-test('ExamsService handles HOD Review workflow for returning submitted marks', async () => {
+test('ExamsService handles Dean Review workflow for returning submitted marks', async () => {
   const repositoryCalls: Array<{ method: string; args: any }> = [];
 
   const mockRepository = {
@@ -4963,7 +4928,7 @@ test('ExamsService handles HOD Review workflow for returning submitted marks', a
     getStore: () => ({
       tenant_id: 'tenant-a',
       user_id: 'hod-1',
-      role: 'hod',
+      role: 'dean_academics',
       permissions: ['exams:review']
     })
   };
@@ -4980,22 +4945,18 @@ test('ExamsService handles HOD Review workflow for returning submitted marks', a
   });
 
   assert.deepEqual(res, { success: true, updated_count: 1 });
-  assert.equal(repositoryCalls.length, 3);
-  assert.equal(repositoryCalls[0].method, 'listDepartmentsLedByUser');
+  assert.equal(repositoryCalls.length, 2);
+  assert.equal(repositoryCalls[0].method, 'moderateMarks');
   assert.deepEqual(repositoryCalls[0].args, {
-    tenant_id: 'tenant-a',
-    user_id: 'hod-1'
-  });
-  assert.equal(repositoryCalls[1].method, 'moderateMarks');
-  assert.deepEqual(repositoryCalls[1].args, {
     tenant_id: 'tenant-a',
     mark_ids: ['mark-1'],
     action: 'return_for_correction',
     actor_user_id: 'hod-1',
-    department_ids: ['dept-1']
+    department_ids: undefined,
+    reason: 'Incorrect entry',
   });
-  assert.equal(repositoryCalls[2].method, 'createMarkVersion');
-  assert.deepEqual(repositoryCalls[2].args, {
+  assert.equal(repositoryCalls[1].method, 'createMarkVersion');
+  assert.deepEqual(repositoryCalls[1].args, {
     tenant_id: 'tenant-a',
     mark_id: 'mark-1',
     original_score: 85,
@@ -5037,7 +4998,7 @@ test('ExamsController and ExamsService support live exams analytics with isolati
   assert.equal(passedTenantId, 'tenant-abc');
   assert.deepEqual(passedScope, {
     level: 'school',
-    actor_user_id: null,
+    actor_user_id: 'officer-1',
     role: 'admin',
   });
   assert.equal(res.kpis.school_average, 75.5);
@@ -5100,112 +5061,23 @@ test('ExamsService limits academic analytics to the current HOD department or te
 });
 
 test('ExamsRepository correctly aggregates exam analytics data', async () => {
-  const queries: string[] = [];
-  const paramsList: any[][] = [];
-  const responses = [
-    [{
-      school_average: 78.5,
-      pending_reviews: 2,
-      missing_marks_alerts: 5,
-      active_exams: 1,
-      final_mark_count: 120,
-      explicit_evidence_count: 6,
-      missing_or_incomplete_count: 5,
-    }],
-    [
-      { exam_series_id: 'series-1', exam_series_name: 'Term 1', starts_on: '2026-01-01', average_score: 65.2 },
-      { exam_series_id: 'series-2', exam_series_name: 'Term 2', starts_on: '2026-05-01', average_score: 72.8 },
-    ],
-    [{
-      subject_id: 'subject-1',
-      subject_name: 'Mathematics',
-      mean_score: 74.25,
-      pass_rate: 82.5,
-      ee_count: 10,
-      me_count: 12,
-      ae_count: 3,
-      be_count: 1,
-    }],
-    [{
-      student_id: 'student-1',
-      student_name: 'Amina Njeri',
-      admission_number: 'ADM-001',
-      average_percentage: 88.5,
-      assessments_taken: 6,
-    }],
-    [{
-      student_id: 'student-2',
-      student_name: 'Brian Otieno',
-      admission_number: 'ADM-002',
-      latest_exam_series: 'Term 2',
-      latest_average: 78,
-      previous_exam_series: 'Term 1',
-      previous_average: 70,
-      improvement: 8,
-    }],
-    [{
-      student_id: 'student-3',
-      student_name: 'Carol Wanjiku',
-      admission_number: 'ADM-003',
-      average_percentage: 43.5,
-      assessments_taken: 6,
-    }],
-  ];
-  let responseIndex = 0;
-  
-  const repository = new ExamsRepository({
-    executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
-      return cb({
-        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
-          queries.push(sql);
-          paramsList.push(params);
-          return responses[responseIndex++] ?? [];
-        }
-      });
-    }
-  } as never);
-
-  const analytics = await repository.getAnalytics('tenant-xyz');
-  
-  assert.equal(analytics.kpis.school_average, 78.5);
-  assert.equal(analytics.trends.length, 2);
-  assert.equal(analytics.trends[1].average_score, 72.8);
-  assert.equal(analytics.trends[1].exam_series_name, 'Term 2');
-  assert.equal(analytics.subjectPerformance[0].pass_rate, 82.5);
-  assert.equal(analytics.studentProgress.topPerformers[0].student_name, 'Amina Njeri');
-  assert.equal(analytics.studentProgress.topImprovers[0].improvement, 8);
-  assert.equal(analytics.studentProgress.atRiskStudents[0].average_percentage, 43.5);
-  assert.deepEqual(analytics.data_quality, {
-    final_mark_count: 120,
-    explicit_evidence_count: 6,
-    missing_or_incomplete_count: 5,
-  });
-  
-  assert.equal(queries.length, 6);
-  assert.equal(paramsList.every((params) => params[0] === 'tenant-xyz'), true);
-  assert.match(queries[0], /mark_window\.class_section_id::text = class_assignment\.class_section_id/);
-  assert.match(queries[0], /mark\.student_id::text = expected\.student_id/);
-  for (const query of queries) {
-    assert.doesNotMatch(
-      query,
-      /\b(?:FROM|JOIN|UPDATE)\s+exam_mark_entry_windows\s+window\b/i,
-      'PostgreSQL reserves WINDOW; mark-entry tables must use a safe alias',
-    );
-  }
-  for (const query of queries.slice(1)) {
-    assert.match(query, /mark\.status IN \('locked', 'published'\)/);
-    assert.match(query, /mark\.score_status = 'entered'/);
-    assert.match(query, /assessment\.max_score > 0/);
-  }
-  for (const query of queries) {
-    assert.match(query, /student_report_cards card/);
-    assert.match(
-      query,
-      /card\.tenant_id = (?:mark|exam_marks)\.tenant_id/,
-    );
-    assert.match(query, /card\.is_current = TRUE/);
-    assert.match(query, /card\.status IN \('approved', 'published'\)/);
-  }
+  const queries: string[] = []; const paramsList: unknown[][] = [];
+  const repository = new ExamsRepository({executeWithTenant: async (tenantId: string, _ctx: unknown, callback: any) => {
+    assert.equal(tenantId, 'tenant-xyz');
+    return callback({$queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+      queries.push(sql); paramsList.push(params);
+      return [evidence({ average: 60 }), evidence({ exam_series_id: 'exam-2', exam_date: '2026-05-01', average: 80 })];
+    }});
+  }} as never);
+  const result = await repository.getAnalytics('tenant-xyz');
+  assert.equal(result.kpis.school_average, 80); assert.equal(result.change, 20);
+  assert.equal(result.trends.length, 2); assert.equal(result.subjectPerformance[0].pass_rate, 100);
+  assert.equal(result.studentProgress.topImprovers[0].improvement, 20);
+  assert.equal(result.data_quality.final_mark_count, 1);
+  assert.equal(queries.length, 1); assert.equal(paramsList[0][0], 'tenant-xyz');
+  assert.match(queries[0], /card.status IN \('approved','published'\)/);
+  assert.match(queries[0], /assessment.tenant_id = key.tenant_id/);
+  assert.match(queries[0], /score_status = 'entered'/);
 });
 
 test('ExamsRepository does not disguise analytics database failures as zero results', async () => {
@@ -5226,55 +5098,18 @@ test('ExamsRepository does not disguise analytics database failures as zero resu
 });
 
 test('ExamsRepository applies assignment scope to every academic analytics query', async () => {
-  const queries: string[] = [];
-  const paramsList: any[][] = [];
-  let queryIndex = 0;
-  const responses = [
-    [{
-      school_average: null,
-      pending_reviews: 0,
-      missing_marks_alerts: 0,
-      active_exams: 0,
-      final_mark_count: 0,
-      explicit_evidence_count: 0,
-      missing_or_incomplete_count: 0,
-    }],
-    [],
-    [],
-    [],
-    [],
-    [],
-  ];
-  const repository = new ExamsRepository({
-    executeWithTenant: async (_tenantId: string, _context: unknown, callback: (tx: any) => unknown) =>
-      callback({
-        $queryRawUnsafe: async (sql: string, ...params: any[]) => {
-          queries.push(sql);
-          paramsList.push(params);
-          return responses[queryIndex++] ?? [];
-        },
-      }),
-  } as never);
-
-  const analytics = await repository.getAnalytics('tenant-a', {
-    level: 'assignment',
-    actor_user_id: 'teacher-1',
-    role: 'teacher',
-  });
-
-  assert.deepEqual(analytics.scope, {
-    level: 'assignment',
-    role: 'teacher',
-  });
-  assert.equal(queries.length, 6);
-  assert.equal(paramsList.every((params) =>
-    params[0] === 'tenant-a' && params[1] === 'teacher-1'), true);
-  for (const query of queries) {
-    assert.match(query, /teacher_subject_assignments teacher_assignment/);
-    assert.match(query, /teacher_assignment\.teacher_user_id::text = \$2/);
-    assert.match(query, /academics_class_teachers class_teacher/);
-    assert.match(query, /class_teacher\.teacher_user_id::text = \$2/);
-  }
+  const queries: string[] = []; const paramsList: unknown[][] = [];
+  const repository = new ExamsRepository({executeWithTenant: async (_tenant: string, _ctx: unknown, callback: any) => callback({
+    $queryRawUnsafe: async (sql: string, ...params: unknown[]) => { queries.push(sql); paramsList.push(params); return queries.length === 1 ? [{ level: 'assignment' }] : []; }
+  })} as never);
+  const result = await repository.getAnalytics('tenant-a', {level:'assignment', actor_user_id:'teacher-1', role:'teacher'});
+  assert.equal(result.scope.level, 'assignment'); assert.deepEqual(result.scope.available_scopes, ['assignment']);
+  assert.equal(queries.length, 2); assert.ok(paramsList.every(p=>p[0]==='tenant-a' && p[1]==='teacher-1'));
+  assert.match(queries[0], /membership.status = 'active'/);
+  assert.match(queries[1], /ap.teacher_user_id::text = \$2::text/);
+  assert.match(queries[1], /ap.subject_id::text = evidence.subject_id::text/);
+  assert.match(queries[1], /ap.stream_id::text = evidence.stream_id::text/);
+  assert.doesNotMatch(queries[1], /academics_class_teachers/);
 });
 
 test('report-card action DTOs accept regenerate reasons and reject undeclared actions', async () => {

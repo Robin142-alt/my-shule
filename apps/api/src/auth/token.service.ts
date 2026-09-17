@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 
 import { ACCESS_TOKEN_TYPE, REFRESH_TOKEN_TYPE } from './auth.constants';
 import { AuthAudience, IssuedTokenPair, JwtTokenPayload } from './auth.interfaces';
+import { REGULAR_SESSION_TTL_SECONDS } from './session-policy';
 
 interface TokenSubject {
   user_id: string;
@@ -12,6 +13,7 @@ interface TokenSubject {
   role: string;
   audience: AuthAudience;
   session_id: string;
+  session_expires_at?: string;
 }
 
 @Injectable()
@@ -24,8 +26,18 @@ export class TokenService {
   async issueTokenPair(subject: TokenSubject): Promise<IssuedTokenPair> {
     const accessTokenId = randomUUID();
     const refreshTokenId = randomUUID();
-    const accessExpiresIn = Number(this.configService.get<number>('auth.accessTokenTtlSeconds') ?? 900);
-    const refreshExpiresIn = Number(this.configService.get<number>('auth.refreshTokenTtlSeconds') ?? 2592000);
+    let accessExpiresIn = Number(this.configService.get<number>('auth.accessTokenTtlSeconds') ?? 900);
+    let refreshExpiresIn = Number(this.configService.get<number>('auth.refreshTokenTtlSeconds') ?? 2592000);
+    if (subject.audience !== 'superadmin') {
+      const remaining = subject.session_expires_at
+        ? Math.floor(Date.parse(subject.session_expires_at) / 1000) - Math.floor(Date.now() / 1000)
+        : REGULAR_SESSION_TTL_SECONDS;
+      if (!Number.isFinite(remaining) || remaining <= 0) {
+        throw new UnauthorizedException('Session has expired');
+      }
+      refreshExpiresIn = Math.min(REGULAR_SESSION_TTL_SECONDS, remaining);
+      accessExpiresIn = Math.min(accessExpiresIn, 900, refreshExpiresIn);
+    }
 
     const accessPayload: JwtTokenPayload = {
       sub: subject.user_id,

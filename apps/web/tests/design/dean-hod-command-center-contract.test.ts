@@ -32,7 +32,8 @@ describe("academic leadership command center shell contract", () => {
     expect(source).toMatch(/from "\.\/hod\/subject-allocation-workspace"/);
     expect(source).toMatch(/from "\.\/hod\/coverage-review-workspace"/);
     expect(source).toMatch(/from "\.\/hod\/lesson-plans-workspace"/);
-    expect(source).toMatch(/from "\.\/hod\/marks-moderation-workspace"/);
+    expect(source).not.toMatch(/from "\.\/hod\/marks-moderation-workspace"/);
+    expect(source).toMatch(/label: "Exam Analytics"/);
     expect(source).toMatch(/from "\.\/hod\/resource-requests-workspace"/);
     expect(source).toMatch(/from "\.\/hod\/reports-workspace"/);
     expect(source).toMatch(/function normalizeHodView/);
@@ -56,7 +57,7 @@ describe("academic leadership command center shell contract", () => {
     const source = readSource("src/components/school/dean-academics/assessments-workspace.tsx");
 
     expect(source).toMatch(/\/exams\/marks\/moderate/);
-    expect(source).toMatch(/mark_ids: markIds/);
+    expect(source).toMatch(/mark_ids: markIds\.slice\(index, index \+ 500\)/);
     expect(source).toMatch(/action: "approve" \| "return_for_correction"/);
     expect(source).toMatch(/Required correction reason/);
     expect(source).toMatch(/\/exams\/report-cards\?status=under_review&limit=50/);
@@ -71,18 +72,15 @@ describe("academic leadership command center shell contract", () => {
     expect(source).toMatch(/subject-allocation\/options/);
     expect(source).toMatch(/<select name="subject_id"/);
     expect(source).toMatch(/<select name="class_section_id"/);
-    expect(source).toMatch(/<select name="academic_term_id"/);
+    expect(source).not.toMatch(/name="academic_term_id"/);
+    expect(source).toMatch(/name="stream_id"/);
     expect(source).not.toMatch(/Subject ID|Class Section ID|Academic Term ID|Staff member ID/);
   });
 
-  it("wires mobile-friendly HOD moderation controls to the real exam action contract", () => {
+  it("keeps legacy HOD exam links on published analytics without moderation actions", () => {
     const source = readSource("src/components/school/hod/marks-moderation-workspace.tsx");
+    expect(source).toContain('<AcademicIntelligenceWorkspace audience="hod" />');
+    expect(source).not.toMatch(/requestDashboardApi|marks\/moderate|return_for_correction/);
 
-    expect(source).toMatch(/requestDashboardApi\("\/exams\/marks\/moderate"/);
-    expect(source).toMatch(/mark_ids: batch\.mark_ids/);
-    expect(source).toMatch(/"approve" \| "return_for_correction"/);
-    expect(source).toMatch(/Enter the required correction reason/);
-    expect(source).toMatch(/min-h-11 w-full touch-manipulation/);
-    expect(source).toMatch(/sm:w-auto/);
   });
 });

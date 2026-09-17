@@ -65,6 +65,28 @@ export interface LiveReportCardArtifact {
   generated_at?: string | null;
 }
 
+export interface LiveReportCardGenerationScope {
+  exam_series_id: string;
+  exam_series_name: string;
+  class_section_id: string;
+  class_name: string;
+  expected_mark_count: number;
+  ready_mark_count: number;
+  not_ready_mark_count: number;
+  learner_count: number;
+  ready: boolean;
+  blockers: Array<{
+    subject_id: string;
+    subject_name: string;
+    expected_mark_count: number;
+    ready_mark_count: number;
+    missing_mark_count: number;
+    draft_mark_count: number;
+    submitted_mark_count: number;
+    reviewed_mark_count: number;
+  }>;
+}
+
 export interface LiveReportCardBatchStatus {
   id: string;
   status: string;
@@ -72,8 +94,41 @@ export interface LiveReportCardBatchStatus {
   total_students: number;
   completed_students: number;
   failed_students?: number | null;
-  failures?: Array<{ student_id: string; message: string }> | null;
+  failures?: Array<{ student_id: string; student_name?: string; message: string; code?: string; retryable?: boolean; attempts?: number }> | null;
+  reused_students?: number;
+  duration_ms?: number;
   artifact_count?: number | null;
+}
+
+export interface ReportCardScopeSummary {
+  total_cards: number;
+  eligible_cards: number;
+  ineligible_cards: number;
+  status_counts: Record<string, number>;
+}
+
+export interface ReportCardScopeHierarchyNode {
+  class_section_id: string;
+  class_name: string;
+  card_count: number;
+  streams: Array<{
+    stream_id: string;
+    stream_name: string;
+    card_count: number;
+  }>;
+}
+
+export interface BulkTransitionResult {
+  action: string;
+  total_in_scope: number;
+  transitioned: number;
+  skipped: number;
+  cards: Array<{
+    id: string;
+    student_name: string;
+    previous_status: string;
+    new_status: string;
+  }>;
 }
 
 export interface ExamMarkSheetView {
@@ -476,14 +531,15 @@ export interface LiveExamsAnalyticsTrend {
   exam_series_id: string;
   exam_series_name: string;
   starts_on: string;
-  average_score: number;
+  average_score: number | null;
+  pass_rate?: number | null;
 }
 
 export interface LiveExamsAnalyticsSubjectPerformance {
   subject_id: string;
   subject_name: string;
-  mean_score: number;
-  pass_rate: number;
+  mean_score: number | null;
+  pass_rate: number | null;
   ee_count: number;
   me_count: number;
   ae_count: number;
@@ -513,13 +569,14 @@ export interface LiveExamsAnalyticsAtRiskStudent {
   student_id: string;
   student_name: string;
   admission_number: string;
-  average_percentage: number;
+  average_percentage: number | null;
+  reasons?: string[];
   assessments_taken: number;
 }
 
 export interface LiveExamsAnalyticsResponse {
   scope: {
-    level: "school" | "department" | "assignment";
+    level: "school" | "department" | "subject" | "grade" | "class" | "assignment";
     role: string;
   };
   kpis: LiveExamsAnalyticsKPIs;

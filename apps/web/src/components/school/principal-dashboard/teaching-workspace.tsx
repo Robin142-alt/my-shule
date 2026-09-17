@@ -1,5 +1,7 @@
 "use client";
 
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
+
 import { Card } from "@/components/ui/card";
 import { AlertCircle, BookOpen, Clock, Users } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
@@ -14,7 +16,7 @@ type PrincipalTeachingData = {
 };
 
 export function PrincipalTeachingWorkspace() {
-  const { data, isLoading, error } = useSchoolQuery<PrincipalTeachingData>('/admin-command/principal/teaching');
+  const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalTeachingData>('/admin-command/principal/teaching');
 
   if (isLoading) {
     return (
@@ -34,6 +36,7 @@ export function PrincipalTeachingWorkspace() {
           <AlertCircle className="h-6 w-6 text-red-500" />
           <h2 className="text-xl font-bold text-red-500">Failed to load Teaching Schedule</h2>
         </div>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Card>
     );
   }

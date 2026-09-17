@@ -9,8 +9,10 @@ import { SCHOOL_STAFF_ROLE_CODES } from './auth.constants';
 import { AuthEmailService, EmailDeliveryError } from './auth-email.service';
 import {
   CreateTenantInvitationDto,
+  DIRECTORY_STAFF_ROLE_CODES,
   ListTenantUsersQueryDto,
   TENANT_INVITABLE_ROLE_CODES,
+  TENANT_SEARCHABLE_ROLE_CODES,
   TenantInvitationActionResponseDto,
   TenantManagedUserDto,
   TenantManagedUsersResponseDto,
@@ -40,6 +42,7 @@ const ROLE_HIERARCHY: Record<string, number> = {
   admissions_officer: 40,
   ict_manager: 40,
   hod: 30,
+  head_of_subject: 25,
   accountant: 30,
   librarian: 30,
   nurse: 30,
@@ -289,7 +292,10 @@ export class TenantInvitationsService {
   ): Promise<TenantManagedUsersResponseDto> {
     const tenantId = this.requireTenantId();
     const search = this.normalizeSearchTerm(query.search);
-    const roleCode = query.role_code ? this.normalizeRoleCode(query.role_code) : null;
+    const roleCode = query.role_code?.trim().toLowerCase() || null;
+    if (roleCode && !TENANT_SEARCHABLE_ROLE_CODES.some((role) => role === roleCode)) {
+      throw new BadRequestException(`Unsupported school user role "${query.role_code}".`);
+    }
     const status = query.status?.trim() || null;
     const limit = this.normalizeListLimit(query.limit);
     const offset = this.normalizeListOffset(query.offset);
@@ -322,11 +328,6 @@ export class TenantInvitationsService {
            AND r.tenant_id = tm.tenant_id
           WHERE tm.tenant_id = $1
             AND tm.status IN ('active', 'suspended', 'revoked')
-            AND (
-              $2::text IS NULL
-              OR lower(u.display_name) LIKE $2::text
-              OR lower(u.email) LIKE $2::text
-            )
         ),
         pending_invitations AS (
           SELECT
@@ -358,11 +359,6 @@ export class TenantInvitationsService {
             AND token.purpose = 'invite_acceptance'
             AND token.consumed_at IS NULL
             AND token.metadata->>'purpose' = 'tenant_user_invitation'
-            AND (
-              $2::text IS NULL
-              OR lower(COALESCE(NULLIF(token.metadata->>'display_name', ''), token.email)) LIKE $2::text
-              OR lower(token.email) LIKE $2::text
-            )
         )
         SELECT
           managed_users.id,
@@ -425,13 +421,21 @@ export class TenantInvitationsService {
         ) managed_users
         WHERE ($3::text IS NULL OR managed_users.role_code = $3::text)
           AND ($4::text IS NULL OR managed_users.status = $4::text)
+          AND ($7::text[] IS NULL OR managed_users.role_code = ANY($7::text[]))
+          AND ($2::text IS NULL OR lower(concat_ws(' ',
+            managed_users.display_name, managed_users.email, managed_users.phone,
+            managed_users.role_name, managed_users.department, managed_users.assignment,
+            managed_users.tsc_number
+          )) LIKE $2::text)
         ORDER BY
           CASE managed_users.kind WHEN 'invitation' THEN 0 ELSE 1 END,
-          managed_users.created_at DESC
+          managed_users.created_at DESC,
+          managed_users.id
         LIMIT $5::integer
         OFFSET $6::integer
       `,
-      [tenantId, search, roleCode, status, limit, offset],
+      [tenantId, search, roleCode, status, limit, offset,
+        query.scope === 'staff' ? [...DIRECTORY_STAFF_ROLE_CODES] : null],
     );
 
     return {

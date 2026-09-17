@@ -61,9 +61,12 @@ export class ClassTeacherController {
 
   @Get('pending-marks')
   @RequiresModule('exams')
-  getPendingMarks() {
+  getPendingMarks(
+    @Query('includeUnavailable') includeUnavailable?: string,
+    @Query('includeSubmitted') includeSubmitted = 'false',
+  ) {
     const { tenantId, userId } = this.currentScope();
-    return this.classTeacherService.getPendingMarks(tenantId, userId);
+    return this.classTeacherService.getPendingMarks(tenantId, userId, includeUnavailable === 'true', includeSubmitted === 'true');
   }
 
   @Get('timetable')

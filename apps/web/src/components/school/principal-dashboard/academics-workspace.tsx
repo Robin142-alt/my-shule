@@ -1,5 +1,7 @@
 "use client";
 
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
+
 import { Card } from "@/components/ui/card";
 import { AlertCircle, BookOpen, GraduationCap } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
@@ -16,7 +18,7 @@ type PrincipalAcademicsData = {
 };
 
 export function PrincipalAcademicsWorkspace() {
-  const { data, isLoading, error } = useSchoolQuery<PrincipalAcademicsData>('/admin-command/principal/academics');
+  const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalAcademicsData>('/admin-command/principal/academics');
   const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
 
   if (isLoading) {
@@ -37,6 +39,7 @@ export function PrincipalAcademicsWorkspace() {
           <AlertCircle className="h-6 w-6 text-red-500" />
           <h2 className="text-xl font-bold text-red-500">Failed to load Academics Overview</h2>
         </div>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Card>
     );
   }

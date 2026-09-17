@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { SidebarWorkspaceSchemaService } from './sidebar-workspace-schema.service';
 
 import { AdminCommandController } from './admin-command.controller';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
@@ -55,9 +56,10 @@ import { AccountantCommandService } from './accountant-command.service';
 import { ExamsModule } from '../exams/exams.module';
 import { EventsModule } from '../events/events.module';
 import { WorkflowModule } from '../workflow/workflow.module';
+import { AcademicsModule } from '../academics/academics.module';
 
 @Module({
-  imports: [EventsModule, ExamsModule, WorkflowModule],
+  imports: [EventsModule, ExamsModule, WorkflowModule, AcademicsModule],
   controllers: [
     AdminCommandController,
     DeputyCommandController,
@@ -83,6 +85,7 @@ import { WorkflowModule } from '../workflow/workflow.module';
     AccountantCommandController,
   ],
   providers: [
+    SidebarWorkspaceSchemaService,
     AdminCommandSchemaService,
     AdminCommandOperationsService,
     AdminCommandService,

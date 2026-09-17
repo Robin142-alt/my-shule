@@ -1,0 +1,90 @@
+.workspace :global(.font-black) {
+  font-weight: 600;
+}
+.workspace :global(.font-bold) {
+  font-weight: 500;
+}
+.workspace :global(.rounded-xl),
+.workspace :global(.rounded-2xl) {
+  border-radius: 8px;
+}
+.workspace button {
+  min-height: 40px;
+}
+.workspace button:focus-visible,
+.workspace input:focus-visible,
+.workspace select:focus-visible,
+.workspace textarea:focus-visible {
+  outline: 2px solid #245994;
+  outline-offset: 2px;
+}
+.table th {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+}
+.table td {
+  vertical-align: top;
+}
+
+@media (max-width: 767px) {
+  .workspace nav[aria-label="Assessment queues"] {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+  }
+  .workspace nav[aria-label="Assessment queues"] button {
+    font-size: 12px;
+    padding: 8px 4px;
+    gap: 4px;
+  }
+  .workspace button {
+    min-height: 44px;
+  }
+  .table,
+  .table tbody {
+    display: block;
+    width: 100%;
+  }
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .table tr {
+    display: flex;
+    flex-wrap: wrap;
+    padding: 12px;
+  }
+  .table td {
+    display: block;
+    width: 100%;
+    padding: 5px 0;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+  .table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 3px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #64748b;
+  }
+  .table td[data-label="Class"],
+  .table td[data-label="Marks"],
+  .table td[data-label="Status"] {
+    width: 33.333%;
+    padding-right: 6px;
+  }
+  .table td[data-label="Actions"],
+  .table td[data-label="Decision"] {
+    padding-top: 10px;
+  }
+  .table td[data-label="Actions"] > div,
+  .table td[data-label="Decision"] > div {
+    justify-content: flex-start;
+  }
+}

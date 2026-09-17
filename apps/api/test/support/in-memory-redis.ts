@@ -22,6 +22,11 @@ class InMemoryRedisMulti {
 
     return results;
   }
+
+  sadd(key: string, ...members: string[]): this {
+    this.operations.push(() => this.client.sadd(key, ...members));
+    return this;
+  }
 }
 
 export class InMemoryRedis {
@@ -141,6 +146,24 @@ export class InMemoryRedis {
 
   async watch(..._keys: string[]): Promise<'OK'> {
     return 'OK';
+  }
+
+  // Atomic compare-and-set used by SessionService; real Redis behavior is
+  // covered separately by persistent-session.test.ts.
+  async eval(script: string, keyCount: number, ...args: Array<string | number>): Promise<number> {
+    const key = String(args[0]);
+    const values = args.slice(keyCount);
+    this.evictIfExpired(key);
+    if (this.store.get(key)?.value !== values[0]) return 0;
+    if (keyCount === 1 && script.includes("redis.call('DEL'")) {
+      this.store.delete(key);
+    } else if (keyCount === 2 && script.includes("redis.call('SET'")) {
+      this.store.set(key, { value: String(values[1]), expires_at: Date.now() + Number(values[2]) * 1000 });
+      this.store.set(String(args[1]), { value: String(values[3]), expires_at: Date.now() + Number(values[4]) * 1000 });
+    } else {
+      throw new Error('Unsupported Redis test script');
+    }
+    return 1;
   }
 
   async unwatch(): Promise<'OK'> {

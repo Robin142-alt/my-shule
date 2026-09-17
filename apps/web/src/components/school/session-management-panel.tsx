@@ -19,19 +19,26 @@ import { useSchoolMutation, useSchoolQuery } from "@/lib/data/school-hooks";
 
 export function SessionManagementPanel() {
   const queryClient = useQueryClient();
-  const { data: fetchedSessions } = useSchoolQuery<SessionRow[]>("/api/auth/sessions");
+  const { data: fetchedSessions, isLoading, error, refetch } = useSchoolQuery<SessionRow[]>("/api/auth/sessions");
   const sessions = Array.isArray(fetchedSessions) ? fetchedSessions : [];
-  const sessionMutation = useSchoolMutation("/api/auth/sessions/revoke");
+  const sessionMutation = useSchoolMutation("/api/auth/sessions/revoke", "POST", { queueNetworkFailures: false });
+  const revokeOthersMutation = useSchoolMutation("/api/auth/sessions/revoke-others", "POST", { queueNetworkFailures: false });
+  const busy = sessionMutation.isPending || revokeOthersMutation.isPending;
 
   function revoke(sessionId: string) {
     sessionMutation.mutate({ sessionId }, { onSuccess: () => queryClient.invalidateQueries() });
   }
 
   function revokeAllOtherSessions() {
-    sessionMutation.mutate({ revokeAll: true }, { onSuccess: () => queryClient.invalidateQueries() });
+    revokeOthersMutation.mutate({}, { onSuccess: () => queryClient.invalidateQueries() });
   }
 
   return (
+    <div className="space-y-3">
+    {isLoading && <p role="status">Loading signed-in devices…</p>}
+    {error && <p role="alert">{error.message} <Button onClick={() => void refetch()}>Retry</Button></p>}
+    {(sessionMutation.error || revokeOthersMutation.error) && <p role="alert">{(sessionMutation.error || revokeOthersMutation.error)?.message}</p>}
+    {!busy && !sessionMutation.error && !revokeOthersMutation.error && (sessionMutation.isSuccess || revokeOthersMutation.isSuccess) && <p role="status">Session access revoked.</p>}
     <DataTable
       title="Active sessions"
       subtitle="Review signed-in devices and revoke old access immediately."
@@ -58,11 +65,11 @@ export function SessionManagementPanel() {
           header: "Actions",
           render: (row) =>
             row.status === "Current" ? (
-              <Button variant="secondary" size="sm" onClick={revokeAllOtherSessions}>
+              <Button variant="secondary" size="sm" disabled={busy} onClick={revokeAllOtherSessions}>
                 Revoke others
               </Button>
             ) : (
-              <Button variant="danger" size="sm" onClick={() => revoke(row.id)}>
+              <Button variant="danger" size="sm" disabled={busy} onClick={() => revoke(row.id)}>
                 <Power className="h-4 w-4" />
                 Revoke
               </Button>
@@ -74,5 +81,6 @@ export function SessionManagementPanel() {
       rows={sessions}
       getRowKey={(row) => row.id}
     />
+    </div>
   );
 }
