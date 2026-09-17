@@ -84,7 +84,6 @@ export interface LiveReportCardGenerationScope {
     draft_mark_count: number;
     submitted_mark_count: number;
     reviewed_mark_count: number;
-    other_exams?: Array<{ exam_series_id: string; exam_name: string; learner_count: number }>;
   }>;
 }
 
@@ -99,6 +98,37 @@ export interface LiveReportCardBatchStatus {
   reused_students?: number;
   duration_ms?: number;
   artifact_count?: number | null;
+}
+
+export interface ReportCardScopeSummary {
+  total_cards: number;
+  eligible_cards: number;
+  ineligible_cards: number;
+  status_counts: Record<string, number>;
+}
+
+export interface ReportCardScopeHierarchyNode {
+  class_section_id: string;
+  class_name: string;
+  card_count: number;
+  streams: Array<{
+    stream_id: string;
+    stream_name: string;
+    card_count: number;
+  }>;
+}
+
+export interface BulkTransitionResult {
+  action: string;
+  total_in_scope: number;
+  transitioned: number;
+  skipped: number;
+  cards: Array<{
+    id: string;
+    student_name: string;
+    previous_status: string;
+    new_status: string;
+  }>;
 }
 
 export interface ExamMarkSheetView {

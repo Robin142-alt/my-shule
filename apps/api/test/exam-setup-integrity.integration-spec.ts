@@ -13,7 +13,7 @@ import { EventPublisherService } from '../src/modules/events/event-publisher.ser
 import { OutboxEventsRepository } from '../src/modules/events/repositories/outbox-events.repository';
 import { SchoolOperationNotificationsRepository } from '../src/modules/events/repositories/school-operation-notifications.repository';
 
-describe('Exam configuration and confirmed full deletion', () => {
+describe('Exam configuration and empty-exam deletion', () => {
   let pool: Pool;
   let service: ExamsManagerCommandService;
   const ids = Object.fromEntries(['actor', 'term', 'term2', 'subject', 'subject2', 'class', 'class2', 'grading', 'foreign'].map(key => [key, randomUUID()]));
@@ -58,7 +58,6 @@ describe('Exam configuration and confirmed full deletion', () => {
   });
   const create = async (extra: Record<string, unknown> = {}) => service.createExamSetup(payload(extra));
   const saved = async (id: string) => (await service.getExamSetup()).exams.find(exam => exam.id === id)!;
-  const remove = (exam: { id: string; name: string }) => service.deleteExamSetup(exam.id, { confirmation_name: exam.name });
   async function mark(id: string, client?: PoolClient, score: number | null = 0) {
     const run = client ? client.query.bind(client) : query;
     const assessment = (await run('SELECT id FROM exam_assessments WHERE tenant_id=$1 AND exam_series_id=$2 AND subject_id=$3', ['school-a', id, ids.subject])).rows[0];
@@ -108,7 +107,7 @@ describe('Exam configuration and confirmed full deletion', () => {
       } } as never);
   });
   afterAll(async () => { await pool?.end(); });
-  afterEach(() => { context.tenant_id = 'school-a'; context.role = 'exams_manager'; context.permissions = ['exams:read', 'exams:write']; context.is_authenticated = true; failAudit = false; failNotification = false; });
+  afterEach(() => { context.tenant_id = 'school-a'; failAudit = false; failNotification = false; });
 
   it('persists all creation fields, exact selections, closed draft windows and operational evidence', async () => {
     const created = await create();
@@ -138,7 +137,7 @@ describe('Exam configuration and confirmed full deletion', () => {
     const created = await create({ status: 'submitted' });
     const slot = (await query(`INSERT INTO exam_timetable_slots(tenant_id,exam_series_id,date,start_time,end_time) VALUES ('school-a',$1,'2026-09-20','09:00','11:00') RETURNING id`, [created.exam.id])).rows[0].id;
     await query(`INSERT INTO exam_invigilators(tenant_id,timetable_slot_id,staff_user_id) VALUES ('school-a',$1,$2)`, [slot, ids.actor]);
-    await remove(created.exam);
+    await service.deleteExamSetup(created.exam.id);
     expect(await saved(created.exam.id)).toBeUndefined();
     for (const table of ['exam_assessments', 'exam_mark_entry_windows', 'exam_timetable_slots']) expect((await query('SELECT * FROM ' + table + ' WHERE exam_series_id=$1', [created.exam.id])).rowCount).toBe(0);
     expect((await query('SELECT * FROM exam_invigilators WHERE timetable_slot_id=$1', [slot])).rowCount).toBe(0);
@@ -147,14 +146,12 @@ describe('Exam configuration and confirmed full deletion', () => {
     expect((await query("SELECT payload FROM outbox_events WHERE payload->>'entity_id'=$1", [created.exam.id])).rows.map(row => row.payload.operation_type)).toContain('exam.series_deleted');
     expect((await query("SELECT metadata FROM notifications WHERE metadata->>'relatedRecordId'=$1", [created.exam.id])).rows).toHaveLength(2);
   });
-  it.each([0, 55, null])('deletes saved marks, including zero and absence, after name confirmation (%s)', async score => {
+  it.each([0, 55, null])('blocks deletion of saved marks, including zero and absence (%s)', async score => {
     const created = await create();
     await mark(created.exam.id, undefined, score);
-    expect((await saved(created.exam.id)).can_delete).toBe(true);
-    await remove(created.exam);
-    expect((await query('SELECT * FROM exam_marks WHERE exam_series_id=$1', [created.exam.id])).rowCount).toBe(0);
-    expect(await saved(created.exam.id)).toBeUndefined();
-    expect((await query("SELECT payload FROM workflow_events WHERE entity_id=$1 AND event_type='exams.exam-setup.deleted'", [created.exam.id])).rows[0].payload).toMatchObject({ marks_count: 1, confirmation_name: created.exam.name });
+    expect((await saved(created.exam.id)).can_delete).toBe(false);
+    await expect(service.deleteExamSetup(created.exam.id)).rejects.toThrow(/entered results/);
+    expect((await query('SELECT * FROM exam_marks WHERE exam_series_id=$1', [created.exam.id])).rowCount).toBe(1);
   });
   it('protects entered results against configuration changes but permits harmless edits', async () => {
     const created = await create();
@@ -166,88 +163,6 @@ describe('Exam configuration and confirmed full deletion', () => {
     await service.configureExamSetup(created.exam.id, payload({ name: 'Corrected name' }));
     expect((await saved(created.exam.id)).name).toBe('Corrected name');
   });
-  it('requires the exact current name and exam-management role before any deletion', async () => {
-    const created = await create();
-    await mark(created.exam.id);
-    await expect(service.deleteExamSetup(created.exam.id)).rejects.toThrow(/exact exam name/);
-    for (const name of ['', 'wrong', created.exam.name.toLowerCase(), created.exam.name + ' ']) {
-      await expect(service.deleteExamSetup(created.exam.id, { confirmation_name: name })).rejects.toThrow(/exact exam name/);
-    }
-    context.role = 'teacher';
-    expect((await saved(created.exam.id)).can_delete).toBe(false);
-    await expect(remove(created.exam)).rejects.toThrow(/permission/);
-    context.role = 'exams_manager'; context.permissions = ['exams:read'];
-    await expect(remove(created.exam)).rejects.toThrow(/permission/);
-    context.permissions = ['exams:write'];
-    await query('UPDATE exam_series SET name=$2 WHERE id=$1', [created.exam.id, 'Renamed exam']);
-    await expect(remove(created.exam)).rejects.toThrow(/exact exam name/);
-    expect((await query('SELECT * FROM exam_marks WHERE exam_series_id=$1', [created.exam.id])).rowCount).toBe(1);
-    expect((await query("SELECT * FROM audit_logs WHERE resource_id=$1 AND action='exams.exam-setup.deleted'", [created.exam.id])).rowCount).toBe(0);
-    await remove({ id: created.exam.id, name: 'Renamed exam' });
-  });
-  it.each(['submitted', 'reviewed', 'locked', 'published', 'archived'])('deletes an exam in %s state with finalized results', async status => {
-    const created = await create(); await mark(created.exam.id);
-    await query("UPDATE exam_marks SET status='published' WHERE exam_series_id=$1", [created.exam.id]);
-    await query('UPDATE exam_series SET status=$2,locked_at=NOW(),published_at=NOW() WHERE id=$1', [created.exam.id,status]);
-    await remove(created.exam);
-    expect(await saved(created.exam.id)).toBeUndefined();
-    expect((await query('SELECT * FROM exam_marks WHERE exam_series_id=$1', [created.exam.id])).rowCount).toBe(0);
-  });
-  it('removes result children and all report revisions while preserving other exams, shared imports and audit history', async () => {
-    const target = await create(); const other = await create();
-    await mark(target.exam.id); await mark(other.exam.id);
-    const targetMark = (await query('SELECT id FROM exam_marks WHERE exam_series_id=$1', [target.exam.id])).rows[0].id;
-    const otherMark = (await query('SELECT id FROM exam_marks WHERE exam_series_id=$1', [other.exam.id])).rows[0].id;
-    await query(`INSERT INTO exam_mark_versions(tenant_id,mark_id,corrected_by_user_id,reason) VALUES ('school-a',$1,$2,'Correction')`, [targetMark,ids.actor]);
-    await query(`INSERT INTO exam_mark_audit_logs(tenant_id,mark_id,exam_series_id,action) VALUES ('school-a',$1,$2,'grade.created')`, [targetMark,target.exam.id]);
-    const importBatch = async () => (await query(`INSERT INTO exam_mark_import_batches(tenant_id,file_name,total_rows,valid_rows,committed_rows,preview_hash,imported_by_user_id)
-      VALUES ('school-a','marks.csv',2,2,2,repeat('a',64),$1) RETURNING id`, [ids.actor])).rows[0].id;
-    const sharedBatch = await importBatch(); const targetBatch = await importBatch();
-    for (const [batchId, markId, row] of [[sharedBatch,targetMark,1],[sharedBatch,otherMark,2],[targetBatch,targetMark,1]]) {
-      await query(`INSERT INTO exam_mark_import_batch_items(tenant_id,batch_id,mark_id,row_number,previous_exists,imported_status)
-        VALUES ('school-a',$1,$2,$3,false,'draft')`, [batchId,markId,row]);
-    }
-    const student = randomUUID(); const cardIds: string[] = [];
-    for (const revision of [1,2]) {
-      const card = (await query(`INSERT INTO student_report_cards(tenant_id,exam_series_id,student_id,report_snapshot_id,status,revision_number,is_current)
-        VALUES ('school-a',$1,$2,'snapshot','published',$3,$4) RETURNING id`, [target.exam.id,student,revision,revision===2])).rows[0].id;
-      cardIds.push(card);
-      await query(`INSERT INTO report_card_artifacts(tenant_id,report_card_id,artifact_type,storage_key,checksum_sha256,byte_size,verification_code)
-        VALUES ('school-a',$1,'pdf','test.pdf',repeat('a',64),100,$2)`, [card,randomUUID()]);
-      await query(`INSERT INTO student_report_card_audit_logs(tenant_id,report_card_id,exam_series_id,action)
-        VALUES ('school-a',$1,$2,'report_card.published')`, [card,target.exam.id]);
-    }
-    await query(`INSERT INTO report_card_generation_batches(tenant_id,exam_series_id,requested_by_user_id) VALUES ('school-a',$1,$2)`, [target.exam.id,ids.actor]);
-    await query(`INSERT INTO exam_result_snapshots(tenant_id,batch_id,exam_series_id,student_id,raw_total,assessment_count,average_percentage,processed_by_user_id)
-      VALUES ('school-a',$1,$2,$3,50,1,50,$4)`, [randomUUID(),target.exam.id,student,ids.actor]);
-    const slot = (await query(`INSERT INTO exam_timetable_slots(tenant_id,exam_series_id,date,start_time,end_time)
-      VALUES ('school-a',$1,'2026-09-20','09:00','11:00') RETURNING id`, [target.exam.id])).rows[0].id;
-    await query(`INSERT INTO exam_attendance_records(tenant_id,timetable_slot_id,student_id) VALUES ('school-a',$1,$2)`, [slot,student]);
-    await query(`INSERT INTO exam_student_cases(tenant_id,exam_series_id,student_id,case_type,description) VALUES ('school-a',$1,$2,'absence','Absent')`, [target.exam.id,student]);
-    const intervention = (await query(`INSERT INTO academic_interventions(tenant_id,exam_series_id,student_id,trigger_reason,plan,created_by_user_id)
-      VALUES ('school-a',$1,$2,'Follow-up','Revision',$3) RETURNING id`, [target.exam.id,student,ids.actor])).rows[0].id;
-    await query(`INSERT INTO academic_intervention_updates(tenant_id,intervention_id,notes,recorded_by_user_id) VALUES ('school-a',$1,'Progress',$2)`, [intervention,ids.actor]);
-    // Same exam identifier in unrelated tenant-owned child data must remain untouched.
-    await query(`INSERT INTO exam_mark_audit_logs(tenant_id,exam_series_id,action) VALUES ('school-b',$1,'foreign.audit')`, [target.exam.id]);
-    await remove(target.exam);
-    for (const table of ['exam_marks','student_report_cards','exam_result_snapshots','report_card_generation_batches','exam_student_cases','academic_interventions']) {
-      expect((await query('SELECT * FROM '+table+' WHERE tenant_id=$1 AND exam_series_id=$2', ['school-a',target.exam.id])).rowCount).toBe(0);
-    }
-    expect((await query('SELECT * FROM report_card_artifacts WHERE report_card_id=ANY($1::uuid[])', [cardIds])).rowCount).toBe(0);
-    expect((await query('SELECT * FROM exam_mark_versions WHERE mark_id=$1', [targetMark])).rowCount).toBe(0);
-    expect((await query('SELECT * FROM exam_attendance_records WHERE timetable_slot_id=$1', [slot])).rowCount).toBe(0);
-    expect((await query('SELECT * FROM academic_intervention_updates WHERE intervention_id=$1', [intervention])).rowCount).toBe(0);
-    expect((await query('SELECT * FROM exam_mark_import_batches WHERE id=$1', [targetBatch])).rowCount).toBe(0);
-    expect((await query('SELECT mark_id FROM exam_mark_import_batch_items WHERE batch_id=$1', [sharedBatch])).rows).toEqual([{mark_id:otherMark}]);
-    expect((await query('SELECT * FROM exam_mark_import_batches WHERE id=$1', [sharedBatch])).rowCount).toBe(1);
-    expect((await query('SELECT * FROM exam_marks WHERE id=$1', [otherMark])).rowCount).toBe(1);
-    expect(await saved(other.exam.id)).toBeDefined();
-    expect((await query('SELECT * FROM exam_mark_audit_logs WHERE exam_series_id=$1', [target.exam.id])).rowCount).toBe(2);
-    expect((await query('SELECT * FROM student_report_card_audit_logs WHERE exam_series_id=$1', [target.exam.id])).rowCount).toBe(2);
-    await expect(query(`INSERT INTO report_card_artifacts(tenant_id,report_card_id,artifact_type,storage_key,checksum_sha256,byte_size,verification_code)
-      VALUES ('school-a',$1,'pdf','stale.pdf',repeat('a',64),100,'stale')`, [cardIds[0]])).rejects.toThrow(/no longer exists/);
-    await expect(query(`INSERT INTO exam_mark_versions(tenant_id,mark_id,corrected_by_user_id,reason) VALUES ('school-a',$1,$2,'Stale')`, [targetMark,ids.actor])).rejects.toThrow(/no longer exists/);
-  });
   it('keeps customized assessment names, paper weights and maxima on unchanged configuration', async () => {
     const created = await create();
     await query("UPDATE exam_assessments SET name='Paper 1',max_score=80,weight=60 WHERE exam_series_id=$1 AND subject_id=$2", [created.exam.id, ids.subject]);
@@ -257,22 +172,20 @@ describe('Exam configuration and confirmed full deletion', () => {
       .toEqual([{ name: 'Paper 1', max_score: 80, weight: 60 }, { name: 'Paper 2', max_score: 60, weight: 40 }]);
     await expect(service.configureExamSetup(created.exam.id, payload({ max_marks: 50 }))).rejects.toThrow(/multiple papers/);
   });
-  it('deletes reports and published exams; does not allow publishing through configuration', async () => {
+  it('blocks reports and published state; does not allow publishing through configuration', async () => {
     const created = await create();
     await query(`INSERT INTO student_report_cards(tenant_id,exam_series_id,student_id,report_snapshot_id) VALUES ('school-a',$1,$2,'report')`, [created.exam.id, randomUUID()]);
-    await remove(created.exam);
-    expect((await query('SELECT * FROM student_report_cards WHERE exam_series_id=$1', [created.exam.id])).rowCount).toBe(0);
+    await expect(service.deleteExamSetup(created.exam.id)).rejects.toThrow(/report cards/);
     const published = await create();
     await expect(service.configureExamSetup(published.exam.id, payload({ status: 'published' }))).rejects.toThrow(/publishing workflow/);
     await query("UPDATE exam_series SET status='published' WHERE id=$1", [published.exam.id]);
-    await remove(published.exam);
-    expect(await saved(published.exam.id)).toBeUndefined();
+    await expect(service.deleteExamSetup(published.exam.id)).rejects.toThrow(/Published/);
   });
   it('denies another school and requires authenticated write permission on the endpoint', async () => {
     const created = await create();
     context.tenant_id = 'school-b';
     expect(await saved(created.exam.id)).toBeUndefined();
-    await expect(remove(created.exam)).rejects.toThrow(/not found/);
+    await expect(service.deleteExamSetup(created.exam.id)).rejects.toThrow(/not found/);
     await expect(service.configureExamSetup(created.exam.id, payload())).rejects.toThrow(/not found/);
     const guard = new RbacGuard(new Reflector(), { requireStore: () => context } as never);
     const execution = { getHandler: () => ExamsManagerCommandController.prototype.deleteExamSetup, getClass: () => ExamsManagerCommandController } as never;
@@ -287,35 +200,32 @@ describe('Exam configuration and confirmed full deletion', () => {
   it('rolls back deletion if durable audit recording fails', async () => {
     const created = await create();
     failAudit = true;
-    await mark(created.exam.id);
-    await expect(remove(created.exam)).rejects.toThrow(/school operation could not be completed/);
-    expect((await query('SELECT * FROM exam_marks WHERE exam_series_id=$1', [created.exam.id])).rowCount).toBe(1);
+    await expect(service.deleteExamSetup(created.exam.id)).rejects.toThrow();
     expect((await saved(created.exam.id)).subjects_count).toBe(2);
     expect((await query('SELECT * FROM exam_mark_entry_windows WHERE exam_series_id=$1', [created.exam.id])).rowCount).toBe(4);
   });
   it('rolls back all exam, audit and outbox changes if notification persistence fails', async () => {
     const created = await create();
     failNotification = true;
-    await expect(remove(created.exam)).rejects.toThrow(/notifications unavailable/);
+    await expect(service.deleteExamSetup(created.exam.id)).rejects.toThrow(/notifications unavailable/);
     expect((await saved(created.exam.id)).subjects_count).toBe(2);
     expect((await query("SELECT * FROM audit_logs WHERE resource_id=$1 AND action='exams.exam-setup.deleted'", [created.exam.id])).rowCount).toBe(0);
     expect((await query("SELECT * FROM outbox_events WHERE payload->>'entity_id'=$1 AND payload->>'operation_type'='exam.series_deleted'", [created.exam.id])).rowCount).toBe(0);
   });
-  it('waits for an in-flight mark and includes it in the confirmed deletion', async () => {
+  it('waits for an in-flight mark and refuses deletion after that mark commits', async () => {
     const created = await create();
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       await mark(created.exam.id, client);
-      const deletion = remove(created.exam);
+      const deletion = service.deleteExamSetup(created.exam.id).then(() => null, error => error);
       await client.query('COMMIT');
-      expect((await deletion).success).toBe(true);
-      expect((await query('SELECT * FROM exam_marks WHERE exam_series_id=$1', [created.exam.id])).rowCount).toBe(0);
+      expect((await deletion).message).toMatch(/entered results/);
     } finally { await client.query('ROLLBACK'); client.release(); }
   });
   it('rejects a stale mark submission after the exam is deleted', async () => {
     const created = await create();
-    await remove(created.exam);
+    await service.deleteExamSetup(created.exam.id);
     await expect(mark(created.exam.id)).rejects.toThrow(/no longer exists/);
   });
 });

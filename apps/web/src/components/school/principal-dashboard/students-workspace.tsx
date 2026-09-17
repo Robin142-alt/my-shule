@@ -1,12 +1,16 @@
 "use client";
 
+import { WorkspaceRetry } from "@/components/school/workspace-retry";
+
 import { Card } from "@/components/ui/card";
-import { AlertCircle, Users, Plus } from "lucide-react";
+import { AlertCircle, Users, UserPlus, Plus } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useDashboardEventBus } from "@/lib/dashboard-communication/dashboard-communication-provider";
+import { useState } from "react";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { buildSchoolSectionHref, type SchoolRouteMode } from "@/components/school/school-pages";
+import { buildSchoolSectionHref } from "@/components/school/school-pages";
 
 import { useStudentEvents } from "@/hooks/useStudentEvents";
 
@@ -19,16 +23,17 @@ type PrincipalStudentsData = {
   recentAdmissions: Array<{ id: string; name: string; class: string; gender: string; admission_date: string }>;
 };
 
-export function PrincipalStudentsWorkspace({ routeMode = "public" }: { routeMode?: SchoolRouteMode }) {
+export function PrincipalStudentsWorkspace() {
   useStudentEvents();
   const router = useRouter();
-  const { data, isLoading, error, refetch, isFetching } = useSchoolQuery<PrincipalStudentsData>('/admin-command/principal/students');
+  const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalStudentsData>('/admin-command/principal/students');
+  const eventBus = useDashboardEventBus();
   const { hasPermission } = usePermissions();
-  const openAdmissionsWorkspace = () => router.push(buildSchoolSectionHref("principal", "admissions", routeMode));
+  const openAdmissionsWorkspace = () => router.push(buildSchoolSectionHref("admissions", "admissions", "public"));
 
   if (isLoading) {
     return (
-      <div role="status" aria-label="Loading students" className="space-y-6">
+      <div className="space-y-6">
         <div className="animate-pulse space-y-4">
           <div className="h-24 bg-white/5 rounded-xl border border-white/10" />
           <div className="h-64 bg-white/5 rounded-xl border border-white/10" />
@@ -44,8 +49,7 @@ export function PrincipalStudentsWorkspace({ routeMode = "public" }: { routeMode
           <AlertCircle className="h-6 w-6 text-red-500" />
           <h2 className="text-xl font-bold text-red-500">Failed to load Students Overview</h2>
         </div>
-        <p className="mt-3 text-sm text-red-200">Students could not be loaded. Retry to reconnect to your school records.</p>
-        <Button className="mt-3" disabled={isFetching} onClick={() => void refetch()}>Retry students</Button>
+        <WorkspaceRetry onRetry={() => refetch()} />
       </Card>
     );
   }
@@ -114,7 +118,7 @@ export function PrincipalStudentsWorkspace({ routeMode = "public" }: { routeMode
           {(!data.recentAdmissions || data.recentAdmissions.length === 0) ? (
             <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5">
               <Users className="h-10 w-10 text-white/20 mb-3" />
-              <p className="text-white/60 mb-4">No recent admissions found. Admit students through Admissions to populate your school records.</p>
+              <p className="text-white/60 mb-4">No recent admissions found</p>
               {hasPermission('school_admissions:write') && (
                 <Button size="sm" variant="outline" onClick={openAdmissionsWorkspace}>
                   <Plus className="h-4 w-4 mr-2" /> Admit Student

@@ -54,10 +54,8 @@ export async function configureExam(examId: string, data: any) {
   return requestDashboardApi(`/admin-command/exams-manager/exam-setup/${examId}/configure`, { method: 'POST', body: data });
 }
 
-export async function deleteExam(examId: string, confirmationName: string) {
-  return requestDashboardApi(`/admin-command/exams-manager/exam-setup/${encodeURIComponent(examId)}`, {
-    method: 'DELETE', body: { confirmation_name: confirmationName },
-  });
+export async function deleteExam(examId: string) {
+  return requestDashboardApi(`/admin-command/exams-manager/exam-setup/${encodeURIComponent(examId)}`, { method: 'DELETE' });
 }
 
 export async function createTimetableSlot(data: any) {
@@ -70,12 +68,6 @@ export async function submitMarks(data: any) {
 
 export async function lockMarksEntry(examId: string) {
   return requestDashboardApi(`/admin-command/exams-manager/marks-entry/${examId}/lock`, { method: 'POST' });
-}
-
-export async function openMarksEntry(data: { exam_series_id: string; scope: 'teacher' | 'class' | 'everyone';
-  teacher_user_id?: string; class_section_id?: string; closes_at: string }) {
-  return requestDashboardApi<{ success: boolean; message: string; window_count: number }>(
-    '/admin-command/exams-manager/marks-entry/open', { method: 'POST', body: data });
 }
 
 export async function approveModeration(id: string) {

@@ -72,7 +72,8 @@ describe("academic leadership command center shell contract", () => {
     expect(source).toMatch(/subject-allocation\/options/);
     expect(source).toMatch(/<select name="subject_id"/);
     expect(source).toMatch(/<select name="class_section_id"/);
-    expect(source).toMatch(/<select name="academic_term_id"/);
+    expect(source).not.toMatch(/name="academic_term_id"/);
+    expect(source).toMatch(/name="stream_id"/);
     expect(source).not.toMatch(/Subject ID|Class Section ID|Academic Term ID|Staff member ID/);
   });
 

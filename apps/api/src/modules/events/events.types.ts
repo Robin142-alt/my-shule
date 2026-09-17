@@ -75,6 +75,7 @@ export type SupportedDomainEventName =
   | 'academic.hod.reassigned'
   | 'academic.subject.updated'
   | 'academic.teacher_assignment.changed'
+  | 'academic.cohort.promoted'
   | 'academic.policy.updated'
   | 'academic.role_assignment.changed'
   | 'academic.curriculum.updated'
@@ -586,6 +587,7 @@ export interface DomainEventPayloadMap {
   'academic.hod.reassigned': AcademicSetupChangedPayload;
   'academic.subject.updated': AcademicSetupChangedPayload;
   'academic.teacher_assignment.changed': AcademicSetupChangedPayload;
+  'academic.cohort.promoted': AcademicSetupChangedPayload;
   'academic.policy.updated': AcademicSetupChangedPayload;
   'academic.role_assignment.changed': AcademicSetupChangedPayload;
   'academic.curriculum.updated': AcademicSetupChangedPayload;

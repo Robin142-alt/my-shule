@@ -19,7 +19,7 @@ import * as bcrypt from 'bcrypt';
 import { TenantInvitationsService } from '../../auth/tenant-invitations.service';
 import { AuthorizationRepository } from '../../auth/repositories/authorization.repository';
 import { StudentsService } from '../students/students.service';
-import { continueSubjectTeachersAfterPromotion } from '../students/subject-teacher-continuity';
+import { CohortPromotionService } from './cohort-promotion.service';
 import {
   createCsvReportArtifact,
   type ReportCsvValue,
@@ -37,6 +37,7 @@ import { CreateApplicationDto, UpdateApplicationDto } from './dto/create-applica
 import { ListAdmissionsQueryDto } from './dto/list-admissions-query.dto';
 import {
   AdvanceAcademicLifecycleDto,
+  CohortPromotionCommandDto,
   CreateAllocationDto,
   CreateTransferRecordDto,
   RegisterApplicationDto,
@@ -332,11 +333,26 @@ export class AdmissionsService {
     @Optional() private readonly authorizationRepository?: AuthorizationRepository,
     @Optional() private readonly communicationSmsService?: CommunicationSmsService,
     @Optional() private readonly schoolOperationNotificationsRepository?: SchoolOperationNotificationsRepository,
+    @Optional() private readonly cohortPromotion?: CohortPromotionService,
   ) {}
 
   async getSummary() {
     return this.admissionsRepository.buildSummary(this.requireTenantId());
   }
+
+  private promotionService() {
+    if (!this.cohortPromotion) throw new ConflictException('Cohort promotion service is unavailable.');
+    return this.cohortPromotion;
+  }
+
+  private promotionActor() {
+    return { tenantId: this.requireTenantId(), userId: this.requestContext.getStore()?.user_id ?? null,
+      role: this.requestContext.getStore()?.role ?? null };
+  }
+
+  getPromotionOptions() { return this.promotionService().options(this.promotionActor()); }
+  previewCohortPromotion(dto: CohortPromotionCommandDto) { return this.promotionService().preview(this.promotionActor(), dto); }
+  commitCohortPromotion(dto: CohortPromotionCommandDto) { return this.promotionService().commit(this.promotionActor(), dto); }
 
   async listClassOptions() {
     return this.admissionsRepository.listClassOptions(this.requireTenantId());
@@ -1458,6 +1474,7 @@ export class AdmissionsService {
     studentId: string,
     dto: AdvanceAcademicLifecycleDto,
   ) {
+    if (dto.action === 'promotion') return this.promotionService().promoteSingle(this.promotionActor(), studentId, dto);
     return this.prisma.withRequestTransaction(async (tx: any) => {
       const tenantId = this.requireTenantId();
       const action = this.parseAcademicLifecycleAction(dto.action);
@@ -1465,9 +1482,6 @@ export class AdmissionsService {
         tenantId, studentId, action === 'promotion' ? tx : undefined,
       );
 
-      if (action === 'promotion') {
-        return this.promoteStudentAcademicLifecycle(tenantId, studentId, activeEnrollment, dto, tx);
-      }
 
       const nextStudentStatus = action === 'graduation' ? 'graduated' : 'inactive';
       const completedEnrollment = await this.admissionsRepository.completeStudentAcademicEnrollment(
@@ -1943,107 +1957,6 @@ export class AdmissionsService {
     }
 
     return activeEnrollment as AcademicEnrollmentRecord;
-  }
-
-  private async promoteStudentAcademicLifecycle(
-    tenantId: string,
-    studentId: string,
-    activeEnrollment: AcademicEnrollmentRecord,
-    dto: AdvanceAcademicLifecycleDto,
-    tx: any,
-  ) {
-    const className = dto.class_name?.trim();
-    const streamName = dto.stream_name?.trim();
-
-    if (!className || !streamName) {
-      throw new BadRequestException('Promotion requires a target class_name and stream_name');
-    }
-
-    const targetClassSection = await this.admissionsRepository.findAcademicClassSectionForUpdate(
-      tenantId,
-      className,
-      streamName,
-      tx,
-    ) as AcademicClassSectionRecord | null;
-    this.assertAcademicCapacityAvailable(className, streamName, targetClassSection);
-
-    if (
-      targetClassSection?.academic_year
-      && targetClassSection.academic_year === activeEnrollment.academic_year
-    ) {
-      throw new BadRequestException('Promotion target must be in a different academic year');
-    }
-
-    const completedEnrollment = await this.admissionsRepository.completeStudentAcademicEnrollment(
-      tenantId,
-      activeEnrollment.id,
-      'completed',
-      tx,
-    );
-    await this.admissionsRepository.archivePreviousStudentClassAssignments(tenantId, studentId, tx);
-    const nextEnrollment = await this.createAcademicEnrollment(
-      tenantId,
-      activeEnrollment.application_id,
-      studentId,
-      className,
-      streamName,
-      targetClassSection,
-      tx,
-    );
-    const teacherContinuity = await continueSubjectTeachersAfterPromotion(tx, {
-      tenantId, studentId,
-      sourceClassId: activeEnrollment.class_section_id ?? '',
-      sourceStreamName: activeEnrollment.stream_name,
-      targetClassId: String(targetClassSection?.id ?? ''),
-      targetStreamId: targetClassSection?.stream_id,
-      actorUserId: this.requestContext.getStore()?.user_id ?? null,
-      actorRole: this.requestContext.getStore()?.role,
-    }, this.eventPublisher);
-    await this.publishAcademicEnrollmentCreated(tenantId, studentId, nextEnrollment, tx);
-    const subjectTimetableEnrollment = await this.enrollSubjectsAndTimetable(
-      tenantId,
-      studentId,
-      nextEnrollment,
-      targetClassSection,
-      tx,
-    );
-    const allocation = await this.admissionsRepository.createAllocation({
-      school_id: tenantId,
-      student_id: studentId,
-      class_name: className,
-      stream_name: streamName,
-      effective_from: new Date().toISOString().slice(0, 10),
-      notes: this.normalizeLifecycleReason(dto.reason),
-    }, tx);
-    const lifecycleEvent = await this.recordAcademicLifecycleEvent({
-      tenantId,
-      studentId,
-      sourceEnrollment: activeEnrollment,
-      targetEnrollment: nextEnrollment,
-      targetClassSection,
-      eventType: 'promotion',
-      reason: dto.reason,
-      notes: dto.notes,
-    }, tx);
-    await this.publishAcademicLifecycleChanged(
-      tenantId,
-      studentId,
-      activeEnrollment,
-      lifecycleEvent,
-      nextEnrollment,
-      tx,
-    );
-
-    return {
-      lifecycle_event: lifecycleEvent,
-      previous_academic_enrollment: completedEnrollment ?? activeEnrollment,
-      academic_enrollment: nextEnrollment,
-      teacher_assignment_continuity: teacherContinuity,
-      allocation,
-      subject_enrollments: subjectTimetableEnrollment.subject_enrollments,
-      timetable_enrollments: subjectTimetableEnrollment.timetable_enrollments,
-      student_status: 'active',
-    };
   }
 
   private async publishAcademicEnrollmentCreated(

@@ -47,7 +47,7 @@ type SubjectAllocationOptionsData = {
   teachers: SubjectAllocationOption[];
   subjects: SubjectAllocationOption[];
   classes: SubjectAllocationOption[];
-  terms: SubjectAllocationOption[];
+  streams: Array<SubjectAllocationOption & {class_section_id: string}>;
 };
 
 export function SubjectAllocationWorkspace() {
@@ -57,7 +57,8 @@ export function SubjectAllocationWorkspace() {
   const teachers = optionsData?.teachers ?? [];
   const subjects = optionsData?.subjects ?? [];
   const classes = optionsData?.classes ?? [];
-  const terms = optionsData?.terms ?? [];
+  const [classId,setClassId] = useState("");
+  const streams = (optionsData?.streams ?? []).filter(stream=>stream.class_section_id===classId);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const getStatusTone = (st: string): Tone => {
@@ -72,14 +73,14 @@ export function SubjectAllocationWorkspace() {
     event.preventDefault();
     if (isSubmitting) return;
 
-    const allocationPayload = Object.fromEntries(new FormData(event.currentTarget).entries());
+    const form = event.currentTarget;
+    const allocationPayload = Object.fromEntries(new FormData(form).entries());
     const teacherId = String(allocationPayload.teacher_id || "").trim();
     const subjectId = String(allocationPayload.subject_id || "").trim();
     const classSectionId = String(allocationPayload.class_section_id || "").trim();
-    const academicTermId = String(allocationPayload.academic_term_id || "").trim();
 
-    if (!subjectId || !classSectionId || !academicTermId) {
-      toast.error("Subject, class, and academic term are required before assigning duties.");
+    if (!subjectId || !classSectionId) {
+      toast.error("Subject and class are required before assigning continuing teaching duties.");
       return;
     }
 
@@ -93,14 +94,15 @@ export function SubjectAllocationWorkspace() {
           teacher_id: teacherId || undefined,
           subject_id: subjectId,
           class_section_id: classSectionId,
-          academic_term_id: academicTermId,
+          stream_id: String(allocationPayload.stream_id || "").trim() || undefined,
           lessons_per_week: String(allocationPayload.lessons_per_week || "").trim() || undefined,
           notes: String(allocationPayload.notes || "").trim() || undefined,
         },
       });
 
       toast.success("Subject allocation saved and routed to the department workflow.");
-      event.currentTarget.reset();
+      form.reset();
+      setClassId("");
       await refetch();
     } catch (err: any) {
       toast.error(err.message || "Subject allocation could not be saved.");
@@ -162,7 +164,7 @@ export function SubjectAllocationWorkspace() {
         </label>
         <label className="text-sm font-bold text-[#071D49]">
           Class section
-          <select name="class_section_id" required disabled={optionsLoading || classes.length === 0} className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE] disabled:bg-white/70 disabled:text-[#94A3B8]">
+          <select name="class_section_id" required value={classId} onChange={event=>setClassId(event.target.value)} disabled={optionsLoading || classes.length === 0} className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE] disabled:bg-white/70 disabled:text-[#94A3B8]">
             <option value="">{optionsLoading ? "Loading classes..." : "Select class section"}</option>
             {classes.map((classSection) => (
               <option key={classSection.id} value={classSection.id}>
@@ -171,20 +173,16 @@ export function SubjectAllocationWorkspace() {
             ))}
           </select>
         </label>
-        <label className="text-sm font-bold text-[#071D49]">
-          Academic term
-          <select name="academic_term_id" required disabled={optionsLoading || terms.length === 0} className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE] disabled:bg-white/70 disabled:text-[#94A3B8]">
-            <option value="">{optionsLoading ? "Loading terms..." : "Select term"}</option>
-            {terms.map((term) => (
-              <option key={term.id} value={term.id}>
-                {term.status === "active" ? `${term.label} (active)` : term.label}
-              </option>
-            ))}
-          </select>
-        </label>
+
         <label className="text-sm font-bold text-[#071D49]">
           Lessons per week
           <input name="lessons_per_week" type="number" min="1" className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE]" placeholder="5" />
+        </label>
+        <label className="text-sm font-bold text-[#071D49]">Stream
+          <select key={classId} name="stream_id" className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2">
+            <option value="">{streams.length ? "All current streams" : "No stream required"}</option>
+            {streams.map(stream=><option key={stream.id} value={stream.id}>{stream.label}</option>)}
+          </select>
         </label>
         <label className="text-sm font-bold text-[#071D49] xl:col-span-2">
           Notes
@@ -195,9 +193,9 @@ export function SubjectAllocationWorkspace() {
             {isSubmitting ? "Saving..." : "Save allocation"}
           </button>
         </div>
-        {!optionsLoading && (subjects.length === 0 || classes.length === 0 || terms.length === 0) ? (
+        {!optionsLoading && (subjects.length === 0 || classes.length === 0) ? (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800 md:col-span-2 xl:col-span-4">
-            Configure at least one active subject, class section, and academic term before HOD subject allocation can be saved.
+            Configure at least one active subject and class section before HOD subject allocation can be saved.
           </div>
         ) : null}
       </form>

@@ -50,7 +50,7 @@ describe("principal and deputy academic foundation workspace", () => {
     expect(workspaceSource).toContain("Create Stream");
     expect(workspaceSource).toContain("Create Department");
     expect(workspaceSource).toContain("Create Subject / Learning Area");
-    expect(workspaceSource).toContain("Assign subjects to class and term");
+    expect(workspaceSource).toContain("Assign subjects to cohort");
     expect(workspaceSource).toContain("Select Subjects to Assign");
     expect(workspaceSource).toContain("Add Calendar Period");
     expect(workspaceSource).toContain("Save HOD");

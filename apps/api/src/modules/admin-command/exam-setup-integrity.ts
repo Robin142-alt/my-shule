@@ -52,9 +52,14 @@ export const EXAM_RECORD_COUNTS_SQL = `SELECT
        JOIN exam_timetable_slots slot ON slot.tenant_id = attendance.tenant_id AND slot.id = attendance.timetable_slot_id
        WHERE slot.tenant_id = $1 AND slot.exam_series_id = $2::uuid) AS other_records_count`;
 
-export function canDeleteExam(role: string | null | undefined, permissions: string[] = []): boolean {
-  return ['exams_manager', 'exams_officer', 'principal', 'super_admin'].includes(String(role).toLowerCase())
-    && permissions.some(permission => ['exams:write', 'exams:*', '*:*', '*'].includes(permission));
+export function examDeletionBlock(exam: Record<string, any>): string | null {
+  if (Number(exam.marks_count) > 0) return 'This exam has entered results, including saved drafts or absence records, and cannot be deleted.';
+  if (Number(exam.reports_count) > 0) return 'This exam has results or report cards in progress and cannot be deleted.';
+  if (Number(exam.other_records_count) > 0) return 'This exam has attendance, student cases or interventions and cannot be deleted.';
+  if (exam.published_at || ['published', 'archived'].includes(String(exam.status).toLowerCase())) {
+    return 'Published or archived exams cannot be deleted.';
+  }
+  return null;
 }
 
 export async function reconcileExamScope(operations: AdminCommandOperationsService, tenantId: string, examId: string,
@@ -90,32 +95,6 @@ export async function reconcileExamScope(operations: AdminCommandOperationsServi
 }
 
 export async function deleteExamSetupRecords(operations: AdminCommandOperationsService, tenantId: string, examId: string) {
-  // The caller locks the exam first. Preserve audit/event history, but remove all
-  // operational children before their parents so no result remains accessible.
-  await operations.writeSql(`DELETE FROM report_card_artifacts artifact USING student_report_cards card
-    WHERE artifact.tenant_id = $1 AND card.tenant_id = artifact.tenant_id
-      AND card.id = artifact.report_card_id AND card.exam_series_id = $2::uuid`, [tenantId, examId]);
-  await operations.writeSql(`DELETE FROM academic_intervention_updates item USING academic_interventions intervention
-    WHERE item.tenant_id = $1 AND intervention.tenant_id = item.tenant_id
-      AND intervention.id = item.intervention_id AND intervention.exam_series_id = $2::uuid`, [tenantId, examId]);
-  await operations.writeSql(`DELETE FROM exam_mark_versions version USING exam_marks mark
-    WHERE version.tenant_id = $1 AND mark.tenant_id = version.tenant_id
-      AND mark.id = version.mark_id AND mark.exam_series_id = $2::uuid`, [tenantId, examId]);
-  // A single import can contain multiple exams. Remove only this exam's items,
-  // and remove its batch header only when no items from other exams remain.
-  const imports = await operations.writeSql(`DELETE FROM exam_mark_import_batch_items item USING exam_marks mark
-    WHERE item.tenant_id = $1 AND mark.tenant_id = item.tenant_id
-      AND mark.id = item.mark_id AND mark.exam_series_id = $2::uuid RETURNING item.batch_id`, [tenantId, examId]);
-  const batchIds = [...new Set(imports.rows.map(row => String(row.batch_id)))];
-  if (batchIds.length) await operations.writeSql(`DELETE FROM exam_mark_import_batches batch
-    WHERE batch.tenant_id = $1 AND batch.id = ANY($2::uuid[])
-      AND NOT EXISTS (SELECT 1 FROM exam_mark_import_batch_items item WHERE item.tenant_id = $1 AND item.batch_id = batch.id)`, [tenantId, batchIds]);
-  for (const table of ['student_report_cards', 'exam_result_snapshots', 'report_card_generation_batches',
-    'exam_student_cases', 'academic_interventions', 'exam_marks']) {
-    await operations.writeSql(`DELETE FROM ${table} WHERE tenant_id = $1 AND exam_series_id = $2::uuid`, [tenantId, examId]);
-  }
-  await operations.writeSql(`DELETE FROM exam_attendance_records item USING exam_timetable_slots slot
-    WHERE item.tenant_id = $1 AND slot.tenant_id = item.tenant_id AND slot.id = item.timetable_slot_id AND slot.exam_series_id = $2::uuid`, [tenantId, examId]);
   await operations.writeSql(`DELETE FROM exam_invigilators item USING exam_timetable_slots slot
     WHERE item.tenant_id = $1 AND slot.tenant_id = item.tenant_id AND slot.id = item.timetable_slot_id AND slot.exam_series_id = $2::uuid`, [tenantId, examId]);
   await operations.writeSql(`DELETE FROM exam_assessment_components item USING exam_assessments assessment
@@ -124,9 +103,6 @@ export async function deleteExamSetupRecords(operations: AdminCommandOperationsS
     await operations.writeSql(`DELETE FROM ${table} item USING exam_grading_policies policy
       WHERE item.tenant_id = $1 AND policy.tenant_id = item.tenant_id AND policy.id = item.grading_policy_id AND policy.exam_series_id = $2::uuid`, [tenantId, examId]);
   }
-  // Upgraded schools can also have legacy subject weights linked directly to an exam.
-  await operations.writeSql(`DELETE FROM exam_subject_weightings item
-    WHERE item.tenant_id = $1 AND to_jsonb(item)->>'exam_series_id' = $2::text`, [tenantId, examId]);
   for (const table of ['exam_timetable_slots', 'exam_mark_entry_windows', 'exam_assessments', 'exam_grade_boundaries', 'exam_grading_policies']) {
     await operations.writeSql(`DELETE FROM ${table} WHERE tenant_id = $1 AND exam_series_id = $2::uuid`, [tenantId, examId]);
   }

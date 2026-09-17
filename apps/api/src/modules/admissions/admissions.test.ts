@@ -1948,163 +1948,28 @@ test('AdmissionsService publishes academic enrollment hooks during registration'
   );
 });
 
-test('AdmissionsService promotes an active student into the next configured class section', async () => {
+test('AdmissionsService routes annual promotion through the atomic cohort service with the authenticated school identity', async () => {
   const requestContext = new RequestContextService();
-  const completedEnrollments: Array<{ tenantId: string; enrollmentId: string; status: string }> = [];
-  const lifecycleEvents: unknown[] = [];
-  const transaction = { $queryRawUnsafe: async () => [] };
-  const archivedPlacements: string[] = [];
-  const publishedEvents: Array<{ event_name: string; aggregate_id: string; payload: Record<string, unknown> }> = [];
-
-  const service = new AdmissionsService(
-    requestContext,
-    {
-      withRequestTransaction: async <T>(callback: (tx: any) => Promise<T>): Promise<T> => callback(transaction),
-    } as never,
-    {
-      findActiveAcademicEnrollmentForUpdate: async () => ({
-        id: '00000000-0000-0000-0000-000000000771',
-        student_id: '00000000-0000-0000-0000-000000000770',
-        application_id: '00000000-0000-0000-0000-000000000769',
-        class_section_id: '00000000-0000-0000-0000-000000000772',
-        class_name: 'Grade 8',
-        stream_name: 'South',
-        academic_year: '2026',
-        status: 'active',
-      }),
-      findAcademicClassSectionForUpdate: async () => ({
-        id: '00000000-0000-0000-0000-000000000773',
-        stream_id: '00000000-0000-0000-0000-000000000777',
-        class_name: 'Grade 9',
-        stream_name: 'North',
-        academic_year: '2027',
-        capacity: 40,
-        current_enrollments: 18,
-      }),
-      completeStudentAcademicEnrollment: async (tenantId: string, enrollmentId: string, status: string, tx: any) => {
-        assert.equal(tx, transaction);
-        completedEnrollments.push({ tenantId, enrollmentId, status });
-        return { id: enrollmentId, status };
-      },
-      archivePreviousStudentClassAssignments: async (tenantId: string, studentId: string, tx: any) => {
-        assert.equal(tx, transaction);
-        assert.equal(tenantId, 'tenant-a');
-        archivedPlacements.push(studentId);
-      },
-      createStudentAcademicEnrollment: async (_input: unknown, tx: any) => {
-        assert.equal(tx, transaction);
-        assert.equal(archivedPlacements.length, 1);
-        return ({
-        id: '00000000-0000-0000-0000-000000000774',
-        student_id: '00000000-0000-0000-0000-000000000770',
-        application_id: '00000000-0000-0000-0000-000000000769',
-        class_section_id: '00000000-0000-0000-0000-000000000773',
-        class_name: 'Grade 9',
-        stream_name: 'North',
-        academic_year: '2027',
-        status: 'active',
-      });
-      },
-      enrollStudentSubjectsAndTimetable: async () => ({
-        subject_enrollments: [{ subject_code: 'MATH', status: 'active' }],
-        timetable_enrollments: [{ day_of_week: 'Tuesday', status: 'active' }],
-      }),
-      createAllocation: async () => ({
-        id: '00000000-0000-0000-0000-000000000775',
-        class_name: 'Grade 9',
-        stream_name: 'North',
-      }),
-      createStudentAcademicLifecycleEvent: async (input: unknown, tx: any) => {
-        assert.equal(tx, transaction);
-        lifecycleEvents.push(input);
-        return {
-          id: '00000000-0000-0000-0000-000000000776',
-          event_type: 'promotion',
-          to_class_name: 'Grade 9',
-        };
-      },
-    } as never,
-    {
-      save: async () => {
-        throw new Error('not used in this test');
-      },
-    } as never,
-    {
-      updateStudent: async () => {
-        throw new Error('promotion should not change student status');
-      },
-    } as never,
-    undefined,
-    {
-      publish: async (input: {
-        event_name: string;
-        aggregate_id: string;
-        payload: Record<string, unknown>;
-      }, tx: any) => {
-        assert.equal(tx, transaction);
-        publishedEvents.push(input);
-        return input;
-      },
-    } as never,
-  );
-
-  const response = await requestContext.run(
-    {
-      request_id: 'req-admissions-promote-1',
-      tenant_id: 'tenant-a',
-      user_id: '00000000-0000-0000-0000-000000000001',
-      role: 'admissions',
-      session_id: 'session-1',
-      permissions: ['admissions:*', 'students:*'],
-      is_authenticated: true,
-      client_ip: '127.0.0.1',
-      user_agent: 'test-suite',
-      method: 'POST',
-      path: '/admissions/students/00000000-0000-0000-0000-000000000770/academic-lifecycle',
-      started_at: '2026-05-04T00:00:00.000Z',
-    },
-    () =>
-      (
-        service as unknown as {
-          advanceStudentAcademicLifecycle: (studentId: string, dto: Record<string, string>) => Promise<{
-            lifecycle_event: { event_type: string };
-            academic_enrollment: { class_name: string };
-            subject_enrollments: unknown[];
-            timetable_enrollments: unknown[];
-          }>;
-        }
-      ).advanceStudentAcademicLifecycle('00000000-0000-0000-0000-000000000770', {
-        action: 'promotion',
-        class_name: 'Grade 9',
-        stream_name: 'North',
-        reason: 'End-year promotion',
-      }),
-  );
-
-  assert.deepEqual(completedEnrollments, [
-    {
-      tenantId: 'tenant-a',
-      enrollmentId: '00000000-0000-0000-0000-000000000771',
-      status: 'completed',
-    },
-  ]);
-  assert.equal(lifecycleEvents.length, 1);
-  assert.deepEqual(archivedPlacements, ['00000000-0000-0000-0000-000000000770']);
-  assert.equal(response.lifecycle_event.event_type, 'promotion');
-  assert.equal(response.academic_enrollment.class_name, 'Grade 9');
-  assert.equal(response.subject_enrollments.length, 1);
-  assert.equal(response.timetable_enrollments.length, 1);
-  assert.deepEqual(publishedEvents.map((event) => event.event_name), [
-    'student.academic_enrollment.created',
-    'student.academic_lifecycle.changed',
-  ]);
-  assert.equal(publishedEvents[1]?.aggregate_id, '00000000-0000-0000-0000-000000000776');
-  assert.equal(publishedEvents[1]?.payload.event_type, 'promotion');
+  let observed: any;
+  const cohort = {promoteSingle:async(actor:any,studentId:string,dto:any)=>{
+    observed={actor,studentId,dto};return {promoted_students:1,cohort_id:'cohort-1'};
+  }};
+  const service = new AdmissionsService(requestContext,{} as never,{} as never,{} as never,{} as never,
+    undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,cohort as never);
+  const dto={action:'promotion' as const,target_class_section_id:'next-class',target_stream_id:'east',reason:'Annual promotion'};
+  const response=await requestContext.run({tenant_id:'tenant-a',user_id:'actor-a',role:'admissions'} as never,
+    ()=>service.advanceStudentAcademicLifecycle('learner-a',dto));
+  assert.equal(response.promoted_students,1);
+  assert.equal(observed.actor.tenantId,'tenant-a');
+  assert.equal(observed.actor.userId,'actor-a');
+  assert.equal(observed.studentId,'learner-a');
+  assert.deepEqual(observed.dto,dto);
 });
 
 test('AdmissionsService graduates an active student and records an academic lifecycle event', async () => {
   const requestContext = new RequestContextService();
   const statusUpdates: string[] = [];
+  const lifecycleEvents: any[] = [];
 
   const service = new AdmissionsService(
     requestContext,
@@ -2139,6 +2004,8 @@ test('AdmissionsService graduates an active student and records an academic life
         return { id: '00000000-0000-0000-0000-000000000780', status: dto.status };
       },
     } as never,
+    undefined,
+    { publish: async (event: any) => { lifecycleEvents.push(event); } } as never,
   );
 
   const response = await requestContext.run(
@@ -2173,6 +2040,9 @@ test('AdmissionsService graduates an active student and records an academic life
   assert.deepEqual(statusUpdates, ['graduated']);
   assert.equal(response.lifecycle_event.event_type, 'graduation');
   assert.equal(response.student_status, 'graduated');
+  assert.equal(lifecycleEvents[0]?.event_name, 'student.academic_lifecycle.changed');
+  assert.equal(lifecycleEvents[0]?.payload.event_type, 'graduation');
+  assert.equal(lifecycleEvents[0]?.payload.tenant_id, 'tenant-a');
 });
 
 test('AdmissionsService rejects lifecycle changes without an active academic enrollment', async () => {

@@ -49,7 +49,7 @@ describe('Report generation with the production staff schema', () => {
       CREATE TABLE student_class_assignments(tenant_id text,student_id text,class_section_id text,stream_id text,status text,
         academic_year_id text,updated_at timestamptz DEFAULT NOW(),created_at timestamptz DEFAULT NOW());
       CREATE TABLE student_subject_enrollments(tenant_id text,student_id text,class_section_id text,subject_id text,status text);
-      CREATE TABLE class_sections(tenant_id text,id text,name text,custom_label text,curriculum_model text);
+      CREATE TABLE class_sections(tenant_id text,id text,name text,custom_label text);
       CREATE TABLE class_streams(tenant_id text,id text,name text);
       CREATE TABLE subjects(tenant_id text,id text,name text);
       CREATE TABLE academics_class_teachers(tenant_id text,teacher_user_id uuid,academic_year_id text,class_section_id text,
@@ -109,7 +109,7 @@ describe('Report generation with the production staff schema', () => {
     await query(`INSERT INTO tenants VALUES ('school-a','Test School','{}'),('school-b','Other School','{}');
       INSERT INTO academic_years VALUES ('school-a','${ids.year}','2026');
       INSERT INTO academic_terms VALUES ('school-a','${ids.term}','Term 3','${ids.year}','2026-09-01','2026-12-01');
-      INSERT INTO class_sections(tenant_id,id,name,custom_label) VALUES ('school-a','${ids.class}','Form 4',NULL);
+      INSERT INTO class_sections VALUES ('school-a','${ids.class}','Form 4',NULL);
       INSERT INTO subjects VALUES ('school-a','${ids.subject}','Mathematics');
       INSERT INTO users VALUES ('${ids.teacher}','Teacher Account','Teacher Account','teacher@example.test','active'),
         ('${ids.principal}','Principal Account','Principal Account','principal@example.test','active');

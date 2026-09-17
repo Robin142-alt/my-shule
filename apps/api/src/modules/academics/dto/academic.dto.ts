@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 
 export class CreateAcademicYearDto {
   @IsString()
@@ -111,6 +111,8 @@ export class CreateSubjectDto {
 }
 
 export class AssignTeacherDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100)
+  lessons_per_week?: number;
   @IsOptional()
   @IsString()
   academic_term_id?: string;
@@ -560,8 +562,13 @@ export class CreateDepartmentDto {
 }
 
 export class CreateClassSubjectAssignmentDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100)
+  lessons_per_week?: number;
+  @IsOptional()
   @IsString()
-  academic_term_id!: string;
+  academic_term_id?: string;
+
+  @IsOptional() @IsString() stream_id?: string;
 
   @IsString()
   class_section_id!: string;
@@ -577,8 +584,13 @@ export class CreateClassSubjectAssignmentDto {
 }
 
 export class CreateBulkClassSubjectAssignmentsDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100)
+  lessons_per_week?: number;
+  @IsOptional()
   @IsString()
-  academic_term_id!: string;
+  academic_term_id?: string;
+
+  @IsOptional() @IsString() stream_id?: string;
 
   @IsString()
   class_section_id!: string;
@@ -600,6 +612,7 @@ export class CreateBulkClassSubjectAssignmentsDto {
 
 export class UpdateClassSubjectAssignmentDto {
   @IsOptional() @IsString() academic_term_id?: string;
+  @IsOptional() @IsString() stream_id?: string;
   @IsOptional() @IsString() class_section_id?: string;
   @IsOptional() @IsString() subject_id?: string;
   @IsOptional() @IsBoolean() is_compulsory?: boolean;

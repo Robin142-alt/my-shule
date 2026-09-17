@@ -46,6 +46,7 @@ export const SCHOOL_SECTIONS = [
   "setup-checklist",
   "school-profile",
   "academic-setup",
+  "academic-intelligence",
   "classes-streams",
   "subjects-departments",
   "staff-roles",

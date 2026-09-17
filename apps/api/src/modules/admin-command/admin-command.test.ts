@@ -4190,8 +4190,8 @@ test('HodCommandService returns tenant-scoped subject allocation options for HOD
         if (/FROM class_sections/.test(sql)) {
           return { rows: [{ id: 'class-a', label: 'Form 2 East', grade_level: 'Form 2', stream: 'East' }], rowCount: 1 };
         }
-        if (/FROM academic_terms/.test(sql)) {
-          return { rows: [{ id: 'term-a', label: 'Term 2 2026', status: 'active' }], rowCount: 1 };
+        if (/FROM class_streams/.test(sql)) {
+          return { rows: [{ id: 'stream-a', label: 'Blue', class_section_id: 'class-a' }], rowCount: 1 };
         }
         return { rows: [], rowCount: 0 };
       },
@@ -4207,7 +4207,7 @@ test('HodCommandService returns tenant-scoped subject allocation options for HOD
   assert.deepEqual(result.teachers, [{ id: 'staff-a', user_id: 'teacher-a', label: 'Teacher A' }]);
   assert.deepEqual(result.subjects, [{ id: 'subject-a', label: 'Mathematics', code: 'MATH' }]);
   assert.deepEqual(result.classes, [{ id: 'class-a', label: 'Form 2 East', grade_level: 'Form 2', stream: 'East' }]);
-  assert.deepEqual(result.terms, [{ id: 'term-a', label: 'Term 2 2026', status: 'active' }]);
+  assert.deepEqual(result.streams, [{ id: 'stream-a', label: 'Blue', class_section_id: 'class-a' }]);
   assert.equal(queries.length, 4);
   assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
 });

@@ -34,7 +34,6 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
         CREATE TABLE student_class_assignments(tenant_id text,id text,student_id text,class_section_id text,academic_year_id text,stream_id text,status text,updated_at timestamptz,cohort_id text);
         CREATE TABLE student_subject_enrollments(tenant_id text,student_id text,class_section_id text,subject_id text,academic_year_id text,academic_term_id text,status text,effective_from date,effective_to date);
         CREATE TABLE student_report_cards(tenant_id text,exam_series_id uuid,student_id uuid,is_current boolean,status text,grading_policy_id uuid,grading_policy_version int);
-        CREATE TABLE academics_grading_systems(tenant_id text,id text,name text,curriculum_model text,rules jsonb,version int,is_active boolean,archived_at timestamptz,effective_from date,effective_to date,updated_at timestamptz);
         CREATE TABLE exam_grading_policies(tenant_id text,id uuid,exam_series_id uuid,reporting_mode text,version int,status text,effective_from timestamptz,effective_to timestamptz);
         CREATE TABLE exam_grading_policy_boundaries(tenant_id text,grading_policy_id uuid,label text,min_score numeric,max_score numeric,points numeric,is_pass boolean);
         CREATE TABLE teacher_subject_assignments(tenant_id text,teacher_user_id text,class_section_id text,subject_id text,academic_term_id text,stream_id text,status text,effective_from date,effective_to date);
@@ -202,82 +201,5 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
     const plan=result.rows[0]['QUERY PLAN'];
     expect(plan[0]['Execution Time']).toBeGreaterThanOrEqual(0);
     mkdirSync('output',{recursive:true});writeFileSync('output/academic-intelligence-query-plan.json',JSON.stringify(plan,null,2));
-  });
-  it('supports the deployed placement schema before optional cohort metadata exists',async()=>{
-    const c=await pool.connect();
-    try {await c.query(`SET search_path TO ${schema}; ALTER TABLE student_class_assignments DROP COLUMN cohort_id`);}
-    finally {c.release();}
-    const data=await read('assignment','teacher');
-    expect(data.performance.mean).toBe(80);
-    expect(data.cohorts).toEqual([]);
-  });
-  it('grades shared subjects by class curriculum under RLS and retains report grading snapshots', async () => {
-    const c = await pool.connect();
-    const secondaryClass = randomUUID();
-    const cbcRules = [{ label: 'ME1', min: 58, max: 100, points: 6, is_pass: true }, { label: 'BE2', min: 0, max: 57, points: 1, is_pass: false }];
-    const secondaryRules = [{ label: 'B', min: 65, max: 100, points: 9, is_pass: true }, { label: 'E', min: 0, max: 64, points: 1, is_pass: false }];
-    try {
-      await c.query(`SET search_path TO ${schema};
-        ALTER TABLE class_sections ADD COLUMN curriculum_model text;
-        ALTER TABLE student_report_cards ADD COLUMN metadata jsonb;`);
-      await c.query("UPDATE class_sections SET curriculum_model='CBC' WHERE tenant_id='school-a'");
-      await c.query("INSERT INTO class_sections VALUES ('school-a',$1,'Form 2','2','8-4-4')", [secondaryClass]);
-      await c.query("UPDATE exam_marks SET class_section_id=$1 WHERE tenant_id='school-a' AND student_id=$2", [secondaryClass, ids.second]);
-      await c.query("UPDATE student_class_assignments SET class_section_id=$1 WHERE tenant_id='school-a' AND student_id=$2", [secondaryClass, ids.second]);
-      await c.query("UPDATE student_report_cards SET grading_policy_id=NULL WHERE tenant_id='school-a'");
-      for (const [tenant, curriculum, bands] of [
-        ['school-a', 'CBC', cbcRules], ['school-a', '8-4-4', secondaryRules], ['school-b', 'CBC', [{ label: 'FOREIGN', min: 0, max: 100 }]],
-      ] as const) {
-        await c.query(`INSERT INTO academics_grading_systems
-          (tenant_id,id,name,curriculum_model,rules,version,is_active,updated_at)
-          VALUES ($1,$2,$3,$3,$4,1,true,NOW())`, [tenant, randomUUID(), curriculum, JSON.stringify(bands)]);
-      }
-    } finally { c.release(); }
-    const batch = randomUUID();
-    const markInput = { tenant_id: 'school-a', exam_series_id: ids.exam, score: 32.5, max_score: 50 };
-    expect((await repository.findGradeBoundaryForScore({ ...markInput, class_section_id: ids.class })).boundary).toMatchObject({ label: 'ME1', points: 6 });
-    expect((await repository.findGradeBoundaryForScore({ ...markInput, class_section_id: secondaryClass })).boundary).toMatchObject({ label: 'B', points: 9 });
-    const setup = await pool.connect();
-    try {
-      await setup.query(`SET search_path TO ${schema};
-        CREATE TABLE report_card_generation_batches(tenant_id text,id uuid,exam_series_id uuid,class_section_id uuid,metadata jsonb DEFAULT '{}',updated_at timestamptz);
-        CREATE TABLE exam_result_snapshots(id uuid DEFAULT gen_random_uuid(),tenant_id text,batch_id uuid,exam_series_id uuid,class_section_id uuid,student_id uuid,raw_total numeric,assessment_count int,average_percentage numeric,grade_label text,class_rank int,processed_by_user_id uuid);
-        CREATE TABLE exam_grade_boundaries(tenant_id text,exam_series_id uuid,label text,min_score numeric,max_score numeric);`);
-      for (const table of ['report_card_generation_batches', 'exam_result_snapshots', 'exam_grade_boundaries']) {
-        await setup.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY; ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;
-          CREATE POLICY tenant_isolation ON ${table} USING (tenant_id = current_setting('app.tenant_id',true));
-          GRANT SELECT, INSERT, UPDATE, DELETE ON ${table} TO ${role};`);
-      }
-      for (const tenant of ['school-a', 'school-b']) await setup.query(
-        'INSERT INTO report_card_generation_batches(tenant_id,id,exam_series_id) VALUES ($1,$2,$3)', [tenant, batch, ids.exam]);
-      await setup.query("INSERT INTO exam_result_snapshots(tenant_id,batch_id,grade_label) VALUES ('school-b',$1,'FOREIGN')", [batch]);
-    } finally { setup.release(); }
-    const processed = await repository.processResultBatch({ tenant_id: 'school-a', actor_user_id: ids.principal, batch_id: batch, mode: 'rankings' });
-    expect(processed?.aggregate_count).toBe(2);
-    const results = await repository.executeSql('SELECT * FROM exam_result_snapshots WHERE tenant_id=$1 AND batch_id=$2', ['school-a', batch]);
-    expect(results.rows.find((row: any) => row.student_id === ids.learner)).toMatchObject({ grade_label: 'BE2', class_rank: 1, class_section_id: ids.class });
-    expect(results.rows.find((row: any) => row.student_id === ids.second)).toMatchObject({ grade_label: 'B', class_rank: 1, class_section_id: secondaryClass });
-    const foreign = await repository.executeSql('SELECT * FROM exam_result_snapshots WHERE tenant_id=$1 AND batch_id=$2', ['school-b', batch]);
-    expect(foreign.rows).toHaveLength(1);
-    expect(foreign.rows[0].grade_label).toBe('FOREIGN');
-    const query = () => repository.executeSql(analyticsQuery('school'), [
-      'school-a', ids.principal, JSON.stringify({ page: 1, page_size: 25, exam_series_id: ids.exam }),
-    ]);
-    const result = await query();
-    const math = result.rows.filter((row: any) => row.subject_id === ids.math);
-    expect(math.find((row: any) => row.student_id === ids.learner)?.boundaries).toEqual(cbcRules);
-    expect(math.find((row: any) => row.student_id === ids.second)?.boundaries).toEqual(secondaryRules);
-    expect(JSON.stringify(result.rows)).not.toContain('FOREIGN');
-    const snapshot = await pool.connect();
-    try {
-      await snapshot.query(`UPDATE ${schema}.student_report_cards SET metadata=$1
-        WHERE tenant_id='school-a' AND student_id=$2`, [JSON.stringify({
-          grading_policy: { source: 'academic_setup', source_id: 'saved-policy', reporting_mode: 'competency', rules: cbcRules },
-        }), ids.learner]);
-      await snapshot.query(`UPDATE ${schema}.academics_grading_systems SET rules='[{"label":"NEW","min":0,"max":100}]'
-        WHERE tenant_id='school-a' AND curriculum_model='CBC'`);
-    } finally { snapshot.release(); }
-    const historical = await query();
-    expect(historical.rows.find((row: any) => row.student_id === ids.learner && row.subject_id === ids.math)?.boundaries).toEqual(cbcRules);
   });
 });

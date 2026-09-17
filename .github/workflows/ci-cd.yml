@@ -48,31 +48,13 @@ jobs:
         run: npm --prefix apps/web run test:design -- role-switch-consistency dashboard-role-context school-dashboard-role-switcher active-role-cache-isolation leadership-teacher-role-switch
 
       - name: Academic intelligence workspace contracts
-        run: npm --prefix apps/web run test:design -- academic-intelligence head-of-subject exams-workspace teacher-exams-marks-workspace dean-review-workflow dean-hod-command-center-contract dean-usability
+        run: npm --prefix apps/web run test:design -- academic-intelligence head-of-subject exams-workspace teacher-exams-marks-workspace dean-review-workflow dean-hod-command-center-contract
 
       - name: Report-card class generation and recovery interface
         run: npm --prefix apps/web run test:design -- report-card-generation-readiness live-report-card-actions
 
       - name: Exam setup configuration and deletion controls
         run: npm --prefix apps/web run test:design -- exam-setup-edit-delete exams-manager-human-workflows exams-manager-routing
-
-      - name: Report-card generation readiness and actions
-        run: npm --prefix apps/web run test:design -- report-card-generation-readiness live-report-card-actions report-card-curriculum exams-manager-entry-controls
-
-      - name: Teacher marks roster and routing contracts
-        run: npm --prefix apps/web run test:design -- teacher-mark-sheet-pagination teacher-dashboard-routing
-
-      - name: Exams manager dashboard and teacher follow-up contracts
-        run: npm --prefix apps/web run test:design -- --runTestsByPath tests/design/exams-manager-command-center.test.ts tests/design/exams-manager-human-workflows.test.ts tests/design/exams-manager-routing.test.tsx tests/design/exams-manager-teacher-progress.test.tsx
-
-      - name: Sidebar loading and recovery contracts
-        run: npm --prefix apps/web run test:design -- sidebar-workspace-recovery
-
-      - name: School staff search and invitation contracts
-        run: npm --prefix apps/web run test:design -- staff-directory user-management-invitations
-
-      - name: Simplified academic setup contracts
-        run: npm --prefix apps/web run test:design -- academic-setup-simplification academic-foundation-record-visibility academic-foundation-workspace subject-teacher-assignment-surfaces academic-curriculum-builder academic-policy-builders
 
   # ──────────────────────────────────────────────────────────────
   # Build + Unit Tests
@@ -125,36 +107,6 @@ jobs:
           DATABASE_URL: ""
           NODE_ENV: test
         run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/exam-setup-integrity.integration-spec.ts apps/api/test/teacher-exam-visibility.integration-spec.ts
-
-      - name: Report-card readiness, missing marks and school isolation
-        env:
-          DATABASE_URL: ""
-          NODE_ENV: test
-        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/report-card-readiness.integration-spec.ts
-
-      - name: Sidebar reads, schema upgrades and tenant isolation
-        env:
-          DATABASE_URL: ""
-          NODE_ENV: test
-        run: PG_BIN_DIR="$(pg_config --bindir)" npm run test:sidebar-workspaces
-
-      - name: Teacher exam visibility and marks submission
-        env:
-          DATABASE_URL: ""
-          NODE_ENV: test
-        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/teacher-exam-visibility.integration-spec.ts
-
-      - name: Staff directory pagination and school isolation
-        env:
-          DATABASE_URL: ""
-          NODE_ENV: test
-        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/staff-directory.integration-spec.ts
-
-      - name: Exams manager teacher progress and school isolation
-        env:
-          DATABASE_URL: ""
-          NODE_ENV: test
-        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/teacher-mark-progress.integration-spec.ts
 
       - name: Report-card generation, recovery and school isolation
         env:

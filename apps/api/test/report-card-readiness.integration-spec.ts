@@ -76,8 +76,6 @@ describe('Exam-specific report-card readiness', () => {
     expect(await repository.getReportCardBatchReadiness({ ...scope, exam_series_id: ids.otherExam }))
       .toMatchObject({ not_ready_mark_count: 0, learner_count: 50 });
     expect(await repository.getReportCardBatchReadiness(scope)).toMatchObject({ not_ready_mark_count: 49 });
-    const missing = scopes.find(row => row.exam_series_id === ids.exam && row.class_section_id === ids.class);
-    expect(missing.blockers[0].other_exams).toEqual([{ exam_series_id: ids.otherExam, exam_name: 'MID TERM 3', learner_count: 49 }]);
   });
 
   it('does not let foreign-school marks satisfy missing marks, even when record IDs coincide', async () => {

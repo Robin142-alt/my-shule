@@ -29,16 +29,6 @@ function queries(scopes: LiveReportCardGenerationScope[], overrides = {}) {
 
 beforeEach(() => jest.clearAllMocks());
 
-it('explains when missing learner results were saved under another exam record', async () => {
-  const incomplete = scope();
-  incomplete.blockers[0].other_exams = [{ exam_series_id: 'other', exam_name: 'END TERM EXAMS', learner_count: 49 }];
-  queries([incomplete]);
-  render(<LiveReportCardsWorkspace audience="exams-manager" />);
-  await userEvent.setup().selectOptions(screen.getByLabelText('Class and exam cycle'), 'end-term:form-4');
-  expect(screen.getByText(/49 of these learners have finalized/)).toHaveTextContent('END TERM EXAMS');
-  expect(screen.getByRole('button', { name: 'Generate class report cards' })).toBeDisabled();
-});
-
 it('shows 49 missing marks before generation and leaves the affected exam selectable for diagnosis', async () => {
   queries([scope()]);
   const user = userEvent.setup();

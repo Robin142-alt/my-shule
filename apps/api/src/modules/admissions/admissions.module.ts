@@ -10,6 +10,7 @@ import { CommunicationModule } from '../communication/communication.module';
 import { AdmissionsController } from './admissions.controller';
 import { AdmissionsSchemaService } from './admissions-schema.service';
 import { AdmissionsService } from './admissions.service';
+import { CohortPromotionService } from './cohort-promotion.service';
 import { AdmissionsRepository } from './repositories/admissions.repository';
 import { AdmissionDocumentStorageService } from './storage/local-document-storage.service';
 
@@ -27,9 +28,10 @@ import { AdmissionDocumentStorageService } from './storage/local-document-storag
     ...Object.values(moduleConsumers),
     AdmissionsSchemaService,
     AdmissionsService,
+    CohortPromotionService,
     AdmissionsRepository,
     AdmissionDocumentStorageService,
   ],
-  exports: [AdmissionsService, AdmissionsRepository],
+  exports: [AdmissionsService, AdmissionsRepository, CohortPromotionService],
 })
 export class AdmissionsModule {}

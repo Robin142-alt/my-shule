@@ -13,6 +13,7 @@ import {
   CreateExamAssessmentDto,
   CreateExamSeriesDto,
   EnterExamMarkDto,
+  BulkReportCardTransitionDto,
   GenerateReportCardBatchDto,
   GenerateReportCardDto,
   RegenerateReportCardDto,
@@ -259,6 +260,36 @@ export class ExamsController {
   @Permissions('exams:read')
   listReportCards(@Query() query: Record<string, string | undefined>) {
     return this.examsService.listReportCards(query);
+  }
+
+  @Get('report-cards/scoped')
+  @Permissions('exams:read')
+  listScopedReportCards(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.listScopedReportCards(query);
+  }
+
+  @Get('report-cards/scope-summary')
+  @Permissions('exams:read')
+  getReportCardScopeSummary(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getReportCardScopeSummary(query);
+  }
+
+  @Get('report-cards/scope-hierarchy')
+  @Permissions('exams:read')
+  getReportCardScopeHierarchy(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.getReportCardScopeHierarchy(query);
+  }
+
+  @Post('report-cards/bulk-transition')
+  @Permissions('exams:read')
+  bulkTransitionReportCards(@Body() dto: BulkReportCardTransitionDto) {
+    return this.examsService.bulkTransitionReportCards(dto);
+  }
+
+  @Get('report-cards/bulk-download')
+  @Permissions('exams:read')
+  bulkDownloadReportCards(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.bulkDownloadReportCards(query);
   }
 
   @Patch('report-cards/:reportCardId/transition')

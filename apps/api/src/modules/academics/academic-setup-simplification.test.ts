@@ -31,7 +31,6 @@ function fixture() {
       assert.equal(tenant, 'school-a');
       return { rows: duplicate && sql.includes('lower(name)') ? [{ id: 'existing' }] : [] };
     },
-    getSetupRecord: async () => ({ id: 'old' }),
     findTeacherOptionByUserId: async () => ({ id: 'staff', user_id: 'teacher' }),
     createSubject: async (input: any) => { writes.push(input); return { id: 'subject', ...input }; },
     assignAcademicRole: async (tenant: string, input: any) => {
@@ -44,10 +43,10 @@ function fixture() {
       writes.push(input);
       return { id: 'curriculum', ...input };
     },
-    reassignTeacherAssignment: async (_tenant: string, _id: string, input: any, persist?: (change: any) => Promise<void>) => {
+    reassignTeacherAssignment: async (_tenant: string, _id: string, input: any, persist: (change: any) => Promise<void>) => {
       writes.push(input);
       const assignment = { id: 'replacement', ...input };
-      await persist?.({ tx: {}, assignment, previous: { id: 'old' }, transferred: {}, manual_review: [] });
+      await persist({ tx: {}, assignment, previous: { id: 'old' }, transferred: {}, manual_review: [] });
       return { assignment, manual_review: [] };
     },
     appendAuditLog: async (input: any) => { audit.push(input); },
@@ -64,12 +63,11 @@ function fixture() {
 test('subject creation generates internal identifiers, keeps school ownership, and rejects duplicate names', async () => {
   const { service, writes, audit, events, setDuplicate } = fixture();
   await service.createSubject({ name: 'Mathematics' });
-  await service.createSubject({ name: 'English', curriculum_model: 'CBC' });
+  await service.createSubject({ name: 'English' });
   assert.equal(writes[0].tenant_id, 'school-a');
   assert.match(writes[0].code, /^SUB-[0-9a-f-]{36}$/);
   assert.notEqual(writes[0].code, writes[1].code);
   assert.equal(writes[0].abbreviation, null);
-  assert.equal(writes[1].curriculum_model, 'Custom');
   assert.equal(audit.length, 2);
   assert.equal(events[0].event_name, 'academic.subject.updated');
   setDuplicate();
@@ -80,8 +78,7 @@ test('subject creation generates internal identifiers, keeps school ownership, a
 test('role, curriculum, and teacher reassignment default their history dates on the server', async () => {
   const { service, writes, audit, events, notices } = fixture();
   const today = new Date().toISOString().slice(0, 10);
-  await service.assignAcademicRole({ role_type: 'dean_of_academics', teacher_user_id: 'teacher' });
-  assert.equal(writes[0].reason, null);
+  await service.assignAcademicRole({ role_type: 'dean_of_academics', teacher_user_id: 'teacher', reason: 'Appointment' });
   await service.createCurriculumConfiguration({ name: 'CBC', curriculum_model: 'CBC' });
   await service.reassignTeacher('old', { teacher_user_id: 'teacher', reason: 'Transfer duties' });
   for (const write of writes) {

@@ -33,6 +33,7 @@ import { CreateApplicationDto, UpdateApplicationDto } from './dto/create-applica
 import { ListAdmissionsQueryDto } from './dto/list-admissions-query.dto';
 import {
   AdvanceAcademicLifecycleDto,
+  CohortPromotionCommandDto,
   CreateAllocationDto,
   CreateTransferRecordDto,
   RegisterApplicationDto,
@@ -61,6 +62,24 @@ export class AdmissionsController {
   @Permissions('admissions:read')
   getSummary() {
     return this.admissionsService.getSummary();
+  }
+
+  @Get('promotions/options')
+  @Permissions('admissions:write', 'students:write')
+  getPromotionOptions() {
+    return this.admissionsService.getPromotionOptions();
+  }
+
+  @Post('promotions/preview')
+  @Permissions('admissions:write', 'students:write')
+  previewPromotion(@Body() dto: CohortPromotionCommandDto) {
+    return this.admissionsService.previewCohortPromotion(dto);
+  }
+
+  @Post('promotions/commit')
+  @Permissions('admissions:write', 'students:write')
+  commitPromotion(@Body() dto: CohortPromotionCommandDto) {
+    return this.admissionsService.commitCohortPromotion(dto);
   }
 
   @Get('classes')

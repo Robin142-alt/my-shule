@@ -920,6 +920,8 @@ export class ExamsSchemaService implements OnModuleInit {
       ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
       ALTER TABLE report_card_artifacts
       ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
+      ALTER TABLE report_card_artifacts
+      ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT NOW();
       DO $$
       BEGIN
         IF EXISTS (

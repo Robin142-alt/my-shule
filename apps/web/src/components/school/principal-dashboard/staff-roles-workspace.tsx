@@ -34,7 +34,9 @@ export function PrincipalStaffRolesWorkspace() {
   const { data: subjectsData } = useSchoolQuery<any[]>('/academics/subjects');
   const { data: classTeachersData } = useSchoolQuery<any[]>('/academics/class-teachers');
   const { data: teachersData } = useSchoolQuery<TeacherOption[]>('/academics/teachers');
+  const { data: streamsData } = useSchoolQuery<Array<{ id: string; name: string; class_section_id: string }>>("/academics/class-streams");
   const { hasPermission } = usePermissions();
+  const [teacherClassId, setTeacherClassId] = useState("");
 
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -89,6 +91,7 @@ export function PrincipalStaffRolesWorkspace() {
         method: "POST",
         body: {
           class_section_id: formData.get("class_section_id"),
+          stream_id: formData.get("stream_id") || undefined,
           subject_id: formData.get("subject_id"),
           teacher_user_id: formData.get("teacher_user_id"),
         }
@@ -278,7 +281,7 @@ export function PrincipalStaffRolesWorkspace() {
 
       <Modal open={isAssignModalOpen} onClose={() => setIsAssignModalOpen(false)} title="Assign Subject Teacher">
         <form aria-label="Assign subject teacher" onSubmit={handleAssignTeacher} className="space-y-4">
-          <p className="text-sm text-muted-foreground">The teacher continues across terms and follows the class as students are promoted, until reassigned or ended.</p>
+          <p className="text-sm text-muted-foreground">The teacher continues across terms and follows the cohort as students are promoted, until reassigned or ended.</p>
           {formError && (
             <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded text-sm">
               {formError}
@@ -298,13 +301,19 @@ export function PrincipalStaffRolesWorkspace() {
           </div>
           <div className="space-y-2">
             <label className="text-sm font-semibold text-foreground">Class Section</label>
-            <select name="class_section_id" required className="input-base">
+            <select name="class_section_id" value={teacherClassId} onChange={(event) => setTeacherClassId(event.target.value)} required className="input-base">
               <option value="">Select Class Section...</option>
               {classesData?.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
           </div>
+          <label className="block space-y-2 text-sm font-semibold text-foreground">Stream
+            <select key={teacherClassId} name="stream_id" disabled={!teacherClassId} className="input-base" defaultValue="">
+              <option value="">All current streams / no stream</option>
+              {(streamsData ?? []).filter((stream) => stream.class_section_id === teacherClassId).map((stream) => <option key={stream.id} value={stream.id}>{stream.name}</option>)}
+            </select>
+          </label>
           <div className="space-y-2">
             <label className="text-sm font-semibold text-foreground">Subject</label>
             <select name="subject_id" required className="input-base">

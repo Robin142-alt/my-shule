@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { CohortPromotionDialog } from "./cohort-promotion-dialog";
+import { permissionAllows } from "@/components/providers/permission-context";
 import { FormSection } from "@/components/modules/shared/form-section";
 import { StudentAdmissionWizard } from "@/components/school/admissions-dashboard/student-admission-wizard";
 import { ModuleShell } from "@/components/modules/shared/module-shell";
@@ -342,16 +344,6 @@ function buildAdmissionNumber(className: string, currentLength: number) {
   return `ADM-${classCode || "SCH"}-${String(currentLength + 49).padStart(3, "0")}`;
 }
 
-function buildNextClassName(className: string) {
-  const gradeMatch = className.match(/^Grade\s+(\d+)$/i);
-
-  if (gradeMatch) {
-    return `Grade ${Number(gradeMatch[1]) + 1}`;
-  }
-
-  return className;
-}
-
 function buildClassOptionsFromDataset(dataset: AdmissionsDataset): AdmissionsClassOption[] {
   const classMap = new Map<string, AdmissionsClassOption>();
 
@@ -464,6 +456,9 @@ export function AdmissionsModuleScreen({
   const [registrationSummary, setRegistrationSummary] = useState<AdmissionRegistrationSummary | null>(null);
   const [academicLifecycleMessage, setAcademicLifecycleMessage] = useState<string | null>(null);
   const [isSavingAcademicLifecycle, setIsSavingAcademicLifecycle] = useState(false);
+  const [promotionStudentId, setPromotionStudentId] = useState<string | null | undefined>(undefined);
+  const promotionPermissions = liveSession.session?.user.permissions ?? [];
+  const canPromote = Boolean(liveSession.session) && permissionAllows(promotionPermissions, "admissions:write") && permissionAllows(promotionPermissions, "students:write");
 
   const liveAdmissionsQuery = useQuery({
     queryKey: ["admissions-live-dataset", liveSession.session?.tenantId],
@@ -1603,125 +1598,40 @@ export function AdmissionsModuleScreen({
     }
   }
 
-  async function advanceSelectedStudentAcademicLifecycle(action: "promotion" | "graduation") {
-    if (!selectedStudentProfile) {
-      return;
-    }
-
-    const targetClassName =
-      action === "promotion"
-        ? buildNextClassName(selectedStudentProfile.className)
-        : selectedStudentProfile.className;
-    const targetStreamName = selectedStudentProfile.streamName || "Pending";
-    const lifecycleLabel = action === "promotion" ? "Promotion" : "Graduation";
-    const nextMessage =
-      action === "promotion"
-        ? `${lifecycleLabel} recorded for ${selectedStudentProfile.fullName} to ${targetClassName} ${targetStreamName}.`
-        : `${lifecycleLabel} recorded for ${selectedStudentProfile.fullName}.`;
-
+  async function graduateSelectedStudent() {
+    if (!selectedStudentProfile || isSavingAcademicLifecycle) return;
     setIsSavingAcademicLifecycle(true);
     setModuleError(null);
     setAcademicLifecycleMessage(null);
-
     try {
       if (liveSession.session) {
-        const response = await advanceAdmissionsStudentAcademicLifecycleLive(
-          liveSession.session,
-          selectedStudentProfile.id,
-          {
-            action,
-            class_name: action === "promotion" ? targetClassName : undefined,
-            stream_name: action === "promotion" ? targetStreamName : undefined,
-            reason: `${lifecycleLabel} recorded from the admissions profile.`,
-          },
-        );
-        const liveClassName =
-          response.academic_enrollment?.class_name
-          ?? response.allocation?.class_name
-          ?? targetClassName;
-        const liveStreamName =
-          response.academic_enrollment?.stream_name
-          ?? response.allocation?.stream_name
-          ?? targetStreamName;
-
+        await advanceAdmissionsStudentAcademicLifecycleLive(liveSession.session, selectedStudentProfile.id, {
+          action: "graduation",
+          reason: "Graduation recorded from the admissions profile.",
+        });
         await refreshLiveAdmissionsData();
-        setAcademicLifecycleMessage(
-          action === "promotion"
-            ? `${lifecycleLabel} recorded for ${selectedStudentProfile.fullName} to ${liveClassName} ${liveStreamName}.`
-            : `${lifecycleLabel} recorded for ${selectedStudentProfile.fullName}.`,
-        );
       } else {
         recordAdmissionsLocalAction("academic lifecycle advanced", {
           studentId: selectedStudentProfile.id,
           studentName: selectedStudentProfile.fullName,
-          action,
-          targetClassName,
-          targetStreamName,
+          action: "graduation",
         });
         const lifecycleLine: StudentAcademicLine = {
-          id: `academic-lifecycle-${action}-${Date.now()}`,
+          id: `academic-lifecycle-graduation-${Date.now()}`,
           subject: "Latest lifecycle",
-          value: lifecycleLabel,
-          note:
-            action === "promotion"
-              ? `${targetClassName} ${targetStreamName}`
-              : "Learner marked as graduated.",
+          value: "Graduation",
+          note: "Learner marked as graduated.",
         };
-
-        setLocalDataset((current) => ({
-          ...current,
-          students: current.students.map((student) =>
-            student.id === selectedStudentProfile.id
-              ? {
-                  ...student,
-                  className: action === "promotion" ? targetClassName : student.className,
-                  streamName: action === "promotion" ? targetStreamName : student.streamName,
-                }
-              : student,
-          ),
-          allocations:
-            action === "promotion"
-              ? [
-                  {
-                    id: `alloc-lifecycle-${Date.now()}`,
-                    studentId: selectedStudentProfile.id,
-                    studentName: selectedStudentProfile.fullName,
-                    admissionNumber: selectedStudentProfile.admissionNumber,
-                    className: targetClassName,
-                    streamName: targetStreamName,
-                    dormitoryName: selectedStudentProfile.dormitoryName,
-                    transportRoute: selectedStudentProfile.transportRoute,
-                    effectiveFrom: todayIsoDate(),
-                    status: "assigned",
-                  },
-                  ...current.allocations,
-                ]
-              : current.allocations,
-          studentProfiles: current.studentProfiles.map((profile) =>
-            profile.id === selectedStudentProfile.id
-              ? {
-                  ...profile,
-                  className: action === "promotion" ? targetClassName : profile.className,
-                  streamName: action === "promotion" ? targetStreamName : profile.streamName,
-                  academics: [
-                    lifecycleLine,
-                    ...profile.academics.filter((line) => line.subject !== "Latest lifecycle"),
-                  ],
-                }
-              : profile,
-          ),
-        }));
-        setAcademicLifecycleMessage(nextMessage);
+        setLocalDataset((current) => ({ ...current, studentProfiles: current.studentProfiles.map((profile) =>
+          profile.id === selectedStudentProfile.id
+            ? { ...profile, academics: [lifecycleLine, ...profile.academics.filter((line) => line.subject !== "Latest lifecycle")] }
+            : profile,
+        ) }));
       }
+      setAcademicLifecycleMessage(`Graduation recorded for ${selectedStudentProfile.fullName}.`);
     } catch (error) {
-      setModuleError(
-        error instanceof Error
-          ? error.message
-          : "Unable to update the learner academic lifecycle.",
-      );
-    } finally {
-      setIsSavingAcademicLifecycle(false);
-    }
+      setModuleError(error instanceof Error ? error.message : "Unable to update the learner academic lifecycle.");
+    } finally { setIsSavingAcademicLifecycle(false); }
   }
 
   const applicationColumns: OpsTableColumn<AdmissionApplication>[] = [
@@ -1940,6 +1850,15 @@ export function AdmissionsModuleScreen({
 
   return (
     <>
+      {promotionStudentId !== undefined ? <CohortPromotionDialog
+        studentId={promotionStudentId ?? undefined}
+        onClose={() => setPromotionStudentId(undefined)}
+        onPromoted={async (result) => {
+          setAcademicLifecycleMessage(`${result.promoted_students} learners promoted with their subjects and teachers across ${result.moved_cohorts} cohorts.`);
+          await refreshLiveAdmissionsData();
+          await queryClient.invalidateQueries({ predicate: (query) => query.queryKey.some((key) => typeof key === "string" && (key.includes("foundation") || key.includes("teacher-assignments"))) });
+        }}
+      /> : null}
       <ModuleShell
         eyebrow="Admissions Module"
         title="Admissions and student registration desk"
@@ -1972,6 +1891,7 @@ export function AdmissionsModuleScreen({
         }
         actions={
           <>
+            {canPromote ? <Button variant="secondary" onClick={() => setPromotionStudentId(null)}><GraduationCap className="h-4 w-4" />Annual cohort promotion</Button> : null}
             <Button variant="secondary" onClick={() => setAllocationModalOpen(true)}>
               <GraduationCap className="h-4 w-4" />
               Assign allocation
@@ -2579,15 +2499,15 @@ export function AdmissionsModuleScreen({
                       <StatusPill label={selectedStudentProfile.applicationStatus} tone={getApplicationTone(selectedStudentProfile.applicationStatus)} />
                       <Button
                         variant="secondary"
-                        onClick={() => advanceSelectedStudentAcademicLifecycle("promotion")}
-                        disabled={isSavingAcademicLifecycle}
+                        onClick={() => setPromotionStudentId(selectedStudentProfile.id)}
+                        disabled={isSavingAcademicLifecycle || !canPromote}
                       >
                         <GraduationCap className="h-4 w-4" />
                         Promote learner
                       </Button>
                       <Button
                         variant="secondary"
-                        onClick={() => advanceSelectedStudentAcademicLifecycle("graduation")}
+                        onClick={graduateSelectedStudent}
                         disabled={isSavingAcademicLifecycle}
                       >
                         <CheckCheck className="h-4 w-4" />

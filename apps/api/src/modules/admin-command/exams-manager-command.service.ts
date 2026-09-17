@@ -1,14 +1,11 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
-import { openMarkEntry, validateEntryRequest } from './mark-entry-access';
-import { OpenMarkEntryDto } from './open-mark-entry.dto';
-import { DeleteExamDto } from './delete-exam.dto';
+import { BadRequestException, ConflictException, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import { ExamsService } from '../exams/exams.service';
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
 import { TEACHER_MARK_PROGRESS_SQL, TeacherMarkProgress } from './teacher-mark-progress';
-import { deleteExamSetupRecords, canDeleteExam, examSetupTransaction, EXAM_RECORD_COUNTS_SQL, lockExam, reconcileExamScope, validateExamSelection } from './exam-setup-integrity';
+import { deleteExamSetupRecords, examDeletionBlock, examSetupTransaction, EXAM_RECORD_COUNTS_SQL, lockExam, reconcileExamScope, validateExamSelection } from './exam-setup-integrity';
 import type { Prisma } from '@prisma/client';
 
 type SqlResult<T> = { rows: T[]; rowCount: number };
@@ -659,10 +656,7 @@ export class ExamsManagerCommandService {
       [tenantId],
     );
 
-    const context = this.requestContext.getStore();
-    const canDelete = canDeleteExam(context?.role, context?.permissions);
-    const exams = result.rows.map((exam) => ({ ...exam, can_delete: canDelete,
-      delete_block_reason: canDelete ? null : 'Exam management permission is required to delete an exam.' }));
+    const exams = result.rows.map((exam) => ({ ...exam, can_delete: !examDeletionBlock(exam), delete_block_reason: examDeletionBlock(exam) }));
     return {
       can_manage: ['exams:write', 'exams:*', '*:*'].some((permission) => this.requestContext.getStore()?.permissions?.includes(permission)),
       metrics: {
@@ -911,31 +905,26 @@ export class ExamsManagerCommandService {
     };
   }
 
-  async deleteExamSetup(id: string, dto?: DeleteExamDto) {
-    const context = this.requestContext.getStore();
-    if (!canDeleteExam(context?.role, context?.permissions)) {
-      throw new ForbiddenException('Exam management permission is required to delete an exam.');
-    }
+  async deleteExamSetup(id: string) {
     const tenantId = this.requireTenantId();
     const actorId = this.actorUserId();
     if (!actorId) throw new UnauthorizedException('User context is required.');
     this.uniqueUuidArray([id], 'Exam');
     await examSetupTransaction(this.prisma, tenantId, actorId, async (operations, tx) => {
       const current = await lockExam(operations, tenantId, id);
-      if (typeof dto?.confirmation_name !== 'string' || dto.confirmation_name !== current.name) {
-        throw new BadRequestException('Type the exact exam name to confirm permanent deletion.');
-      }
       const counts = (await operations.readSql(EXAM_RECORD_COUNTS_SQL, [tenantId, id])).rows[0];
+      const blocked = examDeletionBlock({ ...current, ...counts });
+      if (blocked) throw new ConflictException(blocked);
       await deleteExamSetupRecords(operations, tenantId, id);
       await operations.recordWorkflowAction({ tenantId, actorUserId: actorId,
         sourceRole: this.requestContext.getStore()?.role ?? 'exams_manager',
         targetRoles: ['principal', 'dean_academics', 'hod', 'teacher'],
         eventType: 'exams.exam-setup.deleted', entityType: 'exam_series', entityId: id,
-        title: 'Exam Cycle Deleted', message: `${current.name} and its saved results were permanently deleted.`,
-        payload: { exam_series_id: id, confirmation_name: dto.confirmation_name, previous: current, ...counts } });
+        title: 'Exam Cycle Deleted', message: `${current.name} deleted before results were entered.`,
+        payload: { exam_series_id: id, previous: current, ...counts } });
       const exam = { ...current, updated_at: new Date().toISOString() };
       await this.emitExamSetupOperation({ operation: 'deleted', exam, name: exam.name,
-        startsOn: String(exam.starts_on), endsOn: String(exam.ends_on), status: 'deleted', scope: { ...counts } }, tx);
+        startsOn: String(exam.starts_on), endsOn: String(exam.ends_on), status: 'deleted', scope: {} }, tx);
     });
     return { success: true, message: 'Exam deleted successfully', exam_id: id };
   }
@@ -1116,43 +1105,6 @@ export class ExamsManagerCommandService {
     return { entries: result.rows };
   }
 
-  private assertEntryManager() {
-    const context = this.requestContext.getStore();
-    const role = String(context?.role ?? '').toLowerCase();
-    if (!['exams_officer', 'exams_manager', 'principal', 'super_admin'].includes(role)
-      || !(context?.permissions ?? []).some(permission => ['exams:write', '*'].includes(permission))) {
-      throw new ForbiddenException('Exam management permission is required to open mark entry.');
-    }
-    return role;
-  }
-
-  async openMarksEntry(dto: OpenMarkEntryDto) {
-    const role = this.assertEntryManager();
-    const tenant = this.requireTenantId();
-    const actor = this.actorUserId();
-    if (!actor) throw new UnauthorizedException('Sign in before changing mark entry.');
-    const input = validateEntryRequest(dto);
-    return examSetupTransaction(this.prisma, tenant, actor, async (operations, tx) => {
-      const access = await openMarkEntry(operations, tenant, actor, input);
-      await operations.recordWorkflowAction({ tenantId: tenant, actorUserId: actor,
-        sourceRole: 'exams_manager', targetRoles: ['exams_manager'], eventType: 'exams.mark-entry.opened',
-        entityType: 'exam_series', entityId: input.exam_series_id, title: 'Mark entry opened',
-        message: `Entry opened for ${access.exam_name} until ${input.closes_at}.`, priority: 'normal', payload: access });
-      await this.schoolEvents?.recordSchoolOperation({ event: {
-        id: `mark-entry-opened-${input.exam_series_id}-${Date.now()}`, type: 'exam.mark_entry_opened', module: 'exams',
-        actorRole: role, title: 'Mark entry opened', body: `Entry opened for ${access.exam_name}.`,
-        entityId: input.exam_series_id, severity: 'info', payload: access,
-      }, notifications: access.teacher_user_ids.map(userId => ({
-        id: `mark-entry-${input.exam_series_id}-${userId}-${Date.now()}`,
-        audienceRoles: ['teacher'], targetUserId: userId, title: 'Mark entry opened',
-        body: `You can enter outstanding marks for ${access.exam_name} until ${input.closes_at}.`,
-        sourceModule: 'exams', relatedModule: 'exams', relatedRecordId: input.exam_series_id,
-        priority: 'normal', read: false, createdAt: new Date().toISOString(),
-      })) }, tx);
-      return { success: true, message: `Mark entry opened for ${access.window_count} subject/class windows.`, ...access };
-    });
-  }
-
   async getMarksEntry() {
     const tenantId = this.requireTenantId();
     const result = await this.readSql<{
@@ -1292,7 +1244,6 @@ export class ExamsManagerCommandService {
   }
 
   async lockMarksEntry(id: string, dto: any = {}) {
-    this.assertEntryManager();
     const tenantId = this.requireTenantId();
     const actorUserId = this.actorUserId();
     const result = await this.operations.writeSql(
@@ -1300,7 +1251,6 @@ export class ExamsManagerCommandService {
         WITH locked_window AS (
           UPDATE exam_mark_entry_windows
           SET status = 'closed',
-              teacher_entry_deadlines = '{}'::jsonb,
               last_action = 'locked',
               last_action_at = NOW(),
               last_action_by_user_id = $3::uuid,
@@ -1308,11 +1258,22 @@ export class ExamsManagerCommandService {
           WHERE tenant_id = $1
             AND id = $2::uuid
           RETURNING id, tenant_id, exam_series_id, subject_id, class_section_id, status
+        ), locked_marks AS (
+          UPDATE exam_marks mark
+          SET status = 'locked',
+              locked_at = COALESCE(mark.locked_at, NOW()),
+              updated_at = NOW()
+          FROM locked_window mark_window
+          WHERE mark.tenant_id = mark_window.tenant_id
+            AND mark.exam_series_id = mark_window.exam_series_id
+            AND mark.subject_id = mark_window.subject_id
+            AND mark.class_section_id = mark_window.class_section_id
+          RETURNING mark.id
         )
         SELECT
           mark_window.id::text,
           mark_window.status,
-          0::int AS marks_locked
+          (SELECT COUNT(*)::int FROM locked_marks) AS marks_locked
         FROM locked_window mark_window
       `,
       [tenantId, id, actorUserId],

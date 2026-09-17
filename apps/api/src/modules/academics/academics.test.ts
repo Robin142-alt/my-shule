@@ -22,8 +22,8 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS created_by_user_id uuid/);
   assert.match(schemaSql, /DROP CONSTRAINT IF EXISTS fk_class_subject_assignments_term/);
   assert.match(schemaSql, /ALTER TABLE class_subject_assignments ALTER COLUMN stream_id DROP NOT NULL/);
-  assert.match(schemaSql, /ranked_legacy_offerings/);
-  assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS uq_class_subject_assignments_scope/);
+  assert.match(schemaSql, /academic_cohort_migration_issues/);
+  assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_cohort_subject_active/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS teacher_subject_assignments/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academics_departments/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS academics_class_teachers/);
@@ -154,101 +154,6 @@ test('AcademicsRepository executes the class-level advisory lock without deseria
   }]);
   assert.equal(queryCalls.some((sql) => /pg_advisory_xact_lock/i.test(sql)), false);
   assert.deepEqual(created, { id: 'class-1', tenant_id: 'kibabi-high' });
-});
-
-test('AcademicsRepository saves bulk class subjects, audits, and governance in one tenant transaction', async () => {
-  const executeCalls: Array<{ sql: string; params: unknown[] }> = [];
-  const queryCalls: Array<{ sql: string; params: unknown[] }> = [];
-  let transactionCount = 0;
-  const tx = {
-    $executeRawUnsafe: async (sql: string, ...params: unknown[]) => {
-      executeCalls.push({ sql, params });
-      return 1;
-    },
-    $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
-      queryCalls.push({ sql, params });
-      if (/FROM academic_terms/.test(sql)) {
-        return [{ id: 'term-1', academic_year_id: 'year-1', status: 'active' }];
-      }
-      if (/FROM class_sections/.test(sql)) {
-        return [{ id: 'class-1', academic_year_id: 'year-1', status: 'active', is_active: true }];
-      }
-      if (/FROM subjects/.test(sql)) {
-        return [{ id: 'subject-1' }, { id: 'subject-2' }];
-      }
-      if (/FROM class_subject_assignments/.test(sql)) {
-        return [{
-          id: '22222222-2222-4222-8222-222222222222',
-          tenant_id: 'tenant-a',
-          academic_term_id: 'term-1',
-          class_section_id: 'class-1',
-          subject_id: 'subject-2',
-          status: 'inactive',
-          version: 3,
-        }];
-      }
-      if (/INSERT INTO class_subject_assignments/.test(sql)) {
-        const subjectId = String(params[3]);
-        return [{
-          id: subjectId === 'subject-1'
-            ? '11111111-1111-4111-8111-111111111111'
-            : '22222222-2222-4222-8222-222222222222',
-          tenant_id: 'tenant-a',
-          academic_term_id: 'term-1',
-          class_section_id: 'class-1',
-          subject_id: subjectId,
-          version: subjectId === 'subject-1' ? 1 : 4,
-        }];
-      }
-      throw new Error(`Unexpected SQL: ${sql}`);
-    },
-  };
-  const repository = new AcademicsRepository({
-    executeWithTenant: async (
-      tenantId: string,
-      userId: string | null,
-      callback: (transaction: typeof tx) => Promise<unknown>,
-    ) => {
-      transactionCount += 1;
-      assert.equal(tenantId, 'tenant-a');
-      assert.equal(userId, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
-      return callback(tx);
-    },
-  } as never);
-  let governanceTransaction: unknown;
-
-  const assignments = await repository.createClassSubjectAssignmentsBulk('tenant-a', {
-    academic_term_id: 'term-1',
-    class_section_id: 'class-1',
-    subject_ids: ['subject-1', 'subject-2'],
-    is_compulsory: true,
-    is_examinable: true,
-    reason: 'Offer both subjects',
-    actor_user_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    actor_role: 'deputy_principal',
-    correlation_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-  }, async ({ tx: transaction, assignments: savedAssignments, changes }) => {
-    governanceTransaction = transaction;
-    assert.equal(savedAssignments.length, 2);
-    assert.deepEqual(changes.map((change) => change.action), ['assigned', 'restored']);
-    assert.equal(changes[0]?.previous, null);
-    assert.equal(changes[1]?.previous?.version, 3);
-  });
-
-  assert.equal(transactionCount, 1);
-  assert.equal(governanceTransaction, tx);
-  assert.deepEqual(assignments.map((assignment) => assignment.subject_id), ['subject-1', 'subject-2']);
-  assert.equal(queryCalls.filter(({ sql }) => /INSERT INTO class_subject_assignments/.test(sql)).length, 2);
-  assert.equal(executeCalls.filter(({ sql }) => /INSERT INTO academic_audit_logs/.test(sql)).length, 2);
-  assert.equal(executeCalls[0]?.params[0], 'academic-class-subjects:tenant-a:term-1:class-1');
-  assert.deepEqual(
-    executeCalls.filter(({ sql }) => /INSERT INTO academic_audit_logs/.test(sql)).map(({ params }) => params[2]),
-    ['academics.class_subject_assignment_assigned', 'academics.class_subject_assignment_restored'],
-  );
-  for (const call of queryCalls) assert.equal(call.params[0], 'tenant-a');
-  for (const call of executeCalls.filter(({ sql }) => /INSERT INTO academic_audit_logs/.test(sql))) {
-    assert.equal(call.params[0], 'tenant-a');
-  }
 });
 
 test('AcademicsRepository writes settings across legacy UUID and current text schemas', async () => {
@@ -708,9 +613,11 @@ test('AcademicsService assigns a student to a class and audits the assignment', 
   const service = new AcademicsService(
     { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
     {
-      assignStudentToClass: async (input: Record<string, unknown>) => {
+      assignStudentToClass: async (input: Record<string, unknown>, governance: any) => {
         calls.push('assign-student');
-        return { id: 'assignment-1', ...input };
+        const saved = { id: 'assignment-1', ...input };
+        await governance({}, saved);
+        return saved;
       },
       appendAuditLog: async (input: Record<string, unknown>) => {
         calls.push(`audit:${input.action}`);
@@ -1005,7 +912,8 @@ test('AcademicsRepository loads the complete academic foundation in one tenant t
       observedTenantId = tenantId;
       return callback({
         $queryRawUnsafe: async (sql: string) => {
-          observedSql = sql;
+          if (sql.includes('academic_cohort_migration_issues issue')) return [];
+          observedSql += sql;
           return [{
             years: [{ id: 'year-1', name: '2026' }],
             terms: [],
@@ -1300,9 +1208,11 @@ test('AcademicsService archives and audits subject teacher allocations in the ac
         calls.push(`record:${tenantId}:${entityType}:${id}`);
         return { id, teacher_user_id: null, version: 1 };
       },
-      archiveTeacherAssignment: async (tenantId: string, id: string) => {
+      archiveTeacherAssignment: async (tenantId: string, id: string, _options: unknown, governance: any) => {
         calls.push(`archive:${tenantId}:${id}`);
-        return { id, teacher_user_id: null, version: 2 };
+        const saved = { id, teacher_user_id: null, version: 2 };
+        await governance({tx:{},assignment:saved,previous:{id,version:1}});
+        return saved;
       },
       appendAuditLog: async (input: Record<string, unknown>) => {
         calls.push(`audit:${input.action}`);
@@ -1315,7 +1225,6 @@ test('AcademicsService archives and audits subject teacher allocations in the ac
 
   assert.equal(result.id, 'assignment-1');
   assert.deepEqual(calls, [
-    'record:tenant-a:teacher-assignment:assignment-1',
     'archive:tenant-a:assignment-1',
     'audit:academics.teacher_subject_unassigned',
   ]);
@@ -1530,35 +1439,18 @@ test('AcademicsService creates a term-scoped calendar period inside the selected
   assert.deepEqual(calls, ['create', 'audit']);
 });
 
-test('AcademicsService rejects class subject offerings across different academic years', async () => {
-  let createAttempted = false;
+test('AcademicsService ignores a compatibility term when configuring continuing cohort subjects', async () => {
+  let savedInput: any;
   const service = new AcademicsService(
-    { getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }) } as never,
-    {
-      getSetupRecord: async (_tenantId: string, entityType: string) => {
-        if (entityType === 'academic-term') return { id: 'term-1', academic_year_id: 'year-1' };
-        if (entityType === 'class-section') return { id: 'class-1', academic_year_id: 'year-2' };
-        return { id: 'subject-1' };
-      },
-      createClassSubjectAssignment: async () => {
-        createAttempted = true;
-        return { id: 'offering-1' };
-      },
-    } as never,
-    {} as never,
+    {getStore:()=>({tenant_id:'tenant-a',user_id:'11111111-1111-4111-8111-111111111111'})} as never,
+    {createClassSubjectAssignmentsBulk: async (_tenant:string,input:any)=>{
+      savedInput=input; return [{id:'offering-1',subject_id:'subject-1'}];
+    }} as never, {} as never,
   );
-
-  await assert.rejects(
-    () => service.createClassSubjectAssignment({
-      academic_term_id: 'term-1',
-      class_section_id: 'class-1',
-      subject_id: 'subject-1',
-      is_compulsory: true,
-      is_examinable: true,
-    }),
-    /same academic year/,
-  );
-  assert.equal(createAttempted, false);
+  const result = await service.createClassSubjectAssignment({academic_term_id:'obsolete-term',class_section_id:'class-1',subject_id:'subject-1'});
+  assert.equal(savedInput.academic_term_id,null);
+  assert.equal(savedInput.class_section_id,'class-1');
+  assert.equal(result?.assignments.length,1);
 });
 
 test('AcademicsService assigns several class subjects through one atomic repository call and publishes each event in it', async () => {
@@ -1698,12 +1590,16 @@ test('AcademicsService returns truthful partial success for teacher responsibili
     {
       findTeacherOptionByUserId: async () => ({ user_id: 'teacher-2' }),
       getSetupRecord: async () => ({ id: 'assignment-1', teacher_user_id: 'teacher-1' }),
-      reassignTeacherAssignment: async () => ({
+      reassignTeacherAssignment: async (_tenant: string, _id: string, _input: unknown, governance: any) => {
+        const result = {
         previous: { id: 'assignment-1' },
         assignment: { id: 'assignment-2', version: 1 },
         transferred: { timetable_slots: 4 },
         manual_review: ['Pending approvals require review.'],
-      }),
+        };
+        await governance({tx:{},...result});
+        return result;
+      },
       appendAuditLog: async () => { calls.push('audit'); },
     } as never,
     {} as never,

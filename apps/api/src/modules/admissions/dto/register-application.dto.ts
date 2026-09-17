@@ -1,4 +1,5 @@
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsIn, IsInt, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
 
 export class RegisterApplicationDto {
   @IsString()
@@ -82,6 +83,11 @@ export class CreateTransferRecordDto {
 }
 
 export class AdvanceAcademicLifecycleDto {
+  @IsOptional() @IsString() request_id?: string;
+  @IsOptional() @IsString() source_placement_id?: string;
+  @IsOptional() @IsInt() @Min(1) expected_version?: number;
+  @IsOptional() @IsString() target_class_section_id?: string;
+  @IsOptional() @IsString() target_stream_id?: string | null;
   @IsString()
   @IsIn(['promotion', 'graduation', 'archive'])
   action!: 'promotion' | 'graduation' | 'archive';
@@ -101,4 +107,20 @@ export class AdvanceAcademicLifecycleDto {
   @IsOptional()
   @IsString()
   notes?: string;
+}
+
+export class CohortPromotionMappingDto {
+  @IsString() @MaxLength(128) source_placement_id!: string;
+  @IsInt() @Min(1) expected_version!: number;
+  @IsOptional() @IsArray() @ArrayMinSize(1) @ArrayMaxSize(5000) @ArrayUnique()
+  @IsString({ each: true }) student_ids?: string[];
+  @IsString() @MaxLength(128) target_class_section_id!: string;
+  @IsOptional() @IsString() @MaxLength(128) target_stream_id?: string | null;
+}
+
+export class CohortPromotionCommandDto {
+  @IsString() @MaxLength(128) request_id!: string;
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ValidateNested({ each: true })
+  @Type(() => CohortPromotionMappingDto) mappings!: CohortPromotionMappingDto[];
+  @IsString() @MaxLength(1000) reason!: string;
 }

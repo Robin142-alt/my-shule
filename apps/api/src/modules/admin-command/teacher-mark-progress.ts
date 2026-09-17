@@ -1,9 +1,8 @@
-import { markEntryHasStartedSql, teacherEntryDeadlineSql, effectiveEntryDeadlineSql } from '../exams/mark-entry-window-policy';
+import { markEntryHasStartedSql } from '../exams/mark-entry-window-policy';
 
 export type TeacherMarkProgress = {
   id: string;
   window_id: string;
-  class_section_id: string;
   exam_id: string;
   exam_name: string;
   subject: string;
@@ -28,7 +27,7 @@ export type TeacherMarkProgress = {
 // unassigned streams must remain visible. Each paper has its own submission.
 export const TEACHER_MARK_PROGRESS_SQL = `
   WITH progress AS (
-    SELECT w.id AS window_id, w.class_section_id, series.id AS exam_id, series.name AS exam_name,
+    SELECT w.id AS window_id, series.id AS exam_id, series.name AS exam_name,
       series.status AS exam_status, assessment.id AS assessment_id, assessment.name AS paper,
       subject.name AS subject, section.name AS class_name,
       roster.stream_id, stream.name AS stream, owner.teacher_user_id AS teacher_id,
@@ -45,10 +44,9 @@ export const TEACHER_MARK_PROGRESS_SQL = `
           OR mark.score_status IN ('absent', 'exempt', 'not_assessed', 'withheld', 'medical_exception', 'transfer_student'))
       )::int AS submitted,
       MAX(mark.updated_at)::text AS last_activity,
-      (w.status = 'closed' AND COALESCE(${teacherEntryDeadlineSql('w', 'owner.teacher_user_id')} < NOW(), TRUE))
-        OR series.status IN ('locked', 'published') AS window_closed,
-      (${markEntryHasStartedSql('w', 'series')} OR ${teacherEntryDeadlineSql('w', 'owner.teacher_user_id')} IS NOT NULL) AS has_started,
-      ${effectiveEntryDeadlineSql('w', 'owner.teacher_user_id')} AS deadline
+      w.status = 'closed' OR series.status IN ('locked', 'published') AS window_closed,
+      ${markEntryHasStartedSql('w', 'series')} AS has_started,
+      w.closes_at AS deadline
     FROM exam_mark_entry_windows w
     JOIN exam_series series ON series.tenant_id = w.tenant_id AND series.id = w.exam_series_id
     JOIN exam_assessments assessment ON assessment.tenant_id = w.tenant_id
@@ -89,7 +87,7 @@ export const TEACHER_MARK_PROGRESS_SQL = `
       roster.stream_id, stream.name, owner.teacher_user_id
   )
   SELECT CONCAT(window_id, ':', assessment_id, ':', COALESCE(teacher_id::text, 'unassigned'), ':', COALESCE(stream_id, 'class')) AS id,
-    window_id::text, class_section_id::text, exam_id::text, exam_name, subject, paper, class_name, stream,
+    window_id::text, exam_id::text, exam_name, subject, paper, class_name, stream,
     teacher_id::text, teacher, total_students, entered, recorded, submitted,
     (total_students - recorded)::int AS missing, deadline::text, window_closed, last_activity,
     CASE

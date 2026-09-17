@@ -476,7 +476,8 @@ describe("dashboard action contract safety", () => {
     expect(allocationSource).toMatch(/name="teacher_id"/);
     expect(allocationSource).toMatch(/name="subject_id"/);
     expect(allocationSource).toMatch(/name="class_section_id"/);
-    expect(allocationSource).toMatch(/name="academic_term_id"/);
+    expect(allocationSource).not.toMatch(/name="academic_term_id"/);
+    expect(allocationSource).toMatch(/name="stream_id"/);
     expect(allocationSource).toMatch(/handleRevokeSubjectAllocation/);
     expect(allocationSource).toMatch(/\/admin-command\/hod\/subject-allocation\/revoke/);
     expect(allocationSource).not.toMatch(/Subject allocation revoke request recorded\./);
@@ -486,7 +487,8 @@ describe("dashboard action contract safety", () => {
     expect(reportsSource).toMatch(/name="summary"/);
     expect(serviceSource).toMatch(/upsertSubjectAllocation/);
     expect(serviceSource).toMatch(/requestSubjectAllocationRevocation/);
-    expect(serviceSource).toMatch(/INSERT INTO class_subject_assignments/);
+    expect(serviceSource).toMatch(/this\.academicsService\.createClassSubjectAssignment/);
+    expect(serviceSource).toMatch(/this\.academicsService\.assignTeacher/);
     expect(serviceSource).toMatch(/hod\.subject_allocation/);
     expect(serviceSource).toMatch(/hod\.subject_allocation\.revoke_requested/);
     expect(serviceSource).toMatch(/hod\.department_meeting/);

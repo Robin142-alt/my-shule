@@ -76,7 +76,7 @@ describe("academic foundation saved-record visibility", () => {
       />,
     );
 
-    await user.click(screen.getByRole("checkbox", { name: preset }));
+    await user.click(screen.getByRole("button", { name: preset, exact: true }));
     await user.type(screen.getByLabelText("Policy name"), preset);
     const remark = screen.getAllByLabelText("Report remark")[0];
     await user.clear(remark);
@@ -86,7 +86,7 @@ describe("academic foundation saved-record visibility", () => {
     await waitFor(() => expect(requestDashboardApi).toHaveBeenCalledWith("/academics/grading-systems", {
       method: "POST",
       tenantId: "maranda-high",
-      body: expect.objectContaining({ name: preset, curriculum_model: preset, rules: expect.any(Array) }),
+      body: expect.objectContaining({ name: preset, rules: expect.any(Array) }),
     }));
     const savedRules = (requestDashboardApi as jest.Mock).mock.calls[0][1].body.rules;
     expect(savedRules).toHaveLength(count);
@@ -187,7 +187,7 @@ describe("academic foundation saved-record visibility", () => {
     expect(screen.queryByRole("option", { name: "Robinson Ondu" })).not.toBeInTheDocument();
   });
 
-  it("assigns several selected subjects to one class and term in a single bulk request", async () => {
+  it("assigns several selected subjects to a continuing cohort in a single bulk request", async () => {
     const user = userEvent.setup();
     const foundationWithSubjects = {
       ...foundation,
@@ -217,7 +217,7 @@ describe("academic foundation saved-record visibility", () => {
       />,
     );
 
-    await user.selectOptions(screen.getByRole("combobox", { name: "Academic term" }), "term-1");
+    expect(screen.queryByRole("combobox", { name: "Academic term" })).not.toBeInTheDocument();
     await user.selectOptions(screen.getByRole("combobox", { name: "Class/form/grade" }), "class-1");
     const subjectSelector = within(screen.getByRole("group", { name: "Subjects / learning areas" }));
     await user.click(subjectSelector.getByRole("checkbox", { name: /Mathematics/ }));
@@ -232,7 +232,6 @@ describe("academic foundation saved-record visibility", () => {
         method: "POST",
         tenantId: "maranda-high",
         body: expect.objectContaining({
-          academic_term_id: "term-1",
           class_section_id: "class-1",
           subject_ids: ["subject-1", "subject-2"],
           is_compulsory: true,
@@ -270,7 +269,7 @@ describe("academic foundation saved-record visibility", () => {
       />,
     );
 
-    await user.selectOptions(screen.getByRole("combobox", { name: "Academic term" }), "term-1");
+    expect(screen.queryByRole("combobox", { name: "Academic term" })).not.toBeInTheDocument();
     await user.selectOptions(screen.getByRole("combobox", { name: "Class/form/grade" }), "class-1");
     await user.click(screen.getByRole("button", { name: "Select all" }));
     await user.click(screen.getByRole("button", { name: "Assign 2 Subjects to Class" }));
@@ -360,5 +359,6 @@ describe("academic foundation saved-record visibility", () => {
     expect((requestDashboardApi as jest.Mock).mock.calls[0][1].body).toMatchObject({
       assignment_type: "temporary",
     });
+    expect((requestDashboardApi as jest.Mock).mock.calls[0][1].body).not.toHaveProperty("effective_to");
   });
 });

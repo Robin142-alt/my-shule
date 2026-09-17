@@ -372,6 +372,39 @@ export class GenerateReportCardBatchDto {
   offset?: number;
 }
 
+export class BulkReportCardTransitionDto {
+  @IsString()
+  @IsIn(['submit', 'approve', 'recall', 'publish', 'unpublish'])
+  action!: 'submit' | 'approve' | 'recall' | 'publish' | 'unpublish';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  reason?: string;
+
+  @IsOptional()
+  @IsString()
+  exam_series_id?: string;
+
+  @IsOptional()
+  @IsString()
+  class_section_id?: string;
+
+  @IsOptional()
+  @IsString()
+  stream_id?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  student_ids?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  report_card_ids?: string[];
+}
+
 export class ModerateExamMarksDto {
   @IsArray()
   @ArrayMinSize(1)

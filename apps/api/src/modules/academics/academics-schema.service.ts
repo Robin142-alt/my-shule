@@ -1,9 +1,11 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap, OnModuleInit } from '@nestjs/common';
 
 import { PrismaService } from '../../database/prisma.service';
+import { COHORT_SCHEMA_SQL } from './cohort-schema';
+import { ensureCohortMigration } from './cohort-configuration';
 
 @Injectable()
-export class AcademicsSchemaService implements OnModuleInit {
+export class AcademicsSchemaService implements OnModuleInit, OnApplicationBootstrap {
 
   private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
     const firstParam = params[0];
@@ -30,6 +32,19 @@ export class AcademicsSchemaService implements OnModuleInit {
   private readonly logger = new Logger(AcademicsSchemaService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  async onApplicationBootstrap(): Promise<void> {
+    // Admissions initializes its annual membership table independently during module initialization.
+    await this.prisma.runSchemaBootstrap(COHORT_SCHEMA_SQL);
+    const tenants = await this.prisma.$transaction(async (tx: any) => {
+      await tx.$queryRawUnsafe("SELECT set_config('app.role', 'system', true)");
+      return tx.$queryRawUnsafe('SELECT DISTINCT tenant_id FROM class_sections ORDER BY tenant_id');
+    }) as Array<{ tenant_id: string }>;
+    for (const tenant of tenants) {
+      await this.prisma.executeWithTenant(tenant.tenant_id, null,
+        (tx) => ensureCohortMigration(tx, tenant.tenant_id));
+    }
+  }
 
   async onModuleInit(): Promise<void> {
     await this.prisma.runSchemaBootstrap(`
@@ -508,54 +523,18 @@ export class AcademicsSchemaService implements OnModuleInit {
         END IF;
       END $$;
 
+      ALTER TABLE class_subject_assignments DROP CONSTRAINT IF EXISTS uq_class_subject_assignments_scope;
+      DROP INDEX IF EXISTS uq_class_subject_assignments_scope;
       DO $$
       BEGIN
-        IF EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_schema = 'public' AND table_name = 'class_subject_assignments'
-            AND column_name = 'school_class_id'
-        ) THEN
-          WITH ranked_legacy_offerings AS (
-            SELECT assignment.id,
-                   section.id::text AS class_section_id,
-                   ROW_NUMBER() OVER (
-                     PARTITION BY assignment.tenant_id, assignment.academic_term_id,
-                                  section.id, assignment.subject_id
-                     ORDER BY assignment.updated_at DESC NULLS LAST,
-                              assignment.created_at DESC NULLS LAST,
-                              assignment.id::text DESC
-                   ) AS offering_rank
-            FROM class_subject_assignments assignment
-            JOIN class_sections section
-              ON section.tenant_id = assignment.tenant_id
-             AND section.id::text = assignment.school_class_id::text
-            WHERE assignment.class_section_id IS NULL
-          )
-          UPDATE class_subject_assignments assignment
-          SET class_section_id = ranked.class_section_id
-          FROM ranked_legacy_offerings ranked
-          WHERE assignment.id = ranked.id
-            AND ranked.offering_rank = 1;
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public'
+          AND table_name = 'class_subject_assignments' AND column_name = 'school_class_id') THEN
+          UPDATE class_subject_assignments assignment SET class_section_id = section.id::text
+          FROM class_sections section WHERE section.tenant_id = assignment.tenant_id
+            AND section.id::text = assignment.school_class_id::text AND assignment.class_section_id IS NULL;
         END IF;
       END $$;
-
-      WITH duplicate_class_subject_offerings AS (
-        SELECT id,
-               ROW_NUMBER() OVER (
-                 PARTITION BY tenant_id, academic_term_id, class_section_id, subject_id
-                 ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST, id::text DESC
-               ) AS offering_rank
-        FROM class_subject_assignments
-        WHERE class_section_id IS NOT NULL
-      )
-      UPDATE class_subject_assignments assignment
-      SET class_section_id = NULL
-      FROM duplicate_class_subject_offerings duplicate
-      WHERE assignment.id = duplicate.id
-        AND duplicate.offering_rank > 1;
-
-      CREATE UNIQUE INDEX IF NOT EXISTS uq_class_subject_assignments_scope
-        ON class_subject_assignments (tenant_id, academic_term_id, class_section_id, subject_id);
+      -- Cohort migration retains every legacy stream offering and its historical references.
 
       CREATE TABLE IF NOT EXISTS report_card_comments (
         id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -1532,6 +1511,8 @@ export class AcademicsSchemaService implements OnModuleInit {
         OR NULLIF(current_setting('app.role', true), '') = 'system'
       );
     `);
+
+    await this.prisma.runSchemaBootstrap(COHORT_SCHEMA_SQL);
 
     this.logger.log('Academics schema and RLS policies verified');
   }
