@@ -260,7 +260,16 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     if (store && store.tenant_id) {
       return this.executeWithTenant(store.tenant_id, store.user_id, callback);
     }
-    return this.$transaction(callback);
+    return this.$transaction(async (tx) => {
+      await this.applyRuntimeRole(tx);
+      if (store) {
+        await tx.$queryRaw(buildRequestSessionSettingsQuery(store));
+      }
+      return callback(tx);
+    }, {
+      maxWait: 30000,
+      timeout: 60000,
+    });
   }
   async ping(): Promise<"up"> { return "up"; }
   async getPoolMetrics(): Promise<any> { return { totalCount: 10, idleCount: 10, waitingCount: 0 }; }
