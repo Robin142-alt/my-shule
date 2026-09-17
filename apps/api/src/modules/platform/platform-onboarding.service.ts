@@ -1209,9 +1209,13 @@ export class PlatformOnboardingService {
     const orphanedUserIds = orphanedUsersQuery.rows.map(r => r.user_id);
 
     const allTablesQuery = await this.executeSql<{ table_name: string }>(`
-      SELECT table_name
-      FROM information_schema.columns
-      WHERE column_name = 'tenant_id' AND table_schema = 'public'
+      SELECT c.table_name
+      FROM information_schema.columns c
+      JOIN information_schema.tables t
+        ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+      WHERE c.column_name = 'tenant_id'
+        AND c.table_schema = 'public'
+        AND t.table_type = 'BASE TABLE'
     `, [], executor);
 
     const tablesToProcess = allTablesQuery.rows
@@ -1235,7 +1239,7 @@ export class PlatformOnboardingService {
         if (error.code === '23503') {
           tablesToProcess.push(table);
         } else {
-          throw error;
+          this.logger.warn(`Hard delete skipped table "${table}": ${error.message ?? error.code}`);
         }
       }
     }

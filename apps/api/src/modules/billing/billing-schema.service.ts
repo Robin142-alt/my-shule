@@ -47,6 +47,9 @@ export class BillingSchemaService implements OnModuleInit {
       CREATE OR REPLACE FUNCTION app.prevent_append_only_mutation()
       RETURNS trigger AS $$
       BEGIN
+        IF current_setting('app.allow_tenant_deletion', true) = 'true' THEN
+          RETURN OLD;
+        END IF;
         RAISE EXCEPTION 'append-only table "%" cannot be %', TG_TABLE_NAME, lower(TG_OP)
           USING ERRCODE = '55000';
       END;
