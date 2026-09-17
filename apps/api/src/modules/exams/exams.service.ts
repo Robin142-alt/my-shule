@@ -2473,7 +2473,6 @@ export class ExamsService {
 
     const markEntryWindow = await this.repository.findOpenMarkEntryWindow({
       tenant_id: tenantId,
-      teacher_user_id: actorUserId,
       exam_series_id: dto.exam_series_id,
       academic_term_id: dto.academic_term_id,
       class_section_id: dto.class_section_id,
