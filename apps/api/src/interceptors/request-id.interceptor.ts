@@ -12,7 +12,9 @@ export class RequestIdInterceptor implements NestInterceptor {
     const response = context.switchToHttp().getResponse<Response>();
     const requestId = this.requestContext.getStore()?.request_id;
 
-    if (requestId) {
+    // Nest subscribes to SSE interceptors after flushing stream headers. The
+    // request-context middleware already sets this header before that flush.
+    if (requestId && !response.headersSent) {
       response.setHeader('x-request-id', requestId);
     }
 

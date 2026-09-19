@@ -1,0 +1,63 @@
+{
+  "capturedDates": ["2026-09-19", "2026-09-20"],
+  "project": "my-shule-erp-web-clean",
+  "projectId": "prj_FZMmfzegTNibOQkpTJiLZqybAo1K",
+  "source": "Read-only Vercel project Usage, Observability and deployment Resources views; Vercel deployment/project API; Vercel and Railway CLI log samples. Rounded UI metrics are not billing exports.",
+  "productionUnchanged": true,
+  "configuration": {
+    "rootDirectory": "apps/web",
+    "fluid": true,
+    "functionRegions": ["iad1"],
+    "projectNodeVersion": "24.x",
+    "webPackageNodeVersion": "22.x",
+    "expirationDays": 30,
+    "expirationDaysProduction": 30,
+    "apiDeploymentsToKeep": 10
+  },
+  "projectUsage": {
+    "window": "2026-08-21 to 2026-09-20, displayed rolling 30-day project view",
+    "functionsStorageGB": 5.32,
+    "deploymentStorageGB": 1.92,
+    "functionInvocations": 443263,
+    "fluidActiveCPUSecondsFromUsagePercentage": 6789.3,
+    "fluidProvisionedMemoryGBHoursRounded": 21.5,
+    "fastDataTransferGBRounded": 1.05,
+    "fastOriginTransferGBRounded": 1.42,
+    "edgeRequests": 240378,
+    "buildExecutionCPURounded": "15h 8m",
+    "initialPreviousDayFunctionsStorageGB": 5.23
+  },
+  "runtimeSample": {
+    "window": "September 19 production 12-hour view, approximately 11:40 to 23:40 Africa/Nairobi",
+    "functionInvocationsRounded": 9100,
+    "eventRouteInvocationsRounded": 8200,
+    "eventRouteCPU": "2m rounded",
+    "eventRouteCPUP75ms": 13,
+    "overallCPUP75ms": 29,
+    "overallTTFBP75ms": 215,
+    "averageMemoryMB": 224,
+    "provisionedMemoryGB": 2.05,
+    "coldStartPercent": 0.9,
+    "timeoutPercent": 0,
+    "functionErrorPercent": 0.2
+  },
+  "originStreamSample": {
+    "path": "/events/dashboard/stream",
+    "sampleCount": 10,
+    "allHTTPStatus": 200,
+    "allResponseBytes": 80,
+    "durationMillisecondsRange": [26, 42],
+    "observedReconnectSecondsApproximate": [3.6, 3.9],
+    "payloadReadFromProduction": false
+  },
+  "historicalBundleComparison": [
+    { "deploymentId": "dpl_4whyBuK118cH1AzToupjwhHVaeJR", "date": "2026-08-25", "pageMB": 20.5, "apiMB": 17.8, "middlewareKB": 463, "sharedBundles": 3, "functionRouteRows": 167 },
+    { "deploymentId": "dpl_G5kTwQP7r7WFN8byBF8E8gV86TpZ", "date": "2026-09-19", "pageMB": 21.3, "apiMB": 18.4, "middlewareKB": 480, "sharedBundles": 3, "functionRouteRows": 171 }
+  ],
+  "limitations": [
+    "Daily function storage series and detailed observability queries were not available on the current plan.",
+    "Vercel after-deployment metrics were not collected because no deployment was authorized.",
+    "Storage readings across different dates are not a before/after optimization experiment.",
+    "Demo data displayed in gated observability tables was excluded."
+  ]
+}

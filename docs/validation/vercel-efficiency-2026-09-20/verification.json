@@ -1,0 +1,27 @@
+{
+  "date": "2026-09-20",
+  "baselineNextBuild": "PASS",
+  "finalNextBuild": "PASS",
+  "apiTypecheck": "PASS: node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json",
+  "apiTypecheckedTransportTests": { "result": "PASS", "tests": 3, "runner": "node -r ts-node/register --test apps/api/test/dashboard-sse-wire.test.ts apps/api/src/interceptors/response-envelope.interceptor.test.ts" },
+  "apiExistingRealtimeTests": { "result": "PASS", "tests": 11, "runner": "node -r ts-node/register/transpile-only --test --test-name-pattern=DashboardRealtimeService apps/api/src/modules/events/events.test.ts" },
+  "buildIgnoreTests": { "result": "PASS", "tests": 4, "runner": "node --test apps/web/scripts/ignore-build.test.mjs" },
+  "webInitialTests": {
+    "result": "PASS", "suites": 5, "tests": 35,
+    "paths": ["reconnecting-event-source.test.ts", "dashboard-communication-tenant.test.tsx", "experience-routing.test.ts", "session-refreshing-fetch.test.ts", "dashboard-api-cookie-session.test.ts"]
+  },
+  "webFinalStreamTests": {
+    "result": "PASS", "suites": 4, "tests": 21,
+    "paths": ["dashboard-stream-proxy.test.ts", "dashboard-communication-tenant.test.tsx", "reconnecting-event-source.test.ts", "production-module-proxies.test.ts"]
+  },
+  "targetedWebESLint": { "result": "PASS", "warnings": 0, "errors": 0 },
+  "gitDiffCheck": "PASS",
+  "dependencyAudit": "Existing advisories remain; see dependency-audit-summary.json",
+  "reproducedOldRequestIdFailure": {
+    "HTTPStatus": 200,
+    "wireBytes": 80,
+    "wire": "\nevent: error\nid: 1\ndata: Cannot set headers after they are sent to the client\n\n",
+    "testResult": "FAIL before fix: SSE closed before the second heartbeat; PASS after fix"
+  },
+  "scope": "Local tests use fixture identities and mocked repositories. Counts overlap; do not add them as unique tests. No production write or deploy tests were run."
+}

@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient, type QueryKey } from "@tanstack/react-query";
+import { connectDashboardEventSource } from "./reconnecting-event-source";
 import {
   publishSchoolDataUpdate,
   subscribeToSchoolDataUpdates,
@@ -42,6 +43,7 @@ export function DashboardCommunicationProvider({
   const normalizedTenantId = tenantId.trim();
   const seenEventIds = useRef(new Set<string>());
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const [degradedSystem, setDegradedSystem] = useState<ReturnType<typeof createDashboardCommunicationSystem> | null>(null);
   const system = useMemo(
     () => createDashboardCommunicationSystem({ tenantId: normalizedTenantId }),
     [normalizedTenantId],
@@ -77,16 +79,12 @@ export function DashboardCommunicationProvider({
       return unsubscribeFromLocalUpdates;
     }
 
-    const source = new EventSource(
-      `/api/events/dashboard/stream?tenantSlug=${encodeURIComponent(normalizedTenantId)}`,
-      { withCredentials: true },
-    );
     const handleSnapshot = (rawEvent: Event) => {
       try {
         const snapshot = JSON.parse((rawEvent as MessageEvent<string>).data) as DashboardRealtimeSnapshot;
 
         if (snapshot.tenant_id !== normalizedTenantId || !Array.isArray(snapshot.events)) {
-          return;
+          return false;
         }
 
         let acceptedEvents = 0;
@@ -118,22 +116,33 @@ export function DashboardCommunicationProvider({
         if (acceptedEvents > 0) {
           publishSchoolDataUpdate(normalizedTenantId, "dashboard-realtime");
         }
+        return true;
       } catch {
-        // EventSource reconnects automatically; malformed frames must not affect the workspace.
+        // Malformed frames must not affect the workspace or reset retry backoff.
+        return false;
       }
     };
 
-    source.addEventListener("dashboard.events", handleSnapshot);
+    const disconnect = connectDashboardEventSource({
+      url: `/api/events/dashboard/stream?tenantSlug=${encodeURIComponent(normalizedTenantId)}`,
+      eventType: "dashboard.events",
+      onMessage: handleSnapshot,
+      onDegraded: (degraded) => setDegradedSystem(degraded ? system : null),
+    });
 
     return () => {
-      source.removeEventListener("dashboard.events", handleSnapshot);
-      source.close();
+      disconnect();
       unsubscribeFromLocalUpdates();
     };
   }, [normalizedTenantId, queryClient, system]);
 
   return (
     <DashboardCommunicationContext.Provider value={contextValue}>
+      {degradedSystem === system && (
+        <div role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          Live updates are reconnecting. Refresh the workspace to check for recent changes.
+        </div>
+      )}
       {children}
     </DashboardCommunicationContext.Provider>
   );

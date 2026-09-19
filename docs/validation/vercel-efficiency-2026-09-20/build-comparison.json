@@ -1,0 +1,35 @@
+{
+  "baselineCommit": "10e99201e84e70714e68fd2073f85b2949ccdabd",
+  "environment": "Windows, Node 22.20.0, Next 16.2.6, no production environment files",
+  "sizeUnits": "uncompressed bytes, not Vercel billing bytes",
+  "before": {
+    "total": 85470850,
+    "server": 72468515,
+    "static": 11108712,
+    "cache": 703273,
+    "tracedUnique": 26689264
+  },
+  "after": {
+    "total": 85479517,
+    "server": 72475105,
+    "static": 11110252,
+    "cache": 703811,
+    "tracedUnique": 26690830
+  },
+  "traceCountBefore": 179,
+  "traceCountAfter": 179,
+  "missingTracesBefore": 0,
+  "missingTracesAfter": 0,
+  "routeCount": 176,
+  "routesUnchanged": true,
+  "prerenderedRouteCount": 44,
+  "prerenderedRoutesUnchanged": true,
+  "beforeTiming": {
+    "exit": 0,
+    "seconds": 282.6192484
+  },
+  "afterTiming": {
+    "exit": 0,
+    "seconds": 298.040442
+  }
+}

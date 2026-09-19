@@ -1,4 +1,4 @@
-import { act, render, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
 
@@ -157,5 +157,33 @@ describe("tenant-scoped dashboard communication", () => {
     expect(isTenantQueryKey(["school", "maranda-high", "/fees"], "maranda-high")).toBe(true);
     expect(isTenantQueryKey(["dashboard", { schoolId: "maranda-high" }], "maranda-high")).toBe(true);
     expect(isTenantQueryKey(["dashboard", { tenantSlug: "kisumu-boys" }], "maranda-high")).toBe(false);
+  });
+
+  it("shows degraded live updates until a valid tenant heartbeat arrives and cleans up on tenant change", () => {
+    jest.useFakeTimers();
+    try {
+      const queryClient = new QueryClient();
+      const workspace = (tenant: string) => (
+        <QueryClientProvider client={queryClient}>
+          <DashboardCommunicationProvider tenantId={tenant}>Workspace</DashboardCommunicationProvider>
+        </QueryClientProvider>
+      );
+      const view = render(workspace("school-a"));
+      act(() => EventSourceMock.instances[0].emit("error", {}));
+      expect(screen.getByRole("status")).toHaveTextContent("Live updates are reconnecting");
+      act(() => jest.advanceTimersByTime(5000));
+      act(() => EventSourceMock.instances[1].emit("dashboard.events", { tenant_id: "school-b", events: [] }));
+      expect(screen.getByRole("status")).toBeInTheDocument();
+      act(() => EventSourceMock.instances[1].emit("dashboard.events", { tenant_id: "school-a", events: [] }));
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      act(() => EventSourceMock.instances[1].emit("error", {}));
+      view.rerender(workspace("school-b"));
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      expect(EventSourceMock.instances[2].url).toContain("tenantSlug=school-b");
+      act(() => jest.advanceTimersByTime(60_000));
+      expect(EventSourceMock.instances).toHaveLength(3);
+      view.unmount();
+      expect(EventSourceMock.instances[2].close).toHaveBeenCalledTimes(1);
+    } finally { jest.useRealTimers(); }
   });
 });

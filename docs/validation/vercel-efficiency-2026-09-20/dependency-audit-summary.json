@@ -1,0 +1,45 @@
+{
+  "command": "npm --prefix apps/web audit --omit=dev --json",
+  "capturedAt": "2026-09-19",
+  "vulnerabilities": {
+    "info": 0,
+    "low": 0,
+    "moderate": 1,
+    "high": 3,
+    "critical": 1,
+    "total": 5
+  },
+  "packages": [
+    {
+      "name": "baseline-browser-mapping",
+      "severity": "moderate",
+      "affectedRange": ">=2.0.0 <2.11.0",
+      "fixAvailable": true
+    },
+    {
+      "name": "nanoid",
+      "severity": "high",
+      "affectedRange": "<=3.3.17",
+      "fixAvailable": true
+    },
+    {
+      "name": "next",
+      "severity": "critical",
+      "affectedRange": "9.3.4-canary.0 - 16.3.2",
+      "fixAvailable": true
+    },
+    {
+      "name": "postcss",
+      "severity": "high",
+      "affectedRange": "<=8.5.22",
+      "fixAvailable": true
+    },
+    {
+      "name": "sharp",
+      "severity": "high",
+      "affectedRange": "<=0.35.4-rc.0",
+      "fixAvailable": true
+    }
+  ],
+  "interpretation": "Existing dependency advisories, not proof of exploitability or exploitation. Dependencies unchanged in this investigation."
+}

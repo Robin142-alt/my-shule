@@ -1,0 +1,244 @@
+{
+  "status": "Review only. No deployments deleted and no retention settings changed.",
+  "note": "These 34 deployments had independent backend/docs-only diffs in the full-history replay. Check aliases, active branch heads, promotions and rollback requirements before proposing specific deletions. Identical web trees do not imply identical environment/configuration.",
+  "candidates": [
+    {
+      "id": "dpl_5ybxPf7cCvRxWEic9XMj7FqmbgF7",
+      "date": "2026-08-25T11:39:39.156Z",
+      "sha": "498634d75f650dd46f93c4549eb416b35b100914",
+      "branch": "main",
+      "target": "production"
+    },
+    {
+      "id": "dpl_12CF6ouitVwUZ2gbdWN7nFfWt3Cy",
+      "date": "2026-08-25T11:46:38.164Z",
+      "sha": "c91cdc5f305123e27fdaa19ef2fae9a58c6cabdb",
+      "branch": "main",
+      "target": "production"
+    },
+    {
+      "id": "dpl_7wGAUSbTg3nyYzeQKmpFmnQrgaRP",
+      "date": "2026-08-25T18:19:52.88Z",
+      "sha": "db57cb797440fd6d2b28a5c10321a0123fd0f423",
+      "branch": "main",
+      "target": "production"
+    },
+    {
+      "id": "dpl_4whyBuK118cH1AzToupjwhHVaeJR",
+      "date": "2026-08-25T18:32:44.271Z",
+      "sha": "50167a4c0ce462874c05bc12d4b95f0e6fe77ca2",
+      "branch": "main",
+      "target": "production"
+    },
+    {
+      "id": "dpl_7uss1cNmy5jfcygjRpSRH38uwsND",
+      "date": "2026-08-26T08:16:22.218Z",
+      "sha": "aece58aba6a55990234107bb367f54a83f0bd036",
+      "branch": "main",
+      "target": "production"
+    },
+    {
+      "id": "dpl_FR2fNwzikrRQ7icsk8y5MpzoRiHi",
+      "date": "2026-08-27T18:16:59.024Z",
+      "sha": "0d8ce0f809cd9eff0908393515bee225b4e3cd93",
+      "branch": "main",
+      "target": "production"
+    },
+    {
+      "id": "dpl_AJFfPfbefS5UkovUm8SB4gPoBmic",
+      "date": "2026-08-28T10:00:28.644Z",
+      "sha": "b8250de4752d36af4ef9e5d797532cbb04903b8a",
+      "branch": "main",
+      "target": "production"
+    },
+    {
+      "id": "dpl_J8RfT26m6o12YZtjYPBx5QLiC3Sp",
+      "date": "2026-08-29T16:00:21.621Z",
+      "sha": "507cb79ee65d7d7bedfe9fa571d9ac7fd27aebcf",
+      "branch": "main",
+      "target": "production"
+    },
+    {
+      "id": "dpl_EEJzgUGGJd3nAgQNnRNq7uUtSs63",
+      "date": "2026-08-30T17:44:58.96Z",
+      "sha": "9c33fa7868ae39b03c201c3b4efb884413f4d279",
+      "branch": "main",
+      "target": "production"
+    },
+    {
+      "id": "dpl_FMCgNtmqAKLp8eBm2A2JVdSQLEHZ",
+      "date": "2026-08-31T22:03:08.936Z",
+      "sha": "70ef7003055d3c05c5a0dd661f5268283cf1819d",
+      "branch": "main",
+      "target": "production"
+    },
+    {
+      "id": "dpl_Hgsj8HcKHtP7h4ZAEVdRPfpSHrfv",
+      "date": "2026-09-01T18:40:51.725Z",
+      "sha": "fea37b6188c754344428a34da18b1bc42de25888",
+      "branch": "main",
+      "target": "production"
+    },
+    {
+      "id": "dpl_2NdRxWTsCTPJp6Xgfw5nuZU9mxzJ",
+      "date": "2026-09-02T17:13:04.932Z",
+      "sha": "a18ce53198140fde6770b482e66e53d581e64eb9",
+      "branch": "main",
+      "target": "production"
+    },
+    {
+      "id": "dpl_CpXLi8DYpuf7kPxdqR3hR78XzyqD",
+      "date": "2026-09-06T23:20:44.931Z",
+      "sha": "496c348ad9949466237eba7c4d40e2eb6efd4256",
+      "branch": "codex/fix-disposable-postgres",
+      "target": "preview"
+    },
+    {
+      "id": "dpl_7mdBBfHTvNqu6KTdwuJ2WqVndnTk",
+      "date": "2026-09-06T23:22:38.45Z",
+      "sha": "489a001e245723b1dd06d07d4d014430175b1f8a",
+      "branch": "main",
+      "target": "production"
+    },
+    {
+      "id": "dpl_Ai5gm3PKzx2dg2j4gBtLFi7cXuor",
+      "date": "2026-09-08T23:28:18.928Z",
+      "sha": "72f388ec27a1701c539849516749cfec0401aaa4",
+      "branch": "main",
+      "target": "production"
+    },
+    {
+      "id": "dpl_22toDzeazRXvQ9JcWC7tc9LpCKNi",
+      "date": "2026-09-09T01:07:06.85Z",
+      "sha": "431a5d93f35ef6f443b5d79d9cdfe89b3ebfce56",
+      "branch": "codex/regular-persistent-login",
+      "target": "preview"
+    },
+    {
+      "id": "dpl_56evhYPSW3goVgXSn3FZPDCTErDv",
+      "date": "2026-09-11T09:05:02.255Z",
+      "sha": "0934e1a7e5ff54de4f424d67c063e5c8dd8c2bba",
+      "branch": "codex/academic-intelligence-release",
+      "target": "preview"
+    },
+    {
+      "id": "dpl_BY1LPByvFhTfvcZCCWQzcUwLr1c8",
+      "date": "2026-09-11T18:02:36.597Z",
+      "sha": "924b16f094b0c780a851cf04024de70cd5f96604",
+      "branch": "codex/head-of-subject-role",
+      "target": "preview"
+    },
+    {
+      "id": "dpl_95WppStUPBj7aQjabFfcGS4faRYQ",
+      "date": "2026-09-11T23:45:15.833Z",
+      "sha": "200e66b22636db49cdf719f8574d6a37b57b6191",
+      "branch": "codex/sidebar-loading-release",
+      "target": "preview"
+    },
+    {
+      "id": "dpl_3nNBPrXWPU4qoWiyna667Ljjvab6",
+      "date": "2026-09-12T07:25:03.087Z",
+      "sha": "fafc6b03665ee11ee1d4de986323c11b599b7e2a",
+      "branch": "main",
+      "target": "production"
+    },
+    {
+      "id": "dpl_HgE1PXj6rf1F38D1DCqSX7ye5oEK",
+      "date": "2026-09-12T14:50:54.137Z",
+      "sha": "1e27931bda8a9bce3bd14b3cacb978892f559a42",
+      "branch": "codex/class-curriculum-grading",
+      "target": "preview"
+    },
+    {
+      "id": "dpl_7V9ruUQGN8K7DqanpPXSQ8si57ht",
+      "date": "2026-09-13T11:44:49.655Z",
+      "sha": "a04d839af766ad2e1f5cab9cbbf79d4916c4f202",
+      "branch": "codex/exams-manager-release",
+      "target": "preview"
+    },
+    {
+      "id": "dpl_5wqgZghzmh2JTSW6ZUTJiBzCW75J",
+      "date": "2026-09-13T20:44:17.895Z",
+      "sha": "ac708c35f971f02e5cb0c832fe5c1f3f7cabd7f2",
+      "branch": "codex/dean-exam-review",
+      "target": "preview"
+    },
+    {
+      "id": "dpl_CTzY3XMRSA8LSYWiVeD1qn2ydjU9",
+      "date": "2026-09-16T14:20:00.992Z",
+      "sha": "91e6e4d91abcdb6e7708f4a874571e348eeef1c3",
+      "branch": "codex/report-card-generation-reliability",
+      "target": "preview"
+    },
+    {
+      "id": "dpl_EskrhCLzj9T5F2SPQ8WVahfKdAB3",
+      "date": "2026-09-16T14:28:56.292Z",
+      "sha": "37e928c2017cd8a42debbfa4eccafb31bdd4ab1d",
+      "branch": "codex/report-card-generation-reliability",
+      "target": "preview"
+    },
+    {
+      "id": "dpl_EuvHgXbAbcwFZ9zobxXqRHxbeoZj",
+      "date": "2026-09-16T15:13:42.49Z",
+      "sha": "ac2cbdb73d7ab94d3a75e5619d770975e61bbe75",
+      "branch": "main",
+      "target": "production"
+    },
+    {
+      "id": "dpl_CnZ6taz68ZFx7uAN1PoHwe9Lw3nk",
+      "date": "2026-09-17T11:12:38.768Z",
+      "sha": "c43317947912ac8f2f6b0f2a7d4aa5b2ef17cfb4",
+      "branch": "codex/cohort-teaching-configuration",
+      "target": "preview"
+    },
+    {
+      "id": "dpl_GZZVCFdW6BCTqPMeuTG6MDGFCiZr",
+      "date": "2026-09-17T11:23:21.851Z",
+      "sha": "5fd6f6eddbb0f8e7b35e47148085d9942a4b8e9f",
+      "branch": "codex/cohort-teaching-configuration",
+      "target": "preview"
+    },
+    {
+      "id": "dpl_CG6rMjcypDVPc1xSrfU1sQfaSbZP",
+      "date": "2026-09-17T11:40:23.734Z",
+      "sha": "3a73a3767629332b1a056a1aad4aaae31b4d474a",
+      "branch": "codex/cohort-teaching-configuration",
+      "target": "preview"
+    },
+    {
+      "id": "dpl_229ZwyvZRSNdgFfX8tZiyTXvgeHd",
+      "date": "2026-09-17T11:48:28.102Z",
+      "sha": "7b53f8197dab3d6115ad8b967e252895bc581f08",
+      "branch": "main",
+      "target": "production"
+    },
+    {
+      "id": "dpl_7xzH9r8TbEwWNG5vVauiVKvvisTk",
+      "date": "2026-09-19T18:38:09.17Z",
+      "sha": "54ca34cd7a625efeb7c9de67b112097affec0adc",
+      "branch": "codex/school-day-builder",
+      "target": "preview"
+    },
+    {
+      "id": "dpl_B3z2YPWAUBrnmKduJgwWU9r5jtu5",
+      "date": "2026-09-19T18:46:44.084Z",
+      "sha": "aca49119db719faed19c95e73341d08edd2e2089",
+      "branch": "codex/school-day-builder",
+      "target": "preview"
+    },
+    {
+      "id": "dpl_AKE1rq8s2YRQfJQ5CR4z2QbQBQVm",
+      "date": "2026-09-19T19:15:20.995Z",
+      "sha": "38020b6c184ac5aa480743a526a4459af32dbba8",
+      "branch": "main",
+      "target": "production"
+    },
+    {
+      "id": "dpl_G5kTwQP7r7WFN8byBF8E8gV86TpZ",
+      "date": "2026-09-19T19:39:30.401Z",
+      "sha": "10e99201e84e70714e68fd2073f85b2949ccdabd",
+      "branch": "main",
+      "target": "production"
+    }
+  ]
+}

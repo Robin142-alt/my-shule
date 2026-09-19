@@ -1,5 +1,6 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { SSE_METADATA } from '@nestjs/common/constants';
 import type { Request } from 'express';
 import { Observable, map } from 'rxjs';
 
@@ -25,7 +26,10 @@ export class ResponseEnvelopeInterceptor implements NestInterceptor {
       [context.getHandler(), context.getClass()],
     );
 
-    if (request.method !== 'GET' || shouldSkipEnvelope) {
+    // SSE messages already have a wire contract (type/id/retry/data). Wrapping
+    // them as JSON responses strips the event name from the emitted SSE frame.
+    const isEventStream = this.reflector.get<boolean>(SSE_METADATA, context.getHandler());
+    if (request.method !== 'GET' || shouldSkipEnvelope || isEventStream) {
       return next.handle();
     }
 

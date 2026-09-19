@@ -1,0 +1,1324 @@
+{
+  "methodology": "Replay last retained successful deployment per branch and target; skipped releases do not advance the baseline. Full local Git history; Vercel shallow history may reduce savings. These are review candidates, not authorized deletions.",
+  "successfulDeployments": 129,
+  "knownWebTrees": 128,
+  "uniqueWebTrees": 62,
+  "skipped": 34,
+  "futureBuildsInReplay": 95,
+  "avoidedBuildIntervalSeconds": 5063.218,
+  "successfulDeploymentsByUtcDay": {
+    "2026-06-08": 1,
+    "2026-08-25": 5,
+    "2026-08-26": 3,
+    "2026-08-27": 2,
+    "2026-08-28": 4,
+    "2026-08-29": 4,
+    "2026-08-30": 3,
+    "2026-08-31": 4,
+    "2026-09-01": 4,
+    "2026-09-02": 3,
+    "2026-09-05": 1,
+    "2026-09-06": 5,
+    "2026-09-08": 2,
+    "2026-09-09": 5,
+    "2026-09-11": 12,
+    "2026-09-12": 19,
+    "2026-09-13": 21,
+    "2026-09-15": 6,
+    "2026-09-16": 5,
+    "2026-09-17": 8,
+    "2026-09-19": 12
+  },
+  "deployments": [
+    {
+      "id": "dpl_EFZrvSp92Na3nFKySeueyainiPmc",
+      "date": "2026-06-08T20:55:13.722Z",
+      "sha": "4ef1e6b1fc6a0cd8d8c7dc033fb04d4c6294d23a",
+      "branch": "codex/baseline-scan",
+      "target": "preview",
+      "webTree": "42ebd0243775ec6e2f7339d85855dbd63e56e729",
+      "buildIntervalSeconds": 54.835,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_7DufpJKNZrqYsTS8Asu1n7Ly2sEZ",
+      "date": "2026-08-25T11:30:55.022Z",
+      "sha": "7726762e93d0f4bb222d72cbbac2d850230b445b",
+      "branch": "main",
+      "target": "production",
+      "webTree": "f19f6990e5e8f1e3a961741f9c285c7992638466",
+      "buildIntervalSeconds": 153.937,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_5ybxPf7cCvRxWEic9XMj7FqmbgF7",
+      "date": "2026-08-25T11:39:39.156Z",
+      "sha": "498634d75f650dd46f93c4549eb416b35b100914",
+      "branch": "main",
+      "target": "production",
+      "webTree": "f19f6990e5e8f1e3a961741f9c285c7992638466",
+      "buildIntervalSeconds": 112.854,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_12CF6ouitVwUZ2gbdWN7nFfWt3Cy",
+      "date": "2026-08-25T11:46:38.164Z",
+      "sha": "c91cdc5f305123e27fdaa19ef2fae9a58c6cabdb",
+      "branch": "main",
+      "target": "production",
+      "webTree": "f19f6990e5e8f1e3a961741f9c285c7992638466",
+      "buildIntervalSeconds": 109.642,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_7wGAUSbTg3nyYzeQKmpFmnQrgaRP",
+      "date": "2026-08-25T18:19:52.880Z",
+      "sha": "db57cb797440fd6d2b28a5c10321a0123fd0f423",
+      "branch": "main",
+      "target": "production",
+      "webTree": "f19f6990e5e8f1e3a961741f9c285c7992638466",
+      "buildIntervalSeconds": 115.214,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_4whyBuK118cH1AzToupjwhHVaeJR",
+      "date": "2026-08-25T18:32:44.271Z",
+      "sha": "50167a4c0ce462874c05bc12d4b95f0e6fe77ca2",
+      "branch": "main",
+      "target": "production",
+      "webTree": "f19f6990e5e8f1e3a961741f9c285c7992638466",
+      "buildIntervalSeconds": 142.766,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_9w9VuSxxxo3ajMgSH6XxL7hZkaPj",
+      "date": "2026-08-26T07:35:30.138Z",
+      "sha": "fcb12f6f1383a9b699a44bd3e2ccf705a4dd0865",
+      "branch": "main",
+      "target": "production",
+      "webTree": "83798bfcee51819306f3ef70efe450bb418b3475",
+      "buildIntervalSeconds": 115.893,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_7uss1cNmy5jfcygjRpSRH38uwsND",
+      "date": "2026-08-26T08:16:22.218Z",
+      "sha": "aece58aba6a55990234107bb367f54a83f0bd036",
+      "branch": "main",
+      "target": "production",
+      "webTree": "83798bfcee51819306f3ef70efe450bb418b3475",
+      "buildIntervalSeconds": 112.117,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_GED3Cbs5Jae1vhuiR5ZYP3EohaZ5",
+      "date": "2026-08-26T08:54:17.557Z",
+      "sha": "2aa3530317c08c4227bb1712dbc1093f26172e60",
+      "branch": "main",
+      "target": "production",
+      "webTree": "ac47e694d8805c0daf5b4102613fa5f4a0e41d9e",
+      "buildIntervalSeconds": 114.12,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_FR2fNwzikrRQ7icsk8y5MpzoRiHi",
+      "date": "2026-08-27T18:16:59.024Z",
+      "sha": "0d8ce0f809cd9eff0908393515bee225b4e3cd93",
+      "branch": "main",
+      "target": "production",
+      "webTree": "ac47e694d8805c0daf5b4102613fa5f4a0e41d9e",
+      "buildIntervalSeconds": 153.876,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_2gaZhMFhmewDg5gS59azx88HfE6p",
+      "date": "2026-08-27T18:43:48.473Z",
+      "sha": "8d00c81d63757aaffdf57ffef465e07bb68ddf0e",
+      "branch": "main",
+      "target": "production",
+      "webTree": "1f2b69badea026428011d553fee300bdcc3099c2",
+      "buildIntervalSeconds": 149.775,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_AJFfPfbefS5UkovUm8SB4gPoBmic",
+      "date": "2026-08-28T10:00:28.644Z",
+      "sha": "b8250de4752d36af4ef9e5d797532cbb04903b8a",
+      "branch": "main",
+      "target": "production",
+      "webTree": "1f2b69badea026428011d553fee300bdcc3099c2",
+      "buildIntervalSeconds": 139.593,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_8gunpdebyYvufDBax6Tvac5M6khX",
+      "date": "2026-08-28T17:06:50.425Z",
+      "sha": "a5a1ae90af52e9cf1b3df1c8327ae241512fc5cc",
+      "branch": "main",
+      "target": "production",
+      "webTree": "4077afdd3ceb484e94a9a856300179489aefdde9",
+      "buildIntervalSeconds": 137.959,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_huVCGf1G8yQRRpALfftmAiN18Zxt",
+      "date": "2026-08-28T20:46:40.826Z",
+      "sha": "8f408574b507d22742da4db2045744e2b48ad50b",
+      "branch": "main",
+      "target": "production",
+      "webTree": "f5935a3f80d6d6388bcad013a22c4fe4a70e5de7",
+      "buildIntervalSeconds": 159.555,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_6Y6PaxQdt7E55XRGvkbrjH8LH5J8",
+      "date": "2026-08-28T22:40:48.344Z",
+      "sha": "023a914c627dd81e7c94cc9a32fed88f7d46e707",
+      "branch": "main",
+      "target": "production",
+      "webTree": "f40282ecb1dc3f3c08b2e3a7d5ea3a849aaa34fe",
+      "buildIntervalSeconds": 130.02,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_FM34zq4NzPeoPeypZdYCjFrjX53H",
+      "date": "2026-08-29T07:18:57.697Z",
+      "sha": "b5198ba1d0cc0d8549b05bf997c37fe943d47185",
+      "branch": "main",
+      "target": "production",
+      "webTree": "355218a1fce9e8eb15fc41316106d155a92b9d08",
+      "buildIntervalSeconds": 135.111,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_EdiKTuGJscyVGAmCUrJ6YtSwqVLX",
+      "date": "2026-08-29T09:59:13.230Z",
+      "sha": "ecdec222f5747d3ff6be5356e0b1be50b9c561dc",
+      "branch": "main",
+      "target": "production",
+      "webTree": "c9cea2d63e6b44b4552c8051cf982b0e18e31f81",
+      "buildIntervalSeconds": 144.371,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_3et152UZnwveN6qQC8n4oAMMqVop",
+      "date": "2026-08-29T14:45:49.986Z",
+      "sha": "2cc481f77999486b92af1ec0873e74221e36dc04",
+      "branch": "main",
+      "target": "production",
+      "webTree": "bf49ad1ffc3c1689da15b8598b41c5805ed10022",
+      "buildIntervalSeconds": 147.13,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_J8RfT26m6o12YZtjYPBx5QLiC3Sp",
+      "date": "2026-08-29T16:00:21.621Z",
+      "sha": "507cb79ee65d7d7bedfe9fa571d9ac7fd27aebcf",
+      "branch": "main",
+      "target": "production",
+      "webTree": "bf49ad1ffc3c1689da15b8598b41c5805ed10022",
+      "buildIntervalSeconds": 147.989,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_9hHiDdQWmqRTnmkZSbSZV7KdrDNq",
+      "date": "2026-08-30T16:33:39.421Z",
+      "sha": "b6c69da495e56b3cafc36c00796750138bea371b",
+      "branch": "main",
+      "target": "production",
+      "webTree": "d01ae3e14d31463376ee346c872057e25e10e8b2",
+      "buildIntervalSeconds": 150.251,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_EEJzgUGGJd3nAgQNnRNq7uUtSs63",
+      "date": "2026-08-30T17:44:58.960Z",
+      "sha": "9c33fa7868ae39b03c201c3b4efb884413f4d279",
+      "branch": "main",
+      "target": "production",
+      "webTree": "d01ae3e14d31463376ee346c872057e25e10e8b2",
+      "buildIntervalSeconds": 134.362,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_EZ84Rve3N7bX65jScdqNYm3RZE5S",
+      "date": "2026-08-30T21:23:59.480Z",
+      "sha": "ed1e1d15701eb0e36423a63d61dda38599693dd6",
+      "branch": "main",
+      "target": "production",
+      "webTree": "3459858c6e0ca0505fdba3466e3aec73f746a3ba",
+      "buildIntervalSeconds": 145.198,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_GPjvyXB7BYorqiA383KHoD5s4Jnz",
+      "date": "2026-08-31T06:58:38.019Z",
+      "sha": "89699c17ca598064fb4b21a12f0d5221cb9e37a9",
+      "branch": "main",
+      "target": "production",
+      "webTree": "6042250ed2e42b03e623804c79876296c77c8740",
+      "buildIntervalSeconds": 150.684,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_2NwgfqXGj25vaDLhD9qTBdrdsMHH",
+      "date": "2026-08-31T17:11:18.664Z",
+      "sha": "98dc1a68c6295c03b1abde408d74342ed14fb178",
+      "branch": "main",
+      "target": "production",
+      "webTree": "b39de8bbce88911ed6c168baa97f907abef3fdff",
+      "buildIntervalSeconds": 150.57,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_BLkrexRM2V5a9yYHyYLcd544ZSh5",
+      "date": "2026-08-31T19:53:25.427Z",
+      "sha": "06119a32297c863c53b16b5912e5a52d80248351",
+      "branch": "main",
+      "target": "production",
+      "webTree": "3e29c7c48602a0df78201badc717ef947a55be75",
+      "buildIntervalSeconds": 149.493,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_FMCgNtmqAKLp8eBm2A2JVdSQLEHZ",
+      "date": "2026-08-31T22:03:08.936Z",
+      "sha": "70ef7003055d3c05c5a0dd661f5268283cf1819d",
+      "branch": "main",
+      "target": "production",
+      "webTree": "3e29c7c48602a0df78201badc717ef947a55be75",
+      "buildIntervalSeconds": 135.258,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_ospr41wMTG1Do9p8x5L2dCwhRb2P",
+      "date": "2026-09-01T06:58:57.501Z",
+      "sha": "9a2609d69da12cc16e1f4aa1205faed4f44d7b35",
+      "branch": "main",
+      "target": "production",
+      "webTree": "2ad064a7fa6630fc07ca870f6b1a72e4b62b6443",
+      "buildIntervalSeconds": 148.119,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_GfYQvSF5rJ8uTnCVFckZPjVhdyzT",
+      "date": "2026-09-01T17:23:07.619Z",
+      "sha": "2424fb50df88723a92b0ed99cf30f5cad1f2b8d1",
+      "branch": "main",
+      "target": "production",
+      "webTree": "9ec008f375574db98ed943d389d929d45bb03b57",
+      "buildIntervalSeconds": 153.504,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_Hgsj8HcKHtP7h4ZAEVdRPfpSHrfv",
+      "date": "2026-09-01T18:40:51.725Z",
+      "sha": "fea37b6188c754344428a34da18b1bc42de25888",
+      "branch": "main",
+      "target": "production",
+      "webTree": "9ec008f375574db98ed943d389d929d45bb03b57",
+      "buildIntervalSeconds": 150.303,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_bRAFFdHEy3MruXriJSKK3VWN2mmV",
+      "date": "2026-09-01T20:19:08.462Z",
+      "sha": "5866631cfbefd482e3f2e1f247f62c7199ea3f38",
+      "branch": "main",
+      "target": "production",
+      "webTree": "d35d29efa7b30d1f7fe9b1a98143e5de60e06673",
+      "buildIntervalSeconds": 150.551,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_2mfUdcDtXSqRaT2Ns7UJzNa4xdsP",
+      "date": "2026-09-02T10:09:43.262Z",
+      "sha": "2676ed781cbf8e99c19b74e1ee85a7af22d34256",
+      "branch": "main",
+      "target": "production",
+      "webTree": "ce065f5e042b01f92e837998901a51d92776ad6d",
+      "buildIntervalSeconds": 134.504,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_2NdRxWTsCTPJp6Xgfw5nuZU9mxzJ",
+      "date": "2026-09-02T17:13:04.932Z",
+      "sha": "a18ce53198140fde6770b482e66e53d581e64eb9",
+      "branch": "main",
+      "target": "production",
+      "webTree": "ce065f5e042b01f92e837998901a51d92776ad6d",
+      "buildIntervalSeconds": 152.344,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_2kRaY9qzL7iF9wWC5tKhiwBi1f8F",
+      "date": "2026-09-02T22:13:57.492Z",
+      "sha": "edfeec5693969b6aca17f8f30c5cb5c1cb399ffe",
+      "branch": "main",
+      "target": "production",
+      "webTree": "b27bf843936aba5ec74440df8bb2bdda545661f4",
+      "buildIntervalSeconds": 186.726,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_8hUwJf9XpkpqjZ4nt3i37S9MdJBh",
+      "date": "2026-09-05T19:03:33.876Z",
+      "sha": "171e13e752f1a3135773e35a8e4f36a550569794",
+      "branch": "main",
+      "target": "production",
+      "webTree": "c7046c1c7e0c14d2ab1cd7f05ef6ae40a69f66cb",
+      "buildIntervalSeconds": 148.201,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_917YVGPEXxPjmhg6avDLnV92Lc1z",
+      "date": "2026-09-06T11:31:53.028Z",
+      "sha": "782e35af6f8941737e42fe70971256eecac96f3a",
+      "branch": "main",
+      "target": "production",
+      "webTree": "1b6d115e9c952dec303a4659523c34a950aa91f0",
+      "buildIntervalSeconds": 172.691,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_9wJNWU4dv269gXiESuaBJECgY3zD",
+      "date": "2026-09-06T18:34:45.936Z",
+      "sha": "512eb4afdc623ae298f90c500575bfcdd89d5f06",
+      "branch": "main",
+      "target": "production",
+      "webTree": "1f93adc3472e8336eb7f481be4d40335bc74b7b6",
+      "buildIntervalSeconds": 148.703,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_Bjx6xMHQQjt27yG6rWGt1TQescuZ",
+      "date": "2026-09-06T23:18:51.226Z",
+      "sha": "3931a7dc68277c920225abc62d3a6b94b9cca65d",
+      "branch": "codex/fix-disposable-postgres",
+      "target": "preview",
+      "webTree": "1f93adc3472e8336eb7f481be4d40335bc74b7b6",
+      "buildIntervalSeconds": 137.534,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_CpXLi8DYpuf7kPxdqR3hR78XzyqD",
+      "date": "2026-09-06T23:20:44.931Z",
+      "sha": "496c348ad9949466237eba7c4d40e2eb6efd4256",
+      "branch": "codex/fix-disposable-postgres",
+      "target": "preview",
+      "webTree": "1f93adc3472e8336eb7f481be4d40335bc74b7b6",
+      "buildIntervalSeconds": 143.289,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_7mdBBfHTvNqu6KTdwuJ2WqVndnTk",
+      "date": "2026-09-06T23:22:38.450Z",
+      "sha": "489a001e245723b1dd06d07d4d014430175b1f8a",
+      "branch": "main",
+      "target": "production",
+      "webTree": "1f93adc3472e8336eb7f481be4d40335bc74b7b6",
+      "buildIntervalSeconds": 149.003,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_Ai5gm3PKzx2dg2j4gBtLFi7cXuor",
+      "date": "2026-09-08T23:28:18.928Z",
+      "sha": "72f388ec27a1701c539849516749cfec0401aaa4",
+      "branch": "main",
+      "target": "production",
+      "webTree": "1f93adc3472e8336eb7f481be4d40335bc74b7b6",
+      "buildIntervalSeconds": 134.467,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_FdbqxMpeqgnq4Z85gkqWubQ1V8Dd",
+      "date": "2026-09-08T23:53:39.193Z",
+      "sha": "c7e2ba8a6fc25d22815d4ea4da5b83ee51c09e35",
+      "branch": "main",
+      "target": "production",
+      "webTree": "6547272d7c5adb578c2ebe935823eda40291f9a1",
+      "buildIntervalSeconds": 144.582,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_4tcASn8WWsj39uKEKGYNcRfAQdda",
+      "date": "2026-09-09T01:04:59.291Z",
+      "sha": "cd823c5a082c181b2f5a7f1f0544615e4b368f9b",
+      "branch": "codex/regular-persistent-login",
+      "target": "preview",
+      "webTree": "deeb41e263a35a9b05a0c9bbf7638193c55e37a2",
+      "buildIntervalSeconds": 145.808,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_22toDzeazRXvQ9JcWC7tc9LpCKNi",
+      "date": "2026-09-09T01:07:06.850Z",
+      "sha": "431a5d93f35ef6f443b5d79d9cdfe89b3ebfce56",
+      "branch": "codex/regular-persistent-login",
+      "target": "preview",
+      "webTree": "deeb41e263a35a9b05a0c9bbf7638193c55e37a2",
+      "buildIntervalSeconds": 147.173,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_HTvKSaKq45KZwMHKeqpj1K15kB6k",
+      "date": "2026-09-09T01:18:04.129Z",
+      "sha": "dd3306d8d238dd7a7e802dee2f5b4549a68c5e42",
+      "branch": "codex/regular-persistent-login",
+      "target": "preview",
+      "webTree": "deeb41e263a35a9b05a0c9bbf7638193c55e37a2",
+      "buildIntervalSeconds": 144.773,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_6chtgYoNbVATHu9ue4pJF9Sf8bzw",
+      "date": "2026-09-09T01:19:48.256Z",
+      "sha": "247374e58fdcb88826456f13b566a4ead7c746ed",
+      "branch": "codex/regular-persistent-login",
+      "target": "preview",
+      "webTree": "deeb41e263a35a9b05a0c9bbf7638193c55e37a2",
+      "buildIntervalSeconds": 143.426,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_9GQrTQ2R67eNknvhERC5XiVYwNUE",
+      "date": "2026-09-09T01:25:22.738Z",
+      "sha": "868a0540ce4e279563e6950b328f5d50bab4b0c7",
+      "branch": "main",
+      "target": "production",
+      "webTree": "deeb41e263a35a9b05a0c9bbf7638193c55e37a2",
+      "buildIntervalSeconds": 146.911,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_H78L7uB5gnub481q8HnYGLx73nNA",
+      "date": "2026-09-11T08:48:13.771Z",
+      "sha": "d3fa540f3e603ff6d30a25308523c56472931de5",
+      "branch": "codex/academic-intelligence-release",
+      "target": "preview",
+      "webTree": "19bfaeb3ab513fddc923dc14947d4338eced9d91",
+      "buildIntervalSeconds": 143.063,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_AmefgeXmGh2ByoPCARwKqj4aUMsR",
+      "date": "2026-09-11T08:52:35.183Z",
+      "sha": "d3fa540f",
+      "branch": "codex/academic-intelligence-release",
+      "target": "production",
+      "webTree": null,
+      "buildIntervalSeconds": 139.545,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_56evhYPSW3goVgXSn3FZPDCTErDv",
+      "date": "2026-09-11T09:05:02.255Z",
+      "sha": "0934e1a7e5ff54de4f424d67c063e5c8dd8c2bba",
+      "branch": "codex/academic-intelligence-release",
+      "target": "preview",
+      "webTree": "19bfaeb3ab513fddc923dc14947d4338eced9d91",
+      "buildIntervalSeconds": 145.525,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_6Rx18F3DyTb3rnyBZxJQKGk8DDdi",
+      "date": "2026-09-11T09:11:27.329Z",
+      "sha": "b4c4ab8443714039ad249807065636f7191618dd",
+      "branch": "main",
+      "target": "production",
+      "webTree": "19bfaeb3ab513fddc923dc14947d4338eced9d91",
+      "buildIntervalSeconds": 144.391,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_eaYiJQ9XdmeqqL72MbPVA7RCi2Vh",
+      "date": "2026-09-11T15:58:11.104Z",
+      "sha": "c241641a76b1125c421a858870064743e6a810c9",
+      "branch": "codex/analytics-usability-print",
+      "target": "preview",
+      "webTree": "38762690aa7730dfeb79f1e2d324d6e736fe16bd",
+      "buildIntervalSeconds": 142.84,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_84hMfkX8jg4Vshn4TiBG7j5mmjop",
+      "date": "2026-09-11T16:20:47.343Z",
+      "sha": "9044dc07dbd805ac5eee9403d26a81c128aeaba0",
+      "branch": "main",
+      "target": "production",
+      "webTree": "38762690aa7730dfeb79f1e2d324d6e736fe16bd",
+      "buildIntervalSeconds": 148.687,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_9dmCmpxNkuw5FyNnbgpPMuzu9V9E",
+      "date": "2026-09-11T17:54:06.799Z",
+      "sha": "cdef587da267c9f822123826df4a258ee7401dd1",
+      "branch": "codex/head-of-subject-role",
+      "target": "preview",
+      "webTree": "b35c11373b16e49a02ed471b099e6bda67c31684",
+      "buildIntervalSeconds": 145.284,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_4qvfRDVauef4UzWWdFFWKH3Ptedq",
+      "date": "2026-09-11T17:55:32.594Z",
+      "sha": "3edfbaaefd8343bfd7feccb3e104b579e5c39dc9",
+      "branch": "codex/head-of-subject-role",
+      "target": "preview",
+      "webTree": "b35c11373b16e49a02ed471b099e6bda67c31684",
+      "buildIntervalSeconds": 142.353,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_BY1LPByvFhTfvcZCCWQzcUwLr1c8",
+      "date": "2026-09-11T18:02:36.597Z",
+      "sha": "924b16f094b0c780a851cf04024de70cd5f96604",
+      "branch": "codex/head-of-subject-role",
+      "target": "preview",
+      "webTree": "b35c11373b16e49a02ed471b099e6bda67c31684",
+      "buildIntervalSeconds": 143.75,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_ExDH6TEucHmnv9sh3xV2W5YrHh1e",
+      "date": "2026-09-11T18:11:06.118Z",
+      "sha": "fb15cfc433f9f0feed18ff563f456715677efb66",
+      "branch": "main",
+      "target": "production",
+      "webTree": "b35c11373b16e49a02ed471b099e6bda67c31684",
+      "buildIntervalSeconds": 159.901,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_94qc7Yr7pAt6V9LVh29w7avvGvNF",
+      "date": "2026-09-11T23:38:45.250Z",
+      "sha": "afbf723f53c4554f300fb13fa430f3ec70c2a8e7",
+      "branch": "codex/sidebar-loading-release",
+      "target": "preview",
+      "webTree": "c6a2fd3e443e568b58b17d12516badee215942e8",
+      "buildIntervalSeconds": 111.071,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_95WppStUPBj7aQjabFfcGS4faRYQ",
+      "date": "2026-09-11T23:45:15.833Z",
+      "sha": "200e66b22636db49cdf719f8574d6a37b57b6191",
+      "branch": "codex/sidebar-loading-release",
+      "target": "preview",
+      "webTree": "c6a2fd3e443e568b58b17d12516badee215942e8",
+      "buildIntervalSeconds": 150.935,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_4jtEKhnP2DiZpx3tmJMrKHB2UWj3",
+      "date": "2026-09-12T03:31:38.587Z",
+      "sha": "808eab44fa0bdea2e217f688600de3523c4d3712",
+      "branch": "main",
+      "target": "production",
+      "webTree": "c6a2fd3e443e568b58b17d12516badee215942e8",
+      "buildIntervalSeconds": 111.926,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_5rgeN3KkcFCoPjAFVwV7sUGrUB5Z",
+      "date": "2026-09-12T07:09:26.082Z",
+      "sha": "3b26ee8b6b54be245e49d3fe9b1b1353c95791d9",
+      "branch": "codex/staff-directory-release",
+      "target": "preview",
+      "webTree": "b38bf03061830e3e85e5971f0ad5833e7a01f15b",
+      "buildIntervalSeconds": 116.003,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_GRBZudVjxTpPTbs47wSF6HH8dpLT",
+      "date": "2026-09-12T07:17:15.441Z",
+      "sha": "f188d1218e5c537aaf66af2ce02b7594fac97b17",
+      "branch": "main",
+      "target": "production",
+      "webTree": "b38bf03061830e3e85e5971f0ad5833e7a01f15b",
+      "buildIntervalSeconds": 117.257,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_BHwacvN9ncw6P3fRrB378qKPfMMg",
+      "date": "2026-09-12T07:24:13.997Z",
+      "sha": "c627e44ffcbca74079fe355726d938a1f21f57ce",
+      "branch": "codex/schema-restart-fix",
+      "target": "preview",
+      "webTree": "b38bf03061830e3e85e5971f0ad5833e7a01f15b",
+      "buildIntervalSeconds": 113.924,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_3nNBPrXWPU4qoWiyna667Ljjvab6",
+      "date": "2026-09-12T07:25:03.087Z",
+      "sha": "fafc6b03665ee11ee1d4de986323c11b599b7e2a",
+      "branch": "main",
+      "target": "production",
+      "webTree": "b38bf03061830e3e85e5971f0ad5833e7a01f15b",
+      "buildIntervalSeconds": 119.24,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_13Tn7RttwhKdeQWtTvjJvRRqz3wQ",
+      "date": "2026-09-12T09:47:07.996Z",
+      "sha": "ab801b58ec92040616ed23536c5f3c746c7c01a9",
+      "branch": "codex/academic-setup-release",
+      "target": "preview",
+      "webTree": "dae81191c8d8ef235082930b13e065a0caa3d0cf",
+      "buildIntervalSeconds": 119.595,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_F8xLjJFfGtGsZVvjP581tPv8Tf2X",
+      "date": "2026-09-12T09:57:47.943Z",
+      "sha": "5d880132ceec4d0a3e069c6e46a0c2dffa31cc58",
+      "branch": "codex/academic-setup-release",
+      "target": "preview",
+      "webTree": "ee0f96c0c04f5cf2ceef819baf8c681d14beb3d6",
+      "buildIntervalSeconds": 117.944,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_DuS5CGKcj96iNTyEs5GxVoA3Heq4",
+      "date": "2026-09-12T10:04:59.932Z",
+      "sha": "873969a5bfb5ac5816bf94c3dadffe7d354b815d",
+      "branch": "main",
+      "target": "production",
+      "webTree": "ee0f96c0c04f5cf2ceef819baf8c681d14beb3d6",
+      "buildIntervalSeconds": 118.69,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_D9NSr5kAf61mDfEARo8VvfKYCu4k",
+      "date": "2026-09-12T11:12:10.004Z",
+      "sha": "eb82079d391025b5479d0ade3d1f4b9e0d7c03fa",
+      "branch": "codex/grading-defaults-release",
+      "target": "preview",
+      "webTree": "71ad34d209cf604117f828aed39d0c6d2a8888e6",
+      "buildIntervalSeconds": 120.427,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_GA7p9rGg6REBYrGxGxTV9vC7FAYE",
+      "date": "2026-09-12T11:18:19.928Z",
+      "sha": "e50a970bb54a4eee059e2078bad69438ca878c69",
+      "branch": "main",
+      "target": "production",
+      "webTree": "71ad34d209cf604117f828aed39d0c6d2a8888e6",
+      "buildIntervalSeconds": 116.032,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_H9VboESxWj6q5rxfEoLZY8vTcfXM",
+      "date": "2026-09-12T12:25:37.834Z",
+      "sha": "9550228a767281c119305b1903166923418cfa36",
+      "branch": "codex/class-curriculum-grading",
+      "target": "preview",
+      "webTree": "fa3c2f77c43005b20a86d318979bf6b2e89c24ee",
+      "buildIntervalSeconds": 118.027,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_BMG1PuVTDKchPNh8YnKQPjepTREo",
+      "date": "2026-09-12T14:44:09.971Z",
+      "sha": "5c3ff417fa9cb9e43a75f0c0d652318a4289c1c2",
+      "branch": "codex/class-curriculum-grading",
+      "target": "preview",
+      "webTree": "b12fd9a57368923980916e0a4df593fa47f3830b",
+      "buildIntervalSeconds": 118.387,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_HgE1PXj6rf1F38D1DCqSX7ye5oEK",
+      "date": "2026-09-12T14:50:54.137Z",
+      "sha": "1e27931bda8a9bce3bd14b3cacb978892f559a42",
+      "branch": "codex/class-curriculum-grading",
+      "target": "preview",
+      "webTree": "b12fd9a57368923980916e0a4df593fa47f3830b",
+      "buildIntervalSeconds": 117.968,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_HvTmSnRSVnBHYnjLy3PG62uEkyWg",
+      "date": "2026-09-12T14:57:01.525Z",
+      "sha": "1d3abdf166b98b9aa20ef03cfd86a0e641f5ea41",
+      "branch": "main",
+      "target": "production",
+      "webTree": "b12fd9a57368923980916e0a4df593fa47f3830b",
+      "buildIntervalSeconds": 119.147,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_9tPac2o1PEEidcTzu7Ek2gxxK4A6",
+      "date": "2026-09-12T20:15:05.705Z",
+      "sha": "338c94a8fd3e1edbd4a6e83c342abac7900f9055",
+      "branch": "codex/teacher-exam-visibility-release",
+      "target": "preview",
+      "webTree": "8584f617129fa96f30ff69dfdfe2b14fdb6c1ef7",
+      "buildIntervalSeconds": 125.479,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_9SPSbyajDJizkinYGGz2HYrLPa7A",
+      "date": "2026-09-12T20:22:05.075Z",
+      "sha": "a891d820c70a4c16201a2dcc9712e7ebb39a6c04",
+      "branch": "main",
+      "target": "production",
+      "webTree": "8584f617129fa96f30ff69dfdfe2b14fdb6c1ef7",
+      "buildIntervalSeconds": 119.95,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_9AWLRMvsKN1rRMWJFa69srF4DMW9",
+      "date": "2026-09-12T20:54:37.199Z",
+      "sha": "7658e6d8ca2bd39cca904fc6fc35f5f62d3471a3",
+      "branch": "codex/role-switch-consistency",
+      "target": "preview",
+      "webTree": "1b29e1c4e75ea5a6db515b90a61d9f66f0c0ed6b",
+      "buildIntervalSeconds": 116.347,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_EPfBtRFGa61CZduuyvnBYCt6guee",
+      "date": "2026-09-12T21:01:14.511Z",
+      "sha": "92775f7907bb0143d50675b660432beb32817bf1",
+      "branch": "codex/role-switch-consistency",
+      "target": "preview",
+      "webTree": "bfc8f4280ecb8230f686a09ace79fe4f9d5c3800",
+      "buildIntervalSeconds": 118.27,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_4fNx9nZccCeCcaf6gNMCHsHTejq5",
+      "date": "2026-09-12T21:06:20.426Z",
+      "sha": "74cf2e32fb44793b45d7862f9b534cc58bbeb9d4",
+      "branch": "main",
+      "target": "production",
+      "webTree": "bfc8f4280ecb8230f686a09ace79fe4f9d5c3800",
+      "buildIntervalSeconds": 122.544,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_H15EhWTEEr42BRctZRx9954bwn8e",
+      "date": "2026-09-13T06:11:43.552Z",
+      "sha": "d2f44fb4b24570bbfec4b866ad92241890e5137e",
+      "branch": "codex/teacher-marks-ui-release",
+      "target": "preview",
+      "webTree": "86a0bf31e3cf670591176f01e354e395fe4de31b",
+      "buildIntervalSeconds": 116.4,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_7Yj4PKwxLg463JkRq4CSjHCRqca9",
+      "date": "2026-09-13T09:07:44.078Z",
+      "sha": "6518ed91862f69154ffa05d11fc7f4d893b91c4a",
+      "branch": "codex/teacher-marks-ui-release",
+      "target": "preview",
+      "webTree": "03cd8b36088cf2678f8aee6d7e66989270ab501f",
+      "buildIntervalSeconds": 116.296,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_6w7iaBwRmh2Upyst9s3yyNZ58hy4",
+      "date": "2026-09-13T09:11:22.453Z",
+      "sha": "fb21fa64e42544b347ea35faa7562f6d2194f00c",
+      "branch": "codex/teacher-marks-ui-release",
+      "target": "preview",
+      "webTree": "626236f4c2cfa33464dbbc7190acde2c8585b2c6",
+      "buildIntervalSeconds": 117.861,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_3VC5JoGgubYRodssFA7VUpitvn9m",
+      "date": "2026-09-13T09:23:06.164Z",
+      "sha": "16a58d896bf07259c1153642eb0c098bcb87af1e",
+      "branch": "main",
+      "target": "production",
+      "webTree": "626236f4c2cfa33464dbbc7190acde2c8585b2c6",
+      "buildIntervalSeconds": 119.886,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_4vykgBwH1Tw9pmzdoYyHyjpCL4dV",
+      "date": "2026-09-13T10:15:01.466Z",
+      "sha": "1d7aab115a47db28e4b0303d6579eaf3f4018878",
+      "branch": "codex/leadership-teacher-switch",
+      "target": "preview",
+      "webTree": "d8a4d4a2c7c802886c6d6f9b4b11279e8e11d03d",
+      "buildIntervalSeconds": 117.018,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_GZ9ccaw5532XJwXPS6tgeFvpqSzP",
+      "date": "2026-09-13T10:22:36.931Z",
+      "sha": "6423b466bc985407103d207c60045b903429ca61",
+      "branch": "main",
+      "target": "production",
+      "webTree": "d8a4d4a2c7c802886c6d6f9b4b11279e8e11d03d",
+      "buildIntervalSeconds": 114.44,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_65UTBNunrqWBeeNCvtMXR3YqA4pb",
+      "date": "2026-09-13T11:34:08.935Z",
+      "sha": "d93652cadd8ae4d01762d687a504ba40e156c801",
+      "branch": "codex/exams-manager-release",
+      "target": "preview",
+      "webTree": "4e507f3d892c149f6c571306c24ed5584d64cdeb",
+      "buildIntervalSeconds": 116.902,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_7V9ruUQGN8K7DqanpPXSQ8si57ht",
+      "date": "2026-09-13T11:44:49.655Z",
+      "sha": "a04d839af766ad2e1f5cab9cbbf79d4916c4f202",
+      "branch": "codex/exams-manager-release",
+      "target": "preview",
+      "webTree": "4e507f3d892c149f6c571306c24ed5584d64cdeb",
+      "buildIntervalSeconds": 118.993,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_Czr7hBGXDph2NCTLFF9eBTABKR6C",
+      "date": "2026-09-13T11:51:03.246Z",
+      "sha": "7c0cb4e217c9da85b9c9c3c1bdf022cfc46470e3",
+      "branch": "main",
+      "target": "production",
+      "webTree": "4e507f3d892c149f6c571306c24ed5584d64cdeb",
+      "buildIntervalSeconds": 116.53,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_5vSR4xpyvoeRoau3bFEBNe2rDu6s",
+      "date": "2026-09-13T15:54:29.501Z",
+      "sha": "34f57d156989713a10a311935056a50763ff9eb7",
+      "branch": "codex/teacher-markbook-workflow",
+      "target": "preview",
+      "webTree": "db16a64dda1eb524d95a57ab7716999777cd5bda",
+      "buildIntervalSeconds": 121.242,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_JebFCRL4c9s4kEbgkxQVwfGMRPud",
+      "date": "2026-09-13T16:01:08.280Z",
+      "sha": "c4dec0dca47e07a9d908de6af9409f0bd888a7ac",
+      "branch": "main",
+      "target": "production",
+      "webTree": "db16a64dda1eb524d95a57ab7716999777cd5bda",
+      "buildIntervalSeconds": 121.874,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_7r6nXQu8g2nJYGsHFHx3xiuUwLck",
+      "date": "2026-09-13T16:20:13.711Z",
+      "sha": "1a09294103bb8247b9941d21f169eead4a3ec111",
+      "branch": "codex/admissions-teacher-switch",
+      "target": "preview",
+      "webTree": "b2704a472c39584f86cdf952d08892a723e60765",
+      "buildIntervalSeconds": 118.087,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_3TyUzcAS6uGkmTUYEmqrKBHmWptq",
+      "date": "2026-09-13T16:28:17.512Z",
+      "sha": "bb8c2a9d486bb9c2f8738fcb15c868f91aff2567",
+      "branch": "main",
+      "target": "production",
+      "webTree": "b2704a472c39584f86cdf952d08892a723e60765",
+      "buildIntervalSeconds": 116.736,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_ACwF9fX3RpGJS42NQKq8iuMapumY",
+      "date": "2026-09-13T17:28:17.769Z",
+      "sha": "24337e5455a87005c6f396dc3f9453fe274ff07d",
+      "branch": "codex/exam-setup-delete-release",
+      "target": "preview",
+      "webTree": "44b1c3cdd874b153585e7fee8a6ac2157dc0fb93",
+      "buildIntervalSeconds": 116.238,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_5CPcBeJpBd3bdP47dSC9LVo1qJ6v",
+      "date": "2026-09-13T17:37:13.923Z",
+      "sha": "054eeda720c3793dd069cb3a4ccfb2769a66b611",
+      "branch": "main",
+      "target": "production",
+      "webTree": "44b1c3cdd874b153585e7fee8a6ac2157dc0fb93",
+      "buildIntervalSeconds": 118.768,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_593AcPofWJQnmvukNTj9R9z9xwXY",
+      "date": "2026-09-13T20:33:56.487Z",
+      "sha": "7a9dc316d518f393c1ba87d948e586d2cfe2dcc2",
+      "branch": "codex/dean-exam-review",
+      "target": "preview",
+      "webTree": "98dfa9096fd43d0aed2dbe459dfe65b20bd9c92f",
+      "buildIntervalSeconds": 117.733,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_5muidHGEmCQge2Tm9MCqcxidzByB",
+      "date": "2026-09-13T20:40:56.794Z",
+      "sha": "645daf9da5d2ab05770b26e280a8fc3d4374aea8",
+      "branch": "codex/dean-exam-review",
+      "target": "preview",
+      "webTree": "965f8fdb239bcc656fc8d10b82cbdee22a95821e",
+      "buildIntervalSeconds": 115.486,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_5wqgZghzmh2JTSW6ZUTJiBzCW75J",
+      "date": "2026-09-13T20:44:17.895Z",
+      "sha": "ac708c35f971f02e5cb0c832fe5c1f3f7cabd7f2",
+      "branch": "codex/dean-exam-review",
+      "target": "preview",
+      "webTree": "965f8fdb239bcc656fc8d10b82cbdee22a95821e",
+      "buildIntervalSeconds": 115.047,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_3EWTMgwVCnMaNim1GHBwwkHq8hZg",
+      "date": "2026-09-13T20:50:45.143Z",
+      "sha": "a263067af9c2efb389dca1edacb5390c16d0fe55",
+      "branch": "main",
+      "target": "production",
+      "webTree": "965f8fdb239bcc656fc8d10b82cbdee22a95821e",
+      "buildIntervalSeconds": 114.621,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_53L7iHBQV2YKmbxF7HRzBR6xbXRX",
+      "date": "2026-09-13T22:08:40.556Z",
+      "sha": "5c5e02461f58bce49cf419b51055a9705c196006",
+      "branch": "codex/dean-dashboard-usability",
+      "target": "preview",
+      "webTree": "46f29bbdcb7b5bf2d0fecd2f6ef9196c2f908d39",
+      "buildIntervalSeconds": 117.913,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_J65rD9hTTEP2QF37uS6dyLDixySX",
+      "date": "2026-09-13T22:19:59.670Z",
+      "sha": "6ccccb63c905fb23e935e9fd0dd76514943981ca",
+      "branch": "main",
+      "target": "production",
+      "webTree": "46f29bbdcb7b5bf2d0fecd2f6ef9196c2f908d39",
+      "buildIntervalSeconds": 116.491,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_Gtk9NJFPM5EBipzz2HR6fc5wfPMA",
+      "date": "2026-09-15T13:10:40.728Z",
+      "sha": "abc3613a4f534919e15a4ebf2dba90ccb4cf82ee",
+      "branch": "codex/report-card-readiness-release",
+      "target": "preview",
+      "webTree": "7a685d9f51e42b044387b20660c8417208bd6d1b",
+      "buildIntervalSeconds": 120.221,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_F59zSgdq6Maspcd4cJwXozeFqsxQ",
+      "date": "2026-09-15T13:19:59.274Z",
+      "sha": "5f1e8a57f1fadf4e307a6fa40c63c5f728a57939",
+      "branch": "main",
+      "target": "production",
+      "webTree": "7a685d9f51e42b044387b20660c8417208bd6d1b",
+      "buildIntervalSeconds": 114.097,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_USpnzLYZ1f3mJMM7nZFyy1YbQDBs",
+      "date": "2026-09-15T14:28:36.028Z",
+      "sha": "8ddb0f0afc378b7c1d34534e99e5141bf5d2c8f8",
+      "branch": "codex/exam-entry-scope-fix",
+      "target": "preview",
+      "webTree": "6726cdac0940c7854ec9e39b8b5b17e99676c5ef",
+      "buildIntervalSeconds": 134.771,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_81HNNLNqBKLrXatjbMapaqjfVWmd",
+      "date": "2026-09-15T14:39:35.812Z",
+      "sha": "7368513733a849594942f4bdd5bf8ddd7493d960",
+      "branch": "main",
+      "target": "production",
+      "webTree": "6726cdac0940c7854ec9e39b8b5b17e99676c5ef",
+      "buildIntervalSeconds": 146.521,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_2N3i9rfW7x4TLRoyS56DX6ppqkky",
+      "date": "2026-09-15T15:46:45.810Z",
+      "sha": "5f22e5b3fdf35d4320c35dea9df521306bae0f91",
+      "branch": "codex/confirmed-full-exam-deletion",
+      "target": "preview",
+      "webTree": "c4e7148532389b17a570f55f0e6f822255d5a1e3",
+      "buildIntervalSeconds": 140.706,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_FTZLpyDUj1JUGBV4SGoGiL4ic7j5",
+      "date": "2026-09-15T15:54:04.511Z",
+      "sha": "17cc463f6ff342d8ca6ad3fee43980e8cde697b0",
+      "branch": "main",
+      "target": "production",
+      "webTree": "c4e7148532389b17a570f55f0e6f822255d5a1e3",
+      "buildIntervalSeconds": 148.209,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_DsVYH2TzRxSEM9jkFyJDdkGcD1rZ",
+      "date": "2026-09-16T13:47:06.458Z",
+      "sha": "172db7530fe73ce14b555f14076bcfac7dcb5d92",
+      "branch": "codex/report-card-generation-reliability",
+      "target": "preview",
+      "webTree": "5206527c51f348c424e7de53c700936a47b9e41d",
+      "buildIntervalSeconds": 191.513,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_8kSfY4yZ18aezbEuwjryGVKeAYMy",
+      "date": "2026-09-16T13:55:49.575Z",
+      "sha": "d39c555d98dc32f3cf1fdfffc6fbb0e226182aa1",
+      "branch": "main",
+      "target": "production",
+      "webTree": "5206527c51f348c424e7de53c700936a47b9e41d",
+      "buildIntervalSeconds": 206.315,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_CTzY3XMRSA8LSYWiVeD1qn2ydjU9",
+      "date": "2026-09-16T14:20:00.992Z",
+      "sha": "91e6e4d91abcdb6e7708f4a874571e348eeef1c3",
+      "branch": "codex/report-card-generation-reliability",
+      "target": "preview",
+      "webTree": "5206527c51f348c424e7de53c700936a47b9e41d",
+      "buildIntervalSeconds": 190.637,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_EskrhCLzj9T5F2SPQ8WVahfKdAB3",
+      "date": "2026-09-16T14:28:56.292Z",
+      "sha": "37e928c2017cd8a42debbfa4eccafb31bdd4ab1d",
+      "branch": "codex/report-card-generation-reliability",
+      "target": "preview",
+      "webTree": "5206527c51f348c424e7de53c700936a47b9e41d",
+      "buildIntervalSeconds": 185.829,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_EuvHgXbAbcwFZ9zobxXqRHxbeoZj",
+      "date": "2026-09-16T15:13:42.490Z",
+      "sha": "ac2cbdb73d7ab94d3a75e5619d770975e61bbe75",
+      "branch": "main",
+      "target": "production",
+      "webTree": "5206527c51f348c424e7de53c700936a47b9e41d",
+      "buildIntervalSeconds": 182.628,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_8u6MJovgn92kUXMBcKssK8DHafPU",
+      "date": "2026-09-17T10:54:28.615Z",
+      "sha": "9d9cad0145753e452aed77b3a19deb10cbdbd799",
+      "branch": "codex/cohort-teaching-configuration",
+      "target": "preview",
+      "webTree": "1f93adc3472e8336eb7f481be4d40335bc74b7b6",
+      "buildIntervalSeconds": 184.778,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_CnZ6taz68ZFx7uAN1PoHwe9Lw3nk",
+      "date": "2026-09-17T11:12:38.768Z",
+      "sha": "c43317947912ac8f2f6b0f2a7d4aa5b2ef17cfb4",
+      "branch": "codex/cohort-teaching-configuration",
+      "target": "preview",
+      "webTree": "1f93adc3472e8336eb7f481be4d40335bc74b7b6",
+      "buildIntervalSeconds": 202.303,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_GZZVCFdW6BCTqPMeuTG6MDGFCiZr",
+      "date": "2026-09-17T11:23:21.851Z",
+      "sha": "5fd6f6eddbb0f8e7b35e47148085d9942a4b8e9f",
+      "branch": "codex/cohort-teaching-configuration",
+      "target": "preview",
+      "webTree": "1f93adc3472e8336eb7f481be4d40335bc74b7b6",
+      "buildIntervalSeconds": 214.032,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_CG6rMjcypDVPc1xSrfU1sQfaSbZP",
+      "date": "2026-09-17T11:40:23.734Z",
+      "sha": "3a73a3767629332b1a056a1aad4aaae31b4d474a",
+      "branch": "codex/cohort-teaching-configuration",
+      "target": "preview",
+      "webTree": "1f93adc3472e8336eb7f481be4d40335bc74b7b6",
+      "buildIntervalSeconds": 167.608,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_229ZwyvZRSNdgFfX8tZiyTXvgeHd",
+      "date": "2026-09-17T11:48:28.102Z",
+      "sha": "7b53f8197dab3d6115ad8b967e252895bc581f08",
+      "branch": "main",
+      "target": "production",
+      "webTree": "5206527c51f348c424e7de53c700936a47b9e41d",
+      "buildIntervalSeconds": 192.097,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_47QXyx2wfnoFbXQTWHXq8pxhFkds",
+      "date": "2026-09-17T13:03:33.889Z",
+      "sha": "e018dde0b916514099625e9e189c1e733885c820",
+      "branch": "codex/cohort-teaching-configuration",
+      "target": "preview",
+      "webTree": "9cc147524cf2f529e27372b0f6d111e181588cc0",
+      "buildIntervalSeconds": 163.487,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_5W4LLbQtuGXYG9hS4mCQKKGTmmMK",
+      "date": "2026-09-17T13:03:55.890Z",
+      "sha": "42509f4bce7ffa57566db564524902d3430fc066",
+      "branch": "main",
+      "target": "production",
+      "webTree": "ed780f6d91d619e2bd8106d237c8925497f3b8a9",
+      "buildIntervalSeconds": 167.01,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_ChrmFY8Di3UcWYAinaPHHukZa218",
+      "date": "2026-09-17T15:21:55.905Z",
+      "sha": "c2b51b1eac91573e2300fc94a14e5d2d1dc1eb36",
+      "branch": "codex/cohort-teaching-configuration",
+      "target": "preview",
+      "webTree": "46943e0f093e3a7b2d660e1ef9f4177c08341f0c",
+      "buildIntervalSeconds": 162.397,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_CaM6TBnAjsgbyQDDAG8s1kH42z9d",
+      "date": "2026-09-19T12:38:29.629Z",
+      "sha": "0aef90733c3cbbd46102c65a58a019e9ee632563",
+      "branch": "main",
+      "target": "production",
+      "webTree": "0135e06373e9320591927cd9a4eb1e9181c7ae2f",
+      "buildIntervalSeconds": 215.723,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_7E3ZwvHaaGTTKz6ZY1C7UezxhC6r",
+      "date": "2026-09-19T13:34:35.565Z",
+      "sha": "b170cdcf2ce11729321f90391f8e1c1b57e384db",
+      "branch": "main",
+      "target": "production",
+      "webTree": "043f54e77e2f083bec08ca1066151cbd38d1acd3",
+      "buildIntervalSeconds": 136.961,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_BqH4bA62JZkYhAaWHMQXCtKUkMsT",
+      "date": "2026-09-19T16:35:43.144Z",
+      "sha": "9588a3212a6cea41902248da3612d31e600a2ebc",
+      "branch": "main",
+      "target": "production",
+      "webTree": "bdcd919bc4674911d809cbd268e04be74902b05d",
+      "buildIntervalSeconds": 163.941,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_HgrdewFmSKjWaQyeYurMNQ9nqau6",
+      "date": "2026-09-19T17:21:11.749Z",
+      "sha": "ac24f81db329dbb7b900b8e88c03fb89fce6cf41",
+      "branch": "main",
+      "target": "production",
+      "webTree": "663a5e712db6efbc529f33ad2e6d917d9b0e68bd",
+      "buildIntervalSeconds": 140.058,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_NucXRzL8sHdaEubMrK1qfgd3TzbA",
+      "date": "2026-09-19T18:26:36.847Z",
+      "sha": "f1543a91df17305ea3d86e1d216d568362d4711b",
+      "branch": "codex/school-day-builder",
+      "target": "preview",
+      "webTree": "f5d2952f933c3789dd0ca6c95de79b14f469f85b",
+      "buildIntervalSeconds": 168.928,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_7xzH9r8TbEwWNG5vVauiVKvvisTk",
+      "date": "2026-09-19T18:38:09.170Z",
+      "sha": "54ca34cd7a625efeb7c9de67b112097affec0adc",
+      "branch": "codex/school-day-builder",
+      "target": "preview",
+      "webTree": "f5d2952f933c3789dd0ca6c95de79b14f469f85b",
+      "buildIntervalSeconds": 177.87,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_B3z2YPWAUBrnmKduJgwWU9r5jtu5",
+      "date": "2026-09-19T18:46:44.084Z",
+      "sha": "aca49119db719faed19c95e73341d08edd2e2089",
+      "branch": "codex/school-day-builder",
+      "target": "preview",
+      "webTree": "f5d2952f933c3789dd0ca6c95de79b14f469f85b",
+      "buildIntervalSeconds": 159.746,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_76E3d3RJBCvaNDG57R7CSf8ckDXV",
+      "date": "2026-09-19T18:54:24.854Z",
+      "sha": "64e4fb9b94b8a151fd16cd91626c52e1cc1ab8b4",
+      "branch": "main",
+      "target": "production",
+      "webTree": "f5d2952f933c3789dd0ca6c95de79b14f469f85b",
+      "buildIntervalSeconds": 156.011,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_4TzJiod65HF6Zm2AYEqwKu8iSUNB",
+      "date": "2026-09-19T19:09:17.004Z",
+      "sha": "64d907cafd55ab7adddd7b8d31fb6575cafc9ffa",
+      "branch": "codex/fix-period-save",
+      "target": "preview",
+      "webTree": "f5d2952f933c3789dd0ca6c95de79b14f469f85b",
+      "buildIntervalSeconds": 153.138,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_AKE1rq8s2YRQfJQ5CR4z2QbQBQVm",
+      "date": "2026-09-19T19:15:20.995Z",
+      "sha": "38020b6c184ac5aa480743a526a4459af32dbba8",
+      "branch": "main",
+      "target": "production",
+      "webTree": "f5d2952f933c3789dd0ca6c95de79b14f469f85b",
+      "buildIntervalSeconds": 155.145,
+      "wouldSkip": true
+    },
+    {
+      "id": "dpl_7shRdKkd1imM54Y4hAKBV35rkKW2",
+      "date": "2026-09-19T19:33:31.687Z",
+      "sha": "20edceb0020f0d2fb526c2456ce4844b4397cd14",
+      "branch": "codex/fix-outbox-dispatcher",
+      "target": "preview",
+      "webTree": "f5d2952f933c3789dd0ca6c95de79b14f469f85b",
+      "buildIntervalSeconds": 149.684,
+      "wouldSkip": false
+    },
+    {
+      "id": "dpl_G5kTwQP7r7WFN8byBF8E8gV86TpZ",
+      "date": "2026-09-19T19:39:30.401Z",
+      "sha": "10e99201e84e70714e68fd2073f85b2949ccdabd",
+      "branch": "main",
+      "target": "production",
+      "webTree": "f5d2952f933c3789dd0ca6c95de79b14f469f85b",
+      "buildIntervalSeconds": 143.615,
+      "wouldSkip": true
+    }
+  ]
+}

@@ -287,6 +287,8 @@ export async function proxySchoolApiRequest(
       },
       body: body && body.byteLength > 0 ? body : undefined,
       cache: "no-store",
+      // A departed SSE client must not leave an upstream database-polling stream.
+      ...(wantsEventStream ? { signal: request.signal } : {}),
     });
 
   if (wantsEventStream || wantsReportCardPdf) {
