@@ -2293,7 +2293,6 @@ export class ExamsRepository {
           signature.signer_user_id::text AS principal_user_id,
           signature.storage_path AS principal_signature_ref,
           COALESCE(
-            NULLIF(staff.full_name, ''),
             NULLIF(staff.display_name, ''),
             NULLIF(account.full_name, ''),
             NULLIF(account.display_name, ''),

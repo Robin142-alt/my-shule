@@ -1,16 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CalendarRange, Clock3, Pencil, Plus, Save, Trash2, UserRoundCheck, Warehouse } from "lucide-react";
 import { toast } from "sonner";
 
 import { useSchoolMutation } from "@/lib/data/school-hooks";
+import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
 import {
   type AvailabilityResponse,
   type AvailabilityRule,
   type ClassSection,
-  type ConfigurationDay,
-  type ConfigurationPeriod,
   type ConfigurationResponse,
   type OfflineAware,
   type RequirementsResponse,
@@ -23,18 +22,15 @@ import {
   type ResourcesResponse,
   TIMETABLE_DAYS,
   configurationFrom,
-  dayLabel,
   isOfflineQueued,
   teacherId,
   teacherLabel,
 } from "./timetable-types";
 
-const fieldClass = "mt-1 h-11 w-full rounded-lg border border-[#C8D5EA] bg-white px-3 text-sm font-semibold text-[#071D49] outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-200/30";
+import { SchoolDayEditor } from "./school-day-editor";
+import { prepareConfiguration, validateSchoolDays } from "./school-day-builder";
 
-function localId(prefix: string) {
-  void prefix;
-  return crypto.randomUUID();
-}
+const fieldClass = "mt-1 h-11 w-full rounded-lg border border-[#C8D5EA] bg-white px-3 text-sm font-semibold text-[#071D49] outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-200/30";
 
 function SetupState({ loading, error, onRetry }: { loading: boolean; error?: Error | null; onRetry: () => void }) {
   if (loading) return <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-8 text-center text-sm font-bold text-[#64748B]">Loading timetable setup...</div>;
@@ -78,84 +74,42 @@ export function PeriodConfigurationPanel({
   onSaved: () => Promise<unknown> | void;
   onSaveState: (state: "saving" | "saved" | "queued" | "failed") => void;
 }) {
+  const tenantId = useOptionalSchoolTenantId();
   const [draft, setDraft] = useState<TimetableConfiguration | null>(null);
+  const [saveError, setSaveError] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const dirtyRef = useRef(false);
+  const loadedScope = useRef("");
+  const saveLock = useRef(false);
   const saveMutation = useSchoolMutation<OfflineAware<ConfigurationResponse>, Record<string, unknown>>(
     "/api/timetable/configuration",
     "PUT",
   );
 
   useEffect(() => {
+    const scope = `${tenantId}:${academicYear}:${termName}`;
+    if (loadedScope.current === scope && dirtyRef.current) return;
+    loadedScope.current = scope;
     const configuration = configurationFrom(response);
     setDraft(configuration
-      ? structuredClone(configuration)
+      ? prepareConfiguration(configuration)
       : academicYear && termName
-        ? { academic_year: academicYear, term_name: termName, days: [], common_blocks: [] }
+        ? prepareConfiguration({ academic_year: academicYear, term_name: termName, days: [{ day_of_week: 1, name: "Monday", is_teaching_day: true, periods: [] }], common_blocks: [] })
         : null);
-  }, [response, academicYear, termName]);
+    dirtyRef.current = false;
+    setDirty(false);
+    setSaveError("");
+  }, [response, tenantId, academicYear, termName]);
 
-  const addDay = () => {
-    setDraft((current) => {
-      if (!current) return current;
-      const used = new Set(current.days.map((day) => Number(day.day_of_week)));
-      const next = TIMETABLE_DAYS.find((day) => !used.has(day.value));
-      if (!next) return current;
-      return {
-        ...current,
-        days: [...current.days, { day_of_week: next.value, name: next.label, is_teaching_day: true, periods: [] }],
-      };
-    });
-  };
-
-  const updateDay = (dayIndex: number, patch: Partial<ConfigurationDay>) => {
-    setDraft((current) => current ? {
-      ...current,
-      days: current.days.map((day, index) => index === dayIndex ? { ...day, ...patch } : day),
-    } : current);
-  };
-
-  const addPeriod = (dayIndex: number) => {
-    setDraft((current) => {
-      if (!current) return current;
-      return {
-        ...current,
-        days: current.days.map((day, index) => index === dayIndex
-          ? {
-              ...day,
-              periods: [...day.periods, {
-                id: localId("period"),
-                name: `Period ${day.periods.length + 1}`,
-                starts_at: "08:00",
-                ends_at: "08:40",
-                period_type: "lesson",
-                is_teaching: true,
-                order_index: day.periods.length,
-              }],
-            }
-          : day),
-      };
-    });
-  };
-
-  const updatePeriod = (dayIndex: number, periodIndex: number, patch: Partial<ConfigurationPeriod>) => {
-    setDraft((current) => current ? {
-      ...current,
-      days: current.days.map((day, index) => index === dayIndex
-        ? { ...day, periods: day.periods.map((period, pIndex) => pIndex === periodIndex ? { ...period, ...patch } : period) }
-        : day),
-    } : current);
-  };
-
-  const removePeriod = (dayIndex: number, periodIndex: number) => {
-    setDraft((current) => current ? {
-      ...current,
-      days: current.days.map((day, index) => index === dayIndex
-        ? { ...day, periods: day.periods.filter((_, pIndex) => pIndex !== periodIndex).map((period, order_index) => ({ ...period, order_index })) }
-        : day),
-    } : current);
+  const changeDraft = (next: TimetableConfiguration | ((current: TimetableConfiguration | null) => TimetableConfiguration | null)) => {
+    dirtyRef.current = true;
+    setDirty(true);
+    setSaveError("");
+    setDraft(next);
   };
 
   const addCommonBlock = () => {
-    setDraft((current) => {
+    changeDraft((current) => {
       if (!current) return current;
       const day = current.days.find((candidate) => candidate.is_teaching_day && candidate.periods.length > 0);
       const period = day?.periods[0];
@@ -180,25 +134,30 @@ export function PeriodConfigurationPanel({
   };
 
   const updateCommonBlock = (index: number, patch: Partial<TimetableCommonBlock>) => {
-    setDraft((current) => current ? {
+    changeDraft((current) => current ? {
       ...current,
       common_blocks: current.common_blocks.map((block, blockIndex) => blockIndex === index ? { ...block, ...patch } : block),
     } : current);
   };
 
   const save = async () => {
-    if (!draft) return;
-    const invalidPeriod = draft.days.flatMap((day) => day.periods).find((period) => !period.name.trim() || period.starts_at >= period.ends_at);
-    if (invalidPeriod) {
-      toast.error("Every period needs a name and an end time after its start time.");
+    if (!draft || saveLock.current) return;
+    try { validateSchoolDays(draft); }
+    catch (validationError) {
+      setSaveError(validationError instanceof Error ? validationError.message : "Check the school day times.");
       return;
     }
+    saveLock.current = true;
+    const savingScope = loadedScope.current;
+    setSaveError("");
     onSaveState("saving");
     try {
       const result = await saveMutation.mutateAsync({
         academic_year: academicYear,
         term_name: termName,
         expected_row_version: draft.row_version,
+        school_starts_at: draft.school_starts_at,
+        period_types: draft.period_types,
         days: draft.days.map((day) => ({
           ...day,
           periods: day.periods.map((period, order_index) => ({
@@ -209,11 +168,24 @@ export function PeriodConfigurationPanel({
         })),
         common_blocks: draft.common_blocks,
       });
+      if (savingScope !== loadedScope.current) return;
+      if (!isOfflineQueued(result)) {
+        const confirmed = configurationFrom(result);
+        if (!confirmed || !Array.isArray(confirmed.days) || !Array.isArray(confirmed.period_types) || !confirmed.school_starts_at) throw new Error("The server did not confirm the saved configuration. Retry saving.");
+        setDraft(prepareConfiguration(confirmed));
+        dirtyRef.current = false;
+        setDirty(false);
+        await onSaved();
+      }
       saveMessage(result, "Period configuration", onSaveState);
-      if (!isOfflineQueued(result)) await onSaved();
     } catch (mutationError) {
+      if (savingScope !== loadedScope.current) return;
       onSaveState("failed");
-      toast.error(mutationError instanceof Error ? mutationError.message : "Period configuration could not be saved.");
+      const message = mutationError instanceof Error ? mutationError.message : "Period configuration could not be saved.";
+      setSaveError(message);
+      toast.error(message);
+    } finally {
+      saveLock.current = false;
     }
   };
 
@@ -225,53 +197,21 @@ export function PeriodConfigurationPanel({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="flex items-center gap-2 text-lg font-black text-[#071D49]"><CalendarRange className="h-5 w-5" /> School day & periods</h3>
-          <p className="mt-1 text-sm text-[#64748B]">Configure each teaching day independently. Breaks and school activities occupy time without becoming lessons.</p>
+          <p className="mt-1 text-sm text-[#64748B]">Set the start time, then click what happens next. Build one day and copy it to the rest of the week.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={addDay} disabled={draft.days.length >= 7} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#C8D5EA] bg-white px-3 text-sm font-black text-[#071D49] disabled:opacity-50"><Plus className="h-4 w-4" /> Add day</button>
+
           <button type="button" onClick={save} disabled={saveMutation.isPending} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#174EA6] px-4 text-sm font-black text-white disabled:opacity-50"><Save className="h-4 w-4" /> {saveMutation.isPending ? "Saving..." : "Save periods"}</button>
         </div>
       </div>
 
-      {draft.days.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-6 text-center text-sm font-bold text-amber-900">
-          No school days are configured. Add the first day, then add teaching periods and non-teaching activities.
-        </div>
-      ) : draft.days.map((day, dayIndex) => ({ day, dayIndex })).sort((a, b) => a.day.day_of_week - b.day.day_of_week).map(({ day, dayIndex }) => (
-        <div key={`${day.day_of_week}-${dayIndex}`} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="grid gap-3 sm:grid-cols-[minmax(180px,1fr)_auto_auto] sm:items-end">
-            <label className="text-sm font-bold text-[#071D49]">Day
-              <select value={day.day_of_week} onChange={(event) => updateDay(dayIndex, { day_of_week: Number(event.target.value), name: dayLabel(Number(event.target.value)) })} className={fieldClass}>
-                {TIMETABLE_DAYS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-            </label>
-            <label className="flex min-h-11 items-center gap-2 rounded-lg border border-[#C8D5EA] bg-white px-3 text-sm font-bold text-[#071D49]">
-              <input type="checkbox" checked={day.is_teaching_day} onChange={(event) => updateDay(dayIndex, { is_teaching_day: event.target.checked })} /> Teaching day
-            </label>
-            <button type="button" onClick={() => setDraft((current) => current ? { ...current, days: current.days.filter((_, index) => index !== dayIndex) } : current)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-white px-3 text-sm font-bold text-rose-700"><Trash2 className="h-4 w-4" /> Remove day</button>
-          </div>
+      {saveError ? <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{saveError} Your edits are still here.</p> : null}
+      {dirty ? <p role="status" className="text-xs font-semibold text-amber-800">Unsaved changes</p> : null}
+      <SchoolDayEditor key={`${tenantId}:${academicYear}:${termName}`} draft={draft} onChange={changeDraft} disabled={saveMutation.isPending} />
 
-          <div className="mt-4 space-y-3">
-            {day.periods.map((period, periodIndex) => (
-              <div key={period.id || periodIndex} className="grid gap-3 rounded-xl border border-[#D8E0EC] bg-white p-3 md:grid-cols-[1.2fr_1fr_1fr_1fr_auto_auto] md:items-end">
-                <label className="text-xs font-black uppercase tracking-wide text-[#64748B]">Name<input value={period.name} onChange={(event) => updatePeriod(dayIndex, periodIndex, { name: event.target.value })} className={fieldClass} /></label>
-                <label className="text-xs font-black uppercase tracking-wide text-[#64748B]">Start<input type="time" value={period.starts_at.slice(0, 5)} onChange={(event) => updatePeriod(dayIndex, periodIndex, { starts_at: event.target.value })} className={fieldClass} /></label>
-                <label className="text-xs font-black uppercase tracking-wide text-[#64748B]">End<input type="time" value={period.ends_at.slice(0, 5)} onChange={(event) => updatePeriod(dayIndex, periodIndex, { ends_at: event.target.value })} className={fieldClass} /></label>
-                <label className="text-xs font-black uppercase tracking-wide text-[#64748B]">Type
-                  <select value={period.period_type} onChange={(event) => updatePeriod(dayIndex, periodIndex, { period_type: event.target.value, is_teaching: event.target.value === "lesson" })} className={fieldClass}>
-                    {[["lesson", "Lesson"], ["break", "Break"], ["lunch", "Lunch"], ["assembly", "Assembly"], ["games", "Games"], ["clubs", "Clubs"], ["guidance", "Guidance/Counselling"], ["class_meeting", "Class meeting"], ["religious", "Religious activity"], ["prep", "Prep"], ["remedial", "Remedial"], ["activity", "School activity"]].map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                  </select>
-                </label>
-                <label className="flex min-h-11 items-center gap-2 text-xs font-bold text-[#071D49]"><input type="checkbox" checked={period.is_teaching} onChange={(event) => updatePeriod(dayIndex, periodIndex, { is_teaching: event.target.checked })} /> Teaching</label>
-                <button type="button" onClick={() => removePeriod(dayIndex, periodIndex)} aria-label={`Remove ${period.name}`} className="grid h-11 w-11 place-items-center rounded-lg border border-rose-200 text-rose-700"><Trash2 className="h-4 w-4" /></button>
-              </div>
-            ))}
-            <button type="button" onClick={() => addPeriod(dayIndex)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-dashed border-[#8FA7C8] bg-white px-4 text-sm font-black text-[#174EA6]"><Plus className="h-4 w-4" /> Add period or activity</button>
-          </div>
-        </div>
-      ))}
-
-      <div className="space-y-3 border-t border-[#D8E0EC] pt-5">
+      <details className="space-y-3 border-t border-[#D8E0EC] pt-5">
+        <summary className="cursor-pointer py-2 text-sm font-bold text-[#174EA6]">More: common timetable blocks ({draft.common_blocks.length})</summary>
+        <fieldset disabled={saveMutation.isPending} className="min-w-0 space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h4 className="font-black text-[#071D49]">Common timetable blocks</h4><p className="mt-1 text-sm text-[#64748B]">Apply assemblies, games, clubs, prep, guidance, or school-defined activities in bulk. These blocks occupy time and pass the same conflict engine.</p></div><button type="button" onClick={addCommonBlock} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#C8D5EA] bg-white px-4 text-sm font-black"><Plus className="h-4 w-4" /> Add common block</button></div>
         {draft.common_blocks.length === 0 ? <div className="rounded-xl border border-dashed border-[#C8D5EA] bg-[#F8FAFC] p-5 text-center text-sm font-bold text-[#64748B]">No school-wide or group activity block is configured.</div> : draft.common_blocks.map((block, blockIndex) => {
           const blockDay = draft.days.find((day) => day.day_of_week === block.day_of_week);
@@ -286,12 +226,14 @@ export function PeriodConfigurationPanel({
               <label className="text-xs font-black uppercase text-[#64748B]">Day<select value={block.day_of_week} onChange={(event) => { const day = Number(event.target.value); const first = draft.days.find((candidate) => candidate.day_of_week === day)?.periods[0]; updateCommonBlock(blockIndex, { day_of_week: day, period_id: first?.id ?? "" }); }} className={fieldClass}>{draft.days.map((day) => <option key={day.day_of_week} value={day.day_of_week}>{day.name}</option>)}</select></label>
               <label className="text-xs font-black uppercase text-[#64748B]">Period<select value={block.period_id} onChange={(event) => updateCommonBlock(blockIndex, { period_id: event.target.value })} className={fieldClass}>{(blockDay?.periods ?? []).map((period) => <option key={period.id} value={period.id}>{period.name} - {period.starts_at.slice(0, 5)}</option>)}</select></label>
               <label className="text-xs font-black uppercase text-[#64748B]">Duration<input type="number" min={1} max={20} value={block.duration_periods} onChange={(event) => updateCommonBlock(blockIndex, { duration_periods: Number(event.target.value) })} className={fieldClass} /></label>
-              <button type="button" onClick={() => setDraft((current) => current ? { ...current, common_blocks: current.common_blocks.filter((_, index) => index !== blockIndex) } : current)} aria-label={`Remove ${block.name}`} className="grid h-11 w-11 place-items-center rounded-lg border border-rose-200 bg-white text-rose-700"><Trash2 className="h-4 w-4" /></button>
+              <button type="button" onClick={() => changeDraft((current) => current ? { ...current, common_blocks: current.common_blocks.filter((_, index) => index !== blockIndex) } : current)} aria-label={`Remove ${block.name}`} className="grid h-11 w-11 place-items-center rounded-lg border border-rose-200 bg-white text-rose-700"><Trash2 className="h-4 w-4" /></button>
               {block.target_scope !== "school" ? <fieldset className="rounded-lg border border-blue-200 bg-white p-3 sm:col-span-2 xl:col-span-7"><legend className="px-1 text-xs font-black uppercase text-[#64748B]">Selected {block.target_scope === "grade" ? "grade/form classes" : `${block.target_scope}s`}</legend><div className="mt-2 grid max-h-36 gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">{targetOptions.length === 0 ? <p className="text-xs font-bold text-amber-800">No matching school records are available for this scope.</p> : targetOptions.map((option) => <label key={option.id} className="flex min-h-10 items-center gap-2 rounded-lg border border-[#D8E0EC] px-3 text-sm font-bold"><input type="checkbox" checked={block.target_ids.includes(option.id)} onChange={(event) => updateCommonBlock(blockIndex, { target_ids: event.target.checked ? [...block.target_ids, option.id] : block.target_ids.filter((id) => id !== option.id) })} /> {option.label}</label>)}</div></fieldset> : null}
             </div>
           );
         })}
-      </div>
+        </fieldset>
+      </details>
+      <div className="flex justify-end border-t border-[#D8E0EC] pt-4"><button type="button" onClick={save} disabled={saveMutation.isPending} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#174EA6] px-4 text-sm font-bold text-white disabled:opacity-50"><Save className="h-4 w-4" /> {saveMutation.isPending ? "Saving..." : "Save periods"}</button></div>
     </section>
   );
 }

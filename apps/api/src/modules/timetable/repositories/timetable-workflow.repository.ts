@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '../../../database/prisma.service';
+import type { TimetablePeriodTypeDto } from '../dto/timetable.dto';
+import { validateConfigurationDays, validatePeriodTypes } from '../period-type-policy';
 
 type QueryResult<T = any> = { rows: T[]; rowCount: number };
 
@@ -472,7 +474,8 @@ export class TimetableWorkflowRepository {
   async getConfiguration(tenantId: string, academicYear: string, termName: string) {
     const configuration = await this.query<any>(
       `
-        SELECT id::text, academic_year, term_name, row_version,
+        SELECT id::text, academic_year, term_name, row_version, period_types,
+               to_char(school_starts_at, 'HH24:MI') AS school_starts_at,
                created_at::text, updated_at::text
         FROM timetable_configurations
         WHERE tenant_id = $1 AND academic_year = $2 AND term_name = $3
@@ -526,6 +529,8 @@ export class TimetableWorkflowRepository {
     academic_year: string;
     term_name: string;
     expected_row_version?: number;
+    school_starts_at?: string;
+    period_types?: TimetablePeriodTypeDto[];
     days: any[];
     common_blocks?: any[];
     actor_user_id: string | null;
@@ -536,7 +541,7 @@ export class TimetableWorkflowRepository {
       day_of_week: Number(day.day_of_week),
       name: String(day.name || `Day ${day.day_of_week}`).trim(),
       is_teaching_day: day.is_teaching_day !== false,
-      order_index: Number.isFinite(Number(day.order_index)) ? Number(day.order_index) : dayIndex,
+      order_index: dayIndex,
       periods: (day.periods ?? []).map((period: any, periodIndex: number) => ({
         id: period.id || randomUUID(),
         day_of_week: Number(day.day_of_week),
@@ -545,10 +550,12 @@ export class TimetableWorkflowRepository {
         ends_at: String(period.ends_at || '').trim(),
         period_type: String(period.period_type || 'lesson').trim(),
         is_teaching: period.is_teaching !== false,
-        order_index: Number.isFinite(Number(period.order_index)) ? Number(period.order_index) : periodIndex,
+        order_index: periodIndex,
         metadata: period.metadata ?? {},
       })),
     }));
+    const periodTypes = input.period_types ? validatePeriodTypes(input.period_types) : undefined;
+    validateConfigurationDays(normalizedDays, periodTypes);
     const periodIds = new Set(normalizedDays.flatMap(
       (day: { periods: Array<{ id: string }> }) => day.periods.map((period) => period.id),
     ));
@@ -556,15 +563,25 @@ export class TimetableWorkflowRepository {
       if (!periodIds.has(String(block.period_id))) {
         throw new BadRequestException(`Common block "${block.name ?? 'Activity'}" must reference a configured period`);
       }
+      if (!normalizedDays.some((day) => day.day_of_week === Number(block.day_of_week) && day.periods.some((period: any) => period.id === block.period_id))) {
+        throw new BadRequestException('Common blocks must reference a period on the selected day');
+      }
     }
 
     await this.prisma.executeWithTenant(input.tenant_id, input.actor_user_id, async (tx: any) => {
+      await tx.$queryRawUnsafe(
+        `SELECT pg_advisory_xact_lock(hashtext($1::text || ':' || $2::text || ':' || $3::text))`,
+        input.tenant_id, input.academic_year, input.term_name,
+      );
       const currentRows = this.asRows<any>(await tx.$queryRawUnsafe(
-        `SELECT id::text, row_version FROM timetable_configurations
+        `SELECT id::text, row_version, period_types FROM timetable_configurations
          WHERE tenant_id = $1 AND academic_year = $2 AND term_name = $3 FOR UPDATE`,
         input.tenant_id, input.academic_year, input.term_name,
       ));
       const current = currentRows[0];
+      if (!periodTypes && current?.period_types?.length) {
+        validateConfigurationDays(normalizedDays, validatePeriodTypes(current.period_types));
+      }
       if (current && input.expected_row_version != null && Number(current.row_version) !== input.expected_row_version) {
         throw new ConflictException('Timetable configuration changed since it was loaded; refresh and retry');
       }
@@ -573,16 +590,20 @@ export class TimetableWorkflowRepository {
       if (current) {
         await tx.$executeRawUnsafe(
           `UPDATE timetable_configurations
-           SET row_version = row_version + 1, updated_by_user_id = $3::uuid, updated_at = NOW()
+           SET row_version = row_version + 1, updated_by_user_id = $3::uuid, updated_at = NOW(),
+               school_starts_at = COALESCE($4::time, school_starts_at),
+               period_types = COALESCE($5::jsonb, period_types)
            WHERE tenant_id = $1 AND id = $2::uuid`,
-          input.tenant_id, configurationId, input.actor_user_id,
+          input.tenant_id, configurationId, input.actor_user_id, input.school_starts_at ?? null,
+          periodTypes ? JSON.stringify(periodTypes) : null,
         );
       } else {
         await tx.$executeRawUnsafe(
           `INSERT INTO timetable_configurations
-             (id, tenant_id, academic_year, term_name, created_by_user_id, updated_by_user_id)
-           VALUES ($1::uuid, $2, $3, $4, $5::uuid, $5::uuid)`,
+             (id, tenant_id, academic_year, term_name, created_by_user_id, updated_by_user_id, school_starts_at, period_types)
+           VALUES ($1::uuid, $2, $3, $4, $5::uuid, $5::uuid, $6::time, $7::jsonb)`,
           configurationId, input.tenant_id, input.academic_year, input.term_name, input.actor_user_id,
+          input.school_starts_at ?? null, JSON.stringify(periodTypes ?? []),
         );
       }
 
@@ -591,7 +612,13 @@ export class TimetableWorkflowRepository {
         input.tenant_id, configurationId,
       );
       await tx.$executeRawUnsafe(
-        'DELETE FROM timetable_period_definitions WHERE tenant_id = $1 AND configuration_id = $2::uuid',
+        'DELETE FROM timetable_period_definitions WHERE tenant_id = $1 AND configuration_id = $2::uuid AND NOT (id = ANY($3::uuid[]))',
+        input.tenant_id, configurationId, [...periodIds],
+      );
+      // Free the unique day/order positions before reordering retained occurrences.
+      // Keeping their identities also keeps teacher availability rules intact.
+      await tx.$executeRawUnsafe(
+        'UPDATE timetable_period_definitions SET order_index = -order_index - 1 WHERE tenant_id = $1 AND configuration_id = $2::uuid',
         input.tenant_id, configurationId,
       );
       await tx.$executeRawUnsafe(
@@ -608,15 +635,23 @@ export class TimetableWorkflowRepository {
           day.is_teaching_day, day.order_index,
         );
         for (const period of day.periods) {
-          await tx.$executeRawUnsafe(
+          const saved = await tx.$executeRawUnsafe(
             `INSERT INTO timetable_period_definitions
                (id, tenant_id, configuration_id, day_of_week, name, starts_at, ends_at,
                 period_type, is_teaching, order_index, metadata)
-             VALUES ($1::uuid, $2, $3::uuid, $4, $5, $6::time, $7::time, $8, $9, $10, $11::jsonb)`,
+             VALUES ($1::uuid, $2, $3::uuid, $4, $5, $6::time, $7::time, $8, $9, $10, $11::jsonb)
+             ON CONFLICT (id) DO UPDATE SET
+               day_of_week = EXCLUDED.day_of_week, name = EXCLUDED.name,
+               starts_at = EXCLUDED.starts_at, ends_at = EXCLUDED.ends_at,
+               period_type = EXCLUDED.period_type, is_teaching = EXCLUDED.is_teaching,
+               order_index = EXCLUDED.order_index, metadata = EXCLUDED.metadata, updated_at = NOW()
+             WHERE timetable_period_definitions.tenant_id = EXCLUDED.tenant_id
+               AND timetable_period_definitions.configuration_id = EXCLUDED.configuration_id`,
             period.id, input.tenant_id, configurationId, day.day_of_week, period.name,
             period.starts_at, period.ends_at, period.period_type, period.is_teaching,
             period.order_index, JSON.stringify(period.metadata),
           );
+          if (saved === 0) throw new BadRequestException('A period identifier does not belong to this timetable');
         }
       }
 

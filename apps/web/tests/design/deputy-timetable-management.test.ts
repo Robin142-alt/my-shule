@@ -9,6 +9,7 @@ describe("Deputy smart timetable and relief management", () => {
   const workspace = source("src", "components", "school", "deputy-principal", "timetable-management-workspace.tsx");
   const schedule = source("src", "components", "school", "deputy-principal", "timetable-schedule-view.tsx");
   const setup = source("src", "components", "school", "deputy-principal", "timetable-setup-panels.tsx");
+  const dayBuilder = source("src", "components", "school", "deputy-principal", "school-day-builder.ts");
   const relief = source("src", "components", "school", "deputy-principal", "timetable-relief-workspace.tsx");
   const proxy = source("src", "app", "api", "timetable", "[...path]", "route.ts");
 
@@ -54,7 +55,8 @@ describe("Deputy smart timetable and relief management", () => {
     expect(setup).toContain("Common timetable blocks");
     expect(setup).toContain("target_scope");
     expect(setup).toContain("target_ids");
-    expect(setup).toMatch(/break[\s\S]*lunch[\s\S]*assembly[\s\S]*games[\s\S]*clubs[\s\S]*guidance[\s\S]*class_meeting[\s\S]*religious[\s\S]*prep[\s\S]*remedial[\s\S]*activity/);
+    expect(setup).toContain("<SchoolDayEditor");
+    expect(dayBuilder).toMatch(/break[\s\S]*lunch[\s\S]*assembly[\s\S]*games[\s\S]*clubs[\s\S]*guidance[\s\S]*class_meeting[\s\S]*religious[\s\S]*prep[\s\S]*remedial[\s\S]*activity/);
   });
 
   it("supports smart generation, review, scoped repair, immutable publishing, and history", () => {

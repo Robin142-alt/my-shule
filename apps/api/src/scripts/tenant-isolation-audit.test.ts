@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { COHORT_SCHEMA_SQL } from '../modules/academics/cohort-schema';
 
 import {
   findTenantTablesWithoutForcedRls,
@@ -107,6 +108,12 @@ test('findTenantTablesWithoutForcedRls recognizes simple operations schema table
       table: 'omitted_child_records',
     },
   ]);
+});
+
+test('cohort schema exposes forced RLS for every tenant table to the release audit', () => {
+  assert.deepEqual(findTenantTablesWithoutForcedRls([
+    { file: 'apps/api/src/modules/academics/cohort-schema.ts', source: COHORT_SCHEMA_SQL },
+  ]), []);
 });
 
 test('runTenantIsolationAudit includes a forced-RLS source audit in workspace mode', () => {

@@ -983,7 +983,7 @@ export class AdmissionsRepository {
           input.class_section_id,
           input.stream_id,
           subject.id,
-          subject.curriculum_model,
+          placement.curriculum_model,
           subject.subject_type,
           subject.is_compulsory,
           input.actor_user_id,

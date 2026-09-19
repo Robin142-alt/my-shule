@@ -237,7 +237,41 @@ export class TimetableCommonBlockDto {
   metadata?: Record<string, unknown>;
 }
 
+export class TimetablePeriodTypeDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  id!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  name!: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(360)
+  default_duration_minutes!: number;
+
+  @IsBoolean()
+  is_teaching!: boolean;
+}
+
 export class ConfigureTimetableDto extends AcademicTermScopeDto {
+  @IsOptional()
+  @IsString()
+  @Matches(TIME_PATTERN)
+  school_starts_at?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => TimetablePeriodTypeDto)
+  period_types?: TimetablePeriodTypeDto[];
+
   /** Canonical persisted shape. */
   @IsOptional()
   @IsArray()

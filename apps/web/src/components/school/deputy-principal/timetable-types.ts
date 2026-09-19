@@ -123,6 +123,14 @@ export type ConfigurationPeriod = {
   period_type: string;
   is_teaching: boolean;
   order_index: number;
+  metadata?: Record<string, unknown>;
+};
+
+export type PeriodType = {
+  id: string;
+  name: string;
+  default_duration_minutes: number;
+  is_teaching: boolean;
 };
 
 export type ConfigurationDay = {
@@ -136,6 +144,8 @@ export type TimetableConfiguration = {
   academic_year: string;
   term_name: string;
   row_version?: number;
+  school_starts_at?: string;
+  period_types?: PeriodType[];
   days: ConfigurationDay[];
   common_blocks: TimetableCommonBlock[];
 };
