@@ -7,10 +7,9 @@ import { pipeline } from 'node:stream/promises';
 import { setImmediate as yieldToEventLoop, setTimeout as waitForWriter } from 'node:timers/promises';
 import PDFDocument from 'pdfkit';
 import { normalizeReportGeneratedAt, type ReportArtifact } from '../../../common/reports/report-artifact';
-import {
-  getReportCardAssessmentComponents,
-  type ReportCardPayload,
-  type ReportCardSubjectPayload,
+import type {
+  ReportCardPayload,
+  ReportCardSubjectPayload,
 } from './report-card-template.service';
 
 const NAVY = '#08265f';
@@ -327,17 +326,13 @@ function drawAcademicPerformance(document: PDFKit.PDFDocument, payload: ReportCa
   const summaryHeight = summary.length ? 23 : 0;
   const rowsHeight = rowHeight * subjectCount;
   const height = titleHeight + tableHeaderHeight + rowsHeight + summaryHeight;
-  const assessmentNames = [...new Set(payload.subjects.flatMap((subject) => (
-    getReportCardAssessmentComponents(subject).map((component) => component.name).filter(Boolean)
-  )))];
-  const hasGrade = payload.subjects.some((subject) => Boolean(subject.grade_label));
-  const hasAchievement = payload.subjects.some((subject) => Boolean(subject.descriptor ?? subject.remarks));
+  const examName = recordText(payload.template_fields, 'exam_series')
+    ?? recordText(payload.exam_series, 'name') ?? 'Assessment';
   const columns = [
     { key: 'subject', label: 'Subject', weight: 2.2 },
-    ...assessmentNames.map((name) => ({ key: `assessment:${name}`, label: `${name} %`, weight: 1.1 })),
-    { key: 'final', label: 'Final %', weight: 1.05 },
-    ...(hasGrade ? [{ key: 'grade', label: 'Grade', weight: 0.85 }] : []),
-    ...(hasAchievement ? [{ key: 'achievement', label: 'Achievement Level', weight: 2.25 }] : []),
+    { key: 'result', label: examName, weight: 1.05 },
+    { key: 'grade', label: 'Grade', weight: 0.85 },
+    { key: 'achievement', label: 'Achievement Level', weight: 2.25 },
   ];
   const totalWeight = columns.reduce((sum, column) => sum + column.weight, 0);
   const columnWidths = columns.map((column) => (CONTENT_WIDTH * column.weight) / totalWeight);
@@ -353,23 +348,14 @@ function drawAcademicPerformance(document: PDFKit.PDFDocument, payload: ReportCa
 
   if (payload.subjects.length) {
     payload.subjects.forEach((subject, index) => {
-      const final = subjectPercentage(subject);
+      const percentage = subjectPercentage(subject);
       const entered = isEntered(subject);
-      const components = new Map(getReportCardAssessmentComponents(subject).map((component) => [component.name, component]));
       const rowValues: Record<string, string> = {
         subject: subject.subject_name,
-        final: entered && final !== null ? `${formatNumber(final)}%` : scoreStatus(subject.score_status),
+        result: entered && percentage !== null ? `${formatNumber(percentage)}%` : scoreStatus(subject.score_status),
         grade: entered ? subject.grade_label ?? '' : '',
         achievement: entered ? subject.descriptor ?? subject.remarks ?? '' : scoreStatus(subject.score_status),
       };
-      assessmentNames.forEach((name) => {
-        const component = components.get(name);
-        rowValues[`assessment:${name}`] = !component
-          ? ''
-          : component.percentage === null
-            ? scoreStatus(component.score_status)
-            : `${formatNumber(component.percentage)}%`;
-      });
       const row = columns.map((column) => rowValues[column.key] ?? '');
       drawTableRow(document, row, columnWidths, MARGIN, tableY + tableHeaderHeight + (index * rowHeight), rowHeight, false);
     });

@@ -170,7 +170,8 @@ describe("reference report-card layout", () => {
 
     const academicPerformance = getReportSection("academic-performance");
     expect(academicPerformance).toHaveTextContent(/academic performance/i);
-    for (const heading of ["Subject", "CAT %", "Exam %", "Final %", "Grade", "Achievement Level"]) {
+    expect(within(academicPerformance).getAllByRole("columnheader")).toHaveLength(4);
+    for (const heading of ["Subject", "Term 2, 2026", "Grade", "Achievement Level"]) {
       expect(within(academicPerformance).getByRole("columnheader", { name: heading })).toBeVisible();
     }
     expect(academicPerformance).toHaveTextContent("82.6%");
@@ -192,6 +193,57 @@ describe("reference report-card layout", () => {
     expect(getReportSection("signatures")).toHaveTextContent(/class teacher signature/i);
     expect(getReportSection("signatures")).toHaveTextContent(/principal signature/i);
     expect(getReportSection("footer")).toHaveTextContent(/generated securely by myshule/i);
+  });
+
+  it.each(["End Term 1", "Mid Term", "End Term 3", "CAT 1"])("uses %s as the sole score column without exposing subject papers", (examName) => {
+    const report = {
+      ...referenceReport,
+      academic: { ...referenceReport.academic, reportingPeriod: examName },
+      marksSupplement: referenceReport.marksSupplement.map((row) => ({
+        ...row,
+        assessmentComponents: [
+          { name: `${row.subjectName.toUpperCase()} Main Paper`, percentage: "90%" },
+          { name: `${row.subjectName.toUpperCase()} Practical`, percentage: "70%" },
+        ],
+      })),
+    };
+    renderWithProviders(<ReportCardDocument report={report} />);
+    const table = within(getReportSection("academic-performance")).getByRole("table");
+    expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent))
+      .toEqual(["Subject", examName, "Grade", "Achievement Level"]);
+    expect(within(table).getAllByRole("row")).toHaveLength(3);
+    expect(within(table).getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent)))
+      .toEqual([
+        ["Mathematics", "85%", "A", "Exceeding Expectation"],
+        ["English", "82%", "A-", "Exceeding Expectation"],
+      ]);
+    expect(table).not.toHaveTextContent(/Main Paper|Practical|Final %|CAT %|Exam %/);
+    expect(getReportSection("academic-performance")).toHaveTextContent("Average: 82.6%");
+    expect(getReportSection("academic-performance")).toHaveTextContent("Overall Grade: A-");
+    expect(getReportSection("academic-performance")).toHaveTextContent("Class Position: 5 of 42");
+    expect(getReportSection("comments")).toHaveTextContent(referenceReport.comments.classTeacher!);
+    expect(getReportSection("comments")).toHaveTextContent(referenceReport.comments.principalDeputy!);
+  });
+
+  it("keeps four columns for missing grades and shows zero and unassessed results truthfully", () => {
+    renderWithProviders(<ReportCardDocument report={{
+      ...referenceReport,
+      marksSupplement: [
+        { subjectName: "Biology", score: "0 / 100", percentage: "0%" },
+        { subjectName: "Chemistry", score: "Absent" },
+        { subjectName: "Computer", score: "Incomplete" },
+        { subjectName: "English", score: "34 / 40" },
+      ],
+    }} />);
+    const table = within(getReportSection("academic-performance")).getByRole("table");
+    expect(within(table).getAllByRole("columnheader")).toHaveLength(4);
+    expect(within(table).getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent)))
+      .toEqual([
+        ["Biology", "0%", "", ""],
+        ["Chemistry", "Absent", "", ""],
+        ["Computer", "Incomplete", "", ""],
+        ["English", "85%", "", ""],
+      ]);
   });
 
   it("omits unavailable assessment components and stale analytics instead of fabricating them", () => {

@@ -170,7 +170,7 @@ export class ReportCardTemplateService {
         class_teacher_comment_source: classTeacherComment
           ? text(comments.class_teacher_source) ?? 'manual'
           : generatedComments.classTeacher
-            ? 'automated_performance_v1'
+            ? 'automated_performance_v2'
             : null,
         class_teacher_name: text(comments.class_teacher_name) ?? text(student.class_teacher_name),
         class_teacher_signature_ref: text(comments.class_teacher_signature_ref),
@@ -178,7 +178,7 @@ export class ReportCardTemplateService {
         principal_comment_source: principalComment
           ? text(comments.principal_source) ?? 'manual'
           : generatedComments.principal
-            ? 'automated_performance_v1'
+            ? 'automated_performance_v2'
             : null,
         principal_name: text(comments.principal_name),
         principal_signature_ref: text(comments.principal_signature_ref),
@@ -216,26 +216,16 @@ export class ReportCardTemplateService {
     const principalSignatureSource = safeImageSource(fields.principal_signature_ref);
     const schoolInitials = initials(fields.school_name);
     const generatedLabel = formatReportDate(payload.generated_at);
-    const assessmentNames = [...new Set(payload.subjects.flatMap((subject) => (
-      getReportCardAssessmentComponents(subject).map((component) => component.name).filter(Boolean)
-    )))];
-    const hasGrade = payload.subjects.some((subject) => Boolean(subject.grade_label));
-    const hasAchievement = payload.subjects.some((subject) => Boolean(subject.descriptor ?? subject.remarks));
-    const headers = ['Subject', ...assessmentNames.map((name) => `${name} %`), 'Final %', ...(hasGrade ? ['Grade'] : []), ...(hasAchievement ? ['Achievement Level'] : [])];
+    const examName = text(fields.exam_series) ?? text(series.name) ?? 'Assessment';
+    const headers = ['Subject', examName, 'Grade', 'Achievement Level'];
     const rows = payload.subjects.map((subject) => {
       const entered = isEnteredSubject(subject);
       const percentage = entered ? reportSubjectPercentage(subject) : null;
-      const componentsByName = new Map(getReportCardAssessmentComponents(subject).map((component) => [component.name, component]));
       const values = [
         subject.subject_name,
-        ...assessmentNames.map((name) => {
-          const component = componentsByName.get(name);
-          if (!component) return '';
-          return component.percentage === null ? scoreStatusLabel(component.score_status) : formatPercentage(component.percentage);
-        }),
         percentage === null ? scoreEvidenceLabel(subject) : `${formatNumber(percentage)}%`,
-        ...(hasGrade ? [entered ? subject.grade_label ?? '' : ''] : []),
-        ...(hasAchievement ? [entered ? subject.descriptor ?? subject.remarks ?? '' : scoreEvidenceLabel(subject)] : []),
+        entered ? subject.grade_label ?? '' : '',
+        entered ? subject.descriptor ?? subject.remarks ?? '' : scoreEvidenceLabel(subject),
       ];
       return `
         <tr>${values.map((value) => `<td>${escapeHtml(value)}</td>`).join('')}</tr>
@@ -576,18 +566,24 @@ export function buildPersonalizedReportCardComments(input: {
     classTeacherFacts.push(
       `${strongest.subject.subject_name} was assessed at ${formatPercentage(strongest.percentage)}.`,
     );
+    classTeacherFacts.push(strongest.percentage >= 80
+      ? 'Extend this understanding with challenging questions and check each solution with the subject teacher.'
+      : 'Revisit the topics behind missed questions, practise them daily, and ask the subject teacher to check corrections each week.');
   } else {
     classTeacherFacts.push(
       `${strongest.subject.subject_name} was the highest result at ${formatPercentage(strongest.percentage)}.`,
     );
     if (strongest.percentage - support.percentage >= 5) {
       classTeacherFacts.push(
-        `Focused practice in ${support.subject.subject_name}, recorded at ${formatPercentage(support.percentage)}, is the clearest next step.`,
+        `For ${support.subject.subject_name}, recorded at ${formatPercentage(support.percentage)}, revisit missed questions, practise the related topics daily, and review corrections with the subject teacher each week.`,
       );
     } else {
       classTeacherFacts.push(
         `Results were balanced across the assessed subjects, ranging from ${formatPercentage(support.percentage)} to ${formatPercentage(strongest.percentage)}.`,
       );
+      classTeacherFacts.push(support.percentage >= 80
+        ? 'Attempt extension questions in each subject and explain the solutions to deepen understanding.'
+        : 'Use a daily revision timetable across these subjects and review corrected practice questions with each subject teacher weekly.');
     }
   }
 
@@ -597,23 +593,18 @@ export function buildPersonalizedReportCardComments(input: {
   const attendanceFact = reportCardAttendanceSentence(input.attendance);
   if (attendanceFact) classTeacherFacts.push(attendanceFact);
 
-  const principalFacts = [overallFact];
-  if (enteredSubjects.length > 1) {
-    principalFacts.push(
-      `${strongest.subject.subject_name} led the assessed subjects at ${formatPercentage(strongest.percentage)}.`,
-    );
+  const principalFacts = [`With an overall result of ${formatPercentage(overall)}${grade ? ` (${grade})` : ''}, ${learnerName} should set a clear goal for the next assessment with the class teacher.`];
+
+  if (overall >= 80 && support.percentage >= 65) {
+    principalFacts.push('Agree on an extension learning goal, maintain a balanced study routine, and review progress at the next academic check-in.');
+  } else if (overall >= 65) {
+    principalFacts.push(`Prioritise improvement in ${support.subject.subject_name} while sustaining the stronger results; agree on a study plan with a parent or guardian and review progress with the class teacher before the next assessment.`);
+  } else if (overall >= 50) {
+    principalFacts.push(`Arrange targeted support in ${support.subject.subject_name}, agree on achievable subject goals, and ask a parent or guardian to join regular progress reviews with the class teacher.`);
+  } else {
+    principalFacts.push(`Meet with the class teacher and a parent or guardian to arrange a structured support plan, starting with ${support.subject.subject_name}; set small learning goals and review progress every two weeks.`);
   }
   if (trend) principalFacts.push(trend.principal);
-
-  if (overall >= 80) {
-    principalFacts.push('Sustain this high level of effort while continuing to strengthen every assessed subject.');
-  } else if (overall >= 65) {
-    principalFacts.push('Maintain the strongest areas and follow the class teacher’s focused subject guidance.');
-  } else if (overall >= 50) {
-    principalFacts.push('Steady, targeted practice and regular follow-up can lift the next reporting result.');
-  } else {
-    principalFacts.push('A structured academic support plan and regular follow-up are recommended for the next reporting cycle.');
-  }
 
   return {
     classTeacher: classTeacherFacts.join(' '),

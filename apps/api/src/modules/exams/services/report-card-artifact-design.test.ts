@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import PDFDocument from 'pdfkit';
 
 import { createReportCardPdfArtifact } from './report-card-pdf-artifact';
 import { hydrateReportCardLogoForRendering } from './report-card-logo-hydration';
-import { ReportCardTemplateService } from './report-card-template.service';
+import { buildPersonalizedReportCardComments, ReportCardTemplateService } from './report-card-template.service';
 
 function referencePayload() {
   return new ReportCardTemplateService().buildPayload({
@@ -114,6 +115,81 @@ test('report-card PDF remains a single A4 page with all learner rows represented
   assert.ok(artifact.byteLength > 4_000);
 });
 
+for (const examName of ['End Term 1', 'Mid Term', 'End Term 3', 'CAT 1']) {
+  test(`report-card HTML and PDF use four columns with the actual ${examName} name`, async (t) => {
+    const payload = referencePayload();
+    payload.template_fields.exam_series = examName;
+    payload.exam_series.name = examName;
+    payload.subjects.forEach((subject) => {
+      subject.assessment_components = [{
+        name: `${subject.subject_name.toUpperCase()} Main Paper`,
+        weight: 100, score: subject.score, max_score: 100,
+        percentage: subject.percentage ?? null, score_status: 'entered',
+      }];
+    });
+    const before = structuredClone(payload);
+    const html = new ReportCardTemplateService().renderHtml(payload, 'RC-2026-0001').toString('utf8');
+    const table = html.match(/<table>[\s\S]*?<\/table>/)?.[0] ?? '';
+    assert.deepEqual([...table.matchAll(/<th>(.*?)<\/th>/g)].map((match) => match[1]), [
+      'Subject', examName, 'Grade', 'Achievement Level',
+    ]);
+    assert.equal((table.match(/<tr>/g) ?? []).length, 8);
+    assert.equal((table.match(/<td>/g) ?? []).length, 28);
+    assert.doesNotMatch(table, /Main Paper|Final %/);
+    for (const subject of payload.subjects) {
+      assert.equal(table.split(`<td>${subject.subject_name}</td>`).length - 1, 1);
+      assert.ok(table.includes(`<td>${subject.subject_name}</td><td>${subject.percentage}%</td><td>${subject.grade_label}</td><td>${subject.descriptor}</td>`));
+    }
+
+    const textSpy = t.mock.method(PDFDocument.prototype, 'text');
+    const artifact = await createReportCardPdfArtifact(payload, 'RC-2026-0001');
+    const printed = textSpy.mock.calls.map((call: { arguments: unknown[] }) => String(call.arguments[0]));
+    const academicTable = printed.slice(printed.indexOf('ACADEMIC PERFORMANCE') + 1, printed.indexOf('Average: '));
+    assert.deepEqual(academicTable, [
+      'Subject', examName, 'Grade', 'Achievement Level',
+      ...payload.subjects.flatMap((subject) => [subject.subject_name, `${subject.percentage}%`, subject.grade_label, subject.descriptor]),
+    ]);
+    assert.equal((artifact.content.toString('latin1').match(/\/Type\s*\/Page\b/g) ?? []).length, 1);
+    assert.deepEqual(payload, before, 'rendering must preserve calculations, comments, analytics and all source data');
+  });
+}
+
+test('report-card generated comments give distinct, result-based next steps across performance levels', () => {
+  for (const scores of [[96, 88], [86, 63], [67, 50], [42, 20], [55, 53], [90, 89], [0], [95]]) {
+    const subjects = scores.map((score, index) => ({
+      subject_id: `subject-${index}`, subject_name: index === 0 ? 'English' : 'Mathematics',
+      score, max_score: 100, percentage: score, score_status: 'entered', grade_label: null, remarks: null,
+    }));
+    const comments = buildPersonalizedReportCardComments({
+      student: { first_name: 'Amina' }, subjects,
+      percentage: scores.reduce((total, score) => total + score, 0) / scores.length,
+      termHistory: [],
+    });
+    assert.notEqual(comments.classTeacher, comments.principal);
+    assert.notEqual(comments.classTeacher?.split('.')[0], comments.principal?.split('.')[0]);
+    assert.match(comments.classTeacher ?? '', /practise|revision timetable|extension questions|challenging questions/i);
+    assert.match(comments.principal ?? '', /goal/);
+    assert.match(comments.principal ?? '', /review/);
+    assert.match(comments.classTeacher ?? '', /English|Mathematics/);
+    assert.doesNotMatch(`${comments.classTeacher} ${comments.principal}`, /promot|conduct|behavio|discipline/i);
+  }
+});
+
+test('report-card preserves authored comments and identifies new automated guidance', () => {
+  const payload = referencePayload();
+  assert.equal(payload.template_fields.class_teacher_comment, 'Amani has shown strong academic growth and consistent effort.');
+  assert.equal(payload.template_fields.principal_comment, 'An impressive overall performance. Keep up the focus and discipline.');
+  assert.equal(payload.template_fields.class_teacher_comment_source, 'manual');
+  assert.equal(payload.template_fields.principal_comment_source, 'manual');
+
+  const generated = new ReportCardTemplateService().buildPayload({
+    student: payload.student, exam_series: payload.exam_series, subjects: payload.subjects,
+  }, payload.generated_at);
+  assert.equal(generated.template_fields.class_teacher_comment_source, 'automated_performance_v2');
+  assert.equal(generated.template_fields.principal_comment_source, 'automated_performance_v2');
+  assert.notEqual(generated.template_fields.class_teacher_comment, generated.template_fields.principal_comment);
+});
+
 test('report-card payload uses processed results and aggregates real weighted assessment components', () => {
   const payload = new ReportCardTemplateService().buildPayload({
     school: { name: 'Tenant School' },
@@ -159,6 +235,11 @@ test('report-card payload uses processed results and aggregates real weighted as
   assert.equal(payload.totals.mean_score, 81.25);
   assert.equal(payload.totals.overall_grade, 'A-');
   assert.equal(payload.totals.class_position, '3 of 40');
+  const html = new ReportCardTemplateService().renderHtml(payload, 'RC-WEIGHTED').toString('utf8');
+  const table = html.match(/<table>[\s\S]*?<\/table>/)?.[0] ?? '';
+  assert.equal(table.split('<td>Mathematics</td>').length - 1, 1);
+  assert.ok(table.includes('<td>Mathematics</td><td>87%</td><td>A-</td><td>Exceeding Expectations</td>'));
+  assert.doesNotMatch(table, /CAT|End-term exam|Final %/);
 });
 
 test('report-card renderer embeds only the current tenant uploaded school logo', async () => {

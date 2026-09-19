@@ -70,7 +70,7 @@ export class ReportCardGenerationService {
     const payload = this.templateService.buildPayload(data, generatedAt);
     this.assertReportCardGradeBoundaries(payload);
     const gradingPolicy = asRecord(data.grading_policy);
-    const templateVersion = 1;
+    const templateVersion = 2;
     const generationSourceVersion = createHash('sha256')
       .update(JSON.stringify({ templateVersion, data }))
       .digest('hex');

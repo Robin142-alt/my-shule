@@ -155,15 +155,7 @@ function StudentInformation({ report }: { report: ReportCardDocumentData }) {
 
 function MarksTable({ report }: { report: ReportCardDocumentData }) {
   const legacy = report.curriculum.reportCardType === "LEGACY_844_KCSE";
-  const hasCat = report.marksSupplement.some((row) => Boolean(row.catScore));
-  const hasExam = report.marksSupplement.some((row) => Boolean(row.examScore));
-  const assessmentNames = [...new Set(report.marksSupplement.flatMap((row) => (
-    row.assessmentComponents?.map((component) => component.name).filter(Boolean) ?? []
-  )))];
-  const hasAssessment = !hasCat && !hasExam && !assessmentNames.length && report.marksSupplement.some((row) => Boolean(row.assessmentComponent));
-  const hasScore = hasAssessment && report.marksSupplement.some((row) => Boolean(row.score));
-  const hasGrade = report.marksSupplement.some((row) => Boolean(row.grade));
-  const hasAchievement = report.marksSupplement.some((row) => Boolean(row.achievementLevel ?? row.teacherComment));
+  const examName = report.academic.reportingPeriod.trim() || "Assessment";
   return (
     <>
       <p className="sr-only">{legacy ? "Legacy Subject Results" : "Marks-Based Assessment Supplement"}</p>
@@ -171,34 +163,22 @@ function MarksTable({ report }: { report: ReportCardDocumentData }) {
         <thead>
           <tr className="bg-[#eef5fb] text-[#08265f]">
             <th className="border border-slate-200 px-2 py-1 text-left">Subject</th>
-            {hasCat ? <th className="border border-slate-200 px-1 py-1">CAT %</th> : null}
-            {hasExam ? <th className="border border-slate-200 px-1 py-1">Exam %</th> : null}
-            {assessmentNames.map((name) => <th key={name} className="border border-slate-200 px-1 py-1">{name} %</th>)}
-            {hasAssessment ? <th className="border border-slate-200 px-1 py-1">Assessment</th> : null}
-            {hasScore ? <th className="border border-slate-200 px-1 py-1">Score</th> : null}
-            <th className="border border-slate-200 px-1 py-1">Final %</th>
-            {hasGrade ? <th className="border border-slate-200 px-1 py-1">Grade</th> : null}
-            {hasAchievement ? <th className="border border-slate-200 px-2 py-1">Achievement Level</th> : null}
+            <th className="border border-slate-200 px-1 py-1">{examName}</th>
+            <th className="border border-slate-200 px-1 py-1">Grade</th>
+            <th className="border border-slate-200 px-2 py-1">Achievement Level</th>
           </tr>
         </thead>
         <tbody>
           {report.marksSupplement.length ? report.marksSupplement.map((row, index) => {
-            const finalScore = row.finalScore ?? row.percentage;
-            const components = new Map(row.assessmentComponents?.map((component) => [component.name, component]) ?? []);
+            const result = row.finalScore ?? row.percentage;
+            const scorePercentage = result ? numeric(result) : percentage(row);
+            const displayScore = scorePercentage === null ? result ?? row.score : `${scorePercentage}%`;
             return (
               <tr key={`${row.subjectName}-${index}`} className="even:bg-slate-50/60">
                 <td className="border border-slate-200 px-2 py-[3px] font-semibold">{row.subjectName}</td>
-                {hasCat ? <td className="border border-slate-200 px-1 py-[3px] text-center">{row.catScore}</td> : null}
-                {hasExam ? <td className="border border-slate-200 px-1 py-[3px] text-center">{row.examScore}</td> : null}
-                {assessmentNames.map((name) => {
-                  const component = components.get(name);
-                  return <td key={name} className="border border-slate-200 px-1 py-[3px] text-center">{component?.percentage ?? component?.status ?? component?.score}</td>;
-                })}
-                {hasAssessment ? <td className="border border-slate-200 px-1 py-[3px] text-center">{row.assessmentComponent}</td> : null}
-                {hasScore ? <td className="border border-slate-200 px-1 py-[3px] text-center">{row.score}</td> : null}
-                <td className="border border-slate-200 px-1 py-[3px] text-center font-bold">{finalScore}</td>
-                {hasGrade ? <td className="border border-slate-200 px-1 py-[3px] text-center font-black text-[#08265f]">{row.grade}</td> : null}
-                {hasAchievement ? <td className="border border-slate-200 px-2 py-[3px] text-center">{row.achievementLevel ?? row.teacherComment}</td> : null}
+                <td className="border border-slate-200 px-1 py-[3px] text-center font-bold">{displayScore}</td>
+                <td className="border border-slate-200 px-1 py-[3px] text-center font-black text-[#08265f]">{row.grade}</td>
+                <td className="border border-slate-200 px-2 py-[3px] text-center">{row.achievementLevel ?? row.teacherComment}</td>
               </tr>
             );
           }) : null}
