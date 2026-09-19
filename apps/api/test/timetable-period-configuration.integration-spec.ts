@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
+import { PrismaService } from '../src/database/prisma.service';
+import { HrSchemaService } from '../src/modules/hr/hr-schema.service';
 import { TimetableSchemaService } from '../src/modules/timetable/timetable-schema.service';
 import { TimetableWorkflowRepository } from '../src/modules/timetable/repositories/timetable-workflow.repository';
 
@@ -28,11 +30,22 @@ describe('School day configuration persistence', () => {
     pool = new Pool({ connectionString: url.toString() });
     await new TimetableSchemaService({ runSchemaBootstrap: async (sql: string) => pool.query(sql) } as never).onModuleInit();
     await pool.query(`CREATE TABLE academic_years (id uuid, tenant_id text, name text, status text, archived_at timestamptz);
-      CREATE TABLE academic_terms (id uuid, tenant_id text, academic_year_id uuid, name text, status text, archived_at timestamptz);`);
+      CREATE TABLE academic_terms (id uuid, tenant_id text, academic_year_id uuid, name text, status text, archived_at timestamptz,
+        starts_on date, ends_on date);
+      CREATE TABLE class_sections (id text, tenant_id text, academic_year_id uuid, name text,
+        is_active boolean DEFAULT TRUE, status text DEFAULT 'active', archived_at timestamptz);
+      CREATE TABLE class_streams (id text, tenant_id text, class_section_id text, name text,
+        is_active boolean DEFAULT TRUE, status text DEFAULT 'active', archived_at timestamptz);
+      CREATE TABLE subjects (id text, tenant_id text, name text);`);
+    let hrSchema = '';
+    await new HrSchemaService({ runSchemaBootstrap: async (sql: string) => { hrSchema += sql; } } as never).onModuleInit();
+    const staffTable = hrSchema.match(/CREATE TABLE IF NOT EXISTS staff_profiles \([\s\S]*?\n      \);/)?.[0];
+    if (!staffTable) throw new Error('The canonical HR staff table was not found');
+    await pool.query(staffTable);
     for (const tenant of ['school-a', 'school-b']) {
       const year = randomUUID();
       await pool.query(`INSERT INTO academic_years VALUES ($1, $2, '2026', 'active', NULL)`, [year, tenant]);
-      await pool.query(`INSERT INTO academic_terms VALUES ($1, $2, $3, 'Term 1', 'active', NULL)`, [randomUUID(), tenant, year]);
+      await pool.query(`INSERT INTO academic_terms VALUES ($1, $2, $3, 'Term 1', 'active', NULL, '2026-01-01', '2026-12-31')`, [randomUUID(), tenant, year]);
     }
     repository = new TimetableWorkflowRepository({
       query: (sql: string, values: unknown[]) => pool.query(sql, values),
@@ -78,6 +91,74 @@ describe('School day configuration persistence', () => {
     expect(updated.row_version).toBe(2);
     expect(updated.days[0].periods[0].period_type).toBe('tea');
     expect((await pool.query('SELECT period_id::text FROM timetable_teacher_availability')).rows).toEqual([{ period_id: input.days[0].periods[1].id }]);
+  });
+
+  it('saves periods, requirements and availability with the production Prisma adapter, HR schema and restricted role', async () => {
+    await pool.query(`CREATE ROLE timetable_period_test_writer NOLOGIN NOSUPERUSER;
+      GRANT USAGE ON SCHEMA public TO timetable_period_test_writer;
+      GRANT SELECT ON academic_years, academic_terms, class_sections, class_streams, subjects, staff_profiles
+        TO timetable_period_test_writer;
+      GRANT SELECT, INSERT, UPDATE, DELETE ON timetable_configurations, timetable_days,
+        timetable_period_definitions, timetable_common_blocks, timetable_versions, timetable_audit_logs,
+        timetable_subject_requirements, timetable_teacher_availability, timetable_unscheduled_requirements,
+        timetable_resources, timetable_slots, timetable_relief_assignments
+        TO timetable_period_test_writer;`);
+    const prisma = new PrismaService(undefined as never, {
+      getRuntimeRoleName: () => 'timetable_period_test_writer',
+    } as never);
+    try {
+      const productionRepository = new TimetableWorkflowRepository(prisma);
+      const input = makeInput();
+      input.days.push({ ...structuredClone(input.days[0]), day_of_week: 2, name: 'Tuesday',
+        periods: input.days[0].periods.map((period) => ({ ...period, id: randomUUID() })),
+      });
+      const saved = await productionRepository.saveConfiguration(input);
+      expect(saved.days).toHaveLength(2);
+      expect(saved.period_types).toEqual(types);
+      expect(saved.row_version).toBe(1);
+      input.days[0].periods[1].ends_at = '09:15';
+      const updated = await productionRepository.saveConfiguration({ ...input, expected_row_version: 1 });
+      expect(updated.row_version).toBe(2);
+      expect(updated.days[0].periods[1].ends_at).toBe('09:15');
+      expect(updated.days[1].periods[1].ends_at).toBe('09:00');
+      expect(await productionRepository.getConfiguration('school-b', '2026', 'Term 1')).toBeNull();
+      expect((await pool.query('SELECT count(*)::int AS count FROM timetable_audit_logs')).rows[0].count).toBe(2);
+
+      expect(await productionRepository.listRequirements('school-a', '2026', 'Term 1')).toEqual([]);
+      expect(await productionRepository.listAvailability('school-a', '2026', 'Term 1')).toEqual([]);
+      for (const tenant of ['school-a', 'school-b']) {
+        await pool.query(`INSERT INTO staff_profiles (tenant_id, user_id, display_name, staff_number, status)
+          VALUES ($1, $2, $3, 'T-001', 'active')`, [tenant, actor, tenant === 'school-a' ? 'Assigned Teacher' : 'Other School Teacher']);
+        await pool.query(`INSERT INTO class_sections (id, tenant_id, academic_year_id, name)
+          SELECT 'class-1', tenant_id, id, 'Form 1' FROM academic_years WHERE tenant_id=$1`, [tenant]);
+        await pool.query(`INSERT INTO subjects VALUES ('math', $1, 'Mathematics')`, [tenant]);
+        const requirements = await productionRepository.saveRequirements({
+          tenant_id: tenant, academic_year: '2026', term_name: 'Term 1', actor_user_id: actor,
+          requirements: [{ class_section_id: 'class-1', subject_id: 'math', teacher_id: actor, periods_per_week: 5 }],
+        });
+        expect(requirements).toHaveLength(1);
+        expect(requirements[0].teacher_name).toBe(tenant === 'school-a' ? 'Assigned Teacher' : 'Other School Teacher');
+      }
+      const availability = await productionRepository.saveAvailability({
+        tenant_id: 'school-a', academic_year: '2026', term_name: 'Term 1', actor_user_id: actor,
+        items: [{ teacher_id: actor, day_of_week: 1, period_id: input.days[0].periods[0].id, state: 'unavailable' }],
+      });
+      expect(availability).toHaveLength(1);
+      expect(availability[0]).toMatchObject({ teacher_name: 'Assigned Teacher', state: 'unavailable' });
+      expect(await productionRepository.listAvailability('school-b', '2026', 'Term 1')).toEqual([]);
+      expect(await productionRepository.listUnscheduled('school-a', '2026', 'Term 1')).toEqual([]);
+      expect(await productionRepository.getReliefAffected('school-a', actor, '2026-01-05')).toMatchObject({
+        absent_teacher: { teacher_name: 'Assigned Teacher' }, lessons: [],
+      });
+      await pool.query("UPDATE staff_profiles SET display_name='' WHERE tenant_id='school-a'");
+      expect((await productionRepository.listAvailability('school-a', '2026', 'Term 1'))[0].teacher_name).toBe('T-001');
+      expect((await pool.query('SELECT action FROM timetable_audit_logs ORDER BY action')).rows.map((row) => row.action))
+        .toEqual(['timetable.availability.updated', 'timetable.configuration.updated', 'timetable.configuration.updated',
+          'timetable.requirements.updated', 'timetable.requirements.updated']);
+    } finally {
+      await prisma.$disconnect();
+      await pool.query('DROP OWNED BY timetable_period_test_writer; DROP ROLE timetable_period_test_writer');
+    }
   });
 
   it('keeps schools separate and rolls back attempts to reuse another school period ID', async () => {
