@@ -95,7 +95,10 @@ export class OutboxDispatcherService implements OnModuleInit, OnModuleDestroy {
           started_at: new Date().toISOString(),
         },
         async () =>
-          this.prisma.withRequestTransaction(async (tx) =>
+          // app.claim_outbox_events is deliberately worker-only. Do not enter
+          // the request runtime role here: it is explicitly denied EXECUTE on
+          // that SECURITY DEFINER function.
+          this.prisma.$transaction(async (tx) =>
             this.outboxEventsRepository.lockPendingBatch(
               Number(this.configService.get<number>('events.dispatcherBatchSize') ?? 100),
               Number(this.configService.get<number>('events.staleProcessingAfterMs') ?? 30000),
