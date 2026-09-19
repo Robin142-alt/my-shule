@@ -11,6 +11,7 @@ import { ReportCardTemplateService } from './services/report-card-template.servi
 import { EventsModule } from '../events/events.module';
 import { AnalyticsReportController } from './analytics/analytics-report.controller';
 import { AnalyticsReportService } from './analytics/analytics-report.service';
+import { ReportCardExportService } from './services/report-card-export.service';
 
 @Module({
   imports: [EventsModule],
@@ -23,6 +24,7 @@ import { AnalyticsReportService } from './analytics/analytics-report.service';
     ExamsRepository,
     ReportCardGenerationService,
     ReportCardTemplateService,
+    ReportCardExportService,
   ],
   exports: [ExamsService, ExamsRepository, ReportCardGenerationService],
 })

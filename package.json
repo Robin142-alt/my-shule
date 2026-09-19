@@ -26,6 +26,7 @@
   "scripts": {
     "prisma:generate": "prisma generate",
     "build": "npm run prisma:generate && tsc -p tsconfig.json",
+    "test:report-card-scopes": "npm run build && node --test dist/apps/api/src/modules/exams/report-card-scope.test.js dist/apps/api/src/modules/exams/services/report-card-bulk-pdf.test.js dist/apps/api/src/modules/exams/services/report-card-export.test.js && node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/report-card-scope.integration-spec.ts && npm --prefix apps/web run test:design -- --runTestsByPath tests/design/report-card-scopes.test.tsx tests/design/live-report-card-actions.test.tsx tests/design/report-card-generation-readiness.test.tsx tests/design/principal-report-card-release.test.tsx",
     "start": "node dist/apps/api/src/main.js",
     "start:prod": "node dist/apps/api/src/main.js",
     "start:dev": "ts-node -r tsconfig-paths/register apps/api/src/main.ts",

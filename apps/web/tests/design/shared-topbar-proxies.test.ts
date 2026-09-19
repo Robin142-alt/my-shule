@@ -19,13 +19,13 @@ describe("shared topbar session proxies", () => {
   });
 
   it.each([
-    [getNotifications, { params: { path: [] } }, "/v1/notifications"],
-    [mutateNotification, { params: { path: ["notice-1", "read"] } }, "/v1/notifications"],
-    [getTasks, { params: { path: [] } }, "/tasks"],
-    [mutateTask, { params: { path: ["task-1", "complete"] } }, "/tasks"],
-    [getApprovals, { params: { path: [] } }, "/approvals"],
-    [mutateApproval, { params: { path: ["approval-1", "approve"] } }, "/approvals"],
-    [getDashboard, { params: { path: ["feed"] } }, "/dashboard"],
+    [getNotifications, { params: Promise.resolve({ path: [] }) }, "/v1/notifications"],
+    [mutateNotification, { params: Promise.resolve({ path: ["notice-1", "read"] }) }, "/v1/notifications"],
+    [getTasks, { params: Promise.resolve({ path: [] }) }, "/tasks"],
+    [mutateTask, { params: Promise.resolve({ path: ["task-1", "complete"] }) }, "/tasks"],
+    [getApprovals, { params: Promise.resolve({ path: [] }) }, "/approvals"],
+    [mutateApproval, { params: Promise.resolve({ path: ["approval-1", "approve"] }) }, "/approvals"],
+    [getDashboard, { params: Promise.resolve({ path: ["feed"] }) }, "/dashboard"],
   ])("routes through the governed school-session proxy to %s", async (handler, context, prefix) => {
     await handler(request, context);
     expect(mockProxySchoolApiRequest).toHaveBeenCalledWith(request, context, prefix);

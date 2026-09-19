@@ -59,12 +59,12 @@ describe("academic policy builders", () => {
     expect(validateAcademicGradeBands(structuredValue(container, "rules"))).toBeNull();
     expect(screen.queryByRole("button", { name: /starter/i })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "CBC", exact: true }));
+    await user.click(screen.getByRole("button", { name: "CBC" }));
     expect(bandTable(container)).toEqual(expectedCbcBands);
     expect(validateAcademicGradeBands(structuredValue(container, "rules"))).toBeNull();
     expect(screen.getByText("8 grade bands cover every mark from 0 to 100.")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "8-4-4", exact: true }));
+    await user.click(screen.getByRole("button", { name: "8-4-4" }));
     expect(bandTable(container)).toEqual(expectedSecondaryBands);
     expect(screen.getByText("12 grade bands cover every mark from 0 to 100.")).toBeInTheDocument();
   });
@@ -93,7 +93,7 @@ describe("academic policy builders", () => {
     await user.click(screen.getByRole("button", { name: "Remove EE1 revised" }));
     expect(validateAcademicGradeBands(structuredValue(container, "rules"))).toContain("cover every mark");
 
-    await user.click(screen.getByRole("button", { name: "CBC", exact: true }));
+    await user.click(screen.getByRole("button", { name: "CBC" }));
     expect(bandTable(container)).toEqual(expectedCbcBands);
     expect(screen.getAllByLabelText("Pass")[0]).toBeChecked();
   });

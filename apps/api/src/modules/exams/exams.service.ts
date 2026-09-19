@@ -1,3 +1,4 @@
+import type { ReportCardScopeQuery } from './report-card-scope';
 import { requiresPublishedExamAnalytics } from './analytics/analytics-scope';
 import {
   BadRequestException,
@@ -1579,11 +1580,13 @@ export class ExamsService {
     });
   }
 
-  listReportCardGenerationScopes() {
+  listReportCardGenerationScopes(query: Record<string, string | undefined> = {}) {
     if (!this.isExamsOfficer()) {
       throw new ForbiddenException('Exam approval permission is required to generate report cards');
     }
-    return this.repository.listReportCardGenerationScopes({ tenant_id: this.requireTenantId() });
+    return this.repository.listReportCardGenerationScopes({ tenant_id: this.requireTenantId(),
+      exam_series_id: this.optionalText(query.exam_series_id), class_section_id: this.optionalText(query.class_section_id),
+      stream_name: this.optionalText(query.stream_name) });
   }
 
   async generateReportCardBatch(dto: GenerateReportCardBatchDto) {
@@ -1634,165 +1637,76 @@ export class ExamsService {
     });
   }
 
+  assertReportCardScopeAccess() {
+    if (!this.hasPermission('exams:read')) {
+      throw new ForbiddenException('Report cards require exams:read permission');
+    }
+    const role = this.currentRole();
+    if (!this.isExamWorkflowAdmin() && !EXAMS_MANAGER_ROLES.has(role)
+      && !DEAN_APPROVAL_ROLES.has(role) && !PRINCIPAL_RELEASE_ROLES.has(role)) {
+      throw new ForbiddenException('School-wide report cards require Exams Manager, Dean or Principal access');
+    }
+    return this.requireTenantId();
+  }
+
   listScopedReportCards(query: Record<string, string | undefined> = {}) {
-    this.assertExamWorkflowParticipant();
-    const tenantId = this.requireTenantId();
-    const statuses = query.status?.split(',').map((s) => s.trim()).filter(Boolean);
-    const studentIds = query.student_ids?.split(',').map((s) => s.trim()).filter(Boolean);
-    return this.repository.listScopedReportCards({
-      tenant_id: tenantId,
-      exam_series_id: this.optionalText(query.exam_series_id),
-      class_section_id: this.optionalText(query.class_section_id),
-      stream_id: this.optionalText(query.stream_id),
-      student_ids: studentIds?.length ? studentIds : undefined,
-      status_in: statuses?.length ? statuses : undefined,
-      limit: this.parsePageLimit(query.limit, 50, 200),
-      offset: this.parsePageOffset(query.offset),
-    });
+    const tenantId = this.assertReportCardScopeAccess();
+    return this.repository.listScopedReportCards({ ...query, tenant_id: tenantId,
+      status_in: query.status?.split(',').map(status => status.trim()).filter(Boolean),
+      search: this.optionalText(query.search),
+      limit: this.parsePageLimit(query.limit, 50, 200), offset: this.parsePageOffset(query.offset) });
   }
 
-  async getReportCardScopeSummary(query: Record<string, string | undefined> = {}) {
-    this.assertExamWorkflowParticipant();
-    const tenantId = this.requireTenantId();
-    const studentIds = query.student_ids?.split(',').map((s) => s.trim()).filter(Boolean);
-    return this.repository.getReportCardScopeSummary({
-      tenant_id: tenantId,
-      exam_series_id: this.optionalText(query.exam_series_id),
-      class_section_id: this.optionalText(query.class_section_id),
-      stream_id: this.optionalText(query.stream_id),
-      student_ids: studentIds?.length ? studentIds : undefined,
-      target_action: this.optionalText(query.target_action),
-    });
+  getReportCardScopeSummary(query: Record<string, string | undefined> = {}) {
+    const tenantId = this.assertReportCardScopeAccess();
+    const action = query.target_action ?? query.action ?? 'submit';
+    if (action !== 'export') this.assertReportCardTransitionAllowed(action);
+    return this.repository.getReportCardScopeSummary({ ...query, tenant_id: tenantId, target_action: action });
   }
 
-  async getReportCardScopeHierarchy(query: Record<string, string | undefined> = {}) {
-    this.assertExamWorkflowParticipant();
-    return this.repository.getReportCardScopeHierarchy({
-      tenant_id: this.requireTenantId(),
-      exam_series_id: this.optionalText(query.exam_series_id),
-    });
+  getReportCardScopeHierarchy(query: Record<string, string | undefined> = {}) {
+    return this.repository.getReportCardScopeHierarchy({ tenant_id: this.assertReportCardScopeAccess(),
+      exam_series_id: this.optionalText(query.exam_series_id) });
   }
 
-  async bulkTransitionReportCards(dto: {
-    action: string;
-    reason?: string;
-    exam_series_id?: string;
-    class_section_id?: string;
-    stream_id?: string;
-    student_ids?: string[];
-    report_card_ids?: string[];
-  }) {
+  async bulkTransitionReportCards(dto: ReportCardScopeQuery & { action: string; reason?: string; preview_token?: string }) {
     const action = dto.action;
+    if (!REPORT_CARD_TRANSITION_ACTIONS.has(action)) throw new BadRequestException('Unsupported report-card transition');
     this.assertReportCardTransitionAllowed(action);
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
     const actorRole = this.currentRole();
-
     if ((action === 'recall' || action === 'unpublish') && !dto.reason?.trim()) {
-      throw new BadRequestException(
-        `A ${action === 'recall' ? 'correction' : 'withdrawal'} reason is required for bulk ${action}`,
-      );
+      throw new BadRequestException('A correction or withdrawal reason is required');
     }
-
-    const result = await this.repository.bulkTransitionReportCards({
-      tenant_id: tenantId,
-      actor_user_id: actorUserId,
-      actor_role: actorRole,
-      action,
-      reason: dto.reason?.trim() || undefined,
-      exam_series_id: dto.exam_series_id?.trim() || undefined,
-      class_section_id: dto.class_section_id?.trim() || undefined,
-      stream_id: dto.stream_id?.trim() || undefined,
-      student_ids: dto.student_ids?.filter(Boolean),
-      report_card_ids: dto.report_card_ids?.filter(Boolean),
+    if (!dto.preview_token) throw new BadRequestException('Preview the affected report cards before confirming');
+    const result = await this.repository.bulkTransitionReportCards({ ...dto, tenant_id: tenantId,
+      actor_user_id: actorUserId, actor_role: actorRole, reason: dto.reason?.trim() }, async (card, tx) => {
+      await this.schoolEvents?.recordSchoolOperation({ event: {
+        id: `report-card-transition-${card.id}-${card.workflow_version}`,
+        type: `report_card.${action === 'unpublish' ? 'withdrawn' : action === 'submit' ? 'submitted' : action === 'approve' ? 'approved' : action === 'recall' ? 'recalled' : 'published'}`,
+        module: 'exams', actorRole, title: `Report card ${action}`, body: `Report card moved to ${card.status}.`,
+        entityId: card.id, payload: { report_card_id: card.id, student_id: card.student_id,
+          exam_series_id: card.exam_series_id, status: card.status, workflow_version: card.workflow_version,
+          reason: dto.reason ?? null },
+      }, notifications: this.reportCardTransitionNotifications({ action, tenant_id: tenantId,
+        report_card_id: card.id, exam_series_id: card.exam_series_id, student_id: card.student_id }) }, tx);
+      if (action === 'publish' && this.eventPublisher) {
+        await this.eventPublisher.publish({ event_key: `report.card.published:${card.id}:${card.workflow_version}`,
+          event_name: 'report.card.published', aggregate_type: 'report_card', aggregate_id: card.id,
+          payload: { tenant_id: tenantId, report_id: card.id, student_id: card.student_id,
+            exam_id: card.exam_series_id, published_by_user_id: actorUserId } }, tx);
+      }
     });
-
-    if (result.updated_count === 0 && result.eligible_count === 0) {
-      throw new ConflictException(
-        `No report cards in the selected scope are eligible for ${action}`,
-      );
-    }
-
-    if (this.schoolEvents && result.updated_count > 0) {
-      try {
-        await this.schoolEvents.recordSchoolOperation({
-          event: {
-            id: `bulk-report-card-${action}-${Date.now()}`,
-            type: `report_card.bulk_${action}`,
-            module: 'exams',
-            actorRole,
-            title: `Bulk report card ${action}`,
-            body: `${result.updated_count} report card(s) ${action === 'submit' ? 'submitted' : action === 'approve' ? 'approved' : action === 'recall' ? 'recalled' : action === 'publish' ? 'published' : 'withdrawn'}.`,
-            severity: action === 'unpublish' || action === 'recall' ? 'warning' : 'info',
-            payload: {
-              action,
-              updated_count: result.updated_count,
-              total_in_scope: result.total_in_scope,
-              reason: dto.reason ?? null,
-            },
-          },
-          notifications: [],
-        });
-      } catch (error) {
-        this.logger.error(
-          `Bulk report card ${action} notification failed`,
-          error instanceof Error ? error.stack : String(error),
-        );
-      }
-    }
-
-    if (action === 'publish' && this.eventPublisher && result.updated.length > 0) {
-      for (const card of result.updated) {
-        try {
-          await this.eventPublisher.publishReportCardPublished({
-            tenant_id: tenantId,
-            report_id: card.id,
-            student_id: card.student_id,
-            exam_id: card.exam_series_id,
-            published_by_user_id: actorUserId,
-          });
-        } catch (error) {
-          this.logger.error(
-            `Report card ${card.id} publication event failed during bulk publish`,
-            error instanceof Error ? error.stack : String(error),
-          );
-        }
-      }
-    }
-
-    return {
-      success: true,
-      action,
-      message: `${result.updated_count} report card(s) ${action === 'submit' ? 'submitted' : action === 'approve' ? 'approved' : action === 'recall' ? 'recalled' : action === 'publish' ? 'published' : 'withdrawn'}`,
-      updated_count: result.updated_count,
-      eligible_count: result.eligible_count,
-      total_in_scope: result.total_in_scope,
-      skipped_count: result.skipped_count,
-      updated: result.updated,
-    };
+    return { success: result.failed_count === 0, action, total_in_scope: result.total_in_scope,
+      transitioned: result.updated_count, eligible: result.eligible_count, skipped: result.skipped_count,
+      failed: result.failed_count, skipped_cards: result.skipped_cards, failed_cards: result.failed_cards,
+      cards: result.updated.map(card => ({ id: card.id, student_name: card.student_name,
+        previous_status: card.previous_status, new_status: card.status })) };
   }
 
   async bulkDownloadReportCards(query: Record<string, string | undefined> = {}) {
-    this.assertExamWorkflowParticipant();
-    const tenantId = this.requireTenantId();
-    const studentIds = query.student_ids?.split(',').map((s) => s.trim()).filter(Boolean);
-    const reportCardIds = query.report_card_ids?.split(',').map((s) => s.trim()).filter(Boolean);
-
-    const cards = await this.repository.listReportCardIdsForBulkDownload({
-      tenant_id: tenantId,
-      exam_series_id: this.optionalText(query.exam_series_id),
-      class_section_id: this.optionalText(query.class_section_id),
-      stream_id: this.optionalText(query.stream_id),
-      student_ids: studentIds?.length ? studentIds : undefined,
-      report_card_ids: reportCardIds?.length ? reportCardIds : undefined,
-      limit: this.parsePageLimit(query.limit, 500, 500),
-    });
-
-    if (!cards.length) {
-      throw new NotFoundException('No report cards found in the selected scope for download');
-    }
-
-    return cards;
+    return this.repository.resolveReportCardScope({ ...query, tenant_id: this.assertReportCardScopeAccess(), target_action: 'export' });
   }
 
   listGuardianReportCards(query: Record<string, string | undefined> = {}) {
@@ -2473,6 +2387,7 @@ export class ExamsService {
 
     const markEntryWindow = await this.repository.findOpenMarkEntryWindow({
       tenant_id: tenantId,
+      teacher_user_id: actorUserId,
       exam_series_id: dto.exam_series_id,
       academic_term_id: dto.academic_term_id,
       class_section_id: dto.class_section_id,

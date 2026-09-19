@@ -1,4 +1,10 @@
 import { createHash } from 'node:crypto';
+import { createWriteStream } from 'node:fs';
+import { mkdtemp, unlink, rmdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pipeline } from 'node:stream/promises';
+import { setImmediate as yieldToEventLoop, setTimeout as waitForWriter } from 'node:timers/promises';
 import PDFDocument from 'pdfkit';
 import { normalizeReportGeneratedAt, type ReportArtifact } from '../../../common/reports/report-artifact';
 import {
@@ -41,6 +47,39 @@ export const createPdfReportArtifact = createReportCardPdfArtifact;
 export interface BulkReportCardEntry {
   payload: ReportCardPayload;
   verificationCode: string;
+}
+
+// Disk spooling bounds memory and lets generation fail before any PDF bytes are sent.
+// The caller streams the completed file and removes it when the response closes.
+export async function createBulkReportCardPdfFile(entries: AsyncIterable<BulkReportCardEntry>) {
+  const directory = await mkdtemp(join(tmpdir(), 'myshule-report-cards-'));
+  const path = join(directory, 'report-cards.pdf');
+  const cleanup = async () => { await unlink(path).catch(() => undefined); await rmdir(directory).catch(() => undefined); };
+  const document = new PDFDocument({ autoFirstPage: false, bufferPages: false, compress: true, margin: 0, size: 'A4' });
+  const written = pipeline(document, createWriteStream(path, { flags: 'wx', mode: 0o600 }));
+  // Attach immediately: disk errors must not become unhandled rejections during rendering.
+  void written.catch(() => undefined);
+  let count = 0;
+  try {
+    for await (const entry of entries) {
+      if (document.destroyed) throw new Error('Report PDF output stream closed');
+      document.addPage({ size: 'A4', margin: 0 });
+      renderReportCardPageContent(document, entry.payload, entry.verificationCode, normalizeReportGeneratedAt(entry.payload.generated_at));
+      count++;
+      await yieldToEventLoop();
+      while (document.readableLength > 1024 * 1024 && !document.destroyed) {
+        await waitForWriter(5);
+      }
+    }
+    document.end();
+    await written;
+    return { path, count, cleanup };
+  } catch (error) {
+    document.destroy();
+    await written.catch(() => undefined);
+    await cleanup();
+    throw error;
+  }
 }
 
 export function createBulkReportCardPdfBuffer(

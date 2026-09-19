@@ -5,6 +5,7 @@ import { ClassTeacherService } from '../src/modules/class-teacher/class-teacher.
 import { ExamsSchemaService } from '../src/modules/exams/exams-schema.service';
 import { ExamsService } from '../src/modules/exams/exams.service';
 import { ExamsRepository } from '../src/modules/exams/repositories/exams.repository';
+import { SchoolOperationalEventsService } from '../src/modules/events/school-operational-events.service';
 
 describe('Created exams reach assigned subject teachers', () => {
   let pool: Pool;
@@ -15,8 +16,11 @@ describe('Created exams reach assigned subject teachers', () => {
   const ids = Object.fromEntries(['term', 'class', 'secondClass', 'subject', 'teacher', 'otherTeacher', 'manager', 'student', 'secondStudent'].map(key => [key, randomUUID()]));
   const operations: any[] = [];
   const events: any[] = [];
+  const publishedOperations: any[] = [];
+  let rejectSchoolEvent = false;
   const submissions: any[] = [];
   const teacherContext = { tenant_id: 'school-a', user_id: ids.teacher, role: 'teacher' };
+  const managerContext = { tenant_id: 'school-a', user_id: ids.manager, role: 'exams_manager', permissions: ['exams:write'] };
   let serial = 0;
   const futureDate = (days: number) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
 
@@ -27,7 +31,8 @@ describe('Created exams reach assigned subject teachers', () => {
       || !url.pathname.slice(1).startsWith('my_shule_disposable_')) {
       throw new Error('Use the disposable local PostgreSQL integration runner.');
     }
-    pool = new Pool({ connectionString: url.toString() });
+    pool = new Pool({ connectionString: url.toString(), options: '-c search_path=teacher_visibility,public' });
+    await pool.query('CREATE SCHEMA teacher_visibility');
     let bootstrap = '';
     await new ExamsSchemaService({ runSchemaBootstrap: async (sql: string) => { bootstrap += sql; } } as never).onModuleInit();
     for (const table of ['exam_series', 'exam_assessments', 'exam_mark_entry_windows', 'exam_grade_boundaries', 'exam_marks', 'exam_mark_audit_logs', 'exam_timetable_slots', 'exam_assessment_components']) {
@@ -40,7 +45,12 @@ describe('Created exams reach assigned subject teachers', () => {
       CREATE TABLE academic_terms (id uuid PRIMARY KEY, tenant_id text);
       CREATE TABLE workflow_events (id uuid DEFAULT gen_random_uuid(), tenant_id text, source_user_id uuid, source_role text, target_roles jsonb, event_type text, entity_type text, entity_id text, title text, message text, priority text, payload jsonb);
       CREATE TABLE audit_logs (tenant_id text, actor_user_id uuid, request_id text, action text, resource_type text, resource_id uuid, metadata jsonb);
-      CREATE TABLE class_sections (id text PRIMARY KEY, tenant_id text, name text, status text DEFAULT 'active');
+      CREATE TABLE class_sections (id text PRIMARY KEY, tenant_id text, name text, status text DEFAULT 'active', curriculum_model text DEFAULT 'CBC');
+      CREATE TABLE academics_grading_systems (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text,
+        curriculum_model text, rules jsonb, is_active boolean DEFAULT TRUE, archived_at timestamptz,
+        effective_from date, effective_to date, updated_at timestamptz DEFAULT NOW(), version integer DEFAULT 1);
+      INSERT INTO academics_grading_systems(tenant_id,curriculum_model,rules) VALUES
+        ('school-a','CBC','[{"label":"EE","min":0,"max":100,"points":4}]');
       CREATE TABLE subjects (id text PRIMARY KEY, tenant_id text, name text);
       CREATE TABLE class_streams (id text, tenant_id text, class_section_id text, name text);
       CREATE TABLE teacher_subject_assignments (
@@ -83,12 +93,21 @@ describe('Created exams reach assigned subject teachers', () => {
         } finally { client.release(); }
       },
     };
-    const schoolEvents = { recordSchoolOperation: async (input: any) => { events.push(input); } };
+    const realSchoolEvents = new SchoolOperationalEventsService(
+      { requireStore: () => managerContext } as never,
+      { publish: async (input: any) => { publishedOperations.push(input); return { id: randomUUID(), event_key: input.event_key }; } } as never,
+      { upsertFromSchoolOperation: async () => undefined } as never,
+    );
+    const schoolEvents = { recordSchoolOperation: async (input: any, tx: any) => {
+      if (rejectSchoolEvent) throw new Error('Outbox unavailable');
+      if (input.event?.type === 'exam.mark_entry_opened') await realSchoolEvents.recordSchoolOperation(input, tx);
+      events.push(input);
+    } };
     repository = new ExamsRepository(prisma as never);
     exams = new ExamsService({ getStore: () => teacherContext } as never, repository, undefined, undefined, schoolEvents as never);
     teacher = new ClassTeacherService(prisma as never, { publishExamSubmitted: async (event: any) => { submissions.push(event); } } as never, exams);
     manager = new ExamsManagerCommandService(
-      { getStore: () => ({ tenant_id: 'school-a', user_id: ids.manager, role: 'exams_manager' }) } as never,
+      { getStore: () => managerContext } as never,
       prisma as never,
       { readSql: query, writeSql: query, requiredText: (value: string) => value,
         recordWorkflowAction: async (input: any) => { operations.push(input); } } as never,
@@ -96,7 +115,12 @@ describe('Created exams reach assigned subject teachers', () => {
     );
   });
 
-  afterAll(async () => { await pool?.end(); });
+  afterAll(async () => {
+    if (pool) {
+      await pool.query('DROP SCHEMA IF EXISTS teacher_visibility CASCADE');
+      await pool.end();
+    }
+  });
 
   async function createExam(status = 'submitted', classes = [ids.class]) {
     return manager.createExamSetup({ name: `Future exam ${++serial}`, academic_term_id: ids.term,
@@ -318,5 +342,76 @@ describe('Created exams reach assigned subject teachers', () => {
     await expect(save(window, 'draft', unassignedStudent)).rejects.toThrow();
     await save(window, 'submit');
     expect(await windowFor(created.exam.id)).toBeUndefined();
+  });
+
+  it('opens one teacher after the class deadline while other assigned teachers remain closed', async () => {
+    const created = await createExam();
+    const window = await windowFor(created.exam.id);
+    await pool.query(`INSERT INTO teacher_subject_assignments(tenant_id,class_section_id,subject_id,teacher_user_id)
+      VALUES ('school-a',$1,$2,$3)`, [ids.class,ids.subject,ids.otherTeacher]);
+    try {
+      await manager.lockMarksEntry(window.id);
+      await pool.query(`UPDATE exam_mark_entry_windows SET opens_at=NOW()-INTERVAL '3 days', closes_at=NOW()-INTERVAL '1 day' WHERE id=$1`,[window.id]);
+      const deadline = new Date(Date.now()+86400000).toISOString();
+      const opened = await manager.openMarksEntry({exam_series_id:created.exam.id,scope:'teacher',teacher_user_id:ids.teacher,closes_at:deadline});
+      expect(opened.window_count).toBe(1);
+      expect(await windowFor(created.exam.id)).toMatchObject({canEnter:true});
+      expect((await teacher.getPendingMarks('school-a',ids.otherTeacher,true)).windows.find(row=>row.examSeriesId===created.exam.id)).toMatchObject({canEnter:false});
+      expect(await repository.getMarks('school-a',{exam_series_id:created.exam.id,teacher_user_id:ids.otherTeacher})).toHaveLength(0);
+      await expect(teacher.saveMarks('school-a',ids.otherTeacher,{examId:window.id,classSectionId:ids.class,assessmentId:window.assessmentId,action:'draft',marks:{[ids.student]:{score:50,score_status:'entered'}}})).rejects.toThrow();
+      await save(window,'draft');
+      expect((await pool.query('SELECT status FROM exam_mark_entry_windows WHERE id=$1',[window.id])).rows[0].status).toBe('closed');
+      expect((await pool.query(`SELECT action FROM exam_mark_audit_logs WHERE exam_series_id=$1 AND action='mark_entry.opened'`,[created.exam.id])).rowCount).toBe(1);
+      expect(events).toEqual(expect.arrayContaining([expect.objectContaining({event:expect.objectContaining({type:'exam.mark_entry_opened'}),notifications:expect.arrayContaining([expect.objectContaining({targetUserId:ids.teacher})])})]));
+      expect(publishedOperations.at(-1).payload).toMatchObject({ target_user_ids: [ids.teacher], target_roles: [] });
+      await manager.lockMarksEntry(window.id);
+      expect(await windowFor(created.exam.id)).toMatchObject({canEnter:false});
+      expect((await pool.query('SELECT status FROM exam_marks WHERE exam_series_id=$1',[created.exam.id])).rows[0].status).toBe('draft');
+    } finally {await pool.query('DELETE FROM teacher_subject_assignments WHERE teacher_user_id=$1',[ids.otherTeacher]);}
+  });
+
+  it('opens just the chosen class, then all classes for that exam, preserving other exams and finalized marks', async () => {
+    const created=await createExam('submitted',[ids.class,ids.secondClass]);
+    const other=await createExam();
+    const windows=(await pool.query('SELECT id FROM exam_mark_entry_windows WHERE exam_series_id=ANY($1::uuid[])',[[created.exam.id,other.exam.id]])).rows;
+    for(const window of windows)await manager.lockMarksEntry(window.id);
+    const deadline=new Date(Date.now()+86400000).toISOString();
+    expect((await manager.openMarksEntry({exam_series_id:created.exam.id,scope:'class',class_section_id:ids.class,closes_at:deadline})).window_count).toBe(1);
+    expect(await windowFor(created.exam.id)).toMatchObject({canEnter:true});
+    expect(await windowFor(created.exam.id,ids.secondClass)).toMatchObject({canEnter:false});
+    const first=await windowFor(created.exam.id);await save(first,'submit');
+    await pool.query(`UPDATE exam_marks SET status='locked' WHERE exam_series_id=$1`,[created.exam.id]);
+    expect((await manager.openMarksEntry({exam_series_id:created.exam.id,scope:'everyone',closes_at:deadline})).window_count).toBe(2);
+    expect(await windowFor(created.exam.id,ids.secondClass)).toMatchObject({canEnter:true});
+    expect(await windowFor(other.exam.id)).toMatchObject({canEnter:false});
+    expect((await pool.query('SELECT status FROM exam_marks WHERE exam_series_id=$1',[created.exam.id])).rows[0].status).toBe('locked');
+    await expect(save(first)).rejects.toThrow();
+  });
+
+  it('rejects invalid deadlines, foreign assignments, locked exams and unauthorized open requests without changes', async () => {
+    const created=await createExam();const window=await windowFor(created.exam.id);await manager.lockMarksEntry(window.id);
+    const base={exam_series_id:created.exam.id,scope:'everyone' as const,closes_at:new Date(Date.now()+86400000).toISOString()};
+    await expect(manager.openMarksEntry({...base,closes_at:'2020-01-01T00:00:00Z'})).rejects.toThrow('future');
+    await expect(manager.openMarksEntry({...base,scope:'class',class_section_id:randomUUID()})).rejects.toThrow('No configured');
+    await expect(manager.openMarksEntry({...base,scope:'teacher',teacher_user_id:randomUUID()})).rejects.toThrow('No configured');
+    managerContext.role='teacher';
+    try {await expect(manager.openMarksEntry(base)).rejects.toThrow('permission');} finally {managerContext.role='exams_manager';}
+    managerContext.tenant_id='school-b';
+    try {await expect(manager.openMarksEntry(base)).rejects.toThrow('school');} finally {managerContext.tenant_id='school-a';}
+    await pool.query(`UPDATE exam_series SET status='locked',locked_at=NOW() WHERE id=$1`,[created.exam.id]);
+    await expect(manager.openMarksEntry(base)).rejects.toThrow('locked');
+    expect((await pool.query('SELECT status FROM exam_mark_entry_windows WHERE id=$1',[window.id])).rows[0].status).toBe('closed');
+    expect((await pool.query(`SELECT COUNT(*)::int AS n FROM exam_mark_audit_logs WHERE exam_series_id=$1 AND action='mark_entry.opened'`,[created.exam.id])).rows[0].n).toBe(0);
+  });
+
+  it('rolls back access and audit changes when the school event cannot be recorded', async () => {
+    const created = await createExam(); const window = await windowFor(created.exam.id);
+    await manager.lockMarksEntry(window.id);
+    rejectSchoolEvent = true;
+    try {
+      await expect(manager.openMarksEntry({ exam_series_id: created.exam.id, scope: 'everyone', closes_at: new Date(Date.now()+86400000).toISOString() })).rejects.toThrow('Outbox unavailable');
+    } finally { rejectSchoolEvent = false; }
+    expect((await pool.query('SELECT status FROM exam_mark_entry_windows WHERE id=$1', [window.id])).rows[0].status).toBe('closed');
+    expect((await pool.query(`SELECT COUNT(*)::int AS n FROM exam_mark_audit_logs WHERE exam_series_id=$1 AND action='mark_entry.opened'`, [created.exam.id])).rows[0].n).toBe(0);
   });
 });

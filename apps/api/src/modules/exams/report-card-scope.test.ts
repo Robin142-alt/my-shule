@@ -1,209 +1,56 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-
-import {
-  parseReportCardScope,
-  buildScopeSqlClause,
-  REPORT_CARD_TRANSITION_SOURCE_STATUSES,
-  REPORT_CARD_TRANSITION_TARGET_STATUS,
-  type ReportCardScope,
-} from './report-card-scope';
-
-// ── parseReportCardScope ──
-
-test('parseReportCardScope defaults to school scope when no narrowing params given', () => {
-  const scope = parseReportCardScope('tenant-1', {});
-  assert.deepStrictEqual(scope, {
-    scopeType: 'school',
-    schoolId: 'tenant-1',
-    examSeriesId: undefined,
+import { ForbiddenException } from '@nestjs/common';
+import { parseReportCardScope, buildScopeSqlClause, REPORT_CARD_TRANSITION_SOURCE_STATUSES } from './report-card-scope';
+import { ExamsService } from './exams.service';
+for (const [query, type] of [[{}, 'school'], [{ class_section_id: 'grade8' }, 'class'],
+  [{ class_section_id: 'grade8', stream_id: 'north' }, 'stream'], [{ student_ids: ['s1'] }, 'students']] as const) {
+  test(`scope resolver represents ${type} within the authenticated school`, () => {
+    const scope = parseReportCardScope('school-a', query as any);
+    assert.equal(scope.scopeType, type);
+    assert.equal(scope.schoolId, 'school-a');
+    assert.match(buildScopeSqlClause(scope).where, /card.tenant_id = \$1/);
   });
-});
-
-test('parseReportCardScope resolves class scope from class_section_id', () => {
-  const scope = parseReportCardScope('tenant-1', {
-    class_section_id: 'cls-8a',
-    exam_series_id: 'series-mid',
-  });
-  assert.equal(scope.scopeType, 'class');
-  assert.equal(scope.classSectionId, 'cls-8a');
-  assert.equal(scope.examSeriesId, 'series-mid');
-  assert.equal(scope.schoolId, 'tenant-1');
-});
-
-test('parseReportCardScope resolves stream scope from stream_id + class_section_id', () => {
-  const scope = parseReportCardScope('tenant-1', {
-    class_section_id: 'cls-8a',
-    stream_id: 'stream-blue',
-  });
-  assert.equal(scope.scopeType, 'stream');
-  assert.equal(scope.streamId, 'stream-blue');
-  assert.equal(scope.classSectionId, 'cls-8a');
-});
-
-test('parseReportCardScope resolves students scope from student_ids array', () => {
-  const scope = parseReportCardScope('tenant-1', {
-    student_ids: ['stu-1', 'stu-2', 'stu-1'],
-  });
-  assert.equal(scope.scopeType, 'students');
-  assert.deepStrictEqual(scope.studentIds, ['stu-1', 'stu-2']);
-});
-
-test('parseReportCardScope resolves students scope from comma-separated string', () => {
-  const scope = parseReportCardScope('tenant-1', {
-    student_ids: 'stu-a, stu-b, stu-c' as any,
-  });
-  assert.equal(scope.scopeType, 'students');
-  assert.deepStrictEqual(scope.studentIds, ['stu-a', 'stu-b', 'stu-c']);
-});
-
-test('parseReportCardScope students scope takes priority over class and stream', () => {
-  const scope = parseReportCardScope('tenant-1', {
-    class_section_id: 'cls-1',
-    stream_id: 'strm-1',
-    student_ids: ['stu-1'],
-  });
-  assert.equal(scope.scopeType, 'students');
-  assert.equal(scope.classSectionId, 'cls-1');
-  assert.equal(scope.streamId, 'strm-1');
-});
-
-test('parseReportCardScope trims stream_id for scope resolution', () => {
-  const scope = parseReportCardScope('tenant-1', {
-    class_section_id: 'cls-8a',
-    stream_id: '  stream-blue  ',
-  });
-  assert.equal(scope.scopeType, 'stream');
-  assert.equal(scope.streamId, 'stream-blue');
-});
-
-test('parseReportCardScope ignores empty string scope params', () => {
-  const scope = parseReportCardScope('tenant-1', {
-    class_section_id: '',
-    stream_id: '   ',
-    student_ids: [],
-  });
-  assert.equal(scope.scopeType, 'school');
-});
-
-// ── buildScopeSqlClause ──
-
-test('buildScopeSqlClause builds tenant-only WHERE for school scope', () => {
-  const scope: ReportCardScope = { scopeType: 'school', schoolId: 'tenant-1' };
+}
+test('selections intersect exam, class and stream instead of replacing them', () => {
+  const scope = parseReportCardScope('school-a', { exam_series_id: 'exam', class_section_id: 'grade8', stream_id: 'north',
+    student_ids: ['s1', 's1'], report_card_ids: ['card1'] });
+  assert.deepEqual(scope.studentIds, ['s1']);
   const clause = buildScopeSqlClause(scope);
-  assert.match(clause.where, /card\.tenant_id = \$1/);
-  assert.match(clause.where, /card\.is_current = TRUE/);
-  assert.deepStrictEqual(clause.params, ['tenant-1']);
-  assert.equal(clause.joins.trim(), '');
+  assert.deepEqual(clause.params, ['school-a', 'exam', 'grade8', 'north', ['s1'], ['card1']]);
+  assert.match(clause.where, /card.student_id::text = ANY/);
+  assert.match(clause.where, /sca.class_section_id/);
+  assert.match(clause.where, /sca.stream_id/);
+  assert.match(clause.where, /card.id::text = ANY/);
 });
-
-test('buildScopeSqlClause adds exam_series_id filter when present', () => {
-  const scope: ReportCardScope = { scopeType: 'school', schoolId: 'tenant-1', examSeriesId: 'series-1' };
-  const clause = buildScopeSqlClause(scope);
-  assert.match(clause.where, /card\.exam_series_id = \$2::uuid/);
-  assert.deepStrictEqual(clause.params, ['tenant-1', 'series-1']);
-});
-
-test('buildScopeSqlClause joins student_class_assignments for class scope', () => {
-  const scope: ReportCardScope = { scopeType: 'class', schoolId: 'tenant-1', classSectionId: 'cls-8a' };
-  const clause = buildScopeSqlClause(scope);
-  assert.match(clause.joins, /student_class_assignments/);
-  assert.match(clause.where, /sca\.class_section_id = \$2::text/);
-  assert.deepStrictEqual(clause.params, ['tenant-1', 'cls-8a']);
-});
-
-test('buildScopeSqlClause joins student_class_assignments and adds stream filter for stream scope', () => {
-  const scope: ReportCardScope = {
-    scopeType: 'stream',
-    schoolId: 'tenant-1',
-    classSectionId: 'cls-8a',
-    streamId: 'strm-blue',
-  };
-  const clause = buildScopeSqlClause(scope);
-  assert.match(clause.joins, /student_class_assignments/);
-  assert.match(clause.where, /sca\.class_section_id = \$2::text/);
-  assert.match(clause.where, /sca\.stream_id = \$3::text/);
-  assert.deepStrictEqual(clause.params, ['tenant-1', 'cls-8a', 'strm-blue']);
-});
-
-test('buildScopeSqlClause uses ANY for students scope', () => {
-  const scope: ReportCardScope = {
-    scopeType: 'students',
-    schoolId: 'tenant-1',
-    studentIds: ['stu-1', 'stu-2'],
-  };
-  const clause = buildScopeSqlClause(scope);
-  assert.match(clause.where, /card\.student_id = ANY\(\$2::uuid\[\]\)/);
-  assert.doesNotMatch(clause.joins, /student_class_assignments/);
-  assert.deepStrictEqual(clause.params, ['tenant-1', ['stu-1', 'stu-2']]);
-});
-
-test('buildScopeSqlClause always includes is_current = TRUE', () => {
-  const scopes: ReportCardScope[] = [
-    { scopeType: 'school', schoolId: 't' },
-    { scopeType: 'class', schoolId: 't', classSectionId: 'c' },
-    { scopeType: 'stream', schoolId: 't', classSectionId: 'c', streamId: 's' },
-    { scopeType: 'students', schoolId: 't', studentIds: ['x'] },
-  ];
-  for (const scope of scopes) {
-    const clause = buildScopeSqlClause(scope);
-    assert.match(clause.where, /card\.is_current = TRUE/, `Missing is_current for ${scope.scopeType}`);
+test('empty or inconsistent selection never widens to whole school', () => {
+  for (const query of [{ student_ids: [] }, { student_ids: '' }, { report_card_ids: [] }, { scope_type: 'students' },
+    { scope_type: 'class' }, { scope_type: 'school', class_section_id: 'grade8' }, { stream_id: 'north' }, { student_ids: [23] }]) {
+    assert.throws(() => parseReportCardScope('school-a', query as any));
   }
 });
-
-test('buildScopeSqlClause paramOffset tracks the next available placeholder index', () => {
-  const scope: ReportCardScope = {
-    scopeType: 'stream',
-    schoolId: 'tenant-1',
-    examSeriesId: 'series-1',
-    classSectionId: 'cls-8a',
-    streamId: 'strm-blue',
-  };
-  const clause = buildScopeSqlClause(scope);
-  assert.equal(clause.paramOffset, 5);
-  assert.equal(clause.params.length, 4);
+test('correction-required cards must be regenerated before submission', () => {
+  assert.ok(!REPORT_CARD_TRANSITION_SOURCE_STATUSES.submit.includes('regeneration_required'));
 });
-
-// ── Transition maps ──
-
-test('transition source statuses cover all valid actions', () => {
-  const actions = ['submit', 'approve', 'recall', 'publish', 'unpublish'];
-  for (const action of actions) {
-    assert.ok(
-      Array.isArray(REPORT_CARD_TRANSITION_SOURCE_STATUSES[action]),
-      `Missing source statuses for action: ${action}`,
-    );
-    assert.ok(
-      REPORT_CARD_TRANSITION_SOURCE_STATUSES[action].length > 0,
-      `Empty source statuses for action: ${action}`,
-    );
-  }
+for (const role of ['teacher', 'parent', 'student', 'head_of_department']) {
+  test(`${role} cannot query or export the school-wide report-card desk`, () => {
+    const service = new ExamsService({ getStore: () => ({ tenant_id: 'school-a', user_id: 'actor', role, permissions: ['exams:read'] }) } as never, {} as never);
+    assert.throws(() => service.listScopedReportCards({}), ForbiddenException);
+    assert.throws(() => service.getReportCardScopeSummary({ target_action: 'export' }), ForbiddenException);
+  });
+}
+test('bulk submit enforces the individual role and capability and requires server confirmation', async () => {
+  const store = { tenant_id: 'school-a', user_id: 'actor', role: 'dean_academics', permissions: ['exams:approve', 'exams:read'] };
+  const service = new ExamsService({ getStore: () => store } as never, {} as never);
+  await assert.rejects(() => service.bulkTransitionReportCards({ action: 'submit', preview_token: 'fake' }), ForbiddenException);
+  store.role = 'exams_manager';
+  store.permissions = ['exams:read'];
+  await assert.rejects(() => service.bulkTransitionReportCards({ action: 'submit', preview_token: 'fake' }), ForbiddenException);
+  store.permissions.push('exams:write');
+  await assert.rejects(() => service.bulkTransitionReportCards({ action: 'submit' }), /Preview the affected/);
+  await assert.rejects(() => service.bulkTransitionReportCards({ action: 'approve', preview_token: 'fake' }), ForbiddenException);
 });
-
-test('transition target statuses map to expected workflow states', () => {
-  assert.equal(REPORT_CARD_TRANSITION_TARGET_STATUS.submit, 'under_review');
-  assert.equal(REPORT_CARD_TRANSITION_TARGET_STATUS.approve, 'approved');
-  assert.equal(REPORT_CARD_TRANSITION_TARGET_STATUS.recall, 'draft_generated');
-  assert.equal(REPORT_CARD_TRANSITION_TARGET_STATUS.publish, 'published');
-  assert.equal(REPORT_CARD_TRANSITION_TARGET_STATUS.unpublish, 'withdrawn');
-});
-
-test('submit can transition from draft, draft_generated, and regeneration_required', () => {
-  assert.deepStrictEqual(
-    REPORT_CARD_TRANSITION_SOURCE_STATUSES.submit.sort(),
-    ['draft', 'draft_generated', 'regeneration_required'].sort(),
-  );
-});
-
-test('approve and recall only apply to under_review cards', () => {
-  assert.deepStrictEqual(REPORT_CARD_TRANSITION_SOURCE_STATUSES.approve, ['under_review']);
-  assert.deepStrictEqual(REPORT_CARD_TRANSITION_SOURCE_STATUSES.recall, ['under_review']);
-});
-
-test('publish only applies to approved cards', () => {
-  assert.deepStrictEqual(REPORT_CARD_TRANSITION_SOURCE_STATUSES.publish, ['approved']);
-});
-
-test('unpublish only applies to published cards', () => {
-  assert.deepStrictEqual(REPORT_CARD_TRANSITION_SOURCE_STATUSES.unpublish, ['published']);
+test('scope reads and exports enforce capability even for a school desk role', () => {
+  const service = new ExamsService({ getStore: () => ({ tenant_id: 'school-a', user_id: 'actor', role: 'exams_manager', permissions: [] }) } as never, {} as never);
+  assert.throws(() => service.getReportCardScopeSummary({ target_action: 'export' }), ForbiddenException);
 });

@@ -374,6 +374,14 @@ export class GenerateReportCardBatchDto {
 
 export class BulkReportCardTransitionDto {
   @IsString()
+  @MaxLength(64)
+  preview_token!: string;
+
+  @IsOptional()
+  @IsIn(['school', 'class', 'stream', 'students'])
+  scope_type?: string;
+
+  @IsString()
   @IsIn(['submit', 'approve', 'recall', 'publish', 'unpublish'])
   action!: 'submit' | 'approve' | 'recall' | 'publish' | 'unpublish';
 

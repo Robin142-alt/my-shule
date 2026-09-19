@@ -51,7 +51,7 @@ jobs:
         run: npm --prefix apps/web run test:design -- academic-intelligence head-of-subject exams-workspace teacher-exams-marks-workspace dean-review-workflow dean-hod-command-center-contract
 
       - name: Report-card class generation and recovery interface
-        run: npm --prefix apps/web run test:design -- report-card-generation-readiness live-report-card-actions
+        run: npm --prefix apps/web run test:design -- report-card-generation-readiness live-report-card-actions report-card-scopes exams-manager-entry-controls
 
       - name: Exam setup configuration and deletion controls
         run: npm --prefix apps/web run test:design -- exam-setup-edit-delete exams-manager-human-workflows exams-manager-routing
@@ -83,6 +83,14 @@ jobs:
 
       - name: Academic analytics print authorization and pagination
         run: node --test dist/apps/api/src/modules/exams/analytics/analytics-report.test.js dist/apps/api/src/auth/head-of-subject.test.js
+
+      - name: Report-card scopes, exports and workflow isolation
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: |
+          node --test dist/apps/api/src/modules/exams/report-card-scope.test.js dist/apps/api/src/modules/exams/services/report-card-bulk-pdf.test.js dist/apps/api/src/modules/exams/services/report-card-export.test.js
+          PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/report-card-scope.integration-spec.ts
 
       - name: Install isolated session test dependency
         run: sudo apt-get update && sudo apt-get install -y redis-server

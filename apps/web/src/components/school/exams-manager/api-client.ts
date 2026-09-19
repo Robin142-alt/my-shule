@@ -70,6 +70,12 @@ export async function lockMarksEntry(examId: string) {
   return requestDashboardApi(`/admin-command/exams-manager/marks-entry/${examId}/lock`, { method: 'POST' });
 }
 
+export async function openMarksEntry(data: { exam_series_id: string; scope: 'teacher' | 'class' | 'everyone';
+  teacher_user_id?: string; class_section_id?: string; closes_at: string }) {
+  return requestDashboardApi<{ success: boolean; message: string; window_count: number }>(
+    '/admin-command/exams-manager/marks-entry/open', { method: 'POST', body: data });
+}
+
 export async function approveModeration(id: string) {
   return requestDashboardApi(`/admin-command/exams-manager/moderation/${id}/approve`, { method: 'POST' });
 }

@@ -13,7 +13,7 @@ import {
   Send,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 
 import {
@@ -66,7 +66,7 @@ const audienceCopy: Record<ReportCardAudience, {
   },
 };
 
-type ScopeType = "school" | "class" | "stream";
+type ScopeType = "school" | "class" | "stream" | "students";
 
 interface ActiveScope {
   type: ScopeType;
@@ -75,6 +75,8 @@ interface ActiveScope {
   classLabel?: string;
   streamId?: string;
   streamLabel?: string;
+  studentId?: string;
+  studentLabel?: string;
 }
 
 function statusLabel(value: string) {
@@ -165,7 +167,8 @@ function reportMatches(report: LiveExamReportCard, search: string, status: strin
 }
 
 function buildScopeQueryString(scope: ActiveScope, examSeriesId?: string): string {
-  const parts: string[] = [];
+  const parts: string[] = [`scope_type=${scope.type}`];
+  if (scope.studentId) parts.push(`student_ids=${encodeURIComponent(scope.studentId)}`);
   const eid = scope.examSeriesId || examSeriesId;
   if (eid) parts.push(`exam_series_id=${encodeURIComponent(eid)}`);
   if (scope.classSectionId) parts.push(`class_section_id=${encodeURIComponent(scope.classSectionId)}`);
@@ -174,6 +177,7 @@ function buildScopeQueryString(scope: ActiveScope, examSeriesId?: string): strin
 }
 
 function scopeBreadcrumbLabel(scope: ActiveScope, schoolName: string): string {
+  if (scope.type === "students" && scope.studentLabel) return scope.studentLabel;
   if (scope.type === "stream" && scope.streamLabel) return scope.streamLabel;
   if (scope.type === "class" && scope.classLabel) return scope.classLabel;
   return schoolName;
@@ -195,24 +199,34 @@ function bulkActionLabel(action: string): string {
   return labels[action] ?? action;
 }
 
-export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAudience }) {
+export function LiveReportCardsWorkspace({ audience, handoff = false }: { audience: ReportCardAudience; handoff?: boolean }) {
   const identity = useSchoolCommandIdentity();
-  const copy = audienceCopy[audience];
+  const copy = handoff ? {
+    ...audienceCopy[audience],
+    title: "Report Card Handoff",
+    summary: "Submit ready report cards to the Dean, or recall submitted cards with a correction reason.",
+    empty: "No report cards are available in this scope. Generate working drafts from locked marks in Report Cards, then return here for handoff.",
+  } : audienceCopy[audience];
 
   // --- Scope state ---
   const [scope, setScope] = useState<ActiveScope>({ type: "school" });
+  const [page, setPage] = useState(0);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [examSeriesFilter, setExamSeriesFilter] = useState("");
   const scopeQs = buildScopeQueryString(scope, examSeriesFilter);
-  const reportPath = `/exams/report-cards/scoped?limit=200${scopeQs ? `&${scopeQs}` : ""}`;
-  const summaryPath = `/exams/report-cards/scope-summary?action=${bulkActionForAudience(audience) ?? "submit"}${scopeQs ? `&${scopeQs}` : ""}`;
+  const reportPath = `/exams/report-cards/scoped?limit=50&offset=${page * 50}&search=${encodeURIComponent(search)}${statusFilter === "all" ? "" : `&status=${statusFilter}`}&${scopeQs}`;
+  const summaryPath = `/exams/report-cards/scope-summary?target_action=${bulkActionForAudience(audience) ?? "submit"}${scopeQs ? `&${scopeQs}` : ""}`;
   const hierarchyPath = `/exams/report-cards/scope-hierarchy?${scopeQs}`;
 
   // --- Data queries ---
   const reportQuery = useSchoolQuery<LiveExamReportCard[]>(reportPath);
   const summaryQuery = useSchoolQuery<ReportCardScopeSummary>(summaryPath);
   const hierarchyQuery = useSchoolQuery<ReportCardScopeHierarchyNode[]>(hierarchyPath);
+  const seriesQuery = useSchoolQuery<Array<{ id: string; name: string }>>("/exams/series");
   const generationQuery = useSchoolQuery<LiveReportCardGenerationScope[]>(
-    audience === "exams-manager" ? "/exams/report-cards/generation-scopes" : null,
+    audience === "exams-manager" && !handoff ? `/exams/report-cards/generation-scopes${scope.classSectionId
+      ? `?${scopeQs}${scope.streamLabel ? `&stream_name=${encodeURIComponent(scope.streamLabel)}` : ""}` : ""}` : null,
     { refetchInterval: 60_000 },
   );
 
@@ -220,13 +234,14 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
   const scopeSummary = summaryQuery.data ?? null;
   const hierarchy = useMemo(() => hierarchyQuery.data ?? [], [hierarchyQuery.data]);
   const generationScopes = useMemo(() => buildGenerationScopes(generationQuery.data ?? []), [generationQuery.data]);
+  const visibleGenerationScopes = generationScopes.filter(item =>
+    (!scope.classSectionId || item.class_section_id === scope.classSectionId)
+    && (!(scope.examSeriesId || examSeriesFilter) || item.exam_series_id === (scope.examSeriesId || examSeriesFilter)));
 
   // --- Selection state ---
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedScopeKey, setSelectedScopeKey] = useState("");
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [reasonByReport, setReasonByReport] = useState<Record<string, string>>({});
   const [classTeacherComment, setClassTeacherComment] = useState("");
   const [principalComment, setPrincipalComment] = useState("");
@@ -236,7 +251,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
   const [batchStatus, setBatchStatus] = useState<LiveReportCardBatchStatus | null>(null);
   const [bulkResult, setBulkResult] = useState<BulkTransitionResult | null>(null);
   const [bulkReason, setBulkReason] = useState("");
-  const [confirmAction, setConfirmAction] = useState<{ action: string; label: string } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ action: string; label: string; params: string; summary: ReportCardScopeSummary } | null>(null);
   const selectedScope = generationScopes.find((s) => s.key === selectedScopeKey);
 
   const selectedReport = reports.find((report) => report.id === selectedReportId) ?? null;
@@ -252,8 +267,8 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
     [reports, search, statusFilter],
   );
   const statuses = useMemo(
-    () => [...new Set(reports.map((report) => report.status))].sort(),
-    [reports],
+    () => [...new Set([...Object.keys(scopeSummary?.status_counts ?? {}), ...reports.map((report) => report.status)])].sort(),
+    [reports, scopeSummary],
   );
   const counts = useMemo(() => ({
     total: scopeSummary?.total_cards ?? reports.length,
@@ -265,35 +280,40 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
 
   const examSeriesOptions = useMemo(() => {
     const seen = new Map<string, string>();
+    for (const series of seriesQuery.data ?? []) seen.set(series.id, series.name);
     for (const report of reports) {
       if (report.exam_series_id && report.exam_series_name) {
         seen.set(report.exam_series_id, report.exam_series_name);
       }
     }
     return [...seen.entries()].map(([id, name]) => ({ id, name }));
-  }, [reports]);
+  }, [reports, seriesQuery.data]);
 
   const allFilteredSelected = filteredReports.length > 0 && filteredReports.every((r) => selectedIds.has(r.id));
 
-  const toggleSelectAll = useCallback(() => {
+  function toggleSelectAll() {
     if (allFilteredSelected) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(filteredReports.map((r) => r.id)));
     }
-  }, [allFilteredSelected, filteredReports]);
+  }
 
-  const toggleSelect = useCallback((id: string) => {
+  function toggleSelect(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  }, []);
+  }
 
   // --- Scope navigation ---
   function navigateScope(next: ActiveScope) {
+    if (busyAction) return;
+    setPage(0);
+    setSelectedReportId(null);
+    setSelectedScopeKey("");
     setScope(next);
     setSelectedIds(new Set());
     setFeedback(null);
@@ -325,7 +345,9 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
 
   function navigateUp(target: ScopeType) {
     if (target === "school") {
-      navigateScope({ type: "school", examSeriesId: scope.examSeriesId });
+      navigateScope({ type: "school" });
+    } else if (target === "stream") {
+      navigateScope({ ...scope, type: "stream", studentId: undefined, studentLabel: undefined });
     } else if (target === "class") {
       navigateScope({
         type: "class",
@@ -421,7 +443,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
   }
 
   // --- Bulk transition ---
-  async function runBulkTransition(action: "submit" | "approve" | "recall" | "publish" | "unpublish") {
+  async function runBulkTransition(action: "submit" | "approve" | "recall" | "publish" | "unpublish", confirmedParams: string) {
     const reason = bulkReason.trim();
     if ((action === "recall" || action === "unpublish") && !reason) {
       setFeedback({ tone: "critical", message: `Enter a reason before bulk ${action}.` });
@@ -432,15 +454,9 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
     setFeedback(null);
     setBulkResult(null);
     try {
-      const body: Record<string, unknown> = { action };
-      if (reason) body.reason = reason;
-      if (scope.examSeriesId || examSeriesFilter) body.exam_series_id = scope.examSeriesId || examSeriesFilter;
-      if (scope.classSectionId) body.class_section_id = scope.classSectionId;
-      if (scope.streamId) body.stream_id = scope.streamId;
-
-      if (selectedIds.size > 0) {
-        body.report_card_ids = [...selectedIds];
-      }
+      const params = new URLSearchParams(confirmedParams);
+      const body: Record<string, unknown> = { ...Object.fromEntries(params), action, ...(reason ? { reason } : {}) };
+      for (const key of ["student_ids", "report_card_ids"]) if (params.has(key)) body[key] = params.get(key)!.split(",");
 
       const result = await requestSchoolApiProxy<BulkTransitionResult>(
         "/exams/report-cards/bulk-transition",
@@ -449,7 +465,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
       setBulkResult(result);
       setFeedback({
         tone: result.transitioned > 0 ? "ok" : "critical",
-        message: `${result.transitioned} of ${result.total_in_scope} report cards ${action === "submit" ? "submitted" : action === "approve" ? "approved" : action === "publish" ? "published" : action + "ed"}. ${result.skipped} skipped (ineligible status).`,
+        message: `${result.transitioned} of ${result.total_in_scope} report cards ${action === "submit" ? "submitted" : action === "approve" ? "approved" : action === "publish" ? "published" : action + "ed"}. ${result.skipped} skipped; ${result.failed} failed.`,
       });
       setSelectedIds(new Set());
       setBulkReason("");
@@ -508,7 +524,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
 
   // --- Batch generation ---
   async function generateBatch() {
-    const batchScope = generationScopes.find((candidate) => candidate.key === selectedScopeKey);
+    const batchScope = visibleGenerationScopes.find((candidate) => candidate.key === selectedScopeKey);
     if (busyAction || generationQuery.error || generationQuery.isFetching || !batchScope?.ready) {
       setFeedback({
         tone: "critical",
@@ -534,6 +550,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
           body: {
             exam_series_id: batchScope.exam_series_id,
             class_section_id: batchScope.class_section_id,
+            ...(scope.streamLabel ? { stream_name: scope.streamLabel } : {}),
             batch_size: 25,
             offset,
           },
@@ -609,7 +626,8 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
   }
 
   // --- Individual download ---
-  async function downloadReport(report: LiveExamReportCard) {
+  async function downloadReport(report: LiveExamReportCard, print = false) {
+    const printWindow = print ? window.open("", "_blank") : null;
     const actionKey = `${report.id}:download`;
     setBusyAction(actionKey);
     setFeedback(null);
@@ -625,6 +643,12 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
       const blob = await response.blob();
       if (!blob.size) throw new Error("The generated report-card PDF was empty. Regenerate it and retry.");
       const objectUrl = window.URL.createObjectURL(blob);
+      if (printWindow) {
+        printWindow.location.href = objectUrl;
+        setTimeout(() => window.URL.revokeObjectURL(objectUrl), 60_000);
+        setFeedback({ tone: "ok", message: "Official PDF opened. Use the PDF viewer's Print control." });
+        return;
+      }
       const link = document.createElement("a");
       link.href = objectUrl;
       link.download = reportCardFilename(response, report);
@@ -636,6 +660,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
       setFeedback({ tone: "ok", message });
       setRowFeedback((current) => ({ ...current, [report.id]: { tone: "ok", message } }));
     } catch (error) {
+      printWindow?.close();
       const message = error instanceof Error ? error.message : "Report-card download failed.";
       setFeedback({ tone: "critical", message });
       setRowFeedback((current) => ({ ...current, [report.id]: { tone: "critical", message } }));
@@ -644,105 +669,87 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
     }
   }
 
-  // --- Bulk PDF params ---
-  function buildBulkPdfParams(): URLSearchParams {
-    const params = new URLSearchParams();
-    const eid = scope.examSeriesId || examSeriesFilter;
-    if (eid) params.set("exam_series_id", eid);
-    if (scope.classSectionId) params.set("class_section_id", scope.classSectionId);
-    if (scope.streamId) params.set("stream_id", scope.streamId);
-    if (selectedIds.size > 0) {
+  // Confirmation captures an explicit scope or subset and fresh server counts.
+  function buildBulkParams(selectedOnly: boolean): URLSearchParams {
+    const params = new URLSearchParams(scopeQs);
+    if (selectedOnly) {
+      params.set("scope_type", "students");
       params.set("report_card_ids", [...selectedIds].join(","));
     }
     return params;
   }
 
-  // --- Bulk download ---
-  async function bulkDownload() {
-    setBusyAction("bulk:download");
+  async function requestBulkAction(action: string, label: string, selectedOnly = false) {
+    if (busyAction || (selectedOnly && !selectedIds.size)) return;
+    setBusyAction("preview");
     setFeedback(null);
     try {
-      const params = buildBulkPdfParams();
-      const response = await fetch(`/api/exams/report-cards/bulk-download-pdf?${params.toString()}`, {
-        method: "GET",
-        headers: { Accept: "application/pdf" },
-        credentials: "same-origin",
-        cache: "no-store",
-      });
-      if (!response.ok) throw new Error(await reportCardDownloadError(response));
-      const blob = await response.blob();
-      if (!blob.size) throw new Error("The bulk PDF download was empty.");
-      const objectUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = objectUrl;
-      link.download = `report-cards-${scope.type}-${Date.now()}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(objectUrl);
-      setFeedback({ tone: "ok", message: "Bulk report-card PDF downloaded." });
+      const params = buildBulkParams(selectedOnly);
+      const targetAction = action === "print" || action === "download" ? "export" : action;
+      const summary = await requestSchoolApiProxy<ReportCardScopeSummary>(
+        `/exams/report-cards/scope-summary?${params}&target_action=${targetAction}`);
+      params.set("preview_token", summary.preview_token);
+      setConfirmAction({ action, label, params: params.toString(), summary });
     } catch (error) {
-      setFeedback({
-        tone: "critical",
-        message: error instanceof Error ? error.message : "Bulk download failed.",
-      });
-    } finally {
-      setBusyAction("");
-    }
+      setFeedback({ tone: "critical", message: error instanceof Error ? error.message : "Could not calculate affected report cards. Retry." });
+    } finally { setBusyAction(""); }
   }
 
-  // --- Bulk print ---
-  async function bulkPrint() {
-    setBusyAction("bulk:print");
-    setFeedback(null);
+  async function runBulkExport(action: string, params: string, count: number) {
+    // Open synchronously from confirmation so browser popup protection cannot discard the print preview.
+    const printWindow = action === "print" ? window.open("", "_blank") : null;
+    setBusyAction(`bulk:${action}`);
     try {
-      const params = buildBulkPdfParams();
-      const response = await fetch(`/api/exams/report-cards/bulk-download-pdf?${params.toString()}`, {
-        method: "GET",
-        headers: { Accept: "application/pdf" },
-        credentials: "same-origin",
-        cache: "no-store",
+      let exportJob = await requestSchoolApiProxy<{ state: string; job_id?: string; download_url?: string; message?: string;
+        progress?: { rendered?: number } }>("/exams/report-cards/exports", {
+          method: "POST", body: Object.fromEntries(new URLSearchParams(params)),
+        });
+      const jobId = exportJob.job_id;
+      while (!exportJob.download_url) {
+        if (exportJob.state === "failed") throw new Error(exportJob.message ?? "Export failed. Preview the scope and retry.");
+        if (!jobId) throw new Error("The export queue did not return a job. Preview the scope and retry.");
+        setFeedback({ tone: "ok", message: `Report-card export ${exportJob.state}. ${exportJob.progress?.rendered ?? 0} of ${count} cards prepared.` });
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        exportJob = await requestSchoolApiProxy(`/exams/report-cards/exports/${jobId}`);
+      }
+      const response = await fetch(`/api${exportJob.download_url}`, {
+        method: "GET", headers: { Accept: "application/pdf" }, credentials: "same-origin", cache: "no-store",
       });
       if (!response.ok) throw new Error(await reportCardDownloadError(response));
       const blob = await response.blob();
-      if (!blob.size) throw new Error("The bulk PDF was empty.");
-      const objectUrl = window.URL.createObjectURL(blob);
-      const printWindow = window.open(objectUrl, "_blank");
+      if (!blob.size) throw new Error("The report-card PDF was empty. Retry the export.");
+      const url = window.URL.createObjectURL(blob);
       if (printWindow) {
-        printWindow.addEventListener("load", () => { printWindow.print(); });
+        printWindow.location.href = url;
       } else {
         const link = document.createElement("a");
-        link.href = objectUrl;
-        link.download = `report-cards-print-${Date.now()}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
+        link.href = url;
+        link.download = `report-cards-${count}.pdf`;
+        document.body.appendChild(link); link.click(); link.remove();
       }
-      setTimeout(() => window.URL.revokeObjectURL(objectUrl), 60_000);
-      setFeedback({ tone: "ok", message: selectedIds.size > 0 ? `${selectedIds.size} report-card PDF(s) opened for printing.` : "Report-card PDF opened for printing." });
+      setTimeout(() => window.URL.revokeObjectURL(url), 60_000);
+      setFeedback({ tone: "ok", message: printWindow
+        ? `${count} report cards opened in a combined PDF. Use the PDF viewer's Print control.`
+        : `${count} report cards downloaded in a combined PDF.${action === "print" ? " The popup was blocked; open the download to print." : ""}` });
     } catch (error) {
-      setFeedback({
-        tone: "critical",
-        message: error instanceof Error ? error.message : "Print preparation failed.",
-      });
-    } finally {
-      setBusyAction("");
-    }
-  }
-
-  // --- Confirmation dialog helpers ---
-  function requestBulkAction(action: string, label: string) {
-    setConfirmAction({ action, label });
+      printWindow?.close();
+      setFeedback({ tone: "critical", message: error instanceof Error ? error.message : "Report-card export failed. Retry." });
+    } finally { setBusyAction(""); }
   }
 
   function confirmAndRunBulkAction() {
-    if (!confirmAction) return;
+    if (!confirmAction || busyAction) return;
+    const confirmed = confirmAction;
     setConfirmAction(null);
-    void runBulkTransition(confirmAction.action as "submit" | "approve" | "recall" | "publish" | "unpublish");
+    if (confirmed.action === "print" || confirmed.action === "download") {
+      void runBulkExport(confirmed.action, confirmed.params, confirmed.summary.eligible_cards);
+    } else {
+      void runBulkTransition(confirmed.action as "submit" | "approve" | "recall" | "publish" | "unpublish", confirmed.params);
+    }
   }
 
-  const queryError = reportQuery.error ?? generationQuery.error;
-  const isLoading = reportQuery.isLoading || (audience === "exams-manager" && generationQuery.isLoading);
+  const queryError = reportQuery.error ?? summaryQuery.error ?? hierarchyQuery.error ?? generationQuery.error;
+  const isLoading = reportQuery.isLoading || (audience === "exams-manager" && !handoff && generationQuery.isLoading);
   const primaryAction = bulkActionForAudience(audience);
 
   return (
@@ -760,7 +767,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
       </div>
 
       {/* Scope breadcrumb navigation */}
-      <nav className="flex items-center gap-1 text-sm font-semibold text-[#071D49]" aria-label="Report card scope">
+      <nav className="flex flex-wrap items-center gap-1 text-sm font-semibold text-[#071D49]" aria-label="Report card scope">
         <button
           className={`rounded px-2 py-1 hover:bg-[#EEF2F7] ${scope.type === "school" ? "font-black text-[#1D4ED8]" : ""}`}
           onClick={() => navigateUp("school")}
@@ -778,12 +785,13 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
             </button>
           </>
         ) : null}
-        {scope.type === "stream" && scope.streamLabel ? (
+        {scope.streamLabel ? (
           <>
             <ChevronRight className="h-4 w-4 text-[#94A3B8]" />
-            <span className="font-black text-[#1D4ED8]">{scope.streamLabel}</span>
+            <button className="font-black text-[#1D4ED8]" onClick={() => navigateUp("stream")}>{scope.streamLabel}</button>
           </>
         ) : null}
+        {scope.studentLabel ? <><ChevronRight className="h-4 w-4" /><span>{scope.studentLabel}</span></> : null}
       </nav>
 
       {/* Exam series filter */}
@@ -793,8 +801,10 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
             Filter by exam
             <select
               value={examSeriesFilter}
+              disabled={Boolean(busyAction)}
               onChange={(event) => {
                 setExamSeriesFilter(event.target.value);
+                navigateScope({ type: "school" });
                 setSelectedIds(new Set());
                 setBulkResult(null);
               }}
@@ -841,6 +851,11 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
               <p className="mt-1 text-xl font-black text-amber-800">{bulkResult.skipped}</p>
             </div>
           </div>
+          {bulkResult.failed > 0 ? <p className="mt-3 font-bold text-red-700">{bulkResult.failed} failed; retry after reviewing the reasons.</p> : null}
+          {[...(bulkResult.skipped_cards ?? []), ...(bulkResult.failed_cards ?? [])].length ? <details className="mt-3">
+            <summary>Skipped and failed learners</summary><ul className="mt-2 max-h-48 overflow-auto">
+              {[...(bulkResult.skipped_cards ?? []), ...(bulkResult.failed_cards ?? [])].map(card => <li key={card.id}>{card.student_name}: {card.reason}</li>)}
+            </ul></details> : null}
           {bulkResult.cards.length > 0 ? (
             <details className="mt-3">
               <summary className="cursor-pointer font-semibold text-[#1D4ED8]">
@@ -874,7 +889,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
             className="mt-3"
             onClick={() => {
               void refreshAll();
-              if (audience === "exams-manager") void generationQuery.refetch();
+              if (audience === "exams-manager" && !handoff) void generationQuery.refetch();
             }}
           >
             <RefreshCw className="h-4 w-4" />
@@ -934,7 +949,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
       })() : null}
 
       {/* Generation panel (exams-manager only) */}
-      {audience === "exams-manager" ? (
+      {audience === "exams-manager" && !handoff && scope.type !== "students" ? (
         <div className="rounded-2xl border border-[#C8D5EA] bg-white p-5 text-[#071D49]">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="min-w-0 flex-1">
@@ -953,7 +968,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                 className="mt-2 h-11 w-full rounded-lg border border-[#C8D5EA] bg-white px-3 text-sm font-semibold outline-none focus:border-[#1D4ED8] xl:max-w-xl"
               >
                 <option value="">Select class generation scope</option>
-                {generationScopes.map((s) => (
+                {visibleGenerationScopes.map((s) => (
                   <option key={s.key} value={s.key}>
                     {s.label} - {generationQuery.error ? "Readiness unavailable" : s.ready ? "Ready" : s.guidance}
                   </option>
@@ -988,6 +1003,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
               <p className="text-sm font-semibold">
                 {selectedScope.ready_mark_count} of {selectedScope.expected_mark_count} learner-subject marks finalized for {selectedScope.learner_count} learners.
               </p>
+              {selectedScope.expected_mark_count === 0 ? <p className="text-sm">Check this class’s learner enrollments and subject assignments, then refresh readiness.</p> : null}
               {selectedScope.blockers.length > 0 ? (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
                   <p className="font-bold">Complete these subjects before generating this class:</p>
@@ -1007,7 +1023,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                   <Link className="mt-3 inline-flex min-h-11 items-center font-bold underline" href="/school/exams-manager/marks-entry">Open Marks Entry Hub</Link>
                 </div>
               ) : selectedScope.expected_mark_count === 0 ? (
-                <p className="text-sm text-amber-800">Check this class's learner enrollments and exam subjects in Academic Setup and Exam Setup before generating report cards.</p>
+                <p className="text-sm text-amber-800">Check this class&apos;s learner enrollments and exam subjects in Academic Setup and Exam Setup before generating report cards.</p>
               ) : null}
             </div>
           ) : null}
@@ -1069,7 +1085,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
       <div className="rounded-2xl border border-[#C8D5EA] bg-white p-4 text-[#071D49]">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <span className="font-black">{counts.total} report cards</span>
-          {primaryAction && counts.eligible > 0 ? (
+          {primaryAction ? (
             <span className="text-emerald-700 font-semibold">{counts.eligible} eligible for {primaryAction}</span>
           ) : null}
           {counts.total > 0 && counts.eligible < counts.total ? (
@@ -1083,18 +1099,18 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
             {primaryAction ? (
               <Button
                 size="sm"
-                onClick={() => requestBulkAction(primaryAction, `${primaryAction.charAt(0).toUpperCase()}${primaryAction.slice(1)} ${selectedIds.size} selected`)}
+                onClick={() => requestBulkAction(primaryAction, `${primaryAction.charAt(0).toUpperCase()}${primaryAction.slice(1)} Selected`, true)}
                 disabled={Boolean(busyAction)}
               >
                 <Send className="h-4 w-4" />
                 {busyAction === `bulk:${primaryAction}` ? "Processing..." : `${primaryAction.charAt(0).toUpperCase()}${primaryAction.slice(1)} Selected`}
               </Button>
             ) : null}
-            <Button variant="secondary" size="sm" onClick={() => void bulkPrint()} disabled={Boolean(busyAction)}>
+            <Button variant="secondary" size="sm" onClick={() => void requestBulkAction("print", "Print Selected", true)} disabled={Boolean(busyAction)}>
               <Printer className="h-4 w-4" />
               {busyAction === "bulk:print" ? "Preparing..." : "Print Selected"}
             </Button>
-            <Button variant="secondary" size="sm" onClick={() => void bulkDownload()} disabled={Boolean(busyAction)}>
+            <Button variant="secondary" size="sm" onClick={() => void requestBulkAction("download", "Download Selected", true)} disabled={Boolean(busyAction)}>
               <Download className="h-4 w-4" />
               {busyAction === "bulk:download" ? "Downloading..." : "Download Selected"}
             </Button>
@@ -1109,16 +1125,22 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
             <Button
               size="sm"
               onClick={() => requestBulkAction(primaryAction, bulkActionLabel(primaryAction))}
-              disabled={Boolean(busyAction) || counts.eligible === 0}
+              disabled={Boolean(busyAction) || summaryQuery.isLoading || Boolean(summaryQuery.error) || counts.eligible === 0}
             >
               <Send className="h-4 w-4" />
-              {busyAction === `bulk:${primaryAction}` ? "Processing..." : `${primaryAction.charAt(0).toUpperCase()}${primaryAction.slice(1)} all ${counts.eligible} eligible`}
+              {busyAction === `bulk:${primaryAction}` ? "Processing..." : `${primaryAction.charAt(0).toUpperCase()}${primaryAction.slice(1)} all ${counts.eligible} eligible${primaryAction === "submit" ? " to Dean" : ""}`}
             </Button>
           ) : null}
+          {handoff ? <>
+            <Button variant="secondary" size="sm" disabled={Boolean(busyAction) || !counts.review || !bulkReason.trim()}
+              onClick={() => void requestBulkAction("recall", "Recall All Under Review")}>Recall all under review</Button>
+            {selectedIds.size ? <Button variant="secondary" size="sm" disabled={Boolean(busyAction) || !bulkReason.trim()}
+              onClick={() => void requestBulkAction("recall", "Recall Selected", true)}>Recall Selected</Button> : null}
+          </> : null}
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => void bulkPrint()}
+            onClick={() => void requestBulkAction("print", "Print All")}
             disabled={Boolean(busyAction) || counts.total === 0}
           >
             <Printer className="h-4 w-4" />
@@ -1127,7 +1149,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => void bulkDownload()}
+            onClick={() => void requestBulkAction("download", "Download All")}
             disabled={Boolean(busyAction) || counts.total === 0}
           >
             <Download className="h-4 w-4" />
@@ -1137,6 +1159,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
             <input
               value={bulkReason}
               onChange={(e) => setBulkReason(e.target.value)}
+              aria-label="Reason for recall or withdrawal"
               placeholder="Reason (for recall/unpublish)"
               className="h-9 max-w-xs rounded-lg border border-[#C8D5EA] px-3 text-xs outline-none focus:border-[#1D4ED8]"
             />
@@ -1156,7 +1179,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
       {/* Confirmation dialog */}
       {confirmAction ? (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#071D49]/60 backdrop-blur-sm" onClick={() => setConfirmAction(null)}>
-          <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl text-[#071D49]" onClick={(e) => e.stopPropagation()}>
+          <div role="dialog" aria-modal="true" aria-label={confirmAction.label} className="mx-4 max-h-[90vh] overflow-y-auto w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl text-[#071D49]" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-black">{confirmAction.label}?</h3>
             <div className="mt-4 space-y-2 text-sm">
               <div className="flex items-center gap-2">
@@ -1165,28 +1188,31 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                   {identity.schoolName}
                   {scope.classLabel ? ` / ${scope.classLabel}` : ""}
                   {scope.streamLabel ? ` / ${scope.streamLabel}` : ""}
+                  {scope.studentLabel ? ` / ${scope.studentLabel}` : ""}
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-3 mt-3">
                 <div className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] px-3 py-2 text-center">
                   <p className="text-xs font-bold text-[#64748B]">Total</p>
-                  <p className="text-xl font-black">{selectedIds.size > 0 ? selectedIds.size : counts.total}</p>
+                  <p className="text-xl font-black">{confirmAction.summary.total_cards}</p>
                 </div>
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-center">
                   <p className="text-xs font-bold text-emerald-700">Eligible</p>
-                  <p className="text-xl font-black text-emerald-800">{selectedIds.size > 0 ? selectedIds.size : counts.eligible}</p>
+                  <p className="text-xl font-black text-emerald-800">{confirmAction.summary.eligible_cards}</p>
                 </div>
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-center">
                   <p className="text-xs font-bold text-amber-700">Not eligible</p>
-                  <p className="text-xl font-black text-amber-800">{selectedIds.size > 0 ? 0 : counts.total - counts.eligible}</p>
+                  <p className="text-xl font-black text-amber-800">{confirmAction.summary.ineligible_cards}</p>
                 </div>
               </div>
             </div>
+            <ul className="mt-3 max-h-40 overflow-auto text-xs">{confirmAction.summary.skipped_cards?.map(card =>
+              <li key={card.id}>{card.student_name}: {card.reason}</li>)}</ul>
             <div className="mt-5 flex items-center gap-3">
               <Button variant="secondary" onClick={() => setConfirmAction(null)}>Cancel</Button>
-              <Button onClick={confirmAndRunBulkAction}>
+              <Button disabled={!confirmAction.summary.eligible_cards || Boolean(busyAction)} onClick={confirmAndRunBulkAction}>
                 <Send className="h-4 w-4" />
-                {confirmAction.label}
+                {confirmAction.label} ({confirmAction.summary.eligible_cards})
               </Button>
             </div>
           </div>
@@ -1201,7 +1227,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
             <Search className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-[#64748B]" />
             <input
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => { setSearch(event.target.value); setPage(0); }}
               placeholder="Search learner, admission number, exam, or verification code"
               className="h-11 w-full rounded-lg border border-[#C8D5EA] pl-10 pr-3 text-sm outline-none focus:border-[#1D4ED8]"
             />
@@ -1210,7 +1236,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
             <span className="sr-only">Filter report-card status</span>
             <select
               value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
+              onChange={(event) => { setStatusFilter(event.target.value); setPage(0); }}
               className="h-11 w-full rounded-lg border border-[#C8D5EA] bg-white px-3 text-sm font-semibold outline-none focus:border-[#1D4ED8]"
             >
               <option value="all">All statuses</option>
@@ -1254,13 +1280,18 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                   <td colSpan={7} className="px-4 py-10 text-center">
                     <p className="font-black text-[#071D49]">No report cards match this view.</p>
                     <p className="mt-1 text-sm font-semibold text-[#64748B]">
-                      {reports.length ? "Clear the filters to see other report cards in this scope." : copy.empty}
+                      {search || statusFilter !== "all" || page > 0 ? "Clear the filters to see other report cards in this scope." : copy.empty}
                     </p>
+                    {search || statusFilter !== "all" || page > 0 ? (
+                      <Button variant="secondary" className="mt-3" onClick={() => { setSearch(""); setStatusFilter("all"); setPage(0); setSelectedIds(new Set()); }}>Clear filters</Button>
+                    ) : handoff ? (
+                      <Link className="mt-3 inline-flex min-h-11 items-center font-bold text-[#1D4ED8] underline" href="/school/exams-manager/report-cards">Open Report Cards</Link>
+                    ) : null}
                   </td>
                 </tr>
               ) : filteredReports.map((report) => {
                 const status = report.status.toLowerCase();
-                const reportBusy = busyAction.startsWith(`${report.id}:`);
+                const reportBusy = Boolean(busyAction);
                 const needsReason =
                   (audience === "exams-manager" && status === "under_review")
                   || (audience === "dean" && status === "under_review")
@@ -1277,7 +1308,12 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                       />
                     </td>
                     <td className="px-4 py-4">
-                      <p className="font-black">{report.student_name?.trim() || "Learner name unavailable"}</p>
+                      <button className="font-black text-left text-[#1D4ED8] hover:underline" disabled={Boolean(busyAction)} onClick={() => navigateScope({
+                        type: "students", studentId: report.student_id, studentLabel: report.student_name ?? "Learner",
+                        examSeriesId: report.exam_series_id ?? undefined, classSectionId: report.student_class_section_id ?? scope.classSectionId,
+                        classLabel: report.class_name ?? scope.classLabel, streamId: report.student_stream_id ?? scope.streamId,
+                        streamLabel: report.stream_name ?? scope.streamLabel,
+                      })}>{report.student_name?.trim() || "Learner name unavailable"}</button>
                       <p className="mt-1 text-xs font-semibold text-[#64748B]">
                         {report.admission_number?.trim() || "Admission number unavailable"}
                       </p>
@@ -1313,6 +1349,11 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                           Preview
                         </Button>
                         <Button
+                          variant="secondary" size="sm" onClick={() => void downloadReport(report, true)}
+                          disabled={reportBusy || !hasPersistedReportCardSnapshot(report)}>
+                          <Printer className="h-4 w-4" />Print
+                        </Button>
+                        <Button
                           variant="secondary"
                           size="sm"
                           onClick={() => void downloadReport(report)}
@@ -1325,7 +1366,8 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                             <Button
                               size="sm"
                               onClick={() => void runTransition(report, "submit")}
-                              disabled={reportBusy}
+                              title={report.submission_ineligible_reason ?? "Submit to Dean"}
+                              disabled={reportBusy || Boolean(report.submission_ineligible_reason)}
                             >
                               <Send className="h-4 w-4" />
                               {busyAction === `${report.id}:submit` ? "Submitting..." : "Submit"}
@@ -1425,6 +1467,12 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        <Button variant="secondary" disabled={!page || Boolean(busyAction)} onClick={() => setPage(page - 1)}>Previous page</Button>
+        <span>Page {page + 1} · {reports[0]?.filtered_total ?? reports.length} matching cards</span>
+        <Button variant="secondary" disabled={Boolean(busyAction) || (page + 1) * 50 >= (reports[0]?.filtered_total ?? reports.length)} onClick={() => setPage(page + 1)}>Next page</Button>
+        <span>Select All selects visible rows. Scope actions include every page.</span>
+      </div>
       {/* Preview modal */}
       {selectedReport && selectedDocument ? (
         <div className="fixed inset-0 z-[100] overflow-y-auto bg-[#071D49]/80 p-3 backdrop-blur-sm md:p-6">
@@ -1481,7 +1529,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
             <div className="my-3">
               <ReportCardActionBar
                 report={selectedDocument}
-                onPrint={() => window.print()}
+                onPrint={() => void downloadReport(selectedReport, true)}
                 onDownloadPdf={() => void downloadReport(selectedReport)}
               />
             </div>

@@ -6,3 +6,19 @@ export function markEntryHasStartedSql(windowAlias: string, seriesAlias: string)
   return `(${windowAlias}.opens_at <= NOW() OR ${windowAlias}.last_action = 'opened'
     OR (${seriesAlias}.status = 'submitted' AND ${windowAlias}.last_action IS NULL))`;
 }
+
+// A teacher-specific extension adds access without opening a closed class window
+// for other teachers. Assignment and immutable-result checks remain mandatory.
+export function teacherEntryDeadlineSql(window: string, teacher: string): string {
+  return `NULLIF(to_jsonb(${window})->'teacher_entry_deadlines'->>(${teacher})::text, '')::timestamptz`;
+}
+
+export function markEntryAccessSql(window: string, series: string, teacher: string): string {
+  return `((${window}.status = 'open' AND ${markEntryHasStartedSql(window, series)} AND ${window}.closes_at >= NOW())
+    OR ${teacherEntryDeadlineSql(window, teacher)} >= NOW())`;
+}
+
+export function effectiveEntryDeadlineSql(window: string, teacher: string): string {
+  return `COALESCE(GREATEST(CASE WHEN ${window}.status = 'open' THEN ${window}.closes_at END,
+    ${teacherEntryDeadlineSql(window, teacher)}), ${window}.closes_at)`;
+}

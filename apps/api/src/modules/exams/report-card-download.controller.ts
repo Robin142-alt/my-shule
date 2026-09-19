@@ -1,5 +1,11 @@
+import { randomUUID } from 'node:crypto';
+import { ReportCardExportService } from './services/report-card-export.service';
+import { createReadStream } from 'node:fs';
+import { ExamsService } from './exams.service';
 import {
   ConflictException,
+  Post,
+  Body,
   Controller,
   Get,
   NotFoundException,
@@ -9,7 +15,6 @@ import {
   Query,
   Req,
   StreamableFile,
-  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
@@ -18,13 +23,15 @@ import { DatabaseFileStorageService } from '../../common/uploads/database-file-s
 import { ExamsRepository } from './repositories/exams.repository';
 import { hydrateReportCardLogoForRendering } from './services/report-card-logo-hydration';
 import { extractPersistedReportCardPayload } from './services/report-card-template.service';
-import { createReportCardPdfArtifact, createBulkReportCardPdfBuffer, type BulkReportCardEntry } from './services/report-card-pdf-artifact';
+import { createReportCardPdfArtifact } from './services/report-card-pdf-artifact';
 
 @Controller('exams')
 @UseGuards(JwtAuthGuard)
 export class ReportCardDownloadController {
   constructor(
     private readonly examsRepository: ExamsRepository,
+    private readonly examsService: ExamsService,
+    private readonly exports: ReportCardExportService,
     @Optional() private readonly fileStorage?: DatabaseFileStorageService,
   ) {}
 
@@ -32,12 +39,8 @@ export class ReportCardDownloadController {
   @Permissions('exams:read')
   async downloadReportCard(
     @Param('reportCardId', new ParseUUIDPipe()) reportCardId: string,
-    @Req() req: any
   ) {
-    const tenantId = req.user?.tenant_id ?? req.user?.schoolId;
-    if (!tenantId) {
-      throw new UnauthorizedException('Tenant context is required for report-card downloads');
-    }
+    const tenantId = this.examsService.assertReportCardScopeAccess();
 
     const result = await this.examsRepository.executeSql(
       `SELECT * FROM student_report_cards WHERE tenant_id = $1 AND id = $2::uuid`,
@@ -78,68 +81,27 @@ export class ReportCardDownloadController {
     @Query() query: Record<string, string | undefined>,
     @Req() req: any,
   ) {
-    const tenantId = req.user?.tenant_id ?? req.user?.schoolId;
-    if (!tenantId) {
-      throw new UnauthorizedException('Tenant context is required for report-card downloads');
-    }
+    const artifact = await this.exports.generate(query, undefined, () => req.aborted);
+    try {
+      await this.exports.recordExport(artifact.cardIds, artifact.scope, artifact.count, randomUUID());
+      const stream = createReadStream(artifact.path);
+      stream.once('close', () => { void artifact.cleanup(); });
+      return new StreamableFile(stream, { type: 'application/pdf', disposition: 'attachment; filename="report-cards.pdf"' });
+    } catch(error) { await artifact.cleanup(); throw error; }
+  }
 
-    const studentIds = query.student_ids?.split(',').map(s => s.trim()).filter(Boolean);
-    const reportCardIds = query.report_card_ids?.split(',').map(s => s.trim()).filter(Boolean);
+  @Post('report-cards/exports')
+  @Permissions('exams:read')
+  prepareExport(@Body() query: Record<string,string|undefined>) { return this.exports.prepare(query); }
 
-    const cards = await this.examsRepository.listReportCardIdsForBulkDownload({
-      tenant_id: tenantId,
-      exam_series_id: query.exam_series_id?.trim() || undefined,
-      class_section_id: query.class_section_id?.trim() || undefined,
-      stream_id: query.stream_id?.trim() || undefined,
-      student_ids: studentIds?.length ? studentIds : undefined,
-      report_card_ids: reportCardIds?.length ? reportCardIds : undefined,
-      limit: Math.min(Number(query.limit) || 200, 500),
-    });
+  @Get('report-cards/exports/:jobId')
+  @Permissions('exams:read')
+  exportStatus(@Param('jobId') jobId: string) { return this.exports.status(jobId); }
 
-    if (!cards.length) {
-      throw new NotFoundException('No report cards found in the selected scope for download');
-    }
-
-    const entries: BulkReportCardEntry[] = [];
-    let schoolLogoPayload: Awaited<ReturnType<typeof hydrateReportCardLogoForRendering>> | null = null;
-
-    for (const card of cards) {
-      const payload = extractPersistedReportCardPayload(card.metadata);
-      const verificationCode = String(card.verification_code ?? '').trim();
-      if (!payload || !verificationCode) continue;
-
-      if (!schoolLogoPayload) {
-        schoolLogoPayload = await hydrateReportCardLogoForRendering(
-          payload, tenantId, this.fileStorage,
-          { includePrincipalSignature: card.status === 'published' },
-        );
-      }
-
-      const renderPayload: typeof payload = {
-        ...payload,
-        template_fields: {
-          ...payload.template_fields,
-          school_logo_ref: schoolLogoPayload.template_fields.school_logo_ref,
-          principal_signature_ref: card.status === 'published'
-            ? payload.template_fields.principal_signature_ref
-            : null,
-        },
-      };
-      entries.push({ payload: renderPayload, verificationCode });
-    }
-
-    if (!entries.length) {
-      throw new ConflictException(
-        'None of the selected report cards have valid generated snapshots. Regenerate them before downloading.',
-      );
-    }
-
-    const pdfBuffer = await createBulkReportCardPdfBuffer(entries);
-    const filename = `report-cards-bulk-${entries.length}-${Date.now()}.pdf`;
-
-    return new StreamableFile(pdfBuffer, {
-      type: 'application/pdf',
-      disposition: `attachment; filename="${filename}"`,
-    });
+  @Get('report-cards/exports/:jobId/download')
+  @Permissions('exams:read')
+  async downloadExport(@Param('jobId') jobId: string) {
+    const result = await this.exports.download(jobId);
+    return new StreamableFile(result.stream, { type: 'application/pdf', disposition: 'attachment; filename="report-cards.pdf"' });
   }
 }

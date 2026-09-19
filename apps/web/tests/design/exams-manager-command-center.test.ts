@@ -46,8 +46,7 @@ describe("Exams manager command center", () => {
 
   it("hands report cards to the dean without granting publication authority", () => {
     expect(source).toContain("Report Card Handoff");
-    expect(handoffSource).toMatch(/only the Principal can publish approved results/);
-    expect(handoffSource).toMatch(/Submit to Dean/);
+    expect(handoffSource).toMatch(/<LiveReportCardsWorkspace audience="exams-manager" handoff/);
     expect(handoffSource).not.toMatch(/Publish to parents|Unpublish report cards/);
   });
 });

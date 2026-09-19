@@ -272,6 +272,8 @@ export async function proxySchoolApiRequest(
   const contentType = request.headers.get("content-type");
   const acceptHeader = request.headers.get("accept") ?? "application/json";
   const wantsEventStream = acceptHeader.toLowerCase().includes(EVENT_STREAM_CONTENT_TYPE);
+  const wantsReportCardPdf = upstreamPath.startsWith("/exams/report-cards/")
+    && acceptHeader.toLowerCase().includes("application/pdf");
   const upstreamUrl = `${baseUrl}${upstreamPath}${query ? `?${query}` : ""}`;
   const sendUpstream = (token: string) =>
     fetch(upstreamUrl, {
@@ -287,7 +289,7 @@ export async function proxySchoolApiRequest(
       cache: "no-store",
     });
 
-  if (wantsEventStream) {
+  if (wantsEventStream || wantsReportCardPdf) {
     const {
       response: upstreamResponse,
       refreshedSession,
@@ -323,7 +325,9 @@ export async function proxySchoolApiRequest(
       status: upstreamResponse.status,
       headers: {
         "cache-control": "no-store, no-transform",
-        "content-type": upstreamResponse.headers.get("content-type") ?? EVENT_STREAM_CONTENT_TYPE,
+        "content-type": upstreamResponse.headers.get("content-type") ?? (wantsReportCardPdf ? "application/pdf" : EVENT_STREAM_CONTENT_TYPE),
+        ...(upstreamResponse.headers.get("content-disposition")
+          ? { "content-disposition": upstreamResponse.headers.get("content-disposition")! } : {}),
         "x-accel-buffering": "no",
       },
     });

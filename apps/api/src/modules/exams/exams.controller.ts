@@ -216,8 +216,8 @@ export class ExamsController {
 
   @Get('report-cards/generation-scopes')
   @Permissions('exams:read')
-  listReportCardGenerationScopes() {
-    return this.examsService.listReportCardGenerationScopes();
+  listReportCardGenerationScopes(@Query() query: Record<string, string | undefined>) {
+    return this.examsService.listReportCardGenerationScopes(query);
   }
 
   @Post('report-cards/batches')

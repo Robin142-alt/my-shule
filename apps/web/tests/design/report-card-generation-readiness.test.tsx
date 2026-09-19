@@ -23,7 +23,9 @@ function queries(scopes: LiveReportCardGenerationScope[], overrides = {}) {
   const generation = { data: scopes, error: null, isLoading: false, isFetching: false,
     refetch: jest.fn().mockResolvedValue({ data: scopes }), ...overrides };
   const reports = { data: [], error: null, isLoading: false, refetch: jest.fn().mockResolvedValue({ data: [] }) };
-  (useSchoolQuery as jest.Mock).mockImplementation((path: string | null) => path === '/exams/report-cards/generation-scopes' ? generation : reports);
+  const other = { ...reports, refetch: jest.fn().mockResolvedValue({ data: [] }) };
+  (useSchoolQuery as jest.Mock).mockImplementation((path: string | null) => path?.startsWith('/exams/report-cards/generation-scopes')
+    ? generation : path?.startsWith('/exams/report-cards/scoped?') ? reports : other);
   return { generation, reports };
 }
 

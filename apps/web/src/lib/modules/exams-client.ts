@@ -26,6 +26,12 @@ export interface LiveExamMarkSheet {
 }
 
 export interface LiveExamReportCard {
+  class_name?: string | null;
+  stream_name?: string | null;
+  student_class_section_id?: string | null;
+  student_stream_id?: string | null;
+  submission_ineligible_reason?: string | null;
+  filtered_total?: number;
   id: string;
   exam_series_id?: string | null;
   exam_series_name?: string | null;
@@ -101,6 +107,8 @@ export interface LiveReportCardBatchStatus {
 }
 
 export interface ReportCardScopeSummary {
+  preview_token: string;
+  skipped_cards: Array<{ id: string; student_name: string; reason: string }>;
   total_cards: number;
   eligible_cards: number;
   ineligible_cards: number;
@@ -119,6 +127,9 @@ export interface ReportCardScopeHierarchyNode {
 }
 
 export interface BulkTransitionResult {
+  failed: number;
+  skipped_cards: Array<{ id: string; student_name: string; reason: string }>;
+  failed_cards: Array<{ id: string; student_name: string; reason: string }>;
   action: string;
   total_in_scope: number;
   transitioned: number;

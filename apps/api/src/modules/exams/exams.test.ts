@@ -2413,10 +2413,12 @@ test('ExamsRepository transitions report cards with tenant scope, workflow evide
   assert.deepEqual(calls[0]!.params, [
     'tenant-a',
     '00000000-0000-0000-0000-000000000411',
-    '00000000-0000-0000-0000-000000000412',
+    ['00000000-0000-0000-0000-000000000412'],
     'approve',
     'dean_academics',
     'Academic review completed',
+    null,
+    'tenant-a',
   ]);
 });
 

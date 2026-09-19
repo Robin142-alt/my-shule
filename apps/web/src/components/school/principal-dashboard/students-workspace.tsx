@@ -23,13 +23,13 @@ type PrincipalStudentsData = {
   recentAdmissions: Array<{ id: string; name: string; class: string; gender: string; admission_date: string }>;
 };
 
-export function PrincipalStudentsWorkspace() {
+export function PrincipalStudentsWorkspace({ routeMode = "public" }: { routeMode?: "public" | "hosted" }) {
   useStudentEvents();
   const router = useRouter();
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalStudentsData>('/admin-command/principal/students');
   const eventBus = useDashboardEventBus();
   const { hasPermission } = usePermissions();
-  const openAdmissionsWorkspace = () => router.push(buildSchoolSectionHref("admissions", "admissions", "public"));
+  const openAdmissionsWorkspace = () => router.push(buildSchoolSectionHref("admissions", "admissions", routeMode));
 
   if (isLoading) {
     return (

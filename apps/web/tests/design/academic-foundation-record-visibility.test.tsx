@@ -76,7 +76,7 @@ describe("academic foundation saved-record visibility", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: preset, exact: true }));
+    await user.click(screen.getByRole("button", { name: preset }));
     await user.type(screen.getByLabelText("Policy name"), preset);
     const remark = screen.getAllByLabelText("Report remark")[0];
     await user.clear(remark);

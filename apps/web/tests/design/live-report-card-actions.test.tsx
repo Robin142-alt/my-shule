@@ -70,7 +70,7 @@ function installQueries(reports: LiveExamReportCard[]) {
   const markSheetRefetch = jest.fn().mockResolvedValue({ data: [] });
 
   mockUseSchoolQuery.mockImplementation((path: string | null) => {
-    if (path === "/exams/report-cards?limit=50") {
+    if (path?.startsWith("/exams/report-cards/scoped?")) {
       return {
         data: reports,
         error: null,
