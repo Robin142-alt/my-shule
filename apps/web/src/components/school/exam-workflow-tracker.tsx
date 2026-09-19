@@ -105,7 +105,8 @@ export function ExamWorkflowTracker({
   compact?: boolean;
 }) {
   const { data, error, isLoading, isFetching, refetch } = useSchoolQuery<ExamWorkflowData>(endpoint);
-  const items = data?.series ?? [];
+  const series = data?.series ?? [];
+  const items = series.filter((item) => item.stage !== "released");
 
   return (
     <section className={`space-y-4 border border-[#C8D5EA] bg-white p-4 text-[#071D49] sm:p-5 ${compact ? "rounded-lg" : "rounded-2xl shadow-[0_12px_35px_rgba(7,29,73,0.08)]"}`}>
@@ -151,8 +152,12 @@ export function ExamWorkflowTracker({
 
       {!isLoading && !error && items.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[#C8D5EA] bg-[#F8FAFC] px-4 py-8 text-center">
-          <p className="font-black">No exam cycle is configured yet.</p>
-          <p className="mt-1 text-sm font-semibold text-[#64748B]">The Exams Manager creates the cycle and opens mark-entry windows; it will then appear for every authorized role.</p>
+          <p className="font-black">{series.length > 0 ? "No active exam workflows." : "No exam cycle is configured yet."}</p>
+          <p className="mt-1 text-sm font-semibold text-[#64748B]">
+            {series.length > 0
+              ? "All exam cycles have been published. The Exams Manager can create the next cycle when ready."
+              : "The Exams Manager creates the cycle and opens mark-entry windows; it will then appear for every authorized role."}
+          </p>
         </div>
       ) : null}
 

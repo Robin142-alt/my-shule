@@ -1,13 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle2, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
-import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { isSchoolQueryForPath, useSchoolQuery } from "@/lib/data/school-hooks";
+import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
 import { ExamWorkflowTracker } from "../exam-workflow-tracker";
 import { useVerifiedPrincipalDashboardApi } from "./verified-tenant-api";
 
@@ -59,6 +61,8 @@ function toDateLabel(value: string) {
 }
 
 export function PrincipalExamsReportsWorkspace() {
+  const queryClient = useQueryClient();
+  const tenantId = useOptionalSchoolTenantId();
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalExamsData>("/admin-command/principal/exams");
   const {
     data: academicYears,
@@ -166,7 +170,12 @@ export function PrincipalExamsReportsWorkspace() {
     try {
       await requestPrincipalApi(`/admin-command/principal/exams-report-cards/${series.id}/publish`, { method: "POST" });
       toast.success(`${series.title} report cards published.`);
-      await refetch();
+      await Promise.all([
+        refetch(),
+        queryClient.invalidateQueries({
+          predicate: (query) => isSchoolQueryForPath(query.queryKey, tenantId, "/exams/workflow"),
+        }),
+      ]);
     } catch (publishError) {
       toast.error(publishError instanceof Error ? publishError.message : "The report cards could not be published.");
     } finally {
