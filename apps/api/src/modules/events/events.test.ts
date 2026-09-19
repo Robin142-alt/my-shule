@@ -381,7 +381,10 @@ test('OutboxDispatcherService waits for event schema bootstrap before polling ou
       run: async (_context: unknown, callback: () => Promise<unknown>) => callback(),
     } as never,
     {
-      withRequestTransaction: async (callback: (tx: unknown) => Promise<unknown>) => callback(transaction),
+      $transaction: async (callback: (tx: unknown) => Promise<unknown>) => callback(transaction),
+      withRequestTransaction: async () => {
+        throw new Error('Outbox worker must not assume the restricted runtime role');
+      },
     } as never,
     {
       isDegraded: () => false,
